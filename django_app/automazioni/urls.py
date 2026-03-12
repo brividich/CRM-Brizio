@@ -7,6 +7,12 @@ urlpatterns = [
     path("sorgenti/", views.sorgenti_page, name="automazioni_sorgenti"),
     path("contenuti/", views.contenuti_page, name="automazioni_contenuti"),
     path("regole/", views.rule_list_page, name="automazioni_rule_list"),
+    path("regole/importa-package/", views.rule_package_import_page, name="automazioni_rule_import_package"),
+    path(
+        "regole/importa-package/risultato/",
+        views.rule_package_import_result_page,
+        name="automazioni_rule_import_result",
+    ),
     path("regole/nuova/", views.rule_create_page, name="automazioni_rule_create"),
     path("regole/nuova/designer/", views.rule_designer_create_page, name="automazioni_rule_designer_create"),
     path("regole/<int:rule_id>/", views.rule_detail_page, name="automazioni_rule_detail"),

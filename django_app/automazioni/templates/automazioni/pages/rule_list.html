@@ -31,6 +31,7 @@
 {% block content %}
   {% url 'admin_portale:automazioni_rule_create' as rule_create_url %}
   {% url 'admin_portale:automazioni_rule_designer_create' as rule_designer_create_url %}
+  {% url 'admin_portale:automazioni_rule_import_package' as rule_import_package_url %}
   {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Regole" page_subtitle="Builder finale SSR per creare, pubblicare, disattivare e testare le regole." page_action_label="Nuova regola" page_action_url=rule_create_url page_secondary_action_label="Nuovo designer" page_secondary_action_url=rule_designer_create_url %}
   {% include "admin_portale/components/flash_messages.html" %}
   {% include "automazioni/components/subnav.html" %}
@@ -82,6 +83,7 @@
             <button class="btn" type="submit">Filtra</button>
             <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_list' %}">Reset filtri</a>
             <a class="btn" href="{% url 'admin_portale:automazioni_rule_create' %}">Nuova regola</a>
+            <a class="btn" href="{{ rule_import_package_url }}">Importa Package</a>
           </div>
         </form>
       </div>

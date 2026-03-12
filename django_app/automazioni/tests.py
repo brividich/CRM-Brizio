@@ -8,11 +8,14 @@ from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.db import IntegrityError
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
+
+from tasks.models import Task
 
 from .models import (
     AutomationAction,
@@ -41,6 +44,8 @@ from .services import (
     run_rule,
     safe_get_payload_value,
 )
+from . import package_importer
+from .package_importer import analyze_package_dict, build_example_payload, import_analyzed_package
 from .source_registry import (
     AUTOMAZIONI_ACL_ACTIONS,
     build_placeholder_examples,
@@ -116,6 +121,13 @@ class SourceRegistryFieldFilterTests(SimpleTestCase):
         )
         self.assertIn("{capo_email}", build_placeholder_examples("assenze"))
         self.assertEqual(build_placeholder_examples("missing"), [])
+
+    def test_package_import_example_payload_uses_realistic_email_and_assenze_values(self):
+        payload = build_example_payload("assenze")
+
+        self.assertEqual(payload["capo_email"], "demo@example.com")
+        self.assertEqual(payload["tipo_assenza"], "Malattia")
+        self.assertEqual(payload["moderation_status"], 0)
 
 
 @override_settings(
@@ -1053,6 +1065,385 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertContains(response, "tipo_assenza")
         self.assertContains(response, "Action exploded")
         self.assertContains(response, "Trace line 1")
+
+
+@override_settings(
+    LEGACY_AUTH_ENABLED=False,
+    NAVIGATION_REGISTRY_ENABLED=False,
+    NAVIGATION_LEGACY_FALLBACK_ENABLED=False,
+    SECURE_SSL_REDIRECT=False,
+)
+class AutomationPackageImportTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="package-import-admin",
+            email="package-import@test.local",
+            password="pass12345",
+        )
+        self.client.force_login(self.user)
+        self.legacy_admin = SimpleNamespace(id=7, ruolo_id=1, nome="Admin Import Package")
+        self.get_legacy_user_patcher = patch("admin_portale.decorators.get_legacy_user", return_value=self.legacy_admin)
+        self.is_legacy_admin_patcher = patch("admin_portale.decorators.is_legacy_admin", return_value=True)
+        self.get_legacy_user_patcher.start()
+        self.is_legacy_admin_patcher.start()
+        self.addCleanup(self.get_legacy_user_patcher.stop)
+        self.addCleanup(self.is_legacy_admin_patcher.stop)
+
+    def _base_package(self, *, rules=None, mapping=None):
+        return {
+            "package_version": "2026.03",
+            "input": {"flow_name": "Task Import Flow"},
+            "source_candidate": {"source_code": "tasks", "label": "Tasks"},
+            "compatibility": {"compatible": True, "status": "ok"},
+            "issues": [],
+            "target_context": {"module": "automazioni", "source": "tasks"},
+            "approved_field_mapping": mapping
+            or {
+                "Task ID": "id",
+                "Task Title": "title",
+                "Task Status": "status",
+                "Assigned To": "assigned_to_id",
+                "Project": "project_id",
+                "Due Date": "due_date",
+            },
+            "proposed_rules": rules
+            or [
+                {
+                    "code": "pa-task-log",
+                    "name": "Task log importata",
+                    "description": "Regola da package esterno",
+                    "source_code": "tasks",
+                    "operation_type": "update",
+                    "trigger_scope": "specific_field",
+                    "watched_field": "Task Status",
+                    "is_active": False,
+                    "is_draft": True,
+                    "stop_on_first_failure": True,
+                    "conditions": [
+                        {
+                            "field": "Task Status",
+                            "operator": "equals",
+                            "value": "DONE",
+                            "value_type": "string",
+                        }
+                    ],
+                    "actions": [
+                        {
+                            "action_type": "write_log",
+                            "description": "Scrive log",
+                            "message_template": "Task {title} -> {status}",
+                        }
+                    ],
+                }
+            ],
+        }
+
+    def _upload_package(self, package, *, filename="tasks.automation_package.json", follow=False):
+        content = json.dumps(package).encode("utf-8")
+        upload = SimpleUploadedFile(filename, content, content_type="application/json")
+        return self.client.post(
+            reverse("admin_portale:automazioni_rule_import_package"),
+            {"action": "analyze", "package_file": upload},
+            follow=follow,
+        )
+
+    def _analyze_package(self, package):
+        response = self._upload_package(package)
+        self.assertEqual(response.status_code, 302)
+        session_state = self.client.session.get("automazioni_package_import_state")
+        self.assertIsNotNone(session_state)
+        return session_state["analysis"]
+
+    def _run_dry_run(self, *, sample_mode="json", payload=None, old_payload=None, record_id=""):
+        return self.client.post(
+            reverse("admin_portale:automazioni_rule_import_package"),
+            {
+                "action": "dry_run",
+                "sample_mode": sample_mode,
+                "payload_json": json.dumps(payload or {}),
+                "old_payload_json": json.dumps(old_payload) if old_payload is not None else "",
+                "source_record_id": str(record_id or ""),
+            },
+            follow=True,
+        )
+
+    def test_upload_valid_package_shows_preview(self):
+        response = self._upload_package(self._base_package(), follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Importa Package")
+        self.assertContains(response, "Task Import Flow")
+        self.assertContains(response, "pronto all&#x27;import", html=False)
+        self.assertContains(response, "Task log importata")
+
+    def test_invalid_package_is_rejected(self):
+        response = self._upload_package(
+            {
+                "package_version": "2026.03",
+                "source_candidate": {"source_code": "tasks"},
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Il package non contiene regole proposte")
+        self.assertIsNone(self.client.session.get("automazioni_package_import_state"))
+
+    @patch("automazioni.services.EmailMultiAlternatives")
+    def test_dry_run_has_no_side_effects(self, mock_email_class):
+        task = Task.objects.create(
+            title="Task dry run",
+            status="DONE",
+            priority="MEDIUM",
+            created_by=self.user,
+            assigned_to=self.user,
+        )
+        package = self._base_package(
+            rules=[
+                {
+                    "code": "pa-task-dry-run",
+                    "name": "Dry run package",
+                    "description": "Regola con action multiple",
+                    "source_code": "tasks",
+                    "operation_type": "update",
+                    "trigger_scope": "specific_field",
+                    "watched_field": "Task Status",
+                    "is_active": False,
+                    "is_draft": True,
+                    "conditions": [
+                        {
+                            "field": "Task Status",
+                            "operator": "equals",
+                            "value": "DONE",
+                            "value_type": "string",
+                        }
+                    ],
+                    "actions": [
+                        {
+                            "action_type": "send_email",
+                            "to": "ops@example.com",
+                            "from_email": "noreply@example.com",
+                            "subject_template": "Task {title}",
+                            "body_text_template": "Stato {status}",
+                        },
+                        {
+                            "action_type": "update_dashboard_metric",
+                            "metric_code": "tasks_done",
+                            "operation": "increment",
+                            "value_template": "1",
+                        },
+                    ],
+                }
+            ]
+        )
+        self._analyze_package(package)
+
+        response = self._run_dry_run(sample_mode="record", record_id=task.id)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Esito dry-run")
+        self.assertEqual(AutomationRunLog.objects.count(), 0)
+        self.assertEqual(AutomationActionLog.objects.count(), 0)
+        self.assertEqual(DashboardMetricValue.objects.count(), 0)
+        mock_email_class.assert_not_called()
+
+    def test_import_creates_draft_rules_and_metadata(self):
+        package = self._base_package(
+            rules=[
+                {
+                    "code": "pa-task-import",
+                    "name": "Import draft task",
+                    "description": "Da package esterno",
+                    "source_code": "tasks",
+                    "operation_type": "update",
+                    "trigger_scope": "specific_field",
+                    "watched_field": "Task Status",
+                    "is_active": True,
+                    "is_draft": False,
+                    "stop_on_first_failure": True,
+                    "conditions": [
+                        {
+                            "field": "Task Status",
+                            "operator": "equals",
+                            "value": "DONE",
+                            "value_type": "string",
+                        }
+                    ],
+                    "actions": [
+                        {
+                            "action_type": "write_log",
+                            "description": "Logga",
+                            "message_template": "Task {title} -> {status}",
+                        },
+                        {
+                            "action_type": "update_record",
+                            "description": "Aggiorna task",
+                            "target_table": "tasks_task",
+                            "where_field": "id",
+                            "where_value_template": "{id}",
+                            "update_fields": {"status": "DONE"},
+                        },
+                    ],
+                }
+            ]
+        )
+        self._analyze_package(package)
+        self._run_dry_run(
+            sample_mode="json",
+            payload={
+                "id": 99,
+                "title": "Task import",
+                "status": "DONE",
+                "assigned_to_id": self.user.id,
+                "project_id": 1,
+                "due_date": "2026-03-11",
+            },
+            old_payload={
+                "id": 99,
+                "title": "Task import",
+                "status": "TODO",
+                "assigned_to_id": self.user.id,
+                "project_id": 1,
+                "due_date": "2026-03-11",
+            },
+        )
+
+        response = self.client.post(
+            reverse("admin_portale:automazioni_rule_import_package"),
+            {"action": "import"},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        rule = AutomationRule.objects.get(import_source_rule_code="pa-task-import")
+        self.assertFalse(rule.is_active)
+        self.assertTrue(rule.is_draft)
+        self.assertEqual(rule.import_flow_name, "Task Import Flow")
+        self.assertEqual(rule.import_source_package_version, "2026.03")
+        self.assertEqual(rule.conditions.count(), 1)
+        self.assertEqual(rule.actions.count(), 2)
+        self.assertContains(response, "Regole draft create")
+        self.assertContains(response, reverse("admin_portale:automazioni_rule_detail", args=[rule.id]))
+
+    def test_import_rolls_back_if_a_rule_fails(self):
+        package = self._base_package(
+            rules=[
+                {
+                    "code": "pa-task-import-a",
+                    "name": "Rule A",
+                    "description": "",
+                    "source_code": "tasks",
+                    "operation_type": "update",
+                    "trigger_scope": "all_updates",
+                    "is_active": False,
+                    "is_draft": True,
+                    "actions": [
+                        {
+                            "action_type": "write_log",
+                            "message_template": "A {title}",
+                        }
+                    ],
+                },
+                {
+                    "code": "pa-task-import-b",
+                    "name": "Rule B",
+                    "description": "",
+                    "source_code": "tasks",
+                    "operation_type": "update",
+                    "trigger_scope": "all_updates",
+                    "is_active": False,
+                    "is_draft": True,
+                    "actions": [
+                        {
+                            "action_type": "write_log",
+                            "message_template": "B {title}",
+                        }
+                    ],
+                },
+            ]
+        )
+        analysis = analyze_package_dict(package, filename="tasks.automation_package.json")
+        original_create_imported_rule = package_importer._create_imported_rule
+        call_state = {"count": 0}
+
+        def flaky_create_imported_rule(*args, **kwargs):
+            call_state["count"] += 1
+            if call_state["count"] == 2:
+                raise RuntimeError("boom")
+            return original_create_imported_rule(*args, **kwargs)
+
+        with patch("automazioni.package_importer._create_imported_rule", side_effect=flaky_create_imported_rule):
+            with self.assertRaises(RuntimeError):
+                import_analyzed_package(analysis, created_by=self.user)
+
+        self.assertEqual(AutomationRule.objects.count(), 0)
+        self.assertEqual(AutomationCondition.objects.count(), 0)
+        self.assertEqual(AutomationAction.objects.count(), 0)
+
+    def test_unsupported_actions_are_skipped_and_reported(self):
+        package = self._base_package(
+            rules=[
+                {
+                    "code": "pa-task-valid",
+                    "name": "Rule valida",
+                    "description": "",
+                    "source_code": "tasks",
+                    "operation_type": "update",
+                    "trigger_scope": "all_updates",
+                    "is_active": False,
+                    "is_draft": True,
+                    "actions": [
+                        {
+                            "action_type": "write_log",
+                            "message_template": "Valida {title}",
+                        }
+                    ],
+                },
+                {
+                    "code": "pa-task-unsupported",
+                    "name": "Rule non supportata",
+                    "description": "",
+                    "source_code": "tasks",
+                    "operation_type": "update",
+                    "trigger_scope": "all_updates",
+                    "is_active": False,
+                    "is_draft": True,
+                    "actions": [
+                        {
+                            "action_type": "unsupported_magic",
+                            "description": "Non supportata",
+                        }
+                    ],
+                },
+            ]
+        )
+
+        analysis = self._analyze_package(package)
+        self.assertEqual(analysis["status"], "partial")
+        self.assertEqual(analysis["importable_rule_count"], 1)
+        self.assertEqual(analysis["skipped_rule_count"], 1)
+
+        self._run_dry_run(
+            sample_mode="json",
+            payload={
+                "id": 1,
+                "title": "Task partial",
+                "status": "DONE",
+                "assigned_to_id": self.user.id,
+                "project_id": 1,
+                "due_date": "2026-03-11",
+            },
+        )
+        response = self.client.post(
+            reverse("admin_portale:automazioni_rule_import_package"),
+            {"action": "import"},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(AutomationRule.objects.filter(import_flow_name="Task Import Flow").count(), 1)
+        self.assertContains(response, "Rule non supportata")
+        self.assertContains(response, "unsupported_magic")
 
 
 class AutomationRuleModelTests(TestCase):

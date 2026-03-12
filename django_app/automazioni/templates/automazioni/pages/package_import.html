@@ -1,0 +1,353 @@
+{% extends "core/base.html" %}
+
+{% block title %}Automazioni - Importa Package | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .auto-grid { display:grid; gap:16px; }
+  .auto-grid-2 { display:grid; gap:16px; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); }
+  .auto-grid-3 { display:grid; gap:16px; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); }
+  .auto-field { display:grid; gap:6px; }
+  .auto-field label { font-size:12px; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:.04em; }
+  .auto-field input, .auto-field textarea, .auto-field select { width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; }
+  .auto-help { font-size:12px; color:#64748b; }
+  .auto-errors { margin:4px 0 0 0; padding-left:18px; color:#b91c1c; font-size:13px; }
+  .auto-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .auto-status { display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+  .auto-status-ready { background:#dcfce7; color:#166534; }
+  .auto-status-partial { background:#fef3c7; color:#92400e; }
+  .auto-status-blocked { background:#fee2e2; color:#991b1b; }
+  .auto-status-ok { background:#dbeafe; color:#1d4ed8; }
+  .auto-status-error { background:#fee2e2; color:#991b1b; }
+  .auto-status-skipped { background:#e2e8f0; color:#334155; }
+  .auto-stepbar { display:flex; gap:10px; flex-wrap:wrap; }
+  .auto-step { flex:1 1 220px; padding:12px 14px; border:1px solid #e2e8f0; border-radius:14px; background:#fff; }
+  .auto-step-title { font-size:13px; font-weight:800; color:#0f172a; }
+  .auto-step-sub { margin-top:4px; color:#64748b; font-size:13px; }
+  .auto-meta-item { padding:14px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; }
+  .auto-meta-label { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; }
+  .auto-meta-value { margin-top:6px; color:#0f172a; word-break:break-word; }
+  .auto-table { width:100%; border-collapse:collapse; font-size:14px; }
+  .auto-table th, .auto-table td { padding:10px 12px; border-bottom:1px solid #e2e8f0; text-align:left; vertical-align:top; }
+  .auto-table th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; background:#f8fafc; }
+  .auto-rule-card { border:1px solid #e2e8f0; border-radius:14px; padding:14px; background:#fff; display:grid; gap:12px; }
+  .auto-rule-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap; }
+  .auto-tag { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; background:#f1f5f9; color:#334155; font-size:12px; font-weight:700; }
+  .auto-list { margin:0; padding-left:18px; display:grid; gap:6px; color:#334155; }
+  .auto-pre { margin:0; padding:12px; border-radius:12px; background:#0f172a; color:#e2e8f0; overflow:auto; font-size:12px; }
+  .auto-divider { height:1px; background:#e2e8f0; }
+  @media (max-width: 900px) {
+    .auto-rule-head { flex-direction:column; }
+  }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Importa Package" page_subtitle="Import guidato in due step con analisi package, dry-run isolato e creazione finale solo in bozza." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+  {% include "automazioni/components/subnav.html" %}
+
+  <div class="auto-grid">
+    <div class="auto-stepbar">
+      <div class="auto-step">
+        <div class="auto-step-title">Step 1 · Upload + analisi</div>
+        <div class="auto-step-sub">Carica il package, valida la shape JSON e controlla sorgente, mapping, regole e warning.</div>
+      </div>
+      <div class="auto-step">
+        <div class="auto-step-title">Step 2 · Test al volo + conferma</div>
+        <div class="auto-step-sub">Simula il package senza side effects. L'import resta sempre draft e disattivato.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">Upload package</div></div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data" class="auto-grid">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="analyze">
+          {% if upload_form.non_field_errors %}
+            <ul class="auto-errors">{% for error in upload_form.non_field_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+          {% endif %}
+          {% for field in upload_form %}
+            <div class="auto-field">
+              {{ field.label_tag }}
+              {{ field }}
+              {% if field.help_text %}<div class="auto-help">{{ field.help_text }}</div>{% endif %}
+              {% if field.errors %}<ul class="auto-errors">{% for error in field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            </div>
+          {% endfor %}
+          <div class="auto-actions">
+            <button class="btn" type="submit">Analizza package</button>
+            {% if analysis %}
+              <button class="btn btn-light" type="submit" formaction="{% url 'admin_portale:automazioni_rule_import_package' %}" formmethod="post" name="action" value="reset">Reset workflow</button>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {% if analysis %}
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Riepilogo package</div>
+        </div>
+        <div class="card-body auto-grid">
+          <div class="auto-actions">
+            <span class="auto-status auto-status-{{ analysis.status }}">{{ analysis.status_label }}</span>
+            <span class="auto-tag">{{ analysis.importable_rule_count }} regole importabili</span>
+            <span class="auto-tag">{{ analysis.skipped_rule_count }} regole saltate</span>
+            <span class="auto-tag">mapping: {{ analysis.mapping_source }}</span>
+          </div>
+
+          <div class="auto-grid-3">
+            <div class="auto-meta-item"><div class="auto-meta-label">Nome flow</div><div class="auto-meta-value">{{ analysis.flow_name }}</div></div>
+            <div class="auto-meta-item"><div class="auto-meta-label">Source candidata</div><div class="auto-meta-value">{{ analysis.source_candidate.label|default:"-" }}{% if analysis.source_candidate.source_code %}<br><code>{{ analysis.source_candidate.source_code }}</code>{% endif %}</div></div>
+            <div class="auto-meta-item"><div class="auto-meta-label">Versione package</div><div class="auto-meta-value">{{ analysis.package_version }}</div></div>
+            <div class="auto-meta-item"><div class="auto-meta-label">Compatibilita'</div><div class="auto-meta-value">{% if analysis.compatibility_lines %}{{ analysis.compatibility_lines|join:" · " }}{% else %}-{% endif %}</div></div>
+            <div class="auto-meta-item"><div class="auto-meta-label">Issue rilevate</div><div class="auto-meta-value">{% if analysis.issues_lines %}{{ analysis.issues_lines|length }}{% else %}0{% endif %}</div></div>
+            <div class="auto-meta-item"><div class="auto-meta-label">Target context</div><div class="auto-meta-value">{% if analysis.target_context %}presente{% else %}-{% endif %}</div></div>
+          </div>
+
+          {% if analysis.errors %}
+            <div class="notice notice-danger">
+              <strong>Blocchi import:</strong>
+              <ul class="auto-list">{% for item in analysis.errors %}<li>{{ item }}</li>{% endfor %}</ul>
+            </div>
+          {% endif %}
+
+          {% if analysis.warnings %}
+            <div class="notice">
+              <strong>Warning package:</strong>
+              <ul class="auto-list">{% for item in analysis.warnings %}<li>{{ item }}</li>{% endfor %}</ul>
+            </div>
+          {% endif %}
+
+          <div class="auto-grid-2">
+            <div>
+              <div class="auto-meta-label" style="margin-bottom:8px;">Issue dettagliate</div>
+              {% if analysis.issues_lines %}
+                <ul class="auto-list">{% for item in analysis.issues_lines %}<li>{{ item }}</li>{% endfor %}</ul>
+              {% else %}
+                <div class="auto-help">Nessuna issue dichiarata dal package.</div>
+              {% endif %}
+            </div>
+            <div>
+              <div class="auto-meta-label" style="margin-bottom:8px;">Target context</div>
+              {% if analysis.target_context_pretty %}
+                <pre class="auto-pre">{{ analysis.target_context_pretty }}</pre>
+              {% else %}
+                <div class="auto-help">Nessun target_context presente.</div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="auto-divider"></div>
+
+          <div>
+            <div class="auto-meta-label" style="margin-bottom:8px;">Mapping approvati / fallback</div>
+            <table class="auto-table">
+              <thead>
+                <tr><th>Campo package</th><th>Campo portale</th><th>Stato</th></tr>
+              </thead>
+              <tbody>
+                {% for row in analysis.mapping_rows %}
+                  <tr>
+                    <td><code>{{ row.source_field|default:"-" }}</code></td>
+                    <td><code>{{ row.target_field|default:"-" }}</code></td>
+                    <td>{% if row.valid_target %}ok{% else %}mismatch{% endif %}</td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="3">Nessun mapping esplicito disponibile.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-title">Regole proposte</div></div>
+        <div class="card-body auto-grid">
+          {% for rule in analysis.rules %}
+            <div class="auto-rule-card">
+              <div class="auto-rule-head">
+                <div>
+                  <strong>{{ rule.name }}</strong><br>
+                  <code>{{ rule.source_rule_code|default:"-" }}</code> → <code>{{ rule.portal_code|default:"-" }}</code>
+                </div>
+                <div class="auto-actions">
+                  <span class="auto-status auto-status-{% if rule.is_importable %}ok{% else %}error{% endif %}">{% if rule.is_importable %}importabile{% else %}saltata{% endif %}</span>
+                  <span class="auto-tag">{{ rule.operation_type }} / {{ rule.trigger_scope }}</span>
+                  <span class="auto-tag">draft finale</span>
+                </div>
+              </div>
+
+              {% if rule.description %}
+                <div class="auto-help">{{ rule.description }}</div>
+              {% endif %}
+
+              <div class="auto-grid-2">
+                <div>
+                  <div class="auto-meta-label" style="margin-bottom:8px;">Condizioni</div>
+                  <ul class="auto-list">
+                    {% for condition in rule.conditions %}
+                      <li>
+                        <code>{{ condition.field_name|default:condition.source_field_name|default:"-" }}</code>
+                        {{ condition.operator|default:"-" }}
+                        <code>{{ condition.expected_value|default:"-" }}</code>
+                      </li>
+                    {% empty %}
+                      <li>Nessuna condizione.</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+                <div>
+                  <div class="auto-meta-label" style="margin-bottom:8px;">Azioni</div>
+                  <ul class="auto-list">
+                    {% for action in rule.actions %}
+                      <li>{{ action.action_type|default:"-" }}{% if action.description %} · {{ action.description }}{% endif %}</li>
+                    {% empty %}
+                      <li>Nessuna action.</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              </div>
+
+              {% if rule.errors %}
+                <div class="notice notice-danger">
+                  <strong>Errori regola:</strong>
+                  <ul class="auto-list">{% for item in rule.errors %}<li>{{ item }}</li>{% endfor %}</ul>
+                </div>
+              {% endif %}
+              {% if rule.warnings %}
+                <div class="notice">
+                  <strong>Warning regola:</strong>
+                  <ul class="auto-list">{% for item in rule.warnings %}<li>{{ item }}</li>{% endfor %}</ul>
+                </div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      {% if dry_run_form and analysis.status != 'blocked' %}
+        <div class="card">
+          <div class="card-head"><div class="card-title">Step 2 - Test al volo sicuro</div></div>
+          <div class="card-body auto-grid">
+            <div class="notice">
+              <strong>Dry-run isolata:</strong> nessuna email, nessuna insert/update, nessun task async, nessuna attivazione automatica. Il test valida la shape runtime e simula le action senza side effects.
+            </div>
+            <form method="post" class="auto-grid">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="dry_run">
+              {% if dry_run_form.non_field_errors %}
+                <ul class="auto-errors">{% for error in dry_run_form.non_field_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+              {% endif %}
+              {% for field in dry_run_form %}
+                <div class="auto-field">
+                  {{ field.label_tag }}
+                  {{ field }}
+                  {% if field.help_text %}<div class="auto-help">{{ field.help_text }}</div>{% endif %}
+                  {% if field.errors %}<ul class="auto-errors">{% for error in field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+              {% endfor %}
+              <div class="auto-actions">
+                <button class="btn" type="submit">Test al volo</button>
+              </div>
+            </form>
+
+            {% if dry_run_result %}
+              <div class="auto-rule-card">
+                <div class="auto-rule-head">
+                  <div>
+                    <strong>Esito dry-run</strong><br>
+                    <span class="auto-help">Sorgente payload: {{ dry_run_result.sample_label }}</span>
+                  </div>
+                  <span class="auto-status auto-status-{{ dry_run_result.status }}">{{ dry_run_result.status }}</span>
+                </div>
+                <div class="auto-grid-2">
+                  <div>
+                    <div class="auto-meta-label" style="margin-bottom:8px;">Payload usato</div>
+                    <pre class="auto-pre">{{ dry_run_result.payload_pretty }}</pre>
+                  </div>
+                  <div>
+                    <div class="auto-meta-label" style="margin-bottom:8px;">Old payload</div>
+                    {% if dry_run_result.old_payload_pretty %}
+                      <pre class="auto-pre">{{ dry_run_result.old_payload_pretty }}</pre>
+                    {% else %}
+                      <div class="auto-help">Non fornito.</div>
+                    {% endif %}
+                  </div>
+                </div>
+                <div class="auto-grid">
+                  {% for rule_result in dry_run_result.rules %}
+                    <div class="auto-rule-card">
+                      <div class="auto-rule-head">
+                        <div><strong>{{ rule_result.name }}</strong><br><code>{{ rule_result.portal_code }}</code></div>
+                        <div class="auto-actions">
+                          <span class="auto-status auto-status-{{ rule_result.status }}">{{ rule_result.status }}</span>
+                          <span class="auto-tag">valida: {{ rule_result.is_valid|yesno:"si,no" }}</span>
+                          <span class="auto-tag">campi ok: {{ rule_result.fields_exist|yesno:"si,no" }}</span>
+                          <span class="auto-tag">action supportate: {{ rule_result.actions_supported|yesno:"si,no" }}</span>
+                          <span class="auto-tag">eseguirebbe: {{ rule_result.would_execute|yesno:"si,no" }}</span>
+                        </div>
+                      </div>
+                      {% if rule_result.messages %}
+                        <div class="notice{% if rule_result.status == 'error' %} notice-danger{% endif %}">
+                          <ul class="auto-list">{% for item in rule_result.messages %}<li>{{ item }}</li>{% endfor %}</ul>
+                        </div>
+                      {% endif %}
+                      <div class="auto-grid-2">
+                        <div>
+                          <div class="auto-meta-label" style="margin-bottom:8px;">Condizioni</div>
+                          <ul class="auto-list">
+                            {% for condition in rule_result.condition_results %}
+                              <li><code>{{ condition.field_name }}</code> {{ condition.operator }} → {{ condition.matched|yesno:"match,no match" }}</li>
+                            {% empty %}
+                              <li>Nessuna condizione.</li>
+                            {% endfor %}
+                          </ul>
+                        </div>
+                        <div>
+                          <div class="auto-meta-label" style="margin-bottom:8px;">Azioni simulate</div>
+                          <ul class="auto-list">
+                            {% for action in rule_result.action_results %}
+                              <li>
+                                <strong>{{ action.action_type }}</strong> · {{ action.status }}
+                                {% if action.preview %}<br><code>{{ action.preview }}</code>{% endif %}
+                                {% if action.errors %}
+                                  <ul class="auto-list">{% for item in action.errors %}<li>{{ item }}</li>{% endfor %}</ul>
+                                {% endif %}
+                              </li>
+                            {% empty %}
+                              <li>Nessuna action.</li>
+                            {% endfor %}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            {% endif %}
+
+            <div class="auto-actions">
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="import">
+                <button class="btn" type="submit"{% if not can_import %} disabled{% endif %}>Conferma import draft</button>
+              </form>
+              {% if not dry_run_completed %}
+                <div class="auto-help">Per confermare l'import devi prima completare il test al volo del package corrente.</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    {% endif %}
+  </div>
+{% endblock %}

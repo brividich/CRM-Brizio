@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Portale Applicativo Django
 
 <p align="center">
@@ -140,3 +141,6 @@ Le impostazioni `prod` usano SQL Server come database di default e abilitano opz
 ## Documentazione
 
 Per l'indice dei documenti tecnici mantenuti nel repository, vedi `doc/README.md`.
+=======
+# CRM-Brizio
+>>>>>>> 1e8d9ff84ffa1a10b5771f6c8e6831fbe862b9f5

@@ -76,6 +76,9 @@ class AutomationRule(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, default="")
     source_code = models.CharField(max_length=100, db_index=True)
+    import_flow_name = models.CharField(max_length=255, blank=True, default="")
+    import_source_rule_code = models.CharField(max_length=120, blank=True, default="")
+    import_source_package_version = models.CharField(max_length=80, blank=True, default="")
     operation_type = models.CharField(
         max_length=20,
         choices=AutomationRuleOperationType.choices,

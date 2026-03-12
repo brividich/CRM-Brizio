@@ -14,6 +14,8 @@ from admin_portale.decorators import legacy_admin_required
 from .forms import (
     AutomationActionFormSet,
     AutomationConditionFormSet,
+    AutomationPackageDryRunForm,
+    AutomationPackageUploadForm,
     AutomationRuleForm,
     AutomationRuleTestForm,
 )
@@ -38,6 +40,15 @@ from .services import (
     process_single_queue_event_by_id,
     reset_queue_event_to_pending,
     run_rule,
+)
+from .package_importer import (
+    PackageImportError,
+    analyze_package_bytes,
+    build_example_payload_json,
+    import_analyzed_package,
+    list_recent_source_records,
+    load_source_record_payload,
+    run_package_dry_run,
 )
 from .source_registry import (
     AUTOMAZIONI_ACL_ACTIONS,
@@ -64,6 +75,8 @@ SAMPLE_VALUE_BY_TYPE = {
     "datetime": "2026-03-11T09:00:00",
     "string": "esempio",
 }
+PACKAGE_IMPORT_SESSION_KEY = "automazioni_package_import_state"
+PACKAGE_IMPORT_RESULT_SESSION_KEY = "automazioni_package_import_result"
 
 
 def _base_context() -> dict[str, object]:
@@ -104,6 +117,59 @@ def _bool_value(value) -> bool:
     if isinstance(value, bool):
         return value
     return _string_value(value).lower() in {"1", "true", "on", "yes"}
+
+
+def _get_package_import_state(request) -> dict[str, object]:
+    state = request.session.get(PACKAGE_IMPORT_SESSION_KEY)
+    return state if isinstance(state, dict) else {}
+
+
+def _set_package_import_state(request, state: dict[str, object]) -> None:
+    request.session[PACKAGE_IMPORT_SESSION_KEY] = state
+    request.session.modified = True
+
+
+def _clear_package_import_state(request) -> None:
+    if PACKAGE_IMPORT_SESSION_KEY in request.session:
+        del request.session[PACKAGE_IMPORT_SESSION_KEY]
+        request.session.modified = True
+
+
+def _set_package_import_result(request, result: dict[str, object]) -> None:
+    request.session[PACKAGE_IMPORT_RESULT_SESSION_KEY] = result
+    request.session.modified = True
+
+
+def _pop_package_import_result(request) -> dict[str, object] | None:
+    result = request.session.pop(PACKAGE_IMPORT_RESULT_SESSION_KEY, None)
+    if result is not None:
+        request.session.modified = True
+    return result if isinstance(result, dict) else None
+
+
+def _build_package_record_choices(source_code: str | None) -> list[tuple[str, str]]:
+    return [(str(record["id"]), str(record["label"])) for record in list_recent_source_records(source_code)]
+
+
+def _build_package_dry_run_form(
+    analysis: dict[str, object] | None,
+    *args,
+    **kwargs,
+) -> AutomationPackageDryRunForm | None:
+    if not analysis:
+        return None
+    source_code = str(analysis.get("source_code") or "").strip()
+    if "initial" not in kwargs:
+        kwargs["initial"] = {
+            "sample_mode": "example",
+            "payload_json": build_example_payload_json(source_code),
+            "old_payload_json": "",
+        }
+    return AutomationPackageDryRunForm(
+        *args,
+        record_choices=_build_package_record_choices(source_code),
+        **kwargs,
+    )
 
 
 def _truncate_text(value, limit: int = 120) -> str:
@@ -1115,6 +1181,162 @@ def rule_list_page(request):
         "boolean_filter_choices": RULE_BOOLEAN_FILTER_CHOICES,
     }
     return render(request, "automazioni/pages/rule_list.html", context)
+
+
+def _build_package_import_context(
+    *,
+    request,
+    upload_form: AutomationPackageUploadForm,
+    analysis: dict[str, object] | None,
+    dry_run_form: AutomationPackageDryRunForm | None,
+    dry_run_result: dict[str, object] | None = None,
+) -> dict[str, object]:
+    state = _get_package_import_state(request)
+    dry_run_completed_hash = str(state.get("dry_run_completed_hash") or "").strip()
+    analysis_hash = str((analysis or {}).get("package_hash") or "").strip()
+    return {
+        **_base_context(),
+        "upload_form": upload_form,
+        "analysis": analysis,
+        "dry_run_form": dry_run_form,
+        "dry_run_result": dry_run_result,
+        "status_label_map": {
+            "ready": "Pronto all'import",
+            "partial": "Import parziale",
+            "blocked": "Bloccato",
+            "ok": "OK",
+            "error": "Errore",
+            "skipped": "Saltata",
+        },
+        "dry_run_completed": bool(analysis_hash and dry_run_completed_hash == analysis_hash),
+        "can_import": bool(
+            analysis
+            and analysis.get("status") != "blocked"
+            and int(analysis.get("importable_rule_count") or 0) > 0
+            and analysis_hash
+            and dry_run_completed_hash == analysis_hash
+        ),
+    }
+
+
+@legacy_admin_required
+def rule_package_import_page(request):
+    state = _get_package_import_state(request)
+    analysis = state.get("analysis") if isinstance(state.get("analysis"), dict) else None
+    upload_form = AutomationPackageUploadForm()
+    dry_run_form = _build_package_dry_run_form(analysis)
+    dry_run_result = None
+
+    if request.method == "POST":
+        action = _string_value(request.POST.get("action"))
+
+        if action == "reset":
+            _clear_package_import_state(request)
+            messages.success(request, "Workflow import package azzerato.")
+            return redirect("admin_portale:automazioni_rule_import_package")
+
+        if action == "analyze":
+            upload_form = AutomationPackageUploadForm(request.POST, request.FILES)
+            if upload_form.is_valid():
+                uploaded_file = upload_form.cleaned_data["package_file"]
+                try:
+                    analysis = analyze_package_bytes(uploaded_file.read(), filename=str(uploaded_file.name))
+                except PackageImportError as exc:
+                    upload_form.add_error("package_file", str(exc))
+                    analysis = None
+                    dry_run_form = None
+                else:
+                    _set_package_import_state(
+                        request,
+                        {
+                            "analysis": analysis,
+                            "dry_run_completed_hash": "",
+                        },
+                    )
+                    messages.success(request, "Package analizzato. Esegui il test al volo prima di confermare l'import.")
+                    return redirect("admin_portale:automazioni_rule_import_package")
+
+        elif action == "dry_run":
+            if not analysis:
+                messages.error(request, "Carica prima un package da analizzare.")
+                return redirect("admin_portale:automazioni_rule_import_package")
+
+            dry_run_form = _build_package_dry_run_form(analysis, request.POST)
+            if dry_run_form and dry_run_form.is_valid():
+                sample_mode = dry_run_form.cleaned_data["sample_mode"]
+                source_code = str(analysis.get("source_code") or "").strip()
+                old_payload = dry_run_form.cleaned_data["old_payload_json"]
+
+                if sample_mode == "json":
+                    payload = dry_run_form.cleaned_data["payload_json"] or {}
+                    sample_label = "JSON incollato"
+                elif sample_mode == "record":
+                    record_id = dry_run_form.cleaned_data["source_record_id"]
+                    payload = load_source_record_payload(source_code, record_id)
+                    if payload is None:
+                        dry_run_form.add_error("source_record_id", "Record non disponibile per la sorgente selezionata.")
+                    sample_label = f"Record sorgente #{record_id}"
+                else:
+                    payload = json.loads(build_example_payload_json(source_code) or "{}")
+                    sample_label = "Payload di esempio"
+
+                if dry_run_form.errors:
+                    pass
+                else:
+                    try:
+                        dry_run_result = run_package_dry_run(
+                            analysis,
+                            payload=payload,
+                            old_payload=old_payload,
+                            sample_label=sample_label,
+                        )
+                    except PackageImportError as exc:
+                        messages.error(request, str(exc))
+                    else:
+                        state["dry_run_completed_hash"] = analysis.get("package_hash") or ""
+                        _set_package_import_state(request, state)
+
+        elif action == "import":
+            if not analysis:
+                messages.error(request, "Carica prima un package da analizzare.")
+                return redirect("admin_portale:automazioni_rule_import_package")
+            if str(state.get("dry_run_completed_hash") or "") != str(analysis.get("package_hash") or ""):
+                messages.error(request, "Esegui prima il test al volo del package corrente.")
+                return redirect("admin_portale:automazioni_rule_import_package")
+            try:
+                result = import_analyzed_package(analysis, created_by=request.user)
+            except PackageImportError as exc:
+                messages.error(request, str(exc))
+            except Exception as exc:
+                messages.error(request, f"Import fallito, nessuna regola creata: {exc}")
+            else:
+                _set_package_import_result(request, result)
+                _clear_package_import_state(request)
+                messages.success(request, f"Import completato. Regole create: {result['created_rule_count']}.")
+                return redirect("admin_portale:automazioni_rule_import_result")
+
+    context = _build_package_import_context(
+        request=request,
+        upload_form=upload_form,
+        analysis=analysis,
+        dry_run_form=dry_run_form,
+        dry_run_result=dry_run_result,
+    )
+    return render(request, "automazioni/pages/package_import.html", context)
+
+
+@legacy_admin_required
+@require_GET
+def rule_package_import_result_page(request):
+    result = _pop_package_import_result(request)
+    if result is None:
+        messages.info(request, "Nessun risultato import disponibile.")
+        return redirect("admin_portale:automazioni_rule_import_package")
+    context = {
+        **_base_context(),
+        "result": result,
+    }
+    return render(request, "automazioni/pages/package_import_result.html", context)
 
 
 @legacy_admin_required

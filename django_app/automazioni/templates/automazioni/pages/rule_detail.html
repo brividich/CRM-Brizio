@@ -50,6 +50,9 @@
         <div class="auto-meta">
           <div class="auto-meta-item"><div class="auto-meta-label">Code</div><div class="auto-meta-value"><code>{{ rule.code }}</code></div></div>
           <div class="auto-meta-item"><div class="auto-meta-label">Sorgente</div><div class="auto-meta-value">{{ rule.source_code }}</div></div>
+          <div class="auto-meta-item"><div class="auto-meta-label">Flow import</div><div class="auto-meta-value">{{ rule.import_flow_name|default:"-" }}</div></div>
+          <div class="auto-meta-item"><div class="auto-meta-label">Code origine</div><div class="auto-meta-value"><code>{{ rule.import_source_rule_code|default:"-" }}</code></div></div>
+          <div class="auto-meta-item"><div class="auto-meta-label">Versione package</div><div class="auto-meta-value">{{ rule.import_source_package_version|default:"-" }}</div></div>
           <div class="auto-meta-item"><div class="auto-meta-label">Operazione</div><div class="auto-meta-value">{{ rule.operation_type }}</div></div>
           <div class="auto-meta-item"><div class="auto-meta-label">Trigger scope</div><div class="auto-meta-value">{{ rule.trigger_scope }}</div></div>
           <div class="auto-meta-item"><div class="auto-meta-label">Watched field</div><div class="auto-meta-value"><code>{{ rule.watched_field|default:"-" }}</code></div></div>

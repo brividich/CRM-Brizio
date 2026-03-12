@@ -1,0 +1,100 @@
+{% extends "core/base.html" %}
+
+{% block title %}Automazioni - Esito Import Package | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .auto-grid { display:grid; gap:16px; }
+  .auto-grid-2 { display:grid; gap:16px; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); }
+  .auto-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .auto-status { display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+  .auto-status-ready { background:#dcfce7; color:#166534; }
+  .auto-status-partial { background:#fef3c7; color:#92400e; }
+  .auto-table { width:100%; border-collapse:collapse; font-size:14px; }
+  .auto-table th, .auto-table td { padding:10px 12px; border-bottom:1px solid #e2e8f0; text-align:left; vertical-align:top; }
+  .auto-table th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; background:#f8fafc; }
+  .auto-list { margin:0; padding-left:18px; display:grid; gap:6px; color:#334155; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Esito Import Package" page_subtitle="Risultato finale dell'import con regole create in draft e warning residui evidenziati." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+  {% include "automazioni/components/subnav.html" %}
+
+  <div class="auto-grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Riepilogo import</div></div>
+      <div class="card-body auto-grid">
+        <div class="auto-actions">
+          <span class="auto-status auto-status-{{ result.status }}">{{ result.status_label }}</span>
+          <span><strong>Flow:</strong> {{ result.flow_name|default:"-" }}</span>
+          <span><strong>Versione package:</strong> {{ result.package_version|default:"-" }}</span>
+          <span><strong>Regole create:</strong> {{ result.created_rule_count }}</span>
+        </div>
+        <div class="notice">
+          <strong>Safety:</strong> tutte le regole importate sono state create come <code>draft</code> con <code>is_active = False</code>.
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">Regole draft create</div></div>
+      <div class="card-body">
+        <table class="auto-table">
+          <thead>
+            <tr><th>ID</th><th>Nome</th><th>Code</th><th>Warning</th><th>Link</th></tr>
+          </thead>
+          <tbody>
+            {% for rule in result.created_rules %}
+              <tr>
+                <td>#{{ rule.id }}</td>
+                <td>{{ rule.name }}</td>
+                <td><code>{{ rule.code }}</code></td>
+                <td>{% if rule.warnings %}{{ rule.warnings|join:" · " }}{% else %}-{% endif %}</td>
+                <td><a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_detail' rule.id %}">Apri regola</a></td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5">Nessuna regola creata.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {% if result.skipped_rules %}
+      <div class="card">
+        <div class="card-head"><div class="card-title">Regole non importate</div></div>
+        <div class="card-body">
+          <ul class="auto-list">
+            {% for rule in result.skipped_rules %}
+              <li>
+                <strong>{{ rule.name }}</strong>
+                {% if rule.portal_code %}<code>{{ rule.portal_code }}</code>{% endif %}
+                {% if rule.reasons %}<br>{{ rule.reasons|join:" · " }}{% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if result.warnings %}
+      <div class="card">
+        <div class="card-head"><div class="card-title">Warning residui</div></div>
+        <div class="card-body">
+          <ul class="auto-list">{% for item in result.warnings %}<li>{{ item }}</li>{% endfor %}</ul>
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="auto-actions">
+      <a class="btn" href="{% url 'admin_portale:automazioni_rule_list' %}">Vai alle regole</a>
+      <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_import_package' %}">Nuovo import</a>
+    </div>
+  </div>
+{% endblock %}

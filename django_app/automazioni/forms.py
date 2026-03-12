@@ -458,6 +458,91 @@ class AutomationRuleTestForm(forms.Form):
         return parsed
 
 
+class AutomationPackageUploadForm(forms.Form):
+    package_file = forms.FileField(
+        label="Package automazione",
+        help_text="Accetta `.automation_package.json` e `.json` con shape compatibile.",
+        widget=forms.ClearableFileInput(attrs={"accept": ".json,.automation_package.json"}),
+    )
+
+    def clean_package_file(self):
+        uploaded_file = self.cleaned_data["package_file"]
+        filename = str(getattr(uploaded_file, "name", "") or "").strip().lower()
+        if not (filename.endswith(".automation_package.json") or filename.endswith(".json")):
+            raise forms.ValidationError("Carica un file `.automation_package.json` o `.json` compatibile.")
+        return uploaded_file
+
+
+PACKAGE_DRY_RUN_SAMPLE_CHOICES = (
+    ("example", "Payload di esempio"),
+    ("json", "JSON incollato"),
+    ("record", "Record esistente"),
+)
+
+
+class AutomationPackageDryRunForm(forms.Form):
+    sample_mode = forms.ChoiceField(
+        label="Modalita' simulazione",
+        choices=PACKAGE_DRY_RUN_SAMPLE_CHOICES,
+        initial="example",
+    )
+    payload_json = forms.CharField(
+        label="Payload JSON",
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 8}),
+        help_text="Usato in modalita' `JSON incollato`. Deve essere un oggetto JSON.",
+    )
+    old_payload_json = forms.CharField(
+        label="Old payload JSON",
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 6}),
+        help_text="Opzionale. Utile per trigger update, `changed` e `specific_field`.",
+    )
+    source_record_id = forms.ChoiceField(
+        label="Record sorgente",
+        required=False,
+        choices=(("", "---------"),),
+        help_text="Usato in modalita' `Record esistente`.",
+    )
+
+    def __init__(self, *args, record_choices: list[tuple[str, str]] | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["source_record_id"].choices = [("", "---------"), *(record_choices or [])]
+
+    def clean_payload_json(self):
+        raw_value = str(self.cleaned_data.get("payload_json") or "").strip()
+        if not raw_value:
+            return None
+        try:
+            parsed = json.loads(raw_value)
+        except json.JSONDecodeError as exc:
+            raise forms.ValidationError("Payload JSON non valido.") from exc
+        if not isinstance(parsed, dict):
+            raise forms.ValidationError("Il payload deve essere un oggetto JSON.")
+        return parsed
+
+    def clean_old_payload_json(self):
+        raw_value = str(self.cleaned_data.get("old_payload_json") or "").strip()
+        if not raw_value:
+            return None
+        try:
+            parsed = json.loads(raw_value)
+        except json.JSONDecodeError as exc:
+            raise forms.ValidationError("Old payload JSON non valido.") from exc
+        if not isinstance(parsed, dict):
+            raise forms.ValidationError("L'old payload deve essere un oggetto JSON.")
+        return parsed
+
+    def clean(self):
+        cleaned_data = super().clean()
+        sample_mode = cleaned_data.get("sample_mode")
+        if sample_mode == "json" and cleaned_data.get("payload_json") is None:
+            self.add_error("payload_json", "Inserisci un payload JSON valido per la simulazione.")
+        if sample_mode == "record" and not str(cleaned_data.get("source_record_id") or "").strip():
+            self.add_error("source_record_id", "Seleziona un record esistente da usare nel dry-run.")
+        return cleaned_data
+
+
 class _AutomationOrderedInlineFormSet(BaseInlineFormSet):
     def clean(self):
         super().clean()
