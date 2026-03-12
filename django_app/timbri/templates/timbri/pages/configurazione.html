@@ -1,0 +1,135 @@
+{% extends "core/base.html" %}
+{% block title %}Configurazione timbri{% endblock %}
+{% block extra_head %}
+<style>
+.tim-page { display:flex; flex-direction:column; gap:20px; }
+.tim-tabs { display:flex; gap:8px; flex-wrap:wrap; }
+.tim-tab { padding:9px 14px; border-radius:999px; text-decoration:none; font-size:13px; font-weight:700; border:1px solid #dbe4f0; color:#475569; background:#fff; }
+.tim-tab.active { background:#0f766e; border-color:#0f766e; color:#fff; }
+.tim-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:20px; }
+.tim-kpi { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+.tim-k { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 20px; }
+.tim-k-val { font-size:30px; font-weight:800; color:#0f172a; line-height:1; }
+.tim-k-label { font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; margin-top:6px; }
+.tim-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.tim-field { display:flex; flex-direction:column; gap:5px; }
+.tim-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; }
+.tim-input { border:1px solid #dbe4f0; border-radius:10px; padding:9px 12px; background:#f8fafc; width:100%; box-sizing:border-box; }
+.tim-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 15px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; border:1px solid #dbe4f0; background:#fff; color:#0f172a; }
+.tim-btn-main { background:#0f766e; border-color:#0f766e; color:#fff; }
+.tim-table { width:100%; border-collapse:collapse; font-size:13px; }
+.tim-table th, .tim-table td { padding:10px 12px; border-bottom:1px solid #f1f5f9; text-align:left; vertical-align:top; }
+.tim-table th { font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+@media (max-width: 900px) { .tim-kpi, .tim-grid { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+{% block subnav %}{% include "timbri/components/subnav.html" %}{% endblock %}
+{% block content %}
+<div class="tim-page">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="tim-card">
+    <div style="font-size:26px;font-weight:800;color:#0f172a;">Configurazione timbri</div>
+    <div style="font-size:13px;color:#64748b;margin-top:4px;">Gestione Graph, mapping SharePoint, import e audit. L'anagrafica dipendenti resta unica e centralizzata.</div>
+  </div>
+  <div class="tim-tabs">
+    <a class="tim-tab {% if tab == 'config' %}active{% endif %}" href="?tab=config">Configurazione</a>
+    <a class="tim-tab {% if tab == 'import' %}active{% endif %}" href="?tab=import">Import</a>
+    <a class="tim-tab {% if tab == 'log' %}active{% endif %}" href="?tab=log">Log</a>
+  </div>
+
+  {% if schema_issue %}
+    <div class="tim-card" style="border-color:#fecaca;background:#fff1f2;color:#991b1b;">
+      <strong>Schema SQL non pronto.</strong> {{ schema_issue }}
+    </div>
+  {% endif %}
+
+  <div class="tim-kpi">
+    <div class="tim-k"><div class="tim-k-val">{{ local_stats.linked_anagrafica }}</div><div class="tim-k-label">Collegamenti anagrafica</div></div>
+    <div class="tim-k"><div class="tim-k-val">{{ local_stats.registri }}</div><div class="tim-k-label">Registri</div></div>
+    <div class="tim-k"><div class="tim-k-val">{{ local_stats.orphan_operatori }}</div><div class="tim-k-label">Operatori orfani</div></div>
+  </div>
+
+  {% if local_stats.orphan_operatori %}
+    <div class="tim-card" style="border-color:#fde68a;background:#fffbeb;color:#92400e;">
+      <strong>Attenzione.</strong> Esistono {{ local_stats.orphan_operatori }} operatori locali senza collegamento all'anagrafica centrale. Non vengono piu usati per i nuovi flussi.
+      <form method="post" style="margin-top:12px;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="cleanup_orphans">
+        <button class="tim-btn" type="submit" style="border-color:#f59e0b;color:#92400e;background:#fff;">Bonifica ora</button>
+      </form>
+    </div>
+  {% endif %}
+
+  {% if tab == 'config' %}
+    <form method="post" class="tim-card">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_sharepoint_config">
+      <div class="tim-grid">
+        <div class="tim-field"><label>Tenant runtime</label><input class="tim-input" type="text" value="{{ sharepoint_admin_config.tenant_id }}" readonly></div>
+        <div class="tim-field"><label>Client runtime</label><input class="tim-input" type="text" value="{{ sharepoint_admin_config.client_id }}" readonly></div>
+        <div class="tim-field"><label>Site runtime</label><input class="tim-input" type="text" value="{{ sharepoint_admin_config.site_id }}" readonly></div>
+        <div class="tim-field"><label>List ID</label><input class="tim-input" type="text" name="list_id" value="{{ sharepoint_admin_config.list_id }}" placeholder="GUID lista"></div>
+      </div>
+      <div style="font-size:12px;color:#64748b;margin:12px 0 18px;">
+        Runtime Graph: <strong>{% if sharepoint_admin_config.runtime_ready %}OK{% else %}KO{% endif %}</strong>
+        · {% if sharepoint_admin_config.sync_issue %}{{ sharepoint_admin_config.sync_issue }}{% else %}Configurazione valida.{% endif %}
+      </div>
+      <div class="tim-grid">
+        {% for row in config_rows %}
+          {% if row.name != 'list_id' %}
+            <div class="tim-field">
+              <label for="id_{{ row.name }}">{{ row.label }}</label>
+              <input class="tim-input" id="id_{{ row.name }}" type="text" name="{{ row.name }}" value="{{ row.value }}" placeholder="{{ row.help }}">
+              <small style="font-size:11px;color:#94a3b8;">{{ row.help }}</small>
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+      <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;">
+        <button class="tim-btn tim-btn-main" type="submit">Salva configurazione</button>
+      </div>
+    </form>
+  {% elif tab == 'import' %}
+    <div class="tim-card">
+      <form method="post" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="test_sharepoint_config">
+        <button class="tim-btn" type="submit">Test connessione Graph</button>
+      </form>
+      <form method="post" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="import_sharepoint">
+        <button class="tim-btn tim-btn-main" type="submit"{% if schema_issue %} disabled style="opacity:.5;cursor:not-allowed;"{% endif %}>Importa da SharePoint</button>
+        <a class="tim-btn{% if schema_issue %}" style="opacity:.5;pointer-events:none;"{% else %}" href="{% url 'timbri:export_csv' %}{% endif %}>Export CSV locale</a>
+      </form>
+      <form method="post" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px;" onsubmit="return confirm('Reset tabella timbri? Verranno cancellati tutti i registri locali e ricreati solo i nominativi dall\\'anagrafica centrale.');">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="reset_table">
+        <button class="tim-btn" type="submit" style="border-color:#dc2626;color:#b91c1c;background:#fff1f2;">Reset tabella</button>
+        <span style="font-size:12px;color:#64748b;">La configurazione SharePoint resta salvata. Dopo il reset i registri saranno vuoti e resteranno solo i nominativi dell'anagrafica.</span>
+      </form>
+      <div style="margin-top:14px;font-size:13px;color:#64748b;">
+        L'import aggiorna i record con <code>sharepoint_item_id</code>, non sovrascrive quelli marcati come modificati dal portale e collega i timbri solo a dipendenti presenti nell'anagrafica centrale.
+      </div>
+    </div>
+  {% else %}
+    <div class="tim-card">
+      <table class="tim-table">
+        <thead><tr><th>Quando</th><th>Utente</th><th>Azione</th><th>Dettaglio</th></tr></thead>
+        <tbody>
+          {% for row in audit_entries %}
+            <tr>
+              <td>{{ row.created_at|date:"d/m/Y H:i" }}</td>
+              <td>{{ row.utente_display|default:"—" }}</td>
+              <td>{{ row.azione }}</td>
+              <td><code>{{ row.dettaglio }}</code></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" style="color:#94a3b8;">Nessun log disponibile.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

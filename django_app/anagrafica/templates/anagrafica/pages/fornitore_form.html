@@ -1,0 +1,229 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ form_title }} | Anagrafica{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Layout ── */
+.ana-form-page { display:flex; flex-direction:column; gap:20px; }
+
+/* ── Topbar ── */
+.ana-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.ana-back { display:inline-flex; align-items:center; gap:5px; font-size:13px; color:#64748b; text-decoration:none; }
+.ana-back:hover { color:#1d4ed8; }
+.ana-title { font-size:24px; font-weight:800; color:#0f172a; letter-spacing:-.02em; margin-top:4px; }
+.ana-sub { font-size:13px; color:#64748b; margin-top:2px; }
+
+/* ── Buttons ── */
+.ana-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 18px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
+.ana-btn-primary { background:#1d4ed8; color:#fff; }
+.ana-btn-primary:hover { background:#1e40af; }
+.ana-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.ana-btn-ghost:hover { background:#e2e8f0; }
+
+/* ── Card ── */
+.ana-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.ana-card-section { padding:24px 28px; }
+.ana-card-section + .ana-card-section { border-top:1px solid #f1f5f9; }
+
+/* ── Section title ── */
+.ana-section-title {
+  display:flex; align-items:center; gap:10px;
+  font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:#64748b;
+  margin-bottom:18px;
+}
+.ana-section-title::after { content:''; flex:1; height:1px; background:#f1f5f9; }
+
+/* ── Form grid ── */
+.ana-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+.ana-col-1 { grid-column:span 1; }
+.ana-col-2 { grid-column:span 2; }
+.ana-col-3 { grid-column:span 3; }
+.ana-col-4 { grid-column:span 4; }
+
+/* ── Field ── */
+.ana-field { display:flex; flex-direction:column; gap:5px; }
+.ana-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+.ana-input { border:1px solid #e2e8f0; border-radius:8px; padding:9px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; transition:border-color .15s, background .15s; }
+.ana-input:focus { border-color:#1d4ed8; background:#fff; box-shadow:0 0 0 3px #dbeafe; }
+textarea.ana-input { resize:vertical; }
+.ana-field-error { font-size:11px; color:#dc2626; margin-top:2px; }
+
+/* ── Checkbox row ── */
+.ana-check-row { display:flex; align-items:center; gap:8px; cursor:pointer; }
+.ana-check-row input[type=checkbox] { width:16px; height:16px; accent-color:#1d4ed8; }
+.ana-check-row span { font-size:13px; font-weight:600; color:#334155; }
+
+/* ── Actions bar ── */
+.ana-actions { display:flex; align-items:center; gap:10px; padding:20px 28px; background:#f8fafc; border-top:1px solid #e2e8f0; }
+
+@media(max-width:768px){
+  .ana-grid { grid-template-columns:1fr 1fr; }
+  .ana-col-3, .ana-col-4 { grid-column:span 2; }
+  .ana-col-1 { grid-column:span 1; }
+}
+@media(max-width:480px){
+  .ana-grid { grid-template-columns:1fr; }
+  .ana-col-1,.ana-col-2,.ana-col-3,.ana-col-4 { grid-column:span 1; }
+}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="ana-form-page">
+
+  <!-- Header -->
+  <div class="ana-topbar">
+    <div>
+      {% if fornitore %}
+        <a class="ana-back" href="{% url 'anagrafica:fornitore_detail' fornitore.pk %}">← Torna alla scheda</a>
+      {% else %}
+        <a class="ana-back" href="{% url 'anagrafica:fornitori_list' %}">← Fornitori</a>
+      {% endif %}
+      <div class="ana-title">{{ form_title }}</div>
+      <div class="ana-sub">{% if fornitore %}Modifica i dati del fornitore{% else %}Compila i campi per aggiungere un nuovo fornitore{% endif %}</div>
+    </div>
+  </div>
+
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="ana-card">
+
+      <!-- Dati aziendali -->
+      <div class="ana-card-section">
+        <div class="ana-section-title">Dati aziendali</div>
+        <div class="ana-grid">
+
+          <div class="ana-field ana-col-2">
+            <label for="id_ragione_sociale">Ragione sociale *</label>
+            {{ form.ragione_sociale }}
+            {% if form.ragione_sociale.errors %}
+              <div class="ana-field-error">{{ form.ragione_sociale.errors.as_text }}</div>
+            {% endif %}
+          </div>
+
+          <div class="ana-field ana-col-1">
+            <label for="id_piva">P.IVA</label>
+            {{ form.piva }}
+            {% if form.piva.errors %}
+              <div class="ana-field-error">{{ form.piva.errors.as_text }}</div>
+            {% endif %}
+          </div>
+
+          <div class="ana-field ana-col-1">
+            <label for="id_codice_fiscale">Codice fiscale</label>
+            {{ form.codice_fiscale }}
+          </div>
+
+          <div class="ana-field ana-col-2">
+            <label for="id_categoria">Categoria</label>
+            {{ form.categoria }}
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Contatti -->
+      <div class="ana-card-section">
+        <div class="ana-section-title">Contatti</div>
+        <div class="ana-grid">
+
+          <div class="ana-field ana-col-1">
+            <label for="id_telefono">Telefono</label>
+            {{ form.telefono }}
+          </div>
+
+          <div class="ana-field ana-col-1">
+            <label for="id_email">Email</label>
+            {{ form.email }}
+            {% if form.email.errors %}
+              <div class="ana-field-error">{{ form.email.errors.as_text }}</div>
+            {% endif %}
+          </div>
+
+          <div class="ana-field ana-col-1">
+            <label for="id_pec">PEC</label>
+            {{ form.pec }}
+            {% if form.pec.errors %}
+              <div class="ana-field-error">{{ form.pec.errors.as_text }}</div>
+            {% endif %}
+          </div>
+
+          <div class="ana-field ana-col-1">
+            <label for="id_website">Sito web</label>
+            {{ form.website }}
+            {% if form.website.errors %}
+              <div class="ana-field-error">{{ form.website.errors.as_text }}</div>
+            {% endif %}
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Indirizzo -->
+      <div class="ana-card-section">
+        <div class="ana-section-title">Indirizzo</div>
+        <div class="ana-grid">
+
+          <div class="ana-field ana-col-4">
+            <label for="id_indirizzo">Indirizzo</label>
+            {{ form.indirizzo }}
+          </div>
+
+          <div class="ana-field ana-col-2">
+            <label for="id_citta">Città</label>
+            {{ form.citta }}
+          </div>
+
+          <div class="ana-field ana-col-1">
+            <label for="id_cap">CAP</label>
+            {{ form.cap }}
+          </div>
+
+          <div class="ana-field ana-col-1">
+            <label for="id_provincia">Prov.</label>
+            {{ form.provincia }}
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Altro -->
+      <div class="ana-card-section">
+        <div class="ana-section-title">Altro</div>
+        <div class="ana-grid">
+
+          <div class="ana-field ana-col-4">
+            <label for="id_note">Note interne</label>
+            {{ form.note }}
+          </div>
+
+          <div class="ana-col-4">
+            <label class="ana-check-row">
+              {{ form.is_active }}
+              <span>Fornitore attivo</span>
+            </label>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="ana-actions">
+        <button class="ana-btn ana-btn-primary" type="submit">Salva fornitore</button>
+        {% if fornitore %}
+          <a class="ana-btn ana-btn-ghost" href="{% url 'anagrafica:fornitore_detail' fornitore.pk %}">Annulla</a>
+        {% else %}
+          <a class="ana-btn ana-btn-ghost" href="{% url 'anagrafica:fornitori_list' %}">Annulla</a>
+        {% endif %}
+      </div>
+
+    </div>
+  </form>
+
+</div>
+{% endblock %}

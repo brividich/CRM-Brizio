@@ -1,0 +1,158 @@
+{% extends "core/base.html" %}
+
+{% block title %}Automazioni - Regole | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .auto-grid { display:grid; gap:16px; }
+  .auto-filters { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); align-items:end; }
+  .auto-field { display:grid; gap:6px; }
+  .auto-field label { font-size:12px; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:.04em; }
+  .auto-field input, .auto-field select { width:100%; padding:9px 10px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; }
+  .auto-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .auto-table-wrap { overflow:auto; }
+  .auto-table { width:100%; border-collapse:collapse; font-size:14px; }
+  .auto-table th, .auto-table td { padding:10px 12px; border-bottom:1px solid #e2e8f0; text-align:left; vertical-align:top; }
+  .auto-table th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; background:#f8fafc; }
+  .auto-badge { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+  .auto-badge-active { background:#dcfce7; color:#166534; }
+  .auto-badge-inactive { background:#e2e8f0; color:#334155; }
+  .auto-badge-draft { background:#fef3c7; color:#92400e; }
+  .auto-badge-insert { background:#dbeafe; color:#1d4ed8; }
+  .auto-badge-update { background:#ede9fe; color:#6d28d9; }
+  .auto-badge-scope { background:#f1f5f9; color:#334155; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% url 'admin_portale:automazioni_rule_create' as rule_create_url %}
+  {% url 'admin_portale:automazioni_rule_designer_create' as rule_designer_create_url %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Regole" page_subtitle="Builder finale SSR per creare, pubblicare, disattivare e testare le regole." page_action_label="Nuova regola" page_action_url=rule_create_url page_secondary_action_label="Nuovo designer" page_secondary_action_url=rule_designer_create_url %}
+  {% include "admin_portale/components/flash_messages.html" %}
+  {% include "automazioni/components/subnav.html" %}
+
+  <div class="auto-grid">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Filtri regole</div>
+      </div>
+      <div class="card-body">
+        <form method="get" class="auto-filters">
+          <div class="auto-field">
+            <label for="id_source_code">Sorgente</label>
+            <select id="id_source_code" name="source_code">
+              <option value="">Tutte</option>
+              {% for source_code, source_label in source_choices %}
+                <option value="{{ source_code }}"{% if filters.source_code == source_code %} selected{% endif %}>{{ source_label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="auto-field">
+            <label for="id_operation_type">Operazione</label>
+            <select id="id_operation_type" name="operation_type">
+              <option value="">Tutte</option>
+              {% for operation_code, operation_label in operation_choices %}
+                <option value="{{ operation_code }}"{% if filters.operation_type == operation_code %} selected{% endif %}>{{ operation_label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="auto-field">
+            <label for="id_is_active">Attiva</label>
+            <select id="id_is_active" name="is_active">
+              <option value="">Tutte</option>
+              {% for boolean_value, boolean_label in boolean_filter_choices %}
+                <option value="{{ boolean_value }}"{% if filters.is_active == boolean_value %} selected{% endif %}>{{ boolean_label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="auto-field">
+            <label for="id_is_draft">Bozza</label>
+            <select id="id_is_draft" name="is_draft">
+              <option value="">Tutte</option>
+              {% for boolean_value, boolean_label in boolean_filter_choices %}
+                <option value="{{ boolean_value }}"{% if filters.is_draft == boolean_value %} selected{% endif %}>{{ boolean_label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="auto-actions">
+            <button class="btn" type="submit">Filtra</button>
+            <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_list' %}">Reset filtri</a>
+            <a class="btn" href="{% url 'admin_portale:automazioni_rule_create' %}">Nuova regola</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Regole configurate</div>
+      </div>
+      <div class="card-body auto-table-wrap">
+        <table class="auto-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nome</th>
+              <th>Sorgente</th>
+              <th>Operazione</th>
+              <th>Trigger scope</th>
+              <th>Watched field</th>
+              <th>Stato</th>
+              <th>Ultimo run</th>
+              <th>Ultimo test</th>
+              <th>Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for rule in rules %}
+              <tr>
+                <td>#{{ rule.id }}</td>
+                <td>
+                  <div><a href="{% url 'admin_portale:automazioni_rule_detail' rule.id %}"><strong>{{ rule.name }}</strong></a></div>
+                  <div><code>{{ rule.code }}</code></div>
+                </td>
+                <td>{{ rule.source_code }}</td>
+                <td><span class="auto-badge auto-badge-{{ rule.operation_type }}">{{ rule.operation_type }}</span></td>
+                <td><span class="auto-badge auto-badge-scope">{{ rule.trigger_scope }}</span></td>
+                <td><code>{{ rule.watched_field|default:"-" }}</code></td>
+                <td>
+                  <div class="auto-actions">
+                    <span class="auto-badge {% if rule.is_active and not rule.is_draft %}auto-badge-active{% else %}auto-badge-inactive{% endif %}">
+                      {% if rule.is_active and not rule.is_draft %}attiva{% else %}non eseguibile{% endif %}
+                    </span>
+                    {% if rule.is_draft %}
+                      <span class="auto-badge auto-badge-draft">bozza</span>
+                    {% endif %}
+                  </div>
+                </td>
+                <td>{{ rule.last_run_at|date:"d/m/Y H:i:s"|default:"-" }}</td>
+                <td>{{ rule.last_test_at|date:"d/m/Y H:i:s"|default:"-" }}</td>
+                <td>
+                  <div class="auto-actions">
+                    <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_detail' rule.id %}">Dettaglio</a>
+                    <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_designer' rule.id %}">Apri designer visuale</a>
+                    <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_edit' rule.id %}">Modifica</a>
+                    <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_test' rule.id %}">Test</a>
+                    <form method="post" action="{% url 'admin_portale:automazioni_rule_toggle' rule.id %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                      <button class="btn" type="submit">{% if rule.is_active and not rule.is_draft %}Disattiva{% else %}Attiva{% endif %}</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="10">Nessuna regola configurata.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{% endblock %}

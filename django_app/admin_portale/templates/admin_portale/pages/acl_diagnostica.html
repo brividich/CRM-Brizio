@@ -1,0 +1,124 @@
+{% extends "core/base.html" %}
+
+{% block title %}Diagnostica ACL | Admin Portale{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Diagnostica ACL / Permessi" page_subtitle="Verifica come il middleware ACL risolve un path: utente legacy, pulsante matchato e record permesso." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <div class="card">
+    {% include "admin_portale/components/card_head.html" with card_title="Test ACL" card_subtitle="Default utente corrente; opzionale: prova su un altro <code>legacy_user_id</code>" %}
+    <div class="card-body">
+      <form method="post" class="admin-form-grid">
+        {% csrf_token %}
+        <div class="field">
+          <label>Path da testare</label>
+          <input class="input" type="text" name="path" value="{{ path_value|default:'/assenze/' }}" placeholder="/assenze/">
+        </div>
+        <div class="field">
+          <label>Legacy User ID (opzionale)</label>
+          <input class="input" type="number" name="legacy_user_id" value="{{ requested_user_id }}">
+        </div>
+        <div class="field field-actions">
+          <button class="btn" type="submit">Esegui diagnostica ACL</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Risultato</div>
+      <div class="cell-muted">{% if diag.allowed %}CONSENTITO{% else %}NEGATO{% endif %}</div>
+    </div>
+    <div class="card-body">
+      <div class="table-wrap">
+        <table class="admin-table">
+          <tbody>
+            <tr><th style="width:240px;">Path input</th><td><code>{{ diag.path_input }}</code></td></tr>
+            <tr><th>Path normalizzato ACL</th><td><code>{{ diag.path_normalized }}</code></td></tr>
+            <tr><th>Esito</th><td>{% if diag.allowed %}Consentito{% else %}Negato{% endif %}</td></tr>
+            <tr><th>Motivo</th><td>{{ diag.reason }}</td></tr>
+            <tr><th>Admin legacy (bypass)</th><td>{% if diag.is_legacy_admin %}Si{% else %}No{% endif %}</td></tr>
+            {% if diag.db_error %}
+              <tr><th>Errore DB</th><td><code>{{ diag.db_error }}</code></td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    {% include "admin_portale/components/card_head.html" with card_title="Utente legacy testato" %}
+    <div class="card-body">
+      {% if diag.legacy_user %}
+        <div class="table-wrap">
+          <table class="admin-table">
+            <tbody>
+              <tr><th style="width:240px;">ID</th><td>{{ diag.legacy_user.id }}</td></tr>
+              <tr><th>Nome</th><td>{{ diag.legacy_user.nome|default:"-" }}</td></tr>
+              <tr><th>Email</th><td>{{ diag.legacy_user.email|default:"-" }}</td></tr>
+              <tr><th>Ruolo</th><td>{{ diag.legacy_user.ruolo|default:"-" }}</td></tr>
+              <tr><th>Ruolo ID</th><td>{{ diag.legacy_user.ruolo_id|default:"-" }}</td></tr>
+              <tr><th>Attivo</th><td>{% if diag.legacy_user.attivo %}Si{% else %}No{% endif %}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="notice notice-danger">Nessun utente legacy disponibile per la diagnostica.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    {% include "admin_portale/components/card_head.html" with card_title="Pulsante matchato" %}
+    <div class="card-body">
+      {% if diag.pulsante %}
+        <div class="table-wrap">
+          <table class="admin-table">
+            <tbody>
+              <tr><th style="width:240px;">Pulsante ID</th><td>{{ diag.pulsante.id }}</td></tr>
+              <tr><th>Label</th><td>{{ diag.pulsante.label }}</td></tr>
+              <tr><th>Modulo</th><td><code>{{ diag.pulsante.modulo }}</code></td></tr>
+              <tr><th>Azione</th><td><code>{{ diag.pulsante.azione }}</code></td></tr>
+              <tr><th>URL (DB)</th><td><code>{{ diag.pulsante.url }}</code></td></tr>
+              <tr><th>URL normalizzato ACL</th><td><code>{{ diag.pulsante.url_normalized }}</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="notice">Nessun pulsante legacy matchato per il path richiesto.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    {% include "admin_portale/components/card_head.html" with card_title="Record permesso" %}
+    <div class="card-body">
+      {% if diag.permesso %}
+        <div class="table-wrap">
+          <table class="admin-table">
+            <tbody>
+              <tr><th style="width:240px;">Permesso ID</th><td>{{ diag.permesso.id }}</td></tr>
+              <tr><th>Ruolo ID</th><td>{{ diag.permesso.ruolo_id }}</td></tr>
+              <tr><th>Modulo</th><td><code>{{ diag.permesso.modulo }}</code></td></tr>
+              <tr><th>Azione</th><td><code>{{ diag.permesso.azione }}</code></td></tr>
+              <tr><th>can_view</th><td>{{ diag.permesso.can_view|default:"-" }}</td></tr>
+              <tr><th>consentito</th><td>{{ diag.permesso.consentito|default:"-" }}</td></tr>
+              <tr><th>can_edit</th><td>{{ diag.permesso.can_edit|default:"-" }}</td></tr>
+              <tr><th>can_delete</th><td>{{ diag.permesso.can_delete|default:"-" }}</td></tr>
+              <tr><th>can_approve</th><td>{{ diag.permesso.can_approve|default:"-" }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="notice">Nessun record `permessi` trovato per ruolo/modulo/azione.</div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,241 @@
+{% extends "core/base.html" %}
+
+{% block title %}Admin Portale | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+  .admin-version-shell { display:grid; gap:16px; }
+  .admin-version-hero {
+    border:1px solid #dbe1ea;
+    border-radius:16px;
+    padding:18px;
+    background:linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color:#e2e8f0;
+  }
+  .admin-version-kicker { font-size:12px; text-transform:uppercase; letter-spacing:.08em; opacity:.8; }
+  .admin-version-number { margin-top:6px; font-size:34px; font-weight:800; letter-spacing:-.03em; }
+  .admin-version-date { margin-top:4px; font-size:13px; color:#cbd5e1; }
+  .admin-version-grid {
+    display:grid;
+    gap:10px;
+    grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
+  }
+  .admin-version-item {
+    border:1px solid #dbe1ea;
+    border-radius:12px;
+    padding:12px 14px;
+    background:#f8fafc;
+  }
+  .admin-version-label { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; }
+  .admin-version-value { margin-top:4px; font-size:20px; font-weight:800; color:#0f172a; }
+  .admin-version-meta { margin-top:3px; font-size:12px; color:#64748b; }
+  .admin-release-list { margin:0; padding-left:18px; color:#334155; display:grid; gap:8px; }
+  .admin-release-meta { color:#64748b; font-size:13px; }
+  .admin-version-note { color:#64748b; font-size:12px; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% url 'admin_portale:schema_dati' as schema_dati_url %}
+  {% url 'admin_portale:acl_diagnostica' as acl_diag_url %}
+  {% url 'admin_portale:ldap_diagnostica' as ldap_diag_url %}
+  {% url 'admin_portale:automazioni_rule_list' as automazioni_rule_url %}
+  {% url 'admin_portale:automazioni_queue_list' as automazioni_queue_url %}
+  {% url 'admin_portale:automazioni_run_log_list' as automazioni_run_log_url %}
+  {% include "admin_portale/components/page_header.html" with page_title="Pannello Amministrazione" page_subtitle="Gestione utenti, permessi ACL legacy e pulsanti menu." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-icon-wrap blue">👤</div>
+      <div>
+        <div class="stat-num">{{ stats.utenti_attivi }}</div>
+        <div class="stat-lbl">Utenti attivi</div>
+      </div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon-wrap yellow">🛡️</div>
+      <div>
+        <div class="stat-num">{{ stats.ruoli }}</div>
+        <div class="stat-lbl">Ruoli</div>
+      </div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon-wrap green">🧭</div>
+      <div>
+        <div class="stat-num">{{ stats.pulsanti }}</div>
+        <div class="stat-lbl">Pulsanti</div>
+      </div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon-wrap red">🔐</div>
+      <div>
+        <div class="stat-num">{{ stats.permessi }}</div>
+        <div class="stat-lbl">Record permessi</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Moduli amministrativi</div>
+    </div>
+    <div class="card-body">
+      <div class="modules-grid">
+        <a class="mod" href="{% url 'admin_portale:utenti_list' %}">
+          <div class="mod-icon">👤</div>
+          <div>
+            <div class="mod-name">Gestione Utenti</div>
+            <div class="mod-sub">Ricerca, filtri, modifica singola e massiva ruoli</div>
+          </div>
+        </a>
+        <a class="mod" href="{% url 'admin_portale:accessi' %}">
+          <div class="mod-icon">🛡️</div>
+          <div>
+            <div class="mod-name">Gestione Accessi</div>
+            <div class="mod-sub">Ruoli, permessi, pulsanti e override utenti — punto unico</div>
+          </div>
+        </a>
+        <a class="mod" href="{% url 'admin_portale:pulsanti' %}">
+          <div class="mod-icon">🧭</div>
+          <div>
+            <div class="mod-name">Gestione Pulsanti</div>
+            <div class="mod-sub">Menu dinamico, URL legacy e ordine opzionale</div>
+          </div>
+        </a>
+        <a class="mod" href="{% url 'admin_portale:topbar_live' %}">
+          <div class="mod-icon">NAV</div>
+          <div>
+            <div class="mod-name">Topbar Live</div>
+            <div class="mod-sub">Editor rapido della navigazione in alto, con salvataggio immediato</div>
+          </div>
+        </a>
+        <a class="mod" href="{% url 'admin_portale:navigation_builder' %}">
+          <div class="mod-icon">CFG</div>
+          <div>
+            <div class="mod-name">Navigation Builder</div>
+            <div class="mod-sub">Sorgente unica menu/ruoli con publish snapshot e rollback</div>
+          </div>
+        </a>
+        {% if automazioni_rule_url %}
+          <a class="mod" href="{{ automazioni_rule_url }}">
+            <div class="mod-icon">AUTO</div>
+            <div>
+              <div class="mod-name">Regole Automazioni</div>
+              <div class="mod-sub">Builder SSR per trigger, condizioni, azioni e test manuale</div>
+            </div>
+          </a>
+        {% endif %}
+        {% if automazioni_queue_url %}
+          <a class="mod" href="{{ automazioni_queue_url }}">
+            <div class="mod-icon">Q</div>
+            <div>
+              <div class="mod-name">Queue Automazioni</div>
+              <div class="mod-sub">Plancia operativa per monitoraggio queue, reset e retry controllato</div>
+            </div>
+          </a>
+        {% endif %}
+        {% if automazioni_run_log_url %}
+          <a class="mod" href="{{ automazioni_run_log_url }}">
+            <div class="mod-icon">LOG</div>
+            <div>
+              <div class="mod-name">Run Log Automazioni</div>
+              <div class="mod-sub">Debug esecuzioni regole, payload e action log collegati</div>
+            </div>
+          </a>
+        {% endif %}
+        {% if schema_dati_url %}
+          <a class="mod" href="{{ schema_dati_url }}">
+            <div class="mod-icon">DB</div>
+            <div>
+              <div class="mod-name">Schema Dati Admin</div>
+              <div class="mod-sub">Mappa tabelle legacy/Django e responsabilita'</div>
+            </div>
+          </a>
+        {% endif %}
+        {% if acl_diag_url %}
+          <a class="mod" href="{{ acl_diag_url }}">
+            <div class="mod-icon">ACL</div>
+            <div>
+              <div class="mod-name">Diagnostica ACL</div>
+              <div class="mod-sub">Debug path, pulsante matchato e record permessi</div>
+            </div>
+          </a>
+        {% endif %}
+        {% if ldap_diag_url %}
+          <a class="mod" href="{{ ldap_diag_url }}">
+            <div class="mod-icon">LDAP</div>
+            <div>
+              <div class="mod-name">Config SRV</div>
+              <div class="mod-sub">LDAP / Active Directory + SMTP in un unico pannello di configurazione server</div>
+            </div>
+          </a>
+        {% endif %}
+        <a class="mod" href="{% url 'admin_portale:guestportal_sso' %}">
+          <div class="mod-icon">🌐</div>
+          <div>
+            <div class="mod-name">GuestPortal</div>
+            <div class="mod-sub">Accedi al pannello WiFi guest con le tue credenziali AD</div>
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="versioning-card">
+    <div class="card-head">
+      <div class="card-title">Versioning e Release Notes</div>
+    </div>
+    <div class="card-body">
+      <div class="admin-version-shell">
+        <div class="admin-version-hero">
+          <div class="admin-version-kicker">Versione portale</div>
+          <div class="admin-version-number">{{ app_version }}</div>
+          {% if current_release.date %}
+            <div class="admin-version-date">Release corrente {{ current_release.date }}</div>
+          {% endif %}
+        </div>
+
+        <div>
+          <div class="card-title" style="font-size:16px;margin-bottom:10px;">Versioni moduli</div>
+          <div class="admin-version-grid">
+            {% for module in module_versions %}
+              <div class="admin-version-item">
+                <div class="admin-version-label">{{ module.label }}</div>
+                <div class="admin-version-value">{{ module.version }}</div>
+                <div class="admin-version-meta">
+                  {% if module.is_overridden %}
+                    Override modulo attivo
+                  {% else %}
+                    Allineato alla release portale
+                  {% endif %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        {% if release_notes_preview %}
+          <div>
+            <div class="card-title" style="font-size:16px;margin-bottom:4px;">Ultima release</div>
+            <div class="admin-release-meta">{{ current_release.version }}{% if current_release.date %} | {{ current_release.date }}{% endif %}</div>
+            <ul class="admin-release-list" style="margin-top:10px;">
+              {% for item in release_notes_preview %}
+                <li>{{ item }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+
+        <div class="admin-version-note">
+          Per gestire versioni separate puoi usare gli override per modulo in configurazione:
+          `APP_VERSION_ASSETS`, `APP_VERSION_TASKS`, `APP_VERSION_ADMIN_PORTALE`, ecc.
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

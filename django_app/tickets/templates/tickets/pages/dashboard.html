@@ -1,0 +1,207 @@
+{% extends "core/base.html" %}
+
+{% block title %}Ticket | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#tkt-root { display:flex; flex-direction:column; gap:20px; }
+
+.tkt-hero {
+  background:linear-gradient(135deg,#1e3a5f 0%,#0369a1 60%,#0284c7 100%);
+  border-radius:16px; padding:28px 32px;
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; color:#fff;
+}
+.tkt-hero-title { font-size:26px; font-weight:900; letter-spacing:-.03em; }
+.tkt-hero-sub { font-size:13px; opacity:.7; margin-top:3px; }
+.tkt-hero-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.tkt-hbtn { display:inline-flex; align-items:center; gap:6px; padding:9px 18px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; border:none; cursor:pointer; transition:all .15s; }
+.tkt-hbtn-white { background:#fff; color:#0369a1; }
+.tkt-hbtn-white:hover { background:#e0f2fe; }
+.tkt-hbtn-outline { background:rgba(255,255,255,.15); color:#fff; border:1px solid rgba(255,255,255,.3); }
+.tkt-hbtn-outline:hover { background:rgba(255,255,255,.28); }
+
+.tkt-kpi-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; }
+.tkt-kpi {
+  background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 20px;
+  display:flex; flex-direction:column; gap:4px;
+}
+.tkt-kpi-val { font-size:32px; font-weight:900; line-height:1; }
+.tkt-kpi-lbl { font-size:12px; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
+.tkt-kpi-red .tkt-kpi-val { color:#dc2626; }
+.tkt-kpi-orange .tkt-kpi-val { color:#d97706; }
+.tkt-kpi-blue .tkt-kpi-val { color:#0369a1; }
+
+.tkt-filters {
+  background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px;
+  padding:14px 18px; display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end;
+}
+.tkt-filters label { font-size:11px; font-weight:700; color:#64748b; display:flex; flex-direction:column; gap:4px; }
+.tkt-filters select, .tkt-filters input[type=text] {
+  padding:6px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px;
+  background:#fff; min-width:130px;
+}
+.tkt-filters-btn {
+  padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700;
+  background:#0369a1; color:#fff; border:none; cursor:pointer;
+}
+.tkt-filters-btn:hover { background:#075985; }
+.tkt-filters-reset { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; text-decoration:none; padding:8px 12px; border-radius:8px; font-size:12px; font-weight:600; }
+
+.tkt-table-wrap { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.tkt-table { width:100%; border-collapse:collapse; font-size:13px; }
+.tkt-table th { background:#f8fafc; padding:10px 14px; text-align:left; font-weight:700; color:#64748b; font-size:11px; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #e2e8f0; }
+.tkt-table td { padding:12px 14px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+.tkt-table tr:last-child td { border-bottom:none; }
+.tkt-table tr:hover td { background:#f8fafc; }
+.tkt-table a { color:#0369a1; font-weight:600; text-decoration:none; }
+.tkt-table a:hover { text-decoration:underline; }
+.tkt-pdf-link {
+  display:inline-flex; align-items:center; justify-content:center;
+  padding:5px 10px; border-radius:8px; background:#eff6ff; color:#1d4ed8;
+  font-size:11px; font-weight:700; text-decoration:none; border:1px solid #bfdbfe;
+}
+.tkt-pdf-link:hover { background:#dbeafe; text-decoration:none; }
+
+.tkt-badge { display:inline-block; padding:3px 10px; border-radius:99px; font-size:11px; font-weight:700; }
+.tkt-badge-APERTA { background:#dbeafe; color:#1e40af; }
+.tkt-badge-IN_CARICO { background:#fef3c7; color:#92400e; }
+.tkt-badge-RISOLTO { background:#d1fae5; color:#065f46; }
+.tkt-badge-CHIUSO { background:#f1f5f9; color:#475569; }
+.tkt-badge-ANNULLATO { background:#fee2e2; color:#991b1b; }
+
+.tkt-prio { display:inline-block; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:700; }
+.tkt-prio-BASSA { background:#f0fdf4; color:#166534; }
+.tkt-prio-MEDIA { background:#eff6ff; color:#1e40af; }
+.tkt-prio-ALTA { background:#fff7ed; color:#9a3412; }
+.tkt-prio-URGENTE { background:#fef2f2; color:#dc2626; }
+
+.tkt-tipo { display:inline-block; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:700; }
+.tkt-tipo-IT { background:#e0f2fe; color:#0369a1; }
+.tkt-tipo-MAN { background:#f0fdf4; color:#15803d; }
+
+.tkt-empty { padding:40px; text-align:center; color:#94a3b8; font-size:14px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="tkt-root">
+  {% include "tickets/components/subnav.html" %}
+
+  <div class="tkt-hero">
+    <div>
+      <div class="tkt-hero-title">Ticket</div>
+      <div class="tkt-hero-sub">Richieste di intervento IT e Manutenzione</div>
+    </div>
+    <div class="tkt-hero-actions">
+      {% if can_open_it %}
+      <a href="{% url 'tickets:nuovo' %}?tipo=IT" class="tkt-hbtn tkt-hbtn-white">+ Ticket IT</a>
+      {% endif %}
+      {% if can_open_man %}
+      <a href="{% url 'tickets:nuovo' %}?tipo=MAN" class="tkt-hbtn tkt-hbtn-outline">+ Ticket MAN</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="tkt-kpi-row">
+    <div class="tkt-kpi tkt-kpi-red">
+      <div class="tkt-kpi-val">{{ n_urgenti }}</div>
+      <div class="tkt-kpi-lbl">Urgenti aperti</div>
+    </div>
+    <div class="tkt-kpi tkt-kpi-orange">
+      <div class="tkt-kpi-val">{{ n_aperte }}</div>
+      <div class="tkt-kpi-lbl">Aperti</div>
+    </div>
+    <div class="tkt-kpi tkt-kpi-blue">
+      <div class="tkt-kpi-val">{{ n_in_carico }}</div>
+      <div class="tkt-kpi-lbl">In carico</div>
+    </div>
+    <div class="tkt-kpi">
+      <div class="tkt-kpi-val" style="color:#0f172a;">{{ tickets.count }}</div>
+      <div class="tkt-kpi-lbl">Totale (filtro)</div>
+    </div>
+  </div>
+
+  <form method="get" class="tkt-filters">
+    <label>Tipo
+      <select name="tipo">
+        <option value="">Tutti</option>
+        {% for val,lbl in tipi %}<option value="{{ val }}"{% if filtro_tipo == val %} selected{% endif %}>{{ lbl }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Stato
+      <select name="stato">
+        <option value="">Tutti</option>
+        {% for val,lbl in stati %}<option value="{{ val }}"{% if filtro_stato == val %} selected{% endif %}>{{ lbl }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Priorita
+      <select name="priorita">
+        <option value="">Tutte</option>
+        {% for val,lbl in priorita_list %}<option value="{{ val }}"{% if filtro_prio == val %} selected{% endif %}>{{ lbl }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Cerca
+      <input type="text" name="q" value="{{ filtro_cerca }}" placeholder="Numero o titolo...">
+    </label>
+    <button type="submit" class="tkt-filters-btn">Filtra</button>
+    {% if filtro_tipo or filtro_stato or filtro_prio or filtro_cerca %}
+    <a href="{% url 'tickets:dashboard' %}" class="tkt-filters-reset">Reset</a>
+    {% endif %}
+  </form>
+
+  <div class="tkt-table-wrap">
+    {% if tickets %}
+    <table class="tkt-table">
+      <thead>
+        <tr>
+          <th>Numero</th>
+          <th>Tipo</th>
+          <th>Titolo</th>
+          <th>Categoria</th>
+          <th>Priorita</th>
+          <th>Stato</th>
+          <th>Data apertura</th>
+          {% if is_gestore or is_admin %}<th>Assegnato a</th>{% endif %}
+          <th>Report</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tickets %}
+        <tr>
+          <td>
+            {% if is_gestore or is_admin %}
+            <a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.numero_ticket }}</a>
+            {% else %}
+            <a href="{% url 'tickets:detail' t.pk %}">{{ t.numero_ticket }}</a>
+            {% endif %}
+          </td>
+          <td><span class="tkt-tipo tkt-tipo-{{ t.tipo }}">{{ t.label_tipo }}</span></td>
+          <td>
+            {% if is_gestore or is_admin %}
+            <a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.titolo|truncatechars:60 }}</a>
+            {% else %}
+            <a href="{% url 'tickets:detail' t.pk %}">{{ t.titolo|truncatechars:60 }}</a>
+            {% endif %}
+            {% if t.incide_sicurezza %}<span style="margin-left:6px;font-size:11px;background:#fef2f2;color:#dc2626;padding:1px 6px;border-radius:4px;font-weight:700;">Sicurezza</span>{% endif %}
+          </td>
+          <td>{{ t.label_categoria }}</td>
+          <td><span class="tkt-prio tkt-prio-{{ t.priorita }}">{{ t.label_priorita }}</span></td>
+          <td><span class="tkt-badge tkt-badge-{{ t.stato }}">{{ t.label_stato }}</span></td>
+          <td style="white-space:nowrap;">{{ t.created_at|date:"d/m/Y H:i" }}</td>
+          {% if is_gestore or is_admin %}<td>{{ t.assegnato_a|default:"-" }}</td>{% endif %}
+          <td style="white-space:nowrap;"><a href="{% url 'tickets:pdf' t.pk %}" target="_blank" rel="noopener" class="tkt-pdf-link">PDF</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="tkt-empty">
+      Nessun ticket trovato.
+      {% if can_open_it or can_open_man %}
+      <br><a href="{% url 'tickets:nuovo' %}" style="color:#0369a1;font-weight:700;">Apri il primo ticket</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

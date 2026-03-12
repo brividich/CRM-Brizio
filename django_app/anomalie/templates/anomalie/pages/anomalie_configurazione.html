@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Configurazione Anomalie | Portale Applicativo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: radial-gradient(ellipse at 50% 22%, #cad3dc 0%, #aebac5 100%);
+      color: #1f2937;
+    }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      height: 54px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 16px;
+      background: rgba(26, 84, 153, 0.93);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+    .topbar a {
+      color: rgba(255, 255, 255, 0.92);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+    .topbar a:hover { color: #fff; }
+    .topbar-sep { width: 1px; height: 22px; background: rgba(255, 255, 255, 0.28); }
+    .topbar-title {
+      flex: 1;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .topbar-user {
+      color: rgba(255, 255, 255, 0.74);
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .page {
+      max-width: 980px;
+      margin: 22px auto 36px;
+      padding: 0 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+    }
+    .card-head {
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    }
+    .card-title {
+      font-size: 17px;
+      font-weight: 800;
+      color: #1e3a5f;
+      letter-spacing: 0.02em;
+    }
+    .card-sub {
+      margin-top: 6px;
+      font-size: 13px;
+      color: #64748b;
+      line-height: 1.4;
+    }
+    .card-body {
+      padding: 18px 20px 20px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+    .field.full { grid-column: 1 / -1; }
+    .field label {
+      font-size: 13px;
+      font-weight: 800;
+      color: #374151;
+      letter-spacing: 0.02em;
+    }
+    .field small {
+      color: #64748b;
+      font-size: 12px;
+      line-height: 1.35;
+      margin-top: -2px;
+    }
+    .field textarea,
+    .field input[type="text"] {
+      width: 100%;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 13px;
+      line-height: 1.35;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: #f8fafc;
+      color: #1e293b;
+      outline: none;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .field textarea {
+      min-height: 150px;
+      resize: vertical;
+    }
+    .field textarea:focus,
+    .field input[type="text"]:focus {
+      border-color: #2670b8;
+      background: #fff;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      padding: 0 20px 20px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      border: none;
+      border-radius: 9px;
+      padding: 10px 18px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      transition: opacity 0.15s;
+    }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-main { background: linear-gradient(160deg, #2670b8 0%, #1a5499 100%); color: #fff; }
+    .btn-main:hover:not(:disabled) { opacity: 0.9; }
+    .btn-secondary {
+      border: 1.5px solid #cbd5e1;
+      color: #475569;
+      background: #fff;
+    }
+    .status {
+      display: none;
+      padding: 11px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      margin: 0 20px 16px;
+    }
+    .status.ok {
+      display: block;
+      border: 1px solid #86efac;
+      background: #dcfce7;
+      color: #166534;
+    }
+    .status.err {
+      display: block;
+      border: 1px solid #fca5a5;
+      background: #fef2f2;
+      color: #991b1b;
+    }
+    @media (max-width: 780px) {
+      .card-body { grid-template-columns: 1fr; }
+      .topbar-user { display: none; }
+    }
+    .ga-tabs { display: flex; gap: 4px; border-bottom: 2px solid rgba(0,0,0,.1); margin: 0 0 0; padding: 10px 16px 0; background: rgba(255,255,255,.18); }
+    .ga-tab { padding: 7px 15px; border-radius: 8px 8px 0 0; text-decoration: none; font-weight: 700; font-size: 13px; color: rgba(255,255,255,.8); border: 1px solid transparent; border-bottom: none; }
+    .ga-tab:hover { background: rgba(255,255,255,.15); color: #fff; }
+    .ga-tab.active { background: rgba(255,255,255,.95); color: #1a5499; margin-bottom: -2px; }
+    .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 10px; }
+    .kpi { background: rgba(255,255,255,.9); border-radius: 11px; padding: 14px; box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+    .kpi-label { font-size: 11px; text-transform: uppercase; color: #7e94b2; font-weight: 700; }
+    .kpi-val { font-size: 28px; font-weight: 800; color: #0f172a; margin-top: 4px; }
+    .kpi-sub { margin-top: 6px; font-size: 12px; color: #64748b; line-height: 1.35; }
+    .ga-card { background: rgba(255,255,255,.9); border-radius: 14px; box-shadow: 0 6px 18px rgba(0,0,0,.1); overflow: hidden; }
+    .ga-card-head { padding: 12px 16px; border-bottom: 1px solid rgba(0,0,0,.08); font-size: 14px; font-weight: 800; color: #1e3a5f; display: flex; justify-content: space-between; align-items: center; }
+    .ga-card-body { padding: 14px 16px; }
+    .ga-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .ga-tbl th { padding: 7px 10px; background: #f0f5ff; color: #6080a0; font-size: 11px; text-transform: uppercase; font-weight: 700; border-bottom: 1px solid #dde4f0; text-align: left; }
+    .ga-tbl td { padding: 7px 10px; border-bottom: 1px solid #eef2f8; vertical-align: middle; }
+    .ga-tbl tr:last-child td { border-bottom: none; }
+    .ga-tbl tr:hover td { background: #f5f9ff; }
+    .ga-badge { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 700; }
+    .ga-badge-aperta { background: #dcfce7; color: #166534; }
+    .ga-badge-chiusa { background: #f1f5f9; color: #64748b; }
+    .ga-search { display: flex; gap: 8px; margin-bottom: 10px; }
+    .ga-search input { flex: 1; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 6px 11px; font-size: 13px; }
+    .ga-btn { display: inline-flex; align-items: center; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; border: 1px solid transparent; text-decoration: none; }
+    .ga-btn-primary { background: #1a5499; color: #fff; }
+    .ga-btn-primary:hover { opacity: .9; }
+    .log-row { display: grid; grid-template-columns: 130px 80px 110px 1fr; gap: 8px; padding: 6px 8px; border-bottom: 1px solid #eef2f8; font-size: 12px; }
+    .log-row:last-child { border-bottom: none; }
+    .log-head { font-size: 11px; text-transform: uppercase; color: #8fa5c0; font-weight: 700; background: #f0f5ff; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <a href="/anomalie-menu">&#8592; Menu Anomalie</a>
+    <div class="topbar-sep"></div>
+    <a href="/gestione-anomalie/nuova-segnalazione">Apertura Segnalazione</a>
+    <div class="topbar-sep"></div>
+    <div class="topbar-title">Gestione Anomalie</div>
+    <div class="topbar-user">{{ username }}</div>
+  </div>
+
+  <div class="ga-tabs">
+    <a href="?tab=riepilogo" class="ga-tab {% if tab == 'riepilogo' %}active{% endif %}">Riepilogo</a>
+    <a href="?tab=config" class="ga-tab {% if tab == 'config' or not tab %}active{% endif %}">Configurazione</a>
+    <a href="?tab=record" class="ga-tab {% if tab == 'record' %}active{% endif %}">Record</a>
+    <a href="?tab=log" class="ga-tab {% if tab == 'log' %}active{% endif %}">Log attivit&agrave;</a>
+  </div>
+
+  <div class="page">
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="status {% if message.tags == 'error' %}err{% else %}ok{% endif %}" style="display:block;margin:0;">
+        {{ message }}
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  {# ========== TAB RIEPILOGO ========== #}
+  {% if tab == 'riepilogo' %}
+    <div class="kpi-row">
+      <div class="kpi"><div class="kpi-label">Anomalie totali</div><div class="kpi-val">{{ stats.total }}</div></div>
+      <div class="kpi"><div class="kpi-label">Aperte</div><div class="kpi-val">{{ stats.aperte }}</div></div>
+      <div class="kpi"><div class="kpi-label">Chiuse</div><div class="kpi-val">{{ stats.chiuse }}</div></div>
+    </div>
+    <div class="ga-card">
+      <div class="ga-card-head">Distribuzione per avanzamento</div>
+      <div class="ga-card-body">
+        <table class="ga-tbl">
+          <thead><tr><th>Avanzamento</th><th>Quantit&agrave;</th></tr></thead>
+          <tbody>
+          {% for row in by_avanzamento %}
+            <tr>
+              <td>{{ row.avanzamento|default:"(non specificato)" }}</td>
+              <td><strong>{{ row.n }}</strong></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="2" style="color:#9aadcb;text-align:center;">Nessun dato</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+
+  {# ========== TAB CONFIG (originale) ========== #}
+  {% if tab == 'config' or not tab %}
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">SharePoint / Microsoft Graph</div>
+        <div class="card-sub">
+          Configurazione del push manuale anomalie verso SharePoint. Tenant, client, site e secret sono condivisi con gli altri moduli che usano Graph.
+        </div>
+      </div>
+
+      <div class="card-body">
+        <div class="kpi-row" style="grid-column:1 / -1;">
+          <div class="kpi">
+            <div class="kpi-label">Runtime Graph</div>
+            <div class="kpi-val" style="font-size:22px;">{% if sharepoint_admin_config.runtime_ready %}OK{% else %}KO{% endif %}</div>
+            <div class="kpi-sub">
+              {% if sharepoint_admin_config.runtime_ready %}
+                Configurazione completa per il push anomalie.
+              {% else %}
+                {{ sharepoint_admin_config.sync_issue|default:"Parametri Graph incompleti." }}
+              {% endif %}
+            </div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Secret</div>
+            <div class="kpi-val" style="font-size:22px;">{% if sharepoint_admin_config.client_secret_configured %}Presente{% else %}Assente{% endif %}</div>
+            <div class="kpi-sub">Il valore non viene mostrato in chiaro.</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Lista anomalie DB</div>
+            <div class="kpi-val" style="font-size:22px;">{{ sharepoint_admin_config.list_id_anomalie_db|default:"-" }}</div>
+            <div class="kpi-sub">ID lista usato da `POST /api/anomalie/sync`.</div>
+          </div>
+        </div>
+
+        {% if sharepoint_admin_config.env_override_active %}
+          <div class="field full">
+            <small style="padding:10px 12px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;border-radius:10px;">
+              Alcuni valori Graph arrivano da variabili ambiente. In quel caso hanno priorita rispetto a <code>config.ini</code>.
+            </small>
+          </div>
+        {% endif %}
+
+        <div class="field">
+          <label for="sharepoint_tenant_id">Tenant ID</label>
+          <input id="sharepoint_tenant_id" type="text" value="{{ sharepoint_admin_config.tenant_id }}" readonly>
+          <small>Sorgente runtime: {{ sharepoint_admin_config.runtime_sources.tenant_id }}</small>
+        </div>
+
+        <div class="field">
+          <label for="sharepoint_client_id_runtime">Client ID</label>
+          <input id="sharepoint_client_id_runtime" type="text" value="{{ sharepoint_admin_config.client_id }}" readonly>
+          <small>Sorgente runtime: {{ sharepoint_admin_config.runtime_sources.client_id }}</small>
+        </div>
+
+        <div class="field">
+          <label for="sharepoint_site_id_runtime">Site ID</label>
+          <input id="sharepoint_site_id_runtime" type="text" value="{{ sharepoint_admin_config.site_id }}" readonly>
+          <small>Sorgente runtime: {{ sharepoint_admin_config.runtime_sources.site_id }}</small>
+        </div>
+
+        <div class="field">
+          <label for="sharepoint_list_id_runtime">List ID runtime</label>
+          <input id="sharepoint_list_id_runtime" type="text" value="{{ sharepoint_admin_config.list_id_anomalie_db }}" readonly>
+          <small>Sorgente runtime: {{ sharepoint_admin_config.runtime_sources.list_id_anomalie_db }}</small>
+        </div>
+      </div>
+
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_sharepoint_config">
+        <div class="card-body" style="padding-top:0;">
+          <div class="field">
+            <label for="sharepoint_tenant_id_edit">Tenant ID</label>
+            <input id="sharepoint_tenant_id_edit" name="sharepoint_tenant_id" type="text" value="{{ sharepoint_admin_config.tenant_id }}" placeholder="GUID tenant">
+          </div>
+
+          <div class="field">
+            <label for="sharepoint_client_id_edit">Client ID</label>
+            <input id="sharepoint_client_id_edit" name="sharepoint_client_id" type="text" value="{{ sharepoint_admin_config.client_id }}" placeholder="App registration client id">
+          </div>
+
+          <div class="field">
+            <label for="sharepoint_site_id_edit">Site ID</label>
+            <input id="sharepoint_site_id_edit" name="sharepoint_site_id" type="text" value="{{ sharepoint_admin_config.site_id }}" placeholder="sharepoint.com,...">
+          </div>
+
+          <div class="field">
+            <label for="sharepoint_client_secret">Client Secret</label>
+            <input id="sharepoint_client_secret" name="sharepoint_client_secret" type="text" value="" placeholder="{% if sharepoint_admin_config.client_secret_configured %}Lascia vuoto per mantenere{% else %}Inserisci secret{% endif %}">
+          </div>
+
+          <div class="field full">
+            <label for="sharepoint_list_id_anomalie_db">List ID anomalie DB</label>
+            <input id="sharepoint_list_id_anomalie_db" name="sharepoint_list_id_anomalie_db" type="text" value="{{ sharepoint_admin_config.list_id_anomalie_db }}" placeholder="GUID lista SharePoint anomalie DB">
+            <small>Puoi cambiarlo se sposti il modulo su una lista SharePoint diversa.</small>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-main" type="submit">Salva configurazione SharePoint</button>
+        </div>
+      </form>
+
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="test_sharepoint_config">
+        <div class="actions" style="padding-top:0;">
+          <button class="btn btn-secondary" type="submit">Test connessione Graph</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Gestione Liste</div>
+        <div class="card-sub">
+          Un elemento per riga. Le liste vengono usate in apertura segnalazione per compilare rapidamente campi e scelte.
+        </div>
+      </div>
+
+      <div class="card-body">
+        <div class="field">
+          <label for="capi_reparto">Capi reparto (CAR)</label>
+          <small>Lista suggerimenti per il campo CAR.</small>
+          <textarea id="capi_reparto" spellcheck="false"></textarea>
+        </div>
+
+        <div class="field">
+          <label for="capi_commessa">Capi commessa</label>
+          <small>Lista suggerimenti per il campo Capocommessa.</small>
+          <textarea id="capi_commessa" spellcheck="false"></textarea>
+        </div>
+
+        <div class="field">
+          <label for="causali_doc">Scelte Causale documento</label>
+          <small>Esempio: OP, OG.</small>
+          <textarea id="causali_doc" spellcheck="false"></textarea>
+        </div>
+
+        <div class="field">
+          <label for="stati_superficie">Scelte Stato superficie</label>
+          <small>Usate nei checkbox della segnalazione anomalia.</small>
+          <textarea id="stati_superficie" spellcheck="false"></textarea>
+        </div>
+
+        <div class="field full">
+          <label for="avanzamenti">Scelte Avanzamento</label>
+          <small>Usate nel menu a tendina AVANZAMENTO nella gestione anomalie.</small>
+          <textarea id="avanzamenti" spellcheck="false"></textarea>
+        </div>
+
+        <div class="field full">
+          <label for="autorizzati_modifica">Utenti extra autorizzati modifica</label>
+          <small>
+            Un nome o email per riga. Questi utenti possono modificare sempre, oltre a capocommessa/CAR dell'OP.
+          </small>
+          <textarea id="autorizzati_modifica" spellcheck="false"></textarea>
+        </div>
+
+        <div class="field full">
+          <label for="attachments_dir">Percorso cartella allegati</label>
+          <small>
+            Percorso relativo (es. <code>media\anomalie_allegati</code>) o assoluto/di rete (es. <code>\\SERVER\Condivisa\Anomalie</code>).
+            Deve essere una cartella già esistente e scrivibile dal servizio Django.
+          </small>
+          <input id="attachments_dir" type="text" spellcheck="false" />
+        </div>
+      </div>
+
+      <div id="status" class="status"></div>
+
+      <div class="actions">
+        <button id="btn-default" class="btn btn-secondary" type="button">Ripristina default</button>
+        <button id="btn-save" class="btn btn-main" type="button">Salva configurazione</button>
+      </div>
+    </div>
+  {% endif %}
+
+  {# ========== TAB RECORD ========== #}
+  {% if tab == 'record' %}
+    <div class="ga-card">
+      <div class="ga-card-head">Anomalie (ultime 100)</div>
+      <div class="ga-card-body">
+        <form method="get" class="ga-search">
+          <input type="hidden" name="tab" value="record">
+          <input type="text" name="q_anomalie" value="{{ q_anomalie }}" placeholder="Cerca per nominativo o seriale...">
+          <button type="submit" class="ga-btn ga-btn-primary">Cerca</button>
+          {% if q_anomalie %}<a href="?tab=record" class="ga-btn" style="border:1px solid #ccc;">&#10005;</a>{% endif %}
+        </form>
+        <div style="overflow-x:auto;">
+          <table class="ga-tbl">
+            <thead><tr><th>#</th><th>Nominativo OP</th><th>Seriale</th><th>Avanzamento</th><th>Stato</th><th>Modificata</th></tr></thead>
+            <tbody>
+            {% for a in anomalie_record %}
+              <tr>
+                <td>{{ a.id }}</td>
+                <td>{{ a.ex_op_nominativo|default:"—" }}</td>
+                <td>{{ a.seriale|default:"—" }}</td>
+                <td>{{ a.avanzamento|default:"—" }}</td>
+                <td>{% if a.chiudere %}<span class="ga-badge ga-badge-chiusa">Chiusa</span>{% else %}<span class="ga-badge ga-badge-aperta">Aperta</span>{% endif %}</td>
+                <td>{{ a.modified_datetime|default:"—" }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="6" style="color:#9aadcb;text-align:center;">Nessuna anomalia trovata</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  {# ========== TAB LOG ========== #}
+  {% if tab == 'log' %}
+    <div class="ga-card">
+      <div class="ga-card-head">Log attivit&agrave; Anomalie (ultime 100)</div>
+      <div class="ga-card-body">
+        {% if audit_entries %}
+        <div class="log-row log-head">
+          <span>Data/ora</span><span>Utente</span><span>Azione</span><span>Dettaglio</span>
+        </div>
+        {% for entry in audit_entries %}
+        <div class="log-row">
+          <span>{{ entry.created_at|date:"d/m/Y H:i" }}</span>
+          <span>{{ entry.utente_display|default:"—" }}</span>
+          <span>{{ entry.azione }}</span>
+          <span style="color:#64748b;font-size:11px;">{{ entry.dettaglio }}</span>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p style="color:#9aadcb;text-align:center;padding:20px 0;">Nessuna voce di log per questo modulo.</p>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+
+  </div>
+
+  <script>
+    window._CFG_LISTS = JSON.parse("{{ config_lists_json|escapejs }}");
+    window._CFG_ATTACHMENTS_DIR = "{{ attachments_dir|escapejs }}";
+  </script>
+  <script>
+    (function () {
+      const defaults = {
+        capi_reparto: [],
+        capi_commessa: [],
+        causali_doc: ["OP", "OG"],
+        stati_superficie: ["Finito macchinato", "Con sovrametallo", "Finito trattato"],
+        avanzamenti: ["Accetto lo stato", "In attesa", "Finito trattato"],
+        autorizzati_modifica: [
+          "Benedetta Bellucci",
+          "Serena Giani",
+          "Luca Bova",
+          "Simone Smarrella",
+          "Sara Gentile",
+        ],
+        attachments_dir: "media\\anomalie_allegati",
+      };
+
+      const ids = [
+        "capi_reparto",
+        "capi_commessa",
+        "causali_doc",
+        "stati_superficie",
+        "avanzamenti",
+        "autorizzati_modifica",
+      ];
+      const fields = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
+      const attachmentsDirEl = document.getElementById("attachments_dir");
+      const statusEl = document.getElementById("status");
+      const btnSave = document.getElementById("btn-save");
+      const btnDefault = document.getElementById("btn-default");
+
+      const getCsrf = () =>
+        (document.cookie.split(";").find((c) => c.trim().startsWith("csrftoken=")) || "").split("=")[1] || "";
+
+      const toText = (arr) => (Array.isArray(arr) ? arr.join("\n") : "");
+
+      const fromText = (value) => {
+        const seen = new Set();
+        const out = [];
+        (value || "").split(/\r?\n/).forEach((raw) => {
+          const text = String(raw || "").trim();
+          if (!text) return;
+          const key = text.toLowerCase();
+          if (seen.has(key)) return;
+          seen.add(key);
+          out.push(text);
+        });
+        return out;
+      };
+
+      const setStatus = (type, message) => {
+        statusEl.className = "status " + type;
+        statusEl.textContent = message;
+      };
+
+      const fill = (payload, attachmentsDir) => {
+        const src = payload && typeof payload === "object" ? payload : {};
+        ids.forEach((id) => {
+          fields[id].value = toText(src[id] ?? defaults[id]);
+        });
+        attachmentsDirEl.value = String(attachmentsDir || defaults.attachments_dir || "").trim();
+      };
+
+      const loadFromApi = async () => {
+        try {
+          const r = await fetch("/api/anomalie/config/liste");
+          const j = await r.json();
+          if (!r.ok || !j.success) throw new Error(j.error || "Errore caricamento configurazione");
+          fill(j.lists || {}, j.attachments_dir || defaults.attachments_dir);
+        } catch (e) {
+          fill(window._CFG_LISTS || defaults, window._CFG_ATTACHMENTS_DIR || defaults.attachments_dir);
+          setStatus("err", e.message || "Errore caricamento configurazione");
+        }
+      };
+
+      btnDefault.addEventListener("click", () => {
+        fill(defaults, defaults.attachments_dir);
+        setStatus("ok", "Default caricati in pagina. Premi 'Salva configurazione' per confermare.");
+      });
+
+      btnSave.addEventListener("click", async () => {
+        const payload = Object.fromEntries(ids.map((id) => [id, fromText(fields[id].value)]));
+        payload.attachments_dir = String(attachmentsDirEl.value || "").trim();
+        btnSave.disabled = true;
+        btnDefault.disabled = true;
+        try {
+          const r = await fetch("/api/anomalie/config/liste", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": getCsrf(),
+            },
+            body: JSON.stringify(payload),
+          });
+          const j = await r.json();
+          if (!r.ok || !j.success) throw new Error(j.error || "Salvataggio non riuscito");
+          fill(j.lists || payload, j.attachments_dir || payload.attachments_dir);
+          setStatus("ok", "Configurazione salvata correttamente.");
+        } catch (e) {
+          setStatus("err", e.message || "Errore durante il salvataggio");
+        } finally {
+          btnSave.disabled = false;
+          btnDefault.disabled = false;
+        }
+      });
+
+      fill(window._CFG_LISTS || defaults, window._CFG_ATTACHMENTS_DIR || defaults.attachments_dir);
+      loadFromApi();
+    })();
+  </script>
+</body>
+</html>

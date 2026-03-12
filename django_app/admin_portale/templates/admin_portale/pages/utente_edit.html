@@ -1,0 +1,850 @@
+{% extends "core/base.html" %}
+{% load admin_portale_extras %}
+
+{% block title %}Scheda Utente #{{ utente_obj.id }} | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Tab navigation */
+  .scheda-tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border, #e5e7eb); margin-bottom: 20px; }
+  .scheda-tab {
+    padding: 10px 22px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-muted, #6b7280);
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: color .15s, border-color .15s;
+  }
+  .scheda-tab.active { color: var(--accent, #3b82f6); border-bottom-color: var(--accent, #3b82f6); }
+  .scheda-tab:hover:not(.active) { color: var(--text, #111); }
+  .scheda-panel { display: none; }
+  .scheda-panel.active { display: block; }
+
+  /* Permessi table */
+  .perm-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .perm-table th { text-align: left; padding: 6px 10px; font-size: 11px; text-transform: uppercase; color: var(--text-muted, #888); background: var(--bg-subtle, #f9fafb); border-bottom: 1px solid var(--border, #e5e7eb); }
+  .perm-table td { padding: 6px 10px; border-bottom: 1px solid var(--border-light, #f3f4f6); vertical-align: middle; }
+  .perm-table tr:hover td { background: var(--bg-hover, #f9fafb); }
+  .perm-table tr.has-override td { background: #fffbeb; }
+  .perm-modulo-head td { font-weight: 600; font-size: 12px; background: var(--bg-subtle, #f3f4f6); color: var(--text-muted, #555); padding: 4px 10px; }
+
+  /* Flag toggle buttons */
+  .flag-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px; height: 26px;
+    border-radius: 4px;
+    border: 1px solid var(--border, #d1d5db);
+    background: var(--bg-card, #fff);
+    font-size: 11px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background .12s, color .12s, border-color .12s;
+  }
+  .flag-toggle[data-state="role-on"]  { background: #dcfce7; color: #16a34a; border-color: #86efac; cursor: default; }
+  .flag-toggle[data-state="role-off"] { background: var(--bg-card, #f9fafb); color: var(--text-muted, #aaa); border-color: var(--border, #e5e7eb); cursor: default; }
+  .flag-toggle[data-state="ov-on"]    { background: #3b82f6; color: #fff; border-color: #2563eb; }
+  .flag-toggle[data-state="ov-off"]   { background: #fee2e2; color: #dc2626; border-color: #fca5a5; }
+  .flag-toggle[data-state="role-on"]:hover,
+  .flag-toggle[data-state="role-off"]:hover { opacity: .8; cursor: pointer; }
+
+  /* Override badge */
+  .ov-badge { font-size: 10px; background: #3b82f6; color: #fff; border-radius: 3px; padding: 1px 5px; margin-left: 4px; vertical-align: middle; }
+
+  /* Dashboard toggle */
+  .dash-module-block { margin-bottom: 0; }
+  .dash-module-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px;
+    background: var(--bg-subtle, #f3f4f6);
+    border-bottom: 1px solid var(--border, #e5e7eb);
+    font-weight: 600; font-size: 13px;
+  }
+  .dash-module-head.mod-hidden { opacity: .55; }
+  .dash-module-toggle { width: 16px; height: 16px; cursor: pointer; }
+  .dash-pulsanti-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .dash-pulsanti-table th { text-align: left; padding: 5px 10px; font-size: 11px; text-transform: uppercase; color: var(--text-muted, #888); background: var(--bg-subtle, #f9fafb); border-bottom: 1px solid var(--border, #e5e7eb); }
+  .dash-pulsanti-table td { padding: 6px 10px; border-bottom: 1px solid var(--border-light, #f3f4f6); vertical-align: middle; }
+  .dash-pulsanti-table tr.puls-hidden td { opacity: .45; }
+  .dash-module-body.mod-body-hidden .dash-pulsanti-table tr td { opacity: .4; }
+
+  /* Status bar */
+  #scheda-status { font-size: 12px; min-height: 18px; margin-top: 8px; }
+  #dash-status   { font-size: 12px; min-height: 18px; margin-top: 8px; }
+  @media (max-width: 640px) {
+    .scheda-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .scheda-tab { white-space: nowrap; padding: 10px 14px; }
+  }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  <div class="page-header">
+    <div class="page-h">Scheda Utente #{{ utente_obj.id }}</div>
+    <div class="page-sub">{{ utente_obj.nome }}{% if utente_obj.email %} · {{ utente_obj.email }}{% endif %} · Ruolo: <strong>{{ utente_obj.ruolo|default:"—" }}</strong></div>
+  </div>
+
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  {# ── Tab nav ── #}
+  <div class="scheda-tabs">
+    <button class="scheda-tab active" data-tab="info">Info</button>
+    <button class="scheda-tab" data-tab="anagrafica">Anagrafica</button>
+    <button class="scheda-tab" data-tab="checklist">Checklist</button>
+    <button class="scheda-tab" data-tab="permessi">Permessi{% if overrides_map_json != '{}' %} <span class="ov-badge">override</span>{% endif %}</button>
+    <button class="scheda-tab" data-tab="dashboard">Dashboard</button>
+  </div>
+
+  {# ════════════════ TAB 1 — INFO ════════════════ #}
+  <div class="scheda-panel active" id="panel-info">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Dati utente</div>
+        <div class="admin-inline-actions">
+          {% if utente_obj.attivo and utente_obj.id != current_legacy_user_id %}
+            <form method="post" action="{% url 'admin_portale:utente_impersonate' utente_obj.id %}" class="inline-form">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{% url 'dashboard_home' %}">
+              <button class="btn btn-sm" type="submit">Impersona utente</button>
+            </form>
+          {% endif %}
+          {% if utente_obj.id != current_legacy_user_id %}
+            <form method="post" action="{% url 'admin_portale:utente_delete' utente_obj.id %}" class="inline-form" onsubmit="return confirm('Eliminare definitivamente questo utente? Verranno rimossi anche profilo Django, override e collegamenti locali.');">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{% url 'admin_portale:utenti_list' %}">
+              <button class="btn btn-danger btn-sm" type="submit">Elimina utente</button>
+            </form>
+          {% endif %}
+          <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:utenti_list' %}">Torna alla lista</a>
+        </div>
+      </div>
+      <div class="card-body">
+        <form method="post" action="{% url 'admin_portale:utente_update' utente_obj.id %}" class="admin-form-grid">
+          {% csrf_token %}
+          <div class="field">
+            <label for="nome">Nome</label>
+            <input class="input" type="text" id="nome" name="nome" value="{{ utente_obj.nome }}" required>
+          </div>
+          <div class="field">
+            <label for="email">Email</label>
+            <input class="input" type="email" id="email" name="email" value="{{ utente_obj.email|default:'' }}">
+          </div>
+          <div class="field">
+            <label for="ruolo_id">Ruolo</label>
+            <select class="input" id="ruolo_id" name="ruolo_id">
+              <option value="">-- Nessuno --</option>
+              {% for ruolo in roles %}
+                <option value="{{ ruolo.id }}" {% if utente_obj.ruolo_id == ruolo.id %}selected{% endif %}>{{ ruolo.nome }} (#{{ ruolo.id }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field field-checks">
+            <label class="checkline"><input type="checkbox" name="attivo" {% if utente_obj.attivo %}checked{% endif %}> Utente attivo</label>
+            <label class="checkline"><input type="checkbox" name="deve_cambiare_password" {% if utente_obj.deve_cambiare_password %}checked{% endif %}> Deve cambiare password</label>
+            <label class="checkline"><input type="checkbox" name="force_password_reset"> Forza cambio password (senza cambiare hash)</label>
+          </div>
+          <div class="field field-actions">
+            <button class="btn" type="submit">Salva modifiche</button>
+            <a class="btn btn-secondary" href="{% url 'admin_portale:utenti_list' %}">Annulla</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {# ════════════════ TAB 2 — ANAGRAFICA ════════════════ #}
+  <div class="scheda-panel" id="panel-anagrafica">
+
+    {# Registro aziendale (read-only da anagrafica_dipendenti) #}
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-head">
+        <div class="card-title">Registro aziendale</div>
+        <span style="font-size:12px;color:var(--text-muted,#888)">Dati da anagrafica_dipendenti (sola lettura)</span>
+      </div>
+      <div class="card-body">
+        {% if anagrafica_row %}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 24px;">
+            <div>
+              <div class="act-time" style="font-size:11px;color:var(--text-muted,#888)">Nome completo</div>
+              <div style="font-weight:600;">{{ anagrafica_row.cognome|default:"" }} {{ anagrafica_row.nome|default:"" }}</div>
+            </div>
+            <div>
+              <div class="act-time" style="font-size:11px;color:var(--text-muted,#888)">Reparto</div>
+              <div style="font-weight:600;">{{ anagrafica_row.reparto|default:"—" }}</div>
+            </div>
+            <div>
+              <div class="act-time" style="font-size:11px;color:var(--text-muted,#888)">Mansione</div>
+              <div style="font-weight:600;">{{ anagrafica_row.mansione|default:"—" }}</div>
+            </div>
+            <div>
+              <div class="act-time" style="font-size:11px;color:var(--text-muted,#888)">Email aziendale</div>
+              <div>{{ anagrafica_row.email|default:"—" }}</div>
+            </div>
+            <div>
+              <div class="act-time" style="font-size:11px;color:var(--text-muted,#888)">Username AD</div>
+              <div>{{ anagrafica_row.aliasusername|default:"—" }}</div>
+            </div>
+            <div>
+              <div class="act-time" style="font-size:11px;color:var(--text-muted,#888)">Stato dipendente</div>
+              <div>
+                {% if anagrafica_row.attivo %}
+                  <span style="color:#16a34a;font-weight:600;">● Attivo</span>
+                {% else %}
+                  <span style="color:#dc2626;font-weight:600;">● Non attivo</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        {% else %}
+          <div style="color:var(--text-muted,#888);font-size:13px;padding:8px 0;">
+            Utente non trovato in anagrafica aziendale (nessun match per email <em>{{ utente_obj.email|default:"non impostata" }}</em>).
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Asset assegnati al dipendente #}
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-head">
+        <div class="card-title">Asset assegnati</div>
+        <span id="asset-assegnazione-status" style="font-size:12px;min-height:18px;"></span>
+      </div>
+      <div class="card-body">
+        {% if assets_for_assignment %}
+          <div style="display:grid;gap:8px;">
+            <div class="field">
+              <label for="an-assets-filter">Filtro rapido</label>
+              <input class="input" type="text" id="an-assets-filter" placeholder="Cerca per tag, nome o assegnatario...">
+            </div>
+            <div class="field">
+              <label for="an-assets">Seleziona uno o piu asset</label>
+              <select class="input" id="an-assets" multiple size="12">
+                {% for a in assets_for_assignment %}
+                  <option value="{{ a.id }}" data-search="{{ a.asset_tag }} {{ a.name }} {{ a.assignment_to|default:'' }} {{ a.get_status_display }}"
+                    {% if a.id in asset_assigned_ids %}selected{% endif %}>
+                    {{ a.asset_tag }} - {{ a.name }}
+                    {% if a.assignment_to and a.assigned_legacy_user_id != utente_obj.id %}
+                      [assegnato a {{ a.assignment_to }}]
+                    {% endif %}
+                  </option>
+                {% endfor %}
+              </select>
+              <div style="font-size:12px;color:var(--text-muted,#888);margin-top:6px;">
+                Selezionati: <strong id="an-assets-count">{{ asset_assigned_ids|length }}</strong>
+              </div>
+            </div>
+            <div class="field field-actions">
+              <button class="btn" type="button" id="btn-salva-asset-utente">Salva assegnazioni asset</button>
+              <span style="font-size:11px;color:var(--text-muted,#888);">Le assegnazioni non selezionate vengono rimosse da questo dipendente.</span>
+            </div>
+          </div>
+        {% else %}
+          <div style="color:var(--text-muted,#888);font-size:13px;">Nessun asset disponibile nel modulo Asset Inventory.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Info aziendali + Contatti (editabili) #}
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Informazioni aggiuntive</div>
+        <span id="anagrafica-status" style="font-size:12px;min-height:18px;"></span>
+      </div>
+      <div class="card-body">
+        <div class="admin-form-grid" id="anagrafica-form">
+
+          <div style="grid-column:1/-1;font-size:12px;font-weight:600;color:var(--text-muted,#888);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border,#e5e7eb);padding-bottom:4px;margin-bottom:4px;">
+            Organizzazione
+            <a href="{% url 'admin_portale:anagrafica_config' %}" style="font-size:11px;font-weight:400;margin-left:10px;color:var(--accent,#3b82f6);">Configura liste →</a>
+          </div>
+
+          <div class="field">
+            <label for="an-reparto">Reparto</label>
+            {% if opzioni_by_tipo.reparto %}
+              <select class="input" id="an-reparto" name="reparto">
+                <option value="">— Seleziona —</option>
+                {% for v in opzioni_by_tipo.reparto %}
+                  <option value="{{ v }}" {% if extra_info.reparto == v %}selected{% endif %}>{{ v }}</option>
+                {% endfor %}
+              </select>
+            {% else %}
+              <input class="input" type="text" id="an-reparto" name="reparto"
+                value="{{ extra_info.reparto|default:'' }}"
+                placeholder="Reparto (configura le opzioni dalla pagina Liste)">
+            {% endif %}
+          </div>
+          <div class="field">
+            <label for="an-caporeparto">Caporeparto</label>
+            {% if caporeparto_options %}
+              <select class="input" id="an-caporeparto" name="caporeparto">
+                <option value="">— Seleziona —</option>
+                {% for o in caporeparto_options %}
+                  <option value="{{ o.value }}" {% if extra_info.caporeparto == o.value or extra_info.caporeparto == o.title %}selected{% endif %}>{{ o.label }}</option>
+                {% endfor %}
+              </select>
+            {% elif opzioni_by_tipo.caporeparto %}
+              <select class="input" id="an-caporeparto" name="caporeparto">
+                <option value="">— Seleziona —</option>
+                {% for v in opzioni_by_tipo.caporeparto %}
+                  <option value="{{ v }}" {% if extra_info.caporeparto == v %}selected{% endif %}>{{ v }}</option>
+                {% endfor %}
+              </select>
+            {% else %}
+              <input class="input" type="text" id="an-caporeparto" name="caporeparto"
+                value="{{ extra_info.caporeparto|default:'' }}"
+                placeholder="Caporeparto (configura le opzioni dalla pagina Liste)">
+            {% endif %}
+          </div>
+          <div class="field">
+            <label for="an-macchina">Macchina di utilizzo</label>
+            {% if opzioni_by_tipo.macchina %}
+              <select class="input" id="an-macchina" name="macchina">
+                <option value="">— Seleziona —</option>
+                {% for v in opzioni_by_tipo.macchina %}
+                  <option value="{{ v }}" {% if extra_info.macchina == v %}selected{% endif %}>{{ v }}</option>
+                {% endfor %}
+              </select>
+            {% else %}
+              <input class="input" type="text" id="an-macchina" name="macchina"
+                value="{{ extra_info.macchina|default:'' }}"
+                placeholder="Macchina (configura le opzioni dalla pagina Liste)">
+            {% endif %}
+          </div>
+
+          <div style="grid-column:1/-1;font-size:12px;font-weight:600;color:var(--text-muted,#888);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border,#e5e7eb);padding-bottom:4px;margin-bottom:4px;margin-top:8px;">Contatti</div>
+
+          <div class="field">
+            <label for="an-telefono">Telefono</label>
+            <input class="input" type="tel" id="an-telefono" name="telefono"
+              value="{{ extra_info.telefono|default:'' }}"
+              placeholder="es. 0425 123456">
+          </div>
+          <div class="field">
+            <label for="an-cellulare">Cellulare</label>
+            <input class="input" type="tel" id="an-cellulare" name="cellulare"
+              value="{{ extra_info.cellulare|default:'' }}"
+              placeholder="es. 348 1234567">
+          </div>
+
+          <div class="field" style="grid-column:1/-1;">
+            <label for="an-note">Note</label>
+            <textarea class="input" id="an-note" name="note" rows="3"
+              placeholder="Note interne sull'utente">{{ extra_info.note|default:'' }}</textarea>
+          </div>
+
+          {# ── Campi extra configurabili ── #}
+          {% if anagrafica_voci %}
+            {% regroup anagrafica_voci by categoria as anagrafica_voci_groups %}
+            {% for grp in anagrafica_voci_groups %}
+              <div style="grid-column:1/-1;font-size:12px;font-weight:600;color:var(--text-muted,#888);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border,#e5e7eb);padding-bottom:4px;margin-bottom:4px;margin-top:8px;">
+                {{ grp.grouper|default:"Campi extra" }}
+              </div>
+              {% for v in grp.list %}
+                <div class="field {% if v.tipo_campo == 'check' %}{% endif %}">
+                  <label for="an-extra-{{ v.id }}">{{ v.label }}{% if v.obbligatorio %} <span style="color:#dc2626;">*</span>{% endif %}</label>
+                  {% if v.tipo_campo == "select" %}
+                    <select class="input an-extra" id="an-extra-{{ v.id }}" data-voce-id="{{ v.id }}">
+                      <option value="">— Seleziona —</option>
+                      {% for scelta in v.scelte %}
+                        <option value="{{ scelta }}" {% if anagrafica_risposte_map|get_item:v.id == scelta %}selected{% endif %}>{{ scelta }}</option>
+                      {% endfor %}
+                    </select>
+                  {% elif v.tipo_campo == "check" %}
+                    <label style="display:flex;align-items:center;gap:8px;font-weight:normal;cursor:pointer;">
+                      <input type="checkbox" class="an-extra" id="an-extra-{{ v.id }}" data-voce-id="{{ v.id }}">
+                      <span style="font-size:13px;">{{ v.label }}</span>
+                    </label>
+                  {% elif v.tipo_campo == "data" %}
+                    <input class="input an-extra" type="date" id="an-extra-{{ v.id }}" data-voce-id="{{ v.id }}">
+                  {% else %}
+                    <input class="input an-extra" type="text" id="an-extra-{{ v.id }}" data-voce-id="{{ v.id }}" placeholder="{{ v.label }}">
+                  {% endif %}
+                </div>
+              {% endfor %}
+            {% endfor %}
+          {% endif %}
+
+          <div class="field field-actions">
+            <button class="btn" type="button" id="btn-salva-anagrafica">Salva</button>
+            {% if extra_info and extra_info.updated_at %}
+              <span style="font-size:11px;color:var(--text-muted,#888);">
+                Ultimo aggiornamento: {{ extra_info.updated_at|date:"d/m/Y H:i" }}
+              </span>
+            {% endif %}
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ════════════════ TAB 3 — CHECKLIST ════════════════ #}
+  <div class="scheda-panel" id="panel-checklist">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Stato Onboarding / Offboarding</div>
+        <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:checklist_utente' utente_obj.id %}">Gestisci checklist →</a>
+      </div>
+      <div class="card-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div>
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted,#888);margin-bottom:8px;">Check-in (Onboarding)</div>
+            {% if checklist_checkin %}
+              <div style="color:#16a34a;font-weight:600;font-size:14px;">✓ Completato</div>
+              <div style="font-size:12px;color:var(--text-muted,#888);margin-top:4px;">
+                {{ checklist_checkin.data_esecuzione|date:"d/m/Y H:i" }}<br>
+                da {{ checklist_checkin.eseguita_da_nome|default:"—" }}
+              </div>
+            {% else %}
+              <div style="color:#94a3b8;font-size:14px;">— Non eseguito</div>
+            {% endif %}
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted,#888);margin-bottom:8px;">Check-out (Offboarding)</div>
+            {% if checklist_checkout %}
+              <div style="color:#dc2626;font-weight:600;font-size:14px;">✓ Completato</div>
+              <div style="font-size:12px;color:var(--text-muted,#888);margin-top:4px;">
+                {{ checklist_checkout.data_esecuzione|date:"d/m/Y H:i" }}<br>
+                da {{ checklist_checkout.eseguita_da_nome|default:"—" }}
+              </div>
+            {% else %}
+              <div style="color:#94a3b8;font-size:14px;">— Non eseguito</div>
+            {% endif %}
+          </div>
+        </div>
+        <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border,#e5e7eb);">
+          <a class="btn" href="{% url 'admin_portale:checklist_utente' utente_obj.id %}">Vai alla checklist completa</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ════════════════ TAB 4 — PERMESSI ════════════════ #}
+  <div class="scheda-panel" id="panel-permessi">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">
+          Permessi
+          {% if utente_obj.ruolo %}
+            <span style="font-weight:400;color:var(--text-muted,#888);font-size:13px"> · ruolo: <strong>{{ utente_obj.ruolo }}</strong></span>
+          {% endif %}
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-reset-overrides">Rimuovi tutti gli override</button>
+          <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:permessi' %}?ruolo_id={{ utente_obj.ruolo_id }}">Modifica ruolo</a>
+        </div>
+      </div>
+      <div class="card-body" style="padding:0;">
+        {% if not utente_obj.ruolo_id %}
+          <div style="padding:16px;color:var(--text-muted,#888)">Nessun ruolo assegnato. Assegna un ruolo nella tab Info per vedere i permessi.</div>
+        {% else %}
+          <div style="padding:8px 12px;font-size:12px;color:var(--text-muted,#888);background:var(--bg-subtle,#f9fafb);border-bottom:1px solid var(--border,#e5e7eb);">
+            I <strong>permessi del ruolo</strong> sono in sola lettura. Clicca un flag per aggiungere un <strong>override personale</strong> (sovrascrive il ruolo solo per questo utente). Sfondo giallo = override attivo.
+          </div>
+          <table class="perm-table">
+            <thead>
+              <tr>
+                <th style="width:140px">Modulo</th>
+                <th>Funzione</th>
+                {% for flag in flag_names %}<th style="width:70px;text-align:center">{{ flag|cut:"can_" }}</th>{% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for modulo, rows in grouped_perm_rows %}
+                <tr class="perm-modulo-head"><td colspan="{{ flag_names|length|add:2 }}">{{ modulo }}</td></tr>
+                {% for row in rows %}
+                  <tr data-modulo="{{ row.modulo }}" data-azione="{{ row.azione }}" class="perm-row">
+                    <td style="color:var(--text-muted,#888);font-size:11px">{{ row.modulo }}</td>
+                    <td>
+                      {{ row.label }}
+                      {% with ov_key=row.modulo|add:"|"|add:row.azione %}
+                      {# badge ov visibile via JS #}
+                      {% endwith %}
+                    </td>
+                    {% for flag in flag_names %}
+                      <td style="text-align:center">
+                        <button
+                          type="button"
+                          class="flag-toggle"
+                          data-modulo="{{ row.modulo }}"
+                          data-azione="{{ row.azione }}"
+                          data-flag="{{ flag }}"
+                          data-role-val="{{ row.values|get_item:flag|default:0 }}"
+                          title="{{ flag }}">
+                          {% if row.values|dictlookup:flag %}✓{% else %}–{% endif %}
+                        </button>
+                      </td>
+                    {% endfor %}
+                  </tr>
+                {% endfor %}
+              {% empty %}
+                <tr><td colspan="10" style="padding:16px;color:var(--text-muted,#888)">Nessun pulsante/permesso trovato per questo ruolo.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <div id="scheda-status" style="padding:8px 12px;"></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ════════════════ TAB 3 — DASHBOARD ════════════════ #}
+  <div class="scheda-panel" id="panel-dashboard">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Pulsanti dashboard</div>
+        <span style="font-size:12px;color:var(--text-muted,#888)">Visibilità per questo utente</span>
+      </div>
+      <div class="card-body" style="padding:0;">
+        {% if not dash_by_module %}
+          <div style="padding:16px;color:var(--text-muted,#888)">Nessun pulsante accessibile. Assegna un ruolo e configura i permessi prima.</div>
+        {% else %}
+          <div style="padding:8px 12px;font-size:12px;color:var(--text-muted,#888);background:var(--bg-subtle,#f9fafb);border-bottom:1px solid var(--border,#e5e7eb);">
+            Nascondi un <strong>intero modulo</strong> deselezionandolo (checkbox grande), oppure nascondi singoli pulsanti. Le modifiche si salvano automaticamente.
+          </div>
+
+          {% for grp in dash_by_module %}
+            <div class="dash-module-block" data-modulo="{{ grp.modulo }}">
+              {# Header modulo #}
+              <div class="dash-module-head {% if not grp.module_visible %}mod-hidden{% endif %}">
+                <input
+                  type="checkbox"
+                  class="dash-module-toggle"
+                  data-modulo="{{ grp.modulo }}"
+                  {% if grp.module_visible %}checked{% endif %}
+                  title="Mostra/nascondi intero modulo">
+                <span>{{ grp.modulo }}</span>
+                <span style="font-size:11px;font-weight:400;color:var(--text-muted,#888)">({{ grp.pulsanti|length }} pulsant{% if grp.pulsanti|length == 1 %}e{% else %}i{% endif %})</span>
+              </div>
+              {# Pulsanti del modulo #}
+              <div class="dash-module-body {% if not grp.module_visible %}mod-body-hidden{% endif %}">
+                <table class="dash-pulsanti-table">
+                  <thead>
+                    <tr>
+                      <th style="width:40px">Vis.</th>
+                      <th>Nome</th>
+                      <th>URL</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for p in grp.pulsanti %}
+                      <tr class="{% if not p.puls_visible %}puls-hidden{% endif %}" data-pid="{{ p.pulsante_id }}">
+                        <td>
+                          <input type="checkbox"
+                            class="dash-puls-toggle"
+                            data-pid="{{ p.pulsante_id }}"
+                            {% if p.puls_visible %}checked{% endif %}
+                            title="Visibile sulla dashboard">
+                        </td>
+                        <td><strong>{{ p.name }}</strong></td>
+                        <td style="color:var(--text-muted,#888);font-size:11px">{{ p.url }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {% endfor %}
+
+          <div id="dash-status" style="padding:8px 12px;"></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ════════════════ SCRIPT ════════════════ #}
+  <script>
+  (function () {
+    "use strict";
+
+    const CSRF = (function () {
+      const m = document.cookie.match(/csrftoken=([^;]+)/);
+      return m ? m[1] : "";
+    })();
+
+    const USER_ID       = {{ utente_obj.id }};
+    const OV_URL        = "{% url 'admin_portale:api_user_perm_override' utente_obj.id %}";
+    const DASH_URL      = "{% url 'admin_portale:api_user_dashboard_toggle' utente_obj.id %}";
+    const MODULE_URL    = "{% url 'admin_portale:api_user_module_toggle' utente_obj.id %}";
+    const EXTRA_URL     = "{% url 'admin_portale:api_user_extra_info' utente_obj.id %}";
+    const ASSET_ASSIGN_URL = "{% url 'admin_portale:api_user_asset_assignments' utente_obj.id %}";
+    const RISPOSTE_URL  = "{% url 'admin_portale:api_anagrafica_risposte_save' utente_obj.id %}";
+    const RISPOSTE_INIT = (function () { try { return JSON.parse({{ anagrafica_risposte_json|safe }}); } catch (e) { return {}; } })();
+
+    // ── Carica override iniziali ──
+    let overrides = {};
+    try { overrides = JSON.parse({{ overrides_map_json|safe }}); } catch (e) {}
+
+    // ── Tab switching ──
+    const tabs   = document.querySelectorAll(".scheda-tab");
+    const panels = document.querySelectorAll(".scheda-panel");
+    tabs.forEach(function (tab) {
+      tab.addEventListener("click", function () {
+        tabs.forEach(function (t) { t.classList.remove("active"); });
+        panels.forEach(function (p) { p.classList.remove("active"); });
+        tab.classList.add("active");
+        document.getElementById("panel-" + tab.dataset.tab).classList.add("active");
+      });
+    });
+
+    // ── Helpers ──
+    function setStatus(el, msg, isErr) {
+      if (!el) return;
+      el.textContent = msg;
+      el.style.color = isErr ? "#dc2626" : "#16a34a";
+    }
+    function clearStatus(el) { if (el) el.textContent = ""; }
+
+    async function apiPost(url, body) {
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+        body: JSON.stringify(body),
+      });
+      let data = {};
+      try { data = await resp.json(); } catch (e) {}
+      if (!resp.ok || !data.ok) throw new Error(data.error || ("HTTP " + resp.status));
+      return data;
+    }
+
+    // ── Inizializza flag-toggle ──
+    function initPermToggle(btn) {
+      const modulo = btn.dataset.modulo;
+      const azione = btn.dataset.azione;
+      const flag   = btn.dataset.flag;
+      const roleVal = parseInt(btn.dataset.roleVal || "0", 10);
+      const ovKey  = modulo + "|" + azione;
+
+      function getState() {
+        const ov = overrides[ovKey];
+        if (ov && ov[flag] !== null && ov[flag] !== undefined) {
+          return ov[flag] ? "ov-on" : "ov-off";
+        }
+        return roleVal ? "role-on" : "role-off";
+      }
+
+      function render() {
+        const state = getState();
+        btn.dataset.state = state;
+        const stateMap = { "role-on": "✓", "role-off": "–", "ov-on": "✓", "ov-off": "✗" };
+        btn.textContent = stateMap[state] || "?";
+        // Evidenzia riga se ha override
+        const row = btn.closest("tr.perm-row");
+        if (row) {
+          const ov = overrides[ovKey];
+          const hasOv = ov && Object.values(ov).some(function (v) { return v !== null && v !== undefined; });
+          row.classList.toggle("has-override", !!hasOv);
+        }
+      }
+
+      render();
+
+      btn.addEventListener("click", async function () {
+        const statusEl = document.getElementById("scheda-status");
+        clearStatus(statusEl);
+        const state = getState();
+        let newValue;
+        if (state === "role-on" || state === "role-off") {
+          // Prima click su permesso ruolo: crea override inverso
+          newValue = state === "role-on" ? false : true;
+        } else if (state === "ov-on") {
+          newValue = false;
+        } else {
+          // ov-off → rimuovi override (null)
+          newValue = null;
+        }
+
+        try {
+          await apiPost(OV_URL, { modulo: modulo, azione: azione, field: flag, value: newValue });
+          // Aggiorna locale
+          if (!overrides[ovKey]) overrides[ovKey] = {};
+          overrides[ovKey][flag] = newValue;
+          // Pulisci se tutto null
+          if (Object.values(overrides[ovKey]).every(function (v) { return v === null || v === undefined; })) {
+            delete overrides[ovKey];
+          }
+          render();
+          setStatus(statusEl, "Salvato.", false);
+          setTimeout(function () { clearStatus(statusEl); }, 2000);
+        } catch (err) {
+          setStatus(statusEl, "Errore: " + err.message, true);
+        }
+      });
+    }
+
+    // ── Anagrafica: inizializza valori campi extra ──
+    document.querySelectorAll(".an-extra").forEach(function (el) {
+      const voceId = parseInt(el.dataset.voceId, 10);
+      const val = RISPOSTE_INIT[voceId] || "";
+      if (el.type === "checkbox") {
+        el.checked = val === "true" || val === "1" || val === true;
+      } else {
+        el.value = val;
+      }
+    });
+
+    // ── Anagrafica: salva extra info ──
+    const btnSalvaAnagrafica = document.getElementById("btn-salva-anagrafica");
+    if (btnSalvaAnagrafica) {
+      btnSalvaAnagrafica.addEventListener("click", async function () {
+        const statusEl = document.getElementById("anagrafica-status");
+        clearStatus(statusEl);
+        const payload = {
+          reparto:     (document.getElementById("an-reparto") || {}).value || "",
+          caporeparto: (document.getElementById("an-caporeparto") || {}).value || "",
+          macchina:    (document.getElementById("an-macchina") || {}).value || "",
+          telefono:    (document.getElementById("an-telefono") || {}).value || "",
+          cellulare:   (document.getElementById("an-cellulare") || {}).value || "",
+          note:        (document.getElementById("an-note") || {}).value || "",
+        };
+        // Raccoglie risposte campi extra
+        const risposte = [];
+        document.querySelectorAll(".an-extra").forEach(function (el) {
+          const voceId = parseInt(el.dataset.voceId, 10);
+          const valore = el.type === "checkbox" ? (el.checked ? "true" : "false") : (el.value || "");
+          risposte.push({ voce_id: voceId, valore: valore });
+        });
+        try {
+          await apiPost(EXTRA_URL, payload);
+          if (risposte.length) {
+            await apiPost(RISPOSTE_URL, { risposte: risposte });
+          }
+          setStatus(statusEl, "Salvato.", false);
+          setTimeout(function () { clearStatus(statusEl); }, 3000);
+        } catch (err) {
+          setStatus(statusEl, "Errore: " + err.message, true);
+        }
+      });
+    }
+
+    // ── Asset assegnati: filtro + salvataggio ──
+    const assetSelectEl = document.getElementById("an-assets");
+    const assetFilterEl = document.getElementById("an-assets-filter");
+    const assetCountEl = document.getElementById("an-assets-count");
+    function updateAssetSelectedCount() {
+      if (!assetSelectEl || !assetCountEl) return;
+      assetCountEl.textContent = String(Array.from(assetSelectEl.options).filter(function (o) { return o.selected; }).length);
+    }
+    if (assetSelectEl) {
+      assetSelectEl.addEventListener("change", updateAssetSelectedCount);
+      updateAssetSelectedCount();
+    }
+    if (assetFilterEl && assetSelectEl) {
+      assetFilterEl.addEventListener("input", function () {
+        const q = (assetFilterEl.value || "").trim().toLowerCase();
+        Array.from(assetSelectEl.options).forEach(function (opt) {
+          const hay = (opt.getAttribute("data-search") || opt.textContent || "").toLowerCase();
+          opt.hidden = !!q && hay.indexOf(q) === -1;
+        });
+      });
+    }
+
+    const btnSaveAssetAssignments = document.getElementById("btn-salva-asset-utente");
+    if (btnSaveAssetAssignments && assetSelectEl) {
+      btnSaveAssetAssignments.addEventListener("click", async function () {
+        const statusEl = document.getElementById("asset-assegnazione-status");
+        clearStatus(statusEl);
+        const selectedAssetIds = Array.from(assetSelectEl.selectedOptions || [])
+          .map(function (opt) { return parseInt(opt.value, 10); })
+          .filter(function (v) { return Number.isFinite(v) && v > 0; });
+        try {
+          const result = await apiPost(ASSET_ASSIGN_URL, { asset_ids: selectedAssetIds });
+          setStatus(
+            statusEl,
+            "Salvato. Assegnati: " + String(result.assigned_count || selectedAssetIds.length) +
+              ", rimossi: " + String(result.released_count || 0) + ".",
+            false
+          );
+          setTimeout(function () { clearStatus(statusEl); }, 3000);
+        } catch (err) {
+          setStatus(statusEl, "Errore: " + err.message, true);
+        }
+      });
+    }
+
+    document.querySelectorAll(".flag-toggle").forEach(initPermToggle);
+
+    // ── Reset tutti gli override ──
+    const resetBtn = document.getElementById("btn-reset-overrides");
+    if (resetBtn) {
+      resetBtn.addEventListener("click", async function () {
+        if (!confirm("Rimuovere tutti gli override personali per questo utente? Verranno usati solo i permessi del ruolo.")) return;
+        const statusEl = document.getElementById("scheda-status");
+        clearStatus(statusEl);
+        const keys = Object.keys(overrides);
+        if (!keys.length) { setStatus(statusEl, "Nessun override da rimuovere.", false); return; }
+        let ok = 0, fail = 0;
+        for (const ovKey of keys) {
+          const parts = ovKey.split("|");
+          const modulo = parts[0], azione = parts.slice(1).join("|");
+          for (const flag of ["can_view", "can_edit", "can_delete", "can_approve"]) {
+            try {
+              await apiPost(OV_URL, { modulo: modulo, azione: azione, field: flag, value: null });
+              ok++;
+            } catch (e) { fail++; }
+          }
+          delete overrides[ovKey];
+        }
+        // Re-render tutti i toggle
+        document.querySelectorAll(".flag-toggle").forEach(function (btn) { initPermToggle(btn); });
+        setStatus(statusEl, "Override rimossi (" + ok + " operazioni)." + (fail ? " Errori: " + fail : ""), fail > 0);
+      });
+    }
+
+    // ── Dashboard: toggle singolo pulsante ──
+    document.querySelectorAll(".dash-puls-toggle").forEach(function (cb) {
+      cb.addEventListener("change", async function () {
+        const pid = parseInt(cb.dataset.pid, 10);
+        const visible = cb.checked;
+        const statusEl = document.getElementById("dash-status");
+        clearStatus(statusEl);
+        try {
+          await apiPost(DASH_URL, { pulsante_id: pid, visible: visible });
+          const row = cb.closest("tr");
+          if (row) row.classList.toggle("puls-hidden", !visible);
+          setStatus(statusEl, visible ? "Pulsante riabilitato." : "Pulsante nascosto.", false);
+          setTimeout(function () { clearStatus(statusEl); }, 2000);
+        } catch (err) {
+          cb.checked = !visible; // revert
+          setStatus(statusEl, "Errore: " + err.message, true);
+        }
+      });
+    });
+
+    // ── Dashboard: toggle intero modulo ──
+    document.querySelectorAll(".dash-module-toggle").forEach(function (cb) {
+      cb.addEventListener("change", async function () {
+        const modulo = cb.dataset.modulo;
+        const visible = cb.checked;
+        const statusEl = document.getElementById("dash-status");
+        clearStatus(statusEl);
+        try {
+          await apiPost(MODULE_URL, { modulo: modulo, visible: visible });
+          const block = cb.closest(".dash-module-block");
+          if (block) {
+            const head = block.querySelector(".dash-module-head");
+            const body = block.querySelector(".dash-module-body");
+            if (head) head.classList.toggle("mod-hidden", !visible);
+            if (body) body.classList.toggle("mod-body-hidden", !visible);
+          }
+          setStatus(statusEl, visible ? "Modulo \"" + modulo + "\" riabilitato." : "Modulo \"" + modulo + "\" nascosto.", false);
+          setTimeout(function () { clearStatus(statusEl); }, 2000);
+        } catch (err) {
+          cb.checked = !visible; // revert
+          setStatus(statusEl, "Errore: " + err.message, true);
+        }
+      });
+    });
+
+  })();
+  </script>
+{% endblock %}

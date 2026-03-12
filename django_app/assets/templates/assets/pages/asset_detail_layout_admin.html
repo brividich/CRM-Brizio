@@ -1,0 +1,514 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Configura dettaglio asset{% endblock %}
+
+{% block assets_shell_title %}Configura dettaglio asset{% endblock %}
+{% block assets_shell_subtitle %}
+<p>Template unico per tutti gli asset, con campi base e campi categoria visibili solo dove servono.</p>
+{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.adl-page { max-width: 1240px; display: grid; gap: 16px; }
+.adl-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.6fr);
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid #dbe3ef;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #ffffff 0%, #f7fbff 100%);
+  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.06);
+}
+.adl-hero h2 { margin: 0; font-size: 28px; color: #0f172a; }
+.adl-hero p { margin: 0; color: #64748b; font-size: 14px; line-height: 1.6; }
+.adl-chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.adl-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #d7e3f3;
+  background: #fff;
+  color: #244267;
+  font-size: 12px;
+  font-weight: 700;
+}
+.adl-preview {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #dbe3ef;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.9);
+}
+.adl-preview-title { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #7c8fab; }
+.adl-preview strong { font-size: 18px; color: #0f172a; }
+.adl-grid { display: grid; gap: 16px; }
+.adl-card {
+  border: 1px solid #dbe3ef;
+  border-radius: 18px;
+  background: #fff;
+  overflow: hidden;
+  box-shadow: 0 14px 38px rgba(15, 23, 42, 0.04);
+}
+.adl-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid #e5edf5;
+}
+.adl-card-head h3 { margin: 0; font-size: 20px; color: #0f172a; }
+.adl-card-head p { margin: 4px 0 0; color: #64748b; font-size: 13px; }
+.adl-card-body { padding: 18px; display: grid; gap: 14px; }
+.adl-layout-list,
+.adl-field-list { display: grid; gap: 12px; }
+.adl-bulk-box {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #dbe7f4;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f8fbff 0%, #f1f7ff 100%);
+}
+.adl-bulk-grid {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 180px) minmax(0, 180px) 170px auto;
+  gap: 12px;
+  align-items: end;
+}
+.adl-bulk-grid .field { display: grid; gap: 6px; }
+.adl-bulk-toggle { display: none; }
+.adl-bulk-toggle.is-active { display: grid; }
+.adl-row {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #fbfdff;
+}
+.adl-row-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+  flex-wrap: wrap;
+}
+.adl-row-head-main {
+  display: flex;
+  gap: 12px;
+  align-items: start;
+}
+.adl-row-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+}
+.adl-row-select input { width: 16px; height: 16px; }
+.adl-row-title { margin: 0; font-size: 16px; font-weight: 700; color: #0f172a; }
+.adl-row-sub { color: #64748b; font-size: 12px; }
+.adl-form-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+.adl-form-grid .field { display: grid; gap: 6px; min-width: 0; }
+.adl-form-grid .field.span-2 { grid-column: span 2; }
+.adl-form-grid .field.span-3 { grid-column: span 3; }
+.adl-form-grid .field.span-6 { grid-column: 1 / -1; }
+.adl-form-grid label { font-size: 12px; font-weight: 700; color: #334155; }
+.adl-form-grid input[type="text"],
+.adl-form-grid input[type="number"],
+.adl-form-grid select {
+  width: 100%;
+  border: 1px solid #d5e0ed;
+  border-radius: 12px;
+  background: #fff;
+}
+.adl-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.adl-checkline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 42px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+}
+.adl-muted { color: #64748b; font-size: 12px; line-height: 1.5; }
+.adl-category { border-top: 1px solid #edf2f7; padding-top: 14px; }
+.adl-category:first-child { border-top: none; padding-top: 0; }
+
+@media (max-width: 1080px) {
+  .adl-hero { grid-template-columns: 1fr; }
+  .adl-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .adl-bulk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .adl-form-grid { grid-template-columns: 1fr; }
+  .adl-bulk-grid { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="adl-page">
+  <section class="adl-hero">
+    <div>
+      <h2>Layout centralizzato del dettaglio</h2>
+      <p>Qui decidi quali riquadri mostrare, quanto spazio occupano e quali campi base o campi categoria compaiono nella scheda asset. Il template resta uguale per tutti; cambiano solo i contenuti pertinenti alla categoria.</p>
+      <div class="adl-chip-row">
+        <span class="adl-chip">Template unico</span>
+        <span class="adl-chip">Campi categoria</span>
+        <span class="adl-chip">Dimensione card</span>
+        <span class="adl-chip">ACL delegabile</span>
+      </div>
+    </div>
+    <aside class="adl-preview">
+      <span class="adl-preview-title">Anteprima rapida</span>
+      {% if preview_asset %}
+        <strong>{{ preview_asset.asset_tag }} - {{ preview_asset.name }}</strong>
+        <div class="adl-muted">
+          {% if preview_asset.asset_category %}Categoria {{ preview_asset.asset_category.label }}{% else %}Nessuna categoria assegnata{% endif %}
+        </div>
+        <div class="adl-form-actions" style="justify-content:flex-start;">
+          <a class="btn btn-primary" href="{{ preview_asset_url }}">Apri dettaglio asset</a>
+        </div>
+      {% else %}
+        <strong>Nessun asset in anteprima</strong>
+        <div class="adl-muted">Apri questa pagina da una scheda asset per tornare subito alla preview del dettaglio.</div>
+      {% endif %}
+    </aside>
+  </section>
+
+  <div class="adl-grid">
+    <article class="adl-card">
+      <div class="adl-card-head">
+        <div>
+          <h3>Riquadri fissi</h3>
+          <p>Visibilita, ordine e dimensione dei blocchi principali del dettaglio asset.</p>
+        </div>
+      </div>
+      <div class="adl-card-body adl-layout-list">
+        <form method="post" id="detail-layout-bulk-form" class="adl-bulk-box">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="update_detail_section_layout_bulk">
+          <div>
+            <strong style="display:block;color:#0f172a;font-size:15px;">Modifica massiva</strong>
+            <div class="adl-muted">Scegli un parametro, poi applicalo a tutti i riquadri oppure solo a quelli selezionati.</div>
+          </div>
+          <div class="adl-bulk-grid">
+            <div class="field">
+              <label for="adl-bulk-field">Parametro</label>
+              <select name="bulk_field" id="adl-bulk-field">
+                <option value="grid_size">Dimensione</option>
+                <option value="is_visible">Visibilita</option>
+              </select>
+            </div>
+            <div class="field adl-bulk-toggle is-active" data-bulk-target="grid_size">
+              <label for="adl-bulk-grid-size">Valore</label>
+              <select name="bulk_grid_size" id="adl-bulk-grid-size">
+                {% for code, label in detail_card_size_choices %}
+                  <option value="{{ code }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="field adl-bulk-toggle" data-bulk-target="is_visible">
+              <label for="adl-bulk-visible">Valore</label>
+              <select name="bulk_is_visible" id="adl-bulk-visible">
+                <option value="visible">Visibile</option>
+                <option value="hidden">Nascosto</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="adl-apply-scope">Ambito</label>
+              <select name="apply_scope" id="adl-apply-scope">
+                <option value="selected">Solo selezionati</option>
+                <option value="all">Tutti i riquadri</option>
+              </select>
+            </div>
+            <div class="adl-form-actions" style="justify-content:flex-start;">
+              <button class="btn btn-secondary" type="button" id="adl-select-all-layouts">Seleziona tutti</button>
+              <button class="btn btn-primary" type="submit">Applica parametro</button>
+            </div>
+          </div>
+        </form>
+        {% for layout in section_layouts %}
+          <form method="post" class="adl-row">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update_detail_section_layout">
+            <input type="hidden" name="layout_id" value="{{ layout.id }}">
+            <input type="hidden" name="code" value="{{ layout.code }}">
+            <div class="adl-row-head">
+              <div class="adl-row-head-main">
+                <label class="adl-row-select" title="Seleziona per modifica massiva">
+                  <input type="checkbox" name="selected_layout_ids" value="{{ layout.id }}" form="detail-layout-bulk-form" data-layout-select>
+                  <span>Scegli</span>
+                </label>
+                <div>
+                  <p class="adl-row-title">{{ layout.get_code_display }}</p>
+                  <div class="adl-row-sub">Codice {{ layout.code }}</div>
+                </div>
+              </div>
+            </div>
+            <div class="adl-form-grid">
+              <div class="field span-2">
+                <label>Dimensione</label>
+                <select name="grid_size">
+                  {% for code, label in detail_card_size_choices %}
+                    <option value="{{ code }}" {% if layout.grid_size == code %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="field">
+                <label>Ordine</label>
+                <input type="number" name="sort_order" value="{{ layout.sort_order }}">
+              </div>
+              <div class="field">
+                <label>Visibile</label>
+                <label class="adl-checkline"><input type="checkbox" name="is_visible" value="1" {% if layout.is_visible %}checked{% endif %}> Si</label>
+              </div>
+            </div>
+            <div class="adl-form-actions">
+              <button class="btn btn-primary" type="submit">Salva riquadro</button>
+            </div>
+          </form>
+        {% endfor %}
+      </div>
+    </article>
+
+    <article class="adl-card">
+      <div class="adl-card-head">
+        <div>
+          <h3>Campi base e metriche</h3>
+          <p>Campi globali del dettaglio asset: scegli sezione, formato e ampiezza della card.</p>
+        </div>
+      </div>
+      <div class="adl-card-body adl-field-list">
+        <div class="adl-muted">Sorgenti utili: {% for item in detail_source_help %}<code>{{ item }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+        {% for detail_item in detail_fields %}
+          <form method="post" class="adl-row">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update_detail_field">
+            <input type="hidden" name="detail_field_id" value="{{ detail_item.id }}">
+            <div class="adl-row-head">
+              <div>
+                <p class="adl-row-title">{{ detail_item.label }}</p>
+                <div class="adl-row-sub">{{ detail_item.get_asset_scope_display }}</div>
+              </div>
+            </div>
+            <div class="adl-form-grid">
+              <div class="field span-2">
+                <label>Etichetta</label>
+                <input type="text" name="label" value="{{ detail_item.label }}" required>
+              </div>
+              <div class="field">
+                <label>Sezione</label>
+                <select name="section">
+                  {% for code, label in detail_section_choices %}
+                    <option value="{{ code }}" {% if detail_item.section == code %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="field">
+                <label>Ambito</label>
+                <select name="asset_scope">
+                  {% for code, label in detail_scope_choices %}
+                    <option value="{{ code }}" {% if detail_item.asset_scope == code %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="field">
+                <label>Formato</label>
+                <select name="value_format">
+                  {% for code, label in detail_format_choices %}
+                    <option value="{{ code }}" {% if detail_item.value_format == code %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="field">
+                <label>Dimensione</label>
+                <select name="card_size">
+                  {% for code, label in detail_card_size_choices %}
+                    <option value="{{ code }}" {% if detail_item.card_size == code %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="field span-2">
+                <label>Sorgente dato</label>
+                <input type="text" name="source_ref" value="{{ detail_item.source_ref }}" required>
+              </div>
+              <div class="field">
+                <label>Ordine</label>
+                <input type="number" name="sort_order" value="{{ detail_item.sort_order }}">
+              </div>
+              <div class="field">
+                <label>Mostra se vuoto</label>
+                <label class="adl-checkline"><input type="checkbox" name="show_if_empty" value="1" {% if detail_item.show_if_empty %}checked{% endif %}> Si</label>
+              </div>
+              <div class="field">
+                <label>Attivo</label>
+                <label class="adl-checkline"><input type="checkbox" name="is_active" value="1" {% if detail_item.is_active %}checked{% endif %}> Si</label>
+              </div>
+            </div>
+            <div class="adl-form-actions">
+              <button class="btn btn-primary" type="submit">Salva campo</button>
+            </div>
+          </form>
+        {% empty %}
+          <div class="adl-muted">Nessun campo base configurato.</div>
+        {% endfor %}
+      </div>
+    </article>
+
+    <article class="adl-card">
+      <div class="adl-card-head">
+        <div>
+          <h3>Campi categoria</h3>
+          <p>Qui controlli quali campi di categoria compaiono nella scheda e quanto spazio occupano.</p>
+        </div>
+      </div>
+      <div class="adl-card-body">
+        {% for category in asset_categories %}
+          <section class="adl-category">
+            <div class="adl-row-head" style="margin-bottom:12px;">
+              <div>
+                <p class="adl-row-title">{{ category.label }}</p>
+                <div class="adl-row-sub">{{ category.get_base_asset_type_display }}</div>
+              </div>
+            </div>
+            <div class="adl-field-list">
+              {% for field in category.category_fields.all %}
+                <form method="post" class="adl-row">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="update_asset_category_field">
+                  <input type="hidden" name="category_field_id" value="{{ field.id }}">
+                  <input type="hidden" name="category_id" value="{{ category.id }}">
+                  <input type="hidden" name="field_type" value="{{ field.field_type }}">
+                  <input type="hidden" name="placeholder" value="{{ field.placeholder }}">
+                  <input type="hidden" name="help_text" value="{{ field.help_text }}">
+                  <input type="hidden" name="is_required" value="{% if field.is_required %}1{% endif %}">
+                  <input type="hidden" name="show_in_form" value="{% if field.show_in_form %}1{% endif %}">
+                  <div class="adl-row-head">
+                    <div>
+                      <p class="adl-row-title">{{ field.label }}</p>
+                      <div class="adl-row-sub">{{ field.get_field_type_display }}</div>
+                    </div>
+                  </div>
+                  <div class="adl-form-grid">
+                    <div class="field span-2">
+                      <label>Etichetta</label>
+                      <input type="text" name="label" value="{{ field.label }}" required>
+                    </div>
+                    <div class="field">
+                      <label>Sezione</label>
+                      <select name="detail_section">
+                        {% for code, label in detail_section_choices %}
+                          <option value="{{ code }}" {% if field.detail_section == code %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label>Formato</label>
+                      <select name="detail_value_format">
+                        {% for code, label in detail_format_choices %}
+                          <option value="{{ code }}" {% if field.detail_value_format == code %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label>Dimensione</label>
+                      <select name="detail_card_size">
+                        {% for code, label in detail_card_size_choices %}
+                          <option value="{{ code }}" {% if field.detail_card_size == code %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label>Ordine</label>
+                      <input type="number" name="sort_order" value="{{ field.sort_order }}">
+                    </div>
+                    <div class="field">
+                      <label>Mostra nel dettaglio</label>
+                      <label class="adl-checkline"><input type="checkbox" name="show_in_detail" value="1" {% if field.show_in_detail %}checked{% endif %}> Si</label>
+                    </div>
+                    <div class="field">
+                      <label>Mostra se vuoto</label>
+                      <label class="adl-checkline"><input type="checkbox" name="show_if_empty" value="1" {% if field.show_if_empty %}checked{% endif %}> Si</label>
+                    </div>
+                    <div class="field">
+                      <label>Attivo</label>
+                      <label class="adl-checkline"><input type="checkbox" name="is_active" value="1" {% if field.is_active %}checked{% endif %}> Si</label>
+                    </div>
+                  </div>
+                  <div class="adl-form-actions">
+                    <button class="btn btn-primary" type="submit">Salva campo categoria</button>
+                  </div>
+                </form>
+              {% empty %}
+                <div class="adl-muted">Nessun campo configurato per questa categoria.</div>
+              {% endfor %}
+            </div>
+          </section>
+        {% empty %}
+          <div class="adl-muted">Nessuna categoria asset configurata.</div>
+        {% endfor %}
+      </div>
+    </article>
+  </div>
+</section>
+<script>
+  (function () {
+    const bulkField = document.getElementById("adl-bulk-field");
+    const bulkPanels = Array.from(document.querySelectorAll("[data-bulk-target]"));
+    const selectAllBtn = document.getElementById("adl-select-all-layouts");
+    const scopeSelect = document.getElementById("adl-apply-scope");
+    const rowChecks = Array.from(document.querySelectorAll("[data-layout-select]"));
+
+    function syncBulkPanels() {
+      const activeField = bulkField ? bulkField.value : "grid_size";
+      bulkPanels.forEach(function (panel) {
+        panel.classList.toggle("is-active", panel.getAttribute("data-bulk-target") === activeField);
+      });
+    }
+
+    function setAllSelections(nextValue) {
+      rowChecks.forEach(function (checkbox) {
+        checkbox.checked = nextValue;
+      });
+    }
+
+    if (bulkField) {
+      bulkField.addEventListener("change", syncBulkPanels);
+      syncBulkPanels();
+    }
+
+    if (selectAllBtn) {
+      selectAllBtn.addEventListener("click", function () {
+        const shouldSelectAll = rowChecks.some(function (checkbox) { return !checkbox.checked; });
+        setAllSelections(shouldSelectAll);
+      });
+    }
+
+    if (scopeSelect) {
+      scopeSelect.addEventListener("change", function () {
+        if (scopeSelect.value === "all") {
+          setAllSelections(false);
+        }
+      });
+    }
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,257 @@
+{% extends "core/base.html" %}
+
+{% block title %}Accessi Avanzati | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Tabella ruoli */
+  .ruoli-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .ruoli-table th {
+    font-size: 11px; font-weight: 600; color: var(--text-muted, #888);
+    text-transform: uppercase; padding: 8px 12px;
+    border-bottom: 2px solid var(--border, #eee); text-align: left;
+  }
+  .ruoli-table td { padding: 10px 12px; border-bottom: 1px solid var(--border, #eee); vertical-align: middle; }
+  .ruoli-table tr:last-child td { border-bottom: none; }
+  .ruoli-table tr:hover td { background: var(--bg-hover, #f9fafb); }
+  .ruolo-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: var(--accent-light, #eff6ff); color: var(--accent, #3b82f6);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 13px; margin-right: 8px; vertical-align: middle; flex-shrink: 0;
+  }
+  .ruolo-nome { font-weight: 600; }
+  .perm-bar-wrap { display: flex; align-items: center; gap: 8px; }
+  .perm-bar { flex: 1; max-width: 140px; height: 6px; border-radius: 3px; background: var(--border, #eee); overflow: hidden; }
+  .perm-bar-fill { height: 100%; border-radius: 3px; background: var(--accent, #3b82f6); }
+  .perm-count-label { font-size: 12px; color: var(--text-muted, #888); white-space: nowrap; }
+  .ruolo-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+  /* Override table */
+  .ov-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .ov-table th {
+    font-size: 11px; font-weight: 600; color: var(--text-muted, #888);
+    text-transform: uppercase; padding: 7px 12px;
+    border-bottom: 2px solid var(--border, #eee); text-align: left;
+  }
+  .ov-table td { padding: 8px 12px; border-bottom: 1px solid var(--border, #f0f0f0); vertical-align: middle; }
+  .ov-table tr:last-child td { border-bottom: none; }
+  .ov-table tr:hover td { background: var(--bg-hover, #f9fafb); }
+  .ov-path { font-family: monospace; font-size: 12px; color: var(--text-muted, #666); }
+  .chip-on   { display:inline-block; padding:2px 7px; border-radius:4px; font-size:11px; font-weight:600; background:#dcfce7; color:#166534; }
+  .chip-off  { display:inline-block; padding:2px 7px; border-radius:4px; font-size:11px; font-weight:600; background:#fee2e2; color:#991b1b; }
+  .chip-null { display:inline-block; padding:2px 7px; border-radius:4px; font-size:11px; font-weight:600; background:#f3f4f6; color:#888; }
+
+  .card-head-with-actions { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Accessi Avanzati" page_subtitle="Strumenti tecnici completi per ruoli, permessi, pulsanti e override utenti." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-icon-wrap yellow">🛡️</div>
+      <div>
+        <div class="stat-num">{{ ruoli_info|length }}</div>
+        <div class="stat-lbl">Ruoli configurati</div>
+      </div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon-wrap blue">🧭</div>
+      <div>
+        <div class="stat-num">{{ pulsanti_count }}</div>
+        <div class="stat-lbl">Pulsanti registrati</div>
+      </div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon-wrap red">↩️</div>
+      <div>
+        <div class="stat-num">{{ override_count }}</div>
+        <div class="stat-lbl">Override utenti</div>
+      </div>
+    </div>
+  </div>
+
+  {# Ruoli #}
+  <div class="card">
+    <div class="card-head card-head-with-actions">
+      <div class="card-title">Ruoli e permessi</div>
+      <div style="display:flex;gap:8px;">
+        <a class="btn btn-sm" href="{% url 'admin_portale:accessi' %}">Vai ad Accessi Semplici</a>
+        <a class="btn btn-sm" href="{% url 'admin_portale:wizard_ruolo' %}">+ Wizard Ruolo</a>
+        <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:pulsanti' %}">Pulsanti</a>
+      </div>
+    </div>
+    <div class="card-body" style="padding:0;">
+      {% if ruoli_info %}
+        <table class="ruoli-table">
+          <thead>
+            <tr>
+              <th>Ruolo</th>
+              <th>Accessi abilitati</th>
+              <th style="text-align:right;">Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for info in ruoli_info %}
+              <tr>
+                <td style="display:flex;align-items:center;">
+                  <span class="ruolo-icon">{{ info.ruolo.nome|slice:":1"|upper }}</span>
+                  <span>
+                    <span class="ruolo-nome">{{ info.ruolo.nome }}</span>
+                    <span style="font-size:11px;color:var(--text-muted,#999);margin-left:6px;">#{{ info.ruolo.id }}</span>
+                  </span>
+                </td>
+                <td>
+                  <div class="perm-bar-wrap">
+                    <div class="perm-bar">
+                      {% if info.perm_totali > 0 %}
+                        <div class="perm-bar-fill" style="width:{% widthratio info.perm_attivi info.perm_totali 100 %}%"></div>
+                      {% else %}
+                        <div class="perm-bar-fill" style="width:0%"></div>
+                      {% endif %}
+                    </div>
+                    <span class="perm-count-label">{{ info.perm_attivi }} / {{ info.perm_totali }}</span>
+                  </div>
+                </td>
+                <td>
+                  <div class="ruolo-actions">
+                    <a class="btn btn-secondary btn-sm"
+                       href="{% url 'admin_portale:permessi' %}?target_type=role&ruolo_id={{ info.ruolo.id }}">
+                      Permessi
+                    </a>
+                    <a class="btn btn-sm"
+                       href="{% url 'admin_portale:wizard_ruolo' %}?ruolo_id={{ info.ruolo.id }}">
+                      Wizard ▶
+                    </a>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div style="padding:16px;"><p class="cell-muted">Nessun ruolo trovato.</p></div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Override utenti recenti #}
+  <div class="card">
+    <div class="card-head card-head-with-actions">
+      <div>
+        <div class="card-title">Override utenti recenti</div>
+        <div class="cell-muted" style="font-size:12px;margin-top:2px;">
+          Permessi assegnati individualmente, diversi dal ruolo. Ultimi {{ override_recenti|length }}.
+        </div>
+      </div>
+      <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:permessi' %}?target_type=user">Gestione per utente</a>
+    </div>
+    <div class="card-body" style="padding:0;">
+      {% if override_recenti %}
+        <table class="ov-table">
+          <thead>
+            <tr>
+              <th>Utente</th>
+              <th>Modulo › Azione</th>
+              <th>can_view</th>
+              <th>can_edit</th>
+              <th>can_delete</th>
+              <th>can_approve</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ov in override_recenti %}
+              <tr>
+                <td>
+                  <strong>{{ ov.nome_utente }}</strong>
+                  <span style="font-size:11px;color:var(--text-muted,#999);"> #{{ ov.legacy_user_id }}</span>
+                </td>
+                <td><span class="ov-path">{{ ov.modulo }} › {{ ov.azione }}</span></td>
+                <td>
+                  {% if ov.can_view is None %}<span class="chip-null">ruolo</span>
+                  {% elif ov.can_view %}<span class="chip-on">ON</span>
+                  {% else %}<span class="chip-off">OFF</span>{% endif %}
+                </td>
+                <td>
+                  {% if ov.can_edit is None %}<span class="chip-null">ruolo</span>
+                  {% elif ov.can_edit %}<span class="chip-on">ON</span>
+                  {% else %}<span class="chip-off">OFF</span>{% endif %}
+                </td>
+                <td>
+                  {% if ov.can_delete is None %}<span class="chip-null">ruolo</span>
+                  {% elif ov.can_delete %}<span class="chip-on">ON</span>
+                  {% else %}<span class="chip-off">OFF</span>{% endif %}
+                </td>
+                <td>
+                  {% if ov.can_approve is None %}<span class="chip-null">ruolo</span>
+                  {% elif ov.can_approve %}<span class="chip-on">ON</span>
+                  {% else %}<span class="chip-off">OFF</span>{% endif %}
+                </td>
+                <td style="text-align:right;">
+                  <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:utente_edit' ov.legacy_user_id %}">Scheda →</a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div style="padding:16px;"><p class="cell-muted">Nessun override utente. Tutti gli utenti seguono il proprio ruolo.</p></div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Link rapidi #}
+  <div class="card">
+    <div class="card-head"><div class="card-title">Strumenti ACL</div></div>
+    <div class="card-body">
+      <div class="modules-grid">
+        <a class="mod" href="{% url 'admin_portale:accessi' %}">
+          <div class="mod-icon">S</div>
+          <div>
+            <div class="mod-name">Accessi Semplificati</div>
+            <div class="mod-sub">Gestione veloce modulo/ruolo senza passare da pagine tecniche</div>
+          </div>
+        </a>
+        <a class="mod" href="{% url 'admin_portale:permessi' %}">
+          <div class="mod-icon">🔐</div>
+          <div>
+            <div class="mod-name">Matrice Permessi</div>
+            <div class="mod-sub">Toggle granulare per ruolo o singolo utente</div>
+          </div>
+        </a>
+        <a class="mod" href="{% url 'admin_portale:wizard_ruolo' %}">
+          <div class="mod-icon">🧙</div>
+          <div>
+            <div class="mod-name">Wizard Configura Ruolo</div>
+            <div class="mod-sub">Flusso guidato step-by-step per configurare un ruolo</div>
+          </div>
+        </a>
+        <a class="mod" href="{% url 'admin_portale:pulsanti' %}">
+          <div class="mod-icon">🧭</div>
+          <div>
+            <div class="mod-name">Gestione Pulsanti</div>
+            <div class="mod-sub">Aggiungi, modifica o disabilita pulsanti del menu</div>
+          </div>
+        </a>
+        {% url 'admin_portale:acl_diagnostica' as acl_url %}
+        {% if acl_url %}
+        <a class="mod" href="{{ acl_url }}">
+          <div class="mod-icon">ACL</div>
+          <div>
+            <div class="mod-name">Diagnostica ACL</div>
+            <div class="mod-sub">Testa un path per capire perché un utente riceve 403</div>
+          </div>
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+{% endblock %}

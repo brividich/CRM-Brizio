@@ -1,0 +1,1064 @@
+{% extends "core/base.html" %}
+
+{% block title %}Gestione Pulsanti | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ── Toggle switch (identico a permessi.html) ──────────────────────── */
+  .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute; cursor: pointer; inset: 0;
+    background: var(--border, #ccc); border-radius: 24px; transition: background .2s;
+  }
+  .toggle-slider::before {
+    content: ""; position: absolute;
+    height: 18px; width: 18px; left: 3px; bottom: 3px;
+    background: #fff; border-radius: 50%; transition: transform .2s;
+  }
+  .toggle-switch input:checked  + .toggle-slider { background: var(--accent, #3b82f6); }
+  .toggle-switch input:disabled + .toggle-slider { opacity: .5; cursor: default; }
+  .toggle-switch input:checked  + .toggle-slider::before { transform: translateX(20px); }
+
+  /* ── Card grid moduli (identico a permessi.html) ────────────────────── */
+  .perm-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 14px;
+  }
+  .perm-mod-card {
+    border: 1px solid var(--border, #eee); border-radius: 10px; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .perm-mod-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; background: var(--bg-card, #fafafa);
+    border-bottom: 1px solid var(--border, #eee); gap: 8px; flex-shrink: 0;
+  }
+  .perm-mod-head-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .perm-mod-icon {
+    width: 32px; height: 32px; border-radius: 7px;
+    background: var(--accent-light, #eff6ff); color: var(--accent, #3b82f6);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 13px; flex-shrink: 0;
+  }
+  .perm-mod-name { font-weight: 600; font-size: 13px; }
+  .perm-mod-count { font-size: 11px; color: var(--text-muted, #888); margin-top: 1px; }
+
+  /* ── Riga pulsante ────────────────────────────────────────────────── */
+  .pulsante-row { border-bottom: 1px solid var(--border, #f0f0f0); transition: background .15s; }
+  .pulsante-row:last-child { border-bottom: none; }
+  .pulsante-row.is-disabled { background: #fafafa; }
+  .pulsante-row-main {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px 10px 0; transition: background .1s;
+  }
+  .pulsante-row-main:hover { background: var(--bg-hover, #f9fafb); }
+
+  /* Indicatore stato (striscia sinistra colorata) */
+  .pulsante-state-bar {
+    width: 4px; align-self: stretch; flex-shrink: 0; border-radius: 0 3px 3px 0;
+    background: #22c55e; /* verde = attivo */
+    min-height: 38px;
+  }
+  .pulsante-row.is-disabled .pulsante-state-bar { background: #d1d5db; }
+
+  .pulsante-thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    border: 1px solid var(--border, #e5e7eb);
+    background: #f8fafc;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--text-muted, #94a3b8);
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .pulsante-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .pulsante-info { flex: 1; min-width: 0; }
+  .pulsante-label {
+    font-size: 13px; font-weight: 600; color: var(--text, #222);
+    display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 4px;
+  }
+  .pulsante-row.is-disabled .pulsante-label { color: var(--text-muted, #999); }
+  .pulsante-meta { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+  .pulsante-codice {
+    font-size: 10px; color: var(--text-muted, #aaa); font-family: monospace;
+    background: var(--bg-alt, #f3f4f6); border-radius: 3px; padding: 1px 5px;
+  }
+  .pulsante-url-text {
+    font-size: 10px; color: var(--text-muted, #999); font-family: monospace;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;
+  }
+  .chip-slot {
+    display: inline-block; padding: 1px 6px; border-radius: 4px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+    background: #ede9fe; color: #6d28d9;
+  }
+  .chip-section {
+    display: inline-block; padding: 1px 6px; border-radius: 4px;
+    font-size: 10px; font-weight: 600;
+    background: #e0f2fe; color: #0369a1;
+  }
+  .chip-off {
+    display: inline-block; padding: 1px 6px; border-radius: 4px;
+    font-size: 10px; font-weight: 700;
+    background: #fee2e2; color: #991b1b;
+  }
+  .pulsante-row-actions { display: flex; align-items: center; gap: 5px; flex-shrink: 0; padding-right: 10px; }
+  .pulsante-row.saving .pulsante-row-main { opacity: .5; pointer-events: none; }
+  .btn-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border,#e5e7eb);
+    background: transparent; cursor: pointer; font-size: 13px; line-height: 1;
+    transition: background .1s, border-color .1s;
+  }
+  .btn-icon:hover { background: var(--bg-hover,#f3f4f6); }
+  .btn-icon.danger:hover { background: #fee2e2; border-color: #fca5a5; }
+
+  /* ── Pannello edit inline ─────────────────────────────────────────── */
+  .pulsante-edit-panel {
+    background: var(--bg-alt, #f8f9fb);
+    border-top: 1px solid var(--border, #eee);
+    padding: 14px 16px;
+    display: none;
+  }
+  .edit-panel-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+    margin-bottom: 10px;
+  }
+  .edit-panel-grid .ef { display: flex; flex-direction: column; gap: 3px; }
+  .edit-panel-grid .ef label { font-size: 11px; font-weight: 600; color: var(--text-muted, #777); text-transform: uppercase; letter-spacing: .05em; }
+  .edit-panel-grid .ef.ef-full { grid-column: 1 / -1; }
+  .edit-panel-grid .ef.ef-checks { flex-direction: row; align-items: center; gap: 16px; grid-column: 1 / -1; }
+  .edit-panel-grid .ef.ef-checks label { text-transform: none; font-size: 13px; color: var(--text, #333); display: flex; align-items: center; gap: 5px; cursor: pointer; font-weight: 400; }
+  .edit-panel-actions { display: flex; gap: 8px; align-items: center; }
+  .card-image-editor { display: flex; gap: 10px; align-items: flex-start; }
+  .card-image-preview {
+    width: 72px;
+    height: 72px;
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 10px;
+    background: #f8fafc;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted, #94a3b8);
+    font-size: 10px;
+    font-weight: 700;
+    flex-shrink: 0;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .card-image-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .card-image-body { flex: 1; display: flex; flex-direction: column; gap: 7px; }
+  .card-image-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+  /* ── Status bar ───────────────────────────────────────────────────── */
+  #pulsanti-status { font-size: 12px; min-height: 16px; }
+
+  /* ── Card head con azioni (identico a accessi.html) ─────────────────── */
+  .card-head-with-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+
+  /* ── Form nuovo pulsante (collapsibile) ─────────────────────────────── */
+  .create-panel {
+    border-top: 1px solid var(--border, #eee);
+    padding: 16px;
+    background: var(--bg-alt, #f8f9fb);
+  }
+  .create-form-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px 12px;
+    margin-bottom: 12px;
+  }
+  .create-form-grid .cf { display: flex; flex-direction: column; gap: 3px; }
+  .create-form-grid .cf label { font-size: 11px; font-weight: 600; color: var(--text-muted, #777); text-transform: uppercase; letter-spacing: .05em; }
+  .create-form-grid .cf.cf-full { grid-column: 1 / -1; }
+  .create-form-grid .cf.cf-checks { flex-direction: row; align-items: center; gap: 16px; grid-column: 1 / -1; }
+  .create-form-grid .cf.cf-checks label { text-transform: none; font-size: 13px; color: var(--text, #333); display: flex; align-items: center; gap: 5px; cursor: pointer; font-weight: 400; }
+
+  /* ── Proposed modules card ───────────────────────────────────────── */
+  .proposed-row { display: flex; align-items: flex-start; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--color-border, #eee); }
+  .proposed-row:last-child { border-bottom: none; }
+  .proposed-list { margin: 4px 0 0 16px; padding: 0; font-size: .83em; list-style: disc; color: var(--text-muted, #888); }
+
+  /* ── Filtri compatti ─────────────────────────────────────────────── */
+  .filter-bar { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; padding-bottom: 4px; }
+  .filter-bar .fb-field { display: flex; flex-direction: column; gap: 3px; }
+  .filter-bar .fb-field label { font-size: 11px; font-weight: 600; color: var(--text-muted, #777); text-transform: uppercase; letter-spacing: .05em; }
+  .filter-bar .fb-field.fb-wide { flex: 1; min-width: 160px; }
+
+  /* ── Route catalog ───────────────────────────────────────────────── */
+  .route-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .route-table th { font-size: 11px; font-weight: 600; color: var(--text-muted,#888); text-transform: uppercase; padding: 7px 10px; border-bottom: 2px solid var(--border,#eee); text-align: left; }
+  .route-table td { padding: 6px 10px; border-bottom: 1px solid var(--border,#f0f0f0); vertical-align: middle; }
+  .route-table tr:last-child td { border-bottom: none; }
+  .route-table tr:hover td { background: var(--bg-hover, #f9fafb); }
+
+  /* ── Accenti catalogo ────────────────────────────────────────────── */
+  .catalog-card { border-left: 3px solid var(--accent, #3b82f6); }
+
+  /* ── Tutorial modal ──────────────────────────────────────────────── */
+  .modal-backdrop {
+    display: none; position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0,0,0,.45); align-items: center; justify-content: center;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal-box {
+    background: var(--bg-card, #fff); border-radius: 12px;
+    box-shadow: 0 8px 40px rgba(0,0,0,.2);
+    width: 90%; max-width: 680px; max-height: 88vh;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; border-bottom: 1px solid var(--border,#eee);
+    flex-shrink: 0;
+  }
+  .modal-title { font-size: 16px; font-weight: 700; }
+  .modal-close {
+    width: 32px; height: 32px; border-radius: 8px; border: none;
+    background: var(--bg-alt,#f5f5f5); cursor: pointer; font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .modal-close:hover { background: var(--bg-hover,#eee); }
+  .modal-body { overflow-y: auto; padding: 0; }
+  .tut-section { padding: 16px 20px; border-bottom: 1px solid var(--border,#f0f0f0); }
+  .tut-section:last-child { border-bottom: none; }
+  .tut-section-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .tut-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--accent, #3b82f6); color: #fff;
+    font-size: 11px; font-weight: 700; flex-shrink: 0;
+  }
+  .tut-body { font-size: 13px; color: var(--text-secondary, #555); line-height: 1.6; }
+  .tut-body code { background: var(--bg-alt,#f3f4f6); padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+  .tut-body ul { margin: 6px 0 0 18px; padding: 0; }
+  .tut-body li { margin-bottom: 3px; }
+  .tut-body strong { color: var(--text, #222); }
+  .help-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 6px;
+    background: var(--accent-light, #eff6ff); color: var(--accent, #3b82f6);
+    border: 1px solid #bfdbfe; cursor: pointer;
+    font-size: 12px; font-weight: 600; flex-shrink: 0; white-space: nowrap;
+  }
+  .help-btn:hover { background: var(--accent, #3b82f6); color: #fff; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Gestione Pulsanti" page_subtitle="Crea, modifica e organizza i pulsanti del portale. I permessi vengono inizializzati automaticamente per tutti i ruoli." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  {# ── Tutorial modal ─────────────────────────────────────────────────────── #}
+  <div class="modal-backdrop" id="tutorial-modal" onclick="closeTutorialIfBackdrop(event)">
+    <div class="modal-box">
+      <div class="modal-head">
+        <div class="modal-title">Come usare Gestione Pulsanti</div>
+        <button class="modal-close" type="button" onclick="closeTutorial()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="tut-section">
+          <div class="tut-section-title"><span class="tut-num">1</span> Cos'è un pulsante?</div>
+          <div class="tut-body">
+            Un <strong>pulsante</strong> è un link che appare nel menu/topbar del portale. È definito da:
+            <ul>
+              <li><strong>Codice</strong> — identificatore univoco (es. <code>gestione_assenze</code>). Non cambiarlo dopo la creazione.</li>
+              <li><strong>Modulo</strong> — gruppo logico (es. <code>assenze</code>). Tutti i pulsanti dello stesso modulo vengono raggruppati insieme.</li>
+              <li><strong>URL</strong> — destinazione. Può essere un path assoluto (<code>/path/</code>), un link esterno (<code>https://…</code>) o una route Django (<code>route:nome_route</code>).</li>
+              <li><strong>Slot UI</strong> — dove appare: <code>topbar</code> (menu principale), <code>sidebar</code>, <code>page</code>.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="tut-section">
+          <div class="tut-section-title"><span class="tut-num">2</span> Come creare un pulsante</div>
+          <div class="tut-body">
+            <strong>Metodo A — Wizard guidato</strong> (consigliato per chi inizia): clicca <em>✨ Wizard guidato</em> e segui i passi. Ti guida anche nella configurazione dei permessi per ogni ruolo.<br><br>
+            <strong>Metodo B — Form rapida</strong>: clicca <em>+ Nuovo pulsante</em>. Compila i campi e usa un <strong>Preset UI</strong> per compilare automaticamente Slot, Sezione e Ordine in base al tipo di pulsante.<br><br>
+            <strong>Metodo C — Catalogo moduli</strong>: se il modulo è nel catalogo (es. <em>assenze</em>, <em>notizie</em>), appare la card blu in cima. Clicca <em>Crea (N)</em> per creare tutti i pulsanti del modulo in un colpo solo, inclusa l'inizializzazione dei permessi per tutti i ruoli.
+          </div>
+        </div>
+        <div class="tut-section">
+          <div class="tut-section-title"><span class="tut-num">3</span> Attivare/disattivare un pulsante</div>
+          <div class="tut-body">
+            Ogni riga ha un <strong>toggle</strong> (interruttore) a destra. Disabilitare un pulsante lo nasconde dall'interfaccia ma non lo elimina. Il chip rosso <code>off</code> indica che il pulsante è disabilitato.<br>
+            Questo è diverso dai permessi: un pulsante disabilitato è nascosto a <em>tutti</em>; un permesso negato nasconde il pulsante solo a certi ruoli/utenti.
+          </div>
+        </div>
+        <div class="tut-section">
+          <div class="tut-section-title"><span class="tut-num">4</span> Modificare un pulsante esistente</div>
+          <div class="tut-body">
+            Clicca il pulsante <strong>✏️</strong> su una riga per aprire il pannello di modifica inline. Puoi cambiare tutti i campi, applicare un preset UI e salvare. La pagina si ricarica automaticamente dopo il salvataggio.
+          </div>
+        </div>
+        <div class="tut-section">
+          <div class="tut-section-title"><span class="tut-num">5</span> Permessi: cosa succede automaticamente</div>
+          <div class="tut-body">
+            Ogni volta che crei un pulsante (con form, wizard o catalogo), il sistema crea automaticamente un record permessi per <strong>ogni ruolo esistente</strong> con <code>can_view=0</code> (disabilitato). Così il pulsante è pronto nella matrice permessi e basta abilitarlo per i ruoli giusti.<br><br>
+            Vai su <strong>Gestione Permessi</strong> per abilitare <code>can_view</code> per i ruoli che devono vedere il pulsante.
+          </div>
+        </div>
+        <div class="tut-section">
+          <div class="tut-section-title"><span class="tut-num">6</span> Trovare la route giusta</div>
+          <div class="tut-body">
+            Per pulsanti interni al portale usa la sintassi <code>route:nome_route</code>. In fondo alla pagina c'è il <strong>Catalogo Route Django</strong>: espandilo, cerca la route e clicca <em>Copia</em> per copiare il valore corretto da incollare nel campo URL.
+          </div>
+        </div>
+        <div class="tut-section">
+          <div class="tut-section-title"><span class="tut-num">7</span> Preset UI — cosa sono</div>
+          <div class="tut-body">
+            I preset compilano automaticamente i campi <em>Slot UI</em>, <em>Sezione UI</em> e <em>Ordine</em> con valori standard. Esempi:
+            <ul>
+              <li><strong>Topbar principale</strong> — per pulsanti nel menu principale</li>
+              <li><strong>Link esterno</strong> — per URL esterni con apertura in nuova scheda</li>
+              <li><strong>Admin</strong> — per strumenti riservati agli amministratori</li>
+            </ul>
+            Seleziona il preset e clicca <em>Applica</em> per riempire i campi, poi personalizza se necessario.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Datalists per autocomplete ─────────────────────────────────────────── #}
+  <form id="pulsanti-csrf-form" style="display:none;">{% csrf_token %}</form>
+  <datalist id="modulo-options-list">{% for m in moduli %}<option value="{{ m }}">{% endfor %}</datalist>
+  <datalist id="ui-slot-options-list">{% for v in ui_slot_options %}<option value="{{ v }}">{% endfor %}</datalist>
+  <datalist id="ui-section-options-list">{% for v in ui_section_options %}<option value="{{ v }}">{% endfor %}</datalist>
+  <datalist id="icon-options-list">{% for v in icon_options %}<option value="{{ v }}">{% endfor %}</datalist>
+  {{ ui_presets|json_script:"pulsanti-ui-presets" }}
+
+  {# ── Stats row ──────────────────────────────────────────────────────────── #}
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-icon-wrap blue">🧭</div>
+      <div>
+        <div class="stat-num">{{ pulsanti_total }}</div>
+        <div class="stat-lbl">Pulsanti totali</div>
+      </div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon-wrap green">✅</div>
+      <div>
+        <div class="stat-num">{{ pulsanti_attivi_count }}</div>
+        <div class="stat-lbl">Pulsanti attivi</div>
+      </div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon-wrap yellow">📦</div>
+      <div>
+        <div class="stat-num">{{ moduli_total }}</div>
+        <div class="stat-lbl">Moduli configurati</div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Card: Moduli proposti dal catalogo ─────────────────────────────────── #}
+  {% if proposed_modules or auto_detected_apps %}
+  <div class="card catalog-card">
+    {% include "admin_portale/components/card_head.html" with card_title="Moduli con pulsanti mancanti" card_subtitle="Crea con un click i pulsanti previsti dal catalogo + inizializza i permessi per tutti i ruoli." %}
+    <div class="card-body" style="padding-top:8px;">
+      {% for module in proposed_modules %}
+      <div class="proposed-row">
+        <div style="flex:1;">
+          <strong>{{ module.label }}</strong>
+          <span class="cell-muted" style="margin-left:8px;font-size:12px;">
+            {{ module.missing_buttons|length }}{% if module.total != module.missing_buttons|length %}/{{ module.total }}{% endif %}
+            pulsant{% if module.missing_buttons|length == 1 %}e mancante{% else %}i mancanti{% endif %}
+          </span>
+          <ul class="proposed-list">
+            {% for btn in module.missing_buttons %}
+            <li><code>{{ btn.codice }}</code> — {{ btn.nome_visibile }} → <code>{{ btn.url }}</code></li>
+            {% endfor %}
+          </ul>
+        </div>
+        <div style="flex-shrink:0;padding-top:2px;">
+          <button class="btn btn-sm" type="button" data-module-key="{{ module.key }}" onclick="createModuleFromCatalog(this)">
+            Crea ({{ module.missing_buttons|length }})
+          </button>
+        </div>
+      </div>
+      {% endfor %}
+      {% if auto_detected_apps %}
+      <div style="margin-top:10px;padding-top:6px;">
+        <span class="cell-muted" style="font-size:12px;">App installate senza pulsanti (non nel catalogo):</span>
+        {% for app in auto_detected_apps %}
+        <span style="display:inline-block;background:var(--bg-alt,#f5f5f5);border:1px solid var(--border,#ddd);border-radius:4px;padding:1px 7px;font-size:11px;margin:2px;">{{ app.label }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Card: Filtri + Nuovo pulsante ──────────────────────────────────────── #}
+  <div class="card">
+    <div class="card-head card-head-with-actions">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="card-title">Pulsanti registrati</div>
+        <button class="help-btn" type="button" onclick="openTutorial()">📖 Come funziona</button>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span id="pulsanti-status" class="cell-muted"></span>
+        <a class="btn btn-sm" href="{% url 'admin_portale:wizard_pulsante' %}">✨ Wizard guidato</a>
+        <button class="btn btn-secondary btn-sm" id="toggle-create-btn" type="button">+ Nuovo pulsante</button>
+      </div>
+    </div>
+
+    {# Filtri inline compatti #}
+    <div class="card-body" style="padding-bottom:10px;border-bottom:1px solid var(--border,#eee);">
+      <form method="get" class="filter-bar">
+        <div class="fb-field fb-wide">
+          <label for="q">Cerca</label>
+          <input class="input" type="text" id="q" name="q" value="{{ filters.q }}" placeholder="codice, nome, url…">
+        </div>
+        <div class="fb-field">
+          <label for="modulo">Modulo</label>
+          <select class="input" id="modulo" name="modulo">
+            <option value="">Tutti</option>
+            {% for modulo in moduli %}
+              <option value="{{ modulo }}" {% if filters.modulo|lower == modulo|lower %}selected{% endif %}>{{ modulo }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="fb-field">
+          <label for="area">Area UI</label>
+          <select class="input" id="area" name="area">
+            <option value="">Tutte</option>
+            {% for area in area_options %}
+              <option value="{{ area.key }}" {% if filters.area == area.key %}selected{% endif %}>{{ area.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="display:flex;gap:6px;align-self:flex-end;">
+          <button class="btn" type="submit">Filtra</button>
+          <a class="btn btn-secondary" href="{% url 'admin_portale:pulsanti' %}">Reset</a>
+        </div>
+      </form>
+    </div>
+
+    {# Form Nuovo pulsante (collapsibile) #}
+    <div class="create-panel" id="create-panel" style="display:none;">
+      <div style="margin-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+          <label for="create-ui-preset" style="font-size:12px;font-weight:600;color:var(--text-muted,#777);text-transform:uppercase;">Preset UI</label>
+          <select class="input input-sm" id="create-ui-preset" style="width:auto;">
+            <option value="">Seleziona preset…</option>
+            {% for preset in ui_presets %}
+              <option value="{{ preset.key }}">{{ preset.label }}</option>
+            {% endfor %}
+          </select>
+          <input class="input input-sm" id="create-ui-preset-desc" type="text" readonly placeholder="Descrizione preset" style="flex:1;">
+          <button class="btn btn-secondary btn-sm" type="button" id="apply-ui-preset-btn">Applica</button>
+        </div>
+      </div>
+      <form id="create-pulsante-form">
+        <div class="create-form-grid">
+          <div class="cf"><label>Codice *</label><input class="input" type="text" name="codice" required placeholder="es. gestione_assenze"></div>
+          <div class="cf"><label>Nome visibile</label><input class="input" type="text" name="nome_visibile" placeholder="es. Gestione Assenze"></div>
+          <div class="cf"><label>Modulo *</label><input class="input" type="text" name="modulo" list="modulo-options-list" required placeholder="es. assenze"></div>
+          <div class="cf cf-full"><label>URL *</label><input class="input" type="text" name="url" required placeholder="/path/ oppure route:nome_route oppure https://…"></div>
+          <div class="cf"><label>Slot UI</label><input class="input" type="text" name="ui_slot" list="ui-slot-options-list" placeholder="topbar / sidebar / page"></div>
+          <div class="cf"><label>Sezione UI</label><input class="input" type="text" name="ui_section" list="ui-section-options-list" placeholder="gestione_assenze / admin"></div>
+          <div class="cf"><label>Ordine UI</label><input class="input" type="number" name="ui_order" placeholder="es. 10"></div>
+          <div class="cf"><label>Icona</label><input class="input" type="text" name="icona" list="icon-options-list" placeholder="icona / testo breve"></div>
+          <div class="cf"><label>Immagine modulo (URL)</label><input class="input" type="text" name="card_image" placeholder="https://... oppure /media/..."></div>
+          {% if has_ordine %}<div class="cf"><label>Ordine legacy</label><input class="input" type="number" name="ordine"></div>{% endif %}
+          <div class="cf cf-checks">
+            <label><input type="checkbox" name="visible_topbar" checked> Visibile topbar</label>
+            <label><input type="checkbox" name="enabled" checked> Attivo</label>
+            <label title="Se attivo, compare nella dashboard come modulo principale (padre). I moduli non padre sono nascosti di default."><input type="checkbox" name="is_padre"> Modulo padre (dashboard)</label>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="btn" type="submit">Crea pulsante</button>
+          <button class="btn btn-secondary" type="button" id="cancel-create-btn">Annulla</button>
+          <span class="cell-muted" style="font-size:12px;">I permessi vengono inizializzati (can_view=0) per tutti i ruoli.</span>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {# ── Card: Pulsanti raggruppati per modulo ──────────────────────────────── #}
+  {% if pulsanti_list %}
+  {% regroup pulsanti_list by modulo as pulsanti_by_modulo %}
+  <div class="card">
+    <div class="card-head card-head-with-actions">
+      <div>
+        <div class="card-title">Moduli ({{ pulsanti_by_modulo|length }})</div>
+        <div class="cell-muted" style="font-size:12px;margin-top:2px;">
+          {{ pulsanti_list|length }} pulsant{% if pulsanti_list|length == 1 %}e{% else %}i{% endif %}
+          {% if filters.q or filters.modulo or filters.area %} — filtro attivo{% endif %}
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:permessi' %}">Gestione Permessi →</a>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="perm-cards-grid" id="pulsanti-module-grid">
+        {% for group in pulsanti_by_modulo %}
+        <div class="perm-mod-card">
+          <div class="perm-mod-head">
+            <div class="perm-mod-head-left">
+              <div class="perm-mod-icon">{{ group.grouper|default:"?"|slice:":1"|upper }}</div>
+              <div>
+                <div class="perm-mod-name">{{ group.grouper|default:"(nessun modulo)" }}</div>
+                <div class="perm-mod-count">{{ group.list|length }} pulsant{% if group.list|length == 1 %}e{% else %}i{% endif %}</div>
+              </div>
+            </div>
+            <a class="btn btn-secondary btn-sm"
+               href="{% url 'admin_portale:permessi' %}?target_type=role"
+               style="font-size:11px;">Permessi</a>
+          </div>
+          {% for p in group.list %}
+          <div class="pulsante-row{% if not p.ui_enabled %} is-disabled{% endif %}" data-id="{{ p.id }}">
+            <div class="pulsante-row-main">
+              {# Striscia stato sinistra #}
+              <div class="pulsante-state-bar"></div>
+              <div class="pulsante-thumb" id="thumb-{{ p.id }}">
+                {% if p.card_image_url %}
+                  <img src="{{ p.card_image_url }}" alt="{{ p.label }}">
+                {% else %}
+                  {{ p.label|slice:":1"|upper }}
+                {% endif %}
+              </div>
+              <div class="pulsante-info">
+                <span class="pulsante-label" title="{{ p.label }}">{{ p.label }}</span>
+                <div class="pulsante-meta">
+                  <span class="pulsante-codice">{{ p.codice }}</span>
+                  {% if p.ui_slot %}<span class="chip-slot">{{ p.ui_slot }}</span>{% endif %}
+                  {% if p.ui_section %}<span class="chip-section">{{ p.ui_section }}</span>{% endif %}
+                  {% if not p.ui_enabled %}<span class="chip-off">disabilitato</span>{% endif %}
+                  {% if p.url %}<span class="pulsante-url-text" title="{{ p.url }}">{{ p.url }}</span>{% endif %}
+                </div>
+              </div>
+              <div class="pulsante-row-actions">
+                <label class="toggle-switch" title="{% if p.ui_enabled %}Attivo — clicca per disabilitare{% else %}Disabilitato — clicca per abilitare{% endif %}">
+                  <input type="checkbox" class="enabled-toggle" data-id="{{ p.id }}"
+                    {% if p.ui_enabled %}checked{% endif %}>
+                  <span class="toggle-slider"></span>
+                </label>
+                <button class="btn-icon edit-btn" type="button" data-id="{{ p.id }}" title="Modifica">✏️</button>
+                <button class="btn-icon danger delete-btn" type="button" data-id="{{ p.id }}" title="Elimina">🗑</button>
+              </div>
+            </div>
+
+            {# Pannello edit inline #}
+            <div class="pulsante-edit-panel" id="edit-panel-{{ p.id }}">
+              <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;">
+                <span style="font-size:11px;font-weight:600;color:var(--text-muted,#777);text-transform:uppercase;">Preset UI</span>
+                <select class="input input-sm row-ui-preset" data-id="{{ p.id }}" style="width:auto;">
+                  <option value="">Seleziona…</option>
+                  {% for preset in ui_presets %}
+                    <option value="{{ preset.key }}">{{ preset.label }}</option>
+                  {% endfor %}
+                </select>
+                <button class="btn btn-secondary btn-sm pulsante-apply-preset" type="button" data-id="{{ p.id }}">Applica preset</button>
+              </div>
+              <div class="edit-panel-grid">
+                <div class="ef"><label>Codice</label><input class="input input-sm" type="text" data-name="codice" value="{{ p.codice }}"></div>
+                <div class="ef"><label>Nome visibile</label><input class="input input-sm" type="text" data-name="nome_visibile" value="{{ p.nome_visibile|default:'' }}"></div>
+                <div class="ef"><label>Modulo</label><input class="input input-sm" type="text" data-name="modulo" list="modulo-options-list" value="{{ p.modulo }}"></div>
+                <div class="ef"><label>Icona</label><input class="input input-sm" type="text" data-name="icona" list="icon-options-list" value="{{ p.icona|default:'' }}"></div>
+                <div class="ef ef-full"><label>URL</label><input class="input input-sm" type="text" data-name="url" value="{{ p.url }}"></div>
+                <div class="ef ef-full">
+                  <label>Immagine modulo (globale)</label>
+                  <div class="card-image-editor">
+                    <div class="card-image-preview" id="card-image-preview-{{ p.id }}">
+                      {% if p.card_image_url %}
+                        <img src="{{ p.card_image_url }}" alt="{{ p.label }}">
+                      {% else %}
+                        no image
+                      {% endif %}
+                    </div>
+                    <div class="card-image-body">
+                      <input class="input input-sm" type="text" data-name="card_image" value="{{ p.card_image|default:'' }}" placeholder="URL esterno o path media">
+                      <div class="card-image-actions">
+                        <input class="input input-sm card-image-file" type="file" data-id="{{ p.id }}" accept="image/*" style="max-width:240px;">
+                        <button class="btn btn-secondary btn-sm card-image-upload" type="button" data-id="{{ p.id }}">Carica file</button>
+                        <button class="btn btn-secondary btn-sm card-image-remove" type="button" data-id="{{ p.id }}">Rimuovi</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="ef"><label>Slot UI</label><input class="input input-sm" type="text" data-name="ui_slot" list="ui-slot-options-list" value="{{ p.ui_slot|default:'' }}"></div>
+                <div class="ef"><label>Sezione UI</label><input class="input input-sm" type="text" data-name="ui_section" list="ui-section-options-list" value="{{ p.ui_section|default:'' }}"></div>
+                <div class="ef"><label>Ordine UI</label><input class="input input-sm" type="number" data-name="ui_order" value="{{ p.ui_order_meta|default:'' }}"></div>
+                {% if has_ordine %}<div class="ef"><label>Ordine legacy</label><input class="input input-sm" type="number" data-name="ordine" value="{{ p.ordine_value|default:'' }}"></div>{% endif %}
+                <div class="ef ef-checks">
+                  <label><input type="checkbox" data-name="visible_topbar" {% if p.visible_topbar %}checked{% endif %}> Visibile topbar</label>
+                  <label><input type="checkbox" data-name="enabled" {% if p.ui_enabled %}checked{% endif %}> Attivo</label>
+                  <label title="Se attivo, compare nella dashboard come modulo principale. I moduli non padre sono nascosti di default."><input type="checkbox" data-name="is_padre" {% if p.is_padre %}checked{% endif %}> Modulo padre (dashboard)</label>
+                </div>
+              </div>
+              <div class="edit-panel-actions">
+                <button class="btn btn-sm pulsante-save" type="button" data-id="{{ p.id }}">Salva</button>
+                <button class="btn btn-secondary btn-sm pulsante-cancel" type="button" data-id="{{ p.id }}">Annulla</button>
+                <span class="cell-muted" style="font-size:11px;">ID: {{ p.id }}</span>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% elif filters.q or filters.modulo or filters.area %}
+  <div class="card"><div class="card-body">
+    <p class="cell-muted">Nessun pulsante trovato con i filtri correnti.
+      <a href="{% url 'admin_portale:pulsanti' %}">Rimuovi filtri →</a>
+    </p>
+  </div></div>
+  {% else %}
+  <div class="card"><div class="card-body">
+    <p class="cell-muted">Nessun pulsante. Usa il pulsante <strong>+ Nuovo pulsante</strong> o il <strong>Wizard</strong> per cominciare.</p>
+  </div></div>
+  {% endif %}
+
+  {# ── Card: Catalogo Route Django (collassabile) ──────────────────────────── #}
+  <div class="card" id="route-catalog-card">
+    <div class="card-head card-head-with-actions" style="cursor:pointer;" onclick="toggleRouteCard()">
+      <div>
+        <div class="card-title">Catalogo Route Django</div>
+        <div class="cell-muted" style="font-size:12px;">{{ route_catalog|length }} route — espandi per cercare e copiare i valori <code>route:…</code></div>
+      </div>
+      <span id="route-toggle-icon" style="font-size:18px;user-select:none;">▶</span>
+    </div>
+    <div id="route-catalog-body" style="display:none;">
+      <div class="card-body" style="padding-bottom:8px;">
+        <input class="input" type="text" id="route-catalog-filter" placeholder="Filtra per nome route o path…">
+      </div>
+      <div style="max-height:260px;overflow:auto;">
+        <table class="route-table" id="route-catalog-table">
+          <thead>
+            <tr><th>Route Name</th><th>Path</th><th>Valore URL</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for r in route_catalog %}
+            <tr data-route-row>
+              <td data-route-name>{{ r.route_name }}</td>
+              <td data-route-path style="font-family:monospace;font-size:12px;">{{ r.path|default:"-" }}</td>
+              <td><code style="font-size:11px;">{{ r.portal_value }}</code></td>
+              <td><button type="button" class="btn btn-secondary btn-sm route-copy-btn" data-copy="{{ r.portal_value }}">Copia</button></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="cell-muted" style="padding:12px;">Nessuna route disponibile.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# ── Link rapidi ─────────────────────────────────────────────────────────── #}
+  <div class="card">
+    <div class="card-head"><div class="card-title">Strumenti correlati</div></div>
+    <div class="card-body">
+      <div class="modules-grid">
+        <a class="mod" href="{% url 'admin_portale:permessi' %}">
+          <div class="mod-icon">🔐</div>
+          <div><div class="mod-name">Gestione Permessi</div><div class="mod-sub">Abilita/disabilita pulsanti per ruolo o utente</div></div>
+        </a>
+        <a class="mod" href="{% url 'admin_portale:accessi' %}">
+          <div class="mod-icon">🗝️</div>
+          <div><div class="mod-name">Dashboard Accessi</div><div class="mod-sub">Riepilogo ruoli, pulsanti e override</div></div>
+        </a>
+        <a class="mod" href="{% url 'admin_portale:wizard_pulsante' %}">
+          <div class="mod-icon">✨</div>
+          <div><div class="mod-name">Wizard Pulsante</div><div class="mod-sub">Crea un pulsante con permessi in un'unica procedura</div></div>
+        </a>
+        <a class="mod" href="{% url 'admin_portale:topbar_live' %}">
+          <div class="mod-icon">👁️</div>
+          <div><div class="mod-name">Anteprima Topbar</div><div class="mod-sub">Visualizza come appare la topbar agli utenti</div></div>
+        </a>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  "use strict";
+
+  const csrfToken = (document.querySelector("#pulsanti-csrf-form input[name='csrfmiddlewaretoken']") || {}).value || "";
+  const statusEl  = document.getElementById("pulsanti-status");
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  function setStatus(text, isError) {
+    if (!statusEl) return;
+    statusEl.textContent = text;
+    statusEl.style.color = isError ? "#dc2626" : "#16a34a";
+    if (!isError) setTimeout(function () { if (statusEl.textContent === text) statusEl.textContent = ""; }, 3000);
+  }
+
+  async function postJson(url, payload) {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken },
+      body: JSON.stringify(payload)
+    });
+    let data = {};
+    try { data = await resp.json(); } catch (e) {}
+    if (!resp.ok || !data.ok) throw new Error(data.error || ("HTTP " + resp.status));
+    return data;
+  }
+
+  async function postFormData(url, formData) {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "X-CSRFToken": csrfToken },
+      body: formData
+    });
+    let data = {};
+    try { data = await resp.json(); } catch (e) {}
+    if (!resp.ok || !data.ok) throw new Error(data.error || ("HTTP " + resp.status));
+    return data;
+  }
+
+  function setCardPreview(pid, imageUrl, label, storageValue) {
+    const preview = document.getElementById("card-image-preview-" + pid);
+    const thumb = document.getElementById("thumb-" + pid);
+    const input = document.querySelector("#edit-panel-" + pid + " [data-name='card_image']");
+    const safeLabel = (label || "N/A");
+    if (input) input.value = storageValue || imageUrl || "";
+
+    if (preview) {
+      preview.innerHTML = imageUrl
+        ? "<img src='" + imageUrl + "' alt='" + safeLabel.replace(/'/g, "&#39;") + "'>"
+        : "no image";
+    }
+    if (thumb) {
+      thumb.innerHTML = imageUrl
+        ? "<img src='" + imageUrl + "' alt='" + safeLabel.replace(/'/g, "&#39;") + "'>"
+        : (safeLabel.slice(0, 1).toUpperCase() || "N");
+    }
+  }
+
+  // ── Preset helpers ────────────────────────────────────────────────────────
+  let uiPresets = [];
+  try { uiPresets = JSON.parse(document.getElementById("pulsanti-ui-presets")?.textContent || "[]"); } catch (e) {}
+
+  function presetByKey(key) { return uiPresets.find(function (p) { return p && p.key === key; }) || null; }
+
+  function applyPresetToContainer(container, values) {
+    if (!container || !values) return;
+    Object.entries(values).forEach(function (e) {
+      const name = e[0], value = e[1];
+      let el = container.querySelector("[name='" + name + "']") || container.querySelector("[data-name='" + name + "']");
+      if (!el) return;
+      if (el.type === "checkbox") el.checked = !!value;
+      else if (value !== undefined && value !== null) el.value = value;
+    });
+  }
+
+  // ── Toggle catalogo route ─────────────────────────────────────────────────
+  window.toggleRouteCard = function () {
+    const body = document.getElementById("route-catalog-body");
+    const icon = document.getElementById("route-toggle-icon");
+    if (!body) return;
+    const open = body.style.display !== "none";
+    body.style.display = open ? "none" : "";
+    if (icon) icon.textContent = open ? "▶" : "▼";
+  };
+
+  // ── Toggle "Nuovo pulsante" ────────────────────────────────────────────────
+  const createPanel = document.getElementById("create-panel");
+  document.getElementById("toggle-create-btn")?.addEventListener("click", function () {
+    if (!createPanel) return;
+    const open = createPanel.style.display !== "none";
+    createPanel.style.display = open ? "none" : "";
+    this.textContent = open ? "+ Nuovo pulsante" : "✕ Chiudi";
+  });
+  document.getElementById("cancel-create-btn")?.addEventListener("click", function () {
+    if (!createPanel) return;
+    createPanel.style.display = "none";
+    const btn = document.getElementById("toggle-create-btn");
+    if (btn) btn.textContent = "+ Nuovo pulsante";
+  });
+
+  // ── Preset per form creazione ─────────────────────────────────────────────
+  const presetSelect = document.getElementById("create-ui-preset");
+  const presetDesc   = document.getElementById("create-ui-preset-desc");
+  const createForm   = document.getElementById("create-pulsante-form");
+
+  presetSelect?.addEventListener("change", function () {
+    const preset = presetByKey(this.value);
+    if (presetDesc) presetDesc.value = preset ? (preset.description || "") : "";
+  });
+  document.getElementById("apply-ui-preset-btn")?.addEventListener("click", function () {
+    const preset = presetByKey(presetSelect?.value || "");
+    if (!preset || !preset.values) { setStatus("Seleziona un preset valido", true); return; }
+    applyPresetToContainer(createForm, preset.values);
+    setStatus("Preset applicato: " + (preset.label || preset.key), false);
+  });
+
+  // ── Crea pulsante ─────────────────────────────────────────────────────────
+  createForm?.addEventListener("submit", async function (event) {
+    event.preventDefault();
+    const fd = new FormData(createForm);
+    const payload = Object.fromEntries(fd.entries());
+    try {
+      setStatus("Creazione…", false);
+      await postJson("{% url 'admin_portale:api_pulsanti_create' %}", payload);
+      setStatus("Pulsante creato.", false);
+      setTimeout(function () { window.location.reload(); }, 800);
+    } catch (err) {
+      setStatus("Errore: " + err.message, true);
+    }
+  });
+
+  // ── Toggle enabled per riga ───────────────────────────────────────────────
+  document.getElementById("pulsanti-module-grid")?.addEventListener("change", async function (e) {
+    const cb = e.target.closest(".enabled-toggle");
+    if (!cb) return;
+    const id = cb.dataset.id;
+    const row = cb.closest(".pulsante-row");
+    if (row) row.classList.add("saving");
+    try {
+      setStatus("Salvataggio…", false);
+      await postJson("{% url 'admin_portale:api_pulsanti_set_enabled' %}", { id: Number(id), enabled: cb.checked });
+      // Aggiorna classe is-disabled e chip "disabilitato"
+      if (row) row.classList.toggle("is-disabled", !cb.checked);
+      const metaEl = row?.querySelector(".pulsante-meta");
+      if (metaEl) {
+        const existingOff = metaEl.querySelector(".chip-off");
+        if (!cb.checked && !existingOff) {
+          const c = document.createElement("span"); c.className = "chip-off"; c.textContent = "disabilitato";
+          metaEl.appendChild(c);
+        } else if (cb.checked && existingOff) {
+          existingOff.remove();
+        }
+      }
+      setStatus("Salvato", false);
+    } catch (err) {
+      cb.checked = !cb.checked;
+      setStatus("Errore: " + err.message, true);
+    } finally {
+      if (row) row.classList.remove("saving");
+    }
+  });
+
+  // ── Edit / Cancel / Save / Delete / Preset riga ───────────────────────────
+  document.getElementById("pulsanti-module-grid")?.addEventListener("click", async function (e) {
+    // Edit button
+    const editBtn = e.target.closest(".edit-btn");
+    if (editBtn) {
+      const id = editBtn.dataset.id;
+      const panel = document.getElementById("edit-panel-" + id);
+      if (!panel) return;
+      const isOpen = window.getComputedStyle(panel).display !== "none";
+      // Chiudi tutti gli altri pannelli
+      document.querySelectorAll(".pulsante-edit-panel").forEach(function (p) { p.style.display = "none"; });
+      panel.style.display = isOpen ? "none" : "block";
+      return;
+    }
+
+    // Cancel button
+    const cancelBtn = e.target.closest(".pulsante-cancel");
+    if (cancelBtn) {
+      const id = cancelBtn.dataset.id;
+      const panel = document.getElementById("edit-panel-" + id);
+      if (panel) panel.style.display = "none";
+      return;
+    }
+
+    // Apply preset riga
+    const presetBtn = e.target.closest(".pulsante-apply-preset");
+    if (presetBtn) {
+      const id = presetBtn.dataset.id;
+      const rowPresetSelect = presetBtn.parentElement.querySelector(".row-ui-preset");
+      const preset = presetByKey(rowPresetSelect?.value || "");
+      if (!preset || !preset.values) { setStatus("Seleziona un preset valido", true); return; }
+      const panel = document.getElementById("edit-panel-" + id);
+      if (panel) applyPresetToContainer(panel, preset.values);
+      setStatus("Preset applicato alla riga (clicca Salva)", false);
+      return;
+    }
+
+    // Upload immagine modulo
+    const imageUploadBtn = e.target.closest(".card-image-upload");
+    if (imageUploadBtn) {
+      const id = Number(imageUploadBtn.dataset.id);
+      const panel = document.getElementById("edit-panel-" + id);
+      const row = imageUploadBtn.closest(".pulsante-row");
+      const fileInput = panel?.querySelector(".card-image-file[data-id='" + id + "']");
+      const labelText = row?.querySelector(".pulsante-label")?.textContent || ("P" + id);
+      const file = fileInput?.files?.[0];
+      if (!file) {
+        setStatus("Seleziona un file immagine prima del caricamento.", true);
+        return;
+      }
+      const formData = new FormData();
+      formData.append("pulsante_id", String(id));
+      formData.append("image", file);
+      if (row) row.classList.add("saving");
+      try {
+        setStatus("Upload immagine...", false);
+        const data = await postFormData("{% url 'admin_portale:api_pulsanti_card_image' %}", formData);
+        const imageUrl = data.card_image_url || "";
+        setCardPreview(id, imageUrl, labelText, data.card_image || imageUrl);
+        setStatus("Immagine modulo aggiornata.", false);
+      } catch (err) {
+        setStatus("Errore upload immagine: " + err.message, true);
+      } finally {
+        if (row) row.classList.remove("saving");
+      }
+      return;
+    }
+
+    // Rimozione immagine modulo
+    const imageRemoveBtn = e.target.closest(".card-image-remove");
+    if (imageRemoveBtn) {
+      const id = Number(imageRemoveBtn.dataset.id);
+      const row = imageRemoveBtn.closest(".pulsante-row");
+      const labelText = row?.querySelector(".pulsante-label")?.textContent || ("P" + id);
+      if (row) row.classList.add("saving");
+      try {
+        setStatus("Rimozione immagine...", false);
+        await postJson("{% url 'admin_portale:api_pulsanti_card_image' %}", { pulsante_id: id, remove: true });
+        setCardPreview(id, "", labelText, "");
+        setStatus("Immagine rimossa.", false);
+      } catch (err) {
+        setStatus("Errore rimozione immagine: " + err.message, true);
+      } finally {
+        if (row) row.classList.remove("saving");
+      }
+      return;
+    }
+
+    // Save button
+    const saveBtn = e.target.closest(".pulsante-save");
+    if (saveBtn) {
+      const id = saveBtn.dataset.id;
+      const panel = document.getElementById("edit-panel-" + id);
+      const row   = saveBtn.closest(".pulsante-row");
+      if (!panel) return;
+      const payload = { id: Number(id) };
+      panel.querySelectorAll("[data-name]").forEach(function (inp) {
+        payload[inp.dataset.name] = inp.type === "checkbox" ? inp.checked : inp.value;
+      });
+      if (row) row.classList.add("saving");
+      try {
+        setStatus("Salvataggio…", false);
+        await postJson("{% url 'admin_portale:api_pulsanti_update' %}", payload);
+        setStatus("Salvato", false);
+        panel.style.display = "none";
+        setTimeout(function () { window.location.reload(); }, 600);
+      } catch (err) {
+        setStatus("Errore: " + err.message, true);
+        if (row) row.classList.remove("saving");
+      }
+      return;
+    }
+
+    // Delete button
+    const delBtn = e.target.closest(".delete-btn");
+    if (delBtn) {
+      if (!window.confirm("Eliminare questo pulsante? Verranno rimossi anche i permessi associati.")) return;
+      const id  = delBtn.dataset.id;
+      const row = delBtn.closest(".pulsante-row");
+      if (row) row.classList.add("saving");
+      try {
+        setStatus("Eliminazione…", false);
+        await postJson("{% url 'admin_portale:api_pulsanti_delete' %}", { id: Number(id) });
+        row?.remove();
+        setStatus("Eliminato", false);
+      } catch (err) {
+        setStatus("Errore: " + err.message, true);
+        if (row) row.classList.remove("saving");
+      }
+    }
+  });
+
+  // ── Route catalog: filtro e copia ─────────────────────────────────────────
+  document.getElementById("route-catalog-filter")?.addEventListener("input", function () {
+    const q = this.value.trim().toLowerCase();
+    document.querySelectorAll("#route-catalog-table tbody tr[data-route-row]").forEach(function (r) {
+      const name = (r.querySelector("[data-route-name]")?.textContent || "").toLowerCase();
+      const path = (r.querySelector("[data-route-path]")?.textContent || "").toLowerCase();
+      r.style.display = (!q || name.includes(q) || path.includes(q)) ? "" : "none";
+    });
+  });
+
+  document.getElementById("route-catalog-table")?.addEventListener("click", async function (e) {
+    const btn = e.target.closest(".route-copy-btn");
+    if (!btn) return;
+    const value = btn.dataset.copy || "";
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = value; document.body.appendChild(ta); ta.select();
+        document.execCommand("copy"); ta.remove();
+      }
+      setStatus("Copiato: " + value, false);
+    } catch (err) {
+      setStatus("Impossibile copiare: " + value, true);
+    }
+  });
+
+  // ── Crea modulo da catalogo (card proposta) ───────────────────────────────
+  window.createModuleFromCatalog = async function (btn) {
+    const moduloKey = btn.dataset.moduleKey;
+    if (!window.confirm("Creare i pulsanti mancanti per \"" + moduloKey + "\" e inizializzare i permessi per tutti i ruoli?")) return;
+    btn.disabled = true;
+    try {
+      setStatus("Creazione modulo in corso…", false);
+      const data = await postJson("{% url 'admin_portale:api_modulo_crea_da_catalog' %}", { modulo_key: moduloKey });
+      setStatus("\u2713 " + data.created_buttons + " pulsanti creati, " + data.created_permessi + " permessi inizializzati.", false);
+      setTimeout(function () { window.location.reload(); }, 1400);
+    } catch (err) {
+      setStatus("Errore: " + err.message, true);
+      btn.disabled = false;
+    }
+  };
+
+  // ── Tutorial modal ────────────────────────────────────────────────────────
+  window.openTutorial = function () {
+    const m = document.getElementById("tutorial-modal");
+    if (m) m.classList.add("open");
+    document.body.style.overflow = "hidden";
+  };
+  window.closeTutorial = function () {
+    const m = document.getElementById("tutorial-modal");
+    if (m) m.classList.remove("open");
+    document.body.style.overflow = "";
+  };
+  window.closeTutorialIfBackdrop = function (e) {
+    if (e.target === document.getElementById("tutorial-modal")) closeTutorial();
+  };
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") closeTutorial();
+  });
+
+})();
+</script>
+{% endblock %}

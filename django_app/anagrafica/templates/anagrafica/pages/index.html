@@ -1,0 +1,521 @@
+{% extends "core/base.html" %}
+
+{% block title %}Anagrafica | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Root ── */
+#ana-root { display:flex; flex-direction:column; gap:20px; }
+
+/* ── Hero ── */
+.ana-hero {
+  background:linear-gradient(135deg,#1e3a5f 0%,#1d4ed8 60%,#2563eb 100%);
+  border-radius:16px; padding:30px 34px;
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; color:#fff;
+}
+.ana-hero-title { font-size:26px; font-weight:900; letter-spacing:-.03em; }
+.ana-hero-sub { font-size:13px; opacity:.7; margin-top:3px; }
+.ana-hero-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.ana-hbtn { display:inline-flex; align-items:center; gap:6px; padding:9px 18px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; border:none; cursor:pointer; transition:all .15s; }
+.ana-hbtn-white { background:#fff; color:#1d4ed8; }
+.ana-hbtn-white:hover { background:#e0e7ff; }
+.ana-hbtn-outline { background:rgba(255,255,255,.15); color:#fff; border:1px solid rgba(255,255,255,.3); }
+.ana-hbtn-outline:hover { background:rgba(255,255,255,.28); }
+
+/* ── Edit bar ── */
+#ana-edit-bar {
+  display:none; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;
+  background:#fffbeb; border:1px solid #fcd34d; border-radius:12px; padding:12px 18px;
+  font-size:13px; color:#92400e; font-weight:600;
+}
+#ana-edit-bar.visible { display:flex; }
+.ana-ebar-btns { display:flex; gap:8px; }
+.ana-ebtn { display:inline-flex; align-items:center; gap:5px; padding:7px 14px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; border:none; }
+.ana-ebtn-save  { background:#16a34a; color:#fff; }
+.ana-ebtn-save:hover  { background:#15803d; }
+.ana-ebtn-reset { background:#fff; color:#dc2626; border:1px solid #fca5a5; }
+.ana-ebtn-reset:hover { background:#fef2f2; }
+.ana-ebtn-done  { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.ana-ebtn-done:hover  { background:#e2e8f0; }
+
+/* ── Widget ── */
+.ana-widget { position:relative; }
+.ana-widget.hidden { display:none; }
+.ana-widget.drag-over { outline:2px dashed #3b82f6; outline-offset:4px; border-radius:14px; }
+.ana-widget.dragging  { opacity:.35; }
+
+/* Widget header (shown in edit mode) */
+.ana-widget-bar {
+  display:none; align-items:center; justify-content:space-between;
+  background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px 10px 0 0;
+  padding:7px 12px; margin-bottom:-1px;
+}
+#ana-root.edit-mode .ana-widget-bar { display:flex; }
+.ana-widget-handle { cursor:grab; font-size:16px; color:#94a3b8; padding:2px 6px; border-radius:6px; user-select:none; }
+.ana-widget-handle:hover { background:#e2e8f0; color:#475569; }
+.ana-widget-handle:active { cursor:grabbing; }
+.ana-widget-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.06em; flex:1; padding:0 10px; }
+.ana-widget-hide { background:none; border:none; cursor:pointer; font-size:14px; color:#94a3b8; padding:3px 7px; border-radius:6px; }
+.ana-widget-hide:hover { background:#fee2e2; color:#dc2626; }
+
+/* ── KPI row ── */
+.ana-kpi-row { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; }
+.ana-kpi {
+  background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px 22px;
+  display:flex; flex-direction:column; gap:5px; position:relative; overflow:hidden;
+}
+.ana-kpi::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; border-radius:3px 3px 0 0; }
+.ana-kpi.blue::before { background:#1d4ed8; }
+.ana-kpi.green::before { background:#16a34a; }
+.ana-kpi.orange::before { background:#f59e0b; }
+.ana-kpi.red::before { background:#dc2626; }
+.ana-kpi.purple::before { background:#7c3aed; }
+.ana-kpi-icon { font-size:20px; margin-bottom:2px; }
+.ana-kpi-value { font-size:28px; font-weight:900; color:#0f172a; letter-spacing:-.03em; line-height:1; }
+.ana-kpi-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.06em; }
+.ana-kpi-sub { font-size:11px; color:#94a3b8; }
+
+/* ── Sezioni card ── */
+.ana-sections { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+.ana-module-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
+.ana-module-head { padding:18px 22px 14px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #f1f5f9; }
+.ana-module-icon { width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:19px; flex-shrink:0; }
+.ana-module-icon.blue { background:#eff6ff; }
+.ana-module-icon.green { background:#f0fdf4; }
+.ana-module-title { font-size:15px; font-weight:800; color:#0f172a; }
+.ana-module-sub { font-size:12px; color:#64748b; margin-top:1px; }
+.ana-module-body { padding:18px 22px; flex:1; display:flex; flex-direction:column; gap:14px; }
+.ana-stats-row { display:flex; gap:12px; }
+.ana-stat-box { flex:1; text-align:center; background:#f8fafc; border-radius:10px; padding:12px 8px; }
+.ana-stat-val { font-size:22px; font-weight:900; color:#0f172a; letter-spacing:-.02em; }
+.ana-stat-lbl { font-size:10px; font-weight:700; color:#94a3b8; text-transform:uppercase; margin-top:2px; }
+.ana-badge-row { display:flex; flex-wrap:wrap; gap:6px; }
+.ana-badge { padding:3px 9px; border-radius:20px; font-size:11px; font-weight:700; }
+.ana-badge-blue  { background:#eff6ff; color:#1d4ed8; }
+.ana-badge-green { background:#f0fdf4; color:#16a34a; }
+.ana-badge-gray  { background:#f1f5f9; color:#64748b; }
+.ana-module-footer { padding:0 22px 18px; display:flex; gap:8px; flex-wrap:wrap; }
+
+/* ── Buttons ── */
+.ana-btn { display:inline-flex; align-items:center; gap:5px; padding:8px 16px; border-radius:9px; font-size:12px; font-weight:700; text-decoration:none; border:none; cursor:pointer; transition:background .15s; }
+.ana-btn-primary { background:#1d4ed8; color:#fff; }
+.ana-btn-primary:hover { background:#1e40af; }
+.ana-btn-green { background:#16a34a; color:#fff; }
+.ana-btn-green:hover { background:#15803d; }
+.ana-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.ana-btn-ghost:hover { background:#e2e8f0; }
+
+/* ── Tabella ultimi ── */
+.ana-last-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.ana-last-head { padding:16px 22px; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; justify-content:space-between; }
+.ana-last-title { font-size:14px; font-weight:800; color:#0f172a; }
+.ana-last-table { width:100%; border-collapse:collapse; }
+.ana-last-table th { padding:9px 14px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:#94a3b8; background:#f8fafc; border-bottom:1px solid #f1f5f9; }
+.ana-last-table td { padding:11px 14px; font-size:13px; color:#334155; border-bottom:1px solid #f8fafc; }
+.ana-last-table tr:last-child td { border-bottom:none; }
+.ana-last-table tr:hover td { background:#fafbff; }
+.ana-cat-badge { padding:3px 8px; border-radius:20px; font-size:10px; font-weight:700; background:#eff6ff; color:#1d4ed8; }
+.ana-link-btn { display:inline-flex; align-items:center; font-size:11px; font-weight:700; color:#1d4ed8; text-decoration:none; padding:5px 10px; background:#eff6ff; border-radius:8px; }
+.ana-link-btn:hover { background:#dbeafe; }
+.ana-empty { padding:36px; text-align:center; color:#94a3b8; font-size:13px; }
+
+/* ── Restore panel ── */
+#ana-restore-panel {
+  display:none; background:#f0f9ff; border:1px solid #bae6fd; border-radius:12px; padding:14px 18px;
+}
+#ana-root.edit-mode #ana-restore-panel.has-hidden { display:block; }
+.ana-restore-title { font-size:11px; font-weight:700; color:#0369a1; text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px; }
+.ana-restore-row { display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid #e0f2fe; font-size:13px; color:#0c4a6e; }
+.ana-restore-row:last-child { border-bottom:none; }
+.ana-restore-btn { background:#0ea5e9; color:#fff; border:none; border-radius:7px; padding:4px 12px; font-size:11px; font-weight:700; cursor:pointer; }
+.ana-restore-btn:hover { background:#0284c7; }
+
+@media(max-width:900px){
+  .ana-kpi-row { grid-template-columns:repeat(3,1fr); }
+  .ana-sections { grid-template-columns:1fr; }
+}
+@media(max-width:600px){
+  .ana-kpi-row { grid-template-columns:1fr 1fr; }
+  .ana-hero { padding:20px 18px; }
+  .ana-hero-title { font-size:21px; }
+}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div id="ana-root">
+
+  <!-- Hero (fisso, non personalizzabile) -->
+  <div class="ana-hero">
+    <div>
+      <div class="ana-hero-title">Anagrafica</div>
+      <div class="ana-hero-sub">Gestione dipendenti e fornitori aziendali</div>
+    </div>
+    <div class="ana-hero-actions">
+      <a class="ana-hbtn ana-hbtn-white" href="{% url 'anagrafica:dipendenti_list' %}">👥 Dipendenti</a>
+      <a class="ana-hbtn ana-hbtn-white" href="{% url 'anagrafica:fornitori_list' %}">🏭 Fornitori</a>
+      <a class="ana-hbtn ana-hbtn-outline" href="{% url 'anagrafica:fornitore_create' %}">+ Nuovo fornitore</a>
+      <button class="ana-hbtn ana-hbtn-outline" id="ana-edit-btn">✏️ Personalizza</button>
+    </div>
+  </div>
+
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <!-- Edit bar -->
+  <div id="ana-edit-bar">
+    <span>✏️ Modalità modifica — nascondi o riordina le sezioni</span>
+    <div class="ana-ebar-btns">
+      <button class="ana-ebtn ana-ebtn-save"  id="ana-save-btn">✓ Salva</button>
+      <button class="ana-ebtn ana-ebtn-reset" id="ana-reset-btn">↺ Reset</button>
+      <button class="ana-ebtn ana-ebtn-done"  id="ana-done-btn">Chiudi</button>
+    </div>
+  </div>
+
+  <!-- ── Widget: KPI ── -->
+  <div class="ana-widget" data-wid="kpi">
+    <div class="ana-widget-bar">
+      <span class="ana-widget-handle" title="Trascina per riordinare">☰</span>
+      <span class="ana-widget-label">KPI — Metriche principali</span>
+      <button class="ana-widget-hide" data-wid="kpi" title="Nascondi">✕</button>
+    </div>
+    <div class="ana-kpi-row">
+      <div class="ana-kpi blue">
+        <div class="ana-kpi-icon">👥</div>
+        <div class="ana-kpi-value">{{ n_dipendenti }}</div>
+        <div class="ana-kpi-label">Dipendenti</div>
+        <div class="ana-kpi-sub">{{ n_reparti }} reparti</div>
+      </div>
+      <div class="ana-kpi green">
+        <div class="ana-kpi-icon">🏭</div>
+        <div class="ana-kpi-value">{{ n_fornitori }}</div>
+        <div class="ana-kpi-label">Fornitori attivi</div>
+        <div class="ana-kpi-sub">{{ n_fornitori_tutti }} totali</div>
+      </div>
+      <div class="ana-kpi orange">
+        <div class="ana-kpi-icon">💶</div>
+        <div class="ana-kpi-value">€ {{ spesa_totale|floatformat:0 }}</div>
+        <div class="ana-kpi-label">Spesa totale</div>
+        <div class="ana-kpi-sub">{{ n_ordini }} ordini</div>
+      </div>
+      <div class="ana-kpi red">
+        <div class="ana-kpi-icon">⚠️</div>
+        <div class="ana-kpi-value">{{ n_fornitori_inattivi }}</div>
+        <div class="ana-kpi-label">Inattivi</div>
+        <div class="ana-kpi-sub">su {{ n_fornitori_tutti }} totali</div>
+      </div>
+      <div class="ana-kpi purple">
+        <div class="ana-kpi-icon">🔧</div>
+        <div class="ana-kpi-value">{{ n_asset_assegnati }}</div>
+        <div class="ana-kpi-label">Asset assegnati</div>
+        <div class="ana-kpi-sub">a fornitori</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Widget: Moduli ── -->
+  <div class="ana-widget" data-wid="moduli">
+    <div class="ana-widget-bar">
+      <span class="ana-widget-handle" title="Trascina per riordinare">☰</span>
+      <span class="ana-widget-label">Accesso rapido — Dipendenti e Fornitori</span>
+      <button class="ana-widget-hide" data-wid="moduli" title="Nascondi">✕</button>
+    </div>
+    <div class="ana-sections">
+
+      <div class="ana-module-card">
+        <div class="ana-module-head">
+          <div style="display:flex;align-items:center;gap:11px;">
+            <div class="ana-module-icon blue">👥</div>
+            <div>
+              <div class="ana-module-title">Dipendenti</div>
+              <div class="ana-module-sub">Rubrica aziendale — sola lettura</div>
+            </div>
+          </div>
+        </div>
+        <div class="ana-module-body">
+          <div class="ana-stats-row">
+            <div class="ana-stat-box">
+              <div class="ana-stat-val">{{ n_dipendenti }}</div>
+              <div class="ana-stat-lbl">In organico</div>
+            </div>
+            <div class="ana-stat-box">
+              <div class="ana-stat-val">{{ n_reparti }}</div>
+              <div class="ana-stat-lbl">Reparti</div>
+            </div>
+          </div>
+          <div class="ana-badge-row">
+            <span class="ana-badge ana-badge-gray">Da SQL Server legacy</span>
+            <span class="ana-badge ana-badge-blue">Sola lettura</span>
+          </div>
+        </div>
+        <div class="ana-module-footer">
+          <a class="ana-btn ana-btn-primary" href="{% url 'anagrafica:dipendenti_list' %}">Vedi tutti →</a>
+        </div>
+      </div>
+
+      <div class="ana-module-card">
+        <div class="ana-module-head">
+          <div style="display:flex;align-items:center;gap:11px;">
+            <div class="ana-module-icon green">🏭</div>
+            <div>
+              <div class="ana-module-title">Fornitori</div>
+              <div class="ana-module-sub">CRUD completo — ordini, documenti, valutazioni</div>
+            </div>
+          </div>
+        </div>
+        <div class="ana-module-body">
+          <div class="ana-stats-row">
+            <div class="ana-stat-box">
+              <div class="ana-stat-val">{{ n_fornitori }}</div>
+              <div class="ana-stat-lbl">Attivi</div>
+            </div>
+            <div class="ana-stat-box">
+              <div class="ana-stat-val">{{ n_ordini }}</div>
+              <div class="ana-stat-lbl">Ordini</div>
+            </div>
+            <div class="ana-stat-box">
+              <div class="ana-stat-val">{{ n_asset_assegnati }}</div>
+              <div class="ana-stat-lbl">Asset</div>
+            </div>
+          </div>
+          <div class="ana-badge-row">
+            <span class="ana-badge ana-badge-green">Documenti</span>
+            <span class="ana-badge ana-badge-blue">Valutazioni</span>
+            <span class="ana-badge ana-badge-blue">Asset</span>
+          </div>
+        </div>
+        <div class="ana-module-footer">
+          <a class="ana-btn ana-btn-primary" href="{% url 'anagrafica:fornitori_list' %}">Vedi tutti →</a>
+          <a class="ana-btn ana-btn-green"   href="{% url 'anagrafica:fornitore_create' %}">+ Nuovo</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Widget: Ultimi fornitori ── -->
+  <div class="ana-widget" data-wid="ultimi">
+    <div class="ana-widget-bar">
+      <span class="ana-widget-handle" title="Trascina per riordinare">☰</span>
+      <span class="ana-widget-label">Ultimi fornitori aggiunti</span>
+      <button class="ana-widget-hide" data-wid="ultimi" title="Nascondi">✕</button>
+    </div>
+    <div class="ana-last-card">
+      <div class="ana-last-head">
+        <div class="ana-last-title">Ultimi fornitori aggiunti</div>
+        <a class="ana-btn ana-btn-ghost" href="{% url 'anagrafica:fornitori_list' %}">Vedi tutti</a>
+      </div>
+      {% if ultimi_fornitori %}
+      <table class="ana-last-table">
+        <thead>
+          <tr>
+            <th>Ragione sociale</th>
+            <th>Categoria</th>
+            <th>Città</th>
+            <th>Stato</th>
+            <th>Aggiunto il</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in ultimi_fornitori %}
+          <tr>
+            <td><strong>{{ f.ragione_sociale }}</strong></td>
+            <td>{% if f.categoria %}<span class="ana-cat-badge">{{ f.get_categoria_display }}</span>{% else %}—{% endif %}</td>
+            <td>{{ f.citta|default:"—" }}</td>
+            <td>
+              {% if f.is_active %}
+                <span class="ana-badge ana-badge-green">Attivo</span>
+              {% else %}
+                <span class="ana-badge" style="background:#fef2f2;color:#dc2626;">Inattivo</span>
+              {% endif %}
+            </td>
+            <td>{{ f.created_at|date:"d/m/Y" }}</td>
+            <td><a class="ana-link-btn" href="{% url 'anagrafica:fornitore_detail' f.pk %}">Apri →</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="ana-empty">Nessun fornitore ancora registrato. <a href="{% url 'anagrafica:fornitore_create' %}">Aggiungine uno</a>.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Restore panel (visibile solo in edit mode se ci sono widget nascosti) -->
+  <div id="ana-restore-panel">
+    <div class="ana-restore-title">Sezioni nascoste — clicca per ripristinare</div>
+    <div id="ana-restore-list"></div>
+  </div>
+
+</div><!-- /#ana-root -->
+
+<script>
+(function () {
+  var STORAGE_KEY = 'ana_dash_prefs_v1';
+  var WIDGET_LABELS = { kpi: 'KPI — Metriche principali', moduli: 'Dipendenti e Fornitori', ultimi: 'Ultimi fornitori' };
+
+  var root      = document.getElementById('ana-root');
+  var editBar   = document.getElementById('ana-edit-bar');
+  var editBtn   = document.getElementById('ana-edit-btn');
+  var saveBtn   = document.getElementById('ana-save-btn');
+  var resetBtn  = document.getElementById('ana-reset-btn');
+  var doneBtn   = document.getElementById('ana-done-btn');
+  var restorePanel = document.getElementById('ana-restore-panel');
+  var restoreList  = document.getElementById('ana-restore-list');
+
+  /* ── Prefs ── */
+  function loadPrefs() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch(e) { return {}; }
+  }
+  function savePrefs(prefs) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs)); } catch(e) {}
+  }
+
+  /* ── Apply saved state ── */
+  function applyPrefs(prefs) {
+    var widgets = Array.from(document.querySelectorAll('.ana-widget[data-wid]'));
+
+    // Riordina
+    if (prefs.order && prefs.order.length) {
+      var grid = root;
+      prefs.order.forEach(function(wid) {
+        var el = root.querySelector('.ana-widget[data-wid="' + wid + '"]');
+        if (el) grid.appendChild(el);
+      });
+      // Sposta il restore panel sempre in fondo
+      var rp = document.getElementById('ana-restore-panel');
+      if (rp) grid.appendChild(rp);
+    }
+
+    // Nascondi
+    if (prefs.hidden) {
+      prefs.hidden.forEach(function(wid) {
+        var el = root.querySelector('.ana-widget[data-wid="' + wid + '"]');
+        if (el) el.classList.add('hidden');
+      });
+    }
+
+    refreshRestorePanel();
+  }
+
+  /* ── Restore panel ── */
+  function refreshRestorePanel() {
+    var hidden = Array.from(root.querySelectorAll('.ana-widget.hidden'));
+    restoreList.innerHTML = '';
+    if (!hidden.length) {
+      restorePanel.classList.remove('has-hidden');
+      return;
+    }
+    restorePanel.classList.add('has-hidden');
+    hidden.forEach(function(el) {
+      var wid   = el.dataset.wid;
+      var label = WIDGET_LABELS[wid] || wid;
+      var row   = document.createElement('div');
+      row.className = 'ana-restore-row';
+      row.innerHTML = '<span>' + label + '</span><button class="ana-restore-btn" data-wid="' + wid + '">Ripristina</button>';
+      row.querySelector('.ana-restore-btn').addEventListener('click', function() {
+        el.classList.remove('hidden');
+        refreshRestorePanel();
+      });
+      restoreList.appendChild(row);
+    });
+  }
+
+  /* ── Drag & drop ── */
+  var dragSrc = null;
+  function setupDrag() {
+    root.querySelectorAll('.ana-widget[data-wid]').forEach(function(widget) {
+      var handle = widget.querySelector('.ana-widget-handle');
+      if (!handle) return;
+
+      handle.addEventListener('mousedown', function() {
+        widget.setAttribute('draggable', 'true');
+      });
+      widget.addEventListener('dragend', function() {
+        widget.setAttribute('draggable', 'false');
+        root.querySelectorAll('.ana-widget').forEach(function(w){ w.classList.remove('drag-over','dragging'); });
+        dragSrc = null;
+      });
+      widget.addEventListener('dragstart', function(e) {
+        dragSrc = widget;
+        widget.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      widget.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        if (widget !== dragSrc) widget.classList.add('drag-over');
+      });
+      widget.addEventListener('dragleave', function() {
+        widget.classList.remove('drag-over');
+      });
+      widget.addEventListener('drop', function(e) {
+        e.preventDefault();
+        widget.classList.remove('drag-over');
+        if (!dragSrc || dragSrc === widget) return;
+        var allWidgets = Array.from(root.querySelectorAll('.ana-widget[data-wid]'));
+        var srcIdx = allWidgets.indexOf(dragSrc);
+        var tgtIdx = allWidgets.indexOf(widget);
+        if (srcIdx < tgtIdx) {
+          widget.parentNode.insertBefore(dragSrc, widget.nextSibling);
+        } else {
+          widget.parentNode.insertBefore(dragSrc, widget);
+        }
+        // Sposta restore panel in fondo
+        var rp = document.getElementById('ana-restore-panel');
+        if (rp) root.appendChild(rp);
+      });
+    });
+  }
+
+  /* ── Hide buttons ── */
+  root.querySelectorAll('.ana-widget-hide').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var wid = btn.dataset.wid;
+      var el  = root.querySelector('.ana-widget[data-wid="' + wid + '"]');
+      if (el) { el.classList.add('hidden'); refreshRestorePanel(); }
+    });
+  });
+
+  /* ── Edit mode ── */
+  function enterEdit() {
+    root.classList.add('edit-mode');
+    editBar.classList.add('visible');
+    refreshRestorePanel();
+    if (editBtn) editBtn.style.display = 'none';
+  }
+  function exitEdit() {
+    root.classList.remove('edit-mode');
+    editBar.classList.remove('visible');
+    if (editBtn) editBtn.style.display = '';
+  }
+
+  if (editBtn) editBtn.addEventListener('click', enterEdit);
+  if (doneBtn) doneBtn.addEventListener('click', exitEdit);
+
+  if (saveBtn) saveBtn.addEventListener('click', function() {
+    var order  = Array.from(root.querySelectorAll('.ana-widget[data-wid]')).map(function(w){ return w.dataset.wid; });
+    var hidden = Array.from(root.querySelectorAll('.ana-widget.hidden')).map(function(w){ return w.dataset.wid; });
+    savePrefs({ order: order, hidden: hidden });
+    exitEdit();
+    // Flash breve
+    var bar = editBar;
+    editBar.style.display = 'flex';
+    editBar.innerHTML = '<span style="color:#166534;font-weight:700;">✓ Layout salvato</span>';
+    setTimeout(function(){ editBar.innerHTML = ''; editBar.classList.remove('visible'); editBar.style.display=''; }, 1200);
+  });
+
+  if (resetBtn) resetBtn.addEventListener('click', function() {
+    savePrefs({});
+    root.querySelectorAll('.ana-widget.hidden').forEach(function(w){ w.classList.remove('hidden'); });
+    refreshRestorePanel();
+  });
+
+  /* ── Init ── */
+  setupDrag();
+  applyPrefs(loadPrefs());
+
+})();
+</script>
+{% endblock %}

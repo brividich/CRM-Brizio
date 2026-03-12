@@ -1,0 +1,335 @@
+{% extends "core/base.html" %}
+
+{% block title %}Gestione Utenti | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .col-picker-wrap { position: relative; }
+  .col-picker-panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 20;
+    min-width: 220px;
+    background: #fff;
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 8px;
+    box-shadow: 0 8px 26px rgba(0, 0, 0, .14);
+    padding: 10px;
+  }
+  .col-picker-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-muted, #888);
+    margin-bottom: 6px;
+  }
+  .col-picker-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    padding: 3px 0;
+  }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Gestione Utenti" page_subtitle="Creazione utenti, assegnazione ruoli e azioni rapide operative." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Nuovo Utente</div>
+    </div>
+    <div class="card-body">
+      <form method="post" action="{% url 'admin_portale:utente_create' %}" class="admin-form-grid">
+        {% csrf_token %}
+        <div class="field">
+          <label for="nuovo_nome">Nome</label>
+          <input class="input" type="text" id="nuovo_nome" name="nome" required>
+        </div>
+        <div class="field">
+          <label for="nuovo_email">Email</label>
+          <input class="input" type="email" id="nuovo_email" name="email">
+        </div>
+        <div class="field">
+          <label for="nuovo_ruolo_id">Ruolo</label>
+          <select class="input" id="nuovo_ruolo_id" name="ruolo_id">
+            <option value="">-- Nessuno --</option>
+            {% for ruolo in roles %}
+              <option value="{{ ruolo.id }}">{{ ruolo.nome }} (#{{ ruolo.id }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="nuova_password">Password iniziale</label>
+          <input class="input" type="password" id="nuova_password" name="password_iniziale" autocomplete="new-password">
+        </div>
+        <div class="field field-checks">
+          <label class="checkline"><input type="checkbox" name="attivo" checked> Attivo</label>
+          <label class="checkline"><input type="checkbox" name="deve_cambiare_password" checked> Force change password</label>
+          <label class="checkline"><input type="checkbox" name="ad_managed"> Account AD managed</label>
+        </div>
+        <div class="field field-actions">
+          <button class="btn" type="submit">Crea utente</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Filtri</div>
+    </div>
+    <div class="card-body">
+      <form method="get" class="admin-form-grid">
+        <div class="field">
+          <label for="q">Cerca (nome/email)</label>
+          <input class="input" type="text" id="q" name="q" value="{{ filters.q }}">
+        </div>
+        <div class="field">
+          <label for="attivo">Attivo</label>
+          <select class="input" id="attivo" name="attivo">
+            <option value="">Tutti</option>
+            <option value="1" {% if filters.attivo == '1' %}selected{% endif %}>Si</option>
+            <option value="0" {% if filters.attivo == '0' %}selected{% endif %}>No</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="ruolo_id">Ruolo</label>
+          <select class="input" id="ruolo_id" name="ruolo_id">
+            <option value="">Tutti</option>
+            {% for ruolo in roles %}
+              <option value="{{ ruolo.id }}" {% if filters.ruolo_id == ruolo.id|stringformat:'s' %}selected{% endif %}>{{ ruolo.nome }} (#{{ ruolo.id }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="pwd_change">Deve cambiare password</label>
+          <select class="input" id="pwd_change" name="pwd_change">
+            <option value="">Tutti</option>
+            <option value="1" {% if filters.pwd_change == '1' %}selected{% endif %}>Si</option>
+            <option value="0" {% if filters.pwd_change == '0' %}selected{% endif %}>No</option>
+          </select>
+        </div>
+        <div class="field field-actions">
+          <button class="btn" type="submit">Filtra</button>
+          <a class="btn btn-secondary" href="{% url 'admin_portale:utenti_list' %}">Reset</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <form method="post" action="{% url 'admin_portale:utenti_bulk_role' %}">
+    {% csrf_token %}
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Utenti</div>
+        <div class="admin-inline-actions">
+          <select class="input input-sm" name="ruolo_id">
+            <option value="">Ruolo massivo...</option>
+            {% for ruolo in roles %}
+              <option value="{{ ruolo.id }}">{{ ruolo.nome }} (#{{ ruolo.id }})</option>
+            {% endfor %}
+          </select>
+          <div class="col-picker-wrap">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-column-picker">Colonne</button>
+            <div class="col-picker-panel" id="column-picker-panel" hidden>
+              <div class="col-picker-title">Colonne visibili</div>
+              <label class="col-picker-row"><input type="checkbox" data-col-target="id"> ID</label>
+              <label class="col-picker-row"><input type="checkbox" data-col-target="nome"> Nome</label>
+              <label class="col-picker-row"><input type="checkbox" data-col-target="email"> Email</label>
+              <label class="col-picker-row"><input type="checkbox" data-col-target="reparto"> Reparto</label>
+              <label class="col-picker-row"><input type="checkbox" data-col-target="mansione"> Mansione</label>
+              <label class="col-picker-row"><input type="checkbox" data-col-target="username_ad"> Username AD</label>
+              <label class="col-picker-row"><input type="checkbox" data-col-target="ruolo_quick"> Ruolo (quick)</label>
+              <label class="col-picker-row"><input type="checkbox" data-col-target="attivo"> Attivo</label>
+              <label class="col-picker-row"><input type="checkbox" data-col-target="force_pwd"> Force pwd</label>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-sm">Applica ruolo selezionati</button>
+          <button type="submit" class="btn btn-secondary btn-sm" formaction="{% url 'admin_portale:utenti_bulk_action' %}" name="bulk_mode" value="activate" formnovalidate>Attiva selezionati</button>
+          <button type="submit" class="btn btn-secondary btn-sm" formaction="{% url 'admin_portale:utenti_bulk_action' %}" name="bulk_mode" value="deactivate" formnovalidate>Disattiva selezionati</button>
+          <button type="submit" class="btn btn-secondary btn-sm" formaction="{% url 'admin_portale:utenti_bulk_action' %}" name="bulk_mode" value="force_pwd" formnovalidate>Force pwd selezionati</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th><input type="checkbox" id="select-all-users"></th>
+                <th data-col="id">ID</th>
+                <th data-col="nome">Nome</th>
+                <th data-col="email">Email</th>
+                <th data-col="reparto">Reparto</th>
+                <th data-col="mansione">Mansione</th>
+                <th data-col="username_ad">Username AD</th>
+                <th data-col="ruolo_quick">Ruolo (quick)</th>
+                <th data-col="attivo">Attivo</th>
+                <th data-col="force_pwd">Force pwd</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for u in page_obj.object_list %}
+                <tr>
+                  <td><input type="checkbox" name="user_ids" value="{{ u.id }}"></td>
+                  <td data-col="id">{{ u.id }}</td>
+                  <td data-col="nome">{{ u.nome }}</td>
+                  <td data-col="email">{{ u.email|default:"-" }}</td>
+                  <td data-col="reparto">{{ u.anagrafica_reparto|default:"-" }}</td>
+                  <td data-col="mansione">{{ u.anagrafica_mansione|default:"-" }}</td>
+                  <td data-col="username_ad" style="font-family:monospace;">{{ u.anagrafica_aliasusername|default:"-" }}</td>
+                  <td data-col="ruolo_quick">
+                    <div class="admin-inline-actions">
+                      <select class="input input-sm" name="quick_ruolo_id_{{ u.id }}">
+                        <option value="">--</option>
+                        {% for ruolo in roles %}
+                          <option value="{{ ruolo.id }}" {% if u.ruolo_id == ruolo.id %}selected{% endif %}>{{ ruolo.nome }} (#{{ ruolo.id }})</option>
+                        {% endfor %}
+                      </select>
+                      <button type="submit" class="btn btn-secondary btn-sm" formaction="{% url 'admin_portale:utente_quick_role' u.id %}" formmethod="post" name="next" value="{{ request.get_full_path }}" formnovalidate>Salva</button>
+                    </div>
+                  </td>
+                  <td data-col="attivo">
+                    {% if u.attivo %}
+                      <span class="badge badge-success">Attivo</span>
+                    {% else %}
+                      <span class="badge badge-danger">No</span>
+                    {% endif %}
+                  </td>
+                  <td data-col="force_pwd">{% if u.deve_cambiare_password %}<span class="badge">Si</span>{% else %}-{% endif %}</td>
+                  <td class="admin-inline-actions">
+                    <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:utente_edit' u.id %}">Modifica</a>
+                    <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:utente_permessi_effettivi' u.id %}">Permessi effettivi</a>
+                    {% if u.attivo and u.id != current_legacy_user_id %}
+                      <button type="submit" class="btn btn-sm" formaction="{% url 'admin_portale:utente_impersonate' u.id %}" formmethod="post" name="next" value="{% url 'dashboard_home' %}" formnovalidate>Impersona</button>
+                    {% endif %}
+                    <button type="submit" class="btn btn-secondary btn-sm" formaction="{% url 'admin_portale:utente_toggle_active' u.id %}" formmethod="post" name="next" value="{{ request.get_full_path }}" formnovalidate>{% if u.attivo %}Disattiva{% else %}Attiva{% endif %}</button>
+                    <button type="submit" class="btn btn-sm" formaction="{% url 'admin_portale:utente_force_change_password' u.id %}" formmethod="post" name="next" value="{{ request.get_full_path }}" formnovalidate>Force change pwd</button>
+                    {% if u.id != current_legacy_user_id %}
+                      <button
+                        type="submit"
+                        class="btn btn-danger btn-sm"
+                        formaction="{% url 'admin_portale:utente_delete' u.id %}"
+                        formmethod="post"
+                        name="next"
+                        value="{{ request.get_full_path }}"
+                        formnovalidate
+                        onclick="return confirm('Eliminare definitivamente {{ u.nome|escapejs }}? Verranno rimossi anche profilo Django, override e collegamenti locali.');"
+                      >Elimina</button>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="11" class="cell-muted">Nessun utente trovato.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pagination-bar">
+          <div class="cell-muted">
+            Totale pagina: {{ page_obj.object_list|length }} | Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}
+          </div>
+          <div class="pagination-links">
+            {% if page_obj.has_previous %}
+              <a class="btn btn-secondary btn-sm" href="?q={{ filters.q|urlencode }}&attivo={{ filters.attivo|urlencode }}&ruolo_id={{ filters.ruolo_id|urlencode }}&pwd_change={{ filters.pwd_change|urlencode }}&page={{ page_obj.previous_page_number }}">Precedente</a>
+            {% endif %}
+            {% if page_obj.has_next %}
+              <a class="btn btn-secondary btn-sm" href="?q={{ filters.q|urlencode }}&attivo={{ filters.attivo|urlencode }}&ruolo_id={{ filters.ruolo_id|urlencode }}&pwd_change={{ filters.pwd_change|urlencode }}&page={{ page_obj.next_page_number }}">Successiva</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <script>
+    (function () {
+      const master = document.getElementById("select-all-users");
+      if (master) {
+        master.addEventListener("change", function () {
+          document.querySelectorAll('input[name="user_ids"]').forEach(function (cb) {
+            cb.checked = master.checked;
+          });
+        });
+      }
+
+      const STORAGE_KEY = "admin_utenti_visible_cols_v1";
+      const COLS = ["id", "nome", "email", "reparto", "mansione", "username_ad", "ruolo_quick", "attivo", "force_pwd"];
+
+      const btn = document.getElementById("btn-column-picker");
+      const panel = document.getElementById("column-picker-panel");
+      const checks = panel ? panel.querySelectorAll("input[data-col-target]") : [];
+      if (!btn || !panel || !checks.length) return;
+
+      function loadState() {
+        const base = {};
+        COLS.forEach(function (c) { base[c] = true; });
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return base;
+          const saved = JSON.parse(raw);
+          if (!saved || typeof saved !== "object") return base;
+          COLS.forEach(function (c) {
+            if (Object.prototype.hasOwnProperty.call(saved, c)) {
+              base[c] = !!saved[c];
+            }
+          });
+          return base;
+        } catch (e) {
+          return base;
+        }
+      }
+
+      function saveState(state) {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+      }
+
+      function applyState(state) {
+        COLS.forEach(function (col) {
+          const visible = state[col] !== false;
+          document.querySelectorAll('[data-col="' + col + '"]').forEach(function (el) {
+            el.style.display = visible ? "" : "none";
+          });
+        });
+        checks.forEach(function (cb) {
+          const key = cb.getAttribute("data-col-target");
+          cb.checked = state[key] !== false;
+        });
+      }
+
+      let state = loadState();
+      applyState(state);
+
+      btn.addEventListener("click", function (e) {
+        e.preventDefault();
+        panel.hidden = !panel.hidden;
+      });
+
+      document.addEventListener("click", function (e) {
+        if (panel.hidden) return;
+        if (e.target === btn || btn.contains(e.target)) return;
+        if (panel.contains(e.target)) return;
+        panel.hidden = true;
+      });
+
+      checks.forEach(function (cb) {
+        cb.addEventListener("change", function () {
+          const key = cb.getAttribute("data-col-target");
+          state[key] = cb.checked;
+          saveState(state);
+          applyState(state);
+        });
+      });
+    })();
+  </script>
+{% endblock %}

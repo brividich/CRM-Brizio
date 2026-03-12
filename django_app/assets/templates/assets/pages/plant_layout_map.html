@@ -1,0 +1,352 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Planimetrie impianti{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.pl-page { display:grid; gap:16px; }
+.pl-summary { display:grid; gap:10px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
+.pl-summary-card { border:1px solid #dbe1ea; border-radius:16px; background:#fff; padding:16px; box-shadow:0 2px 8px rgba(15, 23, 42, .05); }
+.pl-summary-label { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:#64748b; font-weight:800; }
+.pl-summary-value { margin-top:8px; font-size:30px; line-height:1; color:#0f172a; font-weight:800; }
+.pl-summary-meta { margin-top:6px; color:#64748b; font-size:13px; }
+.pl-grid { display:grid; grid-template-columns:minmax(0, 1.7fr) minmax(320px, .9fr); gap:16px; align-items:start; }
+.pl-card { border:1px solid #dbe1ea; border-radius:18px; background:#fff; overflow:hidden; box-shadow:0 4px 18px rgba(15, 23, 42, .05); }
+.pl-card-head { padding:16px 18px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+.pl-card-head h2 { margin:0; font-size:24px; color:#0f172a; }
+.pl-card-head p { margin:4px 0 0; color:#64748b; font-size:13px; }
+.pl-stage-wrap { padding:18px; background:linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%); }
+.pl-stage { position:relative; width:100%; border-radius:16px; overflow:hidden; background:#dbe7f7; border:1px solid #d5e0f0; }
+.pl-stage img { display:block; width:100%; height:auto; }
+.pl-overlay { position:absolute; inset:0; }
+.pl-area { position:absolute; border:2px solid var(--area-color, #2563EB); background:var(--area-bg, rgba(37,99,235,0.22)); border-radius:14px; cursor:pointer; transition:transform .14s ease, box-shadow .14s ease, background .14s ease; }
+.pl-area:hover { transform:translateY(-1px); box-shadow:0 12px 24px rgba(15, 23, 42, .12); background:var(--area-bg-active, rgba(37,99,235,0.40)); }
+.pl-area.is-active { background:var(--area-bg-active, rgba(37,99,235,0.40)); box-shadow:0 14px 28px rgba(37, 99, 235, .22); }
+.pl-area-label { position:absolute; left:10px; top:10px; right:10px; display:flex; justify-content:space-between; gap:8px; align-items:flex-start; pointer-events:none; }
+.pl-area-name { background:rgba(15, 23, 42, .78); color:#fff; border-radius:999px; padding:6px 10px; font-size:12px; font-weight:800; max-width:calc(100% - 48px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pl-area-count { background:#fff; color:#0f172a; border-radius:999px; padding:6px 9px; font-size:11px; font-weight:800; box-shadow:0 4px 12px rgba(15, 23, 42, .12); }
+.pl-pin { position:absolute; width:18px; height:18px; border-radius:999px; border:none; transform:translate(-50%, -50%); background:#dc2626; box-shadow:0 0 0 4px rgba(255,255,255,.9), 0 8px 16px rgba(15,23,42,.18); cursor:pointer; }
+.pl-pin::after { content:""; position:absolute; width:6px; height:6px; inset:6px; border-radius:999px; background:#fff; }
+.pl-pin.is-active { box-shadow:0 0 0 4px rgba(255,255,255,.95), 0 0 0 9px rgba(220,38,38,.25), 0 10px 22px rgba(15,23,42,.2); }
+.pl-pin.is-focused { background:#2563eb; box-shadow:0 0 0 4px rgba(255,255,255,.95), 0 0 0 10px rgba(37,99,235,.35), 0 10px 22px rgba(15,23,42,.2); animation:pl-pulse 1.4s ease-in-out 3; }
+@keyframes pl-pulse { 0%,100%{transform:translate(-50%,-50%) scale(1)} 50%{transform:translate(-50%,-50%) scale(1.5)} }
+.pl-sidebar { padding:16px; display:grid; gap:14px; }
+.pl-detail-title { margin:0; font-size:24px; color:#0f172a; }
+.pl-detail-sub { margin:4px 0 0; color:#64748b; font-size:13px; }
+.pl-pill-row { display:flex; flex-wrap:wrap; gap:8px; }
+.pl-pill { display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:6px 10px; background:#eff6ff; color:#1d4ed8; font-size:12px; font-weight:800; }
+.pl-note { border:1px solid #dbe1ea; border-radius:14px; background:#f8fafc; padding:12px 14px; color:#334155; font-size:13px; }
+.pl-machine-list { display:grid; gap:10px; }
+.pl-machine-card { border:1px solid #e2e8f0; border-radius:14px; padding:12px 13px; background:#fff; display:grid; gap:6px; }
+.pl-machine-top { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+.pl-machine-name { font-size:14px; font-weight:800; color:#0f172a; }
+.pl-machine-tag { color:#475569; font-size:12px; font-weight:700; }
+.pl-machine-meta { color:#64748b; font-size:12px; display:flex; flex-wrap:wrap; gap:10px; }
+.pl-machine-link { color:#1d4ed8; text-decoration:none; font-size:12px; font-weight:800; }
+.pl-empty { padding:28px; text-align:center; color:#64748b; }
+.pl-empty strong { display:block; color:#0f172a; font-size:18px; margin-bottom:6px; }
+.pl-layout-list { display:flex; flex-wrap:wrap; gap:8px; padding:0 18px 18px; }
+.pl-layout-chip { border:1px solid #dbe1ea; background:#fff; color:#334155; border-radius:999px; padding:7px 11px; font-size:12px; font-weight:800; }
+.pl-layout-chip.is-active { border-color:#1d4ed8; background:#eff6ff; color:#1d4ed8; }
+@media (max-width: 1100px) {
+  .pl-grid { grid-template-columns:1fr; }
+}
+@media (max-width: 760px) {
+  .pl-summary { grid-template-columns:1fr; }
+  .pl-card-head { flex-direction:column; }
+}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Planimetrie impianti{% endblock %}
+{% block assets_shell_subtitle %}
+<p>Passa da una planimetria all'altra per consultare officina, TVCC, allarme e altri impianti.</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+<a class="btn" href="{% url 'assets:work_machine_dashboard' %}">Dashboard officina</a>
+{% if can_manage_map %}
+<a class="btn btn-primary" href="{% url 'assets:plant_layout_editor' %}{% if selected_layout_category %}?category={{ selected_layout_category|urlencode }}{% endif %}">Apri editor mappa</a>
+{% endif %}
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="pl-page">
+  <section class="pl-summary">
+    <article class="pl-summary-card">
+      <div class="pl-summary-label">Categorie attive</div>
+      <div class="pl-summary-value">{{ layout_category_switches|length }}</div>
+      <div class="pl-summary-meta">{% if layout %}Categoria selezionata: {{ selected_layout_category }}{% else %}Nessuna mappa pubblicata{% endif %}</div>
+    </article>
+    <article class="pl-summary-card">
+      <div class="pl-summary-label">Reparti mappati</div>
+      <div class="pl-summary-value">{{ plant_layout_payload.areas|length }}</div>
+      <div class="pl-summary-meta">Zone cliccabili sulla planimetria</div>
+    </article>
+    <article class="pl-summary-card">
+      <div class="pl-summary-label">Macchine posizionate</div>
+      <div class="pl-summary-value">{{ plant_layout_payload.markers|length }}</div>
+      <div class="pl-summary-meta">Marker manuali sulla mappa</div>
+    </article>
+  </section>
+
+  <section class="pl-grid">
+    <article class="pl-card">
+      <div class="pl-card-head">
+        <div>
+          <h2>{% if layout %}{{ layout.name }}{% else %}Mappa non disponibile{% endif %}</h2>
+          <p>{% if layout and layout.description %}{{ layout.category }} - {{ layout.description }}{% elif layout %}{{ layout.category }} - seleziona un reparto o una macchina per aprire il dettaglio contestuale.{% else %}Nessuna planimetria attiva disponibile.{% endif %}</p>
+        </div>
+      </div>
+      {% if layout_category_switches %}
+      <div class="pl-layout-list" style="padding-top:18px;">
+        {% for chip in layout_category_switches %}
+        <a class="pl-layout-chip {% if chip.active %}is-active{% endif %}" style="text-decoration:none;" href="{{ chip.url }}">{{ chip.category }}</a>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% if layout and layout.image %}
+      <div class="pl-stage-wrap">
+        <div class="pl-stage" id="plant-layout-stage">
+          <img src="{{ layout.image.url }}" alt="{{ layout.name }}">
+          <div class="pl-overlay">
+            {% for area in plant_layout_payload.areas %}
+            <button
+              type="button"
+              class="pl-area"
+              data-area-id="{{ area.id }}"
+              style="left:{{ area.x_percent|stringformat:'g' }}%;top:{{ area.y_percent|stringformat:'g' }}%;width:{{ area.width_percent|stringformat:'g' }}%;height:{{ area.height_percent|stringformat:'g' }}%;--area-color:{{ area.color }};--area-bg:{{ area.bg_color }};--area-bg-active:{{ area.active_bg_color }};"
+            >
+              <span class="pl-area-label">
+                <span class="pl-area-name">{{ area.name }}</span>
+                <span class="pl-area-count">{{ area.machine_count }}</span>
+              </span>
+            </button>
+            {% endfor %}
+            {% for marker in plant_layout_payload.markers %}
+            <button
+              type="button"
+              class="pl-pin"
+              data-marker-id="{{ marker.id }}"
+              style="left:{{ marker.x_percent|stringformat:'g' }}%;top:{{ marker.y_percent|stringformat:'g' }}%;"
+              title="{{ marker.label }}"
+            ></button>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% if plant_layout_payload.areas %}
+      <div class="pl-layout-list">
+        {% for area in plant_layout_payload.areas %}
+        <span class="pl-layout-chip">{{ area.name }} {% if area.reparto_code %}- {{ area.reparto_code }}{% endif %}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% else %}
+      <div class="pl-empty">
+        <strong>Nessuna planimetria disponibile</strong>
+        {% if can_manage_map %}
+        Configura una PNG/JPG dall'editor mappa per pubblicarla qui.
+        {% else %}
+        Contatta un amministratore per caricare la planimetria dell'officina.
+        {% endif %}
+      </div>
+      {% endif %}
+    </article>
+
+    <aside class="pl-card">
+      <div class="pl-card-head">
+        <div>
+          <h2 id="pl-detail-title">Dettaglio mappa</h2>
+          <p id="pl-detail-sub" class="pl-detail-sub">Clicca un reparto o un marker macchina.</p>
+        </div>
+      </div>
+      <div class="pl-sidebar">
+        <div id="pl-detail-pills" class="pl-pill-row"></div>
+        <div id="pl-detail-note" class="pl-note" hidden></div>
+        <div id="pl-detail-list" class="pl-machine-list"></div>
+      </div>
+    </aside>
+  </section>
+</section>
+
+{{ plant_layout_payload|json_script:"plant-layout-data" }}
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(function () {
+  const dataNode = document.getElementById("plant-layout-data");
+  if (!dataNode) return;
+  const payload = JSON.parse(dataNode.textContent || "{}");
+  const focusAssetId = {{ focus_asset_id|default:0 }};
+  const areaButtons = Array.from(document.querySelectorAll("[data-area-id]"));
+  const markerButtons = Array.from(document.querySelectorAll("[data-marker-id]"));
+  const titleNode = document.getElementById("pl-detail-title");
+  const subNode = document.getElementById("pl-detail-sub");
+  const pillsNode = document.getElementById("pl-detail-pills");
+  const noteNode = document.getElementById("pl-detail-note");
+  const listNode = document.getElementById("pl-detail-list");
+  const areas = Array.isArray(payload.areas) ? payload.areas : [];
+  const markers = Array.isArray(payload.markers) ? payload.markers : [];
+
+  function escapeHtml(value) {
+    return String(value || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  function setActiveAreaIds(ids) {
+    const activeIds = new Set((ids || []).map(function (value) { return String(value); }));
+    areaButtons.forEach(function (button) {
+      button.classList.toggle("is-active", activeIds.has(button.getAttribute("data-area-id")));
+    });
+  }
+
+  function setActiveMarkerIds(ids) {
+    const activeIds = new Set((ids || []).map(function (value) { return String(value); }));
+    markerButtons.forEach(function (button) {
+      button.classList.toggle("is-active", activeIds.has(button.getAttribute("data-marker-id")));
+    });
+  }
+
+  function renderPills(values) {
+    pillsNode.innerHTML = "";
+    (values || []).forEach(function (row) {
+      if (!row) return;
+      const chip = document.createElement("span");
+      chip.className = "pl-pill";
+      chip.textContent = row;
+      pillsNode.appendChild(chip);
+    });
+  }
+
+  function renderMachines(rows) {
+    listNode.innerHTML = "";
+    if (!rows || !rows.length) {
+      const empty = document.createElement("div");
+      empty.className = "pl-empty";
+      empty.innerHTML = "<strong>Nessuna macchina collegata</strong>Il reparto non ha ancora asset associati o posizionati.";
+      listNode.appendChild(empty);
+      return;
+    }
+    rows.forEach(function (machine) {
+      const card = document.createElement("article");
+      card.className = "pl-machine-card";
+      const top = document.createElement("div");
+      top.className = "pl-machine-top";
+      top.innerHTML =
+        '<div><div class="pl-machine-name">' + escapeHtml(machine.name) + '</div>' +
+        '<div class="pl-machine-tag">' + escapeHtml(machine.asset_tag) + '</div></div>' +
+        '<div class="pl-machine-tag">' + escapeHtml(machine.status) + '</div>';
+      const meta = document.createElement("div");
+      meta.className = "pl-machine-meta";
+      [
+        machine.reparto ? "Reparto " + machine.reparto : "",
+        machine.location ? "Posizione " + machine.location : "",
+        machine.model ? machine.model : "",
+        machine.next_maintenance_date ? "Manut. " + machine.next_maintenance_date : ""
+      ].forEach(function (row) {
+        if (!row) return;
+        const span = document.createElement("span");
+        span.textContent = row;
+        meta.appendChild(span);
+      });
+      const link = document.createElement("a");
+      link.className = "pl-machine-link";
+      link.href = machine.detail_url || "#";
+      link.textContent = "Apri dettaglio macchina";
+      card.appendChild(top);
+      card.appendChild(meta);
+      card.appendChild(link);
+      listNode.appendChild(card);
+    });
+  }
+
+  function showArea(area) {
+    if (!area) return;
+    titleNode.textContent = area.name || "Reparto";
+    subNode.textContent = area.reparto_code ? "Reparto collegato: " + area.reparto_code : "Reparto non collegato a un codice.";
+    renderPills([
+      "Macchine " + String(area.machine_count || 0),
+      area.reparto_code ? "Codice " + area.reparto_code : "",
+      area.color ? "Colore " + area.color : ""
+    ].filter(Boolean));
+    if (area.notes) {
+      noteNode.hidden = false;
+      noteNode.textContent = area.notes;
+    } else {
+      noteNode.hidden = true;
+      noteNode.textContent = "";
+    }
+    renderMachines(area.machines || []);
+    setActiveAreaIds([area.id]);
+    const markerIds = markers
+      .filter(function (marker) { return Array.isArray(marker.area_ids) && marker.area_ids.indexOf(area.id) !== -1; })
+      .map(function (marker) { return marker.id; });
+    setActiveMarkerIds(markerIds);
+  }
+
+  function showMarker(marker) {
+    if (!marker) return;
+    const machine = marker.machine || {};
+    titleNode.textContent = marker.label || machine.asset_tag || machine.name || "Macchina";
+    subNode.textContent = machine.reparto ? "Macchina del reparto " + machine.reparto : "Marker macchina";
+    renderPills([
+      machine.status || "",
+      machine.manufacturer || "",
+      machine.model || "",
+      machine.five_axes ? "5 assi" : "",
+      machine.cnc_controlled ? "CNC" : ""
+    ].filter(Boolean));
+    if (machine.location) {
+      noteNode.hidden = false;
+      noteNode.textContent = "Posizione registrata: " + machine.location;
+    } else {
+      noteNode.hidden = true;
+      noteNode.textContent = "";
+    }
+    renderMachines([machine]);
+    setActiveMarkerIds([marker.id]);
+    setActiveAreaIds(marker.area_ids || []);
+  }
+
+  areaButtons.forEach(function (button) {
+    button.addEventListener("click", function () {
+      const id = Number(button.getAttribute("data-area-id") || "0");
+      showArea(areas.find(function (row) { return Number(row.id) === id; }));
+    });
+  });
+
+  markerButtons.forEach(function (button) {
+    button.addEventListener("click", function () {
+      const id = Number(button.getAttribute("data-marker-id") || "0");
+      showMarker(markers.find(function (row) { return Number(row.id) === id; }));
+    });
+  });
+
+  let initiallyHandled = false;
+  if (focusAssetId) {
+    const focusMarker = markers.find(function (m) { return Number(m.asset_id) === focusAssetId; });
+    if (focusMarker) {
+      showMarker(focusMarker);
+      const focusBtn = markerButtons.find(function (b) { return Number(b.getAttribute("data-marker-id")) === Number(focusMarker.id); });
+      if (focusBtn) {
+        focusBtn.classList.add("is-focused");
+        focusBtn.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      initiallyHandled = true;
+    }
+  }
+  if (!initiallyHandled) {
+    if (areas.length) {
+      showArea(areas[0]);
+    } else if (markers.length) {
+      showMarker(markers[0]);
+    }
+  }
+})();
+</script>
+{% endblock %}

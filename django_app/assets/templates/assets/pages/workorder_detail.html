@@ -1,0 +1,70 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Intervento #{{ workorder.id }}{% endblock %}
+
+{% block assets_shell_title %}Intervento #{{ workorder.id }}{% endblock %}
+{% block assets_shell_subtitle %}
+<p>{{ workorder.asset.asset_tag }} - {{ workorder.asset.name }} | {{ workorder.get_kind_display }} | {{ workorder.get_status_display }}</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{% url 'assets:asset_view' workorder.asset_id %}">Apri asset</a>
+  {% if workorder.status == 'OPEN' %}
+    <a class="btn btn-primary" href="{% url 'assets:wo_close' workorder.id %}">Chiudi</a>
+  {% endif %}
+{% endblock %}
+
+{% block assets_shell_content %}
+<section style="display:grid;gap:14px;">
+  <header>
+    <a href="{% url 'assets:wo_list' %}" style="font-size:13px;color:#64748b;text-decoration:none;">&larr; Torna agli interventi</a>
+  </header>
+
+  <article style="border:1px solid #dbe1ea;border-radius:12px;background:#fff;padding:14px;">
+    <dl class="as-dl-grid">
+      <dt>Titolo</dt><dd>{{ workorder.title }}</dd>
+      <dt>Intervento programmato</dt><dd>{% if workorder.periodic_verification %}{{ workorder.periodic_verification.name }}{% else %}-{% endif %}</dd>
+      <dt>Fornitore</dt><dd>{% if workorder.supplier %}{{ workorder.supplier }}{% else %}-{% endif %}</dd>
+      <dt>Aperta il</dt><dd>{{ workorder.opened_at|date:"d/m/Y H:i" }}</dd>
+      <dt>Chiusa il</dt><dd>{% if workorder.closed_at %}{{ workorder.closed_at|date:"d/m/Y H:i" }}{% else %}-{% endif %}</dd>
+      <dt>Fermo impianto (min)</dt><dd>{{ workorder.downtime_minutes }}</dd>
+      <dt>Costo (EUR)</dt><dd>{{ workorder.cost_eur|default:"-" }}</dd>
+      <dt>Descrizione</dt><dd style="white-space:pre-wrap;">{{ workorder.description|default:"-" }}</dd>
+      <dt>Risoluzione</dt><dd style="white-space:pre-wrap;">{{ workorder.resolution|default:"-" }}</dd>
+    </dl>
+  </article>
+
+  <article style="border:1px solid #dbe1ea;border-radius:12px;background:#fff;padding:14px;">
+    <h3 style="margin-top:0;">Allegati</h3>
+    <div style="display:grid;gap:8px;">
+      {% for attachment in attachments %}
+        <a href="{{ attachment.file.url }}" target="_blank" rel="noopener" style="display:flex;justify-content:space-between;gap:12px;padding:10px;border:1px solid #e2e8f0;border-radius:10px;text-decoration:none;color:#0f172a;">
+          <span>{{ attachment.original_name|default:attachment.file.name }}</span>
+          <span style="font-size:12px;color:#64748b;">{{ attachment.created_at|date:"d/m/Y H:i" }}</span>
+        </a>
+      {% empty %}
+        <p style="color:#64748b;margin:0;">Nessun allegato presente.</p>
+      {% endfor %}
+    </div>
+  </article>
+
+  <article style="border:1px solid #dbe1ea;border-radius:12px;background:#fff;padding:14px;">
+    <h3 style="margin-top:0;">Log intervento</h3>
+    <form method="post" style="display:grid;gap:8px;margin-bottom:14px;">
+      {% csrf_token %}
+      <label for="id_log_note">Aggiungi nota</label>
+      <textarea id="id_log_note" name="log_note" rows="3" placeholder="Descrivi un avanzamento..."></textarea>
+      <div><button class="btn btn-primary" type="submit">Aggiungi log</button></div>
+    </form>
+    <div style="display:grid;gap:8px;">
+      {% for log in logs %}
+        <div style="border:1px solid #e2e8f0;border-radius:10px;padding:10px;">
+          <div style="font-size:12px;color:#64748b;">{{ log.ts|date:"d/m/Y H:i" }}{% if log.author %} - {{ log.author.get_full_name|default:log.author.username }}{% endif %}</div>
+          <div style="white-space:pre-wrap;">{{ log.note }}</div>
+        </div>
+      {% empty %}
+        <p style="color:#64748b;margin:0;">Nessun log presente.</p>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+{% endblock %}

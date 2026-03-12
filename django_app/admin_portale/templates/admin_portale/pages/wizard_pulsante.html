@@ -1,0 +1,800 @@
+{% extends "core/base.html" %}
+
+{% block title %}Wizard Nuovo Pulsante | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .wizard-wrap { max-width: 780px; margin: 0 auto; }
+
+  /* Stepper */
+  .wizard-steps {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 28px;
+    counter-reset: wstep;
+  }
+  .wstep {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    position: relative;
+    cursor: default;
+  }
+  .wstep + .wstep::before {
+    content: "";
+    position: absolute;
+    top: 15px;
+    right: 50%;
+    width: 100%;
+    height: 2px;
+    background: var(--border, #ddd);
+    z-index: 0;
+  }
+  .wstep.done + .wstep::before { background: var(--accent, #3b82f6); }
+  .wstep-num {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 600;
+    background: var(--bg-card, #f4f4f4);
+    border: 2px solid var(--border, #ddd);
+    color: var(--text-muted, #888);
+    position: relative; z-index: 1;
+    transition: background .2s, border-color .2s, color .2s;
+  }
+  .wstep.active .wstep-num {
+    background: var(--accent, #3b82f6);
+    border-color: var(--accent, #3b82f6);
+    color: #fff;
+  }
+  .wstep.done .wstep-num {
+    background: var(--accent, #3b82f6);
+    border-color: var(--accent, #3b82f6);
+    color: #fff;
+  }
+  .wstep-lbl {
+    font-size: 11px;
+    margin-top: 4px;
+    color: var(--text-muted, #888);
+    white-space: nowrap;
+  }
+  .wstep.active .wstep-lbl { color: var(--accent, #3b82f6); font-weight: 600; }
+  .wstep.done .wstep-lbl { color: var(--text-muted, #888); }
+
+  /* Pannelli step */
+  .wizard-panel { display: none; }
+  .wizard-panel.active { display: block; }
+
+  /* Griglia form wizard */
+  .wizard-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .wizard-form-grid .wfield { display: flex; flex-direction: column; gap: 4px; }
+  .wizard-form-grid .wfield.full { grid-column: 1 / -1; }
+  .wizard-form-grid .wfield label { font-size: 13px; font-weight: 500; }
+  .wizard-form-grid .wfield .wmuted { font-size: 11px; color: var(--text-muted, #888); margin-top: 2px; }
+  @media (max-width: 600px) {
+    .wizard-form-grid { grid-template-columns: 1fr; }
+    .wizard-form-grid .wfield.full { grid-column: auto; }
+  }
+
+  /* Permessi step */
+  .perm-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .perm-table th, .perm-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--border, #eee);
+    text-align: left;
+  }
+  .perm-table th { font-weight: 600; color: var(--text-muted, #888); font-size: 11px; text-transform: uppercase; }
+  .perm-table td:not(:first-child) { text-align: center; }
+  .perm-table .preset-cell { min-width: 160px; }
+  .perm-detail-row { display: none; background: var(--bg-card, #f9f9f9); }
+  .perm-detail-row.open { display: table-row; }
+  .perm-detail-row td { padding: 8px 10px 8px 28px; }
+  .perm-detail-inner { display: flex; gap: 18px; flex-wrap: wrap; }
+  .perm-detail-inner label { display: flex; align-items: center; gap: 5px; font-size: 12px; }
+  .expand-btn { background: none; border: none; cursor: pointer; font-size: 11px; color: var(--accent, #3b82f6); padding: 0; text-decoration: underline; }
+
+  /* Riepilogo */
+  .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 24px; }
+  .summary-grid .srow { display: flex; flex-direction: column; gap: 2px; }
+  .summary-grid .srow .slbl { font-size: 11px; color: var(--text-muted, #888); text-transform: uppercase; font-weight: 600; }
+  .summary-grid .srow .sval { font-size: 13px; }
+  .summary-perm-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+  .summary-perm-table th, .summary-perm-table td {
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--border, #eee);
+  }
+  .summary-perm-table th { font-weight: 600; color: var(--text-muted, #888); font-size: 11px; }
+  .chip { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 10px; background: var(--bg-card, #eee); }
+  .chip.on { background: #d1fae5; color: #065f46; }
+  .chip.off { background: #fee2e2; color: #991b1b; }
+
+  /* Pill riepilogo passi precedenti */
+  .wiz-recap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .wiz-recap-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--bg-card, #f4f6f8);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 12px;
+    color: var(--text-muted, #64748b);
+    white-space: nowrap;
+  }
+  .wiz-recap-pill strong {
+    color: var(--text, #1e293b);
+    font-weight: 600;
+  }
+  .wiz-recap-pill .rpill-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    opacity: .7;
+  }
+
+  /* Azioni wizard */
+  .wizard-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+    gap: 10px;
+  }
+
+  /* Status */
+  #wizard-status {
+    font-size: 13px;
+    min-height: 20px;
+    margin-top: 10px;
+  }
+  #wizard-status.err { color: #dc2626; }
+  #wizard-status.ok  { color: #16a34a; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="wizard-wrap">
+  {% include "admin_portale/components/page_header.html" with page_title="Wizard — Nuovo Pulsante" page_subtitle="Crea un pulsante, configura la posizione UI e assegna i permessi per ruolo in un unico flusso guidato." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  {# Dati per JS #}
+  {{ ruoli|json_script:"wiz-ruoli" }}
+  {{ moduli_esistenti|json_script:"wiz-moduli" }}
+  {{ route_catalog|json_script:"wiz-routes" }}
+  {{ ui_slot_options|json_script:"wiz-slots" }}
+  {{ ui_section_options|json_script:"wiz-sections" }}
+  {{ icon_options|json_script:"wiz-icons" }}
+
+  {# Token CSRF #}
+  <form id="wiz-csrf-form" style="display:none">{% csrf_token %}</form>
+
+  {# Datalists autocomplete #}
+  <datalist id="wiz-dl-modulo">{% for m in moduli_esistenti %}<option value="{{ m }}">{% endfor %}</datalist>
+  <datalist id="wiz-dl-slot">{% for s in ui_slot_options %}<option value="{{ s }}">{% endfor %}</datalist>
+  <datalist id="wiz-dl-section">{% for s in ui_section_options %}<option value="{{ s }}">{% endfor %}</datalist>
+  <datalist id="wiz-dl-icon">{% for i in icon_options %}<option value="{{ i }}">{% endfor %}</datalist>
+
+  <div class="card">
+    <div class="card-body">
+      {# Stepper #}
+      <nav class="wizard-steps" id="wiz-steps-nav">
+        <div class="wstep active" data-step="1"><div class="wstep-num">1</div><div class="wstep-lbl">Pulsante</div></div>
+        <div class="wstep"       data-step="2"><div class="wstep-num">2</div><div class="wstep-lbl">Posizione UI</div></div>
+        <div class="wstep"       data-step="3"><div class="wstep-num">3</div><div class="wstep-lbl">Permessi</div></div>
+        <div class="wstep"       data-step="4"><div class="wstep-num">4</div><div class="wstep-lbl">Riepilogo</div></div>
+      </nav>
+
+      {# ────── STEP 1: Pulsante base ────── #}
+      <div class="wizard-panel active" id="wiz-panel-1">
+        <div class="card-title" style="margin-bottom:14px;">Dettagli pulsante</div>
+        <div class="wizard-form-grid">
+          <div class="wfield">
+            <label for="w-codice">Codice <span style="color:#dc2626">*</span></label>
+            <input class="input" id="w-codice" type="text" placeholder="es. gestione_assenze" autocomplete="off" maxlength="100">
+            <span class="wmuted">Identificatore univoco, senza spazi (snake_case consigliato)</span>
+          </div>
+          <div class="wfield">
+            <label for="w-nome">Nome visibile</label>
+            <input class="input" id="w-nome" type="text" placeholder="es. Gestione Assenze" autocomplete="off" maxlength="200">
+            <span class="wmuted">Testo mostrato nel menu / topbar</span>
+          </div>
+          <div class="wfield">
+            <label for="w-modulo">Sezione / Modulo <span style="color:#dc2626">*</span></label>
+            <input class="input" id="w-modulo" type="text" placeholder="es. gestione_assenze" list="wiz-dl-modulo" autocomplete="off" maxlength="100">
+            <span class="wmuted">Raggruppa pulsanti correlati</span>
+          </div>
+          <div class="wfield">
+            <label for="w-icona">Icona</label>
+            <input class="input" id="w-icona" type="text" placeholder="es. calendar" list="wiz-dl-icon" autocomplete="off" maxlength="100">
+            <span class="wmuted">Nome icona o testo breve</span>
+          </div>
+          <div class="wfield full">
+            <label for="w-url">URL / Route <span style="color:#dc2626">*</span></label>
+            <input class="input" id="w-url" type="text" placeholder="es. route:gestione_assenze_page oppure /assenze/" autocomplete="off">
+            <span class="wmuted">Usa <code>route:nome_route</code> per route Django, oppure un path URL diretto</span>
+          </div>
+
+          {# Catalogo route (collassabile) #}
+          <div class="wfield full" id="wiz-route-section">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+              <span style="font-size:13px;font-weight:500;">Catalogo route disponibili</span>
+              <button type="button" class="expand-btn" id="wiz-route-toggle">Mostra</button>
+            </div>
+            <div id="wiz-route-catalog" style="display:none;">
+              <input class="input" type="text" id="wiz-route-filter" placeholder="Filtra route..." style="margin-bottom:8px;">
+              <div class="table-wrap" style="max-height:220px;overflow:auto;">
+                <table class="admin-table" id="wiz-route-table">
+                  <thead>
+                    <tr><th>Route</th><th>Path</th><th>Valore</th><th></th></tr>
+                  </thead>
+                  <tbody id="wiz-route-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# ────── STEP 2: UI Position ────── #}
+      <div class="wizard-panel" id="wiz-panel-2">
+        <div class="card-title" style="margin-bottom:14px;">Posizione UI</div>
+        <div class="notice" style="margin-bottom:14px;">
+          <strong>Guida:</strong> <code>Slot</code> indica dove compare (es. <code>topbar</code>, <code>sidebar</code>),
+          <code>Sezione</code> raggruppa il contesto (es. <code>gestione_assenze</code>),
+          <code>Ordine</code> definisce la sequenza all'interno dello slot.
+        </div>
+
+        {# Preset rapidi #}
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;">
+          <span style="font-size:13px;font-weight:500;align-self:center;">Preset rapidi:</span>
+          <button type="button" class="btn" data-ui-preset="dashboard_app" style="background:var(--accent,#3b82f6);color:#fff;" title="App nella dashboard (launcher)">&#129513; App Dashboard</button>
+          <button type="button" class="btn btn-secondary" data-ui-preset="topbar_assenze">Topbar Assenze</button>
+          <button type="button" class="btn btn-secondary" data-ui-preset="topbar_anomalie">Topbar Anomalie</button>
+          <button type="button" class="btn btn-secondary" data-ui-preset="topbar_admin">Topbar Admin</button>
+          <button type="button" class="btn btn-secondary" data-ui-preset="sidebar_only">Solo Sidebar</button>
+          <button type="button" class="btn btn-secondary" data-ui-preset="hidden">Non visibile</button>
+        </div>
+
+        <div class="wizard-form-grid">
+          <div class="wfield">
+            <label for="w-slot">Slot UI</label>
+            <input class="input" id="w-slot" type="text" placeholder="topbar / sidebar / page" list="wiz-dl-slot" autocomplete="off">
+          </div>
+          <div class="wfield">
+            <label for="w-section">Sezione UI</label>
+            <input class="input" id="w-section" type="text" placeholder="gestione_assenze / admin …" list="wiz-dl-section" autocomplete="off">
+          </div>
+          <div class="wfield">
+            <label for="w-order">Ordine UI</label>
+            <input class="input" id="w-order" type="number" placeholder="es. 10" min="0" max="9999">
+          </div>
+          <div class="wfield" style="flex-direction:row;align-items:center;gap:14px;">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+              <input type="checkbox" id="w-topbar" checked> Visibile in topbar
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+              <input type="checkbox" id="w-enabled" checked> Attivo
+            </label>
+          </div>
+          <div class="wfield full" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;flex-direction:row;align-items:center;gap:12px;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;font-weight:600;color:#1d4ed8;">
+              <input type="checkbox" id="w-padre" style="width:16px;height:16px;">
+              &#129513; Mostra nel launcher Dashboard
+            </label>
+            <span style="font-size:11px;color:#3b82f6;flex:1;">Spunta questa opzione per far comparire il pulsante nel riquadro &ldquo;Applicazioni&rdquo; della dashboard. Usa il preset <strong>App Dashboard</strong> per pre-compilare automaticamente.</span>
+          </div>
+        </div>
+      </div>
+
+      {# ────── STEP 3: Permessi ────── #}
+      <div class="wizard-panel" id="wiz-panel-3">
+        <div class="wiz-recap" id="wiz-recap-3"></div>
+        <div class="card-title" style="margin-bottom:14px;">Permessi per ruolo</div>
+        <div class="notice" style="margin-bottom:14px;">
+          Seleziona un preset per ogni ruolo. Espandi per configurare i singoli permessi.
+          <br>Preset: <strong>Nessuno</strong> = 0000 · <strong>Sola lettura</strong> = can_view · <strong>Letto+Scrivi</strong> = can_view + can_edit · <strong>Completo</strong> = tutti.
+        </div>
+        <div class="table-wrap">
+          <table class="perm-table" id="wiz-perm-table">
+            <thead>
+              <tr>
+                <th>Ruolo</th>
+                <th class="preset-cell">Preset rapido</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="wiz-perm-tbody">
+              {# Righe generate da JS con i ruoli dal context #}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {# ────── STEP 4: Riepilogo ────── #}
+      <div class="wizard-panel" id="wiz-panel-4">
+        <div class="card-title" style="margin-bottom:14px;">Riepilogo e conferma</div>
+        <div id="wiz-summary-content">
+          {# Compilato da JS #}
+        </div>
+        <div class="notice notice-success" style="margin-top:14px;" id="wiz-success-msg" hidden>
+          <strong>Pulsante salvato!</strong> Il menu sarà aggiornato entro pochi secondi.
+          <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+            <a id="wiz-success-link-pulsanti" class="btn btn-secondary" href="{% url 'admin_portale:pulsanti' %}">Torna a Pulsanti</a>
+            <button type="button" class="btn" id="wiz-new-btn">Crea un altro</button>
+          </div>
+        </div>
+        <div id="wizard-status"></div>
+      </div>
+
+      {# Azioni naviga #}
+      <div class="wizard-actions" id="wiz-actions">
+        <div>
+          <button type="button" class="btn btn-secondary" id="wiz-back-btn" disabled>&#8592; Indietro</button>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <a class="btn btn-secondary" href="{% url 'admin_portale:pulsanti' %}">Annulla</a>
+          <button type="button" class="btn" id="wiz-next-btn">Avanti &#8594;</button>
+          <button type="button" class="btn" id="wiz-save-btn" style="display:none;">&#10003; Salva pulsante</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ── Dati dal template ──────────────────────────────────────────────────────
+  function loadJson(id, fallback) {
+    try { return JSON.parse(document.getElementById(id)?.textContent || "null") || fallback; }
+    catch (e) { return fallback; }
+  }
+  const RUOLI       = loadJson("wiz-ruoli",    []);
+  const ROUTES      = loadJson("wiz-routes",   []);
+  const UI_PRESETS  = {
+    dashboard_app:   { ui_slot: "page",     ui_section: "dashboard",         ui_order: 50, visible_topbar: false, enabled: true,  is_padre: true  },
+    topbar_assenze:  { ui_slot: "topbar",   ui_section: "gestione_assenze",  ui_order: 10, visible_topbar: true,  enabled: true  },
+    topbar_anomalie: { ui_slot: "topbar",   ui_section: "gestione_anomalie", ui_order: 20, visible_topbar: true,  enabled: true  },
+    topbar_admin:    { ui_slot: "topbar",   ui_section: "admin",             ui_order: 90, visible_topbar: true,  enabled: true  },
+    sidebar_only:    { ui_slot: "sidebar",  ui_section: "",                  ui_order: 0,  visible_topbar: false, enabled: true  },
+    hidden:          { ui_slot: "hidden",   ui_section: "",                  ui_order: 0,  visible_topbar: false, enabled: false },
+  };
+  const PERM_PRESETS = {
+    nessuno:  { can_view: 0, can_edit: 0, can_delete: 0, can_approve: 0 },
+    lettura:  { can_view: 1, can_edit: 0, can_delete: 0, can_approve: 0 },
+    modifica: { can_view: 1, can_edit: 1, can_delete: 0, can_approve: 0 },
+    completo: { can_view: 1, can_edit: 1, can_delete: 1, can_approve: 1 },
+  };
+
+  const CSRF = (document.querySelector("#wiz-csrf-form input[name='csrfmiddlewaretoken']") || {}).value || "";
+
+  // ── Stato wizard ───────────────────────────────────────────────────────────
+  let currentStep = 1;
+  const TOTAL = 4;
+
+  // Stato dati form
+  const state = {
+    pulsante: { codice: "", nome_visibile: "", modulo: "", url: "", icona: "" },
+    ui_meta:  { ui_slot: "topbar", ui_section: "", ui_order: null, visible_topbar: true, enabled: true, is_padre: false },
+    permessi: {},  // { ruolo_id: { can_view, can_edit, can_delete, can_approve } }
+  };
+
+  // ── Init permessi (tutti Nessuno di default) ───────────────────────────────
+  RUOLI.forEach(function (r) {
+    state.permessi[r.id] = Object.assign({}, PERM_PRESETS.nessuno);
+  });
+
+  // ── Refs DOM ───────────────────────────────────────────────────────────────
+  const backBtn    = document.getElementById("wiz-back-btn");
+  const nextBtn    = document.getElementById("wiz-next-btn");
+  const saveBtn    = document.getElementById("wiz-save-btn");
+  const statusEl   = document.getElementById("wizard-status");
+  const successMsg = document.getElementById("wiz-success-msg");
+  const newBtn     = document.getElementById("wiz-new-btn");
+  const actionsEl  = document.getElementById("wiz-actions");
+
+  // Step 1
+  const fCodice = document.getElementById("w-codice");
+  const fNome   = document.getElementById("w-nome");
+  const fModulo = document.getElementById("w-modulo");
+  const fUrl    = document.getElementById("w-url");
+  const fIcona  = document.getElementById("w-icona");
+
+  // Step 2
+  const fSlot    = document.getElementById("w-slot");
+  const fSection = document.getElementById("w-section");
+  const fOrder   = document.getElementById("w-order");
+  const fTopbar  = document.getElementById("w-topbar");
+  const fEnabled = document.getElementById("w-enabled");
+  const fPadre   = document.getElementById("w-padre");
+
+  // ── Catalogo route (Step 1) ────────────────────────────────────────────────
+  const routeToggle  = document.getElementById("wiz-route-toggle");
+  const routeCatalog = document.getElementById("wiz-route-catalog");
+  const routeFilter  = document.getElementById("wiz-route-filter");
+  const routeTbody   = document.getElementById("wiz-route-tbody");
+
+  // Popola catalogo route
+  ROUTES.forEach(function (r) {
+    const tr = document.createElement("tr");
+    tr.dataset.rname = (r.route_name || "").toLowerCase();
+    tr.dataset.rpath = (r.path || "").toLowerCase();
+    tr.innerHTML =
+      "<td>" + esc(r.route_name || "") + "</td>" +
+      "<td><span class='cell-muted'>" + esc(r.path || "-") + "</span></td>" +
+      "<td><code>" + esc(r.portal_value || "") + "</code></td>" +
+      "<td><button type='button' class='btn btn-secondary btn-sm' data-copy='" + esc(r.portal_value || "") + "'>Usa</button></td>";
+    routeTbody.appendChild(tr);
+  });
+  if (!ROUTES.length) {
+    routeTbody.innerHTML = "<tr><td colspan='4' class='cell-muted'>Nessuna route disponibile.</td></tr>";
+  }
+
+  routeToggle && routeToggle.addEventListener("click", function () {
+    const open = routeCatalog.style.display !== "none";
+    routeCatalog.style.display = open ? "none" : "";
+    routeToggle.textContent = open ? "Mostra" : "Nascondi";
+  });
+  routeFilter && routeFilter.addEventListener("input", function () {
+    const q = routeFilter.value.toLowerCase().trim();
+    routeTbody.querySelectorAll("tr").forEach(function (tr) {
+      const match = !q || tr.dataset.rname.includes(q) || tr.dataset.rpath.includes(q);
+      tr.style.display = match ? "" : "none";
+    });
+  });
+  routeTbody && routeTbody.addEventListener("click", function (e) {
+    const btn = e.target.closest("[data-copy]");
+    if (!btn) return;
+    fUrl.value = btn.dataset.copy;
+    fUrl.focus();
+  });
+
+  // ── Preset UI (Step 2) ────────────────────────────────────────────────────
+  document.querySelectorAll("[data-ui-preset]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      const preset = UI_PRESETS[btn.dataset.uiPreset];
+      if (!preset) return;
+      if (fSlot)    fSlot.value    = preset.ui_slot    ?? "";
+      if (fSection) fSection.value = preset.ui_section ?? "";
+      if (fOrder)   fOrder.value   = preset.ui_order != null ? String(preset.ui_order) : "";
+      if (fTopbar)  fTopbar.checked = !!preset.visible_topbar;
+      if (fEnabled) fEnabled.checked = !!preset.enabled;
+      if (fPadre)   fPadre.checked  = !!preset.is_padre;
+    });
+  });
+
+  // ── Tabella permessi (Step 3) ─────────────────────────────────────────────
+  const permTbody = document.getElementById("wiz-perm-tbody");
+  RUOLI.forEach(function (r) {
+    const rid = r.id;
+
+    // Riga principale
+    const tr = document.createElement("tr");
+    tr.dataset.rid = rid;
+    tr.innerHTML =
+      "<td><strong>" + esc(r.nome || ("Ruolo " + rid)) + "</strong></td>" +
+      "<td class='preset-cell'>" +
+        "<select class='input input-sm perm-preset-sel' data-rid='" + rid + "'>" +
+          "<option value='nessuno'>Nessuno</option>" +
+          "<option value='lettura'>Sola lettura</option>" +
+          "<option value='modifica'>Lettura + Scrittura</option>" +
+          "<option value='completo'>Completo</option>" +
+        "</select>" +
+      "</td>" +
+      "<td><button type='button' class='expand-btn perm-expand' data-rid='" + rid + "'>Dettaglio</button></td>";
+    permTbody.appendChild(tr);
+
+    // Riga dettaglio
+    const trd = document.createElement("tr");
+    trd.className = "perm-detail-row";
+    trd.dataset.drid = rid;
+    trd.innerHTML =
+      "<td colspan='3'><div class='perm-detail-inner'>" +
+        makeCheckbox(rid, "can_view",    "Visualizza") +
+        makeCheckbox(rid, "can_edit",    "Modifica") +
+        makeCheckbox(rid, "can_delete",  "Elimina") +
+        makeCheckbox(rid, "can_approve", "Approva") +
+      "</div></td>";
+    permTbody.appendChild(trd);
+  });
+
+  // Gestione preset permessi
+  permTbody.addEventListener("change", function (e) {
+    const sel = e.target.closest(".perm-preset-sel");
+    if (!sel) return;
+    const rid    = Number(sel.dataset.rid);
+    const preset = PERM_PRESETS[sel.value] || PERM_PRESETS.nessuno;
+    state.permessi[rid] = Object.assign({}, preset);
+    syncDetailCheckboxes(rid);
+  });
+
+  // Gestione checkbox dettaglio
+  permTbody.addEventListener("change", function (e) {
+    const cb = e.target.closest("input[type='checkbox'][data-rid][data-perm]");
+    if (!cb) return;
+    const rid  = Number(cb.dataset.rid);
+    const perm = cb.dataset.perm;
+    if (!state.permessi[rid]) state.permessi[rid] = Object.assign({}, PERM_PRESETS.nessuno);
+    state.permessi[rid][perm] = cb.checked ? 1 : 0;
+    syncPresetSelect(rid);
+  });
+
+  // Espandi/comprimi dettaglio
+  permTbody.addEventListener("click", function (e) {
+    const btn = e.target.closest(".perm-expand");
+    if (!btn) return;
+    const rid = btn.dataset.rid;
+    const drow = permTbody.querySelector("tr.perm-detail-row[data-drid='" + rid + "']");
+    if (!drow) return;
+    const open = drow.classList.toggle("open");
+    btn.textContent = open ? "Chiudi" : "Dettaglio";
+  });
+
+  function makeCheckbox(rid, perm, label) {
+    return "<label><input type='checkbox' data-rid='" + rid + "' data-perm='" + perm + "'> " + label + "</label>";
+  }
+
+  function syncDetailCheckboxes(rid) {
+    const p = state.permessi[rid] || {};
+    ["can_view", "can_edit", "can_delete", "can_approve"].forEach(function (perm) {
+      const cb = permTbody.querySelector("input[data-rid='" + rid + "'][data-perm='" + perm + "']");
+      if (cb) cb.checked = !!p[perm];
+    });
+  }
+
+  function syncPresetSelect(rid) {
+    const p   = state.permessi[rid] || {};
+    const sel = permTbody.querySelector(".perm-preset-sel[data-rid='" + rid + "']");
+    if (!sel) return;
+    const key = matchPreset(p);
+    sel.value = key || "nessuno";
+  }
+
+  function matchPreset(p) {
+    for (const [k, v] of Object.entries(PERM_PRESETS)) {
+      if (v.can_view    === (p.can_view    || 0) &&
+          v.can_edit    === (p.can_edit    || 0) &&
+          v.can_delete  === (p.can_delete  || 0) &&
+          v.can_approve === (p.can_approve || 0)) return k;
+    }
+    return null;
+  }
+
+  // ── Pill riepilogo step 3 ────────────────────────────────────────────────
+  function buildRecap3() {
+    const el = document.getElementById("wiz-recap-3");
+    if (!el) return;
+    const p  = state.pulsante;
+    const ui = state.ui_meta;
+
+    function pill(label, value) {
+      if (!value) return "";
+      return "<span class='wiz-recap-pill'><span class='rpill-label'>" + esc(label) + "</span>&nbsp;<strong>" + esc(value) + "</strong></span>";
+    }
+
+    const slotLabels = { topbar: "Top bar", sidebar: "Sidebar", hidden: "Nascosta" };
+    const slotLabel  = slotLabels[ui.ui_slot] || ui.ui_slot || "—";
+
+    el.innerHTML =
+      pill("Codice",   p.codice) +
+      pill("Nome",     p.nome_visibile || p.codice) +
+      pill("Modulo",   p.modulo) +
+      pill("URL",      p.url) +
+      pill("Posizione", slotLabel + (ui.ui_section ? " › " + ui.ui_section : ""));
+  }
+
+  // ── Navigazione step ──────────────────────────────────────────────────────
+  function goToStep(n) {
+    if (n < 1 || n > TOTAL) return;
+    if (n > currentStep && !validateCurrentStep()) return;
+
+    // Aggiorna stato dati prima di cambiare step
+    if (currentStep === 1) collectStep1();
+    if (currentStep === 2) collectStep2();
+
+    // Aggiorna pannelli
+    document.querySelectorAll(".wizard-panel").forEach(function (el, i) {
+      el.classList.toggle("active", i + 1 === n);
+    });
+
+    // Aggiorna stepper
+    document.querySelectorAll("#wiz-steps-nav .wstep").forEach(function (el) {
+      const s = Number(el.dataset.step);
+      el.classList.toggle("active", s === n);
+      el.classList.toggle("done",   s < n);
+    });
+
+    currentStep = n;
+
+    // Se step 3: aggiorna pill riepilogo
+    if (n === 3) buildRecap3();
+
+    // Se step 4: genera riepilogo
+    if (n === 4) buildSummary();
+
+    // Bottoni
+    backBtn.disabled = (n === 1);
+    nextBtn.style.display = (n < TOTAL) ? "" : "none";
+    saveBtn.style.display = (n === TOTAL) ? ""  : "none";
+    actionsEl.style.display = (successMsg && !successMsg.hidden) ? "none" : "";
+  }
+
+  backBtn && backBtn.addEventListener("click", function () { goToStep(currentStep - 1); });
+  nextBtn && nextBtn.addEventListener("click", function () { goToStep(currentStep + 1); });
+
+  // ── Validazione step ──────────────────────────────────────────────────────
+  function validateCurrentStep() {
+    clearStatus();
+    if (currentStep === 1) {
+      const codice = (fCodice.value || "").trim();
+      const modulo = (fModulo.value || "").trim();
+      const url    = (fUrl.value    || "").trim();
+      if (!codice) { setStatus("Il campo Codice è obbligatorio.", true); fCodice.focus(); return false; }
+      if (!/^[a-zA-Z0-9_\-]+$/.test(codice)) { setStatus("Codice: usa solo lettere, numeri, _ e -", true); fCodice.focus(); return false; }
+      if (!modulo) { setStatus("Il campo Sezione/Modulo è obbligatorio.", true); fModulo.focus(); return false; }
+      if (!url)    { setStatus("Il campo URL/Route è obbligatorio.", true); fUrl.focus(); return false; }
+    }
+    return true;
+  }
+
+  // ── Raccolta dati dai form ─────────────────────────────────────────────────
+  function collectStep1() {
+    state.pulsante.codice       = (fCodice.value || "").trim();
+    state.pulsante.nome_visibile = (fNome.value  || "").trim();
+    state.pulsante.modulo       = (fModulo.value || "").trim();
+    state.pulsante.url          = (fUrl.value    || "").trim();
+    state.pulsante.icona        = (fIcona.value  || "").trim();
+  }
+
+  function collectStep2() {
+    state.ui_meta.ui_slot       = (fSlot.value    || "").trim();
+    state.ui_meta.ui_section    = (fSection.value || "").trim();
+    const ordVal                = parseInt(fOrder.value, 10);
+    state.ui_meta.ui_order      = isNaN(ordVal) ? null : ordVal;
+    state.ui_meta.visible_topbar = fTopbar.checked;
+    state.ui_meta.enabled       = fEnabled.checked;
+    state.ui_meta.is_padre      = fPadre ? fPadre.checked : false;
+  }
+
+  // ── Riepilogo (Step 4) ────────────────────────────────────────────────────
+  function buildSummary() {
+    const p  = state.pulsante;
+    const ui = state.ui_meta;
+    const el = document.getElementById("wiz-summary-content");
+    if (!el) return;
+
+    const boolChip = function (v) {
+      return "<span class='chip " + (v ? "on" : "off") + "'>" + (v ? "Sì" : "No") + "</span>";
+    };
+
+    let permsHtml = "<table class='summary-perm-table'>" +
+      "<thead><tr><th>Ruolo</th><th>View</th><th>Edit</th><th>Delete</th><th>Approve</th></tr></thead><tbody>";
+    RUOLI.forEach(function (r) {
+      const perm = state.permessi[r.id] || {};
+      const hasAny = perm.can_view || perm.can_edit || perm.can_delete || perm.can_approve;
+      if (!hasAny) return; // Skip ruoli senza permessi
+      permsHtml +=
+        "<tr><td>" + esc(r.nome) + "</td>" +
+        "<td>" + boolChip(perm.can_view)    + "</td>" +
+        "<td>" + boolChip(perm.can_edit)    + "</td>" +
+        "<td>" + boolChip(perm.can_delete)  + "</td>" +
+        "<td>" + boolChip(perm.can_approve) + "</td>" +
+        "</tr>";
+    });
+    permsHtml += "</tbody></table>";
+
+    const noPerms = !RUOLI.some(function (r) {
+      const perm = state.permessi[r.id] || {};
+      return perm.can_view || perm.can_edit || perm.can_delete || perm.can_approve;
+    });
+
+    el.innerHTML =
+      "<div class='summary-grid'>" +
+        srow("Codice",       "<code>" + esc(p.codice) + "</code>") +
+        srow("Nome visibile", esc(p.nome_visibile || "—")) +
+        srow("Modulo",       esc(p.modulo)) +
+        srow("URL",          "<code>" + esc(p.url) + "</code>") +
+        srow("Icona",        esc(p.icona || "—")) +
+        srow("Slot UI",      esc(ui.ui_slot || "—")) +
+        srow("Sezione UI",   esc(ui.ui_section || "—")) +
+        srow("Ordine UI",    ui.ui_order != null ? String(ui.ui_order) : "—") +
+        srow("Topbar",       boolChip(ui.visible_topbar)) +
+        srow("Attivo",       boolChip(ui.enabled)) +
+        srow("Modulo padre", boolChip(ui.is_padre)) +
+      "</div>" +
+      "<div style='margin-top:18px;'>" +
+        "<div style='font-size:13px;font-weight:600;margin-bottom:8px;'>Permessi ruolo</div>" +
+        (noPerms ? "<div class='cell-muted'>Nessun permesso configurato (il pulsante non sarà visibile ad alcun ruolo).</div>" : permsHtml) +
+      "</div>";
+  }
+
+  function srow(label, value) {
+    return "<div class='srow'><div class='slbl'>" + label + "</div><div class='sval'>" + value + "</div></div>";
+  }
+
+  // ── Salvataggio ───────────────────────────────────────────────────────────
+  saveBtn && saveBtn.addEventListener("click", async function () {
+    collectStep1();
+    collectStep2();
+    clearStatus();
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Salvataggio…";
+
+    const permessiPayload = RUOLI.map(function (r) {
+      const p = state.permessi[r.id] || {};
+      return {
+        ruolo_id:    r.id,
+        can_view:    p.can_view    || 0,
+        can_edit:    p.can_edit    || 0,
+        can_delete:  p.can_delete  || 0,
+        can_approve: p.can_approve || 0,
+      };
+    });
+
+    const payload = {
+      pulsante: state.pulsante,
+      ui_meta:  state.ui_meta,
+      permessi: permessiPayload,
+    };
+
+    try {
+      const resp = await fetch("{% url 'admin_portale:api_wizard_pulsante_submit' %}", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+        body: JSON.stringify(payload),
+      });
+      let data = {};
+      try { data = await resp.json(); } catch (e) {}
+      if (!resp.ok || !data.ok) throw new Error(data.error || ("HTTP " + resp.status));
+
+      // Successo
+      actionsEl.style.display = "none";
+      if (successMsg) successMsg.hidden = false;
+
+    } catch (err) {
+      setStatus("Errore: " + err.message, true);
+      saveBtn.disabled = false;
+      saveBtn.textContent = "✓ Salva pulsante";
+    }
+  });
+
+  // Crea un altro
+  newBtn && newBtn.addEventListener("click", function () {
+    window.location.reload();
+  });
+
+  // ── Utilities ─────────────────────────────────────────────────────────────
+  function setStatus(msg, isErr) {
+    if (!statusEl) return;
+    statusEl.textContent = msg;
+    statusEl.className = isErr ? "err" : "ok";
+  }
+  function clearStatus() { if (statusEl) { statusEl.textContent = ""; statusEl.className = ""; } }
+
+  function esc(str) {
+    return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  // ── Boot ──────────────────────────────────────────────────────────────────
+  goToStep(1);
+
+})();
+</script>
+{% endblock %}

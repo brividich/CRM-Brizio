@@ -1,0 +1,288 @@
+{% extends "core/base.html" %}
+
+{% block title %}Config SRV | Admin Portale{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Config SRV" page_subtitle="Pannello unico per configurare e testare i server LDAP / Active Directory e SMTP usando `config.ini`." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <div class="card" style="margin-bottom:10px;">
+    <div class="card-head">
+      <div class="card-title">Sync rapido utenti LDAP</div>
+      <div class="cell-muted">Azione diretta dalla pagina</div>
+    </div>
+    <div class="card-body admin-inline-actions">
+      <form method="post" style="display:inline;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="sync_users">
+        <input type="hidden" name="sync_dry_run" value="1">
+        <input type="hidden" name="sync_limit" value="20">
+        <button class="btn btn-secondary" type="submit">Sync utenti LDAP (dry-run 20)</button>
+      </form>
+      <form method="post" style="display:inline;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="sync_users">
+        <input type="hidden" name="sync_limit" value="0">
+        <button class="btn" type="submit">Sync utenti LDAP (reale)</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Configurazione attiva</div>
+      <div class="cell-muted">{% if ldap_cfg.enabled %}LDAP abilitato{% else %}LDAP disabilitato{% endif %}</div>
+    </div>
+    <div class="card-body">
+      <form method="post" class="admin-form-grid">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="test_connect">
+        <div class="field">
+          <label>Server LDAP</label>
+          <input class="input" type="text" name="server" value="{{ ldap_cfg.server }}">
+        </div>
+        <div class="field">
+          <label>Dominio (NetBIOS)</label>
+          <input class="input" type="text" name="domain" value="{{ ldap_cfg.domain }}">
+        </div>
+        <div class="field">
+          <label>UPN suffix</label>
+          <input class="input" type="text" name="upn_suffix" value="{{ ldap_cfg.upn_suffix }}">
+        </div>
+        <div class="field">
+          <label>Timeout (s)</label>
+          <input class="input" type="number" name="timeout" value="{{ ldap_cfg.timeout|default:5 }}">
+        </div>
+        <div class="field field-actions">
+          <button class="btn" type="submit">Test Connessione LDAP</button>
+        </div>
+      </form>
+      {% if result_connect %}
+        <div class="notice{% if result_connect.ok %} notice-success{% else %} notice-danger{% endif %}" style="margin-top:10px;">
+          {{ result_connect.message }}
+        </div>
+      {% endif %}
+      <div class="notice" style="margin-top:10px;">
+        <strong>Import utenti LDAP:</strong>
+        <div style="margin-top:6px;">
+          Service user: <code>{{ ldap_cfg.service_user|default:"(non configurato)" }}</code><br>
+          Base DN: <code>{{ ldap_cfg.base_dn|default:"(non configurato)" }}</code><br>
+          User filter: <code>{{ ldap_cfg.user_filter|default:"(non configurato)" }}</code><br>
+          Group allowlist: <code>{{ ldap_cfg.group_allowlist|default:"(vuota: importa tutti i gruppi)" }}</code><br>
+          Page size: <code>{{ ldap_cfg.sync_page_size }}</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    {% include "admin_portale/components/card_head.html" with card_title="Configurazione SMTP" card_subtitle="Connessione mail usata dal runtime automazioni e dalle notifiche via backend Django." %}
+    <div class="card-body">
+      <form method="post" class="admin-form-grid">
+        {% csrf_token %}
+        <div class="field">
+          <label>Server SMTP</label>
+          <input class="input" type="text" name="smtp_host" value="{{ smtp_cfg.host }}">
+        </div>
+        <div class="field">
+          <label>Porta</label>
+          <input class="input" type="number" name="smtp_port" value="{{ smtp_cfg.port|default:587 }}">
+        </div>
+        <div class="field">
+          <label>Username SMTP</label>
+          <input class="input" type="text" name="smtp_user" value="{{ smtp_cfg.user }}" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>Password SMTP</label>
+          <input class="input" type="password" name="smtp_password" value="" autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label>Default from email</label>
+          <input class="input" type="text" name="smtp_default_from_email" value="{{ smtp_cfg.default_from_email }}">
+        </div>
+        <div class="field">
+          <label>Destinatario test</label>
+          <input class="input" type="text" name="smtp_test_to" value="{{ smtp_cfg.test_to }}" placeholder="es. tuo.nome@azienda.it">
+        </div>
+        <div class="field">
+          <label>Timeout (s)</label>
+          <input class="input" type="number" name="smtp_timeout" value="{{ smtp_cfg.timeout|default:10 }}">
+        </div>
+        <div class="field field-checks">
+          <label class="checkline"><input type="checkbox" name="smtp_use_tls" {% if smtp_cfg.use_tls %}checked{% endif %}> Use TLS</label>
+          <label class="checkline"><input type="checkbox" name="smtp_use_ssl" {% if smtp_cfg.use_ssl %}checked{% endif %}> Use SSL</label>
+        </div>
+        <div class="field field-actions" style="gap:8px; display:flex; flex-wrap:wrap;">
+          <button class="btn btn-secondary" type="submit" name="action" value="test_smtp_connect">Test Connessione SMTP</button>
+          <button class="btn btn-secondary" type="submit" name="action" value="test_smtp_send">Invia Mail di Test</button>
+          <button class="btn" type="submit" name="action" value="save_smtp_config">Salva SMTP in config.ini</button>
+        </div>
+      </form>
+
+      <div class="notice" style="margin-top:10px;">
+        <strong>Stato corrente:</strong>
+        host <code>{{ smtp_cfg.host|default:"(non configurato)" }}</code>,
+        user <code>{{ smtp_cfg.user|default:"(non configurato)" }}</code>,
+        password {% if smtp_cfg.password_configured %}<strong>configurata</strong>{% else %}<strong>non configurata</strong>{% endif %},
+        from <code>{{ smtp_cfg.default_from_email|default:"(non configurato)" }}</code>
+      </div>
+
+      {% if result_smtp %}
+        <div class="notice{% if result_smtp.ok %} notice-success{% else %} notice-danger{% endif %}" style="margin-top:10px;">
+          {{ result_smtp.message }}
+        </div>
+      {% endif %}
+
+      <div class="cell-muted" style="margin-top:10px;">
+        Nota: se salvi la configurazione SMTP in <code>config.ini</code>, poi serve <strong>riavviare il server</strong>
+        per far rileggere i settings Django. Il test connessione qui sopra usa invece i valori del form, senza riavvio.
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    {% include "admin_portale/components/card_head.html" with card_title="Service Account (sync massiva)" card_subtitle="Account di servizio usato da sync_ldap_users per leggere tutti gli utenti da AD. Non serve per il login dei singoli utenti." %}
+    <div class="card-body">
+      {% if not ldap_cfg.service_user %}
+        <div class="notice notice-warning" style="margin-bottom:12px;">
+          Service account non configurato. La sync massiva da AD non e' disponibile finche' non vengono impostati username e password.
+        </div>
+      {% else %}
+        <div class="notice notice-success" style="margin-bottom:12px;">
+          Service account configurato: <strong>{{ ldap_cfg.service_user }}</strong>
+        </div>
+      {% endif %}
+
+      <form method="post" class="admin-form-grid">
+        {% csrf_token %}
+        <div class="field">
+          <label>Username service account (es. svc_ldap oppure svc_ldap@example.local)</label>
+          <input class="input" type="text" name="service_user" value="{{ ldap_cfg.service_user }}" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>Password service account</label>
+          <input class="input" type="password" name="service_password" value="" autocomplete="new-password">
+        </div>
+        <div class="field field-actions" style="gap:8px; display:flex; flex-wrap:wrap;">
+          <button class="btn btn-secondary" type="submit" name="action" value="test_service_bind">Testa bind service account</button>
+          <button class="btn" type="submit" name="action" value="save_service_account">Salva in config.ini</button>
+        </div>
+      </form>
+
+      {% if result_service %}
+        <div class="notice{% if result_service.ok %} notice-success{% else %} notice-danger{% endif %}" style="margin-top:10px;">
+          {{ result_service.message }}
+        </div>
+      {% endif %}
+
+      <div class="cell-muted" style="margin-top:10px;">
+        Nota: dopo aver salvato il service account e' necessario <strong>riavviare il server</strong> per applicare le credenziali.
+        In alternativa imposta <code>LDAP_SERVICE_USER</code> e <code>LDAP_SERVICE_PASSWORD</code> nel file <code>.env</code> senza riavvio.
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    {% include "admin_portale/components/card_head.html" with card_title="Import Utenti LDAP (CLI)" card_subtitle="Comandi pronti per import utenti + gruppi multipli in `auth_user` / `Profile` / tabella legacy `utenti`." %}
+    <div class="card-body">
+      <div class="notice">
+        <div><strong>Dry-run (consigliato):</strong></div>
+        <code>python manage.py sync_ldap_users --dry-run --limit 20</code>
+      </div>
+      <div class="notice" style="margin-top:10px;">
+        <div><strong>Import reale:</strong></div>
+        <code>python manage.py sync_ldap_users</code>
+      </div>
+      <div class="notice" style="margin-top:10px;">
+        <div><strong>Allineamento autoritativo gruppi allowlist:</strong></div>
+        <code>python manage.py sync_ldap_users --replace-allowlist-memberships</code>
+      </div>
+      <div class="cell-muted" style="margin-top:10px;">
+        Nota: il comando usa membership multipla (`memberOf`) e crea i gruppi Django mancanti.
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    {% include "admin_portale/components/card_head.html" with card_title="Sync Utenti LDAP (da pagina)" card_subtitle="Esegue `sync_ldap_users` direttamente dal pannello admin." %}
+    <div class="card-body">
+      <form method="post" class="admin-form-grid">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="sync_users">
+        <div class="field">
+          <label for="sync_limit">Limite utenti (0 = tutti)</label>
+          <input class="input" type="number" min="0" name="sync_limit" id="sync_limit" value="{{ ldap_cfg.sync_limit|default:0 }}">
+        </div>
+        <div class="field">
+          <label for="sync_group_allowlist">Override allowlist gruppi (CSV)</label>
+          <input class="input" type="text" name="sync_group_allowlist" id="sync_group_allowlist" value="{{ ldap_cfg.group_allowlist|default:'' }}" placeholder="CAR,AMMINISTRAZIONE,UTENTI">
+        </div>
+        <div class="field field-checks">
+          <label class="checkline"><input type="checkbox" name="sync_dry_run" {% if ldap_cfg.sync_dry_run %}checked{% endif %}> Dry run (nessuna modifica)</label>
+          <label class="checkline"><input type="checkbox" name="sync_replace_allowlist" {% if ldap_cfg.sync_replace_allowlist %}checked{% endif %}> Replace memberships allowlist</label>
+        </div>
+        <div class="field field-actions">
+          <button class="btn" type="submit">Sync utenti LDAP</button>
+        </div>
+      </form>
+      {% if sync_result %}
+        <div class="notice{% if sync_result.ok %} notice-success{% else %} notice-danger{% endif %}" style="margin-top:10px;">
+          {% if sync_result.ok %}
+            <strong>Sync completata.</strong>
+          {% else %}
+            <strong>Sync fallita:</strong> {{ sync_result.error }}
+          {% endif %}
+          {% if sync_result.output %}
+            <pre style="margin-top:8px; white-space:pre-wrap; font-size:12px;">{{ sync_result.output }}</pre>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    {% include "admin_portale/components/card_head.html" with card_title="Test Bind Utente" card_subtitle="Prova UPN e fallback <code>DOMINIO\\utente</code> (NTLM)" %}
+    <div class="card-body">
+      <form method="post" class="admin-form-grid">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="test_bind">
+        <div class="field">
+          <label>Server LDAP</label>
+          <input class="input" type="text" name="server" value="{{ ldap_cfg.server }}">
+        </div>
+        <div class="field">
+          <label>Dominio (NetBIOS)</label>
+          <input class="input" type="text" name="domain" value="{{ ldap_cfg.domain }}">
+        </div>
+        <div class="field">
+          <label>UPN suffix</label>
+          <input class="input" type="text" name="upn_suffix" value="{{ ldap_cfg.upn_suffix }}">
+        </div>
+        <div class="field">
+          <label>Timeout (s)</label>
+          <input class="input" type="number" name="timeout" value="{{ ldap_cfg.timeout|default:5 }}">
+        </div>
+        <div class="field">
+          <label>Username (es. mario.rossi oppure mario.rossi@dominio)</label>
+          <input class="input" type="text" name="bind_username" value="{{ bind_username|default:'' }}">
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input class="input" type="password" name="bind_password" value="">
+        </div>
+        <div class="field field-actions">
+          <button class="btn" type="submit">Test Bind</button>
+        </div>
+      </form>
+      {% if result_bind %}
+        <div class="notice{% if result_bind.ok %} notice-success{% else %} notice-danger{% endif %}" style="margin-top:10px;">
+          {{ result_bind.message }}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

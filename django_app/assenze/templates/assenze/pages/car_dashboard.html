@@ -1,0 +1,605 @@
+{% extends "core/base.html" %}
+
+{% block title %}Segnalazioni Reparto | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+  <style>
+    .table-wrap { overflow-x: auto; }
+    .gest-table { width: 100%; border-collapse: collapse; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .gest-table thead th { background: #1d4ed8; color: #fff; text-align: left; font-size: 12px; padding: 10px 12px; }
+    .gest-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+    .gest-table tbody tr:hover { background: #f8fafc; }
+    .state-approved { color: #166534; font-weight: 700; }
+    .state-waiting  { color: #92400e; font-weight: 700; }
+    .state-rejected { color: #b91c1c; font-weight: 700; }
+    .car-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 900px) { .car-grid { grid-template-columns: 1fr; } }
+    .count-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 0 6px;
+    }
+    .badge-warn { background: #fef3c7; color: #92400e; }
+    .badge-ok   { background: #dcfce7; color: #166534; }
+    .badge-info { background: #dbeafe; color: #1d4ed8; }
+    .tipo-pill {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: #e0e7ff;
+      color: #3730a3;
+    }
+    .action-row { display: flex; gap: 6px; flex-wrap: nowrap; }
+    .btn-approva { background: #16a34a; color: #fff; border: none; border-radius: 8px; padding: 4px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .btn-approva:hover { background: #15803d; }
+    .btn-rifiuta { background: #dc2626; color: #fff; border: none; border-radius: 8px; padding: 4px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .btn-rifiuta:hover { background: #b91c1c; }
+    .btn-approva:disabled, .btn-rifiuta:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-conferma-rifiuto { background: #b91c1c; color: #fff; border: none; border-radius: 8px; padding: 4px 14px; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .btn-conferma-rifiuto:hover { background: #991b1b; }
+    .btn-annulla { background: #e5e7eb; color: #374151; border: none; border-radius: 8px; padding: 4px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .btn-annulla:hover { background: #d1d5db; }
+    .note-row td { background: #fff7f7; padding: 10px 14px; border-bottom: 2px solid #fca5a5; }
+    .note-row textarea { width: 100%; min-height: 60px; padding: 6px 8px; font-size: 13px; border: 1px solid #fca5a5; border-radius: 8px; resize: vertical; box-sizing: border-box; }
+    .note-row .note-actions { margin-top: 6px; display: flex; gap: 6px; }
+    .note-pill { font-size: 11px; color: #7f1d1d; background: #fee2e2; border-radius: 6px; padding: 2px 7px; display: inline-block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cert-pill { font-size: 11px; color: #0f766e; background: #ccfbf1; border-radius: 6px; padding: 2px 7px; display: inline-block; margin-top: 4px; }
+    #car-status { padding: 6px 0; font-size: 13px; min-height: 20px; }
+    .text-danger { color: #dc2626; }
+    .text-warn { color: #92400e; }
+    .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .diag-chip {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 3px 9px;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+    .diag-ok { background: #dcfce7; color: #166534; }
+    .diag-warn { background: #fef3c7; color: #92400e; }
+    .diag-error { background: #fee2e2; color: #b91c1c; }
+  </style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "assenze/components/subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  <form id="car-csrf">{% csrf_token %}</form>
+
+  <div class="page-header">
+    <div class="page-h">Segnalazioni Reparto</div>
+    <div class="page-sub">
+      {% if is_admin_view %}
+        {% if pending_scope == "all" %}
+          Vista amministratore — tutte le richieste di assenza in attesa. Puoi approvare o rifiutare qualsiasi richiesta.
+        {% else %}
+          Vista amministratore (filtro personale) — richieste in attesa assegnate ai tuoi reparti.
+        {% endif %}
+      {% else %}
+        Vista Capo Reparto — richieste di assenza del tuo personale. Approva o rifiuta le segnalazioni in attesa.
+      {% endif %}
+    </div>
+    <div class="header-actions">
+      {% if show_diag %}
+        {% if is_admin_view and pending_scope == "all" %}
+          <a href="{% url 'assenze_car_dashboard' %}?scope=all" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#475569;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
+            Nascondi diagnostica
+          </a>
+        {% else %}
+          <a href="{% url 'assenze_car_dashboard' %}" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#475569;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
+            Nascondi diagnostica
+          </a>
+        {% endif %}
+      {% else %}
+        {% if is_admin_view and pending_scope == "all" %}
+          <a href="{% url 'assenze_car_dashboard' %}?scope=all&amp;diag=1" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#f59e0b;color:#111827;border-radius:8px;text-decoration:none;font-size:13px;font-weight:700;">
+            Diagnostica sync
+          </a>
+        {% else %}
+          <a href="{% url 'assenze_car_dashboard' %}?diag=1" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#f59e0b;color:#111827;border-radius:8px;text-decoration:none;font-size:13px;font-weight:700;">
+            Diagnostica sync
+          </a>
+        {% endif %}
+      {% endif %}
+      <a href="{% url 'assenze_car_export_csv' %}" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#16a34a;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
+        ⬇ Esporta CSV
+      </a>
+    </div>
+  </div>
+
+  {% if show_diag and capo_diag %}
+    <div class="card" style="margin-bottom:12px;border-left:4px solid #f59e0b;">
+      <div class="card-head">
+        <div class="card-title">Diagnostica assegnazione CAR</div>
+      </div>
+      <div class="card-body">
+        <div class="cell-muted" style="font-size:12px;margin-bottom:6px;">
+          Identita usata dal filtro:
+          <strong>{{ capo_diag.manager_name|default:"-" }}</strong>
+          {% if capo_diag.manager_email %} ({{ capo_diag.manager_email }}){% endif %}
+          {% if capo_diag.legacy_user_id %} - legacy_user_id={{ capo_diag.legacy_user_id }}{% endif %}
+        </div>
+        <div class="cell-muted" style="font-size:12px;margin-bottom:8px;">
+          Capi reparto trovati: <strong>{{ capo_diag.match_count }}</strong>
+        </div>
+        {% if capo_diag.matched %}
+          <div class="table-wrap">
+            <table class="gest-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Reparto</th>
+                  <th>Nome</th>
+                  <th>Email</th>
+                  <th>SP ID</th>
+                  <th>Utente ID</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for c in capo_diag.matched %}
+                  <tr>
+                    <td>{{ c.id|default:"-" }}</td>
+                    <td>{{ c.title|default:"-" }}</td>
+                    <td>{{ c.nome|default:"-" }}</td>
+                    <td>{{ c.indirizzo_email|default:"-" }}</td>
+                    <td>{{ c.sharepoint_item_id|default:"-" }}</td>
+                    <td>{{ c.utente_id|default:"-" }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="act-text text-danger" style="padding:8px 0;">
+            Nessun capo reparto associato al tuo utente con i criteri correnti.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+
+  {% if show_diag and sync_diag %}
+    <div class="card" style="margin-bottom:12px;border-left:4px solid #0f766e;">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Diagnostica sincronizzazione SharePoint</div>
+          <div class="cell-muted" style="font-size:12px;">
+            Controllati {{ sync_diag.checked_count }} record.
+            Allineati: <strong>{{ sync_diag.ok_count }}</strong>,
+            avvisi: <strong>{{ sync_diag.warn_count }}</strong>,
+            errori: <strong>{{ sync_diag.error_count }}</strong>.
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        {% if not sync_diag.enabled %}
+          <div class="act-text text-warn" style="padding:8px 0;">
+            Diagnostica SharePoint non disponibile: sincronizzazione non configurata.
+          </div>
+        {% elif sync_diag.rows %}
+          <div class="table-wrap">
+            <table class="gest-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>SP ID</th>
+                  <th>Dipendente</th>
+                  <th>Locale</th>
+                  <th>SP Consenso</th>
+                  <th>SP Moderation</th>
+                  <th>Stato letto dal portale</th>
+                  <th>Esito</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in sync_diag.rows %}
+                  <tr>
+                    <td>{{ r.id }}</td>
+                    <td>{{ r.sharepoint_item_id|default:"-" }}</td>
+                    <td>
+                      <div>{{ r.dipendente }}</div>
+                      <div class="cell-muted" style="font-size:11px;">{{ r.inizio_label }} {% if r.fine_label %}→ {{ r.fine_label }}{% endif %}</div>
+                    </td>
+                    <td>{{ r.local_status_label }}</td>
+                    <td>{{ r.sp_consenso_field }}</td>
+                    <td>{{ r.sp_moderation_label }}</td>
+                    <td>{{ r.sp_resolved_status }}</td>
+                    <td>
+                      <span class="diag-chip diag-{{ r.level }}">{{ r.diagnostic }}</span>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="act-text" style="padding:8px 0;">
+            Nessun record disponibile per la diagnostica di sync.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+
+  <div id="car-status"></div>
+
+  {# ─── DA GESTIRE ─── #}
+  <div class="card" style="margin-bottom: 14px;">
+    <div class="card-head">
+      <div>
+        <div class="card-title">
+          Richieste in attesa
+          {% if da_gestire %}
+            <span class="count-badge badge-warn">{{ da_gestire|length }}</span>
+          {% else %}
+            <span class="count-badge badge-ok">0</span>
+          {% endif %}
+        </div>
+        <div class="cell-muted" style="font-size:12px;">
+          {% if is_admin_view %}
+            {% if pending_scope == "all" %}
+              Tutte le assenze in attesa di approvazione.
+            {% else %}
+              Solo assenze in attesa della tua decisione (assegnate ai tuoi reparti).
+            {% endif %}
+          {% else %}
+            Assenze del tuo reparto in attesa della tua decisione.
+          {% endif %}
+          Premi <strong>Approva</strong> o <strong>Rifiuta</strong> su ciascuna riga.
+        </div>
+      </div>
+      {% if is_admin_view %}
+        <div style="display:flex;gap:8px;align-items:center;">
+          <a class="btn btn-secondary btn-sm{% if pending_scope != 'all' %} active{% endif %}" href="{% url 'assenze_car_dashboard' %}">In attesa mie</a>
+          <a class="btn btn-secondary btn-sm{% if pending_scope == 'all' %} active{% endif %}" href="{% url 'assenze_car_dashboard' %}?scope=all">Tutte in attesa</a>
+        </div>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      {% if da_gestire %}
+        <div class="table-wrap">
+          <table class="gest-table" id="table-da-gestire">
+            <thead>
+              <tr>
+                <th>Dipendente</th>
+                <th>Tipo</th>
+                <th>Dal</th>
+                <th>Al</th>
+                <th>Motivo</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in da_gestire %}
+                <tr data-id="{{ r.id }}">
+                  <td>{{ r.dipendente }}</td>
+                  <td><span class="tipo-pill">{{ r.tipo }}</span></td>
+                  <td>{{ r.inizio_label }}</td>
+                  <td>{{ r.fine_label }}</td>
+                  <td>{{ r.motivo|default:'—' }}</td>
+                  <td>
+                    <div class="action-row">
+                      <button class="btn-approva" data-id="{{ r.id }}" data-action="Approvato" title="Approva questa richiesta">Approva</button>
+                      <button class="btn-rifiuta" data-id="{{ r.id }}" data-action="Rifiutato" title="Inserisci il motivo del rifiuto">Rifiuta</button>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="act-text" style="padding: 12px 0;">Nessuna richiesta in attesa. Ottimo!</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ─── OGGI + SETTIMANA in griglia ─── #}
+  <div class="car-grid" style="margin-bottom: 14px;">
+
+    {# Oggi #}
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">
+            Assenze oggi
+            {% if riepilogo_oggi %}
+              <span class="count-badge badge-info">{{ riepilogo_oggi|length }}</span>
+            {% endif %}
+          </div>
+          <div class="cell-muted" style="font-size:12px;">{{ data_oggi }}</div>
+        </div>
+      </div>
+      <div class="card-body">
+        {% if riepilogo_oggi %}
+          <div class="table-wrap">
+            <table class="gest-table">
+              <thead>
+                <tr>
+                  <th>Dipendente</th>
+                  <th>Tipo</th>
+                  <th>Dal</th>
+                  <th>Al</th>
+                  <th>Stato</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in riepilogo_oggi %}
+                  {% with cl=r.consenso|lower %}
+                  <tr>
+                    <td>{{ r.dipendente }}</td>
+                    <td><span class="tipo-pill">{{ r.tipo }}</span></td>
+                    <td>{{ r.inizio_label }}</td>
+                    <td>{{ r.fine_label }}</td>
+                    <td>
+                      {% if "approv" in cl %}<span class="state-approved">{{ r.consenso }}</span>
+                      {% elif "rifiut" in cl %}<span class="state-rejected">{{ r.consenso }}</span>
+                      {% else %}<span class="state-waiting">{{ r.consenso }}</span>{% endif %}
+                    </td>
+                  </tr>
+                  {% endwith %}
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="act-text" style="padding: 12px 0;">Nessuna assenza registrata per oggi.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Settimana #}
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">
+            Questa settimana
+            {% if riepilogo_settimana %}
+              <span class="count-badge badge-info">{{ riepilogo_settimana|length }}</span>
+            {% endif %}
+          </div>
+          <div class="cell-muted" style="font-size:12px;">{{ data_lunedi }} — {{ data_domenica }}</div>
+        </div>
+      </div>
+      <div class="card-body" style="max-height: 380px; overflow: auto;">
+        {% if riepilogo_settimana %}
+          <div class="table-wrap">
+            <table class="gest-table">
+              <thead>
+                <tr>
+                  <th>Dipendente</th>
+                  <th>Tipo</th>
+                  <th>Dal</th>
+                  <th>Al</th>
+                  <th>Stato</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in riepilogo_settimana %}
+                  {% with cl=r.consenso|lower %}
+                  <tr>
+                    <td>{{ r.dipendente }}</td>
+                    <td><span class="tipo-pill">{{ r.tipo }}</span></td>
+                    <td>{{ r.inizio_label }}</td>
+                    <td>{{ r.fine_label }}</td>
+                    <td>
+                      {% if "approv" in cl %}<span class="state-approved">{{ r.consenso }}</span>
+                      {% elif "rifiut" in cl %}<span class="state-rejected">{{ r.consenso }}</span>
+                      {% else %}<span class="state-waiting">{{ r.consenso }}</span>{% endif %}
+                    </td>
+                  </tr>
+                  {% endwith %}
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="act-text" style="padding: 12px 0;">Nessuna assenza registrata per questa settimana.</div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>{# /car-grid #}
+
+  {# ─── GIÀ GESTITE ─── #}
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <div class="card-title">
+          Ultime gestite
+          {% if gestite %}
+            <span class="count-badge badge-ok">{{ gestite|length }}</span>
+          {% endif %}
+        </div>
+        <div class="cell-muted" style="font-size:12px;">
+          {% if is_admin_view %}Ultime {{ gestite|length }} richieste approvate o rifiutate.{% else %}Ultime richieste del tuo reparto che hai già gestito.{% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      {% if gestite %}
+        <div class="table-wrap">
+          <table class="gest-table">
+            <thead>
+              <tr>
+                <th>Dipendente</th>
+                <th>Tipo</th>
+                <th>Dal</th>
+                <th>Al</th>
+                <th>Esito</th>
+                <th>Motivo richiesta</th>
+                <th>Note rifiuto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in gestite %}
+                {% with cl=r.consenso|lower %}
+                <tr>
+                  <td>{{ r.dipendente }}</td>
+                  <td><span class="tipo-pill">{{ r.tipo }}</span></td>
+                  <td>{{ r.inizio_label }}</td>
+                  <td>{{ r.fine_label }}</td>
+                  <td>
+                    {% if "approv" in cl %}<span class="state-approved">{{ r.consenso }}</span>
+                    {% else %}<span class="state-rejected">{{ r.consenso }}</span>{% endif %}
+                  </td>
+                  <td>{{ r.motivo|default:'—' }}</td>
+                  <td>
+                    {% if r.note_gestione %}
+                      <span class="note-pill" title="{{ r.note_gestione }}">{{ r.note_gestione }}</span>
+                    {% else %}—{% endif %}
+                  </td>
+                </tr>
+                {% endwith %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="act-text" style="padding: 12px 0;">Nessuna segnalazione ancora gestita.</div>
+      {% endif %}
+    </div>
+  </div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (function () {
+      const csrf = document.querySelector("#car-csrf input[name='csrfmiddlewaretoken']")?.value || "";
+      const statusEl = document.getElementById("car-status");
+
+      function setStatus(text, isError) {
+        if (!statusEl) return;
+        statusEl.textContent = text || "";
+        statusEl.classList.toggle("text-danger", !!isError);
+        statusEl.classList.toggle("text-warn", !isError && (text || "").toLowerCase().includes("attenzione"));
+      }
+
+      async function postConsenso(itemId, consenso, noteGestione) {
+        const res = await fetch("/assenze/api/car/consenso/" + itemId, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+          body: JSON.stringify({ consenso: consenso, note_gestione: noteGestione || "" }),
+        });
+        const data = await res.json().catch(function () { return {}; });
+        if (!res.ok || !data.ok) throw new Error(data.error || ("HTTP " + res.status));
+        return data;
+      }
+
+      function formatSyncStatus(sync) {
+        if (!sync) return "";
+        if (sync.ok) {
+          const action = sync.action ? (sync.action + " ") : "";
+          const itemId = sync.sharepoint_item_id ? ("item " + sync.sharepoint_item_id) : "SharePoint";
+          return " Sync " + action + "ok su " + itemId + ".";
+        }
+        if (sync.reason === "not_configured") {
+          return " Sync SharePoint non configurata.";
+        }
+        return " Attenzione: sync SharePoint fallita" + (sync.error ? (": " + sync.error) : ".");
+      }
+
+      function removeRow(row) {
+        if (!row) return;
+        row.style.transition = "opacity 0.3s";
+        row.style.opacity = "0";
+        setTimeout(function () { row.remove(); }, 320);
+      }
+
+      function showNoteRow(btn) {
+        const row = btn.closest("tr[data-id]");
+        const itemId = btn.dataset.id;
+        if (!row) return;
+
+        // Rimuovi eventuale nota già aperta per questa riga
+        const existing = row.nextElementSibling;
+        if (existing && existing.classList.contains("note-row")) {
+          existing.remove();
+          btn.disabled = false;
+          btn.closest(".action-row")?.querySelectorAll("button").forEach(b => b.disabled = false);
+          return;
+        }
+
+        // Disabilita i bottoni della riga
+        row.querySelectorAll("button").forEach(b => b.disabled = true);
+
+        const colCount = row.querySelectorAll("td").length;
+        const noteRow = document.createElement("tr");
+        noteRow.classList.add("note-row");
+        noteRow.dataset.forId = itemId;
+        noteRow.innerHTML = `
+          <td colspan="${colCount}">
+            <div style="font-size:12px;font-weight:600;color:#b91c1c;margin-bottom:4px;">Motivo del rifiuto (opzionale):</div>
+            <textarea placeholder="Es: Periodo già coperto da un collega, organico insufficiente..."></textarea>
+            <div class="note-actions">
+              <button class="btn-conferma-rifiuto">Conferma rifiuto</button>
+              <button class="btn-annulla">Annulla</button>
+            </div>
+          </td>`;
+
+        row.after(noteRow);
+
+        noteRow.querySelector(".btn-annulla").addEventListener("click", function () {
+          noteRow.remove();
+          row.querySelectorAll("button").forEach(b => b.disabled = false);
+        });
+
+        noteRow.querySelector(".btn-conferma-rifiuto").addEventListener("click", async function () {
+          const note = noteRow.querySelector("textarea").value.trim();
+          this.disabled = true;
+          noteRow.querySelector(".btn-annulla").disabled = true;
+          try {
+            const data = await postConsenso(itemId, "Rifiutato", note);
+            const syncText = formatSyncStatus(data.sync);
+            setStatus("Richiesta rifiutata correttamente." + syncText, syncText.includes("Attenzione"));
+            noteRow.remove();
+            removeRow(row);
+          } catch (err) {
+            setStatus("Errore: " + err.message, true);
+            this.disabled = false;
+            noteRow.querySelector(".btn-annulla").disabled = false;
+          }
+        });
+      }
+
+      document.querySelectorAll(".btn-approva").forEach(function (btn) {
+        btn.addEventListener("click", async function () {
+          const itemId = btn.dataset.id;
+          const row = btn.closest("tr[data-id]");
+          row.querySelectorAll("button").forEach(b => b.disabled = true);
+          // Chiudi eventuale nota aperta per questa riga
+          const noteRow = row.nextElementSibling;
+          if (noteRow && noteRow.classList.contains("note-row")) noteRow.remove();
+          try {
+            const data = await postConsenso(itemId, "Approvato", "");
+            const syncText = formatSyncStatus(data.sync);
+            setStatus("Richiesta approvata correttamente." + syncText, syncText.includes("Attenzione"));
+            removeRow(row);
+          } catch (err) {
+            setStatus("Errore: " + err.message, true);
+            row.querySelectorAll("button").forEach(b => b.disabled = false);
+          }
+        });
+      });
+
+      document.querySelectorAll(".btn-rifiuta").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          showNoteRow(btn);
+        });
+      });
+    })();
+  </script>
+{% endblock %}

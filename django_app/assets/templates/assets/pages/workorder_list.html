@@ -1,0 +1,62 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Interventi{% endblock %}
+
+{% block assets_shell_title %}Interventi{% endblock %}
+{% block assets_shell_subtitle %}<p>Interventi aperti, chiusi o annullati.</p>{% endblock %}
+{% block assets_shell_toolbar %}
+  <a class="btn" href="{% url 'assets:asset_list' %}">Vai all'inventario</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section style="display:grid;gap:14px;">
+  <form method="get" class="as-form-grid-5" style="border:1px solid #dbe1ea;border-radius:14px;background:#fff;padding:12px;">
+    <div style="grid-column:span 2;">
+      <label>Ricerca</label>
+      <input type="text" name="q" value="{{ q_filter }}">
+    </div>
+    <div>
+      <label>Stato</label>
+      <select name="status">
+        <option value="">Tutti</option>
+        {% for code,label in status_choices %}
+          <option value="{{ code }}" {% if status_filter == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Tipo</label>
+      <select name="kind">
+        <option value="">Tutti</option>
+        {% for code,label in kind_choices %}
+          <option value="{{ code }}" {% if kind_filter == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="display:flex;align-items:flex-end;gap:8px;">
+      <button class="btn btn-primary" type="submit">Filtra</button>
+      <a class="btn" href="{% url 'assets:wo_list' %}">Reimposta</a>
+    </div>
+  </form>
+
+  <div style="display:grid;gap:8px;">
+    {% for wo in workorders %}
+      <article style="border:1px solid #dbe1ea;border-radius:12px;background:#fff;padding:12px;display:flex;justify-content:space-between;gap:8px;align-items:center;">
+        <div>
+          <div><strong>#{{ wo.id }} - {{ wo.title }}</strong></div>
+          <div style="font-size:13px;color:#64748b;">{{ wo.asset.asset_tag }} | {{ wo.asset.name }} | {{ wo.get_kind_display }} | {{ wo.get_status_display }}</div>
+          <div style="font-size:12px;color:#94a3b8;">Aperta: {{ wo.opened_at|date:"d/m/Y H:i" }} {% if wo.closed_at %}| Chiusa: {{ wo.closed_at|date:"d/m/Y H:i" }}{% endif %}</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <a class="btn" href="{% url 'assets:wo_view' wo.id %}">Apri</a>
+          {% if wo.status == 'OPEN' %}
+            <a class="btn btn-primary" href="{% url 'assets:wo_close' wo.id %}">Chiudi</a>
+          {% endif %}
+        </div>
+      </article>
+    {% empty %}
+      <div style="padding:14px;border:1px solid #dbe1ea;border-radius:12px;background:#fff;color:#64748b;">Nessun intervento trovato.</div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,455 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ page_title }} | Portale Applicativo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: 'Outfit', sans-serif;
+      font-size: 11px;
+      color: #0f172a;
+      background: #fff;
+      margin: 0;
+      padding: 20px 28px;
+    }
+
+    /* ── Header stampa ─────────────────────────────────────────────────────── */
+    .pdf-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      border-bottom: 2px solid #1d4ed8;
+      padding-bottom: 12px;
+      margin-bottom: 20px;
+    }
+    .pdf-logo {
+      font-size: 18px;
+      font-weight: 800;
+      color: #1d4ed8;
+      letter-spacing: -0.5px;
+    }
+    .pdf-logo span { color: #0f172a; }
+    .pdf-title { font-size: 16px; font-weight: 800; color: #0f172a; margin-bottom: 2px; }
+    .pdf-subtitle { font-size: 11px; color: #64748b; }
+    .pdf-meta { text-align: right; font-size: 10px; color: #94a3b8; }
+
+    /* ── Grid 2 colonne ─────────────────────────────────────────────────────── */
+    .pdf-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    /* ── Widget card ────────────────────────────────────────────────────────── */
+    .pdf-widget {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      overflow: hidden;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .pdf-widget-head {
+      background: #f8fafc;
+      padding: 8px 12px;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 11px;
+      font-weight: 700;
+      color: #1e293b;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .pdf-widget-body { padding: 10px 12px; }
+
+    /* ── Profilo ────────────────────────────────────────────────────────────── */
+    .pdf-profilo-wrap {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .pdf-avatar {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 800;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .pdf-profilo-name { font-size: 14px; font-weight: 800; margin-bottom: 2px; }
+    .pdf-profilo-role { font-size: 11px; color: #64748b; margin-bottom: 6px; }
+    .pdf-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+    .pdf-badge {
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 600;
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+    .pdf-badge.green { background: #f0fdf4; color: #16a34a; }
+    .pdf-badge.gray { background: #f1f5f9; color: #475569; }
+    .pdf-badge.purple { background: #faf5ff; color: #7c3aed; }
+
+    /* ── Stats ──────────────────────────────────────────────────────────────── */
+    .pdf-stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+    .pdf-stat-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 8px 4px;
+      text-align: center;
+    }
+    .pdf-stat-val { font-size: 20px; font-weight: 800; color: #0f172a; line-height: 1; }
+    .pdf-stat-val.blue { color: #2563eb; }
+    .pdf-stat-val.yellow { color: #ca8a04; }
+    .pdf-stat-val.green { color: #16a34a; }
+    .pdf-stat-val.red { color: #dc2626; }
+    .pdf-stat-lbl { font-size: 9px; font-weight: 600; color: #94a3b8; text-transform: uppercase; margin-top: 2px; }
+
+    /* ── Liste ──────────────────────────────────────────────────────────────── */
+    table.pdf-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10px;
+    }
+    table.pdf-table th {
+      text-align: left;
+      font-weight: 700;
+      color: #475569;
+      font-size: 9px;
+      text-transform: uppercase;
+      padding: 4px 6px;
+      border-bottom: 1px solid #e2e8f0;
+      background: #f8fafc;
+    }
+    table.pdf-table td {
+      padding: 5px 6px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: top;
+    }
+    table.pdf-table tr:last-child td { border-bottom: none; }
+
+    .pdf-tag {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 999px;
+      font-size: 9px;
+      font-weight: 700;
+      background: #f1f5f9;
+      color: #475569;
+    }
+    .pdf-tag.approvato { background: #f0fdf4; color: #15803d; }
+    .pdf-tag.attesa { background: #fefce8; color: #92400e; }
+    .pdf-tag.rifiutato { background: #f1f5f9; color: #94a3b8; }
+    .pdf-tag.overdue { background: #fef2f2; color: #dc2626; }
+    .pdf-tag.todo { background: #eff6ff; color: #1d4ed8; }
+    .pdf-tag.inprogress { background: #fefce8; color: #92400e; }
+    .pdf-tag.open { background: #fef2f2; color: #dc2626; }
+    .pdf-tag.closed { background: #f0fdf4; color: #15803d; }
+
+    .pdf-empty { color: #94a3b8; font-style: italic; font-size: 10px; padding: 4px 0; }
+
+    /* ── Footer ─────────────────────────────────────────────────────────────── */
+    .pdf-footer {
+      margin-top: 24px;
+      padding-top: 10px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 9px;
+      color: #94a3b8;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* ── Widget full-width ──────────────────────────────────────────────────── */
+    .pdf-widget.full { grid-column: 1 / -1; }
+
+    @page {
+      margin: 15mm;
+    }
+    @media print {
+      body { padding: 0; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="pdf-header">
+    <div>
+      <div class="pdf-logo">PORTALE<span> APP</span></div>
+      <div class="pdf-title">{{ display_name }}</div>
+      <div class="pdf-subtitle">Scheda Infografica Dipendente</div>
+    </div>
+    <div class="pdf-meta">
+      Generato il {{ now }}<br>
+      {% if legacy_user %}<span>Ruolo: {{ legacy_user.ruolo|default:"—" }}</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="no-print" style="margin-bottom:16px;display:flex;gap:8px;">
+    <button onclick="window.print()" style="padding:8px 16px;background:#1d4ed8;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600;">
+      &#128196; Stampa / Salva PDF
+    </button>
+    <a href="{% url 'employee_board' %}" style="padding:8px 16px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;text-decoration:none;font-weight:600;">
+      &larr; Torna alla scheda
+    </a>
+  </div>
+
+  <div class="pdf-grid">
+
+    {% for w in ordered_widgets %}
+
+      {% if w.id == "profilo" %}
+      <div class="pdf-widget">
+        <div class="pdf-widget-head">{{ w.icon }} {{ w.title }}</div>
+        <div class="pdf-widget-body">
+          {% with d=widget_data.profilo %}
+          <div class="pdf-profilo-wrap">
+            <div class="pdf-avatar">{{ d.nome|slice:":1"|upper }}{% if not d.nome %}?{% endif %}</div>
+            <div>
+              <div class="pdf-profilo-name">{{ d.nome|default:"—" }}</div>
+              <div class="pdf-profilo-role">{{ d.ruolo|default:"—" }}</div>
+              <div class="pdf-badges">
+                {% if d.mansione %}<span class="pdf-badge">{{ d.mansione }}</span>{% endif %}
+                {% if d.reparto %}<span class="pdf-badge green">{{ d.reparto }}</span>{% endif %}
+                {% if d.macchina %}<span class="pdf-badge purple">{{ d.macchina }}</span>{% endif %}
+                {% if d.telefono %}<span class="pdf-badge gray">Tel: {{ d.telefono }}</span>{% endif %}
+                {% if d.cellulare %}<span class="pdf-badge gray">Cell: {{ d.cellulare }}</span>{% endif %}
+                {% if d.email_notifica %}<span class="pdf-badge gray">{{ d.email_notifica }}</span>{% endif %}
+              </div>
+            </div>
+          </div>
+          {% endwith %}
+        </div>
+      </div>
+
+      {% elif w.id == "tasks_stats" %}
+      <div class="pdf-widget">
+        <div class="pdf-widget-head">{{ w.icon }} {{ w.title }}</div>
+        <div class="pdf-widget-body">
+          {% with d=widget_data.tasks_stats %}
+          <div class="pdf-stats-row">
+            <div class="pdf-stat-box">
+              <div class="pdf-stat-val blue">{{ d.stats.todo|default:0 }}</div>
+              <div class="pdf-stat-lbl">Da fare</div>
+            </div>
+            <div class="pdf-stat-box">
+              <div class="pdf-stat-val yellow">{{ d.stats.in_progress|default:0 }}</div>
+              <div class="pdf-stat-lbl">In corso</div>
+            </div>
+            <div class="pdf-stat-box">
+              <div class="pdf-stat-val green">{{ d.stats.done|default:0 }}</div>
+              <div class="pdf-stat-lbl">Completati</div>
+            </div>
+            <div class="pdf-stat-box">
+              <div class="pdf-stat-val red">{{ d.stats.overdue|default:0 }}</div>
+              <div class="pdf-stat-lbl">Scaduti</div>
+            </div>
+          </div>
+          {% endwith %}
+        </div>
+      </div>
+
+      {% elif w.id == "tasks_assegnati" %}
+      <div class="pdf-widget full">
+        <div class="pdf-widget-head">{{ w.icon }} {{ w.title }}</div>
+        <div class="pdf-widget-body">
+          {% with d=widget_data.tasks_assegnati %}
+          {% if d.items %}
+          <table class="pdf-table">
+            <thead>
+              <tr>
+                <th>Task</th>
+                <th>Progetto</th>
+                <th>Scadenza</th>
+                <th>Stato</th>
+                <th>Priorita</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for t in d.items %}
+              <tr>
+                <td>{{ t.title }}</td>
+                <td>{{ t.project|default:"—" }}</td>
+                <td>{{ t.due_date|default:"—" }}</td>
+                <td>
+                  {% if t.is_overdue %}<span class="pdf-tag overdue">Scaduto</span>
+                  {% else %}<span class="pdf-tag {% if t.status == 'TODO' %}todo{% elif t.status == 'IN_PROGRESS' %}inprogress{% endif %}">{{ t.status_label }}</span>
+                  {% endif %}
+                </td>
+                <td><span class="pdf-tag">{{ t.priority_label }}</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="pdf-empty">Nessun task aperto assegnato</div>
+          {% endif %}
+          {% endwith %}
+        </div>
+      </div>
+
+      {% elif w.id == "assenze_future" %}
+      <div class="pdf-widget">
+        <div class="pdf-widget-head">{{ w.icon }} {{ w.title }}</div>
+        <div class="pdf-widget-body">
+          {% with items=widget_data.assenze_future %}
+          {% if items %}
+          <table class="pdf-table">
+            <thead><tr><th>Tipo</th><th>Dal</th><th>Al</th><th>Stato</th></tr></thead>
+            <tbody>
+              {% for a in items %}
+              <tr>
+                <td>{{ a.tipo }}</td>
+                <td>{{ a.inizio }}</td>
+                <td>{{ a.fine }}</td>
+                <td><span class="pdf-tag {% if a.stato == 'Approvato' %}approvato{% elif a.stato == 'Rifiutato' %}rifiutato{% else %}attesa{% endif %}">{{ a.stato }}</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="pdf-empty">Nessuna assenza programmata</div>
+          {% endif %}
+          {% endwith %}
+        </div>
+      </div>
+
+      {% elif w.id == "assenze_da_approvare" %}
+      <div class="pdf-widget">
+        <div class="pdf-widget-head">{{ w.icon }} {{ w.title }}</div>
+        <div class="pdf-widget-body">
+          {% with items=widget_data.assenze_da_approvare %}
+          {% if items %}
+          <table class="pdf-table">
+            <thead><tr><th>Dipendente</th><th>Tipo</th><th>Dal</th><th>Al</th></tr></thead>
+            <tbody>
+              {% for a in items %}
+              <tr>
+                <td>{{ a.dipendente }}</td>
+                <td>{{ a.tipo }}</td>
+                <td>{{ a.inizio_label }}</td>
+                <td>{{ a.fine_label }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="pdf-empty">Nessuna richiesta in attesa</div>
+          {% endif %}
+          {% endwith %}
+        </div>
+      </div>
+
+      {% elif w.id == "progetti_capo" %}
+      <div class="pdf-widget">
+        <div class="pdf-widget-head">{{ w.icon }} {{ w.title }}</div>
+        <div class="pdf-widget-body">
+          {% with items=widget_data.progetti_capo %}
+          {% if items %}
+          <table class="pdf-table">
+            <thead><tr><th>Progetto</th><th>Cliente</th><th>P/N</th><th>PM</th></tr></thead>
+            <tbody>
+              {% for p in items %}
+              <tr>
+                <td>{{ p.name }}</td>
+                <td>{{ p.client|default:"—" }}</td>
+                <td>{{ p.part_number|default:"—" }}</td>
+                <td>{{ p.manager|default:"—" }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="pdf-empty">Nessun progetto come capo commessa</div>
+          {% endif %}
+          {% endwith %}
+        </div>
+      </div>
+
+      {% elif w.id == "anomalie_gestione" %}
+      <div class="pdf-widget">
+        <div class="pdf-widget-head">{{ w.icon }} {{ w.title }}</div>
+        <div class="pdf-widget-body">
+          {% with items=widget_data.anomalie_gestione %}
+          {% if items %}
+          <table class="pdf-table">
+            <thead><tr><th>Seriale</th><th>Operatore</th><th>Avanzamento</th><th>Stato</th></tr></thead>
+            <tbody>
+              {% for a in items %}
+              <tr>
+                <td>{{ a.seriale|default:"—" }}</td>
+                <td>{{ a.operatore|default:"—" }}</td>
+                <td>{{ a.avanzamento }}</td>
+                <td><span class="pdf-tag {% if not a.chiusa %}open{% else %}closed{% endif %}">{% if not a.chiusa %}Aperta{% else %}Chiusa{% endif %}</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="pdf-empty">Nessuna anomalia da gestire</div>
+          {% endif %}
+          {% endwith %}
+        </div>
+      </div>
+
+      {% elif w.id == "notifiche" %}
+      <div class="pdf-widget">
+        <div class="pdf-widget-head">{{ w.icon }} {{ w.title }}</div>
+        <div class="pdf-widget-body">
+          {% with items=widget_data.notifiche %}
+          {% if items %}
+          <table class="pdf-table">
+            <thead><tr><th>Messaggio</th><th>Tipo</th><th>Data</th><th>Letta</th></tr></thead>
+            <tbody>
+              {% for n in items %}
+              <tr>
+                <td>{{ n.messaggio|truncatechars:60 }}</td>
+                <td>{{ n.tipo_label }}</td>
+                <td>{{ n.data }}</td>
+                <td>{% if n.letta %}Si{% else %}No{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="pdf-empty">Nessuna notifica</div>
+          {% endif %}
+          {% endwith %}
+        </div>
+      </div>
+
+      {% endif %}
+
+    {% endfor %}
+
+  </div>
+
+  <div class="pdf-footer">
+    <span>Portale Applicativo &mdash; Documento di riferimento</span>
+    <span>Generato il {{ now }}</span>
+  </div>
+
+  <script>
+    // Auto-stampa quando si arriva dalla pagina infografica con ?autoprint=1
+    if (new URLSearchParams(location.search).get("autoprint") === "1") {
+      window.addEventListener("load", () => setTimeout(() => window.print(), 400));
+    }
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,487 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Macchine di lavoro{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.wm-page { display:grid; gap:16px; }
+.wm-kpis { display:grid; gap:10px; grid-template-columns:repeat(4, minmax(0, 1fr)); }
+.wm-kpi { border:1px solid #dbe1ea; border-radius:14px; background:#fff; padding:14px 16px; box-shadow:0 2px 8px rgba(15, 23, 42, .05); }
+.wm-kpi-label { font-size:11px; color:#64748b; text-transform:uppercase; font-weight:700; letter-spacing:.05em; }
+.wm-kpi-value { margin-top:8px; font-size:34px; font-weight:800; color:#0f172a; line-height:1; }
+.wm-kpi-meta { margin-top:4px; color:#64748b; font-size:12px; }
+.wm-card { border:1px solid #dbe1ea; border-radius:14px; background:#fff; overflow:hidden; }
+.wm-card-head { padding:14px 16px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.wm-card-head h2 { margin:0; font-size:24px; color:#0f172a; }
+.wm-card-head p { margin:0; color:#64748b; font-size:13px; }
+.wm-card-body { padding:16px; display:grid; gap:14px; }
+.wm-filters-grid { display:grid; gap:10px; grid-template-columns:repeat(5, minmax(0, 1fr)); }
+.wm-checks { display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+.wm-checks label { display:inline-flex; align-items:center; gap:6px; color:#334155; font-size:13px; font-weight:600; }
+.wm-filter-actions { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+.wm-columns { border-top:1px solid #e5e7eb; padding-top:12px; }
+.wm-columns summary { cursor:pointer; font-size:13px; color:#475569; font-weight:700; }
+.wm-columns-grid { margin-top:10px; display:grid; gap:8px; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); }
+.wm-columns-grid label { display:flex; align-items:center; gap:6px; color:#334155; font-size:12px; font-weight:600; }
+.wm-reparti { display:flex; gap:8px; flex-wrap:wrap; }
+.wm-chip { border:1px solid #dbeafe; background:#eff6ff; color:#1d4ed8; border-radius:999px; padding:5px 10px; font-size:12px; font-weight:700; text-decoration:none; }
+.wm-chip.active { background:#1d4ed8; border-color:#1d4ed8; color:#fff; }
+.wm-table-wrap { overflow:auto; }
+.wm-table { width:100%; min-width:1480px; border-collapse:collapse; }
+.wm-table th, .wm-table td { padding:8px 9px; border-bottom:1px solid #eef2f7; text-align:left; vertical-align:middle; }
+.wm-table td { font-size:13px; line-height:1.25; }
+.wm-table th { background:#f8fafc; font-size:10px; text-transform:uppercase; color:#64748b; letter-spacing:.05em; }
+.wm-row { cursor:pointer; }
+.wm-row:hover { background:#f8fbff; }
+.wm-col-hidden { display:none !important; }
+.wm-machine-title { font-size:13px; font-weight:700; color:#0f172a; line-height:1.2; }
+.wm-machine-sub { margin-top:2px; color:#64748b; font-size:11px; line-height:1.2; }
+.wm-status { display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:3px 8px; font-size:11px; font-weight:700; }
+.wm-status.ok { background:#dcfce7; color:#15803d; }
+.wm-status.warn { background:#fef3c7; color:#a16207; }
+.wm-status.danger { background:#fee2e2; color:#b91c1c; }
+.wm-status.idle { background:#e2e8f0; color:#475569; }
+.wm-flag { display:inline-flex; align-items:center; justify-content:center; min-width:30px; border-radius:999px; padding:3px 7px; font-size:11px; font-weight:700; }
+.wm-flag.yes { background:#dbeafe; color:#1d4ed8; }
+.wm-flag.no { background:#e2e8f0; color:#64748b; }
+.wm-actions { display:flex; gap:6px; align-items:center; }
+.wm-link { color:#1d4ed8; text-decoration:none; font-weight:700; font-size:11px; }
+.wm-link.secondary { color:#475569; }
+.wm-footer { padding:12px 16px; color:#64748b; font-size:12px; display:flex; justify-content:space-between; gap:10px; align-items:center; border-top:1px solid #e5e7eb; flex-wrap:wrap; }
+.wm-pager, .wm-rows { display:flex; gap:6px; align-items:center; }
+.wm-page-link { border:1px solid #dbe1ea; border-radius:8px; background:#fff; color:#475569; padding:4px 8px; min-width:28px; text-align:center; text-decoration:none; font-weight:700; }
+.wm-page-link.active { background:#1d4ed8; border-color:#1d4ed8; color:#fff; }
+.wm-page-link.disabled { opacity:.45; pointer-events:none; }
+@media (max-width: 1200px) {
+  .wm-kpis { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  .wm-filters-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .wm-kpis, .wm-filters-grid { grid-template-columns:1fr; }
+  .wm-filter-actions, .wm-footer { align-items:flex-start; }
+}
+/* Mappa inline */
+.wm-map-details summary { list-style:none; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; cursor:pointer; border-bottom:1px solid transparent; }
+.wm-map-details summary::-webkit-details-marker { display:none; }
+.wm-map-details[open] summary { border-bottom-color:#e5e7eb; }
+.wm-map-details summary h2 { margin:0; font-size:24px; color:#0f172a; }
+.wm-map-details summary p { margin:0; color:#64748b; font-size:13px; }
+.wm-map-toggle { font-size:12px; font-weight:700; color:#64748b; white-space:nowrap; }
+.wm-map-body { display:grid; gap:0; grid-template-columns:1.6fr .9fr; }
+.wm-map-stage-wrap { padding:16px; background:linear-gradient(180deg,#f8fbff,#eef4ff); border-right:1px solid #e5e7eb; }
+.wm-map-stage { position:relative; border-radius:14px; overflow:hidden; background:#dbe7f7; border:1px solid #d5e0f0; }
+.wm-map-stage img { display:block; width:100%; height:auto; }
+.wm-map-overlay { position:absolute; inset:0; }
+.wm-map-area { position:absolute; border:2px solid var(--area-color,#2563EB); background:var(--area-bg,rgba(37,99,235,0.22)); border-radius:12px; cursor:pointer; transition:transform .12s ease,box-shadow .12s ease; }
+.wm-map-area:hover,.wm-map-area.is-active { background:var(--area-bg-active,rgba(37,99,235,0.40)); box-shadow:0 8px 20px rgba(37,99,235,.18); }
+.wm-map-area-label { position:absolute; left:8px; top:8px; right:8px; display:flex; justify-content:space-between; gap:6px; align-items:flex-start; pointer-events:none; }
+.wm-map-area-name { background:rgba(15,23,42,.78); color:#fff; border-radius:999px; padding:4px 8px; font-size:11px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:calc(100% - 36px); }
+.wm-map-area-count { background:#fff; color:#0f172a; border-radius:999px; padding:4px 7px; font-size:10px; font-weight:800; }
+.wm-map-pin { position:absolute; width:14px; height:14px; border-radius:999px; border:none; transform:translate(-50%,-50%); background:#dc2626; box-shadow:0 0 0 3px rgba(255,255,255,.9),0 6px 12px rgba(15,23,42,.18); cursor:pointer; }
+.wm-map-pin.is-active { box-shadow:0 0 0 3px rgba(255,255,255,.95),0 0 0 7px rgba(220,38,38,.25); }
+.wm-map-sidebar { padding:14px; display:grid; gap:10px; align-content:start; }
+.wm-map-side-title { margin:0; font-size:18px; font-weight:800; color:#0f172a; }
+.wm-map-side-sub { margin:2px 0 0; color:#64748b; font-size:12px; }
+.wm-map-pills { display:flex; flex-wrap:wrap; gap:6px; }
+.wm-map-pill { border-radius:999px; padding:4px 9px; background:#eff6ff; color:#1d4ed8; font-size:11px; font-weight:800; }
+.wm-map-machine-list { display:grid; gap:8px; }
+.wm-map-machine-card { border:1px solid #e2e8f0; border-radius:12px; padding:10px 12px; background:#fff; }
+.wm-map-machine-name { font-size:13px; font-weight:800; color:#0f172a; }
+.wm-map-machine-tag { color:#475569; font-size:11px; font-weight:700; }
+.wm-map-machine-link { color:#1d4ed8; text-decoration:none; font-size:11px; font-weight:800; display:block; margin-top:4px; }
+.wm-map-empty { color:#64748b; font-size:13px; }
+.wm-map-full-link { display:block; text-align:center; margin-top:8px; padding:10px; border-radius:10px; background:#2563eb; color:#fff; font-size:13px; font-weight:700; text-decoration:none; }
+@media (max-width:900px) { .wm-map-body { grid-template-columns:1fr; } .wm-map-stage-wrap { border-right:none; border-bottom:1px solid #e5e7eb; } }
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Macchine di lavoro{% endblock %}
+{% block assets_shell_subtitle %}
+<p>Vista dedicata officina con colonne tecniche, filtri rapidi e gestione manuale.</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+<a class="btn btn-primary" href="{% url 'assets:plant_layout_map' %}">Mappa officina</a>
+<a class="btn" href="{% url 'assets:work_machine_dashboard' %}">Dashboard officina</a>
+<a class="btn btn-secondary" href="{% url 'assets:asset_list' %}">Inventario completo</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="wm-page">
+  <section class="wm-kpis">
+    <article class="wm-kpi">
+      <div class="wm-kpi-label">Macchine totali</div>
+      <div class="wm-kpi-value">{{ machine_total }}</div>
+      <div class="wm-kpi-meta">{{ visible_count }} visibili con i filtri correnti</div>
+    </article>
+    <article class="wm-kpi">
+      <div class="wm-kpi-label">Reparti attivi</div>
+      <div class="wm-kpi-value">{{ reparto_totals|length }}</div>
+      <div class="wm-kpi-meta">Distribuzione officina aggiornata</div>
+    </article>
+    <article class="wm-kpi">
+      <div class="wm-kpi-label">Macchine CNC</div>
+      <div class="wm-kpi-value">{{ cnc_total }}</div>
+      <div class="wm-kpi-meta">Controllo CNC disponibile</div>
+    </article>
+    <article class="wm-kpi">
+      <div class="wm-kpi-label">5 assi / TCR</div>
+      <div class="wm-kpi-value">{{ five_axes_total }}/{{ tcr_total }}</div>
+      <div class="wm-kpi-meta">Asset avanzati in produzione</div>
+    </article>
+  </section>
+
+  {% if active_layout and active_layout.image %}
+  <article class="wm-card">
+    <details class="wm-map-details">
+      <summary>
+        <div>
+          <h2>Mappa officina</h2>
+          <p>{{ active_layout.name }} — {{ plant_layout_payload.areas|length }} reparti, {{ plant_layout_payload.markers|length }} macchine posizionate</p>
+        </div>
+        <span class="wm-map-toggle">Espandi / Chiudi</span>
+      </summary>
+      <div class="wm-map-body">
+        <div class="wm-map-stage-wrap">
+          <div class="wm-map-stage" id="wm-plant-stage">
+            <img src="{{ active_layout.image.url }}" alt="{{ active_layout.name }}">
+            <div class="wm-map-overlay">
+              {% for area in plant_layout_payload.areas %}
+              <button type="button" class="wm-map-area" data-wm-area-id="{{ area.id }}"
+                style="left:{{ area.x_percent|stringformat:'g' }}%;top:{{ area.y_percent|stringformat:'g' }}%;width:{{ area.width_percent|stringformat:'g' }}%;height:{{ area.height_percent|stringformat:'g' }}%;--area-color:{{ area.color }};--area-bg:{{ area.bg_color }};--area-bg-active:{{ area.active_bg_color }};">
+                <span class="wm-map-area-label">
+                  <span class="wm-map-area-name">{{ area.name }}</span>
+                  <span class="wm-map-area-count">{{ area.machine_count }}</span>
+                </span>
+              </button>
+              {% endfor %}
+              {% for marker in plant_layout_payload.markers %}
+              <button type="button" class="wm-map-pin" data-wm-marker-id="{{ marker.id }}"
+                style="left:{{ marker.x_percent|stringformat:'g' }}%;top:{{ marker.y_percent|stringformat:'g' }}%;"
+                title="{{ marker.label }}"></button>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        <div class="wm-map-sidebar">
+          <div>
+            <p class="wm-map-side-title" id="wm-map-title">Mappa officina</p>
+            <p class="wm-map-side-sub" id="wm-map-sub">Clicca un reparto o una macchina.</p>
+          </div>
+          <div id="wm-map-pills" class="wm-map-pills"></div>
+          <div id="wm-map-list" class="wm-map-machine-list"></div>
+          <a class="wm-map-full-link" href="{% url 'assets:plant_layout_map' %}">Apri mappa interattiva completa</a>
+        </div>
+      </div>
+    </details>
+  </article>
+  {{ plant_layout_payload|json_script:"wm-plant-layout-data" }}
+  {% endif %}
+
+  <article class="wm-card">
+    <div class="wm-card-head">
+      <div>
+        <h2>Filtro officina</h2>
+        <p>Seleziona reparto, stato e capability per restringere la lista.</p>
+      </div>
+    </div>
+    <div class="wm-card-body">
+      <form method="get" style="display:grid;gap:12px;">
+        <input type="hidden" name="rows" value="{{ rows }}">
+        <input type="hidden" name="page" value="1">
+        <div class="wm-filters-grid">
+          <div class="field"><label for="{{ filters_form.q.id_for_label }}">Ricerca</label>{{ filters_form.q }}</div>
+          <div class="field"><label for="{{ filters_form.reparto.id_for_label }}">Reparto</label>{{ filters_form.reparto }}</div>
+          <div class="field"><label for="{{ filters_form.status.id_for_label }}">Stato</label>{{ filters_form.status }}</div>
+          <div class="field" style="display:flex;align-items:flex-end;">
+            <div class="wm-checks">
+              <label>{{ filters_form.cnc_only }} CNC</label>
+              <label>{{ filters_form.five_axes_only }} 5 assi</label>
+              <label>{{ filters_form.tcr_only }} TCR</label>
+            </div>
+          </div>
+        </div>
+        <div class="wm-filter-actions">
+          <div class="wm-reparti">
+            <a class="wm-chip {% if not request.GET.reparto %}active{% endif %}" href="{% url 'assets:work_machine_list' %}">Tutti</a>
+            {% for row in reparto_totals %}
+              <a class="wm-chip {% if request.GET.reparto == row.reparto %}active{% endif %}" href="{% url 'assets:work_machine_list' %}?reparto={{ row.reparto|urlencode }}&rows={{ rows }}">{{ row.reparto }} {{ row.total }}</a>
+            {% endfor %}
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <a class="btn" href="{% url 'assets:work_machine_list' %}">Reset</a>
+            <button class="btn btn-primary" type="submit">Applica filtri</button>
+          </div>
+        </div>
+      </form>
+
+      <details class="wm-columns">
+        <summary>Colonne visibili</summary>
+        <div class="wm-columns-grid">
+          <label><input type="checkbox" data-col-toggle="tag" checked> Tag</label>
+          <label><input type="checkbox" data-col-toggle="machine" checked> Macchina</label>
+          <label><input type="checkbox" data-col-toggle="reparto" checked> Reparto</label>
+          <label><input type="checkbox" data-col-toggle="status" checked> Stato</label>
+          <label><input type="checkbox" data-col-toggle="manufacturer" checked> Produttore</label>
+          <label><input type="checkbox" data-col-toggle="model" checked> Modello</label>
+          <label><input type="checkbox" data-col-toggle="x_mm" checked> X</label>
+          <label><input type="checkbox" data-col-toggle="y_mm" checked> Y</label>
+          <label><input type="checkbox" data-col-toggle="z_mm" checked> Z</label>
+          <label><input type="checkbox" data-col-toggle="diameter_mm"> Diametro</label>
+          <label><input type="checkbox" data-col-toggle="spindle_mm"> Mandrino</label>
+          <label><input type="checkbox" data-col-toggle="year" checked> Anno</label>
+          <label><input type="checkbox" data-col-toggle="tmc" checked> TMC</label>
+          <label><input type="checkbox" data-col-toggle="next_maintenance_date" checked> Prossima manut.</label>
+          <label><input type="checkbox" data-col-toggle="maintenance_reminder_days"> Soglia reminder</label>
+          <label><input type="checkbox" data-col-toggle="tcr_enabled" checked> TCR</label>
+          <label><input type="checkbox" data-col-toggle="pressure_bar"> Pressione</label>
+          <label><input type="checkbox" data-col-toggle="cnc_controlled" checked> CNC</label>
+          <label><input type="checkbox" data-col-toggle="five_axes" checked> 5 assi</label>
+          <label><input type="checkbox" data-col-toggle="accuracy_from"> Accuracy</label>
+        </div>
+      </details>
+    </div>
+  </article>
+
+  <article class="wm-card">
+    <div class="wm-card-head">
+      <div>
+        <h2>Elenco macchine</h2>
+        <p>Clicca una riga per aprire il dettaglio. Modifica rapida disponibile in tabella.</p>
+      </div>
+    </div>
+    <div class="wm-table-wrap">
+      <table class="wm-table">
+        <thead>
+          <tr>
+            <th data-col="tag">Tag</th>
+            <th data-col="machine">Macchina</th>
+            <th data-col="reparto">Reparto</th>
+            <th data-col="status">Stato</th>
+            <th data-col="manufacturer">Produttore</th>
+            <th data-col="model">Modello</th>
+            <th data-col="x_mm">X</th>
+            <th data-col="y_mm">Y</th>
+            <th data-col="z_mm">Z</th>
+            <th data-col="diameter_mm">Diametro</th>
+            <th data-col="spindle_mm">Mandrino</th>
+            <th data-col="year">Anno</th>
+            <th data-col="tmc">TMC</th>
+            <th data-col="next_maintenance_date">Prossima manut.</th>
+            <th data-col="maintenance_reminder_days">Soglia</th>
+            <th data-col="tcr_enabled">TCR</th>
+            <th data-col="pressure_bar">Pressione</th>
+            <th data-col="cnc_controlled">CNC</th>
+            <th data-col="five_axes">5 assi</th>
+            <th data-col="accuracy_from">Accuracy</th>
+            <th>Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for asset in machines %}
+            {% with machine=asset.work_machine %}
+              <tr class="wm-row" data-href="{% url 'assets:asset_view' asset.id %}">
+                <td data-col="tag">
+                  <div class="wm-machine-title">{{ asset.asset_tag }}</div>
+                  <div class="wm-machine-sub">{{ asset.serial_number|default:"-" }}</div>
+                </td>
+                <td data-col="machine">
+                  <div class="wm-machine-title">{{ asset.name }}</div>
+                  <div class="wm-machine-sub">{{ asset.assignment_location|default:"Posizione non definita" }}</div>
+                </td>
+                <td data-col="reparto">{{ asset.reparto|default:"-" }}</td>
+                <td data-col="status">
+                  {% if asset.status == "IN_USE" %}
+                    <span class="wm-status ok">In uso</span>
+                  {% elif asset.status == "IN_REPAIR" %}
+                    <span class="wm-status danger">In riparazione</span>
+                  {% elif asset.status == "IN_STOCK" %}
+                    <span class="wm-status idle">In magazzino</span>
+                  {% else %}
+                    <span class="wm-status warn">{{ asset.get_status_display }}</span>
+                  {% endif %}
+                </td>
+                <td data-col="manufacturer">{{ asset.manufacturer|default:"-" }}</td>
+                <td data-col="model">{{ asset.model|default:"-" }}</td>
+                <td data-col="x_mm">{{ machine.x_mm|default:"-" }}</td>
+                <td data-col="y_mm">{{ machine.y_mm|default:"-" }}</td>
+                <td data-col="z_mm">{{ machine.z_mm|default:"-" }}</td>
+                <td data-col="diameter_mm">{{ machine.diameter_mm|default:"-" }}</td>
+                <td data-col="spindle_mm">{{ machine.spindle_mm|default:"-" }}</td>
+                <td data-col="year">{{ machine.year|default:"-" }}</td>
+                <td data-col="tmc">{{ machine.tmc|default:"-" }}</td>
+                <td data-col="next_maintenance_date">
+                  {% if machine.next_maintenance_date %}
+                    {% if machine.next_maintenance_date < today %}
+                      <span class="wm-status danger">{{ machine.next_maintenance_date|date:"d/m/Y" }}</span>
+                    {% else %}
+                      <span class="wm-status {% if machine.next_maintenance_date|date:'Y-m-d' == today|date:'Y-m-d' %}warn{% else %}ok{% endif %}">{{ machine.next_maintenance_date|date:"d/m/Y" }}</span>
+                    {% endif %}
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
+                <td data-col="maintenance_reminder_days">{{ machine.maintenance_reminder_days|default:"30" }} gg</td>
+                <td data-col="tcr_enabled"><span class="wm-flag {% if machine.tcr_enabled %}yes{% else %}no{% endif %}">{% if machine.tcr_enabled %}Si{% else %}No{% endif %}</span></td>
+                <td data-col="pressure_bar">{{ machine.pressure_bar|default:"-" }}</td>
+                <td data-col="cnc_controlled"><span class="wm-flag {% if machine.cnc_controlled %}yes{% else %}no{% endif %}">{% if machine.cnc_controlled %}Si{% else %}No{% endif %}</span></td>
+                <td data-col="five_axes"><span class="wm-flag {% if machine.five_axes %}yes{% else %}no{% endif %}">{% if machine.five_axes %}Si{% else %}No{% endif %}</span></td>
+                <td data-col="accuracy_from">{{ machine.accuracy_from|default:"-" }}</td>
+                <td>
+                  <div class="wm-actions">
+                    <a class="wm-link secondary" href="{% url 'assets:asset_view' asset.id %}">Dettaglio</a>
+                    <a class="wm-link" href="{% url 'assets:work_machine_edit' asset.id %}">Modifica</a>
+                  </div>
+                </td>
+              </tr>
+            {% endwith %}
+          {% empty %}
+            <tr><td colspan="19" style="padding:16px;color:#64748b;">Nessuna macchina trovata con i filtri correnti.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="wm-footer">
+      <div>Visualizzazione da {{ page_start }} a {{ page_end }} su {{ visible_count }} macchine</div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <div class="wm-rows">
+          <span>Righe:</span>
+          {% for item in rows_options %}
+            <a class="wm-page-link {% if item.active %}active{% endif %}" href="{{ item.url }}">{{ item.value }}</a>
+          {% endfor %}
+        </div>
+        <div class="wm-pager">
+          <a class="wm-page-link {% if not prev_page_url %}disabled{% endif %}" href="{{ prev_page_url|default:'#' }}">‹</a>
+          {% for item in page_links %}
+            <a class="wm-page-link {% if item.active %}active{% endif %}" href="{{ item.url }}">{{ item.number }}</a>
+          {% endfor %}
+          <a class="wm-page-link {% if not next_page_url %}disabled{% endif %}" href="{{ next_page_url|default:'#' }}">›</a>
+        </div>
+      </div>
+    </div>
+  </article>
+</section>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(function () {
+  const STORAGE_KEY = "assets.workMachines.visibleColumns.v1";
+  const defaultColumns = [
+    "tag", "machine", "reparto", "status", "manufacturer", "model",
+    "x_mm", "y_mm", "z_mm", "year", "tmc", "next_maintenance_date", "tcr_enabled", "cnc_controlled", "five_axes"
+  ];
+
+  function getVisibleColumns() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      const saved = raw ? JSON.parse(raw) : null;
+      return Array.isArray(saved) && saved.length ? saved : defaultColumns.slice();
+    } catch (e) {
+      return defaultColumns.slice();
+    }
+  }
+
+  function saveVisibleColumns(columns) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(columns)); } catch (e) {}
+  }
+
+  function applyColumnVisibility() {
+    const visible = getVisibleColumns();
+    document.querySelectorAll("[data-col-toggle]").forEach(function (input) {
+      const col = input.getAttribute("data-col-toggle");
+      const active = visible.indexOf(col) !== -1;
+      input.checked = active;
+      document.querySelectorAll('[data-col="' + col + '"]').forEach(function (cell) {
+        cell.classList.toggle("wm-col-hidden", !active);
+      });
+    });
+  }
+
+  document.querySelectorAll("[data-col-toggle]").forEach(function (input) {
+    input.addEventListener("change", function () {
+      const active = [];
+      document.querySelectorAll("[data-col-toggle]").forEach(function (item) {
+        if (item.checked) active.push(item.getAttribute("data-col-toggle"));
+      });
+      saveVisibleColumns(active);
+      applyColumnVisibility();
+    });
+  });
+
+  document.querySelectorAll(".wm-row[data-href]").forEach(function (row) {
+    row.addEventListener("click", function (event) {
+      if (event.target.closest("a,button,input,label")) return;
+      const href = row.getAttribute("data-href");
+      if (href) window.location.href = href;
+    });
+  });
+
+  applyColumnVisibility();
+})();
+
+// Mappa inline
+(function () {
+  const dataNode = document.getElementById("wm-plant-layout-data");
+  if (!dataNode) return;
+  const payload = JSON.parse(dataNode.textContent || "{}");
+  const areas = Array.isArray(payload.areas) ? payload.areas : [];
+  const markers = Array.isArray(payload.markers) ? payload.markers : [];
+  const areaButtons = Array.from(document.querySelectorAll("[data-wm-area-id]"));
+  const markerButtons = Array.from(document.querySelectorAll("[data-wm-marker-id]"));
+  const titleNode = document.getElementById("wm-map-title");
+  const subNode = document.getElementById("wm-map-sub");
+  const pillsNode = document.getElementById("wm-map-pills");
+  const listNode = document.getElementById("wm-map-list");
+
+  function esc(v) { return String(v || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+  function setActive(buttons, attr, ids) {
+    const s = new Set((ids || []).map(String));
+    buttons.forEach(function(b) { b.classList.toggle("is-active", s.has(b.getAttribute(attr))); });
+  }
+
+  function renderPills(values) {
+    pillsNode.innerHTML = (values || []).filter(Boolean).map(function(v) { return '<span class="wm-map-pill">' + esc(v) + '</span>'; }).join("");
+  }
+
+  function renderMachines(rows) {
+    if (!rows || !rows.length) { listNode.innerHTML = '<p class="wm-map-empty">Nessuna macchina collegata.</p>'; return; }
+    listNode.innerHTML = rows.map(function(m) {
+      return '<div class="wm-map-machine-card"><div class="wm-map-machine-name">' + esc(m.name) + '</div><div class="wm-map-machine-tag">' + esc(m.asset_tag) + '</div><a class="wm-map-machine-link" href="' + esc(m.detail_url || "#") + '">Apri scheda</a></div>';
+    }).join("");
+  }
+
+  function showArea(area) {
+    if (!area) return;
+    titleNode.textContent = area.name || "Reparto";
+    subNode.textContent = area.reparto_code ? "Codice: " + area.reparto_code : "Reparto";
+    renderPills(["Macchine " + (area.machine_count || 0), area.reparto_code || ""]);
+    renderMachines(area.machines || []);
+    setActive(areaButtons, "data-wm-area-id", [area.id]);
+    const mIds = markers.filter(function(m) { return Array.isArray(m.area_ids) && m.area_ids.indexOf(area.id) !== -1; }).map(function(m) { return m.id; });
+    setActive(markerButtons, "data-wm-marker-id", mIds);
+  }
+
+  function showMarker(marker) {
+    if (!marker) return;
+    const m = marker.machine || {};
+    titleNode.textContent = marker.label || m.name || "Macchina";
+    subNode.textContent = m.reparto ? "Reparto: " + m.reparto : "Marker macchina";
+    renderPills([m.status || "", m.manufacturer || "", m.model || ""].filter(Boolean));
+    renderMachines([m]);
+    setActive(markerButtons, "data-wm-marker-id", [marker.id]);
+    setActive(areaButtons, "data-wm-area-id", marker.area_ids || []);
+  }
+
+  areaButtons.forEach(function(b) {
+    b.addEventListener("click", function() { showArea(areas.find(function(a) { return Number(a.id) === Number(b.getAttribute("data-wm-area-id")); })); });
+  });
+  markerButtons.forEach(function(b) {
+    b.addEventListener("click", function() { showMarker(markers.find(function(m) { return Number(m.id) === Number(b.getAttribute("data-wm-marker-id")); })); });
+  });
+
+  if (areas.length) showArea(areas[0]);
+  else if (markers.length) showMarker(markers[0]);
+})();
+</script>
+{% endblock %}

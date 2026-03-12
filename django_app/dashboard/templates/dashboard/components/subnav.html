@@ -1,0 +1,11 @@
+{% with current=request.resolver_match.url_name %}
+<div class="subnav">
+  <a class="sub-a{% if current == 'dashboard_home' %} active{% endif %}" href="{% url 'dashboard_home' %}">Panoramica</a>
+  <div class="sub-sep"></div>
+  <a class="sub-a{% if current == 'richieste' %} active{% endif %}" href="{% url 'richieste' %}">Richieste</a>
+  <a class="sub-a{% if current == 'coming_assenze' %} active{% endif %}" href="{% url 'coming_assenze' %}">Assenze</a>
+  <a class="sub-a{% if current == 'anomalie_menu' or current == 'gestione_anomalie_page' %} active{% endif %}" href="{% url 'anomalie_menu' %}">Anomalie</a>
+  <a class="sub-a{% if current == 'organigramma' %} active{% endif %}" href="{% url 'organigramma' %}">Organigramma</a>
+  <a class="sub-a{% if current == 'admin_portale:index' %} active{% endif %}" href="{% url 'admin_portale:index' %}">Admin</a>
+</div>
+{% endwith %}

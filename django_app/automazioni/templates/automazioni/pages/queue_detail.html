@@ -1,0 +1,200 @@
+{% extends "core/base.html" %}
+
+{% block title %}Automazioni - Queue Detail | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .auto-grid { display:grid; gap:16px; }
+  .auto-grid-2 { display:grid; gap:16px; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); }
+  .auto-meta { display:grid; gap:10px; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); }
+  .auto-meta-item { padding:12px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; }
+  .auto-meta-label { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; }
+  .auto-meta-value { margin-top:6px; font-size:15px; color:#0f172a; word-break:break-word; }
+  .auto-badge { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+  .auto-badge-pending { background:#fef3c7; color:#92400e; }
+  .auto-badge-processing { background:#dbeafe; color:#1d4ed8; }
+  .auto-badge-done { background:#dcfce7; color:#166534; }
+  .auto-badge-error { background:#fee2e2; color:#991b1b; }
+  .auto-pre { margin:0; padding:14px; background:#0f172a; color:#e2e8f0; border-radius:14px; overflow:auto; font-size:13px; line-height:1.55; }
+  .auto-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .auto-table { width:100%; border-collapse:collapse; font-size:14px; }
+  .auto-table th, .auto-table td { padding:10px 12px; border-bottom:1px solid #e2e8f0; text-align:left; vertical-align:top; }
+  .auto-table th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; background:#f8fafc; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Dettaglio Queue" page_subtitle="Vista tecnica dell'evento queue, payload grezzi e log collegati." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+  {% include "automazioni/components/subnav.html" %}
+
+  <div class="auto-grid">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Evento #{{ queue_event.id }}</div>
+      </div>
+      <div class="card-body auto-grid">
+        <div class="auto-actions">
+          <a class="btn btn-light" href="{% url 'admin_portale:automazioni_queue_list' %}">Torna alla queue</a>
+          {% if queue_event.can_reset %}
+            <form method="post" action="{% url 'admin_portale:automazioni_queue_reset' queue_event.id %}">
+              {% csrf_token %}
+              <button class="btn btn-light" type="submit">Reset a pending</button>
+            </form>
+          {% endif %}
+          {% if queue_event.can_retry %}
+            <form method="post" action="{% url 'admin_portale:automazioni_queue_retry' queue_event.id %}">
+              {% csrf_token %}
+              <button class="btn" type="submit">Retry singolo evento</button>
+            </form>
+          {% endif %}
+        </div>
+
+        <div class="auto-meta">
+          <div class="auto-meta-item">
+            <div class="auto-meta-label">Stato</div>
+            <div class="auto-meta-value"><span class="auto-badge auto-badge-{{ queue_event.status|lower }}">{{ queue_event.status }}</span></div>
+          </div>
+          <div class="auto-meta-item">
+            <div class="auto-meta-label">Sorgente</div>
+            <div class="auto-meta-value">{{ queue_event.source_code }} / <code>{{ queue_event.source_table }}</code></div>
+          </div>
+          <div class="auto-meta-item">
+            <div class="auto-meta-label">PK sorgente</div>
+            <div class="auto-meta-value"><code>{{ queue_event.source_pk|default:"-" }}</code></div>
+          </div>
+          <div class="auto-meta-item">
+            <div class="auto-meta-label">Operazione</div>
+            <div class="auto-meta-value">{{ queue_event.operation_type|upper }}</div>
+          </div>
+          <div class="auto-meta-item">
+            <div class="auto-meta-label">Event code</div>
+            <div class="auto-meta-value"><code>{{ queue_event.event_code|default:"-" }}</code></div>
+          </div>
+          <div class="auto-meta-item">
+            <div class="auto-meta-label">Watched field</div>
+            <div class="auto-meta-value"><code>{{ queue_event.watched_field|default:"-" }}</code></div>
+          </div>
+          <div class="auto-meta-item">
+            <div class="auto-meta-label">Retry count</div>
+            <div class="auto-meta-value">{{ queue_event.retry_count }}</div>
+          </div>
+          <div class="auto-meta-item">
+            <div class="auto-meta-label">Creato</div>
+            <div class="auto-meta-value">{{ queue_event.created_at|date:"d/m/Y H:i:s" }}</div>
+          </div>
+          <div class="auto-meta-item">
+            <div class="auto-meta-label">Preso in carico</div>
+            <div class="auto-meta-value">{{ queue_event.picked_at|date:"d/m/Y H:i:s"|default:"-" }}</div>
+          </div>
+          <div class="auto-meta-item">
+            <div class="auto-meta-label">Processato</div>
+            <div class="auto-meta-value">{{ queue_event.processed_at|date:"d/m/Y H:i:s"|default:"-" }}</div>
+          </div>
+        </div>
+
+        <div class="notice{% if queue_event.status == 'error' %} notice-danger{% endif %}">
+          <strong>Error message:</strong>
+          {{ queue_event.error_message|default:"Nessun errore registrato." }}
+        </div>
+      </div>
+    </div>
+
+    <div class="auto-grid-2">
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Payload JSON</div>
+        </div>
+        <div class="card-body">
+          <pre class="auto-pre">{{ queue_event.payload_pretty|default:"{}" }}</pre>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Old payload JSON</div>
+        </div>
+        <div class="card-body">
+          <pre class="auto-pre">{{ queue_event.old_payload_pretty|default:"{}" }}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Run log collegati</div>
+      </div>
+      <div class="card-body">
+        <table class="auto-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Regola</th>
+              <th>Stato</th>
+              <th>Started</th>
+              <th>Finished</th>
+              <th>Execution ms</th>
+              <th>Risultato</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for run_log in run_logs %}
+              <tr>
+                <td><a href="{% url 'admin_portale:automazioni_run_log_detail' run_log.id %}">#{{ run_log.id }}</a></td>
+                <td>{{ run_log.rule|default:"-" }}</td>
+                <td>{{ run_log.status }}</td>
+                <td>{{ run_log.started_at|date:"d/m/Y H:i:s" }}</td>
+                <td>{{ run_log.finished_at|date:"d/m/Y H:i:s"|default:"-" }}</td>
+                <td>{{ run_log.execution_ms|default:"-" }}</td>
+                <td>{{ run_log.result_message|default:"-" }}</td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="7">Nessun run log collegato a questo evento queue.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Action log figli</div>
+      </div>
+      <div class="card-body">
+        <table class="auto-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Run log</th>
+              <th>Azione</th>
+              <th>Stato</th>
+              <th>Messaggio</th>
+              <th>Creato</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for action_log in action_logs %}
+              <tr>
+                <td>#{{ action_log.id }}</td>
+                <td><a href="{% url 'admin_portale:automazioni_run_log_detail' action_log.run_log_id %}">#{{ action_log.run_log_id }}</a></td>
+                <td>{{ action_log.action|default:"-" }}</td>
+                <td>{{ action_log.status }}</td>
+                <td>{{ action_log.result_message|default:"-" }}</td>
+                <td>{{ action_log.created_at|date:"d/m/Y H:i:s" }}</td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="6">Nessun action log collegato ai run log di questo evento.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{% endblock %}

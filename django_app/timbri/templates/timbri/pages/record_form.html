@@ -1,0 +1,67 @@
+{% extends "core/base.html" %}
+{% block title %}{{ form_title }} | Timbri{% endblock %}
+{% block extra_head %}
+<style>
+.tim-shell { max-width:980px; margin:0 auto; display:flex; flex-direction:column; gap:18px; }
+.tim-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:20px; }
+.tim-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.tim-field { display:flex; flex-direction:column; gap:5px; }
+.tim-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; }
+.tim-input { border:1px solid #dbe4f0; border-radius:10px; padding:9px 12px; background:#f8fafc; width:100%; box-sizing:border-box; }
+.tim-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 15px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; border:1px solid #dbe4f0; background:#fff; color:#0f172a; }
+.tim-btn-main { background:#0f766e; border-color:#0f766e; color:#fff; }
+.tim-images { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin-top:14px; }
+.tim-image { border:1px solid #e2e8f0; border-radius:12px; padding:12px; background:#f8fafc; }
+.tim-image img { max-width:100%; max-height:120px; object-fit:contain; display:block; margin:0 auto 10px; }
+@media (max-width: 900px) { .tim-grid, .tim-images { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+{% block subnav %}{% include "timbri/components/subnav.html" %}{% endblock %}
+{% block content %}
+<div class="tim-shell">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="tim-card">
+    <div style="font-size:26px;font-weight:800;color:#0f172a;">{{ form_title }}</div>
+    <div style="font-size:13px;color:#64748b;margin-top:4px;">Dipendente: <strong>{{ employee.full_name }}</strong></div>
+  </div>
+  <form method="post" enctype="multipart/form-data" class="tim-card">
+    {% csrf_token %}
+    <div class="tim-grid">
+      {% for field in form.visible_fields %}
+        {% if field.name != 'image_timbro' and field.name != 'image_firma' and field.name != 'image_sigla' %}
+          <div class="tim-field"{% if field.name == 'note' or field.name == 'firma_testo' %} style="grid-column:1 / -1;"{% endif %}>
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}<div style="color:#b91c1c;font-size:12px;">{{ field.errors|striptags }}</div>{% endif %}
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+    <div class="tim-images">
+      <div class="tim-image">
+        {% if record and record.image_map.TIMBRO %}<img src="{{ record.image_map.TIMBRO.image.url }}" alt="Timbro">{% else %}<div style="height:120px;display:flex;align-items:center;justify-content:center;color:#94a3b8;">Nessuna immagine</div>{% endif %}
+        <div class="tim-field"><label for="{{ form.image_timbro.id_for_label }}">Timbro</label>{{ form.image_timbro }}</div>
+      </div>
+      <div class="tim-image">
+        {% if record and record.image_map.FIRMA %}<img src="{{ record.image_map.FIRMA.image.url }}" alt="Firma">{% else %}<div style="height:120px;display:flex;align-items:center;justify-content:center;color:#94a3b8;">Nessuna immagine</div>{% endif %}
+        <div class="tim-field"><label for="{{ form.image_firma.id_for_label }}">Firma</label>{{ form.image_firma }}</div>
+      </div>
+      <div class="tim-image">
+        {% if record and record.image_map.SIGLA %}<img src="{{ record.image_map.SIGLA.image.url }}" alt="Sigla">{% else %}<div style="height:120px;display:flex;align-items:center;justify-content:center;color:#94a3b8;">Nessuna immagine</div>{% endif %}
+        <div class="tim-field"><label for="{{ form.image_sigla.id_for_label }}">Sigla</label>{{ form.image_sigla }}</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;">
+      <button class="tim-btn tim-btn-main" type="submit">Salva</button>
+      {% if record %}
+        <button class="tim-btn" type="submit" name="action" value="archive" onclick="return confirm('Archiviare questo record?')">Archivia</button>
+      {% endif %}
+      {% if employee.legacy_id %}
+        <a class="tim-btn" href="{% url 'timbri:operatore_detail_by_legacy' employee.legacy_id %}">Annulla</a>
+      {% else %}
+        <a class="tim-btn" href="{% url 'timbri:operatore_detail' operatore.id %}">Annulla</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}

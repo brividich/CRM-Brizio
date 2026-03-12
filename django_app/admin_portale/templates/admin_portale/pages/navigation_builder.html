@@ -1,0 +1,705 @@
+{% extends "core/base.html" %}
+
+{% block title %}Navigation Builder | Admin Portale{% endblock %}
+
+{% block extra_head %}
+  <style>
+    .content { max-width: none; }
+    .nav-builder .admin-form-grid {
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      align-items: end;
+    }
+    .nav-builder .admin-form-grid > .field { grid-column: span 3; }
+    .nav-builder .admin-form-grid > .field.field-wide { grid-column: span 6; }
+    .nav-builder .admin-form-grid > .field.field-actions {
+      grid-column: span 3;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+    .nav-builder .input.input-sm { min-width: 90px; }
+    .nav-builder .field-help {
+      font-size: 11px;
+      color: var(--color-muted, #888);
+      margin-top: 3px;
+      line-height: 1.4;
+    }
+    .nav-builder .state-json {
+      white-space: pre-wrap;
+      font-family: Consolas, monospace;
+      font-size: 12px;
+      background: #0d1b2a;
+      color: #d3e3fd;
+      padding: 10px;
+      border-radius: 8px;
+      max-height: 280px;
+      overflow: auto;
+    }
+    .nav-builder details > summary {
+      cursor: pointer;
+      user-select: none;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .nav-builder details > summary::before {
+      content: "▶";
+      font-size: 10px;
+      transition: transform 0.15s;
+    }
+    .nav-builder details[open] > summary::before { transform: rotate(90deg); }
+    .nav-builder select[multiple] { min-height: 78px; }
+    .nav-builder .table-wrap { overflow-x: auto; }
+    .nav-builder .sortable-ghost { opacity: .4; background: #e0f2fe; }
+    .nav-builder .drag-handle:hover { color: #3b82f6; cursor: grab; }
+    .nav-builder .drag-handle:active { cursor: grabbing; }
+    .nav-builder #nav-builder-status {
+      padding: 8px 0;
+      font-size: 13px;
+      min-height: 20px;
+    }
+    .nav-builder .text-danger { color: #dc2626; }
+    @media (max-width: 1100px) {
+      .nav-builder .admin-form-grid > .field,
+      .nav-builder .admin-form-grid > .field.field-wide,
+      .nav-builder .admin-form-grid > .field.field-actions { grid-column: span 12; }
+    }
+  </style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  <div class="nav-builder">
+    {% include "admin_portale/components/page_header.html" with page_title="Navigation Builder" page_subtitle="Gestione centralizzata menu, ruoli e redirect legacy senza modificare codice. Le modifiche sono immediate; pubblica uno snapshot per salvarle definitivamente." %}
+    {% include "admin_portale/components/flash_messages.html" %}
+
+    <form id="nav-builder-csrf">{% csrf_token %}</form>
+
+    {# Datalist globale per tutte le route Django disponibili — usato nei campi "Route name" #}
+    <datalist id="route-catalog-options">
+      {% for r in route_catalog %}
+        <option value="{{ r.route_name }}">{{ r.route_name }} — {{ r.path }}</option>
+      {% endfor %}
+    </datalist>
+
+    {# ─── RUOLI LEGACY (collapsibile — solo riferimento) ─── #}
+    <div class="card">
+      <div class="card-body">
+        <details>
+          <summary style="font-weight:600; font-size:14px;">
+            Ruoli Legacy &nbsp;<span class="cell-muted" style="font-weight:normal;font-size:12px;">— tabella di riferimento ID ruoli per il campo «Ruoli abilitati»</span>
+          </summary>
+          <div style="margin-top: 10px;">
+            <p class="field-help" style="margin-bottom:8px;">
+              Quando crei o modifichi una voce puoi limitarne la visibilità a specifici ruoli legacy.
+              Usa gli <strong>ID numerici</strong> mostrati qui sotto. Se non selezioni nessun ruolo, la voce è visibile a tutti.
+            </p>
+            {% if ruoli %}
+              <div class="table-wrap">
+                <table class="admin-table" style="max-width:360px;">
+                  <thead><tr><th>ID</th><th>Nome ruolo</th></tr></thead>
+                  <tbody>
+                    {% for r in ruoli %}
+                      <tr><td><strong>{{ r.id }}</strong></td><td>{{ r.nome }}</td></tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% else %}
+              <div class="cell-muted">Ruoli non disponibili (database legacy non raggiungibile).</div>
+            {% endif %}
+          </div>
+        </details>
+      </div>
+    </div>
+
+    {# ─── NUOVA VOCE DI NAVIGAZIONE ─── #}
+    <div class="card">
+      {% include "admin_portale/components/card_head.html" with card_title="Nuova voce di navigazione" card_subtitle="Aggiungi una nuova voce al menu. Per link interni usa «Route name»; per link esterni o di fallback usa «URL path»." %}
+      <div class="card-body">
+        <form id="nav-create-form" class="admin-form-grid">
+
+          <div class="field">
+            <label>Codice <span class="cell-muted">(opzionale)</span></label>
+            <input class="input" type="text" name="code" placeholder="es. dashboard">
+            <div class="field-help">Identificatore slug univoco. Se vuoto viene generato automaticamente dalla label.</div>
+          </div>
+
+          <div class="field">
+            <label>Label <span style="color:#dc2626;font-size:11px;">obbligatorio</span></label>
+            <input class="input" type="text" name="label" required placeholder="es. Dashboard">
+            <div class="field-help">Testo visualizzato nel menu per questa voce.</div>
+          </div>
+
+          <div class="field">
+            <label>Sezione</label>
+            <select class="input" name="section" id="create-section">
+              <option value="topbar">Topbar — barra in alto</option>
+              <option value="subnav">Subnav — barra secondaria</option>
+              <option value="sidebar">Sidebar — menu laterale</option>
+              <option value="page">Page — dentro una pagina</option>
+            </select>
+            <div class="field-help">Posizione della voce nell'interfaccia.</div>
+          </div>
+
+          <div class="field" id="create-parent-code-field" style="display:none;">
+            <label>Gruppo subnav <span style="color:#dc2626;font-size:11px;">obbligatorio per subnav</span></label>
+            <input class="input" type="text" name="parent_code" placeholder="es. dashboard, assenze, anagrafica">
+            <div class="field-help">Codice del gruppo: la subnav appare quando l'utente è in quella sezione. Valori comuni: <code>dashboard</code>, <code>assenze</code>, <code>anagrafica</code>, <code>admin_portale</code>, <code>assets</code>, <code>notizie</code>, <code>tasks</code>.</div>
+          </div>
+
+          <div class="field">
+            <label>Ordine</label>
+            <input class="input" type="number" name="order" value="100">
+            <div class="field-help">Numero d'ordine. Più basso = mostrato prima.</div>
+          </div>
+
+          <div class="field field-wide">
+            <label>Route name <span class="cell-muted">(consigliato per link interni)</span></label>
+            <input class="input" type="text" name="route_name" list="route-catalog-options"
+                   placeholder="digita o scegli dalla lista ▾">
+            <div class="field-help">
+              Seleziona dall'elenco o digita il nome della route Django (es. <code>dashboard:index</code>).
+              Preferisci questo campo per i link interni: si aggiorna automaticamente se il percorso cambia.
+            </div>
+          </div>
+
+          <div class="field field-wide">
+            <label>URL path <span class="cell-muted">(per link esterni o fallback)</span></label>
+            <input class="input" type="text" name="url_path" placeholder="es. /dashboard/ oppure https://esempio.com">
+            <div class="field-help">Usalo solo se non usi una Route name, o per URL esterni completi (https://…).</div>
+          </div>
+
+          <div class="field field-wide">
+            <label>Ruoli abilitati <span class="cell-muted">(opzionale)</span></label>
+            <select class="input" name="role_ids_csv" multiple>
+              {% for r in ruoli %}
+                <option value="{{ r.id }}">{{ r.nome }} — ID {{ r.id }}</option>
+              {% endfor %}
+            </select>
+            <div class="field-help">
+              Tieni premuto <kbd>Ctrl</kbd> (o <kbd>Cmd</kbd> su Mac) per selezionare più ruoli.
+              Nessuna selezione = voce visibile a tutti i ruoli.
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Opzioni</label>
+            <div style="display:flex;flex-direction:column;gap:7px;margin-top:4px;">
+              <label style="font-weight:normal;cursor:pointer;">
+                <input type="checkbox" name="is_visible" checked>
+                <strong>Visibile</strong> — compare nel menu
+              </label>
+              <label style="font-weight:normal;cursor:pointer;">
+                <input type="checkbox" name="is_enabled" checked>
+                <strong>Attivo</strong> — link funzionante e cliccabile
+              </label>
+              <label style="font-weight:normal;cursor:pointer;">
+                <input type="checkbox" name="open_in_new_tab">
+                <strong>Nuova tab</strong> — apre in una scheda separata
+              </label>
+            </div>
+          </div>
+
+          <div class="field field-wide">
+            <label>Descrizione <span class="cell-muted">(nota interna)</span></label>
+            <input class="input" type="text" name="description" placeholder="es. Link al modulo gestione assenze">
+            <div class="field-help">Nota visibile solo in questa interfaccia admin, non mostrata agli utenti finali.</div>
+          </div>
+
+          <div class="field field-actions" style="grid-column: span 12; justify-content: flex-start; margin-top: 4px;">
+            <button class="btn" type="submit">Crea voce</button>
+          </div>
+
+        </form>
+      </div>
+    </div>
+
+    {# ─── VOCI NAVIGAZIONE (tabella con modifica inline) ─── #}
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Voci navigazione</div>
+          <div class="cell-muted" style="font-size:13px;">
+            Modifica direttamente le celle e premi <strong>Salva</strong> sulla riga.
+            I campi <em>Route name</em> supportano la selezione dall'elenco (digita o clicca).
+            Il campo <em>Ruoli</em> è una lista multipla (Ctrl+click).
+            — {{ item_rows|length }} voci{% if filters.section != "all" %}, sezione: <strong>{{ filters.section }}</strong>{% endif %}{% if filters.q %}, ricerca: <strong>«{{ filters.q }}»</strong>{% endif %}.
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+
+        {# Filtri #}
+        <form method="get" class="admin-form-grid" style="margin-bottom: 16px;">
+          <div class="field field-wide">
+            <label for="q">Ricerca voci</label>
+            <input class="input" type="text" id="q" name="q" value="{{ filters.q }}"
+                   placeholder="Cerca per codice, label, route, path…">
+          </div>
+          <div class="field">
+            <label for="section">Sezione</label>
+            <select class="input" id="section" name="section">
+              <option value="topbar" {% if filters.section == "topbar" %}selected{% endif %}>Topbar</option>
+              <option value="subnav" {% if filters.section == "subnav" %}selected{% endif %}>Subnav</option>
+              <option value="sidebar" {% if filters.section == "sidebar" %}selected{% endif %}>Sidebar</option>
+              <option value="page" {% if filters.section == "page" %}selected{% endif %}>Page</option>
+              <option value="all" {% if filters.section == "all" %}selected{% endif %}>Tutte le sezioni</option>
+            </select>
+          </div>
+          <div class="field field-actions">
+            <button class="btn" type="submit">Filtra</button>
+            <a class="btn btn-secondary" href="{% url 'admin_portale:navigation_builder' %}">Reset</a>
+          </div>
+        </form>
+
+        {# Tabella voci #}
+        <div class="table-wrap">
+          <table class="admin-table" id="nav-items-table">
+            <thead>
+              <tr>
+                <th title="Trascina per riordinare" style="width:28px;"></th>
+                <th title="ID univoco record">ID</th>
+                <th title="Codice slug univoco della voce">Codice</th>
+                <th title="Etichetta visualizzata nel menu">Label</th>
+                <th title="topbar / subnav / sidebar / page">Sezione</th>
+                <th title="Per subnav: gruppo di appartenenza (es. dashboard, assenze)">Gruppo</th>
+                <th title="Numero d'ordine — trascina per riordinare">Ord.</th>
+                <th title="Route Django — digita o scegli dalla lista">Route name</th>
+                <th title="URL path alternativo o link esterno">URL path</th>
+                <th title="Ruoli abilitati — Ctrl+click per più ruoli, nessuno = tutti">Ruoli</th>
+                <th title="Visibile nel menu">Vis.</th>
+                <th title="Link attivo e cliccabile">Att.</th>
+                <th title="Apre in nuova scheda del browser">Tab</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody id="nav-sortable-body">
+              {% for row in item_rows %}
+                <tr data-id="{{ row.id }}" data-role-ids="{{ row.role_ids_csv }}">
+                  <td class="drag-handle" title="Trascina per riordinare" style="cursor:grab;text-align:center;color:#94a3b8;user-select:none;">⠿</td>
+                  <td>{{ row.id }}</td>
+                  <td><input class="input input-sm" type="text" data-name="code" value="{{ row.code }}" title="Codice slug"></td>
+                  <td><input class="input input-sm" type="text" data-name="label" value="{{ row.label }}" title="Label menu"></td>
+                  <td>
+                    <select class="input input-sm" data-name="section" title="Sezione">
+                      <option value="topbar" {% if row.section == "topbar" %}selected{% endif %}>topbar</option>
+                      <option value="subnav" {% if row.section == "subnav" %}selected{% endif %}>subnav</option>
+                      <option value="sidebar" {% if row.section == "sidebar" %}selected{% endif %}>sidebar</option>
+                      <option value="page" {% if row.section == "page" %}selected{% endif %}>page</option>
+                    </select>
+                  </td>
+                  <td><input class="input input-sm" type="text" data-name="parent_code" value="{{ row.parent_code }}" placeholder="es. assenze" title="Gruppo subnav" style="min-width:90px;"></td>
+                  <td><input class="input input-sm" type="number" data-name="order" value="{{ row.order }}" style="width:62px;" title="Ordine"></td>
+                  <td>
+                    <input class="input input-sm" type="text" data-name="route_name"
+                           value="{{ row.route_name }}" list="route-catalog-options"
+                           title="Route Django — digita o scegli dalla lista" style="min-width:160px;">
+                  </td>
+                  <td><input class="input input-sm" type="text" data-name="url_path" value="{{ row.url_path }}" title="URL path"></td>
+                  <td>
+                    <select class="input input-sm" data-name="role_ids_csv" multiple size="3"
+                            title="Ruoli abilitati — Ctrl+click per più voci. Nessuna selezione = tutti.">
+                      {% for r in ruoli %}
+                        <option value="{{ r.id }}">{{ r.nome }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td><input type="checkbox" data-name="is_visible" {% if row.is_visible %}checked{% endif %} title="Visibile nel menu"></td>
+                  <td><input type="checkbox" data-name="is_enabled" {% if row.is_enabled %}checked{% endif %} title="Voce attiva"></td>
+                  <td><input type="checkbox" data-name="open_in_new_tab" {% if row.open_in_new_tab %}checked{% endif %} title="Apri in nuova tab"></td>
+                  <td class="admin-inline-actions">
+                    <button class="btn btn-secondary btn-sm nav-save" type="button" title="Salva le modifiche di questa riga">Salva</button>
+                    <button class="btn btn-danger btn-sm nav-delete" type="button" title="Elimina definitivamente questa voce">Elimina</button>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="14" class="cell-muted">Nessuna voce. Creane una dal modulo qui sopra oppure importa dalla topbar legacy.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    {# ─── PUBLISH / ROLLBACK ─── #}
+    <div class="card">
+      {% include "admin_portale/components/card_head.html" with card_title="Publish / Rollback snapshot" card_subtitle="Salva l'intera configurazione navigazione in un snapshot versionato. Puoi ripristinare qualsiasi versione precedente in qualsiasi momento." %}
+      <div class="card-body">
+        <p class="field-help" style="margin-bottom:14px;">
+          Le modifiche alle voci sono <strong>immediate</strong> ma non sono ancora &quot;certificate&quot;.
+          Pubblica uno snapshot per registrare lo stato corrente con nome e data.
+          Se qualcosa va storto dopo una modifica, seleziona uno snapshot precedente e premi <strong>Ripristina</strong>:
+          l'operazione è immediata e invalida automaticamente la cache di navigazione.
+        </p>
+        <div class="admin-form-grid">
+          <div class="field field-wide">
+            <label for="publish-note">Nota snapshot <span class="cell-muted">(opzionale)</span></label>
+            <input class="input" type="text" id="publish-note" placeholder="es. Menu marzo 2026 – aggiunto link assenze">
+            <div class="field-help">Testo libero per riconoscere lo snapshot nella lista di ripristino.</div>
+          </div>
+          <div class="field field-actions">
+            <button class="btn" type="button" id="publish-btn">Pubblica snapshot</button>
+          </div>
+        </div>
+        <div class="admin-form-grid" style="margin-top: 16px;">
+          <div class="field field-wide">
+            <label for="restore-snapshot-id">Ripristina snapshot</label>
+            <select class="input" id="restore-snapshot-id">
+              {% for s in snapshots %}
+                <option value="{{ s.id }}">v{{ s.version }} — {{ s.created_at|date:"d/m/Y H:i" }}{% if s.note %} — {{ s.note }}{% endif %}</option>
+              {% empty %}
+                <option value="">Nessuno snapshot pubblicato</option>
+              {% endfor %}
+            </select>
+            <div class="field-help">Seleziona la versione e premi Ripristina. La configurazione corrente sarà <strong>sostituita completamente</strong>.</div>
+          </div>
+          <div class="field field-actions">
+            <button class="btn btn-secondary" type="button" id="restore-btn">Ripristina</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ─── IMPORT DA LEGACY ─── #}
+    <div class="card">
+      {% include "admin_portale/components/card_head.html" with card_title="Importa da topbar legacy" card_subtitle="Popola automaticamente le voci di navigazione dalla vecchia tabella Pulsante del sistema legacy." %}
+      <div class="card-body">
+        <p class="field-help" style="margin-bottom:14px;">
+          <strong>Merge (consigliato):</strong> aggiunge le voci legacy che non esistono ancora, senza toccare quelle già configurate manualmente.<br>
+          <strong>Sovrascrivi tutto:</strong> elimina tutte le voci esistenti e le ricrea dal legacy da zero.
+          <span style="color:#dc2626;">Attenzione: azione irreversibile senza snapshot.</span>
+          Pubblica prima uno snapshot se vuoi poter tornare indietro.
+        </p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-secondary" type="button" id="bootstrap-legacy-btn">Merge con legacy</button>
+          <button class="btn btn-danger" type="button" id="bootstrap-legacy-force-btn">Sovrascrivi tutto dal legacy</button>
+        </div>
+      </div>
+    </div>
+
+    {# ─── REDIRECT LEGACY ─── #}
+    <div class="card">
+      {% include "admin_portale/components/card_head.html" with card_title="Redirect Legacy" card_subtitle="Reindirizza automaticamente i vecchi URL del portale legacy verso i nuovi percorsi Django, senza modificare il codice." %}
+      <div class="card-body">
+        <p class="field-help" style="margin-bottom:14px;">
+          Ogni redirect intercetta un vecchio percorso (es. <code>/admin/vecchio-path</code>) e lo reindirizza alla
+          Route o all'URL indicato. Utile durante la migrazione graduale dal sistema legacy verso Django.
+          Il campo <em>Target route</em> supporta la selezione dall'elenco delle route disponibili.
+        </p>
+
+        <form id="legacy-redirect-form" class="admin-form-grid" style="margin-bottom: 16px;">
+          <div class="field">
+            <label>Legacy path <span style="color:#dc2626;font-size:11px;">obbligatorio</span></label>
+            <input class="input" type="text" name="legacy_path" placeholder="/admin/vecchio-path">
+            <div class="field-help">Il vecchio URL da intercettare e reindirizzare.</div>
+          </div>
+          <div class="field field-wide">
+            <label>Target route <span class="cell-muted">(consigliato)</span></label>
+            <input class="input" type="text" name="target_route_name" list="route-catalog-options"
+                   placeholder="digita o scegli dalla lista ▾">
+            <div class="field-help">Route Django di destinazione. Seleziona dall'elenco o digita (es. <code>admin_portale:index</code>).</div>
+          </div>
+          <div class="field field-wide">
+            <label>Target path <span class="cell-muted">(alternativo)</span></label>
+            <input class="input" type="text" name="target_url_path" placeholder="/admin-portale/utenti/">
+            <div class="field-help">URL path diretto come alternativa alla route (usa solo se la route non è disponibile).</div>
+          </div>
+          <div class="field">
+            <label>Stato</label>
+            <label style="font-weight:normal;cursor:pointer;">
+              <input type="checkbox" name="is_enabled" checked>
+              <strong>Attivo</strong>
+            </label>
+            <div class="field-help">Deseleziona per disabilitare temporaneamente il redirect senza eliminarlo.</div>
+          </div>
+          <div class="field field-actions">
+            <button class="btn" type="submit">Aggiungi redirect</button>
+          </div>
+        </form>
+
+        <div class="table-wrap">
+          <table class="admin-table" id="legacy-redirect-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th title="Vecchio URL da intercettare">Legacy path</th>
+                <th title="Route Django di destinazione — supporta selezione da lista">Target route</th>
+                <th title="URL path diretto di destinazione">Target path</th>
+                <th title="Redirect attivo o temporaneamente disabilitato">Attivo</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in redirects %}
+                <tr data-id="{{ r.id }}">
+                  <td>{{ r.id }}</td>
+                  <td><input class="input input-sm" type="text" data-name="legacy_path" value="{{ r.legacy_path }}"></td>
+                  <td>
+                    <input class="input input-sm" type="text" data-name="target_route_name"
+                           value="{{ r.target_route_name }}" list="route-catalog-options"
+                           title="Route Django — digita o scegli dalla lista" style="min-width:180px;">
+                  </td>
+                  <td><input class="input input-sm" type="text" data-name="target_url_path" value="{{ r.target_url_path }}"></td>
+                  <td><input type="checkbox" data-name="is_enabled" {% if r.is_enabled %}checked{% endif %}></td>
+                  <td class="admin-inline-actions">
+                    <button class="btn btn-secondary btn-sm redirect-save" type="button">Salva</button>
+                    <button class="btn btn-danger btn-sm redirect-delete" type="button">Elimina</button>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="6" class="cell-muted">Nessun redirect configurato.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    {# ─── STATE PREVIEW (JSON) ─── #}
+    <div class="card">
+      {% include "admin_portale/components/card_head.html" with card_title="State Preview (JSON)" card_subtitle="Anteprima della configurazione corrente esportabile. Questo è esattamente ciò che viene salvato in uno snapshot." %}
+      <div class="card-body">
+        <div class="state-json">{{ state_preview_json }}</div>
+      </div>
+    </div>
+
+    <div id="nav-builder-status"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <script>
+    (function () {
+      const csrf = document.querySelector("#nav-builder-csrf input[name='csrfmiddlewaretoken']")?.value || "";
+      const statusEl = document.getElementById("nav-builder-status");
+      const itemsTable = document.getElementById("nav-items-table");
+      const redirectTable = document.getElementById("legacy-redirect-table");
+
+      const urls = {
+        create: "{% url 'admin_portale:api_navigation_item_create' %}",
+        update: "{% url 'admin_portale:api_navigation_item_update' %}",
+        del: "{% url 'admin_portale:api_navigation_item_delete' %}",
+        reorder: "{% url 'admin_portale:api_navigation_reorder' %}",
+        bootstrapLegacy: "{% url 'admin_portale:api_navigation_bootstrap_from_legacy' %}",
+        publish: "{% url 'admin_portale:api_navigation_publish' %}",
+        restore: "{% url 'admin_portale:api_navigation_restore' %}",
+        redUpsert: "{% url 'admin_portale:api_legacy_redirect_upsert' %}",
+        redDelete: "{% url 'admin_portale:api_legacy_redirect_delete' %}"
+      };
+
+      function setStatus(text, isError) {
+        if (!statusEl) return;
+        statusEl.textContent = text || "";
+        statusEl.classList.toggle("text-danger", !!isError);
+      }
+
+      // Restituisce il valore corretto per qualsiasi tipo di campo, incluso select[multiple].
+      function getFieldValue(el) {
+        if (el.type === "checkbox") return !!el.checked;
+        if (el.tagName === "SELECT" && el.multiple) {
+          return Array.from(el.selectedOptions).map(function (o) { return o.value; }).join(",");
+        }
+        return el.value;
+      }
+
+      function asPayload(form) {
+        const payload = {};
+        form.querySelectorAll("input, select, textarea").forEach(function (el) {
+          if (!el.name) return;
+          payload[el.name] = getFieldValue(el);
+        });
+        return payload;
+      }
+
+      function rowPayload(row) {
+        const payload = { id: parseInt(row.dataset.id || "0", 10) || null };
+        row.querySelectorAll("[data-name]").forEach(function (el) {
+          payload[el.getAttribute("data-name")] = getFieldValue(el);
+        });
+        return payload;
+      }
+
+      async function postJson(url, payload) {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+          body: JSON.stringify(payload || {})
+        });
+        const data = await res.json().catch(function () { return {}; });
+        if (!res.ok || !data.ok) throw new Error(data.error || ("HTTP " + res.status));
+        return data;
+      }
+
+      // Pre-seleziona i ruoli nei select multipli della tabella in base a data-role-ids.
+      function initTableRoleSelects() {
+        document.querySelectorAll("tr[data-id][data-role-ids]").forEach(function (row) {
+          const roleIds = (row.dataset.roleIds || "").split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+          if (!roleIds.length) return;
+          const sel = row.querySelector("select[data-name='role_ids_csv']");
+          if (!sel) return;
+          sel.querySelectorAll("option").forEach(function (opt) {
+            opt.selected = roleIds.includes(opt.value);
+          });
+        });
+      }
+      initTableRoleSelects();
+
+      // ── Crea nuova voce ──
+      document.getElementById("nav-create-form")?.addEventListener("submit", async function (ev) {
+        ev.preventDefault();
+        try {
+          await postJson(urls.create, asPayload(ev.currentTarget));
+          setStatus("Voce creata. Ricarico la pagina.", false);
+          window.location.reload();
+        } catch (err) {
+          setStatus("Errore creazione voce: " + err.message, true);
+        }
+      });
+
+      // ── Import legacy (merge) ──
+      document.getElementById("bootstrap-legacy-btn")?.addEventListener("click", async function () {
+        try {
+          await postJson(urls.bootstrapLegacy, { force: false });
+          setStatus("Merge con legacy completato. Ricarico la pagina.", false);
+          window.location.reload();
+        } catch (err) {
+          setStatus("Import legacy non eseguito: " + err.message, true);
+        }
+      });
+
+      // ── Import legacy (force) ──
+      document.getElementById("bootstrap-legacy-force-btn")?.addEventListener("click", async function () {
+        if (!confirm("Sei sicuro?\n\nQuesta azione ELIMINA tutte le voci esistenti e le ricrea dal legacy.\nPubblica prima uno snapshot se vuoi poter tornare indietro.")) return;
+        try {
+          await postJson(urls.bootstrapLegacy, { force: true });
+          setStatus("Sovrascrittura da legacy completata. Ricarico la pagina.", false);
+          window.location.reload();
+        } catch (err) {
+          setStatus("Import legacy forzato non eseguito: " + err.message, true);
+        }
+      });
+
+      // ── Salva / Elimina voce dalla tabella ──
+      itemsTable?.addEventListener("click", async function (ev) {
+        const target = ev.target;
+        if (!(target instanceof HTMLElement)) return;
+        const row = target.closest("tr[data-id]");
+        if (!row) return;
+        try {
+          if (target.classList.contains("nav-save")) {
+            await postJson(urls.update, rowPayload(row));
+            setStatus("Voce salvata.", false);
+          } else if (target.classList.contains("nav-delete")) {
+            if (!confirm("Eliminare definitivamente questa voce di navigazione?")) return;
+            await postJson(urls.del, { id: parseInt(row.dataset.id || "0", 10) || null });
+            setStatus("Voce eliminata. Ricarico la pagina.", false);
+            window.location.reload();
+          }
+        } catch (err) {
+          setStatus("Errore operazione voce: " + err.message, true);
+        }
+      });
+
+      // ── Pubblica snapshot ──
+      document.getElementById("publish-btn")?.addEventListener("click", async function () {
+        try {
+          const note = document.getElementById("publish-note")?.value || "";
+          const data = await postJson(urls.publish, { note: note });
+          setStatus("Snapshot pubblicato: v" + data.version, false);
+          window.location.reload();
+        } catch (err) {
+          setStatus("Errore publish snapshot: " + err.message, true);
+        }
+      });
+
+      // ── Ripristina snapshot ──
+      document.getElementById("restore-btn")?.addEventListener("click", async function () {
+        try {
+          const snapshotId = document.getElementById("restore-snapshot-id")?.value || "";
+          if (!snapshotId) throw new Error("Seleziona uno snapshot.");
+          if (!confirm("Ripristinare questo snapshot?\n\nLa configurazione corrente sarà sostituita completamente.")) return;
+          await postJson(urls.restore, { snapshot_id: snapshotId });
+          setStatus("Snapshot ripristinato. Ricarico la pagina.", false);
+          window.location.reload();
+        } catch (err) {
+          setStatus("Errore restore snapshot: " + err.message, true);
+        }
+      });
+
+      // ── Mostra/nascondi campo parent_code nel form di creazione ──
+      const createSection = document.getElementById("create-section");
+      const createParentField = document.getElementById("create-parent-code-field");
+      function toggleParentField() {
+        if (createSection && createParentField) {
+          createParentField.style.display = createSection.value === "subnav" ? "" : "none";
+        }
+      }
+      createSection?.addEventListener("change", toggleParentField);
+      toggleParentField();
+
+      // ── Drag-and-drop riordino righe (SortableJS) ──
+      const sortableBody = document.getElementById("nav-sortable-body");
+      if (sortableBody && window.Sortable) {
+        window.Sortable.create(sortableBody, {
+          handle: ".drag-handle",
+          animation: 150,
+          ghostClass: "sortable-ghost",
+          onEnd: async function () {
+            const rows = sortableBody.querySelectorAll("tr[data-id]");
+            const orderedIds = Array.from(rows).map(function (r) { return parseInt(r.dataset.id || "0", 10); }).filter(Boolean);
+            if (!orderedIds.length) return;
+            try {
+              await postJson(urls.reorder, { ordered_ids: orderedIds });
+              // Aggiorna i valori visibili del campo "order"
+              rows.forEach(function (row, idx) {
+                const orderInput = row.querySelector("input[data-name='order']");
+                if (orderInput) orderInput.value = (idx + 1) * 10;
+              });
+              setStatus("Ordine aggiornato.", false);
+            } catch (err) {
+              setStatus("Errore riordino: " + err.message, true);
+            }
+          },
+        });
+      }
+
+      // ── Aggiungi redirect legacy ──
+      document.getElementById("legacy-redirect-form")?.addEventListener("submit", async function (ev) {
+        ev.preventDefault();
+        try {
+          await postJson(urls.redUpsert, asPayload(ev.currentTarget));
+          setStatus("Redirect creato. Ricarico la pagina.", false);
+          window.location.reload();
+        } catch (err) {
+          setStatus("Errore creazione redirect: " + err.message, true);
+        }
+      });
+
+      // ── Salva / Elimina redirect dalla tabella ──
+      redirectTable?.addEventListener("click", async function (ev) {
+        const target = ev.target;
+        if (!(target instanceof HTMLElement)) return;
+        const row = target.closest("tr[data-id]");
+        if (!row) return;
+        try {
+          if (target.classList.contains("redirect-save")) {
+            await postJson(urls.redUpsert, rowPayload(row));
+            setStatus("Redirect salvato.", false);
+          } else if (target.classList.contains("redirect-delete")) {
+            if (!confirm("Eliminare questo redirect legacy?")) return;
+            await postJson(urls.redDelete, { id: parseInt(row.dataset.id || "0", 10) || null });
+            setStatus("Redirect eliminato. Ricarico la pagina.", false);
+            window.location.reload();
+          }
+        } catch (err) {
+          setStatus("Errore operazione redirect: " + err.message, true);
+        }
+      });
+    })();
+  </script>
+{% endblock %}

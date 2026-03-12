@@ -1,0 +1,32 @@
+{% extends "core/base.html" %}
+
+{% block title %}403 | Portale Applicativo{% endblock %}
+
+{% block content %}
+  <div class="page-header">
+    <div class="page-h">Accesso negato</div>
+    <div class="page-sub">Non hai i permessi per aprire questa pagina.</div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">🚫 Permessi mancanti</div>
+    </div>
+    <div class="card-body">
+      <div class="activity-item">
+        <div class="act-dot"></div>
+        <div>
+          <div class="act-text">Il controllo ACL legacy (`pulsanti` + `permessi`) ha negato l'accesso.</div>
+          <div class="act-time">HTTP 403</div>
+        </div>
+      </div>
+      <div class="activity-item">
+        <div class="act-dot blue"></div>
+        <div>
+          <div class="act-text"><a href="{% url 'dashboard' %}" class="sub-a active">Torna alla dashboard</a></div>
+          <div class="act-time">Navigazione</div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "core/base.html" %}
+
+{% block title %}Gestione Anomalie | Portale Applicativo{% endblock %}
+
+{% block content %}
+  <div class="page-header">
+    <div class="page-h">Gestione Anomalie</div>
+    <div class="page-sub">Fase 3 (Django): API DB locali migrate, API SharePoint in pending</div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Stato modulo</div></div>
+      <div class="card-body">
+        <div class="activity-item">
+          <div class="act-dot {% if db_has_ordini %}green{% else %}red{% endif %}"></div>
+          <div><div class="act-text">Tabella `ordini_produzione` {% if db_has_ordini %}disponibile{% else %}non disponibile{% endif %}</div></div>
+        </div>
+        <div class="activity-item">
+          <div class="act-dot {% if db_has_anomalie %}green{% else %}red{% endif %}"></div>
+          <div><div class="act-text">Tabella `anomalie` {% if db_has_anomalie %}disponibile{% else %}non disponibile{% endif %}</div></div>
+        </div>
+        <div class="activity-item">
+          <div class="act-dot blue"></div>
+          <div><div class="act-text">API DB ordini: <code>/api/anomalie/db/ordini</code></div></div>
+        </div>
+        <div class="activity-item">
+          <div class="act-dot blue"></div>
+          <div><div class="act-text">API DB anomalie: <code>/api/anomalie/db/anomalie?sp_item_id=...</code></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">Azioni</div></div>
+      <div class="card-body">
+        <div class="modules-grid">
+          <a class="mod" href="{% url 'api_anomalie_db_ordini' %}">
+            <div class="mod-icon">DB</div>
+            <div>
+              <div class="mod-name">Ordini (JSON)</div>
+              <div class="mod-sub">Replica locale</div>
+            </div>
+          </a>
+          <a class="mod" href="{% url 'anomalie_menu' %}">
+            <div class="mod-icon">M</div>
+            <div>
+              <div class="mod-name">Menu anomalie</div>
+              <div class="mod-sub">Navigazione Django</div>
+            </div>
+          </a>
+        </div>
+        {% if is_admin %}
+          <div class="modules-grid" style="margin-top:12px;">
+            <a class="mod" href="{% url 'anomalie_configurazione_page' %}?tab=riepilogo">
+              <div class="mod-icon">&#9881;</div>
+              <div><div class="mod-name">Gestione Admin</div><div class="mod-sub">Statistiche, record e log</div></div>
+            </a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+{% endblock %}

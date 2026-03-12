@@ -1,0 +1,57 @@
+[APP]
+debug = False
+secret_key = CHANGE_ME_FROM_ENV
+
+[ADMIN]
+email = admin@example.com
+password = CHANGE_ME
+nome = Amministratore
+
+[DATABASE]
+path = utenti.db
+
+[SQLSERVER]
+server = sqlserver.example.local
+database = project_db
+driver = ODBC Driver 18 for SQL Server
+username =
+password =
+encrypt = yes
+trust_server_certificate = yes
+login_timeout = 5
+
+[CACHE]
+foto_ttl = 600
+assenze_ttl = 300
+capi_ttl = 600
+
+[ANOMALIE]
+draft_temp_dir = temp\anomalie_drafts
+pending_files_dir = temp\anomalie_pending_sync
+
+[AZIENDA]
+tenant_id = <GRAPH_TENANT_ID>
+client_id = <GRAPH_CLIENT_ID>
+client_secret = <GRAPH_CLIENT_SECRET>
+site_id = <GRAPH_SITE_ID>
+list_id_assenze = <GRAPH_LIST_ID_ASSENZE>
+list_id_dipendenti = <GRAPH_LIST_ID_DIPENDENTI>
+list_id_caporeparto = <GRAPH_LIST_ID_CAPOREPARTO>
+list_id_anagrafica = <GRAPH_LIST_ID_ANAGRAFICA>
+list_id_anomalie_op = <GRAPH_LIST_ID_ANOMALIE_OP>
+list_id_anomalie_db = <GRAPH_LIST_ID_ANOMALIE_DB>
+
+[ACTIVE_DIRECTORY]
+enabled = false
+server = ldap://ldap.example.local
+domain = EXAMPLE
+upn_suffix = @example.local
+timeout = 5
+service_user = svc_ldap@example.local
+service_password = CHANGE_ME
+base_dn = DC=EXAMPLE,DC=LOCAL
+user_filter = (&(objectCategory=person)(objectClass=user))
+group_allowlist = EMPLOYEES,MANAGERS,ADMINS
+
+[DEFAULT]
+default_password = CHANGE_ME

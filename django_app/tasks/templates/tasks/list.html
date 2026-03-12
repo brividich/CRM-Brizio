@@ -1,0 +1,323 @@
+{% extends "core/base.html" %}
+
+{% block title %}Task - Portale Applicativo{% endblock %}
+
+{% block subnav %}
+<nav class="subnav">
+  <a class="sub-a active" href="{% url 'tasks:list' %}">Dashboard</a>
+  <a class="sub-a" href="{% url 'tasks:project_list' %}">Progetti</a>
+  <a class="sub-a" href="{% url 'tasks:list' %}?mine=1">Mie task</a>
+  {% if is_scope_admin %}
+    <a class="sub-a" href="{% url 'tasks:list' %}?mine=0">Tutte (scope)</a>
+  {% endif %}
+  <a class="sub-a" href="{% url 'tasks:list' %}?status=IN_PROGRESS{% if is_scope_admin %}&mine=0{% endif %}">In corso</a>
+  <a class="sub-a" href="{% url 'tasks:list' %}?overdue=on{% if is_scope_admin %}&mine=0{% endif %}">Overdue</a>
+  {% if can_create %}
+    <span class="sub-sep"></span>
+    <a class="sub-a" href="{% url 'tasks:create' %}">Nuova task</a>
+  {% endif %}
+</nav>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.task-dashboard { display:grid; grid-template-columns: 1.8fr 1fr; gap:12px; margin-bottom:16px; }
+.task-kpis { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:10px; }
+.task-kpi { background:var(--surface); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow); padding:12px; }
+.task-kpi-num { font-size:26px; font-weight:800; color:var(--text); line-height:1; }
+.task-kpi-lbl { font-size:12px; color:var(--text-mid); margin-top:6px; }
+.task-panel { background:var(--surface); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow); padding:12px; }
+.task-actions { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px; margin-top:10px; }
+.task-action { display:inline-flex; justify-content:center; align-items:center; padding:8px 10px; border-radius:8px; border:1px solid var(--border); background:#fff; text-decoration:none; color:var(--text); font-size:12px; font-weight:700; }
+.task-action:hover { background:#f8fafc; }
+.task-action.disabled { opacity:.55; cursor:not-allowed; pointer-events:none; }
+.task-links { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.task-link-chip { display:inline-flex; padding:5px 10px; border-radius:999px; border:1px solid var(--border); text-decoration:none; font-size:12px; font-weight:600; color:var(--text-mid); background:#fff; }
+.task-link-chip:hover { color:var(--text); border-color:#cbd5e1; }
+.task-admin-console { margin-bottom:16px; background:var(--surface); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow); padding:12px; display:grid; gap:10px; }
+.task-admin-kpis { display:grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap:8px; }
+.task-admin-kpi { border:1px solid var(--border); border-radius:10px; background:#fff; padding:10px; }
+.task-admin-kpi .num { font-size:22px; font-weight:800; color:var(--text); line-height:1; }
+.task-admin-kpi .lbl { font-size:12px; color:var(--text-mid); margin-top:5px; }
+.task-admin-projects { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:8px; }
+.task-admin-project { border:1px solid var(--border); border-radius:10px; background:#fff; padding:10px; }
+.task-admin-project a { color:var(--text); font-weight:700; text-decoration:none; }
+.task-admin-project a:hover { color:var(--accent); }
+.tasks-grid { display: grid; gap: 12px; }
+.task-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); }
+.task-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.task-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; color: var(--text-mid); font-size: 12px; }
+.task-title { color: var(--primary); text-decoration: none; font-weight: 700; font-size: 17px; }
+.task-title:hover { text-decoration: underline; }
+.task-filters { margin-bottom: 16px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); }
+.task-filters-grid { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 10px; align-items: end; }
+.task-flags { display: flex; gap: 14px; align-items: center; margin-top: 8px; }
+.task-empty { padding: 24px; text-align: center; color: var(--text-mid); border: 1px dashed var(--border); border-radius: 12px; background: #fff; }
+.task-priority-high { color: #b91c1c; }
+.task-priority-medium { color: #b45309; }
+.task-priority-low { color: #1d4ed8; }
+.task-overdue { color: #b91c1c; font-weight: 600; }
+@media (max-width: 1100px) {
+  .task-dashboard { grid-template-columns: 1fr; }
+  .task-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .task-filters-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .task-admin-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .task-admin-projects { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  .task-kpis { grid-template-columns: 1fr; }
+  .task-actions { grid-template-columns: 1fr; }
+  .task-filters-grid { grid-template-columns: 1fr; }
+  .task-admin-kpis { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-main">
+    <h1 class="page-h">Task</h1>
+    <div class="page-sub">
+      {% if is_scope_admin %}
+        Scope completo attivo (tasks_admin)
+      {% else %}
+        Scope personale (creator, assegnatario o subscriber)
+      {% endif %}
+    </div>
+  </div>
+  <div class="page-header-actions">
+    {% if can_create %}
+      <a href="{% url 'tasks:create' %}" class="btn">Nuova task</a>
+    {% else %}
+      <span class="badge">Solo lettura (manca tasks_create)</span>
+    {% endif %}
+  </div>
+</div>
+
+{% if messages %}
+  <div class="messages-wrap">
+    {% for message in messages %}
+      <div class="notice notice-{{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+<section class="task-dashboard">
+  <div class="task-kpis">
+    <article class="task-kpi">
+      <div class="task-kpi-num">{{ dashboard_stats.total }}</div>
+      <div class="task-kpi-lbl">Task in scope</div>
+    </article>
+    <article class="task-kpi">
+      <div class="task-kpi-num">{{ dashboard_stats.in_progress }}</div>
+      <div class="task-kpi-lbl">In progress</div>
+    </article>
+    <article class="task-kpi">
+      <div class="task-kpi-num">{{ dashboard_stats.overdue }}</div>
+      <div class="task-kpi-lbl">Overdue</div>
+    </article>
+    <article class="task-kpi">
+      <div class="task-kpi-num">{{ dashboard_stats.todo }}</div>
+      <div class="task-kpi-lbl">To do</div>
+    </article>
+    <article class="task-kpi">
+      <div class="task-kpi-num">{{ dashboard_stats.done }}</div>
+      <div class="task-kpi-lbl">Done</div>
+    </article>
+    <article class="task-kpi">
+      <div class="task-kpi-num">{{ dashboard_stats.canceled }}</div>
+      <div class="task-kpi-lbl">Canceled</div>
+    </article>
+  </div>
+  <aside class="task-panel">
+    <div style="font-size:13px;font-weight:700;color:var(--text);">Gestione & collegamenti</div>
+    <div class="task-actions">
+      {% if can_create %}
+        <a class="task-action" href="{% url 'tasks:create' %}">Nuova task</a>
+      {% else %}
+        <span class="task-action disabled">Nuova task (no ACL)</span>
+      {% endif %}
+      <a class="task-action" href="{% url 'tasks:list' %}?mine=1">Mie task</a>
+      <a class="task-action" href="{% url 'tasks:list' %}?status=TODO{% if is_scope_admin %}&mine=0{% endif %}">Da fare</a>
+      <a class="task-action" href="{% url 'tasks:list' %}?status=IN_PROGRESS{% if is_scope_admin %}&mine=0{% endif %}">In corso</a>
+      <a class="task-action" href="{% url 'tasks:list' %}?status=DONE{% if is_scope_admin %}&mine=0{% endif %}">Completate</a>
+      <a class="task-action" href="{% url 'tasks:list' %}?overdue=on{% if is_scope_admin %}&mine=0{% endif %}">Scadute</a>
+      <a class="task-action" href="{% url 'tasks:project_list' %}">Gantt progetti</a>
+      {% if can_gestione_admin %}
+        <a class="task-action" href="{% url 'tasks:gestione_admin' %}" style="background:#eef2ff;color:#1f64d8;font-weight:700;grid-column:span 2;">&#9881; Gestione Admin</a>
+      {% endif %}
+    </div>
+    <div class="task-links">
+      {% if is_scope_admin %}
+        <a class="task-link-chip" href="{% url 'tasks:list' %}?mine=0">Mostra tutto scope</a>
+      {% endif %}
+      <a class="task-link-chip" href="{% url 'tasks:list' %}?priority=HIGH{% if is_scope_admin %}&mine=0{% endif %}">Priorita alta</a>
+      <a class="task-link-chip" href="{% url 'tasks:list' %}?status=CANCELED{% if is_scope_admin %}&mine=0{% endif %}">Annullate</a>
+    </div>
+  </aside>
+</section>
+
+{% if is_scope_admin and admin_console %}
+  <section class="task-admin-console">
+    <div style="font-size:13px;font-weight:700;color:var(--text);">Control room amministrativa</div>
+    <div class="task-admin-kpis">
+      <article class="task-admin-kpi">
+        <div class="num">{{ admin_console.unassigned }}</div>
+        <div class="lbl">Task non assegnate</div>
+      </article>
+      <article class="task-admin-kpi">
+        <div class="num">{{ admin_console.without_due_date }}</div>
+        <div class="lbl">Senza data prevista</div>
+      </article>
+      <article class="task-admin-kpi">
+        <div class="num">{{ admin_console.without_project }}</div>
+        <div class="lbl">Task singole</div>
+      </article>
+      <article class="task-admin-kpi">
+        <div class="num">{{ admin_console.due_next_7d }}</div>
+        <div class="lbl">In scadenza (7 giorni)</div>
+      </article>
+      <article class="task-admin-kpi">
+        <div class="num">{{ admin_console.stale_in_progress }}</div>
+        <div class="lbl">In corso ferme > 7 giorni</div>
+      </article>
+    </div>
+    {% if admin_project_summary %}
+      <div class="task-admin-projects">
+        {% for project in admin_project_summary %}
+          <article class="task-admin-project">
+            <a href="{% url 'tasks:project_gantt' project.id %}">{{ project.name }}</a>
+            <div style="font-size:12px;color:var(--text-mid);margin-top:4px;">
+              Aperte: {{ project.open_total }} | Totali: {{ project.task_total }}
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </section>
+{% endif %}
+
+{% if showing_mine_default %}
+  <div class="notice" style="margin-bottom:12px;">
+    Filtro attivo: visualizzazione focalizzata sulle tue task. {% if is_scope_admin %}<a href="{% url 'tasks:list' %}?mine=0">Mostra tutte le task in scope</a>.{% endif %}
+  </div>
+{% endif %}
+
+<form method="get" class="task-filters">
+  <div class="task-filters-grid">
+    <div class="field">
+      <label for="{{ filter_form.status.id_for_label }}">Status</label>
+      {{ filter_form.status }}
+    </div>
+    <div class="field">
+      <label for="{{ filter_form.priority.id_for_label }}">Priority</label>
+      {{ filter_form.priority }}
+    </div>
+    <div class="field">
+      <label for="{{ filter_form.assigned_to.id_for_label }}">Assegnato a</label>
+      {{ filter_form.assigned_to }}
+    </div>
+    <div class="field">
+      <label for="{{ filter_form.project.id_for_label }}">Progetto</label>
+      {{ filter_form.project }}
+    </div>
+    <div class="field">
+      <label for="{{ filter_form.tag.id_for_label }}">Tag</label>
+      {{ filter_form.tag }}
+    </div>
+    <div class="field">
+      <label for="{{ filter_form.due_from.id_for_label }}">Scadenza da</label>
+      {{ filter_form.due_from }}
+    </div>
+    <div class="field">
+      <label for="{{ filter_form.due_to.id_for_label }}">Scadenza a</label>
+      {{ filter_form.due_to }}
+    </div>
+    <div class="field field-actions">
+      <button type="submit" class="btn">Applica</button>
+      <a href="{% url 'tasks:list' %}" class="btn btn-secondary">Reset</a>
+    </div>
+  </div>
+  <div class="task-flags">
+    <label class="checkline">{{ filter_form.mine }} Solo mie task</label>
+    <label class="checkline">{{ filter_form.overdue }} Solo overdue</label>
+    <label class="checkline">{{ filter_form.unassigned }} Solo non assegnate</label>
+    <label class="checkline">{{ filter_form.without_due_date }} Senza data prevista</label>
+    <label class="checkline">{{ filter_form.without_project }} Solo task singole</label>
+  </div>
+</form>
+
+{% if tasks %}
+  <section class="tasks-grid">
+    {% for task in tasks %}
+      <article class="task-card">
+        <div class="task-top">
+          <div>
+            <a class="task-title" href="{% url 'tasks:detail' task.id %}">{{ task.title }}</a>
+            {% if task.description %}
+              <div style="margin-top:6px;color:var(--text-mid);font-size:13px;">{{ task.description|truncatechars:180 }}</div>
+            {% endif %}
+          </div>
+          <div style="text-align:right;">
+            <span class="badge">{{ task.get_status_display }}</span>
+            <div class="task-meta" style="justify-content:flex-end;">
+              <span class="task-priority-{{ task.priority|lower }}">{{ task.get_priority_display }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="task-meta">
+          <span>Creata da: {{ task.created_by.get_full_name|default:task.created_by.username }}</span>
+          <span>Assegnata a:
+            {% if task.assigned_to %}
+              {{ task.assigned_to.get_full_name|default:task.assigned_to.username }}
+            {% else %}
+              Nessuno
+            {% endif %}
+          </span>
+          <span>Progetto:
+            {% if task.project %}
+              <a href="{% url 'tasks:project_gantt' task.project.id %}">{{ task.project.name }}</a>
+            {% else %}
+              -
+            {% endif %}
+          </span>
+          <span>Due:
+            {% if task.due_date %}
+              {{ task.due_date|date:"d/m/Y" }}
+            {% else %}
+              -
+            {% endif %}
+          </span>
+          <span>Next step:
+            {% if task.next_step_due %}
+              {{ task.next_step_due|date:"d/m/Y" }}
+            {% else %}
+              -
+            {% endif %}
+          </span>
+          {% if task.is_overdue %}
+            <span class="task-overdue">Overdue</span>
+          {% endif %}
+          {% if task.tags %}
+            <span>Tag: {{ task.tags }}</span>
+          {% endif %}
+        </div>
+      </article>
+    {% endfor %}
+  </section>
+{% else %}
+  <div class="task-empty">
+    <div style="font-weight:700;margin-bottom:6px;">Nessuna task per i filtri selezionati.</div>
+    <div style="margin-bottom:10px;">Usa i collegamenti rapidi sopra per cambiare sottosezione o resettare i filtri.</div>
+    <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;">
+      <a class="btn btn-secondary btn-sm" href="{% url 'tasks:list' %}">Reset filtri</a>
+      {% if is_scope_admin %}
+        <a class="btn btn-secondary btn-sm" href="{% url 'tasks:list' %}?mine=0">Tutte le task in scope</a>
+      {% endif %}
+      {% if can_create %}
+        <a class="btn btn-sm" href="{% url 'tasks:create' %}">Crea la prima task</a>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

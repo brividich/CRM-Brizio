@@ -1,0 +1,837 @@
+﻿{% extends "core/base.html" %}
+
+{% block title %}Calendario Assenze | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.17/index.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.17/locales-all.global.min.js"></script>
+  <style>
+    .content { max-width: 100%; padding: 18px 14px 22px 14px; }
+    .calendar-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 332px;
+      gap: 14px;
+      align-items: start;
+    }
+    .calendar-shell { padding: 8px; }
+    .calendar-side {
+      display: grid;
+      gap: 12px;
+      position: sticky;
+      top: 74px;
+      max-height: calc(100vh - 86px);
+      overflow: auto;
+      padding-bottom: 4px;
+    }
+    .day-agenda .card-body {
+      max-height: 45vh;
+      overflow: auto;
+      padding-top: 8px;
+      padding-bottom: 8px;
+    }
+    .agenda-list { display: grid; gap: 8px; }
+    .agenda-item {
+      width: 100%;
+      text-align: left;
+      border: 1px solid var(--border);
+      border-left-width: 4px;
+      border-radius: 10px;
+      padding: 10px 10px 10px 12px;
+      background: #f8fafc;
+      cursor: pointer;
+    }
+    .agenda-item:hover { background: #f1f5f9; }
+    .agenda-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 5px;
+    }
+    .agenda-name { font-size: 13px; font-weight: 700; color: var(--text); }
+    .agenda-time { font-size: 11px; color: var(--text-mid); margin-bottom: 2px; }
+    .agenda-meta { font-size: 11px; color: var(--text-mid); }
+    .agenda-empty {
+      color: var(--text-light);
+      font-size: 12px;
+      padding: 12px 4px;
+    }
+    .color-grid {
+      display: grid;
+      gap: 8px;
+    }
+    .color-row {
+      display: grid;
+      grid-template-columns: 1fr 58px;
+      gap: 8px;
+      align-items: center;
+    }
+    .color-row label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-mid);
+    }
+    .color-row input[type="color"] {
+      width: 58px;
+      height: 30px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      padding: 2px;
+      cursor: pointer;
+    }
+    .color-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .color-status {
+      font-size: 11px;
+      color: var(--text-light);
+      min-height: 14px;
+      margin-top: 6px;
+    }
+    .event-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.42);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 4000;
+      padding: 14px;
+    }
+    .event-modal-backdrop[hidden] { display: none !important; }
+    .event-modal {
+      width: min(620px, 96vw);
+      max-height: 92vh;
+      overflow: auto;
+      background: #fff;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.3);
+    }
+    .event-modal-head {
+      padding: 14px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+    }
+    .event-modal-title { font-size: 18px; font-weight: 800; color: var(--text); }
+    .event-modal-close {
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 8px;
+      width: 32px;
+      height: 32px;
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+      color: var(--text-mid);
+    }
+    .event-modal-body { padding: 14px 16px; display: grid; gap: 12px; }
+    .event-summary {
+      display: grid;
+      gap: 8px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #f8fafc;
+      padding: 10px 12px;
+    }
+    .event-summary-row { font-size: 13px; color: var(--text); }
+    .event-summary-row strong { color: #0f172a; }
+    .event-edit-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .event-edit-grid .full { grid-column: 1 / -1; }
+    .event-edit-grid label {
+      display: grid;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-mid);
+    }
+    .event-edit-grid input,
+    .event-edit-grid select,
+    .event-edit-grid textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 9px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 13px;
+      background: #fff;
+      color: var(--text);
+    }
+    .event-edit-grid textarea { min-height: 78px; resize: vertical; }
+    .event-modal-foot {
+      padding: 12px 16px 14px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .event-modal-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .status-chip {
+      display: inline-flex;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      border: 1px solid transparent;
+      text-transform: uppercase;
+      letter-spacing: .02em;
+    }
+    .status-chip.approvato { background: #dcfce7; border-color: #86efac; color: #166534; }
+    .status-chip.in-attesa { background: #dbeafe; border-color: #93c5fd; color: #1d4ed8; }
+    .status-chip.rifiutato { background: #fee2e2; border-color: #fca5a5; color: #b91c1c; }
+    .status-chip.altro { background: #e2e8f0; border-color: #cbd5e1; color: #334155; }
+    .fc {
+      --fc-border-color: #d9deea;
+      --fc-page-bg-color: #ffffff;
+      --fc-neutral-bg-color: #f4f6fb;
+      --fc-today-bg-color: #e8f1ff;
+      --fc-button-bg-color: #ffffff;
+      --fc-button-border-color: #d4dae8;
+      --fc-button-text-color: #1e293b;
+      --fc-button-hover-bg-color: #eef2ff;
+      --fc-button-hover-border-color: #9aa6bf;
+      --fc-button-active-bg-color: #1e3a5f;
+      --fc-button-active-border-color: #1e3a5f;
+      --fc-button-active-text-color: #ffffff;
+      --fc-event-border-color: transparent;
+      --fc-small-font-size: .78rem;
+      font-family: 'Outfit', sans-serif;
+    }
+    .fc .fc-toolbar.fc-header-toolbar { padding: 6px 8px 10px 8px; margin-bottom: 8px; }
+    .fc .fc-toolbar-title {
+      font-size: 20px;
+      font-weight: 700;
+      text-transform: capitalize;
+      color: #1e293b;
+    }
+    .fc .fc-button {
+      box-shadow: none;
+      font-weight: 600;
+      border-radius: 8px;
+      text-transform: none;
+    }
+    .fc .fc-col-header-cell-cushion {
+      font-size: 12px;
+      font-weight: 600;
+      color: #475569;
+      padding-top: 8px;
+      padding-bottom: 8px;
+      text-transform: capitalize;
+    }
+    .fc .fc-daygrid-day-number {
+      font-size: 12px;
+      font-weight: 600;
+      color: #334155;
+      padding: 6px 8px;
+    }
+    .fc .fc-daygrid-more-link {
+      font-size: 12px;
+      color: #1d4ed8;
+      font-weight: 600;
+    }
+    .fc .fc-daygrid-event {
+      border-radius: 0;
+      margin-left: 2px;
+      margin-right: 2px;
+      padding: 1px 6px;
+      min-height: 19px;
+      border-left: 3px solid rgba(15, 23, 42, .35);
+    }
+    .fc .fc-daygrid-event .fc-event-title,
+    .fc .fc-daygrid-event .fc-event-time {
+      font-size: 11px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .fc .fc-daygrid-event .fc-event-time {
+      margin-right: 4px;
+      opacity: .85;
+    }
+    @media (max-width: 1180px) {
+      .calendar-layout { grid-template-columns: 1fr; }
+      .calendar-side { position: static; max-height: none; }
+      .day-agenda .card-body { max-height: none; }
+    }
+    @media (max-width: 700px) {
+      .event-edit-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "assenze/components/subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  <div class="page-header">
+    <div class="page-h">Calendario assenze</div>
+    <div class="page-sub">Clicca un evento per riepilogo, modifica o eliminazione record.</div>
+  </div>
+
+  <div class="calendar-layout">
+    <section class="card calendar-shell">
+      <div id="assenzeCalendar"></div>
+    </section>
+
+    <aside class="calendar-side">
+      <section class="card day-agenda">
+        <div class="card-head">
+          <div class="card-title" id="agendaDateLabel">Oggi</div>
+        </div>
+        <div class="card-body">
+          <div class="agenda-empty" id="agendaEmpty">Nessuna assenza nel giorno selezionato.</div>
+          <div class="agenda-list" id="agendaList"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><div class="card-title">Colori calendario</div></div>
+        <div class="card-body">
+          <div class="color-grid" id="colorGrid"></div>
+          <div class="color-actions">
+            <button class="btn btn-sm" type="button" id="saveColorsBtn">Salva colori</button>
+            <button class="btn btn-secondary btn-sm" type="button" id="resetColorsBtn">Ripristina default</button>
+          </div>
+          <div class="color-status" id="colorStatus"></div>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <div class="event-modal-backdrop" id="eventModalBackdrop" hidden>
+    <div class="event-modal" role="dialog" aria-modal="true" aria-labelledby="eventModalTitle">
+      <div class="event-modal-head">
+        <div class="event-modal-title" id="eventModalTitle">Dettaglio richiesta</div>
+        <button class="event-modal-close" type="button" id="closeEventModalBtn" aria-label="Chiudi">&times;</button>
+      </div>
+      <div class="event-modal-body">
+        <section class="event-summary">
+          <div class="event-summary-row"><strong>Dipendente:</strong> <span id="modalDipendente">-</span></div>
+          <div class="event-summary-row"><strong>Orario:</strong> <span id="modalRange">-</span></div>
+          <div class="event-summary-row"><strong>Tipo:</strong> <span id="modalTipoText">-</span></div>
+          <div class="event-summary-row"><strong>Stato:</strong> <span id="modalStatoText">-</span></div>
+          <div class="event-summary-row"><strong>Capo:</strong> <span id="modalCapoText">-</span></div>
+          <div class="event-summary-row"><strong>Motivazione:</strong> <span id="modalMotivazioneText">-</span></div>
+          <div class="event-summary-row" id="modalCertificatoRow"><strong>Certificato medico:</strong> <span id="modalCertificatoText">-</span></div>
+        </section>
+        <section class="event-edit-grid">
+          <label>
+            Tipo
+            <select id="modalTipoInput">
+              <option>Ferie</option>
+              <option>Permesso</option>
+              <option>Malattia</option>
+              <option>Flessibilità</option>
+              <option>Altro</option>
+            </select>
+          </label>
+          <label>
+            Stato
+            <select id="modalStatoInput">
+              <option>In attesa</option>
+              <option>Approvato</option>
+              <option>Rifiutato</option>
+            </select>
+          </label>
+          <label>
+            Inizio
+            <input type="datetime-local" id="modalStartInput">
+          </label>
+          <label>
+            Fine
+            <input type="datetime-local" id="modalEndInput">
+          </label>
+          <label class="full">
+            Motivazione
+            <textarea id="modalMotivazioneInput"></textarea>
+          </label>
+          <label class="full" id="modalCertificatoInputWrap">
+            Numero certificato medico
+            <input type="text" id="modalCertificatoInput" placeholder="Inserisci il numero del certificato">
+          </label>
+        </section>
+      </div>
+      <div class="event-modal-foot">
+        <div id="modalMessage" class="color-status"></div>
+        <div class="event-modal-actions">
+          <button type="button" class="btn btn-secondary btn-sm" id="saveEventBtn">Salva modifiche</button>
+          <button type="button" class="btn btn-danger btn-sm" id="deleteEventBtn">Elimina record</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <noscript>
+    <div class="card" style="margin-top:14px;">
+      <div class="card-head"><div class="card-title">Preview eventi (ultimi 50)</div></div>
+      <div class="card-body">
+        {% for e in eventi_preview %}
+          <div class="activity-item">
+            <div class="act-dot{% if e.consenso == 'Approvato' %} green{% elif e.consenso == 'Rifiutato' %}{% else %} blue{% endif %}"></div>
+            <div>
+              <div class="act-text">{{ e.dipendente }} - {{ e.tipo }} ({{ e.consenso }})</div>
+              <div class="act-time">{{ e.inizio_label }}{% if e.fine_label %} / {{ e.fine_label }}{% endif %}</div>
+            </div>
+          </div>
+        {% empty %}
+          <div class="act-text">Nessun evento disponibile nella replica locale.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </noscript>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (function() {
+      const endpoints = {
+        events: "{% url 'assenze_api_eventi' %}",
+        colors: "{% url 'assenze_api_eventi_colors' %}",
+        update: "{% url 'assenze_api_evento_update_static' %}",
+        del: "{% url 'assenze_api_evento_delete_static' %}",
+        syncPull: "{% url 'assenze_api_sync_pull' %}?force=0"
+      };
+      const canEditEvents = {{ assenze_can_edit_events|yesno:"true,false" }};
+      const canDeleteEvents = {{ assenze_can_delete_events|yesno:"true,false" }};
+      const calendarEl = document.getElementById("assenzeCalendar");
+      if (!calendarEl || !window.FullCalendar) return;
+
+      const agendaListEl = document.getElementById("agendaList");
+      const agendaEmptyEl = document.getElementById("agendaEmpty");
+      const agendaDateLabelEl = document.getElementById("agendaDateLabel");
+      const colorGridEl = document.getElementById("colorGrid");
+      const colorStatusEl = document.getElementById("colorStatus");
+      const saveColorsBtn = document.getElementById("saveColorsBtn");
+      const resetColorsBtn = document.getElementById("resetColorsBtn");
+      const modalBackdrop = document.getElementById("eventModalBackdrop");
+      const closeModalBtn = document.getElementById("closeEventModalBtn");
+      const saveEventBtn = document.getElementById("saveEventBtn");
+      const deleteEventBtn = document.getElementById("deleteEventBtn");
+      const modalMessageEl = document.getElementById("modalMessage");
+      const modalTipoInputEl = document.getElementById("modalTipoInput");
+      const modalCertificatoRowEl = document.getElementById("modalCertificatoRow");
+      const modalCertificatoTextEl = document.getElementById("modalCertificatoText");
+      const modalCertificatoInputWrapEl = document.getElementById("modalCertificatoInputWrap");
+      const modalCertificatoInputEl = document.getElementById("modalCertificatoInput");
+
+      const state = {
+        selectedDate: new Date(),
+        events: [],
+        eventByUid: {},
+        colors: {},
+        defaultColors: {},
+        selectedEventUid: null
+      };
+
+      const dateFmt = new Intl.DateTimeFormat("it-IT", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
+      const timeFmt = new Intl.DateTimeFormat("it-IT", { hour: "2-digit", minute: "2-digit" });
+
+      const colorDefs = [
+        { key: "tipo_ferie", label: "Ferie" },
+        { key: "tipo_permesso", label: "Permesso" },
+        { key: "tipo_malattia", label: "Malattia" },
+        { key: "tipo_infortunio", label: "Flessibilità" },
+        { key: "tipo_altro", label: "Altro" },
+        { key: "stato_in_attesa", label: "Stato: In attesa" },
+        { key: "stato_rifiutato", label: "Stato: Rifiutato" },
+        { key: "stato_approvato", label: "Stato: Approvato (fallback)" }
+      ];
+
+      function getCookie(name) {
+        const cookies = (document.cookie || "").split(";");
+        for (const cookie of cookies) {
+          const c = cookie.trim();
+          if (c.startsWith(name + "=")) return decodeURIComponent(c.slice(name.length + 1));
+        }
+        return "";
+      }
+
+      function escapeHtml(value) {
+        return String(value || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function parseDate(value) {
+        if (!value) return null;
+        const d = new Date(value);
+        return Number.isNaN(d.getTime()) ? null : d;
+      }
+
+      function toDayStart(d) {
+        return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+      }
+
+      function toDayEnd(d) {
+        return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+      }
+
+      function uidForEvent(item, idx) {
+        if (item.id !== null && item.id !== undefined && String(item.id).trim() !== "") {
+          return `id:${item.id}`;
+        }
+        return `tmp:${idx}:${item.start || ""}:${item.title || ""}`;
+      }
+
+      function statusClass(raw) {
+        const txt = String(raw || "").toLowerCase();
+        if (txt.includes("approv")) return "approvato";
+        if (txt.includes("rifiut")) return "rifiutato";
+        if (txt.includes("attesa")) return "in-attesa";
+        return "altro";
+      }
+
+      function inDay(item, date) {
+        const start = parseDate(item.start);
+        const end = parseDate(item.end) || start;
+        if (!start || !end) return false;
+        const dayStart = toDayStart(date);
+        const dayEnd = toDayEnd(date);
+        return start <= dayEnd && end >= dayStart;
+      }
+
+      function formatRange(item) {
+        const start = parseDate(item.start);
+        const end = parseDate(item.end);
+        if (!start && !end) return "-";
+        if (start && end) return `${dateFmt.format(start)} ${timeFmt.format(start)} - ${dateFmt.format(end)} ${timeFmt.format(end)}`;
+        const d = start || end;
+        return `${dateFmt.format(d)} ${timeFmt.format(d)}`;
+      }
+
+      function toLocalInputValue(value) {
+        const d = parseDate(value);
+        if (!d) return "";
+        const p = (n) => String(n).padStart(2, "0");
+        return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+      }
+
+      function showColorStatus(text, isError) {
+        colorStatusEl.textContent = text || "";
+        colorStatusEl.style.color = isError ? "var(--danger)" : "var(--text-light)";
+      }
+
+      function renderColorInputs() {
+        colorGridEl.innerHTML = colorDefs.map((item) => `
+          <div class="color-row">
+            <label for="clr_${item.key}">${item.label}</label>
+            <input type="color" id="clr_${item.key}" data-color-key="${item.key}" value="${escapeHtml(state.colors[item.key] || "#999999")}">
+          </div>
+        `).join("");
+      }
+
+      async function loadColors() {
+        const resp = await fetch(endpoints.colors, { credentials: "same-origin" });
+        if (!resp.ok) throw new Error(`Impossibile caricare colori (${resp.status})`);
+        const payload = await resp.json();
+        state.colors = Object.assign({}, payload.colors || {});
+        state.defaultColors = Object.assign({}, payload.defaults || {});
+        renderColorInputs();
+      }
+
+      async function saveColors() {
+        const colors = {};
+        colorGridEl.querySelectorAll("input[data-color-key]").forEach((input) => {
+          colors[input.dataset.colorKey] = input.value;
+        });
+        showColorStatus("Salvataggio...", false);
+        const resp = await fetch(endpoints.colors, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCookie("csrftoken")
+          },
+          body: JSON.stringify({ colors })
+        });
+        const payload = await resp.json();
+        if (!resp.ok || !payload.ok) throw new Error(payload.error || "Errore salvataggio colori.");
+        state.colors = Object.assign({}, payload.colors || {});
+        renderColorInputs();
+        showColorStatus("Colori salvati.", false);
+        calendar.refetchEvents();
+      }
+
+      function dayEvents(date) {
+        return state.events
+          .filter((item) => inDay(item, date))
+          .sort((a, b) => {
+            const as = parseDate(a.start);
+            const bs = parseDate(b.start);
+            return (as ? as.getTime() : 0) - (bs ? bs.getTime() : 0);
+          });
+      }
+
+      function renderAgenda(date) {
+        state.selectedDate = toDayStart(date);
+        agendaDateLabelEl.textContent = dateFmt.format(state.selectedDate);
+        const rows = dayEvents(state.selectedDate);
+        if (!rows.length) {
+          agendaListEl.innerHTML = "";
+          agendaEmptyEl.style.display = "block";
+          return;
+        }
+        agendaEmptyEl.style.display = "none";
+        agendaListEl.innerHTML = rows.map((item) => {
+          const tipo = item.extendedProps.tipo || "Altro";
+          const consenso = item.extendedProps.consenso || "N/D";
+          const capo = item.extendedProps.capo || "";
+          const uid = item.extendedProps.uid || "";
+          return `
+            <button type="button" class="agenda-item" data-event-uid="${escapeHtml(uid)}" style="border-left-color:${escapeHtml(item.color || "#94a3b8")};">
+              <div class="agenda-head">
+                <div class="agenda-name">${escapeHtml(item.title || "N/D")}</div>
+                <span class="status-chip ${statusClass(consenso)}">${escapeHtml(consenso)}</span>
+              </div>
+              <div class="agenda-time">${escapeHtml(formatRange(item))}</div>
+              <div class="agenda-meta">${escapeHtml(tipo)}${capo ? ` Â· Capo: ${escapeHtml(capo)}` : ""}</div>
+            </button>
+          `;
+        }).join("");
+      }
+
+      function selectedEvent() {
+        return state.selectedEventUid ? state.eventByUid[state.selectedEventUid] : null;
+      }
+
+      function openEventModal(uid) {
+        const item = state.eventByUid[uid];
+        if (!item) return;
+        state.selectedEventUid = uid;
+        modalMessageEl.textContent = "";
+        document.getElementById("modalDipendente").textContent = item.title || "-";
+        document.getElementById("modalRange").textContent = formatRange(item);
+        document.getElementById("modalTipoText").textContent = item.extendedProps.tipo || "-";
+        document.getElementById("modalStatoText").textContent = item.extendedProps.consenso || "-";
+        document.getElementById("modalCapoText").textContent = item.extendedProps.capo || "-";
+        document.getElementById("modalMotivazioneText").textContent = item.extendedProps.motivazione || "-";
+        modalCertificatoTextEl.textContent = item.extendedProps.certificato_medico || "-";
+
+        modalTipoInputEl.value = item.extendedProps.tipo || "Altro";
+        document.getElementById("modalStatoInput").value = item.extendedProps.consenso || "In attesa";
+        document.getElementById("modalStartInput").value = toLocalInputValue(item.start);
+        document.getElementById("modalEndInput").value = toLocalInputValue(item.end);
+        document.getElementById("modalMotivazioneInput").value = item.extendedProps.motivazione || "";
+        modalCertificatoInputEl.value = item.extendedProps.certificato_medico || "";
+        syncCertificatoFields();
+
+        const hasRecordId = item.id !== null && item.id !== undefined && String(item.id).trim() !== "";
+        saveEventBtn.style.display = canEditEvents ? "" : "none";
+        deleteEventBtn.style.display = canDeleteEvents ? "" : "none";
+        saveEventBtn.disabled = !(canEditEvents && hasRecordId);
+        deleteEventBtn.disabled = !(canDeleteEvents && hasRecordId);
+        document.querySelectorAll(".event-edit-grid input, .event-edit-grid select, .event-edit-grid textarea").forEach((el) => {
+          el.disabled = !canEditEvents;
+        });
+        if (!canEditEvents && !canDeleteEvents) {
+          modalMessageEl.textContent = "Modalità sola lettura.";
+        }
+        modalBackdrop.hidden = false;
+      }
+
+      function syncCertificatoFields() {
+        const isMalattia = modalTipoInputEl.value === "Malattia";
+        const hasValue = Boolean((modalCertificatoInputEl.value || "").trim());
+        modalCertificatoInputWrapEl.style.display = isMalattia ? "" : "none";
+        modalCertificatoRowEl.style.display = (isMalattia || hasValue) ? "" : "none";
+      }
+
+      function closeEventModal() {
+        modalBackdrop.hidden = true;
+        state.selectedEventUid = null;
+      }
+
+      async function saveSelectedEvent() {
+        if (!canEditEvents) {
+          modalMessageEl.textContent = "Non hai i permessi per modificare questo record.";
+          return;
+        }
+        const item = selectedEvent();
+        if (!item || item.id === null || item.id === undefined) return;
+        modalMessageEl.textContent = "Salvataggio...";
+        const payload = {
+          tipo: modalTipoInputEl.value,
+          consenso: document.getElementById("modalStatoInput").value,
+          inizio: document.getElementById("modalStartInput").value,
+          fine: document.getElementById("modalEndInput").value,
+          motivazione: document.getElementById("modalMotivazioneInput").value,
+          certificato_medico: modalCertificatoInputEl.value
+        };
+
+        const resp = await fetch(endpoints.update, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCookie("csrftoken")
+          },
+          body: JSON.stringify(Object.assign({ item_id: item.id }, payload))
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) throw new Error(data.error || "Salvataggio non riuscito.");
+        modalMessageEl.textContent = "Richiesta aggiornata.";
+        calendar.refetchEvents();
+      }
+
+      async function deleteSelectedEvent() {
+        if (!canDeleteEvents) {
+          modalMessageEl.textContent = "Non hai i permessi per eliminare questo record.";
+          return;
+        }
+        const item = selectedEvent();
+        if (!item || item.id === null || item.id === undefined) return;
+        if (!window.confirm("Confermi eliminazione del record?")) return;
+        modalMessageEl.textContent = "Eliminazione...";
+        const resp = await fetch(endpoints.del, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCookie("csrftoken")
+          },
+          body: JSON.stringify({ item_id: item.id })
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) throw new Error(data.error || "Eliminazione non riuscita.");
+        closeEventModal();
+        calendar.refetchEvents();
+      }
+
+      const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: "dayGridMonth",
+        locale: "it",
+        firstDay: 1,
+        height: "auto",
+        dayMaxEventRows: 4,
+        nowIndicator: true,
+        moreLinkClick: "popover",
+        moreLinkContent: function(args) { return `+ altri ${args.num}`; },
+        eventTimeFormat: { hour: "2-digit", minute: "2-digit", hour12: false },
+        headerToolbar: {
+          left: "today prev,next",
+          center: "title",
+          right: "dayGridMonth,timeGridWeek,listWeek"
+        },
+        buttonText: {
+          today: "Oggi",
+          month: "Mese",
+          week: "Settimana",
+          list: "Agenda"
+        },
+        events: function(info, successCallback, failureCallback) {
+          const params = new URLSearchParams();
+          if (info && info.startStr) params.set("start", info.startStr);
+          if (info && info.endStr) params.set("end", info.endStr);
+          fetch(`${endpoints.events}?${params.toString()}`, { credentials: "same-origin" })
+            .then((response) => {
+              if (!response.ok) throw new Error(`Errore API eventi: ${response.status}`);
+              return response.json();
+            })
+            .then((payload) => {
+              const rows = Array.isArray(payload) ? payload : [];
+              state.eventByUid = {};
+              state.events = rows.map((raw, idx) => {
+                const event = Object.assign({}, raw || {});
+                event.extendedProps = Object.assign({}, event.extendedProps || {});
+                event.id = raw && raw.id !== undefined ? raw.id : null;
+                const uid = uidForEvent(event, idx);
+                event.extendedProps.uid = uid;
+                state.eventByUid[uid] = event;
+                return event;
+              });
+              successCallback(state.events);
+              renderAgenda(state.selectedDate);
+            })
+            .catch((err) => {
+              agendaListEl.innerHTML = "";
+              agendaEmptyEl.style.display = "block";
+              agendaEmptyEl.textContent = err && err.message ? err.message : "Impossibile caricare gli eventi.";
+              failureCallback(err);
+            });
+        },
+        dateClick: function(info) {
+          renderAgenda(info.date);
+        },
+        eventClick: function(info) {
+          const uid = info.event.extendedProps && info.event.extendedProps.uid;
+          renderAgenda(info.event.start || state.selectedDate);
+          if (uid) openEventModal(uid);
+        },
+        eventDidMount: function(info) {
+          if (info.event && info.event.backgroundColor) {
+            info.el.style.backgroundColor = info.event.backgroundColor;
+          }
+        }
+      });
+
+      agendaListEl.addEventListener("click", function(evt) {
+        const button = evt.target.closest("[data-event-uid]");
+        if (!button) return;
+        openEventModal(button.dataset.eventUid);
+      });
+
+      closeModalBtn.addEventListener("click", closeEventModal);
+      modalTipoInputEl.addEventListener("change", syncCertificatoFields);
+      modalCertificatoInputEl.addEventListener("input", syncCertificatoFields);
+      modalBackdrop.addEventListener("click", function(evt) {
+        if (evt.target === modalBackdrop) closeEventModal();
+      });
+      document.addEventListener("keydown", function(evt) {
+        if (evt.key === "Escape" && !modalBackdrop.hidden) closeEventModal();
+      });
+
+      saveEventBtn.addEventListener("click", function() {
+        saveSelectedEvent().catch((err) => {
+          modalMessageEl.textContent = err && err.message ? err.message : "Errore salvataggio.";
+        });
+      });
+      deleteEventBtn.addEventListener("click", function() {
+        deleteSelectedEvent().catch((err) => {
+          modalMessageEl.textContent = err && err.message ? err.message : "Errore eliminazione.";
+        });
+      });
+
+      saveColorsBtn.addEventListener("click", function() {
+        saveColors().catch((err) => showColorStatus(err && err.message ? err.message : "Errore salvataggio colori.", true));
+      });
+      resetColorsBtn.addEventListener("click", function() {
+        state.colors = Object.assign({}, state.defaultColors);
+        renderColorInputs();
+        showColorStatus("Default caricati: premi 'Salva colori' per applicarli.", false);
+      });
+
+      Promise.resolve()
+        .then(loadColors)
+        .catch((err) => showColorStatus(err && err.message ? err.message : "Impossibile caricare colori.", true));
+
+      calendar.render();
+      renderAgenda(state.selectedDate);
+
+      const bgSyncIntervalMs = 5 * 60 * 1000;
+      const runBackgroundSync = () => fetch(endpoints.syncPull, { credentials: "same-origin" }).catch(() => null);
+      window.setTimeout(runBackgroundSync, 1500);
+      window.setInterval(runBackgroundSync, bgSyncIntervalMs);
+    })();
+  </script>
+{% endblock %}
+
+

@@ -1,0 +1,1305 @@
+{% extends "core/base.html" %}
+
+{% block title %}Dashboard | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Layout generale ────────────────────────────────────────────────────── */
+#eb-root {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 0 40px;
+}
+
+.eb-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.eb-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ── Widget grid ───────────────────────────────────────────────────────── */
+#eb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+/* ── Widget card ───────────────────────────────────────────────────────── */
+.eb-widget {
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  transition: box-shadow .15s;
+}
+.eb-widget.full-width { grid-column: 1 / -1; }
+.eb-widget.drag-over-widget { outline: 2px dashed #3b82f6; outline-offset: 3px; }
+.eb-widget.widget-dragging { opacity: .4; }
+
+.eb-widget-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  gap: 8px;
+  background: var(--bg-card, #fff);
+}
+.eb-widget-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text, #0f172a);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.eb-widget-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.eb-widget-body { padding: 14px; }
+
+/* Widget edit controls (visible in edit mode) */
+.eb-widget-handle {
+  display: none;
+  cursor: grab;
+  color: #94a3b8;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  user-select: none;
+  flex-shrink: 0;
+}
+.eb-widget-handle:active { cursor: grabbing; }
+.eb-widget-hide {
+  display: none;
+  width: 22px; height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 13px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background .1s, color .1s;
+}
+.eb-widget-hide:hover { background: #fee2e2; color: #dc2626; }
+
+#eb-root.edit-mode .eb-widget-handle { display: inline-flex; }
+#eb-root.edit-mode .eb-widget-hide  { display: inline-flex; }
+#eb-root.edit-mode .eb-widget { box-shadow: 0 2px 10px rgba(59,130,246,.1); }
+
+/* ── Stat boxes ────────────────────────────────────────────────────────── */
+.eb-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.eb-stat-box {
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 12px 8px;
+  text-align: center;
+  border: 1px solid #e2e8f0;
+}
+.eb-stat-val { font-size: 24px; font-weight: 800; line-height: 1.1; color: #0f172a; }
+.eb-stat-val.blue   { color: #2563eb; }
+.eb-stat-val.yellow { color: #ca8a04; }
+.eb-stat-val.green  { color: #16a34a; }
+.eb-stat-val.red    { color: #dc2626; }
+.eb-stat-label { font-size: 10px; font-weight: 600; color: #94a3b8; text-transform: uppercase; margin-top: 2px; }
+
+/* ── List items (richieste, assenze) ───────────────────────────────────── */
+.eb-list { list-style: none; padding: 0; margin: 0; }
+.eb-list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 13px;
+}
+.eb-list-item:last-child { border-bottom: none; }
+.eb-list-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #94a3b8; margin-top: 4px; flex-shrink: 0;
+}
+.eb-list-dot.blue   { background: #3b82f6; }
+.eb-list-dot.green  { background: #22c55e; }
+.eb-list-dot.yellow { background: #eab308; }
+.eb-list-dot.red    { background: #ef4444; }
+.eb-list-main { font-weight: 600; color: #0f172a; line-height: 1.3; }
+.eb-list-sub  { font-size: 11px; color: #64748b; margin-top: 2px; }
+.eb-list-meta { margin-left: auto; text-align: right; flex-shrink: 0; }
+.eb-tag {
+  display: inline-block; padding: 1px 7px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; background: #f1f5f9; color: #475569;
+}
+.eb-tag.approvato { background: #f0fdf4; color: #15803d; }
+.eb-tag.attesa    { background: #fefce8; color: #92400e; }
+.eb-tag.rifiutato { background: #fef2f2; color: #dc2626; }
+.eb-empty { color: #94a3b8; font-size: 13px; padding: 10px 0; text-align: center; }
+
+/* ── Buttons ───────────────────────────────────────────────────────────── */
+.eb-btn {
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: background .12s, color .12s;
+  text-decoration: none;
+}
+.eb-btn.primary   { background: var(--accent, #3b82f6); color: #fff; }
+.eb-btn.primary:hover { background: #2563eb; }
+.eb-btn.secondary { background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0; }
+.eb-btn.secondary:hover { background: #e2e8f0; }
+.eb-btn.secondary.active { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.eb-btn.danger    { background: #fee2e2; color: #dc2626; }
+.eb-btn.danger:hover { background: #fecaca; }
+.eb-btn.success   { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+.eb-btn.success:hover { background: #dcfce7; }
+
+/* ── Edit bar ──────────────────────────────────────────────────────────── */
+#eb-edit-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  color: #1d4ed8;
+  flex-wrap: wrap;
+}
+#eb-edit-bar-status { flex: 1; }
+
+/* ── App Launcher ──────────────────────────────────────────────────────── */
+.dash-launcher-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+  transition: gap .2s;
+}
+/* Icon-only mode */
+.dash-launcher-grid.icon-only { gap: 8px; }
+.dash-launcher-grid.icon-only .dash-mod-name { display: none; }
+.dash-launcher-grid.icon-only .dash-mod-btn { min-width: auto; padding: 10px; }
+.dash-launcher-grid.icon-only .dash-mod-size-ctrl { bottom: -22px; }
+
+/* Module wrap */
+.dash-mod-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+/* The clickable module button */
+.dash-mod-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: inherit;
+  padding: 14px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border, #e2e8f0);
+  background: #f8fafc;
+  transition: background .12s, box-shadow .12s;
+  cursor: pointer;
+  text-align: center;
+  min-width: 80px;
+}
+.dash-mod-btn:hover { background: #eff6ff; box-shadow: 0 2px 8px rgba(59,130,246,.15); }
+
+/* Module icon */
+.dash-mod-icon {
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  flex-shrink: 0;
+}
+.dash-mod-icon img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Module name */
+.dash-mod-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.2;
+  word-break: break-word;
+  max-width: 90px;
+}
+
+/* ── Size variants ─────────────────────────────────────────────────────── */
+/* XS — icona compatta, nessuna etichetta */
+.dash-mod-wrap.size-xs .dash-mod-icon { width: 28px; height: 28px; font-size: 11px; border-radius: 7px; }
+.dash-mod-wrap.size-xs .dash-mod-btn  { min-width: 44px; padding: 8px; gap: 0; }
+.dash-mod-wrap.size-xs .dash-mod-name { display: none; }
+
+/* S — piccola */
+.dash-mod-wrap.size-s  .dash-mod-icon { width: 36px; height: 36px; font-size: 14px; }
+.dash-mod-wrap.size-s  .dash-mod-btn  { min-width: 56px; padding: 8px 8px; }
+.dash-mod-wrap.size-s  .dash-mod-name { font-size: 10px; max-width: 60px; }
+
+/* M — media (default) */
+.dash-mod-wrap.size-m  .dash-mod-icon { width: 56px; height: 56px; font-size: 22px; }
+.dash-mod-wrap.size-m  .dash-mod-btn  { min-width: 80px; }
+.dash-mod-wrap.size-m  .dash-mod-name { font-size: 11px; }
+
+/* G — grande */
+.dash-mod-wrap.size-g  .dash-mod-icon { width: 90px; height: 90px; font-size: 36px; border-radius: 16px; }
+.dash-mod-wrap.size-g  .dash-mod-btn  { min-width: 118px; padding: 18px 14px; }
+.dash-mod-wrap.size-g  .dash-mod-name { font-size: 13px; font-weight: 700; max-width: 110px; }
+
+/* XL — extra grande, tile prominente */
+.dash-mod-wrap.size-xl .dash-mod-icon { width: 130px; height: 130px; font-size: 52px; border-radius: 22px; }
+.dash-mod-wrap.size-xl .dash-mod-btn  { min-width: 164px; padding: 22px 18px; }
+.dash-mod-wrap.size-xl .dash-mod-name { font-size: 15px; font-weight: 700; max-width: 144px; }
+
+/* Edit mode controls on each module */
+.dash-mod-drag {
+  display: none;
+  position: absolute;
+  top: -8px; left: -8px;
+  width: 22px; height: 22px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: grab;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  color: #94a3b8;
+  user-select: none;
+}
+.dash-mod-drag:active { cursor: grabbing; }
+
+.dash-mod-remove {
+  display: none;
+  position: absolute;
+  top: -8px; right: -8px;
+  width: 22px; height: 22px;
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  font-size: 13px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  padding: 0;
+  line-height: 1;
+}
+
+.dash-mod-size-ctrl {
+  display: none;
+  position: absolute;
+  bottom: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 2px 3px;
+  gap: 2px;
+  z-index: 10;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+.dash-mod-size-ctrl button {
+  padding: 2px 5px;
+  font-size: 9px;
+  font-weight: 700;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  background: #f8fafc;
+  cursor: pointer;
+  color: #475569;
+}
+.dash-mod-size-ctrl button.active { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.dash-mod-size-ctrl button:hover:not(.active) { background: #f1f5f9; }
+
+/* Edit mode — show controls, add extra bottom space for size ctrl */
+#eb-root.edit-mode .dash-mod-drag      { display: inline-flex; }
+#eb-root.edit-mode .dash-mod-remove    { display: inline-flex; }
+#eb-root.edit-mode .dash-mod-size-ctrl { display: inline-flex; }
+#eb-root.edit-mode .dash-mod-btn       { pointer-events: none; }
+#eb-root.edit-mode .dash-mod-wrap      { margin-bottom: 28px; }
+
+/* Drag state */
+.dash-mod-wrap.dragging   { opacity: 0.4; }
+.dash-mod-wrap.drag-over .dash-mod-btn { outline: 2px dashed #3b82f6; outline-offset: 3px; }
+
+/* ── Add apps panel (edit mode) ────────────────────────────────────────── */
+#dash-add-panel {
+  display: none;
+  margin-top: 20px;
+  padding: 16px;
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 12px;
+}
+#eb-root.edit-mode #dash-add-panel { display: block; }
+
+.dash-add-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.dash-add-search {
+  flex: 1; min-width: 140px; max-width: 280px;
+  padding: 6px 10px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  font-size: 12px;
+  outline: none;
+}
+.dash-add-search:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px #bfdbfe; }
+
+/* Visual cards for hidden apps */
+.dash-add-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+.dash-add-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 12px 10px 8px;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+  min-width: 76px;
+  cursor: pointer;
+  transition: border-color .12s, background .12s, box-shadow .12s;
+  position: relative;
+}
+.dash-add-card:hover { border-color: #3b82f6; background: #eff6ff; box-shadow: 0 2px 8px rgba(59,130,246,.15); }
+.dash-add-card-icon {
+  width: 44px; height: 44px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 19px; font-weight: 800;
+  overflow: hidden; flex-shrink: 0;
+}
+.dash-add-card-icon img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.dash-add-card-name {
+  font-size: 10px; font-weight: 600; color: #334155;
+  text-align: center; max-width: 76px; word-break: break-word; line-height: 1.2;
+}
+.dash-add-card-plus {
+  position: absolute; top: -7px; right: -7px;
+  width: 18px; height: 18px;
+  background: #22c55e; color: #fff;
+  border-radius: 50%; font-size: 13px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  line-height: 1; box-shadow: 0 1px 3px rgba(0,0,0,.15);
+}
+
+/* ── Hidden widgets restore panel ──────────────────────────────────────── */
+#dash-hidden-widgets-panel {
+  display: none;
+  margin-top: 14px;
+  padding: 14px 16px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 10px;
+}
+#eb-root.edit-mode #dash-hidden-widgets-panel.has-hidden { display: block; }
+.dash-hidden-widget-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; padding: 6px 0;
+  border-bottom: 1px solid #fed7aa;
+  font-size: 13px;
+}
+.dash-hidden-widget-row:last-child { border-bottom: none; }
+
+/* ── Footer ────────────────────────────────────────────────────────────── */
+.dash-footer {
+  margin-top: 20px;
+  padding: 14px 0 0;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: #64748b;
+  font-size: 12px;
+}
+.dash-footer strong { color: #0f172a; }
+
+@media (max-width: 700px) {
+  .eb-stats-row { grid-template-columns: repeat(2, 1fr); }
+  .dash-mod-name { max-width: 70px; }
+}
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "dashboard/components/subnav.html" %}
+{% endblock %}
+
+{% block content %}
+{{ all_my_pulsanti|json_script:"dash-my-modules" }}
+{{ dashboard_layout|json_script:"dash-layout" }}
+{% if is_admin %}{{ admin_all_modules|json_script:"dash-all-modules" }}{% endif %}
+
+<div id="eb-root">
+
+  <!-- Header -->
+  <div class="eb-header">
+    <div>
+      <div class="page-h">Benvenuto, {{ display_name }}</div>
+      <div class="page-sub" id="dash-date-label">Dashboard — Hub Operativo</div>
+    </div>
+    <div class="eb-header-actions">
+      {% if is_admin %}
+        <a class="eb-btn secondary" href="{% url 'admin_portale:wizard_pulsante' %}">&#43; Nuova app</a>
+      {% endif %}
+      <button class="eb-btn secondary" id="eb-edit-btn">&#9998; Personalizza</button>
+    </div>
+  </div>
+
+  <!-- Edit bar (visible in edit mode) -->
+  <div id="eb-edit-bar" style="display:none;">
+    <span>Modalit&agrave; modifica &mdash; trascina widget e app, cambia dimensioni, nascondi sezioni.</span>
+    <span id="eb-edit-bar-status"></span>
+    <button class="eb-btn success"   id="eb-save-btn">&#10003;&nbsp;Salva</button>
+    <button class="eb-btn danger"    id="eb-reset-btn">&#8635;&nbsp;Reset</button>
+    <button class="eb-btn secondary" id="eb-done-btn">Chiudi</button>
+  </div>
+
+  <!-- Widget grid -->
+  <div id="eb-grid">
+
+    <!-- ── Widget: Assenze / Approval (role-based) ── -->
+    {% with w=ctx_widget %}
+    {% if w.tipo %}
+    <div class="eb-widget full-width" data-wid="assenze">
+      <div class="eb-widget-head">
+        <div class="eb-widget-title">
+          <span class="eb-widget-handle" title="Trascina per riordinare">&#x2630;</span>
+          <span>&#9203;</span>
+          {% if w.tipo == "car" %}
+            Richieste in attesa di approvazione
+          {% elif w.tipo == "admin" %}
+            Situazione globale assenze
+          {% else %}
+            La tua ultima richiesta
+          {% endif %}
+        </div>
+        <div class="eb-widget-actions">
+          {% if w.tipo == "car" or w.tipo == "admin" %}
+            <a href="{% url 'assenze_car_dashboard' %}" class="eb-btn secondary" style="font-size:11px;padding:4px 10px;">Vedi tutte &rarr;</a>
+          {% elif w.tipo == "operaio" %}
+            <a href="{% url 'assenze_gestione' %}" class="eb-btn secondary" style="font-size:11px;padding:4px 10px;">Tutte le richieste &rarr;</a>
+          {% endif %}
+          <button type="button" class="eb-widget-hide" data-wid="assenze" title="Nascondi sezione">&#10005;</button>
+        </div>
+      </div>
+      <div class="eb-widget-body" style="padding:0 14px;">
+        {% if w.tipo == "car" or w.tipo == "admin" %}
+          {% if w.pending_list %}
+            <ul class="eb-list">
+              {% for r in w.pending_list %}
+              <li class="eb-list-item">
+                <span class="eb-list-dot yellow"></span>
+                <div style="flex:1;">
+                  <div class="eb-list-main">{{ r.dipendente }} &mdash; {{ r.tipo }}</div>
+                  <div class="eb-list-sub">{{ r.inizio_label }} &rarr; {{ r.fine_label }}</div>
+                </div>
+                {% if w.tipo == "car" %}
+                <div class="eb-list-meta">
+                  <a href="{% url 'assenze_car_dashboard' %}" style="font-size:11px;color:#2563eb;text-decoration:none;">Gestisci</a>
+                </div>
+                {% endif %}
+              </li>
+              {% endfor %}
+              {% if w.pending_count > 5 %}
+              <li class="eb-list-item" style="color:#94a3b8;font-size:12px;border-bottom:none;">
+                e altri {{ w.pending_count|add:"-5" }} in attesa...
+              </li>
+              {% endif %}
+            </ul>
+          {% else %}
+            <div class="eb-empty">Nessuna richiesta in attesa.</div>
+          {% endif %}
+        {% elif w.tipo == "operaio" and w.ultima_richiesta %}
+          {% with ur=w.ultima_richiesta %}
+          <ul class="eb-list">
+            <li class="eb-list-item">
+              <span class="eb-list-dot {% if ur.stato == 'Approvato' %}green{% elif ur.stato == 'Rifiutato' %}red{% else %}yellow{% endif %}"></span>
+              <div style="flex:1;">
+                <div class="eb-list-main">{{ ur.tipo }}</div>
+                <div class="eb-list-sub">{{ ur.inizio }} &rarr; {{ ur.fine }}</div>
+              </div>
+              <div class="eb-list-meta">
+                <span class="eb-tag {% if ur.stato == 'Approvato' %}approvato{% elif ur.stato == 'Rifiutato' %}rifiutato{% else %}attesa{% endif %}">{{ ur.stato }}</span>
+              </div>
+            </li>
+          </ul>
+          {% endwith %}
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- ── Widget: Statistiche ── -->
+    <div class="eb-widget" data-wid="stats">
+      <div class="eb-widget-head">
+        <div class="eb-widget-title">
+          <span class="eb-widget-handle" title="Trascina per riordinare">&#x2630;</span>
+          <span>&#128202;</span> Statistiche
+        </div>
+        <div class="eb-widget-actions">
+          <button type="button" class="eb-widget-hide" data-wid="stats" title="Nascondi sezione">&#10005;</button>
+        </div>
+      </div>
+      <div class="eb-widget-body">
+        <div class="eb-stats-row">
+          {% for stat in stats_cards %}
+          <div class="eb-stat-box">
+            <div class="eb-stat-val {{ stat.icon_class|default:'blue' }}">{{ stat.value }}</div>
+            <div class="eb-stat-label">{{ stat.label }}</div>
+          </div>
+          {% empty %}
+          <div class="eb-empty" style="grid-column:1/-1;">Nessun dato disponibile.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Widget: Richieste recenti ── -->
+    <div class="eb-widget" data-wid="richieste">
+      <div class="eb-widget-head">
+        <div class="eb-widget-title">
+          <span class="eb-widget-handle" title="Trascina per riordinare">&#x2630;</span>
+          <span>&#128203;</span> Richieste recenti
+        </div>
+        <div class="eb-widget-actions">
+          <a href="{% url 'richieste' %}" class="eb-btn secondary" style="font-size:11px;padding:4px 10px;">Apri &rarr;</a>
+          <button type="button" class="eb-widget-hide" data-wid="richieste" title="Nascondi sezione">&#10005;</button>
+        </div>
+      </div>
+      <div class="eb-widget-body" style="padding:0 14px;">
+        {% if richieste_recenti %}
+        <ul class="eb-list">
+          {% for r in richieste_recenti %}
+          <li class="eb-list-item">
+            <span class="eb-list-dot {% if r.stato == 'Approvato' %}green{% elif r.stato == 'Rifiutato' %}red{% else %}yellow{% endif %}"></span>
+            <div style="flex:1;">
+              <div class="eb-list-main">{{ r.tipo }}</div>
+              <div class="eb-list-sub">{{ r.inizio }}{% if r.fine %} &rarr; {{ r.fine }}{% endif %}</div>
+            </div>
+            <div class="eb-list-meta">
+              <span class="eb-tag {% if r.stato == 'Approvato' %}approvato{% elif r.stato == 'Rifiutato' %}rifiutato{% else %}attesa{% endif %}">{{ r.stato }}</span>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <div class="eb-empty">Nessuna richiesta recente.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ── Widget: App Launcher (full width) ── -->
+    <div class="eb-widget full-width" id="dash-launcher-widget" data-wid="launcher">
+      <div class="eb-widget-head">
+        <div class="eb-widget-title">
+          <span class="eb-widget-handle" title="Trascina per riordinare">&#x2630;</span>
+          <span>&#129513;</span> Applicazioni
+          <span id="dash-hidden-badge" style="display:none;background:#f1f5f9;color:#64748b;font-size:10px;font-weight:600;padding:1px 7px;border-radius:999px;"></span>
+        </div>
+        <div class="eb-widget-actions">
+          <button type="button" class="eb-btn secondary" id="dash-icon-only-btn" title="Mostra solo icone (nascondi etichette)">&#128247; Solo icone</button>
+          <span id="dash-edit-status-inline" style="font-size:11px;color:#64748b;"></span>
+          <button type="button" class="eb-widget-hide" data-wid="launcher" title="Nascondi sezione">&#10005;</button>
+        </div>
+      </div>
+      <div class="eb-widget-body">
+        <div class="dash-launcher-grid" id="dash-modules-grid">
+          {% for module in module_cards %}
+          <div class="dash-mod-wrap size-m" data-pid="{{ module.pulsante_id }}" draggable="false">
+            <span class="dash-mod-drag" title="Trascina">&#x2630;</span>
+            <a class="dash-mod-btn" href="{{ module.href }}" title="{{ module.name }}">
+              <div class="dash-mod-icon">
+                {% if module.image_url %}
+                  <img src="{{ module.image_url }}" alt="{{ module.name }}" loading="lazy">
+                {% else %}
+                  {{ module.module|slice:":1"|upper }}
+                {% endif %}
+              </div>
+              <div class="dash-mod-name">{{ module.name }}</div>
+            </a>
+            <button type="button" class="dash-mod-remove" data-pid="{{ module.pulsante_id }}" title="Nascondi">&#10005;</button>
+            <div class="dash-mod-size-ctrl">
+              <button type="button" data-size="xs" title="Mini">XS</button>
+              <button type="button" data-size="s"  title="Piccolo">S</button>
+              <button type="button" data-size="m"  title="Medio" class="active">M</button>
+              <button type="button" data-size="g"  title="Grande">G</button>
+              <button type="button" data-size="xl" title="Extra grande">XL</button>
+            </div>
+          </div>
+          {% empty %}
+          <div class="eb-empty" id="dash-empty-msg">Nessuna applicazione disponibile.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /#eb-grid -->
+
+  <!-- Hidden apps panel (edit mode only) -->
+  <div id="dash-add-panel">
+    <div class="dash-add-header">
+      <div style="font-size:13px;font-weight:700;color:#0f172a;">&#43; Aggiungi applicazione</div>
+      <input type="text" class="dash-add-search" id="dash-add-search" placeholder="Cerca app nascosta...">
+      {% if is_admin %}
+        <a class="eb-btn secondary" href="{% url 'admin_portale:wizard_pulsante' %}" style="font-size:11px;padding:5px 12px;">&#9998; Crea nuova app</a>
+      {% endif %}
+    </div>
+    <div class="dash-add-grid" id="dash-hidden-grid"></div>
+  </div>
+
+  <!-- Hidden widgets restore panel (edit mode only) -->
+  <div id="dash-hidden-widgets-panel">
+    <div style="font-size:12px;font-weight:700;color:#92400e;margin-bottom:8px;">&#9888; Sezioni nascoste &mdash; clicca per ripristinare</div>
+    <div id="dash-hidden-widgets-list"></div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="dash-footer">
+    <div>Versione portale <strong>{{ app_version }}</strong></div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;">
+      {% if current_release.date %}<span>Release {{ current_release.date }}</span>{% endif %}
+      <span>Moduli versionati {{ module_versions|length }}</span>
+    </div>
+  </footer>
+
+</div><!-- /#eb-root -->
+
+<script>
+(function () {
+  "use strict";
+
+  // ── Utility ───────────────────────────────────────────────────────────────
+  const CSRF = (function () {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? decodeURIComponent(m[1]) : "";
+  })();
+
+  function parseJson(id, fallback) {
+    try { return JSON.parse(document.getElementById(id)?.textContent || ""); }
+    catch { return fallback; }
+  }
+
+  function esc(v) {
+    return String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  // ── Date label (Italian) ──────────────────────────────────────────────────
+  (function () {
+    const days   = ["Domenica","Luned\xec","Marted\xec","Mercoled\xec","Gioved\xec","Venerd\xec","Sabato"];
+    const months = ["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","agosto","settembre","ottobre","novembre","dicembre"];
+    const now = new Date();
+    const lbl = document.getElementById("dash-date-label");
+    if (lbl) lbl.textContent = days[now.getDay()] + " " + now.getDate() + " " + months[now.getMonth()] + " " + now.getFullYear() + " \u2014 Hub Operativo";
+  })();
+
+  // ── DOM refs ──────────────────────────────────────────────────────────────
+  const root       = document.getElementById("eb-root");
+  const ebGrid     = document.getElementById("eb-grid");
+  const grid       = document.getElementById("dash-modules-grid");
+  const editBar    = document.getElementById("eb-edit-bar");
+  const barStatus  = document.getElementById("eb-edit-bar-status");
+  const addPanel   = document.getElementById("dash-add-panel");
+  const hiddenGrid = document.getElementById("dash-hidden-grid");
+  const addSearch  = document.getElementById("dash-add-search");
+  const hwPanel    = document.getElementById("dash-hidden-widgets-panel");
+  const hwList     = document.getElementById("dash-hidden-widgets-list");
+  const hiddenBadge = document.getElementById("dash-hidden-badge");
+
+  const allModules  = parseJson("dash-my-modules", []);
+  const dashLayout  = parseJson("dash-layout", { module_order: [], stats_order: [] });
+
+  // ── Persisted state ───────────────────────────────────────────────────────
+  let moduleSizes   = {};
+  let hiddenWidgets = [];
+  let widgetOrder   = [];
+  let iconOnly      = false;
+  let searchFilter  = "";
+
+  try { moduleSizes   = JSON.parse(localStorage.getItem("dash-module-sizes")   || "{}"); } catch {}
+  try { hiddenWidgets = JSON.parse(localStorage.getItem("dash-hidden-widgets") || "[]"); } catch {}
+  try { widgetOrder   = JSON.parse(localStorage.getItem("dash-widget-order")   || "[]"); } catch {}
+  try { iconOnly      = localStorage.getItem("dash-icon-only") === "1"; } catch {}
+
+  let editMode    = false;
+  let layoutDirty = false;
+
+  // Widget labels for restore panel
+  const WIDGET_LABELS = {
+    assenze:   "Assenze / Approvazioni",
+    stats:     "Statistiche",
+    richieste: "Richieste recenti",
+    launcher:  "Applicazioni",
+  };
+
+  // ── Apply saved sizes ─────────────────────────────────────────────────────
+  function applySizes() {
+    if (!grid) return;
+    grid.querySelectorAll(".dash-mod-wrap[data-pid]").forEach(function (wrap) {
+      const pid  = wrap.dataset.pid;
+      const size = moduleSizes[pid] || "m";
+      wrap.classList.remove("size-xs", "size-s", "size-m", "size-g", "size-xl");
+      wrap.classList.add("size-" + size);
+      wrap.querySelectorAll(".dash-mod-size-ctrl button[data-size]").forEach(function (btn) {
+        btn.classList.toggle("active", btn.dataset.size === size);
+      });
+    });
+  }
+
+  // ── Apply saved module order ──────────────────────────────────────────────
+  function applySavedOrder() {
+    if (!grid) return;
+    const order = (dashLayout.module_order || []).map(String);
+    if (!order.length) return;
+    const map = new Map();
+    grid.querySelectorAll(".dash-mod-wrap[data-pid]").forEach(function (el) {
+      map.set(String(el.dataset.pid), el);
+    });
+    order.forEach(function (pid) {
+      const el = map.get(pid);
+      if (el) grid.appendChild(el);
+    });
+  }
+
+  // ── Apply widget order ────────────────────────────────────────────────────
+  function applyWidgetOrder() {
+    if (!ebGrid || !widgetOrder.length) return;
+    const map = new Map();
+    ebGrid.querySelectorAll(".eb-widget[data-wid]").forEach(function (el) {
+      map.set(el.dataset.wid, el);
+    });
+    widgetOrder.forEach(function (wid) {
+      const el = map.get(wid);
+      if (el) ebGrid.appendChild(el);
+    });
+  }
+
+  // ── Apply widget visibility ───────────────────────────────────────────────
+  function applyWidgetVisibility() {
+    hiddenWidgets.forEach(function (wid) {
+      const w = ebGrid.querySelector(".eb-widget[data-wid='" + wid + "']");
+      if (w) w.style.display = "none";
+    });
+    updateHiddenBadge();
+  }
+
+  function updateHiddenBadge() {
+    if (!hiddenBadge) return;
+    const count = hiddenWidgets.length;
+    if (count > 0) {
+      hiddenBadge.textContent = count + " nascosta" + (count === 1 ? "" : "e");
+      hiddenBadge.style.display = "";
+    } else {
+      hiddenBadge.style.display = "none";
+    }
+  }
+
+  // ── Apply icon-only mode ──────────────────────────────────────────────────
+  function applyIconOnly() {
+    if (!grid) return;
+    const btn = document.getElementById("dash-icon-only-btn");
+    if (iconOnly) {
+      grid.classList.add("icon-only");
+      if (btn) btn.classList.add("active");
+    } else {
+      grid.classList.remove("icon-only");
+      if (btn) btn.classList.remove("active");
+    }
+  }
+
+  // ── Hidden widgets panel ──────────────────────────────────────────────────
+  function buildHiddenWidgetsPanel() {
+    if (!hwList || !hwPanel) return;
+    hwList.innerHTML = "";
+    if (!hiddenWidgets.length) {
+      hwPanel.classList.remove("has-hidden");
+      return;
+    }
+    hwPanel.classList.add("has-hidden");
+    hiddenWidgets.forEach(function (wid) {
+      const label = WIDGET_LABELS[wid] || wid;
+      const row = document.createElement("div");
+      row.className = "dash-hidden-widget-row";
+      row.innerHTML =
+        "<span>" + esc(label) + "</span>" +
+        "<button type='button' class='eb-btn secondary' style='font-size:11px;padding:4px 10px;' data-show-wid='" + esc(wid) + "'>&#43; Ripristina</button>";
+      hwList.appendChild(row);
+    });
+  }
+
+  hwList && hwList.addEventListener("click", function (e) {
+    const btn = e.target.closest("[data-show-wid]");
+    if (!btn) return;
+    const wid = btn.dataset.showWid;
+    showWidget(wid);
+  });
+
+  function hideWidget(wid) {
+    const w = ebGrid.querySelector(".eb-widget[data-wid='" + wid + "']");
+    if (!w) return;
+    if (!hiddenWidgets.includes(wid)) hiddenWidgets.push(wid);
+    w.style.display = "none";
+    localStorage.setItem("dash-hidden-widgets", JSON.stringify(hiddenWidgets));
+    buildHiddenWidgetsPanel();
+    updateHiddenBadge();
+    markDirty();
+  }
+
+  function showWidget(wid) {
+    hiddenWidgets = hiddenWidgets.filter(function (x) { return x !== wid; });
+    const w = ebGrid.querySelector(".eb-widget[data-wid='" + wid + "']");
+    if (w) w.style.display = "";
+    localStorage.setItem("dash-hidden-widgets", JSON.stringify(hiddenWidgets));
+    buildHiddenWidgetsPanel();
+    updateHiddenBadge();
+    markDirty();
+  }
+
+  // ── Widget hide buttons ───────────────────────────────────────────────────
+  ebGrid && ebGrid.addEventListener("click", function (e) {
+    const btn = e.target.closest(".eb-widget-hide[data-wid]");
+    if (!btn || !editMode) return;
+    hideWidget(btn.dataset.wid);
+  });
+
+  // ── Current state helpers ─────────────────────────────────────────────────
+  function currentModuleOrder() {
+    if (!grid) return [];
+    return Array.from(grid.querySelectorAll(".dash-mod-wrap[data-pid]")).map(function (el) {
+      return Number(el.dataset.pid);
+    });
+  }
+
+  function currentWidgetOrder() {
+    if (!ebGrid) return [];
+    return Array.from(ebGrid.querySelectorAll(".eb-widget[data-wid]")).map(function (el) {
+      return el.dataset.wid;
+    });
+  }
+
+  function setStatus(msg, isErr) {
+    if (barStatus) {
+      barStatus.textContent = msg || "";
+      barStatus.style.color = isErr ? "#dc2626" : "#16a34a";
+    }
+  }
+
+  function markDirty() {
+    layoutDirty = true;
+    setStatus("Modifiche non salvate \u2014 premi Salva.", false);
+  }
+
+  // ── Edit mode ─────────────────────────────────────────────────────────────
+  function enterEditMode() {
+    editMode = true;
+    root.classList.add("edit-mode");
+    editBar.style.display = "flex";
+    grid && grid.querySelectorAll(".dash-mod-wrap").forEach(function (el) {
+      el.setAttribute("draggable", "true");
+    });
+    buildHiddenGrid();
+    buildHiddenWidgetsPanel();
+    setStatus("");
+  }
+
+  function exitEditMode() {
+    editMode = false;
+    root.classList.remove("edit-mode");
+    editBar.style.display = "none";
+    grid && grid.querySelectorAll(".dash-mod-wrap").forEach(function (el) {
+      el.setAttribute("draggable", "false");
+    });
+    layoutDirty = false;
+    setStatus("");
+  }
+
+  document.getElementById("eb-edit-btn")?.addEventListener("click", enterEditMode);
+  document.getElementById("eb-done-btn")?.addEventListener("click", exitEditMode);
+
+  // ── Icon-only toggle ──────────────────────────────────────────────────────
+  document.getElementById("dash-icon-only-btn")?.addEventListener("click", function () {
+    iconOnly = !iconOnly;
+    localStorage.setItem("dash-icon-only", iconOnly ? "1" : "0");
+    applyIconOnly();
+  });
+
+  // ── Save layout ───────────────────────────────────────────────────────────
+  async function saveLayout() {
+    setStatus("Salvataggio\u2026");
+    try {
+      const resp = await fetch("{% url 'api_my_dashboard_layout' %}", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+        body: JSON.stringify({ module_order: currentModuleOrder(), stats_order: [] }),
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        localStorage.setItem("dash-module-sizes",   JSON.stringify(moduleSizes));
+        localStorage.setItem("dash-widget-order",   JSON.stringify(currentWidgetOrder()));
+        setStatus("Layout salvato!", false);
+        layoutDirty = false;
+        setTimeout(function () { setStatus(""); }, 2500);
+      } else {
+        setStatus("Errore: " + (data.error || "Sconosciuto"), true);
+      }
+    } catch {
+      setStatus("Errore di rete.", true);
+    }
+  }
+
+  document.getElementById("eb-save-btn")?.addEventListener("click", saveLayout);
+
+  // ── Reset layout ──────────────────────────────────────────────────────────
+  async function resetLayout() {
+    if (!confirm("Ripristinare il layout standard? Tutte le personalizzazioni saranno perse.")) return;
+    try {
+      await fetch("{% url 'api_my_dashboard_layout' %}", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+        body: JSON.stringify({ module_order: [], stats_order: [] }),
+      });
+      localStorage.removeItem("dash-module-sizes");
+      localStorage.removeItem("dash-widget-order");
+      localStorage.removeItem("dash-hidden-widgets");
+      localStorage.removeItem("dash-icon-only");
+      location.reload();
+    } catch {
+      setStatus("Errore durante il reset.", true);
+    }
+  }
+
+  document.getElementById("eb-reset-btn")?.addEventListener("click", resetLayout);
+
+  // ── Drag & drop MODULES ───────────────────────────────────────────────────
+  let dragSrc = null;
+
+  grid && grid.addEventListener("dragstart", function (e) {
+    if (!editMode) return;
+    dragSrc = e.target.closest(".dash-mod-wrap");
+    if (!dragSrc) return;
+    dragSrc.classList.add("dragging");
+    e.dataTransfer.effectAllowed = "move";
+    e.stopPropagation();
+  });
+
+  grid && grid.addEventListener("dragover", function (e) {
+    if (!editMode || !dragSrc) return;
+    e.preventDefault();
+    const target = e.target.closest(".dash-mod-wrap");
+    if (!target || target === dragSrc) return;
+    grid.querySelectorAll(".dash-mod-wrap").forEach(function (el) { el.classList.remove("drag-over"); });
+    target.classList.add("drag-over");
+  });
+
+  grid && grid.addEventListener("dragleave", function (e) {
+    const target = e.target.closest(".dash-mod-wrap");
+    if (target) target.classList.remove("drag-over");
+  });
+
+  grid && grid.addEventListener("drop", function (e) {
+    if (!editMode || !dragSrc) return;
+    e.preventDefault();
+    const target = e.target.closest(".dash-mod-wrap");
+    if (!target || target === dragSrc) return;
+    target.classList.remove("drag-over");
+    const rect = target.getBoundingClientRect();
+    const mid  = rect.left + rect.width / 2;
+    if (e.clientX < mid) {
+      grid.insertBefore(dragSrc, target);
+    } else {
+      grid.insertBefore(dragSrc, target.nextSibling);
+    }
+    markDirty();
+  });
+
+  grid && grid.addEventListener("dragend", function () {
+    if (dragSrc) { dragSrc.classList.remove("dragging"); dragSrc = null; }
+    grid.querySelectorAll(".dash-mod-wrap").forEach(function (el) { el.classList.remove("drag-over"); });
+  });
+
+  // ── Drag & drop WIDGETS ───────────────────────────────────────────────────
+  let wDragSrc = null;
+
+  ebGrid && ebGrid.addEventListener("dragstart", function (e) {
+    if (!editMode) return;
+    if (!e.target.closest(".eb-widget-handle")) return;
+    const widget = e.target.closest(".eb-widget");
+    if (!widget) return;
+    wDragSrc = widget;
+    widget.classList.add("widget-dragging");
+    e.dataTransfer.effectAllowed = "move";
+    // Prevent module drag from firing
+    e.stopPropagation();
+  });
+
+  ebGrid && ebGrid.addEventListener("dragover", function (e) {
+    if (!editMode || !wDragSrc) return;
+    e.preventDefault();
+    const target = e.target.closest(".eb-widget");
+    if (!target || target === wDragSrc) return;
+    ebGrid.querySelectorAll(".eb-widget").forEach(function (el) { el.classList.remove("drag-over-widget"); });
+    target.classList.add("drag-over-widget");
+  });
+
+  ebGrid && ebGrid.addEventListener("dragleave", function (e) {
+    const target = e.target.closest(".eb-widget");
+    if (target) target.classList.remove("drag-over-widget");
+  });
+
+  ebGrid && ebGrid.addEventListener("drop", function (e) {
+    if (!editMode || !wDragSrc) return;
+    e.preventDefault();
+    const target = e.target.closest(".eb-widget");
+    if (!target || target === wDragSrc) return;
+    target.classList.remove("drag-over-widget");
+    const rect = target.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    if (e.clientY < midY) {
+      ebGrid.insertBefore(wDragSrc, target);
+    } else {
+      ebGrid.insertBefore(wDragSrc, target.nextSibling);
+    }
+    markDirty();
+  });
+
+  ebGrid && ebGrid.addEventListener("dragend", function () {
+    if (wDragSrc) { wDragSrc.classList.remove("widget-dragging"); wDragSrc = null; }
+    ebGrid.querySelectorAll(".eb-widget").forEach(function (el) { el.classList.remove("drag-over-widget"); });
+  });
+
+  // ── Remove module ─────────────────────────────────────────────────────────
+  grid && grid.addEventListener("click", async function (e) {
+    const btn = e.target.closest(".dash-mod-remove[data-pid]");
+    if (!btn || !editMode) return;
+    const pid  = Number(btn.dataset.pid);
+    const wrap = grid.querySelector(".dash-mod-wrap[data-pid='" + pid + "']");
+    if (!wrap) return;
+    wrap.style.transition = "opacity .2s";
+    wrap.style.opacity    = "0";
+    try {
+      await fetch("{% url 'api_my_dashboard_toggle' %}", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+        body: JSON.stringify({ pulsante_id: pid, visible: false }),
+      });
+      setTimeout(function () {
+        wrap.remove();
+        buildHiddenGrid();
+        markDirty();
+      }, 200);
+    } catch {
+      wrap.style.opacity = "";
+      setStatus("Errore durante la rimozione.", true);
+    }
+  });
+
+  // ── Size controls ─────────────────────────────────────────────────────────
+  grid && grid.addEventListener("click", function (e) {
+    const btn = e.target.closest(".dash-mod-size-ctrl button[data-size]");
+    if (!btn || !editMode) return;
+    const wrap = btn.closest(".dash-mod-wrap[data-pid]");
+    if (!wrap) return;
+    const size = btn.dataset.size;
+    const pid  = wrap.dataset.pid;
+    moduleSizes[pid] = size;
+    wrap.classList.remove("size-xs", "size-s", "size-m", "size-g", "size-xl");
+    wrap.classList.add("size-" + size);
+    wrap.querySelectorAll(".dash-mod-size-ctrl button[data-size]").forEach(function (b) {
+      b.classList.toggle("active", b.dataset.size === size);
+    });
+    markDirty();
+  });
+
+  // ── Build module HTML ─────────────────────────────────────────────────────
+  function buildModWrapHtml(m) {
+    const pid    = esc(m.pulsante_id);
+    const name   = esc(m.name || "Modulo");
+    const href   = esc(m.href || "/");
+    const imgUrl = esc(m.image_url || "");
+    const mod    = esc(m.module || "");
+    const iconHtml = imgUrl
+      ? "<img src='" + imgUrl + "' alt='" + name + "' loading='lazy' style='width:100%;height:100%;object-fit:cover;display:block;'>"
+      : (mod.slice(0, 1).toUpperCase() || "A");
+    const curSize = moduleSizes[m.pulsante_id] || "m";
+    return (
+      "<div class='dash-mod-wrap size-" + esc(curSize) + "' data-pid='" + pid + "' draggable='" + (editMode ? "true" : "false") + "'>" +
+        "<span class='dash-mod-drag' title='Trascina'>&#x2630;</span>" +
+        "<a class='dash-mod-btn' href='" + href + "' title='" + name + "'>" +
+          "<div class='dash-mod-icon'>" + iconHtml + "</div>" +
+          "<div class='dash-mod-name'>" + name + "</div>" +
+        "</a>" +
+        "<button type='button' class='dash-mod-remove' data-pid='" + pid + "' title='Nascondi'>&#10005;</button>" +
+        "<div class='dash-mod-size-ctrl'>" +
+          "<button type='button' data-size='xs' title='Mini'" + (curSize === "xs" ? " class='active'" : "") + ">XS</button>" +
+          "<button type='button' data-size='s'  title='Piccolo'"  + (curSize === "s"  ? " class='active'" : "") + ">S</button>" +
+          "<button type='button' data-size='m'  title='Medio'"    + (curSize === "m"  ? " class='active'" : "") + ">M</button>" +
+          "<button type='button' data-size='g'  title='Grande'"   + (curSize === "g"  ? " class='active'" : "") + ">G</button>" +
+          "<button type='button' data-size='xl' title='Extra grande'" + (curSize === "xl" ? " class='active'" : "") + ">XL</button>" +
+        "</div>" +
+      "</div>"
+    );
+  }
+
+  // Build add-card HTML for hidden apps panel
+  function buildAddCardHtml(m) {
+    const pid    = esc(m.pulsante_id);
+    const name   = esc(m.name || "Modulo");
+    const href   = esc(m.href || "/");
+    const imgUrl = esc(m.image_url || "");
+    const mod    = esc(m.module || "");
+    const iconHtml = imgUrl
+      ? "<img src='" + imgUrl + "' alt='" + name + "' loading='lazy'>"
+      : (mod.slice(0, 1).toUpperCase() || "A");
+    return (
+      "<div class='dash-add-card' " +
+          "data-pid='" + pid + "' " +
+          "data-href='" + href + "' " +
+          "data-name='" + name + "' " +
+          "data-module='" + mod + "' " +
+          "data-image-url='" + imgUrl + "' " +
+          "title='Aggiungi: " + name + "'>" +
+        "<div class='dash-add-card-icon'>" + iconHtml + "</div>" +
+        "<div class='dash-add-card-name'>" + name + "</div>" +
+        "<div class='dash-add-card-plus'>+</div>" +
+      "</div>"
+    );
+  }
+
+  // ── Build hidden modules panel ────────────────────────────────────────────
+  function buildHiddenGrid(filter) {
+    if (!hiddenGrid) return;
+    const visiblePids = new Set(
+      Array.from(grid.querySelectorAll(".dash-mod-wrap[data-pid]")).map(function (el) {
+        return Number(el.dataset.pid);
+      })
+    );
+    const q = (filter || "").toLowerCase().trim();
+    const hidden = allModules.filter(function (m) {
+      if (visiblePids.has(Number(m.pulsante_id))) return false;
+      if (q && !(m.name || "").toLowerCase().includes(q)) return false;
+      return true;
+    });
+    hiddenGrid.innerHTML = "";
+    if (!hidden.length) {
+      hiddenGrid.innerHTML = "<span style='font-size:12px;color:#94a3b8;padding:8px 0;display:block;'>" +
+        (q ? "Nessun risultato per &ldquo;" + esc(q) + "&rdquo;." : "Nessuna applicazione nascosta.") +
+        "</span>";
+      return;
+    }
+    hidden.forEach(function (m) {
+      const tmp = document.createElement("div");
+      tmp.innerHTML = buildAddCardHtml(m);
+      hiddenGrid.appendChild(tmp.firstElementChild);
+    });
+  }
+
+  // Search filter
+  addSearch && addSearch.addEventListener("input", function () {
+    searchFilter = addSearch.value;
+    buildHiddenGrid(searchFilter);
+  });
+
+  // Click on add card → restore module
+  hiddenGrid && hiddenGrid.addEventListener("click", async function (e) {
+    const card = e.target.closest(".dash-add-card[data-pid]");
+    if (!card) return;
+    const pid = Number(card.dataset.pid);
+    card.style.opacity  = ".5";
+    card.style.pointerEvents = "none";
+    try {
+      await fetch("{% url 'api_my_dashboard_toggle' %}", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+        body: JSON.stringify({ pulsante_id: pid, visible: true }),
+      });
+      const m = allModules.find(function (x) { return Number(x.pulsante_id) === pid; });
+      if (m) {
+        const tmp = document.createElement("div");
+        tmp.innerHTML = buildModWrapHtml(m);
+        const node = tmp.firstElementChild;
+        if (node) {
+          const emptyMsg = grid.querySelector("#dash-empty-msg");
+          if (emptyMsg) emptyMsg.remove();
+          grid.appendChild(node);
+          applySizes();
+        }
+      }
+      buildHiddenGrid(searchFilter);
+      markDirty();
+    } catch {
+      card.style.opacity = "";
+      card.style.pointerEvents = "";
+      setStatus("Errore durante il ripristino.", true);
+    }
+  });
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  applyWidgetVisibility();
+  applyWidgetOrder();
+  applySavedOrder();
+  applySizes();
+  applyIconOnly();
+  updateHiddenBadge();
+
+})();
+</script>
+
+{% endblock %}

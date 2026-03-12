@@ -1,0 +1,12 @@
+Django==5.2.11
+mssql-django==1.6
+pyodbc==5.2.0
+Werkzeug==3.0.3
+ldap3==2.9.1
+msal==1.29.0
+requests>=2.31.0
+django-extensions>=4.1
+Pillow==12.0.0
+pyOpenSSL>=24.3,<25
+openpyxl==3.1.5
+reportlab==4.4.10

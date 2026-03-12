@@ -1,0 +1,67 @@
+{% extends "core/base.html" %}
+
+{% block title %}Dashboard | Portale Applicativo{% endblock %}
+
+{% block subnav %}
+  {% include "core/components/subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  <div class="page-header">
+    <div class="page-h">Buongiorno, {{ greeting_name }} 👋</div>
+    <div class="page-sub">{{ date_label }}</div>
+  </div>
+
+  <div class="alert-banner">
+    <div class="alert-left">⏳ {{ pending_approvals }} richieste di assenza in attesa di approvazione</div>
+    <a class="alert-btn" href="{% url 'coming_assenze' %}">Visualizza →</a>
+  </div>
+
+  <div class="stats">
+    {% for item in stats %}
+      <div class="stat">
+        <div class="stat-icon-wrap {{ item.icon_class }}">{{ item.icon }}</div>
+        <div>
+          <div class="stat-num">{{ item.value }}</div>
+          <div class="stat-lbl">{{ item.label }}</div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">🧩 Moduli disponibili</div>
+      </div>
+      <div class="card-body">
+        <div class="modules-grid">
+          {% for module in modules %}
+            <a class="mod" href="{% url module.url_name %}">
+              <div class="mod-icon">{{ module.icon }}</div>
+              <div>
+                <div class="mod-name">{{ module.name }}</div>
+                <div class="mod-sub">{{ module.sub }}</div>
+              </div>
+            </a>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">📋 Attività recente</div></div>
+      <div class="card-body">
+        {% for act in activities %}
+          <div class="activity-item">
+            <div class="act-dot{% if act.dot_class %} {{ act.dot_class }}{% endif %}"></div>
+            <div>
+              <div class="act-text">{{ act.text }}</div>
+              <div class="act-time">{{ act.time }}</div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,438 @@
+﻿{% extends "core/base.html" %}
+
+{% block title %}Richiesta Assenza | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+  <style>
+    .req-wrap { max-width: 980px; margin: 0 auto; }
+    .req-form { display: grid; gap: 14px; }
+    .req-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .req-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .req-grid-3 label,
+    .req-grid-2 label,
+    .req-form label { display: grid; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text-mid); }
+    .req-form input,
+    .req-form select { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 9px 10px; font-family: 'Outfit', sans-serif; }
+    .req-readonly { background: #f8fafc; color: var(--text-mid); }
+    .shortcut-group { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .shortcut-item { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; display: flex; gap: 8px; align-items: center; cursor: pointer; }
+    .shortcut-item:hover { background: #f8fafc; }
+    .hint { color: var(--text-light); font-size: 11px; }
+    .prefill-note { border-left: 4px solid #8b5cf6; background: #f5f3ff; color: #5b21b6; padding: 10px 12px; border-radius: 10px; font-size: 12px; }
+    .req-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .req-flag { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text-mid); }
+    .req-flag input { width: 16px; height: 16px; }
+    #certificato-wrap { display: none; }
+    #certificato-wrap.visible { display: grid; }
+    @media (max-width: 860px) {
+      .req-grid-2, .req-grid-3, .shortcut-group { grid-template-columns: 1fr; }
+    }
+
+    /* ── Presenza section ── */
+    #presenza-section { display:none; }
+    #presenza-section.visible { display:contents; }
+    #standard-section { display:contents; }
+    #standard-section.hidden { display:none; }
+
+    .presenza-banner {
+      background:linear-gradient(135deg,#064e3b,#065f46);
+      color:#fff; border-radius:10px; padding:12px 16px;
+      display:flex; align-items:center; gap:10px; font-size:13px; font-weight:700;
+    }
+    .presenza-turno-row {
+      display:flex; align-items:center; gap:12px;
+      padding:10px 14px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px;
+    }
+    .cp-toggle { position:relative; display:inline-block; width:42px; height:24px; flex-shrink:0; }
+    .cp-toggle input { opacity:0; width:0; height:0; }
+    .cp-toggle-slider {
+      position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0;
+      background:#cbd5e1; border-radius:24px; transition:.2s;
+    }
+    .cp-toggle-slider::before {
+      content:""; position:absolute; height:18px; width:18px; left:3px; bottom:3px;
+      background:#fff; border-radius:50%; transition:.2s;
+    }
+    .cp-toggle input:checked + .cp-toggle-slider { background:#16a34a; }
+    .cp-toggle input:checked + .cp-toggle-slider::before { transform:translateX(18px); }
+    .presenza-time-row { display:flex; align-items:center; gap:6px; }
+    .presenza-time-row select { width:72px; flex-shrink:0; }
+    .presenza-time-sep { font-size:15px; font-weight:700; color:#94a3b8; }
+    #presenza-pm-section { display:none; }
+    #presenza-pm-section.visible { display:contents; }
+  </style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "assenze/components/subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  <div class="req-wrap">
+    <div class="page-header">
+      <div class="page-h">Richiesta assenza</div>
+      <div class="page-sub">Layout allineato alla versione precedente: capo reparto, motivazione, fasce orarie e duplicazione.</div>
+    </div>
+
+    {% if form_success %}
+      <div class="card" style="margin-bottom:12px; border-left:4px solid #10b981;">
+        <div class="card-body" style="color:#065f46;">{{ form_success }}</div>
+      </div>
+    {% endif %}
+    {% if form_error %}
+      <div class="card" style="margin-bottom:12px; border-left:4px solid #ef4444;">
+        <div class="card-body" style="color:#991b1b;">{{ form_error }}</div>
+      </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">Compilazione richiesta</div></div>
+      <div class="card-body">
+        <form class="req-form" method="post" action="{% url 'assenze_invio' %}" id="richiestaForm">
+          {% csrf_token %}
+          <input type="hidden" name="submit_token" value="{{ submit_token }}">
+
+          <label>
+            Dipendente
+            <input type="text" class="req-readonly" value="{{ nome }}" readonly>
+          </label>
+
+          <label>
+            Capo reparto
+            <select id="caporeparto" name="caporeparto">
+              <option value="">-- Seleziona capo reparto --</option>
+              {% for capo in capi %}
+                {% with option_value=capo.Email|default:capo.LookupId %}
+                  <option value="{{ option_value }}"{% if form_data.caporeparto == option_value %} selected{% endif %}>{{ capo.Value }}{% if capo.Email %} - {{ capo.Email }}{% endif %}</option>
+                {% endwith %}
+              {% endfor %}
+            </select>
+            <span class="hint">Puoi modificarlo manualmente come nella pagina precedente.</span>
+          </label>
+
+          {% if prefill %}
+            <div class="prefill-note">Form pre-compilato da richiesta duplicata (`copy_from={{ copy_from }}`).</div>
+          {% endif %}
+
+          <div class="req-grid-2">
+            <label>
+              Tipo assenza
+              <select id="tipoassenza" name="tipoassenza" required>
+                <option value="">-- Seleziona --</option>
+                {% for t in tipi %}
+                  <option value="{{ t }}"{% if form_data.tipoassenza == t %} selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+              </select>
+            </label>
+
+            <label>
+              Motivazione richiesta
+              <select id="motivazione" name="motivazione">
+                <option value="">-- Seleziona motivazione --</option>
+                {% for m in motivazioni %}
+                  <option value="{{ m }}"{% if form_data.motivazione == m %} selected{% endif %}>{{ m }}</option>
+                {% endfor %}
+                {% if form_data.motivazione and form_data.motivazione not in motivazioni %}
+                  <option value="{{ form_data.motivazione }}" selected>{{ form_data.motivazione }}</option>
+                {% endif %}
+              </select>
+            </label>
+
+            <label id="certificato-wrap">
+              Numero certificato medico
+              <input id="certificato_medico" type="text" name="certificato_medico" value="{{ form_data.certificato_medico|default:'' }}" placeholder="Inserisci il numero del certificato">
+              <span class="hint">Campo opzionale visibile solo per richieste di malattia.</span>
+            </label>
+          </div>
+
+          {% if assenze_can_skip_approval %}
+            <label class="req-flag">
+              <input type="checkbox" id="salta_approvazione" name="salta_approvazione" value="1"{% if form_salta_approvazione %} checked{% endif %}>
+              Salta approvazione (abilitato per CAR/AMMINISTRAZIONE)
+            </label>
+          {% endif %}
+
+          <!-- ── Sezione STANDARD (nascosta se tipo = Certifica presenza) ── -->
+          <div id="standard-section">
+
+            <div>
+              <label>Durata rapida</label>
+              <div class="shortcut-group">
+                <label class="shortcut-item"><input type="radio" name="shortcut" value="mattina"> Mattina (06:00-14:00)</label>
+                <label class="shortcut-item"><input type="radio" name="shortcut" value="sera"> Sera (14:00-22:00)</label>
+                <label class="shortcut-item"><input type="radio" name="shortcut" value="normale"> Normale (08:00-17:00)</label>
+                <label class="shortcut-item"><input type="radio" name="shortcut" value="mezza1"> Mezza mattina (08:00-12:00)</label>
+                <label class="shortcut-item"><input type="radio" name="shortcut" value="mezza2"> Mezza pomeriggio (13:00-17:00)</label>
+                <label class="shortcut-item"><input type="radio" name="shortcut" value="custom" checked> Personalizzato</label>
+              </div>
+            </div>
+
+            <div class="req-grid-2">
+              <div class="req-grid-2" style="grid-template-columns: 1fr 1fr;">
+                <label>
+                  Data inizio
+                  <input id="date_start" type="date" name="date_start" value="{{ form_data.date_start|default:'' }}">
+                </label>
+                <label>
+                  Ora inizio
+                  <input id="time_start" type="time" name="time_start" value="{{ form_data.time_start|default:'06:00' }}">
+                </label>
+              </div>
+              <div class="req-grid-2" style="grid-template-columns: 1fr 1fr;">
+                <label>
+                  Data fine
+                  <input id="date_end" type="date" name="date_end" value="{{ form_data.date_end|default:'' }}">
+                </label>
+                <label>
+                  Ora fine
+                  <input id="time_end" type="time" name="time_end" value="{{ form_data.time_end|default:'14:00' }}">
+                </label>
+              </div>
+            </div>
+
+          </div><!-- /#standard-section -->
+
+          <!-- ── Sezione CERTIFICA PRESENZA (visibile solo se tipo = Certifica presenza) ── -->
+          <div id="presenza-section">
+
+            <div class="presenza-banner">
+              <span style="font-size:20px;">📋</span>
+              <div>
+                <div>Certifica presenza</div>
+                <div style="font-weight:400;opacity:.8;font-size:11px;margin-top:2px;">Indica la data e gli orari di ingresso/uscita. Il capo reparto dovrà approvare la certificazione.</div>
+              </div>
+            </div>
+
+            <label>
+              Data
+              <input type="date" id="presenza_data" value="{{ form_data.date_start|default:'' }}">
+            </label>
+
+            <div style="font-size:11px;font-weight:800;color:#1d4ed8;text-transform:uppercase;letter-spacing:.07em;">☀️ Turno Mattina</div>
+            <div class="req-grid-2">
+              <label>
+                Entrata mattina
+                <div class="presenza-time-row">
+                  <select id="pres_em_h">
+                    {% for h in ore_mattina_list %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
+                  </select>
+                  <span class="presenza-time-sep">:</span>
+                  <select id="pres_em_m">
+                    {% for m in minuti_list %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+                  </select>
+                </div>
+              </label>
+              <label>
+                Uscita mattina
+                <div class="presenza-time-row">
+                  <select id="pres_um_h">
+                    {% for h in ore_mattina_list %}<option value="{{ h }}" {% if h == "13" %}selected{% endif %}>{{ h }}</option>{% endfor %}
+                  </select>
+                  <span class="presenza-time-sep">:</span>
+                  <select id="pres_um_m">
+                    {% for m in minuti_list %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+                  </select>
+                </div>
+              </label>
+            </div>
+
+            <div class="presenza-turno-row">
+              <label class="cp-toggle" style="margin:0;">
+                <input type="checkbox" id="pres_toggle_pm"
+                  onchange="document.getElementById('presenza-pm-section').classList.toggle('visible',this.checked)">
+                <span class="cp-toggle-slider"></span>
+              </label>
+              <span style="font-size:13px;font-weight:700;color:#166534;">Turno pomeriggio aggiuntivo</span>
+            </div>
+
+            <div id="presenza-pm-section">
+              <div style="font-size:11px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">🌤️ Turno Pomeriggio</div>
+              <div class="req-grid-2">
+                <label>
+                  Entrata pomeriggio
+                  <div class="presenza-time-row">
+                    <select id="pres_ep_h">
+                      {% for h in ore_pom_list %}<option value="{{ h }}" {% if h == "14" %}selected{% endif %}>{{ h }}</option>{% endfor %}
+                    </select>
+                    <span class="presenza-time-sep">:</span>
+                    <select id="pres_ep_m">
+                      {% for m in minuti_list %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+                    </select>
+                  </div>
+                </label>
+                <label>
+                  Uscita pomeriggio
+                  <div class="presenza-time-row">
+                    <select id="pres_up_h">
+                      {% for h in ore_pom_list %}<option value="{{ h }}" {% if h == "18" %}selected{% endif %}>{{ h }}</option>{% endfor %}
+                    </select>
+                    <span class="presenza-time-sep">:</span>
+                    <select id="pres_up_m">
+                      {% for m in minuti_list %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+                    </select>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+          </div><!-- /#presenza-section -->
+
+          <div class="req-actions">
+            <a class="btn btn-secondary" href="{% url 'dashboard_home' %}">Torna alla dashboard</a>
+            <button class="btn" type="submit">Conferma invio</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+  (function() {
+    var presets = {
+      mattina: ["06:00", "14:00"],
+      sera:    ["14:00", "22:00"],
+      normale: ["08:00", "17:00"],
+      mezza1:  ["08:00", "12:00"],
+      mezza2:  ["13:00", "17:00"]
+    };
+    var form = document.getElementById("richiestaForm");
+    var tipoSel = document.getElementById("tipoassenza");
+    var standardSec = document.getElementById("standard-section");
+    var presenzaSec = document.getElementById("presenza-section");
+    var certificatoWrap = document.getElementById("certificato-wrap");
+    var certificatoInput = document.getElementById("certificato_medico");
+
+    function isPresenza() {
+      return tipoSel && tipoSel.value.trim().toLowerCase() === "certifica presenza";
+    }
+
+    function isMalattia() {
+      return tipoSel && tipoSel.value.trim().toLowerCase() === "malattia";
+    }
+
+    function switchForm() {
+      if (isPresenza()) {
+        standardSec.classList.add("hidden");
+        presenzaSec.classList.add("visible");
+      } else {
+        standardSec.classList.remove("hidden");
+        presenzaSec.classList.remove("visible");
+      }
+      if (certificatoWrap) {
+        certificatoWrap.classList.toggle("visible", isMalattia());
+      }
+    }
+
+    if (tipoSel) {
+      tipoSel.addEventListener("change", switchForm);
+      switchForm(); // applica subito (es. se c'è form_data)
+    }
+
+    // Shortcut durata rapida
+    var startInput = document.getElementById("time_start");
+    var endInput   = document.getElementById("time_end");
+    document.querySelectorAll('input[name="shortcut"]').forEach(function(radio) {
+      radio.addEventListener("change", function() {
+        var p = presets[this.value];
+        if (!p || !startInput || !endInput) return;
+        startInput.value = p[0];
+        endInput.value   = p[1];
+      });
+    });
+
+    if (!form) return;
+
+    form.addEventListener("submit", function(evt) {
+      var tipo = tipoSel ? tipoSel.value.trim().toLowerCase() : "";
+      if (certificatoInput && tipo !== "malattia") {
+        certificatoInput.value = "";
+      }
+
+      // ── Modo CERTIFICA PRESENZA ──
+      if (tipo === "certifica presenza") {
+        var data   = (document.getElementById("presenza_data") || {}).value || "";
+        var em_h   = (document.getElementById("pres_em_h") || {}).value || "06";
+        var em_m   = (document.getElementById("pres_em_m") || {}).value || "00";
+        var um_h   = (document.getElementById("pres_um_h") || {}).value || "13";
+        var um_m   = (document.getElementById("pres_um_m") || {}).value || "00";
+        var hasPm  = document.getElementById("pres_toggle_pm") && document.getElementById("pres_toggle_pm").checked;
+        var ep_h   = hasPm ? ((document.getElementById("pres_ep_h") || {}).value || "14") : null;
+        var ep_m   = hasPm ? ((document.getElementById("pres_ep_m") || {}).value || "00") : null;
+        var up_h   = hasPm ? ((document.getElementById("pres_up_h") || {}).value || "18") : null;
+        var up_m   = hasPm ? ((document.getElementById("pres_up_m") || {}).value || "00") : null;
+
+        if (!data) {
+          evt.preventDefault();
+          window.alert("Inserisci la data per la certificazione presenza.");
+          return;
+        }
+
+        // Assembla date_start/time_start/date_end/time_end per il backend
+        function setHidden(name, val) {
+          var el = form.querySelector('[name="' + name + '"]');
+          if (!el) {
+            el = document.createElement("input");
+            el.type = "hidden";
+            el.name = name;
+            form.appendChild(el);
+          }
+          el.value = val;
+        }
+
+        setHidden("date_start", data);
+        setHidden("time_start", em_h + ":" + em_m);
+        // fine = uscita pomeriggio se turno pm attivo, altrimenti uscita mattina
+        setHidden("date_end",   data);
+        setHidden("time_end",   hasPm ? (up_h + ":" + up_m) : (um_h + ":" + um_m));
+
+        // Passa anche le ore specifiche come campi extra (per CertificazionePresenza)
+        setHidden("pres_entrata_mattina",   em_h + ":" + em_m);
+        setHidden("pres_uscita_mattina",    um_h + ":" + um_m);
+        setHidden("pres_turno_pomeriggio",  hasPm ? "1" : "0");
+        if (hasPm) {
+          setHidden("pres_entrata_pomeriggio", ep_h + ":" + ep_m);
+          setHidden("pres_uscita_pomeriggio",  up_h + ":" + up_m);
+        }
+        return; // lascia procedere il submit
+      }
+
+      // ── Modo STANDARD ──
+      var dateStart = String((document.getElementById("date_start") || {}).value || "").trim();
+      var dateEnd   = String((document.getElementById("date_end")   || {}).value || "").trim();
+      var timeStart = String((document.getElementById("time_start") || {}).value || "00:00").trim() || "00:00";
+      var timeEnd   = String((document.getElementById("time_end")   || {}).value || "23:59").trim() || "23:59";
+
+      var start = new Date(dateStart + "T" + timeStart);
+      var end   = new Date(dateEnd   + "T" + timeEnd);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        evt.preventDefault();
+        window.alert("Formato data/ora non valido.");
+        return;
+      }
+      if (end <= start) {
+        evt.preventDefault();
+        window.alert("La data/ora di fine deve essere successiva all'inizio.");
+        return;
+      }
+      if (tipo === "flessibilità" || tipo === "flessibilita") {
+        var diffHours = (end - start) / 3600000;
+        if (diffHours < 9) {
+          evt.preventDefault();
+          window.alert("Per Flessibilità servono almeno 8 ore lavorative + 1 ora pausa. Altrimenti usa Permesso.");
+          return;
+        }
+        if (diffHours > 10) {
+          evt.preventDefault();
+          window.alert("Orario non valido per Flessibilità: massimo 10 ore.");
+          return;
+        }
+        if (Math.abs(diffHours - 10) < 0.001) {
+          window.alert("Con 10 ore di flessibilità, la pausa prevista è di 2 ore (12:00-14:00).");
+        }
+      }
+    });
+  })();
+  </script>
+{% endblock %}

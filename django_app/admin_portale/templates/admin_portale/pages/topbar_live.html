@@ -1,0 +1,367 @@
+{% extends "core/base.html" %}
+
+{% block title %}Topbar Live | Admin Portale{% endblock %}
+
+{% block extra_head %}
+  <style>
+    .content { max-width: none; }
+    .topbar-live-grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 12px;
+      align-items: end;
+    }
+    .topbar-live-grid .field { grid-column: span 3; }
+    .topbar-live-grid .field.field-wide { grid-column: span 6; }
+    .topbar-live-grid .field.field-actions { grid-column: span 3; display: flex; gap: 8px; flex-wrap: wrap; }
+    .topbar-live-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .topbar-live-status { min-width: 120px; }
+    .topbar-live-row-saving { opacity: 0.65; }
+    .topbar-live-row-ok { outline: 1px solid rgba(20, 132, 77, 0.35); }
+    .topbar-live-row-error { outline: 1px solid rgba(193, 41, 46, 0.45); }
+    @media (max-width: 980px) {
+      .topbar-live-grid .field,
+      .topbar-live-grid .field.field-wide,
+      .topbar-live-grid .field.field-actions { grid-column: span 12; }
+    }
+  </style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Topbar Live" page_subtitle="Editor rapido globale della navigazione. Le modifiche sono immediate per tutti gli utenti." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <form id="topbar-live-csrf">{% csrf_token %}</form>
+  <datalist id="topbar-slot-options">
+    {% for value in slot_options %}
+      <option value="{{ value }}"></option>
+    {% endfor %}
+  </datalist>
+  <datalist id="topbar-section-options">
+    {% for value in section_options %}
+      <option value="{{ value }}"></option>
+    {% endfor %}
+  </datalist>
+
+  <div class="card">
+    {% include "admin_portale/components/card_head.html" with card_title="Filtri" card_subtitle="Vista rapida topbar o inventario completo pulsanti." %}
+    <div class="card-body">
+      <form method="get" class="topbar-live-grid">
+        <div class="field field-wide">
+          <label for="q">Ricerca (nome/codice/modulo/url)</label>
+          <input class="input" type="text" id="q" name="q" value="{{ filters.q }}">
+        </div>
+        <div class="field">
+          <label for="section">Sezione UI</label>
+          <select class="input" id="section" name="section">
+            <option value="">Tutte</option>
+            {% for value in section_options %}
+              <option value="{{ value }}" {% if filters.section == value %}selected{% endif %}>{{ value }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="view">Vista</label>
+          <select class="input" id="view" name="view">
+            <option value="topbar" {% if filters.view == "topbar" %}selected{% endif %}>Solo topbar</option>
+            <option value="all" {% if filters.view == "all" %}selected{% endif %}>Tutti i pulsanti</option>
+          </select>
+        </div>
+        <div class="field field-actions">
+          <button class="btn" type="submit">Applica</button>
+          <a class="btn btn-secondary" href="{% url 'admin_portale:topbar_live' %}">Reset</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Editor navigazione</div>
+      <div class="topbar-live-actions">
+        <button class="btn btn-secondary btn-sm" type="button" id="renumber-btn">Rinumera ordine UI</button>
+        <span id="global-status" class="cell-muted"></span>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="notice" style="margin-bottom: 10px;">
+        <strong>Uso consigliato:</strong> imposta <code>Slot</code> a <code>topbar</code> o <code>toolbar</code>, attiva
+        <code>Topbar</code> e <code>Attivo</code>, poi ordina con <code>Su/Giu'</code> o con il numero in <code>Ord UI</code>.
+      </div>
+      <div class="table-wrap">
+        <table class="admin-table" id="topbar-live-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nome</th>
+              <th>Link</th>
+              <th>Slot</th>
+              <th>Sezione</th>
+              <th>Ord UI</th>
+              <th>Topbar</th>
+              <th>Attivo</th>
+              <th>Azioni</th>
+              <th>Stato</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in pulsanti_list %}
+              <tr data-id="{{ p.id }}">
+                <td>{{ p.id }}</td>
+                <td>
+                  <input class="input input-sm" type="text" data-name="nome_visibile" value="{{ p.nome_visibile|default:'' }}" placeholder="{{ p.codice }}">
+                  <div class="cell-muted"><code>{{ p.codice }}</code> · {{ p.modulo }}</div>
+                  <input type="hidden" data-name="codice" value="{{ p.codice }}">
+                  <input type="hidden" data-name="modulo" value="{{ p.modulo }}">
+                  <input type="hidden" data-name="icona" value="{{ p.icona|default:'' }}">
+                  <input type="hidden" data-name="ordine" value="{{ p.ordine_value|default_if_none:'' }}">
+                </td>
+                <td><input class="input input-sm" type="text" data-name="url" value="{{ p.url }}"></td>
+                <td><input class="input input-sm" type="text" data-name="ui_slot" list="topbar-slot-options" value="{{ p.ui_slot|default:'' }}"></td>
+                <td><input class="input input-sm" type="text" data-name="ui_section" list="topbar-section-options" value="{{ p.ui_section|default:'' }}"></td>
+                <td><input class="input input-sm" type="number" data-name="ui_order" value="{{ p.ui_order_meta|default_if_none:'' }}"></td>
+                <td><input type="checkbox" data-name="visible_topbar" {% if p.visible_topbar %}checked{% endif %}></td>
+                <td><input type="checkbox" data-name="enabled" {% if p.ui_enabled %}checked{% endif %}></td>
+                <td class="topbar-live-actions">
+                  <button type="button" class="btn btn-secondary btn-sm row-up">Su</button>
+                  <button type="button" class="btn btn-secondary btn-sm row-down">Giu'</button>
+                  <button type="button" class="btn btn-secondary btn-sm row-save">Salva</button>
+                </td>
+                <td class="cell-muted topbar-live-status" data-row-status>-</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="10" class="cell-muted">Nessun record trovato con i filtri correnti.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="cell-muted" style="margin-top: 10px;">
+        Nota: la voce <strong>Dashboard</strong> viene comunque garantita automaticamente se non presente nel catalogo.
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    {% include "admin_portale/components/card_head.html" with card_title="Catalogo route Django" card_subtitle="Per i link usa il formato route:nome_route nel campo Link." %}
+    <div class="card-body">
+      <div class="table-wrap" style="max-height: 240px; overflow:auto;">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Route</th>
+              <th>Path</th>
+              <th>Valore</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in route_catalog %}
+              <tr>
+                <td>{{ r.route_name }}</td>
+                <td>{{ r.path|default:"-" }}</td>
+                <td><code>{{ r.portal_value }}</code></td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="3" class="cell-muted">Nessuna route disponibile.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const csrfToken = document.querySelector("#topbar-live-csrf input[name='csrfmiddlewaretoken']")?.value || "";
+      const table = document.getElementById("topbar-live-table");
+      const globalStatus = document.getElementById("global-status");
+      const renumberBtn = document.getElementById("renumber-btn");
+      const updateUrl = "{% url 'admin_portale:api_pulsanti_update' %}";
+
+      if (!table) return;
+
+      function setGlobalStatus(text, isError) {
+        if (!globalStatus) return;
+        globalStatus.textContent = text || "";
+        globalStatus.classList.toggle("text-danger", !!isError);
+      }
+
+      function setRowStatus(row, text, cssClass) {
+        if (!row) return;
+        row.classList.remove("topbar-live-row-saving", "topbar-live-row-ok", "topbar-live-row-error");
+        if (cssClass) row.classList.add(cssClass);
+        const statusCell = row.querySelector("[data-row-status]");
+        if (statusCell) statusCell.textContent = text || "-";
+      }
+
+      function getFieldValue(row, name) {
+        const el = row.querySelector("[data-name='" + name + "']");
+        if (!el) return null;
+        if (el.type === "checkbox") return !!el.checked;
+        return el.value;
+      }
+
+      function intOrNull(value) {
+        if (value === null || value === undefined) return null;
+        const trimmed = String(value).trim();
+        if (!trimmed) return null;
+        const parsed = Number.parseInt(trimmed, 10);
+        return Number.isNaN(parsed) ? null : parsed;
+      }
+
+      function buildPayload(row) {
+        return {
+          id: intOrNull(row.dataset.id),
+          codice: (getFieldValue(row, "codice") || "").trim(),
+          nome_visibile: (getFieldValue(row, "nome_visibile") || "").trim(),
+          modulo: (getFieldValue(row, "modulo") || "").trim(),
+          url: (getFieldValue(row, "url") || "").trim(),
+          icona: (getFieldValue(row, "icona") || "").trim(),
+          ordine: intOrNull(getFieldValue(row, "ordine")),
+          ui_slot: (getFieldValue(row, "ui_slot") || "").trim(),
+          ui_section: (getFieldValue(row, "ui_section") || "").trim(),
+          ui_order: intOrNull(getFieldValue(row, "ui_order")),
+          visible_topbar: !!getFieldValue(row, "visible_topbar"),
+          enabled: !!getFieldValue(row, "enabled")
+        };
+      }
+
+      async function saveRow(row, silent) {
+        const payload = buildPayload(row);
+        if (!payload.id || !payload.codice || !payload.modulo || !payload.url) {
+          setRowStatus(row, "Campi obbligatori mancanti", "topbar-live-row-error");
+          if (!silent) setGlobalStatus("Salvataggio bloccato: campi obbligatori mancanti.", true);
+          return false;
+        }
+
+        setRowStatus(row, "Salvataggio...", "topbar-live-row-saving");
+        try {
+          const response = await fetch(updateUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": csrfToken
+            },
+            body: JSON.stringify(payload)
+          });
+          const data = await response.json().catch(function () { return {}; });
+          if (!response.ok || !data.ok) {
+            throw new Error(data.error || ("HTTP " + response.status));
+          }
+          setRowStatus(row, "Salvato", "topbar-live-row-ok");
+          if (!silent) setGlobalStatus("Modifica salvata.", false);
+          return true;
+        } catch (err) {
+          setRowStatus(row, "Errore", "topbar-live-row-error");
+          if (!silent) setGlobalStatus("Errore salvataggio: " + (err && err.message ? err.message : "n/d"), true);
+          return false;
+        }
+      }
+
+      function rowsList() {
+        return Array.from(table.querySelectorAll("tbody tr[data-id]"));
+      }
+
+      function orderForRow(row, fallbackIndex) {
+        const value = intOrNull(getFieldValue(row, "ui_order"));
+        return value !== null ? value : (fallbackIndex + 1) * 10;
+      }
+
+      function sortRowsInDom() {
+        const tbody = table.querySelector("tbody");
+        if (!tbody) return;
+        const rows = rowsList();
+        rows.sort(function (a, b) {
+          const aOrder = orderForRow(a, 99999);
+          const bOrder = orderForRow(b, 99999);
+          if (aOrder !== bOrder) return aOrder - bOrder;
+          const aLabel = String(getFieldValue(a, "nome_visibile") || getFieldValue(a, "codice") || "").toLowerCase();
+          const bLabel = String(getFieldValue(b, "nome_visibile") || getFieldValue(b, "codice") || "").toLowerCase();
+          return aLabel.localeCompare(bLabel);
+        });
+        rows.forEach(function (row) { tbody.appendChild(row); });
+      }
+
+      async function moveRow(row, direction) {
+        const rows = rowsList();
+        const idx = rows.indexOf(row);
+        const targetIdx = idx + direction;
+        if (idx < 0 || targetIdx < 0 || targetIdx >= rows.length) {
+          return;
+        }
+        const other = rows[targetIdx];
+        const rowOrderEl = row.querySelector("[data-name='ui_order']");
+        const otherOrderEl = other.querySelector("[data-name='ui_order']");
+        if (!rowOrderEl || !otherOrderEl) return;
+
+        const rowOrder = orderForRow(row, idx);
+        const otherOrder = orderForRow(other, targetIdx);
+        rowOrderEl.value = String(otherOrder);
+        otherOrderEl.value = String(rowOrder);
+
+        const okA = await saveRow(row, true);
+        const okB = await saveRow(other, true);
+        if (okA && okB) {
+          sortRowsInDom();
+          setGlobalStatus("Ordine aggiornato.", false);
+        } else {
+          setGlobalStatus("Errore durante il riordino.", true);
+        }
+      }
+
+      async function renumberAll() {
+        const rows = rowsList();
+        if (!rows.length) return;
+        sortRowsInDom();
+        const sorted = rowsList();
+        let allOk = true;
+        for (let i = 0; i < sorted.length; i++) {
+          const row = sorted[i];
+          const orderEl = row.querySelector("[data-name='ui_order']");
+          if (orderEl) orderEl.value = String((i + 1) * 10);
+          const ok = await saveRow(row, true);
+          if (!ok) allOk = false;
+        }
+        if (allOk) {
+          sortRowsInDom();
+          setGlobalStatus("Rinumerazione completata.", false);
+        } else {
+          setGlobalStatus("Rinumerazione parziale: verifica le righe in errore.", true);
+        }
+      }
+
+      table.addEventListener("click", function (event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        const row = target.closest("tr[data-id]");
+        if (!row) return;
+
+        if (target.classList.contains("row-save")) {
+          saveRow(row, false);
+        } else if (target.classList.contains("row-up")) {
+          moveRow(row, -1);
+        } else if (target.classList.contains("row-down")) {
+          moveRow(row, 1);
+        }
+      });
+
+      table.addEventListener("change", function (event) {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        if (!target.matches("[data-name='visible_topbar'], [data-name='enabled']")) return;
+        const row = target.closest("tr[data-id]");
+        if (!row) return;
+        saveRow(row, false);
+      });
+
+      if (renumberBtn) {
+        renumberBtn.addEventListener("click", function () {
+          renumberAll();
+        });
+      }
+    })();
+  </script>
+{% endblock %}

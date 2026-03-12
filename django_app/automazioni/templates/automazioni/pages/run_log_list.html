@@ -1,0 +1,133 @@
+{% extends "core/base.html" %}
+
+{% block title %}Automazioni - Run Log | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .auto-grid { display:grid; gap:16px; }
+  .auto-filters { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); align-items:end; }
+  .auto-field { display:grid; gap:6px; }
+  .auto-field label { font-size:12px; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:.04em; }
+  .auto-field input, .auto-field select { width:100%; padding:9px 10px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; }
+  .auto-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .auto-table-wrap { overflow:auto; }
+  .auto-table { width:100%; border-collapse:collapse; font-size:14px; }
+  .auto-table th, .auto-table td { padding:10px 12px; border-bottom:1px solid #e2e8f0; text-align:left; vertical-align:top; }
+  .auto-table th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; background:#f8fafc; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Run Log" page_subtitle="Audit applicativo delle regole eseguite, con payload e action log figli." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+  {% include "automazioni/components/subnav.html" %}
+
+  <div class="auto-grid">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Filtri run log</div>
+      </div>
+      <div class="card-body">
+        <form method="get" class="auto-filters">
+          <div class="auto-field">
+            <label for="id_status">Status</label>
+            <select id="id_status" name="status">
+              <option value="">Tutti</option>
+              {% for status_code in status_choices %}
+                <option value="{{ status_code }}"{% if filters.status == status_code %} selected{% endif %}>{{ status_code|upper }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="auto-field">
+            <label for="id_source_code">Sorgente</label>
+            <select id="id_source_code" name="source_code">
+              <option value="">Tutte</option>
+              {% for source_code, source_label in source_choices %}
+                <option value="{{ source_code }}"{% if filters.source_code == source_code %} selected{% endif %}>{{ source_label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="auto-field">
+            <label for="id_is_test">Test</label>
+            <select id="id_is_test" name="is_test">
+              <option value="">Tutti</option>
+              <option value="true"{% if filters.is_test == 'true' %} selected{% endif %}>Solo test</option>
+              <option value="false"{% if filters.is_test == 'false' %} selected{% endif %}>Solo runtime reale</option>
+            </select>
+          </div>
+          <div class="auto-field">
+            <label for="id_rule">Regola</label>
+            <select id="id_rule" name="rule">
+              <option value="">Tutte</option>
+              {% for rule in rules %}
+                <option value="{{ rule.id }}"{% if filters.rule == rule.id|stringformat:'s' %} selected{% endif %}>{{ rule.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="auto-field">
+            <label for="id_queue_event_id">Queue event ID</label>
+            <input id="id_queue_event_id" name="queue_event_id" value="{{ filters.queue_event_id }}">
+          </div>
+          <div class="auto-actions">
+            <button class="btn" type="submit">Filtra</button>
+            <a class="btn btn-light" href="{% url 'admin_portale:automazioni_run_log_list' %}">Reset filtri</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Run log</div>
+      </div>
+      <div class="card-body auto-table-wrap">
+        <table class="auto-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Regola</th>
+              <th>Queue event</th>
+              <th>Sorgente</th>
+              <th>Operazione</th>
+              <th>Stato</th>
+              <th>Started</th>
+              <th>Finished</th>
+              <th>Execution ms</th>
+              <th>Test</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for run_log in run_logs %}
+              <tr>
+                <td><a href="{% url 'admin_portale:automazioni_run_log_detail' run_log.id %}">#{{ run_log.id }}</a></td>
+                <td>{{ run_log.rule|default:"-" }}</td>
+                <td>
+                  {% if run_log.queue_event_id %}
+                    <a href="{% url 'admin_portale:automazioni_queue_detail' run_log.queue_event_id %}">#{{ run_log.queue_event_id }}</a>
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
+                <td>{{ run_log.source_code }}</td>
+                <td>{{ run_log.operation_type|upper }}</td>
+                <td>{{ run_log.status }}</td>
+                <td>{{ run_log.started_at|date:"d/m/Y H:i:s" }}</td>
+                <td>{{ run_log.finished_at|date:"d/m/Y H:i:s"|default:"-" }}</td>
+                <td>{{ run_log.execution_ms|default:"-" }}</td>
+                <td>{{ run_log.is_test|yesno:"Si,No" }}</td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="10">Nessun run log disponibile per i filtri correnti.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{% endblock %}

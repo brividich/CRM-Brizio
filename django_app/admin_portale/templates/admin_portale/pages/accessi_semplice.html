@@ -1,0 +1,220 @@
+{% extends "core/base.html" %}
+
+{% block title %}Accessi Semplificati | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .simple-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .helper-chip {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #fef3c7;
+    color: #92400e;
+  }
+  .simple-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .simple-table th {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: var(--text-muted, #888);
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 2px solid var(--border, #e5e7eb);
+  }
+  .simple-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border, #eef2f7);
+    vertical-align: top;
+  }
+  .simple-table tr:last-child td { border-bottom: none; }
+  .simple-table tr:hover td { background: var(--bg-hover, #f8fafc); }
+  .module-name { font-weight: 600; }
+  .sample { font-size: 11px; color: var(--text-muted, #8892a0); margin-top: 2px; }
+  .tick-col { width: 180px; }
+  .act-col { width: 230px; }
+  .row-check { display: inline-flex; align-items: center; gap: 8px; }
+  .sticky-save {
+    position: sticky;
+    bottom: 10px;
+    margin-top: 12px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(4px);
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 10px;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Accessi Semplificati" page_subtitle="Una sola schermata per gestire ruoli, permessi modulo e pulsanti attivi." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <div style="margin-bottom:10px;">
+    <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:accessi_avanzati' %}">Apri Accessi Avanzati</a>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">1) Scegli il ruolo</div></div>
+    <div class="card-body">
+      <form method="get" class="admin-form-grid">
+        <div class="field">
+          <label for="ruolo_id">Ruolo</label>
+          <select class="input" id="ruolo_id" name="ruolo_id">
+            {% for ruolo in roles %}
+              <option value="{{ ruolo.id }}" {% if selected_role_id == ruolo.id %}selected{% endif %}>
+                {{ ruolo.nome }} (#{{ ruolo.id }})
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field field-actions">
+          <button type="submit" class="btn">Carica</button>
+        </div>
+      </form>
+      <div class="notice" style="margin-top:10px;">
+        <strong>Come usarla:</strong> spunta i moduli che il ruolo deve vedere e quelli con pulsanti attivi, poi salva.
+      </div>
+    </div>
+  </div>
+
+  {% if selected_role_id %}
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="ruolo_id" value="{{ selected_role_id }}">
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">2) Regole rapide modulo per ruolo</div>
+          <div class="cell-muted" style="font-size:12px;margin-top:2px;">
+            Ruolo corrente:
+            <strong>{% if selected_role %}{{ selected_role.nome }} (#{{ selected_role.id }}){% else %}#{{ selected_role_id }}{% endif %}</strong>
+          </div>
+        </div>
+      </div>
+      <div class="card-body" style="padding:0;">
+        {% if module_rows %}
+        <div class="simple-toolbar" style="padding:10px 12px;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" class="btn btn-sm" id="all-role-on">Accessi ruolo ON</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="all-role-off">Accessi ruolo OFF</button>
+            <button type="button" class="btn btn-sm" id="all-ui-on">Pulsanti ON</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="all-ui-off">Pulsanti OFF</button>
+          </div>
+          <div class="cell-muted">{{ module_rows|length }} moduli</div>
+        </div>
+        <table class="simple-table">
+          <thead>
+            <tr>
+              <th>Modulo</th>
+              <th class="tick-col">Accesso Ruolo</th>
+              <th class="tick-col">Pulsanti Attivi</th>
+              <th class="act-col">Azioni Avanzate</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in module_rows %}
+            <tr>
+              <td>
+                <div class="module-name">{{ row.modulo|capfirst }}</div>
+                <div class="sample">
+                  {{ row.pulsanti_count }} pulsanti
+                  {% if row.sample_labels %} | es: {{ row.sample_labels|join:", " }}{% endif %}
+                </div>
+              </td>
+              <td class="tick-col">
+                <label class="row-check">
+                  <input type="checkbox"
+                         class="role-module-check"
+                         name="role_modules"
+                         value="{{ row.modulo }}"
+                         {% if row.role_enabled %}checked{% endif %}>
+                  <span>Abilitato</span>
+                </label>
+                {% if row.role_partial %}
+                  <div style="margin-top:4px;"><span class="helper-chip">Parziale</span></div>
+                {% endif %}
+              </td>
+              <td class="tick-col">
+                <label class="row-check">
+                  <input type="checkbox"
+                         class="ui-module-check"
+                         name="enabled_modules"
+                         value="{{ row.modulo }}"
+                         {% if row.buttons_enabled %}checked{% endif %}>
+                  <span>Attivi</span>
+                </label>
+                {% if row.buttons_partial %}
+                  <div style="margin-top:4px;"><span class="helper-chip">Parziale</span></div>
+                {% endif %}
+              </td>
+              <td class="act-col">
+                <a class="btn btn-secondary btn-sm"
+                   href="{% url 'admin_portale:permessi' %}?target_type=role&ruolo_id={{ selected_role_id }}">
+                  Permessi dettagli
+                </a>
+                <a class="btn btn-secondary btn-sm"
+                   href="{% url 'admin_portale:pulsanti' %}?modulo={{ row.modulo|urlencode }}">
+                  Pulsanti modulo
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+          <div style="padding:16px;">
+            <p class="cell-muted">Nessun modulo trovato. Controlla la tabella pulsanti.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if module_rows %}
+    <div class="sticky-save">
+      <div class="cell-muted">Salva le modifiche del ruolo selezionato.</div>
+      <button type="submit" class="btn">Salva Accessi Semplificati</button>
+    </div>
+    {% endif %}
+  </form>
+  {% endif %}
+
+<script>
+(function () {
+  "use strict";
+
+  function setAll(selector, checked) {
+    document.querySelectorAll(selector).forEach(function (el) { el.checked = checked; });
+  }
+
+  document.getElementById("all-role-on")?.addEventListener("click", function () { setAll(".role-module-check", true); });
+  document.getElementById("all-role-off")?.addEventListener("click", function () { setAll(".role-module-check", false); });
+  document.getElementById("all-ui-on")?.addEventListener("click", function () { setAll(".ui-module-check", true); });
+  document.getElementById("all-ui-off")?.addEventListener("click", function () { setAll(".ui-module-check", false); });
+})();
+</script>
+{% endblock %}

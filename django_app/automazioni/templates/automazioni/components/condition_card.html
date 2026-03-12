@@ -1,0 +1,99 @@
+<article class="designer-meta-card{% if entry.is_existing %} designer-condition-card{% endif %}"
+  data-condition-card
+  data-is-existing="{% if entry.is_existing %}true{% else %}false{% endif %}"
+  {% if entry.is_existing %}data-sortable-item data-item-id="{{ entry.descriptor.item_id }}" draggable="true"{% endif %}>
+  {% for hidden_field in entry.form.hidden_fields %}{{ hidden_field }}{% endfor %}
+  <div class="designer-header">
+    <div>
+      <div class="designer-summary-kicker">Condizione <span data-order-badge>{{ entry.descriptor.order_value }}</span></div>
+      <div class="designer-summary-line" style="font-size:15px;" data-condition-summary>{{ entry.descriptor.summary }}</div>
+      <div class="designer-section-subtitle" data-condition-human-summary>{{ entry.descriptor.human_summary }}</div>
+    </div>
+    <div class="designer-actions">
+      <button class="btn btn-light" type="button" data-apply-condition-suggestion>Base suggerita</button>
+      {% if entry.is_existing %}
+        <button class="btn btn-light" type="button" data-move="-1">Su</button>
+        <button class="btn btn-light" type="button" data-move="1">Giu'</button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="designer-pill-row" style="margin-top:10px;">
+    {% for label, value in entry.meta_rows %}
+      <span class="designer-pill"><strong>{{ label }}</strong>&nbsp;{{ value }}</span>
+    {% endfor %}
+    {% for badge in entry.descriptor.badges %}
+      <span class="designer-pill{% if badge == 'abilitata' %} designer-pill-success{% elif badge == 'da eliminare' %} designer-pill-warning{% endif %}">{{ badge }}</span>
+    {% endfor %}
+  </div>
+
+  <div class="designer-help" data-condition-suggestion-hint style="margin-top:8px;">
+    Usa la base suggerita o uno dei preset per evitare di partire da campi vuoti.
+  </div>
+  <div class="designer-help" data-card-feedback style="margin-top:6px;font-weight:700;color:#0f766e;"></div>
+
+  <div class="designer-preset-zone" data-condition-preset-zone hidden>
+    <div class="designer-preset-head">
+      <div>
+        <div class="designer-summary-kicker" data-condition-preset-group-title>Preset consigliati</div>
+        <div class="designer-section-subtitle" data-condition-preset-group-subtitle></div>
+      </div>
+      <div class="designer-size-switch" data-condition-preset-size-switch>
+        <button class="designer-size-button is-active" type="button" data-condition-preset-size="sm">S</button>
+        <button class="designer-size-button" type="button" data-condition-preset-size="md">M</button>
+        <button class="designer-size-button" type="button" data-condition-preset-size="lg">L</button>
+      </div>
+    </div>
+    <div class="designer-preset-grid" data-condition-preset-grid></div>
+  </div>
+
+  {% if entry.form.non_field_errors %}
+    <ul class="designer-errors">{% for error in entry.form.non_field_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+  {% endif %}
+
+  <details style="margin-top:12px;" data-card-details>
+    <summary style="cursor:pointer;font-weight:700;color:#0f172a;">Modifica card</summary>
+    <div class="designer-trigger-copy" style="margin-top:12px;">
+      <div class="designer-field">
+        {{ entry.form.order.label_tag }}
+        {{ entry.form.order }}
+        {% if entry.form.order.errors %}<ul class="designer-errors">{% for error in entry.form.order.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+      <div class="designer-field">
+        {{ entry.form.field_name.label_tag }}
+        {{ entry.form.field_name }}
+        {% if entry.form.field_name.errors %}<ul class="designer-errors">{% for error in entry.form.field_name.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+      <div class="designer-field">
+        {{ entry.form.operator.label_tag }}
+        {{ entry.form.operator }}
+        {% if entry.form.operator.errors %}<ul class="designer-errors">{% for error in entry.form.operator.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+      <div class="designer-field">
+        {{ entry.form.value_type.label_tag }}
+        {{ entry.form.value_type }}
+        {% if entry.form.value_type.errors %}<ul class="designer-errors">{% for error in entry.form.value_type.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+      <div class="designer-field designer-field-wide">
+        {{ entry.form.expected_value.label_tag }}
+        {{ entry.form.expected_value }}
+        {% if entry.form.expected_value.help_text %}<div class="designer-help">{{ entry.form.expected_value.help_text }}</div>{% endif %}
+        {% if entry.form.expected_value.errors %}<ul class="designer-errors">{% for error in entry.form.expected_value.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+      <div class="designer-field">
+        {{ entry.form.compare_with_old.label_tag }}
+        {{ entry.form.compare_with_old }}
+        {% if entry.form.compare_with_old.errors %}<ul class="designer-errors">{% for error in entry.form.compare_with_old.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+      <div class="designer-field">
+        {{ entry.form.is_enabled.label_tag }}
+        {{ entry.form.is_enabled }}
+        {% if entry.form.is_enabled.errors %}<ul class="designer-errors">{% for error in entry.form.is_enabled.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+      <div class="designer-field">
+        {{ entry.form.DELETE.label_tag }}
+        {{ entry.form.DELETE }}
+      </div>
+    </div>
+  </details>
+</article>

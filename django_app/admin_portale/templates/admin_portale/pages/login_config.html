@@ -1,0 +1,216 @@
+{% extends "core/base.html" %}
+
+{% block title %}Configura Login | Admin Portale{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Configura pagina di login" page_subtitle="Personalizza titolo, sottotitolo, logo, banner e il bottone SSO." %}
+
+  {% if messages %}
+    <div class="messages-wrap" style="margin-bottom:20px;">
+      {% for message in messages %}
+        <div class="notice{% if message.tags == 'success' %} notice-success{% elif message.tags == 'error' %} notice-danger{% endif %}">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div style="display:grid;grid-template-columns:1fr 340px;gap:20px;max-width:1100px;">
+
+    <!-- COLONNA SINISTRA -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+
+      <!-- Impostazioni generali -->
+      <div class="card">
+        <div class="card-head"><div class="card-title">Testo e SSO</div></div>
+        <div class="card-body">
+          <form method="post" action="{% url 'admin_portale:api_login_config_save' %}">
+            {% csrf_token %}
+            <div class="field" style="margin-bottom:14px;">
+              <label>Titolo pagina</label>
+              <input class="input" type="text" name="login_titolo"
+                     value="{{ valori.login_titolo }}" placeholder="Portale Applicativo">
+            </div>
+            <div class="field" style="margin-bottom:14px;">
+              <label>Sottotitolo / azienda</label>
+              <input class="input" type="text" name="login_sottotitolo"
+                     value="{{ valori.login_sottotitolo }}" placeholder="Example Organization">
+            </div>
+            <div class="field" style="margin-bottom:14px;">
+              <label>Etichetta bottone SSO Windows</label>
+              <input class="input" type="text" name="login_sso_label"
+                     value="{{ valori.login_sso_label }}" placeholder="Accedi con credenziali Windows">
+            </div>
+            <div class="field" style="margin-bottom:18px;">
+              <label>Bottone SSO</label>
+              <div style="display:flex;gap:16px;margin-top:4px;">
+                <label class="checkline">
+                  <input type="radio" name="login_sso_visibile" value="1" {% if valori.login_sso_visibile == "1" %}checked{% endif %}> Visibile
+                </label>
+                <label class="checkline">
+                  <input type="radio" name="login_sso_visibile" value="0" {% if valori.login_sso_visibile == "0" %}checked{% endif %}> Nascosto
+                </label>
+              </div>
+            </div>
+            <button type="submit" class="btn">Salva</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Logo -->
+      <div class="card">
+        <div class="card-head"><div class="card-title">Logo</div></div>
+        <div class="card-body">
+          {% if logo_url %}
+            <div style="margin-bottom:14px;background:#f8fafc;border-radius:10px;padding:16px;text-align:center;border:1px solid var(--border);">
+              <img src="{{ logo_url }}" alt="Logo attuale" style="max-height:72px;max-width:200px;object-fit:contain;">
+              <div style="margin-top:10px;">
+                <form method="post" action="{% url 'admin_portale:api_login_logo_remove' %}" style="display:inline;">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-danger btn-sm">Rimuovi logo</button>
+                </form>
+              </div>
+            </div>
+          {% else %}
+            <p style="font-size:13px;color:var(--text-light);margin-bottom:14px;">Nessun logo caricato — viene mostrata la lettera "N" arancione.</p>
+          {% endif %}
+          <form method="post" action="{% url 'admin_portale:api_login_logo_upload' %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="field" style="margin-bottom:12px;">
+              <label>Carica nuovo logo <span style="font-weight:400;color:var(--text-light)">(PNG, JPG, SVG, WEBP)</span></label>
+              <input class="input" type="file" name="logo" accept=".png,.jpg,.jpeg,.svg,.webp">
+            </div>
+            <button type="submit" class="btn btn-secondary">Carica logo</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Banner -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Banner di avviso</div>
+          <span style="font-size:11px;color:var(--text-light);">Visualizzati nella pagina di login</span>
+        </div>
+        <div class="card-body">
+
+          <!-- Lista banner esistenti -->
+          {% if banners %}
+            <div style="margin-bottom:16px;display:flex;flex-direction:column;gap:8px;">
+              {% for b in banners %}
+                <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:{% if b.tipo == 'info' %}#ebf8ff{% elif b.tipo == 'warning' %}#fffff0{% elif b.tipo == 'danger' %}#fff5f5{% else %}#f0fff4{% endif %};">
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:12px;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px;">
+                      {% if b.tipo == 'info' %}Informazione{% elif b.tipo == 'warning' %}Attenzione{% elif b.tipo == 'danger' %}Errore{% else %}Successo{% endif %}
+                      — ordine {{ b.ordine }}
+                    </div>
+                    <div style="font-size:13px;color:var(--text);">{{ b.testo }}</div>
+                  </div>
+                  <div style="display:flex;gap:6px;flex-shrink:0;">
+                    <button onclick="toggleBanner({{ b.id }}, this)"
+                            class="btn btn-sm btn-secondary"
+                            style="{% if not b.is_active %}opacity:.5;{% endif %}">
+                      {% if b.is_active %}Disattiva{% else %}Attiva{% endif %}
+                    </button>
+                    <button onclick="deleteBanner({{ b.id }}, this)" class="btn btn-sm btn-danger">Elimina</button>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p style="font-size:13px;color:var(--text-light);margin-bottom:16px;">Nessun banner configurato.</p>
+          {% endif %}
+
+          <!-- Form nuovo banner -->
+          <form method="post" action="{% url 'admin_portale:api_login_banner_create' %}" style="border-top:1px solid var(--border);padding-top:16px;">
+            {% csrf_token %}
+            <div style="font-size:12px;font-weight:700;color:var(--text-mid);margin-bottom:10px;text-transform:uppercase;letter-spacing:.03em;">Nuovo banner</div>
+            <div class="field" style="margin-bottom:10px;">
+              <label>Testo</label>
+              <textarea class="input" name="testo" rows="2" placeholder="Es: Il portale sarà in manutenzione sabato dalle 14:00..."></textarea>
+            </div>
+            <div style="display:flex;gap:10px;margin-bottom:12px;">
+              <div class="field" style="flex:1;">
+                <label>Tipo</label>
+                <select class="input" name="tipo">
+                  {% for val, label in banner_tipi %}
+                    <option value="{{ val }}">{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="field" style="width:90px;">
+                <label>Ordine</label>
+                <input class="input" type="number" name="ordine" value="100" min="1" max="999">
+              </div>
+            </div>
+            <button type="submit" class="btn">Aggiungi banner</button>
+          </form>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- COLONNA DESTRA — anteprima -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+      <div class="card">
+        <div class="card-head"><div class="card-title">Anteprima</div></div>
+        <div class="card-body">
+
+          <!-- Mini preview della card login -->
+          <div style="background:linear-gradient(135deg,#1e3a5f,#2d5282);border-radius:12px;padding:20px;text-align:center;margin-bottom:14px;">
+            {% if logo_url %}
+              <img src="{{ logo_url }}" alt="Logo" style="max-height:48px;max-width:140px;object-fit:contain;margin-bottom:8px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.3));">
+            {% else %}
+              <div style="width:40px;height:40px;background:var(--accent);border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:18px;color:white;margin-bottom:8px;">N</div>
+            {% endif %}
+            <div style="color:white;font-weight:800;font-size:15px;">{{ valori.login_titolo|default:"Portale Applicativo" }}</div>
+            <div style="color:rgba(255,255,255,.6);font-size:11px;">{{ valori.login_sottotitolo|default:"Example Organization" }}</div>
+          </div>
+
+          {% if banners %}
+            <div style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">Banner attivi</div>
+            {% for b in banners %}
+              {% if b.is_active %}
+                <div style="padding:8px 12px;border-radius:7px;font-size:12px;margin-bottom:5px;border-left:3px solid {% if b.tipo == 'info' %}#3182ce{% elif b.tipo == 'warning' %}#d69e2e{% elif b.tipo == 'danger' %}#e53e3e{% else %}#38a169{% endif %};background:{% if b.tipo == 'info' %}#ebf8ff{% elif b.tipo == 'warning' %}#fffff0{% elif b.tipo == 'danger' %}#fff5f5{% else %}#f0fff4{% endif %};">{{ b.testo }}</div>
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+
+          <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
+            <a href="{% url 'login' %}" target="_blank" class="btn btn-secondary btn-sm" style="width:100%;justify-content:center;">
+              Apri pagina login &rarr;
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const csrfToken = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || "";
+
+async function toggleBanner(id, btn) {
+  const res = await fetch("{% url 'admin_portale:api_login_banner_toggle' %}", {
+    method: "POST",
+    headers: {"Content-Type": "application/json", "X-CSRFToken": csrfToken},
+    body: JSON.stringify({id}),
+  });
+  if ((await res.json()).ok) location.reload();
+}
+
+async function deleteBanner(id, btn) {
+  if (!confirm("Eliminare questo banner?")) return;
+  const res = await fetch("{% url 'admin_portale:api_login_banner_delete' %}", {
+    method: "POST",
+    headers: {"Content-Type": "application/json", "X-CSRFToken": csrfToken},
+    body: JSON.stringify({id}),
+  });
+  if ((await res.json()).ok) btn.closest("[style]").remove();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,277 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ ticket.numero_ticket }} | Ticket | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#tkt-root { display:flex; flex-direction:column; gap:20px; }
+
+.tkt-detail-grid { display:grid; grid-template-columns:1fr 340px; gap:20px; align-items:start; }
+@media(max-width:900px){ .tkt-detail-grid { grid-template-columns:1fr; } }
+
+.tkt-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:22px 24px; }
+.tkt-card-title { font-size:13px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-bottom:14px; }
+
+.tkt-badge { display:inline-block; padding:4px 12px; border-radius:99px; font-size:12px; font-weight:700; }
+.tkt-badge-APERTA    { background:#dbeafe; color:#1e40af; }
+.tkt-badge-IN_CARICO { background:#fef3c7; color:#92400e; }
+.tkt-badge-RISOLTO   { background:#d1fae5; color:#065f46; }
+.tkt-badge-CHIUSO    { background:#f1f5f9; color:#475569; }
+.tkt-badge-ANNULLATO { background:#fee2e2; color:#991b1b; }
+
+.tkt-prio { display:inline-block; padding:3px 10px; border-radius:6px; font-size:11px; font-weight:700; }
+.tkt-prio-BASSA   { background:#f0fdf4; color:#166534; }
+.tkt-prio-MEDIA   { background:#eff6ff; color:#1e40af; }
+.tkt-prio-ALTA    { background:#fff7ed; color:#9a3412; }
+.tkt-prio-URGENTE { background:#fef2f2; color:#dc2626; }
+
+.tkt-tipo { display:inline-block; padding:3px 10px; border-radius:6px; font-size:11px; font-weight:700; }
+.tkt-tipo-IT  { background:#e0f2fe; color:#0369a1; }
+.tkt-tipo-MAN { background:#f0fdf4; color:#15803d; }
+
+.tkt-meta-row { display:flex; flex-direction:column; gap:10px; }
+.tkt-meta-item { display:flex; justify-content:space-between; align-items:center; font-size:13px; border-bottom:1px solid #f8fafc; padding-bottom:8px; }
+.tkt-meta-item:last-child { border-bottom:none; padding-bottom:0; }
+.tkt-meta-key { color:#64748b; font-weight:600; }
+.tkt-meta-val { color:#0f172a; font-weight:500; text-align:right; }
+
+.tkt-sicurezza-alert {
+  display:flex; align-items:center; gap:8px;
+  background:#fef2f2; border:1px solid #fca5a5; border-radius:10px;
+  padding:10px 14px; color:#dc2626; font-size:13px; font-weight:700; margin-bottom:16px;
+}
+
+/* Commenti */
+.tkt-commento {
+  background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;
+  padding:12px 14px; margin-bottom:10px;
+}
+.tkt-commento.interno {
+  background:#fffbeb; border-color:#fcd34d;
+}
+.tkt-commento-header { display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px; }
+.tkt-commento-autore { font-weight:700; color:#0f172a; }
+.tkt-commento-date   { color:#94a3b8; }
+.tkt-commento-testo  { font-size:13px; color:#374151; white-space:pre-wrap; }
+.tkt-interno-badge   { font-size:10px; background:#fef3c7; color:#92400e; padding:1px 6px; border-radius:4px; font-weight:700; }
+
+/* Form commento */
+.tkt-commento-form { margin-top:14px; }
+.tkt-commento-form textarea {
+  width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px;
+  font-size:13px; resize:vertical; min-height:80px; box-sizing:border-box;
+}
+.tkt-commento-form textarea:focus { border-color:#0369a1; outline:none; box-shadow:0 0 0 3px rgba(3,105,161,.1); }
+.tkt-commento-submit-row { display:flex; gap:8px; margin-top:8px; align-items:center; }
+.tkt-btn-sm { padding:7px 16px; border-radius:8px; font-size:12px; font-weight:700; border:none; cursor:pointer; }
+.tkt-btn-blue { background:#0369a1; color:#fff; }
+.tkt-btn-blue:hover { background:#075985; }
+
+/* Allegati */
+.tkt-allegato-item {
+  display:flex; align-items:center; gap:10px; padding:8px 12px;
+  background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:6px; font-size:13px;
+}
+.tkt-allegato-name { flex:1; color:#0f172a; font-weight:600; }
+.tkt-allegato-link { color:#0369a1; font-size:12px; font-weight:700; text-decoration:none; }
+.tkt-allegato-link:hover { text-decoration:underline; }
+
+/* Back link */
+.tkt-back { display:inline-flex; align-items:center; gap:6px; color:#0369a1; font-size:13px; font-weight:600; text-decoration:none; }
+.tkt-back:hover { text-decoration:underline; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="tkt-root">
+  {% include "tickets/components/subnav.html" %}
+
+  <a href="{% url 'tickets:dashboard' %}" class="tkt-back">← Torna ai ticket</a>
+
+  <!-- Titolo ticket -->
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:22px 26px;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <div>
+        <div style="font-size:13px;color:#64748b;font-weight:600;margin-bottom:4px;">
+          <span class="tkt-tipo tkt-tipo-{{ ticket.tipo }}">{{ ticket.label_tipo }}</span>
+          <span style="margin:0 6px;color:#cbd5e1;">·</span>
+          {{ ticket.numero_ticket }}
+        </div>
+        <div style="font-size:20px;font-weight:800;color:#0f172a;">{{ ticket.titolo }}</div>
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <span class="tkt-badge tkt-badge-{{ ticket.stato }}">{{ ticket.label_stato }}</span>
+          <span class="tkt-prio tkt-prio-{{ ticket.priorita }}">{{ ticket.label_priorita }}</span>
+          {% if ticket.incide_sicurezza %}
+          <span style="background:#fef2f2;color:#dc2626;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;">⚠ Sicurezza</span>
+          {% endif %}
+        </div>
+      </div>
+      <div style="font-size:12px;color:#94a3b8;text-align:right;">
+        Aperto il {{ ticket.created_at|date:"d/m/Y \a\l\l\e H:i" }}<br>
+        {% if ticket.closed_at %}Chiuso il {{ ticket.closed_at|date:"d/m/Y H:i" }}{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="tkt-detail-grid">
+    <!-- Colonna sinistra: descrizione + commenti -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+
+      {% if ticket.incide_sicurezza %}
+      <div class="tkt-sicurezza-alert">🚨 Questo ticket è stato segnalato come problema di sicurezza sul lavoro.</div>
+      {% endif %}
+
+      <!-- Descrizione -->
+      <div class="tkt-card">
+        <div class="tkt-card-title">Descrizione</div>
+        <div style="font-size:14px;color:#374151;white-space:pre-wrap;line-height:1.6;">{{ ticket.descrizione }}</div>
+        {% if ticket.asset %}
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid #f1f5f9;font-size:13px;">
+          <span style="color:#64748b;font-weight:600;">Asset:</span>
+          <span style="color:#0369a1;font-weight:700;">{{ ticket.asset.name }} [{{ ticket.asset.asset_tag }}]</span>
+        </div>
+        {% elif ticket.asset_descrizione_libera %}
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid #f1f5f9;font-size:13px;">
+          <span style="color:#64748b;font-weight:600;">Asset:</span>
+          <span>{{ ticket.asset_descrizione_libera }}</span>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Allegati -->
+      {% if allegati %}
+      <div class="tkt-card">
+        <div class="tkt-card-title">Allegati ({{ allegati.count }})</div>
+        {% for a in allegati %}
+        <div class="tkt-allegato-item">
+          <span>📎</span>
+          <span class="tkt-allegato-name">{{ a.nome_originale }}</span>
+          <a href="{{ a.file.url }}" target="_blank" class="tkt-allegato-link">Scarica</a>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- Commenti -->
+      <div class="tkt-card">
+        <div class="tkt-card-title">Commenti e aggiornamenti</div>
+        {% if commenti %}
+          {% for c in commenti %}
+          <div class="tkt-commento{% if c.is_interno %} interno{% endif %}">
+            <div class="tkt-commento-header">
+              <span class="tkt-commento-autore">
+                {{ c.autore_nome }}
+                {% if c.is_interno %}<span class="tkt-interno-badge">Nota interna</span>{% endif %}
+              </span>
+              <span class="tkt-commento-date">{{ c.created_at|date:"d/m/Y H:i" }}</span>
+            </div>
+            <div class="tkt-commento-testo">{{ c.testo }}</div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div style="color:#94a3b8;font-size:13px;padding:10px 0;">Nessun commento ancora.</div>
+        {% endif %}
+
+        {% if not ticket.is_chiuso %}
+        <div class="tkt-commento-form">
+          <textarea id="commento-testo" placeholder="Aggiungi un commento…"></textarea>
+          <div class="tkt-commento-submit-row">
+            <button type="button" class="tkt-btn-sm tkt-btn-blue" id="commento-submit">Invia commento</button>
+            <span id="commento-status" style="font-size:12px;color:#64748b;"></span>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Colonna destra: meta -->
+    <div class="tkt-card">
+      <div class="tkt-card-title">Dettagli</div>
+      <div class="tkt-meta-row">
+        <div class="tkt-meta-item">
+          <span class="tkt-meta-key">Numero</span>
+          <span class="tkt-meta-val">{{ ticket.numero_ticket }}</span>
+        </div>
+        <div class="tkt-meta-item">
+          <span class="tkt-meta-key">Tipo</span>
+          <span class="tkt-meta-val"><span class="tkt-tipo tkt-tipo-{{ ticket.tipo }}">{{ ticket.label_tipo }}</span></span>
+        </div>
+        <div class="tkt-meta-item">
+          <span class="tkt-meta-key">Categoria</span>
+          <span class="tkt-meta-val">{{ ticket.label_categoria }}</span>
+        </div>
+        <div class="tkt-meta-item">
+          <span class="tkt-meta-key">Priorità</span>
+          <span class="tkt-meta-val"><span class="tkt-prio tkt-prio-{{ ticket.priorita }}">{{ ticket.label_priorita }}</span></span>
+        </div>
+        <div class="tkt-meta-item">
+          <span class="tkt-meta-key">Stato</span>
+          <span class="tkt-meta-val"><span class="tkt-badge tkt-badge-{{ ticket.stato }}">{{ ticket.label_stato }}</span></span>
+        </div>
+        <div class="tkt-meta-item">
+          <span class="tkt-meta-key">Richiedente</span>
+          <span class="tkt-meta-val">{{ ticket.richiedente_nome }}</span>
+        </div>
+        {% if ticket.assegnato_a %}
+        <div class="tkt-meta-item">
+          <span class="tkt-meta-key">Assegnato a</span>
+          <span class="tkt-meta-val">{{ ticket.assegnato_a }}</span>
+        </div>
+        {% endif %}
+        {% if ticket.delegato_fornitore %}
+        <div class="tkt-meta-item">
+          <span class="tkt-meta-key">Fornitore</span>
+          <span class="tkt-meta-val">{{ ticket.delegato_fornitore.ragione_sociale }}</span>
+        </div>
+        {% endif %}
+        <div class="tkt-meta-item">
+          <span class="tkt-meta-key">Apertura</span>
+          <span class="tkt-meta-val">{{ ticket.created_at|date:"d/m/Y H:i" }}</span>
+        </div>
+        {% if ticket.closed_at %}
+        <div class="tkt-meta-item">
+          <span class="tkt-meta-key">Chiusura</span>
+          <span class="tkt-meta-val">{{ ticket.closed_at|date:"d/m/Y H:i" }}</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const TICKET_ID = {{ ticket.pk }};
+const API_COMM  = "{% url 'tickets:api_commento' %}";
+const CSRF      = "{{ csrf_token }}";
+
+document.getElementById('commento-submit')?.addEventListener('click', async () => {
+  const txt = document.getElementById('commento-testo').value.trim();
+  if (!txt) return;
+  const btn = document.getElementById('commento-submit');
+  btn.disabled = true;
+  const st  = document.getElementById('commento-status');
+  st.textContent = 'Invio…';
+  try {
+    const r = await fetch(API_COMM, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+      body: JSON.stringify({ticket_id: TICKET_ID, testo: txt, is_interno: false})
+    });
+    const d = await r.json();
+    if (d.ok) {
+      document.getElementById('commento-testo').value = '';
+      st.textContent = 'Commento inviato.';
+      // Aggiungi commento alla lista senza reload
+      const box = document.querySelector('.tkt-commento-form');
+      const div = document.createElement('div');
+      div.className = 'tkt-commento';
+      div.innerHTML = `<div class="tkt-commento-header"><span class="tkt-commento-autore">${d.autore_nome}</span><span class="tkt-commento-date">${d.created_at}</span></div><div class="tkt-commento-testo">${d.testo.replace(/</g,'&lt;')}</div>`;
+      box.parentNode.insertBefore(div, box);
+    } else {
+      st.textContent = d.error || 'Errore.';
+    }
+  } catch(e) { st.textContent = 'Errore di rete.'; }
+  finally { btn.disabled = false; }
+});
+</script>
+{% endblock %}

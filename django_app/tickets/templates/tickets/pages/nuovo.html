@@ -1,0 +1,627 @@
+{% extends "core/base.html" %}
+
+{% block title %}Nuovo ticket | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#tkt-root { display:flex; flex-direction:column; gap:20px; }
+
+.tkt-hero {
+  background:linear-gradient(135deg,#1e3a5f 0%,#0369a1 60%,#0284c7 100%);
+  border-radius:16px; padding:28px 32px; color:#fff;
+}
+.tkt-hero-title { font-size:24px; font-weight:900; letter-spacing:-.02em; }
+.tkt-hero-sub { font-size:13px; opacity:.7; margin-top:3px; }
+
+.tkt-tipo-cards { display:grid; grid-template-columns:1fr 1fr; gap:20px; max-width:600px; margin:0 auto; }
+.tkt-tipo-card {
+  background:#fff; border:2px solid #e2e8f0; border-radius:18px; padding:32px 24px;
+  display:flex; flex-direction:column; align-items:center; gap:14px; text-decoration:none; color:inherit;
+  transition:all .18s; cursor:pointer;
+}
+.tkt-tipo-card:hover { border-color:#0369a1; box-shadow:0 6px 24px rgba(3,105,161,.15); transform:translateY(-2px); }
+.tkt-tipo-card-icon { font-size:48px; }
+.tkt-tipo-card-label { font-size:20px; font-weight:800; color:#0f172a; }
+.tkt-tipo-card-sub { font-size:12px; color:#64748b; text-align:center; line-height:1.5; }
+
+.tkt-form-card {
+  background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:28px 32px;
+  display:flex; flex-direction:column; gap:0;
+}
+.tkt-form-section { margin-bottom:24px; }
+.tkt-form-section:last-child { margin-bottom:0; }
+.tkt-form-section-title {
+  font-size:13px; font-weight:700; color:#64748b; text-transform:uppercase;
+  letter-spacing:.06em; margin-bottom:14px; padding-bottom:8px; border-bottom:1px solid #f1f5f9;
+}
+.tkt-field { display:flex; flex-direction:column; gap:5px; margin-bottom:16px; }
+.tkt-field label { font-size:13px; font-weight:700; color:#374151; }
+.tkt-field label .req { color:#dc2626; margin-left:2px; }
+.tkt-field input[type=text],
+.tkt-field input[type=file],
+.tkt-field select,
+.tkt-field textarea {
+  padding:9px 12px; border:1px solid #cbd5e1; border-radius:10px;
+  font-size:14px; transition:border-color .15s; outline:none;
+}
+.tkt-field input:focus,
+.tkt-field select:focus,
+.tkt-field textarea:focus {
+  border-color:#0369a1; box-shadow:0 0 0 3px rgba(3,105,161,.1);
+}
+.tkt-field-hint { font-size:11px; color:#94a3b8; }
+.tkt-field-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+
+.tkt-sicurezza-box {
+  background:#fff9db; border:2px solid #fbbf24; border-radius:14px;
+  padding:18px 20px; margin-bottom:20px;
+}
+.tkt-sicurezza-layout {
+  display:grid; grid-template-columns:minmax(0,1.45fr) minmax(280px,.95fr); gap:22px; align-items:center;
+}
+.tkt-sicurezza-box-title { font-size:14px; font-weight:800; color:#92400e; margin-bottom:10px; }
+.tkt-sicurezza-copy { font-size:13px; line-height:1.55; color:#78350f; margin-bottom:12px; max-width:58ch; }
+.tkt-sicurezza-options { display:flex; gap:20px; }
+.tkt-sicurezza-option { display:flex; align-items:center; gap:8px; cursor:pointer; font-size:14px; font-weight:600; }
+.tkt-sicurezza-option input[type=radio] { width:18px; height:18px; cursor:pointer; }
+.tkt-sicurezza-prompt,
+.tkt-sicurezza-alert {
+  display:none; margin-top:14px; border-radius:12px; padding:14px 16px;
+}
+.tkt-sicurezza-prompt {
+  background:#fff; border:1px dashed #fbbf24; color:#92400e; font-size:13px; font-weight:700;
+}
+.tkt-sicurezza-alert {
+  background:#fef2f2; border:1px solid #fca5a5; color:#b91c1c;
+}
+.tkt-sicurezza-prompt.visible,
+.tkt-sicurezza-alert.visible { display:block; }
+.tkt-sicurezza-alert-title { font-size:14px; font-weight:800; margin-bottom:6px; }
+.tkt-sicurezza-alert-copy { font-size:13px; line-height:1.6; }
+
+.tkt-repair-card {
+  background:rgba(255,255,255,.72); border:1px solid rgba(251,191,36,.45); border-radius:14px;
+  padding:14px 16px; display:flex; flex-direction:column; gap:8px;
+}
+.tkt-repair-card-title { font-size:12px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#92400e; }
+.tkt-repair-card-copy { font-size:12px; line-height:1.5; color:#78350f; }
+.tkt-repair-svg { width:100%; height:auto; display:block; }
+
+#tkt-form-content { display:none; }
+#tkt-form-content.visible { display:block; }
+
+.tkt-asset-tog-btn {
+  padding:6px 14px; border-radius:8px; font-size:12px; font-weight:700;
+  border:1px solid #e2e8f0; cursor:pointer; background:#f8fafc; color:#475569; transition:all .12s;
+}
+.tkt-asset-tog-btn.active { background:#0369a1; color:#fff; border-color:#0369a1; }
+.tkt-asset-search-meta { font-size:11px; color:#64748b; margin-top:4px; }
+
+.tkt-dropzone {
+  border:2px dashed #cbd5e1; border-radius:12px; padding:24px;
+  text-align:center; color:#94a3b8; font-size:13px; cursor:pointer; transition:border-color .15s;
+}
+.tkt-dropzone:hover,
+.tkt-dropzone.drag-over { border-color:#0369a1; color:#0369a1; }
+.tkt-dropzone input { display:none; }
+.tkt-file-list { margin-top:10px; display:flex; flex-direction:column; gap:6px; }
+.tkt-file-item {
+  display:flex; align-items:center; gap:8px; font-size:12px; background:#f8fafc;
+  border:1px solid #e2e8f0; border-radius:8px; padding:6px 10px;
+}
+.tkt-file-item-name { flex:1; color:#0f172a; font-weight:600; }
+.tkt-file-remove { background:none; border:none; color:#dc2626; cursor:pointer; font-size:14px; padding:0 4px; }
+
+.tkt-submit-row { display:flex; gap:10px; align-items:center; margin-top:8px; }
+.tkt-btn-primary {
+  padding:11px 28px; border-radius:10px; font-size:14px; font-weight:800;
+  background:#0369a1; color:#fff; border:none; cursor:pointer; transition:background .15s;
+}
+.tkt-btn-primary:hover { background:#075985; }
+.tkt-btn-secondary {
+  padding:11px 18px; border-radius:10px; font-size:14px; font-weight:600;
+  background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; cursor:pointer; text-decoration:none;
+}
+
+.tkt-error {
+  background:#fef2f2; border:1px solid #fca5a5; border-radius:10px; padding:12px 16px;
+  color:#dc2626; font-size:13px; font-weight:600; margin-bottom:16px;
+}
+
+@media (max-width: 960px) {
+  .tkt-sicurezza-layout { grid-template-columns:1fr; }
+}
+
+@media (max-width: 720px) {
+  .tkt-field-row { grid-template-columns:1fr; }
+  .tkt-sicurezza-options { flex-direction:column; gap:10px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="tkt-root">
+  {% include "tickets/components/subnav.html" %}
+
+  <div class="tkt-hero">
+    <div class="tkt-hero-title">Nuovo ticket</div>
+    <div class="tkt-hero-sub">Invia una richiesta di intervento</div>
+  </div>
+
+  {% if not tipo %}
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:32px;">
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="font-size:18px;font-weight:800;color:#0f172a;">Che tipo di intervento richiedi?</div>
+      <div style="font-size:13px;color:#64748b;margin-top:4px;">Scegli la categoria del problema</div>
+    </div>
+    <div class="tkt-tipo-cards">
+      <a href="{% url 'tickets:nuovo' %}?tipo=IT" class="tkt-tipo-card">
+        <div class="tkt-tipo-card-icon">💻</div>
+        <div class="tkt-tipo-card-label">Ticket IT</div>
+        <div class="tkt-tipo-card-sub">PC, notebook, stampanti, server, rete, software, telefonia</div>
+      </a>
+      <a href="{% url 'tickets:nuovo' %}?tipo=MAN" class="tkt-tipo-card">
+        <div class="tkt-tipo-card-icon">🔧</div>
+        <div class="tkt-tipo-card-label">Ticket Manutenzione</div>
+        <div class="tkt-tipo-card-sub">Macchine CNC, macchinari, interventi strutturali, richieste generiche</div>
+      </a>
+    </div>
+  </div>
+  {% else %}
+  {% if error %}<div class="tkt-error">{{ error }}</div>{% endif %}
+
+  <form method="post" enctype="multipart/form-data" id="tkt-form">
+    {% csrf_token %}
+    <input type="hidden" name="tipo" value="{{ tipo }}">
+
+    <div class="tkt-form-card">
+      <div class="tkt-sicurezza-box">
+        <div class="tkt-sicurezza-layout">
+          <div>
+            <div class="tkt-sicurezza-box-title">Il problema incide sulla sicurezza sul lavoro?</div>
+            <div class="tkt-sicurezza-copy">
+              Questa risposta e obbligatoria prima dell'invio. Se selezioni <strong>Si</strong>, la priorita viene forzata su <strong>Urgente</strong>, ma puoi comunque compilare e inviare il ticket.
+            </div>
+            <div class="tkt-sicurezza-options">
+              <label class="tkt-sicurezza-option">
+                <input type="radio" name="incide_sicurezza" value="0" id="sic-no" required{% if form_data.incide_sicurezza == "0" %} checked{% endif %}>
+                No
+              </label>
+              <label class="tkt-sicurezza-option">
+                <input type="radio" name="incide_sicurezza" value="1" id="sic-si"{% if form_data.incide_sicurezza == "1" %} checked{% endif %}>
+                Si, problema di sicurezza
+              </label>
+            </div>
+          </div>
+
+          <div class="tkt-repair-card">
+            <div class="tkt-repair-card-title">Repair Time</div>
+            <svg class="tkt-repair-svg" viewBox="0 0 360 180" aria-label="Repair time diagram" role="img">
+              <defs>
+                <marker id="repair-arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                  <path d="M0,0 L8,4 L0,8 Z" fill="#0f172a"></path>
+                </marker>
+              </defs>
+              <line x1="38" y1="145" x2="332" y2="145" stroke="#0f172a" stroke-width="2" marker-end="url(#repair-arrow)"></line>
+              <line x1="38" y1="145" x2="38" y2="20" stroke="#0f172a" stroke-width="2" marker-end="url(#repair-arrow)"></line>
+              <text x="20" y="22" font-size="12" font-weight="700" fill="#0f172a">Productivity %</text>
+              <text x="235" y="166" font-size="12" font-weight="700" fill="#0f172a">Time</text>
+              <text x="24" y="56" font-size="12" font-weight="700" fill="#0f172a">100</text>
+              <path d="M46 58 C118 58, 125 58, 150 98 S185 145, 206 145" fill="none" stroke="#5b7f5f" stroke-width="4"></path>
+              <path d="M206 145 L238 58 L324 58" fill="none" stroke="#3d8c52" stroke-width="4"></path>
+              <rect x="155" y="128" width="76" height="24" rx="3" fill="#d4af37"></rect>
+              <text x="193" y="144" text-anchor="middle" font-size="12" font-weight="800" fill="#0f172a">REPAIR TIME</text>
+              <line x1="82" y1="62" x2="62" y2="45" stroke="#0f172a" stroke-width="1.5"></line>
+              <text x="58" y="40" font-size="11" fill="#0f172a">Malfunction</text>
+              <text x="58" y="52" font-size="11" fill="#0f172a">appears</text>
+              <line x1="140" y1="88" x2="116" y2="62" stroke="#0f172a" stroke-width="1.5"></line>
+              <text x="123" y="46" font-size="11" fill="#0f172a">Reduction of</text>
+              <text x="123" y="58" font-size="11" fill="#0f172a">performance due</text>
+              <text x="123" y="70" font-size="11" fill="#0f172a">to malfunction</text>
+              <line x1="174" y1="142" x2="174" y2="105" stroke="#0f172a" stroke-width="1.5"></line>
+              <text x="154" y="94" font-size="11" fill="#0f172a">Machine</text>
+              <text x="154" y="106" font-size="11" fill="#0f172a">broken</text>
+              <line x1="215" y1="140" x2="243" y2="92" stroke="#0f172a" stroke-width="1.5"></line>
+              <text x="225" y="82" font-size="11" fill="#0f172a">Time to restore full</text>
+              <text x="225" y="94" font-size="11" fill="#0f172a">productivity</text>
+              <line x1="260" y1="60" x2="255" y2="92" stroke="#0f172a" stroke-width="1.5"></line>
+              <text x="245" y="112" font-size="11" fill="#0f172a">Machine</text>
+              <text x="245" y="124" font-size="11" fill="#0f172a">repaired</text>
+            </svg>
+            <div class="tkt-repair-card-copy">
+              Il grafico mostra il tempo di fermo complessivo. Se la richiesta impatta la sicurezza, il sistema imposta la priorita su urgente per accelerare la gestione.
+            </div>
+          </div>
+        </div>
+
+        <div class="tkt-sicurezza-prompt" id="sic-prompt">
+          Seleziona una risposta prima di inviare il ticket.
+        </div>
+        <div class="tkt-sicurezza-alert" id="sic-alert">
+          <div class="tkt-sicurezza-alert-title">Priorita impostata su Urgente</div>
+          <div class="tkt-sicurezza-alert-copy">
+            Il ticket resta compilabile. Con questa scelta la priorita viene bloccata su <strong>Urgente</strong> perche il problema impatta la sicurezza sul lavoro.
+          </div>
+        </div>
+      </div>
+
+      <div id="tkt-form-content">
+        <div class="tkt-form-section">
+          <div class="tkt-form-section-title">
+            {% if tipo == "IT" %}💻 Ticket IT{% else %}🔧 Ticket Manutenzione{% endif %}
+          </div>
+
+          <div class="tkt-field-row">
+            <div class="tkt-field">
+              <label>Categoria <span class="req">*</span></label>
+              <select name="categoria" required>
+                <option value="">-- Seleziona --</option>
+                {% if tipo == "IT" %}
+                  {% for val,lbl in categorie_it %}
+                  <option value="{{ val }}"{% if form_data.categoria == val %} selected{% endif %}>{{ lbl }}</option>
+                  {% endfor %}
+                {% else %}
+                  {% for val,lbl in categorie_man %}
+                  <option value="{{ val }}"{% if form_data.categoria == val %} selected{% endif %}>{{ lbl }}</option>
+                  {% endfor %}
+                {% endif %}
+              </select>
+            </div>
+            <div class="tkt-field" id="tkt-prio-row">
+              <label>Priorita</label>
+              <select name="priorita" id="tkt-prio-select">
+                {% for val,lbl in priorita_list %}
+                <option value="{{ val }}"{% if form_data.priorita == val or not form_data and val == "MEDIA" %} selected{% endif %}>{{ lbl }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div class="tkt-field-row">
+            <div class="tkt-field" style="position:relative;">
+              <label>Asset coinvolto</label>
+              <div style="display:flex;gap:6px;margin-bottom:6px;">
+                <button type="button" class="tkt-asset-tog-btn active" id="tog-catalogo" style="font-size:11px;padding:4px 10px;">Da catalogo</button>
+                <button type="button" class="tkt-asset-tog-btn" id="tog-libero" style="font-size:11px;padding:4px 10px;">Libera</button>
+              </div>
+              <div id="asset-catalogo">
+                <input type="text" id="asset-search" placeholder="Nome, tag, tipo, modello o seriale..." autocomplete="off">
+                <input type="hidden" name="asset_id" id="asset-id-hidden" value="{{ form_data.asset_id|default:'' }}">
+                <div id="asset-results" style="display:none;position:absolute;z-index:100;left:0;right:0;border:1px solid #e2e8f0;border-radius:10px;background:#fff;margin-top:2px;max-height:240px;overflow-y:auto;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.1);"></div>
+              </div>
+              <div id="asset-libero" style="display:none;">
+                <input type="text" name="asset_descrizione_libera" maxlength="300"
+                  placeholder="Es: PC ufficio vendite, Macchina reparto saldatura..."
+                  value="{{ form_data.asset_descrizione_libera|default:'' }}">
+              </div>
+              <div class="tkt-field-hint">Lascia vuoto se non applicabile.</div>
+              <div class="tkt-asset-search-meta">Ricerca per nome, tag, tipo, categoria, modello, seriale, reparto o produttore. I risultati tollerano anche piccoli errori di digitazione.</div>
+            </div>
+
+            <div class="tkt-field" style="flex:2;">
+              <label>Titolo / oggetto <span class="req">*</span></label>
+              <input type="text" name="titolo" maxlength="300" required placeholder="Es: Stampante HP non risponde, Errore macchina CNC-02..."
+                value="{{ form_data.titolo|default:'' }}">
+            </div>
+          </div>
+
+          <div class="tkt-field">
+            <label>Descrizione <span class="req">*</span></label>
+            <textarea name="descrizione" rows="5" required
+              placeholder="Descrivi il problema nel dettaglio: quando e iniziato, come si manifesta, cosa hai gia provato...">{{ form_data.descrizione|default:'' }}</textarea>
+          </div>
+        </div>
+
+        <div class="tkt-form-section">
+          <div class="tkt-form-section-title">Allegati (opzionale)</div>
+          <div class="tkt-dropzone" id="tkt-dropzone" onclick="document.getElementById('tkt-files').click()">
+            <input type="file" name="allegati" id="tkt-files" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt">
+            📎 Clicca per aggiungere file, oppure trascinali qui<br>
+            <span style="font-size:11px;">Immagini, PDF, documenti Office - max 10 file</span>
+          </div>
+          <div class="tkt-file-list" id="tkt-file-list"></div>
+        </div>
+
+        <div class="tkt-submit-row">
+          <button type="submit" class="tkt-btn-primary">Invia richiesta</button>
+          <a href="{% url 'tickets:dashboard' %}" class="tkt-btn-secondary">Annulla</a>
+          <span style="font-size:12px;color:#94a3b8;margin-left:8px;">Tipo: <strong>{{ tipo }}</strong></span>
+        </div>
+      </div>
+    </div>
+  </form>
+  {% endif %}
+</div>
+
+<script>
+const ASSETS = {{ assets_list|safe }};
+
+const sicNo = document.getElementById('sic-no');
+const sicSi = document.getElementById('sic-si');
+const promptBox = document.getElementById('sic-prompt');
+const alertBox = document.getElementById('sic-alert');
+const prioRow = document.getElementById('tkt-prio-row');
+const prioSelect = document.getElementById('tkt-prio-select');
+const formContent = document.getElementById('tkt-form-content');
+
+function updateSicurezza() {
+  if (sicSi && sicSi.checked) {
+    if (formContent) formContent.classList.add('visible');
+    promptBox.classList.remove('visible');
+    alertBox.classList.add('visible');
+    if (prioSelect) {
+      prioSelect.value = 'URGENTE';
+      prioSelect.setAttribute('disabled', 'disabled');
+    }
+    if (prioRow) {
+      prioRow.style.opacity = '0.65';
+      prioRow.style.pointerEvents = 'none';
+    }
+  } else if (sicNo && sicNo.checked) {
+    if (formContent) formContent.classList.add('visible');
+    promptBox.classList.remove('visible');
+    alertBox.classList.remove('visible');
+    if (prioSelect) {
+      prioSelect.removeAttribute('disabled');
+    }
+    if (prioRow) {
+      prioRow.style.opacity = '1';
+      prioRow.style.pointerEvents = '';
+    }
+  } else {
+    if (formContent) formContent.classList.remove('visible');
+    promptBox.classList.add('visible');
+    alertBox.classList.remove('visible');
+    if (prioSelect) {
+      prioSelect.removeAttribute('disabled');
+    }
+    if (prioRow) {
+      prioRow.style.opacity = '1';
+      prioRow.style.pointerEvents = '';
+    }
+  }
+}
+
+if (sicNo) sicNo.addEventListener('change', updateSicurezza);
+if (sicSi) sicSi.addEventListener('change', updateSicurezza);
+updateSicurezza();
+
+const togCat = document.getElementById('tog-catalogo');
+const togLib = document.getElementById('tog-libero');
+const divCat = document.getElementById('asset-catalogo');
+const divLib = document.getElementById('asset-libero');
+const assetFreeInput = document.querySelector('input[name="asset_descrizione_libera"]');
+
+function showCatalogoMode() {
+  togCat.classList.add('active');
+  togLib.classList.remove('active');
+  divCat.style.display = '';
+  divLib.style.display = 'none';
+}
+
+function showLiberoMode() {
+  togLib.classList.add('active');
+  togCat.classList.remove('active');
+  divLib.style.display = '';
+  divCat.style.display = 'none';
+  document.getElementById('asset-id-hidden').value = '';
+}
+
+if (togCat && togLib) {
+  togCat.addEventListener('click', showCatalogoMode);
+  togLib.addEventListener('click', showLiberoMode);
+  if (assetFreeInput && assetFreeInput.value.trim()) {
+    showLiberoMode();
+  } else {
+    showCatalogoMode();
+  }
+}
+
+const assetSearch = document.getElementById('asset-search');
+const assetHidden = document.getElementById('asset-id-hidden');
+const assetRes = document.getElementById('asset-results');
+
+function normalizeSearchValue(value) {
+  return (value || "")
+    .toString()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function tokenizeSearchValue(value) {
+  return normalizeSearchValue(value).split(/\s+/).filter(Boolean);
+}
+
+function levenshteinDistance(a, b) {
+  const rows = a.length + 1;
+  const cols = b.length + 1;
+  const dp = Array.from({ length: rows }, () => Array(cols).fill(0));
+
+  for (let i = 0; i < rows; i += 1) dp[i][0] = i;
+  for (let j = 0; j < cols; j += 1) dp[0][j] = j;
+
+  for (let i = 1; i < rows; i += 1) {
+    for (let j = 1; j < cols; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost
+      );
+    }
+  }
+  return dp[a.length][b.length];
+}
+
+function fuzzyTokenMatch(query, token) {
+  if (!query || !token) return false;
+  if (token.includes(query) || query.includes(token)) return true;
+  if (query.length < 4 || token.length < 4) return false;
+  const distance = levenshteinDistance(query, token);
+  return (query.length >= 6 || token.length >= 6) ? distance <= 2 : distance <= 1;
+}
+
+function scoreAssetMatch(asset, query) {
+  const fields = [
+    asset.name,
+    asset.asset_tag,
+    asset.asset_type,
+    asset.asset_type_label,
+    asset.asset_category,
+    asset.manufacturer,
+    asset.model,
+    asset.serial_number,
+    asset.reparto,
+  ];
+  const normalizedFields = fields.map(normalizeSearchValue).filter(Boolean);
+  let bestScore = -1;
+
+  normalizedFields.forEach(field => {
+    if (field === query) {
+      bestScore = Math.max(bestScore, 120);
+      return;
+    }
+    if (field.startsWith(query)) {
+      bestScore = Math.max(bestScore, 95);
+      return;
+    }
+    if (field.includes(query)) {
+      bestScore = Math.max(bestScore, 80);
+    }
+
+    tokenizeSearchValue(field).forEach(token => {
+      if (token === query) {
+        bestScore = Math.max(bestScore, 110);
+      } else if (token.startsWith(query)) {
+        bestScore = Math.max(bestScore, 92);
+      } else if (fuzzyTokenMatch(query, token)) {
+        bestScore = Math.max(bestScore, 68);
+      }
+    });
+  });
+
+  return bestScore;
+}
+
+if (assetSearch) {
+  assetSearch.addEventListener('input', function() {
+    const q = normalizeSearchValue(this.value);
+    if (q.length < 2) {
+      assetRes.style.display = 'none';
+      return;
+    }
+
+    const matches = ASSETS
+      .map(asset => ({ asset, score: scoreAssetMatch(asset, q) }))
+      .filter(entry => entry.score >= 0)
+      .sort((left, right) => right.score - left.score || (left.asset.name || '').localeCompare(right.asset.name || ''))
+      .slice(0, 20);
+
+    if (!matches.length) {
+      assetRes.style.display = 'none';
+      return;
+    }
+
+    assetRes.innerHTML = matches.map(({ asset }) =>
+      `<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;" data-id="${asset.id}" data-name="${asset.name} [${asset.asset_tag}]">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <strong>${asset.name}</strong>
+          <span style="color:#64748b;font-size:11px;font-weight:700;">${asset.asset_tag}</span>
+        </div>
+        <div style="color:#64748b;font-size:11px;margin-top:2px;">
+          ${(asset.asset_type_label || asset.asset_type || 'Asset')} · ${(asset.asset_category || asset.model || 'N/D')}
+          ${(asset.manufacturer || asset.reparto) ? ` · ${asset.manufacturer || asset.reparto}` : ''}
+          ${asset.serial_number ? ` · S/N ${asset.serial_number}` : ''}
+        </div>
+      </div>`
+    ).join("");
+    assetRes.style.display = 'block';
+
+    assetRes.querySelectorAll('[data-id]').forEach(el => {
+      el.addEventListener('click', () => {
+        assetHidden.value = el.dataset.id;
+        assetSearch.value = el.dataset.name;
+        assetRes.style.display = 'none';
+      });
+    });
+  });
+
+  document.addEventListener('click', e => {
+    if (!assetSearch.contains(e.target) && !assetRes.contains(e.target)) {
+      assetRes.style.display = 'none';
+    }
+  });
+}
+
+const dropzone = document.getElementById('tkt-dropzone');
+const filesInput = document.getElementById('tkt-files');
+const fileList = document.getElementById('tkt-file-list');
+let selectedFiles = [];
+
+function renderFiles() {
+  fileList.innerHTML = selectedFiles.map((f, i) =>
+    `<div class="tkt-file-item">
+      <span class="tkt-file-item-name">📎 ${f.name}</span>
+      <span style="font-size:11px;color:#94a3b8;">${(f.size / 1024).toFixed(0)} KB</span>
+      <button type="button" class="tkt-file-remove" data-i="${i}">✕</button>
+    </div>`
+  ).join("");
+
+  fileList.querySelectorAll('[data-i]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedFiles.splice(+btn.dataset.i, 1);
+      updateFileInput();
+      renderFiles();
+    });
+  });
+}
+
+function updateFileInput() {
+  const dt = new DataTransfer();
+  selectedFiles.forEach(f => dt.items.add(f));
+  filesInput.files = dt.files;
+}
+
+if (filesInput) {
+  filesInput.addEventListener('change', () => {
+    selectedFiles = [...filesInput.files];
+    renderFiles();
+  });
+}
+
+if (dropzone) {
+  dropzone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropzone.classList.add('drag-over');
+  });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropzone.classList.remove('drag-over');
+    selectedFiles = [...e.dataTransfer.files];
+    updateFileInput();
+    renderFiles();
+  });
+}
+
+const ticketForm = document.getElementById('tkt-form');
+if (ticketForm) {
+  ticketForm.addEventListener('submit', event => {
+    if (sicNo && sicSi && !sicNo.checked && !sicSi.checked) {
+      event.preventDefault();
+      promptBox.classList.add('visible');
+      window.scrollTo({ top: promptBox.getBoundingClientRect().top + window.scrollY - 120, behavior: 'smooth' });
+      return;
+    }
+
+    if (sicSi && sicSi.checked && prioSelect) {
+      prioSelect.removeAttribute('disabled');
+      prioSelect.value = 'URGENTE';
+    }
+  });
+}
+</script>
+{% endblock %}

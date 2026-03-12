@@ -1,0 +1,450 @@
+{% extends "core/base.html" %}
+
+{% block title %}Impostazioni Ticket | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#tkt-root { display:flex; flex-direction:column; gap:20px; }
+
+.tkt-hero {
+  background:linear-gradient(135deg,#1e3a5f 0%,#0369a1 60%,#0284c7 100%);
+  border-radius:16px; padding:26px 32px; color:#fff;
+}
+.tkt-hero-title { font-size:22px; font-weight:900; }
+.tkt-hero-sub   { font-size:13px; opacity:.7; margin-top:3px; }
+
+.tkt-imp-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+@media(max-width:900px){ .tkt-imp-grid { grid-template-columns:1fr; } }
+
+.tkt-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:22px 24px; }
+.tkt-card-header {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:18px; padding-bottom:12px; border-bottom:1px solid #f1f5f9;
+}
+.tkt-card-title { font-size:15px; font-weight:800; color:#0f172a; }
+.tkt-card-sub   { font-size:12px; color:#64748b; margin-top:2px; }
+.tkt-tipo-pill  { display:inline-block; padding:4px 12px; border-radius:8px; font-size:12px; font-weight:700; }
+.tkt-tipo-IT  { background:#e0f2fe; color:#0369a1; }
+.tkt-tipo-MAN { background:#f0fdf4; color:#15803d; }
+
+.tkt-field { display:flex; flex-direction:column; gap:5px; margin-bottom:16px; }
+.tkt-field label { font-size:12px; font-weight:700; color:#374151; }
+.tkt-field input[type=text], .tkt-field textarea {
+  padding:8px 11px; border:1px solid #cbd5e1; border-radius:9px;
+  font-size:13px; transition:border-color .15s;
+}
+.tkt-field input:focus, .tkt-field textarea:focus {
+  border-color:#0369a1; outline:none; box-shadow:0 0 0 3px rgba(3,105,161,.1);
+}
+.tkt-field-hint { font-size:11px; color:#94a3b8; }
+
+/* Team gestori */
+.tkt-team-list { display:flex; flex-direction:column; gap:6px; margin-bottom:10px; }
+.tkt-team-item {
+  display:flex; align-items:center; gap:8px; padding:8px 11px;
+  background:#f8fafc; border:1px solid #e2e8f0; border-radius:9px; font-size:13px;
+}
+.tkt-team-nome  { flex:1; font-weight:600; }
+.tkt-team-email { color:#64748b; font-size:12px; }
+.tkt-team-remove { background:none; border:none; color:#dc2626; cursor:pointer; font-size:14px; padding:2px 5px; border-radius:5px; }
+.tkt-team-remove:hover { background:#fee2e2; }
+
+/* Autocomplete utenti */
+.tkt-user-search-wrap { position:relative; }
+.tkt-user-search-input {
+  width:100%; padding:8px 11px; border:1px solid #cbd5e1; border-radius:9px;
+  font-size:13px; box-sizing:border-box; transition:border-color .15s;
+}
+.tkt-user-search-input:focus { border-color:#0369a1; outline:none; box-shadow:0 0 0 3px rgba(3,105,161,.1); }
+.tkt-user-dropdown {
+  display:none; position:absolute; z-index:200; top:100%; left:0; right:0;
+  background:#fff; border:1px solid #e2e8f0; border-radius:10px; margin-top:3px;
+  box-shadow:0 8px 24px rgba(0,0,0,.1); max-height:220px; overflow-y:auto;
+}
+.tkt-user-dropdown.open { display:block; }
+.tkt-user-option {
+  padding:9px 13px; cursor:pointer; font-size:13px; border-bottom:1px solid #f8fafc;
+  display:flex; flex-direction:column; gap:2px;
+}
+.tkt-user-option:last-child { border-bottom:none; }
+.tkt-user-option:hover { background:#f0f9ff; }
+.tkt-user-option-name  { font-weight:700; color:#0f172a; }
+.tkt-user-option-sub   { font-size:11px; color:#64748b; }
+.tkt-user-option-empty { padding:10px 13px; font-size:12px; color:#94a3b8; }
+.tkt-team-add { display:flex; gap:6px; }
+.tkt-team-add input {
+  flex:1; padding:7px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px;
+}
+.tkt-team-add input:focus { border-color:#0369a1; outline:none; }
+
+/* ACL */
+.tkt-acl-tags { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; min-height:30px; }
+.tkt-acl-tag {
+  display:inline-flex; align-items:center; gap:4px;
+  background:#e0f2fe; color:#0369a1; border-radius:6px; padding:3px 10px; font-size:12px; font-weight:600;
+}
+.tkt-acl-tag-remove { cursor:pointer; margin-left:2px; font-size:13px; color:#0369a1; }
+.tkt-acl-tag-remove:hover { color:#dc2626; }
+.tkt-acl-input-row { display:flex; gap:6px; }
+.tkt-acl-input-row input { flex:1; padding:7px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; }
+.tkt-acl-input-row input:focus { border-color:#0369a1; outline:none; }
+
+/* Bottoni */
+.tkt-save-btn { padding:10px 24px; border-radius:10px; font-size:13px; font-weight:800; background:#0369a1; color:#fff; border:none; cursor:pointer; }
+.tkt-save-btn:hover { background:#075985; }
+.tkt-save-status { font-size:12px; color:#64748b; margin-left:10px; }
+
+/* SharePoint */
+.tkt-sp-field { display:flex; gap:8px; align-items:center; }
+.tkt-sp-field input { flex:1; padding:8px 11px; border:1px solid #cbd5e1; border-radius:9px; font-size:13px; font-family:monospace; }
+.tkt-sp-field input:focus { border-color:#0369a1; outline:none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="tkt-root">
+  {% include "tickets/components/subnav.html" %}
+
+  <div class="tkt-hero">
+    <div class="tkt-hero-title">Impostazioni Ticket</div>
+    <div class="tkt-hero-sub">Configura team, permessi e integrazione SharePoint per IT e Manutenzione</div>
+  </div>
+
+  <div class="tkt-imp-grid">
+    <!-- Ticket IT -->
+    <div class="tkt-card" id="card-IT">
+      <div class="tkt-card-header">
+        <div>
+          <div class="tkt-card-title">💻 Ticket IT</div>
+          <div class="tkt-card-sub">Configurazione per i ticket IT</div>
+        </div>
+        <span class="tkt-tipo-pill tkt-tipo-IT">IT</span>
+      </div>
+
+      <!-- SharePoint -->
+      <div class="tkt-field">
+        <label>List ID SharePoint (lista Ticket IT)</label>
+        <div class="tkt-sp-field">
+          <input type="text" id="it-sp-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            value="{{ cfg_it.sharepoint_list_id }}">
+          <button type="button" id="it-test-btn" class="tkt-save-btn" style="white-space:nowrap;padding:8px 14px;font-size:12px;" onclick="testSP('IT')">Test SP</button>
+        </div>
+        <span id="it-test-result" style="font-size:12px;margin-top:4px;"></span>
+        <span class="tkt-field-hint">Recuperabile dall'URL della lista SharePoint. Lascia vuoto per disabilitare il push SP.</span>
+      </div>
+
+      <!-- Team gestori -->
+      <div class="tkt-field">
+        <label>Team gestori IT</label>
+        <div class="tkt-team-list" id="it-team-list"></div>
+        <div class="tkt-user-search-wrap">
+          <input type="text" class="tkt-user-search-input" id="it-team-search"
+            placeholder="Cerca dipendente per nome o username…" autocomplete="off"
+            data-tipo="IT" data-target="team">
+          <div class="tkt-user-dropdown" id="it-team-dropdown"></div>
+        </div>
+        <span class="tkt-field-hint" style="margin-top:4px;">Digita almeno 2 caratteri per cercare.</span>
+      </div>
+
+      <!-- ACL apertura -->
+      <div class="tkt-field">
+        <label>Chi può aprire ticket IT</label>
+        <div class="tkt-acl-tags" id="it-acl-apertura-tags"></div>
+        <div class="tkt-user-search-wrap">
+          <input type="text" class="tkt-user-search-input" id="it-acl-apertura-search"
+            placeholder="Cerca dipendente…" autocomplete="off"
+            data-tipo="IT" data-target="acl-apertura">
+          <div class="tkt-user-dropdown" id="it-acl-apertura-dropdown"></div>
+        </div>
+        <span class="tkt-field-hint">Lascia vuoto = tutti gli utenti autenticati possono aprire.</span>
+      </div>
+
+      <!-- ACL gestione -->
+      <div class="tkt-field">
+        <label>Chi può gestire ticket IT</label>
+        <div class="tkt-acl-tags" id="it-acl-gestione-tags"></div>
+        <div class="tkt-user-search-wrap">
+          <input type="text" class="tkt-user-search-input" id="it-acl-gestione-search"
+            placeholder="Cerca dipendente…" autocomplete="off"
+            data-tipo="IT" data-target="acl-gestione">
+          <div class="tkt-user-dropdown" id="it-acl-gestione-dropdown"></div>
+        </div>
+        <span class="tkt-field-hint">Lascia vuoto = solo admin del portale.</span>
+      </div>
+
+      <div style="display:flex;align-items:center;">
+        <button class="tkt-save-btn" onclick="saveImpostazioni('IT')">Salva IT</button>
+        <span class="tkt-save-status" id="it-save-status"></span>
+      </div>
+    </div>
+
+    <!-- Ticket MAN -->
+    <div class="tkt-card" id="card-MAN">
+      <div class="tkt-card-header">
+        <div>
+          <div class="tkt-card-title">🔧 Ticket Manutenzione</div>
+          <div class="tkt-card-sub">Configurazione per i ticket MAN</div>
+        </div>
+        <span class="tkt-tipo-pill tkt-tipo-MAN">MAN</span>
+      </div>
+
+      <!-- SharePoint -->
+      <div class="tkt-field">
+        <label>List ID SharePoint (lista Ticket Manutenzione)</label>
+        <div class="tkt-sp-field">
+          <input type="text" id="man-sp-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            value="{{ cfg_man.sharepoint_list_id }}">
+          <button type="button" id="man-test-btn" class="tkt-save-btn" style="white-space:nowrap;padding:8px 14px;font-size:12px;" onclick="testSP('MAN')">Test SP</button>
+        </div>
+        <span id="man-test-result" style="font-size:12px;margin-top:4px;"></span>
+        <span class="tkt-field-hint">Recuperabile dall'URL della lista SharePoint.</span>
+      </div>
+
+      <!-- Team gestori -->
+      <div class="tkt-field">
+        <label>Team gestori Manutenzione</label>
+        <div class="tkt-team-list" id="man-team-list"></div>
+        <div class="tkt-user-search-wrap">
+          <input type="text" class="tkt-user-search-input" id="man-team-search"
+            placeholder="Cerca dipendente per nome o username…" autocomplete="off"
+            data-tipo="MAN" data-target="team">
+          <div class="tkt-user-dropdown" id="man-team-dropdown"></div>
+        </div>
+        <span class="tkt-field-hint" style="margin-top:4px;">Digita almeno 2 caratteri per cercare.</span>
+      </div>
+
+      <!-- ACL apertura -->
+      <div class="tkt-field">
+        <label>Chi può aprire ticket Manutenzione</label>
+        <div class="tkt-acl-tags" id="man-acl-apertura-tags"></div>
+        <div class="tkt-user-search-wrap">
+          <input type="text" class="tkt-user-search-input" id="man-acl-apertura-search"
+            placeholder="Cerca dipendente…" autocomplete="off"
+            data-tipo="MAN" data-target="acl-apertura">
+          <div class="tkt-user-dropdown" id="man-acl-apertura-dropdown"></div>
+        </div>
+        <span class="tkt-field-hint">Lascia vuoto = tutti gli utenti autenticati possono aprire.</span>
+      </div>
+
+      <!-- ACL gestione -->
+      <div class="tkt-field">
+        <label>Chi può gestire ticket Manutenzione</label>
+        <div class="tkt-acl-tags" id="man-acl-gestione-tags"></div>
+        <div class="tkt-user-search-wrap">
+          <input type="text" class="tkt-user-search-input" id="man-acl-gestione-search"
+            placeholder="Cerca dipendente…" autocomplete="off"
+            data-tipo="MAN" data-target="acl-gestione">
+          <div class="tkt-user-dropdown" id="man-acl-gestione-dropdown"></div>
+        </div>
+        <span class="tkt-field-hint">Lascia vuoto = solo admin del portale.</span>
+      </div>
+
+      <div style="display:flex;align-items:center;">
+        <button class="tkt-save-btn" onclick="saveImpostazioni('MAN')">Salva MAN</button>
+        <span class="tkt-save-status" id="man-save-status"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const CSRF       = "{{ csrf_token }}";
+const API_IMP    = "{% url 'tickets:api_impostazioni' %}";
+const API_CERCA  = "{% url 'tickets:api_cerca_utenti' %}";
+
+// Stato JS
+const state = {
+  IT: {
+    team_gestori: {{ cfg_it.team_gestori|safe }},
+    acl_apertura: {{ cfg_it.acl_apertura|safe }},
+    acl_gestione: {{ cfg_it.acl_gestione|safe }},
+  },
+  MAN: {
+    team_gestori: {{ cfg_man.team_gestori|safe }},
+    acl_apertura: {{ cfg_man.acl_apertura|safe }},
+    acl_gestione: {{ cfg_man.acl_gestione|safe }},
+  }
+};
+
+// ── Render team ──
+function renderTeam(tipo) {
+  const t    = tipo.toLowerCase();
+  const list = document.getElementById(`${t}-team-list`);
+  list.innerHTML = state[tipo].team_gestori.map((m, i) =>
+    `<div class="tkt-team-item">
+      <span class="tkt-team-nome">${m.nome}</span>
+      <span class="tkt-team-email">${m.email || ''}</span>
+      <button type="button" class="tkt-team-remove" onclick="removeTeamMember('${tipo}',${i})">✕</button>
+    </div>`
+  ).join('') || '<div style="font-size:12px;color:#94a3b8;padding:4px 0;">Nessun membro aggiunto.</div>';
+}
+
+function removeTeamMember(tipo, idx) {
+  state[tipo].team_gestori.splice(idx, 1);
+  renderTeam(tipo);
+}
+
+// ── Render ACL tags ──
+function renderAcl(tipo, campo) {
+  const t    = tipo.toLowerCase();
+  const tags = document.getElementById(`${t}-acl-${campo}-tags`);
+  const key  = `acl_${campo}`;
+  tags.innerHTML = state[tipo][key].map((v, i) =>
+    `<span class="tkt-acl-tag">${v}
+       <span class="tkt-acl-tag-remove" onclick="removeAcl('${tipo}','${campo}',${i})">✕</span>
+     </span>`
+  ).join('');
+}
+
+function removeAcl(tipo, campo, idx) {
+  state[tipo][`acl_${campo}`].splice(idx, 1);
+  renderAcl(tipo, campo);
+}
+
+// ── Autocomplete utenti ──
+let searchTimers = {};
+
+function initUserSearch(inputEl, dropdownEl, tipo, target) {
+  inputEl.addEventListener('input', () => {
+    clearTimeout(searchTimers[inputEl.id]);
+    const q = inputEl.value.trim();
+    if (q.length < 2) { dropdownEl.classList.remove('open'); return; }
+    searchTimers[inputEl.id] = setTimeout(async () => {
+      try {
+        const r = await fetch(`${API_CERCA}?q=${encodeURIComponent(q)}`);
+        const d = await r.json();
+        renderDropdown(dropdownEl, d.results || [], inputEl, tipo, target);
+      } catch(e) { dropdownEl.classList.remove('open'); }
+    }, 220);
+  });
+
+  // Chiudi dropdown cliccando fuori
+  document.addEventListener('click', e => {
+    if (!inputEl.contains(e.target) && !dropdownEl.contains(e.target))
+      dropdownEl.classList.remove('open');
+  });
+}
+
+function renderDropdown(dropdown, results, inputEl, tipo, target) {
+  if (!results.length) {
+    dropdown.innerHTML = '<div class="tkt-user-option-empty">Nessun risultato.</div>';
+    dropdown.classList.add('open');
+    return;
+  }
+  dropdown.innerHTML = results.map((u, i) =>
+    `<div class="tkt-user-option" data-i="${i}">
+      <span class="tkt-user-option-name">${u.nome || u.username}</span>
+      <span class="tkt-user-option-sub">${u.username}${u.email_notifica ? ' · ' + u.email_notifica : ''}</span>
+    </div>`
+  ).join('');
+  dropdown.classList.add('open');
+
+  dropdown.querySelectorAll('.tkt-user-option').forEach((el, i) => {
+    el.addEventListener('click', () => {
+      const u = results[i];
+      selectUser(tipo, target, u);
+      inputEl.value = '';
+      dropdown.classList.remove('open');
+    });
+  });
+}
+
+function selectUser(tipo, target, u) {
+  if (target === 'team') {
+    // Evita duplicati per nome
+    if (state[tipo].team_gestori.some(m => m.nome === u.nome)) return;
+    state[tipo].team_gestori.push({
+      nome:  u.nome || u.username,
+      email: u.email_notifica || u.email || '',
+    });
+    renderTeam(tipo);
+  } else if (target === 'acl-apertura') {
+    const val = u.username || u.email;
+    if (!state[tipo].acl_apertura.includes(val)) {
+      state[tipo].acl_apertura.push(val);
+      renderAcl(tipo, 'apertura');
+    }
+  } else if (target === 'acl-gestione') {
+    const val = u.username || u.email;
+    if (!state[tipo].acl_gestione.includes(val)) {
+      state[tipo].acl_gestione.push(val);
+      renderAcl(tipo, 'gestione');
+    }
+  }
+}
+
+// ── Salvataggio ──
+async function saveImpostazioni(tipo) {
+  const t    = tipo.toLowerCase();
+  const spId = document.getElementById(`${t}-sp-id`).value.trim();
+  const st   = document.getElementById(`${t}-save-status`);
+  st.textContent = 'Salvataggio…';
+  try {
+    const r = await fetch(API_IMP, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify({
+        tipo,
+        sharepoint_list_id: spId,
+        team_gestori:  state[tipo].team_gestori,
+        acl_apertura:  state[tipo].acl_apertura,
+        acl_gestione:  state[tipo].acl_gestione,
+      })
+    });
+    const d = await r.json();
+    st.textContent = d.ok ? '✓ Salvato.' : (d.error || 'Errore.');
+    setTimeout(() => st.textContent = '', 3000);
+  } catch(e) { st.textContent = 'Errore di rete.'; }
+}
+
+// ── Init ──
+['IT', 'MAN'].forEach(tipo => {
+  const t = tipo.toLowerCase();
+  renderTeam(tipo);
+  renderAcl(tipo, 'apertura');
+  renderAcl(tipo, 'gestione');
+
+  // Collega autocomplete a ogni input di ricerca
+  [
+    { inputId: `${t}-team-search`,          dropId: `${t}-team-dropdown`,          target: 'team' },
+    { inputId: `${t}-acl-apertura-search`,  dropId: `${t}-acl-apertura-dropdown`,  target: 'acl-apertura' },
+    { inputId: `${t}-acl-gestione-search`,  dropId: `${t}-acl-gestione-dropdown`,  target: 'acl-gestione' },
+  ].forEach(({ inputId, dropId, target }) => {
+    const inp  = document.getElementById(inputId);
+    const drop = document.getElementById(dropId);
+    if (inp && drop) initUserSearch(inp, drop, tipo, target);
+  });
+});
+
+// ── Test connessione SP ──
+async function testSP(tipo) {
+  const t   = tipo.toLowerCase();
+  const spId = document.getElementById(`${t}-sp-id`).value.trim();
+  const btn = document.getElementById(`${t}-test-btn`);
+  const res = document.getElementById(`${t}-test-result`);
+  if (!spId) { res.textContent = '⚠ Inserisci prima il List ID.'; res.style.color='#d97706'; return; }
+  btn.disabled = true;
+  res.textContent = 'Test in corso…';
+  res.style.color = '#64748b';
+  try {
+    const r = await fetch("{% url 'tickets:api_test_sp' %}", {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify({tipo, sharepoint_list_id: spId})
+    });
+    const d = await r.json();
+    if (d.ok) {
+      res.textContent = `✓ Connessione OK — lista: "${d.list_title}" (${d.item_count} elementi)`;
+      res.style.color = '#16a34a';
+    } else {
+      res.textContent = `✗ ${d.error}`;
+      res.style.color = '#dc2626';
+    }
+  } catch(e) {
+    res.textContent = '✗ Errore di rete.';
+    res.style.color = '#dc2626';
+  }
+  btn.disabled = false;
+}
+</script>
+{% endblock %}

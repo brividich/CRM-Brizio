@@ -1,0 +1,442 @@
+{% extends "core/base.html" %}
+{% load admin_portale_extras %}
+
+{% block title %}Gestione Permessi | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Toggle switch */
+  .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute; cursor: pointer; inset: 0;
+    background: var(--border, #ccc); border-radius: 24px;
+    transition: background .2s;
+  }
+  .toggle-slider::before {
+    content: ""; position: absolute;
+    height: 18px; width: 18px; left: 3px; bottom: 3px;
+    background: #fff; border-radius: 50%; transition: transform .2s;
+  }
+  .toggle-switch input:checked   + .toggle-slider { background: var(--accent, #3b82f6); }
+  .toggle-switch input:indeterminate + .toggle-slider { background: #f59e0b; }
+  .toggle-switch input:checked   + .toggle-slider::before { transform: translateX(20px); }
+  .toggle-switch input:indeterminate + .toggle-slider::before { transform: translateX(10px); }
+  .toggle-switch input:disabled  + .toggle-slider { opacity: .5; cursor: default; }
+
+  /* Tab bar */
+  .perm-tab-bar { display: flex; gap: 0; border-bottom: 2px solid var(--border, #eee); margin-bottom: 16px; }
+  .perm-tab {
+    padding: 8px 18px; font-size: 14px; font-weight: 500; cursor: pointer;
+    border-bottom: 2px solid transparent; margin-bottom: -2px; text-decoration: none;
+    color: var(--text-muted, #888); transition: color .15s, border-color .15s;
+  }
+  .perm-tab.active { color: var(--accent, #3b82f6); border-bottom-color: var(--accent, #3b82f6); }
+  .perm-tab:hover:not(.active) { color: var(--text, #222); }
+
+  /* Card grid per modulo */
+  .perm-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 14px;
+  }
+  .perm-mod-card {
+    border: 1px solid var(--border, #eee); border-radius: 10px; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .perm-mod-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; background: var(--bg-card, #fafafa);
+    border-bottom: 1px solid var(--border, #eee); gap: 8px; flex-shrink: 0;
+  }
+  .perm-mod-head-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .perm-mod-icon {
+    width: 32px; height: 32px; border-radius: 7px;
+    background: var(--accent-light, #eff6ff); color: var(--accent, #3b82f6);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 13px; flex-shrink: 0;
+  }
+  .perm-mod-name { font-weight: 600; font-size: 13px; }
+  .perm-mod-count { font-size: 11px; color: var(--text-muted, #888); margin-top: 1px; }
+  .perm-mod-head-right { display: flex; align-items: center; flex-shrink: 0; }
+  .partial-badge {
+    font-size: 10px; background: #fef3c7; color: #92400e;
+    border-radius: 4px; padding: 1px 5px; margin-right: 6px;
+  }
+
+  /* Riga pulsante dentro card */
+  .pulsante-perm-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 7px 14px; border-bottom: 1px solid var(--border, #f0f0f0);
+    gap: 8px; transition: background .1s;
+  }
+  .pulsante-perm-row:last-child { border-bottom: none; }
+  .pulsante-perm-row:hover { background: var(--bg-hover, #f9fafb); }
+  .pulsante-perm-row.saving { opacity: .5; pointer-events: none; }
+  .pulsante-label { font-size: 13px; color: var(--text, #333); flex: 1; min-width: 0; }
+  .pulsante-azione { font-size: 10px; color: var(--text-muted, #999); font-family: monospace; display: block; }
+
+  #perm-status { font-size: 12px; min-height: 16px; }
+
+  /* Header row con azioni bulk + wizard link */
+  .perm-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  @media (max-width: 640px) {
+    .perm-tab-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .perm-tab { white-space: nowrap; }
+    .perm-cards-grid { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Gestione Permessi" page_subtitle="Concedi o revoca l'accesso ai moduli per ruolo o per singolo utente." %}
+
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <form id="perm-csrf-form" style="display:none;">{% csrf_token %}</form>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">Seleziona destinatario</div></div>
+    <div class="card-body">
+      <div class="perm-tab-bar">
+        <a href="?target_type=role{% if selected_role_id %}&ruolo_id={{ selected_role_id }}{% endif %}"
+           class="perm-tab {% if target_type == 'role' %}active{% endif %}">Per Ruolo</a>
+        <a href="?target_type=user{% if selected_user_id %}&user_id={{ selected_user_id }}{% endif %}"
+           class="perm-tab {% if target_type == 'user' %}active{% endif %}">Per Utente</a>
+      </div>
+
+      {% if target_type == 'role' %}
+        <form method="get" class="admin-form-grid">
+          <input type="hidden" name="target_type" value="role">
+          <div class="field">
+            <label for="ruolo_id">Ruolo</label>
+            <select class="input" id="ruolo_id" name="ruolo_id" required>
+              {% for ruolo in roles %}
+                <option value="{{ ruolo.id }}" {% if selected_role_id == ruolo.id %}selected{% endif %}>
+                  {{ ruolo.nome }} (#{{ ruolo.id }})
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field field-actions">
+            <button class="btn" type="submit">Seleziona</button>
+          </div>
+        </form>
+        {% if selected_role_id %}
+        <div class="perm-toolbar" style="margin-top:12px;">
+          <button class="btn btn-sm" type="button" id="all-on-btn">Tutto ON</button>
+          <button class="btn btn-secondary btn-sm" type="button" id="all-off-btn">Tutto OFF</button>
+          <button class="btn btn-danger btn-sm" type="button" id="reset-role-btn">Reset ruolo</button>
+          <label class="cell-muted" for="copy-source-role">Copia da:</label>
+          <select class="input input-sm" id="copy-source-role" style="width:auto;">
+            <option value="">Seleziona ruolo...</option>
+            {% for ruolo in roles %}
+              {% if ruolo.id != selected_role_id %}
+                <option value="{{ ruolo.id }}">{{ ruolo.nome }} (#{{ ruolo.id }})</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+          <button class="btn btn-secondary btn-sm" type="button" id="copy-role-btn">Copia</button>
+          <a class="btn btn-sm" href="{% url 'admin_portale:wizard_ruolo' %}?ruolo_id={{ selected_role_id }}" style="margin-left:auto;">
+            🧙 Apri Wizard →
+          </a>
+          <span id="perm-status" class="cell-muted"></span>
+        </div>
+        {% endif %}
+
+      {% else %}
+        <form method="get" class="admin-form-grid">
+          <input type="hidden" name="target_type" value="user">
+          <div class="field">
+            <label for="user_id">Utente</label>
+            <select class="input" id="user_id" name="user_id" required>
+              <option value="">Seleziona utente...</option>
+              {% for u in users %}
+                <option value="{{ u.id }}" {% if selected_user_id == u.id %}selected{% endif %}>
+                  {{ u.nome|default:u.email }} (#{{ u.id }}){% if u.ruolo %} — {{ u.ruolo }}{% endif %}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field field-actions">
+            <button class="btn" type="submit">Seleziona</button>
+          </div>
+        </form>
+        {% if selected_user %}
+        <div class="notice" style="margin-top:8px;">
+          I toggle impostano un override personale per <strong>{{ selected_user.nome }}</strong>
+          (ruolo: <em>{{ selected_user.ruolo|default:"nessuno" }}</em>).
+          Lo stato <span style="color:#f59e0b;font-weight:600;">parziale</span> indica impostazioni miste all'interno del modulo.
+        </div>
+        <div style="margin-top:6px;"><span id="perm-status" class="cell-muted"></span></div>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  {% if module_rows %}
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Accesso ai moduli</div>
+      <div class="cell-muted">{{ module_rows|length }} moduli — ogni card mostra i singoli pulsanti</div>
+    </div>
+    <div class="card-body">
+      <div class="perm-cards-grid" id="module-perm-grid">
+        {% for row in module_rows %}
+          {% with details=perm_detail|get_item:row.modulo %}
+          <div class="perm-mod-card" data-modulo="{{ row.modulo }}">
+            {# Head: icona + nome + badge parziale + toggle modulo #}
+            <div class="perm-mod-head">
+              <div class="perm-mod-head-left">
+                <div class="perm-mod-icon">{{ row.modulo|slice:":1"|upper }}</div>
+                <div>
+                  <div class="perm-mod-name">{{ row.modulo|capfirst }}</div>
+                  <div class="perm-mod-count">{{ row.pulsanti_count }} pulsant{{ row.pulsanti_count|pluralize:"e,i" }}</div>
+                </div>
+              </div>
+              <div class="perm-mod-head-right">
+                {% if row.partial %}
+                  <span class="partial-badge">parziale</span>
+                {% endif %}
+                <label class="toggle-switch"
+                       title="{% if row.can_view %}Accesso concesso{% elif row.partial %}Parziale{% else %}Accesso negato{% endif %}"
+                       onclick="event.stopPropagation()">
+                  <input type="checkbox"
+                         class="module-toggle"
+                         data-modulo="{{ row.modulo }}"
+                         {% if row.can_view %}checked{% endif %}>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+            {# Body: lista pulsanti #}
+            <div class="perm-mod-body">
+              {% for prow in details %}
+                <div class="pulsante-perm-row"
+                     data-modulo="{{ row.modulo }}"
+                     data-azione="{{ prow.azione }}">
+                  <div class="pulsante-label">
+                    {{ prow.label }}
+                    <span class="pulsante-azione">{{ prow.azione }}</span>
+                  </div>
+                  <label class="toggle-switch" onclick="event.stopPropagation()">
+                    <input type="checkbox"
+                           class="pulsante-toggle"
+                           data-modulo="{{ row.modulo }}"
+                           data-azione="{{ prow.azione }}"
+                           {% if prow.can_view %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+              {% empty %}
+                <div style="padding:10px 14px;font-size:13px;color:var(--text-muted,#999);">Nessun pulsante trovato.</div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endwith %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% elif target_type == 'role' and selected_role_id or target_type == 'user' and selected_user_id %}
+  <div class="card"><div class="card-body">
+    <p class="cell-muted">Nessun modulo trovato. Verifica che esistano pulsanti con modulo e codice valorizzati.</p>
+  </div></div>
+  {% endif %}
+
+<script>
+(function () {
+  "use strict";
+
+  const CSRF = (function () {
+    const inp = document.querySelector("#perm-csrf-form input[name='csrfmiddlewaretoken']");
+    return inp ? inp.value : "";
+  })();
+
+  const TARGET_TYPE = "{{ target_type }}";
+  const ROLE_ID     = {{ selected_role_id|default:"null" }};
+  const USER_ID     = {{ selected_user_id|default:"null" }};
+  const statusEl    = document.getElementById("perm-status");
+
+  // Imposta indeterminate sui toggle modulo parziali
+  document.querySelectorAll(".perm-mod-card").forEach(function (card) {
+    const modulo = card.dataset.modulo;
+    const allToggles = Array.from(card.querySelectorAll(".pulsante-toggle"));
+    const allOn  = allToggles.length > 0 && allToggles.every(function (t) { return t.checked; });
+    const anyOn  = allToggles.some(function (t) { return t.checked; });
+    const mCb = card.querySelector(".module-toggle");
+    if (mCb && !allOn && anyOn) {
+      mCb.indeterminate = true;
+    }
+  });
+
+  function setStatus(msg, isErr) {
+    if (!statusEl) return;
+    statusEl.textContent = msg;
+    statusEl.style.color = isErr ? "#dc2626" : "#16a34a";
+  }
+
+  async function postJson(url, payload) {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+      body: JSON.stringify(payload),
+    });
+    let data = {};
+    try { data = await resp.json(); } catch (e) {}
+    if (!resp.ok || !data.ok) throw new Error(data.error || ("HTTP " + resp.status));
+    return data;
+  }
+
+  // ── Toggle MODULO intero ──────────────────────────────────────────────────
+  async function setModulo(modulo, canView) {
+    if (TARGET_TYPE === "role") {
+      return postJson("{% url 'admin_portale:api_permessi_modulo_set' %}", {
+        ruolo_id: ROLE_ID, modulo: modulo, can_view: canView
+      });
+    } else {
+      return postJson("/admin-portale/api/utenti/" + USER_ID + "/modulo-perm-set",
+        { modulo: modulo, can_view: canView });
+    }
+  }
+
+  // ── Toggle PULSANTE singolo ───────────────────────────────────────────────
+  async function setPulsante(modulo, azione, canView) {
+    if (TARGET_TYPE === "role") {
+      return postJson("{% url 'admin_portale:api_permessi_toggle' %}", {
+        ruolo_id: ROLE_ID, modulo: modulo, azione: azione, field: "can_view", value: canView ? 1 : 0
+      });
+    } else {
+      return postJson("/admin-portale/api/utenti/" + USER_ID + "/perm-override",
+        { modulo: modulo, azione: azione, field: "can_view", value: canView });
+    }
+  }
+
+  // ── Cambiamento toggle MODULO ─────────────────────────────────────────────
+  const grid = document.getElementById("module-perm-grid");
+  grid && grid.addEventListener("change", async function (e) {
+    const cb = e.target.closest(".module-toggle");
+    if (cb) {
+      const card   = cb.closest(".perm-mod-card");
+      const modulo = cb.dataset.modulo;
+      const canView = cb.checked;
+      card && card.classList.add("saving");
+      try {
+        setStatus("Salvataggio...", false);
+        await setModulo(modulo, canView);
+        cb.indeterminate = false;
+        // Aggiorna badge parziale e toggle figli
+        if (card) {
+          card.querySelector(".partial-badge")?.remove();
+          card.querySelectorAll(".pulsante-toggle").forEach(function (pCb) {
+            pCb.checked = canView;
+          });
+        }
+        setStatus("Salvato", false);
+      } catch (err) {
+        cb.checked = !canView;
+        setStatus("Errore: " + err.message, true);
+      } finally {
+        card && card.classList.remove("saving");
+      }
+      return;
+    }
+
+    // ── Cambiamento toggle PULSANTE singolo ──────────────────────────────
+    const pCb = e.target.closest(".pulsante-toggle");
+    if (pCb) {
+      const pRow   = pCb.closest(".pulsante-perm-row");
+      const modulo = pCb.dataset.modulo;
+      const azione = pCb.dataset.azione;
+      const canView = pCb.checked;
+      pRow && pRow.classList.add("saving");
+      try {
+        setStatus("Salvataggio...", false);
+        await setPulsante(modulo, azione, canView);
+        // Ricalcola stato toggle modulo padre
+        const card = pCb.closest(".perm-mod-card");
+        if (card) {
+          const allToggles = Array.from(card.querySelectorAll(".pulsante-toggle"));
+          const allOn  = allToggles.every(function (t) { return t.checked; });
+          const anyOn  = allToggles.some(function (t) { return t.checked; });
+          const mCb   = card.querySelector(".module-toggle");
+          if (mCb) {
+            mCb.checked = allOn;
+            mCb.indeterminate = anyOn && !allOn;
+          }
+          const badge = card.querySelector(".partial-badge");
+          if (anyOn && !allOn) {
+            if (!badge) {
+              const b = document.createElement("span");
+              b.className = "partial-badge"; b.textContent = "parziale";
+              card.querySelector(".perm-mod-head-right")?.prepend(b);
+            }
+          } else {
+            badge?.remove();
+          }
+        }
+        setStatus("Salvato", false);
+      } catch (err) {
+        pCb.checked = !canView;
+        setStatus("Errore: " + err.message, true);
+      } finally {
+        pRow && pRow.classList.remove("saving");
+      }
+    }
+  });
+
+  // ── Bulk role actions ─────────────────────────────────────────────────────
+  async function setAll(canView) {
+    if (TARGET_TYPE !== "role" || !ROLE_ID) return;
+    try {
+      setStatus(canView ? "Tutto ON..." : "Tutto OFF...", false);
+      await postJson("{% url 'admin_portale:api_permessi_bulk' %}", {
+        ruolo_id: ROLE_ID, mode: "set_all", field: "can_view", value: canView ? 1 : 0
+      });
+      document.querySelectorAll(".module-toggle").forEach(function (cb) {
+        cb.checked = !!canView; cb.indeterminate = false;
+      });
+      document.querySelectorAll(".pulsante-toggle").forEach(function (cb) { cb.checked = !!canView; });
+      document.querySelectorAll(".partial-badge").forEach(function (b) { b.remove(); });
+      setStatus(canView ? "Tutto ON completato" : "Tutto OFF completato", false);
+    } catch (err) { setStatus("Errore: " + err.message, true); }
+  }
+
+  document.getElementById("all-on-btn")?.addEventListener("click", function () { setAll(true); });
+  document.getElementById("all-off-btn")?.addEventListener("click", function () {
+    if (!window.confirm("Disattivare tutti i moduli per questo ruolo?")) return;
+    setAll(false);
+  });
+  document.getElementById("reset-role-btn")?.addEventListener("click", async function () {
+    if (!window.confirm("Eliminare tutti i permessi del ruolo?")) return;
+    try {
+      setStatus("Reset...", false);
+      await postJson("{% url 'admin_portale:api_permessi_bulk' %}", { ruolo_id: ROLE_ID, mode: "reset_role" });
+      document.querySelectorAll(".module-toggle, .pulsante-toggle").forEach(function (cb) {
+        cb.checked = false; cb.indeterminate = false;
+      });
+      document.querySelectorAll(".partial-badge").forEach(function (b) { b.remove(); });
+      setStatus("Reset completato", false);
+    } catch (err) { setStatus("Errore: " + err.message, true); }
+  });
+  document.getElementById("copy-role-btn")?.addEventListener("click", async function () {
+    const sel = document.getElementById("copy-source-role");
+    const sourceId = sel ? Number(sel.value) : 0;
+    if (!sourceId) { setStatus("Seleziona ruolo sorgente", true); return; }
+    if (!window.confirm("Copiare i permessi dal ruolo selezionato?")) return;
+    try {
+      setStatus("Copia in corso...", false);
+      await postJson("{% url 'admin_portale:api_permessi_bulk' %}", {
+        ruolo_id: ROLE_ID, mode: "copy_from_role", source_role_id: sourceId
+      });
+      setStatus("Copia completata. Ricarico...", false);
+      window.location.reload();
+    } catch (err) { setStatus("Errore: " + err.message, true); }
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends "core/base.html" %}
+
+{% block title %}Admin | Anagrafica Config{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Configurazione Anagrafica (Fallback)" page_subtitle="Versione semplificata caricata per problema di lettura template." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <section class="card mb-3">
+    <div class="card-header"><strong>Import CSV Dipendenti</strong></div>
+    <div class="card-body">
+      <form method="post" action="{% url 'admin_portale:anagrafica_import_csv' %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="mb-2">
+          <label for="id_csv">File CSV</label><br>
+          <input id="id_csv" type="file" name="dipendenti_csv" accept=".csv" required>
+        </div>
+        <div class="mb-2">
+          <label for="id_domain">Dominio email</label><br>
+          <input id="id_domain" type="text" name="email_domain" value="{{ email_domain_default }}">
+        </div>
+        <div class="mb-2">
+          <label><input type="checkbox" name="dry_run"> Esegui dry-run</label>
+        </div>
+        <div class="mb-2">
+          <label><input type="checkbox" name="sync_legacy_users"> Crea/aggiorna utenti legacy</label>
+        </div>
+        <div class="mb-2">
+          <label for="id_default_password">Password iniziale utenti legacy</label><br>
+          <input id="id_default_password" type="password" name="default_password">
+        </div>
+        <button type="submit" class="btn btn-primary">Avvia Import</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="card mb-3">
+    <div class="card-header"><strong>Opzioni Configurate</strong></div>
+    <div class="card-body">
+      {% for tipo, opzioni in opzioni_by_tipo.items %}
+        <h4>{{ tipo }}</h4>
+        <ul>
+          {% for o in opzioni %}
+            <li>
+              {{ o.valore }}{% if not o.is_active %} (disattiva){% endif %}
+            </li>
+          {% empty %}
+            <li>Nessuna opzione.</li>
+          {% endfor %}
+        </ul>
+      {% endfor %}
+      <p>I capireparto sono configurati localmente nella stessa lista opzioni.</p>
+      <p><a href="{% url 'gestione_reparto' %}">Apri gestione reparto</a></p>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-header"><strong>Voci Anagrafica</strong></div>
+    <div class="card-body">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Categoria</th>
+            <th>Etichetta</th>
+            <th>Tipo</th>
+            <th>Richiesto</th>
+            <th>Attivo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in anagrafica_voci %}
+            <tr>
+              <td>{{ v.id }}</td>
+              <td>{{ v.categoria }}</td>
+              <td>{{ v.etichetta }}</td>
+              <td>{{ v.tipo }}</td>
+              <td>{% if v.obbligatorio %}Si{% else %}No{% endif %}</td>
+              <td>{% if v.is_active %}Si{% else %}No{% endif %}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6">Nessuna voce configurata.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

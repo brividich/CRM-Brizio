@@ -1,0 +1,162 @@
+<article class="designer-meta-card{% if entry.is_existing %} designer-action-card{% endif %}"
+  data-action-card
+  data-is-existing="{% if entry.is_existing %}true{% else %}false{% endif %}"
+  {% if entry.is_existing %}data-sortable-item data-item-id="{{ entry.descriptor.item_id }}" draggable="true"{% endif %}>
+  {% for hidden_field in entry.form.hidden_fields %}{{ hidden_field }}{% endfor %}
+  <div class="designer-header">
+    <div>
+      <div class="designer-summary-kicker">Azione <span data-order-badge>{{ entry.descriptor.order_value }}</span></div>
+      <div class="designer-summary-line" style="font-size:15px;" data-action-label>{{ entry.descriptor.action_label }}</div>
+      <div class="designer-section-subtitle" data-action-summary>{{ entry.descriptor.summary }}</div>
+    </div>
+    <div class="designer-actions">
+      <button class="btn btn-light" type="button" data-apply-suggestion>Base suggerita</button>
+      {% if entry.is_existing %}
+        <button class="btn btn-light" type="button" data-move="-1">Su</button>
+        <button class="btn btn-light" type="button" data-move="1">Giu'</button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="designer-pill-row" style="margin-top:10px;">
+    {% for label, value in entry.meta_rows %}
+      <span class="designer-pill"><strong>{{ label }}</strong>&nbsp;{{ value }}</span>
+    {% endfor %}
+    {% for badge in entry.descriptor.badges %}
+      <span class="designer-pill{% if badge == 'abilitata' %} designer-pill-success{% elif badge == 'da eliminare' %} designer-pill-warning{% endif %}">{{ badge }}</span>
+    {% endfor %}
+  </div>
+
+  <div class="designer-note" style="margin-top:12px;" data-action-preview>
+    {% for line in entry.descriptor.preview_lines %}
+      <div>{{ line }}</div>
+    {% endfor %}
+  </div>
+
+  <div class="designer-help" data-suggestion-hint style="margin-top:8px;">
+    Seleziona il tipo azione e usa "Campi suggeriti" per precompilare una base modificabile.
+  </div>
+  <div class="designer-help" data-card-feedback style="margin-top:6px;font-weight:700;color:#0f766e;"></div>
+
+  <div class="designer-preset-zone" data-preset-zone hidden>
+    <div class="designer-preset-head">
+      <div>
+        <div class="designer-summary-kicker" data-preset-group-title>Preset consigliati</div>
+        <div class="designer-section-subtitle" data-preset-group-subtitle></div>
+      </div>
+      <div class="designer-size-switch" data-preset-size-switch>
+        <button class="designer-size-button is-active" type="button" data-preset-size="sm">S</button>
+        <button class="designer-size-button" type="button" data-preset-size="md">M</button>
+        <button class="designer-size-button" type="button" data-preset-size="lg">L</button>
+      </div>
+    </div>
+    <div class="designer-preset-grid" data-preset-grid></div>
+  </div>
+
+  {% if entry.form.non_field_errors %}
+    <ul class="designer-errors">{% for error in entry.form.non_field_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+  {% endif %}
+
+  <details class="designer-editor-shell" style="margin-top:12px;" data-card-details>
+    <summary class="designer-editor-summary">Modifica card</summary>
+    <div class="designer-editor-stack" style="margin-top:12px;">
+      <div class="designer-inline-banner">
+        Compila i campi principali e apri le opzioni avanzate solo se servono.
+      </div>
+
+      <div class="designer-editor-panel">
+        <div class="designer-editor-panel-title">Impostazioni base</div>
+        <div class="designer-trigger-copy">
+          <div class="designer-field">
+            {{ entry.form.order.label_tag }}
+            {{ entry.form.order }}
+            {% if entry.form.order.errors %}<ul class="designer-errors">{% for error in entry.form.order.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+          </div>
+          <div class="designer-field">
+            {{ entry.form.action_type.label_tag }}
+            {{ entry.form.action_type }}
+            {% if entry.form.action_type.errors %}<ul class="designer-errors">{% for error in entry.form.action_type.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+          </div>
+          <div class="designer-field designer-field-compact-toggle">
+            {{ entry.form.is_enabled.label_tag }}
+            <div class="designer-toggle-wrap">{{ entry.form.is_enabled }}</div>
+            {% if entry.form.is_enabled.errors %}<ul class="designer-errors">{% for error in entry.form.is_enabled.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+          </div>
+          <div class="designer-field designer-field-compact-toggle">
+            {{ entry.form.DELETE.label_tag }}
+            <div class="designer-toggle-wrap">{{ entry.form.DELETE }}</div>
+          </div>
+          <div class="designer-field designer-field-wide">
+            {{ entry.form.description.label_tag }}
+            {{ entry.form.description }}
+            {% if entry.form.description.errors %}<ul class="designer-errors">{% for error in entry.form.description.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="designer-editor-panel" data-action-config="send_email" style="margin-top:12px;">
+        <div class="designer-editor-panel-title">Email essenziale</div>
+        <div class="designer-trigger-copy">
+          <div class="designer-field">{{ entry.form.email_from_email.label_tag }}{{ entry.form.email_from_email }}{% if entry.form.email_from_email.errors %}<ul class="designer-errors">{% for error in entry.form.email_from_email.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field designer-field-wide">{{ entry.form.email_to.label_tag }}{{ entry.form.email_to }}{% if entry.form.email_to.errors %}<ul class="designer-errors">{% for error in entry.form.email_to.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field designer-field-wide">{{ entry.form.email_subject_template.label_tag }}{{ entry.form.email_subject_template }}{% if entry.form.email_subject_template.errors %}<ul class="designer-errors">{% for error in entry.form.email_subject_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field designer-field-wide">{{ entry.form.email_body_text_template.label_tag }}{{ entry.form.email_body_text_template }}{% if entry.form.email_body_text_template.errors %}<ul class="designer-errors">{% for error in entry.form.email_body_text_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+        </div>
+        <details class="designer-subeditor">
+          <summary class="designer-subeditor-summary">Opzioni email avanzate</summary>
+          <div class="designer-trigger-copy" style="margin-top:12px;">
+            <div class="designer-field">{{ entry.form.email_cc.label_tag }}{{ entry.form.email_cc }}{% if entry.form.email_cc.errors %}<ul class="designer-errors">{% for error in entry.form.email_cc.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+            <div class="designer-field">{{ entry.form.email_bcc.label_tag }}{{ entry.form.email_bcc }}{% if entry.form.email_bcc.errors %}<ul class="designer-errors">{% for error in entry.form.email_bcc.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+            <div class="designer-field">{{ entry.form.email_reply_to.label_tag }}{{ entry.form.email_reply_to }}{% if entry.form.email_reply_to.errors %}<ul class="designer-errors">{% for error in entry.form.email_reply_to.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+            <div class="designer-field designer-field-wide">{{ entry.form.email_body_html_template.label_tag }}{{ entry.form.email_body_html_template }}{% if entry.form.email_body_html_template.errors %}<ul class="designer-errors">{% for error in entry.form.email_body_html_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+            <div class="designer-field designer-field-compact-toggle">{{ entry.form.email_fail_silently.label_tag }}<div class="designer-toggle-wrap">{{ entry.form.email_fail_silently }}</div></div>
+          </div>
+        </details>
+      </div>
+
+      <div class="designer-editor-panel" data-action-config="write_log" style="margin-top:12px;">
+        <div class="designer-editor-panel-title">Messaggio log</div>
+        <div class="designer-trigger-copy">
+          <div class="designer-field designer-field-wide">{{ entry.form.write_log_message_template.label_tag }}{{ entry.form.write_log_message_template }}{% if entry.form.write_log_message_template.errors %}<ul class="designer-errors">{% for error in entry.form.write_log_message_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+        </div>
+      </div>
+
+      <div class="designer-editor-panel" data-action-config="update_dashboard_metric" style="margin-top:12px;">
+        <div class="designer-editor-panel-title">Aggiornamento metrica</div>
+        <div class="designer-trigger-copy">
+          <div class="designer-field">{{ entry.form.metric_code.label_tag }}{{ entry.form.metric_code }}{% if entry.form.metric_code.errors %}<ul class="designer-errors">{% for error in entry.form.metric_code.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.metric_operation.label_tag }}{{ entry.form.metric_operation }}{% if entry.form.metric_operation.errors %}<ul class="designer-errors">{% for error in entry.form.metric_operation.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.metric_value_template.label_tag }}{{ entry.form.metric_value_template }}{% if entry.form.metric_value_template.errors %}<ul class="designer-errors">{% for error in entry.form.metric_value_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+        </div>
+      </div>
+
+      <div class="designer-editor-panel" data-action-config="insert_record" style="margin-top:12px;">
+        <div class="designer-editor-panel-title">Inserimento record</div>
+        <div class="designer-trigger-copy">
+          <div class="designer-field">{{ entry.form.insert_target_table.label_tag }}{{ entry.form.insert_target_table }}{% if entry.form.insert_target_table.errors %}<ul class="designer-errors">{% for error in entry.form.insert_target_table.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field designer-field-wide">
+            {{ entry.form.insert_field_mappings_text.label_tag }}
+            {{ entry.form.insert_field_mappings_text }}
+            {% if entry.form.insert_field_mappings_text.help_text %}<div class="designer-help">{{ entry.form.insert_field_mappings_text.help_text }}</div>{% endif %}
+            {% if entry.form.insert_field_mappings_text.errors %}<ul class="designer-errors">{% for error in entry.form.insert_field_mappings_text.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="designer-editor-panel" data-action-config="update_record" style="margin-top:12px;">
+        <div class="designer-editor-panel-title">Aggiornamento record</div>
+        <div class="designer-trigger-copy">
+          <div class="designer-field">{{ entry.form.update_target_table.label_tag }}{{ entry.form.update_target_table }}{% if entry.form.update_target_table.errors %}<ul class="designer-errors">{% for error in entry.form.update_target_table.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.update_where_field.label_tag }}{{ entry.form.update_where_field }}{% if entry.form.update_where_field.errors %}<ul class="designer-errors">{% for error in entry.form.update_where_field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.update_where_value_template.label_tag }}{{ entry.form.update_where_value_template }}{% if entry.form.update_where_value_template.errors %}<ul class="designer-errors">{% for error in entry.form.update_where_value_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field designer-field-wide">
+            {{ entry.form.update_fields_text.label_tag }}
+            {{ entry.form.update_fields_text }}
+            {% if entry.form.update_fields_text.help_text %}<div class="designer-help">{{ entry.form.update_fields_text.help_text }}</div>{% endif %}
+            {% if entry.form.update_fields_text.errors %}<ul class="designer-errors">{% for error in entry.form.update_fields_text.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </details>
+</article>

@@ -1,0 +1,56 @@
+{% extends "core/base.html" %}
+
+{% block title %}Notifiche | Portale Applicativo{% endblock %}
+
+{% block subnav %}
+  {% include "core/components/subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  <div class="page-header">
+    <div class="page-h">Notifiche</div>
+    <div class="page-sub">I tuoi eventi recenti nel portale</div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">🔔 Cronologia notifiche</div>
+      <div class="cell-muted">Ultime 50 — segnate come lette all'apertura</div>
+    </div>
+    <div class="card-body" style="padding:0;">
+      {% if notifiche_list %}
+        {% for n in notifiche_list %}
+          <div style="display:flex;align-items:flex-start;gap:14px;padding:14px 18px;border-bottom:1px solid #f1f5f9;{% if not n.letta %}background:#eff6ff;{% endif %}">
+            <div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:5px;
+              background:{% if n.tipo == 'assenza_approvata' %}#16a34a{% elif n.tipo == 'assenza_rifiutata' %}#dc2626{% else %}#3b82f6{% endif %};">
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:14px;font-weight:{% if not n.letta %}600{% else %}400{% endif %};color:#1e293b;">
+                {{ n.messaggio }}
+              </div>
+              <div style="font-size:12px;color:#94a3b8;margin-top:4px;">
+                {{ n.created_at|date:"d/m/Y H:i" }}
+                &nbsp;·&nbsp;
+                <span style="text-transform:uppercase;font-size:11px;font-weight:600;
+                  color:{% if n.tipo == 'assenza_approvata' %}#16a34a{% elif n.tipo == 'assenza_rifiutata' %}#dc2626{% else %}#3b82f6{% endif %};">
+                  {{ n.get_tipo_display }}
+                </span>
+              </div>
+            </div>
+            {% if n.url_azione %}
+              <a href="{{ n.url_azione }}" style="flex-shrink:0;padding:5px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;color:#64748b;text-decoration:none;">
+                Apri →
+              </a>
+            {% endif %}
+          </div>
+        {% endfor %}
+      {% else %}
+        <div style="padding:60px;text-align:center;color:#94a3b8;">
+          <div style="font-size:40px;margin-bottom:14px;">🔔</div>
+          <div style="font-size:15px;">Nessuna notifica.</div>
+          <div style="font-size:13px;margin-top:6px;">Le notifiche appariranno qui quando le tue richieste vengono gestite.</div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

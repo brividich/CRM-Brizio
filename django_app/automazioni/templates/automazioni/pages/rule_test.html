@@ -1,0 +1,86 @@
+{% extends "core/base.html" %}
+
+{% block title %}Automazioni - Test Regola | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .auto-layout { display:grid; gap:16px; grid-template-columns:minmax(0, 1.4fr) minmax(320px, .9fr); align-items:start; }
+  .auto-main { display:grid; gap:16px; }
+  .auto-field { display:grid; gap:6px; }
+  .auto-field label { font-size:12px; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:.04em; }
+  .auto-field input, .auto-field textarea { width:100%; padding:9px 10px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; }
+  .auto-errors { margin:4px 0 0 0; padding-left:18px; color:#b91c1c; font-size:13px; }
+  .auto-help { font-size:12px; color:#64748b; }
+  .auto-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .auto-source-panel { position:sticky; top:20px; }
+  .auto-source-catalog[hidden] { display:none !important; }
+  .auto-source-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+  .auto-source-desc { margin-top:4px; color:#475569; font-size:13px; }
+  .auto-source-chip { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; background:#e2e8f0; color:#0f172a; font-size:12px; font-weight:700; }
+  .auto-source-section { margin-top:14px; }
+  .auto-source-section-title { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; margin-bottom:8px; }
+  .auto-source-list { margin:0; padding-left:18px; display:grid; gap:8px; color:#334155; }
+  .auto-source-placeholders { display:flex; flex-wrap:wrap; gap:8px; }
+  @media (max-width: 1100px) {
+    .auto-layout { grid-template-columns:1fr; }
+    .auto-source-panel { position:static; }
+  }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Test Manuale Regola" page_subtitle="Esecuzione manuale diretta di una regola senza passare dalla queue SQL." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+  {% include "automazioni/components/subnav.html" %}
+
+  <div class="auto-layout">
+    <div class="auto-main">
+      <div class="card">
+        <div class="card-head"><div class="card-title">{{ rule.name }}</div></div>
+        <div class="card-body">
+          <div class="notice" style="margin-bottom:14px;">
+            <strong>Trigger:</strong> {{ rule.source_code }} / {{ rule.operation_type }} / {{ rule.trigger_scope }}
+            {% if rule.watched_field %}| watched <code>{{ rule.watched_field }}</code>{% endif %}
+          </div>
+          <form method="post" class="auto-main">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+              <ul class="auto-errors">{% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+            {% for field in form %}
+              <div class="auto-field">
+                {{ field.label_tag }}
+                {{ field }}
+                {% if field.help_text %}<div class="auto-help">{{ field.help_text }}</div>{% endif %}
+                {% if field.errors %}<ul class="auto-errors">{% for error in field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+              </div>
+            {% endfor %}
+            <div class="auto-actions">
+              <button class="btn" type="submit">Esegui test</button>
+              <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_detail' rule.id %}">Torna al dettaglio</a>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {% if run_log %}
+        <div class="card">
+          <div class="card-head"><div class="card-title">Esito ultimo test</div></div>
+          <div class="card-body">
+            <div class="notice{% if run_log.status == 'error' %} notice-danger{% endif %}">
+              <strong>Stato:</strong> {{ run_log.status }}<br>
+              <strong>Messaggio:</strong> {{ run_log.result_message|default:"-" }}<br>
+              <strong>Run log:</strong> <a href="{% url 'admin_portale:automazioni_run_log_detail' run_log.id %}">#{{ run_log.id }}</a>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    {% include "automazioni/components/source_catalog_panel.html" %}
+  </div>
+{% endblock %}

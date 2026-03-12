@@ -1,0 +1,195 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.ga-wrap { max-width: 1200px; margin: 0 auto; padding: 18px 16px; }
+.ga-header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.ga-title { font-size: 22px; font-weight: 800; color: #0f172a; margin: 0; }
+.ga-badge { background: #1f64d8; color: #fff; border-radius: 6px; padding: 3px 9px; font-size: 12px; font-weight: 700; }
+.ga-tabs { display: flex; gap: 4px; border-bottom: 2px solid #e5ecf6; margin-bottom: 18px; }
+.ga-tab { padding: 8px 16px; border-radius: 8px 8px 0 0; text-decoration: none; font-weight: 600; font-size: 13px; color: #5a7296; border: 1px solid transparent; border-bottom: none; }
+.ga-tab:hover { background: #f0f5ff; color: #1f64d8; }
+.ga-tab.active { background: #fff; color: #1f64d8; border-color: #e5ecf6; margin-bottom: -2px; }
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.kpi { background: #fff; border: 1px solid #dbe3f0; border-radius: 11px; padding: 14px; box-shadow: 0 2px 6px rgba(15,23,42,.04); }
+.kpi-label { font-size: 11px; text-transform: uppercase; color: #7e94b2; font-weight: 700; }
+.kpi-val { font-size: 30px; font-weight: 800; color: #0f172a; line-height: 1.1; margin-top: 4px; }
+.card { background: #fff; border: 1px solid #dbe3f0; border-radius: 11px; box-shadow: 0 2px 6px rgba(15,23,42,.04); overflow: hidden; margin-bottom: 14px; }
+.card-head { padding: 10px 14px; border-bottom: 1px solid #e5ecf6; display: flex; justify-content: space-between; align-items: center; }
+.card-title { font-size: 14px; font-weight: 700; color: #0f172a; margin: 0; }
+.card-body { padding: 14px; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl th { padding: 8px 10px; background: #f8fbff; color: #7f95b3; font-size: 11px; text-transform: uppercase; font-weight: 700; border-bottom: 1px solid #e5ecf6; text-align: left; }
+.tbl td { padding: 8px 10px; border-bottom: 1px solid #f0f4fa; vertical-align: middle; }
+.tbl tr:last-child td { border-bottom: none; }
+.tbl tr:hover td { background: #f8fbff; }
+.badge { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 700; }
+.badge-0 { background: #dcfce7; color: #166534; }
+.badge-1 { background: #fee2e2; color: #991b1b; }
+.badge-2 { background: #fef9c3; color: #854d0e; }
+.badge-none { background: #f1f5f9; color: #64748b; }
+.btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid transparent; text-decoration: none; }
+.btn-primary { background: #1f64d8; color: #fff; border-color: #1f64d8; }
+.btn-primary:hover { background: #1750b8; }
+.btn-sm { padding: 4px 9px; font-size: 12px; }
+.search-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.search-row input { flex: 1; border: 1px solid #d1d9e8; border-radius: 8px; padding: 7px 12px; font-size: 13px; }
+.log-row { display: grid; grid-template-columns: 140px 90px 120px 1fr; gap: 8px; padding: 7px 10px; border-bottom: 1px solid #f0f4fa; font-size: 12px; }
+.log-row:last-child { border-bottom: none; }
+.log-head { font-size: 11px; text-transform: uppercase; color: #8fa5c0; font-weight: 700; }
+.alert { padding: 12px 16px; border-radius: 9px; font-size: 13px; margin-bottom: 14px; }
+.alert-warn { background: #fef9c3; border: 1px solid #fde047; color: #854d0e; }
+.section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 800px) { .section-grid { grid-template-columns: 1fr; } .kpi-row { grid-template-columns: repeat(2, 1fr); } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ga-wrap">
+  <div class="ga-header">
+    <div class="ga-title">Gestione Assenze</div>
+    <span class="ga-badge">Admin</span>
+  </div>
+
+  {% if not tabella_ok %}
+  <div class="alert alert-warn">
+    La tabella <strong>assenze</strong> non &egrave; disponibile nel database corrente. Alcune sezioni potrebbero essere vuote.
+  </div>
+  {% endif %}
+
+  <div class="ga-tabs">
+    <a href="?tab=riepilogo" class="ga-tab {% if tab == 'riepilogo' %}active{% endif %}">Riepilogo</a>
+    <a href="?tab=record" class="ga-tab {% if tab == 'record' %}active{% endif %}">Record</a>
+    <a href="?tab=log" class="ga-tab {% if tab == 'log' %}active{% endif %}">Log attivit&agrave;</a>
+  </div>
+
+  {# ========== TAB RIEPILOGO ========== #}
+  {% if tab == 'riepilogo' %}
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-label">Assenze totali</div><div class="kpi-val">{{ stats.total }}</div></div>
+    <div class="kpi"><div class="kpi-label">In attesa</div><div class="kpi-val">{{ stats.in_attesa }}</div></div>
+    <div class="kpi"><div class="kpi-label">Approvate</div><div class="kpi-val">{{ stats.approvate }}</div></div>
+    <div class="kpi"><div class="kpi-label">Rifiutate</div><div class="kpi-val">{{ stats.rifiutate }}</div></div>
+  </div>
+
+  <div class="section-grid">
+    <div class="card">
+      <div class="card-head"><h3 class="card-title">Distribuzione per tipo</h3></div>
+      <div class="card-body">
+        <table class="tbl">
+          <thead><tr><th>Tipo assenza</th><th>Quantit&agrave;</th></tr></thead>
+          <tbody>
+          {% for row in by_tipo %}
+            <tr>
+              <td>{{ row.tipo_assenza|default:"(non specificato)" }}</td>
+              <td><strong>{{ row.n }}</strong></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="2" style="color:#9aadcb;text-align:center;">Nessun dato disponibile</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3 class="card-title">Sincronizzazione SharePoint</h3></div>
+      <div class="card-body">
+        <table class="tbl">
+          <tbody>
+            <tr>
+              <td>Ultima sincronizzazione (pull)</td>
+              <td>
+                {% if sync_info.last_pull %}
+                  {{ sync_info.last_pull }}
+                {% else %}
+                  <span style="color:#9aadcb;">Non disponibile</span>
+                {% endif %}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top:10px;display:flex;gap:8px;">
+          <form method="post" action="{% url 'assenze_api_sync_pull' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm" style="border:1px solid #dbe3f0;">&#8635; Sincronizza ora (Pull)</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ========== TAB RECORD ========== #}
+  {% if tab == 'record' %}
+  <div class="card">
+    <div class="card-head">
+      <h3 class="card-title">Tutte le assenze (ultime 100)</h3>
+      <a href="{% url 'assenze_export_csv' %}" class="btn btn-sm" style="border:1px solid #dbe3f0;">&#8659; Export CSV</a>
+    </div>
+    <div class="card-body">
+      <form method="get" class="search-row">
+        <input type="hidden" name="tab" value="record">
+        <input type="text" name="q" value="{{ q }}" placeholder="Cerca per dipendente o tipo...">
+        <button type="submit" class="btn btn-primary btn-sm">Cerca</button>
+        {% if q %}<a href="?tab=record" class="btn btn-sm" style="border:1px solid #dbe3f0;">&#10005;</a>{% endif %}
+      </form>
+      <div style="overflow-x:auto;">
+        <table class="tbl">
+          <thead><tr><th>#</th><th>Dipendente</th><th>Tipo</th><th>Dal</th><th>Al</th><th>Stato</th><th>Motivo</th></tr></thead>
+          <tbody>
+          {% for a in assenze %}
+            <tr>
+              <td>{{ a.id }}</td>
+              <td>{{ a.dipendente }}</td>
+              <td>{{ a.tipo }}</td>
+              <td>{{ a.inizio_label }}</td>
+              <td>{{ a.fine_label }}</td>
+              <td>
+                {% if a.moderation_status == 0 %}
+                  <span class="badge badge-0">Approvata</span>
+                {% elif a.moderation_status == 1 %}
+                  <span class="badge badge-1">Rifiutata</span>
+                {% else %}
+                  <span class="badge badge-2">In attesa</span>
+                {% endif %}
+              </td>
+              <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ a.motivo }}">{{ a.motivo|default:"—" }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7" style="color:#9aadcb;text-align:center;">Nessuna assenza trovata</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ========== TAB LOG ========== #}
+  {% if tab == 'log' %}
+  <div class="card">
+    <div class="card-head"><h3 class="card-title">Log attivit&agrave; Assenze (ultime 100)</h3></div>
+    <div class="card-body">
+      {% if audit_entries %}
+      <div class="log-row log-head">
+        <span>Data/ora</span><span>Utente</span><span>Azione</span><span>Dettaglio</span>
+      </div>
+      {% for entry in audit_entries %}
+      <div class="log-row">
+        <span>{{ entry.created_at|date:"d/m/Y H:i" }}</span>
+        <span>{{ entry.utente_display|default:"—" }}</span>
+        <span>{{ entry.azione }}</span>
+        <span style="color:#64748b;font-size:11px;">{{ entry.dettaglio }}</span>
+      </div>
+      {% endfor %}
+      {% else %}
+      <p style="color:#9aadcb;text-align:center;padding:20px 0;">Nessuna voce di log per questo modulo.</p>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

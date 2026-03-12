@@ -1,0 +1,127 @@
+{% extends "core/base.html" %}
+{% block title %}{{ notizia.titolo }} — Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+.notizia-dettaglio { max-width:780px; margin:2rem auto; padding:0 1rem; }
+.notizia-corpo { line-height:1.7; color:var(--text,#1e293b); margin:1.5rem 0; }
+.allegati-list { list-style:none; padding:0; margin:0; }
+.allegati-list li { padding:.5rem 0; border-bottom:1px solid var(--border,#e2e8f0); display:flex; align-items:center; gap:.6rem; }
+.allegati-list li:last-child { border-bottom:none; }
+.btn-conferma {
+  display:inline-block; padding:.75rem 2rem; background:var(--primary,#1e3a5f);
+  color:#fff; border:none; border-radius:8px; font-size:1rem; font-weight:600;
+  cursor:pointer; text-decoration:none; transition:opacity .15s;
+}
+.btn-conferma:hover { opacity:.88; }
+.compliance-box {
+  border-radius:8px; padding:.9rem 1.2rem; margin-bottom:1.5rem; font-size:.92rem;
+}
+.compliance-conforme    { background:#dcfce7; color:#16a34a; }
+.compliance-aperto      { background:#fef9c3; color:#b45309; }
+.compliance-non_conforme{ background:#fee2e2; color:#dc2626; }
+.compliance-non_letto   { background:#f1f5f9; color:#64748b; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="notizia-dettaglio">
+  <div style="margin-bottom:.5rem;">
+    <a href="{% url 'notizie_lista' %}" style="color:var(--text-secondary,#64748b);font-size:.88rem;text-decoration:none;">&#8592; Notizie</a>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:.4rem;">
+    {% if notizia.obbligatoria %}
+      <span style="background:#fee2e2;color:#dc2626;border-radius:999px;padding:.15rem .6rem;font-size:.8rem;font-weight:600;">Obbligatoria</span>
+    {% endif %}
+    <span style="background:#f1f5f9;color:#64748b;border-radius:999px;padding:.15rem .6rem;font-size:.8rem;">Versione {{ notizia.versione }}</span>
+    {% if notizia.pubblicato_il %}
+      <span style="color:var(--text-secondary,#64748b);font-size:.82rem;">{{ notizia.pubblicato_il|date:"d/m/Y H:i" }}</span>
+    {% endif %}
+  </div>
+
+  <h1 style="font-size:1.7rem;font-weight:700;color:var(--primary,#1e3a5f);margin-bottom:1rem;">{{ notizia.titolo }}</h1>
+
+  {% if compliance == 'conforme' %}
+    <div class="compliance-box compliance-conforme">
+      &#10003; Hai confermato la lettura di questa versione.
+      {% if lettura.ack_at %}<span style="margin-left:.5rem;font-size:.88rem;">{{ lettura.ack_at|date:"d/m/Y H:i" }}</span>{% endif %}
+    </div>
+  {% elif compliance == 'non_conforme' %}
+    <div class="compliance-box compliance-non_conforme">
+      &#9888; Hai letto una versione precedente. Conferma la versione corrente.
+    </div>
+  {% elif compliance == 'aperto' %}
+    <div class="compliance-box compliance-aperto">
+      Hai aperto questa comunicazione ma non hai ancora confermato la lettura.
+    </div>
+  {% endif %}
+
+  {% if request.GET.csrf_retry == '1' and compliance != 'conforme' %}
+    <div class="compliance-box compliance-aperto">
+      Ripristino della conferma in corso...
+    </div>
+  {% endif %}
+
+  <div class="notizia-corpo">{{ notizia.corpo|linebreaks }}</div>
+
+  {% if allegati %}
+  <section style="margin:1.5rem 0;">
+    <h2 style="font-size:1rem;font-weight:600;color:var(--primary,#1e3a5f);margin-bottom:.75rem;">Allegati</h2>
+    <ul class="allegati-list">
+      {% for a in allegati %}
+      <li>
+        <span style="font-size:1rem;">&#128206;</span>
+        {% if a.file %}
+          <a href="{{ a.file.url }}" target="_blank" rel="noopener">{{ a.nome_file }}</a>
+        {% elif a.url_esterno %}
+          <a href="{{ a.url_esterno }}" target="_blank" rel="noopener">{{ a.nome_file }}</a>
+        {% else %}
+          {{ a.nome_file }}
+        {% endif %}
+        {% if a.hash_file %}
+          <span style="font-size:.75rem;color:#94a3b8;font-family:monospace;" title="SHA-256">{{ a.hash_file|slice:":16" }}…</span>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if compliance != 'conforme' %}
+  <div style="margin-top:2rem;">
+    <a href="{% url 'notizie_conferma' notizia.id %}?token={{ conferma_token|urlencode }}" class="btn-conferma" data-conferma-link>&#10003; Confermo di aver letto e compreso</a>
+    <p style="margin-top:.6rem;font-size:.82rem;color:var(--text-secondary,#64748b);">
+      La tua conferma sarà registrata con data, ora e hash della versione corrente ({{ notizia.hash_versione|slice:":16" }}…).
+    </p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+  {% if request.GET.csrf_retry == '1' and compliance != 'conforme' %}
+  <script>
+  (function () {
+    const link = document.querySelector("[data-conferma-link]");
+    if (!link || !window.sessionStorage) return;
+    const retryKey = "notizie-csrf-retry-{{ notizia.id }}";
+    if (window.sessionStorage.getItem(retryKey) === "done") {
+      window.sessionStorage.removeItem(retryKey);
+      return;
+    }
+    window.sessionStorage.setItem(retryKey, "done");
+    window.requestAnimationFrame(function () {
+      window.location.replace(link.href);
+    });
+  })();
+  </script>
+  {% else %}
+  <script>
+  (function () {
+    if (!window.sessionStorage) return;
+    window.sessionStorage.removeItem("notizie-csrf-retry-{{ notizia.id }}");
+  })();
+  </script>
+  {% endif %}
+{% endblock %}

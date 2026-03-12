@@ -1,0 +1,38 @@
+{% extends "core/base.html" %}
+
+{% block title %}Sessione scaduta | Portale Applicativo{% endblock %}
+
+{% block content %}
+  <div class="page-header">
+    <div class="page-h">Sessione scaduta</div>
+    <div class="page-sub">Il token di sicurezza non e valido. Ricarica la pagina e riprova.</div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Token di sessione non valido</div>
+    </div>
+    <div class="card-body">
+      <div class="activity-item">
+        <div class="act-dot"></div>
+        <div>
+          <div class="act-text">
+            La pagina e rimasta aperta troppo a lungo oppure la sessione e stata rinnovata in un'altra scheda.
+            Ricarica la pagina e ripeti l'operazione.
+          </div>
+          <div class="act-time">HTTP 403 &mdash; {{ reason }}</div>
+        </div>
+      </div>
+      <div class="activity-item">
+        <div class="act-dot blue"></div>
+        <div>
+          <div class="act-text">
+            <a class="sub-a active" href="javascript:location.reload()">Ricarica la pagina</a>
+            &nbsp;&mdash;&nbsp;
+            <a class="sub-a" href="{{ login_path }}">Torna al login</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

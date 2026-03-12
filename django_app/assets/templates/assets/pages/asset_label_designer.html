@@ -1,0 +1,659 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Designer etichetta QR{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.ald-page { display:grid; gap:16px; }
+.ald-layout { display:grid; gap:16px; grid-template-columns:minmax(0, 1.15fr) minmax(360px, .85fr); align-items:start; }
+.ald-stack { display:grid; gap:16px; }
+.ald-card { border:1px solid #dbe1ea; border-radius:16px; background:#fff; overflow:hidden; }
+.ald-card-head { padding:16px 18px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+.ald-card-head h2 { margin:0; font-size:22px; color:#0f172a; }
+.ald-card-head p { margin:4px 0 0; color:#64748b; font-size:13px; }
+.ald-card-body { padding:18px; display:grid; gap:16px; }
+.ald-grid { display:grid; gap:12px; grid-template-columns:repeat(2, minmax(0, 1fr)); }
+.ald-field { display:grid; gap:6px; }
+.ald-field.wide { grid-column:1 / -1; }
+.ald-field label { font-size:13px; color:#334155; font-weight:700; }
+.ald-help { font-size:12px; color:#64748b; }
+.ald-error { color:#b91c1c; font-size:12px; }
+.ald-checks { display:grid; gap:10px; grid-template-columns:repeat(2, minmax(0, 1fr)); }
+.ald-check { border:1px solid #dbe1ea; border-radius:12px; background:#f8fafc; padding:12px; display:flex; align-items:center; gap:8px; font-weight:700; color:#334155; }
+.ald-selected-list { display:grid; gap:10px; }
+.ald-selected-empty { border:1px dashed #cbd5e1; border-radius:12px; padding:14px; color:#64748b; font-size:13px; background:#f8fafc; }
+.ald-selected-item { border:1px solid #dbe1ea; border-radius:12px; background:#fff; padding:12px; display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:start; cursor:grab; }
+.ald-selected-item.is-dragging { opacity:.55; }
+.ald-drag { width:28px; height:28px; border-radius:8px; background:#eff6ff; color:#1d4ed8; display:inline-flex; align-items:center; justify-content:center; font-weight:800; }
+.ald-selected-title { font-size:14px; font-weight:800; color:#0f172a; }
+.ald-selected-meta { font-size:12px; color:#64748b; margin-top:2px; }
+.ald-remove { border:1px solid #fecaca; background:#fff5f5; color:#b91c1c; border-radius:8px; padding:7px 10px; font-weight:700; cursor:pointer; }
+.ald-groups { display:grid; gap:12px; }
+.ald-group { border:1px solid #e2e8f0; border-radius:12px; background:#f8fafc; padding:14px; display:grid; gap:10px; }
+.ald-group-head { display:flex; justify-content:space-between; gap:10px; align-items:center; }
+.ald-group-title { font-size:13px; font-weight:800; color:#0f172a; }
+.ald-chip-grid { display:flex; gap:8px; flex-wrap:wrap; }
+.ald-chip { border:1px solid #cbd5e1; border-radius:999px; padding:8px 12px; background:#fff; color:#1e293b; font-size:12px; font-weight:700; cursor:pointer; }
+.ald-chip[disabled] { opacity:.45; cursor:not-allowed; }
+.ald-chip span { display:block; color:#64748b; font-size:11px; font-weight:500; margin-top:2px; }
+.ald-preview-panel { position:sticky; top:12px; }
+.ald-preview-top { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; flex-wrap:wrap; }
+.ald-preview-top h2 { margin:0; font-size:22px; color:#0f172a; }
+.ald-preview-top p { margin:4px 0 0; color:#64748b; font-size:13px; }
+.ald-preview-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.ald-preview-wrap { display:grid; justify-content:center; padding:8px 0 2px; overflow:auto; }
+.ald-label-preview { --label-width:380px; --label-height:235px; --qr-size:92px; --label-bg:#ffffff; --label-border:#111827; --label-text:#0f172a; --label-accent:#1d4ed8; width:var(--label-width); min-height:var(--label-height); background:var(--label-bg); border:2px solid var(--label-border); border-radius:18px; padding:18px; display:grid; grid-template-columns:1fr auto; gap:16px; box-shadow:0 16px 35px rgba(15, 23, 42, .12); }
+.ald-label-preview.qr-left { grid-template-columns:auto 1fr; }
+.ald-label-preview.qr-left .ald-preview-qr { order:0; }
+.ald-label-preview.qr-left .ald-preview-content { order:1; }
+.ald-preview-content { display:grid; gap:8px; align-content:start; color:var(--label-text); min-width:0; }
+.ald-preview-brand-wrap { display:flex; }
+.ald-preview-brand { max-width:100%; object-fit:contain; }
+.ald-preview-title-primary { color:var(--label-accent); font-weight:900; line-height:1.05; word-break:break-word; }
+.ald-preview-title-secondary { font-weight:800; line-height:1.1; word-break:break-word; }
+.ald-preview-body { display:grid; gap:5px; font-size:12px; }
+.ald-preview-row { word-break:break-word; }
+.ald-preview-qr { width:var(--qr-size); height:var(--qr-size); border-radius:12px; background:linear-gradient(135deg, #0f172a 0 22%, #fff 22% 28%, #0f172a 28% 36%, #fff 36% 46%, #0f172a 46% 61%, #fff 61% 69%, #0f172a 69% 100%); border:1px solid rgba(15, 23, 42, .2); box-shadow:inset 0 0 0 7px rgba(255,255,255,.9); align-self:center; justify-self:end; }
+.ald-label-preview.qr-left .ald-preview-qr { justify-self:start; }
+.ald-preview-target,
+.ald-preview-help,
+.ald-preview-url { font-size:12px; word-break:break-word; }
+.ald-preview-url { font-size:11px; color:#475569; }
+.ald-preview-note { font-size:12px; color:#64748b; }
+.ald-actions { display:flex; justify-content:flex-end; gap:8px; }
+@media (max-width: 1200px) {
+  .ald-layout { grid-template-columns:1fr; }
+  .ald-preview-panel { position:static; }
+}
+@media (max-width: 760px) {
+  .ald-grid, .ald-checks { grid-template-columns:1fr; }
+  .ald-label-preview { --label-width:100%; --label-height:240px; width:100%; }
+}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Designer etichetta QR{% endblock %}
+{% block assets_shell_subtitle %}
+<p><strong>{{ scope_title }}</strong>. {{ scope_description }}</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+<a class="btn btn-secondary" href="{{ back_url }}">Torna indietro</a>
+{% if preview_asset %}
+  <a class="btn" href="{% url 'assets:asset_view' preview_asset.id %}">Apri asset di prova</a>
+{% endif %}
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="ald-page">
+  <form method="post" enctype="multipart/form-data" class="ald-layout">
+    {% csrf_token %}
+    <input type="hidden" name="scope" value="{{ scope }}">
+    <input type="hidden" name="scope_asset_id" value="{{ scope_asset.id|default:'' }}">
+    <input type="hidden" name="scope_asset_type" value="{{ scope_asset_type|default:'' }}">
+    <input type="hidden" name="preview_asset_id" value="{{ preview_asset_id|default:'' }}">
+
+    <div class="ald-stack">
+      {% if form.non_field_errors %}
+        <article class="ald-card">
+          <div class="ald-card-body">
+            <div class="ald-error">{{ form.non_field_errors }}</div>
+          </div>
+        </article>
+      {% endif %}
+
+      <article class="ald-card">
+        <div class="ald-card-head">
+          <div>
+            <h2>Ambito attivo</h2>
+            <p>Stai modificando il template che verra usato per questo specifico livello.</p>
+          </div>
+        </div>
+        <div class="ald-card-body">
+          <div class="ald-grid">
+            <div class="ald-field wide">
+              <label>Template</label>
+              <div><strong>{{ scope_title }}</strong></div>
+              <div class="ald-help">
+                {% if template_exists %}
+                  Template dedicato gia presente e modificabile.
+                {% else %}
+                  Non esiste ancora un template dedicato: il form parte dal fallback attuale e al salvataggio crea il nuovo template.
+                {% endif %}
+              </div>
+            </div>
+            {% if scope_asset %}
+              <div class="ald-field">
+                <label>Asset</label>
+                <div>{{ scope_asset.asset_tag }} - {{ scope_asset.name }}</div>
+              </div>
+              <div class="ald-field">
+                <label>Tipologia</label>
+                <div>{{ scope_asset_type_label }}</div>
+              </div>
+            {% elif scope_asset_type %}
+              <div class="ald-field">
+                <label>Tipologia</label>
+                <div>{{ scope_asset_type_label }}</div>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </article>
+
+      <article class="ald-card">
+        <div class="ald-card-head">
+          <div>
+            <h2>Formato</h2>
+            <p>Dimensioni fisiche della label e disposizione del QR.</p>
+          </div>
+        </div>
+        <div class="ald-card-body">
+          <div class="ald-grid">
+            {% for field in form %}
+              {% if field.name == "name" or field.name == "page_width_mm" or field.name == "page_height_mm" or field.name == "qr_size_mm" or field.name == "qr_position" or field.name == "title_font_size_pt" or field.name == "body_font_size_pt" or field.name == "border_radius_mm" %}
+                <div class="ald-field {% if field.name == 'name' %}wide{% endif %}">
+                  <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                  {{ field }}
+                  {% if field.help_text %}<div class="ald-help">{{ field.help_text }}</div>{% endif %}
+                  {% if field.errors %}<div class="ald-error">{{ field.errors }}</div>{% endif %}
+                </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+      </article>
+
+      <article class="ald-card">
+        <div class="ald-card-head">
+          <div>
+            <h2>Grafica</h2>
+            <p>Colori, bordo e blocchi testo opzionali.</p>
+          </div>
+        </div>
+        <div class="ald-card-body">
+          <div class="ald-grid">
+            {% for field in form %}
+              {% if field.name == "background_color" or field.name == "border_color" or field.name == "text_color" or field.name == "accent_color" %}
+                <div class="ald-field">
+                  <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                  {{ field }}
+                  {% if field.errors %}<div class="ald-error">{{ field.errors }}</div>{% endif %}
+                </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+          <div class="ald-checks">
+            {% for field in form %}
+              {% if field.name == "show_logo" or field.name == "show_border" or field.name == "show_field_labels" or field.name == "show_target_label" or field.name == "show_help_text" or field.name == "show_target_url" %}
+                <label class="ald-check" for="{{ field.id_for_label }}">
+                  {{ field }}
+                  <span>{{ field.label }}</span>
+                </label>
+                {% if field.errors %}<div class="ald-error">{{ field.errors }}</div>{% endif %}
+              {% endif %}
+            {% endfor %}
+          </div>
+          <div class="ald-grid">
+            {% for field in form %}
+              {% if field.name == "logo_file" or field.name == "logo_height_mm" or field.name == "logo_alignment" %}
+                <div class="ald-field {% if field.name == 'logo_file' %}wide{% endif %}">
+                  <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                  {{ field }}
+                  {% if field.help_text %}<div class="ald-help">{{ field.help_text }}</div>{% endif %}
+                  {% if field.errors %}<div class="ald-error">{{ field.errors }}</div>{% endif %}
+                </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+          <div class="ald-help">
+            Logo attuale:
+            {% if preview_logo_meta.source == "custom" %}
+              personalizzato ({{ preview_logo_meta.name }})
+            {% else %}
+              logo aziendale predefinito
+            {% endif %}
+          </div>
+        </div>
+      </article>
+
+      <article class="ald-card">
+        <div class="ald-card-head">
+          <div>
+            <h2>Testi e campi</h2>
+            <p>Scegli cosa va nel titolo e quali righe visualizzare nel corpo dell'etichetta.</p>
+          </div>
+        </div>
+        <div class="ald-card-body">
+          <div class="ald-grid">
+            {% for field in form %}
+              {% if field.name == "title_primary_field" or field.name == "title_secondary_field" %}
+                <div class="ald-field">
+                  <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                  {{ field }}
+                  {% if field.help_text %}<div class="ald-help">{{ field.help_text }}</div>{% endif %}
+                  {% if field.errors %}<div class="ald-error">{{ field.errors }}</div>{% endif %}
+                </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+
+          <div class="ald-field wide">
+            <label>Corpo etichetta</label>
+            {{ form.body_fields_payload }}
+            {% if form.body_fields_payload.errors %}<div class="ald-error">{{ form.body_fields_payload.errors }}</div>{% endif %}
+            <div class="ald-help">Trascina per riordinare. Il PDF segue esattamente questo ordine.</div>
+            <div class="ald-selected-list" data-selected-fields>
+              {% if not preview_selected_body_fields %}
+                <div class="ald-selected-empty">Nessun campo selezionato.</div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="ald-groups">
+            {% regroup preview_catalog by group as grouped_catalog %}
+            {% for group in grouped_catalog %}
+              <section class="ald-group">
+                <div class="ald-group-head">
+                  <div class="ald-group-title">{{ group.grouper }}</div>
+                  <div class="ald-help">{{ group.list|length }} campi disponibili</div>
+                </div>
+                <div class="ald-chip-grid">
+                  {% for item in group.list %}
+                    <button type="button" class="ald-chip" data-field-add="{{ item.key }}">
+                      {{ item.label }}
+                      {% if item.value %}<span>{{ item.value }}</span>{% endif %}
+                    </button>
+                  {% endfor %}
+                </div>
+              </section>
+            {% endfor %}
+          </div>
+        </div>
+      </article>
+
+      <div class="ald-actions">
+        {% if preview_asset_qr_url %}
+          <a class="btn" href="{{ preview_asset_qr_url }}" target="_blank" rel="noopener">Apri PDF</a>
+        {% endif %}
+        <button type="submit" class="btn btn-primary">
+          {% if scope == "ASSET" %}
+            Salva override asset
+          {% elif scope == "ASSET_TYPE" %}
+            Salva template tipologia
+          {% else %}
+            Salva template generale
+          {% endif %}
+        </button>
+      </div>
+    </div>
+
+    <aside class="ald-preview-panel">
+      <article class="ald-card">
+        <div class="ald-card-head">
+          <div class="ald-preview-top">
+            <div>
+              <h2>Anteprima</h2>
+              <p>
+                {% if preview_asset %}
+                  Asset di prova: <strong>{{ preview_asset.asset_tag }}</strong> - {{ preview_asset.name }}
+                {% else %}
+                  Anteprima generica se non ci sono ancora asset in archivio.
+                {% endif %}
+              </p>
+            </div>
+            <div class="ald-preview-actions">
+              {% if preview_asset_qr_url %}
+                <a class="btn btn-secondary" href="{{ preview_asset_qr_url }}" target="_blank" rel="noopener">PDF scheda</a>
+              {% endif %}
+              {% if preview_asset_sharepoint_qr_url %}
+                <a class="btn" href="{{ preview_asset_sharepoint_qr_url }}" target="_blank" rel="noopener">PDF SharePoint</a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        <div class="ald-card-body">
+          <div class="ald-preview-wrap">
+            <div class="ald-label-preview" data-label-preview>
+              <div class="ald-preview-content">
+                <div class="ald-preview-brand-wrap" data-preview-logo-wrap>
+                  <img class="ald-preview-brand" data-preview-logo src="{{ preview_logo_meta.url }}" alt="Logo badge">
+                </div>
+                <div class="ald-preview-title-primary" data-preview-title-primary>{{ preview_asset_tag }}</div>
+                <div class="ald-preview-title-secondary" data-preview-title-secondary>{{ preview_asset_name }}</div>
+                <div class="ald-preview-body" data-preview-body></div>
+                <div class="ald-preview-target" data-preview-target-label></div>
+                <div class="ald-preview-help" data-preview-help>Scansiona per aprire la scheda o la cartella.</div>
+                <div class="ald-preview-url" data-preview-target-url></div>
+              </div>
+              <div class="ald-preview-qr" aria-hidden="true"></div>
+            </div>
+          </div>
+          <div class="ald-preview-note">La preview usa il layout salvato e i valori dell'asset di prova. Il PDF finale mantiene le stesse scelte.</div>
+        </div>
+      </article>
+    </aside>
+  </form>
+</section>
+
+{{ preview_catalog|json_script:"asset-label-catalog" }}
+{{ preview_target_meta|json_script:"asset-label-target-meta" }}
+{{ preview_logo_meta|json_script:"asset-label-logo-meta" }}
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(function () {
+  const catalogNode = document.getElementById("asset-label-catalog");
+  const targetMetaNode = document.getElementById("asset-label-target-meta");
+  const logoMetaNode = document.getElementById("asset-label-logo-meta");
+  if (!catalogNode || !targetMetaNode || !logoMetaNode) {
+    return;
+  }
+
+  let catalog = [];
+  let targetMeta = {};
+  let logoMeta = {};
+  try {
+    catalog = JSON.parse(catalogNode.textContent || "[]");
+  } catch (err) {
+    catalog = [];
+  }
+  try {
+    targetMeta = JSON.parse(targetMetaNode.textContent || "{}");
+  } catch (err) {
+    targetMeta = {};
+  }
+  try {
+    logoMeta = JSON.parse(logoMetaNode.textContent || "{}");
+  } catch (err) {
+    logoMeta = {};
+  }
+
+  const fieldMap = {};
+  catalog.forEach(function (row) {
+    fieldMap[row.key] = row;
+  });
+
+  const previewEl = document.querySelector("[data-label-preview]");
+  const selectedListEl = document.querySelector("[data-selected-fields]");
+  const payloadInput = document.getElementById("id_body_fields_payload");
+  const titlePrimarySelect = document.getElementById("id_title_primary_field");
+  const titleSecondarySelect = document.getElementById("id_title_secondary_field");
+  const previewPrimary = document.querySelector("[data-preview-title-primary]");
+  const previewSecondary = document.querySelector("[data-preview-title-secondary]");
+  const previewBody = document.querySelector("[data-preview-body]");
+  const previewLogoWrap = document.querySelector("[data-preview-logo-wrap]");
+  const previewLogo = document.querySelector("[data-preview-logo]");
+  const previewTargetLabel = document.querySelector("[data-preview-target-label]");
+  const previewHelp = document.querySelector("[data-preview-help]");
+  const previewTargetUrl = document.querySelector("[data-preview-target-url]");
+
+  if (!previewEl || !selectedListEl || !payloadInput || !titlePrimarySelect || !previewPrimary || !previewBody) {
+    return;
+  }
+
+  const colorFields = {
+    background: document.getElementById("id_background_color"),
+    border: document.getElementById("id_border_color"),
+    text: document.getElementById("id_text_color"),
+    accent: document.getElementById("id_accent_color")
+  };
+  const sizeFields = {
+    width: document.getElementById("id_page_width_mm"),
+    height: document.getElementById("id_page_height_mm"),
+    qr: document.getElementById("id_qr_size_mm"),
+    logo: document.getElementById("id_logo_height_mm"),
+    radius: document.getElementById("id_border_radius_mm"),
+    title: document.getElementById("id_title_font_size_pt"),
+    body: document.getElementById("id_body_font_size_pt")
+  };
+  const boolFields = {
+    showLogo: document.getElementById("id_show_logo"),
+    border: document.getElementById("id_show_border"),
+    showLabels: document.getElementById("id_show_field_labels"),
+    showTargetLabel: document.getElementById("id_show_target_label"),
+    showHelp: document.getElementById("id_show_help_text"),
+    showTargetUrl: document.getElementById("id_show_target_url")
+  };
+  const qrPositionField = document.getElementById("id_qr_position");
+  const logoAlignmentField = document.getElementById("id_logo_alignment");
+  const logoFileField = document.getElementById("id_logo_file");
+  const logoClearField = document.querySelector("input[name='logo_file-clear']");
+
+  function parseSelected() {
+    try {
+      const data = JSON.parse(payloadInput.value || "[]");
+      if (!Array.isArray(data)) {
+        return [];
+      }
+      const seen = new Set();
+      return data.filter(function (key) {
+        const valid = typeof key === "string" && fieldMap[key] && !seen.has(key);
+        if (valid) {
+          seen.add(key);
+        }
+        return valid;
+      });
+    } catch (err) {
+      return [];
+    }
+  }
+
+  let selectedFields = parseSelected();
+
+  function syncPayload() {
+    payloadInput.value = JSON.stringify(selectedFields);
+  }
+
+  function setAddButtonsState() {
+    document.querySelectorAll("[data-field-add]").forEach(function (button) {
+      const key = button.getAttribute("data-field-add");
+      button.disabled = selectedFields.indexOf(key) !== -1;
+    });
+  }
+
+  function removeField(key) {
+    selectedFields = selectedFields.filter(function (row) { return row !== key; });
+    syncPayload();
+    renderSelected();
+    updatePreview();
+  }
+
+  function moveField(draggedKey, targetKey) {
+    if (!draggedKey || !targetKey || draggedKey === targetKey) {
+      return;
+    }
+    const next = selectedFields.filter(function (row) { return row !== draggedKey; });
+    const targetIndex = next.indexOf(targetKey);
+    if (targetIndex === -1) {
+      return;
+    }
+    next.splice(targetIndex, 0, draggedKey);
+    selectedFields = next;
+    syncPayload();
+    renderSelected();
+    updatePreview();
+  }
+
+  function renderSelected() {
+    selectedListEl.innerHTML = "";
+    if (!selectedFields.length) {
+      const empty = document.createElement("div");
+      empty.className = "ald-selected-empty";
+      empty.textContent = "Nessun campo selezionato.";
+      selectedListEl.appendChild(empty);
+      setAddButtonsState();
+      return;
+    }
+
+    selectedFields.forEach(function (key) {
+      const meta = fieldMap[key];
+      if (!meta) {
+        return;
+      }
+      const item = document.createElement("div");
+      item.className = "ald-selected-item";
+      item.setAttribute("draggable", "true");
+      item.setAttribute("data-selected-key", key);
+      item.innerHTML = [
+        '<div class="ald-drag">::</div>',
+        '<div><div class="ald-selected-title"></div><div class="ald-selected-meta"></div></div>',
+        '<button type="button" class="ald-remove">Rimuovi</button>'
+      ].join("");
+      item.querySelector(".ald-selected-title").textContent = meta.label;
+      item.querySelector(".ald-selected-meta").textContent = meta.value || meta.group;
+      item.querySelector(".ald-remove").addEventListener("click", function () {
+        removeField(key);
+      });
+      item.addEventListener("dragstart", function () {
+        item.classList.add("is-dragging");
+        item.dataset.dragging = "1";
+      });
+      item.addEventListener("dragend", function () {
+        item.classList.remove("is-dragging");
+        delete item.dataset.dragging;
+      });
+      item.addEventListener("dragover", function (event) {
+        event.preventDefault();
+      });
+      item.addEventListener("drop", function (event) {
+        event.preventDefault();
+        const dragging = selectedListEl.querySelector("[data-dragging='1']");
+        if (!dragging) {
+          return;
+        }
+        moveField(dragging.getAttribute("data-selected-key"), key);
+      });
+      selectedListEl.appendChild(item);
+    });
+    setAddButtonsState();
+  }
+
+  function fieldText(key) {
+    const meta = fieldMap[key] || {};
+    return meta.value || meta.label || "";
+  }
+
+  function updatePreview() {
+    const widthMm = parseFloat(sizeFields.width && sizeFields.width.value) || 100;
+    const heightMm = parseFloat(sizeFields.height && sizeFields.height.value) || 62;
+    const qrMm = parseFloat(sizeFields.qr && sizeFields.qr.value) || 24;
+    const logoMm = parseFloat(sizeFields.logo && sizeFields.logo.value) || 10;
+    const radiusMm = parseFloat(sizeFields.radius && sizeFields.radius.value) || 4;
+    const titlePt = parseFloat(sizeFields.title && sizeFields.title.value) || 16;
+    const bodyPt = parseFloat(sizeFields.body && sizeFields.body.value) || 8;
+    const mmToPx = 3.78;
+
+    previewEl.style.setProperty("--label-width", Math.max(260, widthMm * mmToPx) + "px");
+    previewEl.style.setProperty("--label-height", Math.max(180, heightMm * mmToPx) + "px");
+    previewEl.style.setProperty("--qr-size", Math.max(64, qrMm * mmToPx) + "px");
+    previewEl.style.setProperty("--label-bg", colorFields.background && colorFields.background.value || "#FFFFFF");
+    previewEl.style.setProperty("--label-border", colorFields.border && colorFields.border.value || "#111827");
+    previewEl.style.setProperty("--label-text", colorFields.text && colorFields.text.value || "#0F172A");
+    previewEl.style.setProperty("--label-accent", colorFields.accent && colorFields.accent.value || "#1D4ED8");
+    previewEl.style.borderRadius = Math.max(0, radiusMm * mmToPx) + "px";
+    previewEl.style.borderWidth = boolFields.border && boolFields.border.checked ? "2px" : "0";
+    previewEl.classList.toggle("qr-left", !!(qrPositionField && qrPositionField.value === "LEFT"));
+
+    if (previewLogoWrap && previewLogo) {
+      previewLogo.style.height = Math.max(24, logoMm * mmToPx) + "px";
+      const alignment = logoAlignmentField && logoAlignmentField.value || "LEFT";
+      previewLogoWrap.style.justifyContent = alignment === "CENTER" ? "center" : (alignment === "RIGHT" ? "flex-end" : "flex-start");
+      const logoVisible = !!(boolFields.showLogo && boolFields.showLogo.checked);
+      previewLogoWrap.style.display = logoVisible ? "flex" : "none";
+      if (logoFileField && logoFileField.files && logoFileField.files.length) {
+        const file = logoFileField.files[0];
+        const reader = new FileReader();
+        reader.onload = function (event) {
+          previewLogo.src = event.target && event.target.result ? event.target.result : (logoMeta.url || "");
+        };
+        reader.readAsDataURL(file);
+      } else if (logoClearField && logoClearField.checked) {
+        previewLogo.src = logoMeta.default_url || logoMeta.url || "";
+      } else {
+        previewLogo.src = logoMeta.url || logoMeta.default_url || "";
+      }
+    }
+
+    previewPrimary.style.fontSize = Math.max(16, titlePt * 1.33) + "px";
+    previewSecondary.style.fontSize = Math.max(14, (titlePt - 3) * 1.25) + "px";
+    previewBody.style.fontSize = Math.max(11, bodyPt * 1.22) + "px";
+
+    const primaryKey = titlePrimarySelect.value;
+    const secondaryKey = titleSecondarySelect ? titleSecondarySelect.value : "";
+    previewPrimary.textContent = fieldText(primaryKey) || targetMeta.fallbackPrimary || "Asset";
+    const secondaryText = secondaryKey ? fieldText(secondaryKey) : "";
+    previewSecondary.textContent = secondaryText || targetMeta.fallbackSecondary || "";
+    previewSecondary.style.display = secondaryText ? "" : "none";
+
+    previewBody.innerHTML = "";
+    selectedFields.forEach(function (key) {
+      const meta = fieldMap[key];
+      if (!meta) {
+        return;
+      }
+      const row = document.createElement("div");
+      row.className = "ald-preview-row";
+      const value = meta.value || "-";
+      row.textContent = boolFields.showLabels && boolFields.showLabels.checked ? (meta.label + ": " + value) : value;
+      previewBody.appendChild(row);
+    });
+
+    previewTargetLabel.textContent = "Target QR: " + (targetMeta.label || "Scheda asset");
+    previewTargetLabel.style.display = boolFields.showTargetLabel && boolFields.showTargetLabel.checked ? "" : "none";
+    previewHelp.style.display = boolFields.showHelp && boolFields.showHelp.checked ? "" : "none";
+    previewTargetUrl.textContent = targetMeta.url || "";
+    previewTargetUrl.style.display = boolFields.showTargetUrl && boolFields.showTargetUrl.checked ? "" : "none";
+  }
+
+  document.querySelectorAll("[data-field-add]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      const key = button.getAttribute("data-field-add");
+      if (!key || selectedFields.indexOf(key) !== -1) {
+        return;
+      }
+      selectedFields.push(key);
+      syncPayload();
+      renderSelected();
+      updatePreview();
+    });
+  });
+
+  [
+    titlePrimarySelect,
+    titleSecondarySelect,
+    qrPositionField,
+    colorFields.background,
+    colorFields.border,
+    colorFields.text,
+    colorFields.accent,
+    sizeFields.width,
+    sizeFields.height,
+    sizeFields.qr,
+    sizeFields.logo,
+    sizeFields.radius,
+    sizeFields.title,
+    sizeFields.body,
+    boolFields.showLogo,
+    boolFields.border,
+    boolFields.showLabels,
+    boolFields.showTargetLabel,
+    boolFields.showHelp,
+    boolFields.showTargetUrl,
+    logoAlignmentField,
+    logoFileField,
+    logoClearField
+  ].forEach(function (node) {
+    if (!node) {
+      return;
+    }
+    node.addEventListener("input", updatePreview);
+    node.addEventListener("change", updatePreview);
+  });
+
+  syncPayload();
+  renderSelected();
+  updatePreview();
+})();
+</script>
+{% endblock %}

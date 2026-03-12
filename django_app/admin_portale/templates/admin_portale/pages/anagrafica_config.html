@@ -1,0 +1,640 @@
+{% extends "core/base.html" %}
+
+{% block title %}Configurazione Anagrafica | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .ac-tipo-head { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted,#888);padding:8px 0 4px;border-bottom:2px solid var(--border,#e5e7eb);margin-bottom:8px; }
+  .ac-row { display:flex;align-items:center;gap:10px;padding:6px 8px;border-bottom:1px solid var(--border-light,#f3f4f6);font-size:13px; }
+  .ac-row:last-child { border-bottom:none; }
+  .ac-label { flex:1; }
+  .ac-toggle { width:14px;height:14px;cursor:pointer;accent-color:var(--accent,#3b82f6); }
+  .ac-btn-edit { font-size:11px;padding:2px 8px;border:1px solid var(--border,#d1d5db);border-radius:4px;background:none;cursor:pointer;color:var(--text-muted,#555); }
+  .ac-btn-del  { font-size:11px;padding:2px 8px;border:1px solid #fca5a5;border-radius:4px;background:none;cursor:pointer;color:#dc2626; }
+  .ac-add-btn  { font-size:12px;font-weight:600;padding:5px 14px;border:1px dashed var(--accent,#3b82f6);border-radius:6px;background:none;cursor:pointer;color:var(--accent,#3b82f6);margin-top:8px; }
+  .ac-no       { color:#94a3b8; }
+  .cl-badge-obblig { font-size:10px;background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:3px;border:1px solid #fcd34d; }
+  .cl-voce-tipo { font-size:11px;color:var(--text-muted,#888);background:var(--bg-subtle,#f3f4f6);padding:2px 6px;border-radius:3px; }
+
+  /* Modal */
+  .ac-modal-backdrop { display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center; }
+  .ac-modal-backdrop.open { display:flex; }
+  .ac-modal { background:#fff;border-radius:10px;padding:24px;width:480px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.18); }
+  .ac-modal h3 { margin:0 0 16px;font-size:16px; }
+  .ac-modal .field { margin-bottom:12px; }
+  .ac-modal label { display:block;font-size:12px;font-weight:600;color:var(--text-muted,#888);margin-bottom:4px; }
+  .ac-modal .input { width:100%;box-sizing:border-box; }
+  .ac-modal-footer { display:flex;gap:8px;justify-content:flex-end;margin-top:16px; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Configurazione Anagrafica" page_subtitle="Gestisci le liste di opzioni (dropdown) e i campi extra del profilo dipendente." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+
+    {# ── Colonna sinistra: Opzioni Dropdown ── #}
+    <div>
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted,#888);margin-bottom:8px;">Liste opzioni dropdown</div>
+
+      {# Card Import dipendenti CSV #}
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-head">
+          <div class="card-title">Import dipendenti (CSV)</div>
+        </div>
+        <div class="card-body" style="padding:12px 16px;">
+          <form method="post" action="{% url 'admin_portale:anagrafica_import_csv' %}" enctype="multipart/form-data" style="display:grid;grid-template-columns:1fr 180px auto;gap:10px;align-items:end;">
+            {% csrf_token %}
+            <div>
+              <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted,#888);margin-bottom:4px;">File CSV</label>
+              <input class="input" type="file" name="dipendenti_csv" accept=".csv,text/csv" required>
+            </div>
+            <div>
+              <label style="display:block;font-size:12px;font-weight:600;color:var(--text-muted,#888);margin-bottom:4px;">Dominio email</label>
+              <input class="input" type="text" name="email_domain" value="{{ email_domain_default }}" placeholder="example.local">
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
+                <input type="checkbox" name="dry_run" value="1">
+                Dry-run
+              </label>
+              <button class="btn" type="submit">Importa CSV</button>
+            </div>
+            <div style="grid-column:1 / -1;display:flex;gap:14px;align-items:center;flex-wrap:wrap;">
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
+                <input type="checkbox" name="sync_legacy_users" value="1" id="sync-legacy-users">
+                Crea/Aggiorna utenti login offline
+              </label>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <label for="default-password" style="font-size:12px;color:var(--text-muted,#888);">Password iniziale</label>
+                <input class="input" type="password" id="default-password" name="default_password" style="width:220px;" placeholder="Obbligatoria se sync attivo">
+              </div>
+            </div>
+          </form>
+          <div style="font-size:12px;color:var(--text-muted,#888);margin-top:8px;">
+            Colonne attese: <code>Nominativo</code>, <code>COGNOME</code>, <code>NOME</code>, <code>USERNAME</code>, opzionale <code>MANSIONE</code>.
+          </div>
+        </div>
+      </div>
+
+      {# Card Reparti #}
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-head">
+          <div class="card-title">Reparti</div>
+        </div>
+        <div class="card-body" style="padding:12px 16px;">
+          <div class="ac-tipo-head">Opzioni configurate ({{ opzioni_by_tipo.reparto|length }})</div>
+          {% for o in opzioni_by_tipo.reparto %}
+            <div class="ac-row">
+              <input type="checkbox" class="ac-toggle opzione-toggle" data-id="{{ o.id }}"
+                {% if o.is_active %}checked{% endif %} title="Attiva/disattiva">
+              <span class="ac-label {% if not o.is_active %}ac-no{% endif %}">{{ o.valore }}</span>
+              {% if o.valore in reparti_con_mapping %}
+                <span style="font-size:10px;background:#dcfce7;color:#166534;padding:1px 6px;border-radius:3px;border:1px solid #bbf7d0;">CAR</span>
+              {% endif %}
+              <span style="font-size:11px;color:var(--text-muted,#888)">#{{ o.ordine }}</span>
+              <button class="ac-btn-edit opzione-edit-btn" data-id="{{ o.id }}" data-tipo="reparto"
+                data-valore="{{ o.valore|escapejs }}" data-ordine="{{ o.ordine }}">Modifica</button>
+              <button class="ac-btn-del opzione-del-btn" data-id="{{ o.id }}">Elimina</button>
+            </div>
+          {% empty %}
+            <div style="color:var(--text-muted,#888);font-size:13px;padding:8px 0;">Nessuna opzione configurata.</div>
+          {% endfor %}
+          <button class="ac-add-btn opzione-add-btn" data-tipo="reparto">+ Aggiungi reparto</button>
+        </div>
+      </div>
+
+      {# Card Associazioni Reparto → Capo Reparto #}
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-head">
+          <div class="card-title">Associazioni Reparto → Capo Reparto</div>
+        </div>
+        <div class="card-body" style="padding:12px 16px;">
+          <div style="font-size:12px;color:var(--text-muted,#888);margin:0 0 10px;">
+            Quando un dipendente viene assegnato a un reparto, il Capo Reparto corrispondente
+            viene impostato automaticamente. Usa <strong>Sincronizza</strong> per aggiornare gli utenti già esistenti.
+          </div>
+          <div class="ac-tipo-head">Associazioni configurate ({{ reparto_capo_mappings|length }})</div>
+          {% for m in reparto_capo_mappings %}
+            <div class="ac-row rcm-row" data-id="{{ m.id }}" data-reparto="{{ m.reparto|escapejs }}">
+              <span class="ac-label">
+                <strong>{{ m.reparto }}</strong>
+                <span style="color:var(--text-muted,#888);margin:0 6px;">→</span>
+                {{ m.caporeparto_label|default:m.caporeparto }}
+              </span>
+              <button class="ac-btn-edit rcm-edit-btn" data-id="{{ m.id }}"
+                data-reparto="{{ m.reparto|escapejs }}" data-caporeparto="{{ m.caporeparto|escapejs }}">Modifica</button>
+              <button class="rcm-sync-btn ac-btn-edit" data-reparto="{{ m.reparto|escapejs }}"
+                style="border-color:#86efac;color:#16a34a;" title="Aggiorna caporeparto per tutti gli utenti di questo reparto">Sincronizza</button>
+              <button class="ac-btn-del rcm-del-btn" data-id="{{ m.id }}">Elimina</button>
+            </div>
+          {% empty %}
+            <div style="color:var(--text-muted,#888);font-size:13px;padding:8px 0;">Nessuna associazione configurata.</div>
+          {% endfor %}
+          <button class="ac-add-btn" id="btn-add-rcm">+ Associa reparto a capo reparto</button>
+        </div>
+      </div>
+
+      {# Card Capireparto #}
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-head">
+          <div class="card-title">Capireparto</div>
+        </div>
+        <div class="card-body" style="padding:12px 16px;">
+          <div class="ac-tipo-head">Opzioni configurate ({{ opzioni_by_tipo.caporeparto|length }})</div>
+          <div style="font-size:12px;color:var(--text-muted,#888);margin:0 0 8px;">
+            Lista locale del portale. Ogni voce viene collegata a un utente reale del portale; se il suo ruolo attuale è `utente`, viene promosso automaticamente a `caporeparto`.
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+            <a class="ac-add-btn" href="{% url 'gestione_reparto' %}" style="margin-top:0;text-decoration:none;">Assegna utenti ai reparti</a>
+          </div>
+          {% for o in opzioni_by_tipo.caporeparto %}
+            <div class="ac-row">
+              <input type="checkbox" class="ac-toggle opzione-toggle" data-id="{{ o.id }}"
+                {% if o.is_active %}checked{% endif %} title="Attiva/disattiva">
+              <span class="ac-label {% if not o.is_active %}ac-no{% endif %}">{{ o.display_label|default:o.valore }}</span>
+              <span style="font-size:11px;color:var(--text-muted,#888)">#{{ o.ordine }}</span>
+              <button class="ac-btn-edit opzione-edit-btn" data-id="{{ o.id }}" data-tipo="caporeparto"
+                data-valore="{{ o.valore|escapejs }}" data-legacy-user-id="{{ o.resolved_legacy_user_id|default:'' }}" data-ordine="{{ o.ordine }}">Modifica</button>
+              <button class="ac-btn-del opzione-del-btn" data-id="{{ o.id }}">Elimina</button>
+            </div>
+          {% empty %}
+            <div style="color:var(--text-muted,#888);font-size:13px;padding:8px 0;">Nessuna opzione configurata.</div>
+          {% endfor %}
+          <button class="ac-add-btn opzione-add-btn" data-tipo="caporeparto">+ Aggiungi caporeparto</button>
+        </div>
+      </div>
+
+      {# Card Macchine #}
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Macchine</div>
+        </div>
+        <div class="card-body" style="padding:12px 16px;">
+          <div class="ac-tipo-head">Opzioni configurate ({{ opzioni_by_tipo.macchina|length }})</div>
+          {% for o in opzioni_by_tipo.macchina %}
+            <div class="ac-row">
+              <input type="checkbox" class="ac-toggle opzione-toggle" data-id="{{ o.id }}"
+                {% if o.is_active %}checked{% endif %} title="Attiva/disattiva">
+              <span class="ac-label {% if not o.is_active %}ac-no{% endif %}">{{ o.valore }}</span>
+              <span style="font-size:11px;color:var(--text-muted,#888)">#{{ o.ordine }}</span>
+              <button class="ac-btn-edit opzione-edit-btn" data-id="{{ o.id }}" data-tipo="macchina"
+                data-valore="{{ o.valore|escapejs }}" data-ordine="{{ o.ordine }}">Modifica</button>
+              <button class="ac-btn-del opzione-del-btn" data-id="{{ o.id }}">Elimina</button>
+            </div>
+          {% empty %}
+            <div style="color:var(--text-muted,#888);font-size:13px;padding:8px 0;">Nessuna opzione configurata.</div>
+          {% endfor %}
+          <button class="ac-add-btn opzione-add-btn" data-tipo="macchina">+ Aggiungi macchina</button>
+        </div>
+      </div>
+    </div>
+
+    {# ── Colonna destra: Campi Extra ── #}
+    <div>
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted,#888);margin-bottom:8px;">Campi extra profilo</div>
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Campi extra</div>
+        </div>
+        <div class="card-body" style="padding:12px 16px;">
+          <div class="ac-tipo-head">Campi configurati ({{ anagrafica_voci|length }})</div>
+          {% for v in anagrafica_voci %}
+            <div class="ac-row" data-voce-id="{{ v.id }}">
+              <input type="checkbox" class="ac-toggle voce-toggle" data-id="{{ v.id }}"
+                {% if v.is_active %}checked{% endif %} title="Attiva/disattiva">
+              <span class="ac-label {% if not v.is_active %}ac-no{% endif %}">{{ v.label }}</span>
+              <span class="cl-voce-tipo">{{ v.categoria|default:"Campi extra" }}</span>
+              {% if v.obbligatorio %}<span class="cl-badge-obblig">obbl.</span>{% endif %}
+              <span class="cl-voce-tipo">{{ v.get_tipo_campo_display }}</span>
+              <span style="font-size:11px;color:var(--text-muted,#888)">#{{ v.ordine }}</span>
+              <button class="ac-btn-edit voce-edit-btn" data-id="{{ v.id }}"
+                data-label="{{ v.label|escapejs }}"
+                data-categoria="{{ v.categoria|default:'Campi extra'|escapejs }}"
+                data-tipo-campo="{{ v.tipo_campo }}"
+                data-scelte="{{ v.scelte_json|escapejs }}"
+                data-obbligatorio="{{ v.obbligatorio|yesno:'true,false' }}"
+                data-ordine="{{ v.ordine }}">Modifica</button>
+              {% if not v.is_active %}
+                <button class="ac-btn-del voce-del-btn" data-id="{{ v.id }}">Elimina</button>
+              {% endif %}
+            </div>
+          {% empty %}
+            <div style="color:var(--text-muted,#888);font-size:13px;padding:8px 0;">Nessun campo extra configurato.</div>
+          {% endfor %}
+          <button class="ac-add-btn" id="btn-add-voce">+ Aggiungi campo</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  {# ── Modal Opzione ── #}
+  <div class="ac-modal-backdrop" id="opzione-modal">
+    <div class="ac-modal">
+      <h3 id="opzione-modal-title">Aggiungi opzione</h3>
+      <input type="hidden" id="om-id" value="">
+
+      <div class="field">
+        <label>Tipo *</label>
+        <select class="input" id="om-tipo-sel">
+          <option value="reparto">Reparto</option>
+          <option value="caporeparto">Caporeparto</option>
+          <option value="macchina">Macchina</option>
+        </select>
+      </div>
+      <div class="field">
+        <label id="om-valore-label">Valore *</label>
+        <input class="input" type="text" id="om-valore" placeholder="es. Produzione, Mario Rossi, CNC-03">
+      </div>
+      <div class="field">
+        <label>Ordine</label>
+        <input class="input" type="number" id="om-ordine" value="100" min="1" style="width:80px;">
+      </div>
+      <div class="ac-modal-footer">
+        <button class="btn btn-secondary" id="om-cancel">Annulla</button>
+        <button class="btn" id="om-save">Salva</button>
+      </div>
+      <div id="om-status" style="font-size:12px;margin-top:8px;min-height:16px;"></div>
+    </div>
+  </div>
+
+  {# ── Modal Voce Extra ── #}
+  <div class="ac-modal-backdrop" id="voce-modal">
+    <div class="ac-modal">
+      <h3 id="voce-modal-title">Aggiungi campo</h3>
+      <input type="hidden" id="vm-id" value="">
+
+      <div class="field">
+        <label>Categoria</label>
+        <input class="input" type="text" id="vm-categoria" placeholder="es. Contatti, Documenti, Sicurezza" value="Campi extra">
+      </div>
+      <div class="field">
+        <label>Descrizione campo *</label>
+        <input class="input" type="text" id="vm-label" placeholder="es. Taglia guanti, Patentino carrello, Turno">
+      </div>
+      <div class="field">
+        <label>Tipo campo</label>
+        <select class="input" id="vm-tipo-campo">
+          <option value="testo">Testo libero</option>
+          <option value="check">Checkbox (sì/no)</option>
+          <option value="data">Data</option>
+          <option value="select">Scelta da lista</option>
+        </select>
+      </div>
+      <div class="field" id="vm-field-scelte" style="display:none;">
+        <label>Opzioni (una per riga)</label>
+        <textarea class="input" id="vm-scelte" rows="3" placeholder="Opzione 1&#10;Opzione 2&#10;Opzione 3"></textarea>
+      </div>
+      <div class="field" style="display:flex;gap:16px;align-items:center;">
+        <label style="display:flex;align-items:center;gap:6px;font-weight:normal;cursor:pointer;">
+          <input type="checkbox" id="vm-obbligatorio"> Obbligatorio
+        </label>
+        <div>
+          <label>Ordine</label>
+          <input class="input" type="number" id="vm-ordine" value="100" min="1" style="width:80px;display:inline-block;margin-left:6px;">
+        </div>
+      </div>
+      <div class="ac-modal-footer">
+        <button class="btn btn-secondary" id="vm-cancel">Annulla</button>
+        <button class="btn" id="vm-save">Salva</button>
+      </div>
+      <div id="vm-status" style="font-size:12px;margin-top:8px;min-height:16px;"></div>
+    </div>
+  </div>
+
+  {# ── Modal Reparto → Capo Reparto ── #}
+  <div class="ac-modal-backdrop" id="rcm-modal">
+    <div class="ac-modal">
+      <h3 id="rcm-modal-title">Associa reparto a capo reparto</h3>
+      <input type="hidden" id="rcm-id" value="">
+      <div class="field">
+        <label>Reparto *</label>
+        <select class="input" id="rcm-reparto">
+          <option value="">— seleziona —</option>
+          {% for o in opzioni_by_tipo.reparto %}
+            {% if o.is_active %}<option value="{{ o.valore|escapejs }}">{{ o.valore }}</option>{% endif %}
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Capo Reparto *</label>
+        <select class="input" id="rcm-caporeparto">
+          <option value="">— seleziona —</option>
+          {% for o in opzioni_by_tipo.caporeparto %}
+            {% if o.is_active %}<option value="{{ o.valore|escapejs }}">{{ o.display_label|default:o.valore }}</option>{% endif %}
+          {% endfor %}
+        </select>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted,#888);margin-bottom:8px;">
+        Dopo il salvataggio usa <strong>Sincronizza</strong> sulla riga per aggiornare i dipendenti già assegnati a questo reparto.
+      </div>
+      <div class="ac-modal-footer">
+        <button class="btn btn-secondary" id="rcm-cancel">Annulla</button>
+        <button class="btn" id="rcm-save">Salva</button>
+      </div>
+      <div id="rcm-status" style="font-size:12px;margin-top:8px;min-height:16px;"></div>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    "use strict";
+    const CSRF = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || "";
+
+    const OPZ_CREATE = "{% url 'admin_portale:api_opzione_create' %}";
+    const OPZ_UPDATE = "{% url 'admin_portale:api_opzione_update' %}";
+    const OPZ_TOGGLE = "{% url 'admin_portale:api_opzione_toggle' %}";
+    const OPZ_DELETE = "{% url 'admin_portale:api_opzione_delete' %}";
+    const VCE_CREATE = "{% url 'admin_portale:api_anagrafica_voce_create' %}";
+    const VCE_UPDATE = "{% url 'admin_portale:api_anagrafica_voce_update' %}";
+    const VCE_TOGGLE = "{% url 'admin_portale:api_anagrafica_voce_toggle' %}";
+    const VCE_DELETE = "{% url 'admin_portale:api_anagrafica_voce_delete' %}";
+
+    async function apiPost(url, body) {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+        body: JSON.stringify(body),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.ok) throw new Error(d.error || "HTTP " + r.status);
+      return d;
+    }
+
+    // ════════════════ OPZIONI DROPDOWN ════════════════
+
+    document.querySelectorAll(".opzione-toggle").forEach(function (cb) {
+      cb.addEventListener("change", async function () {
+        try {
+          await apiPost(OPZ_TOGGLE, { id: parseInt(cb.dataset.id, 10), is_active: cb.checked });
+          location.reload();
+        } catch (e) {
+          cb.checked = !cb.checked;
+          alert("Errore: " + e.message);
+        }
+      });
+    });
+
+    document.querySelectorAll(".opzione-del-btn").forEach(function (btn) {
+      btn.addEventListener("click", async function () {
+        if (!confirm("Eliminare questa opzione?")) return;
+        try {
+          await apiPost(OPZ_DELETE, { id: parseInt(btn.dataset.id, 10) });
+          location.reload();
+        } catch (e) {
+          alert("Errore: " + e.message);
+        }
+      });
+    });
+
+    // Modal Opzione
+    const omModal   = document.getElementById("opzione-modal");
+    const omTitle   = document.getElementById("opzione-modal-title");
+    const omId      = document.getElementById("om-id");
+    const omTipoSel = document.getElementById("om-tipo-sel");
+    const omValoreLabel = document.getElementById("om-valore-label");
+    const omValore  = document.getElementById("om-valore");
+    const omOrdine  = document.getElementById("om-ordine");
+    const omStatus  = document.getElementById("om-status");
+
+    function syncOpzioneInputMeta() {
+      const isCapo = omTipoSel.value === "caporeparto";
+      omValoreLabel.textContent = isCapo ? "Utente caporeparto *" : "Valore *";
+      omValore.placeholder = isCapo
+        ? "Email o nome utente già presente nel portale"
+        : "es. Produzione, Mario Rossi, CNC-03";
+    }
+
+    function openOpzioneModal(tipo, id, valore, ordine) {
+      omId.value           = id || "";
+      omTipoSel.value      = tipo || "reparto";
+      omTipoSel.disabled   = !!id;
+      omValore.value       = valore || "";
+      omOrdine.value       = ordine || 100;
+      omStatus.textContent = "";
+      omTitle.textContent  = id ? "Modifica opzione" : "Aggiungi opzione";
+      syncOpzioneInputMeta();
+      omModal.classList.add("open");
+      omValore.focus();
+    }
+
+    document.getElementById("om-cancel").addEventListener("click", function () { omModal.classList.remove("open"); });
+    omModal.addEventListener("click", function (e) { if (e.target === omModal) omModal.classList.remove("open"); });
+    omTipoSel.addEventListener("change", syncOpzioneInputMeta);
+
+    document.querySelectorAll(".opzione-add-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () { openOpzioneModal(btn.dataset.tipo, null, "", 100); });
+    });
+    document.querySelectorAll(".opzione-edit-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        openOpzioneModal(btn.dataset.tipo, btn.dataset.id, btn.dataset.valore, btn.dataset.ordine);
+      });
+    });
+
+    document.getElementById("om-save").addEventListener("click", async function () {
+      const valore = omValore.value.trim();
+      if (!valore) { omStatus.textContent = "Inserisci un valore."; omStatus.style.color = "#dc2626"; return; }
+      const body = { valore: valore, ordine: parseInt(omOrdine.value, 10) || 100 };
+      try {
+        if (omId.value) {
+          body.id = parseInt(omId.value, 10);
+          await apiPost(OPZ_UPDATE, body);
+        } else {
+          body.tipo = omTipoSel.value;
+          await apiPost(OPZ_CREATE, body);
+        }
+        location.reload();
+      } catch (e) {
+        omStatus.textContent = "Errore: " + e.message;
+        omStatus.style.color = "#dc2626";
+      }
+    });
+
+    // ════════════════ CAMPI EXTRA (VOCI) ════════════════
+
+    document.querySelectorAll(".voce-toggle").forEach(function (cb) {
+      cb.addEventListener("change", async function () {
+        try {
+          await apiPost(VCE_TOGGLE, { id: parseInt(cb.dataset.id, 10), is_active: cb.checked });
+          location.reload();
+        } catch (e) {
+          cb.checked = !cb.checked;
+          alert("Errore: " + e.message);
+        }
+      });
+    });
+
+    document.querySelectorAll(".voce-del-btn").forEach(function (btn) {
+      btn.addEventListener("click", async function () {
+        if (!confirm("Eliminare questo campo? Operazione irreversibile se non ci sono risposte.")) return;
+        try {
+          await apiPost(VCE_DELETE, { id: parseInt(btn.dataset.id, 10) });
+          location.reload();
+        } catch (e) {
+          alert("Errore: " + e.message);
+        }
+      });
+    });
+
+    // Modal Voce
+    const vmModal     = document.getElementById("voce-modal");
+    const vmTitle     = document.getElementById("voce-modal-title");
+    const vmId        = document.getElementById("vm-id");
+    const vmCategoria = document.getElementById("vm-categoria");
+    const vmLabel     = document.getElementById("vm-label");
+    const vmTipoCampo = document.getElementById("vm-tipo-campo");
+    const vmScelte    = document.getElementById("vm-scelte");
+    const vmFieldSc   = document.getElementById("vm-field-scelte");
+    const vmObbl      = document.getElementById("vm-obbligatorio");
+    const vmOrdine    = document.getElementById("vm-ordine");
+    const vmStatus    = document.getElementById("vm-status");
+
+    vmTipoCampo.addEventListener("change", function () {
+      vmFieldSc.style.display = vmTipoCampo.value === "select" ? "" : "none";
+    });
+
+    function openVoceModal(id, data) {
+      vmId.value        = id || "";
+      vmCategoria.value = (data && data.categoria) || "Campi extra";
+      vmLabel.value     = (data && data.label) || "";
+      vmTipoCampo.value = (data && data.tipoCampo) || "testo";
+      vmScelte.value    = (data && data.scelte) || "";
+      vmObbl.checked    = (data && data.obbligatorio === "true") || false;
+      vmOrdine.value    = (data && data.ordine) || 100;
+      vmFieldSc.style.display = vmTipoCampo.value === "select" ? "" : "none";
+      vmStatus.textContent = "";
+      vmTitle.textContent  = id ? "Modifica campo" : "Aggiungi campo";
+      vmModal.classList.add("open");
+      vmLabel.focus();
+    }
+
+    document.getElementById("vm-cancel").addEventListener("click", function () { vmModal.classList.remove("open"); });
+    vmModal.addEventListener("click", function (e) { if (e.target === vmModal) vmModal.classList.remove("open"); });
+
+    document.getElementById("btn-add-voce").addEventListener("click", function () { openVoceModal(null, null); });
+
+    document.querySelectorAll(".voce-edit-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        openVoceModal(btn.dataset.id, {
+          categoria:    btn.dataset.categoria,
+          label:        btn.dataset.label,
+          tipoCampo:    btn.dataset.tipoCampo,
+          scelte:       (function () { try { return (JSON.parse(btn.dataset.scelte) || []).join("\n"); } catch (e) { return ""; } })(),
+          obbligatorio: btn.dataset.obbligatorio,
+          ordine:       btn.dataset.ordine,
+        });
+      });
+    });
+
+    document.getElementById("vm-save").addEventListener("click", async function () {
+      const label = vmLabel.value.trim();
+      if (!label) { vmStatus.textContent = "Inserisci una descrizione."; vmStatus.style.color = "#dc2626"; return; }
+      const scelte = vmTipoCampo.value === "select"
+        ? vmScelte.value.split("\n").map(function (s) { return s.trim(); }).filter(Boolean)
+        : [];
+      const body = {
+        categoria: vmCategoria.value.trim() || "Campi extra",
+        label: label,
+        tipo_campo: vmTipoCampo.value,
+        scelte: scelte,
+        obbligatorio: vmObbl.checked,
+        ordine: parseInt(vmOrdine.value, 10) || 100,
+      };
+      try {
+        if (vmId.value) {
+          body.id = parseInt(vmId.value, 10);
+          await apiPost(VCE_UPDATE, body);
+        } else {
+          await apiPost(VCE_CREATE, body);
+        }
+        location.reload();
+      } catch (e) {
+        vmStatus.textContent = "Errore: " + e.message;
+        vmStatus.style.color = "#dc2626";
+      }
+    });
+
+    // ════════════════ REPARTO → CAPO REPARTO ════════════════
+
+    const RCM_SET    = "{% url 'admin_portale:api_reparto_capo_set' %}";
+    const RCM_DELETE = "{% url 'admin_portale:api_reparto_capo_delete' %}";
+    const RCM_SYNC   = "{% url 'admin_portale:api_reparto_capo_sync' %}";
+
+    const rcmModal      = document.getElementById("rcm-modal");
+    const rcmTitle      = document.getElementById("rcm-modal-title");
+    const rcmId         = document.getElementById("rcm-id");
+    const rcmReparto    = document.getElementById("rcm-reparto");
+    const rcmCaporep    = document.getElementById("rcm-caporeparto");
+    const rcmStatus     = document.getElementById("rcm-status");
+
+    function openRcmModal(id, reparto, caporeparto) {
+      rcmId.value        = id || "";
+      rcmReparto.value   = reparto || "";
+      rcmReparto.disabled = !!id;   // in modifica il reparto è fisso
+      rcmCaporep.value   = caporeparto || "";
+      rcmStatus.textContent = "";
+      rcmTitle.textContent  = id ? "Modifica associazione" : "Associa reparto a capo reparto";
+      rcmModal.classList.add("open");
+      rcmCaporep.focus();
+    }
+
+    document.getElementById("rcm-cancel").addEventListener("click", function () { rcmModal.classList.remove("open"); });
+    rcmModal.addEventListener("click", function (e) { if (e.target === rcmModal) rcmModal.classList.remove("open"); });
+
+    document.getElementById("btn-add-rcm").addEventListener("click", function () { openRcmModal(null, "", ""); });
+
+    document.querySelectorAll(".rcm-edit-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        openRcmModal(btn.dataset.id, btn.dataset.reparto, btn.dataset.caporeparto);
+      });
+    });
+
+    document.getElementById("rcm-save").addEventListener("click", async function () {
+      const reparto    = rcmReparto.value.trim();
+      const caporeparto = rcmCaporep.value.trim();
+      if (!reparto)    { rcmStatus.textContent = "Seleziona un reparto.";      rcmStatus.style.color = "#dc2626"; return; }
+      if (!caporeparto){ rcmStatus.textContent = "Seleziona un capo reparto."; rcmStatus.style.color = "#dc2626"; return; }
+      try {
+        await apiPost(RCM_SET, { reparto, caporeparto });
+        location.reload();
+      } catch (e) {
+        rcmStatus.textContent = "Errore: " + e.message;
+        rcmStatus.style.color = "#dc2626";
+      }
+    });
+
+    document.querySelectorAll(".rcm-del-btn").forEach(function (btn) {
+      btn.addEventListener("click", async function () {
+        if (!confirm("Eliminare questa associazione?")) return;
+        try {
+          await apiPost(RCM_DELETE, { id: parseInt(btn.dataset.id, 10) });
+          location.reload();
+        } catch (e) {
+          alert("Errore: " + e.message);
+        }
+      });
+    });
+
+    document.querySelectorAll(".rcm-sync-btn").forEach(function (btn) {
+      btn.addEventListener("click", async function () {
+        const reparto = btn.dataset.reparto;
+        if (!confirm("Aggiornare il capo reparto per tutti i dipendenti del reparto \"" + reparto + "\"?\nL'operazione sovrascrive il valore attuale.")) return;
+        try {
+          const res = await apiPost(RCM_SYNC, { reparto });
+          alert("Sincronizzato: " + res.users_updated + " dipendente/i aggiornato/i.");
+          location.reload();
+        } catch (e) {
+          alert("Errore: " + e.message);
+        }
+      });
+    });
+
+  })();
+  </script>
+{% endblock %}

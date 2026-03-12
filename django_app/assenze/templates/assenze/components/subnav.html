@@ -1,0 +1,16 @@
+{% with current=request.resolver_match.url_name %}
+<div class="subnav">
+  <a class="sub-a{% if current == 'assenze_menu' %} active{% endif %}" href="{% url 'assenze_menu' %}">Menu</a>
+  <div class="sub-sep"></div>
+  <a class="sub-a{% if current == 'assenze_richiesta' %} active{% endif %}" href="{% url 'assenze_richiesta' %}">Nuova richiesta</a>
+  <a class="sub-a{% if current == 'assenze_gestione' %} active{% endif %}" href="{% url 'assenze_gestione' %}">Gestione</a>
+  {% if assenze_can_view_calendar %}
+    <a class="sub-a{% if current == 'assenze_calendario' %} active{% endif %}" href="{% url 'assenze_calendario' %}">Calendario</a>
+  {% endif %}
+  {% if assenze_can_edit_events %}
+    <a class="sub-a{% if current == 'assenze_car_dashboard' %} active{% endif %}" href="{% url 'assenze_car_dashboard' %}">Segnalazioni{% if car_pending_count %}<span style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:999px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;padding:0 4px;margin-left:5px;vertical-align:middle;">{{ car_pending_count }}</span>{% endif %}</a>
+  {% endif %}
+  <a class="sub-a{% if current == 'assenze_certifica_presenza' %} active{% endif %}" href="{% url 'assenze_certifica_presenza' %}">Certifica presenza</a>
+  <a class="sub-a" href="{% url 'dashboard_home' %}">Dashboard</a>
+</div>
+{% endwith %}

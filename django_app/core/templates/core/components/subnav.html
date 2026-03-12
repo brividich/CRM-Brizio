@@ -1,0 +1,11 @@
+{% if subnav_items %}
+<div class="subnav">
+  {% for item in subnav_items %}
+    <a class="sub-a{% if item.active %} active{% endif %}{% if item.coming %} coming{% endif %}"
+       href="{{ item.href }}"
+       {% if item.coming %}title="In arrivo"{% endif %}>
+      {{ item.label }}
+    </a>
+  {% endfor %}
+</div>
+{% endif %}

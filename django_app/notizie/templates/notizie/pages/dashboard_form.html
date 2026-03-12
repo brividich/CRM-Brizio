@@ -1,0 +1,223 @@
+{% extends "core/base.html" %}
+{% block title %}{% if is_create %}Nuova Notizia{% else %}Modifica Notizia{% endif %} - Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+.news-form-wrap { max-width: 1080px; margin: 2rem auto; padding: 0 1rem; }
+.news-form-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .8rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+.panel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  margin-bottom: .9rem;
+}
+.panel h2 { margin: 0 0 .8rem; font-size: 1rem; color: #1e3a5f; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+.field label { display: block; font-size: .8rem; color: #64748b; margin-bottom: .25rem; font-weight: 600; }
+.field input[type=text],
+.field input[type=url],
+.field input[type=number],
+.field textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  padding: .52rem .65rem;
+  font-size: .9rem;
+  font-family: inherit;
+}
+.field textarea { min-height: 220px; resize: vertical; }
+.inline-table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+.inline-table th {
+  background: #f8fafc;
+  color: #334155;
+  text-align: left;
+  padding: .45rem .55rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+.inline-table td {
+  border-bottom: 1px solid #f1f5f9;
+  padding: .48rem .55rem;
+  vertical-align: top;
+}
+.btn-row { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .8rem; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  text-decoration: none;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: .48rem .88rem;
+  font-size: .88rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: #fff;
+  color: #0f172a;
+}
+.btn:hover { background: #f8fafc; }
+.btn-primary { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
+.btn-green { background: #0f766e; color: #fff; border-color: #0f766e; }
+.tiny { font-size: .78rem; color: #64748b; }
+.errors { color: #b91c1c; font-size: .82rem; margin-top: .2rem; }
+@media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="news-form-wrap">
+  <div class="news-form-top">
+    <div>
+      <h1 style="margin:0;color:#1e3a5f;">{% if is_create %}Nuova Notizia{% else %}Modifica Notizia{% endif %}</h1>
+      {% if not is_create %}
+        <div class="tiny">ID {{ notizia.id }} | Stato: {{ notizia.get_stato_display }} | Versione: {{ notizia.versione }}</div>
+      {% endif %}
+    </div>
+    <a href="{% url 'notizie_dashboard' %}" class="btn">Torna alla dashboard</a>
+  </div>
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="panel">
+        {% for err in form.non_field_errors %}
+          <div class="errors">{{ err }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <div class="panel">
+      <h2>Contenuto</h2>
+      <div class="field" style="margin-bottom:.7rem;">
+        <label for="{{ form.titolo.id_for_label }}">Titolo</label>
+        {{ form.titolo }}
+        {% if form.titolo.errors %}<div class="errors">{{ form.titolo.errors|join:", " }}</div>{% endif %}
+      </div>
+      <div class="field" style="margin-bottom:.65rem;">
+        <label for="{{ form.corpo.id_for_label }}">Testo</label>
+        {{ form.corpo }}
+        {% if form.corpo.errors %}<div class="errors">{{ form.corpo.errors|join:", " }}</div>{% endif %}
+      </div>
+      <div class="field">
+        <label>{{ form.obbligatoria }} Comunicazione obbligatoria (richiede conferma lettura)</label>
+        {% if form.obbligatoria.errors %}<div class="errors">{{ form.obbligatoria.errors|join:", " }}</div>{% endif %}
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <h2>Audience Ruoli</h2>
+        <div class="tiny" style="margin-bottom:.6rem;">Se non imposti ruoli, la notizia e visibile a tutti.</div>
+        {{ audience_formset.management_form }}
+        {% if audience_formset.non_form_errors %}
+          <div class="errors" style="margin-bottom:.5rem;">{{ audience_formset.non_form_errors|join:", " }}</div>
+        {% endif %}
+        <table class="inline-table">
+          <thead>
+            <tr>
+              <th style="width:65%;">ID ruolo</th>
+              <th>Elimina</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in audience_formset.forms %}
+              <tr>
+                <td>
+                  {{ f.id }}
+                  {{ f.legacy_role_id }}
+                  {% if f.legacy_role_id.errors %}<div class="errors">{{ f.legacy_role_id.errors|join:", " }}</div>{% endif %}
+                </td>
+                <td>
+                  {% if f.instance.pk %}{{ f.DELETE }}{% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel">
+        <h2>Ruoli Disponibili</h2>
+        {% if roles_hint %}
+          <div style="max-height:260px;overflow:auto;border:1px solid #e2e8f0;border-radius:8px;">
+            <table class="inline-table">
+              <thead>
+                <tr><th style="width:28%;">ID</th><th>Nome</th></tr>
+              </thead>
+              <tbody>
+                {% for role in roles_hint %}
+                  <tr>
+                    <td>{{ role.id }}</td>
+                    <td>{{ role.name }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="tiny">Ruoli non disponibili: inserisci gli ID ruolo manualmente.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Allegati e Documenti</h2>
+      <div class="tiny" style="margin-bottom:.55rem;">Per ogni riga inserisci un file oppure un URL esterno.</div>
+      {{ allegati_formset.management_form }}
+      {% if allegati_formset.non_form_errors %}
+        <div class="errors" style="margin-bottom:.5rem;">{{ allegati_formset.non_form_errors|join:", " }}</div>
+      {% endif %}
+      <table class="inline-table">
+        <thead>
+          <tr>
+            <th style="width:28%;">Nome</th>
+            <th style="width:28%;">File</th>
+            <th style="width:32%;">URL esterno</th>
+            <th>Elimina</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in allegati_formset.forms %}
+            <tr>
+              <td>
+                {{ f.id }}
+                {{ f.nome_file }}
+                {% if f.nome_file.errors %}<div class="errors">{{ f.nome_file.errors|join:", " }}</div>{% endif %}
+              </td>
+              <td>
+                {{ f.file }}
+                {% if f.instance.pk and f.instance.file %}
+                  <div class="tiny">Attuale: <a href="{{ f.instance.file.url }}" target="_blank" rel="noopener">{{ f.instance.nome_file }}</a></div>
+                {% endif %}
+                {% if f.file.errors %}<div class="errors">{{ f.file.errors|join:", " }}</div>{% endif %}
+              </td>
+              <td>
+                {{ f.url_esterno }}
+                {% if f.url_esterno.errors %}<div class="errors">{{ f.url_esterno.errors|join:", " }}</div>{% endif %}
+                {% if f.non_field_errors %}<div class="errors">{{ f.non_field_errors|join:", " }}</div>{% endif %}
+              </td>
+              <td>
+                {% if f.instance.pk %}{{ f.DELETE }}{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">Salva bozza</button>
+      <button type="submit" name="save_and_publish" value="1" class="btn btn-green">Salva e pubblica</button>
+      <a href="{% url 'notizie_dashboard' %}" class="btn">Annulla</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

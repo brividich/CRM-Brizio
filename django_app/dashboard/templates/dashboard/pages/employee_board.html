@@ -1,0 +1,1013 @@
+{% extends "core/base.html" %}
+
+{% block title %}Scheda Dipendente | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Layout generale board ─────────────────────────────────────────────────── */
+#eb-root {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 0 40px;
+}
+
+.eb-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.eb-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ── Grid widget ───────────────────────────────────────────────────────────── */
+#eb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+/* ── Widget card ───────────────────────────────────────────────────────────── */
+.eb-widget {
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  transition: box-shadow .15s, opacity .15s;
+  position: relative;
+}
+.eb-widget.dragging { opacity: .45; box-shadow: 0 8px 24px rgba(0,0,0,.15); }
+.eb-widget.drag-over { outline: 2px dashed var(--accent,#3b82f6); outline-offset: 2px; }
+
+.eb-widget-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--border,#e2e8f0);
+  gap: 8px;
+  background: var(--bg-card,#fff);
+}
+.eb-widget-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text,#0f172a);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.eb-widget-icon { font-size: 15px; line-height: 1; }
+
+.eb-widget-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.eb-widget-body {
+  padding: 14px;
+}
+
+/* ── Drag handle ───────────────────────────────────────────────────────────── */
+.eb-drag-handle {
+  display: none;
+  cursor: grab;
+  color: #94a3b8;
+  font-size: 15px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  user-select: none;
+}
+.eb-drag-handle:active { cursor: grabbing; }
+#eb-root.edit-mode .eb-drag-handle { display: inline-flex; align-items: center; }
+
+/* ── Edit mode overlay ─────────────────────────────────────────────────────── */
+#eb-root.edit-mode .eb-widget { cursor: default; }
+
+.eb-remove-btn {
+  display: none;
+  background: #fee2e2;
+  border: none;
+  color: #dc2626;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  font-size: 14px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+}
+#eb-root.edit-mode .eb-remove-btn { display: inline-flex; }
+
+.eb-config-btn {
+  background: none;
+  border: 1px solid var(--border,#e2e8f0);
+  color: #64748b;
+  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.eb-config-btn:hover { background: var(--bg-hover,#f1f5f9); }
+
+.eb-refresh-btn {
+  background: none;
+  border: 1px solid var(--border,#e2e8f0);
+  color: #64748b;
+  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.eb-refresh-btn:hover { background: var(--bg-hover,#f1f5f9); }
+
+/* ── Add widget panel ──────────────────────────────────────────────────────── */
+#eb-add-panel {
+  display: none;
+  margin-top: 20px;
+  padding: 16px;
+  background: var(--bg-card,#fff);
+  border: 1px solid var(--border,#e2e8f0);
+  border-radius: 12px;
+}
+#eb-root.edit-mode #eb-add-panel { display: block; }
+
+.eb-add-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.eb-add-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border,#e2e8f0);
+  border-radius: 8px;
+  font-size: 12px;
+  background: #f8fafc;
+}
+.eb-add-item button {
+  background: none;
+  border: 1px solid var(--accent,#3b82f6);
+  color: var(--accent,#3b82f6);
+  border-radius: 4px;
+  padding: 3px 9px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.eb-add-item button:hover { background: var(--accent,#3b82f6); color: #fff; }
+.eb-add-item.hidden-widget { opacity: .5; }
+
+/* ── Config modal ──────────────────────────────────────────────────────────── */
+#eb-config-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0,0,0,.45);
+  align-items: center;
+  justify-content: center;
+}
+#eb-config-modal.open { display: flex; }
+#eb-config-modal-inner {
+  background: #fff;
+  border-radius: 14px;
+  padding: 24px;
+  min-width: 340px;
+  max-width: 480px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,.2);
+}
+#eb-config-modal h3 { margin: 0 0 16px; font-size: 15px; font-weight: 700; }
+.eb-cfg-field { margin-bottom: 14px; }
+.eb-cfg-field label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 4px; }
+.eb-cfg-field input[type=number],
+.eb-cfg-field select,
+.eb-cfg-field input[type=text] {
+  width: 100%; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;
+}
+.eb-cfg-toggle { display: flex; align-items: center; gap: 8px; }
+.eb-cfg-toggle input[type=checkbox] { width: 16px; height: 16px; }
+.eb-cfg-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+
+/* ── Widget-specific: profilo ──────────────────────────────────────────────── */
+.eb-profilo-grid {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+.eb-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg,#3b82f6,#8b5cf6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+}
+.eb-profilo-name { font-size: 16px; font-weight: 700; color: #0f172a; margin-bottom: 2px; }
+.eb-profilo-role { font-size: 12px; color: #64748b; margin-bottom: 8px; }
+.eb-profilo-details { display: flex; flex-wrap: wrap; gap: 6px; }
+.eb-badge {
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #eff6ff;
+  color: #1d4ed8;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.eb-badge.green { background:#f0fdf4; color:#16a34a; }
+.eb-badge.yellow { background:#fefce8; color:#ca8a04; }
+.eb-badge.red { background:#fef2f2; color:#dc2626; }
+.eb-badge.gray { background:#f1f5f9; color:#475569; }
+.eb-badge.purple { background:#faf5ff; color:#7c3aed; }
+
+/* ── Widget-specific: stats ────────────────────────────────────────────────── */
+.eb-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.eb-stat-box {
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 12px 8px;
+  text-align: center;
+  border: 1px solid #e2e8f0;
+}
+.eb-stat-val {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #0f172a;
+}
+.eb-stat-val.blue { color: #2563eb; }
+.eb-stat-val.yellow { color: #ca8a04; }
+.eb-stat-val.green { color: #16a34a; }
+.eb-stat-val.red { color: #dc2626; }
+.eb-stat-label { font-size: 10px; font-weight: 600; color: #94a3b8; text-transform: uppercase; margin-top: 2px; }
+
+/* ── Widget-specific: liste ────────────────────────────────────────────────── */
+.eb-list { list-style: none; padding: 0; margin: 0; }
+.eb-list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 13px;
+}
+.eb-list-item:last-child { border-bottom: none; }
+.eb-list-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #94a3b8;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+.eb-list-dot.blue { background:#3b82f6; }
+.eb-list-dot.green { background:#22c55e; }
+.eb-list-dot.yellow { background:#eab308; }
+.eb-list-dot.red { background:#ef4444; }
+.eb-list-dot.purple { background:#8b5cf6; }
+
+.eb-list-main { font-weight: 600; color: #0f172a; line-height: 1.3; }
+.eb-list-sub { font-size: 11px; color: #64748b; margin-top: 2px; }
+.eb-list-meta { margin-left: auto; text-align: right; flex-shrink: 0; }
+.eb-tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #f1f5f9;
+  color: #475569;
+}
+.eb-tag.todo { background:#eff6ff; color:#1d4ed8; }
+.eb-tag.in-progress { background:#fefce8; color:#92400e; }
+.eb-tag.done { background:#f0fdf4; color:#15803d; }
+.eb-tag.overdue { background:#fef2f2; color:#dc2626; }
+.eb-tag.low { background:#f0fdf4; color:#15803d; }
+.eb-tag.medium { background:#fefce8; color:#92400e; }
+.eb-tag.high { background:#fef2f2; color:#dc2626; }
+.eb-tag.ferie { background:#eff6ff; color:#1d4ed8; }
+.eb-tag.permesso { background:#faf5ff; color:#7c3aed; }
+.eb-tag.malattia { background:#fef2f2; color:#dc2626; }
+.eb-tag.approvato { background:#f0fdf4; color:#15803d; }
+.eb-tag.attesa { background:#fefce8; color:#92400e; }
+.eb-tag.rifiutato { background:#f1f5f9; color:#475569; }
+
+.eb-empty { color: #94a3b8; font-size: 13px; padding: 6px 0; text-align: center; }
+
+/* ── Edit bar ──────────────────────────────────────────────────────────────── */
+#eb-edit-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  color: #1d4ed8;
+  flex-wrap: wrap;
+}
+#eb-edit-bar-status { flex: 1; }
+
+/* ── Toolbar ───────────────────────────────────────────────────────────────── */
+.eb-btn {
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: background .12s, color .12s;
+}
+.eb-btn.primary { background: var(--accent,#3b82f6); color: #fff; }
+.eb-btn.primary:hover { background: #2563eb; }
+.eb-btn.secondary { background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0; }
+.eb-btn.secondary:hover { background: #e2e8f0; }
+.eb-btn.danger { background: #fee2e2; color: #dc2626; }
+.eb-btn.danger:hover { background: #fecaca; }
+.eb-btn.success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+.eb-btn.success:hover { background: #dcfce7; }
+
+/* ── Print / PDF ───────────────────────────────────────────────────────────── */
+@media print {
+  #eb-edit-bar, #eb-add-panel, .eb-drag-handle, .eb-remove-btn,
+  .eb-config-btn, .eb-refresh-btn, .eb-header-actions { display: none !important; }
+  .eb-widget { break-inside: avoid; box-shadow: none; border: 1px solid #e2e8f0; }
+  #eb-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  body { font-size: 11px; }
+}
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "dashboard/components/subnav.html" %}
+{% endblock %}
+
+{% block content %}
+{{ ordered_widgets|json_script:"eb-ordered-widgets" }}
+{{ all_widgets|json_script:"eb-all-widgets" }}
+{{ board_cfg|json_script:"eb-board-cfg" }}
+{{ widget_params|json_script:"eb-widget-params" }}
+
+<div id="eb-root">
+  <div class="eb-header">
+    <div>
+      <div class="page-h">{{ display_name }}</div>
+      <div class="page-sub">Scheda Infografica Dipendente</div>
+    </div>
+    <div class="eb-header-actions">
+      <button class="eb-btn secondary" id="eb-pdf-btn" title="Esporta PDF / Stampa">&#128196; Stampa / PDF</button>
+      <button class="eb-btn secondary" id="eb-edit-btn">&#9998; Personalizza</button>
+    </div>
+  </div>
+
+  <div id="eb-edit-bar" style="display:none;">
+    <span>Modalita modifica — trascina i widget per riordinarli, clicca &#9881; per configurarli.</span>
+    <span id="eb-edit-bar-status"></span>
+    <button class="eb-btn success" id="eb-save-btn">&#10003; Salva layout</button>
+    <button class="eb-btn danger" id="eb-reset-btn">&#8635; Reset</button>
+    <button class="eb-btn secondary" id="eb-done-btn">Chiudi</button>
+  </div>
+
+  <div id="eb-grid">
+    {% for w in ordered_widgets %}
+      {% with wid=w.id %}
+      <div class="eb-widget" data-widget-id="{{ w.id }}" draggable="false">
+        <div class="eb-widget-head">
+          <div class="eb-widget-title">
+            <span class="eb-drag-handle" title="Trascina">&#x2630;</span>
+            <span class="eb-widget-icon">{{ w.icon }}</span>
+            {{ w.title }}
+          </div>
+          <div class="eb-widget-actions">
+            <button class="eb-refresh-btn" data-widget-id="{{ w.id }}" title="Aggiorna dati">&#8635;</button>
+            <button class="eb-config-btn" data-widget-id="{{ w.id }}" data-widget-title="{{ w.title }}" title="Configura widget">&#9881;</button>
+            <button class="eb-remove-btn" data-widget-id="{{ w.id }}" title="Nascondi widget">&#10005;</button>
+          </div>
+        </div>
+        <div class="eb-widget-body" id="eb-body-{{ w.id }}">
+          {% if w.id == "profilo" %}
+            {% with d=widget_data.profilo %}
+            <div class="eb-profilo-grid">
+              <div class="eb-avatar" id="eb-avatar-init">{{ d.nome|slice:":1"|upper }}{% if not d.nome %}?{% endif %}</div>
+              <div>
+                <div class="eb-profilo-name">{{ d.nome|default:"—" }}</div>
+                <div class="eb-profilo-role">{{ d.ruolo|default:"—" }}</div>
+                <div class="eb-profilo-details">
+                  {% if d.mansione %}<span class="eb-badge">&#128188; {{ d.mansione }}</span>{% endif %}
+                  {% if d.reparto %}<span class="eb-badge green">&#127970; {{ d.reparto }}</span>{% endif %}
+                  {% if d.macchina %}<span class="eb-badge purple">&#9881; {{ d.macchina }}</span>{% endif %}
+                  {% if d.telefono %}<span class="eb-badge gray">&#128222; {{ d.telefono }}</span>{% endif %}
+                  {% if d.cellulare %}<span class="eb-badge gray">&#128241; {{ d.cellulare }}</span>{% endif %}
+                  {% if d.email_notifica %}<span class="eb-badge gray">&#9993; {{ d.email_notifica }}</span>{% endif %}
+                </div>
+              </div>
+            </div>
+            {% endwith %}
+
+          {% elif w.id == "tasks_stats" %}
+            {% with d=widget_data.tasks_stats %}
+            <div class="eb-stats-row">
+              <div class="eb-stat-box">
+                <div class="eb-stat-val blue">{{ d.stats.todo|default:0 }}</div>
+                <div class="eb-stat-label">Da fare</div>
+              </div>
+              <div class="eb-stat-box">
+                <div class="eb-stat-val yellow">{{ d.stats.in_progress|default:0 }}</div>
+                <div class="eb-stat-label">In corso</div>
+              </div>
+              <div class="eb-stat-box">
+                <div class="eb-stat-val green">{{ d.stats.done|default:0 }}</div>
+                <div class="eb-stat-label">Completati</div>
+              </div>
+              <div class="eb-stat-box">
+                <div class="eb-stat-val red">{{ d.stats.overdue|default:0 }}</div>
+                <div class="eb-stat-label">Scaduti</div>
+              </div>
+            </div>
+            {% endwith %}
+
+          {% elif w.id == "tasks_assegnati" %}
+            {% with d=widget_data.tasks_assegnati %}
+            {% if d.items %}
+            <ul class="eb-list">
+              {% for t in d.items %}
+              <li class="eb-list-item">
+                <span class="eb-list-dot {% if t.is_overdue %}red{% elif t.status == 'IN_PROGRESS' %}yellow{% else %}blue{% endif %}"></span>
+                <div style="flex:1;min-width:0;">
+                  <div class="eb-list-main" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ t.title }}">
+                    <a href="{% url 'tasks:detail' t.id %}" style="color:inherit;text-decoration:none;">{{ t.title }}</a>
+                  </div>
+                  <div class="eb-list-sub">
+                    {% if t.project %}{{ t.project }} &mdash; {% endif %}
+                    {% if t.due_date %}Scadenza: {{ t.due_date }}{% endif %}
+                    {% if t.next_step %}<br>{{ t.next_step|truncatechars:60 }}{% endif %}
+                  </div>
+                </div>
+                <div class="eb-list-meta">
+                  {% if t.is_overdue %}
+                    <span class="eb-tag overdue">Scaduto</span>
+                  {% else %}
+                    <span class="eb-tag {{ t.status|lower|cut:'_' }}">{{ t.status_label }}</span>
+                  {% endif %}
+                  <br>
+                  <span class="eb-tag {{ t.priority|lower }}">{{ t.priority_label }}</span>
+                </div>
+              </li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <div class="eb-empty">Nessun task aperto assegnato</div>
+            {% endif %}
+            {% endwith %}
+
+          {% elif w.id == "assenze_future" %}
+            {% with items=widget_data.assenze_future %}
+            {% if items %}
+            <ul class="eb-list">
+              {% for a in items %}
+              <li class="eb-list-item">
+                <span class="eb-list-dot {% if a.stato == 'Approvato' %}green{% elif a.stato == 'Rifiutato' %}gray{% else %}yellow{% endif %}"></span>
+                <div style="flex:1;">
+                  <div class="eb-list-main">{{ a.tipo }}</div>
+                  <div class="eb-list-sub">{{ a.inizio }} &rarr; {{ a.fine }}{% if a.motivazione %} &mdash; {{ a.motivazione|truncatechars:40 }}{% endif %}</div>
+                </div>
+                <div class="eb-list-meta">
+                  <span class="eb-tag {% if a.stato == 'Approvato' %}approvato{% elif a.stato == 'Rifiutato' %}rifiutato{% else %}attesa{% endif %}">{{ a.stato }}</span>
+                </div>
+              </li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <div class="eb-empty">Nessuna assenza programmata</div>
+            {% endif %}
+            {% endwith %}
+
+          {% elif w.id == "assenze_da_approvare" %}
+            {% with items=widget_data.assenze_da_approvare %}
+            {% if items %}
+            <ul class="eb-list">
+              {% for a in items %}
+              <li class="eb-list-item">
+                <span class="eb-list-dot yellow"></span>
+                <div style="flex:1;">
+                  <div class="eb-list-main">{{ a.dipendente }}</div>
+                  <div class="eb-list-sub">{{ a.tipo }} &mdash; {{ a.inizio_label }} &rarr; {{ a.fine_label }}{% if a.motivo %} &mdash; {{ a.motivo|truncatechars:40 }}{% endif %}</div>
+                </div>
+                <div class="eb-list-meta">
+                  <a href="{% url 'assenze_car_dashboard' %}" style="font-size:11px;color:#2563eb;text-decoration:none;">Gestisci</a>
+                </div>
+              </li>
+              {% endfor %}
+            </ul>
+            <div style="margin-top:8px;text-align:right;">
+              <a href="{% url 'assenze_car_dashboard' %}" style="font-size:12px;color:#2563eb;text-decoration:none;">Vedi tutte &rarr;</a>
+            </div>
+            {% else %}
+            <div class="eb-empty">Nessuna richiesta in attesa</div>
+            {% endif %}
+            {% endwith %}
+
+          {% elif w.id == "progetti_capo" %}
+            {% with items=widget_data.progetti_capo %}
+            {% if items %}
+            <ul class="eb-list">
+              {% for p in items %}
+              <li class="eb-list-item">
+                <span class="eb-list-dot purple"></span>
+                <div style="flex:1;">
+                  <div class="eb-list-main">
+                    <a href="{% url 'tasks:project_gantt' p.id %}" style="color:inherit;text-decoration:none;">{{ p.name }}</a>
+                  </div>
+                  <div class="eb-list-sub">
+                    {% if p.client %}Cliente: {{ p.client }}{% endif %}
+                    {% if p.part_number %} &mdash; PN: {{ p.part_number }}{% endif %}
+                    {% if p.manager %}<br>PM: {{ p.manager }}{% endif %}
+                  </div>
+                </div>
+              </li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <div class="eb-empty">Nessun progetto come capo commessa</div>
+            {% endif %}
+            {% endwith %}
+
+          {% elif w.id == "anomalie_gestione" %}
+            {% with items=widget_data.anomalie_gestione %}
+            {% if items %}
+            <ul class="eb-list">
+              {% for a in items %}
+              <li class="eb-list-item">
+                <span class="eb-list-dot {% if not a.chiusa %}red{% else %}green{% endif %}"></span>
+                <div style="flex:1;">
+                  <div class="eb-list-main">{{ a.seriale|default:"—" }}</div>
+                  <div class="eb-list-sub">
+                    {% if a.operatore %}Op: {{ a.operatore }} &mdash; {% endif %}
+                    Avanzamento: {{ a.avanzamento }}
+                  </div>
+                </div>
+                <div class="eb-list-meta">
+                  <span class="eb-tag {% if not a.chiusa %}attesa{% else %}approvato{% endif %}">{% if not a.chiusa %}Aperta{% else %}Chiusa{% endif %}</span>
+                  <br>
+                  <a href="{% url 'gestione_anomalie_page' %}" style="font-size:11px;color:#2563eb;text-decoration:none;">Dettaglio</a>
+                </div>
+              </li>
+              {% endfor %}
+            </ul>
+            <div style="margin-top:8px;text-align:right;">
+              <a href="{% url 'gestione_anomalie_page' %}" style="font-size:12px;color:#2563eb;text-decoration:none;">Vedi tutte &rarr;</a>
+            </div>
+            {% else %}
+            <div class="eb-empty">Nessuna anomalia da gestire</div>
+            {% endif %}
+            {% endwith %}
+
+          {% elif w.id == "notifiche" %}
+            {% with items=widget_data.notifiche %}
+            {% if items %}
+            <ul class="eb-list">
+              {% for n in items %}
+              <li class="eb-list-item">
+                <span class="eb-list-dot {% if not n.letta %}blue{% else %}gray{% endif %}"></span>
+                <div style="flex:1;">
+                  <div class="eb-list-main" style="{% if not n.letta %}font-weight:700;{% endif %}">{{ n.messaggio|truncatechars:70 }}</div>
+                  <div class="eb-list-sub">{{ n.tipo_label }} &mdash; {{ n.data }}</div>
+                </div>
+                {% if n.url %}
+                <div class="eb-list-meta">
+                  <a href="{{ n.url }}" style="font-size:11px;color:#2563eb;text-decoration:none;">Apri</a>
+                </div>
+                {% endif %}
+              </li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <div class="eb-empty">Nessuna notifica</div>
+            {% endif %}
+            {% endwith %}
+
+          {% else %}
+            <div class="eb-empty">Widget non disponibile</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endwith %}
+    {% empty %}
+      <div style="grid-column:1/-1;text-align:center;color:#94a3b8;padding:40px;">
+        Nessun widget disponibile. Clicca su <strong>Personalizza</strong> per aggiungerli.
+      </div>
+    {% endfor %}
+  </div>
+
+  <div id="eb-add-panel">
+    <div style="font-size:13px;font-weight:700;color:#0f172a;">Aggiungi / riabilita widget</div>
+    <div class="eb-add-grid" id="eb-add-grid">
+      {% for w in all_widgets %}
+      <div class="eb-add-item" data-wid="{{ w.id }}" id="eb-add-{{ w.id }}">
+        <span>{{ w.icon }} {{ w.title }}</span>
+        <button type="button" data-add-wid="{{ w.id }}" title="{{ w.description }}">+ Aggiungi</button>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div style="margin-top:20px;text-align:right;">
+    <a href="{% url 'employee_board_pdf' %}" class="eb-btn secondary" target="_blank" title="Apri versione stampabile">&#128196; Versione stampabile (PDF)</a>
+  </div>
+</div>
+
+<!-- Config modal -->
+<div id="eb-config-modal" role="dialog" aria-modal="true" aria-labelledby="eb-cfg-title">
+  <div id="eb-config-modal-inner">
+    <h3 id="eb-cfg-title">Configura widget</h3>
+    <div id="eb-cfg-fields"></div>
+    <div class="eb-cfg-actions">
+      <button class="eb-btn secondary" id="eb-cfg-cancel">Annulla</button>
+      <button class="eb-btn primary" id="eb-cfg-save">Salva</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const CSRF = (function () {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? decodeURIComponent(m[1]) : "";
+  })();
+
+  function parseJson(id, fallback) {
+    try { return JSON.parse(document.getElementById(id)?.textContent || ""); }
+    catch { return fallback; }
+  }
+
+  function esc(v) {
+    return String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+
+  const root = document.getElementById("eb-root");
+  const grid = document.getElementById("eb-grid");
+  const editBar = document.getElementById("eb-edit-bar");
+  const editBarStatus = document.getElementById("eb-edit-bar-status");
+  const addPanel = document.getElementById("eb-add-panel");
+
+  const allWidgets = parseJson("eb-all-widgets", []);
+  const widgetParams = parseJson("eb-widget-params", {});
+
+  let editMode = false;
+  let layoutDirty = false;
+
+  // ── helpers ───────────────────────────────────────────────────────────────
+  function setStatus(msg, err) {
+    if (!editBarStatus) return;
+    editBarStatus.textContent = msg || "";
+    editBarStatus.style.color = err ? "#dc2626" : "#16a34a";
+  }
+
+  function currentOrder() {
+    return Array.from(grid.querySelectorAll(".eb-widget[data-widget-id]"))
+      .map(el => el.dataset.widgetId);
+  }
+
+  function getWidgetDef(id) {
+    return allWidgets.find(w => w.id === id) || null;
+  }
+
+  function syncAddPanel() {
+    const visible = new Set(currentOrder());
+    document.querySelectorAll("#eb-add-grid .eb-add-item").forEach(el => {
+      const wid = el.dataset.wid;
+      const isVisible = visible.has(wid);
+      el.querySelector("button").style.display = isVisible ? "none" : "";
+      el.classList.toggle("hidden-widget", isVisible);
+    });
+  }
+
+  // ── edit mode ─────────────────────────────────────────────────────────────
+  function enterEditMode() {
+    editMode = true;
+    root.classList.add("edit-mode");
+    editBar.style.display = "flex";
+    grid.querySelectorAll(".eb-widget").forEach(el => el.setAttribute("draggable","true"));
+    syncAddPanel();
+    setStatus("");
+  }
+
+  function exitEditMode() {
+    editMode = false;
+    root.classList.remove("edit-mode");
+    editBar.style.display = "none";
+    grid.querySelectorAll(".eb-widget").forEach(el => el.setAttribute("draggable","false"));
+    layoutDirty = false;
+    setStatus("");
+  }
+
+  function markDirty() { layoutDirty = true; setStatus("Modifiche non salvate — premi Salva."); }
+
+  document.getElementById("eb-edit-btn")?.addEventListener("click", enterEditMode);
+  document.getElementById("eb-done-btn")?.addEventListener("click", exitEditMode);
+
+  // ── save layout ───────────────────────────────────────────────────────────
+  async function saveLayout() {
+    const layout = currentOrder();
+    setStatus("Salvataggio...");
+    try {
+      const resp = await fetch("{% url 'api_employee_board_layout' %}", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+        body: JSON.stringify({ layout }),
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        setStatus("Layout salvato!", false);
+        layoutDirty = false;
+        setTimeout(() => setStatus(""), 2500);
+      } else {
+        setStatus("Errore: " + (data.error || "Sconosciuto"), true);
+      }
+    } catch {
+      setStatus("Errore di rete.", true);
+    }
+  }
+
+  document.getElementById("eb-save-btn")?.addEventListener("click", saveLayout);
+
+  // ── reset layout ──────────────────────────────────────────────────────────
+  async function resetLayout() {
+    if (!confirm("Resettare il layout ai valori predefiniti?")) return;
+    setStatus("Reset in corso...");
+    try {
+      const resp = await fetch("{% url 'api_employee_board_layout' %}", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+        body: JSON.stringify({ layout: [] }),
+      });
+      const data = await resp.json();
+      if (data.ok) { location.reload(); }
+      else { setStatus("Errore: " + (data.error || "Sconosciuto"), true); }
+    } catch {
+      setStatus("Errore di rete.", true);
+    }
+  }
+
+  document.getElementById("eb-reset-btn")?.addEventListener("click", resetLayout);
+
+  // ── drag & drop ───────────────────────────────────────────────────────────
+  let dragSrc = null;
+
+  grid.addEventListener("dragstart", function (e) {
+    if (!editMode) return;
+    dragSrc = e.target.closest(".eb-widget");
+    if (!dragSrc) return;
+    dragSrc.classList.add("dragging");
+    e.dataTransfer.effectAllowed = "move";
+  });
+
+  grid.addEventListener("dragover", function (e) {
+    if (!editMode || !dragSrc) return;
+    e.preventDefault();
+    const target = e.target.closest(".eb-widget");
+    if (!target || target === dragSrc) return;
+    target.classList.add("drag-over");
+    e.dataTransfer.dropEffect = "move";
+  });
+
+  grid.addEventListener("dragleave", function (e) {
+    const target = e.target.closest(".eb-widget");
+    if (target) target.classList.remove("drag-over");
+  });
+
+  grid.addEventListener("drop", function (e) {
+    if (!editMode || !dragSrc) return;
+    e.preventDefault();
+    const target = e.target.closest(".eb-widget");
+    if (!target || target === dragSrc) return;
+    target.classList.remove("drag-over");
+    // inserisce prima o dopo in base alla posizione Y
+    const rect = target.getBoundingClientRect();
+    const mid = rect.top + rect.height / 2;
+    if (e.clientY < mid) {
+      grid.insertBefore(dragSrc, target);
+    } else {
+      grid.insertBefore(dragSrc, target.nextSibling);
+    }
+    markDirty();
+  });
+
+  grid.addEventListener("dragend", function () {
+    if (dragSrc) { dragSrc.classList.remove("dragging"); dragSrc = null; }
+    grid.querySelectorAll(".eb-widget").forEach(el => el.classList.remove("drag-over"));
+  });
+
+  // ── remove widget ─────────────────────────────────────────────────────────
+  grid.addEventListener("click", function (e) {
+    const btn = e.target.closest(".eb-remove-btn");
+    if (!btn) return;
+    const widget = btn.closest(".eb-widget");
+    if (!widget) return;
+    widget.style.transition = "opacity .2s";
+    widget.style.opacity = "0";
+    setTimeout(() => { widget.remove(); syncAddPanel(); markDirty(); }, 200);
+  });
+
+  // ── add widget ────────────────────────────────────────────────────────────
+  addPanel?.addEventListener("click", function (e) {
+    const btn = e.target.closest("[data-add-wid]");
+    if (!btn) return;
+    const wid = btn.dataset.addWid;
+    if (grid.querySelector(`.eb-widget[data-widget-id="${wid}"]`)) return;
+    // crea un placeholder widget e ricarica la pagina dopo il salvataggio
+    const layout = currentOrder();
+    layout.push(wid);
+    fetch("{% url 'api_employee_board_layout' %}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+      body: JSON.stringify({ layout }),
+    }).then(() => location.reload());
+  });
+
+  // ── refresh widget ────────────────────────────────────────────────────────
+  grid.addEventListener("click", async function (e) {
+    const btn = e.target.closest(".eb-refresh-btn");
+    if (!btn) return;
+    const wid = btn.dataset.widgetId;
+    if (!wid) return;
+    btn.style.opacity = "0.4";
+    btn.disabled = true;
+    try {
+      const resp = await fetch(`{% url 'api_employee_board_data' %}?widget_id=${encodeURIComponent(wid)}`);
+      const res = await resp.json();
+      if (res.ok) {
+        // ricarica solo il body del widget via reload completo per ora
+        location.reload();
+      }
+    } catch { /* silent */ }
+    finally {
+      btn.style.opacity = "";
+      btn.disabled = false;
+    }
+  });
+
+  // ── PDF / print ───────────────────────────────────────────────────────────
+  document.getElementById("eb-pdf-btn")?.addEventListener("click", function () {
+    window.print();
+  });
+
+  // ── config modal ──────────────────────────────────────────────────────────
+  let cfgWidgetId = null;
+
+  const modal = document.getElementById("eb-config-modal");
+  const cfgTitle = document.getElementById("eb-cfg-title");
+  const cfgFields = document.getElementById("eb-cfg-fields");
+
+  function buildFieldHtml(key, value, def) {
+    if (typeof def === "boolean") {
+      return `<div class="eb-cfg-field"><div class="eb-cfg-toggle">
+        <input type="checkbox" id="cfg-${esc(key)}" name="${esc(key)}" ${value ? "checked" : ""}>
+        <label for="cfg-${esc(key)}" style="margin:0;">${esc(key.replace(/_/g," "))}</label>
+      </div></div>`;
+    }
+    if (typeof def === "number") {
+      return `<div class="eb-cfg-field">
+        <label for="cfg-${esc(key)}">${esc(key.replace(/_/g," "))}</label>
+        <input type="number" id="cfg-${esc(key)}" name="${esc(key)}" value="${esc(value)}" min="1" max="50">
+      </div>`;
+    }
+    if (key === "filter_status") {
+      const opts = [["open","Aperti (todo+in corso)"],["todo","Solo to do"],["in_progress","Solo in corso"],["all","Tutti"]];
+      const optsHtml = opts.map(([v,l]) => `<option value="${v}"${value===v?" selected":""}>${l}</option>`).join("");
+      return `<div class="eb-cfg-field"><label for="cfg-${esc(key)}">${esc(key.replace(/_/g," "))}</label>
+        <select id="cfg-${esc(key)}" name="${esc(key)}">${optsHtml}</select></div>`;
+    }
+    return `<div class="eb-cfg-field">
+      <label for="cfg-${esc(key)}">${esc(key.replace(/_/g," "))}</label>
+      <input type="text" id="cfg-${esc(key)}" name="${esc(key)}" value="${esc(value)}">
+    </div>`;
+  }
+
+  function openConfig(widgetId, widgetTitle) {
+    const wDef = getWidgetDef(widgetId);
+    if (!wDef) return;
+    cfgWidgetId = widgetId;
+    cfgTitle.textContent = "Configura: " + widgetTitle;
+    const defaults = wDef.default_params || {};
+    const current = widgetParams[widgetId] || {};
+    let html = "";
+    for (const [k, defVal] of Object.entries(defaults)) {
+      const curVal = k in current ? current[k] : defVal;
+      html += buildFieldHtml(k, curVal, defVal);
+    }
+    cfgFields.innerHTML = html || "<div style='color:#94a3b8;'>Questo widget non ha parametri configurabili.</div>";
+    modal.classList.add("open");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeConfig() {
+    modal.classList.remove("open");
+    document.body.style.overflow = "";
+    cfgWidgetId = null;
+  }
+
+  async function saveConfig() {
+    if (!cfgWidgetId) return;
+    const wDef = getWidgetDef(cfgWidgetId);
+    if (!wDef) return;
+    const defaults = wDef.default_params || {};
+    const params = {};
+    for (const [k, defVal] of Object.entries(defaults)) {
+      const el = cfgFields.querySelector(`[name="${k}"]`);
+      if (!el) continue;
+      if (typeof defVal === "boolean") params[k] = el.checked;
+      else if (typeof defVal === "number") params[k] = parseInt(el.value, 10) || defVal;
+      else params[k] = el.value;
+    }
+    const saveBtn = document.getElementById("eb-cfg-save");
+    if (saveBtn) { saveBtn.textContent = "Salvataggio..."; saveBtn.disabled = true; }
+    try {
+      const resp = await fetch("{% url 'api_employee_board_widget_config' %}", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+        body: JSON.stringify({ widget_id: cfgWidgetId, params }),
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        closeConfig();
+        location.reload();
+      } else {
+        alert("Errore: " + (data.error || "Sconosciuto"));
+      }
+    } catch {
+      alert("Errore di rete.");
+    } finally {
+      if (saveBtn) { saveBtn.textContent = "Salva"; saveBtn.disabled = false; }
+    }
+  }
+
+  grid.addEventListener("click", function (e) {
+    const btn = e.target.closest(".eb-config-btn");
+    if (!btn) return;
+    openConfig(btn.dataset.widgetId, btn.dataset.widgetTitle);
+  });
+
+  document.getElementById("eb-cfg-cancel")?.addEventListener("click", closeConfig);
+  document.getElementById("eb-cfg-save")?.addEventListener("click", saveConfig);
+
+  modal.addEventListener("click", function (e) {
+    if (e.target === modal) closeConfig();
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && modal.classList.contains("open")) closeConfig();
+  });
+
+  // ── init ──────────────────────────────────────────────────────────────────
+  syncAddPanel();
+
+})();
+</script>
+
+{% endblock %}

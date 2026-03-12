@@ -1,0 +1,32 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Chiudi intervento{% endblock %}
+
+{% block assets_shell_title %}Chiudi intervento #{{ workorder.id }}{% endblock %}
+
+{% block assets_shell_content %}
+<section style="max-width:900px;display:grid;gap:14px;">
+  <header>
+    <a href="{% url 'assets:wo_view' workorder.id %}" style="font-size:13px;color:#64748b;text-decoration:none;">&larr; Torna all'intervento</a>
+  </header>
+
+  <form method="post" style="display:grid;gap:10px;border:1px solid #dbe1ea;border-radius:14px;background:#fff;padding:16px;">
+    {% csrf_token %}
+    <div class="as-form-grid-2">
+      {% for field in form %}
+        <div style="{% if field.name == 'resolution' or field.name == 'log_note' %}grid-column:1/-1;{% endif %}">
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.errors %}
+            <div style="color:#b91c1c;font-size:12px;">{{ field.errors }}</div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;">
+      <a class="btn" href="{% url 'assets:wo_view' workorder.id %}">Annulla</a>
+      <button class="btn btn-primary" type="submit">Conferma chiusura</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

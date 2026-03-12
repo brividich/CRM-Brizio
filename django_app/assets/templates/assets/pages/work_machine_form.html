@@ -1,0 +1,461 @@
+{% extends "assets/base_shell.html" %}
+{% load assets_extras %}
+
+{% block title %}{% if is_edit %}Modifica macchina di lavoro{% else %}Nuova macchina di lavoro{% endif %}{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.wmf-page { display:grid; gap:16px; max-width:1180px; }
+.wmf-back { color:#64748b; font-size:13px; text-decoration:none; }
+.wmf-grid { display:grid; gap:16px; }
+.wmf-card { border:1px solid #dbe1ea; border-radius:14px; background:#fff; overflow:hidden; }
+.wmf-card-head { padding:14px 18px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+.wmf-card-head h2 { margin:0; font-size:22px; color:#0f172a; }
+.wmf-card-head p { margin:4px 0 0; color:#64748b; font-size:13px; }
+.wmf-card-body { padding:18px; display:grid; gap:14px; }
+.wmf-fields { display:grid; gap:12px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
+.wmf-field label { display:block; margin-bottom:6px; color:#334155; font-size:13px; font-weight:700; }
+.wmf-field.wide { grid-column:1 / -1; }
+.wmf-error { margin-top:4px; color:#b91c1c; font-size:12px; }
+.wmf-checks { display:grid; gap:10px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
+.wmf-check { border:1px solid #dbe1ea; border-radius:12px; background:#f8fafc; padding:12px; display:flex; align-items:center; gap:8px; color:#334155; font-weight:700; }
+.wmf-doc-grid { display:grid; gap:14px; }
+.wmf-doc-section { border:1px solid #e2e8f0; border-radius:12px; background:#f8fafc; padding:14px; display:grid; gap:10px; }
+.wmf-doc-head { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.wmf-doc-title { font-size:15px; font-weight:800; color:#0f172a; }
+.wmf-doc-list { display:grid; gap:10px; }
+.wmf-doc-row { border:1px solid #dbe1ea; border-radius:12px; background:#fff; padding:12px; display:grid; gap:10px; }
+.wmf-doc-row-grid { display:grid; gap:10px; grid-template-columns:1.2fr 1.5fr .8fr .8fr auto; align-items:end; }
+.wmf-doc-row label { display:grid; gap:6px; color:#334155; font-size:12px; font-weight:700; }
+.wmf-upload-block { border-top:1px solid #dbe1ea; padding-top:10px; display:grid; gap:10px; }
+.wmf-upload-list { display:grid; gap:8px; }
+.wmf-upload-item { border:1px solid #dbe1ea; border-radius:10px; background:#fff; padding:10px 12px; display:grid; gap:6px; }
+.wmf-upload-top { display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap; }
+.wmf-upload-meta { color:#64748b; font-size:12px; }
+.wmf-upload-remove { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:#b91c1c; font-weight:700; }
+.wmf-doc-empty { color:#64748b; font-size:13px; }
+.wmf-help { color:#64748b; font-size:12px; }
+.wmf-actions { display:flex; justify-content:flex-end; gap:8px; align-items:center; }
+.wmf-inline-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.wmf-inline-note { color:#64748b; font-size:12px; }
+@media (max-width: 980px) {
+  .wmf-fields, .wmf-checks, .wmf-doc-row-grid { grid-template-columns:1fr; }
+}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}{% if is_edit %}Modifica macchina di lavoro{% else %}Nuova macchina di lavoro{% endif %}{% endblock %}
+{% block assets_shell_subtitle %}
+<p>{% if is_edit %}Aggiorna anagrafica asset e specifiche officina dalla stessa schermata.{% else %}Inserimento manuale completo per le macchine di officina.{% endif %}</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+<a class="btn btn-secondary" href="{% url 'assets:work_machine_list' %}">Elenco macchine</a>
+{% if asset %}
+  <a class="btn" href="{% url 'assets:asset_view' asset.id %}">Apri dettaglio</a>
+{% endif %}
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="wmf-page">
+  <header>
+    <a class="wmf-back" href="{% if asset %}{% url 'assets:asset_view' asset.id %}{% else %}{% url 'assets:work_machine_list' %}{% endif %}">&larr; Torna indietro</a>
+  </header>
+
+  <form method="post" enctype="multipart/form-data" class="wmf-grid">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="wmf-card">
+        <div class="wmf-card-body">
+          <div class="wmf-error">{{ form.non_field_errors }}</div>
+        </div>
+      </div>
+    {% endif %}
+
+    <article class="wmf-card">
+      <div class="wmf-card-head">
+        <div>
+          <h2>Anagrafica macchina</h2>
+          <p>Dati principali asset e riferimenti di identificazione.</p>
+        </div>
+      </div>
+      <div class="wmf-card-body">
+        <div class="wmf-fields">
+          {% for field in form %}
+            {% if field.name in asset_field_names %}
+              <div class="wmf-field {% if field.name == 'notes' %}wide{% endif %}">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}<div class="wmf-help">{{ field.help_text }}</div>{% endif %}
+                {% if field.errors %}<div class="wmf-error">{{ field.errors }}</div>{% endif %}
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </article>
+
+    {% if category_field_groups %}
+      <article class="wmf-card">
+        <div class="wmf-card-head">
+          <div>
+            <h2>Campi categoria</h2>
+            <p>Ogni categoria macchina puo avere campi dedicati senza modificare il codice.</p>
+          </div>
+        </div>
+        <div class="wmf-card-body">
+          <div data-category-empty class="wmf-help" style="padding:12px;border:1px dashed #cbd5e1;border-radius:12px;background:#f8fafc;">
+            Nessuna categoria macchina selezionata.
+          </div>
+          {% for group in category_field_groups %}
+            <section data-category-group="{{ group.category.id }}" style="display:none;border:1px solid #dbe1ea;border-radius:12px;background:#f8fafc;padding:14px;">
+              <div style="margin-bottom:10px;">
+                <div class="wmf-doc-title">{{ group.category.label }}</div>
+                {% if group.category.description %}<div class="wmf-help">{{ group.category.description }}</div>{% endif %}
+              </div>
+              <div class="wmf-fields">
+                {% for field in form %}
+                  {% if field.name in group.field_names %}
+                    <div class="wmf-field">
+                      <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                      {{ field }}
+                      {% if field.help_text %}<div class="wmf-help">{{ field.help_text }}</div>{% endif %}
+                      {% if field.errors %}<div class="wmf-error">{{ field.errors }}</div>{% endif %}
+                    </div>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </section>
+          {% endfor %}
+        </div>
+      </article>
+    {% endif %}
+
+    <article class="wmf-card">
+      <div class="wmf-card-head">
+        <div>
+          <h2>Specifiche officina</h2>
+          <p>Campi tecnici dedicati alle macchine di lavoro.</p>
+        </div>
+      </div>
+      <div class="wmf-card-body">
+        <div class="wmf-fields">
+          {% for field in form %}
+            {% if field.name in machine_field_names and field.name != 'tcr_enabled' and field.name != 'cnc_controlled' and field.name != 'five_axes' %}
+              <div class="wmf-field">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}<div class="wmf-help">{{ field.help_text }}</div>{% endif %}
+                {% if field.errors %}<div class="wmf-error">{{ field.errors }}</div>{% endif %}
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+        <div class="wmf-checks">
+          {% for field in form %}
+            {% if field.name == 'tcr_enabled' or field.name == 'cnc_controlled' or field.name == 'five_axes' %}
+              <label class="wmf-check" for="{{ field.id_for_label }}">
+                {{ field }}
+                <span>{{ field.label }}</span>
+              </label>
+              {% if field.errors %}<div class="wmf-error">{{ field.errors }}</div>{% endif %}
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </article>
+
+    <article class="wmf-card">
+      <div class="wmf-card-head">
+        <div>
+          <h2>Responsabile e note</h2>
+          <p>Informazioni operative e di assegnazione.</p>
+        </div>
+      </div>
+      <div class="wmf-card-body">
+        <div class="wmf-fields">
+          {% for field in form %}
+            {% if field.name in assignment_field_names %}
+              <div class="wmf-field {% if field.name == 'notes' %}wide{% endif %}">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}<div class="wmf-help">{{ field.help_text }}</div>{% endif %}
+                {% if field.errors %}<div class="wmf-error">{{ field.errors }}</div>{% endif %}
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </article>
+
+    <article class="wmf-card">
+      <div class="wmf-card-head">
+        <div>
+          <h2>Verifiche periodiche</h2>
+          <p>Collega la macchina a una o piu verifiche periodiche e apri la gestione dedicata.</p>
+        </div>
+        {% if asset %}
+          <a class="btn" href="{% url 'assets:periodic_verifications' %}?asset={{ asset.id }}">Gestisci verifiche</a>
+        {% endif %}
+      </div>
+      <div class="wmf-card-body">
+        <div class="wmf-fields">
+          {% for field in form %}
+            {% if field.name in verification_field_names %}
+              <div class="wmf-field wide">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}<div class="wmf-help">{{ field.help_text }}</div>{% endif %}
+                {% if field.errors %}<div class="wmf-error">{{ field.errors }}</div>{% endif %}
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </article>
+
+    <article class="wmf-card">
+      <div class="wmf-card-head">
+        <div>
+          <h2>Archivio SharePoint e QR</h2>
+          <p>Collega la cartella macchina e genera l'etichetta QR stampabile.</p>
+        </div>
+      </div>
+      <div class="wmf-card-body">
+        <div class="wmf-fields">
+          {% for field in form %}
+            {% if field.name in sharepoint_field_names %}
+              <div class="wmf-field {% if field.name == 'sharepoint_folder_url' %}wide{% endif %}">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}<div class="wmf-help">{{ field.help_text }}</div>{% endif %}
+                {% if field.errors %}<div class="wmf-error">{{ field.errors }}</div>{% endif %}
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+        <div class="wmf-inline-note">Il percorso consente di sincronizzare gli upload nelle sottocartelle SharePoint per categoria. L'URL apre direttamente la cartella dal dettaglio macchina.</div>
+        {% if asset %}
+          <div class="wmf-inline-actions">
+            <a class="btn btn-secondary" href="{% url 'assets:asset_qr_label' asset.id %}" target="_blank" rel="noopener">QR scheda</a>
+            {% if asset.sharepoint_folder_url %}
+              <a class="btn" href="{{ asset.sharepoint_folder_url }}" target="_blank" rel="noopener">Apri cartella</a>
+              <a class="btn" href="{% url 'assets:asset_qr_label' asset.id %}?target=sharepoint" target="_blank" rel="noopener">QR SharePoint</a>
+            {% endif %}
+            {% if asset_label_designer_url %}
+              <a class="btn" href="{{ asset_label_designer_url }}">Personalizza etichetta</a>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+    </article>
+
+    <article class="wmf-card">
+      <div class="wmf-card-head">
+        <div>
+          <h2>Documenti e manuali</h2>
+          <p>Collega direttamente schede tecniche, manuali e allegati intervento.</p>
+        </div>
+      </div>
+      <div class="wmf-card-body">
+        <div class="wmf-doc-grid">
+          {% for field_name, meta in document_field_map.items %}
+            <section class="wmf-doc-section" data-doc-editor data-doc-label="{{ meta.1 }}">
+              <div class="wmf-doc-head">
+                <div class="wmf-doc-title">{{ meta.1 }}</div>
+                <button class="btn" type="button" data-doc-add>Aggiungi riga</button>
+              </div>
+              {% for field in form %}
+                {% if field.name == field_name %}
+                  {{ field }}
+                  {% if field.errors %}<div class="wmf-error">{{ field.errors }}</div>{% endif %}
+                {% endif %}
+              {% endfor %}
+              <div class="wmf-doc-list" data-doc-list></div>
+              <div class="wmf-help">Ogni riga accetta nome, URL o percorso, data e una nota libera come dimensione/versione.</div>
+              <div class="wmf-upload-block">
+                <div class="wmf-doc-title" style="font-size:14px;">File archiviati nel portale</div>
+                {% with uploaded_list=uploaded_documents_by_category|dict_get:meta.0 %}
+                  <div class="wmf-upload-list">
+                    {% if uploaded_list %}
+                      {% for doc in uploaded_list %}
+                        <div class="wmf-upload-item">
+                          <div class="wmf-upload-top">
+                            <a href="{% if doc.sharepoint_url %}{{ doc.sharepoint_url }}{% else %}{{ doc.file.url }}{% endif %}" target="_blank" rel="noopener">{{ doc.original_name|default:doc.file.name }}</a>
+                            <span class="wmf-upload-meta">
+                              {{ doc.created_at|date:"d/m/Y H:i" }}
+                              {% if doc.uploaded_by %} · {{ doc.uploaded_by.get_full_name|default:doc.uploaded_by.username }}{% endif %}
+                            </span>
+                          </div>
+                          {% if doc.notes %}<div class="wmf-upload-meta">{{ doc.notes }}</div>{% endif %}
+                          {% if doc.sharepoint_path %}<div class="wmf-upload-meta">SharePoint: {{ doc.sharepoint_path }}</div>{% endif %}
+                          <label class="wmf-upload-remove">
+                            <input type="checkbox" name="remove_document_ids" value="{{ doc.id }}">
+                            Rimuovi questo file
+                          </label>
+                        </div>
+                      {% endfor %}
+                    {% else %}
+                      <div class="wmf-doc-empty">Nessun file caricato in questa categoria.</div>
+                    {% endif %}
+                  </div>
+                {% endwith %}
+                <div class="wmf-field wide">
+                  <label for="id_{{ meta.0|lower }}_upload">Carica nuovi file</label>
+                  <input
+                    class="input"
+                    id="id_{{ meta.0|lower }}_upload"
+                    type="file"
+                    name="{{ document_upload_field_map|dict_get:meta.0 }}"
+                    multiple
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv,.jpg,.jpeg,.png,.webp"
+                  >
+                  <div class="wmf-help">Upload reale nel portale. Max 20 MB per file.</div>
+                </div>
+              </div>
+            </section>
+          {% endfor %}
+        </div>
+      </div>
+    </article>
+
+    <div class="wmf-actions">
+      <a class="btn" href="{% if asset %}{% url 'assets:asset_view' asset.id %}{% else %}{% url 'assets:work_machine_list' %}{% endif %}">Annulla</a>
+      <button class="btn btn-primary" type="submit">Salva macchina</button>
+    </div>
+  </form>
+
+  {% for field_name, values in list_suggestions.items %}
+    {% if values %}
+      <datalist id="list_{{ field_name }}">
+        {% for value in values %}
+          <option value="{{ value }}"></option>
+        {% endfor %}
+      </datalist>
+    {% endif %}
+  {% endfor %}
+</section>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(function () {
+  const categorySelect = document.getElementById("{{ form.asset_category.id_for_label }}");
+  const categoryGroups = Array.from(document.querySelectorAll("[data-category-group]"));
+  const categoryEmpty = document.querySelector("[data-category-empty]");
+
+  function toggleCategoryGroups() {
+    if (!categorySelect) return;
+    const selected = (categorySelect.value || "").trim();
+    let anyVisible = false;
+    categoryGroups.forEach(function (group) {
+      const visible = group.getAttribute("data-category-group") === selected;
+      group.style.display = visible ? "block" : "none";
+      if (visible) anyVisible = true;
+    });
+    if (categoryEmpty) {
+      categoryEmpty.style.display = anyVisible ? "none" : "block";
+    }
+  }
+
+  function parsePayload(raw) {
+    if (!raw) return [];
+    try {
+      const data = JSON.parse(raw);
+      return Array.isArray(data) ? data : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function rowTemplate(data) {
+    const row = document.createElement("div");
+    row.className = "wmf-doc-row";
+    row.innerHTML = [
+      '<div class="wmf-doc-row-grid">',
+        '<label>Nome<input class="input" type="text" data-doc-name></label>',
+        '<label>URL o percorso<input class="input" type="text" data-doc-url></label>',
+        '<label>Data<input class="input" type="text" data-doc-date placeholder="dd/mm/yyyy"></label>',
+        '<label>Nota<input class="input" type="text" data-doc-size placeholder="Versione, dimensione..."></label>',
+        '<button class="btn" type="button" data-doc-remove>Rimuovi</button>',
+      '</div>'
+    ].join("");
+    row.querySelector("[data-doc-name]").value = data.name || "";
+    row.querySelector("[data-doc-url]").value = data.url || "";
+    row.querySelector("[data-doc-date]").value = data.date || "";
+    row.querySelector("[data-doc-size]").value = data.size || "";
+    row.querySelector("[data-doc-remove]").addEventListener("click", function () {
+      const list = row.parentElement;
+      row.remove();
+      refreshEmptyState(list);
+    });
+    return row;
+  }
+
+  function refreshEmptyState(list) {
+    if (!list) return;
+    const rows = list.querySelectorAll(".wmf-doc-row");
+    let empty = list.querySelector(".wmf-doc-empty");
+    if (!rows.length) {
+      if (!empty) {
+        empty = document.createElement("div");
+        empty.className = "wmf-doc-empty";
+        empty.textContent = "Nessun elemento configurato.";
+        list.appendChild(empty);
+      }
+    } else if (empty) {
+      empty.remove();
+    }
+  }
+
+  function collectRows(list) {
+    return Array.from(list.querySelectorAll(".wmf-doc-row")).map(function (row) {
+      return {
+        name: (row.querySelector("[data-doc-name]") || {}).value || "",
+        url: (row.querySelector("[data-doc-url]") || {}).value || "",
+        date: (row.querySelector("[data-doc-date]") || {}).value || "",
+        size: (row.querySelector("[data-doc-size]") || {}).value || ""
+      };
+    }).filter(function (row) {
+      return row.name || row.url || row.date || row.size;
+    });
+  }
+
+  document.querySelectorAll("[data-doc-editor]").forEach(function (editor) {
+    const hiddenInput = editor.querySelector('input[type="hidden"]');
+    const list = editor.querySelector("[data-doc-list]");
+    const addButton = editor.querySelector("[data-doc-add]");
+    const initialRows = parsePayload(hiddenInput ? hiddenInput.value : "[]");
+
+    function addRow(data) {
+      list.appendChild(rowTemplate(data || {}));
+      refreshEmptyState(list);
+    }
+
+    initialRows.forEach(addRow);
+    refreshEmptyState(list);
+
+    if (addButton) {
+      addButton.addEventListener("click", function () { addRow({}); });
+    }
+
+    const form = editor.closest("form");
+    if (form && hiddenInput && !form.dataset.docsBound) {
+      form.addEventListener("submit", function () {
+        document.querySelectorAll("[data-doc-editor]").forEach(function (currentEditor) {
+          const currentHidden = currentEditor.querySelector('input[type="hidden"]');
+          const currentList = currentEditor.querySelector("[data-doc-list]");
+          if (!currentHidden || !currentList) return;
+          currentHidden.value = JSON.stringify(collectRows(currentList));
+        });
+      });
+      form.dataset.docsBound = "1";
+    }
+  });
+
+  if (categorySelect) {
+    categorySelect.addEventListener("change", toggleCategoryGroups);
+    toggleCategoryGroups();
+  }
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,126 @@
+{% extends "core/base.html" %}
+{% block title %}Notizie — Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+.notizie-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+.notizie-filters {
+  display: flex;
+  gap: .5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+.notizie-filters a {
+  padding: .35rem .85rem;
+  border-radius: 999px;
+  border: 1px solid var(--border, #e2e8f0);
+  font-size: .85rem;
+  text-decoration: none;
+  color: var(--text-secondary, #64748b);
+  transition: background .15s;
+}
+.notizie-filters a.active,
+.notizie-filters a:hover {
+  background: var(--primary, #1e3a5f);
+  color: #fff;
+  border-color: var(--primary, #1e3a5f);
+}
+.btn-dashboard {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .45rem .9rem;
+  border-radius: 8px;
+  background: #0f766e;
+  color: #fff;
+  text-decoration: none;
+  font-size: .85rem;
+  font-weight: 600;
+}
+.btn-dashboard:hover { opacity: .9; }
+.notizia-card {
+  background: #fff;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+.notizia-card:hover {
+  box-shadow: 0 2px 12px rgba(0,0,0,.07);
+}
+.badge-compliance {
+  display: inline-block;
+  padding: .2rem .6rem;
+  border-radius: 999px;
+  font-size: .78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.badge-conforme    { background: #dcfce7; color: #16a34a; }
+.badge-aperto      { background: #fef9c3; color: #b45309; }
+.badge-non_conforme{ background: #fee2e2; color: #dc2626; }
+.badge-non_letto   { background: #f1f5f9; color: #64748b; }
+.notizia-obbligatoria-icon { color: #dc2626; font-size: 1rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-container" style="max-width:860px;margin:2rem auto;padding:0 1rem;">
+  <div class="notizie-header">
+    <h1 style="font-size:1.6rem;font-weight:700;color:var(--primary,#1e3a5f);">Notizie &amp; Comunicazioni</h1>
+    {% if can_manage_notizie %}
+      <a href="{% url 'notizie_dashboard' %}" class="btn-dashboard">Dashboard Notizie</a>
+    {% endif %}
+  </div>
+
+  <div class="notizie-filters">
+    <a href="?" {% if not filtro_stato and not solo_obbligatorie %}class="active"{% endif %}>Tutte</a>
+    <a href="?solo_obbligatorie=1" {% if solo_obbligatorie %}class="active"{% endif %}>Obbligatorie</a>
+    <a href="?stato=non_letto" {% if filtro_stato == 'non_letto' %}class="active"{% endif %}>Non lette</a>
+    <a href="?stato=aperto"    {% if filtro_stato == 'aperto' %}class="active"{% endif %}>Aperte</a>
+    <a href="?stato=non_conforme" {% if filtro_stato == 'non_conforme' %}class="active"{% endif %}>Non conformi</a>
+    <a href="?stato=conforme"  {% if filtro_stato == 'conforme' %}class="active"{% endif %}>Confermate</a>
+  </div>
+
+  {% if not items %}
+    <p style="color:var(--text-secondary,#64748b);">Nessuna notizia disponibile.</p>
+  {% endif %}
+
+  {% for item in items %}
+  {% with n=item.notizia c=item.compliance %}
+  <div class="notizia-card">
+    <div style="flex:1;">
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;">
+        {% if n.obbligatoria %}
+          <span class="notizia-obbligatoria-icon" title="Obbligatoria">&#9888;</span>
+        {% endif %}
+        <a href="{% url 'notizie_dettaglio' n.id %}" style="font-size:1.05rem;font-weight:600;color:var(--primary,#1e3a5f);text-decoration:none;">
+          {{ n.titolo }}
+        </a>
+      </div>
+      <div style="font-size:.82rem;color:var(--text-secondary,#64748b);">
+        Versione {{ n.versione }}
+        {% if n.pubblicato_il %} · {{ n.pubblicato_il|date:"d/m/Y" }}{% endif %}
+      </div>
+    </div>
+    <div>
+      <span class="badge-compliance badge-{{ c }}">
+        {% if c == 'conforme' %}Confermata
+        {% elif c == 'aperto' %}Aperta
+        {% elif c == 'non_conforme' %}Non conforme
+        {% else %}Non letta{% endif %}
+      </span>
+    </div>
+  </div>
+  {% endwith %}
+  {% endfor %}
+</div>
+{% endblock %}

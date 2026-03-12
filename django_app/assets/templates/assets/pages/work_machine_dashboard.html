@@ -1,0 +1,301 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Dashboard officina{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.wmd-page { display:grid; gap:16px; }
+.wmd-filters { display:flex; gap:8px; flex-wrap:wrap; }
+.wmd-toolbar-form { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.wmd-toolbar-form input[type="month"] { height:38px; border:1px solid #cbd5e1; border-radius:10px; padding:0 10px; background:#fff; color:#0f172a; font:inherit; }
+.wmd-chip { border:1px solid #dbeafe; background:#eff6ff; color:#1d4ed8; border-radius:999px; padding:6px 11px; text-decoration:none; font-size:12px; font-weight:700; }
+.wmd-chip.active { background:#1d4ed8; border-color:#1d4ed8; color:#fff; }
+.wmd-kpis { display:grid; gap:10px; grid-template-columns:repeat(6, minmax(0, 1fr)); }
+.wmd-kpi { border:1px solid #dbe1ea; border-radius:14px; background:#fff; padding:14px 16px; box-shadow:0 2px 8px rgba(15, 23, 42, .05); }
+.wmd-kpi-label { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:700; }
+.wmd-kpi-value { margin-top:8px; font-size:32px; line-height:1; font-weight:800; color:#0f172a; }
+.wmd-kpi-meta { margin-top:4px; color:#64748b; font-size:12px; }
+.wmd-grid { display:grid; gap:14px; grid-template-columns:1.3fr 1fr; }
+.wmd-card { border:1px solid #dbe1ea; border-radius:14px; background:#fff; overflow:hidden; }
+.wmd-card-head { padding:14px 16px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.wmd-card-head h2 { margin:0; font-size:22px; color:#0f172a; }
+.wmd-card-head p { margin:0; color:#64748b; font-size:13px; }
+.wmd-card-body { padding:16px; display:grid; gap:12px; }
+.wmd-table-wrap { overflow:auto; }
+.wmd-table { width:100%; border-collapse:collapse; min-width:680px; }
+.wmd-table th, .wmd-table td { padding:10px 8px; border-bottom:1px solid #eef2f7; text-align:left; vertical-align:top; }
+.wmd-table th { background:#f8fafc; color:#64748b; font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
+.wmd-link { color:#1d4ed8; text-decoration:none; font-weight:700; }
+.wmd-list { display:grid; gap:10px; }
+.wmd-list-item { border:1px solid #e2e8f0; border-radius:12px; background:#f8fafc; padding:12px; display:grid; gap:6px; }
+.wmd-list-top { display:flex; justify-content:space-between; gap:8px; align-items:flex-start; }
+.wmd-list-title { color:#0f172a; font-size:14px; font-weight:800; }
+.wmd-list-meta { color:#64748b; font-size:12px; }
+.wmd-pill { display:inline-flex; align-items:center; justify-content:center; border-radius:999px; padding:4px 8px; font-size:11px; font-weight:800; }
+.wmd-pill.warn { background:#fef3c7; color:#a16207; }
+.wmd-pill.danger { background:#fee2e2; color:#b91c1c; }
+.wmd-pill.ok { background:#dcfce7; color:#15803d; }
+.wmd-progress-group { display:grid; gap:12px; }
+.wmd-progress-row { display:grid; gap:6px; }
+.wmd-progress-head { display:flex; justify-content:space-between; gap:8px; font-size:13px; color:#334155; font-weight:700; }
+.wmd-progress-track { height:10px; border-radius:999px; background:#e2e8f0; overflow:hidden; }
+.wmd-progress-fill { height:100%; border-radius:999px; background:linear-gradient(90deg, #2563eb, #1d4ed8); }
+@media (max-width: 1400px) {
+  .wmd-kpis { grid-template-columns:repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 980px) {
+  .wmd-grid { grid-template-columns:1fr; }
+  .wmd-kpis { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .wmd-kpis { grid-template-columns:1fr; }
+}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Dashboard officina{% endblock %}
+{% block assets_shell_subtitle %}
+<p>KPI macchine di lavoro, work order e manutenzioni da pianificare.</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+<form method="get" action="{% url 'assets:work_machine_dashboard' %}" class="wmd-toolbar-form">
+  {% if reparto_filter %}<input type="hidden" name="reparto" value="{{ reparto_filter }}">{% endif %}
+  <input type="month" name="month" value="{{ maintenance_month_code }}" aria-label="Seleziona mese report">
+  <button class="btn" type="submit">Applica mese</button>
+</form>
+<a class="btn btn-secondary" href="{{ maintenance_month_pdf_url }}" target="_blank" rel="noopener">PDF manutenzioni mese ({{ maintenance_month_count }})</a>
+<a class="btn btn-primary" href="{% url 'assets:plant_layout_map' %}">Mappa officina</a>
+<a class="btn btn-secondary" href="{% url 'assets:work_machine_list' %}">Elenco macchine</a>
+<a class="btn" href="{% url 'assets:asset_list' %}">Inventario completo</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="wmd-page">
+  <div class="wmd-filters">
+    <a class="wmd-chip {% if not reparto_filter %}active{% endif %}" href="{% url 'assets:work_machine_dashboard' %}?month={{ maintenance_month_code|urlencode }}">Tutti i reparti</a>
+    {% for row in reparto_totals %}
+      <a class="wmd-chip {% if reparto_filter == row.reparto %}active{% endif %}" href="{% url 'assets:work_machine_dashboard' %}?month={{ maintenance_month_code|urlencode }}&reparto={{ row.reparto|urlencode }}">{{ row.reparto }} {{ row.total }}</a>
+    {% endfor %}
+  </div>
+
+  <section class="wmd-kpis">
+    <article class="wmd-kpi">
+      <div class="wmd-kpi-label">Macchine monitorate</div>
+      <div class="wmd-kpi-value">{{ total_machines }}</div>
+      <div class="wmd-kpi-meta">Perimetro officina attuale</div>
+    </article>
+    <article class="wmd-kpi">
+      <div class="wmd-kpi-label">In uso</div>
+      <div class="wmd-kpi-value">{{ in_use_machines }}</div>
+      <div class="wmd-kpi-meta">Produzione attiva</div>
+    </article>
+    <article class="wmd-kpi">
+      <div class="wmd-kpi-label">In riparazione</div>
+      <div class="wmd-kpi-value">{{ in_repair_machines }}</div>
+      <div class="wmd-kpi-meta">Fermo o criticita</div>
+    </article>
+    <article class="wmd-kpi">
+      <div class="wmd-kpi-label">WO aperti</div>
+      <div class="wmd-kpi-value">{{ open_count }}</div>
+      <div class="wmd-kpi-meta">{{ overdue_count }} oltre soglia 21 giorni</div>
+    </article>
+    <article class="wmd-kpi">
+      <div class="wmd-kpi-label">Scadenze manutenzione</div>
+      <div class="wmd-kpi-value">{{ due_count }}</div>
+      <div class="wmd-kpi-meta">{{ overdue_maintenance_count }} scadute · {{ warning_maintenance_count }} in soglia</div>
+    </article>
+    <article class="wmd-kpi">
+      <div class="wmd-kpi-label">Pianificazione / documenti</div>
+      <div class="wmd-kpi-value">{{ missing_maintenance_count }}/{{ manuals_count }}</div>
+      <div class="wmd-kpi-meta">Senza data manut. / con manuali</div>
+    </article>
+  </section>
+
+  <section class="wmd-grid">
+    <article class="wmd-card">
+      <div class="wmd-card-head">
+        <div>
+          <h2>Reminder manutenzione</h2>
+          <p>Alert automatici basati su `prossima manutenzione` e soglia giorni impostata sulla macchina.</p>
+        </div>
+      </div>
+      <div class="wmd-card-body">
+        <div class="wmd-table-wrap">
+          <table class="wmd-table">
+            <thead>
+              <tr>
+                <th>Macchina</th>
+                <th>Reparto</th>
+                <th>Prossima data</th>
+                <th>Stato</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in overdue_maintenance %}
+                <tr>
+                  <td>
+                    <div><strong>{{ row.asset.name }}</strong></div>
+                    <div class="wmd-list-meta">{{ row.asset.asset_tag }}</div>
+                  </td>
+                  <td>{{ row.asset.reparto|default:"-" }}</td>
+                  <td>{{ row.machine.next_maintenance_date|date:"d/m/Y" }}</td>
+                  <td><span class="wmd-pill danger">{{ row.state.label }}</span></td>
+                  <td>
+                    <a class="wmd-link" href="{% url 'assets:asset_view' row.asset.id %}">Dettaglio</a>
+                    <span class="wmd-list-meta"> | </span>
+                    <a class="wmd-link" href="{% url 'assets:work_machine_edit' row.asset.id %}">Pianifica</a>
+                  </td>
+                </tr>
+              {% endfor %}
+              {% for row in warning_maintenance %}
+                <tr>
+                  <td>
+                    <div><strong>{{ row.asset.name }}</strong></div>
+                    <div class="wmd-list-meta">{{ row.asset.asset_tag }}</div>
+                  </td>
+                  <td>{{ row.asset.reparto|default:"-" }}</td>
+                  <td>{{ row.machine.next_maintenance_date|date:"d/m/Y" }}</td>
+                  <td><span class="wmd-pill warn">{{ row.state.label }}</span></td>
+                  <td>
+                    <a class="wmd-link" href="{% url 'assets:asset_view' row.asset.id %}">Dettaglio</a>
+                    <span class="wmd-list-meta"> | </span>
+                    <a class="wmd-link" href="{% url 'assets:work_machine_edit' row.asset.id %}">Aggiorna data</a>
+                  </td>
+                </tr>
+              {% endfor %}
+              {% if not overdue_maintenance and not warning_maintenance %}
+                <tr><td colspan="5" style="color:#64748b;">Nessun reminder attivo sulle date manutenzione.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </article>
+
+    <article class="wmd-card">
+      <div class="wmd-card-head">
+        <div>
+          <h2>Interventi aperti</h2>
+          <p>Focus sulle attivita ancora da chiudere.</p>
+        </div>
+      </div>
+      <div class="wmd-card-body">
+        <div class="wmd-list">
+          {% for wo in open_workorders %}
+            <article class="wmd-list-item">
+              <div class="wmd-list-top">
+                <div>
+                  <div class="wmd-list-title">{{ wo.title }}</div>
+                  <div class="wmd-list-meta">{{ wo.asset.asset_tag }} · {{ wo.asset.name }}</div>
+                </div>
+                <span class="wmd-pill {% if wo.id in overdue_workorder_ids %}danger{% else %}warn{% endif %}">
+                  {% if wo.id in overdue_workorder_ids %}Urgente{% else %}Aperto{% endif %}
+                </span>
+              </div>
+              <div class="wmd-list-meta">{{ wo.asset.reparto|default:"-" }} · aperto il {{ wo.opened_at|date:"d/m/Y" }}</div>
+              <div><a class="wmd-link" href="{% url 'assets:wo_view' wo.id %}">Apri work order</a></div>
+            </article>
+          {% empty %}
+            <div class="wmd-list-meta">Nessun intervento aperto in officina.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <section class="wmd-grid">
+    <article class="wmd-card">
+      <div class="wmd-card-head">
+        <div>
+          <h2>Date manutenzione mancanti</h2>
+          <p>Macchine senza pianificazione esplicita: qui devi impostare la prossima manutenzione.</p>
+        </div>
+      </div>
+      <div class="wmd-card-body">
+        <div class="wmd-list">
+          {% for row in missing_maintenance %}
+            <article class="wmd-list-item">
+              <div class="wmd-list-top">
+                <div>
+                  <div class="wmd-list-title">{{ row.asset.name }}</div>
+                  <div class="wmd-list-meta">{{ row.asset.asset_tag }} · {{ row.asset.reparto|default:"-" }}</div>
+                </div>
+                <span class="wmd-pill warn">Da pianificare</span>
+              </div>
+              <div class="wmd-list-meta">Nessuna data prossima manutenzione configurata.</div>
+              <div><a class="wmd-link" href="{% url 'assets:work_machine_edit' row.asset.id %}">Imposta manutenzione</a></div>
+            </article>
+          {% empty %}
+            <div class="wmd-list-meta">Tutte le macchine hanno una data manutenzione impostata.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </article>
+
+    <article class="wmd-card">
+      <div class="wmd-card-head">
+        <div>
+          <h2>Interventi chiusi di recente</h2>
+          <p>Ultimi 60 giorni, utile per verificare il carico officina.</p>
+        </div>
+      </div>
+      <div class="wmd-card-body">
+        <div class="wmd-list">
+          {% for wo in recent_done_workorders %}
+            <article class="wmd-list-item">
+              <div class="wmd-list-top">
+                <div>
+                  <div class="wmd-list-title">{{ wo.title }}</div>
+                  <div class="wmd-list-meta">{{ wo.asset.asset_tag }} · {{ wo.asset.name }}</div>
+                </div>
+                <span class="wmd-pill ok">Chiusa</span>
+              </div>
+              <div class="wmd-list-meta">Chiusa il {{ wo.closed_at|date:"d/m/Y" }} · {{ wo.get_kind_display }}</div>
+              <div><a class="wmd-link" href="{% url 'assets:wo_view' wo.id %}">Vedi dettaglio</a></div>
+            </article>
+          {% empty %}
+            <div class="wmd-list-meta">Nessun intervento chiuso di recente.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <section class="wmd-grid">
+    <article class="wmd-card">
+      <div class="wmd-card-head">
+        <div>
+          <h2>Copertura documentazione</h2>
+          <p>Verifica rapida di manuali e schede tecniche collegate.</p>
+        </div>
+      </div>
+      <div class="wmd-card-body">
+        <div class="wmd-progress-group">
+          <div class="wmd-progress-row">
+            <div class="wmd-progress-head">
+              <span>Manuali macchina</span>
+              <span>{{ manuals_count }}/{{ total_machines }}</span>
+            </div>
+            <div class="wmd-progress-track">
+              <div class="wmd-progress-fill" style="width:{% if total_machines %}{% widthratio manuals_count total_machines 100 %}{% else %}0{% endif %}%;"></div>
+            </div>
+          </div>
+          <div class="wmd-progress-row">
+            <div class="wmd-progress-head">
+              <span>Specifiche tecniche</span>
+              <span>{{ specs_count }}/{{ total_machines }}</span>
+            </div>
+            <div class="wmd-progress-track">
+              <div class="wmd-progress-fill" style="width:{% if total_machines %}{% widthratio specs_count total_machines 100 %}{% else %}0{% endif %}%;"></div>
+            </div>
+          </div>
+          <div class="wmd-list-meta">
+            Ora i documenti possono essere sia riferimenti esterni sia file reali archiviati nel portale.
+          </div>
+        </div>
+      </div>
+    </article>
+  </section>
+</section>
+{% endblock %}

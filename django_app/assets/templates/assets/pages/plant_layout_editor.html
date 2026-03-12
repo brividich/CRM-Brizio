@@ -1,0 +1,985 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Editor planimetrie impianti{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.plx-page { display:grid; gap:16px; }
+.plx-top { display:grid; gap:10px; grid-template-columns:minmax(0, 1.3fr) minmax(280px, .7fr); }
+.plx-card { border:1px solid #dbe1ea; border-radius:18px; background:#fff; overflow:hidden; box-shadow:0 4px 18px rgba(15, 23, 42, .05); }
+.plx-card-head { padding:16px 18px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+.plx-card-head h2 { margin:0; font-size:22px; color:#0f172a; }
+.plx-card-head p { margin:4px 0 0; color:#64748b; font-size:13px; }
+.plx-card-body { padding:16px 18px; display:grid; gap:14px; }
+.plx-form-grid { display:grid; gap:12px; grid-template-columns:repeat(4, minmax(0, 1fr)); }
+.plx-form-grid .field { display:grid; gap:6px; }
+.plx-field-note { color:#64748b; font-size:12px; }
+.plx-errors { color:#b91c1c; font-size:12px; display:grid; gap:4px; }
+.plx-layout-list { display:grid; gap:8px; }
+.plx-layout-link { display:block; border:1px solid #dbe1ea; border-radius:12px; padding:12px; text-decoration:none; color:#334155; }
+.plx-layout-link.active { border-color:#1d4ed8; background:#eff6ff; color:#1d4ed8; }
+.plx-layout-meta { margin-top:4px; color:#64748b; font-size:12px; }
+.plx-layout-badge { display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:4px 8px; background:#dcfce7; color:#166534; font-size:11px; font-weight:800; }
+.plx-workspace { display:grid; grid-template-columns:minmax(0, 1.55fr) minmax(360px, .85fr); gap:16px; align-items:start; }
+.plx-stage-tools { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.plx-stage-wrap { padding:18px; background:linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%); display:grid; gap:12px; }
+.plx-stage-status { color:#475569; font-size:13px; font-weight:700; }
+.plx-stage { position:relative; width:100%; border-radius:16px; overflow:hidden; border:1px solid #d5e0f0; background:#dbe7f7; min-height:320px; }
+.plx-stage img { display:block; width:100%; height:auto; }
+.plx-empty-stage { position:absolute; inset:0; display:grid; place-items:center; color:#64748b; text-align:center; padding:32px; }
+.plx-overlay { position:absolute; inset:0; cursor:crosshair; }
+.plx-overlay.is-select { cursor:default; }
+.plx-area { position:absolute; border:2px solid var(--area-color, #2563EB); background:var(--area-bg, rgba(37,99,235,0.22)); border-radius:14px; }
+.plx-area.is-selected { box-shadow:0 0 0 3px rgba(37, 99, 235, .18), 0 14px 28px rgba(15, 23, 42, .12); background:var(--area-bg-active, rgba(37,99,235,0.38)); }
+.plx-area-label { position:absolute; left:8px; top:8px; display:inline-flex; align-items:center; gap:8px; background:rgba(15, 23, 42, .78); color:#fff; border-radius:999px; padding:5px 9px; font-size:11px; font-weight:800; max-width:calc(100% - 16px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.plx-marker { position:absolute; width:18px; height:18px; border:none; border-radius:999px; background:#dc2626; transform:translate(-50%, -50%); box-shadow:0 0 0 4px rgba(255,255,255,.94), 0 8px 16px rgba(15,23,42,.18); cursor:grab; }
+.plx-marker:active { cursor:grabbing; }
+.plx-marker::after { content:""; position:absolute; inset:6px; border-radius:999px; background:#fff; }
+.plx-marker.is-selected { box-shadow:0 0 0 4px rgba(255,255,255,.98), 0 0 0 9px rgba(220,38,38,.2), 0 10px 20px rgba(15,23,42,.22); }
+.plx-draft { position:absolute; border:2px dashed #1d4ed8; background:rgba(59, 130, 246, .12); border-radius:12px; pointer-events:none; }
+.plx-side { display:grid; gap:16px; }
+.plx-list { display:grid; gap:8px; max-height:260px; overflow:auto; }
+.plx-item { border:1px solid #dbe1ea; border-radius:12px; padding:10px 12px; background:#fff; text-align:left; cursor:pointer; }
+.plx-item.is-selected { border-color:#1d4ed8; background:#eff6ff; }
+.plx-item-title { font-size:13px; font-weight:800; color:#0f172a; }
+.plx-item-sub { margin-top:3px; color:#64748b; font-size:12px; }
+.plx-panel-grid { display:grid; gap:10px; }
+.plx-panel-grid .field { display:grid; gap:6px; }
+.plx-panel-grid input[type="color"] { width:100%; min-height:42px; padding:4px; }
+.plx-coords { display:grid; gap:10px; grid-template-columns:repeat(2, minmax(0, 1fr)); }
+.plx-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.plx-inline-note { color:#64748b; font-size:12px; }
+.plx-machine-toolbar { display:flex; gap:8px; align-items:center; }
+.plx-machine-toolbar input { width:100%; }
+.plx-machine-preview { display:grid; gap:8px; max-height:170px; overflow:auto; }
+.plx-machine-chip { border:1px solid #dbe1ea; border-radius:12px; padding:10px; background:#f8fafc; }
+.plx-machine-chip strong { display:block; font-size:13px; color:#0f172a; }
+.plx-machine-chip span { display:block; margin-top:4px; font-size:12px; color:#64748b; }
+.plx-footer { display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap; }
+.plx-footer-meta { color:#64748b; font-size:12px; }
+@media (max-width: 1200px) {
+  .plx-top, .plx-workspace { grid-template-columns:1fr; }
+}
+@media (max-width: 860px) {
+  .plx-form-grid { grid-template-columns:1fr; }
+}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Editor planimetrie impianti{% endblock %}
+{% block assets_shell_subtitle %}
+<p>Gestisci piu planimetrie per ambiti diversi: officina, TVCC, sistema allarme e altri impianti.</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+<a class="btn" href="{% url 'assets:plant_layout_map' %}{% if current_layout_category %}?category={{ current_layout_category|urlencode }}{% endif %}">Apri vista utenti</a>
+<a class="btn btn-secondary" href="{% url 'assets:work_machine_dashboard' %}">Dashboard officina</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="plx-page">
+  <section class="plx-top">
+    <article class="plx-card">
+      <div class="plx-card-head">
+        <div>
+          <h2>Configurazione planimetria</h2>
+          <p>La mappa attiva viene pubblicata nella vista utenti. Puoi anche preparare una nuova versione e attivarla quando e pronta.</p>
+        </div>
+      </div>
+      <div class="plx-card-body">
+        <form method="post" enctype="multipart/form-data" id="plant-layout-form">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="save_layout">
+          <input type="hidden" name="layout_id" value="{% if selected_layout %}{{ selected_layout.id }}{% endif %}">
+          <input type="hidden" id="plx-layout-mode" name="layout_mode" value="{% if create_new %}new{% else %}edit{% endif %}">
+          {{ form.areas_payload }}
+          {{ form.markers_payload }}
+
+          {% if form.non_field_errors %}
+          <div class="plx-errors">{{ form.non_field_errors }}</div>
+          {% endif %}
+
+          <div class="plx-form-grid">
+            <div class="field">
+              <label for="{{ form.category.id_for_label }}">Categoria</label>
+              {{ form.category }}
+              <div class="plx-field-note">{{ form.category.help_text }}</div>
+              {% if form.category.errors %}<div class="plx-errors">{{ form.category.errors }}</div>{% endif %}
+            </div>
+            <div class="field">
+              <label for="{{ form.name.id_for_label }}">Nome</label>
+              {{ form.name }}
+              {% if form.name.errors %}<div class="plx-errors">{{ form.name.errors }}</div>{% endif %}
+            </div>
+            <div class="field">
+              <label for="{{ form.image.id_for_label }}">Immagine</label>
+              {{ form.image }}
+              <div class="plx-field-note">{{ form.image.help_text }}</div>
+              {% if form.image.errors %}<div class="plx-errors">{{ form.image.errors }}</div>{% endif %}
+            </div>
+            <div class="field">
+              <label for="{{ form.is_active.id_for_label }}">Pubblicazione</label>
+              <label style="display:inline-flex;align-items:center;gap:8px;">{{ form.is_active }} Rendi questa la mappa attiva</label>
+              {% if form.is_active.errors %}<div class="plx-errors">{{ form.is_active.errors }}</div>{% endif %}
+            </div>
+            <div class="field">
+              <label for="{{ form.description.id_for_label }}">Descrizione</label>
+              {{ form.description }}
+              <div class="plx-field-note">{{ form.description.help_text }}</div>
+              {% if form.description.errors %}<div class="plx-errors">{{ form.description.errors }}</div>{% endif %}
+            </div>
+          </div>
+        </form>
+      </div>
+    </article>
+
+    <aside class="plx-card">
+      <div class="plx-card-head">
+        <div>
+          <h2>Versioni disponibili</h2>
+          <p>Seleziona una planimetria esistente oppure apri una nuova bozza per una categoria specifica.</p>
+        </div>
+        <a class="btn btn-primary" href="{% url 'assets:plant_layout_editor' %}?new=1{% if current_layout_category %}&category={{ current_layout_category|urlencode }}{% endif %}">Nuova planimetria</a>
+      </div>
+      <div class="plx-card-body">
+        {% if layout_category_filters %}
+        <div class="plx-stage-tools">
+          {% for chip in layout_category_filters %}
+          <a class="btn {% if chip.active %}btn-primary{% else %}btn-secondary{% endif %}" href="{{ chip.url }}">{{ chip.label }}</a>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <div class="plx-layout-list">
+          {% for row in layout_choices %}
+          <div style="border:1px solid {% if selected_layout and selected_layout.id == row.id and not create_new %}#1d4ed8{% else %}#dbe1ea{% endif %};border-radius:12px;background:{% if selected_layout and selected_layout.id == row.id and not create_new %}#eff6ff{% else %}#fff{% endif %};overflow:hidden;">
+            <a class="plx-layout-link" style="border:none;border-radius:0;" href="{{ row.edit_url }}">
+              <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+                <div>
+                  <div class="plx-item-title">{{ row.name }}</div>
+                  <div class="plx-layout-meta">{{ row.category }} - aggiornata {{ row.updated_at }}</div>
+                </div>
+                {% if row.is_active %}
+                <span class="plx-layout-badge">Attiva</span>
+                {% endif %}
+              </div>
+            </a>
+            {% if not row.is_active %}
+            <form method="post" style="border-top:1px solid #e5e7eb;padding:8px 12px;">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="activate_layout">
+              <input type="hidden" name="layout_id" value="{{ row.id }}">
+              <button class="btn btn-primary" type="submit" style="width:100%;font-size:12px;padding:6px 10px;">Pubblica come attiva</button>
+            </form>
+            {% endif %}
+          </div>
+          {% empty %}
+          <div class="plx-inline-note">Nessuna planimetria salvata.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <section class="plx-workspace">
+    <article class="plx-card">
+      <div class="plx-card-head">
+        <div>
+          <h2>Canvas editor</h2>
+          <p>Disegna un reparto trascinando sul canvas, poi seleziona una macchina e fai clic sulla planimetria per posizionare il marker.</p>
+        </div>
+        <div class="plx-stage-tools">
+          <button class="btn" type="button" id="plx-draw-area-btn">Disegna reparto</button>
+          <button class="btn btn-secondary" type="button" id="plx-cancel-mode-btn">Selezione</button>
+        </div>
+      </div>
+      <div class="plx-stage-wrap">
+        <div class="plx-stage-status" id="plx-stage-status">Modalita selezione.</div>
+        <div class="plx-stage" id="plx-stage">
+          {% if selected_layout and selected_layout.image %}
+          <img id="plx-stage-image" src="{{ selected_layout.image.url }}" alt="{{ selected_layout.name }}">
+          {% else %}
+          <div class="plx-empty-stage" id="plx-empty-stage">
+            <div>
+              <strong style="display:block;color:#0f172a;font-size:18px;margin-bottom:8px;">Carica una planimetria</strong>
+              Salva una PNG/JPG per attivare il canvas interattivo.
+            </div>
+          </div>
+          {% endif %}
+          <div class="plx-overlay is-select" id="plx-overlay"></div>
+        </div>
+      </div>
+      <div class="plx-card-body">
+        <div class="plx-footer">
+          <div class="plx-footer-meta" id="plx-footer-meta">0 reparti, 0 marker macchina.</div>
+          <div class="plx-actions">
+            {% if selected_layout and not create_new %}
+            <form method="post" onsubmit="return confirm('Eliminare questa planimetria?');">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="delete_layout">
+              <input type="hidden" name="layout_id" value="{{ selected_layout.id }}">
+              <button class="btn btn-secondary" type="submit">Elimina planimetria</button>
+            </form>
+            {% endif %}
+            <button class="btn btn-primary" type="submit" form="plant-layout-form">Salva mappa</button>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <aside class="plx-side">
+      <article class="plx-card">
+        <div class="plx-card-head">
+          <div>
+            <h2>Reparti</h2>
+            <p>Ogni reparto puo agganciarsi a un codice `reparto` gia presente sulle macchine.</p>
+          </div>
+        </div>
+        <div class="plx-card-body">
+          <div class="plx-list" id="plx-area-list"></div>
+          <div class="plx-panel-grid">
+            <div class="field">
+              <label for="plx-area-name">Nome reparto</label>
+              <input class="input" id="plx-area-name" type="text" maxlength="120" placeholder="Es. CN5">
+            </div>
+            <div class="field">
+              <label for="plx-area-reparto">Codice reparto</label>
+              <input class="input" id="plx-area-reparto" type="text" maxlength="120" placeholder="Deve corrispondere al campo reparto macchina">
+            </div>
+            <div class="field">
+              <label for="plx-area-color">Colore overlay</label>
+              <input class="input" id="plx-area-color" type="color" value="#2563EB">
+            </div>
+            <div class="field">
+              <label for="plx-area-notes">Note reparto</label>
+              <textarea class="input" id="plx-area-notes" rows="3" maxlength="255"></textarea>
+            </div>
+            <div class="plx-coords">
+              <div class="field">
+                <label for="plx-area-x">X %</label>
+                <input class="input" id="plx-area-x" type="number" min="0" max="100" step="0.01">
+              </div>
+              <div class="field">
+                <label for="plx-area-y">Y %</label>
+                <input class="input" id="plx-area-y" type="number" min="0" max="100" step="0.01">
+              </div>
+              <div class="field">
+                <label for="plx-area-width">Larghezza %</label>
+                <input class="input" id="plx-area-width" type="number" min="0.5" max="100" step="0.01">
+              </div>
+              <div class="field">
+                <label for="plx-area-height">Altezza %</label>
+                <input class="input" id="plx-area-height" type="number" min="0.5" max="100" step="0.01">
+              </div>
+            </div>
+            <div class="plx-actions">
+              <button class="btn btn-secondary" type="button" id="plx-delete-area-btn">Elimina reparto</button>
+              <span class="plx-inline-note">Se il reparto non e perfetto, puoi rifinire qui le coordinate.</span>
+            </div>
+          </div>
+          <div class="plx-machine-preview" id="plx-area-machine-preview"></div>
+        </div>
+      </article>
+
+      <article class="plx-card">
+        <div class="plx-card-head">
+          <div>
+            <h2>Macchine da posizionare</h2>
+            <p>Seleziona una macchina e fai clic sul canvas per creare o spostare il marker.</p>
+          </div>
+        </div>
+        <div class="plx-card-body">
+          <div class="plx-machine-toolbar">
+            <input class="input" id="plx-machine-search" type="search" placeholder="Filtra per tag, nome o reparto">
+          </div>
+          <div class="plx-list" id="plx-machine-list"></div>
+        </div>
+      </article>
+
+      <article class="plx-card">
+        <div class="plx-card-head">
+          <div>
+            <h2>Marker macchine</h2>
+            <p>I marker usano le macchine esistenti nel modulo `assets`.</p>
+          </div>
+        </div>
+        <div class="plx-card-body">
+          <div class="plx-list" id="plx-marker-list"></div>
+          <div class="plx-panel-grid">
+            <div class="field">
+              <label for="plx-marker-label">Etichetta marker</label>
+              <input class="input" id="plx-marker-label" type="text" maxlength="120" placeholder="Default: tag macchina">
+            </div>
+            <div class="plx-coords">
+              <div class="field">
+                <label for="plx-marker-x">X %</label>
+                <input class="input" id="plx-marker-x" type="number" min="0" max="100" step="0.01">
+              </div>
+              <div class="field">
+                <label for="plx-marker-y">Y %</label>
+                <input class="input" id="plx-marker-y" type="number" min="0" max="100" step="0.01">
+              </div>
+            </div>
+            <div class="plx-actions">
+              <button class="btn btn-secondary" type="button" id="plx-delete-marker-btn">Elimina marker</button>
+              <span class="plx-inline-note">Se selezioni di nuovo la stessa macchina, il click sul canvas la riposiziona.</span>
+            </div>
+          </div>
+        </div>
+      </article>
+    </aside>
+  </section>
+</section>
+
+{{ editor_payload|json_script:"plant-layout-editor-data" }}
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(function () {
+  const dataNode = document.getElementById("plant-layout-editor-data");
+  if (!dataNode) return;
+  const payload = JSON.parse(dataNode.textContent || "{}");
+  const overlay = document.getElementById("plx-overlay");
+  const stage = document.getElementById("plx-stage");
+  const imageNode = document.getElementById("plx-stage-image");
+  const drawAreaBtn = document.getElementById("plx-draw-area-btn");
+  const cancelModeBtn = document.getElementById("plx-cancel-mode-btn");
+  const stageStatus = document.getElementById("plx-stage-status");
+  const footerMeta = document.getElementById("plx-footer-meta");
+  const layoutModeInput = document.getElementById("plx-layout-mode");
+  const areasInput = document.getElementById("id_areas_payload");
+  const markersInput = document.getElementById("id_markers_payload");
+  const areaListNode = document.getElementById("plx-area-list");
+  const markerListNode = document.getElementById("plx-marker-list");
+  const machineListNode = document.getElementById("plx-machine-list");
+  const machineSearchNode = document.getElementById("plx-machine-search");
+  const areaMachinePreview = document.getElementById("plx-area-machine-preview");
+  const deleteAreaBtn = document.getElementById("plx-delete-area-btn");
+  const deleteMarkerBtn = document.getElementById("plx-delete-marker-btn");
+
+  const areaInputs = {
+    name: document.getElementById("plx-area-name"),
+    reparto_code: document.getElementById("plx-area-reparto"),
+    color: document.getElementById("plx-area-color"),
+    notes: document.getElementById("plx-area-notes"),
+    x_percent: document.getElementById("plx-area-x"),
+    y_percent: document.getElementById("plx-area-y"),
+    width_percent: document.getElementById("plx-area-width"),
+    height_percent: document.getElementById("plx-area-height")
+  };
+  const markerInputs = {
+    label: document.getElementById("plx-marker-label"),
+    x_percent: document.getElementById("plx-marker-x"),
+    y_percent: document.getElementById("plx-marker-y")
+  };
+
+  let tempAreaIndex = 0;
+  let tempMarkerIndex = 0;
+  let draftBox = null;
+  let drawStart = null;
+
+  function hexToRgba(hex, alpha) {
+    const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || "#2563EB");
+    if (!m) return "rgba(37,99,235," + alpha + ")";
+    return "rgba(" + parseInt(m[1], 16) + "," + parseInt(m[2], 16) + "," + parseInt(m[3], 16) + "," + alpha + ")";
+  }
+
+  function toNumber(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : fallback;
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function round2(value) {
+    return Math.round(value * 100) / 100;
+  }
+
+  function areaClientId(row) {
+    tempAreaIndex += 1;
+    return row && row.id ? "area-" + String(row.id) : "area-new-" + String(tempAreaIndex);
+  }
+
+  function markerClientId(row) {
+    tempMarkerIndex += 1;
+    return row && row.id ? "marker-" + String(row.id) : "marker-new-" + String(tempMarkerIndex);
+  }
+
+  const state = {
+    mode: "select",
+    selectedAreaId: null,
+    selectedMarkerId: null,
+    pendingMachineId: null,
+    machines: Array.isArray(payload.machines) ? payload.machines.slice() : [],
+    areas: (Array.isArray(payload.areas) ? payload.areas : []).map(function (row, index) {
+      return {
+        client_id: areaClientId(row),
+        id: row.id || null,
+        name: row.name || ("Reparto " + String(index + 1)),
+        reparto_code: row.reparto_code || "",
+        color: row.color || "#2563EB",
+        notes: row.notes || "",
+        x_percent: round2(toNumber(row.x_percent, 0)),
+        y_percent: round2(toNumber(row.y_percent, 0)),
+        width_percent: round2(toNumber(row.width_percent, 10)),
+        height_percent: round2(toNumber(row.height_percent, 10)),
+        sort_order: toNumber(row.sort_order, (index + 1) * 10)
+      };
+    }),
+    markers: (Array.isArray(payload.markers) ? payload.markers : []).map(function (row, index) {
+      return {
+        client_id: markerClientId(row),
+        id: row.id || null,
+        asset_id: toNumber(row.asset_id, 0),
+        label: row.label || "",
+        x_percent: round2(toNumber(row.x_percent, 0)),
+        y_percent: round2(toNumber(row.y_percent, 0)),
+        sort_order: toNumber(row.sort_order, (index + 1) * 10)
+      };
+    })
+  };
+
+  if (state.areas.length) {
+    state.selectedAreaId = state.areas[0].client_id;
+  }
+  if (state.markers.length) {
+    state.selectedMarkerId = state.markers[0].client_id;
+  }
+
+  function getAreaById(clientId) {
+    return state.areas.find(function (row) { return row.client_id === clientId; }) || null;
+  }
+
+  function getMarkerById(clientId) {
+    return state.markers.find(function (row) { return row.client_id === clientId; }) || null;
+  }
+
+  function getMachineById(assetId) {
+    return state.machines.find(function (row) { return Number(row.id) === Number(assetId); }) || null;
+  }
+
+  function machineRepartoMatches(area, machine) {
+    if (!area || !machine) return false;
+    return String(area.reparto_code || "").trim().toLowerCase() === String(machine.reparto || "").trim().toLowerCase();
+  }
+
+  function normalizeAreaBounds(area) {
+    area.x_percent = clamp(round2(toNumber(area.x_percent, 0)), 0, 100);
+    area.y_percent = clamp(round2(toNumber(area.y_percent, 0)), 0, 100);
+    area.width_percent = clamp(round2(toNumber(area.width_percent, 10)), 0.5, 100);
+    area.height_percent = clamp(round2(toNumber(area.height_percent, 10)), 0.5, 100);
+    if (area.x_percent + area.width_percent > 100) {
+      area.width_percent = round2(100 - area.x_percent);
+    }
+    if (area.y_percent + area.height_percent > 100) {
+      area.height_percent = round2(100 - area.y_percent);
+    }
+    area.width_percent = Math.max(0.5, area.width_percent);
+    area.height_percent = Math.max(0.5, area.height_percent);
+  }
+
+  function normalizeMarker(marker) {
+    marker.x_percent = clamp(round2(toNumber(marker.x_percent, 0)), 0, 100);
+    marker.y_percent = clamp(round2(toNumber(marker.y_percent, 0)), 0, 100);
+  }
+
+  function setMode(mode, pendingMachineId) {
+    state.mode = mode || "select";
+    state.pendingMachineId = pendingMachineId || null;
+    overlay.classList.toggle("is-select", state.mode === "select");
+    if (state.mode === "draw-area") {
+      stageStatus.textContent = "Modalita disegno reparto: trascina sul canvas per creare un rettangolo.";
+    } else if (state.mode === "place-marker" && state.pendingMachineId) {
+      const machine = getMachineById(state.pendingMachineId);
+      stageStatus.textContent = machine
+        ? "Modalita marker: fai clic sulla planimetria per posizionare " + (machine.asset_tag || machine.name || "la macchina") + "."
+        : "Modalita marker.";
+    } else {
+      stageStatus.textContent = "Modalita selezione.";
+    }
+  }
+
+  function selectArea(clientId) {
+    state.selectedAreaId = clientId || null;
+    if (clientId) {
+      state.selectedMarkerId = null;
+    }
+    setMode("select");
+    render();
+  }
+
+  function selectMarker(clientId) {
+    state.selectedMarkerId = clientId || null;
+    if (clientId) {
+      state.selectedAreaId = null;
+    }
+    setMode("select");
+    render();
+  }
+
+  function syncHiddenInputs() {
+    areasInput.value = JSON.stringify(state.areas.map(function (row, index) {
+      normalizeAreaBounds(row);
+      return {
+        id: row.id,
+        name: row.name,
+        reparto_code: row.reparto_code,
+        color: row.color,
+        notes: row.notes,
+        x_percent: row.x_percent,
+        y_percent: row.y_percent,
+        width_percent: row.width_percent,
+        height_percent: row.height_percent,
+        sort_order: row.sort_order || ((index + 1) * 10)
+      };
+    }));
+    markersInput.value = JSON.stringify(state.markers.map(function (row, index) {
+      normalizeMarker(row);
+      return {
+        id: row.id,
+        asset_id: row.asset_id,
+        label: row.label,
+        x_percent: row.x_percent,
+        y_percent: row.y_percent,
+        sort_order: row.sort_order || ((index + 1) * 10)
+      };
+    }));
+  }
+
+  function renderOverlay() {
+    overlay.innerHTML = "";
+    state.areas.forEach(function (area) {
+      normalizeAreaBounds(area);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "plx-area" + (state.selectedAreaId === area.client_id ? " is-selected" : "");
+      button.style.left = area.x_percent + "%";
+      button.style.top = area.y_percent + "%";
+      button.style.width = area.width_percent + "%";
+      button.style.height = area.height_percent + "%";
+      button.style.setProperty("--area-color", area.color || "#2563EB");
+      button.style.setProperty("--area-bg", hexToRgba(area.color, 0.22));
+      button.style.setProperty("--area-bg-active", hexToRgba(area.color, 0.38));
+      button.dataset.areaId = area.client_id;
+      const label = document.createElement("span");
+      label.className = "plx-area-label";
+      label.textContent = area.name || "Reparto";
+      button.appendChild(label);
+      button.addEventListener("click", function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        selectArea(area.client_id);
+      });
+      overlay.appendChild(button);
+    });
+    state.markers.forEach(function (marker) {
+      normalizeMarker(marker);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "plx-marker" + (state.selectedMarkerId === marker.client_id ? " is-selected" : "");
+      button.style.left = marker.x_percent + "%";
+      button.style.top = marker.y_percent + "%";
+      button.dataset.markerId = marker.client_id;
+      const machine = getMachineById(marker.asset_id);
+      button.title = marker.label || (machine && (machine.asset_tag || machine.name)) || "Marker macchina";
+
+      // Drag to reposition
+      let dragStart = null;
+      let dragging = false;
+      button.addEventListener("pointerdown", function (event) {
+        if (event.button !== 0) return;
+        dragStart = pointerToPercent(event);
+        dragging = false;
+        button.setPointerCapture(event.pointerId);
+        event.stopPropagation();
+      });
+      button.addEventListener("pointermove", function (event) {
+        if (!dragStart) return;
+        const pos = pointerToPercent(event);
+        if (!dragging) {
+          if (Math.abs(pos.x - dragStart.x) < 0.4 && Math.abs(pos.y - dragStart.y) < 0.4) return;
+          dragging = true;
+          selectMarker(marker.client_id);
+          button.style.cursor = "grabbing";
+        }
+        marker.x_percent = pos.x;
+        marker.y_percent = pos.y;
+        normalizeMarker(marker);
+        button.style.left = marker.x_percent + "%";
+        button.style.top = marker.y_percent + "%";
+        if (state.selectedMarkerId === marker.client_id) {
+          markerInputs.x_percent.value = String(marker.x_percent);
+          markerInputs.y_percent.value = String(marker.y_percent);
+        }
+        syncHiddenInputs();
+      });
+      button.addEventListener("pointerup", function (event) {
+        if (dragging) {
+          dragging = false;
+          dragStart = null;
+          button.style.cursor = "";
+          render();
+          event.stopPropagation();
+          return;
+        }
+        dragStart = null;
+      });
+
+      button.addEventListener("click", function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!dragging) selectMarker(marker.client_id);
+      });
+      overlay.appendChild(button);
+    });
+  }
+
+  function renderAreaList() {
+    areaListNode.innerHTML = "";
+    if (!state.areas.length) {
+      const empty = document.createElement("div");
+      empty.className = "plx-inline-note";
+      empty.textContent = "Nessun reparto disegnato.";
+      areaListNode.appendChild(empty);
+      return;
+    }
+    state.areas.forEach(function (area) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "plx-item" + (state.selectedAreaId === area.client_id ? " is-selected" : "");
+      button.innerHTML =
+        '<div class="plx-item-title">' + (area.name || "Reparto") + '</div>' +
+        '<div class="plx-item-sub">' + (area.reparto_code || "Nessun codice reparto") + " - " +
+        String(round2(area.width_percent)) + "% x " + String(round2(area.height_percent)) + "%</div>";
+      button.addEventListener("click", function () {
+        selectArea(area.client_id);
+      });
+      areaListNode.appendChild(button);
+    });
+  }
+
+  function renderMarkerList() {
+    markerListNode.innerHTML = "";
+    if (!state.markers.length) {
+      const empty = document.createElement("div");
+      empty.className = "plx-inline-note";
+      empty.textContent = "Nessun marker macchina posizionato.";
+      markerListNode.appendChild(empty);
+      return;
+    }
+    state.markers.forEach(function (marker) {
+      const machine = getMachineById(marker.asset_id);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "plx-item" + (state.selectedMarkerId === marker.client_id ? " is-selected" : "");
+      button.innerHTML =
+        '<div class="plx-item-title">' + (marker.label || (machine && (machine.asset_tag || machine.name)) || "Marker") + '</div>' +
+        '<div class="plx-item-sub">' + (machine ? ((machine.name || "") + " - " + (machine.reparto || "senza reparto")) : "Macchina rimossa") + '</div>';
+      button.addEventListener("click", function () {
+        selectMarker(marker.client_id);
+      });
+      markerListNode.appendChild(button);
+    });
+  }
+
+  function renderMachineList() {
+    const filter = String(machineSearchNode.value || "").trim().toLowerCase();
+    machineListNode.innerHTML = "";
+    const rows = state.machines.filter(function (machine) {
+      if (!filter) return true;
+      return [machine.asset_tag, machine.name, machine.reparto, machine.model]
+        .join(" ")
+        .toLowerCase()
+        .indexOf(filter) !== -1;
+    });
+    if (!rows.length) {
+      const empty = document.createElement("div");
+      empty.className = "plx-inline-note";
+      empty.textContent = "Nessuna macchina trovata.";
+      machineListNode.appendChild(empty);
+      return;
+    }
+    rows.forEach(function (machine) {
+      const existingMarker = state.markers.find(function (row) { return Number(row.asset_id) === Number(machine.id); });
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "plx-item" + (state.pendingMachineId === machine.id ? " is-selected" : "");
+      button.innerHTML =
+        '<div class="plx-item-title">' + (machine.asset_tag || machine.name) + '</div>' +
+        '<div class="plx-item-sub">' +
+        [machine.name, machine.reparto || "senza reparto", existingMarker ? "gia posizionata" : "clicca per posizionare"]
+          .filter(Boolean)
+          .join(" - ") +
+        '</div>';
+      button.addEventListener("click", function () {
+        state.selectedAreaId = null;
+        state.selectedMarkerId = existingMarker ? existingMarker.client_id : null;
+        setMode("place-marker", machine.id);
+        render();
+      });
+      machineListNode.appendChild(button);
+    });
+  }
+
+  function renderAreaEditor() {
+    const area = getAreaById(state.selectedAreaId);
+    Object.keys(areaInputs).forEach(function (key) {
+      areaInputs[key].disabled = !area;
+      if (!area) {
+        areaInputs[key].value = key === "color" ? "#2563EB" : "";
+      }
+    });
+    deleteAreaBtn.disabled = !area;
+    areaMachinePreview.innerHTML = "";
+    if (!area) {
+      const empty = document.createElement("div");
+      empty.className = "plx-inline-note";
+      empty.textContent = "Seleziona un reparto o creane uno nuovo con il pulsante 'Disegna reparto'.";
+      areaMachinePreview.appendChild(empty);
+      return;
+    }
+    areaInputs.name.value = area.name || "";
+    areaInputs.reparto_code.value = area.reparto_code || "";
+    areaInputs.color.value = area.color || "#2563EB";
+    areaInputs.notes.value = area.notes || "";
+    areaInputs.x_percent.value = String(round2(area.x_percent));
+    areaInputs.y_percent.value = String(round2(area.y_percent));
+    areaInputs.width_percent.value = String(round2(area.width_percent));
+    areaInputs.height_percent.value = String(round2(area.height_percent));
+
+    const matchingMachines = state.machines.filter(function (machine) {
+      return machineRepartoMatches(area, machine);
+    });
+    if (!matchingMachines.length) {
+      const empty = document.createElement("div");
+      empty.className = "plx-inline-note";
+      empty.textContent = "Nessuna macchina con reparto '" + (area.reparto_code || "-") + "'.";
+      areaMachinePreview.appendChild(empty);
+      return;
+    }
+    matchingMachines.forEach(function (machine) {
+      const chip = document.createElement("div");
+      chip.className = "plx-machine-chip";
+      chip.innerHTML =
+        "<strong>" + (machine.asset_tag || machine.name) + "</strong>" +
+        "<span>" + [machine.name, machine.model || "", machine.location || ""].filter(Boolean).join(" - ") + "</span>";
+      areaMachinePreview.appendChild(chip);
+    });
+  }
+
+  function renderMarkerEditor() {
+    const marker = getMarkerById(state.selectedMarkerId);
+    Object.keys(markerInputs).forEach(function (key) {
+      markerInputs[key].disabled = !marker;
+      markerInputs[key].value = !marker ? "" : marker[key] || "";
+    });
+    deleteMarkerBtn.disabled = !marker;
+    if (!marker) return;
+    markerInputs.x_percent.value = String(round2(marker.x_percent));
+    markerInputs.y_percent.value = String(round2(marker.y_percent));
+  }
+
+  function renderFooter() {
+    footerMeta.textContent = String(state.areas.length) + " reparti, " + String(state.markers.length) + " marker macchina.";
+  }
+
+  function render() {
+    syncHiddenInputs();
+    renderOverlay();
+    renderAreaList();
+    renderMarkerList();
+    renderMachineList();
+    renderAreaEditor();
+    renderMarkerEditor();
+    renderFooter();
+  }
+
+  function pointerToPercent(event) {
+    const rect = overlay.getBoundingClientRect();
+    const x = clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100);
+    const y = clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100);
+    return { x: round2(x), y: round2(y) };
+  }
+
+  function startDraftBox() {
+    if (draftBox) return;
+    draftBox = document.createElement("div");
+    draftBox.className = "plx-draft";
+    overlay.appendChild(draftBox);
+  }
+
+  function updateDraftBox(start, end) {
+    if (!draftBox) return;
+    const left = Math.min(start.x, end.x);
+    const top = Math.min(start.y, end.y);
+    const width = Math.abs(end.x - start.x);
+    const height = Math.abs(end.y - start.y);
+    draftBox.style.left = left + "%";
+    draftBox.style.top = top + "%";
+    draftBox.style.width = width + "%";
+    draftBox.style.height = height + "%";
+  }
+
+  function clearDraftBox() {
+    if (draftBox && draftBox.parentNode) {
+      draftBox.parentNode.removeChild(draftBox);
+    }
+    draftBox = null;
+  }
+
+  function createAreaFromDraft(start, end) {
+    const left = round2(Math.min(start.x, end.x));
+    const top = round2(Math.min(start.y, end.y));
+    const width = round2(Math.abs(end.x - start.x));
+    const height = round2(Math.abs(end.y - start.y));
+    if (width < 0.5 || height < 0.5) {
+      return;
+    }
+    const area = {
+      client_id: areaClientId({}),
+      id: null,
+      name: "Nuovo reparto",
+      reparto_code: "",
+      color: "#2563EB",
+      notes: "",
+      x_percent: left,
+      y_percent: top,
+      width_percent: width,
+      height_percent: height,
+      sort_order: (state.areas.length + 1) * 10
+    };
+    state.areas.push(area);
+    state.selectedAreaId = area.client_id;
+    state.selectedMarkerId = null;
+    setMode("select");
+    render();
+  }
+
+  function placeMarkerAt(assetId, point) {
+    const existingMarker = state.markers.find(function (row) { return Number(row.asset_id) === Number(assetId); });
+    if (existingMarker) {
+      existingMarker.x_percent = point.x;
+      existingMarker.y_percent = point.y;
+      state.selectedMarkerId = existingMarker.client_id;
+    } else {
+      const machine = getMachineById(assetId);
+      const marker = {
+        client_id: markerClientId({}),
+        id: null,
+        asset_id: assetId,
+        label: machine ? (machine.asset_tag || "") : "",
+        x_percent: point.x,
+        y_percent: point.y,
+        sort_order: (state.markers.length + 1) * 10
+      };
+      state.markers.push(marker);
+      state.selectedMarkerId = marker.client_id;
+    }
+    state.selectedAreaId = null;
+    setMode("select");
+    render();
+  }
+
+  overlay.addEventListener("pointerdown", function (event) {
+    if (!imageNode || state.mode !== "draw-area") return;
+    drawStart = pointerToPercent(event);
+    startDraftBox();
+    updateDraftBox(drawStart, drawStart);
+    overlay.setPointerCapture(event.pointerId);
+  });
+
+  overlay.addEventListener("pointermove", function (event) {
+    if (!drawStart || state.mode !== "draw-area") return;
+    updateDraftBox(drawStart, pointerToPercent(event));
+  });
+
+  overlay.addEventListener("pointerup", function (event) {
+    if (!imageNode) return;
+    if (drawStart && state.mode === "draw-area") {
+      const end = pointerToPercent(event);
+      createAreaFromDraft(drawStart, end);
+      drawStart = null;
+      clearDraftBox();
+      return;
+    }
+    if (state.mode === "place-marker" && state.pendingMachineId) {
+      placeMarkerAt(state.pendingMachineId, pointerToPercent(event));
+    }
+  });
+
+  overlay.addEventListener("click", function () {
+    if (state.mode === "select") {
+      state.selectedAreaId = null;
+      state.selectedMarkerId = null;
+      render();
+    }
+  });
+
+  drawAreaBtn.addEventListener("click", function () {
+    if (!imageNode) return;
+    state.selectedMarkerId = null;
+    setMode("draw-area");
+    render();
+  });
+
+  cancelModeBtn.addEventListener("click", function () {
+    drawStart = null;
+    clearDraftBox();
+    setMode("select");
+    render();
+  });
+
+  deleteAreaBtn.addEventListener("click", function () {
+    if (!state.selectedAreaId) return;
+    state.areas = state.areas.filter(function (row) { return row.client_id !== state.selectedAreaId; });
+    state.selectedAreaId = state.areas.length ? state.areas[0].client_id : null;
+    render();
+  });
+
+  deleteMarkerBtn.addEventListener("click", function () {
+    if (!state.selectedMarkerId) return;
+    state.markers = state.markers.filter(function (row) { return row.client_id !== state.selectedMarkerId; });
+    state.selectedMarkerId = state.markers.length ? state.markers[0].client_id : null;
+    render();
+  });
+
+  machineSearchNode.addEventListener("input", renderMachineList);
+
+  Object.keys(areaInputs).forEach(function (key) {
+    areaInputs[key].addEventListener("input", function () {
+      const area = getAreaById(state.selectedAreaId);
+      if (!area) return;
+      if (key === "x_percent" || key === "y_percent" || key === "width_percent" || key === "height_percent") {
+        area[key] = round2(toNumber(areaInputs[key].value, area[key]));
+        normalizeAreaBounds(area);
+      } else {
+        area[key] = areaInputs[key].value;
+      }
+      render();
+    });
+  });
+
+  Object.keys(markerInputs).forEach(function (key) {
+    markerInputs[key].addEventListener("input", function () {
+      const marker = getMarkerById(state.selectedMarkerId);
+      if (!marker) return;
+      if (key === "x_percent" || key === "y_percent") {
+        marker[key] = round2(toNumber(markerInputs[key].value, marker[key]));
+        normalizeMarker(marker);
+      } else {
+        marker[key] = markerInputs[key].value;
+      }
+      render();
+    });
+  });
+
+  if (layoutModeInput && layoutModeInput.value === "new") {
+    footerMeta.textContent = "Nuova planimetria in bozza.";
+  }
+
+  setMode("select");
+  render();
+})();
+</script>
+{% endblock %}

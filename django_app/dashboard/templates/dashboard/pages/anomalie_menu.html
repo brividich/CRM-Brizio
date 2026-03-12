@@ -1,0 +1,230 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestione Anomalie | Portale Applicativo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: #bdc6cf;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Subtle radial gradient for depth */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 40%, #c8d0d8 0%, #adb8c2 100%);
+      z-index: 0;
+    }
+
+    /* Back link */
+    .back-link {
+      position: fixed;
+      top: 16px;
+      left: 20px;
+      z-index: 10;
+      color: rgba(30,60,90,0.45);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: color 0.15s;
+    }
+    .back-link:hover { color: rgba(30,60,90,0.8); }
+
+    /* Main content */
+    .main {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      max-width: 1000px;
+      padding: 20px 32px 80px;
+      gap: 0;
+    }
+
+    /* Logo */
+    .logo-wrap {
+      margin-bottom: 8px;
+    }
+    .logo-img {
+      width: 500px;
+      max-width: 78vw;
+      mix-blend-mode: multiply; /* makes white bg transparent against gray */
+      display: block;
+    }
+
+    /* Ghost title */
+    .page-title {
+      font-size: clamp(36px, 6vw, 72px);
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(90,110,125,0.30);
+      text-align: center;
+      margin-bottom: 48px;
+      line-height: 1;
+      user-select: none;
+    }
+
+    /* Buttons */
+    .btn-grid {
+      display: flex;
+      gap: 28px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .access-note {
+      max-width: 560px;
+      padding: 18px 22px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.45);
+      color: #28435d;
+      text-align: center;
+      font-size: 14px;
+      line-height: 1.45;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+    }
+
+    .btn-main {
+      background: linear-gradient(160deg, #2670b8 0%, #1a5499 100%);
+      color: #fff;
+      border: none;
+      border-radius: 16px;
+      padding: 30px 32px;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      text-decoration: none;
+      cursor: pointer;
+      min-width: 210px;
+      text-align: center;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.12);
+      transition: transform 0.12s, box-shadow 0.12s, background 0.12s;
+      display: block;
+    }
+    .btn-main:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 28px rgba(0,0,0,0.22), 0 2px 6px rgba(0,0,0,0.12);
+      background: linear-gradient(160deg, #2e7fcb 0%, #1e61ad 100%);
+    }
+    .btn-main:active {
+      transform: translateY(0);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    /* Footer */
+    .footer {
+      position: fixed;
+      bottom: 24px;
+      left: 28px;
+      z-index: 10;
+    }
+    .footer-right {
+      position: fixed;
+      bottom: 24px;
+      right: 28px;
+      z-index: 10;
+    }
+    .folder-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: #1a5499;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      border: 2px solid #1a5499;
+      border-radius: 8px;
+      padding: 8px 16px 8px 12px;
+      background: rgba(255,255,255,0.35);
+      backdrop-filter: blur(4px);
+      transition: background 0.15s, color 0.15s;
+    }
+    .folder-link:hover {
+      background: rgba(255,255,255,0.55);
+      color: #123d72;
+    }
+    .folder-icon {
+      font-size: 20px;
+      line-height: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <a href="{% url 'dashboard' %}" class="back-link">
+    &#8592; Dashboard
+  </a>
+
+  <main class="main">
+    <div class="logo-wrap">
+      <img
+        src="{% static 'core/img/logo_novicrom.png' %}"
+        alt="Logo applicativo"
+        class="logo-img"
+      />
+    </div>
+
+    <div class="page-title">Gestione Anomalie</div>
+
+    <div class="btn-grid">
+      {% if can_create_anomalie %}
+        <a href="{% url 'apertura_segnalazione' %}" class="btn-main">
+          Apertura Segnalazione
+        </a>
+      {% endif %}
+      {% if can_view_anomalie_list %}
+        <a href="{% url 'gestione_anomalie_page' %}?filter=aperte" class="btn-main">
+          Segnalazioni Aperte
+        </a>
+        <a href="{% url 'gestione_anomalie_page' %}?filter=in_carico" class="btn-main">
+          Segnalazioni in Carico
+        </a>
+      {% endif %}
+    </div>
+    {% if not can_create_anomalie and not can_view_anomalie_list %}
+      <div class="access-note">
+        Il tuo profilo non ha accesso alle funzioni operative del modulo anomalie.
+      </div>
+    {% endif %}
+  </main>
+
+  <div class="footer">
+    <a href="{{ sp_folder_url|default:'#' }}" class="folder-link" target="_blank" rel="noopener">
+      <span class="folder-icon">&#128193;</span>
+      Visualizza la cartella con i file
+    </a>
+  </div>
+
+  {% if can_manage_anomalie_config %}
+    <div class="footer-right">
+      <a href="{% url 'anomalie_configurazione_page' %}" class="folder-link">
+        Configurazione liste
+      </a>
+    </div>
+  {% endif %}
+
+</body>
+</html>

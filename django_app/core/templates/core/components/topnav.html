@@ -1,0 +1,102 @@
+{% if impersonation_active %}
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 18px;background:#fff7ed;border-bottom:1px solid #fed7aa;color:#9a3412;font-size:13px;font-weight:600;">
+  <div>
+    Impersonazione attiva: stai operando come <strong>{{ impersonated_display }}</strong>
+    {% if impersonator_display %} per conto di <strong>{{ impersonator_display }}</strong>{% endif %}.
+  </div>
+  {% if impersonation_stop_url %}
+    <form method="post" action="{{ impersonation_stop_url }}" class="inline-form" style="margin:0;">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <button type="submit" class="logout-a" style="background:#9a3412;">Termina impersonazione</button>
+    </form>
+  {% endif %}
+</div>
+{% endif %}
+<nav class="topnav" id="topnav">
+  <a class="nav-logo" href="{% url 'dashboard_home' %}" aria-label="Vai alla dashboard">
+    <div class="logo-square">N</div>
+    <div class="logo-txt">
+      <div class="co">PORTALE</div>
+      <div class="name">APPLICATIVO</div>
+    </div>
+  </a>
+  <button class="nav-hamburger" id="nav-toggle" aria-label="Apri menu" aria-expanded="false">
+    <span class="hbar"></span><span class="hbar"></span><span class="hbar"></span>
+  </button>
+  <div class="nav-links" id="nav-links-panel">
+    {% if nav_items %}
+      {% for item in nav_items %}
+        <a class="nav-a{% if item.active %} active{% endif %}" href="{{ item.href }}" title="{{ item.legacy_url }}">
+          {{ item.label }}
+          {% if item.coming %}<span class="dot"></span>{% endif %}
+        </a>
+      {% endfor %}
+    {% else %}
+      <a class="nav-a{% if request.resolver_match.url_name == 'dashboard' or request.resolver_match.url_name == 'dashboard_home' %} active{% endif %}" href="{% url 'dashboard_home' %}">Dashboard</a>
+      <a class="nav-a{% if request.resolver_match.url_name == 'assenze_menu' or request.resolver_match.url_name == 'assenze_richiesta' or request.resolver_match.url_name == 'assenze_gestione' or request.resolver_match.url_name == 'assenze_calendario' %} active{% endif %}" href="{% url 'assenze_menu' %}">Assenze</a>
+      <a class="nav-a{% if request.resolver_match.url_name == 'anomalie_menu' or request.resolver_match.url_name == 'gestione_anomalie_page' %} active{% endif %}" href="{% url 'anomalie_menu' %}">Anomalie</a>
+      <a class="nav-a{% if request.resolver_match.url_name == 'organigramma' %} active{% endif %}" href="{% url 'organigramma' %}">Organigramma</a>
+      <a class="nav-a{% if request.resolver_match.url_name == 'coming_admin' %} active{% endif %}" href="{% url 'coming_admin' %}">Admin</a>
+    {% endif %}
+  </div>
+  <div class="nav-right">
+    {% if user.is_authenticated %}
+      {% firstof user.get_full_name user.username as display_name %}
+      {% if car_pending_count %}
+        <a href="{% url 'assenze_car_dashboard' %}" title="{{ car_pending_count }} richieste in attesa" style="display:inline-flex;align-items:center;gap:5px;text-decoration:none;color:#fff;font-size:12px;font-weight:700;background:#dc2626;border-radius:99px;padding:3px 10px 3px 8px;">
+          <span style="font-size:15px;line-height:1;">&#9888;</span> {{ car_pending_count }}
+        </a>
+      {% endif %}
+      <a href="{% url 'notifiche' %}" title="Notifiche" style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;text-decoration:none;color:#64748b;font-size:18px;">
+        &#128276;
+        {% if notifiche_count %}
+          <span style="position:absolute;top:2px;right:2px;width:16px;height:16px;background:#dc2626;color:#fff;border-radius:50%;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;">{{ notifiche_count }}</span>
+        {% endif %}
+      </a>
+      <a href="{% url 'profilo' %}" class="nav-user" title="Il tuo profilo" style="text-decoration:none;color:inherit;">
+        <div class="nav-avatar">{{ display_name|slice:":2"|upper }}</div>
+        <div class="nav-user-text">
+          <div class="nav-uname">{{ display_name }}</div>
+          <div class="nav-urole">{{ legacy_user.ruolo|default:"Utente" }}</div>
+        </div>
+      </a>
+      <a href="{% url 'logout' %}" class="logout-a">Esci</a>
+    {% else %}
+      <div class="nav-user">
+        <div class="nav-avatar">G</div>
+        <div class="nav-user-text">
+          <div class="nav-uname">Guest</div>
+          <div class="nav-urole">Anonimo</div>
+        </div>
+      </div>
+      <a class="logout-a" href="{% url 'login' %}">Login</a>
+    {% endif %}
+  </div>
+</nav>
+<script>
+(function(){
+  var btn = document.getElementById('nav-toggle');
+  var panel = document.getElementById('nav-links-panel');
+  if (!btn || !panel) return;
+  btn.addEventListener('click', function(){
+    var open = panel.classList.toggle('open');
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    btn.classList.toggle('open', open);
+  });
+  panel.addEventListener('click', function(e){
+    if (e.target.tagName === 'A') {
+      panel.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+      btn.classList.remove('open');
+    }
+  });
+  document.addEventListener('click', function(e){
+    if (!e.target.closest('#topnav') && panel.classList.contains('open')) {
+      panel.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+      btn.classList.remove('open');
+    }
+  });
+})();
+</script>

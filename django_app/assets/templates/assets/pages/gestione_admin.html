@@ -1,0 +1,540 @@
+{% extends "core/base.html" %}
+{% load assets_extras %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.ga-wrap { max-width: 1200px; margin: 0 auto; padding: 18px 16px; }
+.ga-header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.ga-title { font-size: 22px; font-weight: 800; color: #0f172a; margin: 0; }
+.ga-badge { background: #1f64d8; color: #fff; border-radius: 6px; padding: 3px 9px; font-size: 12px; font-weight: 700; }
+.ga-tabs { display: flex; gap: 4px; border-bottom: 2px solid #e5ecf6; margin-bottom: 18px; }
+.ga-tab { padding: 8px 16px; border-radius: 8px 8px 0 0; text-decoration: none; font-weight: 600; font-size: 13px; color: #5a7296; border: 1px solid transparent; border-bottom: none; }
+.ga-tab:hover { background: #f0f5ff; color: #1f64d8; }
+.ga-tab.active { background: #fff; color: #1f64d8; border-color: #e5ecf6; margin-bottom: -2px; }
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.kpi { background: #fff; border: 1px solid #dbe3f0; border-radius: 11px; padding: 14px; box-shadow: 0 2px 6px rgba(15,23,42,.04); }
+.kpi-label { font-size: 11px; text-transform: uppercase; color: #7e94b2; font-weight: 700; }
+.kpi-val { font-size: 30px; font-weight: 800; color: #0f172a; line-height: 1.1; margin-top: 4px; }
+.kpi-sub { font-size: 12px; color: #8fa5c0; margin-top: 2px; }
+.card { background: #fff; border: 1px solid #dbe3f0; border-radius: 11px; box-shadow: 0 2px 6px rgba(15,23,42,.04); overflow: hidden; margin-bottom: 14px; }
+.card-head { padding: 10px 14px; border-bottom: 1px solid #e5ecf6; display: flex; justify-content: space-between; align-items: center; }
+.card-title { font-size: 14px; font-weight: 700; color: #0f172a; margin: 0; }
+.card-body { padding: 14px; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl th { padding: 8px 10px; background: #f8fbff; color: #7f95b3; font-size: 11px; text-transform: uppercase; font-weight: 700; border-bottom: 1px solid #e5ecf6; text-align: left; }
+.tbl td { padding: 8px 10px; border-bottom: 1px solid #f0f4fa; vertical-align: middle; }
+.tbl tr:last-child td { border-bottom: none; }
+.tbl tr:hover td { background: #f8fbff; }
+.badge { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 700; }
+.badge-open { background: #fef9c3; color: #854d0e; }
+.badge-done { background: #dcfce7; color: #166534; }
+.badge-canceled { background: #f1f5f9; color: #64748b; }
+.badge-in_use { background: #dbeafe; color: #1e40af; }
+.badge-in_stock { background: #f0fdf4; color: #166534; }
+.badge-in_repair { background: #fff7ed; color: #9a3412; }
+.badge-retired { background: #f1f5f9; color: #64748b; }
+.btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid transparent; text-decoration: none; }
+.btn-primary { background: #1f64d8; color: #fff; border-color: #1f64d8; }
+.btn-primary:hover { background: #1750b8; }
+.btn-danger { background: #fff; color: #dc2626; border-color: #fca5a5; }
+.btn-danger:hover { background: #fef2f2; }
+.btn-sm { padding: 4px 9px; font-size: 12px; }
+.form-row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.form-group { display: flex; flex-direction: column; gap: 3px; }
+.form-group label { font-size: 11px; color: #6b7280; font-weight: 600; text-transform: uppercase; }
+.form-group input, .form-group select { border: 1px solid #d1d9e8; border-radius: 7px; padding: 6px 10px; font-size: 13px; background: #f9fbff; }
+.search-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.search-row input { flex: 1; border: 1px solid #d1d9e8; border-radius: 8px; padding: 7px 12px; font-size: 13px; }
+.pager { display: flex; gap: 6px; align-items: center; justify-content: flex-end; margin-top: 10px; font-size: 12px; color: #6b7280; }
+.pager a { padding: 4px 9px; border: 1px solid #dbe3f0; border-radius: 6px; text-decoration: none; color: #1f64d8; font-weight: 600; }
+.log-row { display: grid; grid-template-columns: 140px 90px 120px 1fr; gap: 8px; padding: 7px 10px; border-bottom: 1px solid #f0f4fa; font-size: 12px; }
+.log-row:last-child { border-bottom: none; }
+.log-head { font-size: 11px; text-transform: uppercase; color: #8fa5c0; font-weight: 700; }
+.section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.muted-note { font-size: 12px; color: #64748b; }
+.chip-soft { display:inline-flex; align-items:center; border-radius:999px; padding:2px 8px; font-size:11px; font-weight:700; }
+.chip-soft.blue { background:#dbeafe; color:#1d4ed8; }
+.chip-soft.green { background:#dcfce7; color:#166534; }
+.chip-soft.slate { background:#e2e8f0; color:#475569; }
+.inline-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+@media (max-width: 800px) { .section-grid { grid-template-columns: 1fr; } .kpi-row { grid-template-columns: repeat(2, 1fr); } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ga-wrap">
+  <div class="ga-header">
+    <div class="ga-title">Gestione Assets</div>
+    <span class="ga-badge">Admin</span>
+  </div>
+
+  <div class="ga-tabs">
+    <a href="?tab=riepilogo" class="ga-tab {% if tab == 'riepilogo' %}active{% endif %}">Riepilogo</a>
+    <a href="?tab=config" class="ga-tab {% if tab == 'config' %}active{% endif %}">Configurazione</a>
+    <a href="?tab=record" class="ga-tab {% if tab == 'record' %}active{% endif %}">Record</a>
+    <a href="?tab=log" class="ga-tab {% if tab == 'log' %}active{% endif %}">Log attivit&agrave;</a>
+  </div>
+
+  {# ========== TAB RIEPILOGO ========== #}
+  {% if tab == 'riepilogo' %}
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-label">Asset totali</div><div class="kpi-val">{{ total_assets }}</div></div>
+    <div class="kpi"><div class="kpi-label">In uso</div><div class="kpi-val">{{ assets_by_status.IN_USE|default:0 }}</div></div>
+    <div class="kpi"><div class="kpi-label">In magazzino</div><div class="kpi-val">{{ assets_by_status.IN_STOCK|default:0 }}</div></div>
+    <div class="kpi"><div class="kpi-label">In riparazione</div><div class="kpi-val">{{ assets_by_status.IN_REPAIR|default:0 }}</div></div>
+    <div class="kpi"><div class="kpi-label">Dismessi</div><div class="kpi-val">{{ assets_by_status.RETIRED|default:0 }}</div></div>
+    <div class="kpi"><div class="kpi-label">Work order totali</div><div class="kpi-val">{{ total_wo }}</div></div>
+    <div class="kpi"><div class="kpi-label">WO aperti</div><div class="kpi-val">{{ wo_by_status.OPEN|default:0 }}</div></div>
+    <div class="kpi"><div class="kpi-label">WO chiusi</div><div class="kpi-val">{{ wo_by_status.DONE|default:0 }}</div></div>
+  </div>
+
+  <div class="section-grid">
+    <div class="card">
+      <div class="card-head"><h3 class="card-title">Asset per tipo</h3></div>
+      <div class="card-body">
+        <table class="tbl">
+          <thead><tr><th>Tipo</th><th>Quantit&agrave;</th></tr></thead>
+          <tbody>
+          {% for row in assets_by_type %}
+            <tr>
+              <td>{{ asset_type_labels|get_item:row.asset_type|default:row.asset_type }}</td>
+              <td><strong>{{ row.n }}</strong></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="2" style="color:#9aadcb;text-align:center;">Nessun dato</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3 class="card-title">Work order per stato</h3></div>
+      <div class="card-body">
+        <table class="tbl">
+          <thead><tr><th>Stato</th><th>Quantit&agrave;</th></tr></thead>
+          <tbody>
+          {% for stato, label in wo_status_labels.items %}
+            <tr>
+              <td>{{ label }}</td>
+              <td><strong>{{ wo_by_status|get_item:stato|default:0 }}</strong></td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ========== TAB CONFIGURAZIONE ========== #}
+  {% if tab == 'config' %}
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-head"><h3 class="card-title">Etichette QR stampabili</h3></div>
+    <div class="card-body" style="display:grid;gap:14px;">
+      <div style="display:grid;gap:8px;">
+        <div style="font-size:13px;color:#475569;">
+          Qui gestisci il <strong>template generale</strong> e i template dedicati per <strong>tipologia asset</strong>.
+          L'ordine di risoluzione e: <strong>override asset</strong> -> <strong>template tipologia</strong> -> <strong>template generale</strong>.
+        </div>
+        <div class="inline-actions">
+          <span class="chip-soft blue">Fallback generale</span>
+          <strong>{{ label_template.name }}</strong>
+          <span class="muted-note">
+            {{ label_template.page_width_mm }} x {{ label_template.page_height_mm }} mm, QR {{ label_template.get_qr_position_display|lower }}
+          </span>
+          <a href="{{ label_template_default_designer_url }}" class="btn btn-primary btn-sm">Modifica template generale</a>
+        </div>
+      </div>
+
+      <div style="overflow-x:auto;">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Tipologia asset</th>
+              <th>Asset</th>
+              <th>Template applicato</th>
+              <th>Stato</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for row in label_type_rows %}
+            <tr>
+              <td><strong>{{ row.asset_type_label }}</strong></td>
+              <td>{{ row.asset_count }}</td>
+              <td>
+                {{ row.effective_template.name }}
+                <div class="muted-note">
+                  {{ row.effective_template.page_width_mm }} x {{ row.effective_template.page_height_mm }} mm, QR {{ row.effective_template.get_qr_position_display|lower }}
+                </div>
+              </td>
+              <td>
+                {% if row.uses_default %}
+                  <span class="chip-soft slate">Usa generale</span>
+                {% else %}
+                  <span class="chip-soft green">Dedicato</span>
+                {% endif %}
+              </td>
+              <td style="text-align:right;">
+                <div class="inline-actions" style="justify-content:flex-end;">
+                  <a href="{{ row.designer_url }}" class="btn btn-primary btn-sm">Configura</a>
+                  {% if row.template %}
+                    <form method="post" style="display:inline;">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="delete_label_template">
+                      <input type="hidden" name="template_id" value="{{ row.template.id }}">
+                      <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Ripristinare il template generale per questa tipologia?')">Ripristina</button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display:grid;gap:8px;">
+        <div class="inline-actions">
+          <span class="chip-soft blue">Override asset</span>
+          <strong>{{ label_template_override_count }}</strong>
+          <span class="muted-note">Gli override personali si configurano dal dettaglio del singolo asset.</span>
+        </div>
+        {% if asset_override_templates_limited %}
+          <div class="muted-note">In tabella sono mostrati i primi 30 override personali.</div>
+        {% endif %}
+        {% if asset_override_templates %}
+          <div style="overflow-x:auto;">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>Asset</th>
+                  <th>Tipologia</th>
+                  <th>Template</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for tpl in asset_override_templates %}
+                <tr>
+                  <td>
+                    {% if tpl.asset %}
+                      <strong>{{ tpl.asset.asset_tag }}</strong> - {{ tpl.asset.name }}
+                    {% else %}
+                      -
+                    {% endif %}
+                  </td>
+                  <td>{% if tpl.asset %}{{ asset_type_labels|get_item:tpl.asset.asset_type|default:tpl.asset.asset_type }}{% else %}-{% endif %}</td>
+                  <td>{{ tpl.name }}</td>
+                  <td style="text-align:right;">
+                    <div class="inline-actions" style="justify-content:flex-end;">
+                      {% if tpl.asset %}
+                        <a href="{% url 'assets:asset_label_designer' %}?scope=asset&amp;asset_id={{ tpl.asset.id }}" class="btn btn-primary btn-sm">Apri</a>
+                      {% endif %}
+                      <form method="post" style="display:inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete_label_template">
+                        <input type="hidden" name="template_id" value="{{ tpl.id }}">
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm(&quot;Eliminare l'override personale di questa etichetta?&quot;)">Elimina</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="muted-note">Nessun override personale attivo.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-head"><h3 class="card-title">SharePoint / Microsoft Graph</h3></div>
+    <div class="card-body" style="display:grid;gap:14px;">
+      <div class="kpi-row" style="margin-bottom:0;">
+        <div class="kpi">
+          <div class="kpi-label">Runtime Graph</div>
+          <div class="kpi-val" style="font-size:22px;">{% if sharepoint_admin_config.runtime_ready %}OK{% else %}KO{% endif %}</div>
+          <div class="kpi-sub">
+            {% if sharepoint_admin_config.runtime_ready %}
+              Connessione configurabile dall'app.
+            {% else %}
+              Parametri Graph incompleti.
+            {% endif %}
+          </div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Secret</div>
+          <div class="kpi-val" style="font-size:22px;">{% if sharepoint_admin_config.client_secret_configured %}Presente{% else %}Assente{% endif %}</div>
+          <div class="kpi-sub">Il valore non viene mostrato in chiaro.</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Root asset</div>
+          <div class="kpi-val" style="font-size:22px;">{{ sharepoint_admin_config.asset_root_path|default:"-" }}</div>
+          <div class="kpi-sub">Usata come default per nuovi asset.</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Root macchine</div>
+          <div class="kpi-val" style="font-size:22px;">{{ sharepoint_admin_config.work_machine_root_path|default:"-" }}</div>
+          <div class="kpi-sub">Usata come default per nuove macchine.</div>
+        </div>
+      </div>
+
+      {% if sharepoint_admin_config.env_override_active %}
+        <div style="padding:10px 12px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;border-radius:10px;font-size:13px;">
+          Alcuni valori Graph arrivano da variabili ambiente. In quel caso hanno priorita rispetto a <code>config.ini</code>.
+        </div>
+      {% endif %}
+
+      <div style="font-size:13px;color:#475569;display:grid;gap:4px;">
+        <div><strong>Sorgente tenant:</strong> {{ sharepoint_admin_config.runtime_sources.tenant_id }}</div>
+        <div><strong>Sorgente client:</strong> {{ sharepoint_admin_config.runtime_sources.client_id }}</div>
+        <div><strong>Sorgente secret:</strong> {{ sharepoint_admin_config.runtime_sources.client_secret }}</div>
+        <div><strong>Sorgente site id:</strong> {{ sharepoint_admin_config.runtime_sources.site_id }}</div>
+      </div>
+
+      <form method="post" class="form-row" style="display:grid;gap:12px;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_sharepoint_config">
+        <div class="section-grid">
+          <div class="form-group">
+            <label>Tenant ID</label>
+            <input type="text" name="sharepoint_tenant_id" value="{{ sharepoint_admin_config.tenant_id }}" placeholder="GUID tenant">
+          </div>
+          <div class="form-group">
+            <label>Client ID</label>
+            <input type="text" name="sharepoint_client_id" value="{{ sharepoint_admin_config.client_id }}" placeholder="App registration client id">
+          </div>
+          <div class="form-group">
+            <label>Site ID</label>
+            <input type="text" name="sharepoint_site_id" value="{{ sharepoint_admin_config.site_id }}" placeholder="sharepoint.com,...">
+          </div>
+          <div class="form-group">
+            <label>Client Secret</label>
+            <input type="password" name="sharepoint_client_secret" value="" placeholder="{% if sharepoint_admin_config.client_secret_configured %}Lascia vuoto per mantenere{% else %}Inserisci secret{% endif %}">
+          </div>
+          <div class="form-group">
+            <label>Root path asset</label>
+            <input type="text" name="sharepoint_asset_root_path" value="{{ sharepoint_admin_config.asset_root_path }}" placeholder="Asset/Inventario">
+          </div>
+          <div class="form-group">
+            <label>Root path macchine</label>
+            <input type="text" name="sharepoint_work_machine_root_path" value="{{ sharepoint_admin_config.work_machine_root_path }}" placeholder="Macchine">
+          </div>
+        </div>
+        <div class="form-group" style="max-width:none;">
+          <label>URL libreria documentale</label>
+          <input type="text" name="sharepoint_library_url" value="{{ sharepoint_admin_config.library_url }}" placeholder="https://contoso.sharepoint.com/sites/example">
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button type="submit" class="btn btn-primary">Salva configurazione SharePoint</button>
+        </div>
+      </form>
+
+      <form method="post" class="form-row">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="test_sharepoint_config">
+        <button type="submit" class="btn btn-sm" style="border:1px solid #dbe3f0;">Test connessione Graph</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="section-grid">
+    {% for field_key, field_label in list_option_fields %}
+    <div class="card">
+      <div class="card-head"><h3 class="card-title">{{ field_label }}</h3></div>
+      <div class="card-body">
+        <table class="tbl" style="margin-bottom:10px;">
+          <tbody>
+          {% for opt in list_options|get_item:field_key %}
+            <tr>
+              <td>{{ opt.value }}</td>
+              <td style="text-align:right;width:60px;">
+                <form method="post" style="display:inline;">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="delete_list_option">
+                  <input type="hidden" name="opt_id" value="{{ opt.id }}">
+                  <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Eliminare?')">&#10005;</button>
+                </form>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="2" style="color:#9aadcb;">Nessuna voce</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        <form method="post" class="form-row">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="add_list_option">
+          <input type="hidden" name="field_key" value="{{ field_key }}">
+          <div class="form-group" style="flex:1;">
+            <label>Nuova voce</label>
+            <input type="text" name="value" placeholder="Valore..." required>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">+ Aggiungi</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="card" style="margin-top:6px;">
+    <div class="card-head"><h3 class="card-title">Campi personalizzati (Custom Fields)</h3></div>
+    <div class="card-body">
+      <table class="tbl" style="margin-bottom:12px;">
+        <thead><tr><th>Codice</th><th>Etichetta</th><th>Tipo</th><th></th></tr></thead>
+        <tbody>
+        {% for cf in custom_fields %}
+          <tr>
+            <td><code>{{ cf.code }}</code></td>
+            <td>{{ cf.label }}</td>
+            <td>{{ cf.get_field_type_display }}</td>
+            <td style="text-align:right;">
+              <form method="post" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete_custom_field">
+                <input type="hidden" name="cf_id" value="{{ cf.id }}">
+                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Eliminare il campo?')">&#10005;</button>
+              </form>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" style="color:#9aadcb;text-align:center;">Nessun campo personalizzato</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <form method="post" class="form-row">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_custom_field">
+        <div class="form-group">
+          <label>Codice (slug)</label>
+          <input type="text" name="code" placeholder="es. numero_serie_extra" required style="width:180px;">
+        </div>
+        <div class="form-group">
+          <label>Etichetta</label>
+          <input type="text" name="label" placeholder="Nome visualizzato" required style="width:160px;">
+        </div>
+        <div class="form-group">
+          <label>Tipo</label>
+          <select name="field_type">
+            {% for val, lbl in cf_type_choices %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">+ Aggiungi campo</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ========== TAB RECORD ========== #}
+  {% if tab == 'record' %}
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-head"><h3 class="card-title">Asset ({{ assets_page.paginator.count }})</h3></div>
+    <div class="card-body">
+      <form method="get" class="search-row">
+        <input type="hidden" name="tab" value="record">
+        <input type="text" name="q_asset" value="{{ q_asset }}" placeholder="Cerca per nome o tag...">
+        <button type="submit" class="btn btn-primary btn-sm">Cerca</button>
+        {% if q_asset %}<a href="?tab=record" class="btn btn-sm" style="border:1px solid #dbe3f0;">&#10005; Reset</a>{% endif %}
+      </form>
+      <div style="overflow-x:auto;">
+        <table class="tbl">
+          <thead><tr><th>Tag</th><th>Nome</th><th>Tipo</th><th>Stato</th><th>Reparto</th><th>Assegnato a</th><th></th></tr></thead>
+          <tbody>
+          {% for a in assets_page %}
+            <tr>
+              <td><code>{{ a.asset_tag }}</code></td>
+              <td>{{ a.name }}</td>
+              <td>{{ asset_type_labels|get_item:a.asset_type|default:a.asset_type }}</td>
+              <td><span class="badge badge-{{ a.status|lower }}">{{ asset_status_labels|get_item:a.status|default:a.status }}</span></td>
+              <td>{{ a.reparto|default:"—" }}</td>
+              <td>{{ a.assignment_to|default:"—" }}</td>
+              <td><a href="{% url 'assets:asset_view' a.id %}" class="btn btn-sm" style="border:1px solid #dbe3f0;">Apri</a></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7" style="color:#9aadcb;text-align:center;">Nessun asset trovato</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if assets_page.has_other_pages %}
+      <div class="pager">
+        Pagina {{ assets_page.number }} di {{ assets_page.paginator.num_pages }}
+        {% if assets_page.has_previous %}<a href="?tab=record&q_asset={{ q_asset }}&asset_page={{ assets_page.previous_page_number }}">&#8592; Prec</a>{% endif %}
+        {% if assets_page.has_next %}<a href="?tab=record&q_asset={{ q_asset }}&asset_page={{ assets_page.next_page_number }}">Succ &#8594;</a>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3 class="card-title">Work Order ({{ wo_page.paginator.count }})</h3></div>
+    <div class="card-body">
+      <form method="get" class="search-row">
+        <input type="hidden" name="tab" value="record">
+        <input type="text" name="q_wo" value="{{ q_wo }}" placeholder="Cerca per titolo o asset...">
+        <button type="submit" class="btn btn-primary btn-sm">Cerca</button>
+        {% if q_wo %}<a href="?tab=record" class="btn btn-sm" style="border:1px solid #dbe3f0;">&#10005; Reset</a>{% endif %}
+      </form>
+      <div style="overflow-x:auto;">
+        <table class="tbl">
+          <thead><tr><th>#</th><th>Asset</th><th>Titolo</th><th>Tipo</th><th>Stato</th><th>Apertura</th><th></th></tr></thead>
+          <tbody>
+          {% for wo in wo_page %}
+            <tr>
+              <td>#{{ wo.id }}</td>
+              <td><code>{{ wo.asset.asset_tag }}</code></td>
+              <td>{{ wo.title }}</td>
+              <td>{{ wo.get_kind_display }}</td>
+              <td><span class="badge badge-{{ wo.status|lower }}">{{ wo.get_status_display }}</span></td>
+              <td>{{ wo.opened_at|date:"d/m/Y" }}</td>
+              <td><a href="{% url 'assets:wo_view' wo.id %}" class="btn btn-sm" style="border:1px solid #dbe3f0;">Apri</a></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7" style="color:#9aadcb;text-align:center;">Nessun work order trovato</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if wo_page.has_other_pages %}
+      <div class="pager">
+        Pagina {{ wo_page.number }} di {{ wo_page.paginator.num_pages }}
+        {% if wo_page.has_previous %}<a href="?tab=record&q_wo={{ q_wo }}&wo_page={{ wo_page.previous_page_number }}">&#8592; Prec</a>{% endif %}
+        {% if wo_page.has_next %}<a href="?tab=record&q_wo={{ q_wo }}&wo_page={{ wo_page.next_page_number }}">Succ &#8594;</a>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# ========== TAB LOG ========== #}
+  {% if tab == 'log' %}
+  <div class="card">
+    <div class="card-head"><h3 class="card-title">Log attivit&agrave; Assets (ultime 100)</h3></div>
+    <div class="card-body">
+      {% if audit_entries %}
+      <div class="log-row log-head">
+        <span>Data/ora</span><span>Utente</span><span>Azione</span><span>Dettaglio</span>
+      </div>
+      {% for entry in audit_entries %}
+      <div class="log-row">
+        <span>{{ entry.created_at|date:"d/m/Y H:i" }}</span>
+        <span>{{ entry.utente_display|default:"—" }}</span>
+        <span>{{ entry.azione }}</span>
+        <span style="color:#64748b;font-size:11px;">{{ entry.dettaglio }}</span>
+      </div>
+      {% endfor %}
+      {% else %}
+      <p style="color:#9aadcb;text-align:center;padding:20px 0;">Nessuna voce di log per questo modulo.</p>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

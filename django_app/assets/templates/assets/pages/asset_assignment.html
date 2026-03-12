@@ -1,0 +1,53 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Assegna asset{% endblock %}
+
+{% block assets_shell_title %}Assegnazione - {{ asset.asset_tag }}{% endblock %}
+
+{% block assets_shell_content %}
+<section style="max-width:900px;display:grid;gap:14px;">
+  <header>
+    <a href="{% url 'assets:asset_view' asset.id %}" style="font-size:13px;color:#64748b;text-decoration:none;">&larr; Torna al dettaglio</a>
+  </header>
+
+  <form method="post" style="display:grid;gap:10px;border:1px solid #dbe1ea;border-radius:14px;background:#fff;padding:16px;">
+    {% csrf_token %}
+    <div style="font-size:12px;color:#64748b;">
+      Seleziona un dipendente per collegare questo asset al suo profilo. I campi testuali restano modificabili manualmente.
+      {% if selected_user_admin_url %}
+        <a href="{{ selected_user_admin_url }}" style="margin-left:8px;">Apri scheda dipendente</a>
+      {% endif %}
+    </div>
+    <div class="as-form-grid-2">
+      {% for field in form %}
+        <div style="{% if field.name == 'notes' %}grid-column:1/-1;{% endif %}">
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.errors %}
+            <div style="color:#b91c1c;font-size:12px;">{{ field.errors }}</div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+    {% if list_suggestions %}
+      <div style="font-size:12px;color:#64748b;">
+        I campi di assegnazione usano liste suggerite, ma puoi sempre inserire valori manuali.
+      </div>
+    {% endif %}
+    <div style="display:flex;justify-content:flex-end;gap:8px;">
+      <a class="btn" href="{% url 'assets:asset_view' asset.id %}">Annulla</a>
+      <button class="btn btn-primary" type="submit">Salva assegnazione</button>
+    </div>
+  </form>
+
+  {% for field_name, values in list_suggestions.items %}
+    {% if values %}
+      <datalist id="list_{{ field_name }}">
+        {% for value in values %}
+          <option value="{{ value }}"></option>
+        {% endfor %}
+      </datalist>
+    {% endif %}
+  {% endfor %}
+</section>
+{% endblock %}

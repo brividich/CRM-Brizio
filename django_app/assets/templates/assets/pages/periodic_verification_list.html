@@ -1,0 +1,571 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Verifiche periodiche{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.pv-page { display:grid; gap:14px; }
+.pv-kpis { display:grid; gap:10px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
+.pv-kpi {
+  border:1px solid #dbe1ea;
+  border-radius:14px;
+  background:#fff;
+  padding:14px 16px;
+  box-shadow:0 2px 8px rgba(15, 23, 42, .05);
+}
+.pv-kpi-label {
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+  color:#64748b;
+  font-weight:700;
+}
+.pv-kpi-value {
+  margin-top:8px;
+  font-size:32px;
+  line-height:1;
+  font-weight:800;
+  color:#0f172a;
+}
+.pv-kpi-meta { margin-top:4px; color:#64748b; font-size:12px; }
+.pv-banner {
+  border:1px solid #bfdbfe;
+  border-radius:14px;
+  background:#eff6ff;
+  padding:14px 16px;
+}
+.pv-banner-title {
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+  color:#1d4ed8;
+  font-weight:800;
+}
+.pv-banner-text {
+  margin-top:6px;
+  color:#1e3a8a;
+  font-size:15px;
+  font-weight:700;
+}
+.pv-banner-note { margin-top:6px; color:#365b9d; font-size:12px; }
+.pv-grid {
+  display:grid;
+  gap:14px;
+  grid-template-columns:minmax(700px, 1.2fr) minmax(360px, 1fr);
+  align-items:start;
+}
+.pv-grid[data-pv-layout="compact"] {
+  grid-template-columns:minmax(560px, 1.05fr) minmax(420px, 1.15fr);
+}
+.pv-grid[data-pv-layout="balanced"] {
+  grid-template-columns:minmax(700px, 1.2fr) minmax(360px, 1fr);
+}
+.pv-grid[data-pv-layout="wide"] {
+  grid-template-columns:minmax(860px, 1.55fr) minmax(300px, .85fr);
+}
+.pv-card {
+  border:1px solid #dbe1ea;
+  border-radius:14px;
+  background:#fff;
+  overflow:hidden;
+}
+.pv-card-head {
+  padding:14px 16px;
+  border-bottom:1px solid #e5e7eb;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+}
+.pv-card-head h2 { margin:0; font-size:22px; color:#0f172a; }
+.pv-card-head p { margin:4px 0 0; color:#64748b; font-size:13px; }
+.pv-card-head-tools { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.pv-layout-switch {
+  display:inline-flex;
+  gap:4px;
+  padding:4px;
+  border:1px solid #dbe1ea;
+  border-radius:999px;
+  background:#f8fafc;
+}
+.pv-layout-btn {
+  border:none;
+  background:transparent;
+  color:#64748b;
+  border-radius:999px;
+  padding:6px 10px;
+  font-size:12px;
+  font-weight:700;
+  cursor:pointer;
+}
+.pv-layout-btn.is-active {
+  background:#1d4ed8;
+  color:#fff;
+}
+.pv-card-body { padding:16px; display:grid; gap:12px; }
+.pv-form {
+  display:grid;
+  gap:12px;
+}
+.pv-form-top {
+  display:grid;
+  gap:12px;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+}
+.pv-form-bottom {
+  display:grid;
+  gap:12px;
+  grid-template-columns:minmax(240px, .92fr) minmax(340px, 1.18fr);
+  align-items:start;
+}
+.pv-field label {
+  display:block;
+  margin-bottom:6px;
+  color:#334155;
+  font-size:13px;
+  font-weight:700;
+}
+.pv-field :is(input, select, textarea) {
+  width:100%;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:#fff;
+  color:#0f172a;
+  padding:10px 12px;
+  font:inherit;
+}
+.pv-field textarea { min-height:92px; resize:vertical; }
+.pv-help { color:#64748b; font-size:12px; margin-top:4px; }
+.pv-error { margin-top:4px; color:#b91c1c; font-size:12px; }
+.pv-check {
+  min-height:42px;
+  border:1px solid #dbe1ea;
+  border-radius:12px;
+  background:#f8fafc;
+  padding:12px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  color:#334155;
+  font-weight:700;
+}
+.pv-check input { width:auto; margin:0; }
+.pv-asset-picker {
+  border:1px solid #e2e8f0;
+  border-radius:12px;
+  background:#f8fafc;
+  padding:12px;
+  display:grid;
+  gap:10px;
+}
+.pv-asset-picker-head {
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.pv-asset-picker-title {
+  font-size:13px;
+  font-weight:800;
+  color:#0f172a;
+}
+.pv-asset-picker-meta { color:#64748b; font-size:12px; }
+.pv-asset-search {
+  width:100%;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:#fff;
+  color:#0f172a;
+  padding:10px 12px;
+  font:inherit;
+}
+.pv-asset-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.pv-asset-actions button {
+  border:1px solid #dbe1ea;
+  border-radius:999px;
+  background:#fff;
+  color:#334155;
+  padding:6px 10px;
+  font-size:12px;
+  font-weight:700;
+  cursor:pointer;
+}
+.pv-asset-select {
+  min-height:190px;
+  max-height:220px;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:#fff;
+  color:#0f172a;
+  padding:8px;
+}
+.pv-form-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.pv-list { display:grid; gap:10px; }
+.pv-item {
+  border:1px solid #e2e8f0;
+  border-radius:12px;
+  background:#f8fafc;
+  padding:12px;
+  display:grid;
+  gap:10px;
+}
+.pv-item-top {
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  align-items:flex-start;
+  flex-wrap:wrap;
+}
+.pv-item-title { font-size:16px; font-weight:800; color:#0f172a; }
+.pv-item-sub { margin-top:4px; color:#64748b; font-size:12px; }
+.pv-pill {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  padding:4px 8px;
+  font-size:11px;
+  font-weight:800;
+}
+.pv-pill.ok { background:#dcfce7; color:#15803d; }
+.pv-pill.warn { background:#fef3c7; color:#a16207; }
+.pv-pill.danger { background:#fee2e2; color:#b91c1c; }
+.pv-pill.muted { background:#e2e8f0; color:#475569; }
+.pv-meta { display:flex; gap:12px; flex-wrap:wrap; color:#475569; font-size:13px; }
+.pv-meta strong { color:#0f172a; }
+.pv-assets { display:flex; gap:8px; flex-wrap:wrap; }
+.pv-asset-chip {
+  border:1px solid #dbeafe;
+  border-radius:999px;
+  background:#fff;
+  color:#1d4ed8;
+  text-decoration:none;
+  padding:5px 10px;
+  font-size:12px;
+  font-weight:700;
+}
+.pv-asset-chip.active { background:#dbeafe; }
+.pv-note { color:#64748b; font-size:13px; line-height:1.5; }
+.pv-inline-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.pv-delete-form { display:inline-flex; }
+.pv-empty { color:#64748b; font-size:13px; }
+@media (max-width: 1500px) {
+  .pv-form-top { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 1200px) {
+  .pv-grid,
+  .pv-grid[data-pv-layout="compact"],
+  .pv-grid[data-pv-layout="balanced"],
+  .pv-grid[data-pv-layout="wide"] {
+    grid-template-columns:1fr;
+  }
+}
+@media (max-width: 900px) {
+  .pv-kpis,
+  .pv-form-top,
+  .pv-form-bottom { grid-template-columns:1fr; }
+}
+@media (max-width: 760px) {
+  .pv-card-head { flex-direction:column; }
+  .pv-card-head-tools { width:100%; justify-content:flex-start; }
+  .pv-form-actions,
+  .pv-inline-actions,
+  .pv-delete-form { width:100%; }
+}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Verifiche periodiche{% endblock %}
+{% block assets_shell_subtitle %}
+<p>Gestisci verifiche ricorrenti, fornitore responsabile, cadenza e asset coinvolti.</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+  {% if selected_asset %}
+    <a class="btn" href="{% url 'assets:asset_view' selected_asset.id %}">Torna all'asset</a>
+  {% endif %}
+  {% if is_edit %}
+    <a class="btn btn-secondary" href="{% if selected_asset %}{% url 'assets:periodic_verifications' %}?asset={{ selected_asset.id }}{% else %}{% url 'assets:periodic_verifications' %}{% endif %}">Nuova verifica</a>
+  {% endif %}
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="pv-page">
+  <section class="pv-kpis">
+    <article class="pv-kpi">
+      <div class="pv-kpi-label">Totale verifiche</div>
+      <div class="pv-kpi-value">{{ verification_total }}</div>
+      <div class="pv-kpi-meta">Configurazioni presenti nel modulo asset</div>
+    </article>
+    <article class="pv-kpi">
+      <div class="pv-kpi-label">Verifiche attive</div>
+      <div class="pv-kpi-value">{{ active_verification_count }}</div>
+      <div class="pv-kpi-meta">Programmi attualmente monitorati</div>
+    </article>
+    <article class="pv-kpi">
+      <div class="pv-kpi-label">In scadenza / scadute</div>
+      <div class="pv-kpi-value">{{ due_verification_count }}</div>
+      <div class="pv-kpi-meta">Situazioni da controllare a breve</div>
+    </article>
+  </section>
+
+  {% if selected_asset %}
+    <article class="pv-banner">
+      <div class="pv-banner-title">Asset selezionato</div>
+      <div class="pv-banner-text">
+        {{ selected_asset.asset_tag }} - {{ selected_asset.name }}
+        {% if selected_asset.reparto %} | {{ selected_asset.reparto }}{% endif %}
+      </div>
+      <div class="pv-banner-note">Verifiche collegate a questo asset: {{ selected_asset_linked_count }}. Le nuove verifiche partono gia con questo asset preselezionato.</div>
+    </article>
+  {% endif %}
+
+  <section class="pv-grid" data-pv-layout-root data-pv-layout="wide">
+    {% if can_manage_periodic_verifications %}
+      <article class="pv-card">
+        <div class="pv-card-head">
+          <div>
+            <h2>{% if is_edit %}Modifica verifica{% else %}Nuova verifica{% endif %}</h2>
+            <p>Form piu compatto: il layout della scheda resta salvato sul browser.</p>
+          </div>
+          <div class="pv-card-head-tools">
+            <div class="pv-layout-switch" aria-label="Layout form">
+              <button class="pv-layout-btn" type="button" data-pv-layout-btn="compact">Compatta</button>
+              <button class="pv-layout-btn" type="button" data-pv-layout-btn="balanced">Bilanciata</button>
+              <button class="pv-layout-btn" type="button" data-pv-layout-btn="wide">Ampia</button>
+            </div>
+          </div>
+        </div>
+        <div class="pv-card-body">
+          <form method="post" class="pv-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="{% if is_edit %}update_periodic_verification{% else %}create_periodic_verification{% endif %}">
+            <input type="hidden" name="asset_id" value="{% if selected_asset %}{{ selected_asset.id }}{% endif %}">
+            <input type="hidden" name="edit_id" value="{% if edit_verification %}{{ edit_verification.id }}{% endif %}">
+            {% if form.non_field_errors %}
+              <div class="pv-error">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <div class="pv-form-top">
+              <div class="pv-field">
+                <label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+                {{ form.name }}
+                {% if form.name.help_text %}<div class="pv-help">{{ form.name.help_text }}</div>{% endif %}
+                {% if form.name.errors %}<div class="pv-error">{{ form.name.errors }}</div>{% endif %}
+              </div>
+              <div class="pv-field">
+                <label for="{{ form.supplier.id_for_label }}">{{ form.supplier.label }}</label>
+                {{ form.supplier }}
+                {% if form.supplier.help_text %}<div class="pv-help">{{ form.supplier.help_text }}</div>{% endif %}
+                {% if form.supplier.errors %}<div class="pv-error">{{ form.supplier.errors }}</div>{% endif %}
+              </div>
+              <div class="pv-field">
+                <label for="{{ form.frequency_months.id_for_label }}">{{ form.frequency_months.label }}</label>
+                {{ form.frequency_months }}
+                {% if form.frequency_months.help_text %}<div class="pv-help">{{ form.frequency_months.help_text }}</div>{% endif %}
+                {% if form.frequency_months.errors %}<div class="pv-error">{{ form.frequency_months.errors }}</div>{% endif %}
+              </div>
+              <div class="pv-field">
+                <label for="{{ form.last_verification_date.id_for_label }}">{{ form.last_verification_date.label }}</label>
+                {{ form.last_verification_date }}
+                {% if form.last_verification_date.help_text %}<div class="pv-help">{{ form.last_verification_date.help_text }}</div>{% endif %}
+                {% if form.last_verification_date.errors %}<div class="pv-error">{{ form.last_verification_date.errors }}</div>{% endif %}
+              </div>
+              <div class="pv-field">
+                <label for="{{ form.next_verification_date.id_for_label }}">{{ form.next_verification_date.label }}</label>
+                {{ form.next_verification_date }}
+                {% if form.next_verification_date.help_text %}<div class="pv-help">{{ form.next_verification_date.help_text }}</div>{% endif %}
+                {% if form.next_verification_date.errors %}<div class="pv-error">{{ form.next_verification_date.errors }}</div>{% endif %}
+              </div>
+              <div class="pv-field">
+                <label class="pv-check" for="{{ form.is_active.id_for_label }}">
+                  {{ form.is_active }}
+                  <span>{{ form.is_active.label }}</span>
+                </label>
+                {% if form.is_active.errors %}<div class="pv-error">{{ form.is_active.errors }}</div>{% endif %}
+              </div>
+            </div>
+
+            <div class="pv-form-bottom">
+              <div class="pv-field">
+                <label for="{{ form.notes.id_for_label }}">{{ form.notes.label }}</label>
+                {{ form.notes }}
+                {% if form.notes.help_text %}<div class="pv-help">{{ form.notes.help_text }}</div>{% endif %}
+                {% if form.notes.errors %}<div class="pv-error">{{ form.notes.errors }}</div>{% endif %}
+              </div>
+
+              <div class="pv-asset-picker">
+                <div class="pv-asset-picker-head">
+                  <div>
+                    <div class="pv-asset-picker-title">{{ form.asset_ids.label }}</div>
+                    <div class="pv-asset-picker-meta" data-pv-asset-count>0 selezionati</div>
+                  </div>
+                  <div class="pv-asset-actions">
+                    <button type="button" data-pv-asset-select-visible>Seleziona visibili</button>
+                    <button type="button" data-pv-asset-clear>Pulisci</button>
+                  </div>
+                </div>
+                <input
+                  class="pv-asset-search"
+                  type="search"
+                  placeholder="Cerca asset coinvolti per tag o nome"
+                  data-pv-asset-search
+                  aria-label="Cerca asset coinvolti"
+                >
+                {{ form.asset_ids }}
+                {% if form.asset_ids.help_text %}<div class="pv-help">{{ form.asset_ids.help_text }}</div>{% endif %}
+                {% if form.asset_ids.errors %}<div class="pv-error">{{ form.asset_ids.errors }}</div>{% endif %}
+              </div>
+            </div>
+
+            <div class="pv-form-actions">
+              <button class="btn btn-primary" type="submit">{% if is_edit %}Salva modifica{% else %}Crea verifica{% endif %}</button>
+              {% if is_edit %}
+                <a class="btn" href="{% if selected_asset %}{% url 'assets:periodic_verifications' %}?asset={{ selected_asset.id }}{% else %}{% url 'assets:periodic_verifications' %}{% endif %}">Annulla</a>
+              {% endif %}
+            </div>
+          </form>
+        </div>
+      </article>
+    {% endif %}
+
+    <article class="pv-card">
+      <div class="pv-card-head">
+        <div>
+          <h2>Verifiche registrate</h2>
+          <p>Ogni asset puo comparire in piu verifiche diverse.</p>
+        </div>
+      </div>
+      <div class="pv-card-body">
+        <div class="pv-list">
+          {% for row in verification_rows %}
+            <article class="pv-item">
+              <div class="pv-item-top">
+                <div>
+                  <div class="pv-item-title">{{ row.verification.name }}</div>
+                  <div class="pv-item-sub">
+                    {% if row.verification.supplier %}{{ row.verification.supplier }}{% else %}Fornitore non impostato{% endif %}
+                  </div>
+                </div>
+                <span class="pv-pill {% if row.state.status == 'overdue' %}danger{% elif row.state.status == 'warning' %}warn{% elif row.state.status == 'ok' %}ok{% else %}muted{% endif %}">{{ row.state.label }}</span>
+              </div>
+              <div class="pv-meta">
+                <span><strong>Cadenza:</strong> {{ row.verification.frequency_months }} mesi</span>
+                <span><strong>Prossima:</strong> {% if row.verification.next_verification_date %}{{ row.verification.next_verification_date|date:"d/m/Y" }}{% else %}-{% endif %}</span>
+                <span><strong>Asset:</strong> {{ row.linked_assets_count }}</span>
+              </div>
+              <div class="pv-assets">
+                {% for asset in row.linked_assets %}
+                  <a class="pv-asset-chip {% if row.is_selected_asset_linked and selected_asset and asset.id == selected_asset.id %}active{% endif %}" href="{% url 'assets:asset_view' asset.id %}">
+                    {{ asset.asset_tag }} - {{ asset.name }}
+                  </a>
+                {% empty %}
+                  <span class="pv-empty">Nessun asset collegato.</span>
+                {% endfor %}
+              </div>
+              {% if row.verification.notes %}
+                <div class="pv-note">{{ row.verification.notes }}</div>
+              {% endif %}
+              {% if can_manage_periodic_verifications %}
+                <div class="pv-inline-actions">
+                  <a class="btn btn-secondary" href="{{ row.edit_url }}">Modifica</a>
+                  <form class="pv-delete-form" method="post" onsubmit="return confirm('Eliminare questa verifica periodica?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete_periodic_verification">
+                    <input type="hidden" name="verification_id" value="{{ row.verification.id }}">
+                    <input type="hidden" name="asset_id" value="{% if selected_asset %}{{ selected_asset.id }}{% endif %}">
+                    <button class="btn btn-danger" type="submit">Elimina</button>
+                  </form>
+                </div>
+              {% endif %}
+            </article>
+          {% empty %}
+            <div class="pv-empty">Nessuna verifica periodica ancora configurata.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </article>
+  </section>
+</section>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(() => {
+  const layoutRoot = document.querySelector("[data-pv-layout-root]");
+  const layoutButtons = Array.from(document.querySelectorAll("[data-pv-layout-btn]"));
+  const layoutStorageKey = "assets.periodic-verifications.layout";
+
+  const applyLayout = (layout) => {
+    if (!layoutRoot) return;
+    const normalized = ["compact", "balanced", "wide"].includes(layout) ? layout : "wide";
+    layoutRoot.dataset.pvLayout = normalized;
+    layoutButtons.forEach((button) => {
+      button.classList.toggle("is-active", button.dataset.pvLayoutBtn === normalized);
+    });
+    try {
+      window.localStorage.setItem(layoutStorageKey, normalized);
+    } catch (error) {
+      void error;
+    }
+  };
+
+  if (layoutRoot && layoutButtons.length) {
+    let savedLayout = "wide";
+    try {
+      savedLayout = window.localStorage.getItem(layoutStorageKey) || "wide";
+    } catch (error) {
+      void error;
+    }
+    applyLayout(savedLayout);
+    layoutButtons.forEach((button) => {
+      button.addEventListener("click", () => applyLayout(button.dataset.pvLayoutBtn || "wide"));
+    });
+  }
+
+  const assetSearchInput = document.querySelector("[data-pv-asset-search]");
+  const assetSelect = document.querySelector("[data-pv-asset-select]");
+  const assetCount = document.querySelector("[data-pv-asset-count]");
+  const clearButton = document.querySelector("[data-pv-asset-clear]");
+  const selectVisibleButton = document.querySelector("[data-pv-asset-select-visible]");
+
+  const updateAssetList = () => {
+    if (!assetSelect) return;
+    const query = (assetSearchInput?.value || "").trim().toLowerCase();
+    let visibleCount = 0;
+    let selectedCount = 0;
+    Array.from(assetSelect.options).forEach((option) => {
+      const text = (option.textContent || "").toLowerCase();
+      const keepVisible = !query || text.includes(query) || option.selected;
+      option.hidden = !keepVisible;
+      if (keepVisible) visibleCount += 1;
+      if (option.selected) selectedCount += 1;
+    });
+    if (assetCount) {
+      assetCount.textContent = `${selectedCount} selezionati · ${visibleCount} visibili`;
+    }
+  };
+
+  if (assetSearchInput && assetSelect) {
+    assetSearchInput.addEventListener("input", updateAssetList);
+    assetSelect.addEventListener("change", updateAssetList);
+    clearButton?.addEventListener("click", () => {
+      Array.from(assetSelect.options).forEach((option) => {
+        option.selected = false;
+      });
+      updateAssetList();
+    });
+    selectVisibleButton?.addEventListener("click", () => {
+      Array.from(assetSelect.options).forEach((option) => {
+        if (!option.hidden) {
+          option.selected = true;
+        }
+      });
+      updateAssetList();
+    });
+    assetSelect.classList.add("pv-asset-select");
+    updateAssetList();
+  }
+})();
+</script>
+{% endblock %}

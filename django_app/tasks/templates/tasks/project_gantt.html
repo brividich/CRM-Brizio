@@ -1,0 +1,1037 @@
+{% extends "core/base.html" %}
+
+{% block title %}Gantt {{ project.name }} - Portale Applicativo{% endblock %}
+
+{% block subnav %}
+<nav class="subnav">
+  <a class="sub-a" href="{% url 'tasks:list' %}">Dashboard</a>
+  <a class="sub-a" href="{% url 'tasks:project_list' %}">Progetti</a>
+  <a class="sub-a active" href="{% url 'tasks:project_gantt' project.id %}">Gantt</a>
+  <a class="sub-a" href="{% url 'tasks:list' %}?project={{ project.id }}">Task progetto</a>
+  <span class="sub-sep"></span>
+  <a class="sub-a" href="{% url 'tasks:create' %}?project={{ project.id }}">Nuova task</a>
+</nav>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.content {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+.gantt-wrap { display:grid; gap:14px; }
+.gantt-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow); padding:16px; }
+.gantt-options { display:grid; grid-template-columns: repeat(8, minmax(120px, 1fr)); gap:8px; align-items:end; }
+.gantt-options .flag-row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.gantt-options .flag { font-size:12px; color:var(--text-mid); display:flex; gap:6px; align-items:center; }
+.gantt-options .actions { display:flex; gap:8px; justify-content:flex-end; align-items:center; }
+.input-range { width:100%; accent-color:var(--accent); }
+
+/* ── Wrapper tabella ── */
+.gantt-table-wrap { width:100%; overflow:auto; border:1px solid var(--border); border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+
+/* ── Variabili e base tabella ── */
+.gantt-table {
+  --wbs-col-w: 58px;
+  --day-cell-w: {{ gantt_day_cell_px|default:30 }}px;
+  --day-cell-h: 28px;
+  --dur-col-w: 110px;
+  --start-col-w: 110px;
+  --end-col-w: 110px;
+  --row-content-h: 46px;
+  --name-col-w: {{ gantt_option_name_width|default:360 }}px;
+  width:max-content;
+  min-width:100%;
+  border-collapse:separate;
+  border-spacing:0;
+  background:#fff;
+}
+.gantt-table th, .gantt-table td {
+  border-right:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+  padding:6px 8px;
+  font-size:12px;
+  height:var(--row-content-h);
+}
+.gantt-table th:last-child, .gantt-table td:last-child { border-right:0; }
+
+/* ── Intestazioni ── */
+.gantt-table thead th {
+  background:#f8fafc;
+  color:var(--text-mid);
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+  position:sticky;
+  top:0;
+  z-index:3;
+}
+.gantt-table .left-head {
+  background:#f1f5f9;
+  color:#0f172a;
+}
+.gantt-table .month-head {
+  text-align:center;
+  background:linear-gradient(to bottom, #e0e7ff, #eef2ff);
+  color:#3730a3;
+  font-weight:700;
+  font-size:11px;
+  letter-spacing:.06em;
+}
+.gantt-table .day-head {
+  text-align:center;
+  min-width:var(--day-cell-w);
+  width:var(--day-cell-w);
+  padding:4px 0;
+  font-size:11px;
+}
+.gantt-table .day-head.is-weekend { background:#f0f4f8; color:#94a3b8; }
+.gantt-table .day-head.is-holiday { background:#fff0f9; color:#9d174d; font-weight:700; }
+.gantt-table .day-head.is-today { background:#fef2f2; color:#b91c1c; font-weight:800; }
+
+/* ── Colonne testo ── */
+.gantt-table .col-wbs { width:var(--wbs-col-w); min-width:var(--wbs-col-w); text-align:center; }
+.gantt-table .col-name { width:var(--name-col-w); min-width:var(--name-col-w); }
+.gantt-table .col-days { width:var(--dur-col-w); min-width:var(--dur-col-w); text-align:center; }
+.gantt-table .col-date-start { width:var(--start-col-w); min-width:var(--start-col-w); text-align:center; }
+.gantt-table .col-date-end { width:var(--end-col-w); min-width:var(--end-col-w); text-align:center; }
+
+/* ── Sticky colonne sinistra ── */
+.gantt-table .col-wbs { position:sticky; z-index:2; background:#f1f5f9; }
+.gantt-table .col-name { position:sticky; z-index:2; background:#fff; }
+.gantt-table thead .col-wbs,
+.gantt-table thead .col-name { z-index:5; background:#f1f5f9; }
+
+/* ── Hover riga ── */
+.task-row { transition:background .12s; }
+.task-row:hover .col-name,
+.task-row:hover .col-wbs { background:#eff6ff !important; }
+.task-row:hover .g-cell:not(.is-active):not(.is-absence) { background:rgba(219,234,254,.35) !important; }
+
+/* ── Ridimensionamento colonne ── */
+.resizable-col { position:relative; }
+.col-resizer {
+  position:absolute; top:0; right:-3px; width:8px; height:100%;
+  cursor:col-resize; z-index:5;
+}
+.col-resizer:hover { background:rgba(249,115,22,.25); }
+
+/* ── Link e meta task ── */
+.gantt-task-link { color:var(--text); font-weight:700; font-size:13px; text-decoration:none; line-height:1.3; }
+.gantt-task-link:hover { color:var(--accent); }
+.gantt-meta { margin-top:3px; display:flex; gap:6px; flex-wrap:wrap; font-size:11px; color:var(--text-mid); align-items:center; }
+
+/* ── Celle griglia ── */
+.task-row .g-cell.is-active { cursor:grab; touch-action:none; user-select:none; }
+.task-row.is-dragging .g-cell.is-active { opacity:.25; }
+.g-cell {
+  width:var(--day-cell-w);
+  min-width:var(--day-cell-w);
+  height:var(--day-cell-h);
+  padding:0 !important;
+  background:#fff;
+  position:relative;
+}
+.g-cell.is-weekend { background:#f8fafc; }
+.g-cell.is-holiday { background:#fdf4ff; }
+.g-cell.is-today { background:#fff5f5; }
+
+/* Linea verticale "oggi" */
+.g-cell.is-today::after {
+  content:'';
+  position:absolute;
+  inset:0;
+  border-left:2px solid rgba(220,38,38,.45);
+  pointer-events:none;
+  z-index:4;
+}
+
+/* Celle non-lavorative dentro una barra: nessuna barra, solo sfondo e marcatore */
+.g-cell.is-active.is-weekend { background:#f0f4f8 !important; }
+.g-cell.is-active.is-holiday { background:#fdf4ff !important; }
+.g-cell.is-active.is-weekend::before,
+.g-cell.is-active.is-holiday::before { display:none; }
+/* Linea verticale sottile per mostrare che il giorno è nel range ma non lavorativo */
+.g-cell.is-active.is-weekend::after,
+.g-cell.is-active.is-holiday::after {
+  content:'';
+  position:absolute;
+  top:6px; bottom:6px;
+  left:50%; transform:translateX(-50%);
+  width:2px;
+  background:rgba(148,163,184,.4);
+  border-radius:1px;
+  pointer-events:none;
+  z-index:2;
+}
+.g-cell.is-active.is-holiday::after { background:rgba(157,23,77,.25); }
+/* Sovrascrivere l'::after del "oggi" per le celle attive non-lavorative */
+.g-cell.is-active.is-today.is-weekend::after,
+.g-cell.is-active.is-today.is-holiday::after {
+  border-left: none;
+  top:6px; bottom:6px;
+  left:50%; transform:translateX(-50%);
+  width:2px;
+  background:rgba(220,38,38,.4);
+  border-radius:1px;
+}
+
+/* ── Barre Gantt con ::before ── */
+.g-cell.is-active { background:#fff !important; }
+.g-cell.is-active::before {
+  content:'';
+  position:absolute;
+  top:5px;
+  bottom:5px;
+  left:0;
+  right:0;
+  z-index:2;
+  pointer-events:none;
+}
+.g-cell.is-bar-start::before { left:4px; border-radius:6px 0 0 6px; }
+.g-cell.is-bar-end::before   { right:4px; border-radius:0 6px 6px 0; }
+.g-cell.is-bar-start.is-bar-end::before { left:4px; right:4px; border-radius:6px; }
+
+/* Colori barre per status */
+.g-cell.is-active.status-todo::before {
+  background:linear-gradient(135deg, #4ade80 0%, #16a34a 100%);
+  box-shadow:0 2px 6px rgba(22,163,74,.3);
+}
+.g-cell.is-active.status-in_progress::before {
+  background:linear-gradient(135deg, #fde047 0%, #d97706 100%);
+  box-shadow:0 2px 6px rgba(217,119,6,.3);
+}
+.g-cell.is-active.status-done::before {
+  background:linear-gradient(135deg, #60a5fa 0%, #2563eb 100%);
+  box-shadow:0 2px 6px rgba(37,99,235,.3);
+}
+.g-cell.is-active.status-canceled::before {
+  background:linear-gradient(135deg, #e2e8f0 0%, #94a3b8 100%);
+  box-shadow:0 2px 6px rgba(148,163,184,.2);
+}
+
+/* Intervallo non valido: sfondo striato, nessuna barra arrotondata */
+.g-cell.is-active.is-invalid-range::before {
+  background:repeating-linear-gradient(135deg, #fca5a5 0, #fca5a5 6px, #ef4444 6px, #ef4444 12px);
+  box-shadow:inset 0 0 0 1px #b91c1c;
+  border-radius:0 !important;
+  top:0; bottom:0; left:0; right:0;
+}
+
+/* Assenza: nessuna barra, sfondo rosso */
+.g-cell.is-active.is-absence { background:#fee2e2 !important; }
+.g-cell.is-active.is-absence::before { display:none; }
+.g-cell.is-absence {
+  background:#fee2e2 !important;
+  position:relative;
+}
+.g-cell .absence-x {
+  display:flex;
+  width:100%;
+  height:100%;
+  align-items:center;
+  justify-content:center;
+  color:#dc2626;
+  font-size:11px;
+  font-weight:800;
+  position:relative;
+  z-index:3;
+}
+
+/* Preview drag */
+.g-cell.is-drag-preview::before {
+  outline:2px solid #f97316 !important;
+  outline-offset:-2px;
+  box-shadow:0 0 8px rgba(249,115,22,.35) !important;
+}
+
+/* ── Legenda ── */
+.legend {
+  display:flex; gap:12px; flex-wrap:wrap;
+  margin-top:10px; padding:8px 12px;
+  background:#f8fafc; border-radius:8px;
+  border:1px solid var(--border);
+}
+.legend-item { font-size:11px; color:var(--text-mid); display:flex; align-items:center; gap:5px; font-weight:500; }
+.legend-dot { width:20px; height:11px; border-radius:5px; }
+.legend-dot.todo        { background:linear-gradient(135deg, #4ade80, #16a34a); }
+.legend-dot.in_progress { background:linear-gradient(135deg, #fde047, #d97706); }
+.legend-dot.done        { background:linear-gradient(135deg, #60a5fa, #2563eb); }
+.legend-dot.canceled    { background:linear-gradient(135deg, #e2e8f0, #94a3b8); }
+
+/* ── Modifica rapida ── */
+.quick-edit-grid { display:grid; gap:10px; }
+.quick-edit-item { border:1px solid var(--border); border-radius:10px; padding:10px; background:#fff; display:none; gap:8px; }
+.quick-edit-item.is-visible { display:grid; }
+.quick-edit-placeholder { color:var(--text-mid); font-size:13px; padding:8px 0; }
+.quick-edit-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+.quick-edit-head a { font-size:13px; font-weight:700; color:var(--text); text-decoration:none; }
+.quick-edit-head a:hover { color:var(--accent); }
+.quick-edit-row { display:grid; grid-template-columns: 1fr 1fr 1fr auto; gap:8px; align-items:end; }
+/* Riga selezionata nel Gantt */
+.task-row.is-selected { outline:2px solid var(--accent); outline-offset:-1px; }
+.task-row.is-selected .col-name,
+.task-row.is-selected .col-wbs { background:#fffbeb !important; }
+/* Legenda festività */
+.legend-dot.holiday { background:linear-gradient(135deg, #f9a8d4, #db2777); }
+
+/* ── Commenti ── */
+.comment-list { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
+.comment-item { border:1px solid var(--border); border-radius:10px; padding:8px; background:#fff; }
+
+@media (max-width: 1280px) {
+  .gantt-options { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .gantt-options .flag-row { grid-column: span 2; }
+  .gantt-options .actions { grid-column: span 1; }
+}
+@media (max-width: 900px) {
+  .gantt-options { grid-template-columns: 1fr; }
+  .gantt-options .flag-row, .gantt-options .actions { grid-column: span 1; }
+  .gantt-options .actions { justify-content:flex-start; }
+}
+@media (max-width: 1100px) { .quick-edit-row { grid-template-columns: 1fr; } }
+@media (max-width: 700px)  { .content { width:100% !important; margin:0 !important; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-main">
+    <h1 class="page-h">{{ project.name }}</h1>
+    <div class="page-sub">
+      Timeline dal {{ gantt_timeline_start|date:"d/m/Y" }} al {{ gantt_timeline_end|date:"d/m/Y" }} ({{ gantt_days|length }} giorni).
+      {% if can_edit_schedule %}
+        Modifica consentita: admin o assegnatario task progetto.
+      {% else %}
+        Visualizzazione sola lettura.
+      {% endif %}
+      Le assenze in conflitto sono evidenziate con quadrato rosso e X.
+    </div>
+  </div>
+  <div class="page-header-actions">
+    <a class="btn" href="{% url 'tasks:create' %}?project={{ project.id }}">+ Aggiungi task</a>
+    <a class="btn btn-secondary" href="{% url 'tasks:project_list' %}">Torna progetti</a>
+  </div>
+</div>
+
+{% if messages %}
+  <div class="messages-wrap">
+    {% for message in messages %}
+      <div class="notice notice-{{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% if project.client_name or project.project_manager or project.capo_commessa or project.programmer or project.control_method or project.part_number or project.similar_project or project.similar_work_note %}
+  <article class="gantt-card" style="margin-bottom:12px;">
+    <h3 class="card-title">Anagrafica progetto</h3>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--text-mid);">
+      {% if project.client_name %}<span>Cliente: {{ project.client_name }}</span>{% endif %}
+      {% if project.project_manager %}<span>Project manager: {{ project.project_manager.get_full_name|default:project.project_manager.username }}</span>{% endif %}
+      {% if project.capo_commessa %}<span>Capocommessa: {{ project.capo_commessa.get_full_name|default:project.capo_commessa.username }}</span>{% endif %}
+      {% if project.programmer %}<span>Programmatore: {{ project.programmer.get_full_name|default:project.programmer.username }}</span>{% endif %}
+      {% if project.control_method %}<span>Metodo controllo: {{ project.control_method }}</span>{% endif %}
+      {% if project.part_number %}<span>P/N: {{ project.part_number }}</span>{% endif %}
+      {% if project.similar_project %}<span>Lavorazione simile: {{ project.similar_project.name }}</span>{% endif %}
+      {% if project.similar_work_note %}<span>Simile (nuova): {{ project.similar_work_note }}</span>{% endif %}
+    </div>
+  </article>
+{% endif %}
+
+<section class="gantt-wrap">
+  <article class="gantt-card">
+    <h3 class="card-title">Opzioni vista</h3>
+    <form method="get" class="gantt-options">
+      <div class="field">
+        <label for="id_window_days">Finestra timeline</label>
+        <select id="id_window_days" name="window_days" class="input">
+          {% for value, label in gantt_window_choices %}
+            <option value="{{ value }}" {% if value == gantt_option_window_days %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="id_cell_size">Larghezza giorni</label>
+        <select id="id_cell_size" name="cell_size" class="input">
+          {% for value, label in gantt_cell_choices %}
+            <option value="{{ value }}" {% if value == gantt_option_cell_size %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="id_name_width">Larghezza nome attivita</label>
+        <select id="id_name_width" name="name_width" class="input">
+          {% for value, label in gantt_name_width_choices %}
+            <option value="{{ value }}" {% if value == gantt_option_name_width %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="id_day_width_live">Zoom giorni (drag)</label>
+        <input id="id_day_width_live" class="input-range" type="range" min="18" max="58" step="1" value="{{ gantt_day_cell_px }}">
+      </div>
+      <div class="field">
+        <label for="id_day_height_live">Altezza righe</label>
+        <input id="id_day_height_live" class="input-range" type="range" min="16" max="58" step="1" value="28">
+      </div>
+      <div class="field">
+        <label for="id_day_height_value">Valori attuali</label>
+        <div id="id_day_height_value" class="cell-muted"></div>
+      </div>
+
+      <div class="flag-row">
+        <input type="hidden" name="show_wbs" value="0">
+        <label class="flag"><input type="checkbox" name="show_wbs" value="1" {% if gantt_show_wbs %}checked{% endif %}>WBS</label>
+
+        <input type="hidden" name="show_duration" value="0">
+        <label class="flag"><input type="checkbox" name="show_duration" value="1" {% if gantt_show_duration %}checked{% endif %}>Durata</label>
+
+        <input type="hidden" name="show_start" value="0">
+        <label class="flag"><input type="checkbox" name="show_start" value="1" {% if gantt_show_start %}checked{% endif %}>Inizio</label>
+
+        <input type="hidden" name="show_end" value="0">
+        <label class="flag"><input type="checkbox" name="show_end" value="1" {% if gantt_show_end %}checked{% endif %}>Fine</label>
+
+        {% if can_edit_schedule %}
+          <label class="flag" title="Quando sposti una barra, sposta anche tutte le task successive">
+            <input type="checkbox" id="id_cascade_shift" checked>Sposta a cascata
+          </label>
+        {% endif %}
+      </div>
+      <div class="actions">
+        <button type="submit" class="btn btn-sm">Applica vista</button>
+        <a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_gantt' project.id %}">Reset</a>
+      </div>
+    </form>
+  </article>
+
+  <article class="gantt-card">
+    <h3 class="card-title">Diagramma Gantt classico</h3>
+    {% if gantt_rows %}
+      <div class="gantt-table-wrap">
+        <table class="gantt-table" role="table" data-project-id="{{ project.id }}" data-can-shift="{% if can_edit_schedule %}1{% else %}0{% endif %}">
+          <thead>
+            <tr>
+              {% if gantt_show_wbs %}
+                <th class="left-head col-wbs resizable-col" data-resize-var="--wbs-col-w" data-min-width="48" rowspan="3">WBS<span class="col-resizer" aria-hidden="true"></span></th>
+              {% endif %}
+              <th class="left-head col-name resizable-col" data-resize-var="--name-col-w" data-min-width="220" rowspan="3">Nome attivita<span class="col-resizer" aria-hidden="true"></span></th>
+              {% if gantt_show_duration %}
+                <th class="left-head col-days resizable-col" data-resize-var="--dur-col-w" data-min-width="92" rowspan="3">Durata<span class="col-resizer" aria-hidden="true"></span></th>
+              {% endif %}
+              {% if gantt_show_start %}
+                <th class="left-head col-date-start resizable-col" data-resize-var="--start-col-w" data-min-width="96" rowspan="3">Inizio<span class="col-resizer" aria-hidden="true"></span></th>
+              {% endif %}
+              {% if gantt_show_end %}
+                <th class="left-head col-date-end resizable-col" data-resize-var="--end-col-w" data-min-width="96" rowspan="3">Fine<span class="col-resizer" aria-hidden="true"></span></th>
+              {% endif %}
+              <th colspan="{{ gantt_days|length }}">Timeline giornaliera</th>
+            </tr>
+            <tr>
+              {% for month in gantt_month_spans %}
+                <th class="month-head" colspan="{{ month.span }}">{{ month.label }}</th>
+              {% endfor %}
+            </tr>
+            <tr>
+              {% for day in gantt_days %}
+                <th class="day-head{% if day.is_weekend %} is-weekend{% endif %}{% if day.is_holiday %} is-holiday{% endif %}{% if day.is_today %} is-today{% endif %}">
+                  {{ day.date|date:"d" }}
+                </th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in gantt_rows %}
+              <tr
+                class="task-row"
+                data-task-id="{{ row.task.id }}"
+                data-start-index="{{ row.start_index }}"
+                data-end-index="{{ row.end_index }}"
+                data-shift-url="{% url 'tasks:project_gantt_shift_task' project.id row.task.id %}"
+              >
+                {% if gantt_show_wbs %}<td class="col-wbs">{{ row.wbs }}</td>{% endif %}
+                <td class="col-name">
+                  <a class="gantt-task-link" href="{% url 'tasks:detail' row.task.id %}">{{ row.task.title }}</a>
+                  <div class="gantt-meta">
+                    <span>{{ row.task.get_status_display }}</span>
+                    <span>Prio: {{ row.task.get_priority_display }}</span>
+                    <span>{% if row.task.assigned_to %}{{ row.task.assigned_to.get_full_name|default:row.task.assigned_to.username }}{% else %}Non assegnata{% endif %}</span>
+                    {% if row.invalid_range %}
+                      <span style="color:#b91c1c;font-weight:700;">Range non valido (fine <= inizio)</span>
+                    {% endif %}
+                    {% if row.has_absence_conflicts %}
+                      <span style="color:#b91c1c;font-weight:700;">Assenze: {{ row.absence_days }} gg</span>
+                    {% endif %}
+                  </div>
+                </td>
+                {% if gantt_show_duration %}<td class="col-days" title="{{ row.duration_days }} giorni cal.">{{ row.duration_working_days }} gg</td>{% endif %}
+                {% if gantt_show_start %}<td class="col-date-start">{{ row.start|date:"d/m/Y" }}</td>{% endif %}
+                {% if gantt_show_end %}<td class="col-date-end">{{ row.end|date:"d/m/Y" }}</td>{% endif %}
+                {% for cell in row.cells %}
+                  <td
+                    class="g-cell{% if cell.classes %} {{ cell.classes }}{% endif %}"
+                    data-day-index="{{ forloop.counter0 }}"
+                    {% if cell.title %}title="{{ cell.title }}"{% endif %}
+                  >
+                    {% if cell.marker %}<span class="absence-x">{{ cell.marker }}</span>{% endif %}
+                  </td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if can_edit_schedule %}
+        <div class="cell-muted" style="margin-top:8px;">
+          Drag colonne: usa il bordo destro degli header. Drag timeline: trascina una cella attiva della task per spostare le date.
+        </div>
+      {% endif %}
+      <div class="legend">
+        <span class="legend-item"><span class="legend-dot todo"></span> To do</span>
+        <span class="legend-item"><span class="legend-dot in_progress"></span> In progress</span>
+        <span class="legend-item"><span class="legend-dot done"></span> Done</span>
+        <span class="legend-item"><span class="legend-dot canceled"></span> Canceled</span>
+        <span class="legend-item"><span class="legend-dot" style="background:repeating-linear-gradient(135deg,#fca5a5 0,#fca5a5 5px,#ef4444 5px,#ef4444 10px);"></span> Range non valido</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#fee2e2;border:1px solid #fca5a5;"></span> Assenza assegnatario</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#f0f4f8;border:1px solid #cbd5e1;"></span> Sabato/domenica</span>
+        <span class="legend-item"><span class="legend-dot holiday"></span> Festività nazionale</span>
+        <span class="legend-item" style="font-style:italic;">Durata in giorni lavorativi</span>
+      </div>
+    {% else %}
+      <div class="cell-muted">Nessuna task nel progetto.</div>
+    {% endif %}
+  </article>
+
+  {% if can_edit_schedule and gantt_rows %}
+    <article class="gantt-card">
+      <h3 class="card-title">Modifica rapida timeline</h3>
+      <div class="quick-edit-grid">
+        <div class="quick-edit-placeholder" id="quick-edit-placeholder">Clicca una task nel diagramma per modificarla qui.</div>
+        {% for row in gantt_rows %}
+          {% if row.update_form %}
+            <form class="quick-edit-item" data-task-id="{{ row.task.id }}" method="post" action="{% url 'tasks:project_gantt_update_task' project.id row.task.id %}">
+              {% csrf_token %}
+              <input type="hidden" name="return_qs" value="{{ gantt_return_qs }}">
+              <div class="quick-edit-head">
+                <a href="{% url 'tasks:detail' row.task.id %}">{{ row.task.title }}</a>
+                <span class="badge">{{ row.task.get_status_display }}</span>
+              </div>
+              <div class="quick-edit-row">
+                <div class="field">
+                  <label for="{{ row.update_form.next_step_due.id_for_label }}">Data inizio</label>
+                  {{ row.update_form.next_step_due }}
+                </div>
+                <div class="field">
+                  <label for="{{ row.update_form.due_date.id_for_label }}">Data richiesta fine</label>
+                  {{ row.update_form.due_date }}
+                </div>
+                <div class="field">
+                  <label for="{{ row.update_form.status.id_for_label }}">Status</label>
+                  {{ row.update_form.status }}
+                </div>
+                <div class="field">
+                  <button type="submit" class="btn btn-sm">Salva</button>
+                </div>
+              </div>
+            </form>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </article>
+  {% endif %}
+
+  <article class="gantt-card">
+    <h3 class="card-title">Commenti Progetto</h3>
+    {% if can_comment %}
+      <form method="post" action="{% url 'tasks:add_project_comment' project.id %}" style="display:grid;gap:8px;margin-bottom:10px;">
+        {% csrf_token %}
+        <input type="hidden" name="return_qs" value="{{ gantt_return_qs }}">
+        {{ project_comment_form.body }}
+        <div class="field">
+          <label for="{{ project_comment_form.target_user.id_for_label }}">Notifica utente (opzionale)</label>
+          {{ project_comment_form.target_user }}
+        </div>
+        <div><button type="submit" class="btn btn-sm">Aggiungi commento</button></div>
+      </form>
+    {% endif %}
+
+    {% if project.comments.all %}
+      <ul class="comment-list">
+        {% for comment in project.comments.all %}
+          <li class="comment-item">
+            <div style="font-size:12px;color:var(--text-mid);margin-bottom:4px;">
+              {{ comment.author.get_full_name|default:comment.author.username }} - {{ comment.created_at|date:"d/m/Y H:i" }}
+            </div>
+            <div style="white-space:pre-wrap;">{{ comment.body }}</div>
+            {% if comment.target_user %}
+              <div style="font-size:12px;color:var(--text-mid);margin-top:4px;">
+                Notifica a: {{ comment.target_user.get_full_name|default:comment.target_user.username }}
+              </div>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="cell-muted">Nessun commento progetto.</div>
+    {% endif %}
+  </article>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  const table = document.querySelector(".gantt-table");
+  if (!table) {
+    return;
+  }
+
+  const projectId = table.dataset.projectId || "0";
+  const canShift = table.dataset.canShift === "1";
+  const layoutKey = "tasks.gantt.layout." + projectId;
+  const widthRange = document.getElementById("id_day_width_live");
+  const heightRange = document.getElementById("id_day_height_live");
+  const valueLabel = document.getElementById("id_day_height_value");
+
+  function parsePx(value, fallback) {
+    const numeric = parseInt(String(value || "").replace("px", "").trim(), 10);
+    return Number.isFinite(numeric) ? numeric : fallback;
+  }
+
+  function getVar(name, fallback) {
+    return parsePx(getComputedStyle(table).getPropertyValue(name), fallback);
+  }
+
+  function setVar(name, value) {
+    table.style.setProperty(name, Math.round(value) + "px");
+  }
+
+  function updateValueLabel() {
+    if (!valueLabel) {
+      return;
+    }
+    const dayW = getVar("--day-cell-w", 30);
+    const dayH = getVar("--day-cell-h", 28);
+    valueLabel.textContent = "giorni " + dayW + "px - altezza " + dayH + "px";
+  }
+
+  function syncRangesFromVars() {
+    if (widthRange) {
+      widthRange.value = String(getVar("--day-cell-w", 30));
+    }
+    if (heightRange) {
+      heightRange.value = String(getVar("--day-cell-h", 28));
+    }
+    updateValueLabel();
+  }
+
+  function saveLayout() {
+    const payload = {
+      wbs: getVar("--wbs-col-w", 58),
+      name: getVar("--name-col-w", 360),
+      dur: getVar("--dur-col-w", 110),
+      start: getVar("--start-col-w", 110),
+      end: getVar("--end-col-w", 110),
+      dayW: getVar("--day-cell-w", 30),
+      dayH: getVar("--day-cell-h", 28),
+      rowH: getVar("--row-content-h", 46),
+    };
+    try {
+      window.localStorage.setItem(layoutKey, JSON.stringify(payload));
+    } catch (error) {
+      console.warn("Gantt layout non salvato", error);
+    }
+  }
+
+  function loadLayout() {
+    try {
+      const raw = window.localStorage.getItem(layoutKey);
+      if (!raw) {
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") {
+        return;
+      }
+      if (parsed.wbs) setVar("--wbs-col-w", parsed.wbs);
+      if (parsed.name) setVar("--name-col-w", parsed.name);
+      if (parsed.dur) setVar("--dur-col-w", parsed.dur);
+      if (parsed.start) setVar("--start-col-w", parsed.start);
+      if (parsed.end) setVar("--end-col-w", parsed.end);
+      if (parsed.dayW) setVar("--day-cell-w", parsed.dayW);
+      if (parsed.dayH) setVar("--day-cell-h", parsed.dayH);
+      if (parsed.rowH) {
+        setVar("--row-content-h", parsed.rowH);
+      } else if (parsed.dayH) {
+        setVar("--row-content-h", Math.max(36, parsed.dayH + 18));
+      }
+    } catch (error) {
+      console.warn("Gantt layout non caricato", error);
+    }
+  }
+
+  /* ── Barre con caps arrotondati (salta weekend/festivi) ── */
+  function isNonWorking(cell) {
+    return cell.classList.contains("is-weekend") || cell.classList.contains("is-holiday");
+  }
+
+  function renderBars() {
+    table.querySelectorAll("tr.task-row").forEach(function (row) {
+      const cells = Array.from(row.querySelectorAll("td.g-cell"));
+      cells.forEach(function (c) {
+        c.classList.remove("is-bar-start", "is-bar-end");
+      });
+      // Una "run" è una sequenza di celle is-active E lavorative (non weekend/festivo)
+      let runStart = -1;
+      for (let i = 0; i <= cells.length; i++) {
+        const isWorkingActive = i < cells.length
+          && cells[i].classList.contains("is-active")
+          && !isNonWorking(cells[i])
+          && !cells[i].classList.contains("is-absence");
+        if (isWorkingActive && runStart === -1) {
+          runStart = i;
+        } else if (!isWorkingActive && runStart !== -1) {
+          cells[runStart].classList.add("is-bar-start");
+          cells[i - 1].classList.add("is-bar-end");
+          runStart = -1;
+        }
+      }
+    });
+  }
+
+  /* ── Sticky: imposta left sulle colonne fisse ── */
+  function applyStickyOffsets() {
+    const hasWbs = !!table.querySelector("th.col-wbs");
+    const wbsW = hasWbs ? getVar("--wbs-col-w", 58) : 0;
+    if (hasWbs) {
+      table.querySelectorAll(".col-wbs").forEach(function (el) {
+        el.style.left = "0px";
+      });
+    }
+    table.querySelectorAll(".col-name").forEach(function (el) {
+      el.style.left = wbsW + "px";
+    });
+  }
+
+  function bindRangeControls() {
+    if (widthRange) {
+      widthRange.addEventListener("input", function () {
+        setVar("--day-cell-w", parseInt(widthRange.value, 10));
+        updateValueLabel();
+        saveLayout();
+      });
+    }
+    if (heightRange) {
+      heightRange.addEventListener("input", function () {
+        const dayHeight = parseInt(heightRange.value, 10);
+        setVar("--day-cell-h", dayHeight);
+        setVar("--row-content-h", Math.max(36, dayHeight + 18));
+        updateValueLabel();
+        saveLayout();
+      });
+    }
+  }
+
+  function bindColumnResizers() {
+    const headers = table.querySelectorAll("th.resizable-col[data-resize-var]");
+    headers.forEach(function (header) {
+      const handle = header.querySelector(".col-resizer");
+      if (!handle) {
+        return;
+      }
+      handle.addEventListener("pointerdown", function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        const variableName = header.dataset.resizeVar;
+        const minWidth = parseInt(header.dataset.minWidth || "60", 10);
+        const startX = event.clientX;
+        const startWidth = header.getBoundingClientRect().width;
+        document.body.style.cursor = "col-resize";
+
+        function onPointerMove(moveEvent) {
+          const next = Math.max(minWidth, startWidth + (moveEvent.clientX - startX));
+          setVar(variableName, next);
+          updateValueLabel();
+        }
+
+        function onPointerUp() {
+          document.removeEventListener("pointermove", onPointerMove);
+          document.removeEventListener("pointerup", onPointerUp);
+          document.body.style.cursor = "";
+          syncRangesFromVars();
+          applyStickyOffsets();
+          saveLayout();
+        }
+
+        document.addEventListener("pointermove", onPointerMove);
+        document.addEventListener("pointerup", onPointerUp);
+      });
+    });
+  }
+
+  function getCookie(name) {
+    const parts = document.cookie ? document.cookie.split(";") : [];
+    for (let index = 0; index < parts.length; index += 1) {
+      const item = parts[index].trim();
+      if (item.startsWith(name + "=")) {
+        return decodeURIComponent(item.slice(name.length + 1));
+      }
+    }
+    return "";
+  }
+
+  function clearRowPreview(row) {
+    row.classList.remove("is-dragging");
+    row.querySelectorAll(".g-cell.is-drag-preview").forEach(function (cell) {
+      cell.classList.remove("is-drag-preview");
+    });
+  }
+
+  function paintRowPreview(row, startIndex, endIndex) {
+    clearRowPreview(row);
+    row.classList.add("is-dragging");
+    row.querySelectorAll(".g-cell").forEach(function (cell) {
+      const dayIndex = parseInt(cell.dataset.dayIndex || "-1", 10);
+      if (dayIndex >= startIndex && dayIndex <= endIndex) {
+        cell.classList.add("is-drag-preview");
+      }
+    });
+  }
+
+  function bindTaskDragShift() {
+    if (!canShift) {
+      return;
+    }
+    const tbody = table.querySelector("tbody");
+    if (!tbody) {
+      return;
+    }
+    const tableWrap = table.closest(".gantt-table-wrap");
+    const csrfToken = getCookie("csrftoken");
+    let shiftRequestPending = false;
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function autoScrollWrap(clientX) {
+      if (!tableWrap) {
+        return;
+      }
+      const rect = tableWrap.getBoundingClientRect();
+      const edgeSize = 56;
+      let delta = 0;
+      if (clientX < rect.left + edgeSize) {
+        delta = -Math.ceil((rect.left + edgeSize - clientX) / 7);
+      } else if (clientX > rect.right - edgeSize) {
+        delta = Math.ceil((clientX - (rect.right - edgeSize)) / 7);
+      }
+      if (delta !== 0) {
+        tableWrap.scrollLeft += delta;
+      }
+    }
+
+    function resolveHoverCell(row, clientX, clientY) {
+      const pointed = document.elementFromPoint(clientX, clientY);
+      const pointedCell = pointed ? pointed.closest("td.g-cell") : null;
+      if (pointedCell && pointedCell.closest("tr.task-row") === row) {
+        return pointedCell;
+      }
+      const rowCells = row.querySelectorAll("td.g-cell");
+      if (!rowCells.length) {
+        return null;
+      }
+      const firstRect = rowCells[0].getBoundingClientRect();
+      const dayWidth = Math.max(8, getVar("--day-cell-w", 30));
+      const rawIndex = Math.floor((clientX - firstRect.left) / dayWidth);
+      const index = clamp(rawIndex, 0, rowCells.length - 1);
+      return rowCells[index];
+    }
+
+    tbody.addEventListener("pointerdown", function (event) {
+      if (shiftRequestPending || event.button !== 0) {
+        return;
+      }
+      const cell = event.target.closest("td.g-cell.is-active");
+      if (!cell) {
+        return;
+      }
+      const row = cell.closest("tr.task-row");
+      if (!row || !row.dataset.shiftUrl) {
+        return;
+      }
+
+      const startIndex = parseInt(row.dataset.startIndex || "-1", 10);
+      const endIndex = parseInt(row.dataset.endIndex || "-1", 10);
+      if (startIndex < 0 || endIndex < startIndex) {
+        return;
+      }
+
+      const anchorDayIndex = parseInt(cell.dataset.dayIndex || "-1", 10);
+      if (anchorDayIndex < 0) {
+        return;
+      }
+      const pointerId = event.pointerId;
+      let delta = 0;
+      event.preventDefault();
+      paintRowPreview(row, startIndex, endIndex);
+      if (typeof cell.setPointerCapture === "function") {
+        try {
+          cell.setPointerCapture(pointerId);
+        } catch (error) {
+          console.warn("Pointer capture non disponibile", error);
+        }
+      }
+
+      function onPointerMove(moveEvent) {
+        if (moveEvent.pointerId !== pointerId) {
+          return;
+        }
+        autoScrollWrap(moveEvent.clientX);
+        const hoveredCell = resolveHoverCell(row, moveEvent.clientX, moveEvent.clientY);
+        if (!hoveredCell) {
+          return;
+        }
+        const hoveredIndex = parseInt(hoveredCell.dataset.dayIndex || "-1", 10);
+        if (hoveredIndex < 0) {
+          return;
+        }
+        const nextDelta = hoveredIndex - anchorDayIndex;
+        if (nextDelta === delta) {
+          return;
+        }
+        delta = nextDelta;
+        paintRowPreview(row, startIndex + delta, endIndex + delta);
+      }
+
+      async function finishDrag(shouldSubmit) {
+        document.removeEventListener("pointermove", onPointerMove);
+        document.removeEventListener("pointerup", onPointerUp);
+        document.removeEventListener("pointercancel", onPointerCancel);
+        if (typeof cell.releasePointerCapture === "function") {
+          try {
+            cell.releasePointerCapture(pointerId);
+          } catch (error) {
+            // no-op
+          }
+        }
+        if (!shouldSubmit || delta === 0) {
+          clearRowPreview(row);
+          return;
+        }
+
+        shiftRequestPending = true;
+        try {
+          const cascadeCheckbox = document.getElementById("id_cascade_shift");
+          // Default cascade=1: se il checkbox non esiste (o è checked) → cascade attivo
+          const doCascade = (!cascadeCheckbox || cascadeCheckbox.checked) ? "1" : "0";
+          const body = new URLSearchParams();
+          body.set("shift_days", String(delta));
+          body.set("cascade", doCascade);
+          const response = await fetch(row.dataset.shiftUrl, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+              "X-CSRFToken": csrfToken,
+              "X-Requested-With": "XMLHttpRequest",
+            },
+            body: body.toString(),
+          });
+          const payload = await response.json().catch(function () {
+            return {};
+          });
+          if (!response.ok || !payload.ok) {
+            throw new Error(payload.error || "shift_failed");
+          }
+          window.location.reload();
+        } catch (error) {
+          clearRowPreview(row);
+          alert("Spostamento task non riuscito.");
+          console.error("Gantt shift error", error);
+        } finally {
+          shiftRequestPending = false;
+        }
+      }
+
+      function onPointerUp(upEvent) {
+        if (upEvent.pointerId !== pointerId) {
+          return;
+        }
+        finishDrag(true);
+      }
+
+      function onPointerCancel(cancelEvent) {
+        if (cancelEvent.pointerId !== pointerId) {
+          return;
+        }
+        finishDrag(false);
+      }
+
+      document.addEventListener("pointermove", onPointerMove);
+      document.addEventListener("pointerup", onPointerUp);
+      document.addEventListener("pointercancel", onPointerCancel);
+    });
+  }
+
+  /* ── Quick-edit: mostra solo la task selezionata ── */
+  function bindQuickEditAccordion() {
+    const placeholder = document.getElementById("quick-edit-placeholder");
+    const forms = document.querySelectorAll(".quick-edit-item[data-task-id]");
+    if (!forms.length) {
+      return;
+    }
+
+    function selectTask(taskId) {
+      forms.forEach(function (form) {
+        if (form.dataset.taskId === String(taskId)) {
+          form.classList.add("is-visible");
+        } else {
+          form.classList.remove("is-visible");
+        }
+      });
+      if (placeholder) {
+        placeholder.style.display = taskId ? "none" : "";
+      }
+      // Evidenzia la riga nel Gantt
+      table.querySelectorAll("tr.task-row").forEach(function (row) {
+        if (row.dataset.taskId === String(taskId)) {
+          row.classList.add("is-selected");
+        } else {
+          row.classList.remove("is-selected");
+        }
+      });
+    }
+
+    // Click su riga Gantt
+    table.querySelector("tbody") && table.querySelector("tbody").addEventListener("click", function (event) {
+      const row = event.target.closest("tr.task-row");
+      if (!row) {
+        return;
+      }
+      const taskId = row.dataset.taskId;
+      // Toggle: click sulla stessa riga de-seleziona
+      const isAlreadySelected = row.classList.contains("is-selected");
+      selectTask(isAlreadySelected ? null : taskId);
+      if (!isAlreadySelected) {
+        // Scrolla alla sezione modifica rapida
+        const section = document.querySelector(".quick-edit-grid");
+        if (section) {
+          section.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+      }
+    });
+  }
+
+  loadLayout();
+  syncRangesFromVars();
+  renderBars();
+  applyStickyOffsets();
+  bindRangeControls();
+  bindColumnResizers();
+  bindTaskDragShift();
+  bindQuickEditAccordion();
+})();
+</script>
+{% endblock %}

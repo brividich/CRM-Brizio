@@ -1,0 +1,142 @@
+{% extends "core/base.html" %}
+
+{% block title %}Registro timbri{% endblock %}
+
+{% block extra_head %}
+<style>
+.tim-page { display:flex; flex-direction:column; gap:20px; }
+.tim-topbar, .tim-kpi, .tim-form-row { display:flex; gap:14px; flex-wrap:wrap; }
+.tim-topbar { align-items:center; justify-content:space-between; }
+.tim-title { font-size:27px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
+.tim-sub { font-size:13px; color:#64748b; margin-top:4px; }
+.tim-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 15px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; border:1px solid #dbe4f0; background:#fff; color:#0f172a; }
+.tim-btn-main { background:#0f766e; border-color:#0f766e; color:#fff; }
+.tim-btn-ghost { background:#f8fafc; }
+.tim-card, .tim-k { background:#fff; border:1px solid #e2e8f0; border-radius:16px; }
+.tim-kpi { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+.tim-k { padding:18px 20px; }
+.tim-k-val { font-size:30px; font-weight:800; color:#0f172a; line-height:1; }
+.tim-k-label { font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:.06em; margin-top:7px; }
+.tim-filters { padding:16px 20px; }
+.tim-field { display:flex; flex-direction:column; gap:4px; flex:1; min-width:170px; }
+.tim-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+.tim-input { border:1px solid #dbe4f0; border-radius:10px; padding:9px 12px; font-size:13px; background:#f8fafc; width:100%; box-sizing:border-box; }
+.tim-table-wrap { overflow:auto; }
+.tim-table { width:100%; border-collapse:collapse; font-size:13px; }
+.tim-table th { padding:11px 14px; background:#f8fafc; color:#64748b; font-size:11px; text-transform:uppercase; letter-spacing:.05em; text-align:left; border-bottom:1px solid #e2e8f0; }
+.tim-table td { padding:12px 14px; border-bottom:1px solid #f1f5f9; vertical-align:middle; color:#334155; }
+.tim-table tr:hover td { background:#fbfdff; }
+.tim-avatar { width:34px; height:34px; border-radius:50%; background:#0f766e; color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; }
+.tim-name { display:flex; align-items:center; gap:10px; }
+.tim-pill { display:inline-block; padding:3px 8px; border-radius:999px; font-size:11px; font-weight:700; }
+.tim-pill-gray { background:#f1f5f9; color:#475569; }
+.tim-pill-blue { background:#dbeafe; color:#1d4ed8; }
+.tim-empty { text-align:center; padding:36px; color:#94a3b8; }
+.tim-pag { display:flex; align-items:center; justify-content:center; gap:8px; padding:16px; }
+@media (max-width: 900px) { .tim-kpi { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "timbri/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="tim-page">
+  <div class="tim-topbar">
+    <div>
+      <div class="tim-title">Registro timbri</div>
+      <div class="tim-sub">Archivio timbri agganciato all'anagrafica centrale dei dipendenti.</div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      {% if can_manage_timbri_config %}<a class="tim-btn tim-btn-ghost" href="{% url 'timbri:configurazione' %}?tab=config">Configurazione</a>{% endif %}
+    </div>
+  </div>
+
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  {% if schema_issue %}
+    <div class="tim-card" style="border-color:#fecaca;background:#fff1f2;color:#991b1b;">
+      <strong>Schema SQL non pronto.</strong> {{ schema_issue }}
+    </div>
+  {% endif %}
+
+  <div class="tim-kpi">
+    <div class="tim-k"><div class="tim-k-val">{{ stats.dipendenti }}</div><div class="tim-k-label">Dipendenti in anagrafica</div></div>
+    <div class="tim-k"><div class="tim-k-val">{{ stats.con_timbri }}</div><div class="tim-k-label">Dipendenti con timbri</div></div>
+    <div class="tim-k"><div class="tim-k-val">{{ stats.record_attivi }}</div><div class="tim-k-label">Record attivi</div></div>
+  </div>
+
+  <form method="get" class="tim-card tim-filters">
+    <div class="tim-form-row">
+      <div class="tim-field">
+        <label>Cerca</label>
+        <input class="tim-input" type="text" name="q" value="{{ q }}" placeholder="Nome, cognome, matricola, reparto...">
+      </div>
+      <div class="tim-field" style="max-width:220px;">
+        <label>Reparto</label>
+        <select class="tim-input" name="reparto">
+          <option value="">Tutti</option>
+          {% for item in reparti %}
+            <option value="{{ item }}"{% if item == reparto %} selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-end;">
+        <button class="tim-btn tim-btn-main" type="submit">Filtra</button>
+        <a class="tim-btn tim-btn-ghost" href="{% url 'timbri:index' %}">Reset</a>
+      </div>
+    </div>
+  </form>
+
+  <div class="tim-card">
+    <div class="tim-table-wrap">
+      <table class="tim-table">
+        <thead>
+          <tr>
+            <th>Dipendente</th>
+            <th>Matricola</th>
+            <th>Reparto</th>
+            <th>Ruolo</th>
+            <th>Timbri attivi</th>
+            <th>Storico</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for operatore in page_obj %}
+            <tr>
+              <td>
+                <div class="tim-name">
+                  <div class="tim-avatar">{{ operatore.nome|first|upper }}{{ operatore.cognome|first|upper }}</div>
+                  <div>
+                    <div style="font-weight:800;color:#0f172a;">{{ operatore.full_name }}</div>
+                    {% if not operatore.is_active_legacy %}<span class="tim-pill tim-pill-gray">Storico</span>{% endif %}
+                  </div>
+                </div>
+              </td>
+              <td>{{ operatore.matricola|default:"-" }}</td>
+              <td>{% if operatore.reparto %}<span class="tim-pill tim-pill-blue">{{ operatore.reparto }}</span>{% else %}-{% endif %}</td>
+              <td>{{ operatore.ruolo|default:"-" }}</td>
+              <td>{{ operatore.active_records }}</td>
+              <td>{{ operatore.historical_records }}</td>
+              <td>
+                <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+                  <a class="tim-btn tim-btn-ghost" href="{% url 'timbri:operatore_detail_by_legacy' operatore.legacy_id %}">Apri</a>
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7" class="tim-empty">Nessun dipendente trovato.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if page_obj.has_other_pages %}
+      <div class="tim-pag">
+        {% if page_obj.has_previous %}<a class="tim-btn tim-btn-ghost" href="?page={{ page_obj.previous_page_number }}&q={{ q|urlencode }}&reparto={{ reparto|urlencode }}">Prec</a>{% endif %}
+        <span>Pagina {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}<a class="tim-btn tim-btn-ghost" href="?page={{ page_obj.next_page_number }}&q={{ q|urlencode }}&reparto={{ reparto|urlencode }}">Succ</a>{% endif %}
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

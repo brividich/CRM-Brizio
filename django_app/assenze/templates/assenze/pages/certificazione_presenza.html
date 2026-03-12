@@ -1,0 +1,401 @@
+{% extends "core/base.html" %}
+
+{% block title %}Certificazione Presenza | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Layout ── */
+.cp-wrap { display:flex; flex-direction:column; gap:20px; }
+
+/* ── Hero ── */
+.cp-hero {
+  background:linear-gradient(135deg,#1e3a5f 0%,#065f46 100%);
+  border-radius:14px; padding:26px 30px;
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px; color:#fff;
+}
+.cp-hero-title { font-size:22px; font-weight:900; letter-spacing:-.02em; }
+.cp-hero-sub   { font-size:13px; opacity:.7; margin-top:3px; }
+.cp-hero-btn   { display:inline-flex; align-items:center; gap:6px; padding:9px 18px; border-radius:9px; font-size:13px; font-weight:700; text-decoration:none; background:#fff; color:#065f46; border:none; cursor:pointer; }
+.cp-hero-btn:hover { background:#d1fae5; }
+
+/* ── Form card ── */
+.cp-form-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.cp-form-head { padding:16px 22px; background:#f8fafc; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; gap:10px; }
+.cp-form-title { font-size:14px; font-weight:800; color:#0f172a; }
+.cp-form-body  { padding:22px; }
+
+/* ── Griglia form ── */
+.cp-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.cp-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+.cp-full  { grid-column:1/-1; }
+.cp-field { display:flex; flex-direction:column; gap:5px; }
+.cp-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.06em; }
+.cp-label span.req { color:#dc2626; margin-left:2px; }
+.cp-input, .cp-select, .cp-textarea {
+  border:1px solid #d1d5db; border-radius:8px; padding:9px 12px; font-size:13px;
+  background:#fff; color:#0f172a; width:100%; box-sizing:border-box; transition:border-color .15s;
+}
+.cp-input:focus, .cp-select:focus, .cp-textarea:focus { outline:none; border-color:#1d4ed8; box-shadow:0 0 0 3px rgba(29,78,216,.1); }
+.cp-input.error, .cp-select.error { border-color:#dc2626; }
+.cp-error-msg { font-size:11px; color:#dc2626; font-weight:600; }
+.cp-textarea { min-height:70px; resize:vertical; }
+
+/* ── Toggle turno pomeriggio ── */
+.cp-toggle-row { display:flex; align-items:center; gap:12px; padding:12px 14px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; }
+.cp-toggle { position:relative; display:inline-block; width:42px; height:24px; flex-shrink:0; }
+.cp-toggle input { opacity:0; width:0; height:0; }
+.cp-toggle-slider {
+  position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0;
+  background:#cbd5e1; border-radius:24px; transition:.2s;
+}
+.cp-toggle-slider::before {
+  content:""; position:absolute; height:18px; width:18px; left:3px; bottom:3px;
+  background:#fff; border-radius:50%; transition:.2s;
+}
+.cp-toggle input:checked + .cp-toggle-slider { background:#16a34a; }
+.cp-toggle input:checked + .cp-toggle-slider::before { transform:translateX(18px); }
+.cp-toggle-label { font-size:13px; font-weight:700; color:#166534; }
+.cp-toggle-sub   { font-size:11px; color:#4ade80; margin-left:auto; }
+
+/* Sezione pomeriggio (nascosta se toggle off) */
+#cp-pomeriggio-section { display:none; }
+#cp-pomeriggio-section.visible { display:contents; }
+
+/* ── Ora layout ── */
+.cp-time-group { display:flex; flex-direction:column; gap:5px; }
+.cp-time-row   { display:flex; gap:8px; align-items:center; }
+.cp-time-sep   { font-size:16px; font-weight:700; color:#94a3b8; }
+.cp-time-row .cp-select { width:80px; flex-shrink:0; }
+
+/* ── Actions ── */
+.cp-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:6px; }
+.cp-btn { display:inline-flex; align-items:center; gap:6px; padding:10px 20px; border-radius:9px; font-size:13px; font-weight:700; border:none; cursor:pointer; transition:background .15s; }
+.cp-btn-primary { background:#1d4ed8; color:#fff; }
+.cp-btn-primary:hover { background:#1e40af; }
+.cp-btn-green { background:#16a34a; color:#fff; }
+.cp-btn-green:hover { background:#15803d; }
+.cp-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.cp-btn-ghost:hover { background:#e2e8f0; }
+.cp-btn-danger { background:#fef2f2; color:#dc2626; border:1px solid #fca5a5; }
+.cp-btn-danger:hover { background:#fee2e2; }
+
+/* ── Alert ── */
+.cp-alert { padding:12px 16px; border-radius:10px; font-size:13px; font-weight:600; }
+.cp-alert-success { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+.cp-alert-error   { background:#fef2f2; border:1px solid #fca5a5; color:#991b1b; }
+
+/* ── Filtri ── */
+.cp-filter-row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+.cp-filter-row .cp-input { width:auto; flex:1; min-width:140px; }
+
+/* ── Tabella ── */
+.cp-table-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.cp-table-head { padding:14px 20px; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.cp-table-title { font-size:14px; font-weight:800; color:#0f172a; }
+.cp-table { width:100%; border-collapse:collapse; }
+.cp-table th { padding:9px 14px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:#94a3b8; background:#f8fafc; border-bottom:1px solid #f1f5f9; text-align:left; white-space:nowrap; }
+.cp-table td { padding:11px 14px; font-size:13px; color:#334155; border-bottom:1px solid #f8fafc; vertical-align:middle; }
+.cp-table tr:last-child td { border-bottom:none; }
+.cp-table tr:hover td { background:#fafbff; }
+.cp-ore-badge { padding:3px 8px; border-radius:20px; font-size:11px; font-weight:700; background:#eff6ff; color:#1d4ed8; }
+.cp-pm-badge  { padding:3px 8px; border-radius:20px; font-size:11px; font-weight:700; background:#f0fdf4; color:#16a34a; }
+.cp-empty { padding:36px; text-align:center; color:#94a3b8; font-size:13px; }
+.cp-row-actions { display:flex; gap:6px; }
+.cp-act-btn { padding:4px 10px; border-radius:7px; font-size:11px; font-weight:700; border:none; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; }
+.cp-act-edit { background:#eff6ff; color:#1d4ed8; }
+.cp-act-edit:hover { background:#dbeafe; }
+.cp-act-del  { background:#fef2f2; color:#dc2626; }
+.cp-act-del:hover  { background:#fee2e2; }
+
+@media(max-width:700px){
+  .cp-grid, .cp-grid-3 { grid-template-columns:1fr; }
+  .cp-full { grid-column:1; }
+}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "assenze/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="cp-wrap">
+
+  <!-- Hero -->
+  <div class="cp-hero">
+    <div>
+      <div class="cp-hero-title">📋 Certificazione Presenza</div>
+      <div class="cp-hero-sub">Registra gli orari di ingresso/uscita giornalieri per i dipendenti</div>
+    </div>
+    <a class="cp-hero-btn" href="{% url 'assenze_menu' %}">← Torna ad Assenze</a>
+  </div>
+
+  <!-- Messaggi -->
+  {% if form_success %}
+    <div class="cp-alert cp-alert-success">✓ Certificazione salvata con successo.</div>
+  {% endif %}
+  {% if form_errors.global_error %}
+    <div class="cp-alert cp-alert-error">{{ form_errors.global_error }}</div>
+  {% endif %}
+
+  <!-- Form inserimento / modifica -->
+  <div class="cp-form-card">
+    <div class="cp-form-head">
+      <span style="font-size:18px;">{% if edit_obj %}✏️{% else %}➕{% endif %}</span>
+      <div class="cp-form-title">{% if edit_obj %}Modifica certificazione — {{ edit_obj.nome_dipendente }} ({{ edit_obj.data|date:"d/m/Y" }}){% else %}Nuova certificazione{% endif %}</div>
+    </div>
+    <div class="cp-form-body">
+      <form method="POST" id="cp-form" autocomplete="off">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="{% if edit_obj %}update{% else %}create{% endif %}">
+        {% if edit_obj %}<input type="hidden" name="pk" value="{{ edit_obj.pk }}">{% endif %}
+
+        <div class="cp-grid">
+
+          <!-- Dipendente -->
+          <div class="cp-field">
+            <label class="cp-label">Dipendente <span class="req">*</span></label>
+            <input list="cp-dip-list" name="nome_dipendente"
+              class="cp-input {% if form_errors.nome_dipendente %}error{% endif %}"
+              placeholder="Cerca dipendente..."
+              value="{% if edit_obj %}{{ edit_obj.nome_dipendente }}{% endif %}" required>
+            <datalist id="cp-dip-list">
+              {% for n in dipendenti_nomi %}<option value="{{ n }}">{% endfor %}
+            </datalist>
+            {% if form_errors.nome_dipendente %}<div class="cp-error-msg">{{ form_errors.nome_dipendente }}</div>{% endif %}
+          </div>
+
+          <!-- Data -->
+          <div class="cp-field">
+            <label class="cp-label">Data <span class="req">*</span></label>
+            <input type="date" name="data"
+              class="cp-input {% if form_errors.data %}error{% endif %}"
+              value="{% if edit_obj %}{{ edit_obj.data|date:'Y-m-d' }}{% endif %}" required>
+            {% if form_errors.data %}<div class="cp-error-msg">{{ form_errors.data }}</div>{% endif %}
+          </div>
+
+        </div>
+
+        <!-- Sezione mattina -->
+        <div style="margin:18px 0 10px; font-size:12px; font-weight:800; color:#1d4ed8; text-transform:uppercase; letter-spacing:.08em;">
+          ☀️ Turno Mattina
+        </div>
+        <div class="cp-grid">
+
+          <!-- Entrata mattina -->
+          <div class="cp-field">
+            <label class="cp-label">Entrata mattina <span class="req">*</span></label>
+            <div class="cp-time-row">
+              <select name="entrata_mattina_h" class="cp-select {% if form_errors.entrata_mattina %}error{% endif %}" id="em_h">
+                {% for h in ore_mattina_list %}
+                  <option value="{{ h }}"{% if edit_obj and edit_obj.entrata_mattina.hour|stringformat:"02d" == h %} selected{% endif %}>{{ h }}</option>
+                {% endfor %}
+              </select>
+              <span class="cp-time-sep">:</span>
+              <select name="entrata_mattina_m" class="cp-select" id="em_m">
+                {% for m in minuti_list %}
+                  <option value="{{ m }}"{% if edit_obj and edit_obj.entrata_mattina.minute|stringformat:"02d" == m %} selected{% endif %}>{{ m }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% if form_errors.entrata_mattina %}<div class="cp-error-msg">{{ form_errors.entrata_mattina }}</div>{% endif %}
+          </div>
+
+          <!-- Uscita mattina -->
+          <div class="cp-field">
+            <label class="cp-label">Uscita mattina <span class="req">*</span></label>
+            <div class="cp-time-row">
+              <select name="uscita_mattina_h" class="cp-select {% if form_errors.uscita_mattina %}error{% endif %}" id="um_h">
+                {% for h in ore_mattina_list %}
+                  <option value="{{ h }}"{% if edit_obj and edit_obj.uscita_mattina.hour|stringformat:"02d" == h %} selected{% endif %}>{{ h }}</option>
+                {% endfor %}
+              </select>
+              <span class="cp-time-sep">:</span>
+              <select name="uscita_mattina_m" class="cp-select" id="um_m">
+                {% for m in minuti_list %}
+                  <option value="{{ m }}"{% if edit_obj and edit_obj.uscita_mattina.minute|stringformat:"02d" == m %} selected{% endif %}>{{ m }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% if form_errors.uscita_mattina %}<div class="cp-error-msg">{{ form_errors.uscita_mattina }}</div>{% endif %}
+          </div>
+
+        </div>
+
+        <!-- Toggle pomeriggio -->
+        <div style="margin:18px 0 14px;">
+          <div class="cp-toggle-row">
+            <label class="cp-toggle">
+              <input type="checkbox" name="turno_pomeriggio" id="cp-toggle-pm"
+                {% if edit_obj and edit_obj.turno_pomeriggio %}checked{% endif %}
+                onchange="document.getElementById('cp-pomeriggio-section').classList.toggle('visible',this.checked)">
+              <span class="cp-toggle-slider"></span>
+            </label>
+            <span class="cp-toggle-label">Visualizza turno aggiuntivo pomeriggio</span>
+          </div>
+        </div>
+
+        <!-- Sezione pomeriggio -->
+        <div id="cp-pomeriggio-section" {% if edit_obj and edit_obj.turno_pomeriggio %}class="visible"{% endif %}>
+          <div style="margin:0 0 10px; font-size:12px; font-weight:800; color:#16a34a; text-transform:uppercase; letter-spacing:.08em;">
+            🌤️ Turno Pomeriggio
+          </div>
+          <div class="cp-grid">
+
+            <!-- Entrata pomeriggio -->
+            <div class="cp-field">
+              <label class="cp-label">Entrata pomeriggio</label>
+              <div class="cp-time-row">
+                <select name="entrata_pomeriggio_h" class="cp-select {% if form_errors.entrata_pomeriggio %}error{% endif %}">
+                  {% for h in ore_pom_list %}
+                    <option value="{{ h }}"{% if edit_obj and edit_obj.entrata_pomeriggio and edit_obj.entrata_pomeriggio.hour|stringformat:"02d" == h %} selected{% endif %}>{{ h }}</option>
+                  {% endfor %}
+                </select>
+                <span class="cp-time-sep">:</span>
+                <select name="entrata_pomeriggio_m" class="cp-select">
+                  {% for m in minuti_list %}
+                    <option value="{{ m }}"{% if edit_obj and edit_obj.entrata_pomeriggio and edit_obj.entrata_pomeriggio.minute|stringformat:"02d" == m %} selected{% endif %}>{{ m }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              {% if form_errors.entrata_pomeriggio %}<div class="cp-error-msg">{{ form_errors.entrata_pomeriggio }}</div>{% endif %}
+            </div>
+
+            <!-- Uscita pomeriggio -->
+            <div class="cp-field">
+              <label class="cp-label">Uscita pomeriggio</label>
+              <div class="cp-time-row">
+                <select name="uscita_pomeriggio_h" class="cp-select {% if form_errors.uscita_pomeriggio %}error{% endif %}">
+                  {% for h in ore_pom_list %}
+                    <option value="{{ h }}"{% if edit_obj and edit_obj.uscita_pomeriggio and edit_obj.uscita_pomeriggio.hour|stringformat:"02d" == h %} selected{% endif %}>{{ h }}</option>
+                  {% endfor %}
+                </select>
+                <span class="cp-time-sep">:</span>
+                <select name="uscita_pomeriggio_m" class="cp-select">
+                  {% for m in minuti_list %}
+                    <option value="{{ m }}"{% if edit_obj and edit_obj.uscita_pomeriggio and edit_obj.uscita_pomeriggio.minute|stringformat:"02d" == m %} selected{% endif %}>{{ m }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              {% if form_errors.uscita_pomeriggio %}<div class="cp-error-msg">{{ form_errors.uscita_pomeriggio }}</div>{% endif %}
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Note -->
+        <div class="cp-field" style="margin-top:16px;">
+          <label class="cp-label">Note</label>
+          <textarea name="note" class="cp-textarea" placeholder="Eventuali note...">{% if edit_obj %}{{ edit_obj.note }}{% endif %}</textarea>
+        </div>
+
+        <div class="cp-actions" style="margin-top:20px;">
+          <button type="submit" class="cp-btn {% if edit_obj %}cp-btn-green{% else %}cp-btn-primary{% endif %}">
+            {% if edit_obj %}✓ Aggiorna{% else %}➕ Salva certificazione{% endif %}
+          </button>
+          {% if edit_obj %}
+            <a class="cp-btn cp-btn-ghost" href="{% url 'assenze_certifica_presenza' %}">Annulla modifica</a>
+          {% else %}
+            <button type="reset" class="cp-btn cp-btn-ghost">Pulisci</button>
+          {% endif %}
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  <!-- Filtri + Tabella -->
+  <div class="cp-table-card">
+    <div class="cp-table-head">
+      <div class="cp-table-title">Certificazioni registrate</div>
+      <form method="GET" class="cp-filter-row">
+        <input type="text" name="q_nome" class="cp-input" placeholder="Cerca dipendente..." value="{{ q_nome }}">
+        <input type="date" name="q_data_da" class="cp-input" value="{{ q_data_da }}" title="Dal">
+        <input type="date" name="q_data_a"  class="cp-input" value="{{ q_data_a }}"  title="Al">
+        <button type="submit" class="cp-btn cp-btn-primary" style="padding:9px 16px;">Filtra</button>
+        {% if q_nome or q_data_da or q_data_a %}
+          <a href="{% url 'assenze_certifica_presenza' %}" class="cp-btn cp-btn-ghost">✕ Reset</a>
+        {% endif %}
+      </form>
+    </div>
+    {% if records %}
+    <table class="cp-table">
+      <thead>
+        <tr>
+          <th>Dipendente</th>
+          <th>Data</th>
+          <th>Entrata mattina</th>
+          <th>Uscita mattina</th>
+          <th>Ore mat.</th>
+          <th>Pomeriggio</th>
+          <th>Ore tot.</th>
+          <th>Note</th>
+          <th>Inserito da</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in records %}
+        <tr>
+          <td><strong>{{ r.nome_dipendente }}</strong></td>
+          <td>{{ r.data|date:"d/m/Y" }}</td>
+          <td>{{ r.entrata_mattina|time:"H:i" }}</td>
+          <td>{{ r.uscita_mattina|time:"H:i" }}</td>
+          <td><span class="cp-ore-badge">{{ r.ore_mattina }}h</span></td>
+          <td>
+            {% if r.turno_pomeriggio %}
+              <span class="cp-pm-badge">{{ r.entrata_pomeriggio|time:"H:i" }} – {{ r.uscita_pomeriggio|time:"H:i" }}</span>
+            {% else %}
+              <span style="color:#94a3b8;font-size:11px;">—</span>
+            {% endif %}
+          </td>
+          <td><strong>{{ r.ore_totali }}h</strong></td>
+          <td style="max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ r.note|default:"—" }}</td>
+          <td style="font-size:11px;color:#94a3b8;">{{ r.inserito_da|default:"—" }}</td>
+          <td>
+            <div class="cp-row-actions">
+              <a class="cp-act-btn cp-act-edit" href="?edit={{ r.pk }}#cp-form">✏️</a>
+              <form method="POST" style="display:inline;" onsubmit="return confirm('Eliminare questa certificazione?')">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="pk"     value="{{ r.pk }}">
+                <button type="submit" class="cp-act-btn cp-act-del">🗑</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="cp-empty">Nessuna certificazione trovata{% if q_nome or q_data_da or q_data_a %} per i filtri selezionati{% endif %}.</div>
+    {% endif %}
+  </div>
+
+</div>
+
+<script>
+// Ricostruisce i campi time da h+m al POST
+document.getElementById('cp-form').addEventListener('submit', function() {
+  function buildTime(hSel, mSel, targetName) {
+    var h = document.querySelector('[name="' + hSel + '"]');
+    var m = document.querySelector('[name="' + mSel + '"]');
+    if (!h || !m) return;
+    var inp = document.createElement('input');
+    inp.type = 'hidden';
+    inp.name = targetName;
+    inp.value = h.value + ':' + m.value;
+    document.getElementById('cp-form').appendChild(inp);
+  }
+  buildTime('entrata_mattina_h',    'entrata_mattina_m',    'entrata_mattina');
+  buildTime('uscita_mattina_h',     'uscita_mattina_m',     'uscita_mattina');
+  buildTime('entrata_pomeriggio_h', 'entrata_pomeriggio_m', 'entrata_pomeriggio');
+  buildTime('uscita_pomeriggio_h',  'uscita_pomeriggio_m',  'uscita_pomeriggio');
+});
+
+// Toggle visibilità pomeriggio all'avvio
+(function() {
+  var tog = document.getElementById('cp-toggle-pm');
+  var sec = document.getElementById('cp-pomeriggio-section');
+  if (tog && sec) sec.classList.toggle('visible', tog.checked);
+})();
+</script>
+{% endblock %}

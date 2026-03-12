@@ -1,0 +1,180 @@
+{% extends "core/base.html" %}
+{% load admin_portale_extras %}
+
+{% block title %}Permessi Effettivi Utente | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .perm-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: transform .1s, box-shadow .1s;
+    user-select: none;
+    letter-spacing: .03em;
+  }
+  .perm-badge:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+  .perm-badge:active { transform: translateY(0); box-shadow: none; }
+  .perm-badge.on  { background: #16a34a; color: #fff; border-color: #15803d; }
+  .perm-badge.off { background: #fff; color: #9ca3af; border-color: #d1d5db; }
+  .perm-badge.saving { opacity: .4; pointer-events: none; }
+  #perm-status { font-size: 12px; min-height: 18px; margin-top: 8px; padding: 4px 0; font-weight: 500; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  <div class="page-header">
+    <div class="page-h">Permessi Effettivi Utente #{{ utente_obj.id }}</div>
+    <div class="page-sub">
+      {{ utente_obj.nome }}{% if utente_obj.email %} · {{ utente_obj.email }}{% endif %}
+      · Ruolo: {% if utente_obj.ruolo %}{{ utente_obj.ruolo }}{% else %}#{{ utente_obj.ruolo_id|default:"-" }}{% endif %}
+    </div>
+  </div>
+
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Riepilogo</div>
+      <div class="admin-inline-actions">
+        <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:utenti_list' %}">Torna utenti</a>
+        <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:utente_edit' utente_obj.id %}">Scheda utente</a>
+      </div>
+    </div>
+    <div class="card-body">
+      {% if not utente_obj.ruolo_id %}
+        <div class="notice notice-danger">L'utente non ha un ruolo assegnato: nessun permesso effettivo calcolabile.</div>
+      {% else %}
+        <div class="cell-muted">
+          Le righe sono calcolate dai pulsanti legacy e dai record in <code>permessi</code> per <code>ruolo_id={{ utente_obj.ruolo_id }}</code>.
+          Clicca su un badge <strong>ON</strong>/<strong>OFF</strong> per modificare il permesso.
+        </div>
+      {% endif %}
+      <div id="perm-status"></div>
+    </div>
+  </div>
+
+  {% if utente_obj.ruolo_id %}
+    {% for modulo, rows in grouped_perm_rows %}
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Modulo: {{ modulo }}</div>
+          <div class="cell-muted">{{ rows|length }} righe</div>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Azione</th>
+                  <th>Pulsante</th>
+                  <th>URL</th>
+                  {% for field in flag_names %}
+                    <th>{{ field }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in rows %}
+                  <tr>
+                    <td><code>{{ row.azione }}</code></td>
+                    <td>{{ row.label }}</td>
+                    <td class="cell-muted">{% if row.url %}<a href="{{ row.url }}" target="_blank" rel="noopener" style="color:var(--accent,#3b82f6);text-decoration:underline;cursor:pointer" title="Apri in nuova scheda">{{ row.url }}</a>{% else %}-{% endif %}</td>
+                    {% for field in flag_names %}
+                      <td>
+                        <span
+                          class="perm-badge {% if row.values|get_item:field %}on{% else %}off{% endif %}"
+                          data-modulo="{{ row.modulo }}"
+                          data-azione="{{ row.azione }}"
+                          data-field="{{ field }}"
+                          data-val="{% if row.values|get_item:field %}1{% else %}0{% endif %}"
+                        >{% if row.values|get_item:field %}✓ ON{% else %}✗ OFF{% endif %}</span>
+                      </td>
+                    {% endfor %}
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    {% empty %}
+      <div class="card">
+        <div class="card-body">
+          <div class="cell-muted">Nessuna riga permesso trovata per il ruolo assegnato.</div>
+        </div>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+<script>
+(function () {
+  "use strict";
+
+  var CSRF = (function () {
+    var m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : "";
+  })();
+
+  var TOGGLE_URL = "{% url 'admin_portale:api_permessi_toggle' %}";
+  var RUOLO_ID = {{ utente_obj.ruolo_id|default:"null" }};
+  var statusEl = document.getElementById("perm-status");
+
+  function setStatus(msg, isErr) {
+    if (!statusEl) return;
+    statusEl.textContent = msg;
+    statusEl.style.color = isErr ? "#dc2626" : "#16a34a";
+  }
+
+  document.querySelectorAll(".perm-badge").forEach(function (badge) {
+    badge.addEventListener("click", async function () {
+      if (!RUOLO_ID) return;
+
+      var modulo = badge.dataset.modulo;
+      var azione = badge.dataset.azione;
+      var field  = badge.dataset.field;
+      var curVal = badge.dataset.val === "1";
+      var newVal = !curVal;
+
+      badge.classList.add("saving");
+      try {
+        var resp = await fetch(TOGGLE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+          body: JSON.stringify({
+            ruolo_id: RUOLO_ID,
+            modulo: modulo,
+            azione: azione,
+            field: field,
+            value: newVal
+          })
+        });
+        var data = {};
+        try { data = await resp.json(); } catch (e) {}
+        if (!resp.ok || !data.ok) throw new Error(data.error || ("HTTP " + resp.status));
+
+        badge.dataset.val = newVal ? "1" : "0";
+        badge.textContent = newVal ? "✓ ON" : "✗ OFF";
+        badge.classList.toggle("on", newVal);
+        badge.classList.toggle("off", !newVal);
+        setStatus("Salvato: " + field + " → " + (newVal ? "ON" : "OFF"), false);
+      } catch (err) {
+        setStatus("Errore: " + err.message, true);
+      } finally {
+        badge.classList.remove("saving");
+      }
+    });
+  });
+})();
+</script>
+{% endblock %}

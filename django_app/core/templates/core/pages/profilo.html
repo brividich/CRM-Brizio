@@ -1,0 +1,219 @@
+{% extends "core/base.html" %}
+
+{% block title %}Profilo | Portale Applicativo{% endblock %}
+
+{% block subnav %}
+  {% include "core/components/subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  <div class="page-header">
+    <div class="page-h">Il tuo profilo</div>
+    <div class="page-sub">Dati del tuo account nel portale applicativo</div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">👤 Identità</div>
+      </div>
+      <div class="card-body">
+        {% if legacy_user %}
+          {% firstof legacy_user.nome user.get_full_name user.username as display_name %}
+          <div class="activity-item" style="align-items:center;gap:16px;">
+            <div class="nav-avatar" style="width:52px;height:52px;font-size:20px;flex-shrink:0;">
+              {{ display_name|slice:":2"|upper }}
+            </div>
+            <div>
+              <div class="act-text" style="font-size:18px;font-weight:700;">{{ display_name }}</div>
+              <div class="act-time">{{ legacy_user.ruolo|default:"—" }}</div>
+            </div>
+          </div>
+
+          <div style="margin-top:16px;display:flex;flex-direction:column;gap:10px;">
+            <div class="activity-item">
+              <div class="act-dot blue"></div>
+              <div>
+                <div class="act-time">Email</div>
+                <div class="act-text">{{ legacy_user.email|default:"—" }}</div>
+              </div>
+            </div>
+            <div class="activity-item">
+              <div class="act-dot"></div>
+              <div>
+                <div class="act-time">Username portale</div>
+                <div class="act-text">{{ user.username }}</div>
+              </div>
+            </div>
+            <div class="activity-item">
+              <div class="act-dot green"></div>
+              <div>
+                <div class="act-time">Ruolo</div>
+                <div class="act-text">{{ legacy_user.ruolo|default:"—" }}</div>
+              </div>
+            </div>
+            {% if legacy_user.attivo is not None %}
+            <div class="activity-item">
+              <div class="act-dot {% if legacy_user.attivo %}green{% else %}red{% endif %}"></div>
+              <div>
+                <div class="act-time">Stato account</div>
+                <div class="act-text">{% if legacy_user.attivo %}Attivo{% else %}Disattivo{% endif %}</div>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        {% else %}
+          <div class="activity-item">
+            <div class="act-dot red"></div>
+            <div><div class="act-text">Dati legacy non disponibili</div></div>
+          </div>
+          <div class="activity-item">
+            <div class="act-dot blue"></div>
+            <div>
+              <div class="act-time">Username portale</div>
+              <div class="act-text">{{ user.username }}</div>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if anagrafica_row or extra_info %}
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">🏭 Reparto & Contatti</div>
+      </div>
+      <div class="card-body">
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          {% if anagrafica_row and anagrafica_row.reparto %}
+          <div class="activity-item">
+            <div class="act-dot blue"></div>
+            <div>
+              <div class="act-time">Reparto</div>
+              <div class="act-text">{{ anagrafica_row.reparto }}</div>
+            </div>
+          </div>
+          {% endif %}
+          {% if anagrafica_row and anagrafica_row.mansione %}
+          <div class="activity-item">
+            <div class="act-dot"></div>
+            <div>
+              <div class="act-time">Mansione</div>
+              <div class="act-text">{{ anagrafica_row.mansione }}</div>
+            </div>
+          </div>
+          {% endif %}
+          {% if extra_info and extra_info.caporeparto %}
+          <div class="activity-item">
+            <div class="act-dot"></div>
+            <div>
+              <div class="act-time">Caporeparto</div>
+              <div class="act-text">{{ extra_info.caporeparto }}</div>
+            </div>
+          </div>
+          {% endif %}
+          {% if extra_info and extra_info.macchina %}
+          <div class="activity-item">
+            <div class="act-dot"></div>
+            <div>
+              <div class="act-time">Macchina di utilizzo</div>
+              <div class="act-text">{{ extra_info.macchina }}</div>
+            </div>
+          </div>
+          {% endif %}
+          {% if extra_info and extra_info.telefono %}
+          <div class="activity-item">
+            <div class="act-dot green"></div>
+            <div>
+              <div class="act-time">Telefono</div>
+              <div class="act-text">{{ extra_info.telefono }}</div>
+            </div>
+          </div>
+          {% endif %}
+          {% if extra_info and extra_info.cellulare %}
+          <div class="activity-item">
+            <div class="act-dot green"></div>
+            <div>
+              <div class="act-time">Cellulare</div>
+              <div class="act-text">{{ extra_info.cellulare }}</div>
+            </div>
+          </div>
+          {% endif %}
+          {% if extra_info and extra_info.note %}
+          <div class="activity-item">
+            <div class="act-dot"></div>
+            <div>
+              <div class="act-time">Note</div>
+              <div class="act-text" style="white-space:pre-wrap;">{{ extra_info.note }}</div>
+            </div>
+          </div>
+          {% endif %}
+          {% if can_manage_team_assignments %}
+          <div class="activity-item">
+            <div class="act-dot blue"></div>
+            <div>
+              <div class="act-time">Gestione reparto</div>
+              <div class="act-text">Assegna utenti al reparto direttamente dal portale.</div>
+              <div style="margin-top:8px;">
+                <a href="{% url 'gestione_reparto' %}" class="alert-btn">Apri gestione reparto -&gt;</a>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">🔐 Sicurezza</div>
+      </div>
+      <div class="card-body">
+        <div class="activity-item">
+          <div class="act-dot blue"></div>
+          <div>
+            <div class="act-text">Password account</div>
+            <div class="act-time">Puoi cambiare la password dal link sottostante.</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="act-dot"></div>
+          <div>
+            <a href="{% url 'cambia_password' %}" class="alert-btn">Cambia password →</a>
+          </div>
+        </div>
+        {% if legacy_user and legacy_user.deve_cambiare_password %}
+        <div class="activity-item">
+          <div class="act-dot red"></div>
+          <div>
+            <div class="act-text" style="color:#dc2626;">Cambio password richiesto dall'amministratore</div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">📊 Scheda Infografica</div>
+      </div>
+      <div class="card-body">
+        <div class="activity-item">
+          <div class="act-dot blue"></div>
+          <div>
+            <div class="act-text">Dashboard personale con task, assenze, anomalie e altro.</div>
+            <div class="act-time">Personalizzabile con drag &amp; drop e parametri per ogni widget.</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="act-dot"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <a href="{% url 'employee_board' %}" class="alert-btn">Apri scheda &rarr;</a>
+            <a href="{% url 'employee_board_pdf' %}" class="alert-btn" style="background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;" target="_blank">&#128196; Stampa / PDF</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

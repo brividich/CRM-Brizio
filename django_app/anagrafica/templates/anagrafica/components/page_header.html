@@ -1,0 +1,14 @@
+<div class="page-header">
+  <div class="page-header-main">
+    <div class="page-h">{{ page_title }}</div>
+    {% if page_subtitle %}
+      <div class="page-sub">{{ page_subtitle|safe }}</div>
+    {% endif %}
+  </div>
+  <div class="page-header-actions">
+    {% if page_action_label and page_action_url %}
+      <a class="btn" href="{{ page_action_url }}">{{ page_action_label }}</a>
+    {% endif %}
+    <a class="btn-back" href="{{ page_back_url|default:'javascript:history.back()' }}">← Indietro</a>
+  </div>
+</div>

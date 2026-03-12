@@ -1,0 +1,69 @@
+{% extends "core/base.html" %}
+
+{% block title %}Assenze | Portale Applicativo{% endblock %}
+
+{% block subnav %}
+  {% include "assenze/components/subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  <div class="page-header">
+    <div class="page-h">Assenze</div>
+    <div class="page-sub">Modulo Django (fase 2): menu, calendario e consultazione locale</div>
+  </div>
+
+  <div class="modules-grid">
+    <a class="mod" href="{% url 'assenze_richiesta' %}">
+      <div class="mod-icon">+</div>
+      <div><div class="mod-name">Nuova richiesta</div><div class="mod-sub">Inserisci una richiesta di assenza</div></div>
+    </a>
+    <a class="mod" href="{% url 'assenze_gestione' %}">
+      <div class="mod-icon">G</div>
+      <div><div class="mod-name">Gestione richieste</div><div class="mod-sub">Visualizza e filtra le richieste di assenza</div></div>
+    </a>
+    {% if assenze_can_view_calendar %}
+    <a class="mod" href="{% url 'assenze_calendario' %}">
+      <div class="mod-icon">C</div>
+      <div><div class="mod-name">Calendario</div><div class="mod-sub">Vista mensile/settimanale assenze</div></div>
+    </a>
+    {% endif %}
+    <a class="mod" href="{% url 'assenze_certifica_presenza' %}">
+      <div class="mod-icon">📋</div>
+      <div><div class="mod-name">Certifica presenza</div><div class="mod-sub">Registra orari ingresso/uscita giornalieri</div></div>
+    </a>
+    {% if assenze_is_admin %}
+    <a class="mod" href="{% url 'assenze_gestione_admin' %}">
+      <div class="mod-icon">&#9881;</div>
+      <div><div class="mod-name">Gestione Admin</div><div class="mod-sub">Statistiche, record e log di sistema</div></div>
+    </a>
+    {% endif %}
+    {% if assenze_can_edit_events %}
+    <a class="mod" href="{% url 'assenze_car_dashboard' %}">
+      <div class="mod-icon">S</div>
+      <div>
+        <div class="mod-name">Segnalazioni{% if assenze_group == "AMMINISTRAZIONE" %} — Tutti{% else %} — Reparto{% endif %}</div>
+        <div class="mod-sub">
+          {% if assenze_group == "AMMINISTRAZIONE" %}Approva/rifiuta tutte le richieste in attesa{% else %}Approva/rifiuta le richieste del tuo reparto{% endif %}
+        </div>
+      </div>
+    </a>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin-top: 18px;">
+    <div class="card-head"><div class="card-title">Ultime richieste personali</div></div>
+    <div class="card-body">
+      {% for r in recenti %}
+        <div class="activity-item">
+          <div class="act-dot{% if r.consenso == 'Approvato' %} green{% elif r.consenso == 'Rifiutato' %}{% else %} blue{% endif %}"></div>
+          <div>
+            <div class="act-text">{{ r.tipo }} - {{ r.consenso }}</div>
+            <div class="act-time">{{ r.inizio_label }}{% if r.fine_label %} / {{ r.fine_label }}{% endif %}</div>
+          </div>
+        </div>
+      {% empty %}
+        <div class="act-text">Nessun record disponibile nella replica locale.</div>
+      {% endfor %}
+    </div>
+  </div>
+{% endblock %}

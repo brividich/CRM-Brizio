@@ -1,0 +1,1475 @@
+﻿{% load static %}
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestione Anomalie</title>
+  <script src="{% static 'anomalie/js/react.development.js' %}"></script>
+  <script src="{% static 'anomalie/js/react-dom.development.js' %}"></script>
+  <script src="{% static 'anomalie/js/babel.min.js' %}"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; }
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+    *::-webkit-scrollbar { width: 6px; }
+    *::-webkit-scrollbar-track { background: transparent; }
+    *::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    *::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    button:hover { opacity: 0.85; }
+    input::placeholder, textarea::placeholder { color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script>
+    window.IS_ADMIN = {% if is_admin %}true{% else %}false{% endif %};
+    window.ADMIN_URL = "{% if is_admin %}{% url 'anomalie_configurazione_page' %}?tab=riepilogo{% endif %}";
+    window.ANOMALIE_CONFIG_LISTS = JSON.parse("{{ config_lists_json|escapejs }}");
+    window.CURRENT_USER_NAME = "{{ current_user_name|escapejs }}";
+    window.CURRENT_USER_EMAIL = "{{ current_user_email|escapejs }}";
+    window.ANOMALIE_SYNC_AVAILABLE = {% if sharepoint_sync_available %}true{% else %}false{% endif %};
+    window.ANOMALIE_SYNC_ERROR = "{{ sharepoint_sync_error|escapejs }}";
+    window.ANOMALIE_API = {
+      ordini: "{% url 'api_anomalie_ordini' %}",
+      anomalie: "{% url 'api_anomalie_anomalie' %}",
+      salva: "{% url 'api_anomalie_salva' %}",
+      sync: "{% url 'api_anomalie_sync' %}",
+      allegati_list: "{% url 'api_anomalie_allegati' %}",
+      allegati_upload: "{% url 'api_anomalie_allegati_upload' %}",
+      allegati_delete: "{% url 'api_anomalie_allegati_delete' %}",
+      allegati_file: "{% url 'api_anomalie_allegati_file' %}",
+    };
+  </script>
+
+  {% verbatim %}<script type="text/babel">
+    const { useState, useEffect, useMemo, useRef } = React;
+    const IS_ADMIN = window.IS_ADMIN;
+    const ADMIN_URL = window.ADMIN_URL || "";
+    const CONFIG_LISTS = window.ANOMALIE_CONFIG_LISTS || {};
+    const CURRENT_USER_NAME = String(window.CURRENT_USER_NAME || "").trim();
+    const CURRENT_USER_EMAIL = String(window.CURRENT_USER_EMAIL || "").trim();
+    const SYNC_AVAILABLE = window.ANOMALIE_SYNC_AVAILABLE !== false;
+    const SYNC_ERROR = String(window.ANOMALIE_SYNC_ERROR || "").trim();
+    const API = window.ANOMALIE_API || {
+      ordini: "/api/anomalie/ordini",
+      anomalie: "/api/anomalie/anomalie",
+      salva: "/api/anomalie/salva",
+      sync: "/api/anomalie/sync",
+      allegati_list: "/api/anomalie/allegati",
+      allegati_upload: "/api/anomalie/allegati/upload",
+      allegati_delete: "/api/anomalie/allegati/delete",
+      allegati_file: "/api/anomalie/allegati/file",
+    };
+    const EDIT_NAME_WHITELIST = Array.isArray(CONFIG_LISTS.autorizzati_modifica)
+      ? CONFIG_LISTS.autorizzati_modifica
+      : [];
+    const BASE_AVANZAMENTO_OPTIONS =
+      Array.isArray(CONFIG_LISTS.avanzamenti) && CONFIG_LISTS.avanzamenti.length
+        ? CONFIG_LISTS.avanzamenti
+        : ["Accetto lo stato", "In attesa", "Finito trattato"];
+    const DEFAULT_AVANZAMENTO = BASE_AVANZAMENTO_OPTIONS[0] || "Accetto lo stato";
+
+    const normalizeChoice = (value) => String(value || "").trim();
+    const dedupeChoices = (values) => {
+      const out = [];
+      const seen = new Set();
+      values.forEach((value) => {
+        const clean = normalizeChoice(value);
+        if (!clean) return;
+        const key = clean.toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        out.push(clean);
+      });
+      return out;
+    };
+
+    const normalizeIdentity = (value) => String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+    const splitPeopleTokens = (rawValue) =>
+      String(rawValue || "")
+        .split(/[,\n;|]+/)
+        .map((part) => String(part || "").trim().replace(/^["'\[\]()]+|["'\[\]()]+$/g, ""))
+        .filter(Boolean);
+
+    const USER_NAME_NORM = normalizeIdentity(CURRENT_USER_NAME);
+    const EDIT_NAME_WHITELIST_SET = new Set(EDIT_NAME_WHITELIST.map((name) => normalizeIdentity(name)));
+    const QUERY_PARAMS = new URLSearchParams(window.location.search || "");
+    const INITIAL_FILTER = normalizeChoice(QUERY_PARAMS.get("filter")).toLowerCase();
+    const ACTIVE_FILTER = ["aperte", "in_carico"].includes(INITIAL_FILTER) ? INITIAL_FILTER : "";
+
+    const canUserEditOp = (opCapocommessa, opCar) => {
+      if (IS_ADMIN) return true;
+      if (USER_NAME_NORM && EDIT_NAME_WHITELIST_SET.has(USER_NAME_NORM)) return true;
+
+      for (const rawPeople of [opCapocommessa, opCar]) {
+        const tokens = splitPeopleTokens(rawPeople);
+        if (!tokens.length) continue;
+        const tokenNorms = new Set(tokens.map((t) => normalizeIdentity(t)));
+        if (USER_NAME_NORM && tokenNorms.has(USER_NAME_NORM)) return true;
+      }
+      return false;
+    };
+
+    // Regola PowerApps: la prima scelta cambia in base a "Aprire RDC?"
+    const buildAvanzamentoOptions = (isAprireRdc) => {
+      const dynamicFirst = isAprireRdc ? "Apertura ORE/RIPI" : "Azione di recupero";
+      const dynamicAlt = isAprireRdc ? "Azione di recupero" : "Apertura ORE/RIPI";
+      const sanitizedBase = BASE_AVANZAMENTO_OPTIONS.filter(
+        (opt) => normalizeChoice(opt).toLowerCase() !== dynamicAlt.toLowerCase()
+      );
+      return dedupeChoices([dynamicFirst, ...sanitizedBase]);
+    };
+
+    // Regola PowerApps: chiusura automatica in base ad avanzamento/apertura RDC.
+    const shouldAutoClose = (isAprireRdc, avanzamentoValue) => {
+      const avanz = normalizeChoice(avanzamentoValue).toLowerCase();
+      return Boolean(
+        isAprireRdc ||
+        avanz === "accetto lo stato" ||
+        avanz === "apertura ore/ripi"
+      );
+    };
+
+    // --- CSRF helper ---
+    const getCsrfToken = () =>
+      (document.cookie.split(';').find(c => c.trim().startsWith('csrftoken=')) || '').split('=')[1] || '';
+
+    const readJsonOrThrow = async (response, contextLabel) => {
+      const ct = String(response.headers.get("content-type") || "").toLowerCase();
+      if (!ct.includes("application/json")) {
+        const text = await response.text();
+        const looksHtml = /<!doctype html/i.test(text || "");
+        const extra = looksHtml ? " (probabile redirect login/404)" : "";
+        throw new Error(`${contextLabel}: risposta non JSON (HTTP ${response.status})${extra}`);
+      }
+      try {
+        return await response.json();
+      } catch (e) {
+        throw new Error(`${contextLabel}: JSON non valido`);
+      }
+    };
+
+    const formatBytes = (value) => {
+      const bytes = Number(value || 0);
+      if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+      const units = ["B", "KB", "MB", "GB"];
+      let idx = 0;
+      let n = bytes;
+      while (n >= 1024 && idx < units.length - 1) {
+        n /= 1024;
+        idx += 1;
+      }
+      return `${n.toFixed(n >= 10 || idx === 0 ? 0 : 1)} ${units[idx]}`;
+    };
+
+    const fileExt = (name) => {
+      const idx = String(name || "").lastIndexOf(".");
+      return idx >= 0 ? String(name).slice(idx).toLowerCase() : "";
+    };
+
+    const attachmentSyncLabel = (file) => {
+      const status = String(file?.sync_status || "").toLowerCase();
+      if (status === "synced") return "Sync SP OK";
+      if (status === "error") {
+        const retries = Number(file?.sync_retry_count || 0);
+        return retries > 0 ? `Errore sync (${retries})` : "Errore sync";
+      }
+      return "In coda sync";
+    };
+
+    // â"€â"€â"€ Utility: colore per avanzamento â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+    const snColor = (avanz) => {
+      if (avanz === "Accetto lo stato") return "#10b981";
+      if (avanz === "In attesa")        return "#f59e0b";
+      if (avanz === "Finito trattato")  return "#6366f1";
+      return "#94a3b8";
+    };
+
+    // â"€â"€â"€ Componenti UI riutilizzabili â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+    const StatusBadge = ({ text, variant }) => {
+      const colors = {
+        benestare: { bg: "#dcfce7", text: "#166534", border: "#86efac" },
+        aperto:    { bg: "#dbeafe", text: "#1e40af", border: "#93c5fd" },
+        attesa:    { bg: "#fef3c7", text: "#92400e", border: "#fcd34d" },
+        accettato: { bg: "#d1fae5", text: "#065f46", border: "#6ee7b7" },
+        chiuso:    { bg: "#f3f4f6", text: "#374151", border: "#d1d5db" },
+      };
+      const c = colors[variant] || colors.aperto;
+      return (
+        <span style={{
+          display: "inline-block", padding: "2px 10px", borderRadius: "99px",
+          fontSize: "11px", fontWeight: 600, letterSpacing: "0.03em",
+          background: c.bg, color: c.text, border: `1px solid ${c.border}`,
+          textTransform: "uppercase", whiteSpace: "nowrap",
+        }}>{text}</span>
+      );
+    };
+
+    const IconBtn = ({ children, onClick, title, accent, disabled }) => (
+      <button onClick={onClick} title={title} disabled={disabled} style={{
+        background: accent ? "#2563eb" : "transparent",
+        border: accent ? "none" : "1px solid #e2e8f0",
+        borderRadius: 8, padding: accent ? "6px 14px" : "6px 8px", cursor: disabled ? "not-allowed" : "pointer",
+        display: "inline-flex", alignItems: "center", gap: 6,
+        color: accent ? "#fff" : "#64748b", fontSize: 12, fontWeight: 500,
+        transition: "all 0.15s ease", opacity: disabled ? 0.6 : 1,
+      }}>{children}</button>
+    );
+
+    const FieldLabel = ({ children, required }) => (
+      <label style={{
+        display: "block", fontSize: 11, fontWeight: 600, color: "#94a3b8",
+        textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6,
+      }}>
+        {children}
+        {required && <span style={{ color: "#ef4444", marginLeft: 2 }}>*</span>}
+      </label>
+    );
+
+    const Toggle = ({ label, checked, onChange, disabled = false }) => (
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div onClick={disabled ? undefined : onChange} style={{
+          width: 40, height: 22, borderRadius: 11, cursor: disabled ? "not-allowed" : "pointer",
+          background: checked ? "#2563eb" : "#cbd5e1", transition: "background 0.2s",
+          position: "relative", flexShrink: 0,
+          opacity: disabled ? 0.7 : 1,
+        }}>
+          <div style={{
+            width: 18, height: 18, borderRadius: "50%", background: "#fff",
+            position: "absolute", top: 2, left: checked ? 20 : 2,
+            transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+          }} />
+        </div>
+        <span style={{ fontSize: 13, color: "#475569", fontWeight: 500 }}>{label}</span>
+      </div>
+    );
+
+    // â"€â"€â"€ Componente principale â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+    function GestioneAnomalie() {
+      // â"€â"€ Dati dalla API â"€â"€
+      const [ordini,        setOrdini]        = useState([]);
+      const [anomalie,      setAnomalie]       = useState([]);   // record anomalie per l'OP selezionato
+
+      // â"€â"€ Stato caricamento / salvataggio â"€â"€
+      const [loadingOrdini, setLoadingOrdini]  = useState(true);
+      const [loadingAnom,   setLoadingAnom]    = useState(false);
+      const [saving,        setSaving]         = useState(false);
+      const [syncing,       setSyncing]        = useState(false);
+      const [saveMsg,       setSaveMsg]        = useState(null);  // { ok, text }
+      const [currentItemId, setCurrentItemId]  = useState(null); // item_id SharePoint anomalia aperta
+      const [currentLocalId, setCurrentLocalId] = useState(null);
+      const [attachments, setAttachments] = useState([]);
+      const [loadingAttachments, setLoadingAttachments] = useState(false);
+      const [uploadingAttachments, setUploadingAttachments] = useState(false);
+      const [selectedAttachmentId, setSelectedAttachmentId] = useState(null);
+      const fileInputRef = useRef(null);
+
+      // â"€â"€ Selezione e ricerca â"€â"€
+      const [selectedOp,  setSelectedOp]  = useState(0);
+      const [selectedSn,  setSelectedSn]  = useState(0);
+      const [searchOp,    setSearchOp]    = useState("");
+      const [searchSn,    setSearchSn]    = useState("");
+      const [pageFilter, setPageFilter] = useState(ACTIVE_FILTER);
+
+      // ── Mobile navigation ──
+      const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+      const [mobilePanel, setMobilePanel] = useState("ordini"); // "ordini" | "serie" | "dettaglio"
+      useEffect(() => {
+        const onResize = () => setIsMobile(window.innerWidth < 768);
+        window.addEventListener("resize", onResize);
+        return () => window.removeEventListener("resize", onResize);
+      }, []);
+
+      // â"€â"€ Campi form â"€â"€
+      const [desc,        setDesc]        = useState("");
+      const [note,        setNote]        = useState("");
+      const [pezziPrec,   setPezziPrec]   = useState(false);
+      const [aprireRdc,   setAprireRdc]   = useState(false);
+      const [segnalare,   setSegnalare]   = useState(false);
+      const [avanzamento, setAvanzamento] = useState(DEFAULT_AVANZAMENTO);
+      const [rdcNum,      setRdcNum]      = useState("");
+      const filterButtons = [
+        { value: "", label: "Tutte" },
+        { value: "aperte", label: "Aperte" },
+        { value: "in_carico", label: "In carico" },
+      ];
+
+      const avanzamentoOptions = useMemo(() => buildAvanzamentoOptions(aprireRdc), [aprireRdc]);
+      const chiudereAuto = shouldAutoClose(aprireRdc, avanzamento);
+
+      const clearForm = () => {
+        setDesc(""); setNote("");
+        setPezziPrec(false); setAprireRdc(false);
+        setSegnalare(false);
+        setAvanzamento(DEFAULT_AVANZAMENTO); setRdcNum("");
+        setCurrentItemId(null);
+        setCurrentLocalId(null);
+        setAttachments([]);
+        setSelectedAttachmentId(null);
+      };
+
+      useEffect(() => {
+        const current = normalizeChoice(avanzamento).toLowerCase();
+        const exists = avanzamentoOptions.some((opt) => normalizeChoice(opt).toLowerCase() === current);
+        if (!exists) {
+          setAvanzamento(avanzamentoOptions[0] || DEFAULT_AVANZAMENTO);
+        }
+      }, [avanzamento, avanzamentoOptions]);
+
+      // Push manuale locale -> SharePoint (anomalie e allegati in coda)
+      const handleSync = async () => {
+        if (!SYNC_AVAILABLE) {
+          setSaveMsg({ ok: false, text: SYNC_ERROR || "Sincronizzazione SharePoint anomalie non configurata." });
+          setTimeout(() => setSaveMsg(null), 6000);
+          return;
+        }
+        setSyncing(true);
+        setSaveMsg({ ok: true, text: "Invio anomalie a SharePoint in corso..." });
+        try {
+          const r = await fetch(API.sync, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+            credentials: "same-origin",
+          });
+          const d = await readJsonOrThrow(r, "Sync DB");
+          if (d.success) {
+            const op = d.ordini || { inseriti: 0, aggiornati: 0 };
+            const an = d.anomalie || { inseriti: 0, aggiornati: 0 };
+            const at = d.attachments || { synced: 0, failed: 0, pending: 0 };
+            setSaveMsg({
+              ok: true,
+              text: `Push SharePoint completato | Ordini: +${op.inseriti} / upd ${op.aggiornati} | Anomalie: +${an.inseriti} / upd ${an.aggiornati} | Allegati: sync ${at.synced} / err ${at.failed} / coda ${at.pending}`,
+            });
+          } else {
+            setSaveMsg({ ok: false, text: "Push SharePoint: " + (d.error || "errore sconosciuto") });
+          }
+        } catch (e) {
+          setSaveMsg({ ok: false, text: "Push SharePoint: " + e.message });
+        }
+        setSyncing(false);
+        setTimeout(() => setSaveMsg(null), 6000);
+      };
+
+      // Carica ordini dal DB locale.
+      const loadOrdini = () => {
+        setLoadingOrdini(true);
+        fetch(API.ordini, { credentials: "same-origin" })
+          .then(r => readJsonOrThrow(r, "Caricamento ordini"))
+          .then(data => {
+            setOrdini(Array.isArray(data) ? data : []);
+            setLoadingOrdini(false);
+          })
+          .catch(e => {
+            console.error("Errore caricamento ordini:", e);
+            setLoadingOrdini(false);
+          });
+      };
+
+      useEffect(() => { loadOrdini(); }, []);
+
+      useEffect(() => {
+        const nextUrl = new URL(window.location.href);
+        if (pageFilter) {
+          nextUrl.searchParams.set("filter", pageFilter);
+        } else {
+          nextUrl.searchParams.delete("filter");
+        }
+        window.history.replaceState({}, "", nextUrl.toString());
+      }, [pageFilter]);
+
+      const orderMatchesPageFilter = (order) => {
+        const openCount = Number(order?.anomalie_aperte_count ?? order?.anomalie_count ?? 0);
+        if (pageFilter === "aperte") return openCount > 0;
+        if (pageFilter === "in_carico") return openCount > 0 && canUserEditOp(order?.capo, order?.car);
+        return true;
+      };
+
+      const anomalyMatchesPageFilter = (anomalia) => {
+        if (pageFilter === "aperte" || pageFilter === "in_carico") {
+          return !Boolean(anomalia?.chiudere);
+        }
+        return true;
+      };
+
+      const filteredOrdini = useMemo(() => {
+        const search = searchOp.toLowerCase();
+        return ordini.filter((o) => {
+          const matchesSearch =
+            (o.id || "").toLowerCase().includes(search) ||
+            (o.pn || "").toLowerCase().includes(search) ||
+            (o.capo || "").toLowerCase().includes(search);
+          return matchesSearch && orderMatchesPageFilter(o);
+        });
+      }, [ordini, searchOp, pageFilter]);
+
+      const op = filteredOrdini[selectedOp] || {};
+      const canEditCurrentOp = useMemo(() => canUserEditOp(op.capo, op.car), [op.capo, op.car]);
+
+      const filteredSeriali = useMemo(() => {
+        const search = searchSn.toLowerCase();
+        return anomalie.filter((a) => {
+          const matchesSearch = (a.sn || "").toLowerCase().includes(search);
+          return matchesSearch && anomalyMatchesPageFilter(a);
+        });
+      }, [anomalie, searchSn, pageFilter]);
+
+      const sn = filteredSeriali[selectedSn] || {};
+
+      useEffect(() => {
+        if (selectedOp < filteredOrdini.length) return;
+        setSelectedOp(0);
+      }, [filteredOrdini.length, selectedOp]);
+
+      useEffect(() => {
+        if (selectedSn < filteredSeriali.length) return;
+        setSelectedSn(0);
+      }, [filteredSeriali.length, selectedSn]);
+
+      // Carica anomalie dal DB locale quando cambia OP.
+      useEffect(() => {
+        setSelectedSn(0);
+        clearForm();
+        if (!op || !op.item_id) {
+          setAnomalie([]);
+          return;
+        }
+        setLoadingAnom(true);
+        fetch(`${API.anomalie}?op_item_id=${encodeURIComponent(op.item_id)}`, { credentials: "same-origin" })
+          .then(r => readJsonOrThrow(r, "Caricamento anomalie"))
+          .then(data => {
+            setAnomalie(Array.isArray(data) ? data : []);
+            setLoadingAnom(false);
+          })
+          .catch(e => {
+            console.error("Errore caricamento anomalie:", e);
+            setLoadingAnom(false);
+          });
+      }, [op.item_id]);
+
+      // â"€â"€ Popola form quando cambia S/N â"€â"€
+      useEffect(() => {
+        const a = filteredSeriali[selectedSn];
+        if (a) {
+          setCurrentItemId(a.item_id || null);
+          setCurrentLocalId(a.local_id || null);
+          setDesc(a.desc || "");
+          setNote(a.note || "");
+          setPezziPrec(!!a.pezzi_prec);
+          setAprireRdc(!!a.aprire_rdc);
+          setRdcNum(a.numero_rdc || "");
+          setSegnalare(!!a.segnalare);
+          setAvanzamento(a.avanzamento || DEFAULT_AVANZAMENTO);
+        } else {
+          clearForm();
+        }
+      }, [selectedSn, filteredSeriali]);
+
+      const loadAttachments = async (localId) => {
+        if (!localId) {
+          setAttachments([]);
+          return;
+        }
+        setLoadingAttachments(true);
+        try {
+          const r = await fetch(`${API.allegati_list}?local_id=${encodeURIComponent(localId)}`, {
+            credentials: "same-origin",
+          });
+          const d = await readJsonOrThrow(r, "Allegati");
+          if (!r.ok || !d.success) throw new Error(d.error || "Errore caricamento allegati");
+          setAttachments(Array.isArray(d.attachments) ? d.attachments : []);
+        } catch (e) {
+          setAttachments([]);
+          setSaveMsg({ ok: false, text: "Errore allegati: " + e.message });
+          setTimeout(() => setSaveMsg(null), 4000);
+        }
+        setLoadingAttachments(false);
+      };
+
+      useEffect(() => {
+        if (!currentLocalId) {
+          setAttachments([]);
+          return;
+        }
+        loadAttachments(currentLocalId);
+      }, [currentLocalId]);
+
+      const getStatoBadge = (s) => {
+        if (!s || !s.avanzamento) return { text: "Aperto", variant: "aperto" };
+        if (s.avanzamento === "Accetto lo stato") return { text: "Accettato", variant: "accettato" };
+        if (s.avanzamento === "In attesa")        return { text: "In Attesa", variant: "attesa" };
+        return { text: s.avanzamento, variant: "aperto" };
+      };
+      const statoBadge = getStatoBadge(sn);
+
+      // â"€â"€ Salva anomalia â"€â"€
+      const handleSave = async () => {
+        if (!op.id || op.id === '\u2014') {
+          setSaveMsg({ ok: false, text: "Seleziona un ordine prima di salvare" });
+          setTimeout(() => setSaveMsg(null), 3000);
+          return;
+        }
+        if (!canEditCurrentOp) {
+          setSaveMsg({ ok: false, text: "Permesso negato: non puoi modificare questo OP" });
+          setTimeout(() => setSaveMsg(null), 3000);
+          return;
+        }
+        setSaving(true);
+        setSaveMsg(null);
+        try {
+          const body = {
+            item_id:    currentItemId,
+            op_id:      op.id,
+            sn:         sn.sn || "",
+            desc,
+            note,
+            pezzi_prec: pezziPrec,
+            aprire_rdc: aprireRdc,
+            numero_rdc: rdcNum,
+            segnalare,
+            chiudere: chiudereAuto,
+            avanzamento,
+          };
+          const r = await fetch(API.salva, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+            body: JSON.stringify(body),
+            credentials: "same-origin",
+          });
+          const data = await readJsonOrThrow(r, "Salvataggio anomalia");
+          if (data.success) {
+            const newItemId = data.item_id || currentItemId;
+            const newLocalId = data.local_id || currentLocalId;
+            setCurrentItemId(newItemId);
+            setCurrentLocalId(newLocalId || null);
+            setSaveMsg({ ok: true, text: "Salvato \u2014 sincronizza per aggiornare il conteggio" });
+            if (newLocalId) {
+              loadAttachments(newLocalId);
+            }
+            // Optimistic update: aggiorna lo stato locale senza re-fetch
+            const updatedRecord = {
+              item_id:    newItemId,
+              local_id:   newLocalId || null,
+              op_id:      op.id,
+              sn:         sn.sn || "",
+              desc, note,
+              pezzi_prec: pezziPrec,
+              aprire_rdc: aprireRdc,
+              numero_rdc: rdcNum,
+              segnalare,
+              chiudere: chiudereAuto,
+              avanzamento,
+            };
+            setAnomalie(prev => {
+              const idx = prev.findIndex(a => a.item_id === currentItemId);
+              if (idx >= 0) {
+                const next = [...prev];
+                next[idx] = updatedRecord;
+                return next;
+              }
+              return [...prev, updatedRecord];
+            });
+          } else {
+            setSaveMsg({ ok: false, text: "Errore: " + (data.error || "risposta non valida") });
+          }
+        } catch (e) {
+          setSaveMsg({ ok: false, text: "Errore di rete: " + e.message });
+        }
+        setSaving(false);
+        setTimeout(() => setSaveMsg(null), 5000);
+      };
+
+      // â"€â"€ Nuova anomalia per l'OP selezionato â"€â"€
+      const handleNewAnomalia = () => {
+        if (!canEditCurrentOp) {
+          setSaveMsg({ ok: false, text: "Permesso negato: non puoi creare anomalie su questo OP" });
+          setTimeout(() => setSaveMsg(null), 3000);
+          return;
+        }
+        clearForm();
+        setSaveMsg({ ok: true, text: "Form pronto per nuova anomalia - compila e salva" });
+        setTimeout(() => setSaveMsg(null), 4000);
+      };
+
+      const openAttachmentPicker = () => {
+        if (!canEditCurrentOp) {
+          setSaveMsg({ ok: false, text: "Permesso negato: non puoi caricare allegati su questo OP" });
+          setTimeout(() => setSaveMsg(null), 3000);
+          return;
+        }
+        if (!currentLocalId) {
+          setSaveMsg({ ok: false, text: "Salva prima l'anomalia, poi puoi caricare allegati." });
+          setTimeout(() => setSaveMsg(null), 3000);
+          return;
+        }
+        if (fileInputRef.current) fileInputRef.current.click();
+      };
+
+      const handleAttachmentInput = async (event) => {
+        const files = Array.from((event.target && event.target.files) || []);
+        event.target.value = "";
+        if (!files.length) return;
+        if (!currentLocalId) {
+          setSaveMsg({ ok: false, text: "Salva prima l'anomalia, poi puoi caricare allegati." });
+          setTimeout(() => setSaveMsg(null), 3000);
+          return;
+        }
+        setUploadingAttachments(true);
+        try {
+          const form = new FormData();
+          form.append("local_id", String(currentLocalId));
+          files.forEach((f) => form.append("files", f));
+          const r = await fetch(API.allegati_upload, {
+            method: "POST",
+            headers: { "X-CSRFToken": getCsrfToken() },
+            body: form,
+            credentials: "same-origin",
+          });
+          const d = await readJsonOrThrow(r, "Upload allegati");
+          if (!r.ok) throw new Error(d.error || "Upload non riuscito");
+          setAttachments(Array.isArray(d.attachments) ? d.attachments : []);
+          if (Array.isArray(d.errors) && d.errors.length) {
+            setSaveMsg({ ok: false, text: "Upload parziale: " + d.errors.join(" | ") });
+          } else {
+            setSaveMsg({ ok: true, text: "Allegati caricati correttamente." });
+          }
+        } catch (e) {
+          setSaveMsg({ ok: false, text: "Errore upload allegati: " + e.message });
+        }
+        setUploadingAttachments(false);
+        setTimeout(() => setSaveMsg(null), 5000);
+      };
+
+      const handleDeleteAttachment = async (fileId) => {
+        if (!currentLocalId || !fileId) return;
+        try {
+          const r = await fetch(API.allegati_delete, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": getCsrfToken(),
+            },
+            body: JSON.stringify({ local_id: currentLocalId, file_id: fileId }),
+            credentials: "same-origin",
+          });
+          const d = await readJsonOrThrow(r, "Elimina allegato");
+          if (!r.ok || !d.success) throw new Error(d.error || "Eliminazione non riuscita");
+          setAttachments(Array.isArray(d.attachments) ? d.attachments : []);
+        } catch (e) {
+          setSaveMsg({ ok: false, text: "Errore eliminazione allegato: " + e.message });
+          setTimeout(() => setSaveMsg(null), 4000);
+        }
+      };
+
+      const openAttachment = (fileId, forceDownload = false) => {
+        if (!currentLocalId || !fileId) return;
+        const q = `local_id=${encodeURIComponent(currentLocalId)}&file_id=${encodeURIComponent(fileId)}${forceDownload ? "&download=1" : ""}`;
+        window.open(`${API.allegati_file}?${q}`, "_blank", "noopener");
+      };
+
+      const getAttachmentUrl = (fileId, forceDownload = false) =>
+        `${API.allegati_file}?local_id=${encodeURIComponent(currentLocalId)}&file_id=${encodeURIComponent(fileId)}${forceDownload ? "&download=1" : ""}`;
+
+      useEffect(() => {
+        if (!attachments.length) {
+          setSelectedAttachmentId(null);
+          return;
+        }
+        const exists = attachments.some((f) => f.file_id === selectedAttachmentId);
+        if (!exists) {
+          const preferred = attachments.find((f) => f.is_image) || attachments[0];
+          setSelectedAttachmentId(preferred.file_id);
+        }
+      }, [attachments, selectedAttachmentId]);
+
+      const selectedAttachment = useMemo(
+        () => attachments.find((f) => f.file_id === selectedAttachmentId) || null,
+        [attachments, selectedAttachmentId]
+      );
+
+      // â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+      return (
+        <div style={{
+          fontFamily: "'DM Sans','Segoe UI',system-ui,sans-serif",
+          background: "#f1f5f9", minHeight: "100vh", display: "flex", flexDirection: "column",
+        }}>
+          {/* â"€â"€ Top Bar â"€â"€ */}
+          <header style={{
+            background: "linear-gradient(135deg,#1e293b 0%,#0f172a 100%)",
+            padding: isMobile ? "0 12px" : "0 28px", height: 56, display: "flex", alignItems: "center",
+            justifyContent: "space-between", boxShadow: "0 2px 12px rgba(0,0,0,.15)",
+            position: "sticky", top: 0, zIndex: 100,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 16 }}>
+              <a href="/anomalie-menu" title="Torna al menu anomalie" style={{
+                display: "flex", alignItems: "center", justifyContent: "center",
+                width: 32, height: 32, borderRadius: 8,
+                background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)",
+                color: "#94a3b8", textDecoration: "none", fontSize: 16,
+              }}>â†</a>
+              {!isMobile && <div style={{
+                width: 32, height: 32, borderRadius: 8,
+                background: "linear-gradient(135deg,#3b82f6,#6366f1)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 14, fontWeight: 800, color: "#fff",
+              }}>GA</div>}
+              {!isMobile && <h1 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#fff", letterSpacing: "-0.01em" }}>
+                Gestione Anomalie
+              </h1>}
+              {isMobile && mobilePanel === "dettaglio" && sn.sn && (
+                <span style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0" }}>
+                  {op.id ? `${op.id} / ${sn.sn}` : sn.sn}
+                </span>
+              )}
+              {isMobile && mobilePanel === "serie" && op.id && (
+                <span style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0" }}>{op.id}</span>
+              )}
+              {isMobile && mobilePanel === "ordini" && (
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>Gestione Anomalie</span>
+              )}
+              {!isMobile && op.id && (
+                <span style={{
+                  background: "rgba(255,255,255,.1)", padding: "3px 12px",
+                  borderRadius: 99, fontSize: 12, color: "#94a3b8", fontWeight: 500,
+                }}>{op.id}</span>
+              )}
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12 }}>
+              {!isMobile && IS_ADMIN && ADMIN_URL && (
+                <a href={ADMIN_URL} style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  background: "#1f64d8", color: "#fff", borderRadius: 8,
+                  padding: "6px 12px", fontSize: 13, fontWeight: 700,
+                  textDecoration: "none", boxShadow: "0 2px 8px rgba(15,23,42,.25)",
+                  whiteSpace: "nowrap",
+                }}>
+                  &#9881; Gestione Admin
+                </a>
+              )}
+              {/* Messaggio di salvataggio / sync */}
+              {saveMsg && !isMobile && (
+                <span style={{
+                  fontSize: 13, fontWeight: 500,
+                  color: saveMsg.ok ? "#86efac" : "#fca5a5",
+                  background: "rgba(255,255,255,.07)",
+                  padding: "5px 12px", borderRadius: 6,
+                }}>
+                  {saveMsg.text}
+                </span>
+              )}
+              {!isMobile && IS_ADMIN && (
+                <button onClick={handleSync} disabled={syncing || !SYNC_AVAILABLE} title={SYNC_AVAILABLE ? "Invia anomalie e allegati locali a SharePoint" : (SYNC_ERROR || "Sincronizzazione SharePoint anomalie non configurata")} style={{
+                  background: syncing || !SYNC_AVAILABLE ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.08)",
+                  border: "1px solid rgba(255,255,255,.12)",
+                  borderRadius: 8, padding: "7px 14px", color: syncing ? "#64748b" : "#94a3b8",
+                  fontSize: 13, fontWeight: 500, cursor: syncing || !SYNC_AVAILABLE ? "not-allowed" : "pointer",
+                  display: "flex", alignItems: "center", gap: 6,
+                }}>
+                  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+                    style={{ animation: syncing ? "spin 1s linear infinite" : "none" }}>
+                    <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                  </svg>
+                  {syncing ? "Sync…" : "Invia a SP"}
+                </button>
+              )}
+              {isMobile && IS_ADMIN && (
+                <button onClick={handleSync} disabled={syncing || !SYNC_AVAILABLE} title={SYNC_AVAILABLE ? "Invia anomalie e allegati locali a SharePoint" : (SYNC_ERROR || "Sincronizzazione SharePoint anomalie non configurata")} style={{
+                  background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.12)",
+                  borderRadius: 8, padding: "7px 10px", color: syncing ? "#64748b" : "#94a3b8",
+                  cursor: syncing || !SYNC_AVAILABLE ? "not-allowed" : "pointer",
+                  display: "flex", alignItems: "center",
+                }}>
+                  <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+                    style={{ animation: syncing ? "spin 1s linear infinite" : "none" }}>
+                    <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                  </svg>
+                </button>
+              )}
+              {!isMobile && <button style={{
+                background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.12)",
+                borderRadius: 8, padding: "7px 16px", color: "#e2e8f0",
+                fontSize: 13, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+              }}>
+                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+                </svg>
+                Cartella file
+              </button>}
+              {!isMobile && currentItemId && (
+                <button onClick={() => {
+                  setCurrentItemId(null);
+                  setSaveMsg({ ok: true, text: "Dati copiati - modifica e salva come nuovo record" });
+                  setTimeout(() => setSaveMsg(null), 4000);
+                }} style={{
+                  background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.12)",
+                  borderRadius: 8, padding: "7px 16px", color: "#e2e8f0",
+                  fontSize: 13, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+                }}>
+                  <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                  Duplica
+                </button>
+              )}
+              <button onClick={handleSave} disabled={saving || !canEditCurrentOp} style={{
+                background: saving ? "#3b82f6" : "#2563eb", border: "none", borderRadius: 8,
+                padding: isMobile ? "8px 16px" : "7px 18px", color: "#fff",
+                fontSize: isMobile ? 14 : 13, fontWeight: 600,
+                cursor: saving || !canEditCurrentOp ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", gap: 6,
+                boxShadow: "0 2px 8px rgba(37,99,235,.3)",
+                opacity: saving || !canEditCurrentOp ? 0.8 : 1,
+              }}>
+                {saving ? (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                      style={{ animation: "spin 1s linear infinite" }}>
+                      <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" strokeOpacity=".3"/>
+                      <path d="M21 12a9 9 0 00-9-9"/>
+                    </svg>
+                    {isMobile ? "…" : "Salvataggio…"}
+                  </>
+                ) : (
+                  <>
+                    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path d="M5 13l4 4L19 7"/>
+                    </svg>
+                    {isMobile ? "Salva" : "Salva modifiche"}
+                  </>
+                )}
+              </button>
+            </div>
+          </header>
+
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+          {/* â"€â"€ Layout 3 colonne â"€â"€ */}
+          <div style={{
+            flex: 1, display: "grid",
+            gridTemplateColumns: isMobile ? "1fr" : "340px 280px 1fr",
+            height: isMobile ? "auto" : "calc(100vh - 56px)",
+            overflow: isMobile ? "visible" : "hidden",
+          }}>
+
+            {/* â"€â"€ SINISTRA: Ordini di Produzione â"€â"€ */}
+            <div style={{
+              borderRight: isMobile ? "none" : "1px solid #e2e8f0", background: "#fff",
+              display: isMobile && mobilePanel !== "ordini" ? "none" : "flex",
+              flexDirection: "column", overflow: "hidden",
+              minHeight: isMobile ? "calc(100vh - 56px)" : undefined,
+            }}>
+              <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid #f1f5f9" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                  <h2 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#1e293b", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Ordini di Produzione
+                  </h2>
+                  <span style={{ background: "#f1f5f9", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, color: "#64748b" }}>
+                    {loadingOrdini ? "…" : filteredOrdini.length}
+                  </span>
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+                  {filterButtons.map((filterOpt) => {
+                    const active = pageFilter === filterOpt.value;
+                    return (
+                      <button
+                        key={filterOpt.value || "all"}
+                        onClick={() => {
+                          setPageFilter(filterOpt.value);
+                          setSelectedOp(0);
+                          setSelectedSn(0);
+                        }}
+                        style={{
+                          border: active ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                          background: active ? "#eff6ff" : "#fff",
+                          color: active ? "#1d4ed8" : "#475569",
+                          borderRadius: 999,
+                          padding: "6px 10px",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          letterSpacing: "0.02em",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {filterOpt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ position: "relative" }}>
+                  <svg width="15" height="15" fill="none" stroke="#94a3b8" strokeWidth="2" viewBox="0 0 24 24"
+                    style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }}>
+                    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                  </svg>
+                  <input value={searchOp} onChange={e => setSearchOp(e.target.value)}
+                    placeholder="Cerca OP, P/N, capocommessa..."
+                    style={{
+                      width: "100%", padding: "9px 12px 9px 32px",
+                      border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 13,
+                      outline: "none", background: "#f8fafc", color: "#334155",
+                    }}
+                    onFocus={e => e.target.style.borderColor="#93c5fd"}
+                    onBlur={e  => e.target.style.borderColor="#e2e8f0"}
+                  />
+                </div>
+              </div>
+
+              <div style={{ flex: 1, overflowY: "auto", padding: "8px" }}>
+                {loadingOrdini ? (
+                  <div style={{ padding: 24, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+                    Caricamento ordini…
+                  </div>
+                ) : filteredOrdini.length === 0 ? (
+                  <div style={{ padding: 24, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+                    {pageFilter === "in_carico"
+                      ? "Nessuna anomalia in carico per l'utente corrente"
+                      : pageFilter === "aperte"
+                        ? "Nessun ordine con anomalie aperte"
+                        : "Nessun ordine trovato"}
+                  </div>
+                ) : (
+                  filteredOrdini.map((o, i) => (
+                    <div key={o.item_id || i} onClick={() => { setSelectedOp(i); if (isMobile) setMobilePanel("serie"); }} style={{
+                      padding: "12px 14px", borderRadius: 10, cursor: "pointer", marginBottom: 4,
+                      background: selectedOp === i ? "#eff6ff" : "transparent",
+                      border: selectedOp === i ? "1px solid #bfdbfe" : "1px solid transparent",
+                      transition: "all 0.15s ease",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>{o.id}</span>
+                        {o.stato && <StatusBadge text={o.stato} variant="benestare" />}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#64748b", marginBottom: 4, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "-0.02em" }}>
+                        P/N: {o.pn}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 12, color: "#94a3b8" }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                          </svg>
+                          {o.capo}
+                        </span>
+                      </div>
+                      {selectedOp === i && (
+                        <div style={{ display: "flex", gap: 6, marginTop: 10, paddingTop: 10, borderTop: "1px solid #e2e8f0" }}>
+                          <IconBtn accent title="Aggiungi anomalia" onClick={handleNewAnomalia}>
+                            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M12 5v14m-7-7h14"/></svg>
+                            Anomalia
+                          </IconBtn>
+                          <IconBtn title="Segnalazione" disabled={!canEditCurrentOp} onClick={() => {
+                            if (!canEditCurrentOp) return;
+                            setSegnalare(true);
+                            setSaveMsg({ ok: true, text: "Segnalazione attivata - salva per confermare" });
+                            setTimeout(() => setSaveMsg(null), 4000);
+                          }}>
+                            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+                            Segnalazione
+                          </IconBtn>
+                          <IconBtn title="Duplica - copia i dati nel form come nuovo record" onClick={() => { setCurrentItemId(null); setSaveMsg({ ok: true, text: "Dati copiati - modifica e salva come nuovo record" }); setTimeout(() => setSaveMsg(null), 4000); }}>
+                            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                            Duplica
+                          </IconBtn>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div style={{ padding: "12px 16px", borderTop: "1px solid #e2e8f0", display: "flex", gap: 8 }}>
+                <button onClick={() => history.back()} style={{
+                  flex: 1, padding: "9px", border: "1px solid #fecaca", borderRadius: 8,
+                  background: "#fff", color: "#dc2626", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                }}>â† Indietro</button>
+                <button onClick={loadOrdini} style={{
+                  flex: 1, padding: "9px", border: "1px solid #e2e8f0", borderRadius: 8,
+                  background: "#fff", color: "#475569", fontSize: 13, fontWeight: 500, cursor: "pointer",
+                }}>â†» Aggiorna</button>
+              </div>
+            </div>
+
+            {/* â"€â"€ CENTRO: Numeri di Serie â"€â"€ */}
+            <div style={{
+              borderRight: isMobile ? "none" : "1px solid #e2e8f0", background: "#fafbfc",
+              display: isMobile && mobilePanel !== "serie" ? "none" : "flex",
+              flexDirection: "column", overflow: "hidden",
+              minHeight: isMobile ? "calc(100vh - 56px)" : undefined,
+            }}>
+              {isMobile && (
+                <button onClick={() => setMobilePanel("ordini")} style={{
+                  display: "flex", alignItems: "center", gap: 6, padding: "10px 14px",
+                  background: "none", border: "none", borderBottom: "1px solid #f1f5f9",
+                  color: "#2563eb", fontSize: 13, fontWeight: 600, cursor: "pointer", width: "100%",
+                }}>
+                  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+                  Ordini di Produzione
+                </button>
+              )}
+              <div style={{ padding: "16px 14px 12px", borderBottom: "1px solid #f1f5f9" }}>
+                <h2 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700, color: "#1e293b", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  {isMobile && op.id ? `S/N — ${op.id}` : "Numeri di Serie"}
+                </h2>
+                <div style={{ position: "relative" }}>
+                  <svg width="15" height="15" fill="none" stroke="#94a3b8" strokeWidth="2" viewBox="0 0 24 24"
+                    style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)" }}>
+                    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                  </svg>
+                  <input value={searchSn} onChange={e => setSearchSn(e.target.value)}
+                    placeholder="Cerca S/N..."
+                    style={{
+                      width: "100%", padding: "9px 12px 9px 32px",
+                      border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 13,
+                      outline: "none", background: "#fff", color: "#334155",
+                    }}
+                    onFocus={e => e.target.style.borderColor="#93c5fd"}
+                    onBlur={e  => e.target.style.borderColor="#e2e8f0"}
+                  />
+                </div>
+              </div>
+
+              <div style={{ flex: 1, overflowY: "auto", padding: "8px" }}>
+                {loadingAnom ? (
+                  <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+                    Caricamento…
+                  </div>
+                ) : filteredSeriali.length === 0 ? (
+                  <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+                    {op.id && op.id !== '\u2014'
+                      ? (pageFilter === "aperte" || pageFilter === "in_carico"
+                          ? "Nessuna anomalia aperta per questo ordine"
+                          : "Nessuna anomalia registrata")
+                      : "Seleziona un ordine"}
+                  </div>
+                ) : (
+                  filteredSeriali.map((a, i) => {
+                    const col = snColor(a.avanzamento);
+                    return (
+                      <div key={a.item_id || i} onClick={() => { setSelectedSn(i); if (isMobile) setMobilePanel("dettaglio"); }} style={{
+                        padding: "10px 12px", borderRadius: 10, cursor: "pointer", marginBottom: 4,
+                        background: selectedSn === i ? "#fff" : "transparent",
+                        border: selectedSn === i ? "1px solid #e2e8f0" : "1px solid transparent",
+                        boxShadow: selectedSn === i ? "0 1px 4px rgba(0,0,0,.06)" : "none",
+                        transition: "all 0.15s",
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                          <div style={{ width: 10, height: 10, borderRadius: "50%", background: col, boxShadow: `0 0 0 3px ${col}22` }} />
+                          <span style={{ fontSize: 13, fontWeight: 600, color: "#1e293b", fontFamily: "'JetBrains Mono',monospace" }}>
+                            S/N: {a.sn || '\u2014'}
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 18 }}>
+                          <span style={{ fontSize: 12, color: "#64748b" }}>{a.avanzamento || "Aperto"}</span>
+                          {a.modified && (
+                            <span style={{ fontSize: 10, color: "#94a3b8" }}>
+                              {new Date(a.modified).toLocaleDateString("it-IT", { day:"2-digit", month:"2-digit", year:"2-digit" })}
+                            </span>
+                          )}
+                          {a.pezzi_prec && (
+                            <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd", fontWeight: 500 }}>
+                              prec. benestare
+                            </span>
+                          )}
+                          {a.chiudere && (
+                            <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", fontWeight: 500 }}>
+                              da chiudere
+                            </span>
+                          )}
+                        </div>
+                        {selectedSn === i && (
+                          <div style={{ marginTop: 8, paddingLeft: 18, display: "flex", gap: 6 }}>
+                            <IconBtn title="Duplica - copia i dati nel form come nuovo record" onClick={() => {
+                              setCurrentItemId(null);
+                              setSaveMsg({ ok: true, text: "Dati copiati - modifica e salva come nuovo record" });
+                              setTimeout(() => setSaveMsg(null), 4000);
+                            }}>
+                              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                              Duplica
+                            </IconBtn>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* â"€â"€ DESTRA: Pannello dettaglio â"€â"€ */}
+            <div style={{
+              background: "#fff", overflowY: "auto",
+              display: isMobile && mobilePanel !== "dettaglio" ? "none" : "flex",
+              flexDirection: "column",
+            }}>
+              {isMobile && (
+                <button onClick={() => setMobilePanel("serie")} style={{
+                  display: "flex", alignItems: "center", gap: 6, padding: "10px 14px",
+                  background: "none", border: "none", borderBottom: "1px solid #f1f5f9",
+                  color: "#2563eb", fontSize: 13, fontWeight: 600, cursor: "pointer", width: "100%",
+                }}>
+                  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+                  S/N — {sn.sn || "lista"}
+                </button>
+              )}
+              {/* Header dettaglio */}
+              <div style={{
+                padding: isMobile ? "12px 16px" : "20px 24px 16px", borderBottom: "1px solid #f1f5f9",
+                background: "linear-gradient(180deg,#f8fafc 0%,#fff 100%)",
+              }}>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr auto", gap: isMobile ? 12 : 16, alignItems: "start" }}>
+                  <div>
+                    <FieldLabel>Capocommessa</FieldLabel>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{op.capo || '\u2014'}</div>
+                  </div>
+                  <div>
+                    <FieldLabel>CAR</FieldLabel>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: "#334155" }}>{op.car || '\u2014'}</div>
+                  </div>
+                  <div>
+                    <FieldLabel>S/N selezionato</FieldLabel>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: "#334155", fontFamily: "'JetBrains Mono',monospace" }}>
+                      {sn.sn || '\u2014'}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <FieldLabel>Identificativo</FieldLabel>
+                    <span style={{
+                      display: "inline-block", padding: "4px 12px", borderRadius: 6,
+                      background: "#f1f5f9", fontWeight: 700, fontSize: 13,
+                      color: "#1e293b", fontFamily: "'JetBrains Mono',monospace",
+                    }}>{op.id || '\u2014'}</span>
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 12, paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
+                  <div>
+                    <FieldLabel>P/N</FieldLabel>
+                    <span style={{ fontSize: 13, fontFamily: "'JetBrains Mono',monospace", color: "#475569" }}>
+                      {op.pn || '\u2014'}
+                    </span>
+                  </div>
+                  <div>
+                    <FieldLabel>Item ID SharePoint</FieldLabel>
+                    <span style={{ fontSize: 12, color: "#94a3b8" }}>
+                      {currentItemId || "nuovo record"}
+                    </span>
+                  </div>
+                  <div style={{ marginLeft: "auto" }}>
+                    <FieldLabel>Stato</FieldLabel>
+                    <StatusBadge text={statoBadge.text} variant={statoBadge.variant} />
+                  </div>
+                </div>
+                {!canEditCurrentOp && op.id && op.id !== '\u2014' && (
+                  <div style={{
+                    marginTop: 12,
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    border: "1px solid #fcd34d",
+                    background: "#fffbeb",
+                    color: "#92400e",
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}>
+                    Modalità sola lettura: puoi visualizzare i dati ma non modificare questo OP.
+                  </div>
+                )}
+              </div>
+
+              {/* Body form */}
+              <div style={{ padding: isMobile ? "16px" : "20px 24px", flex: 1, paddingBottom: isMobile ? 80 : 24 }}>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 16 : 24 }}>
+                  {/* Colonna sinistra */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                    <div>
+                      <FieldLabel required>Descrizione anomalia</FieldLabel>
+                      <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={4} disabled={!canEditCurrentOp}
+                        style={{
+                          width: "100%", padding: "10px 14px",
+                          border: "1px solid #e2e8f0", borderRadius: 10, fontSize: 14,
+                          fontFamily: "inherit", resize: "vertical", outline: "none",
+                          lineHeight: 1.5, color: "#334155", background: canEditCurrentOp ? "#fafbfc" : "#f1f5f9",
+                        }}
+                        onFocus={e => e.target.style.borderColor="#93c5fd"}
+                        onBlur={e  => e.target.style.borderColor="#e2e8f0"}
+                      />
+                    </div>
+
+                    <div style={{ background: "#f8fafc", borderRadius: 12, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14, border: "1px solid #f1f5f9" }}>
+                      <Toggle label="Pezzi precedenti al benestare" checked={pezziPrec} disabled={!canEditCurrentOp} onChange={() => setPezziPrec(!pezziPrec)} />
+                      <div style={{ height: 1, background: "#e2e8f0" }} />
+                      <Toggle label="Aprire RDC?" checked={aprireRdc} disabled={!canEditCurrentOp} onChange={() => setAprireRdc(!aprireRdc)} />
+                      <div style={{ height: 1, background: "#e2e8f0" }} />
+                      <Toggle label="Segnalare a cliente?" checked={segnalare} disabled={!canEditCurrentOp} onChange={() => setSegnalare(!segnalare)} />
+                      <div style={{ height: 1, background: "#e2e8f0" }} />
+                      <Toggle label="Chiudere? (automatico)" checked={chiudereAuto} disabled={true} />
+                    </div>
+
+                    <div>
+                      <FieldLabel>Avanzamento</FieldLabel>
+                      <select value={avanzamento} onChange={e => setAvanzamento(e.target.value)} disabled={segnalare || !canEditCurrentOp}
+                        style={{
+                          width: "100%", padding: "9px 14px", border: "1px solid #e2e8f0",
+                          borderRadius: 8, fontSize: 14, color: "#334155",
+                          background: segnalare || !canEditCurrentOp ? "#f8fafc" : "#fff", outline: "none",
+                          cursor: segnalare || !canEditCurrentOp ? "not-allowed" : "pointer",
+                          opacity: segnalare || !canEditCurrentOp ? 0.75 : 1,
+                        }}>
+                        {avanzamentoOptions.map((opt) => (
+                          <option key={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Colonna destra */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                    <div>
+                      <FieldLabel required>Note capocommessa</FieldLabel>
+                      <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} disabled={!canEditCurrentOp}
+                        style={{
+                          width: "100%", padding: "10px 14px",
+                          border: "1px solid #e2e8f0", borderRadius: 10, fontSize: 14,
+                          fontFamily: "inherit", resize: "vertical", outline: "none",
+                          lineHeight: 1.5, color: "#334155", background: canEditCurrentOp ? "#fafbfc" : "#f1f5f9",
+                        }}
+                        onFocus={e => e.target.style.borderColor="#93c5fd"}
+                        onBlur={e  => e.target.style.borderColor="#e2e8f0"}
+                      />
+                    </div>
+
+                    {/* Allegati */}
+                    <div>
+                      <FieldLabel>Allegati anomalia</FieldLabel>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv"
+                        onChange={handleAttachmentInput}
+                        style={{ display: "none" }}
+                      />
+                      <div style={{ borderRadius: 12, border: "1px solid #e2e8f0", background: "#fff", padding: 12 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
+                          <div style={{ fontSize: 12, color: "#64748b" }}>
+                            {currentLocalId
+                              ? `Record locale #${currentLocalId}`
+                              : "Salva prima la segnalazione per abilitare gli allegati"}
+                          </div>
+                          <IconBtn
+                            onClick={openAttachmentPicker}
+                            disabled={!canEditCurrentOp || !currentLocalId || uploadingAttachments}
+                            accent
+                            title="Carica allegati"
+                          >
+                            {uploadingAttachments ? "Caricamento..." : "Carica file"}
+                          </IconBtn>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {loadingAttachments ? (
+                            <div style={{ fontSize: 12, color: "#64748b" }}>Caricamento allegati...</div>
+                          ) : attachments.length === 0 ? (
+                            <div style={{ fontSize: 12, color: "#94a3b8" }}>
+                              Nessun allegato. Formati ammessi: immagini, PDF, Word, Excel.
+                            </div>
+                          ) : (
+                            <>
+                              {/* Preview allegato selezionato */}
+                              <div style={{
+                                border: "1px solid #e2e8f0",
+                                borderRadius: 10,
+                                background: "#0f172a",
+                                overflow: "hidden",
+                                position: "relative",
+                                aspectRatio: "16/9",
+                              }}>
+                                {selectedAttachment && selectedAttachment.is_image ? (
+                                  <img
+                                    src={getAttachmentUrl(selectedAttachment.file_id)}
+                                    alt={selectedAttachment.name}
+                                    style={{ width: "100%", height: "100%", objectFit: "contain", background: "#0f172a", cursor: "pointer" }}
+                                    onClick={() => openAttachment(selectedAttachment.file_id, false)}
+                                  />
+                                ) : selectedAttachment ? (
+                                  <div style={{
+                                    width: "100%",
+                                    height: "100%",
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: 10,
+                                    color: "#cbd5e1",
+                                    padding: 16,
+                                    textAlign: "center",
+                                  }}>
+                                    <div style={{
+                                      width: 64,
+                                      height: 64,
+                                      borderRadius: 12,
+                                      border: "1px solid #334155",
+                                      background: "#1e293b",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      fontWeight: 700,
+                                      color: "#e2e8f0",
+                                    }}>
+                                      {(fileExt(selectedAttachment.name).replace(".", "").toUpperCase() || "FILE").slice(0, 4)}
+                                    </div>
+                                    <div style={{ fontSize: 13, fontWeight: 600 }}>{selectedAttachment.name}</div>
+                                    <div style={{ display: "flex", gap: 8 }}>
+                                      <IconBtn onClick={() => openAttachment(selectedAttachment.file_id, false)} accent title="Apri allegato">
+                                        Apri
+                                      </IconBtn>
+                                      <IconBtn onClick={() => openAttachment(selectedAttachment.file_id, true)} title="Scarica allegato">
+                                        Scarica
+                                      </IconBtn>
+                                    </div>
+                                  </div>
+                                ) : null}
+                              </div>
+
+                              {/* Lista allegati */}
+                              <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 220, overflowY: "auto", paddingRight: 4 }}>
+                                {attachments.map((file) => {
+                                  const inlineUrl = getAttachmentUrl(file.file_id);
+                                  const ext = fileExt(file.name).replace(".", "").toUpperCase() || "FILE";
+                                  const selected = file.file_id === selectedAttachmentId;
+                                  return (
+                                    <div
+                                      key={file.file_id}
+                                      onClick={() => setSelectedAttachmentId(file.file_id)}
+                                      style={{
+                                        border: selected ? "1px solid #60a5fa" : "1px solid #e2e8f0",
+                                        borderRadius: 10,
+                                        padding: 8,
+                                        display: "grid",
+                                        gridTemplateColumns: "54px 1fr auto",
+                                        gap: 10,
+                                        alignItems: "center",
+                                        background: selected ? "#eff6ff" : "#fff",
+                                        cursor: "pointer",
+                                      }}>
+                                      {file.is_image ? (
+                                        <img
+                                          src={inlineUrl}
+                                          alt={file.name}
+                                          style={{
+                                            width: 54,
+                                            height: 54,
+                                            borderRadius: 8,
+                                            objectFit: "cover",
+                                            border: "1px solid #e2e8f0",
+                                          }}
+                                        />
+                                      ) : (
+                                        <div style={{
+                                          width: 54,
+                                          height: 54,
+                                          borderRadius: 8,
+                                          border: "1px solid #e2e8f0",
+                                          background: "#f8fafc",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          fontSize: 11,
+                                          fontWeight: 700,
+                                          color: "#475569",
+                                        }}>
+                                          {ext}
+                                        </div>
+                                      )}
+                                      <div style={{ minWidth: 0 }}>
+                                        <div title={file.name} style={{
+                                          fontSize: 13,
+                                          color: "#0f172a",
+                                          fontWeight: 600,
+                                          overflow: "hidden",
+                                          textOverflow: "ellipsis",
+                                          whiteSpace: "nowrap",
+                                        }}>
+                                          {file.name}
+                                        </div>
+                                        <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                                          {formatBytes(file.size)} • {file.mime_type || "file"} • {attachmentSyncLabel(file)}
+                                        </div>
+                                        {file.sync_last_error ? (
+                                          <div title={file.sync_last_error} style={{ fontSize: 10, color: "#b91c1c", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                            {file.sync_last_error}
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                        <IconBtn onClick={(e) => { e.stopPropagation(); openAttachment(file.file_id, false); }} title="Apri">
+                                          Apri
+                                        </IconBtn>
+                                        <IconBtn onClick={(e) => { e.stopPropagation(); openAttachment(file.file_id, true); }} title="Scarica">
+                                          Scarica
+                                        </IconBtn>
+                                        <IconBtn
+                                          onClick={(e) => { e.stopPropagation(); handleDeleteAttachment(file.file_id); }}
+                                          disabled={!canEditCurrentOp}
+                                          title="Elimina allegato"
+                                        >
+                                          Elimina
+                                        </IconBtn>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {aprireRdc && (
+                      <div>
+                        <FieldLabel>Numero RDC</FieldLabel>
+                        <input
+                          placeholder="Inserisci numero RDC..."
+                          value={rdcNum}
+                          onChange={e => setRdcNum(e.target.value)}
+                          disabled={!canEditCurrentOp}
+                          style={{
+                            width: "100%", padding: "9px 14px",
+                            border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 14,
+                            outline: "none", color: "#334155", background: canEditCurrentOp ? "#fff" : "#f1f5f9",
+                          }}
+                          onFocus={e => e.target.style.borderColor="#93c5fd"}
+                          onBlur={e  => e.target.style.borderColor="#e2e8f0"}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      );
+    }
+
+    class ErrorBoundary extends React.Component {
+      constructor(props) { super(props); this.state = { error: null }; }
+      static getDerivedStateFromError(e) { return { error: e }; }
+      componentDidCatch(e, info) { console.error("React render error:", e, info); }
+      render() {
+        if (this.state.error) {
+          return React.createElement("div", {
+            style: { color: "red", padding: 24, fontFamily: "monospace", whiteSpace: "pre-wrap" }
+          }, "ERRORE RENDERING: " + this.state.error.message);
+        }
+        return this.props.children;
+      }
+    }
+
+    console.log("Babel script eseguito OK");
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(
+      React.createElement(ErrorBoundary, null,
+        React.createElement(GestioneAnomalie, null)
+      )
+    );
+  </script>{% endverbatim %}
+</body>
+</html>

@@ -1,0 +1,112 @@
+﻿{% extends "core/base.html" %}
+
+{% block extra_head %}
+<style>
+.content { padding: 0 !important; max-width: none !important; width: 100% !important; margin: 0 !important; }
+.as-shell { display: grid; grid-template-columns: 230px 1fr; align-items: start; background: #f4f7fc; border-top: 1px solid #dbe3f0; }
+.as-side { align-self: start; background: #f8fbff; border-right: 1px solid #dbe3f0; padding: 12px; display: grid; grid-template-rows: auto 1fr auto; gap: 10px; }
+.as-brand { display: flex; align-items: center; gap: 10px; }
+.as-logo { width: 34px; height: 34px; border-radius: 9px; background: #1f64d8; color: #fff; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+.as-name { font-size: 34px; font-weight: 800; color: #0f172a; line-height: 1; }
+.as-name span { color: #1f64d8; }
+.as-nav { display: flex; flex-direction: column; gap: 4px; }
+.as-nav-head { font-size: 10px; color: #8ea2bf; text-transform: uppercase; letter-spacing: .08em; margin: 7px 4px; font-weight: 700; }
+.as-link { display: block; color: #24395e; text-decoration: none; border-radius: 8px; padding: 5px 8px; font-weight: 600; line-height: 1.1; font-size: 12px; }
+.as-link:hover { background: #edf3fc; }
+.as-link.active { background: #dce8fb; color: #1f64d8; }
+.as-link.sub { font-size: 11px; color: #5f7698; padding-left: 18px; }
+.as-user { border-top: 1px solid #dbe3f0; padding-top: 10px; display: flex; gap: 8px; align-items: center; }
+.as-user-av { width: 28px; height: 28px; border-radius: 999px; background: #dce6f5; color: #355380; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+.as-main { min-width: 0; padding: 12px; display: grid; gap: 10px; align-content: start; }
+.as-top { display: flex; gap: 8px; align-items: center; }
+.as-search { flex: 1; display: flex; gap: 8px; align-items: center; height: 44px; border: 1px solid #dbe3f0; border-radius: 11px; background: #edf2f9; padding: 0 11px; }
+.as-search input { border: none; background: transparent; outline: none; width: 100%; font-size: 15px; color: #1f3559; font-family: 'Outfit', sans-serif; }
+.as-tool { width: 40px; height: 40px; border: 1px solid #d8e2f2; border-radius: 10px; background: #f8fbff; color: #6a819f; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; cursor: pointer; }
+.as-tool:hover { background: #edf3fc; }
+.as-new { background: #1f64d8; color: #fff; border: 1px solid #1f64d8; border-radius: 10px; padding: 10px 14px; text-decoration: none; font-weight: 700; }
+.as-page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.as-page-head h1 { margin: 0; font-size: 30px; color: #0f172a; }
+.as-page-head p { margin: 4px 0 0; color: #7088a8; font-size: 13px; }
+.as-page-head-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.assets-messages { display: grid; gap: 8px; }
+.assets-message { border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; background: #f8fafc; font-size: 13px; }
+.assets-message-success { border-color: #86efac; background: #f0fdf4; color: #166534; }
+.assets-message-error, .assets-message-danger { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
+.assets-message-warning { border-color: #fde68a; background: #fffbeb; color: #92400e; }
+/* Utility grid classes per le sottopagine */
+.as-form-grid-2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.as-form-grid-3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.as-form-grid-4 { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+.as-form-grid-5 { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; }
+.as-dl-grid { display:grid; grid-template-columns:160px 1fr; gap:8px; margin:0; }
+
+@media (max-width: 980px) {
+  .as-shell { grid-template-columns: 1fr; }
+  .as-side { border-right: none; border-bottom: 1px solid #dbe3f0; }
+  .as-user { display: none; }
+  .as-form-grid-3, .as-form-grid-4, .as-form-grid-5 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+@media (max-width: 760px) {
+  .as-top { flex-direction: column; align-items: stretch; }
+  .as-page-head { flex-wrap: wrap; }
+  .as-page-head-actions { width: 100%; }
+}
+@media (max-width: 640px) {
+  .as-form-grid-2, .as-form-grid-3, .as-form-grid-5 { grid-template-columns: 1fr; }
+  .as-dl-grid { grid-template-columns: 1fr; }
+  .as-main { padding: 10px; }
+}
+</style>
+{% block assets_shell_head %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+<section class="as-shell">
+  <aside class="as-side">
+    <div class="as-brand"><span class="as-logo">A</span><div class="as-name">Inven<span>tario</span></div></div>
+    <nav class="as-nav">
+      {% for group in assets_sidebar_groups %}
+        <div class="as-nav-head">{{ group.label }}</div>
+        {% for item in group.items %}
+          <a class="as-link {% if item.is_subitem %}sub{% endif %}{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+        {% endfor %}
+      {% endfor %}
+    </nav>
+    <div class="as-user">
+      <span class="as-user-av">{{ request.user.username|slice:":1"|upper }}</span>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#1e2f4f;">{{ request.user.get_full_name|default:request.user.username }}</div>
+        <div style="font-size:11px;color:#7f92af;">Amministratore sistema</div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="as-main">
+    <header class="as-top">
+      <form method="get" action="{{ assets_shell_search_action|default:'' }}" style="flex:1;">
+        <div class="as-search"><span style="color:#8da0bc;">&#128269;</span><input name="q" value="{{ request.GET.q|default:'' }}" placeholder="{{ assets_shell_search_placeholder|default:'Ricerca rapida per asset, seriali o utenti (Ctrl + K)' }}"></div>
+      </form>
+      <a class="as-tool" href="{% url 'assets:wo_list' %}" title="Avvisi">&#128276;</a>
+      <a class="as-new" href="{{ assets_shell_new_url|default:'' }}">{{ assets_shell_new_label|default:'+ Nuovo asset' }}</a>
+    </header>
+
+    <header class="as-page-head">
+      <div>
+        <h1>{% block assets_shell_title %}{{ page_title|default:"Inventario asset" }}{% endblock %}</h1>
+        {% block assets_shell_subtitle %}{% endblock %}
+      </div>
+      <div class="as-page-head-actions">
+        {% block assets_shell_toolbar %}{% endblock %}
+      </div>
+    </header>
+
+    {% include "assets/components/messages.html" %}
+    {% block assets_shell_content %}{% endblock %}
+  </main>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+{% block assets_shell_scripts %}{% endblock %}
+{% endblock %}
+

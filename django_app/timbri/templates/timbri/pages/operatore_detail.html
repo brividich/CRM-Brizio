@@ -1,0 +1,141 @@
+{% extends "core/base.html" %}
+{% block title %}{{ employee.full_name }} | Timbri{% endblock %}
+{% block extra_head %}
+<style>
+.tim-page { display:flex; flex-direction:column; gap:20px; }
+.tim-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:20px; }
+.tim-hero { display:flex; justify-content:space-between; gap:18px; flex-wrap:wrap; }
+.tim-title { font-size:28px; font-weight:800; color:#0f172a; }
+.tim-sub { color:#64748b; font-size:13px; margin-top:4px; }
+.tim-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 15px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; border:1px solid #dbe4f0; background:#fff; color:#0f172a; }
+.tim-btn-main { background:#0f766e; border-color:#0f766e; color:#fff; }
+.tim-kpi { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+.tim-k { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:16px 18px; }
+.tim-k-val { font-size:28px; font-weight:800; color:#0f172a; }
+.tim-k-label { font-size:11px; color:#64748b; text-transform:uppercase; font-weight:700; margin-top:6px; }
+.tim-meta { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; }
+.tim-meta-item { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px 14px; }
+.tim-meta-k { font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; }
+.tim-meta-v { font-size:14px; color:#0f172a; font-weight:700; margin-top:4px; }
+.tim-records { display:grid; grid-template-columns:1fr; gap:14px; }
+.tim-record { border:1px solid #e2e8f0; border-radius:14px; padding:16px; }
+.tim-record-head { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:flex-start; }
+.tim-pill { display:inline-block; padding:3px 8px; border-radius:999px; font-size:11px; font-weight:700; }
+.tim-pill-green { background:#dcfce7; color:#166534; }
+.tim-pill-gray { background:#f1f5f9; color:#475569; }
+.tim-pill-amber { background:#fef3c7; color:#92400e; }
+.tim-images { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:14px; }
+.tim-image { border:1px solid #e2e8f0; border-radius:12px; padding:10px; text-align:center; background:#f8fafc; }
+.tim-image img { max-width:100%; max-height:140px; object-fit:contain; display:block; margin:0 auto 8px; }
+.tim-empty { color:#94a3b8; text-align:center; padding:20px; border:1px dashed #cbd5e1; border-radius:14px; }
+@media (max-width: 900px) { .tim-kpi, .tim-meta, .tim-images { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+{% block subnav %}{% include "timbri/components/subnav.html" %}{% endblock %}
+{% block content %}
+<div class="tim-page">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="tim-card tim-hero">
+    <div>
+      <div class="tim-title">{{ employee.full_name }}</div>
+      <div class="tim-sub">
+        Profilo letto da {{ employee.source_label }}
+        {% if is_central_profile and not operatore.is_active_legacy %} · dipendente storico{% endif %}
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      {% if can_edit_timbri and employee.legacy_id %}
+        <a class="tim-btn tim-btn-main" href="{% url 'timbri:registro_create_by_legacy' employee.legacy_id %}">+ Nuovo record</a>
+      {% elif can_edit_timbri %}
+        <a class="tim-btn tim-btn-main" href="{% url 'timbri:registro_create' operatore.id %}">+ Nuovo record</a>
+      {% endif %}
+      {% if can_edit_timbri and not is_central_profile %}
+        <form method="post" action="{% url 'timbri:operatore_delete' operatore.id %}" onsubmit="return confirm('Eliminare definitivamente {{ employee.full_name|escapejs }}?');">
+          {% csrf_token %}
+          <button class="tim-btn" type="submit" style="border-color:#fecaca;color:#b91c1c;background:#fff1f2;">Elimina operatore</button>
+        </form>
+      {% endif %}
+      <a class="tim-btn" href="{% url 'timbri:index' %}">Elenco</a>
+    </div>
+  </div>
+
+  <div class="tim-kpi">
+    <div class="tim-k"><div class="tim-k-val">{{ stats.totale }}</div><div class="tim-k-label">Totale record</div></div>
+    <div class="tim-k"><div class="tim-k-val">{{ stats.attivi }}</div><div class="tim-k-label">Attivi</div></div>
+    <div class="tim-k"><div class="tim-k-val">{{ stats.storico }}</div><div class="tim-k-label">Storico</div></div>
+  </div>
+
+  <div class="tim-card">
+    <div class="tim-meta">
+      <div class="tim-meta-item"><div class="tim-meta-k">Matricola</div><div class="tim-meta-v">{{ employee.matricola|default:"-" }}</div></div>
+      <div class="tim-meta-item"><div class="tim-meta-k">Reparto</div><div class="tim-meta-v">{{ employee.reparto|default:"-" }}</div></div>
+      <div class="tim-meta-item"><div class="tim-meta-k">Ruolo</div><div class="tim-meta-v">{{ employee.ruolo|default:"-" }}</div></div>
+      <div class="tim-meta-item"><div class="tim-meta-k">Email</div><div class="tim-meta-v">{{ employee.email_notifica|default:"-" }}</div></div>
+    </div>
+  </div>
+
+  <div class="tim-card">
+    <div style="font-size:18px;font-weight:800;color:#0f172a;margin-bottom:14px;">Record attivi</div>
+    <div class="tim-records">
+      {% for record in active_records %}
+        <div class="tim-record">
+          <div class="tim-record-head">
+            <div>
+              <div style="font-size:18px;font-weight:800;color:#0f172a;">{{ record.codice_timbro|default:"Senza codice" }}</div>
+              <div style="font-size:13px;color:#64748b;">{{ record.qualifica|default:"Nessuna qualifica" }}</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <span class="tim-pill tim-pill-green">{{ record.stato_label }}</span>
+              <span class="tim-pill tim-pill-gray">{{ record.get_tipo_timbro_display }}</span>
+              {% if can_edit_timbri %}<a class="tim-btn" href="{% url 'timbri:registro_edit' record.id %}">Modifica</a>{% endif %}
+            </div>
+          </div>
+          <div style="margin-top:10px;color:#475569;font-size:13px;">
+            Consegna: {{ record.data_consegna|default:"-" }} · Ritiro: {{ record.data_ritiro|default:"-" }}
+          </div>
+          {% if record.note %}<div style="margin-top:10px;font-size:13px;color:#334155;">{{ record.note|linebreaksbr }}</div>{% endif %}
+          <div class="tim-images">
+            {% for slot in record.image_slots %}
+              <div class="tim-image">
+                {% if slot.image %}
+                  <img src="{{ slot.image.image.url }}" alt="{{ slot.label }}">
+                {% else %}
+                  <div style="height:140px;display:flex;align-items:center;justify-content:center;color:#94a3b8;">Nessuna immagine</div>
+                {% endif %}
+                <div style="font-size:12px;font-weight:700;color:#64748b;">{{ slot.label }}</div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% empty %}
+        <div class="tim-empty">Nessun record attivo per questo dipendente.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="tim-card">
+    <div style="font-size:18px;font-weight:800;color:#0f172a;margin-bottom:14px;">Storico</div>
+    <div class="tim-records">
+      {% for record in historical_records %}
+        <div class="tim-record">
+          <div class="tim-record-head">
+            <div>
+              <div style="font-size:18px;font-weight:800;color:#0f172a;">{{ record.codice_timbro|default:"Senza codice" }}</div>
+              <div style="font-size:13px;color:#64748b;">{{ record.qualifica|default:"Nessuna qualifica" }}</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <span class="tim-pill {% if record.is_archived %}tim-pill-gray{% else %}tim-pill-amber{% endif %}">{{ record.stato_label }}</span>
+              {% if can_edit_timbri %}<a class="tim-btn" href="{% url 'timbri:registro_edit' record.id %}">Apri</a>{% endif %}
+            </div>
+          </div>
+          <div style="margin-top:10px;color:#475569;font-size:13px;">
+            Consegna: {{ record.data_consegna|default:"-" }} · Ritiro: {{ record.data_ritiro|default:"-" }}
+          </div>
+        </div>
+      {% empty %}
+        <div class="tim-empty">Nessun record storico.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

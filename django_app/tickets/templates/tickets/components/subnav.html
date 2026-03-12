@@ -1,0 +1,32 @@
+{% with current=request.resolver_match.view_name %}
+<div class="subnav">
+  <a class="sub-a{% if current == 'tickets:dashboard' %} active{% endif %}" href="{% url 'tickets:dashboard' %}">I miei ticket</a>
+  <div class="sub-sep"></div>
+  <a class="sub-a{% if current == 'tickets:nuovo' %} active{% endif %}" href="{% url 'tickets:nuovo' %}">+ Nuovo ticket</a>
+  {% if is_gestore or is_admin %}
+  <div class="sub-sep"></div>
+  <a class="sub-a{% if current == 'tickets:gestione_list' or current == 'tickets:gestione_detail' %} active{% endif %}" href="{% url 'tickets:gestione_list' %}">Gestione ticket</a>
+  {% endif %}
+  {% if is_admin %}
+  <div class="sub-sep"></div>
+  <a class="sub-a{% if current == 'tickets:impostazioni' %} active{% endif %}" href="{% url 'tickets:impostazioni' %}">Impostazioni</a>
+  {% endif %}
+</div>
+<div class="notice" style="margin-top:10px;">
+  {% if current == 'tickets:dashboard' %}
+    <strong>I miei ticket:</strong> storico delle richieste di intervento aperte o chiuse.
+  {% elif current == 'tickets:nuovo' %}
+    <strong>Nuovo ticket:</strong> compila il form per inviare una richiesta di intervento IT o Manutenzione.
+  {% elif current == 'tickets:detail' %}
+    <strong>Dettaglio ticket:</strong> stato, commenti e allegati della tua richiesta.
+  {% elif current == 'tickets:gestione_list' %}
+    <strong>Gestione ticket:</strong> tutti i ticket aperti. Filtra, assegna e aggiorna lo stato.
+  {% elif current == 'tickets:gestione_detail' %}
+    <strong>Gestione ticket:</strong> prendi in carico, assegna o chiudi la richiesta.
+  {% elif current == 'tickets:impostazioni' %}
+    <strong>Impostazioni:</strong> configura team, permessi e integrazione SharePoint per IT e Manutenzione.
+  {% else %}
+    <strong>Ticket:</strong> gestione richieste di intervento.
+  {% endif %}
+</div>
+{% endwith %}

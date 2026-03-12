@@ -1,0 +1,1040 @@
+{% extends "core/base.html" %}
+
+{% block title %}Editor Planimetria | Admin{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Layout ─────────────────────────────────────────────────────────────── */
+#ped-root {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding-bottom: 40px;
+}
+.ped-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.ped-main {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .ped-main { grid-template-columns: 1fr; }
+}
+
+/* ── Toolbar ─────────────────────────────────────────────────────────────── */
+.ped-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.ped-tool-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #334155;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: background .1s, color .1s, border-color .1s;
+}
+.ped-tool-btn:hover { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.ped-tool-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+.ped-tool-btn.danger { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+.ped-tool-btn.danger:hover { background: #dc2626; color: #fff; border-color: #dc2626; }
+.ped-tool-btn.success { background: #f0fdf4; color: #16a34a; border-color: #bbf7d0; }
+
+/* ── Mappa container ─────────────────────────────────────────────────────── */
+#ped-container {
+  position: relative;
+  display: block;
+  width: 100%;
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f8fafc;
+  line-height: 0;
+  cursor: default;
+  user-select: none;
+}
+#ped-container.draw-mode { cursor: crosshair; border-color: #2563eb; }
+#ped-container.draw-mode .pmed-reparto { pointer-events: none; }
+
+#ped-img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.ped-no-img {
+  min-height: 300px;
+  background: repeating-linear-gradient(
+    45deg, #e2e8f0 0, #e2e8f0 1px, #f8fafc 0, #f8fafc 50%
+  );
+  background-size: 16px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+/* ── Reparti editor ──────────────────────────────────────────────────────── */
+.pmed-reparto {
+  position: absolute;
+  border-radius: 6px;
+  border: 2px solid;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-end;
+  box-sizing: border-box;
+  transition: box-shadow .1s;
+}
+.pmed-reparto:hover { z-index: 20; }
+.pmed-reparto.selected {
+  box-shadow: 0 0 0 3px #fff, 0 0 0 5px currentColor;
+  z-index: 30;
+}
+.pmed-rep-label {
+  width: 100%;
+  padding: 3px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,.5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+/* Drag handle (top-left corner) */
+.pmed-move-handle {
+  position: absolute;
+  top: 0; left: 0;
+  width: 20px; height: 20px;
+  background: rgba(255,255,255,.85);
+  border-radius: 4px;
+  cursor: move;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; color: #475569;
+}
+
+/* Resize handles */
+.pmed-resize {
+  position: absolute;
+  width: 10px; height: 10px;
+  background: #fff;
+  border: 2px solid currentColor;
+  border-radius: 2px;
+  z-index: 5;
+}
+.pmed-resize.se { bottom: -5px; right: -5px; cursor: se-resize; }
+.pmed-resize.ne { top: -5px; right: -5px; cursor: ne-resize; }
+.pmed-resize.sw { bottom: -5px; left: -5px; cursor: sw-resize; }
+.pmed-resize.nw { top: -5px; left: -5px; cursor: nw-resize; }
+
+/* Draw preview */
+#ped-draw-preview {
+  display: none;
+  position: absolute;
+  border: 2px dashed #2563eb;
+  background: rgba(59,130,246,.15);
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 50;
+  box-sizing: border-box;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+.ped-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ped-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.ped-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 13px;
+  font-weight: 700;
+}
+.ped-card-body { padding: 14px; }
+
+/* Form fields */
+.ped-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.ped-field:last-child { margin-bottom: 0; }
+.ped-field label { font-size: 12px; font-weight: 600; color: #475569; }
+.ped-field input, .ped-field textarea, .ped-field select {
+  padding: 7px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+.ped-field input:focus, .ped-field textarea:focus, .ped-field select:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px #bfdbfe;
+}
+.ped-field textarea { resize: vertical; min-height: 56px; }
+
+/* Colori preset */
+.ped-color-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 4px; }
+.ped-color-swatch {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform .1s, border-color .1s;
+}
+.ped-color-swatch:hover { transform: scale(1.2); }
+.ped-color-swatch.active { border-color: #0f172a; transform: scale(1.15); }
+
+/* Macchine list nell'editor */
+.ped-mac-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 12px;
+}
+.ped-mac-row:last-child { border-bottom: none; }
+.ped-mac-stato-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.ped-mac-stato-dot.operativa    { background: #22c55e; }
+.ped-mac-stato-dot.manutenzione { background: #f59e0b; }
+.ped-mac-stato-dot.ferma        { background: #ef4444; }
+.ped-mac-stato-dot.dismessa     { background: #94a3b8; }
+
+.ped-btn {
+  padding: 6px 12px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #334155;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ped-btn:hover { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.ped-btn.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+.ped-btn.primary:hover { background: #1d4ed8; }
+.ped-btn.danger { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+.ped-btn.danger:hover { background: #dc2626; color: #fff; }
+
+/* Status bar */
+#ped-status {
+  font-size: 12px; padding: 4px 0;
+  min-height: 20px;
+  color: #16a34a;
+}
+#ped-status.err { color: #dc2626; }
+
+/* ── Upload panel ────────────────────────────────────────────────────────── */
+#ped-upload-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.5);
+  z-index: 300;
+  align-items: center;
+  justify-content: center;
+}
+#ped-upload-overlay.open { display: flex; }
+.ped-upload-box {
+  background: #fff;
+  border-radius: 14px;
+  padding: 28px 28px 22px;
+  width: 420px;
+  max-width: 96vw;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25);
+}
+.ped-upload-box h2 { font-size: 16px; font-weight: 700; margin: 0 0 16px; }
+
+/* ── Macchina modal ───────────────────────────────────────────────────────── */
+#ped-mac-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.4);
+  z-index: 400;
+  align-items: center;
+  justify-content: center;
+}
+#ped-mac-overlay.open { display: flex; }
+.ped-mac-box {
+  background: #fff;
+  border-radius: 14px;
+  padding: 24px;
+  width: 380px;
+  max-width: 96vw;
+  box-shadow: 0 20px 60px rgba(0,0,0,.2);
+}
+.ped-mac-box h3 { font-size: 14px; font-weight: 700; margin: 0 0 14px; }
+</style>
+{% endblock %}
+
+{% block content %}
+{{ reparti_data|json_script:"ped-reparti" }}
+
+<div id="ped-root">
+
+  <div class="ped-header">
+    <div>
+      <div class="page-h">Editor Planimetria</div>
+      <div class="page-sub">Disegna i reparti, assegna le macchine</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a href="{% url 'planimetria:mappa' %}" class="ped-tool-btn">&#128065; Visualizza mappa</a>
+    </div>
+  </div>
+
+  <div class="ped-toolbar">
+    <button class="ped-tool-btn active" id="ped-sel-btn"  title="Seleziona e sposta reparti">&#8594; Seleziona</button>
+    <button class="ped-tool-btn"        id="ped-draw-btn" title="Disegna nuovo reparto">&#9633; Disegna reparto</button>
+    <span style="width:1px;height:24px;background:#e2e8f0;margin:0 4px;"></span>
+    <button class="ped-tool-btn"        id="ped-upload-btn">&#128444; Carica planimetria</button>
+    {% if planimetrie.count > 1 %}
+    <select id="ped-plan-select" style="padding:6px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;">
+      {% for p in planimetrie %}
+        <option value="{{ p.id }}" {% if p.attiva %}selected{% endif %}>{{ p.nome }}</option>
+      {% endfor %}
+    </select>
+    <button class="ped-tool-btn success" id="ped-plan-activate-btn">Attiva selezionata</button>
+    {% endif %}
+    <div style="flex:1;"></div>
+    <span id="ped-status"></span>
+  </div>
+
+  <div class="ped-main">
+
+    <!-- ── Mappa ── -->
+    <div>
+      <div id="ped-container">
+        {% if planimetria %}
+          <img id="ped-img" src="{{ planimetria.immagine.url }}" alt="{{ planimetria.nome }}" draggable="false">
+        {% else %}
+          <div class="ped-no-img">Carica una planimetria PNG per iniziare</div>
+        {% endif %}
+        <div id="ped-draw-preview"></div>
+      </div>
+    </div>
+
+    <!-- ── Sidebar ── -->
+    <div class="ped-sidebar">
+
+      <!-- Info reparto selezionato -->
+      <div class="ped-card" id="ped-detail-card" style="display:none;">
+        <div class="ped-card-head">
+          <span id="ped-detail-title">Reparto</span>
+          <div style="display:flex;gap:6px;">
+            <button class="ped-btn danger" id="ped-delete-rep-btn" title="Elimina reparto">&#128465;</button>
+          </div>
+        </div>
+        <div class="ped-card-body">
+          <div class="ped-field">
+            <label>Nome reparto</label>
+            <input type="text" id="ped-f-nome" placeholder="Es. Reparto Saldatura">
+          </div>
+          <div class="ped-field">
+            <label>Responsabile</label>
+            <input type="text" id="ped-f-resp" placeholder="Nome cognome">
+          </div>
+          <div class="ped-field">
+            <label>Note</label>
+            <textarea id="ped-f-note" placeholder="Descrizione, orari, procedure..."></textarea>
+          </div>
+          <div class="ped-field">
+            <label>Colore</label>
+            <div class="ped-color-row" id="ped-color-row"></div>
+            <input type="color" id="ped-f-colore" style="margin-top:6px;width:42px;height:28px;border:none;padding:0;cursor:pointer;">
+          </div>
+          <button class="ped-btn primary" id="ped-save-rep-btn" style="width:100%;margin-top:4px;">
+            &#10003; Salva reparto
+          </button>
+        </div>
+      </div>
+
+      <!-- Macchine del reparto -->
+      <div class="ped-card" id="ped-mac-card" style="display:none;">
+        <div class="ped-card-head">
+          <span>Macchine / Risorse</span>
+          <button class="ped-btn primary" id="ped-add-mac-btn">&#43; Aggiungi</button>
+        </div>
+        <div class="ped-card-body" id="ped-mac-list">
+          <div style="color:#94a3b8;font-size:12px;">Nessuna macchina</div>
+        </div>
+      </div>
+
+      <!-- Suggerimenti quando niente è selezionato -->
+      <div class="ped-card" id="ped-hint-card">
+        <div class="ped-card-body" style="color:#64748b;font-size:13px;line-height:1.6;">
+          <strong style="display:block;color:#0f172a;margin-bottom:6px;">Come usare l'editor</strong>
+          <ol style="margin:0;padding-left:18px;">
+            <li>Carica la planimetria PNG con il pulsante <em>Carica planimetria</em>.</li>
+            <li>Clicca <em>Disegna reparto</em> e trascina sull'immagine per creare una zona.</li>
+            <li>Seleziona un reparto per modificarne nome, colore e note.</li>
+            <li>Aggiungi macchine a ciascun reparto con il pulsante <em>&#43; Aggiungi</em>.</li>
+            <li>Trascina i reparti per spostarli; usa le maniglie negli angoli per ridimensionarli.</li>
+          </ol>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Upload modal ── -->
+<div id="ped-upload-overlay">
+  <div class="ped-upload-box">
+    <h2>&#128444; Carica nuova planimetria</h2>
+    <form id="ped-upload-form" enctype="multipart/form-data">
+      <div class="ped-field">
+        <label>Nome planimetria</label>
+        <input type="text" id="ped-up-nome" placeholder="Es. Stabilimento principale" required>
+      </div>
+      <div class="ped-field">
+        <label>File immagine (PNG, JPG)</label>
+        <input type="file" id="ped-up-file" accept="image/png,image/jpeg,image/webp" required>
+      </div>
+      <div id="ped-up-preview" style="margin:10px 0;display:none;">
+        <img id="ped-up-preview-img" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid #e2e8f0;">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button type="submit" class="ped-btn primary" style="flex:1;">&#10003; Carica e attiva</button>
+        <button type="button" class="ped-btn" id="ped-upload-cancel">Annulla</button>
+      </div>
+      <div id="ped-up-status" style="font-size:12px;margin-top:8px;color:#16a34a;"></div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Macchina modal ── -->
+<div id="ped-mac-overlay">
+  <div class="ped-mac-box">
+    <h3 id="ped-mac-modal-title">Aggiungi macchina</h3>
+    <div class="ped-field">
+      <label>Nome macchina <span style="color:#dc2626">*</span></label>
+      <input type="text" id="ped-mac-nome" placeholder="Es. Tornio CNC">
+    </div>
+    <div class="ped-field">
+      <label>Matricola / Codice</label>
+      <input type="text" id="ped-mac-mat" placeholder="Es. TRN-001">
+    </div>
+    <div class="ped-field">
+      <label>Stato</label>
+      <select id="ped-mac-stato">
+        <option value="operativa">Operativa</option>
+        <option value="manutenzione">In manutenzione</option>
+        <option value="ferma">Ferma</option>
+        <option value="dismessa">Dismessa</option>
+      </select>
+    </div>
+    <div class="ped-field">
+      <label>Descrizione / Note</label>
+      <textarea id="ped-mac-desc" placeholder="Note aggiuntive..."></textarea>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button class="ped-btn primary" id="ped-mac-save-btn" style="flex:1;">&#10003; Salva</button>
+      <button class="ped-btn" id="ped-mac-cancel-btn">Annulla</button>
+    </div>
+    <div id="ped-mac-status" style="font-size:12px;margin-top:8px;"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ── Config ─────────────────────────────────────────────────────────────────
+  const CSRF = (function () {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? decodeURIComponent(m[1]) : "";
+  })();
+
+  const PLANIMETRIA_ID = {% if planimetria %}{{ planimetria.id }}{% else %}null{% endif %};
+
+  const COLORI = ["#3b82f6","#22c55e","#f59e0b","#ef4444","#8b5cf6","#06b6d4","#ec4899","#64748b"];
+
+  const URLS = {
+    upload:     "{% url 'planimetria:api_upload' %}",
+    saveRep:    "{% url 'planimetria:api_save_reparto' %}",
+    delRep:     "{% url 'planimetria:api_delete_reparto' reparto_id=0 %}".replace("/0/", "/"),
+    saveMac:    "{% url 'planimetria:api_save_macchina' %}",
+    delMac:     "{% url 'planimetria:api_delete_macchina' macchina_id=0 %}".replace("/0/", "/"),
+    setAttiva:  "{% url 'planimetria:api_set_attiva' planimetria_id=0 %}".replace("/0/", "/"),
+  };
+
+  // ── Stato ─────────────────────────────────────────────────────────────────
+  let reparti = (function () {
+    try { return JSON.parse(document.getElementById("ped-reparti").textContent) || []; }
+    catch { return []; }
+  })();
+
+  let selectedId  = null;
+  let drawMode    = false;
+  let editMacId   = null;  // id macchina in modifica, null = nuova
+  let editRepData = null;  // reparto dati correnti in sidebar
+
+  // ── DOM refs ───────────────────────────────────────────────────────────────
+  const container   = document.getElementById("ped-container");
+  const preview     = document.getElementById("ped-draw-preview");
+  const statusEl    = document.getElementById("ped-status");
+  const detailCard  = document.getElementById("ped-detail-card");
+  const macCard     = document.getElementById("ped-mac-card");
+  const hintCard    = document.getElementById("ped-hint-card");
+  const macList     = document.getElementById("ped-mac-list");
+  const colorRow    = document.getElementById("ped-color-row");
+
+  // ── Colori preset ─────────────────────────────────────────────────────────
+  COLORI.forEach(function (c) {
+    const sw = document.createElement("div");
+    sw.className = "ped-color-swatch";
+    sw.style.background = c;
+    sw.dataset.color = c;
+    sw.title = c;
+    sw.addEventListener("click", function () {
+      document.getElementById("ped-f-colore").value = c;
+      syncColorSwatches(c);
+    });
+    colorRow.appendChild(sw);
+  });
+
+  document.getElementById("ped-f-colore")?.addEventListener("input", function () {
+    syncColorSwatches(this.value);
+  });
+
+  function syncColorSwatches(val) {
+    colorRow.querySelectorAll(".ped-color-swatch").forEach(function (sw) {
+      sw.classList.toggle("active", sw.dataset.color === val);
+    });
+  }
+
+  // ── Render reparti ────────────────────────────────────────────────────────
+  function clearRepElements() {
+    container.querySelectorAll(".pmed-reparto").forEach(function (el) { el.remove(); });
+  }
+
+  function renderReparti() {
+    clearRepElements();
+    reparti.forEach(function (r) { renderReparto(r); });
+  }
+
+  function renderReparto(r) {
+    const el = document.createElement("div");
+    el.className = "pmed-reparto";
+    el.dataset.rid = r.id;
+    el.style.left   = r.x + "%";
+    el.style.top    = r.y + "%";
+    el.style.width  = r.w + "%";
+    el.style.height = r.h + "%";
+    el.style.borderColor     = r.colore;
+    el.style.color           = r.colore;
+    el.style.backgroundColor = r.colore + "33";
+
+    // Label
+    const lbl = document.createElement("div");
+    lbl.className = "pmed-rep-label";
+    lbl.style.backgroundColor = r.colore + "cc";
+    lbl.textContent = r.nome;
+    el.appendChild(lbl);
+
+    // Move handle
+    const mv = document.createElement("div");
+    mv.className = "pmed-move-handle";
+    mv.title = "Trascina per spostare";
+    mv.textContent = "✥";
+    el.appendChild(mv);
+
+    // Resize handles
+    ["nw","ne","sw","se"].forEach(function (dir) {
+      const rh = document.createElement("div");
+      rh.className = "pmed-resize " + dir;
+      el.appendChild(rh);
+    });
+
+    // Select on click
+    el.addEventListener("mousedown", function (e) {
+      if (drawMode) return;
+      if (e.target.classList.contains("pmed-resize")) return;
+      e.stopPropagation();
+      selectReparto(r.id);
+      if (e.target.classList.contains("pmed-move-handle") || e.target === el || e.target === lbl) {
+        startMove(e, r, el);
+      }
+    });
+
+    // Resize
+    el.querySelectorAll(".pmed-resize").forEach(function (rh) {
+      rh.addEventListener("mousedown", function (e) {
+        e.stopPropagation();
+        startResize(e, r, el, rh.classList[1].replace("pmed-resize ", ""));
+      });
+    });
+
+    container.appendChild(el);
+    if (r.id === selectedId) el.classList.add("selected");
+  }
+
+  // ── Select reparto ────────────────────────────────────────────────────────
+  function selectReparto(rid) {
+    selectedId = rid;
+    container.querySelectorAll(".pmed-reparto").forEach(function (el) {
+      el.classList.toggle("selected", Number(el.dataset.rid) === rid);
+    });
+    const r = reparti.find(function (x) { return x.id === rid; });
+    if (!r) { deselectAll(); return; }
+    editRepData = r;
+    fillSidebar(r);
+  }
+
+  function deselectAll() {
+    selectedId = null;
+    editRepData = null;
+    container.querySelectorAll(".pmed-reparto.selected").forEach(function (el) {
+      el.classList.remove("selected");
+    });
+    detailCard.style.display = "none";
+    macCard.style.display    = "none";
+    hintCard.style.display   = "";
+  }
+
+  container.addEventListener("mousedown", function (e) {
+    if (!drawMode && !e.target.closest(".pmed-reparto")) deselectAll();
+  });
+
+  // ── Sidebar ───────────────────────────────────────────────────────────────
+  function fillSidebar(r) {
+    document.getElementById("ped-detail-title").textContent = r.nome || "Reparto";
+    document.getElementById("ped-f-nome").value  = r.nome        || "";
+    document.getElementById("ped-f-resp").value  = r.responsabile || "";
+    document.getElementById("ped-f-note").value  = r.note        || "";
+    document.getElementById("ped-f-colore").value = r.colore     || "#3b82f6";
+    syncColorSwatches(r.colore || "#3b82f6");
+    detailCard.style.display = "";
+    macCard.style.display    = "";
+    hintCard.style.display   = "none";
+    renderMacList(r.macchine || []);
+  }
+
+  function renderMacList(macchine) {
+    if (!macchine.length) {
+      macList.innerHTML = "<div style='color:#94a3b8;font-size:12px;'>Nessuna macchina</div>";
+      return;
+    }
+    macList.innerHTML = "";
+    macchine.forEach(function (m) {
+      const row = document.createElement("div");
+      row.className = "ped-mac-row";
+      row.innerHTML =
+        "<span class='ped-mac-stato-dot " + esc(m.stato) + "'></span>" +
+        "<div style='flex:1;'>" +
+          "<div style='font-weight:600;'>" + esc(m.nome) + "</div>" +
+          (m.matricola ? "<div style='font-size:10px;color:#64748b;'>" + esc(m.matricola) + "</div>" : "") +
+        "</div>" +
+        "<button class='ped-btn' data-edit-mac='" + m.id + "' style='padding:3px 7px;font-size:10px;'>&#9998;</button>" +
+        "<button class='ped-btn danger' data-del-mac='" + m.id + "' style='padding:3px 7px;font-size:10px;'>&#128465;</button>";
+      macList.appendChild(row);
+    });
+  }
+
+  macList.addEventListener("click", async function (e) {
+    const editBtn = e.target.closest("[data-edit-mac]");
+    const delBtn  = e.target.closest("[data-del-mac]");
+    if (editBtn) {
+      const mid = Number(editBtn.dataset.editMac);
+      const r   = reparti.find(function (x) { return x.id === selectedId; });
+      const m   = r && r.macchine ? r.macchine.find(function (x) { return x.id === mid; }) : null;
+      if (m) openMacModal(m);
+    }
+    if (delBtn) {
+      if (!confirm("Eliminare questa macchina?")) return;
+      const mid = Number(delBtn.dataset.delMac);
+      await deleteMacchina(mid);
+    }
+  });
+
+  // ── Save reparto ──────────────────────────────────────────────────────────
+  document.getElementById("ped-save-rep-btn")?.addEventListener("click", async function () {
+    if (!editRepData || !PLANIMETRIA_ID) return;
+    const payload = {
+      planimetria_id: PLANIMETRIA_ID,
+      id:    editRepData.id || undefined,
+      nome:  document.getElementById("ped-f-nome").value.trim(),
+      responsabile: document.getElementById("ped-f-resp").value.trim(),
+      note:  document.getElementById("ped-f-note").value.trim(),
+      colore: document.getElementById("ped-f-colore").value,
+      x: editRepData.x, y: editRepData.y,
+      w: editRepData.w, h: editRepData.h,
+    };
+    setStatus("Salvataggio...");
+    try {
+      const data = await postJson(URLS.saveRep, payload);
+      if (!data.ok) throw new Error(data.error || "Errore");
+      // aggiorna reparti locali
+      const idx = reparti.findIndex(function (r) { return r.id === editRepData.id; });
+      if (idx >= 0) {
+        reparti[idx] = data.reparto;
+      } else {
+        reparti.push(data.reparto);
+        selectedId = data.reparto.id;
+      }
+      editRepData = data.reparto;
+      renderReparti();
+      fillSidebar(data.reparto);
+      setStatus("Salvato!", false);
+    } catch (err) {
+      setStatus("Errore: " + err.message, true);
+    }
+  });
+
+  // ── Delete reparto ────────────────────────────────────────────────────────
+  document.getElementById("ped-delete-rep-btn")?.addEventListener("click", async function () {
+    if (!editRepData || !editRepData.id) { deselectAll(); return; }
+    if (!confirm("Eliminare il reparto \"" + editRepData.nome + "\" e tutte le sue macchine?")) return;
+    setStatus("Eliminazione...");
+    try {
+      const data = await postJson(URLS.delRep + editRepData.id + "/", {});
+      if (!data.ok) throw new Error(data.error || "Errore");
+      reparti = reparti.filter(function (r) { return r.id !== editRepData.id; });
+      deselectAll();
+      renderReparti();
+      setStatus("Reparto eliminato.", false);
+    } catch (err) {
+      setStatus("Errore: " + err.message, true);
+    }
+  });
+
+  // ── Draw mode ─────────────────────────────────────────────────────────────
+  document.getElementById("ped-sel-btn")?.addEventListener("click", function () {
+    setDrawMode(false);
+  });
+  document.getElementById("ped-draw-btn")?.addEventListener("click", function () {
+    setDrawMode(true);
+  });
+
+  function setDrawMode(on) {
+    drawMode = on;
+    container.classList.toggle("draw-mode", on);
+    document.getElementById("ped-sel-btn").classList.toggle("active", !on);
+    document.getElementById("ped-draw-btn").classList.toggle("active", on);
+  }
+
+  // Draw logic
+  let drawStart = null;
+
+  container.addEventListener("mousedown", function (e) {
+    if (!drawMode || !PLANIMETRIA_ID) return;
+    if (e.button !== 0) return;
+    const rect = container.getBoundingClientRect();
+    drawStart = {
+      px: ((e.clientX - rect.left) / rect.width  * 100),
+      py: ((e.clientY - rect.top)  / rect.height * 100),
+    };
+    preview.style.display = "block";
+    preview.style.left   = drawStart.px + "%";
+    preview.style.top    = drawStart.py + "%";
+    preview.style.width  = "0";
+    preview.style.height = "0";
+    e.preventDefault();
+  });
+
+  document.addEventListener("mousemove", function (e) {
+    if (!drawStart) return;
+    const rect = container.getBoundingClientRect();
+    const cx = Math.min(Math.max((e.clientX - rect.left) / rect.width  * 100, 0), 100);
+    const cy = Math.min(Math.max((e.clientY - rect.top)  / rect.height * 100, 0), 100);
+    const x = Math.min(drawStart.px, cx);
+    const y = Math.min(drawStart.py, cy);
+    const w = Math.abs(cx - drawStart.px);
+    const h = Math.abs(cy - drawStart.py);
+    preview.style.left   = x + "%";
+    preview.style.top    = y + "%";
+    preview.style.width  = w + "%";
+    preview.style.height = h + "%";
+  });
+
+  document.addEventListener("mouseup", async function (e) {
+    if (!drawStart) return;
+    const rect = container.getBoundingClientRect();
+    const cx = Math.min(Math.max((e.clientX - rect.left) / rect.width  * 100, 0), 100);
+    const cy = Math.min(Math.max((e.clientY - rect.top)  / rect.height * 100, 0), 100);
+    const x = Math.min(drawStart.px, cx);
+    const y = Math.min(drawStart.py, cy);
+    const w = Math.abs(cx - drawStart.px);
+    const h = Math.abs(cy - drawStart.py);
+    drawStart = null;
+    preview.style.display = "none";
+
+    if (w < 2 || h < 2) return; // troppo piccolo
+
+    const nome = prompt("Nome del reparto:") || "Nuovo Reparto";
+    const colore = COLORI[reparti.length % COLORI.length];
+
+    setStatus("Creazione reparto...");
+    try {
+      const data = await postJson(URLS.saveRep, {
+        planimetria_id: PLANIMETRIA_ID,
+        nome: nome, colore: colore,
+        x, y, w, h,
+      });
+      if (!data.ok) throw new Error(data.error || "Errore");
+      reparti.push(data.reparto);
+      renderReparti();
+      setDrawMode(false);
+      selectReparto(data.reparto.id);
+      setStatus("Reparto creato.", false);
+    } catch (err) {
+      setStatus("Errore: " + err.message, true);
+    }
+  });
+
+  // ── Drag to move ──────────────────────────────────────────────────────────
+  function startMove(e, r, el) {
+    const rect = container.getBoundingClientRect();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const origX  = r.x;
+    const origY  = r.y;
+
+    function onMove(ev) {
+      const dx = (ev.clientX - startX) / rect.width  * 100;
+      const dy = (ev.clientY - startY) / rect.height * 100;
+      r.x = Math.min(Math.max(origX + dx, 0), 100 - r.w);
+      r.y = Math.min(Math.max(origY + dy, 0), 100 - r.h);
+      el.style.left = r.x + "%";
+      el.style.top  = r.y + "%";
+    }
+    async function onUp() {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup",  onUp);
+      // Salva
+      try {
+        await postJson(URLS.saveRep, Object.assign({ planimetria_id: PLANIMETRIA_ID }, r));
+      } catch {}
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup",  onUp);
+    e.preventDefault();
+  }
+
+  // ── Resize ────────────────────────────────────────────────────────────────
+  function startResize(e, r, el, dir) {
+    const rect   = container.getBoundingClientRect();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const orig   = { x: r.x, y: r.y, w: r.w, h: r.h };
+
+    function onMove(ev) {
+      const dx = (ev.clientX - startX) / rect.width  * 100;
+      const dy = (ev.clientY - startY) / rect.height * 100;
+      if (dir.includes("e")) r.w = Math.max(orig.w + dx, 3);
+      if (dir.includes("s")) r.h = Math.max(orig.h + dy, 3);
+      if (dir.includes("w")) { r.x = orig.x + dx; r.w = Math.max(orig.w - dx, 3); }
+      if (dir.includes("n")) { r.y = orig.y + dy; r.h = Math.max(orig.h - dy, 3); }
+      el.style.left   = r.x + "%";
+      el.style.top    = r.y + "%";
+      el.style.width  = r.w + "%";
+      el.style.height = r.h + "%";
+    }
+    async function onUp() {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup",  onUp);
+      try {
+        await postJson(URLS.saveRep, Object.assign({ planimetria_id: PLANIMETRIA_ID }, r));
+      } catch {}
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup",  onUp);
+    e.preventDefault();
+  }
+
+  // ── Macchina modal ────────────────────────────────────────────────────────
+  const macOverlay   = document.getElementById("ped-mac-overlay");
+  const macTitle     = document.getElementById("ped-mac-modal-title");
+  const macNomeEl    = document.getElementById("ped-mac-nome");
+  const macMatEl     = document.getElementById("ped-mac-mat");
+  const macStatoEl   = document.getElementById("ped-mac-stato");
+  const macDescEl    = document.getElementById("ped-mac-desc");
+  const macStatusEl  = document.getElementById("ped-mac-status");
+
+  document.getElementById("ped-add-mac-btn")?.addEventListener("click", function () {
+    openMacModal(null);
+  });
+
+  function openMacModal(m) {
+    editMacId = m ? m.id : null;
+    macTitle.textContent  = m ? "Modifica macchina" : "Aggiungi macchina";
+    macNomeEl.value  = m ? m.nome        : "";
+    macMatEl.value   = m ? m.matricola   : "";
+    macStatoEl.value = m ? m.stato       : "operativa";
+    macDescEl.value  = m ? m.descrizione : "";
+    macStatusEl.textContent = "";
+    macOverlay.classList.add("open");
+    macNomeEl.focus();
+  }
+
+  function closeMacModal() {
+    macOverlay.classList.remove("open");
+    editMacId = null;
+  }
+
+  document.getElementById("ped-mac-cancel-btn")?.addEventListener("click", closeMacModal);
+
+  document.getElementById("ped-mac-save-btn")?.addEventListener("click", async function () {
+    const nome = macNomeEl.value.trim();
+    if (!nome) { macStatusEl.textContent = "Nome obbligatorio."; macStatusEl.style.color = "#dc2626"; return; }
+    const payload = {
+      id:          editMacId || undefined,
+      reparto_id:  selectedId,
+      nome:        nome,
+      matricola:   macMatEl.value.trim(),
+      stato:       macStatoEl.value,
+      descrizione: macDescEl.value.trim(),
+    };
+    macStatusEl.textContent = "Salvataggio..."; macStatusEl.style.color = "#64748b";
+    try {
+      const data = await postJson(URLS.saveMac, payload);
+      if (!data.ok) throw new Error(data.error || "Errore");
+      // Aggiorna lista locale
+      const r = reparti.find(function (x) { return x.id === selectedId; });
+      if (r) {
+        r.macchine = r.macchine || [];
+        const idx = r.macchine.findIndex(function (m) { return m.id === data.macchina.id; });
+        if (idx >= 0) r.macchine[idx] = data.macchina;
+        else r.macchine.push(data.macchina);
+        renderMacList(r.macchine);
+      }
+      closeMacModal();
+    } catch (err) {
+      macStatusEl.textContent = "Errore: " + err.message;
+      macStatusEl.style.color = "#dc2626";
+    }
+  });
+
+  async function deleteMacchina(mid) {
+    try {
+      const data = await postJson(URLS.delMac + mid + "/", {});
+      if (!data.ok) throw new Error(data.error || "Errore");
+      const r = reparti.find(function (x) { return x.id === selectedId; });
+      if (r) {
+        r.macchine = (r.macchine || []).filter(function (m) { return m.id !== mid; });
+        renderMacList(r.macchine);
+      }
+    } catch (err) {
+      setStatus("Errore: " + err.message, true);
+    }
+  }
+
+  // ── Upload planimetria ────────────────────────────────────────────────────
+  const uploadOverlay = document.getElementById("ped-upload-overlay");
+
+  document.getElementById("ped-upload-btn")?.addEventListener("click", function () {
+    uploadOverlay.classList.add("open");
+  });
+  document.getElementById("ped-upload-cancel")?.addEventListener("click", function () {
+    uploadOverlay.classList.remove("open");
+  });
+
+  // Preview immagine selezionata
+  document.getElementById("ped-up-file")?.addEventListener("change", function () {
+    const f = this.files[0];
+    if (!f) return;
+    const preview = document.getElementById("ped-up-preview");
+    const img     = document.getElementById("ped-up-preview-img");
+    img.src = URL.createObjectURL(f);
+    preview.style.display = "";
+  });
+
+  document.getElementById("ped-upload-form")?.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const nome = document.getElementById("ped-up-nome").value.trim();
+    const file = document.getElementById("ped-up-file").files[0];
+    const status = document.getElementById("ped-up-status");
+    if (!nome || !file) { status.textContent = "Compila tutti i campi."; status.style.color = "#dc2626"; return; }
+    status.textContent = "Caricamento..."; status.style.color = "#64748b";
+    const fd = new FormData();
+    fd.append("nome", nome);
+    fd.append("immagine", file);
+    fd.append("csrfmiddlewaretoken", CSRF);
+    try {
+      const resp = await fetch(URLS.upload, { method: "POST", body: fd });
+      const data = await resp.json();
+      if (!data.ok) throw new Error(data.error || "Errore");
+      status.textContent = "Caricata! Ricarico..."; status.style.color = "#16a34a";
+      setTimeout(function () { window.location.reload(); }, 800);
+    } catch (err) {
+      status.textContent = "Errore: " + err.message; status.style.color = "#dc2626";
+    }
+  });
+
+  // ── Attiva planimetria ────────────────────────────────────────────────────
+  document.getElementById("ped-plan-activate-btn")?.addEventListener("click", async function () {
+    const sel = document.getElementById("ped-plan-select");
+    if (!sel) return;
+    const pid = Number(sel.value);
+    try {
+      const data = await postJson(URLS.setAttiva + pid + "/", {});
+      if (!data.ok) throw new Error(data.error || "Errore");
+      window.location.reload();
+    } catch (err) {
+      setStatus("Errore: " + err.message, true);
+    }
+  });
+
+  // ── Utility ───────────────────────────────────────────────────────────────
+  function setStatus(msg, isErr) {
+    statusEl.textContent = msg || "";
+    statusEl.className = isErr ? "err" : "";
+    if (!isErr && msg) setTimeout(function () { if (statusEl.textContent === msg) statusEl.textContent = ""; }, 3000);
+  }
+
+  async function postJson(url, payload) {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+      body: JSON.stringify(payload),
+    });
+    return resp.json();
+  }
+
+  function esc(v) {
+    return String(v ?? "")
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  renderReparti();
+
+})();
+</script>
+{% endblock %}

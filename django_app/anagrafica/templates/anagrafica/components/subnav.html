@@ -1,0 +1,25 @@
+{% with current=request.resolver_match.view_name %}
+<div class="subnav">
+  <a class="sub-a{% if current == 'anagrafica:index' %} active{% endif %}" href="{% url 'anagrafica:index' %}">Anagrafica</a>
+  <div class="sub-sep"></div>
+  <a class="sub-a{% if current == 'anagrafica:dipendenti_list' %} active{% endif %}" href="{% url 'anagrafica:dipendenti_list' %}">Dipendenti</a>
+  <a class="sub-a{% if current == 'anagrafica:fornitori_list' or current == 'anagrafica:fornitore_detail' or current == 'anagrafica:fornitore_create' or current == 'anagrafica:fornitore_edit' %} active{% endif %}" href="{% url 'anagrafica:fornitori_list' %}">Fornitori</a>
+</div>
+<div class="notice" style="margin-top: 10px;">
+  {% if current == 'anagrafica:index' %}
+    <strong>Anagrafica:</strong> panoramica di dipendenti e fornitori aziendali.
+  {% elif current == 'anagrafica:dipendenti_list' %}
+    <strong>Dipendenti:</strong> elenco dei dipendenti aziendali (dati da archivio legacy). Per modifiche strutturali usa l'Admin Portale.
+  {% elif current == 'anagrafica:fornitori_list' %}
+    <strong>Fornitori:</strong> gestione anagrafica fornitori. Clicca su un fornitore per vedere documenti, ordini e valutazioni.
+  {% elif current == 'anagrafica:fornitore_detail' %}
+    <strong>Scheda fornitore:</strong> anagrafica, documenti allegati, storico ordini e valutazioni qualita'.
+  {% elif current == 'anagrafica:fornitore_create' %}
+    <strong>Nuovo fornitore:</strong> compila i campi obbligatori (ragione sociale) e salva. Potrai aggiungere documenti e ordini dalla scheda.
+  {% elif current == 'anagrafica:fornitore_edit' %}
+    <strong>Modifica fornitore:</strong> aggiorna i dati anagrafici del fornitore.
+  {% else %}
+    <strong>Anagrafica:</strong> gestione dipendenti e fornitori.
+  {% endif %}
+</div>
+{% endwith %}

@@ -1,0 +1,342 @@
+{% extends "core/base.html" %}
+
+{% block title %}Onboarding / Offboarding | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .cl-tipo-head { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted,#888);padding:8px 0 4px;border-bottom:2px solid var(--border,#e5e7eb);margin-bottom:8px; }
+  .cl-voce-row { display:flex;align-items:center;gap:10px;padding:6px 8px;border-bottom:1px solid var(--border-light,#f3f4f6);font-size:13px; }
+  .cl-voce-row:last-child { border-bottom:none; }
+  .cl-voce-label { flex:1; }
+  .cl-voce-tipo  { font-size:11px;color:var(--text-muted,#888);background:var(--bg-subtle,#f3f4f6);padding:2px 6px;border-radius:3px; }
+  .cl-badge-obblig { font-size:10px;background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:3px;border:1px solid #fcd34d; }
+  .cl-toggle { width:14px;height:14px;cursor:pointer;accent-color:var(--accent,#3b82f6); }
+  .cl-btn-edit { font-size:11px;padding:2px 8px;border:1px solid var(--border,#d1d5db);border-radius:4px;background:none;cursor:pointer;color:var(--text-muted,#555); }
+  .cl-btn-del  { font-size:11px;padding:2px 8px;border:1px solid #fca5a5;border-radius:4px;background:none;cursor:pointer;color:#dc2626; }
+  .cl-add-btn  { font-size:12px;font-weight:600;padding:5px 14px;border:1px dashed var(--accent,#3b82f6);border-radius:6px;background:none;cursor:pointer;color:var(--accent,#3b82f6);margin-top:8px; }
+
+  /* Status badge */
+  .cl-ok    { color:#16a34a;font-weight:600; }
+  .cl-no    { color:#94a3b8; }
+  .cl-stato { font-size:12px; }
+
+  /* Modal */
+  .cl-modal-backdrop { display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center; }
+  .cl-modal-backdrop.open { display:flex; }
+  .cl-modal { background:#fff;border-radius:10px;padding:24px;width:480px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.18); }
+  .cl-modal h3 { margin:0 0 16px;font-size:16px; }
+  .cl-modal .field { margin-bottom:12px; }
+  .cl-modal label { display:block;font-size:12px;font-weight:600;color:var(--text-muted,#888);margin-bottom:4px; }
+  .cl-modal .input { width:100%;box-sizing:border-box; }
+  .cl-modal-footer { display:flex;gap:8px;justify-content:flex-end;margin-top:16px; }
+  .cl-two-col { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
+  @media (max-width: 640px) {
+    .cl-two-col { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Onboarding / Offboarding" page_subtitle="Gestisci check-in (assunzione) e check-out (dimissioni) dei dipendenti." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <div class="cl-two-col">
+
+    {# ── Voci Check-in ── #}
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Voci Check-in (Onboarding)</div>
+      </div>
+      <div class="card-body" style="padding:12px 16px;">
+        <div class="cl-tipo-head">Voci configurate ({{ voci_checkin|length }})</div>
+        {% for v in voci_checkin %}
+          <div class="cl-voce-row" data-voce-id="{{ v.id }}">
+            <input type="checkbox" class="cl-toggle voce-toggle" data-id="{{ v.id }}"
+              {% if v.is_active %}checked{% endif %} title="Attiva/disattiva">
+            <span class="cl-voce-label {% if not v.is_active %}cl-no{% endif %}">{{ v.label }}</span>
+            <span class="cl-voce-tipo">{{ v.categoria|default:"Generale" }}</span>
+            {% if v.obbligatorio %}<span class="cl-badge-obblig">obbl.</span>{% endif %}
+            <span class="cl-voce-tipo">{{ v.get_tipo_campo_display }}</span>
+            <span style="font-size:11px;color:var(--text-muted,#888)">#{{ v.ordine }}</span>
+            <button class="cl-btn-edit" data-edit-id="{{ v.id }}" data-tipo="checkin"
+              data-categoria="{{ v.categoria|default:'Generale'|escapejs }}"
+              data-label="{{ v.label|escapejs }}"
+              data-tipo-campo="{{ v.tipo_campo }}"
+              data-scelte="{{ v.scelte_json|escapejs }}"
+              data-obbligatorio="{{ v.obbligatorio|yesno:'true,false' }}"
+              data-ordine="{{ v.ordine }}">Modifica</button>
+            {% if not v.is_active %}<button class="cl-btn-del" data-del-id="{{ v.id }}">Elimina</button>{% endif %}
+          </div>
+        {% empty %}
+          <div style="color:var(--text-muted,#888);font-size:13px;padding:8px 0;">Nessuna voce configurata.</div>
+        {% endfor %}
+        <button class="cl-add-btn" data-add-tipo="checkin">+ Aggiungi voce</button>
+      </div>
+    </div>
+
+    {# ── Voci Check-out ── #}
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Voci Check-out (Offboarding)</div>
+      </div>
+      <div class="card-body" style="padding:12px 16px;">
+        <div class="cl-tipo-head">Voci configurate ({{ voci_checkout|length }})</div>
+        {% for v in voci_checkout %}
+          <div class="cl-voce-row" data-voce-id="{{ v.id }}">
+            <input type="checkbox" class="cl-toggle voce-toggle" data-id="{{ v.id }}"
+              {% if v.is_active %}checked{% endif %} title="Attiva/disattiva">
+            <span class="cl-voce-label {% if not v.is_active %}cl-no{% endif %}">{{ v.label }}</span>
+            <span class="cl-voce-tipo">{{ v.categoria|default:"Generale" }}</span>
+            {% if v.obbligatorio %}<span class="cl-badge-obblig">obbl.</span>{% endif %}
+            <span class="cl-voce-tipo">{{ v.get_tipo_campo_display }}</span>
+            <span style="font-size:11px;color:var(--text-muted,#888)">#{{ v.ordine }}</span>
+            <button class="cl-btn-edit" data-edit-id="{{ v.id }}" data-tipo="checkout"
+              data-categoria="{{ v.categoria|default:'Generale'|escapejs }}"
+              data-label="{{ v.label|escapejs }}"
+              data-tipo-campo="{{ v.tipo_campo }}"
+              data-scelte="{{ v.scelte_json|escapejs }}"
+              data-obbligatorio="{{ v.obbligatorio|yesno:'true,false' }}"
+              data-ordine="{{ v.ordine }}">Modifica</button>
+            {% if not v.is_active %}<button class="cl-btn-del" data-del-id="{{ v.id }}">Elimina</button>{% endif %}
+          </div>
+        {% empty %}
+          <div style="color:var(--text-muted,#888);font-size:13px;padding:8px 0;">Nessuna voce configurata.</div>
+        {% endfor %}
+        <button class="cl-add-btn" data-add-tipo="checkout">+ Aggiungi voce</button>
+      </div>
+    </div>
+
+  </div>
+
+  {# ── Panoramica utenti ── #}
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Stato dipendenti</div>
+      <span style="font-size:12px;color:var(--text-muted,#888)">{{ utenti_con_stato|length }} utenti attivi</span>
+    </div>
+    <div class="card-body" style="padding:0;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="background:var(--bg-subtle,#f9fafb);border-bottom:1px solid var(--border,#e5e7eb);">
+            <th style="text-align:left;padding:8px 12px;font-size:11px;text-transform:uppercase;color:var(--text-muted,#888);">Utente</th>
+            <th style="text-align:left;padding:8px 12px;font-size:11px;text-transform:uppercase;color:var(--text-muted,#888);">Check-in</th>
+            <th style="text-align:left;padding:8px 12px;font-size:11px;text-transform:uppercase;color:var(--text-muted,#888);">Check-out</th>
+            <th style="width:80px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in utenti_con_stato %}
+            <tr style="border-bottom:1px solid var(--border-light,#f3f4f6);">
+              <td style="padding:8px 12px;font-weight:500;">{{ row.utente.nome }}</td>
+              <td style="padding:8px 12px;" class="cl-stato">
+                {% if row.checkin %}
+                  <span class="cl-ok">✓</span> {{ row.checkin.data_esecuzione|date:"d/m/Y" }}
+                  <span style="color:var(--text-muted,#888);font-size:11px;">da {{ row.checkin.eseguita_da_nome|default:"—" }}</span>
+                {% else %}
+                  <span class="cl-no">—</span>
+                {% endif %}
+              </td>
+              <td style="padding:8px 12px;" class="cl-stato">
+                {% if row.checkout %}
+                  <span class="cl-ok">✓</span> {{ row.checkout.data_esecuzione|date:"d/m/Y" }}
+                  <span style="color:var(--text-muted,#888);font-size:11px;">da {{ row.checkout.eseguita_da_nome|default:"—" }}</span>
+                {% else %}
+                  <span class="cl-no">—</span>
+                {% endif %}
+              </td>
+              <td style="padding:8px 12px;text-align:right;">
+                <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:checklist_utente' row.utente.id %}">Gestisci</a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" style="padding:16px;color:var(--text-muted,#888);">Nessun utente attivo trovato.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# ── Modal Aggiungi/Modifica Voce ── #}
+  <div class="cl-modal-backdrop" id="voce-modal">
+    <div class="cl-modal">
+      <h3 id="modal-title">Aggiungi voce</h3>
+      <input type="hidden" id="modal-voce-id" value="">
+      <input type="hidden" id="modal-tipo-checklist" value="">
+
+      <div class="field">
+        <label>Categoria</label>
+        <input class="input" type="text" id="modal-categoria" value="Generale" placeholder="es. Documenti, DPI, IT, Sicurezza">
+      </div>
+      <div class="field">
+        <label>Descrizione voce *</label>
+        <input class="input" type="text" id="modal-label" placeholder="es. Badge consegnato, Contratto firmato...">
+      </div>
+      <div class="field">
+        <label>Tipo campo</label>
+        <select class="input" id="modal-tipo-campo">
+          <option value="check">Checkbox (fatto/non fatto)</option>
+          <option value="testo">Testo libero</option>
+          <option value="data">Data</option>
+          <option value="select">Scelta da lista</option>
+        </select>
+      </div>
+      <div class="field" id="field-scelte" style="display:none;">
+        <label>Opzioni (una per riga)</label>
+        <textarea class="input" id="modal-scelte" rows="3" placeholder="Opzione 1&#10;Opzione 2&#10;Opzione 3"></textarea>
+      </div>
+      <div class="field" style="display:flex;gap:16px;align-items:center;">
+        <label style="display:flex;align-items:center;gap:6px;font-weight:normal;cursor:pointer;">
+          <input type="checkbox" id="modal-obbligatorio"> Obbligatorio
+        </label>
+        <div>
+          <label>Ordine</label>
+          <input class="input" type="number" id="modal-ordine" value="100" min="1" style="width:80px;display:inline-block;margin-left:6px;">
+        </div>
+      </div>
+      <div class="cl-modal-footer">
+        <button class="btn btn-secondary" id="modal-cancel">Annulla</button>
+        <button class="btn" id="modal-save">Salva</button>
+      </div>
+      <div id="modal-status" style="font-size:12px;margin-top:8px;min-height:16px;"></div>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    "use strict";
+    const CSRF = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || "";
+
+    const CREATE_URL = "{% url 'admin_portale:api_checklist_voce_create' %}";
+    const UPDATE_URL = "{% url 'admin_portale:api_checklist_voce_update' %}";
+    const TOGGLE_URL = "{% url 'admin_portale:api_checklist_voce_toggle' %}";
+    const DELETE_URL = "{% url 'admin_portale:api_checklist_voce_delete' %}";
+
+    async function apiPost(url, body) {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+        body: JSON.stringify(body),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.ok) throw new Error(d.error || "HTTP " + r.status);
+      return d;
+    }
+
+    // ── Toggle attiva/disattiva voce ──
+    document.querySelectorAll(".voce-toggle").forEach(function (cb) {
+      cb.addEventListener("change", async function () {
+        const id = parseInt(cb.dataset.id, 10);
+        try {
+          await apiPost(TOGGLE_URL, { id: id, is_active: cb.checked });
+          location.reload();
+        } catch (e) {
+          cb.checked = !cb.checked;
+          alert("Errore: " + e.message);
+        }
+      });
+    });
+
+    // ── Elimina voce ──
+    document.querySelectorAll(".cl-btn-del").forEach(function (btn) {
+      btn.addEventListener("click", async function () {
+        if (!confirm("Eliminare questa voce? L'operazione è irreversibile se non ha risposte registrate.")) return;
+        try {
+          await apiPost(DELETE_URL, { id: parseInt(btn.dataset.delId, 10) });
+          location.reload();
+        } catch (e) {
+          alert("Errore: " + e.message);
+        }
+      });
+    });
+
+    // ── Modal ──
+    const modal    = document.getElementById("voce-modal");
+    const modalTitle = document.getElementById("modal-title");
+    const fId      = document.getElementById("modal-voce-id");
+    const fTipo    = document.getElementById("modal-tipo-checklist");
+    const fCategoria = document.getElementById("modal-categoria");
+    const fLabel   = document.getElementById("modal-label");
+    const fCampo   = document.getElementById("modal-tipo-campo");
+    const fScelte  = document.getElementById("modal-scelte");
+    const fieldSc  = document.getElementById("field-scelte");
+    const fObbl    = document.getElementById("modal-obbligatorio");
+    const fOrdine  = document.getElementById("modal-ordine");
+    const statusEl = document.getElementById("modal-status");
+
+    fCampo.addEventListener("change", function () {
+      fieldSc.style.display = fCampo.value === "select" ? "" : "none";
+    });
+
+    function openModal(tipo, voceId, data) {
+      fId.value     = voceId || "";
+      fTipo.value   = tipo;
+      fCategoria.value = (data && data.categoria) || "Generale";
+      fLabel.value  = (data && data.label) || "";
+      fCampo.value  = (data && data.tipoCampo) || "check";
+      fScelte.value = (data && data.scelte) || "";
+      fObbl.checked = (data && data.obbligatorio === "true") || false;
+      fOrdine.value = (data && data.ordine) || 100;
+      fieldSc.style.display = fCampo.value === "select" ? "" : "none";
+      modalTitle.textContent = voceId ? "Modifica voce" : "Aggiungi voce";
+      statusEl.textContent = "";
+      modal.classList.add("open");
+      fLabel.focus();
+    }
+
+    function closeModal() { modal.classList.remove("open"); }
+
+    document.getElementById("modal-cancel").addEventListener("click", closeModal);
+    modal.addEventListener("click", function (e) { if (e.target === modal) closeModal(); });
+
+    document.querySelectorAll(".cl-add-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () { openModal(btn.dataset.addTipo, null, null); });
+    });
+
+    document.querySelectorAll(".cl-btn-edit").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        openModal(btn.dataset.tipo, btn.dataset.editId, {
+          categoria:    btn.dataset.categoria,
+          label:        btn.dataset.label,
+          tipoCampo:    btn.dataset.tipoCampo,
+          scelte:       (function () { try { return (JSON.parse(btn.dataset.scelte) || []).join("\n"); } catch (e) { return ""; } })(),
+          obbligatorio: btn.dataset.obbligatorio,
+          ordine:       btn.dataset.ordine,
+        });
+      });
+    });
+
+    document.getElementById("modal-save").addEventListener("click", async function () {
+      const label = fLabel.value.trim();
+      if (!label) { statusEl.textContent = "Inserisci una descrizione."; statusEl.style.color = "#dc2626"; return; }
+      const scelte = fCampo.value === "select"
+        ? fScelte.value.split("\n").map(function (s) { return s.trim(); }).filter(Boolean)
+        : [];
+      const body = {
+        categoria: fCategoria.value.trim() || "Generale",
+        label: label,
+        tipo_campo: fCampo.value,
+        scelte: scelte,
+        obbligatorio: fObbl.checked,
+        ordine: parseInt(fOrdine.value, 10) || 100,
+      };
+      try {
+        if (fId.value) {
+          body.id = parseInt(fId.value, 10);
+          await apiPost(UPDATE_URL, body);
+        } else {
+          body.tipo_checklist = fTipo.value;
+          await apiPost(CREATE_URL, body);
+        }
+        location.reload();
+      } catch (e) {
+        statusEl.textContent = "Errore: " + e.message;
+        statusEl.style.color = "#dc2626";
+      }
+    });
+  })();
+  </script>
+{% endblock %}

@@ -1,0 +1,81 @@
+<div class="auto-source-panel {{ panel_class }}">
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Contenuti / Colonne disponibili</div>
+    </div>
+    <div class="card-body">
+      <div class="auto-source-note">
+        Il pannello resta sempre visibile per aiutare la compilazione di trigger, condizioni, template e mapping azioni.
+      </div>
+      {% for source in source_catalog_panels %}
+        <div class="auto-source-catalog"{% if selected_source_code != source.code %} hidden{% endif %} data-source-catalog="{{ source.code }}">
+          <div class="auto-source-head">
+            <div>
+              <strong>{{ source.label }}</strong>
+              <div class="auto-source-desc">{{ source.description }}</div>
+            </div>
+            <div class="auto-source-chip">{{ source.code }}</div>
+          </div>
+
+          <div class="auto-source-section">
+            <div class="auto-source-section-title">Campi usabili nei trigger</div>
+            <ul class="auto-source-list">
+              {% for field in source.trigger_fields %}
+                <li><code>{{ field.name }}</code> <strong>{{ field.label }}</strong> <span>{{ field.data_type }}</span><br>{{ field.description }}</li>
+              {% empty %}
+                <li>Nessun campo trigger disponibile.</li>
+              {% endfor %}
+            </ul>
+          </div>
+
+          <div class="auto-source-section">
+            <div class="auto-source-section-title">Campi usabili nelle condizioni</div>
+            <ul class="auto-source-list">
+              {% for field in source.condition_fields %}
+                <li><code>{{ field.name }}</code> <strong>{{ field.label }}</strong> <span>{{ field.data_type }}</span><br>{{ field.description }}</li>
+              {% empty %}
+                <li>Nessun campo condizione disponibile.</li>
+              {% endfor %}
+            </ul>
+          </div>
+
+          <div class="auto-source-section">
+            <div class="auto-source-section-title">Campi usabili nei template</div>
+            <ul class="auto-source-list">
+              {% for field in source.template_fields %}
+                <li><code>{{ field.name }}</code> <strong>{{ field.label }}</strong> <span>{{ field.data_type }}</span><br>{{ field.description }}</li>
+              {% empty %}
+                <li>Nessun campo template disponibile.</li>
+              {% endfor %}
+            </ul>
+          </div>
+
+          <div class="auto-source-section">
+            <div class="auto-source-section-title">Campi usabili nel mapping azioni</div>
+            <ul class="auto-source-list">
+              {% for field in source.action_mapping_fields %}
+                <li><code>{{ field.name }}</code> <strong>{{ field.label }}</strong> <span>{{ field.data_type }}</span><br>{{ field.description }}</li>
+              {% empty %}
+                <li>Nessun campo mapping disponibile.</li>
+              {% endfor %}
+            </ul>
+          </div>
+
+          <div class="auto-source-section">
+            <div class="auto-source-section-title">Placeholder disponibili</div>
+            <div class="auto-source-placeholders">
+              {% for placeholder in source.placeholder_examples %}
+                <span class="auto-source-chip">
+                  {{ placeholder }}
+                  <button type="button" class="btn btn-light" style="margin-left:8px;padding:2px 8px;font-size:11px;" data-copy-value="{{ placeholder }}">Copia</button>
+                </span>
+              {% empty %}
+                <span class="auto-source-chip">Nessun placeholder</span>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>

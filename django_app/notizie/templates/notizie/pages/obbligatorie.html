@@ -1,0 +1,45 @@
+{% extends "core/base.html" %}
+{% block title %}Comunicazioni obbligatorie — Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+.obblig-header { text-align:center; margin:2.5rem 0 1.5rem; }
+.obblig-header h1 { font-size:1.5rem; font-weight:700; color:#dc2626; }
+.obblig-header p  { color:var(--text-secondary,#64748b); margin-top:.4rem; }
+.obblig-list { list-style:none; padding:0; max-width:680px; margin:0 auto; }
+.obblig-item {
+  background:#fff; border:2px solid #fca5a5; border-radius:10px;
+  padding:1.1rem 1.4rem; margin-bottom:.9rem;
+  display:flex; align-items:center; justify-content:space-between; gap:1rem;
+}
+.obblig-item a.btn-leggi {
+  white-space:nowrap; padding:.45rem 1.1rem; background:var(--primary,#1e3a5f);
+  color:#fff; border-radius:7px; font-size:.9rem; font-weight:600; text-decoration:none;
+}
+.obblig-item a.btn-leggi:hover { opacity:.85; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="obblig-header">
+  <h1>&#9888; Comunicazioni obbligatorie da confermare</h1>
+  <p>Devi confermare la lettura delle seguenti comunicazioni prima di continuare.</p>
+</div>
+
+{% if not pendenti %}
+  <p style="text-align:center;color:#16a34a;font-weight:600;">Nessuna comunicazione obbligatoria in attesa. &#10003;</p>
+  <p style="text-align:center;"><a href="{% url 'dashboard_home' %}">Torna alla Dashboard</a></p>
+{% else %}
+  <ul class="obblig-list">
+    {% for n in pendenti %}
+    <li class="obblig-item">
+      <div>
+        <strong>{{ n.titolo }}</strong>
+        <div style="font-size:.82rem;color:#94a3b8;margin-top:.2rem;">Versione {{ n.versione }}{% if n.pubblicato_il %} · {{ n.pubblicato_il|date:"d/m/Y" }}{% endif %}</div>
+      </div>
+      <a href="{% url 'notizie_dettaglio' n.id %}" class="btn-leggi">Leggi e conferma</a>
+    </li>
+    {% endfor %}
+  </ul>
+{% endif %}
+{% endblock %}

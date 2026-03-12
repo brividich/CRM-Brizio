@@ -1,0 +1,202 @@
+{% extends "core/base.html" %}
+
+{% block title %}Gestione Reparto | Portale Applicativo{% endblock %}
+
+{% block subnav %}
+  {% include "core/components/subnav.html" %}
+{% endblock %}
+
+{% block extra_head %}
+<style>
+  .gr-toolbar { display:flex; gap:12px; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; margin-bottom:16px; }
+  .gr-search { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }
+  .gr-table { width:100%; border-collapse:collapse; }
+  .gr-table th, .gr-table td { padding:10px 12px; border-bottom:1px solid var(--border,#e5e7eb); vertical-align:top; text-align:left; }
+  .gr-table th { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted,#64748b); }
+  .gr-muted { color:var(--text-muted,#64748b); font-size:12px; }
+  .gr-inline { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .gr-status { min-height:18px; font-size:12px; margin-top:6px; }
+  .gr-pill { display:inline-flex; align-items:center; padding:4px 8px; border-radius:999px; background:#eff6ff; color:#1d4ed8; font-size:12px; font-weight:600; }
+  .gr-input { min-width:180px; }
+  @media (max-width: 980px) {
+    .gr-table, .gr-table tbody, .gr-table tr, .gr-table td { display:block; width:100%; }
+    .gr-table thead { display:none; }
+    .gr-table tr { padding:12px 0; border-bottom:1px solid var(--border,#e5e7eb); }
+    .gr-table td { border:none; padding:6px 0; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+  <div class="page-header">
+    <div class="page-h">Gestione reparto</div>
+    <div class="page-sub">
+      Assegna reparto e caporeparto ai dipendenti dal portale. Questi dati sono locali e non dipendono da SharePoint.
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-body">
+      <div class="gr-toolbar">
+        <div>
+          {% if is_admin %}
+            <div class="gr-pill">Profilo admin</div>
+            <div class="gr-muted" style="margin-top:8px;">Puoi scegliere liberamente reparto e caporeparto per ogni utente.</div>
+          {% else %}
+            <div class="gr-pill">Caporeparto: {{ manager_caporeparto|default:"non configurato" }}</div>
+            <div class="gr-muted" style="margin-top:8px;">Il tuo reparto corrente: <strong>{{ manager_reparto|default:"non impostato" }}</strong>.</div>
+          {% endif %}
+        </div>
+        <form method="get" class="gr-search">
+          <div>
+            <label for="gr-q" class="gr-muted">Cerca utente</label>
+            <input class="input" id="gr-q" type="text" name="q" value="{{ q }}" placeholder="Nome o email">
+          </div>
+          <button class="btn" type="submit">Filtra</button>
+          {% if q %}
+            <a class="btn btn-secondary" href="{% url 'gestione_reparto' %}">Reset</a>
+          {% endif %}
+        </form>
+      </div>
+      {% if not is_admin and not manager_reparto %}
+        <div class="notice" style="margin-top:10px;">
+          Imposta prima il tuo reparto nel profilo utente o dalla scheda anagrafica. Senza reparto non puoi assegnare altri utenti.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Utenti attivi</div>
+      <div class="gr-muted">{{ rows|length }} record caricati</div>
+    </div>
+    <div class="card-body">
+      <table class="gr-table">
+        <thead>
+          <tr>
+            <th>Utente</th>
+            <th>Ruolo</th>
+            <th>Reparto attuale</th>
+            <th>Caporeparto attuale</th>
+            <th>Azione</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr data-user-id="{{ row.id }}">
+              <td>
+                <div style="font-weight:600;">{{ row.nome }}</div>
+                <div class="gr-muted">{{ row.email|default:"-" }}</div>
+              </td>
+              <td>{{ row.ruolo|default:"-" }}</td>
+              <td><span class="js-current-reparto">{{ row.reparto_attuale|default:"-" }}</span></td>
+              <td><span class="js-current-caporeparto">{{ row.caporeparto_attuale|default:"-" }}</span></td>
+              <td>
+                {% if is_admin %}
+                  <div class="gr-inline">
+                    {% if reparti_options %}
+                      <select class="input gr-input js-reparto">
+                        <option value="">-- Reparto --</option>
+                        {% if row.reparto_attuale and not row.reparto_in_options %}
+                          <option value="{{ row.reparto_attuale }}" selected>{{ row.reparto_attuale }}</option>
+                        {% endif %}
+                        {% for reparto in reparti_options %}
+                          <option value="{{ reparto }}" {% if reparto == row.reparto_attuale %}selected{% endif %}>{{ reparto }}</option>
+                        {% endfor %}
+                      </select>
+                    {% else %}
+                      <input class="input gr-input js-reparto" type="text" value="{{ row.reparto_attuale }}" placeholder="Reparto">
+                    {% endif %}
+                    {% if caporeparto_options %}
+                      <select class="input gr-input js-caporeparto">
+                        <option value="">-- Caporeparto --</option>
+                        {% if row.caporeparto_attuale and not row.caporeparto_in_options %}
+                          <option value="{{ row.caporeparto_attuale }}" selected>{{ row.caporeparto_attuale }}</option>
+                        {% endif %}
+                        {% for capo in caporeparto_options %}
+                          <option value="{{ capo }}" {% if capo == row.caporeparto_attuale %}selected{% endif %}>{{ capo }}</option>
+                        {% endfor %}
+                      </select>
+                    {% else %}
+                      <input class="input gr-input js-caporeparto" type="text" value="{{ row.caporeparto_attuale }}" placeholder="Caporeparto">
+                    {% endif %}
+                    <button class="btn js-save-row" type="button">Salva</button>
+                  </div>
+                {% else %}
+                  <div class="gr-inline">
+                    <span class="gr-muted">Target: {{ manager_reparto|default:"-" }}</span>
+                    <button class="btn js-save-row" type="button" {% if not manager_reparto %}disabled{% endif %}>Assegna al mio reparto</button>
+                  </div>
+                {% endif %}
+                <div class="gr-status js-row-status"></div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="5">Nessun utente trovato.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    "use strict";
+
+    const csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || "";
+    const urlTemplate = "{% url 'api_gestione_reparto_assegna' 0 %}";
+
+    function setStatus(el, msg, isError) {
+      if (!el) return;
+      el.textContent = msg || "";
+      el.style.color = isError ? "#dc2626" : "#15803d";
+    }
+
+    document.querySelectorAll(".js-save-row").forEach(function (btn) {
+      btn.addEventListener("click", async function () {
+        const row = btn.closest("tr");
+        if (!row) return;
+        const userId = row.dataset.userId;
+        const repartoEl = row.querySelector(".js-reparto");
+        const capoEl = row.querySelector(".js-caporeparto");
+        const statusEl = row.querySelector(".js-row-status");
+        const reparto = repartoEl ? (repartoEl.value || "").trim() : "";
+        const caporeparto = capoEl ? (capoEl.value || "").trim() : "";
+
+        btn.disabled = true;
+        setStatus(statusEl, "Salvataggio...", false);
+
+        try {
+          const response = await fetch(urlTemplate.replace("/0/", "/" + userId + "/"), {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": csrf
+            },
+            body: JSON.stringify({
+              reparto: reparto,
+              caporeparto: caporeparto
+            })
+          });
+          const data = await response.json().catch(function () { return {}; });
+          if (!response.ok || !data.ok) {
+            throw new Error(data.error || ("HTTP " + response.status));
+          }
+          const repartoLabel = row.querySelector(".js-current-reparto");
+          const capoLabel = row.querySelector(".js-current-caporeparto");
+          if (repartoLabel) repartoLabel.textContent = data.reparto || "-";
+          if (capoLabel) capoLabel.textContent = data.caporeparto || "-";
+          setStatus(statusEl, "Salvato.", false);
+        } catch (err) {
+          setStatus(statusEl, "Errore: " + err.message, true);
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+  })();
+  </script>
+{% endblock %}

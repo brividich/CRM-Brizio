@@ -1,0 +1,161 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Report inventario{% endblock %}
+
+{% block assets_shell_title %}Report inventario{% endblock %}
+{% block assets_shell_subtitle %}<p>Scadenze manutenzione e storico interventi.</p>{% endblock %}
+{% block assets_shell_toolbar %}
+  <a class="btn btn-primary" href="{{ maintenance_month_pdf_url }}" target="_blank" rel="noopener">PDF manutenzioni mese</a>
+  {% if report_templates_manage_url %}
+    <a class="btn" href="{{ report_templates_manage_url }}">Gestione template report</a>
+  {% endif %}
+  <a class="btn" href="{% url 'assets:asset_list' %}">Torna all'inventario</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section style="display:grid;gap:14px;">
+  <article style="border:1px solid #dbe1ea;border-radius:12px;background:#fff;padding:12px;display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;">
+    <div>
+      <h3 style="margin:0;">Periodo report manutenzione macchine</h3>
+      <p style="margin:4px 0 0;color:#64748b;">Seleziona il mese da usare per preview ed export PDF.</p>
+    </div>
+    <form method="get" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+      <div>
+        <label for="maintenanceMonthInput" style="display:block;font-size:12px;color:#64748b;margin-bottom:4px;">Mese</label>
+        <input id="maintenanceMonthInput" type="month" name="month" value="{{ maintenance_month_code }}" style="height:38px;border:1px solid #cbd5e1;border-radius:10px;padding:0 10px;background:#fff;color:#0f172a;font:inherit;">
+      </div>
+      <button class="btn" type="submit">Aggiorna</button>
+    </form>
+  </article>
+
+  <div class="as-form-grid-4">
+    <article style="border:1px solid #dbe1ea;border-radius:12px;background:#fff;padding:12px;">
+      <div style="font-size:12px;color:#64748b;">Interventi aperti</div>
+      <div style="font-size:28px;font-weight:700;">{{ open_count }}</div>
+    </article>
+    <article style="border:1px solid #dbe1ea;border-radius:12px;background:#fff;padding:12px;">
+      <div style="font-size:12px;color:#64748b;">Interventi aperti oltre 30 giorni</div>
+      <div style="font-size:28px;font-weight:700;">{{ late_count }}</div>
+    </article>
+    <article style="border:1px solid #dbe1ea;border-radius:12px;background:#fff;padding:12px;">
+      <div style="font-size:12px;color:#64748b;">Interventi chiusi negli ultimi 30 giorni</div>
+      <div style="font-size:28px;font-weight:700;">{{ done_recent_count }}</div>
+    </article>
+    <article style="border:1px solid #dbe1ea;border-radius:12px;background:#fff;padding:12px;">
+      <div style="font-size:12px;color:#64748b;">Beni senza preventiva recente</div>
+      <div style="font-size:28px;font-weight:700;">{{ due_assets_count }}</div>
+    </article>
+  </div>
+
+  <div class="as-form-grid-2" style="gap:12px;">
+    <article style="border:1px solid #dbe1ea;border-radius:12px;background:#fff;padding:12px;">
+      <h3 style="margin-top:0;">Interventi aperti critici</h3>
+      <ul style="margin:0;padding-left:16px;">
+        {% for wo in late_open_workorders %}
+          <li>
+            <a href="{% url 'assets:wo_view' wo.id %}">#{{ wo.id }} - {{ wo.asset.asset_tag }} - {{ wo.title }}</a>
+            <span style="color:#64748b;">({{ wo.opened_at|date:"d/m/Y" }})</span>
+          </li>
+        {% empty %}
+          <li style="color:#64748b;">Nessun intervento oltre soglia.</li>
+        {% endfor %}
+      </ul>
+    </article>
+
+    <article style="border:1px solid #dbe1ea;border-radius:12px;background:#fff;padding:12px;">
+      <h3 style="margin-top:0;">Interventi completati (30gg)</h3>
+      <ul style="margin:0;padding-left:16px;">
+        {% for wo in recent_done_workorders %}
+          <li>
+            <a href="{% url 'assets:wo_view' wo.id %}">#{{ wo.id }} - {{ wo.asset.asset_tag }} - {{ wo.title }}</a>
+            <span style="color:#64748b;">({{ wo.closed_at|date:"d/m/Y" }})</span>
+          </li>
+        {% empty %}
+          <li style="color:#64748b;">Nessun intervento chiuso recente.</li>
+        {% endfor %}
+      </ul>
+    </article>
+  </div>
+
+  <article style="border:1px solid #dbe1ea;border-radius:12px;background:#fff;padding:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+      <div>
+        <h3 style="margin:0;">Macchine con manutenzione nel mese</h3>
+        <p style="margin:4px 0 0;color:#64748b;">{{ maintenance_month_label|capfirst }} · {{ maintenance_month_period_label }} · {{ maintenance_month_count }} macchine</p>
+        <p style="margin:4px 0 0;color:#64748b;font-size:12px;">Scadute {{ maintenance_month_overdue_count }} · In soglia {{ maintenance_month_warning_count }} · Pianificate {{ maintenance_month_ok_count }}</p>
+      </div>
+      <a class="btn btn-primary" href="{{ maintenance_month_pdf_url }}" target="_blank" rel="noopener">Apri PDF</a>
+    </div>
+    <div style="overflow:auto;margin-top:12px;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="text-align:left;background:#f8fafc;">
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Data</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Tag</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Macchina</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Reparto</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Stato</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in maintenance_month_rows %}
+            <tr>
+              <td style="padding:8px;border-bottom:1px solid #f1f5f9;">{{ row.machine.next_maintenance_date|date:"d/m/Y" }}</td>
+              <td style="padding:8px;border-bottom:1px solid #f1f5f9;">{{ row.asset.asset_tag }}</td>
+              <td style="padding:8px;border-bottom:1px solid #f1f5f9;">{{ row.asset.name }}</td>
+              <td style="padding:8px;border-bottom:1px solid #f1f5f9;">{{ row.asset.reparto|default:"-" }}</td>
+              <td style="padding:8px;border-bottom:1px solid #f1f5f9;">{{ row.state.label }}</td>
+              <td style="padding:8px;border-bottom:1px solid #f1f5f9;">
+                <a class="btn" href="{% url 'assets:asset_view' row.asset.id %}">Dettaglio</a>
+                <a class="btn btn-primary" href="{% url 'assets:work_machine_edit' row.asset.id %}">Aggiorna</a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6" style="padding:8px;color:#64748b;">Nessuna macchina con manutenzione pianificata nel mese selezionato.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article style="border:1px solid #dbe1ea;border-radius:12px;background:#fff;padding:12px;">
+    <h3 style="margin-top:0;">Beni da pianificare (preventiva)</h3>
+    <div style="overflow:auto;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="text-align:left;background:#f8fafc;">
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Tag</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Nome</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Reparto</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Ultima preventiva</th>
+            <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for asset in due_assets %}
+            <tr>
+              <td style="padding:8px;border-bottom:1px solid #f1f5f9;">{{ asset.asset_tag }}</td>
+              <td style="padding:8px;border-bottom:1px solid #f1f5f9;">{{ asset.name }}</td>
+              <td style="padding:8px;border-bottom:1px solid #f1f5f9;">{{ asset.reparto|default:"-" }}</td>
+              <td style="padding:8px;border-bottom:1px solid #f1f5f9;">
+                {% if asset.last_preventive_date %}{{ asset.last_preventive_date|date:"d/m/Y" }}{% else %}-{% endif %}
+              </td>
+              <td style="padding:8px;border-bottom:1px solid #f1f5f9;">
+                <a class="btn" href="{% url 'assets:asset_view' asset.id %}">Dettaglio</a>
+                <a class="btn btn-primary" href="{% url 'assets:wo_create' asset.id %}">Apri intervento</a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="5" style="padding:8px;color:#64748b;">Nessun bene in scadenza.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+</section>
+{% endblock %}

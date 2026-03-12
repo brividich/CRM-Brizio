@@ -1,0 +1,1088 @@
+{% extends "core/base.html" %}
+
+{% block title %}Automazioni - Designer Visuale | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .designer-shell { padding:4px; border-radius:24px; background:linear-gradient(135deg, #dbeafe 0%, #fef3c7 45%, #dcfce7 100%); }
+  .designer-layout { display:grid; gap:18px; grid-template-columns:minmax(0, 1.8fr) minmax(320px, .85fr); align-items:start; }
+  .designer-main { display:grid; gap:18px; }
+  .designer-header { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:flex-start; }
+  .designer-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .designer-summary { display:grid; gap:12px; background:linear-gradient(135deg, #fff7ed 0%, #eff6ff 52%, #ecfdf5 100%); border:1px solid #bfdbfe; border-radius:20px; padding:20px; }
+  .designer-summary-kicker { font-size:12px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#0f766e; }
+  .designer-summary-line { font-size:16px; font-weight:700; color:#0f172a; }
+  .designer-summary-list { margin:0; padding-left:18px; display:grid; gap:6px; color:#334155; }
+  .designer-flow { display:grid; gap:12px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
+  .designer-flow-card { position:relative; padding:18px; border-radius:20px; border:1px solid #dbeafe; background:#fff; min-height:132px; overflow:hidden; }
+  .designer-flow-card::after { content:""; position:absolute; inset:auto -18px 50% auto; width:36px; height:2px; background:#94a3b8; }
+  .designer-flow-card:last-child::after { display:none; }
+  .designer-flow-card.trigger { background:linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-color:#93c5fd; }
+  .designer-flow-card.conditions { background:linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%); border-color:#fdba74; }
+  .designer-flow-card.actions { background:linear-gradient(135deg, #ecfdf5 0%, #bbf7d0 100%); border-color:#86efac; }
+  .designer-flow-step { font-size:11px; font-weight:900; letter-spacing:.12em; text-transform:uppercase; color:#334155; }
+  .designer-flow-title { margin-top:8px; font-size:22px; font-weight:900; color:#0f172a; }
+  .designer-flow-copy { margin-top:8px; color:#334155; font-size:13px; line-height:1.5; }
+  .designer-flow-meta { margin-top:14px; display:flex; gap:8px; flex-wrap:wrap; }
+  .designer-meta { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); }
+  .designer-meta-card { border:1px solid #e2e8f0; border-radius:14px; padding:14px; background:#fff; }
+  .designer-meta-label { font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.08em; }
+  .designer-meta-value { margin-top:6px; color:#0f172a; font-size:15px; word-break:break-word; }
+  .designer-sections { display:grid; gap:18px; }
+  .designer-section-card { border:1px solid #e2e8f0; border-radius:18px; background:#fff; overflow:hidden; }
+  .designer-section-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; padding:18px 18px 0; }
+  .designer-section-title { font-size:18px; font-weight:800; color:#0f172a; }
+  .designer-section-subtitle { margin-top:4px; color:#475569; font-size:13px; max-width:760px; }
+  .designer-section-body { display:grid; gap:14px; padding:18px; }
+  .designer-trigger-copy { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); }
+  .designer-field { display:grid; gap:6px; }
+  .designer-field label { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:#475569; }
+  .designer-field input, .designer-field select, .designer-field textarea { width:100%; padding:10px 11px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; }
+  .designer-field textarea { min-height:88px; }
+  .designer-field-wide { grid-column:1 / -1; }
+  .designer-help { font-size:12px; color:#64748b; }
+  .designer-errors { margin:4px 0 0; padding-left:18px; color:#b91c1c; font-size:13px; }
+  .designer-pill-row { display:flex; flex-wrap:wrap; gap:8px; }
+  .designer-pill { display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:#e2e8f0; color:#0f172a; font-size:12px; font-weight:700; }
+  .designer-pill-primary { background:#dbeafe; color:#1d4ed8; }
+  .designer-pill-warning { background:#fef3c7; color:#92400e; }
+  .designer-pill-success { background:#dcfce7; color:#166534; }
+  .designer-note { padding:12px 14px; border-radius:12px; background:#f8fafc; color:#475569; font-size:13px; border:1px solid #e2e8f0; }
+  .designer-inline-banner { padding:10px 12px; border-radius:12px; background:linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%); border:1px solid #bfdbfe; color:#1e3a8a; font-size:13px; font-weight:600; }
+  .designer-sortable { display:grid; gap:12px; }
+  .designer-condition-card, .designer-action-card { cursor:grab; }
+  .designer-condition-card.is-dragging, .designer-action-card.is-dragging { opacity:.65; box-shadow:0 20px 35px rgba(15, 23, 42, .08); }
+  .designer-editor-shell { border-top:1px dashed #cbd5e1; padding-top:12px; }
+  .designer-editor-summary { cursor:pointer; font-weight:800; color:#0f172a; list-style:none; display:flex; align-items:center; gap:8px; }
+  .designer-editor-summary::-webkit-details-marker { display:none; }
+  .designer-editor-summary::before { content:"▾"; color:#0f766e; font-size:14px; transition:transform .18s ease; }
+  .designer-editor-shell:not([open]) .designer-editor-summary::before { transform:rotate(-90deg); }
+  .designer-editor-stack { display:grid; gap:12px; }
+  .designer-editor-panel { padding:14px; border:1px solid #e2e8f0; border-radius:16px; background:linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); }
+  .designer-editor-panel-title { margin-bottom:10px; font-size:12px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; color:#0f766e; }
+  .designer-subeditor { margin-top:12px; padding-top:12px; border-top:1px dashed #cbd5e1; }
+  .designer-subeditor-summary { cursor:pointer; font-size:13px; font-weight:700; color:#334155; list-style:none; }
+  .designer-subeditor-summary::-webkit-details-marker { display:none; }
+  .designer-subeditor-summary::before { content:"+"; display:inline-flex; width:18px; justify-content:center; color:#1d4ed8; font-weight:900; }
+  .designer-subeditor[open] .designer-subeditor-summary::before { content:"−"; }
+  .designer-field-compact-toggle { align-content:start; }
+  .designer-toggle-wrap { min-height:44px; display:flex; align-items:center; padding:0 2px; }
+  .designer-toggle-wrap input[type="checkbox"] { width:18px; height:18px; }
+  .designer-preset-zone { margin-top:12px; padding:14px; border-radius:16px; background:linear-gradient(135deg, #fffef2 0%, #f8fafc 100%); border:1px solid #e5e7eb; display:grid; gap:12px; }
+  .designer-preset-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+  .designer-size-switch { display:inline-flex; align-items:center; gap:4px; padding:4px; border-radius:999px; background:#ffffff; border:1px solid #dbe4f0; }
+  .designer-size-button { min-width:32px; height:30px; border:0; border-radius:999px; background:transparent; color:#475569; font-size:12px; font-weight:800; cursor:pointer; }
+  .designer-size-button.is-active { background:#0f172a; color:#ffffff; }
+  .designer-preset-grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); }
+  .designer-preset-card { position:relative; overflow:hidden; padding:12px; border-radius:14px; border:1px solid #dbe4f0; background:#fff; display:grid; gap:8px; min-height:124px; }
+  .designer-preset-zone[data-preset-size-mode="sm"] .designer-preset-grid { grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:8px; }
+  .designer-preset-zone[data-preset-size-mode="sm"] .designer-preset-card { padding:10px; min-height:108px; gap:6px; }
+  .designer-preset-zone[data-preset-size-mode="sm"] .designer-preset-title { font-size:13px; }
+  .designer-preset-zone[data-preset-size-mode="sm"] .designer-preset-desc { font-size:12px; line-height:1.35; }
+  .designer-preset-zone[data-preset-size-mode="sm"] .designer-preset-tag { font-size:10px; padding:3px 8px; }
+  .designer-preset-zone[data-preset-size-mode="sm"] .designer-preset-card .btn { padding:5px 10px; font-size:12px; }
+  .designer-preset-zone[data-preset-size-mode="md"] .designer-preset-grid { grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); }
+  .designer-preset-zone[data-preset-size-mode="lg"] .designer-preset-grid { grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; }
+  .designer-preset-zone[data-preset-size-mode="lg"] .designer-preset-card { padding:16px; min-height:154px; gap:10px; border-radius:18px; }
+  .designer-preset-zone[data-preset-size-mode="lg"] .designer-preset-title { font-size:16px; }
+  .designer-preset-zone[data-preset-size-mode="lg"] .designer-preset-desc { font-size:14px; line-height:1.5; }
+  .designer-preset-card::before { content:""; position:absolute; inset:0 auto 0 0; width:5px; background:#94a3b8; }
+  .designer-preset-card.theme-blue { background:linear-gradient(180deg, #eff6ff 0%, #ffffff 100%); border-color:#bfdbfe; }
+  .designer-preset-card.theme-blue::before { background:#2563eb; }
+  .designer-preset-card.theme-green { background:linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%); border-color:#bbf7d0; }
+  .designer-preset-card.theme-green::before { background:#16a34a; }
+  .designer-preset-card.theme-rose { background:linear-gradient(180deg, #fff1f2 0%, #ffffff 100%); border-color:#fecdd3; }
+  .designer-preset-card.theme-rose::before { background:#e11d48; }
+  .designer-preset-card.theme-amber { background:linear-gradient(180deg, #fffbeb 0%, #ffffff 100%); border-color:#fde68a; }
+  .designer-preset-card.theme-amber::before { background:#d97706; }
+  .designer-preset-card.theme-slate { background:linear-gradient(180deg, #f8fafc 0%, #ffffff 100%); border-color:#cbd5e1; }
+  .designer-preset-card.theme-slate::before { background:#475569; }
+  .designer-preset-title { font-size:15px; font-weight:800; color:#0f172a; }
+  .designer-preset-desc { color:#475569; font-size:13px; line-height:1.45; }
+  .designer-preset-foot { display:flex; justify-content:space-between; gap:8px; align-items:center; margin-top:auto; }
+  .designer-preset-tag { display:inline-flex; align-items:center; padding:4px 9px; border-radius:999px; background:rgba(255,255,255,.8); color:#334155; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; }
+  .designer-empty { padding:14px; border:1px dashed #cbd5e1; border-radius:14px; color:#64748b; background:#f8fafc; }
+  .designer-add-stack { display:grid; gap:12px; }
+  .designer-form-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .designer-side { display:grid; gap:18px; position:sticky; top:20px; }
+  .designer-quicktest pre { margin:0; max-height:240px; overflow:auto; padding:12px; border-radius:12px; background:#0f172a; color:#e2e8f0; font-size:12px; }
+  .designer-status { min-height:20px; font-size:12px; color:#1d4ed8; }
+  .designer-source-panel { position:static; }
+  .designer-badge-grid { display:grid; gap:8px; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); }
+  @media (max-width: 1100px) {
+    .designer-layout { grid-template-columns:1fr; }
+    .designer-side { position:static; }
+  }
+  @media (max-width: 900px) {
+    .designer-flow { grid-template-columns:1fr; }
+    .designer-flow-card::after { display:none; }
+  }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Designer visuale" page_subtitle="Vista affiancata al builder classico per leggere e modificare la regola in modo piu' chiaro." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+  {% include "automazioni/components/subnav.html" %}
+
+  <div class="designer-shell">
+  <form method="post" class="designer-layout" id="rule-designer-form">
+    {% csrf_token %}
+    <div class="designer-main">
+      <div class="designer-section-card">
+        <div class="designer-section-body">
+          <div class="designer-header">
+            <div>
+              <div class="designer-summary-kicker">Designer visuale affiancato {% if is_new_rule %}· Nuova regola{% else %}· Regola {{ rule.id }}{% endif %}</div>
+              <div class="designer-section-title">{{ rule_name_value }}</div>
+              <div class="designer-section-subtitle">Questa pagina non sostituisce il builder classico: e' una vista piu' leggibile sugli stessi dati e sugli stessi servizi runtime.</div>
+            </div>
+            <div class="designer-actions">
+              {% if not is_new_rule %}
+                <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_detail' rule.id %}">Dettaglio</a>
+                <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_edit' rule.id %}">Builder classico</a>
+                <a class="btn" href="{% url 'admin_portale:automazioni_rule_test' rule.id %}">Testa regola</a>
+              {% else %}
+                <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_create' %}">Builder classico</a>
+                <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_list' %}">Lista regole</a>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="designer-flow">
+            <div class="designer-flow-card trigger">
+              <div class="designer-flow-step">Step 1</div>
+              <div class="designer-flow-title">Trigger</div>
+              <div class="designer-flow-copy">{{ trigger_descriptor.headline }}</div>
+              <div class="designer-flow-meta">
+                <span class="designer-pill designer-pill-primary">{{ trigger_descriptor.operation_label }}</span>
+                <span class="designer-pill">{{ trigger_descriptor.trigger_scope_label }}</span>
+              </div>
+            </div>
+            <div class="designer-flow-card conditions">
+              <div class="designer-flow-step">Step 2</div>
+              <div class="designer-flow-title">Condizioni</div>
+              <div class="designer-flow-copy">Tutte le condizioni devono essere vere. Il riordino cambia l'ordine logico con drag-and-drop o pulsanti dedicati.</div>
+              <div class="designer-flow-meta">
+                <span class="designer-pill">{{ existing_condition_entries|length }} salvate</span>
+                <span class="designer-pill designer-pill-warning">AND</span>
+              </div>
+            </div>
+            <div class="designer-flow-card actions">
+              <div class="designer-flow-step">Step 3</div>
+              <div class="designer-flow-title">Azioni</div>
+              <div class="designer-flow-copy">Preview sintetico immediato, sequenza visibile e modifica inline solo quando serve.</div>
+              <div class="designer-flow-meta">
+                <span class="designer-pill">{{ existing_action_entries|length }} salvate</span>
+                <span class="designer-pill designer-pill-success">sequenza</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="designer-summary">
+            <div class="designer-summary-kicker">Riepilogo umano</div>
+            <div class="designer-summary-line">{{ human_rule_summary.when }}</div>
+            <div class="designer-summary-line">{{ human_rule_summary.scope }}</div>
+            <div class="designer-summary-line">{{ human_rule_summary.condition_line }}</div>
+            <div>
+              <div class="designer-summary-kicker">Allora</div>
+              <ul class="designer-summary-list">
+                {% for line in human_rule_summary.then_lines %}
+                  <li>{{ line }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+          </div>
+
+          {% if rule_form.non_field_errors %}
+            <ul class="designer-errors">{% for error in rule_form.non_field_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+          {% endif %}
+
+          <div class="designer-meta">
+            <div class="designer-meta-card">
+              <div class="designer-meta-label">Code</div>
+              <div class="designer-meta-value">{{ rule_form.code }}</div>
+              {% if rule_form.code.errors %}<ul class="designer-errors">{% for error in rule_form.code.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            </div>
+            <div class="designer-meta-card">
+              <div class="designer-meta-label">Nome</div>
+              <div class="designer-meta-value">{{ rule_form.name }}</div>
+              {% if rule_form.name.errors %}<ul class="designer-errors">{% for error in rule_form.name.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            </div>
+            <div class="designer-meta-card">
+              <div class="designer-meta-label">Descrizione</div>
+              <div class="designer-meta-value">{{ rule_form.description }}</div>
+              {% if rule_form.description.errors %}<ul class="designer-errors">{% for error in rule_form.description.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            </div>
+          </div>
+
+          <div class="designer-form-actions">
+            <button class="btn" type="submit">Salva designer</button>
+            <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_list' %}">Torna alla lista</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="designer-sections">
+        {% include "automazioni/components/trigger_card.html" %}
+
+        <section class="designer-section-card">
+          <div class="designer-section-head">
+            <div>
+              <div class="designer-section-title">Condizioni</div>
+              <div class="designer-section-subtitle">Tutte le condizioni devono essere vere. Riordino con drag-and-drop o pulsanti su/giu'.</div>
+            </div>
+            <div class="designer-pill-row">
+              <span class="designer-pill designer-pill-primary">AND</span>
+              <span class="designer-pill">{{ existing_condition_entries|length }} salvate</span>
+              {% if is_new_rule %}<span class="designer-pill designer-pill-warning">salva per attivare il riordino persistente</span>{% endif %}
+            </div>
+          </div>
+          <div class="designer-section-body">
+            {{ condition_formset.management_form }}
+            {% if condition_formset.non_form_errors %}
+              <ul class="designer-errors">{% for error in condition_formset.non_form_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+            <div class="designer-status" data-reorder-status="conditions"></div>
+            <div class="designer-note">Drag-and-drop e pulsanti di riordino aggiornano il campo `order`. Le modifiche ai contenuti restano SSR e vanno salvate con il pulsante pagina.{% if is_new_rule %} Finche' la regola non esiste ancora a database, il riordino server-side non viene eseguito.{% endif %}</div>
+
+            {% if existing_condition_entries %}
+              <div class="designer-sortable" data-sortable-list data-section="conditions"{% if not is_new_rule %} data-reorder-url="{% url 'admin_portale:automazioni_rule_condition_reorder' rule.id %}"{% endif %}>
+                {% for entry in existing_condition_entries %}
+                  {% include "automazioni/components/condition_card.html" with entry=entry %}
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="designer-empty">Nessuna condizione salvata nella regola.</div>
+            {% endif %}
+
+            <div class="designer-add-stack">
+              <div class="designer-summary-kicker">Aggiungi nuova condizione</div>
+              {% for entry in new_condition_entries %}
+                {% include "automazioni/components/condition_card.html" with entry=entry %}
+              {% endfor %}
+            </div>
+          </div>
+        </section>
+
+        <section class="designer-section-card">
+          <div class="designer-section-head">
+            <div>
+              <div class="designer-section-title">Azioni</div>
+              <div class="designer-section-subtitle">Le azioni vengono eseguite in sequenza. Il preview sintetico resta leggibile anche senza aprire l'editor della card.</div>
+            </div>
+            <div class="designer-pill-row">
+              <span class="designer-pill designer-pill-success">sequenza</span>
+              <span class="designer-pill">{{ existing_action_entries|length }} salvate</span>
+              {% if is_new_rule %}<span class="designer-pill designer-pill-warning">salva per attivare il riordino persistente</span>{% endif %}
+            </div>
+          </div>
+          <div class="designer-section-body">
+            {{ action_formset.management_form }}
+            {% if action_formset.non_form_errors %}
+              <ul class="designer-errors">{% for error in action_formset.non_form_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+            <div class="designer-status" data-reorder-status="actions"></div>
+            <div class="designer-note">Usa il riordino leggero per cambiare l'ordine esecutivo. Il dettaglio configurazione si apre nella singola card.{% if is_new_rule %} Il persist del riordino parte dopo il primo salvataggio.{% endif %}</div>
+
+            {% if existing_action_entries %}
+              <div class="designer-sortable" data-sortable-list data-section="actions"{% if not is_new_rule %} data-reorder-url="{% url 'admin_portale:automazioni_rule_action_reorder' rule.id %}"{% endif %}>
+                {% for entry in existing_action_entries %}
+                  {% include "automazioni/components/action_card.html" with entry=entry %}
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="designer-empty">Nessuna azione salvata nella regola.</div>
+            {% endif %}
+
+            <div class="designer-add-stack">
+              <div class="designer-summary-kicker">Aggiungi nuova azione</div>
+              {% for entry in new_action_entries %}
+                {% include "automazioni/components/action_card.html" with entry=entry %}
+              {% endfor %}
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="designer-form-actions">
+        <button class="btn" type="submit">Salva designer</button>
+        <a class="btn btn-light" href="{% if is_new_rule %}{% url 'admin_portale:automazioni_rule_list' %}{% else %}{% url 'admin_portale:automazioni_rule_detail' rule.id %}{% endif %}">Annulla</a>
+      </div>
+    </div>
+
+    <aside class="designer-side">
+      <div class="designer-section-card designer-quicktest">
+        <div class="designer-section-head">
+          <div>
+            <div class="designer-section-title">Test rapido</div>
+            <div class="designer-section-subtitle">Riusa la pagina test esistente con un payload esempio coerente con la sorgente selezionata.</div>
+          </div>
+        </div>
+        <div class="designer-section-body">
+          <div class="designer-badge-grid">
+            <div class="designer-meta-card">
+              <div class="designer-meta-label">Sorgente</div>
+              <div class="designer-meta-value">{{ trigger_descriptor.source_label }}</div>
+            </div>
+            <div class="designer-meta-card">
+              <div class="designer-meta-label">Operazione</div>
+              <div class="designer-meta-value">{{ trigger_descriptor.operation_label }}</div>
+            </div>
+          </div>
+          <pre>{{ sample_payload_json }}</pre>
+          <div class="designer-form-actions">
+            {% if not is_new_rule %}
+              <a class="btn" href="{% url 'admin_portale:automazioni_rule_test' rule.id %}">Apri test manuale</a>
+            {% else %}
+              <div class="designer-note">Il test rapido diventa disponibile dopo il primo salvataggio della regola.</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      {% include "automazioni/components/source_catalog_panel.html" with panel_class="designer-source-panel" %}
+    </aside>
+  </form>
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+{{ condition_suggestions_json|json_script:"designer-condition-suggestions" }}
+{{ action_suggestions_json|json_script:"designer-action-suggestions" }}
+<script>
+(function() {
+  var conditionSuggestionsNode = document.getElementById('designer-condition-suggestions');
+  var conditionSuggestions = conditionSuggestionsNode ? JSON.parse(conditionSuggestionsNode.textContent) : {};
+  var actionSuggestionsNode = document.getElementById('designer-action-suggestions');
+  var actionSuggestions = actionSuggestionsNode ? JSON.parse(actionSuggestionsNode.textContent) : {};
+  var conditionPresetSizeStorageKey = 'automationDesignerConditionPresetSize';
+  var presetSizeStorageKey = 'automationDesignerPresetSize';
+
+  function forEachNode(nodeList, callback) {
+    if (!nodeList || !callback) return;
+    for (var index = 0; index < nodeList.length; index += 1) {
+      callback(nodeList[index], index);
+    }
+  }
+
+  function matchesSelector(element, selector) {
+    if (!element || element.nodeType !== 1) return false;
+    var matcher = element.matches || element.msMatchesSelector || element.webkitMatchesSelector;
+    return matcher ? matcher.call(element, selector) : false;
+  }
+
+  function closestElement(element, selector) {
+    var current = element;
+    while (current && current.nodeType === 1) {
+      if (matchesSelector(current, selector)) return current;
+      current = current.parentElement;
+    }
+    return null;
+  }
+
+  function setClassState(element, className, isActive) {
+    if (!element || !className) return;
+    if (element.classList) {
+      if (isActive) {
+        element.classList.add(className);
+      } else {
+        element.classList.remove(className);
+      }
+      return;
+    }
+    var classes = String(element.className || '').split(/\s+/);
+    var filtered = [];
+    for (var index = 0; index < classes.length; index += 1) {
+      if (classes[index] && classes[index] !== className) {
+        filtered.push(classes[index]);
+      }
+    }
+    if (isActive) filtered.push(className);
+    element.className = filtered.join(' ');
+  }
+
+  function getCsrfToken() {
+    var field = document.querySelector('#rule-designer-form input[name="csrfmiddlewaretoken"]');
+    return field ? field.value : '';
+  }
+
+  function showStatus(section, message, isError) {
+    var node = document.querySelector('[data-reorder-status="' + section + '"]');
+    if (!node) return;
+    node.textContent = message || '';
+    node.style.color = isError ? '#b91c1c' : '#1d4ed8';
+  }
+
+  function syncWatchedField() {
+    var scope = document.getElementById('id_trigger_scope');
+    var watched = document.getElementById('id_watched_field');
+    if (!scope || !watched) return;
+    var enabled = scope.value === 'specific_field';
+    watched.disabled = !enabled;
+    if (!enabled) watched.value = '';
+  }
+
+  function syncSourceCatalog() {
+    var select = document.getElementById('id_source_code');
+    if (!select) return;
+    forEachNode(document.querySelectorAll('[data-source-catalog]'), function(panel) {
+      panel.hidden = panel.getAttribute('data-source-catalog') !== select.value;
+    });
+  }
+
+  function syncActionCards() {
+    forEachNode(document.querySelectorAll('[data-action-card]'), function(card) {
+      var select = card.querySelector('select[name$="-action_type"]');
+      if (!select) return;
+      var value = select.value;
+      forEachNode(card.querySelectorAll('[data-action-config]'), function(group) {
+        group.hidden = group.getAttribute('data-action-config') !== value;
+      });
+    });
+  }
+
+  function fieldIsBlank(field) {
+    if (!field) return true;
+    if (field.type === 'checkbox') return !field.checked;
+    return !String(field.value || '').trim();
+  }
+
+  function setFieldValue(field, value) {
+    if (!field) return;
+    if (field.type === 'checkbox') {
+      field.checked = !!value;
+      return;
+    }
+    field.value = value == null ? '' : value;
+  }
+
+  function setFieldPlaceholder(field, value) {
+    if (!field || field.type === 'checkbox') return;
+    field.setAttribute('placeholder', value || '');
+  }
+
+  function getCardField(card, fieldName) {
+    return card.querySelector('[name$="-' + fieldName + '"]');
+  }
+
+  function getFieldDisplayValue(field) {
+    if (!field) return '';
+    if (field.type === 'checkbox') return field.checked ? 'Si' : 'No';
+    if (field.tagName && field.tagName.toLowerCase() === 'select') {
+      var selected = field.options[field.selectedIndex];
+      return selected ? String(selected.text || '').trim() : '';
+    }
+    return String(field.value || '').trim();
+  }
+
+  function setCardFeedback(card, message) {
+    var feedback = card ? card.querySelector('[data-card-feedback]') : null;
+    if (!feedback) return;
+    feedback.textContent = message || '';
+  }
+
+  function openCardDetails(card) {
+    var details = card ? card.querySelector('[data-card-details]') : null;
+    if (details) details.open = true;
+  }
+
+  function replaceNodeChildren(node, lines) {
+    if (!node) return;
+    node.innerHTML = '';
+    for (var index = 0; index < lines.length; index += 1) {
+      var lineNode = document.createElement('div');
+      lineNode.textContent = lines[index];
+      node.appendChild(lineNode);
+    }
+  }
+
+  function updateConditionCardPresentation(card) {
+    if (!card) return;
+    var fieldField = getCardField(card, 'field_name');
+    var operatorField = getCardField(card, 'operator');
+    var expectedField = getCardField(card, 'expected_value');
+    var summaryNode = card.querySelector('[data-condition-summary]');
+    var humanNode = card.querySelector('[data-condition-human-summary]');
+
+    var fieldRaw = fieldField ? String(fieldField.value || '').trim() : '';
+    var fieldLabel = getFieldDisplayValue(fieldField) || fieldRaw || 'Campo';
+    var operatorRaw = operatorField ? String(operatorField.value || '').trim() : '';
+    var operatorLabel = getFieldDisplayValue(operatorField) || operatorRaw || 'Operatore';
+    var expectedValue = expectedField ? String(expectedField.value || '').trim() : '';
+
+    if (summaryNode) {
+      summaryNode.textContent = (fieldRaw || 'campo') + ' ' + (operatorRaw || 'operatore') + (expectedValue ? ' ' + expectedValue : '');
+    }
+    if (humanNode) {
+      humanNode.textContent = fieldLabel + ' • ' + operatorLabel;
+    }
+  }
+
+  function updateActionCardPresentation(card) {
+    if (!card) return;
+    var actionTypeField = getCardField(card, 'action_type');
+    var descriptionField = getCardField(card, 'description');
+    var actionLabelNode = card.querySelector('[data-action-label]');
+    var actionSummaryNode = card.querySelector('[data-action-summary]');
+    var previewNode = card.querySelector('[data-action-preview]');
+
+    var actionType = actionTypeField ? String(actionTypeField.value || '').trim() : '';
+    var actionLabel = getFieldDisplayValue(actionTypeField) || '-';
+    var description = descriptionField ? String(descriptionField.value || '').trim() : '';
+    var previewLines = ['Configurazione non disponibile.'];
+
+    if (actionType === 'send_email') {
+      previewLines = [
+        'Destinatari: ' + (String((getCardField(card, 'email_to') || {}).value || '').trim() || '-'),
+        'Subject: ' + (String((getCardField(card, 'email_subject_template') || {}).value || '').trim() || '-'),
+        'Body: ' + (String((getCardField(card, 'email_body_text_template') || {}).value || '').trim() || '-')
+      ];
+    } else if (actionType === 'write_log') {
+      previewLines = ['Messaggio: ' + (String((getCardField(card, 'write_log_message_template') || {}).value || '').trim() || '-')];
+    } else if (actionType === 'update_dashboard_metric') {
+      previewLines = [
+        'Metrica: ' + (String((getCardField(card, 'metric_code') || {}).value || '').trim() || '-'),
+        'Operazione: ' + (String((getCardField(card, 'metric_operation') || {}).value || '').trim() || '-'),
+        'Valore: ' + (String((getCardField(card, 'metric_value_template') || {}).value || '').trim() || '-')
+      ];
+    } else if (actionType === 'insert_record') {
+      var insertMappings = String((getCardField(card, 'insert_field_mappings_text') || {}).value || '').split(/\r?\n/);
+      var insertCount = 0;
+      for (var i = 0; i < insertMappings.length; i += 1) {
+        if (String(insertMappings[i] || '').trim()) insertCount += 1;
+      }
+      previewLines = [
+        'Tabella: ' + (String((getCardField(card, 'insert_target_table') || {}).value || '').trim() || '-'),
+        'Field mappings: ' + insertCount
+      ];
+    } else if (actionType === 'update_record') {
+      var updateMappings = String((getCardField(card, 'update_fields_text') || {}).value || '').split(/\r?\n/);
+      var updateCount = 0;
+      for (var j = 0; j < updateMappings.length; j += 1) {
+        if (String(updateMappings[j] || '').trim()) updateCount += 1;
+      }
+      previewLines = [
+        'Tabella: ' + (String((getCardField(card, 'update_target_table') || {}).value || '').trim() || '-'),
+        'Where field: ' + (String((getCardField(card, 'update_where_field') || {}).value || '').trim() || '-'),
+        'Update fields: ' + updateCount
+      ];
+    }
+
+    if (actionLabelNode) actionLabelNode.textContent = actionLabel;
+    if (actionSummaryNode) actionSummaryNode.textContent = description || actionLabel;
+    replaceNodeChildren(previewNode, previewLines);
+  }
+
+  function getConditionConfig() {
+    return conditionSuggestions.base || null;
+  }
+
+  function getPresetSizeMode() {
+    try {
+      return localStorage.getItem(presetSizeStorageKey) || 'sm';
+    } catch (error) {
+      return 'sm';
+    }
+  }
+
+  function setPresetSizeMode(mode) {
+    try {
+      localStorage.setItem(presetSizeStorageKey, mode);
+    } catch (error) {
+      // ignore storage errors
+    }
+    forEachNode(document.querySelectorAll('[data-preset-zone]'), function(zone) {
+      zone.setAttribute('data-preset-size-mode', mode);
+      forEachNode(zone.querySelectorAll('[data-preset-size]'), function(button) {
+        setClassState(button, 'is-active', button.getAttribute('data-preset-size') === mode);
+      });
+    });
+  }
+
+  function getConditionPresetSizeMode() {
+    try {
+      return localStorage.getItem(conditionPresetSizeStorageKey) || 'sm';
+    } catch (error) {
+      return 'sm';
+    }
+  }
+
+  function setConditionPresetSizeMode(mode) {
+    try {
+      localStorage.setItem(conditionPresetSizeStorageKey, mode);
+    } catch (error) {
+      // ignore storage errors
+    }
+    forEachNode(document.querySelectorAll('[data-condition-preset-zone]'), function(zone) {
+      zone.setAttribute('data-preset-size-mode', mode);
+      forEachNode(zone.querySelectorAll('[data-condition-preset-size]'), function(button) {
+        setClassState(button, 'is-active', button.getAttribute('data-condition-preset-size') === mode);
+      });
+    });
+  }
+
+  function getActionConfig(actionType) {
+    return actionSuggestions[actionType] || null;
+  }
+
+  function getDefaultActionType() {
+    if (actionSuggestions.send_email) return 'send_email';
+    var keys = Object.keys(actionSuggestions || {});
+    for (var index = 0; index < keys.length; index += 1) {
+      if (getActionConfig(keys[index])) return keys[index];
+    }
+    return '';
+  }
+
+  function getPresetByKey(config, presetKey) {
+    var presets = (config && config.presets) || [];
+    for (var index = 0; index < presets.length; index += 1) {
+      if (presets[index].key === presetKey) return presets[index];
+    }
+    return null;
+  }
+
+  function getConditionPresetByKey(config, presetKey) {
+    var presets = (config && config.presets) || [];
+    for (var index = 0; index < presets.length; index += 1) {
+      if (presets[index].key === presetKey) return presets[index];
+    }
+    return null;
+  }
+
+  function updateSuggestionHint(card, actionType) {
+    var hint = card.querySelector('[data-suggestion-hint]');
+    if (!hint) return;
+    if (!actionType) {
+      hint.textContent = 'Se non scegli ancora il tipo, "Base suggerita" imposta una card consigliata automaticamente.';
+      return;
+    }
+    var config = getActionConfig(actionType);
+    var presetCount = config && config.presets ? config.presets.length : 0;
+    if (presetCount > 1) {
+      hint.textContent = 'Base pronta piu' + "'" + ' ' + presetCount + ' preset visuali da applicare con un click.';
+      return;
+    }
+    hint.textContent = 'Base suggerita disponibile per ' + actionType + '. Poi puoi rifinire tutto a mano.';
+  }
+
+  function updateConditionSuggestionHint(card) {
+    var hint = card.querySelector('[data-condition-suggestion-hint]');
+    if (!hint) return;
+    var config = getConditionConfig();
+    var presetCount = config && config.presets ? config.presets.length : 0;
+    hint.textContent = presetCount
+      ? 'Base pronta piu' + "'" + ' ' + presetCount + ' preset visuali compatti da applicare con un click.'
+      : 'Usa la base suggerita per precompilare una condizione.';
+  }
+
+  function mergeSuggestionPayload(config, preset) {
+    return {
+      values: Object.assign({}, (config && config.values) || {}, (preset && preset.values) || {}),
+      placeholders: Object.assign({}, (config && config.placeholders) || {}, (preset && preset.placeholders) || {})
+    };
+  }
+
+  function mergeConditionSuggestionPayload(config, preset) {
+    return {
+      values: Object.assign({}, (config && config.values) || {}, (preset && preset.values) || {})
+    };
+  }
+
+  function renderPresetCards(card, actionType) {
+    var zone = card.querySelector('[data-preset-zone]');
+    var grid = card.querySelector('[data-preset-grid]');
+    var title = card.querySelector('[data-preset-group-title]');
+    var subtitle = card.querySelector('[data-preset-group-subtitle]');
+    var config = getActionConfig(actionType);
+    if (!zone || !grid || !config || !config.presets || !config.presets.length) {
+      if (zone) zone.hidden = true;
+      if (grid) grid.innerHTML = '';
+      return;
+    }
+
+    zone.hidden = false;
+    zone.setAttribute('data-preset-size-mode', getPresetSizeMode());
+    title.textContent = config.group_title || 'Preset consigliati';
+    subtitle.textContent = config.group_subtitle || '';
+    grid.innerHTML = config.presets.map(function(preset) {
+      var theme = preset.theme || 'slate';
+      return ''
+        + '<div class="designer-preset-card theme-' + theme + '">'
+        +   '<div class="designer-preset-tag">preset</div>'
+        +   '<div class="designer-preset-title">' + preset.title + '</div>'
+        +   '<div class="designer-preset-desc">' + preset.description + '</div>'
+        +   '<div class="designer-preset-foot">'
+        +     '<span class="designer-preset-tag">' + actionType.replace(/_/g, ' ') + '</span>'
+        +     '<button class="btn btn-light" type="button" data-apply-preset="' + preset.key + '">Usa</button>'
+        +   '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function renderConditionPresetCards(card) {
+    var zone = card.querySelector('[data-condition-preset-zone]');
+    var grid = card.querySelector('[data-condition-preset-grid]');
+    var title = card.querySelector('[data-condition-preset-group-title]');
+    var subtitle = card.querySelector('[data-condition-preset-group-subtitle]');
+    var config = getConditionConfig();
+    if (!zone || !grid || !config || !config.presets || !config.presets.length) {
+      if (zone) zone.hidden = true;
+      if (grid) grid.innerHTML = '';
+      return;
+    }
+
+    zone.hidden = false;
+    zone.setAttribute('data-preset-size-mode', getConditionPresetSizeMode());
+    title.textContent = config.group_title || 'Preset consigliati';
+    subtitle.textContent = config.group_subtitle || '';
+    grid.innerHTML = config.presets.map(function(preset) {
+      var theme = preset.theme || 'slate';
+      return ''
+        + '<div class="designer-preset-card theme-' + theme + '">'
+        +   '<div class="designer-preset-tag">condizione</div>'
+        +   '<div class="designer-preset-title">' + preset.title + '</div>'
+        +   '<div class="designer-preset-desc">' + preset.description + '</div>'
+        +   '<div class="designer-preset-foot">'
+        +     '<span class="designer-preset-tag">and</span>'
+        +     '<button class="btn btn-light" type="button" data-apply-condition-preset="' + preset.key + '">Usa</button>'
+        +   '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function applyActionSuggestion(card, force, presetKey) {
+    var select = card.querySelector('select[name$="-action_type"]');
+    if (!select) return;
+    var actionType = select.value;
+    if (!actionType) {
+      actionType = getDefaultActionType();
+      if (actionType) {
+        setFieldValue(select, actionType);
+      }
+    }
+    var config = getActionConfig(actionType);
+    var preset = getPresetByKey(config, presetKey);
+    var payload = mergeSuggestionPayload(config, preset);
+
+    updateSuggestionHint(card, actionType);
+    renderPresetCards(card, actionType);
+    if (!config) return;
+
+    Object.keys(payload.values || {}).forEach(function(fieldName) {
+      var field = getCardField(card, fieldName);
+      if (!field) return;
+      if (force || fieldIsBlank(field)) {
+        setFieldValue(field, payload.values[fieldName]);
+      }
+    });
+
+    Object.keys(payload.placeholders || {}).forEach(function(fieldName) {
+      var field = getCardField(card, fieldName);
+      if (!field) return;
+      setFieldPlaceholder(field, payload.placeholders[fieldName]);
+    });
+
+    card.setAttribute('data-suggestion-applied', actionType || '');
+    if (preset && preset.key) {
+      card.setAttribute('data-preset-applied', preset.key);
+    }
+    updateActionCardPresentation(card);
+    setCardFeedback(card, preset && preset.title ? ('Applicato preset: ' + preset.title) : 'Base suggerita applicata.');
+    openCardDetails(card);
+    syncActionCards();
+  }
+
+  function applyConditionSuggestion(card, force, presetKey) {
+    var config = getConditionConfig();
+    var preset = getConditionPresetByKey(config, presetKey);
+    var payload = mergeConditionSuggestionPayload(config, preset);
+    if (!config) return;
+
+    Object.keys(payload.values || {}).forEach(function(fieldName) {
+      var field = getCardField(card, fieldName);
+      if (!field) return;
+      if (force || fieldIsBlank(field)) {
+        setFieldValue(field, payload.values[fieldName]);
+      }
+    });
+
+    card.setAttribute('data-condition-suggestion-applied', preset && preset.key ? preset.key : 'base');
+    updateConditionCardPresentation(card);
+    setCardFeedback(card, preset && preset.title ? ('Applicato preset: ' + preset.title) : 'Base suggerita applicata.');
+    openCardDetails(card);
+  }
+
+  function syncOrderFields(container) {
+    forEachNode(container.querySelectorAll('[data-sortable-item]'), function(item, index) {
+      var orderInput = item.querySelector('input[name$="-order"]');
+      var orderBadge = item.querySelector('[data-order-badge]');
+      var position = index + 1;
+      if (orderInput) orderInput.value = position;
+      if (orderBadge) orderBadge.textContent = position;
+    });
+  }
+
+  function syncPendingCardOrders(cardSelector, startAt) {
+    var current = startAt;
+    forEachNode(document.querySelectorAll(cardSelector), function(card) {
+      if (card.getAttribute('data-is-existing') === 'true') return;
+      var orderInput = card.querySelector('input[name$="-order"]');
+      var orderBadge = card.querySelector('[data-order-badge]');
+      if (!orderInput) return;
+      if (!String(orderInput.value || '').trim()) {
+        orderInput.value = current;
+      }
+      if (orderBadge) {
+        orderBadge.textContent = orderInput.value;
+      }
+      current += 1;
+    });
+  }
+
+  function syncAllOrderFields() {
+    forEachNode(document.querySelectorAll('[data-sortable-list]'), syncOrderFields);
+    syncPendingCardOrders('[data-condition-card]', document.querySelectorAll('[data-condition-card][data-is-existing="true"]').length + 1);
+    syncPendingCardOrders('[data-action-card]', document.querySelectorAll('[data-action-card][data-is-existing="true"]').length + 1);
+  }
+
+  function persistOrder(container) {
+    var url = container.getAttribute('data-reorder-url');
+    var section = container.getAttribute('data-section');
+    var ids = [];
+    forEachNode(container.querySelectorAll('[data-sortable-item]'), function(item) {
+      var itemId = item.getAttribute('data-item-id');
+      if (itemId) ids.push(itemId);
+    });
+    if (!url || !ids.length) return;
+
+    var data = new FormData();
+    ids.forEach(function(id) { data.append('ordered_ids', id); });
+
+    if (window.fetch) {
+      fetch(url, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCsrfToken() },
+        body: data,
+        credentials: 'same-origin'
+      }).then(function(response) {
+        if (!response.ok) {
+          return response.json().then(function(payload) {
+            throw new Error(payload.message || 'Riordino non riuscito.');
+          });
+        }
+        return response.json();
+      }).then(function() {
+        showStatus(section, 'Ordine aggiornato.', false);
+      }).catch(function(error) {
+        showStatus(section, error.message || 'Errore di riordino.', true);
+      });
+      return;
+    }
+
+    var request = new XMLHttpRequest();
+    request.open('POST', url, true);
+    request.setRequestHeader('X-CSRFToken', getCsrfToken());
+    request.onreadystatechange = function() {
+      if (request.readyState !== 4) return;
+      if (request.status >= 200 && request.status < 300) {
+        showStatus(section, 'Ordine aggiornato.', false);
+        return;
+      }
+      var message = 'Errore di riordino.';
+      try {
+        var payload = JSON.parse(request.responseText || '{}');
+        message = payload.message || message;
+      } catch (error) {
+        // keep default message
+      }
+      showStatus(section, message, true);
+    };
+    request.send(data);
+  }
+
+  function moveItem(item, direction) {
+    var container = closestElement(item, '[data-sortable-list]');
+    if (!container) return;
+    var sibling = direction < 0 ? item.previousElementSibling : item.nextElementSibling;
+    if (!sibling) return;
+    if (direction < 0) {
+      container.insertBefore(item, sibling);
+    } else {
+      container.insertBefore(sibling, item);
+    }
+    syncOrderFields(container);
+    persistOrder(container);
+  }
+
+  function enableSortable(container) {
+    var draggedItem = null;
+
+    forEachNode(container.querySelectorAll('[data-sortable-item]'), function(item) {
+      item.addEventListener('dragstart', function() {
+        draggedItem = item;
+        item.classList.add('is-dragging');
+      });
+      item.addEventListener('dragend', function() {
+        item.classList.remove('is-dragging');
+      });
+    });
+
+    container.addEventListener('dragover', function(event) {
+      event.preventDefault();
+      var afterElement = getDragAfterElement(container, event.clientY);
+      if (!draggedItem) return;
+      if (!afterElement) {
+        container.appendChild(draggedItem);
+      } else if (afterElement !== draggedItem) {
+        container.insertBefore(draggedItem, afterElement);
+      }
+    });
+
+    container.addEventListener('drop', function(event) {
+      event.preventDefault();
+      if (!draggedItem) return;
+      syncOrderFields(container);
+      persistOrder(container);
+      draggedItem = null;
+    });
+
+    syncOrderFields(container);
+  }
+
+  function getDragAfterElement(container, y) {
+    var elements = [].slice.call(container.querySelectorAll('[data-sortable-item]:not(.is-dragging)'));
+    return elements.reduce(function(closest, child) {
+      var box = child.getBoundingClientRect();
+      var offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset: offset, element: child };
+      }
+      return closest;
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+  }
+
+  document.addEventListener('click', function(event) {
+    var button = closestElement(event.target, '[data-move]');
+    if (button) {
+      event.preventDefault();
+      moveItem(closestElement(button, '[data-sortable-item]'), parseInt(button.getAttribute('data-move'), 10));
+    }
+
+    var suggestionButton = closestElement(event.target, '[data-apply-suggestion]');
+    if (suggestionButton) {
+      event.preventDefault();
+      applyActionSuggestion(closestElement(suggestionButton, '[data-action-card]'), true);
+      syncActionCards();
+      syncAllOrderFields();
+    }
+
+    var conditionSuggestionButton = closestElement(event.target, '[data-apply-condition-suggestion]');
+    if (conditionSuggestionButton) {
+      event.preventDefault();
+      applyConditionSuggestion(closestElement(conditionSuggestionButton, '[data-condition-card]'), true);
+      syncAllOrderFields();
+    }
+
+    var presetButton = closestElement(event.target, '[data-apply-preset]');
+    if (presetButton) {
+      event.preventDefault();
+      applyActionSuggestion(closestElement(presetButton, '[data-action-card]'), true, presetButton.getAttribute('data-apply-preset'));
+      syncActionCards();
+      syncAllOrderFields();
+    }
+
+    var conditionPresetButton = closestElement(event.target, '[data-apply-condition-preset]');
+    if (conditionPresetButton) {
+      event.preventDefault();
+      applyConditionSuggestion(
+        closestElement(conditionPresetButton, '[data-condition-card]'),
+        true,
+        conditionPresetButton.getAttribute('data-apply-condition-preset')
+      );
+      syncAllOrderFields();
+    }
+
+    var sizeButton = closestElement(event.target, '[data-preset-size]');
+    if (sizeButton) {
+      event.preventDefault();
+      setPresetSizeMode(sizeButton.getAttribute('data-preset-size'));
+    }
+
+    var conditionSizeButton = closestElement(event.target, '[data-condition-preset-size]');
+    if (conditionSizeButton) {
+      event.preventDefault();
+      setConditionPresetSizeMode(conditionSizeButton.getAttribute('data-condition-preset-size'));
+    }
+
+    var copyButton = closestElement(event.target, '[data-copy-value]');
+    if (copyButton) {
+      event.preventDefault();
+      var value = copyButton.getAttribute('data-copy-value');
+      if (!navigator.clipboard) return;
+      navigator.clipboard.writeText(value).then(function() {
+        copyButton.textContent = 'Copiato';
+        window.setTimeout(function() {
+          copyButton.textContent = 'Copia';
+        }, 1200);
+      });
+    }
+  });
+
+  document.addEventListener('change', function(event) {
+    if (event.target && event.target.id === 'id_trigger_scope') syncWatchedField();
+    if (event.target && event.target.id === 'id_source_code') syncSourceCatalog();
+    if (event.target && /-action_type$/.test(event.target.name || '')) {
+      var card = closestElement(event.target, '[data-action-card]');
+      if (card && card.getAttribute('data-is-existing') !== 'true') {
+        var previousSuggestion = card.getAttribute('data-suggestion-applied') || '';
+        if (previousSuggestion !== event.target.value) {
+          applyActionSuggestion(card, false);
+        }
+      } else if (card) {
+        updateSuggestionHint(card, event.target.value);
+        renderPresetCards(card, event.target.value);
+      }
+      syncActionCards();
+      updateActionCardPresentation(card);
+    }
+    if (event.target && /-field_name$|-operator$|-expected_value$/.test(event.target.name || '')) {
+      updateConditionCardPresentation(closestElement(event.target, '[data-condition-card]'));
+    }
+    if (event.target && /-description$|-email_to$|-email_subject_template$|-email_body_text_template$|-write_log_message_template$|-metric_code$|-metric_operation$|-metric_value_template$|-insert_target_table$|-insert_field_mappings_text$|-update_target_table$|-update_where_field$|-update_fields_text$/.test(event.target.name || '')) {
+      updateActionCardPresentation(closestElement(event.target, '[data-action-card]'));
+    }
+  });
+
+  syncWatchedField();
+  syncSourceCatalog();
+  syncActionCards();
+  setPresetSizeMode(getPresetSizeMode());
+  setConditionPresetSizeMode(getConditionPresetSizeMode());
+  forEachNode(document.querySelectorAll('[data-condition-card]'), function(card) {
+    updateConditionSuggestionHint(card);
+    renderConditionPresetCards(card);
+    updateConditionCardPresentation(card);
+    if (card.getAttribute('data-is-existing') !== 'true') {
+      applyConditionSuggestion(card, false);
+    }
+  });
+  forEachNode(document.querySelectorAll('[data-action-card]'), function(card) {
+    var select = card.querySelector('select[name$="-action_type"]');
+    updateSuggestionHint(card, select ? select.value : '');
+    renderPresetCards(card, select ? select.value : '');
+    updateActionCardPresentation(card);
+    if (card.getAttribute('data-is-existing') !== 'true' && select && select.value) {
+      applyActionSuggestion(card, false);
+    }
+  });
+  syncAllOrderFields();
+  forEachNode(document.querySelectorAll('[data-sortable-list]'), enableSortable);
+})();
+</script>
+{% endblock %}

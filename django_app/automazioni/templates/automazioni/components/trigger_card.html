@@ -1,0 +1,74 @@
+<section class="designer-section-card">
+  <div class="designer-section-head">
+    <div>
+      <div class="designer-section-title">Trigger</div>
+      <div class="designer-section-subtitle">Visualizza e modifica sorgente, operazione, scope e stato regola senza cambiare il motore sottostante.</div>
+    </div>
+    <div class="designer-pill-row">
+      <span class="designer-pill designer-pill-primary">{{ trigger_descriptor.operation_label }}</span>
+      <span class="designer-pill">{{ trigger_descriptor.trigger_scope_label }}</span>
+      {% if trigger_descriptor.is_active and not trigger_descriptor.is_draft %}
+        <span class="designer-pill designer-pill-success">attiva</span>
+      {% endif %}
+      {% if trigger_descriptor.is_draft %}
+        <span class="designer-pill designer-pill-warning">bozza</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="designer-section-body">
+    <div class="designer-summary-line" style="font-size:15px;">{{ trigger_descriptor.headline }}</div>
+    {% if trigger_descriptor.watched_line %}
+      <div class="designer-note">{{ trigger_descriptor.watched_line }}</div>
+    {% endif %}
+    <div class="designer-note">{{ trigger_descriptor.status_text }}</div>
+    <div class="designer-note">
+      <strong>{{ trigger_descriptor.natural_when }}</strong><br>
+      {{ trigger_descriptor.natural_scope }}
+    </div>
+
+    <div class="designer-trigger-copy">
+      <div class="designer-field">
+        {{ rule_form.source_code.label_tag }}
+        {{ rule_form.source_code }}
+        {% if rule_form.source_code.help_text %}<div class="designer-help">{{ rule_form.source_code.help_text }}</div>{% endif %}
+        {% if rule_form.source_code.errors %}<ul class="designer-errors">{% for error in rule_form.source_code.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+      <div class="designer-field">
+        {{ rule_form.operation_type.label_tag }}
+        {{ rule_form.operation_type }}
+        {% if rule_form.operation_type.help_text %}<div class="designer-help">{{ rule_form.operation_type.help_text }}</div>{% endif %}
+        {% if rule_form.operation_type.errors %}<ul class="designer-errors">{% for error in rule_form.operation_type.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+      <div class="designer-field">
+        {{ rule_form.trigger_scope.label_tag }}
+        {{ rule_form.trigger_scope }}
+        {% if rule_form.trigger_scope.help_text %}<div class="designer-help">{{ rule_form.trigger_scope.help_text }}</div>{% endif %}
+        {% if rule_form.trigger_scope.errors %}<ul class="designer-errors">{% for error in rule_form.trigger_scope.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+      <div class="designer-field">
+        {{ rule_form.watched_field.label_tag }}
+        {{ rule_form.watched_field }}
+        {% if rule_form.watched_field.help_text %}<div class="designer-help">{{ rule_form.watched_field.help_text }}</div>{% endif %}
+        {% if rule_form.watched_field.errors %}<ul class="designer-errors">{% for error in rule_form.watched_field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+      <div class="designer-field">
+        {{ rule_form.is_active.label_tag }}
+        {{ rule_form.is_active }}
+        {% if rule_form.is_active.help_text %}<div class="designer-help">{{ rule_form.is_active.help_text }}</div>{% endif %}
+        {% if rule_form.is_active.errors %}<ul class="designer-errors">{% for error in rule_form.is_active.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+      <div class="designer-field">
+        {{ rule_form.is_draft.label_tag }}
+        {{ rule_form.is_draft }}
+        {% if rule_form.is_draft.help_text %}<div class="designer-help">{{ rule_form.is_draft.help_text }}</div>{% endif %}
+        {% if rule_form.is_draft.errors %}<ul class="designer-errors">{% for error in rule_form.is_draft.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+      <div class="designer-field designer-field-wide">
+        {{ rule_form.stop_on_first_failure.label_tag }}
+        {{ rule_form.stop_on_first_failure }}
+        {% if rule_form.stop_on_first_failure.help_text %}<div class="designer-help">{{ rule_form.stop_on_first_failure.help_text }}</div>{% endif %}
+        {% if rule_form.stop_on_first_failure.errors %}<ul class="designer-errors">{% for error in rule_form.stop_on_first_failure.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+    </div>
+  </div>
+</section>

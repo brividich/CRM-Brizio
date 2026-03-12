@@ -1,0 +1,264 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ page_title }} | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .auto-layout { display:grid; gap:16px; grid-template-columns:minmax(0, 1.7fr) minmax(320px, .9fr); align-items:start; }
+  .auto-main { display:grid; gap:16px; }
+  .auto-form-grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); }
+  .auto-field { display:grid; gap:6px; }
+  .auto-field label { font-size:12px; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:.04em; }
+  .auto-field input, .auto-field select, .auto-field textarea { width:100%; padding:9px 10px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; }
+  .auto-field textarea { min-height:88px; }
+  .auto-help { font-size:12px; color:#64748b; }
+  .auto-errors { margin:4px 0 0 0; padding-left:18px; color:#b91c1c; font-size:13px; }
+  .auto-section-stack { display:grid; gap:14px; }
+  .auto-inline-card { border:1px solid #e2e8f0; border-radius:14px; padding:14px; background:#fff; display:grid; gap:12px; }
+  .auto-inline-head { display:flex; justify-content:space-between; gap:12px; align-items:center; }
+  .auto-inline-title { font-weight:800; color:#0f172a; }
+  .auto-delete { display:flex; align-items:center; gap:8px; color:#991b1b; }
+  .auto-source-panel { position:sticky; top:20px; }
+  .auto-source-catalog[hidden] { display:none !important; }
+  .auto-source-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+  .auto-source-desc { margin-top:4px; color:#475569; font-size:13px; }
+  .auto-source-chip { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; background:#e2e8f0; color:#0f172a; font-size:12px; font-weight:700; }
+  .auto-source-section { margin-top:14px; }
+  .auto-source-section-title { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; margin-bottom:8px; }
+  .auto-source-list { margin:0; padding-left:18px; display:grid; gap:8px; color:#334155; }
+  .auto-source-list code { font-size:12px; }
+  .auto-source-list span { display:inline-block; margin-left:6px; color:#64748b; font-size:12px; text-transform:uppercase; }
+  .auto-source-placeholders { display:flex; flex-wrap:wrap; gap:8px; }
+  .auto-source-note { margin-bottom:12px; font-size:13px; color:#475569; }
+  .auto-config-group[hidden] { display:none !important; }
+  .auto-wide { grid-column:1 / -1; }
+  .auto-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  @media (max-width: 1100px) {
+    .auto-layout { grid-template-columns:1fr; }
+    .auto-source-panel { position:static; }
+  }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title=page_title page_subtitle=page_subtitle %}
+  {% include "admin_portale/components/flash_messages.html" %}
+  {% include "automazioni/components/subnav.html" %}
+
+  {% if rule and rule.id %}
+    <div class="notice" style="margin-bottom:16px; display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap;">
+      <div>
+        <strong>Stai usando il builder classico SSR.</strong>
+        Per la vista affiancata piu' leggibile apri il designer visuale della regola.
+      </div>
+      <a class="btn" href="{% url 'admin_portale:automazioni_rule_designer' rule.id %}">Apri designer visuale</a>
+    </div>
+  {% endif %}
+
+  <form method="post" class="auto-layout">
+    {% csrf_token %}
+    <div class="auto-main">
+      <div class="card">
+        <div class="card-head"><div class="card-title">Dati generali e trigger</div></div>
+        <div class="card-body auto-section-stack">
+          {% if rule_form.non_field_errors %}
+            <ul class="auto-errors">{% for error in rule_form.non_field_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+          {% endif %}
+          <div class="auto-form-grid">
+            {% for field in rule_form %}
+              <div class="auto-field{% if field.name == 'description' %} auto-wide{% endif %}">
+                {{ field.label_tag }}
+                {{ field }}
+                {% if field.help_text %}<div class="auto-help">{{ field.help_text }}</div>{% endif %}
+                {% if field.errors %}<ul class="auto-errors">{% for error in field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-title">Condizioni (AND)</div></div>
+        <div class="card-body auto-section-stack">
+          {{ condition_formset.management_form }}
+          {% if condition_formset.non_form_errors %}
+            <ul class="auto-errors">{% for error in condition_formset.non_form_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+          {% endif %}
+          {% for form in condition_formset %}
+            <div class="auto-inline-card">
+              {% for hidden_field in form.hidden_fields %}{{ hidden_field }}{% endfor %}
+              <div class="auto-inline-head">
+                <div class="auto-inline-title">Condizione {{ forloop.counter }}</div>
+                <label class="auto-delete">{{ form.DELETE }} Elimina</label>
+              </div>
+              {% if form.non_field_errors %}
+                <ul class="auto-errors">{% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+              {% endif %}
+              <div class="auto-form-grid">
+                {% for field in form.visible_fields %}
+                  {% if field.name != 'DELETE' %}
+                    <div class="auto-field{% if field.name == 'expected_value' %} auto-wide{% endif %}">
+                      {{ field.label_tag }}
+                      {{ field }}
+                      {% if field.help_text %}<div class="auto-help">{{ field.help_text }}</div>{% endif %}
+                      {% if field.errors %}<ul class="auto-errors">{% for error in field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                    </div>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-title">Azioni in sequenza</div></div>
+        <div class="card-body auto-section-stack">
+          {{ action_formset.management_form }}
+          {% if action_formset.non_form_errors %}
+            <ul class="auto-errors">{% for error in action_formset.non_form_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+          {% endif %}
+          {% for form in action_formset %}
+            <div class="auto-inline-card auto-action-card" data-action-card>
+              {% for hidden_field in form.hidden_fields %}{{ hidden_field }}{% endfor %}
+              <div class="auto-inline-head">
+                <div class="auto-inline-title">Azione {{ forloop.counter }}</div>
+                <label class="auto-delete">{{ form.DELETE }} Elimina</label>
+              </div>
+              {% if form.non_field_errors %}
+                <ul class="auto-errors">{% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+              {% endif %}
+              <div class="auto-form-grid">
+                <div class="auto-field">{{ form.order.label_tag }}{{ form.order }}{% if form.order.errors %}<ul class="auto-errors">{% for error in form.order.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                <div class="auto-field">{{ form.action_type.label_tag }}{{ form.action_type }}{% if form.action_type.errors %}<ul class="auto-errors">{% for error in form.action_type.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                <div class="auto-field">{{ form.is_enabled.label_tag }}{{ form.is_enabled }}{% if form.is_enabled.errors %}<ul class="auto-errors">{% for error in form.is_enabled.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                <div class="auto-field auto-wide">{{ form.description.label_tag }}{{ form.description }}{% if form.description.errors %}<ul class="auto-errors">{% for error in form.description.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+              </div>
+
+              <div class="auto-config-group" data-action-config="send_email">
+                <div class="auto-inline-title">Configurazione send_email</div>
+                <div class="auto-form-grid">
+                  {% for field in form %}
+                    {% if field.name == 'email_from_email' or field.name == 'email_to' or field.name == 'email_cc' or field.name == 'email_bcc' or field.name == 'email_reply_to' or field.name == 'email_subject_template' or field.name == 'email_body_text_template' or field.name == 'email_body_html_template' or field.name == 'email_fail_silently' %}
+                      <div class="auto-field{% if field.name == 'email_body_text_template' or field.name == 'email_body_html_template' %} auto-wide{% endif %}">
+                        {{ field.label_tag }}
+                        {{ field }}
+                        {% if field.help_text %}<div class="auto-help">{{ field.help_text }}</div>{% endif %}
+                        {% if field.errors %}<ul class="auto-errors">{% for error in field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                      </div>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+
+              <div class="auto-config-group" data-action-config="write_log">
+                <div class="auto-inline-title">Configurazione write_log</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field auto-wide">
+                    {{ form.write_log_message_template.label_tag }}
+                    {{ form.write_log_message_template }}
+                    {% if form.write_log_message_template.help_text %}<div class="auto-help">{{ form.write_log_message_template.help_text }}</div>{% endif %}
+                    {% if form.write_log_message_template.errors %}<ul class="auto-errors">{% for error in form.write_log_message_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                  </div>
+                </div>
+              </div>
+
+              <div class="auto-config-group" data-action-config="update_dashboard_metric">
+                <div class="auto-inline-title">Configurazione update_dashboard_metric</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field">{{ form.metric_code.label_tag }}{{ form.metric_code }}{% if form.metric_code.errors %}<ul class="auto-errors">{% for error in form.metric_code.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field">{{ form.metric_operation.label_tag }}{{ form.metric_operation }}{% if form.metric_operation.errors %}<ul class="auto-errors">{% for error in form.metric_operation.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field">{{ form.metric_value_template.label_tag }}{{ form.metric_value_template }}{% if form.metric_value_template.errors %}<ul class="auto-errors">{% for error in form.metric_value_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                </div>
+              </div>
+
+              <div class="auto-config-group" data-action-config="insert_record">
+                <div class="auto-inline-title">Configurazione insert_record</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field">{{ form.insert_target_table.label_tag }}{{ form.insert_target_table }}{% if form.insert_target_table.errors %}<ul class="auto-errors">{% for error in form.insert_target_table.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field auto-wide">
+                    {{ form.insert_field_mappings_text.label_tag }}
+                    {{ form.insert_field_mappings_text }}
+                    {% if form.insert_field_mappings_text.help_text %}<div class="auto-help">{{ form.insert_field_mappings_text.help_text }}</div>{% endif %}
+                    {% if form.insert_field_mappings_text.errors %}<ul class="auto-errors">{% for error in form.insert_field_mappings_text.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                  </div>
+                </div>
+              </div>
+
+              <div class="auto-config-group" data-action-config="update_record">
+                <div class="auto-inline-title">Configurazione update_record</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field">{{ form.update_target_table.label_tag }}{{ form.update_target_table }}{% if form.update_target_table.errors %}<ul class="auto-errors">{% for error in form.update_target_table.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field">{{ form.update_where_field.label_tag }}{{ form.update_where_field }}{% if form.update_where_field.errors %}<ul class="auto-errors">{% for error in form.update_where_field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field">{{ form.update_where_value_template.label_tag }}{{ form.update_where_value_template }}{% if form.update_where_value_template.errors %}<ul class="auto-errors">{% for error in form.update_where_value_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field auto-wide">
+                    {{ form.update_fields_text.label_tag }}
+                    {{ form.update_fields_text }}
+                    {% if form.update_fields_text.help_text %}<div class="auto-help">{{ form.update_fields_text.help_text }}</div>{% endif %}
+                    {% if form.update_fields_text.errors %}<ul class="auto-errors">{% for error in form.update_fields_text.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                  </div>
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="auto-actions">
+        <button class="btn" type="submit">{{ submit_label }}</button>
+        <a class="btn btn-light" href="{% if rule %}{% url 'admin_portale:automazioni_rule_detail' rule.id %}{% else %}{% url 'admin_portale:automazioni_rule_list' %}{% endif %}">Annulla</a>
+      </div>
+    </div>
+
+    {% include "automazioni/components/source_catalog_panel.html" %}
+  </form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function() {
+  function syncSourceCatalog() {
+    var select = document.getElementById('id_source_code');
+    if (!select) return;
+    var value = select.value;
+    document.querySelectorAll('[data-source-catalog]').forEach(function(panel) {
+      panel.hidden = panel.getAttribute('data-source-catalog') !== value;
+    });
+  }
+
+  function syncWatchedField() {
+    var scope = document.getElementById('id_trigger_scope');
+    var watched = document.getElementById('id_watched_field');
+    if (!scope || !watched) return;
+    var enabled = scope.value === 'specific_field';
+    watched.disabled = !enabled;
+    if (!enabled) watched.value = '';
+  }
+
+  function syncActionCards() {
+    document.querySelectorAll('[data-action-card]').forEach(function(card) {
+      var select = card.querySelector('select[name$="-action_type"]');
+      if (!select) return;
+      var value = select.value;
+      card.querySelectorAll('[data-action-config]').forEach(function(group) {
+        group.hidden = group.getAttribute('data-action-config') !== value;
+      });
+    });
+  }
+
+  document.addEventListener('change', function(event) {
+    if (event.target && event.target.id === 'id_source_code') syncSourceCatalog();
+    if (event.target && event.target.id === 'id_trigger_scope') syncWatchedField();
+    if (event.target && /-action_type$/.test(event.target.name || '')) syncActionCards();
+  });
+
+  syncSourceCatalog();
+  syncWatchedField();
+  syncActionCards();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,387 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ fornitore.ragione_sociale }} | Anagrafica{% endblock %}
+
+{% block extra_head %}
+<style>
+.ana-page { display:flex; flex-direction:column; gap:20px; }
+.ana-breadcrumb { font-size:12px; color:#94a3b8; }
+.ana-breadcrumb a { color:#64748b; text-decoration:none; }
+.ana-breadcrumb a:hover { color:#1d4ed8; }
+.ana-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 16px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
+.ana-btn-primary { background:#1d4ed8; color:#fff; }
+.ana-btn-primary:hover { background:#1e40af; }
+.ana-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.ana-btn-ghost:hover { background:#e2e8f0; }
+.ana-btn-danger { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
+.ana-btn-danger:hover { background:#fecaca; }
+.ana-btn-sm { padding:5px 10px; font-size:12px; border-radius:7px; }
+.ana-hero { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:16px; }
+.ana-hero-left { display:flex; align-items:center; gap:16px; }
+.ana-logo { width:56px; height:56px; border-radius:14px; background:linear-gradient(135deg,#1d4ed8,#3b82f6); color:#fff; font-size:22px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.ana-hero-title { font-size:24px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
+.ana-hero-meta { font-size:13px; color:#64748b; margin-top:6px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.ana-pill { display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:600; }
+.ana-pill-green { background:#dcfce7; color:#166534; }
+.ana-pill-red { background:#fee2e2; color:#991b1b; }
+.ana-pill-blue { background:#dbeafe; color:#1e40af; }
+.ana-pill-gray { background:#f1f5f9; color:#475569; }
+.ana-hero-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.ana-metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+.ana-metric { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; }
+.ana-metric-val { font-size:26px; font-weight:800; color:#0f172a; line-height:1; }
+.ana-metric-label { font-size:11px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-top:5px; }
+.ana-layout { display:grid; grid-template-columns:1fr 300px; gap:20px; }
+.ana-main { display:flex; flex-direction:column; gap:0; }
+.ana-side { display:flex; flex-direction:column; gap:16px; }
+.ana-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.ana-card-head { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid #f1f5f9; }
+.ana-card-title { font-size:14px; font-weight:700; color:#1e293b; }
+.ana-card-body { padding:18px 20px; }
+.ana-tabs { display:flex; border-bottom:2px solid #f1f5f9; padding:0 20px; overflow-x:auto; }
+.ana-tab { padding:12px 14px; font-size:13px; font-weight:600; color:#64748b; cursor:pointer; border:none; border-bottom:2px solid transparent; margin-bottom:-2px; white-space:nowrap; background:none; }
+.ana-tab.is-active { color:#1d4ed8; border-bottom-color:#1d4ed8; }
+.ana-tab-panel { display:none; padding:20px; }
+.ana-tab-panel.is-active { display:block; }
+.ana-table-wrap { overflow-x:auto; }
+.ana-table { width:100%; border-collapse:collapse; font-size:13px; }
+.ana-table th { padding:9px 14px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#64748b; background:#f8fafc; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
+.ana-table td { padding:11px 14px; border-bottom:1px solid #f8fafc; color:#334155; vertical-align:middle; }
+.ana-table tr:last-child td { border-bottom:none; }
+.ana-table tr:hover td { background:#f8fafc; }
+.ana-specs { display:flex; flex-direction:column; gap:10px; }
+.ana-spec-k { font-size:11px; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; }
+.ana-spec-v { font-size:14px; font-weight:600; color:#0f172a; margin-top:2px; }
+.ana-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:14px; }
+.ana-form-grid .full { grid-column:1/-1; }
+.ana-field { display:flex; flex-direction:column; gap:4px; }
+.ana-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+.ana-input { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
+.ana-input:focus { border-color:#1d4ed8; background:#fff; }
+.ana-drop { border:2px dashed #e2e8f0; border-radius:10px; padding:20px; text-align:center; background:#f8fafc; }
+.ana-stars { color:#f59e0b; }
+.stato-BOZZA { background:#f1f5f9; color:#475569; }
+.stato-INVIATO { background:#dbeafe; color:#1e40af; }
+.stato-CONFERMATO { background:#d1fae5; color:#065f46; }
+.stato-CONSEGNATO { background:#dcfce7; color:#166534; }
+.stato-ANNULLATO { background:#fee2e2; color:#991b1b; }
+.ana-doc-item { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid #f8fafc; }
+.ana-doc-item:last-child { border-bottom:none; }
+.ana-doc-icon { width:34px; height:34px; border-radius:8px; background:#f1f5f9; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+.ana-asset-item { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid #f8fafc; }
+.ana-asset-item:last-child { border-bottom:none; }
+.ana-asset-tag { font-size:11px; font-weight:700; background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:6px; font-family:monospace; }
+.ana-pill-green-sm { background:#dcfce7; color:#166534; }
+.ana-empty { padding:32px; text-align:center; color:#94a3b8; font-size:13px; }
+.ana-msg { border-radius:10px; padding:10px 16px; font-size:13px; margin-bottom:6px; }
+.ana-msg-success { background:#dcfce7; color:#166534; }
+.ana-msg-error { background:#fee2e2; color:#991b1b; }
+.ana-rating-bar { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.ana-rating-track { flex:1; height:5px; background:#f1f5f9; border-radius:99px; overflow:hidden; }
+.ana-rating-fill { height:100%; background:#f59e0b; border-radius:99px; }
+details summary { list-style:none; }
+details summary::-webkit-details-marker { display:none; }
+@media(max-width:900px){ .ana-layout{ grid-template-columns:1fr; } .ana-metrics{ grid-template-columns:1fr 1fr; } }
+@media(max-width:500px){ .ana-metrics{ grid-template-columns:1fr; } .ana-form-grid{ grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="ana-page">
+
+  <div class="ana-breadcrumb">
+    <a href="{% url 'anagrafica:index' %}">Anagrafica</a> /
+    <a href="{% url 'anagrafica:fornitori_list' %}">Fornitori</a> /
+    {{ fornitore.ragione_sociale }}
+  </div>
+
+  {% if messages %}
+  <div>{% for m in messages %}<div class="ana-msg {% if m.tags == 'success' %}ana-msg-success{% else %}ana-msg-error{% endif %}">{{ m }}</div>{% endfor %}</div>
+  {% endif %}
+
+  <!-- Hero -->
+  <div class="ana-hero">
+    <div class="ana-hero-left">
+      <div class="ana-logo">{{ fornitore.ragione_sociale|first|upper }}</div>
+      <div>
+        <div class="ana-hero-title">{{ fornitore.ragione_sociale }}</div>
+        <div class="ana-hero-meta">
+          {% if fornitore.is_active %}<span class="ana-pill ana-pill-green">Attivo</span>
+          {% else %}<span class="ana-pill ana-pill-red">Non attivo</span>{% endif %}
+          {% if fornitore.categoria %}<span class="ana-pill ana-pill-blue">{{ fornitore.get_categoria_display }}</span>{% endif %}
+          {% if fornitore.citta %}{{ fornitore.citta }}{% if fornitore.provincia %} ({{ fornitore.provincia }}){% endif %}{% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="ana-hero-actions">
+      <a class="ana-btn ana-btn-ghost" href="{% url 'anagrafica:fornitori_list' %}">← Elenco</a>
+      <a class="ana-btn ana-btn-primary" href="{% url 'anagrafica:fornitore_edit' fornitore.pk %}">✏ Modifica</a>
+      <form method="post" action="{% url 'anagrafica:fornitore_toggle_active' fornitore.pk %}" style="display:inline;">
+        {% csrf_token %}
+        <button class="ana-btn {% if fornitore.is_active %}ana-btn-danger{% else %}ana-btn-ghost{% endif %}"
+                type="submit" onclick="return confirm('Confermi?')">
+          {% if fornitore.is_active %}Disattiva{% else %}Riattiva{% endif %}
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Metrics -->
+  <div class="ana-metrics">
+    <div class="ana-metric">
+      <div class="ana-metric-val">{{ ordini.count }}</div>
+      <div class="ana-metric-label">Ordini</div>
+    </div>
+    <div class="ana-metric">
+      <div class="ana-metric-val">€ {{ spesa_totale|floatformat:0 }}</div>
+      <div class="ana-metric-label">Spesa totale</div>
+    </div>
+    <div class="ana-metric">
+      <div class="ana-metric-val">
+        {% with pm=fornitore.punteggio_medio %}{% if pm %}<span class="ana-stars">★</span> {{ pm }}{% else %}—{% endif %}{% endwith %}
+      </div>
+      <div class="ana-metric-label">Rating /5</div>
+    </div>
+    <div class="ana-metric">
+      <div class="ana-metric-val">{{ asset_assegnati.count }}</div>
+      <div class="ana-metric-label">Asset assegnati</div>
+    </div>
+  </div>
+
+  <!-- 2-col layout -->
+  <div class="ana-layout">
+
+    <!-- Main: Tabs -->
+    <div class="ana-main">
+      <div class="ana-card">
+        <div class="ana-tabs">
+          <button class="ana-tab is-active" data-tab="tab-ordini">Ordini ({{ ordini.count }})</button>
+          <button class="ana-tab" data-tab="tab-docs">Documenti ({{ documenti.count }})</button>
+          <button class="ana-tab" data-tab="tab-val">Valutazioni ({{ valutazioni.count }})</button>
+          <button class="ana-tab" data-tab="tab-asset">Asset ({{ asset_assegnati.count }})</button>
+        </div>
+
+        <!-- TAB ORDINI -->
+        <div id="tab-ordini" class="ana-tab-panel is-active">
+          {% if ordini %}
+          <div class="ana-table-wrap">
+            <table class="ana-table">
+              <thead><tr><th>N. Ordine</th><th>Data</th><th>Importo</th><th>Stato</th><th>Descrizione</th><th>Aggiorna</th></tr></thead>
+              <tbody>
+                {% for o in ordini %}
+                <tr>
+                  <td><strong>{{ o.numero_ordine|default:"—" }}</strong></td>
+                  <td>{{ o.data_ordine|date:"d/m/Y" }}</td>
+                  <td><strong>€ {{ o.importo }}</strong></td>
+                  <td><span class="ana-pill stato-{{ o.stato }}">{{ o.get_stato_display }}</span></td>
+                  <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ o.descrizione|default:"—" }}</td>
+                  <td>
+                    <form method="post" action="{% url 'anagrafica:fornitore_ordine_stato' fornitore.pk o.pk %}" style="display:inline-flex;gap:5px;">
+                      {% csrf_token %}
+                      <select class="ana-input" name="stato" style="width:auto;padding:4px 8px;font-size:12px;">
+                        {% for v,l in o.STATO_CHOICES %}<option value="{{ v }}"{% if o.stato == v %} selected{% endif %}>{{ l }}</option>{% endfor %}
+                      </select>
+                      <button class="ana-btn ana-btn-ghost ana-btn-sm" type="submit">OK</button>
+                    </form>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}<div class="ana-empty">Nessun ordine registrato.</div>{% endif %}
+          <details style="margin-top:16px;"><summary class="ana-btn ana-btn-ghost ana-btn-sm" style="cursor:pointer;">+ Nuovo ordine</summary>
+            <form method="post" action="{% url 'anagrafica:fornitore_ordine_add' fornitore.pk %}" class="ana-form-grid">
+              {% csrf_token %}
+              <div class="ana-field"><label>N. Ordine</label>{{ ordine_form.numero_ordine }}</div>
+              <div class="ana-field"><label>Data *</label>{{ ordine_form.data_ordine }}</div>
+              <div class="ana-field"><label>Importo (€) *</label>{{ ordine_form.importo }}</div>
+              <div class="ana-field"><label>Stato</label>{{ ordine_form.stato }}</div>
+              <div class="ana-field full"><label>Descrizione</label>{{ ordine_form.descrizione }}</div>
+              <div class="full"><button class="ana-btn ana-btn-primary" type="submit">Salva ordine</button></div>
+            </form>
+          </details>
+        </div>
+
+        <!-- TAB DOCUMENTI -->
+        <div id="tab-docs" class="ana-tab-panel">
+          {% if documenti %}
+          {% for doc in documenti %}
+          <div class="ana-doc-item">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div class="ana-doc-icon">📄</div>
+              <div>
+                <div style="font-weight:700;font-size:13px;"><a href="{{ doc.file.url }}" target="_blank" style="color:#1d4ed8;text-decoration:none;">{{ doc.nome }}</a></div>
+                <div style="font-size:12px;color:#64748b;">{{ doc.get_tipo_display }} · {{ doc.uploaded_at|date:"d/m/Y" }}{% if doc.note %} · {{ doc.note }}{% endif %}</div>
+              </div>
+            </div>
+            <form method="post" action="{% url 'anagrafica:fornitore_documento_delete' fornitore.pk doc.pk %}">{% csrf_token %}
+              <button class="ana-btn ana-btn-danger ana-btn-sm" onclick="return confirm('Eliminare?')" type="submit">Elimina</button>
+            </form>
+          </div>
+          {% endfor %}
+          {% else %}<div class="ana-empty">Nessun documento allegato.</div>{% endif %}
+          <details style="margin-top:16px;"><summary class="ana-btn ana-btn-ghost ana-btn-sm" style="cursor:pointer;">+ Carica documento</summary>
+            <form method="post" action="{% url 'anagrafica:fornitore_documento_add' fornitore.pk %}" enctype="multipart/form-data" class="ana-form-grid">
+              {% csrf_token %}
+              <div class="ana-field"><label>Nome *</label>{{ doc_form.nome }}</div>
+              <div class="ana-field"><label>Tipo</label>{{ doc_form.tipo }}</div>
+              <div class="ana-field full">
+                <label>File *</label>
+                <div class="ana-drop">{{ doc_form.file }}<div style="font-size:12px;color:#94a3b8;margin-top:6px;">PDF, DOC, XLS, immagini...</div></div>
+              </div>
+              <div class="ana-field full"><label>Note</label>{{ doc_form.note }}</div>
+              <div class="full"><button class="ana-btn ana-btn-primary" type="submit">Carica</button></div>
+            </form>
+          </details>
+        </div>
+
+        <!-- TAB VALUTAZIONI -->
+        <div id="tab-val" class="ana-tab-panel">
+          {% if valutazioni %}
+          <div class="ana-table-wrap">
+            <table class="ana-table">
+              <thead><tr><th>Data</th><th>Qualità</th><th>Puntualità</th><th>Comunicazione</th><th>Media</th><th>Note</th><th></th></tr></thead>
+              <tbody>
+                {% for v in valutazioni %}
+                <tr>
+                  <td>{{ v.data|date:"d/m/Y" }}</td>
+                  <td><span class="ana-stars">{% for i in "12345" %}{% if forloop.counter <= v.qualita %}★{% else %}☆{% endif %}{% endfor %}</span></td>
+                  <td><span class="ana-stars">{% for i in "12345" %}{% if forloop.counter <= v.puntualita %}★{% else %}☆{% endif %}{% endfor %}</span></td>
+                  <td><span class="ana-stars">{% for i in "12345" %}{% if forloop.counter <= v.comunicazione %}★{% else %}☆{% endif %}{% endfor %}</span></td>
+                  <td><strong>{{ v.media }}/5</strong></td>
+                  <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ v.note|default:"—" }}</td>
+                  <td><form method="post" action="{% url 'anagrafica:fornitore_valutazione_delete' fornitore.pk v.pk %}">{% csrf_token %}<button class="ana-btn ana-btn-danger ana-btn-sm" onclick="return confirm('Eliminare?')" type="submit">✕</button></form></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}<div class="ana-empty">Nessuna valutazione.</div>{% endif %}
+          <details style="margin-top:16px;"><summary class="ana-btn ana-btn-ghost ana-btn-sm" style="cursor:pointer;">+ Nuova valutazione</summary>
+            <form method="post" action="{% url 'anagrafica:fornitore_valutazione_add' fornitore.pk %}" class="ana-form-grid">
+              {% csrf_token %}
+              <div class="ana-field"><label>Data *</label>{{ valutazione_form.data }}</div>
+              <div class="ana-field"><label>Qualità (1-5) *</label>{{ valutazione_form.qualita }}</div>
+              <div class="ana-field"><label>Puntualità (1-5) *</label>{{ valutazione_form.puntualita }}</div>
+              <div class="ana-field"><label>Comunicazione (1-5) *</label>{{ valutazione_form.comunicazione }}</div>
+              <div class="ana-field full"><label>Note</label>{{ valutazione_form.note }}</div>
+              <div class="full"><button class="ana-btn ana-btn-primary" type="submit">Salva valutazione</button></div>
+            </form>
+          </details>
+        </div>
+
+        <!-- TAB ASSET -->
+        <div id="tab-asset" class="ana-tab-panel">
+          {% if asset_assegnati %}
+          {% for fa in asset_assegnati %}
+          <div class="ana-asset-item">
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+                <span class="ana-asset-tag">{{ fa.asset.asset_tag }}</span>
+                <strong style="font-size:13px;color:#0f172a;">{{ fa.asset.name }}</strong>
+                <span class="ana-pill {% if fa.is_attivo %}ana-pill-green{% else %}ana-pill-gray{% endif %}">{% if fa.is_attivo %}Attivo{% else %}Scaduto{% endif %}</span>
+              </div>
+              <div style="font-size:12px;color:#64748b;">{{ fa.get_tipo_display }} · Dal {{ fa.data_inizio|date:"d/m/Y" }}{% if fa.data_fine %} al {{ fa.data_fine|date:"d/m/Y" }}{% endif %}{% if fa.note %} · {{ fa.note }}{% endif %}</div>
+            </div>
+            <form method="post" action="{% url 'anagrafica:fornitore_asset_remove' fornitore.pk fa.pk %}">{% csrf_token %}
+              <button class="ana-btn ana-btn-danger ana-btn-sm" onclick="return confirm('Rimuovere?')" type="submit">Rimuovi</button>
+            </form>
+          </div>
+          {% endfor %}
+          {% else %}<div class="ana-empty">Nessun asset assegnato a questo fornitore.</div>{% endif %}
+          <details style="margin-top:16px;"><summary class="ana-btn ana-btn-ghost ana-btn-sm" style="cursor:pointer;">+ Assegna asset</summary>
+            <form method="post" action="{% url 'anagrafica:fornitore_asset_add' fornitore.pk %}" class="ana-form-grid">
+              {% csrf_token %}
+              <div class="ana-field full"><label>Asset *</label>{{ asset_form.asset }}</div>
+              <div class="ana-field"><label>Tipo rapporto</label>{{ asset_form.tipo }}</div>
+              <div class="ana-field"><label>Data inizio</label>{{ asset_form.data_inizio }}</div>
+              <div class="ana-field"><label>Data fine (opz.)</label>{{ asset_form.data_fine }}</div>
+              <div class="ana-field"><label>Note</label>{{ asset_form.note }}</div>
+              <div class="full"><button class="ana-btn ana-btn-primary" type="submit">Assegna</button></div>
+            </form>
+          </details>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="ana-side">
+
+      <div class="ana-card">
+        <div class="ana-card-head"><div class="ana-card-title">Contatti</div></div>
+        <div class="ana-card-body">
+          <div class="ana-specs">
+            {% if fornitore.telefono %}<div><div class="ana-spec-k">Telefono</div><div class="ana-spec-v"><a href="tel:{{ fornitore.telefono }}" style="color:#1d4ed8;text-decoration:none;">{{ fornitore.telefono }}</a></div></div>{% endif %}
+            {% if fornitore.email %}<div><div class="ana-spec-k">Email</div><div class="ana-spec-v" style="font-size:13px;"><a href="mailto:{{ fornitore.email }}" style="color:#1d4ed8;text-decoration:none;">{{ fornitore.email }}</a></div></div>{% endif %}
+            {% if fornitore.pec %}<div><div class="ana-spec-k">PEC</div><div class="ana-spec-v" style="font-size:13px;">{{ fornitore.pec }}</div></div>{% endif %}
+            {% if fornitore.website %}<div><div class="ana-spec-k">Sito web</div><div class="ana-spec-v" style="font-size:13px;"><a href="{{ fornitore.website }}" target="_blank" style="color:#1d4ed8;text-decoration:none;">Apri sito ↗</a></div></div>{% endif %}
+            {% if not fornitore.telefono and not fornitore.email %}<div style="color:#94a3b8;font-size:13px;">Nessun contatto inserito.</div>{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="ana-card">
+        <div class="ana-card-head"><div class="ana-card-title">Dati aziendali</div></div>
+        <div class="ana-card-body">
+          <div class="ana-specs">
+            {% if fornitore.piva %}<div><div class="ana-spec-k">P.IVA</div><div class="ana-spec-v">{{ fornitore.piva }}</div></div>{% endif %}
+            {% if fornitore.codice_fiscale %}<div><div class="ana-spec-k">Cod. Fiscale</div><div class="ana-spec-v">{{ fornitore.codice_fiscale }}</div></div>{% endif %}
+            {% if fornitore.indirizzo or fornitore.citta %}
+            <div><div class="ana-spec-k">Sede</div>
+            <div class="ana-spec-v" style="font-size:13px;">
+              {% if fornitore.indirizzo %}{{ fornitore.indirizzo }}<br>{% endif %}
+              {{ fornitore.citta }}{% if fornitore.cap %} {{ fornitore.cap }}{% endif %}{% if fornitore.provincia %} ({{ fornitore.provincia }}){% endif %}
+            </div></div>
+            {% endif %}
+            <div><div class="ana-spec-k">Aggiornato</div><div class="ana-spec-v" style="font-size:12px;color:#64748b;">{{ fornitore.updated_at|date:"d/m/Y H:i" }}</div></div>
+          </div>
+        </div>
+      </div>
+
+      {% if valutazioni %}
+      <div class="ana-card">
+        <div class="ana-card-head"><div class="ana-card-title">Rating qualità</div></div>
+        <div class="ana-card-body">
+          {% with pm=fornitore.punteggio_medio %}
+          <div style="font-size:30px;font-weight:800;color:#0f172a;margin-bottom:14px;"><span style="color:#f59e0b;">★</span> {{ pm }}<span style="font-size:15px;color:#94a3b8;font-weight:400;">/5</span></div>
+          {% endwith %}
+          {% with last=valutazioni|first %}
+          <div class="ana-rating-bar"><span style="font-size:11px;color:#64748b;width:90px;">Qualità</span><div class="ana-rating-track"><div class="ana-rating-fill" style="width:{{ last.qualita|floatformat:0 }}0%"></div></div><span style="font-size:12px;font-weight:700;">{{ last.qualita }}/5</span></div>
+          <div class="ana-rating-bar"><span style="font-size:11px;color:#64748b;width:90px;">Puntualità</span><div class="ana-rating-track"><div class="ana-rating-fill" style="width:{{ last.puntualita|floatformat:0 }}0%"></div></div><span style="font-size:12px;font-weight:700;">{{ last.puntualita }}/5</span></div>
+          <div class="ana-rating-bar"><span style="font-size:11px;color:#64748b;width:90px;">Comunicazione</span><div class="ana-rating-track"><div class="ana-rating-fill" style="width:{{ last.comunicazione|floatformat:0 }}0%"></div></div><span style="font-size:12px;font-weight:700;">{{ last.comunicazione }}/5</span></div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:10px;">Ultima: {{ last.data|date:"d/m/Y" }}</div>
+          {% endwith %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if fornitore.note %}
+      <div class="ana-card">
+        <div class="ana-card-head"><div class="ana-card-title">Note</div></div>
+        <div class="ana-card-body" style="font-size:13px;color:#334155;line-height:1.6;">{{ fornitore.note }}</div>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function(){
+  document.querySelectorAll('.ana-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.ana-tab').forEach(t => t.classList.remove('is-active'));
+      document.querySelectorAll('.ana-tab-panel').forEach(p => p.classList.remove('is-active'));
+      tab.classList.add('is-active');
+      document.getElementById(tab.dataset.tab).classList.add('is-active');
+    });
+  });
+})();
+</script>
+{% endblock %}

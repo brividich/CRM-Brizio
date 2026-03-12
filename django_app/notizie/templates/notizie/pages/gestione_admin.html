@@ -1,0 +1,168 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.ga-wrap { max-width: 1200px; margin: 0 auto; padding: 18px 16px; }
+.ga-header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.ga-title { font-size: 22px; font-weight: 800; color: #0f172a; margin: 0; }
+.ga-badge { background: #1f64d8; color: #fff; border-radius: 6px; padding: 3px 9px; font-size: 12px; font-weight: 700; }
+.ga-tabs { display: flex; gap: 4px; border-bottom: 2px solid #e5ecf6; margin-bottom: 18px; }
+.ga-tab { padding: 8px 16px; border-radius: 8px 8px 0 0; text-decoration: none; font-weight: 600; font-size: 13px; color: #5a7296; border: 1px solid transparent; border-bottom: none; }
+.ga-tab:hover { background: #f0f5ff; color: #1f64d8; }
+.ga-tab.active { background: #fff; color: #1f64d8; border-color: #e5ecf6; margin-bottom: -2px; }
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.kpi { background: #fff; border: 1px solid #dbe3f0; border-radius: 11px; padding: 14px; box-shadow: 0 2px 6px rgba(15,23,42,.04); }
+.kpi-label { font-size: 11px; text-transform: uppercase; color: #7e94b2; font-weight: 700; }
+.kpi-val { font-size: 30px; font-weight: 800; color: #0f172a; line-height: 1.1; margin-top: 4px; }
+.kpi-sub { font-size: 12px; color: #8fa5c0; margin-top: 2px; }
+.card { background: #fff; border: 1px solid #dbe3f0; border-radius: 11px; box-shadow: 0 2px 6px rgba(15,23,42,.04); overflow: hidden; margin-bottom: 14px; }
+.card-head { padding: 10px 14px; border-bottom: 1px solid #e5ecf6; display: flex; justify-content: space-between; align-items: center; }
+.card-title { font-size: 14px; font-weight: 700; color: #0f172a; margin: 0; }
+.card-body { padding: 14px; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl th { padding: 8px 10px; background: #f8fbff; color: #7f95b3; font-size: 11px; text-transform: uppercase; font-weight: 700; border-bottom: 1px solid #e5ecf6; text-align: left; }
+.tbl td { padding: 8px 10px; border-bottom: 1px solid #f0f4fa; vertical-align: middle; }
+.tbl tr:last-child td { border-bottom: none; }
+.tbl tr:hover td { background: #f8fbff; }
+.badge { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 700; }
+.badge-bozza { background: #f1f5f9; color: #64748b; }
+.badge-pubblicata { background: #dcfce7; color: #166534; }
+.badge-archiviata { background: #f1f5f9; color: #64748b; opacity:.7; }
+.badge-obbligatoria { background: #fee2e2; color: #991b1b; }
+.bar-wrap { background: #e5ecf6; border-radius: 999px; height: 8px; overflow: hidden; margin-top: 6px; }
+.bar-fill { height: 100%; background: #1f64d8; border-radius: 999px; }
+.btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid transparent; text-decoration: none; }
+.btn-primary { background: #1f64d8; color: #fff; border-color: #1f64d8; }
+.btn-primary:hover { background: #1750b8; }
+.btn-sm { padding: 4px 9px; font-size: 12px; }
+.search-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.search-row input, .search-row select { border: 1px solid #d1d9e8; border-radius: 8px; padding: 7px 12px; font-size: 13px; }
+.search-row input { flex: 1; }
+.pager { display: flex; gap: 6px; align-items: center; justify-content: flex-end; margin-top: 10px; font-size: 12px; color: #6b7280; }
+.pager a { padding: 4px 9px; border: 1px solid #dbe3f0; border-radius: 6px; text-decoration: none; color: #1f64d8; font-weight: 600; }
+.log-row { display: grid; grid-template-columns: 140px 90px 120px 1fr; gap: 8px; padding: 7px 10px; border-bottom: 1px solid #f0f4fa; font-size: 12px; }
+.log-row:last-child { border-bottom: none; }
+.log-head { font-size: 11px; text-transform: uppercase; color: #8fa5c0; font-weight: 700; }
+.log-wrap { overflow-x: auto; }
+@media (max-width: 640px) {
+  .search-row { flex-wrap: wrap; }
+  .log-row, .log-row.log-head { grid-template-columns: 1fr; gap: 2px; }
+  .log-head { display: none; }
+  .ga-header { flex-wrap: wrap; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ga-wrap">
+  <div class="ga-header">
+    <div class="ga-title">Gestione Notizie</div>
+    <span class="ga-badge">Admin</span>
+    <a href="{% url 'notizie_dashboard' %}" class="btn btn-sm" style="margin-left:auto;border:1px solid #dbe3f0;">Dashboard notizie &rarr;</a>
+  </div>
+
+  <div class="ga-tabs">
+    <a href="?tab=riepilogo" class="ga-tab {% if tab == 'riepilogo' %}active{% endif %}">Riepilogo</a>
+    <a href="?tab=record" class="ga-tab {% if tab == 'record' %}active{% endif %}">Record</a>
+    <a href="?tab=log" class="ga-tab {% if tab == 'log' %}active{% endif %}">Log attivit&agrave;</a>
+  </div>
+
+  {# ========== TAB RIEPILOGO ========== #}
+  {% if tab == 'riepilogo' %}
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-label">Notizie totali</div><div class="kpi-val">{{ total }}</div></div>
+    <div class="kpi"><div class="kpi-label">Bozze</div><div class="kpi-val">{{ bozze }}</div></div>
+    <div class="kpi"><div class="kpi-label">Pubblicate</div><div class="kpi-val">{{ pubblicate }}</div></div>
+    <div class="kpi"><div class="kpi-label">Archiviate</div><div class="kpi-val">{{ archiviate }}</div></div>
+    <div class="kpi"><div class="kpi-label">Obbligatorie attive</div><div class="kpi-val">{{ obbligatorie_attive }}</div></div>
+    <div class="kpi">
+      <div class="kpi-label">Conformit&agrave; letture</div>
+      <div class="kpi-val">{{ tasso_conformita }}%</div>
+      <div class="kpi-sub">{{ totale_conformi }} / {{ totale_letture }} letture</div>
+      <div class="bar-wrap"><div class="bar-fill" style="width:{{ tasso_conformita }}%;"></div></div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ========== TAB RECORD ========== #}
+  {% if tab == 'record' %}
+  <div class="card">
+    <div class="card-head">
+      <h3 class="card-title">Notizie ({{ notizie_page.paginator.count }})</h3>
+      <a href="{% url 'notizie_dashboard_create' %}" class="btn btn-primary btn-sm">+ Nuova notizia</a>
+    </div>
+    <div class="card-body">
+      <form method="get" class="search-row">
+        <input type="hidden" name="tab" value="record">
+        <input type="text" name="q" value="{{ q }}" placeholder="Cerca per titolo...">
+        <select name="filter_stato">
+          <option value="">Tutti gli stati</option>
+          {% for val, lbl in stati %}
+            <option value="{{ val }}" {% if filter_stato == val %}selected{% endif %}>{{ lbl }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary btn-sm">Cerca</button>
+        {% if q or filter_stato %}<a href="?tab=record" class="btn btn-sm" style="border:1px solid #dbe3f0;">&#10005;</a>{% endif %}
+      </form>
+      <div style="overflow-x:auto;">
+        <table class="tbl">
+          <thead><tr><th>Titolo</th><th>Stato</th><th>Obbligatoria</th><th>Pubblicata il</th><th>Letture</th><th>Conformi</th><th></th></tr></thead>
+          <tbody>
+          {% for n in notizie_page %}
+            <tr>
+              <td>{{ n.titolo }}</td>
+              <td><span class="badge badge-{{ n.stato }}">{{ n.get_stato_display }}</span></td>
+              <td>{% if n.obbligatoria %}<span class="badge badge-obbligatoria">S&igrave;</span>{% else %}No{% endif %}</td>
+              <td>{% if n.pubblicato_il %}{{ n.pubblicato_il|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+              <td>{{ n.n_letture }}</td>
+              <td>{{ n.n_conformi }}</td>
+              <td>
+                <a href="{% url 'notizie_dashboard_edit' n.id %}" class="btn btn-sm" style="border:1px solid #dbe3f0;">Modifica</a>
+                <a href="{% url 'notizie_dettaglio' n.id %}" class="btn btn-sm" style="border:1px solid #dbe3f0;">Apri</a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7" style="color:#9aadcb;text-align:center;">Nessuna notizia trovata</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if notizie_page.has_other_pages %}
+      <div class="pager">
+        Pagina {{ notizie_page.number }} di {{ notizie_page.paginator.num_pages }}
+        {% if notizie_page.has_previous %}<a href="?tab=record&q={{ q }}&filter_stato={{ filter_stato }}&page={{ notizie_page.previous_page_number }}">&#8592; Prec</a>{% endif %}
+        {% if notizie_page.has_next %}<a href="?tab=record&q={{ q }}&filter_stato={{ filter_stato }}&page={{ notizie_page.next_page_number }}">Succ &#8594;</a>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# ========== TAB LOG ========== #}
+  {% if tab == 'log' %}
+  <div class="card">
+    <div class="card-head"><h3 class="card-title">Log attivit&agrave; Notizie (ultime 100)</h3></div>
+    <div class="card-body">
+      {% if audit_entries %}
+      <div class="log-row log-head">
+        <span>Data/ora</span><span>Utente</span><span>Azione</span><span>Dettaglio</span>
+      </div>
+      {% for entry in audit_entries %}
+      <div class="log-row">
+        <span>{{ entry.created_at|date:"d/m/Y H:i" }}</span>
+        <span>{{ entry.utente_display|default:"—" }}</span>
+        <span>{{ entry.azione }}</span>
+        <span style="color:#64748b;font-size:11px;">{{ entry.dettaglio }}</span>
+      </div>
+      {% endfor %}
+      {% else %}
+      <p style="color:#9aadcb;text-align:center;padding:20px 0;">Nessuna voce di log per questo modulo.</p>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

@@ -1,0 +1,1279 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Apertura Segnalazione | Portale Applicativo</title>
+  <script src="{% static 'anomalie/js/react.development.js' %}"></script>
+  <script src="{% static 'anomalie/js/react-dom.development.js' %}"></script>
+  <script src="{% static 'anomalie/js/babel.min.js' %}"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #bdc6cf;
+      position: relative;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 30%, #c8d0d8 0%, #adb8c2 100%);
+      z-index: 0;
+    }
+
+    #root { position: relative; z-index: 1; }
+
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ Topbar Ã¢â€â‚¬Ã¢â€â‚¬ */
+    .topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 52px;
+      background: rgba(26, 84, 153, 0.92);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 16px;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    }
+    .topbar-back {
+      color: rgba(255,255,255,0.80);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      transition: color 0.15s;
+    }
+    .topbar-back:hover { color: #fff; }
+    .topbar-sep { width: 1px; height: 22px; background: rgba(255,255,255,0.25); flex-shrink: 0; }
+    .topbar-title {
+      flex: 1;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      color: #fff;
+    }
+    .topbar-user {
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.70);
+      white-space: nowrap;
+    }
+
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ Content area Ã¢â€â‚¬Ã¢â€â‚¬ */
+    .content {
+      padding-top: 72px;
+      padding-bottom: 40px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ Card Ã¢â€â‚¬Ã¢â€â‚¬ */
+    .step-card {
+      width: 100%;
+      max-width: 820px;
+      margin: 0 16px;
+      background: rgba(255,255,255,0.88);
+      border-radius: 18px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 20px 28px 16px;
+      border-bottom: 1px solid rgba(0,0,0,0.07);
+    }
+    .step-num {
+      width: 34px; height: 34px;
+      background: linear-gradient(135deg, #2670b8, #1a5499);
+      color: #fff;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 800;
+      flex-shrink: 0;
+    }
+    .step-header h2 {
+      font-size: 17px;
+      font-weight: 700;
+      color: #1e3a5f;
+      letter-spacing: 0.02em;
+    }
+
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ Search Ã¢â€â‚¬Ã¢â€â‚¬ */
+    .search-wrap { padding: 16px 28px 8px; }
+    .search-input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      background: #f8fafc;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .search-input:focus { border-color: #2670b8; background: #fff; }
+
+    /* -- New OP (step 1) -- */
+    .create-op-wrap {
+      padding: 16px 28px 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .create-op-btn {
+      align-self: flex-start;
+      padding: 9px 14px;
+      font-size: 12px;
+    }
+    .create-op-hint {
+      font-size: 12px;
+      color: #64748b;
+    }
+    .create-op-panel {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 10px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .create-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .create-grid .full { grid-column: 1 / -1; }
+    .create-op-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 13px;
+      color: #334155;
+      user-select: none;
+    }
+    .create-op-checkbox input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #2670b8;
+    }
+    .create-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ OP list Ã¢â€â‚¬Ã¢â€â‚¬ */
+    .op-list { max-height: 440px; overflow-y: auto; }
+    .op-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 14px 28px;
+      border-bottom: 1px solid rgba(0,0,0,0.05);
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    .op-row:last-child { border-bottom: none; }
+    .op-row:hover { background: rgba(38,112,184,0.07); }
+    .op-row-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #1e3a5f;
+    }
+    .op-row-meta {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: #64748b;
+    }
+    .op-row-meta span { display: flex; align-items: center; gap: 4px; }
+    .meta-label { font-weight: 600; color: #94a3b8; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      background: #dbeafe;
+      color: #1e40af;
+      border: 1px solid #93c5fd;
+      border-radius: 99px;
+      padding: 1px 8px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ OP info bar (step 2) Ã¢â€â‚¬Ã¢â€â‚¬ */
+    .op-info-bar {
+      background: linear-gradient(135deg, #1e3a5f, #2670b8);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .op-info-back {
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.25);
+      color: #fff;
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .op-info-back:hover { background: rgba(255,255,255,0.25); }
+    .op-info-items { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; flex: 1; }
+    .op-info-chip {
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.20);
+      border-radius: 6px;
+      padding: 3px 10px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.90);
+    }
+    .op-info-chip strong { color: #fff; font-weight: 700; }
+
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ Form body Ã¢â€â‚¬Ã¢â€â‚¬ */
+    .form-body { padding: 20px 28px 24px; display: flex; flex-direction: column; gap: 20px; }
+
+    .field-group { display: flex; flex-direction: column; gap: 6px; }
+    .field-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: #374151;
+      letter-spacing: 0.02em;
+    }
+    .req { color: #dc2626; margin-left: 2px; }
+
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ Checkboxes Ã¢â€â‚¬Ã¢â€â‚¬ */
+    .checkbox-row { display: flex; gap: 20px; flex-wrap: wrap; }
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 13px;
+      color: #374151;
+      cursor: pointer;
+      user-select: none;
+    }
+    .checkbox-item input[type="checkbox"] {
+      width: 16px; height: 16px;
+      cursor: pointer;
+      accent-color: #2670b8;
+    }
+
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ Inputs Ã¢â€â‚¬Ã¢â€â‚¬ */
+    .text-input, .textarea-input {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      background: #f8fafc;
+      color: #1e293b;
+      outline: none;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .text-input:focus, .textarea-input:focus {
+      border-color: #2670b8;
+      background: #fff;
+    }
+    .textarea-input { resize: vertical; }
+
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ Range row Ã¢â€â‚¬Ã¢â€â‚¬ */
+    .range-row { display: flex; align-items: center; gap: 10px; }
+    .range-row .text-input { flex: 1; }
+    .range-sep { font-size: 18px; color: #94a3b8; font-weight: 700; flex-shrink: 0; }
+
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ Error / Status Ã¢â€â‚¬Ã¢â€â‚¬ */
+    .error-msg {
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      color: #b91c1c;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .info-msg {
+      background: #f0f9ff;
+      border: 1px solid #7dd3fc;
+      color: #0369a1;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .loading-msg, .empty-msg {
+      padding: 32px 28px;
+      text-align: center;
+      font-size: 14px;
+      color: #94a3b8;
+    }
+
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ Action bar Ã¢â€â‚¬Ã¢â€â‚¬ */
+    .action-bar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      padding-top: 4px;
+    }
+    .btn-primary {
+      background: linear-gradient(160deg, #2670b8 0%, #1a5499 100%);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: opacity 0.15s, transform 0.12s;
+    }
+    .btn-primary:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary {
+      background: transparent;
+      color: #64748b;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-secondary:hover:not(:disabled) { background: #f1f5f9; color: #334155; }
+    .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ Toast Ã¢â€â‚¬Ã¢â€â‚¬ */
+    .toast {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #10b981;
+      color: #fff;
+      padding: 12px 28px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 14px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.20);
+      z-index: 9999;
+      white-space: nowrap;
+    }
+
+    /* Ã¢â€â‚¬Ã¢â€â‚¬ Scrollbar Ã¢â€â‚¬Ã¢â€â‚¬ */
+    *::-webkit-scrollbar { width: 5px; }
+    *::-webkit-scrollbar-track { background: transparent; }
+    *::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+    @media (max-width: 760px) {
+      .topbar { padding: 0 12px; gap: 10px; }
+      .topbar-title { font-size: 12px; letter-spacing: 0.06em; }
+      .topbar-user { display: none; }
+      .step-header { padding: 16px 18px 14px; }
+      .create-op-wrap,
+      .search-wrap,
+      .op-row,
+      .form-body { padding-left: 18px; padding-right: 18px; }
+      .create-grid { grid-template-columns: 1fr; }
+      .op-info-bar { padding: 10px 14px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script>
+    window._AP_USERNAME    = "{{ username|escapejs }}";
+    window._AP_HAS_ORDINI  = {% if db_has_ordini %}true{% else %}false{% endif %};
+    window._AP_HAS_ANOMALIE = {% if db_has_anomalie %}true{% else %}false{% endif %};
+    window._AP_CAN_MANAGE_CONFIG = {% if can_manage_config %}true{% else %}false{% endif %};
+    window._AP_CONFIG_LISTS = JSON.parse("{{ config_lists_json|escapejs }}");
+    window._AP_API = {
+      db_ordini: "{% url 'api_anomalie_db_ordini' %}",
+      db_ordini_crea: "{% url 'api_anomalie_db_ordini_crea' %}",
+      salva: "{% url 'api_anomalie_salva' %}",
+      allegati_upload: "{% url 'api_anomalie_allegati_upload' %}",
+    };
+  </script>
+
+{% verbatim %}<script type="text/babel">
+  const { useState, useEffect, useRef } = React;
+  const API = window._AP_API || {
+    db_ordini: '/api/anomalie/db/ordini',
+    db_ordini_crea: '/api/anomalie/db/ordini/crea',
+    salva: '/api/anomalie/salva',
+    allegati_upload: '/api/anomalie/allegati/upload',
+  };
+
+  const cfgLists = window._AP_CONFIG_LISTS || {};
+  const CFG_CAPI_REPARTO = Array.isArray(cfgLists.capi_reparto) ? cfgLists.capi_reparto : [];
+  const CFG_CAPI_COMMESSA = Array.isArray(cfgLists.capi_commessa) ? cfgLists.capi_commessa : [];
+  const CFG_CAUSALI_DOC = Array.isArray(cfgLists.causali_doc) && cfgLists.causali_doc.length
+    ? cfgLists.causali_doc
+    : ['OP', 'OG'];
+  const CFG_STATI_SUPERFICIE = Array.isArray(cfgLists.stati_superficie) && cfgLists.stati_superficie.length
+    ? cfgLists.stati_superficie
+    : ['Finito macchinato', 'Con sovrametallo', 'Finito trattato'];
+
+  /* Ã¢â€â‚¬Ã¢â€â‚¬ CSRF Ã¢â€â‚¬Ã¢â€â‚¬ */
+  const getCsrf = () =>
+    (document.cookie.split(';').find(c => c.trim().startsWith('csrftoken=')) || '').split('=')[1] || '';
+
+  const parseJsonSafe = async (resp, fallback = null) => {
+    try {
+      return await resp.json();
+    } catch (_) {
+      return fallback;
+    }
+  };
+
+  const parseJsonStrict = async (resp, context) => {
+    const ct = String(resp.headers.get('content-type') || '').toLowerCase();
+    if (!ct.includes('application/json')) {
+      const txt = await resp.text();
+      if (/<!doctype html/i.test(txt || '')) {
+        throw new Error(`${context}: risposta HTML (login/sessione/404)`);
+      }
+      throw new Error(`${context}: risposta non JSON (HTTP ${resp.status})`);
+    }
+    try {
+      return await resp.json();
+    } catch (_) {
+      throw new Error(`${context}: JSON non valido`);
+    }
+  };
+
+  const formatBytes = (value) => {
+    const bytes = Number(value || 0);
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let idx = 0;
+    let n = bytes;
+    while (n >= 1024 && idx < units.length - 1) {
+      n /= 1024;
+      idx += 1;
+    }
+    return `${n.toFixed(n >= 10 || idx === 0 ? 0 : 1)} ${units[idx]}`;
+  };
+
+  const ALLEGATI_ALLOWED_EXT = new Set([
+    '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp',
+    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.xlsm', '.csv'
+  ]);
+  const ALLEGATI_MAX_SIZE = 20 * 1024 * 1024;
+
+  /* Ã¢â€â‚¬Ã¢â€â‚¬ Step 1: Selezione OP Ã¢â€â‚¬Ã¢â€â‚¬ */
+  const makeNewOpDraft = () => ({
+    causale_doc: CFG_CAUSALI_DOC[0] || 'OP',
+    anno: String(new Date().getFullYear()),
+    numero: '',
+    fase: '',
+    pn: '',
+    capocommessa: '',
+    car: '',
+    collaudo_benestare: false,
+    note: '',
+  });
+
+  const Step1SelectOP = ({ onSelect }) => {
+    const [ordini, setOrdini] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [err, setErr] = useState('');
+    const [search, setSearch] = useState('');
+
+    const [showCreate, setShowCreate] = useState(false);
+    const [creating, setCreating] = useState(false);
+    const [createErr, setCreateErr] = useState('');
+    const [newOp, setNewOp] = useState(makeNewOpDraft());
+
+    const loadOrdini = () => {
+      setLoading(true);
+      setErr('');
+      fetch(API.db_ordini, { credentials: 'same-origin' })
+        .then(async (r) => {
+          const data = await parseJsonSafe(r, []);
+          if (!r.ok) throw new Error((data && data.error) || ('HTTP ' + r.status));
+          return data;
+        })
+        .then(data => { setOrdini(Array.isArray(data) ? data : []); setLoading(false); })
+        .catch(e => { setErr(e.message || 'Errore caricamento ordini'); setLoading(false); });
+    };
+
+    useEffect(() => { loadOrdini(); }, []);
+
+    const filtered = ordini.filter(op => {
+      if (!search.trim()) return true;
+      const q = search.toLowerCase();
+      return (
+        (op.id || '').toLowerCase().includes(q) ||
+        (op.pn || '').toLowerCase().includes(q) ||
+        (op.capo || '').toLowerCase().includes(q) ||
+        (op.car || '').toLowerCase().includes(q)
+      );
+    });
+
+    const capocommessaOptions = Array.from(
+      new Set(
+        [...CFG_CAPI_COMMESSA, ...ordini
+          .map(op => String(op.capo || '').trim())
+          .filter(v => v && v !== 'â€”')]
+      )
+    );
+    const carOptions = Array.from(
+      new Set(
+        [...CFG_CAPI_REPARTO, ...ordini
+          .map(op => String(op.car || '').trim())
+          .filter(v => v && v !== 'â€”')]
+      )
+    );
+
+    const updateNewOp = (field, value) => {
+      setNewOp(prev => ({ ...prev, [field]: value }));
+    };
+
+    const validateNewOp = () => {
+      if (!newOp.anno.trim()) return 'Anno obbligatorio.';
+      if (!newOp.numero.trim()) return 'Numero obbligatorio.';
+      if (!newOp.pn.trim()) return 'P/N obbligatorio.';
+      if (!newOp.capocommessa.trim()) return 'Capocommessa obbligatorio.';
+      if (!newOp.car.trim()) return 'CAR obbligatorio.';
+      return '';
+    };
+
+    const handleCreateOp = async () => {
+      const vErr = validateNewOp();
+      if (vErr) { setCreateErr(vErr); return; }
+      setCreateErr('');
+      setCreating(true);
+      try {
+        const csrf = getCsrf();
+        const r = await fetch(API.db_ordini_crea, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+          body: JSON.stringify(newOp),
+          credentials: 'same-origin',
+        });
+        const j = await parseJsonSafe(r, {});
+        if (!r.ok || !j.success) {
+          throw new Error(j.error || ('Errore creazione OP (HTTP ' + r.status + ')'));
+        }
+        const created = j.op || null;
+        if (!created || !created.item_id) {
+          throw new Error('Risposta creazione OP non valida.');
+        }
+
+        setOrdini(prev => [created, ...prev.filter(op => String(op.item_id) !== String(created.item_id))]);
+        setShowCreate(false);
+        setNewOp(makeNewOpDraft());
+        onSelect(created);
+      } catch (e) {
+        setCreateErr(e.message || 'Errore creazione OP');
+      } finally {
+        setCreating(false);
+      }
+    };
+
+    const handleCancelCreate = () => {
+      if (creating) return;
+      setShowCreate(false);
+      setCreateErr('');
+      setNewOp(makeNewOpDraft());
+    };
+
+    return (
+      <div className="step-card">
+        <div className="step-header">
+          <div className="step-num">1</div>
+          <h2>Seleziona Ordine di Produzione</h2>
+        </div>
+
+        {!window._AP_HAS_ORDINI && (
+          <div style={{ padding: '24px 28px' }}>
+            <div className="error-msg">
+              Tabella <code>ordini_produzione</code> non disponibile nel database.
+            </div>
+          </div>
+        )}
+
+        {window._AP_HAS_ORDINI && (
+          <>
+            <div className="create-op-wrap">
+              <button
+                className="btn-primary create-op-btn"
+                onClick={() => { setShowCreate(v => !v); setCreateErr(''); }}
+                disabled={creating}
+              >
+                {showCreate ? 'Chiudi inserimento nuovo OP' : '+ Nuovo OP'}
+              </button>
+              <div className="create-op-hint">
+                Prima scelta: puoi creare subito un nuovo OP e passare direttamente alla segnalazione.
+              </div>
+
+              {showCreate && (
+                <div className="create-op-panel">
+                  <div className="create-grid">
+                    <div className="field-group">
+                      <label className="field-label">Causale doc.</label>
+                      <input
+                        className="text-input"
+                        type="text"
+                        value={newOp.causale_doc}
+                        onChange={e => updateNewOp('causale_doc', e.target.value)}
+                        list="causale-doc-options"
+                      />
+                      <datalist id="causale-doc-options">
+                        {CFG_CAUSALI_DOC.map(v => <option key={v} value={v} />)}
+                      </datalist>
+                    </div>
+
+                    <div className="field-group">
+                      <label className="field-label">Anno <span className="req">*</span></label>
+                      <input
+                        className="text-input"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="2026"
+                        value={newOp.anno}
+                        onChange={e => updateNewOp('anno', e.target.value)}
+                      />
+                    </div>
+
+                    <div className="field-group">
+                      <label className="field-label">Numero <span className="req">*</span></label>
+                      <input
+                        className="text-input"
+                        type="text"
+                        placeholder="123"
+                        value={newOp.numero}
+                        onChange={e => updateNewOp('numero', e.target.value)}
+                      />
+                    </div>
+
+                    <div className="field-group">
+                      <label className="field-label">Fase</label>
+                      <input
+                        className="text-input"
+                        type="text"
+                        placeholder="Opzionale"
+                        value={newOp.fase}
+                        onChange={e => updateNewOp('fase', e.target.value)}
+                      />
+                    </div>
+
+                    <div className="field-group">
+                      <label className="field-label">P/N <span className="req">*</span></label>
+                      <input
+                        className="text-input"
+                        type="text"
+                        placeholder="Part number"
+                        value={newOp.pn}
+                        onChange={e => updateNewOp('pn', e.target.value)}
+                      />
+                    </div>
+
+                    <div className="field-group">
+                      <label className="field-label">Capocommessa <span className="req">*</span></label>
+                      <input
+                        className="text-input"
+                        type="text"
+                        value={newOp.capocommessa}
+                        onChange={e => updateNewOp('capocommessa', e.target.value)}
+                        list="capocommessa-options"
+                      />
+                      <datalist id="capocommessa-options">
+                        {capocommessaOptions.map(v => <option key={v} value={v} />)}
+                      </datalist>
+                    </div>
+
+                    <div className="field-group">
+                      <label className="field-label">CAR <span className="req">*</span></label>
+                      <input
+                        className="text-input"
+                        type="text"
+                        value={newOp.car}
+                        onChange={e => updateNewOp('car', e.target.value)}
+                        list="car-options"
+                      />
+                      <datalist id="car-options">
+                        {carOptions.map(v => <option key={v} value={v} />)}
+                      </datalist>
+                    </div>
+
+                    <div className="field-group full">
+                      <label className="create-op-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={newOp.collaudo_benestare}
+                          onChange={e => updateNewOp('collaudo_benestare', e.target.checked)}
+                        />
+                        <span>Collaudo di benestare</span>
+                      </label>
+                    </div>
+
+                    <div className="field-group full">
+                      <label className="field-label">Note</label>
+                      <textarea
+                        className="textarea-input"
+                        rows={2}
+                        placeholder="Note opzionali OP"
+                        value={newOp.note}
+                        onChange={e => updateNewOp('note', e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  {createErr && <div className="error-msg">{createErr}</div>}
+
+                  <div className="create-actions">
+                    <button className="btn-secondary" onClick={handleCancelCreate} disabled={creating}>
+                      Annulla
+                    </button>
+                    <button className="btn-primary" onClick={handleCreateOp} disabled={creating}>
+                      {creating ? 'Creazione OP...' : 'Crea OP e continua'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="search-wrap">
+              <input
+                className="search-input"
+                type="text"
+                placeholder="Cerca per titolo OP, P/N, capocommessa, CAR..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                autoFocus
+              />
+            </div>
+
+            {loading && <div className="loading-msg">Caricamento ordini in corso...</div>}
+            {err && <div style={{ padding: '12px 28px' }}><div className="error-msg">{err}</div></div>}
+
+            {!loading && !err && filtered.length === 0 && (
+              <div className="empty-msg">Nessun ordine trovato.</div>
+            )}
+
+            {!loading && !err && filtered.length > 0 && (
+              <div className="op-list">
+                {filtered.map((op, idx) => (
+                  <div key={op.item_id ?? idx} className="op-row" onClick={() => onSelect(op)}>
+                    <div className="op-row-title">{op.id || 'â€”'}</div>
+                    <div className="op-row-meta">
+                      {op.pn && <span><span className="meta-label">P/N</span>{op.pn}</span>}
+                      {op.capo && <span><span className="meta-label">Capo</span>{op.capo}</span>}
+                      {op.car && <span><span className="meta-label">CAR</span>{op.car}</span>}
+                      {op.anomalie_count > 0 && (
+                        <span className="badge">{op.anomalie_count} anomali{op.anomalie_count === 1 ? 'a' : 'e'}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
+
+  /* Step 2: Form Anomalia */
+  const STATI_SUPERFICIE = CFG_STATI_SUPERFICIE;
+
+  const Step2Form = ({ op, initialSn, onBack, onSaved }) => {
+    const [statiSup,  setStatiSup]  = useState([]);
+    const [sn,        setSn]        = useState(initialSn || '');
+    const [isRange,   setIsRange]   = useState(false);
+    const [snInizio,  setSnInizio]  = useState('');
+    const [snFine,    setSnFine]    = useState('');
+    const [desc,      setDesc]      = useState('');
+    const [note,      setNote]      = useState('');
+    const [saving,    setSaving]    = useState(false);
+    const [error,     setError]     = useState('');
+    const [attachMsg, setAttachMsg] = useState('');
+    const [pendingFiles, setPendingFiles] = useState([]);
+    const fileInputRef = useRef(null);
+
+    const toggleStato = (s) =>
+      setStatiSup(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
+
+    const buildNota = (userNote) => {
+      const prefix = statiSup.length ? `Stato superficie: ${statiSup.join(', ')}\n\n` : '';
+      return prefix + (userNote || '');
+    };
+
+    const onSelectFiles = (event) => {
+      const selected = Array.from((event.target && event.target.files) || []);
+      event.target.value = '';
+      if (!selected.length) return;
+
+      const ok = [];
+      const errors = [];
+      for (const f of selected) {
+        const name = String(f.name || '').trim();
+        const dot = name.lastIndexOf('.');
+        const ext = dot >= 0 ? name.slice(dot).toLowerCase() : '';
+        if (!ALLEGATI_ALLOWED_EXT.has(ext)) {
+          errors.push(`${name || 'file'}: formato non supportato`);
+          continue;
+        }
+        if (Number(f.size || 0) > ALLEGATI_MAX_SIZE) {
+          errors.push(`${name || 'file'}: supera 20 MB`);
+          continue;
+        }
+        ok.push(f);
+      }
+
+      if (ok.length) {
+        setPendingFiles(prev => {
+          const next = [...prev];
+          ok.forEach((f) => {
+            const exists = next.some((x) =>
+              x.name === f.name &&
+              Number(x.size || 0) === Number(f.size || 0) &&
+              Number(x.lastModified || 0) === Number(f.lastModified || 0)
+            );
+            if (!exists) next.push(f);
+          });
+          return next;
+        });
+      }
+      if (errors.length) {
+        setAttachMsg(errors.join(' | '));
+      } else {
+        setAttachMsg('');
+      }
+    };
+
+    const removePendingFile = (idx) => {
+      setPendingFiles(prev => prev.filter((_, i) => i !== idx));
+    };
+
+    const validate = () => {
+      if (!window._AP_HAS_ANOMALIE) return 'Tabella anomalie non disponibile.';
+      if (!desc.trim()) return 'Descrizione anomalia obbligatoria.';
+      if (!isRange && !sn.trim()) return 'S/N obbligatorio.';
+      if (isRange && (!snInizio.trim() || !snFine.trim())) return 'Specificare seriale iniziale e finale.';
+      if (isRange && pendingFiles.length) return 'Con range S/N non puoi allegare file. Usa un singolo S/N.';
+      return '';
+    };
+
+    /* Expand range: se numerici, genera tutti i seriali; altrimenti usa stringa "inizio-fine" */
+    const expandRange = () => {
+      const prefix = snInizio.replace(/\d+$/, '');
+      const suffix1 = snInizio.slice(prefix.length);
+      const suffix2 = snFine.slice(prefix.length);
+      const n1 = parseInt(suffix1, 10);
+      const n2 = parseInt(suffix2, 10);
+      const pad = suffix1.length;
+      if (!isNaN(n1) && !isNaN(n2) && n1 <= n2 && n2 - n1 <= 100) {
+        const list = [];
+        for (let i = n1; i <= n2; i++) list.push(prefix + String(i).padStart(pad, '0'));
+        return list;
+      }
+      return [`${snInizio}-${snFine}`];
+    };
+
+    const buildPayload = (snVal) => ({
+      op_id:       op.id,
+      op_item_id:  op.item_id,
+      sn:          snVal,
+      desc:        desc.trim(),
+      note:        buildNota(note.trim()),
+      avanzamento: 'Accetto lo stato',
+      pezzi_prec:  false,
+      aprire_rdc:  false,
+      segnalare:   false,
+      chiudere:    false,
+    });
+
+    const doSave = async (snList) => {
+      const csrf = getCsrf();
+      const localIds = [];
+      for (const snVal of snList) {
+        const r = await fetch(API.salva, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+          body: JSON.stringify(buildPayload(snVal)),
+          credentials: 'same-origin',
+        });
+        const j = await parseJsonStrict(r, 'Salvataggio anomalia');
+        if (!r.ok || !j.success) throw new Error(j.error || 'Errore salvataggio');
+        if (j.local_id) localIds.push(j.local_id);
+      }
+      return localIds;
+    };
+
+    const uploadPendingAttachments = async (localId) => {
+      if (!localId || !pendingFiles.length) return;
+      const csrf = getCsrf();
+      const form = new FormData();
+      form.append('local_id', String(localId));
+      pendingFiles.forEach((f) => form.append('files', f));
+      const r = await fetch(API.allegati_upload, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrf },
+        body: form,
+        credentials: 'same-origin',
+      });
+      const j = await parseJsonStrict(r, 'Upload allegati');
+      if (!r.ok) throw new Error(j.error || 'Errore upload allegati');
+      if (Array.isArray(j.errors) && j.errors.length) {
+        setAttachMsg('Upload parziale: ' + j.errors.join(' | '));
+      } else {
+        setAttachMsg(`${pendingFiles.length} allegato/i caricato/i`);
+      }
+    };
+
+    const handleSave = async (action) => {
+      const validErr = validate();
+      if (validErr) { setError(validErr); return; }
+      setError('');
+      setAttachMsg('');
+      setSaving(true);
+      try {
+        const snList = isRange ? expandRange() : [sn.trim()];
+        const localIds = await doSave(snList);
+        if (!isRange && pendingFiles.length && localIds.length) {
+          await uploadPendingAttachments(localIds[0]);
+        }
+        onSaved(action, isRange ? null : sn.trim());
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    return (
+      <div className="step-card">
+        {/* OP info bar */}
+        <div className="op-info-bar">
+          <button className="op-info-back" onClick={onBack} disabled={saving}>
+            Ã¢â€ Â Cambio OP
+          </button>
+          <div className="op-info-items">
+            <div className="op-info-chip"><strong>{op.id}</strong></div>
+            {op.pn   && <div className="op-info-chip"><strong>P/N</strong> {op.pn}</div>}
+            {op.capo && <div className="op-info-chip"><strong>Capo</strong> {op.capo}</div>}
+            {op.car  && <div className="op-info-chip"><strong>CAR</strong> {op.car}</div>}
+          </div>
+        </div>
+
+        <div className="step-header">
+          <div className="step-num">2</div>
+          <h2>Nuova Segnalazione Anomalia</h2>
+        </div>
+
+        <div className="form-body">
+          {/* Stato superficie */}
+          <div className="field-group">
+            <label className="field-label">Stato superficie</label>
+            <div className="checkbox-row">
+              {STATI_SUPERFICIE.map(s => (
+                <label key={s} className="checkbox-item">
+                  <input
+                    type="checkbox"
+                    checked={statiSup.includes(s)}
+                    onChange={() => toggleStato(s)}
+                  />
+                  <span>{s}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* S/N */}
+          <div className="field-group">
+            <label className="field-label">
+              S/N <span className="req">*</span>
+            </label>
+            <label className="checkbox-item" style={{ marginBottom: '8px' }}>
+              <input
+                type="checkbox"
+                checked={isRange}
+                onChange={e => setIsRange(e.target.checked)}
+              />
+              <span>Inserisci range di seriali</span>
+            </label>
+            {!isRange ? (
+              <input
+                className="text-input"
+                type="text"
+                placeholder="Numero seriale..."
+                value={sn}
+                onChange={e => setSn(e.target.value)}
+              />
+            ) : (
+              <div className="range-row">
+                <input
+                  className="text-input"
+                  type="text"
+                  placeholder="Seriale iniziale"
+                  value={snInizio}
+                  onChange={e => setSnInizio(e.target.value)}
+                />
+                <span className="range-sep">&#8594;</span>
+                <input
+                  className="text-input"
+                  type="text"
+                  placeholder="Seriale finale"
+                  value={snFine}
+                  onChange={e => setSnFine(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Descrizione anomalia */}
+          <div className="field-group">
+            <label className="field-label">
+              Descrizione anomalia <span className="req">*</span>
+            </label>
+            <textarea
+              className="textarea-input"
+              rows={4}
+              placeholder="Descrivi l'anomalia riscontrata..."
+              value={desc}
+              onChange={e => setDesc(e.target.value)}
+            />
+          </div>
+
+          {/* Note aggiuntive */}
+          <div className="field-group">
+            <label className="field-label">Note aggiuntive</label>
+            <textarea
+              className="textarea-input"
+              rows={3}
+              placeholder="Note opzionali..."
+              value={note}
+              onChange={e => setNote(e.target.value)}
+            />
+          </div>
+
+          {/* Allegati */}
+          <div className="field-group">
+            <label className="field-label">Allegati anomalia</label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv"
+              onChange={onSelectFiles}
+              style={{ display: 'none' }}
+            />
+            <div style={{
+              border: '1.5px solid #cbd5e1',
+              borderRadius: 8,
+              background: '#f8fafc',
+              padding: '10px 12px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 12, color: '#64748b' }}>
+                  {isRange
+                    ? 'Con range S/N gli allegati sono disabilitati.'
+                    : 'Carica immagini o documenti (PDF, Word, Excel). Max 20 MB per file.'}
+                </div>
+                <button
+                  className="btn-secondary"
+                  type="button"
+                  onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                  disabled={saving || isRange}
+                >
+                  Aggiungi allegati
+                </button>
+              </div>
+
+              {!pendingFiles.length ? (
+                <div style={{ fontSize: 12, color: '#94a3b8' }}>Nessun allegato selezionato.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
+                  {pendingFiles.map((f, idx) => (
+                    <div key={`${f.name}-${f.size}-${f.lastModified}-${idx}`} style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 8,
+                      border: '1px solid #e2e8f0',
+                      background: '#fff',
+                      borderRadius: 8,
+                      padding: '7px 9px',
+                    }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, color: '#1e293b', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {f.name}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>
+                          {formatBytes(f.size)}
+                        </div>
+                      </div>
+                      <button
+                        className="btn-secondary"
+                        type="button"
+                        onClick={() => removePendingFile(idx)}
+                        disabled={saving}
+                        style={{ padding: '6px 10px', fontSize: 12 }}
+                      >
+                        Rimuovi
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {!window._AP_HAS_ANOMALIE && (
+            <div className="error-msg">
+              Tabella <code>anomalie</code> non disponibile nel database.
+            </div>
+          )}
+
+          {attachMsg && <div className="info-msg">{attachMsg}</div>}
+          {error && <div className="error-msg">{error}</div>}
+
+          {/* Azioni */}
+          <div className="action-bar">
+            <button
+              className="btn-secondary"
+              onClick={() => window.location.href = '/anomalie-menu'}
+              disabled={saving}
+            >
+              Esci
+            </button>
+            <button
+              className="btn-primary"
+              onClick={() => handleSave('exit')}
+              disabled={saving}
+            >
+              {saving ? 'Salvataggio...' : 'Salva ed esci'}
+            </button>
+            {!isRange && (
+              <button
+                className="btn-primary"
+                onClick={() => handleSave('new_same_sn')}
+                disabled={saving}
+              >
+                Salva e nuova (stesso S/N)
+              </button>
+            )}
+            <button
+              className="btn-primary"
+              onClick={() => handleSave('new')}
+              disabled={saving}
+            >
+              Salva e nuova
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  /* Ã¢â€â‚¬Ã¢â€â‚¬ Toast Ã¢â€â‚¬Ã¢â€â‚¬ */
+  const Toast = ({ msg, onDone }) => {
+    useEffect(() => {
+      const t = setTimeout(onDone, 2500);
+      return () => clearTimeout(t);
+    }, []);
+    return <div className="toast">{msg}</div>;
+  };
+
+  /* Ã¢â€â‚¬Ã¢â€â‚¬ App Root Ã¢â€â‚¬Ã¢â€â‚¬ */
+  const AperturaSegnalazione = () => {
+    const [step,       setStep]       = useState(1);
+    const [selectedOp, setSelectedOp] = useState(null);
+    const [formKey,    setFormKey]    = useState(0);
+    const [initialSn,  setInitialSn]  = useState('');
+    const [toast,      setToast]      = useState('');
+
+    const handleSelectOp = (op) => { setSelectedOp(op); setStep(2); };
+
+    const handleBack = () => { setStep(1); setSelectedOp(null); setInitialSn(''); };
+
+    const handleSaved = (action, lastSn) => {
+      if (action === 'exit') {
+        setToast('Segnalazione salvata!');
+        setTimeout(() => { window.location.href = '/anomalie-menu'; }, 1800);
+      } else if (action === 'new_same_sn') {
+        setToast(`S/N ${lastSn} salvato. Nuova segnalazione...`);
+        setInitialSn(lastSn || '');
+        setFormKey(k => k + 1);
+        setTimeout(() => setToast(''), 2200);
+      } else {
+        setToast('Salvato! Nuova segnalazione...');
+        setInitialSn('');
+        setFormKey(k => k + 1);
+        setTimeout(() => setToast(''), 2200);
+      }
+    };
+
+    return (
+      <div>
+        {/* Topbar */}
+        <div className="topbar">
+          <a href="/anomalie-menu" className="topbar-back">&#8592; Menu Anomalie</a>
+          <div className="topbar-sep"></div>
+          <div className="topbar-title">Apertura Segnalazione</div>
+          {window._AP_CAN_MANAGE_CONFIG && (
+            <>
+              <a href="/gestione-anomalie/configurazione" className="topbar-back">Config Liste</a>
+              <div className="topbar-sep"></div>
+            </>
+          )}
+          <div className="topbar-user">{window._AP_USERNAME}</div>
+        </div>
+
+        {/* Content */}
+        <div className="content">
+          {step === 1 ? (
+            <Step1SelectOP onSelect={handleSelectOp} />
+          ) : (
+            <Step2Form
+              key={formKey}
+              op={selectedOp}
+              initialSn={initialSn}
+              onBack={handleBack}
+              onSaved={handleSaved}
+            />
+          )}
+        </div>
+
+        {toast && <Toast msg={toast} onDone={() => setToast('')} />}
+      </div>
+    );
+  };
+
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+  root.render(React.createElement(AperturaSegnalazione));
+</script>{% endverbatim %}
+</body>
+</html>

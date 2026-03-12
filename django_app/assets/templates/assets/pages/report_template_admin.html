@@ -1,0 +1,278 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Gestione template report{% endblock %}
+
+{% block assets_shell_title %}Gestione template report{% endblock %}
+{% block assets_shell_subtitle %}
+<p>Archivio centralizzato dei file modello usati per i report gestiti dal modulo asset.</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+<a class="btn" href="{% url 'assets:reports' %}">Torna ai report</a>
+{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.rta-page { display: grid; gap: 16px; }
+.rta-card {
+  border: 1px solid #dbe3ef;
+  border-radius: 18px;
+  background: #fff;
+  overflow: hidden;
+  box-shadow: 0 14px 38px rgba(15, 23, 42, 0.04);
+}
+.rta-head {
+  padding: 16px 18px;
+  border-bottom: 1px solid #e5edf5;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+}
+.rta-head h2, .rta-head h3 { margin: 0; color: #0f172a; }
+.rta-head p { margin: 4px 0 0; color: #64748b; font-size: 13px; }
+.rta-body { padding: 18px; display: grid; gap: 14px; }
+.rta-form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+.rta-form-grid .field { display: grid; gap: 6px; min-width: 0; }
+.rta-form-grid .field.span-2 { grid-column: span 2; }
+.rta-form-grid .field.span-4 { grid-column: 1 / -1; }
+.rta-form-grid label { font-size: 12px; font-weight: 700; color: #334155; }
+.rta-form-grid input,
+.rta-form-grid select,
+.rta-form-grid textarea {
+  width: 100%;
+  border: 1px solid #d5e0ed;
+  border-radius: 12px;
+  background: #fff;
+}
+.rta-checkline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+}
+.rta-muted { color: #64748b; font-size: 12px; line-height: 1.5; }
+.rta-grid { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rta-template {
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 14px;
+  background: #fbfdff;
+  display: grid;
+  gap: 10px;
+}
+.rta-template-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+}
+.rta-template-title { margin: 0; font-size: 15px; font-weight: 800; color: #0f172a; }
+.rta-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.rta-chip.active { background: #dcfce7; color: #166534; }
+.rta-chip.idle { background: #e2e8f0; color: #475569; }
+.rta-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+@media (max-width: 980px) {
+  .rta-grid { grid-template-columns: 1fr; }
+  .rta-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .rta-form-grid { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="rta-page">
+  <article class="rta-card">
+    <div class="rta-head">
+      <div>
+        <h2>Report gestiti</h2>
+        <p>Qui definisci i tipi report disponibili nel portale. Ogni report puo poi avere piu versioni di template.</p>
+      </div>
+    </div>
+    <div class="rta-body">
+      <form method="post" class="rta-form-grid">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create_report_definition">
+        <div class="field">
+          <label for="report_def_code">Codice</label>
+          <input type="text" name="code" id="report_def_code" maxlength="80" required placeholder="Es. asset-collaudo">
+        </div>
+        <div class="field span-2">
+          <label for="report_def_label">Nome report</label>
+          <input type="text" name="label" id="report_def_label" maxlength="120" required placeholder="Es. Report collaudo asset">
+        </div>
+        <div class="field">
+          <label for="report_def_order">Ordine</label>
+          <input type="number" name="sort_order" id="report_def_order" value="100">
+        </div>
+        <div class="field span-4">
+          <label for="report_def_description">Descrizione</label>
+          <textarea name="description" id="report_def_description" rows="2" maxlength="255" placeholder="Quando si usa questo report"></textarea>
+        </div>
+        <div class="field span-4">
+          <div class="rta-actions">
+            <button class="btn btn-primary" type="submit">Crea report</button>
+          </div>
+        </div>
+      </form>
+
+      <section class="rta-grid">
+        {% for row in report_definitions %}
+          <div class="rta-template">
+            <div class="rta-template-top">
+              <div>
+                <p class="rta-template-title">{{ row.label }}</p>
+                <div class="rta-muted">{{ row.code }}</div>
+              </div>
+              <span class="rta-chip {% if row.is_active %}active{% else %}idle{% endif %}">
+                {% if row.is_active %}Disponibile{% else %}Disattivo{% endif %}
+              </span>
+            </div>
+            {% if row.description %}
+              <div class="rta-muted">{{ row.description }}</div>
+            {% endif %}
+            {% if row.code != 'asset-detail' and row.code != 'work-machine-maintenance-month' %}
+              <div class="rta-actions">
+                <form method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="delete_report_definition">
+                  <input type="hidden" name="report_definition_id" value="{{ row.id }}">
+                  <button class="btn" type="submit" onclick="return confirm('Eliminare questo tipo report e tutti i suoi template?');">Elimina report</button>
+                </form>
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </section>
+    </div>
+  </article>
+
+  <article class="rta-card">
+    <div class="rta-head">
+      <div>
+        <h2>Nuovo template</h2>
+        <p>Carica il file modello per uno dei report attualmente gestiti.</p>
+      </div>
+    </div>
+    <div class="rta-body">
+      <form method="post" enctype="multipart/form-data" class="rta-form-grid">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="upload_report_template">
+        <div class="field">
+          <label for="report_code">Report</label>
+          <select name="report_code" id="report_code" required>
+            {% for code, label in report_template_choices %}
+              <option value="{{ code }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field span-2">
+          <label for="name">Nome template</label>
+          <input type="text" name="name" id="name" maxlength="120" required placeholder="Es. Scheda asset standard">
+        </div>
+        <div class="field">
+          <label for="version">Versione</label>
+          <input type="text" name="version" id="version" maxlength="40" placeholder="Es. v1.0">
+        </div>
+        <div class="field span-2">
+          <label for="template_file">File template</label>
+          <input type="file" name="template_file" id="template_file" required>
+        </div>
+        <div class="field span-2">
+          <label for="description">Note</label>
+          <textarea name="description" id="description" rows="3" maxlength="255" placeholder="Uso, reparto, note operative"></textarea>
+        </div>
+        <div class="field">
+          <label>Attiva subito</label>
+          <label class="rta-checkline"><input type="checkbox" name="is_active" value="1" checked> Si</label>
+        </div>
+        <div class="field span-4">
+          <div class="rta-actions">
+            <button class="btn btn-primary" type="submit">Carica template</button>
+            <span class="rta-muted">Formati ammessi: {{ report_template_extensions }}</span>
+          </div>
+        </div>
+      </form>
+    </div>
+  </article>
+
+  <section class="rta-grid">
+    {% for group in report_template_groups %}
+      <article class="rta-card">
+        <div class="rta-head">
+          <div>
+            <h3>{{ group.label }}</h3>
+            <p>
+              {% if group.active %}
+                Template attivo: <strong>{{ group.active.name }}</strong>
+              {% else %}
+                Nessun template attivo configurato.
+              {% endif %}
+            </p>
+            {% if group.description %}
+              <div class="rta-muted">{{ group.description }}</div>
+            {% endif %}
+          </div>
+        </div>
+        <div class="rta-body">
+          {% for row in group.rows %}
+            <div class="rta-template">
+              <div class="rta-template-top">
+                <div>
+                  <p class="rta-template-title">{{ row.name }}</p>
+                  <div class="rta-muted">
+                    {% if row.version %}Versione {{ row.version }} · {% endif %}
+                    {{ row.original_name|default:row.file.name }} · {{ row.updated_at|date:"d/m/Y H:i" }}
+                    {% if row.uploaded_by %} · {{ row.uploaded_by.username }}{% endif %}
+                  </div>
+                </div>
+                <span class="rta-chip {% if row.is_active %}active{% else %}idle{% endif %}">
+                  {% if row.is_active %}Attivo{% else %}Archivio{% endif %}
+                </span>
+              </div>
+              {% if row.description %}
+                <div class="rta-muted">{{ row.description }}</div>
+              {% endif %}
+              <div class="rta-actions">
+                <a class="btn" href="{{ row.file.url }}" target="_blank" rel="noopener">Apri file</a>
+                {% if not row.is_active %}
+                  <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="activate_report_template">
+                    <input type="hidden" name="template_id" value="{{ row.id }}">
+                    <button class="btn btn-primary" type="submit">Rendi attivo</button>
+                  </form>
+                {% endif %}
+                <form method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="delete_report_template">
+                  <input type="hidden" name="template_id" value="{{ row.id }}">
+                  <button class="btn" type="submit" onclick="return confirm('Eliminare questo template report?');">Elimina</button>
+                </form>
+              </div>
+            </div>
+          {% empty %}
+            <div class="rta-muted">Nessun template caricato per questo report.</div>
+          {% endfor %}
+        </div>
+      </article>
+    {% endfor %}
+  </section>
+</section>
+{% endblock %}

@@ -1,0 +1,103 @@
+{% extends "core/base.html" %}
+
+{% block title %}Organigramma | Portale Applicativo{% endblock %}
+
+{% block subnav %}
+  {% include "core/components/subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  <div class="page-header">
+    <div class="page-h">Organigramma aziendale</div>
+    <div class="page-sub">Struttura per reparto e mansione ({{ totale }} risorse)</div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-body" style="padding:16px;">
+      <form method="get" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+        <div style="flex:1;min-width:220px;">
+          <label style="display:block;font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Cerca</label>
+          <input type="text" name="q" value="{{ q }}" placeholder="Nome, cognome o email..."
+            style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;">
+        </div>
+        <div style="min-width:180px;">
+          <label style="display:block;font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Reparto</label>
+          <select name="reparto"
+            style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;">
+            <option value="">— Tutti i reparti —</option>
+            {% for rep in reparti %}
+              <option value="{{ rep }}" {% if rep == reparto_sel %}selected{% endif %}>{{ rep }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="min-width:180px;">
+          <label style="display:block;font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Mansione</label>
+          <select name="mansione"
+            style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;">
+            <option value="">— Tutte le mansioni —</option>
+            {% for mans in mansioni %}
+              <option value="{{ mans }}" {% if mans == mansione_sel %}selected{% endif %}>{{ mans }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <button type="submit"
+            style="padding:8px 20px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">
+            Filtra
+          </button>
+          {% if q or reparto_sel or mansione_sel %}
+            <a href="{% url 'organigramma' %}"
+              style="margin-left:8px;padding:8px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;color:#64748b;text-decoration:none;">
+              Reset
+            </a>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if gruppi %}
+    {% for reparto in gruppi %}
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-head">
+          <div class="card-title">{{ reparto.reparto }}</div>
+          <span style="font-size:12px;color:#64748b;">{{ reparto.count }} risorse</span>
+        </div>
+        <div class="card-body" style="padding:0;">
+          {% for blocco in reparto.mansioni %}
+            <div style="padding:10px 16px;border-bottom:1px solid #f1f5f9;background:#f8fafc;font-size:12px;font-weight:700;color:#334155;">
+              {{ blocco.mansione }} ({{ blocco.count }})
+            </div>
+            <table style="width:100%;border-collapse:collapse;">
+              <tbody>
+                {% for p in blocco.persone %}
+                  <tr style="border-bottom:1px solid #f8fafc;">
+                    <td style="padding:10px 16px;width:32%;">
+                      <strong>{{ p.cognome|default:"" }} {{ p.nome|default:"" }}</strong>
+                    </td>
+                    <td style="padding:10px 16px;width:34%;color:#475569;">
+                      {% if p.email %}
+                        <a href="mailto:{{ p.email }}" style="color:#2563eb;text-decoration:none;">{{ p.email }}</a>
+                      {% else %}
+                        —
+                      {% endif %}
+                    </td>
+                    <td style="padding:10px 16px;font-family:monospace;color:#475569;">
+                      {{ p.aliasusername|default:"—" }}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="card">
+      <div class="card-body" style="padding:34px;text-align:center;color:#94a3b8;">
+        Nessun dato disponibile per i filtri selezionati.
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}

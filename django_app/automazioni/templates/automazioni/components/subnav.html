@@ -1,0 +1,9 @@
+{% with current=request.resolver_match.view_name %}
+<div class="subnav" style="margin-bottom:16px;">
+  <a class="sub-a{% if current == 'admin_portale:automazioni_rule_list' or current == 'admin_portale:automazioni_rule_create' or current == 'admin_portale:automazioni_rule_detail' or current == 'admin_portale:automazioni_rule_edit' or current == 'admin_portale:automazioni_rule_designer' or current == 'admin_portale:automazioni_rule_test' %} active{% endif %}" href="{% url 'admin_portale:automazioni_rule_list' %}">Regole</a>
+  <a class="sub-a{% if current == 'admin_portale:automazioni_sorgenti' %} active{% endif %}" href="{% url 'admin_portale:automazioni_sorgenti' %}">Sorgenti</a>
+  <a class="sub-a{% if current == 'admin_portale:automazioni_contenuti' %} active{% endif %}" href="{% url 'admin_portale:automazioni_contenuti' %}">Contenuti / Colonne</a>
+  <a class="sub-a{% if current == 'admin_portale:automazioni_queue_list' or current == 'admin_portale:automazioni_queue_detail' %} active{% endif %}" href="{% url 'admin_portale:automazioni_queue_list' %}">Queue</a>
+  <a class="sub-a{% if current == 'admin_portale:automazioni_run_log_list' or current == 'admin_portale:automazioni_run_log_detail' %} active{% endif %}" href="{% url 'admin_portale:automazioni_run_log_list' %}">Run log</a>
+</div>
+{% endwith %}

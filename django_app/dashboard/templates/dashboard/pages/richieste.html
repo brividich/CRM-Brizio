@@ -1,0 +1,57 @@
+{% extends "core/base.html" %}
+
+{% block title %}Richieste | Portale Applicativo{% endblock %}
+
+{% block subnav %}
+  {% include "dashboard/components/subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  <div class="page-header">
+    <div class="page-h">Richieste assenze</div>
+    <div class="page-sub">Dati letti dalla tabella locale `assenze` (sync SharePoint -> DB)</div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-icon-wrap blue">#</div><div><div class="stat-num">{{ richieste_total }}</div><div class="stat-lbl">Totali</div></div></div>
+    <div class="stat"><div class="stat-icon-wrap green">OK</div><div><div class="stat-num">{{ richieste_approvate }}</div><div class="stat-lbl">Approvate</div></div></div>
+    <div class="stat"><div class="stat-icon-wrap red">X</div><div><div class="stat-num">{{ richieste_rifiutate }}</div><div class="stat-lbl">Rifiutate</div></div></div>
+    <div class="stat"><div class="stat-icon-wrap yellow">...</div><div><div class="stat-num">{{ richieste_attesa }}</div><div class="stat-lbl">In attesa</div></div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">Elenco richieste</div></div>
+    <div class="card-body">
+      {% if richieste_list %}
+        <div style="overflow:auto;">
+          <table style="width:100%; border-collapse: collapse;">
+            <thead>
+              <tr>
+                <th style="text-align:left; padding:10px 8px;">Tipo</th>
+                <th style="text-align:left; padding:10px 8px;">Motivazione</th>
+                <th style="text-align:left; padding:10px 8px;">Inizio</th>
+                <th style="text-align:left; padding:10px 8px;">Fine</th>
+                <th style="text-align:left; padding:10px 8px;">Stato</th>
+                <th style="text-align:left; padding:10px 8px;">Creata</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in richieste_list %}
+                <tr>
+                  <td style="padding:10px 8px; border-top:1px solid #e6eaf0;">{{ r.tipo|default:"-" }}</td>
+                  <td style="padding:10px 8px; border-top:1px solid #e6eaf0;">{{ r.motivazione|default:"-" }}</td>
+                  <td style="padding:10px 8px; border-top:1px solid #e6eaf0;">{{ r.inizio|default:"-" }}</td>
+                  <td style="padding:10px 8px; border-top:1px solid #e6eaf0;">{{ r.fine|default:"-" }}</td>
+                  <td style="padding:10px 8px; border-top:1px solid #e6eaf0;">{{ r.stato }}</td>
+                  <td style="padding:10px 8px; border-top:1px solid #e6eaf0;">{{ r.creata|default:"-" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="act-text">Nessuna richiesta trovata. Verifica il sync in `admin/sync` oppure i dati dell'utente legacy.</div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

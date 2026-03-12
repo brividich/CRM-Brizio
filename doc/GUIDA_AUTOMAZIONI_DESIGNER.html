@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Guida Automazioni Designer - Portale Applicativo</title>
+  <style>
+    :root {
+      --bg: #f3f7fc;
+      --card: #ffffff;
+      --ink: #12263b;
+      --muted: #53697f;
+      --brand: #123d65;
+      --brand2: #1f629a;
+      --line: #d9e4ef;
+      --accent: #f2a43a;
+      --ok: #1d7e4f;
+      --warn: #bf8619;
+      --rose: #b4234c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Calibri", sans-serif;
+      color: var(--ink);
+      background: radial-gradient(1200px 500px at 10% -10%, #dbe9f8 0, var(--bg) 60%);
+      line-height: 1.45;
+    }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 22px; }
+    .hero {
+      background: linear-gradient(120deg, var(--brand), var(--brand2));
+      color: #fff;
+      border-radius: 16px;
+      padding: 26px 28px;
+      box-shadow: 0 12px 28px rgba(13, 43, 71, 0.2);
+    }
+    .hero .kicker {
+      display: inline-block;
+      font-size: 12px;
+      border: 1px solid rgba(255,255,255,.25);
+      border-radius: 999px;
+      padding: 4px 10px;
+      margin-bottom: 8px;
+      background: rgba(255,255,255,.12);
+      letter-spacing: .2px;
+    }
+    h1 { margin: 4px 0 6px; font-size: 34px; }
+    .sub { margin: 0; font-size: 15px; opacity: .95; }
+    .meta { margin-top: 10px; font-size: 12px; opacity: .9; }
+    .section {
+      margin-top: 14px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 3px 12px rgba(12,40,68,.05);
+      padding: 16px 18px;
+    }
+    h2 {
+      margin: 0 0 10px;
+      font-size: 23px;
+      color: var(--brand);
+      border-left: 6px solid var(--accent);
+      padding-left: 10px;
+    }
+    h3 { margin: 10px 0 8px; color: #1f4f79; }
+    p { margin: 8px 0; }
+    ul { margin: 8px 0 8px 20px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 13px;
+      background: #fcfeff;
+    }
+    .tag {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      margin-right: 6px;
+      margin-bottom: 6px;
+    }
+    .t-arch { background: #e7f1fd; color: #1d4f82; }
+    .t-ux { background: #e9f8ef; color: var(--ok); }
+    .t-note { background: #fff6e8; color: var(--warn); }
+    .t-risk { background: #fff0f5; color: var(--rose); }
+    .flow {
+      border: 1px dashed #b9cde2;
+      background: #f8fbff;
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-family: Consolas, monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 8px 9px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #f2f7fc;
+      color: #234562;
+      font-size: 13px;
+    }
+    .note {
+      margin-top: 8px;
+      border: 1px solid #c9ddf2;
+      border-radius: 10px;
+      background: #f5faff;
+      color: #24435f;
+      padding: 9px 11px;
+      font-size: 14px;
+    }
+    .footer {
+      margin-top: 12px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: 1fr; }
+      h1 { font-size: 29px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <div class="kicker">GUIDA IMPLEMENTATIVA</div>
+      <h1>Automazioni: Designer Visuale Affiancato</h1>
+      <p class="sub">Riepilogo delle modifiche implementate finora sul modulo automazioni, con focus su architettura, UX, preset guidati e stato della fase.</p>
+      <p class="meta">Snapshot: 2026-03-11 | Versione software: 0.6.39-dev</p>
+    </header>
+
+    <section class="section">
+      <h2>1. Obiettivo della fase</h2>
+      <p>La fase UX-V1 ha introdotto un designer visuale affiancato al builder SSR esistente del modulo <strong>automazioni</strong>.</p>
+      <p>Il lavoro e' stato realizzato senza creare motori paralleli, senza nuovi modelli di designer e senza toccare runtime, queue SQL, trigger SQL o worker se non per integrazione UX.</p>
+      <div class="note">Principio guida: una seconda interfaccia sugli stessi dati, non una seconda implementazione del modulo.</div>
+    </section>
+
+    <section class="section">
+      <h2>2. Architettura confermata</h2>
+      <div class="grid">
+        <article class="card">
+          <span class="tag t-arch">MODELLO</span>
+          <h3>Stessi oggetti dominio</h3>
+          <ul>
+            <li><code>AutomationRule</code></li>
+            <li><code>AutomationCondition</code></li>
+            <li><code>AutomationAction</code></li>
+          </ul>
+        </article>
+        <article class="card">
+          <span class="tag t-arch">SERVIZI</span>
+          <h3>Stesso motore</h3>
+          <ul>
+            <li><code>run_rule(...)</code> invariato</li>
+            <li>rendering template invariato</li>
+            <li>executor runtime invariati</li>
+          </ul>
+        </article>
+        <article class="card">
+          <span class="tag t-note">ROUTE</span>
+          <h3>Nuovi accessi UX</h3>
+          <ul>
+            <li><code>/admin-portale/automazioni/regole/&lt;id&gt;/designer/</code></li>
+            <li><code>/admin-portale/automazioni/regole/nuova/designer/</code></li>
+            <li>link da lista, dettaglio e builder classico</li>
+          </ul>
+        </article>
+        <article class="card">
+          <span class="tag t-risk">VINCOLI</span>
+          <h3>Cosa non e' stato introdotto</h3>
+          <ul>
+            <li>nessun canvas a nodi</li>
+            <li>nessun branching / OR groups</li>
+            <li>nessuna SPA pesante</li>
+            <li>nessun JSON grafico separato</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>3. Vista UX implementata</h2>
+      <div class="flow">TRIGGER -> CONDIZIONI -> AZIONI
+
+Riepilogo umano sempre in alto
+Trigger card dedicata
+Condition cards riordinabili
+Action cards riordinabili
+Pannello contenuti / placeholder sempre visibile
+Test rapido collegato alla pagina test esistente</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Blocco</th>
+            <th>Implementazione</th>
+            <th>Valore UX</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Trigger</td>
+            <td>Card con sorgente, operazione, scope, watched field, stato e stop-on-failure</td>
+            <td>Leggibilita' immediata della regola</td>
+          </tr>
+          <tr>
+            <td>Condizioni</td>
+            <td>Card AND con summary, badge, editor inline e reorder</td>
+            <td>Modifica piu' chiara e meno tabellare</td>
+          </tr>
+          <tr>
+            <td>Azioni</td>
+            <td>Card con preview sintetico, editor inline, preset e reorder</td>
+            <td>Compilazione piu' rapida e meno tecnica</td>
+          </tr>
+          <tr>
+            <td>Sidebar contenuti</td>
+            <td>Campi, tipi, descrizioni e placeholder copiabili</td>
+            <td>Riduce errori di compilazione</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>4. Preset e suggerimenti guidati</h2>
+      <p>Il designer ora non parte piu' da card completamente vuote. Per condizioni e azioni e' disponibile una <strong>base suggerita</strong> piu' un catalogo di preset visuali.</p>
+      <div class="grid">
+        <article class="card">
+          <span class="tag t-ux">AZIONI</span>
+          <h3>Preset visuali per azioni</h3>
+          <ul>
+            <li>email standard</li>
+            <li>log standard</li>
+            <li>contatore base dashboard</li>
+            <li>insert/update whitelistati</li>
+          </ul>
+        </article>
+        <article class="card">
+          <span class="tag t-ux">CONDIZIONI</span>
+          <h3>Preset visuali per condizioni</h3>
+          <ul>
+            <li>controllo stato</li>
+            <li>campo valorizzato</li>
+            <li>responsabile presente</li>
+            <li>preset old/new</li>
+          </ul>
+        </article>
+      </div>
+      <div class="note">I preset sono stati specializzati in modo piu' spinto per la sorgente <code>assenze</code>.</div>
+    </section>
+
+    <section class="section">
+      <h2>5. Specializzazione Assenze</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Area</th>
+            <th>Preset introdotti</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Azioni email</td>
+            <td>Approvazione assenza, Rifiuto assenza, Avviso al responsabile</td>
+          </tr>
+          <tr>
+            <td>Azioni log</td>
+            <td>Log approvazione, Log rifiuto, Audit completo</td>
+          </tr>
+          <tr>
+            <td>Metriche</td>
+            <td>Conta approvate, Conta respinte</td>
+          </tr>
+          <tr>
+            <td>Notifiche interne</td>
+            <td>Notifica interna dipendente, Notifica interna responsabile</td>
+          </tr>
+          <tr>
+            <td>Condizioni</td>
+            <td>Stato passa a 2, Escludi malattia, Status changed, Capo reparto presente</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>6. Interazione e dimensioni</h2>
+      <p>Per evitare un'interfaccia troppo pesante, i preset sono stati resi <strong>compatti di default</strong> e dotati di controlli di dimensione.</p>
+      <ul>
+        <li>taglia <strong>S</strong>: preset compatti, adatti al lavoro operativo</li>
+        <li>taglia <strong>M</strong>: compromesso tra leggibilita' e densita'</li>
+        <li>taglia <strong>L</strong>: preset piu' descrittivi, utili in setup iniziale</li>
+      </ul>
+      <div class="note">La scelta dimensionale e' persistita lato client per mantenere continuita' nella sessione d'uso.</div>
+    </section>
+
+    <section class="section">
+      <h2>7. Reorder, test e copertura</h2>
+      <div class="grid">
+        <article class="card">
+          <span class="tag t-note">REORDER</span>
+          <h3>Condizioni e azioni</h3>
+          <ul>
+            <li>drag-and-drop leggero</li>
+            <li>pulsanti su/giu'</li>
+            <li>persistenza server-side dell'ordine</li>
+          </ul>
+        </article>
+        <article class="card">
+          <span class="tag t-note">TEST RAPIDO</span>
+          <h3>Riuso test manuale esistente</h3>
+          <ul>
+            <li>link diretto dalla pagina designer</li>
+            <li>payload esempio coerente con la sorgente</li>
+            <li>nessuna duplicazione del motore test</li>
+          </ul>
+        </article>
+      </div>
+      <p>La suite <code>python manage.py test automazioni --keepdb</code> copre rendering designer, route nuova/designer, link dedicati, reorder, riepilogo umano e cataloghi preset.</p>
+    </section>
+
+    <section class="section">
+      <h2>8. Stato finale della fase</h2>
+      <p>La fase puo' considerarsi chiusa come <strong>prima iterazione visuale completa</strong>. Il modulo automazioni dispone ora di:</p>
+      <ul>
+        <li>builder SSR classico ancora disponibile</li>
+        <li>designer visuale affiancato e navigabile</li>
+        <li>preset guidati su condizioni e azioni</li>
+        <li>specializzazione UX sul caso `assenze`</li>
+        <li>documentazione, changelog e versione allineati</li>
+      </ul>
+      <div class="note">Evoluzione consigliata successiva: preset guidati anche sul trigger e ulteriore raffinamento semantico dei template business.</div>
+    </section>
+
+    <div class="footer">Documento di riferimento - Portale Applicativo - Guida Automazioni Designer - v0.6.39-dev</div>
+  </div>
+</body>
+</html>

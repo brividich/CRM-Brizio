@@ -1,0 +1,2493 @@
+﻿{% extends "core/base.html" %}
+{% load assets_extras %}
+
+{% block title %}Cruscotto inventario asset{% endblock %}
+
+{% block extra_head %}
+<style>
+.content { padding: 0 !important; max-width: none !important; width: 100% !important; margin: 0 !important; }
+.dash { display: grid; grid-template-columns: 230px 1fr; align-items: start; border: 1px solid #dbe3f0; border-radius: 0; overflow: hidden; background: #f4f7fc; }
+.side { align-self: start; background: #f8fbff; border-right: 1px solid #dbe3f0; padding: 14px; display: grid; grid-template-rows: auto 1fr auto; gap: 12px; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.logo { width: 34px; height: 34px; border-radius: 9px; background: #1f64d8; color: #fff; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+.name { font-size: 28px; font-weight: 800; color: #0f172a; }
+.name span { color: #1f64d8; }
+.menu { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 4px; }
+.mh { font-size: 10px; color: #8ea2bf; text-transform: uppercase; letter-spacing: .08em; margin: 7px 4px; font-weight: 700; }
+.ma, .ms { display: block; color: #24395e; text-decoration: none; border-radius: 8px; padding: 5px 8px; font-weight: 600; line-height: 1.1; font-size: 12px; }
+.ma:hover, .ms:hover { background: #edf3fc; }
+.ma.active, .ms.active { background: #dce8fb; color: #1f64d8; }
+.ms { font-size: 11px; color: #5f7698; padding-left: 18px; }
+.user { border-top: 1px solid #dbe3f0; padding-top: 10px; display: flex; gap: 8px; align-items: center; }
+.av { width: 28px; height: 28px; border-radius: 999px; background: #dce6f5; color: #355380; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+.main { min-width: 0; padding: 12px; display: grid; gap: 10px; align-content: start; }
+.top { display: flex; gap: 8px; align-items: center; }
+.search { flex: 1; display: flex; gap: 8px; align-items: center; height: 46px; border: 1px solid #dbe3f0; border-radius: 11px; background: #edf2f9; padding: 0 11px; }
+.search input { border: none; background: transparent; outline: none; width: 100%; font-size: 15px; color: #1f3559; font-family: 'Outfit', sans-serif; }
+.ib, .tool { width: 40px; height: 40px; border: 1px solid #d8e2f2; border-radius: 10px; background: #f8fbff; color: #6a819f; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; cursor: pointer; }
+.ib:hover, .tool:hover { background: #edf3fc; }
+.tool.active { background: #1f64d8; border-color: #1f64d8; color: #fff; }
+.tool-wide { width: auto; padding: 0 12px; gap: 8px; font-weight: 700; color: #1f4fa3; }
+.nb { background: #1f64d8; color: #fff; border: 1px solid #1f64d8; border-radius: 10px; padding: 10px 14px; text-decoration: none; font-weight: 700; }
+.kpi { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.k { background: #fff; border: 1px solid #dbe3f0; border-radius: 11px; padding: 10px; box-shadow: 0 2px 8px rgba(15, 23, 42, .05); }
+.kh { font-size: 11px; text-transform: uppercase; color: #7e94b2; font-weight: 700; }
+.kv { margin-top: 8px; font-size: 34px; font-weight: 800; color: #0f172a; line-height: 1; }
+.ks { font-size: 12px; color: #7d93b1; margin-top: 4px; }
+.bar { height: 4px; border-radius: 99px; background: #e8edf5; margin-top: 8px; overflow: hidden; }
+.fill { height: 100%; background: #1f64d8; }
+.grid { display: grid; grid-template-columns: minmax(0, 1.7fr) 320px; gap: 8px; }
+.card { background: #fff; border: 1px solid #dbe3f0; border-radius: 11px; box-shadow: 0 2px 8px rgba(15, 23, 42, .05); overflow: hidden; }
+.ch { padding: 10px 12px; border-bottom: 1px solid #e5ecf6; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.t { margin: 0; font-size: 28px; color: #0f172a; }
+.tools { display: flex; gap: 8px; align-items: center; }
+.c { display: inline-flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.chip { border: 1px solid #dce6f5; background: #edf3fc; color: #56739d; border-radius: 999px; padding: 3px 8px; font-size: 11px; font-weight: 700; }
+.chip.a { background: #e2ecff; color: #1f64d8; }
+.f { padding: 10px 12px; border-bottom: 1px solid #e5ecf6; background: #f9fbff; }
+.fg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.fa { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+.col-panel { padding: 10px 12px; border-bottom: 1px solid #e5ecf6; background: #f9fbff; }
+.col-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 6px; }
+.col-admin { margin-top: 8px; padding-top: 8px; border-top: 1px solid #dbe3f0; display: grid; gap: 8px; }
+.col-admin .row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.tw { overflow: auto; }
+.tbl { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 980px; }
+.tbl th, .tbl td { padding: 7px 8px; border-bottom: 1px solid #e7edf6; text-align: left; vertical-align: middle; }
+.tbl td { font-size: 13px; line-height: 1.25; }
+.tbl th { font-size: 10px; text-transform: uppercase; color: #7f95b3; background: #fbfdff; position: relative; letter-spacing: .04em; }
+.tbl th[data-col] { cursor: grab; }
+.tbl th[data-col].is-dragging { opacity: .48; cursor: grabbing; }
+.tbl th[data-col].col-drop-before { box-shadow: inset 2px 0 0 #1f64d8; }
+.tbl th[data-col].col-drop-after { box-shadow: inset -2px 0 0 #1f64d8; }
+.col-resizer { position: absolute; top: 0; right: 0; width: 8px; height: 100%; cursor: col-resize; user-select: none; }
+.col-hidden { display: none !important; }
+.r:hover { background: #f7faff; }
+.widget-item { position: relative; }
+.widget-item.widget-hidden { display: none !important; }
+.widget-item.widget-linked { cursor: pointer; box-shadow: 0 0 0 1px rgba(31, 100, 216, .22), 0 2px 8px rgba(15, 23, 42, .05); }
+.widget-handle { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border: 1px dashed #cbd5e1; border-radius: 6px; background: #fff; color: #64748b; display: none; align-items: center; justify-content: center; font-size: 12px; line-height: 1; cursor: grab; z-index: 3; }
+.widget-handle:active { cursor: grabbing; }
+.widget-edit-mode .widget-handle { display: inline-flex; }
+.widget-edit-mode .widget-item { user-select: none; }
+.widget-item.dragging { opacity: .45; }
+.widget-zone.drop-target { outline: 2px dashed #93c5fd; outline-offset: 4px; border-radius: 12px; }
+.widget-manager-list { display: grid; gap: 8px; margin-top: 8px; }
+.widget-manager-group { border: 1px solid #dbe3f0; border-radius: 10px; background: #fff; padding: 8px; display: grid; gap: 6px; }
+.widget-manager-title { font-size: 11px; font-weight: 800; color: #314f79; text-transform: uppercase; letter-spacing: .04em; }
+.widget-manager-row { display: grid; grid-template-columns: minmax(0, 1fr) 210px minmax(0, 1fr); gap: 8px; align-items: center; }
+.widget-manager-row label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #334e77; font-weight: 600; }
+.widget-manager-row .input { min-height: 34px; }
+.ac { display: flex; gap: 6px; align-items: center; }
+.ai { width: 26px; height: 26px; border-radius: 7px; background: #edf2f8; color: #4e6e97; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex: 0 0 auto; }
+.am { font-size: 13px; font-weight: 700; color: #11243f; line-height: 1.2; }
+.as { font-size: 11px; color: #8195b1; line-height: 1.2; }
+.st { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 2px 7px; font-size: 11px; font-weight: 700; }
+.ok { background: #dcfce7; color: #15803d; }
+.wg { background: #fef3c7; color: #a16207; }
+.er { background: #fee2e2; color: #b91c1c; }
+.id { background: #e2e8f0; color: #475569; }
+.tf { padding: 10px 12px; color: #6d84a6; font-size: 12px; display: flex; justify-content: space-between; }
+.rows-tools { display: flex; gap: 6px; align-items: center; }
+.rows-btn { border: 1px solid #d8e2f2; border-radius: 7px; background: #fff; color: #5d7496; padding: 3px 8px; text-decoration: none; font-size: 12px; font-weight: 700; }
+.rows-btn.active { background: #1f64d8; border-color: #1f64d8; color: #fff; }
+.pager { display: flex; gap: 6px; align-items: center; margin-left: 8px; }
+.pg-btn { border: 1px solid #d8e2f2; border-radius: 7px; background: #fff; color: #5d7496; padding: 3px 8px; text-decoration: none; font-size: 12px; font-weight: 700; min-width: 28px; text-align: center; }
+.pg-btn.active { background: #1f64d8; border-color: #1f64d8; color: #fff; }
+.pg-btn.disabled { opacity: .45; pointer-events: none; }
+.stack { display: grid; gap: 8px; }
+.life { padding: 12px; }
+.bars { height: 120px; display: flex; align-items: flex-end; gap: 6px; }
+.b { flex: 1; min-height: 16px; border-radius: 8px 8px 0 0; background: #c9d6ea; }
+.b2 { background: #6992e8; }
+.b3 { background: #1f64d8; }
+.alerts { list-style: none; margin: 0; padding: 0; }
+.alerts li { padding: 10px 12px; border-bottom: 1px solid #e8eef7; }
+.alerts li:last-child { border-bottom: none; }
+.at { display: flex; gap: 6px; align-items: center; font-size: 14px; font-weight: 700; color: #132440; }
+.dot { width: 8px; height: 8px; border-radius: 999px; }
+.dot.ok { background: #22c55e; }
+.dot.warning { background: #f59e0b; }
+.dot.critical { background: #ef4444; }
+.ad { margin: 4px 0 0 14px; color: #7088a8; font-size: 12px; }
+.tm { margin: 4px 0 0 14px; color: #90a3bd; font-size: 11px; }
+.admin { padding: 10px 12px; color: #56739d; font-size: 13px; }
+.assets-messages { display: grid; gap: 8px; }
+.assets-message { border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; background: #f8fafc; font-size: 13px; }
+.assets-message-success { border-color: #86efac; background: #f0fdf4; color: #166534; }
+.assets-message-error, .assets-message-danger { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
+.assets-message-warning { border-color: #fde68a; background: #fffbeb; color: #92400e; }
+.admin-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.admin-panel { margin-top: 12px; padding-top: 12px; border-top: 1px solid #dbe3f0; display: grid; gap: 10px; }
+.admin-form { display: grid; gap: 8px; border: 1px solid #dbe3f0; border-radius: 10px; padding: 10px; background: #f8fbff; }
+.admin-row { display: grid; grid-template-columns: 1fr 150px 110px 110px 120px; gap: 8px; align-items: end; }
+.admin-row .checkline { font-size: 12px; color: #4f6688; }
+.admin-list { display: grid; gap: 8px; max-height: 320px; overflow: auto; }
+.admin-item { border: 1px solid #e1e8f3; border-radius: 10px; padding: 8px; background: #fff; display: grid; gap: 8px; }
+.admin-item-row { display: grid; grid-template-columns: 1fr 140px 95px 90px 105px auto auto; gap: 8px; align-items: end; }
+.admin-tab-btn { border: 1px solid #d8e2f2; background: #fff; color: #27466f; border-radius: 8px; padding: 6px 10px; font-weight: 700; cursor: pointer; }
+.admin-tab-btn:hover { background: #edf3fc; }
+.admin-help-btn { border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; border-radius: 8px; padding: 6px 10px; font-weight: 700; cursor: pointer; }
+.admin-section { scroll-margin-top: 80px; }
+.admin-hint { font-size: 12px; color: #64748b; }
+.admin-metrics { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:8px; margin-top:10px; }
+.admin-metric { border:1px solid #dbe3f0; border-radius:10px; background:#fff; padding:8px; }
+.admin-metric .n { font-size:20px; font-weight:800; color:#0f172a; line-height:1; }
+.admin-metric .l { margin-top:4px; font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:.03em; }
+.admin-checks { border:1px solid #dbe3f0; border-radius:10px; background:#fff; padding:8px; margin-top:8px; display:grid; gap:6px; }
+.admin-checks .ok { color:#15803d; font-size:12px; font-weight:700; }
+.admin-checks .warn { color:#92400e; font-size:12px; }
+.admin-ops { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+.admin-modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, .55); z-index: 1400; display: none; align-items: center; justify-content: center; padding: 20px; }
+.admin-modal-backdrop.show { display: flex; }
+.admin-modal { width: min(860px, 96vw); max-height: 86vh; overflow: auto; border: 1px solid #d8e2f2; border-radius: 12px; background: #fff; box-shadow: 0 18px 50px rgba(15, 23, 42, .35); }
+.admin-modal-head { position: sticky; top: 0; background: #f8fbff; border-bottom: 1px solid #dbe3f0; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; z-index: 1; }
+.admin-modal-body { padding: 12px; display: grid; gap: 10px; color: #304a6c; font-size: 13px; }
+.admin-close { border: 1px solid #d8e2f2; background: #fff; color: #4c6281; border-radius: 8px; padding: 5px 8px; cursor: pointer; }
+.admin-studio-modal { width: min(1580px, 98vw); max-height: 90vh; }
+.admin-studio-modal .admin-modal-body { padding: 12px; }
+#adminTutorialModal { z-index: 1500; }
+body.admin-studio-open { overflow: hidden; }
+@media (max-width: 1400px) {
+  .admin-row, .admin-item-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 1200px) { .kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid { grid-template-columns: 1fr; } }
+@media (max-width: 980px) { .dash { grid-template-columns: 1fr; } .side { border-right: none; border-bottom: 1px solid #dbe3f0; } .user { display: none; } }
+@media (max-width: 760px) { .top { flex-direction: column; align-items: stretch; } .kpi { grid-template-columns: 1fr; } .fg { grid-template-columns: 1fr; } .tbl { min-width: 760px; } }
+@media (max-width: 680px) { .admin-metrics { grid-template-columns: 1fr; } }
+@media (max-width: 980px) { .widget-manager-row { grid-template-columns: 1fr; } }
+/* Header action group & floating panels */
+.hdr-acts { display: flex; gap: 6px; align-items: center; position: relative; }
+.hdr-panel { position: absolute; right: 0; top: calc(100% + 8px); width: 590px; max-width: calc(100vw - 24px); background: #fff; border: 1px solid #dbe3f0; border-radius: 11px; box-shadow: 0 8px 28px rgba(15,23,42,.16); z-index: 300; padding: 12px; }
+.hdr-panel-sm { width: 340px; }
+.tool svg, .ib svg { pointer-events: none; width: 18px; height: 18px; }
+/* Bulk selection */
+.r.row-selected { background: #eff6ff !important; }
+.r.row-selected:hover { background: #dbeafe !important; }
+.bulk-toolbar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #eff6ff; border-bottom: 1px solid #bfdbfe; font-size: 13px; flex-wrap: wrap; }
+.bulk-count { font-weight: 700; color: #1e40af; }
+/* Bulk edit modal */
+.bulk-modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.55); z-index: 1600; display: none; align-items: center; justify-content: center; padding: 20px; }
+.bulk-modal-backdrop.show { display: flex; }
+.bulk-modal { width: min(480px, 96vw); border: 1px solid #d8e2f2; border-radius: 12px; background: #fff; box-shadow: 0 18px 50px rgba(15,23,42,.35); overflow: hidden; }
+.bulk-modal-head { background: #f8fbff; border-bottom: 1px solid #dbe3f0; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
+.bulk-modal-body { padding: 14px; display: grid; gap: 10px; }
+.bulk-field-row { display: grid; grid-template-columns: 20px 130px 1fr; gap: 8px; align-items: center; font-size: 13px; }
+.bulk-field-row label { font-weight: 600; color: #334e77; }
+.bulk-modal-foot { padding: 10px 14px; border-top: 1px solid #dbe3f0; display: flex; justify-content: flex-end; gap: 8px; }
+/* Custom KPI card in widget manager */
+.wm-custom-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 6px; align-items: center; padding: 4px 0; border-top: 1px solid #f0f4fa; margin-top: 2px; }
+.wm-remove-btn { border: none; background: #fee2e2; color: #b91c1c; border-radius: 6px; padding: 2px 8px; cursor: pointer; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.wm-remove-btn:hover { background: #fecaca; }
+.wm-add-toggle { border: 1px dashed #93c5fd; background: #f0f9ff; color: #0369a1; border-radius: 7px; padding: 4px 10px; cursor: pointer; font-size: 11px; font-weight: 700; width: 100%; margin-top: 4px; }
+.wm-add-toggle:hover { background: #e0f2fe; }
+.wm-add-form { border: 1px solid #bfdbfe; border-radius: 8px; padding: 8px; background: #f8fbff; display: grid; gap: 6px; margin-top: 4px; }
+.wm-add-form label { font-size: 11px; font-weight: 600; color: #334e77; }
+.wm-add-form .input { min-height: 28px; font-size: 12px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="dash">
+  <aside class="side">
+    <div class="brand"><span class="logo">A</span><div class="name">Inven<span>tario</span></div></div>
+    <nav class="menu">
+      {% for group in assets_sidebar_groups %}
+        <div class="mh">{{ group.label }}</div>
+        {% for item in group.items %}
+          <a class="{% if item.is_subitem %}ms{% else %}ma{% endif %}{% if item.active %} active{% endif %}" href="{{ item.url }}">{{ item.label }}</a>
+        {% endfor %}
+      {% endfor %}
+    </nav>
+    {% if can_gestione_admin %}
+    <a class="ma" href="{% url 'assets:gestione_admin' %}" style="background:#eef2ff;color:#1f64d8;font-weight:700;">&#9881; Gestione Admin</a>
+    {% endif %}
+    <div class="user"><span class="av">{{ request.user.username|slice:":1"|upper }}</span><div><div style="font-size:13px;font-weight:700;color:#1e2f4f;">{{ request.user.get_full_name|default:request.user.username }}</div><div style="font-size:11px;color:#7f92af;">Amministratore sistema</div></div></div>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <form method="get" id="quickSearchForm" style="flex:1;">
+        <input type="hidden" name="asset_type" value="{{ request.GET.asset_type|default:'' }}">
+        <input type="hidden" name="reparto" value="{{ request.GET.reparto|default:'' }}">
+        <input type="hidden" name="vlan" value="{{ request.GET.vlan|default:'' }}">
+        <input type="hidden" name="ip" value="{{ request.GET.ip|default:'' }}">
+        <input type="hidden" name="rows" value="{{ rows }}">
+        <input type="hidden" name="page" value="1">
+        <div class="search"><span style="color:#8da0bc;">&#128269;</span><input id="id_q" name="q" value="{{ request.GET.q|default:'' }}" placeholder="Ricerca rapida per asset, seriali o utenti (Ctrl + K)"></div>
+      </form>
+      <div class="hdr-acts">
+        {% if can_hdr_avvisi %}
+        <a class="ib" href="{% url 'assets:wo_list' %}" title="Avvisi">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zm0 16a2 2 0 002-2H8a2 2 0 002 2z"/></svg>
+        </a>
+        {% endif %}
+        {% if can_manage_custom_fields %}
+          <button class="tool" id="openAdminStudio" type="button" title="Apri studio amministratore">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
+          </button>
+        {% endif %}
+        {% if can_hdr_widget %}
+        <button class="tool" id="toggleWidgetPanel" type="button" title="Gestione widget dashboard">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zm0 8a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zm6-6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zm0 8a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+        </button>
+        {% endif %}
+        {% if can_hdr_sync %}
+        <button class="tool" id="toggleSyncPanel" type="button" title="Sincronizzazione inventario cloud">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path d="M5.5 16a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 16h-8z"/></svg>
+        </button>
+        {% endif %}
+        <a class="nb" href="{% url 'assets:work_machine_create' %}" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;">+ Nuova macchina</a>
+        <a class="nb" href="{% url 'assets:asset_create' %}">+ Nuovo asset</a>
+
+        <!-- Widget dashboard floating panel -->
+        <div id="widgetManagerPanel" class="hdr-panel" hidden>
+          <div style="font-size:13px;color:#4d6890;font-weight:700;margin-bottom:10px;">Widget dashboard — visibilità &amp; collegamenti</div>
+          <div id="widgetManagerList" class="widget-manager-list"></div>
+          <div class="muted" style="margin-top:8px;font-size:12px;">Seleziona quali elementi mostrare e collega ogni widget a una pagina. Usa il pulsante drag &amp; drop nella barra tabella per riordinare.</div>
+        </div>
+
+        <!-- Sincronizzazione cloud floating panel -->
+        <div id="syncPanel" class="hdr-panel hdr-panel-sm" hidden>
+          <div style="font-size:13px;color:#4d6890;font-weight:700;margin-bottom:10px;">Sincronizzazione inventario cloud</div>
+          <form method="post" enctype="multipart/form-data" id="excelImportFormHdr" style="display:grid;gap:8px;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="import_excel">
+            <div class="field"><label for="id_excel_file_hdr">File inventario (.xlsx/.xlsm)</label><input class="input" id="id_excel_file_hdr" name="excel_file" type="file" accept=".xlsx,.xlsm" required></div>
+            <div class="field"><label for="id_import_sheets_hdr">Fogli (CSV)</label><input class="input" id="id_import_sheets_hdr" name="import_sheets" type="text" value="{{ default_import_sheets }}"></div>
+            <div class="opts"><label class="checkline"><input type="checkbox" name="dry_run" value="1" checked> Simulazione</label><label class="checkline"><input type="checkbox" name="include_optional" value="1"> Includi fogli opzionali</label><label class="checkline"><input type="checkbox" name="all_sheets" value="1"> Tutti i fogli</label><label class="checkline"><input type="checkbox" name="update_existing" value="1" checked> Aggiorna esistenti</label></div>
+            <button class="btn" id="excelImportSubmitHdr" type="submit" style="width:100%;">Carica e sincronizza</button>
+          </form>
+        </div>
+      </div>
+    </header>
+
+    <section class="kpi widget-zone" data-zone="kpi" data-zone-label="KPI principali" data-axis="x">
+      <article class="k widget-item" data-widget-id="kpi_total_assets" data-widget-title="Totale asset">
+        <button class="widget-handle" type="button" data-widget-handle title="Trascina widget">::</button>
+        <div class="kh">Totale asset</div><div class="kv">{{ total_assets }}</div><div class="ks">{{ in_use_count }} in uso</div><div class="bar"><div class="fill" style="width:{{ in_use_percent }}%"></div></div>
+      </article>
+      <article class="k widget-item" data-widget-id="kpi_health" data-widget-title="Salute asset">
+        <button class="widget-handle" type="button" data-widget-handle title="Trascina widget">::</button>
+        <div class="kh">Salute asset</div><div class="kv">{{ health_percent }}%</div><div class="ks">Ottimale</div><div class="bar"><div class="fill" style="width:{{ health_percent }}%;background:#22c55e"></div></div>
+      </article>
+      <article class="k widget-item" data-widget-id="kpi_risk" data-widget-title="Rischio conformita">
+        <button class="widget-handle" type="button" data-widget-handle title="Trascina widget">::</button>
+        <div class="kh">Rischio conformita</div><div class="kv">{{ risk_count }}</div><div class="ks">{% if risk_count %}Gravita alta{% else %}Nessuna anomalia{% endif %}</div><div class="bar"><div class="fill" style="width:{% if risk_count %}78{% else %}18{% endif %}%;background:#ef4444"></div></div>
+      </article>
+      <article class="k widget-item" data-widget-id="kpi_maintenance" data-widget-title="Manutenzioni in scadenza">
+        <button class="widget-handle" type="button" data-widget-handle title="Trascina widget">::</button>
+        <div class="kh">Manutenzioni in scadenza</div><div class="kv">{{ maintenance_due_count }}</div><div class="ks">+{{ assigned_count }} assegnati</div><div class="bar"><div class="fill" style="width:{% if maintenance_due_count %}72{% else %}20{% endif %}%;background:#f59e0b"></div></div>
+      </article>
+    </section>
+
+    {% include "assets/components/messages.html" %}
+
+    <section class="grid">
+      <article class="card">
+        <div class="ch">
+          <div><h3 class="t">Inventario asset</h3><div class="c"><span class="chip a">{{ asset_list_context_label }} ({{ visible_count }})</span><a class="chip" href="{% url 'assets:work_machine_list' %}" style="text-decoration:none;">Macchine di lavoro ({{ work_machine_total }})</a><span class="chip">Critici ({{ in_repair_count }})</span><span class="chip">In assegnazione ({{ assigned_count }})</span></div></div>
+          <div class="tools">
+            <a class="tool" href="{% url 'assets:reports' %}" title="Report dashboard">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
+            </a>
+            <button class="tool tool-wide" id="toggleColumnPanel" type="button" title="Aggiungi o rimuovi colonne">
+              <span style="font-size:18px;line-height:1;">+</span>
+              <span>Colonne</span>
+            </button>
+            <button class="tool" id="toggleAdvancedFilters" type="button" title="Filtri avanzati">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path d="M3 5a1 1 0 011-1h12a1 1 0 01.7 1.71L12 11.41V16a1 1 0 01-1.45.89l-2-1A1 1 0 018 15v-3.59L3.3 6.71A1 1 0 013 5z"/></svg>
+            </button>
+            <button class="tool" id="toggleWidgetEdit" type="button" title="Attiva drag &amp; drop widget">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path d="M7 2a2 2 0 100 4 2 2 0 000-4zm6 0a2 2 0 100 4 2 2 0 000-4zM7 8a2 2 0 100 4 2 2 0 000-4zm6 0a2 2 0 100 4 2 2 0 000-4zM7 14a2 2 0 100 4 2 2 0 000-4zm6 0a2 2 0 100 4 2 2 0 000-4z"/></svg>
+            </button>
+            <button class="tool" id="resetTableLayout" type="button" title="Ripristina vista tabella">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div id="columnManagerPanel" class="col-panel" hidden>
+          <div class="col-grid" style="margin-top:4px;">
+            <label class="checkline"><input type="checkbox" data-col-toggle="name" {% if "name" in asset_list_default_visible_columns %}checked{% endif %}> Nome &amp; Tag</label>
+            <label class="checkline"><input type="checkbox" data-col-toggle="status" {% if "status" in asset_list_default_visible_columns %}checked{% endif %}> Stato</label>
+            <label class="checkline"><input type="checkbox" data-col-toggle="category" {% if "category" in asset_list_default_visible_columns %}checked{% endif %}> Categoria</label>
+            <label class="checkline"><input type="checkbox" data-col-toggle="assigned" {% if "assigned" in asset_list_default_visible_columns %}checked{% endif %}> Assegnato a</label>
+            <label class="checkline"><input type="checkbox" data-col-toggle="last_seen" {% if "last_seen" in asset_list_default_visible_columns %}checked{% endif %}> Ultimo aggiornamento</label>
+            <label class="checkline"><input type="checkbox" data-col-toggle="reparto" {% if "reparto" in asset_list_default_visible_columns %}checked{% endif %}> Reparto</label>
+            <label class="checkline"><input type="checkbox" data-col-toggle="serial_number" {% if "serial_number" in asset_list_default_visible_columns %}checked{% endif %}> Seriale</label>
+            <label class="checkline"><input type="checkbox" data-col-toggle="manufacturer" {% if "manufacturer" in asset_list_default_visible_columns %}checked{% endif %}> Produttore</label>
+            <label class="checkline"><input type="checkbox" data-col-toggle="model" {% if "model" in asset_list_default_visible_columns %}checked{% endif %}> Modello</label>
+            <label class="checkline"><input type="checkbox" data-col-toggle="vlan" {% if "vlan" in asset_list_default_visible_columns %}checked{% endif %}> VLAN</label>
+            <label class="checkline"><input type="checkbox" data-col-toggle="ip" {% if "ip" in asset_list_default_visible_columns %}checked{% endif %}> IP</label>
+            <label class="checkline"><input type="checkbox" data-col-toggle="assignment_location" {% if "assignment_location" in asset_list_default_visible_columns %}checked{% endif %}> Posizione assegnazione</label>
+            {% for field in custom_fields %}
+              {% with col_key="custom_"|add:field.code %}
+                <label class="checkline"><input type="checkbox" data-col-toggle="custom_{{ field.code }}" {% if col_key in asset_list_default_visible_columns %}checked{% endif %}> {{ field.label }}</label>
+              {% endwith %}
+            {% endfor %}
+          </div>
+          <div class="muted" style="margin-top:8px;font-size:12px;">
+            Vista suggerita per {{ asset_list_context_label }}. Puoi aggiungere o togliere manualmente le colonne con il pulsante +. Le impostazioni sono salvate nel browser per questa vista.
+          </div>
+        </div>
+
+
+        <div id="bulkToolbar" class="bulk-toolbar" style="display:none;">
+          <span class="bulk-count"><span id="bulkCountNum">0</span> asset selezionati</span>
+          <button type="button" class="btn" id="bulkEditBtn" style="font-size:12px;padding:4px 12px;">✏ Modifica in blocco</button>
+          <button type="button" class="admin-close" id="bulkDeselectBtn">Deseleziona tutti</button>
+        </div>
+
+        <details id="advancedFiltersCard" class="f" {% if request.GET.asset_type or request.GET.reparto or request.GET.vlan or request.GET.ip %}open{% endif %}>
+          <summary style="cursor:pointer;font-size:13px;color:#4d6890;font-weight:600;">Filtri avanzati</summary>
+          <form method="get" style="margin-top:8px;">
+            <input type="hidden" name="q" value="{{ request.GET.q|default:'' }}">
+            <input type="hidden" name="rows" value="{{ rows }}">
+            <input type="hidden" name="page" value="1">
+            <div class="fg">
+              <div class="field"><label for="{{ filters_form.asset_type.id_for_label }}">Tipo</label>{{ filters_form.asset_type }}</div>
+              <div class="field"><label for="{{ filters_form.reparto.id_for_label }}">Reparto</label>{{ filters_form.reparto }}</div>
+              <div class="field"><label for="{{ filters_form.vlan.id_for_label }}">VLAN</label>{{ filters_form.vlan }}</div>
+              <div class="field"><label for="{{ filters_form.ip.id_for_label }}">IP</label>{{ filters_form.ip }}</div>
+            </div>
+            <div class="fa"><a class="btn btn-secondary" href="{% url 'assets:asset_list' %}">Reimposta</a><button class="btn" type="submit">Applica</button></div>
+          </form>
+        </details>
+
+        <div class="tw">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th style="width:42px;"><input type="checkbox" id="select-all-cb" title="Seleziona/deseleziona tutti"></th>
+                <th data-col="name">Nome asset e tag<span class="col-resizer" data-col-resizer></span></th>
+                <th data-col="status">Stato<span class="col-resizer" data-col-resizer></span></th>
+                <th data-col="category">Categoria<span class="col-resizer" data-col-resizer></span></th>
+                <th data-col="assigned">Assegnato a<span class="col-resizer" data-col-resizer></span></th>
+                <th data-col="last_seen">Ultimo aggiornamento<span class="col-resizer" data-col-resizer></span></th>
+                <th data-col="reparto">Reparto<span class="col-resizer" data-col-resizer></span></th>
+                <th data-col="serial_number">Seriale<span class="col-resizer" data-col-resizer></span></th>
+                <th data-col="manufacturer">Produttore<span class="col-resizer" data-col-resizer></span></th>
+                <th data-col="model">Modello<span class="col-resizer" data-col-resizer></span></th>
+                <th data-col="vlan">VLAN<span class="col-resizer" data-col-resizer></span></th>
+                <th data-col="ip">IP<span class="col-resizer" data-col-resizer></span></th>
+                <th data-col="assignment_location">Posizione assegnazione<span class="col-resizer" data-col-resizer></span></th>
+                {% for field in custom_fields %}
+                  <th data-col="custom_{{ field.code }}">{{ field.label }}<span class="col-resizer" data-col-resizer></span></th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for asset in assets %}
+                <tr class="r assets-row-link" data-href="{% url 'assets:asset_view' asset.id %}" data-asset-id="{{ asset.id }}">
+                  <td><input type="checkbox" class="row-select-cb" value="{{ asset.id }}"></td>
+                  <td data-col="name"><div class="ac"><span class="ai">{{ asset.category_initial }}</span><div><div class="am">{{ asset.name }}</div><div class="as">#{{ asset.asset_tag }}</div></div></div></td>
+                  <td data-col="status">{% if asset.status == "IN_USE" %}<span class="st ok">In uso</span>{% elif asset.status == "IN_REPAIR" %}<span class="st er">Critico</span>{% elif asset.status == "IN_STOCK" %}<span class="st id">Inattivo</span>{% else %}<span class="st wg">{{ asset.get_status_display }}</span>{% endif %}</td>
+                  <td data-col="category">{{ asset.category_label }}</td>
+                  <td data-col="assigned">{% if asset.assignment_to %}<div style="font-weight:600;color:#1f3559;">{{ asset.assignment_to }}</div><div class="as">{{ asset.assignment_reparto|default:"-" }}</div>{% else %}<span class="muted">Non assegnato</span>{% endif %}</td>
+                  <td data-col="last_seen">{{ asset.updated_at|timesince }} fa</td>
+                  <td data-col="reparto">{{ asset.reparto|default:"-" }}</td>
+                  <td data-col="serial_number">{{ asset.serial_number|default:"-" }}</td>
+                  <td data-col="manufacturer">{{ asset.manufacturer|default:"-" }}</td>
+                  <td data-col="model">{{ asset.model|default:"-" }}</td>
+                  <td data-col="vlan">{{ asset.endpoint_vlan_display|default:"-" }}</td>
+                  <td data-col="ip">{{ asset.endpoint_ip_display|default:"-" }}</td>
+                  <td data-col="assignment_location">{{ asset.assignment_location|default:"-" }}</td>
+                  {% for field in custom_fields %}
+                    <td data-col="custom_{{ field.code }}">{{ asset.extra_columns|asset_custom_display:field }}</td>
+                  {% endfor %}
+                </tr>
+              {% empty %}
+                <tr><td colspan="99" class="muted" style="padding:16px;">Nessun asset trovato con i filtri correnti.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="tf">
+          <span>Visualizzazione da {{ page_start }} a {{ page_end }} su {{ visible_count }} asset</span>
+          <span class="rows-tools">
+            <span>Righe:</span>
+            {% for item in rows_options %}
+              <a class="rows-btn {% if item.active %}active{% endif %}" href="{{ item.url }}">{{ item.value }}</a>
+            {% endfor %}
+            <span class="pager">
+              <a class="pg-btn {% if not prev_page_url %}disabled{% endif %}" href="{{ prev_page_url|default:'#' }}">‹</a>
+              {% for item in page_links %}
+                <a class="pg-btn {% if item.active %}active{% endif %}" href="{{ item.url }}">{{ item.number }}</a>
+              {% endfor %}
+              <a class="pg-btn {% if not next_page_url %}disabled{% endif %}" href="{{ next_page_url|default:'#' }}">›</a>
+            </span>
+          </span>
+        </div>
+      </article>
+
+      <aside class="stack widget-zone" data-zone="side" data-zone-label="Colonna destra" data-axis="y">
+        <article class="card widget-item" data-widget-id="side_lifecycle" data-widget-title="Andamento ciclo di vita">
+          <button class="widget-handle" type="button" data-widget-handle title="Trascina widget">::</button>
+          <div class="ch"><h3 class="t" style="font-size:20px;">Andamento ciclo di vita</h3></div><div class="life"><div class="bars"><div class="b" style="height:{{ lifecycle_phase_1|default:10 }}%"></div><div class="b b2" style="height:{{ lifecycle_phase_2|default:10 }}%"></div><div class="b b3" style="height:{{ lifecycle_phase_3|default:10 }}%"></div></div><div class="c"><span class="chip">P1 {{ phase_1_count }}</span><span class="chip">P2 {{ phase_2_count }}</span><span class="chip">P3 {{ phase_3_count }}</span></div></div>
+        </article>
+        <article class="card widget-item" data-widget-id="side_alerts" data-widget-title="Avvisi recenti">
+          <button class="widget-handle" type="button" data-widget-handle title="Trascina widget">::</button>
+          <div class="ch"><h3 class="t" style="font-size:20px;">Avvisi recenti</h3><span class="chip a">NUOVO</span></div><ul class="alerts">{% for alert in recent_alerts %}<li><div class="at"><span class="dot {{ alert.level }}"></span>{{ alert.title }}</div><div class="ad">{{ alert.message|truncatechars:120 }}</div><div class="tm">{{ alert.time }}</div></li>{% endfor %}</ul>
+        </article>
+        <article class="card widget-item" data-widget-id="side_sync" data-widget-title="Sincronizzazione inventario cloud">
+          <button class="widget-handle" type="button" data-widget-handle title="Trascina widget">::</button>
+          <div class="ch"><h3 class="t" style="font-size:20px;">Sincronizzazione inventario cloud</h3></div>
+          <form method="post" enctype="multipart/form-data" id="excelImportForm" style="padding:12px;display:grid;gap:8px;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="import_excel">
+            <div class="field"><label for="id_excel_file">File inventario (.xlsx/.xlsm)</label><input class="input" id="id_excel_file" name="excel_file" type="file" accept=".xlsx,.xlsm" required></div>
+            <div class="field"><label for="id_import_sheets">Fogli (CSV)</label><input class="input" id="id_import_sheets" name="import_sheets" type="text" value="{{ default_import_sheets }}"></div>
+            <div class="opts"><label class="checkline"><input type="checkbox" name="dry_run" value="1" checked> Simulazione</label><label class="checkline"><input type="checkbox" name="include_optional" value="1"> Includi fogli opzionali</label><label class="checkline"><input type="checkbox" name="all_sheets" value="1"> Tutti i fogli</label><label class="checkline"><input type="checkbox" name="update_existing" value="1" checked> Aggiorna esistenti</label></div>
+            <button class="btn" id="excelImportSubmit" type="submit" style="width:100%;">Carica e sincronizza</button>
+          </form>
+        </article>
+      </aside>
+    </section>
+
+    {% if can_manage_custom_fields %}
+      <div class="admin-modal-backdrop" id="adminStudioModal" aria-hidden="true">
+        <div class="admin-modal admin-studio-modal" role="dialog" aria-modal="true" aria-labelledby="adminStudioTitle">
+          <div class="admin-modal-head">
+            <strong id="adminStudioTitle">Studio amministratore inventario</strong>
+            <button type="button" class="admin-close" id="closeAdminStudio">Chiudi</button>
+          </div>
+          <div class="admin-modal-body">
+            <article class="card">
+              <div class="admin">
+          Studio amministratore: gestione completa direttamente da questa pagina.
+          <div class="admin-toolbar">
+            <button type="button" class="admin-tab-btn" data-admin-target="admin-custom-fields">Campi</button>
+            <button type="button" class="admin-tab-btn" data-admin-target="admin-list-options">Liste</button>
+            <button type="button" class="admin-tab-btn" data-admin-target="admin-action-buttons">Pulsanti Azione</button>
+            <button type="button" class="admin-tab-btn" data-admin-target="admin-asset-categories">Categorie asset</button>
+            <button type="button" class="admin-tab-btn" data-admin-target="admin-detail-fields">Dettaglio asset</button>
+            <button type="button" class="admin-tab-btn" data-admin-target="admin-sidebar-buttons">Menu laterale</button>
+            <button type="button" class="admin-tab-btn" data-admin-target="admin-header-tools">Strumenti header</button>
+            <button type="button" class="admin-help-btn" id="openAdminTutorial">Tutorial utilizzo</button>
+          </div>
+          <div class="admin-metrics">
+            <article class="admin-metric">
+              <div class="n">{{ admin_metrics.custom_fields_active }}/{{ admin_metrics.custom_fields_total }}</div>
+              <div class="l">Campi personalizzati attivi</div>
+            </article>
+            <article class="admin-metric">
+              <div class="n">{{ admin_metrics.list_options_active }}/{{ admin_metrics.list_options_total }}</div>
+              <div class="l">Valori lista attivi</div>
+            </article>
+            <article class="admin-metric">
+              <div class="n">{{ admin_metrics.action_buttons_active }}/{{ admin_metrics.action_buttons_total }}</div>
+              <div class="l">Pulsanti azione attivi</div>
+            </article>
+            <article class="admin-metric">
+              <div class="n">{{ admin_metrics.detail_fields_active }}/{{ admin_metrics.detail_fields_total }}</div>
+              <div class="l">Campi dettaglio attivi</div>
+            </article>
+            <article class="admin-metric">
+              <div class="n">{{ admin_metrics.asset_categories_active }}/{{ admin_metrics.asset_categories_total }}</div>
+              <div class="l">Categorie asset attive</div>
+            </article>
+            <article class="admin-metric">
+              <div class="n">{{ admin_metrics.asset_category_fields_active }}/{{ admin_metrics.asset_category_fields_total }}</div>
+              <div class="l">Campi categoria attivi</div>
+            </article>
+            <article class="admin-metric">
+              <div class="n">{{ admin_metrics.sidebar_visible }}/{{ admin_metrics.sidebar_total }}</div>
+              <div class="l">Voci menu laterale visibili</div>
+            </article>
+          </div>
+          <div class="admin-checks">
+            {% for row in admin_checks %}
+              <div class="{% if 'completa' in row %}ok{% else %}warn{% endif %}">{{ row }}</div>
+            {% endfor %}
+          </div>
+          <div class="admin-ops">
+            <form method="post" style="display:inline;">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="export_admin_snapshot">
+              <button class="btn btn-secondary btn-sm" type="submit">Export configurazione (JSON)</button>
+            </form>
+            <form method="post" style="display:inline;">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="seed_sidebar_buttons">
+              <button class="btn btn-secondary btn-sm" type="submit">Riallinea menu laterale predefinito</button>
+            </form>
+          </div>
+          <div class="admin-panel">
+            <datalist id="asset-detail-source-options">
+              {% for source_code, source_label in detail_source_choices %}
+                <option value="{{ source_code }}">{{ source_label }}</option>
+              {% endfor %}
+            </datalist>
+
+            <details id="admin-custom-fields" class="admin-section">
+              <summary style="cursor:pointer;font-weight:700;">Gestione campi personalizzati (aggiungi/modifica/rimuovi)</summary>
+              <div class="admin-form">
+                <form method="post" class="admin-row">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="create_custom_field">
+                  <div class="field">
+                    <label>Nome campo</label>
+                    <input class="input" type="text" name="label" placeholder="Es. Centro di costo" required>
+                  </div>
+                  <div class="field">
+                    <label>Tipo</label>
+                    <select class="input" name="field_type">
+                      {% for type_code, type_label in custom_type_choices %}
+                        <option value="{{ type_code }}">{{ type_label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Ordine</label>
+                    <input class="input" type="number" name="sort_order" value="100">
+                  </div>
+                  <div class="field">
+                    <label>Attivo</label>
+                    <label class="checkline"><input type="checkbox" name="is_active" value="1" checked> Sì</label>
+                  </div>
+                  <div>
+                    <button class="btn btn-primary btn-sm" type="submit">Aggiungi campo</button>
+                  </div>
+                </form>
+              </div>
+              <div class="admin-list">
+                {% for field_item in all_custom_fields %}
+                  <form method="post" class="admin-item">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="update_custom_field">
+                    <input type="hidden" name="field_id" value="{{ field_item.id }}">
+                    <div class="admin-item-row">
+                      <div class="field">
+                        <label>Nome campo</label>
+                        <input class="input" type="text" name="label" value="{{ field_item.label }}" required>
+                      </div>
+                      <div class="field">
+                        <label>Tipo</label>
+                        <select class="input" name="field_type">
+                          {% for type_code, type_label in custom_type_choices %}
+                            <option value="{{ type_code }}" {% if field_item.field_type == type_code %}selected{% endif %}>{{ type_label }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label>Ordine</label>
+                        <input class="input" type="number" name="sort_order" value="{{ field_item.sort_order }}">
+                      </div>
+                      <div class="field">
+                        <label>Attivo</label>
+                        <label class="checkline"><input type="checkbox" name="is_active" value="1" {% if field_item.is_active %}checked{% endif %}> Sì</label>
+                      </div>
+                      <div>
+                        <button class="btn btn-primary btn-sm" type="submit">Salva</button>
+                      </div>
+                    </div>
+                  </form>
+                  <form method="post" style="margin-top:-6px;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete_custom_field">
+                    <input type="hidden" name="field_id" value="{{ field_item.id }}">
+                    <button class="btn btn-secondary btn-sm" type="submit" data-delete-field="{{ field_item.label }}">Elimina</button>
+                  </form>
+                {% empty %}
+                  <div class="admin-hint">Nessun campo personalizzato configurato.</div>
+                {% endfor %}
+              </div>
+            </details>
+
+            <details id="admin-list-options" class="admin-section">
+              <summary style="cursor:pointer;font-weight:700;">Gestione liste (aggiungi/modifica/rimuovi)</summary>
+              <div class="admin-form">
+                <form method="post" class="admin-row">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="create_list_option">
+                  <div class="field">
+                    <label>Valore lista</label>
+                    <input class="input" type="text" name="value" placeholder="Es. IT" required>
+                  </div>
+                  <div class="field">
+                    <label>Campo</label>
+                    <select class="input" name="field_key">
+                      {% for field_code, field_label in list_option_choices %}
+                        <option value="{{ field_code }}">{{ field_label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Ordine</label>
+                    <input class="input" type="number" name="sort_order" value="100">
+                  </div>
+                  <div class="field">
+                    <label>Attivo</label>
+                    <label class="checkline"><input type="checkbox" name="is_active" value="1" checked> Sì</label>
+                  </div>
+                  <div>
+                    <button class="btn btn-primary btn-sm" type="submit">Aggiungi valore</button>
+                  </div>
+                </form>
+              </div>
+              <div class="admin-list">
+                {% for option in list_options %}
+                  <form method="post" class="admin-item">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="update_list_option">
+                    <input type="hidden" name="option_id" value="{{ option.id }}">
+                    <div class="admin-item-row">
+                      <div class="field">
+                        <label>Valore lista</label>
+                        <input class="input" type="text" name="value" value="{{ option.value }}" required>
+                      </div>
+                      <div class="field">
+                        <label>Campo</label>
+                        <select class="input" name="field_key">
+                          {% for field_code, field_label in list_option_choices %}
+                            <option value="{{ field_code }}" {% if option.field_key == field_code %}selected{% endif %}>{{ field_label }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label>Ordine</label>
+                        <input class="input" type="number" name="sort_order" value="{{ option.sort_order }}">
+                      </div>
+                      <div class="field">
+                        <label>Attivo</label>
+                        <label class="checkline"><input type="checkbox" name="is_active" value="1" {% if option.is_active %}checked{% endif %}> Sì</label>
+                      </div>
+                      <div>
+                        <button class="btn btn-primary btn-sm" type="submit">Salva</button>
+                      </div>
+                    </div>
+                  </form>
+                  <form method="post" style="margin-top:-6px;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete_list_option">
+                    <input type="hidden" name="option_id" value="{{ option.id }}">
+                    <button class="btn btn-secondary btn-sm" type="submit" data-delete-field="{{ option.value }}">Elimina</button>
+                  </form>
+                {% empty %}
+                  <div class="admin-hint">Nessun valore lista configurato.</div>
+                {% endfor %}
+              </div>
+            </details>
+
+            <details id="admin-action-buttons" class="admin-section">
+              <summary style="cursor:pointer;font-weight:700;">Gestione pulsanti Azione dettaglio asset</summary>
+              <div class="admin-form">
+                <form method="post" class="admin-row">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="create_action_button">
+                  <div class="field">
+                    <label>Etichetta</label>
+                    <input class="input" type="text" name="label" placeholder="Es. Apri cartella" required>
+                  </div>
+                  <div class="field">
+                    <label>Zona</label>
+                    <select class="input" name="zone">
+                      {% for zone_code, zone_label in button_zone_choices %}
+                        <option value="{{ zone_code }}">{{ zone_label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Azione</label>
+                    <select class="input" name="action_type">
+                      {% for action_code, action_label in button_action_choices %}
+                        <option value="{{ action_code }}">{{ action_label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Stile</label>
+                    <select class="input" name="style">
+                      {% for style_code, style_label in button_style_choices %}
+                        <option value="{{ style_code }}">{{ style_label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Ordine</label>
+                    <input class="input" type="number" name="sort_order" value="100">
+                  </div>
+                  <div class="field" style="grid-column:1/-1;">
+                    <label>Destinazione (per azione collegamento)</label>
+                    <input class="input" type="text" name="target" placeholder="/cartella/{asset_tag} oppure django:assets:asset_edit?id={asset_id}">
+                  </div>
+                  <div class="field">
+                    <label>Nuova scheda</label>
+                    <label class="checkline"><input type="checkbox" name="open_in_new_tab" value="1"> Sì</label>
+                  </div>
+                  <div class="field">
+                    <label>Attivo</label>
+                    <label class="checkline"><input type="checkbox" name="is_active" value="1" checked> Sì</label>
+                  </div>
+                  <div>
+                    <button class="btn btn-primary btn-sm" type="submit">Aggiungi pulsante</button>
+                  </div>
+                </form>
+              </div>
+              <div class="admin-list">
+                {% for btn_item in action_buttons %}
+                  <form method="post" class="admin-item">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="update_action_button">
+                    <input type="hidden" name="button_id" value="{{ btn_item.id }}">
+                    <div class="admin-item-row">
+                      <div class="field">
+                        <label>Etichetta</label>
+                        <input class="input" type="text" name="label" value="{{ btn_item.label }}" required>
+                      </div>
+                      <div class="field">
+                        <label>Zona</label>
+                        <select class="input" name="zone">
+                          {% for zone_code, zone_label in button_zone_choices %}
+                            <option value="{{ zone_code }}" {% if btn_item.zone == zone_code %}selected{% endif %}>{{ zone_label }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label>Azione</label>
+                        <select class="input" name="action_type">
+                          {% for action_code, action_label in button_action_choices %}
+                            <option value="{{ action_code }}" {% if btn_item.action_type == action_code %}selected{% endif %}>{{ action_label }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label>Stile</label>
+                        <select class="input" name="style">
+                          {% for style_code, style_label in button_style_choices %}
+                            <option value="{{ style_code }}" {% if btn_item.style == style_code %}selected{% endif %}>{{ style_label }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label>Ordine</label>
+                        <input class="input" type="number" name="sort_order" value="{{ btn_item.sort_order }}">
+                      </div>
+                      <div class="field" style="grid-column:1/-1;">
+                        <label>Destinazione</label>
+                        <input class="input" type="text" name="target" value="{{ btn_item.target }}">
+                      </div>
+                      <div class="field">
+                        <label>Nuova scheda</label>
+                        <label class="checkline"><input type="checkbox" name="open_in_new_tab" value="1" {% if btn_item.open_in_new_tab %}checked{% endif %}> Sì</label>
+                      </div>
+                      <div class="field">
+                        <label>Attivo</label>
+                        <label class="checkline"><input type="checkbox" name="is_active" value="1" {% if btn_item.is_active %}checked{% endif %}> Sì</label>
+                      </div>
+                      <div>
+                        <button class="btn btn-primary btn-sm" type="submit">Salva</button>
+                      </div>
+                    </div>
+                  </form>
+                  <form method="post" style="margin-top:-6px;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete_action_button">
+                    <input type="hidden" name="button_id" value="{{ btn_item.id }}">
+                    <button class="btn btn-secondary btn-sm" type="submit" data-delete-field="{{ btn_item.label }}">Elimina</button>
+                  </form>
+                {% empty %}
+                  <div class="admin-hint">Nessun pulsante azione personalizzato. Restano attivi i predefiniti.</div>
+                {% endfor %}
+              </div>
+            </details>
+
+            <details id="admin-asset-categories" class="admin-section">
+              <summary style="cursor:pointer;font-weight:700;">Gestione categorie asset e campi dinamici</summary>
+              <div class="admin-form">
+                <form method="post" class="admin-row">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="create_asset_category">
+                  <div class="field">
+                    <label>Nome categoria</label>
+                    <input class="input" type="text" name="label" placeholder="Es. Sistema allarme" required>
+                  </div>
+                  <div class="field">
+                    <label>Famiglia tecnica</label>
+                    <select class="input" name="base_asset_type">
+                      {% for type_code, type_label in asset_category_type_choices %}
+                        <option value="{{ type_code }}">{{ type_label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Ordine</label>
+                    <input class="input" type="number" name="sort_order" value="100">
+                  </div>
+                  <div class="field">
+                    <label>Attiva</label>
+                    <label class="checkline"><input type="checkbox" name="is_active" value="1" checked> Sì</label>
+                  </div>
+                  <div class="field" style="grid-column:1/-1;">
+                    <label>Descrizione</label>
+                    <textarea class="input" name="description" rows="2" placeholder="Nota interna per l'uso della categoria."></textarea>
+                  </div>
+                  <div class="field">
+                    <label>Titolo specifiche</label>
+                    <input class="input" type="text" name="detail_specs_title" placeholder="Es. Dati impianto">
+                  </div>
+                  <div class="field">
+                    <label>Titolo profilo</label>
+                    <input class="input" type="text" name="detail_profile_title" placeholder="Es. Profilo impianto">
+                  </div>
+                  <div class="field">
+                    <label>Titolo responsabile</label>
+                    <input class="input" type="text" name="detail_assignment_title" placeholder="Es. Referente interno">
+                  </div>
+                  <div class="field">
+                    <label>Titolo timeline</label>
+                    <input class="input" type="text" name="detail_timeline_title" placeholder="Es. Storico impianto">
+                  </div>
+                  <div class="field">
+                    <label>Titolo manutenzione</label>
+                    <input class="input" type="text" name="detail_maintenance_title" placeholder="Es. Registro interventi">
+                  </div>
+                  <div>
+                    <button class="btn btn-primary btn-sm" type="submit">Aggiungi categoria</button>
+                  </div>
+                </form>
+              </div>
+
+              <div class="admin-list">
+                {% for category_item in asset_categories %}
+                  <form method="post" class="admin-item">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="update_asset_category">
+                    <input type="hidden" name="category_id" value="{{ category_item.id }}">
+                    <div class="admin-item-row">
+                      <div class="field">
+                        <label>Nome categoria</label>
+                        <input class="input" type="text" name="label" value="{{ category_item.label }}" required>
+                      </div>
+                      <div class="field">
+                        <label>Famiglia tecnica</label>
+                        <select class="input" name="base_asset_type">
+                          {% for type_code, type_label in asset_category_type_choices %}
+                            <option value="{{ type_code }}" {% if category_item.base_asset_type == type_code %}selected{% endif %}>{{ type_label }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label>Ordine</label>
+                        <input class="input" type="number" name="sort_order" value="{{ category_item.sort_order }}">
+                      </div>
+                      <div class="field">
+                        <label>Attiva</label>
+                        <label class="checkline"><input type="checkbox" name="is_active" value="1" {% if category_item.is_active %}checked{% endif %}> Sì</label>
+                      </div>
+                      <div class="field" style="grid-column:1/-1;">
+                        <label>Descrizione</label>
+                        <textarea class="input" name="description" rows="2">{{ category_item.description }}</textarea>
+                      </div>
+                      <div class="field">
+                        <label>Titolo specifiche</label>
+                        <input class="input" type="text" name="detail_specs_title" value="{{ category_item.detail_specs_title }}">
+                      </div>
+                      <div class="field">
+                        <label>Titolo profilo</label>
+                        <input class="input" type="text" name="detail_profile_title" value="{{ category_item.detail_profile_title }}">
+                      </div>
+                      <div class="field">
+                        <label>Titolo responsabile</label>
+                        <input class="input" type="text" name="detail_assignment_title" value="{{ category_item.detail_assignment_title }}">
+                      </div>
+                      <div class="field">
+                        <label>Titolo timeline</label>
+                        <input class="input" type="text" name="detail_timeline_title" value="{{ category_item.detail_timeline_title }}">
+                      </div>
+                      <div class="field">
+                        <label>Titolo manutenzione</label>
+                        <input class="input" type="text" name="detail_maintenance_title" value="{{ category_item.detail_maintenance_title }}">
+                      </div>
+                      <div>
+                        <button class="btn btn-primary btn-sm" type="submit">Salva</button>
+                      </div>
+                    </div>
+                  </form>
+                  <form method="post" style="margin-top:-6px;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete_asset_category">
+                    <input type="hidden" name="category_id" value="{{ category_item.id }}">
+                    <button class="btn btn-secondary btn-sm" type="submit" data-delete-field="{{ category_item.label }}">Elimina categoria</button>
+                  </form>
+                {% empty %}
+                  <div class="admin-hint">Nessuna categoria asset configurata.</div>
+                {% endfor %}
+              </div>
+
+              <div class="admin-form" style="margin-top:14px;">
+                <form method="post" class="admin-row">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="create_asset_category_field">
+                  <div class="field">
+                    <label>Categoria</label>
+                    <select class="input" name="category_id">
+                      {% for category_item in asset_categories %}
+                        <option value="{{ category_item.id }}">{{ category_item.label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Nome campo</label>
+                    <input class="input" type="text" name="label" placeholder="Es. Matricola centrale" required>
+                  </div>
+                  <div class="field">
+                    <label>Tipo input</label>
+                    <select class="input" name="field_type">
+                      {% for type_code, type_label in asset_category_field_type_choices %}
+                        <option value="{{ type_code }}">{{ type_label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Sezione dettaglio</label>
+                    <select class="input" name="detail_section">
+                      {% for section_code, section_label in detail_section_choices %}
+                        <option value="{{ section_code }}">{{ section_label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Formato dettaglio</label>
+                    <select class="input" name="detail_value_format">
+                      {% for format_code, format_label in detail_format_choices %}
+                        <option value="{{ format_code }}">{{ format_label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Ordine</label>
+                    <input class="input" type="number" name="sort_order" value="100">
+                  </div>
+                  <div class="field" style="grid-column:1/-1;">
+                    <label>Placeholder</label>
+                    <input class="input" type="text" name="placeholder" placeholder="Testo guida nel form">
+                  </div>
+                  <div class="field" style="grid-column:1/-1;">
+                    <label>Help text</label>
+                    <input class="input" type="text" name="help_text" placeholder="Nota visibile sotto al campo">
+                  </div>
+                  <div class="field">
+                    <label>Obbligatorio</label>
+                    <label class="checkline"><input type="checkbox" name="is_required" value="1"> Sì</label>
+                  </div>
+                  <div class="field">
+                    <label>Mostra nel form</label>
+                    <label class="checkline"><input type="checkbox" name="show_in_form" value="1" checked> Sì</label>
+                  </div>
+                  <div class="field">
+                    <label>Mostra nel dettaglio</label>
+                    <label class="checkline"><input type="checkbox" name="show_in_detail" value="1" checked> Sì</label>
+                  </div>
+                  <div class="field">
+                    <label>Mostra se vuoto</label>
+                    <label class="checkline"><input type="checkbox" name="show_if_empty" value="1"> Sì</label>
+                  </div>
+                  <div class="field">
+                    <label>Attivo</label>
+                    <label class="checkline"><input type="checkbox" name="is_active" value="1" checked> Sì</label>
+                  </div>
+                  <div>
+                    <button class="btn btn-primary btn-sm" type="submit">Aggiungi campo categoria</button>
+                  </div>
+                </form>
+              </div>
+
+              <div class="admin-list">
+                {% for category_field in asset_category_fields %}
+                  <form method="post" class="admin-item">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="update_asset_category_field">
+                    <input type="hidden" name="category_field_id" value="{{ category_field.id }}">
+                    <div class="admin-item-row">
+                      <div class="field">
+                        <label>Categoria</label>
+                        <select class="input" name="category_id">
+                          {% for category_item in asset_categories %}
+                            <option value="{{ category_item.id }}" {% if category_field.category_id == category_item.id %}selected{% endif %}>{{ category_item.label }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label>Nome campo</label>
+                        <input class="input" type="text" name="label" value="{{ category_field.label }}" required>
+                      </div>
+                      <div class="field">
+                        <label>Tipo input</label>
+                        <select class="input" name="field_type">
+                          {% for type_code, type_label in asset_category_field_type_choices %}
+                            <option value="{{ type_code }}" {% if category_field.field_type == type_code %}selected{% endif %}>{{ type_label }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label>Sezione dettaglio</label>
+                        <select class="input" name="detail_section">
+                          {% for section_code, section_label in detail_section_choices %}
+                            <option value="{{ section_code }}" {% if category_field.detail_section == section_code %}selected{% endif %}>{{ section_label }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label>Formato dettaglio</label>
+                        <select class="input" name="detail_value_format">
+                          {% for format_code, format_label in detail_format_choices %}
+                            <option value="{{ format_code }}" {% if category_field.detail_value_format == format_code %}selected{% endif %}>{{ format_label }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label>Ordine</label>
+                        <input class="input" type="number" name="sort_order" value="{{ category_field.sort_order }}">
+                      </div>
+                      <div class="field" style="grid-column:1/-1;">
+                        <label>Placeholder</label>
+                        <input class="input" type="text" name="placeholder" value="{{ category_field.placeholder }}">
+                      </div>
+                      <div class="field" style="grid-column:1/-1;">
+                        <label>Help text</label>
+                        <input class="input" type="text" name="help_text" value="{{ category_field.help_text }}">
+                      </div>
+                      <div class="field">
+                        <label>Obbligatorio</label>
+                        <label class="checkline"><input type="checkbox" name="is_required" value="1" {% if category_field.is_required %}checked{% endif %}> Sì</label>
+                      </div>
+                      <div class="field">
+                        <label>Mostra nel form</label>
+                        <label class="checkline"><input type="checkbox" name="show_in_form" value="1" {% if category_field.show_in_form %}checked{% endif %}> Sì</label>
+                      </div>
+                      <div class="field">
+                        <label>Mostra nel dettaglio</label>
+                        <label class="checkline"><input type="checkbox" name="show_in_detail" value="1" {% if category_field.show_in_detail %}checked{% endif %}> Sì</label>
+                      </div>
+                      <div class="field">
+                        <label>Mostra se vuoto</label>
+                        <label class="checkline"><input type="checkbox" name="show_if_empty" value="1" {% if category_field.show_if_empty %}checked{% endif %}> Sì</label>
+                      </div>
+                      <div class="field">
+                        <label>Attivo</label>
+                        <label class="checkline"><input type="checkbox" name="is_active" value="1" {% if category_field.is_active %}checked{% endif %}> Sì</label>
+                      </div>
+                      <div>
+                        <button class="btn btn-primary btn-sm" type="submit">Salva</button>
+                      </div>
+                    </div>
+                  </form>
+                  <form method="post" style="margin-top:-6px;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete_asset_category_field">
+                    <input type="hidden" name="category_field_id" value="{{ category_field.id }}">
+                    <button class="btn btn-secondary btn-sm" type="submit" data-delete-field="{{ category_field.label }}">Elimina campo</button>
+                  </form>
+                {% empty %}
+                  <div class="admin-hint">Nessun campo categoria configurato.</div>
+                {% endfor %}
+              </div>
+            </details>
+
+            <details id="admin-detail-fields" class="admin-section">
+              <summary style="cursor:pointer;font-weight:700;">Gestione dati mostrati nel dettaglio asset</summary>
+              <div class="admin-form">
+                <form method="post" class="admin-row">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="create_detail_field">
+                  <div class="field">
+                    <label>Etichetta</label>
+                    <input class="input" type="text" name="label" placeholder="Es. Centro di costo" required>
+                  </div>
+                  <div class="field">
+                    <label>Sezione</label>
+                    <select class="input" name="section">
+                      {% for section_code, section_label in detail_section_choices %}
+                        <option value="{{ section_code }}">{{ section_label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Ambito</label>
+                    <select class="input" name="asset_scope">
+                      {% for scope_code, scope_label in detail_scope_choices %}
+                        <option value="{{ scope_code }}">{{ scope_label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Formato</label>
+                    <select class="input" name="value_format">
+                      {% for format_code, format_label in detail_format_choices %}
+                        <option value="{{ format_code }}">{{ format_label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Ordine</label>
+                    <input class="input" type="number" name="sort_order" value="100">
+                  </div>
+                  <div class="field" style="grid-column:1/-1;">
+                    <label>Sorgente dato</label>
+                    <input class="input" type="text" name="source_ref" list="asset-detail-source-options" placeholder="Seleziona o digita es. asset:manufacturer" required>
+                    <div class="muted" style="font-size:12px;">Puoi usare asset, it, work_machine, extra, custom, computed. Esempi: `asset:manufacturer`, `work_machine:x_mm`, `custom:centro_costo`, `computed:travel_xyz`.</div>
+                  </div>
+                  <div class="field">
+                    <label>Mostra anche se vuoto</label>
+                    <label class="checkline"><input type="checkbox" name="show_if_empty" value="1"> Sì</label>
+                  </div>
+                  <div class="field">
+                    <label>Attivo</label>
+                    <label class="checkline"><input type="checkbox" name="is_active" value="1" checked> Sì</label>
+                  </div>
+                  <div>
+                    <button class="btn btn-primary btn-sm" type="submit">Aggiungi campo</button>
+                  </div>
+                </form>
+              </div>
+              <div class="admin-ops">
+                <form method="post" style="display:inline;">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="seed_detail_fields">
+                  <button class="btn btn-secondary btn-sm" type="submit">Carica schema predefinito</button>
+                </form>
+              </div>
+              <div class="admin-list">
+                {% for detail_item in detail_fields %}
+                  <form method="post" class="admin-item">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="update_detail_field">
+                    <input type="hidden" name="detail_field_id" value="{{ detail_item.id }}">
+                    <div class="admin-item-row">
+                      <div class="field">
+                        <label>Etichetta</label>
+                        <input class="input" type="text" name="label" value="{{ detail_item.label }}" required>
+                      </div>
+                      <div class="field">
+                        <label>Sezione</label>
+                        <select class="input" name="section">
+                          {% for section_code, section_label in detail_section_choices %}
+                            <option value="{{ section_code }}" {% if detail_item.section == section_code %}selected{% endif %}>{{ section_label }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label>Ambito</label>
+                        <select class="input" name="asset_scope">
+                          {% for scope_code, scope_label in detail_scope_choices %}
+                            <option value="{{ scope_code }}" {% if detail_item.asset_scope == scope_code %}selected{% endif %}>{{ scope_label }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label>Formato</label>
+                        <select class="input" name="value_format">
+                          {% for format_code, format_label in detail_format_choices %}
+                            <option value="{{ format_code }}" {% if detail_item.value_format == format_code %}selected{% endif %}>{{ format_label }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label>Ordine</label>
+                        <input class="input" type="number" name="sort_order" value="{{ detail_item.sort_order }}">
+                      </div>
+                      <div class="field" style="grid-column:1/-1;">
+                        <label>Sorgente dato</label>
+                        <input class="input" type="text" name="source_ref" value="{{ detail_item.source_ref }}" list="asset-detail-source-options" required>
+                      </div>
+                      <div class="field">
+                        <label>Mostra se vuoto</label>
+                        <label class="checkline"><input type="checkbox" name="show_if_empty" value="1" {% if detail_item.show_if_empty %}checked{% endif %}> Sì</label>
+                      </div>
+                      <div class="field">
+                        <label>Attivo</label>
+                        <label class="checkline"><input type="checkbox" name="is_active" value="1" {% if detail_item.is_active %}checked{% endif %}> Sì</label>
+                      </div>
+                      <div>
+                        <button class="btn btn-primary btn-sm" type="submit">Salva</button>
+                      </div>
+                    </div>
+                  </form>
+                  <form method="post" style="margin-top:-6px;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete_detail_field">
+                    <input type="hidden" name="detail_field_id" value="{{ detail_item.id }}">
+                    <button class="btn btn-secondary btn-sm" type="submit" data-delete-field="{{ detail_item.label }}">Elimina</button>
+                  </form>
+                {% empty %}
+                  <div class="admin-hint">Nessun campo dettaglio configurato. Puoi caricare lo schema predefinito e poi personalizzarlo.</div>
+                {% endfor %}
+              </div>
+            </details>
+
+            <details id="admin-sidebar-buttons" class="admin-section">
+              <summary style="cursor:pointer;font-weight:700;">Gestione pulsanti menu laterale (aggiungi/rimuovi/visibile)</summary>
+              <div class="admin-form">
+                <form method="post" class="admin-row">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="create_sidebar_button">
+                  <div class="field">
+                    <label>Etichetta</label>
+                    <input class="input" type="text" name="label" placeholder="Es. Nuova sezione" required>
+                  </div>
+                  <div class="field">
+                    <label>Sezione</label>
+                    <select class="input" name="section">
+                      {% for section_code, section_label in sidebar_section_choices %}
+                        <option value="{{ section_code }}">{{ section_label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Voce padre</label>
+                    <select class="input" name="parent_sidebar_button_id">
+                      <option value="">Nessuna (primo livello)</option>
+                      {% for parent_item in sidebar_parent_choices %}
+                        <option value="{{ parent_item.id }}">{{ parent_item.get_section_display }} - {{ parent_item.label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Ordine</label>
+                    <input class="input" type="number" name="sort_order" value="100">
+                  </div>
+                  <div class="field">
+                    <label>Tipo voce</label>
+                    <label class="checkline"><input type="checkbox" name="is_subitem" value="1"> Sottovoce</label>
+                  </div>
+                  <div class="field">
+                    <label>Visibile</label>
+                    <label class="checkline"><input type="checkbox" name="is_visible" value="1" checked> Sì</label>
+                  </div>
+                  <div class="field" style="grid-column:1/-1;">
+                    <label>URL destinazione</label>
+                    <input class="input" type="text" name="target_url" placeholder="/assets/?asset_type=SERVER&rows={rows}">
+                    <div class="muted" style="font-size:12px;">Puoi usare anche `django:assets:wo_list` oppure `{rows}`.</div>
+                  </div>
+                  <div class="field" style="grid-column:1/-1;">
+                    <label>Criterio attivo (opzionale)</label>
+                    <input class="input" type="text" name="active_match" placeholder="asset_type=SERVER">
+                  </div>
+                  <div>
+                    <button class="btn btn-primary btn-sm" type="submit">Aggiungi voce</button>
+                  </div>
+                </form>
+              </div>
+              <div class="admin-list">
+                {% for item in sidebar_buttons %}
+                  <form method="post" class="admin-item">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="update_sidebar_button">
+                    <input type="hidden" name="sidebar_button_id" value="{{ item.id }}">
+                    <div class="admin-item-row">
+                      <div class="field">
+                        <label>Etichetta</label>
+                        <input class="input" type="text" name="label" value="{{ item.label }}" required>
+                      </div>
+                      <div class="field">
+                        <label>Sezione</label>
+                        <select class="input" name="section">
+                          {% for section_code, section_label in sidebar_section_choices %}
+                            <option value="{{ section_code }}" {% if item.section == section_code %}selected{% endif %}>{{ section_label }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label>Voce padre</label>
+                        <select class="input" name="parent_sidebar_button_id">
+                          <option value="">Nessuna (primo livello)</option>
+                          {% for parent_item in sidebar_parent_choices %}
+                            <option value="{{ parent_item.id }}" {% if item.parent_id == parent_item.id %}selected{% endif %}>{{ parent_item.get_section_display }} - {{ parent_item.label }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label>Ordine</label>
+                        <input class="input" type="number" name="sort_order" value="{{ item.sort_order }}">
+                      </div>
+                      <div class="field">
+                        <label>Sottovoce</label>
+                        <label class="checkline"><input type="checkbox" name="is_subitem" value="1" {% if item.is_subitem %}checked{% endif %}> Sì</label>
+                      </div>
+                      <div class="field">
+                        <label>Visibile</label>
+                        <label class="checkline"><input type="checkbox" name="is_visible" value="1" {% if item.is_visible %}checked{% endif %}> Sì</label>
+                      </div>
+                      <div class="field" style="grid-column:1/-1;">
+                        <label>URL destinazione</label>
+                        <input class="input" type="text" name="target_url" value="{{ item.target_url }}">
+                      </div>
+                      <div class="field" style="grid-column:1/-1;">
+                        <label>Criterio attivo</label>
+                        <input class="input" type="text" name="active_match" value="{{ item.active_match }}">
+                      </div>
+                      <div>
+                        <button class="btn btn-primary btn-sm" type="submit">Salva</button>
+                      </div>
+                    </div>
+                  </form>
+                  <form method="post" style="margin-top:-6px;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete_sidebar_button">
+                    <input type="hidden" name="sidebar_button_id" value="{{ item.id }}">
+                    <button class="btn btn-secondary btn-sm" type="submit" data-delete-field="{{ item.label }}">Elimina</button>
+                  </form>
+                {% empty %}
+                  <div class="muted" style="font-size:12px;">Nessuna voce personalizzata: sono attive quelle predefinite.</div>
+                  <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="seed_sidebar_buttons">
+                    <button class="btn btn-primary btn-sm" type="submit">Crea menu predefinito modificabile</button>
+                  </form>
+                {% endfor %}
+              </div>
+            </details>
+
+            <details id="admin-header-tools" class="admin-section">
+              <summary style="cursor:pointer;font-weight:700;">Strumenti header — visibilità pulsanti barra superiore</summary>
+              <div class="admin-hint" style="margin:8px 0;">Controlla quali pulsanti appaiono nella barra in alto (campana, widget, nuvola). Puoi renderli visibili a tutti o solo agli amministratori asset.</div>
+              <div class="admin-list" style="max-height:none;">
+                {% for tool in header_tools %}
+                  <div class="admin-item">
+                    <form method="post">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="update_header_tool">
+                      <input type="hidden" name="tool_id" value="{{ tool.id }}">
+                      <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;">
+                        <div>
+                          <div style="font-weight:700;font-size:13px;">{{ tool.label }}</div>
+                          <div class="admin-hint">{{ tool.description }}</div>
+                          <div class="admin-hint" style="font-family:monospace;">codice: {{ tool.code }}</div>
+                        </div>
+                        <div style="display:grid;gap:6px;min-width:160px;">
+                          <label class="checkline"><input type="checkbox" name="is_active" value="1" {% if tool.is_active %}checked{% endif %}> Attivo (visibile)</label>
+                          <label class="checkline"><input type="checkbox" name="admin_only" value="1" {% if tool.admin_only %}checked{% endif %}> Solo amministratori</label>
+                          <button class="btn btn-primary btn-sm" type="submit">Salva</button>
+                        </div>
+                      </div>
+                    </form>
+                  </div>
+                {% empty %}
+                  <div class="muted" style="font-size:12px;">Nessuno strumento header trovato. Applica le migrazioni per popolare i dati.</div>
+                {% endfor %}
+              </div>
+            </details>
+
+          </div>
+
+          <div class="admin-modal-backdrop" id="adminTutorialModal" aria-hidden="true">
+            <div class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="adminTutorialTitle">
+              <div class="admin-modal-head">
+                <strong id="adminTutorialTitle">Tutorial rapido - Studio amministratore inventario</strong>
+                <button type="button" class="admin-close" id="closeAdminTutorial">Chiudi</button>
+              </div>
+              <div class="admin-modal-body">
+                <div><strong>1) Campi</strong>: crea colonne extra per asset (tipo testo/numero/data/si-no). Puoi modificare o disattivare quelle esistenti.</div>
+                <div><strong>2) Liste</strong>: imposta i valori suggeriti per i campi standard (reparto, produttore, assegnazione...).</div>
+                <div><strong>3) Pulsanti Azione</strong>: controlla i bottoni nella pagina dettaglio asset (intestazione + azioni rapide), con ordine, stile e URL dinamico.</div>
+                <div><strong>4) Categorie asset</strong>: crea nuove categorie business come allarme, TVCC o pompe di calore, definisci la famiglia tecnica di base e aggiungi i campi dedicati senza toccare il codice.</div>
+                <div><strong>5) Dettaglio asset</strong>: scegli quali dati mostrare nelle metriche, specifiche, profilo e responsabile attuale, con ordine e ambito per tipo asset.</div>
+                <div><strong>5) Menu laterale</strong>: aggiungi/rimuovi voci, mettile come sottovoce e decidi se visibili o nascoste.</div>
+                <div><strong>Segnaposto utili</strong>: `{rows}` nel menu laterale; `{asset_id}`, `{asset_tag}`, `{asset_name}` nei pulsanti azione.</div>
+                <div><strong>Attenzione</strong>: ogni eliminazione è immediata. Se stai partendo dalle voci predefinite del menu laterale, prima crea la versione modificabile.</div>
+              </div>
+            </div>
+          </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  </main>
+</section>
+
+{# ── Modale modifica in blocco ───────────────────────────────────────────── #}
+<div class="bulk-modal-backdrop" id="bulkEditModal">
+  <div class="bulk-modal">
+    <div class="bulk-modal-head">
+      <strong>Modifica in blocco — <span id="bulkModalCount">0</span> asset</strong>
+      <button type="button" class="admin-close" id="closeBulkModal">✕</button>
+    </div>
+    <div class="bulk-modal-body">
+      <p class="admin-hint">Attiva il campo e imposta il valore da applicare a tutti gli asset selezionati.</p>
+      <div class="bulk-field-row">
+        <input type="checkbox" id="bf-status">
+        <label for="bf-status">Stato</label>
+        <select class="input" id="bv-status">
+          <option value="IN_STOCK">In magazzino</option>
+          <option value="IN_USE">In uso</option>
+          <option value="IN_REPAIR">In riparazione</option>
+          <option value="RETIRED">Dismesso</option>
+        </select>
+      </div>
+      <div class="bulk-field-row">
+        <input type="checkbox" id="bf-reparto">
+        <label for="bf-reparto">Reparto</label>
+        <input class="input" type="text" id="bv-reparto" list="bulk-reparto-opts" autocomplete="off">
+        <datalist id="bulk-reparto-opts">
+          {% for opt in list_options %}{% if opt.field_key == 'reparto' and opt.is_active %}<option value="{{ opt.value }}">{% endif %}{% endfor %}
+        </datalist>
+      </div>
+      <div class="bulk-field-row">
+        <input type="checkbox" id="bf-manufacturer">
+        <label for="bf-manufacturer">Produttore</label>
+        <input class="input" type="text" id="bv-manufacturer">
+      </div>
+      <div class="bulk-field-row">
+        <input type="checkbox" id="bf-model">
+        <label for="bf-model">Modello</label>
+        <input class="input" type="text" id="bv-model">
+      </div>
+      <div class="bulk-field-row" style="grid-template-columns:20px 1fr;">
+        <input type="checkbox" id="bf-notes">
+        <label for="bf-notes">Note (sostituisce il testo esistente)</label>
+      </div>
+      <textarea class="input" id="bv-notes" rows="3" style="resize:vertical;width:100%;"></textarea>
+    </div>
+    <div class="bulk-modal-foot">
+      <button type="button" class="admin-close" id="cancelBulkModal">Annulla</button>
+      <button type="button" class="btn" id="applyBulkBtn">Applica a tutti</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  function debounce(fn, wait) {
+    let t;
+    return function () {
+      const args = arguments;
+      const ctx = this;
+      clearTimeout(t);
+      t = setTimeout(function () { fn.apply(ctx, args); }, wait);
+    };
+  }
+
+  const TABLE_CONTEXT_KEY = "assets.list.{{ asset_list_context_key }}";
+  const DEFAULT_VISIBLE_COLUMNS = {{ asset_list_default_visible_columns_json|safe }};
+  const SERVER_TABLE_LAYOUT = {{ asset_table_saved_layout_json|safe }};
+  const CAN_PERSIST_TABLE_LAYOUT = {{ asset_table_layout_can_persist|yesno:"true,false" }};
+  const TABLE_LAYOUT_SAVE_URL = "{% url 'assets:asset_list' %}";
+  const TABLE_LAYOUT_CONTEXT = "{{ asset_list_context_key }}";
+  const COLUMN_VIS_KEY = "assets.table.visibleColumns.v2." + TABLE_CONTEXT_KEY;
+  const COLUMN_W_KEY = "assets.table.colWidths.v2." + TABLE_CONTEXT_KEY;
+  const COLUMN_ORDER_KEY = "assets.table.columnOrder.v2." + TABLE_CONTEXT_KEY;
+  const WIDGET_LAYOUT_KEY = "assets.dashboard.widgets.v1";
+  const CUSTOM_KPI_KEY = "assets.dashboard.custom_kpi.v1";
+  let tableLayoutSaveTimer = null;
+
+  function loadCustomKpi() {
+    try { return JSON.parse(localStorage.getItem(CUSTOM_KPI_KEY) || "[]"); } catch (e) { return []; }
+  }
+  function saveCustomKpi(list) {
+    try { localStorage.setItem(CUSTOM_KPI_KEY, JSON.stringify(list)); } catch (e) {}
+  }
+  const WIDGET_LINK_CHOICES = [
+    { value: "", label: "Nessun collegamento" },
+    { value: "{% url 'assets:asset_list' %}", label: "Inventario asset" },
+    { value: "{% url 'assets:asset_create' %}", label: "Nuovo asset" },
+    { value: "{% url 'assets:work_machine_list' %}", label: "Macchine di lavoro" },
+    { value: "{% url 'assets:work_machine_dashboard' %}", label: "Dashboard officina" },
+    { value: "{% url 'assets:work_machine_create' %}", label: "Nuova macchina" },
+    { value: "{% url 'assets:wo_list' %}", label: "Work order" },
+    { value: "{% url 'assets:reports' %}", label: "Report dashboard" },
+    { value: "__custom__", label: "URL personalizzato" }
+  ];
+
+  function getTable() {
+    return document.querySelector(".tbl");
+  }
+
+  function colSelector(col) {
+    return '[data-col="' + String(col).replace(/"/g, '\\"') + '"]';
+  }
+
+  function normalizeOrder(existing, desired) {
+    const normalized = [];
+    (Array.isArray(desired) ? desired : []).forEach(function (key) {
+      if (existing.indexOf(key) !== -1 && normalized.indexOf(key) === -1) {
+        normalized.push(key);
+      }
+    });
+    existing.forEach(function (key) {
+      if (normalized.indexOf(key) === -1) {
+        normalized.push(key);
+      }
+    });
+    return normalized;
+  }
+
+  function getCsrfToken() {
+    const csrfEl = document.querySelector("[name=csrfmiddlewaretoken]");
+    return csrfEl ? csrfEl.value : "";
+  }
+
+  function getServerVisibleColumns() {
+    return SERVER_TABLE_LAYOUT && Array.isArray(SERVER_TABLE_LAYOUT.visible_columns)
+      ? SERVER_TABLE_LAYOUT.visible_columns
+      : null;
+  }
+
+  function getServerColumnOrder() {
+    return SERVER_TABLE_LAYOUT && Array.isArray(SERVER_TABLE_LAYOUT.column_order)
+      ? SERVER_TABLE_LAYOUT.column_order
+      : null;
+  }
+
+  function getServerColumnWidths() {
+    return SERVER_TABLE_LAYOUT && SERVER_TABLE_LAYOUT.column_widths && typeof SERVER_TABLE_LAYOUT.column_widths === "object"
+      ? SERVER_TABLE_LAYOUT.column_widths
+      : {};
+  }
+
+  function readCurrentVisibleColumns() {
+    return Array.from(document.querySelectorAll("[data-col-toggle]:checked"))
+      .map(function (input) { return input.getAttribute("data-col-toggle"); })
+      .filter(Boolean);
+  }
+
+  function buildCurrentTableLayoutPayload(overrides) {
+    const next = overrides && typeof overrides === "object" ? overrides : {};
+    return {
+      action: "save_asset_table_layout",
+      context_key: TABLE_LAYOUT_CONTEXT,
+      visible_columns: Array.isArray(next.visible_columns) ? next.visible_columns : readCurrentVisibleColumns(),
+      column_order: Array.isArray(next.column_order) ? next.column_order : getCurrentOrder(),
+      column_widths: next.column_widths && typeof next.column_widths === "object" ? next.column_widths : getSavedWidths()
+    };
+  }
+
+  function saveTableLayoutToServer(payload) {
+    if (!CAN_PERSIST_TABLE_LAYOUT) return Promise.resolve();
+    const csrf = getCsrfToken();
+    if (!csrf) return Promise.resolve();
+    return fetch(TABLE_LAYOUT_SAVE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+      body: JSON.stringify(payload)
+    }).catch(function () { return null; });
+  }
+
+  function scheduleTableLayoutSave(overrides) {
+    if (!CAN_PERSIST_TABLE_LAYOUT) return;
+    const payload = buildCurrentTableLayoutPayload(overrides);
+    clearTimeout(tableLayoutSaveTimer);
+    tableLayoutSaveTimer = setTimeout(function () {
+      saveTableLayoutToServer(payload);
+    }, 180);
+  }
+
+  function getSavedVisibleColumns() {
+    try {
+      const raw = localStorage.getItem(COLUMN_VIS_KEY);
+      return raw ? JSON.parse(raw) : getServerVisibleColumns();
+    } catch (e) {
+      return getServerVisibleColumns();
+    }
+  }
+
+  function saveVisibleColumns(columns) {
+    try { localStorage.setItem(COLUMN_VIS_KEY, JSON.stringify(columns)); } catch (e) {}
+  }
+
+  function getSavedOrder() {
+    try {
+      const raw = localStorage.getItem(COLUMN_ORDER_KEY);
+      return raw ? JSON.parse(raw) : getServerColumnOrder();
+    } catch (e) {
+      return getServerColumnOrder();
+    }
+  }
+
+  function saveOrder(columns, skipPersist) {
+    try { localStorage.setItem(COLUMN_ORDER_KEY, JSON.stringify(columns)); } catch (e) {}
+    if (!skipPersist) scheduleTableLayoutSave({ column_order: columns });
+  }
+
+  function getCurrentOrder() {
+    const table = getTable();
+    if (!table) return [];
+    return Array.from(table.querySelectorAll("thead th[data-col]"))
+      .map(function (th) { return th.getAttribute("data-col"); })
+      .filter(Boolean);
+  }
+
+  function applyColumnOrder(order) {
+    const table = getTable();
+    if (!table) return [];
+    const headerRow = table.querySelector("thead tr");
+    const bodyRows = Array.from(table.querySelectorAll("tbody tr"));
+    if (!headerRow) return [];
+
+    const existing = getCurrentOrder();
+    if (!existing.length) return [];
+    const normalized = normalizeOrder(existing, order);
+
+    normalized.forEach(function (col) {
+      const th = headerRow.querySelector(colSelector(col));
+      if (th) headerRow.appendChild(th);
+      bodyRows.forEach(function (row) {
+        const td = row.querySelector("td" + colSelector(col));
+        if (td) row.appendChild(td);
+      });
+    });
+
+    return normalized;
+  }
+
+  function restoreColumnOrder() {
+    const saved = getSavedOrder();
+    if (!saved || !Array.isArray(saved)) return;
+    applyColumnOrder(saved);
+  }
+
+  function applyColumnVisibility(skipPersist) {
+    const toggles = Array.from(document.querySelectorAll("[data-col-toggle]"));
+    const active = [];
+    toggles.forEach(function (input) {
+      const col = input.getAttribute("data-col-toggle");
+      const visible = input.checked;
+      if (visible) active.push(col);
+      document.querySelectorAll(colSelector(col)).forEach(function (cell) {
+        cell.classList.toggle("col-hidden", !visible);
+      });
+    });
+    saveVisibleColumns(active);
+    if (!skipPersist) scheduleTableLayoutSave({ visible_columns: active });
+  }
+
+  function restoreColumnVisibility() {
+    const saved = getSavedVisibleColumns();
+    const source = Array.isArray(saved) ? saved : DEFAULT_VISIBLE_COLUMNS;
+    document.querySelectorAll("[data-col-toggle]").forEach(function (input) {
+      const col = input.getAttribute("data-col-toggle");
+      input.checked = source.indexOf(col) !== -1;
+    });
+    applyColumnVisibility(true);
+  }
+
+  function getSavedWidths() {
+    try {
+      const raw = localStorage.getItem(COLUMN_W_KEY);
+      return raw ? JSON.parse(raw) : getServerColumnWidths();
+    } catch (e) {
+      return getServerColumnWidths();
+    }
+  }
+
+  function saveWidthMap(map, skipPersist) {
+    try { localStorage.setItem(COLUMN_W_KEY, JSON.stringify(map)); } catch (e) {}
+    if (!skipPersist) scheduleTableLayoutSave({ column_widths: map });
+  }
+
+  function applySavedWidths() {
+    const map = getSavedWidths();
+    Object.keys(map).forEach(function (col) {
+      const px = parseInt(map[col], 10);
+      if (!px || px < 80) return;
+      document.querySelectorAll(colSelector(col)).forEach(function (cell) {
+        cell.style.width = px + "px";
+        cell.style.minWidth = px + "px";
+        cell.style.maxWidth = px + "px";
+      });
+    });
+  }
+
+  function bindColumnResize() {
+    const widthMap = getSavedWidths();
+    let current = null;
+
+    document.querySelectorAll("th[data-col]").forEach(function (th) {
+      const handle = th.querySelector("[data-col-resizer]");
+      if (!handle) return;
+      handle.setAttribute("draggable", "false");
+      handle.addEventListener("dragstart", function (ev) { ev.preventDefault(); });
+      handle.addEventListener("mousedown", function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const col = th.getAttribute("data-col");
+        current = { col: col, startX: ev.clientX, startW: th.offsetWidth };
+        document.body.style.cursor = "col-resize";
+      });
+    });
+
+    window.addEventListener("mousemove", function (ev) {
+      if (!current) return;
+      const delta = ev.clientX - current.startX;
+      const next = Math.max(90, current.startW + delta);
+      document.querySelectorAll(colSelector(current.col)).forEach(function (cell) {
+        cell.style.width = next + "px";
+        cell.style.minWidth = next + "px";
+        cell.style.maxWidth = next + "px";
+      });
+      widthMap[current.col] = next;
+    });
+
+    window.addEventListener("mouseup", function () {
+      if (!current) return;
+      saveWidthMap(widthMap);
+      current = null;
+      document.body.style.cursor = "";
+    });
+  }
+
+  function clearDropMarkers() {
+    document.querySelectorAll("th[data-col].col-drop-before, th[data-col].col-drop-after").forEach(function (th) {
+      th.classList.remove("col-drop-before");
+      th.classList.remove("col-drop-after");
+    });
+  }
+
+  function bindColumnDrag() {
+    const table = getTable();
+    const headerRow = table ? table.querySelector("thead tr") : null;
+    if (!headerRow) return;
+
+    let draggingCol = "";
+
+    headerRow.querySelectorAll("th[data-col]").forEach(function (th) {
+      const handle = th.querySelector("[data-col-resizer]");
+      th.draggable = true;
+
+      th.addEventListener("dragstart", function (ev) {
+        if (handle && ev.target === handle) {
+          ev.preventDefault();
+          return;
+        }
+        draggingCol = th.getAttribute("data-col") || "";
+        th.classList.add("is-dragging");
+        if (ev.dataTransfer) {
+          ev.dataTransfer.effectAllowed = "move";
+          try { ev.dataTransfer.setData("text/plain", draggingCol); } catch (e) {}
+        }
+      });
+
+      th.addEventListener("dragover", function (ev) {
+        if (!draggingCol) return;
+        const targetCol = th.getAttribute("data-col");
+        if (!targetCol || targetCol === draggingCol) return;
+        ev.preventDefault();
+        clearDropMarkers();
+        const rect = th.getBoundingClientRect();
+        const after = ev.clientX > rect.left + rect.width / 2;
+        th.classList.add(after ? "col-drop-after" : "col-drop-before");
+      });
+
+      th.addEventListener("drop", function (ev) {
+        if (!draggingCol) return;
+        ev.preventDefault();
+        const targetCol = th.getAttribute("data-col");
+        if (!targetCol || targetCol === draggingCol) return;
+
+        const rect = th.getBoundingClientRect();
+        const after = ev.clientX > rect.left + rect.width / 2;
+        const current = getCurrentOrder();
+        const fromIndex = current.indexOf(draggingCol);
+        const targetIndex = current.indexOf(targetCol);
+        if (fromIndex === -1 || targetIndex === -1) return;
+
+        current.splice(fromIndex, 1);
+        let insertIndex = targetIndex;
+        if (after && fromIndex < targetIndex) {
+          insertIndex = targetIndex;
+        } else if (after) {
+          insertIndex = targetIndex + 1;
+        } else if (fromIndex < targetIndex) {
+          insertIndex = targetIndex - 1;
+        }
+        if (insertIndex < 0) insertIndex = 0;
+        if (insertIndex > current.length) insertIndex = current.length;
+        current.splice(insertIndex, 0, draggingCol);
+
+        const nextOrder = applyColumnOrder(current);
+        saveOrder(nextOrder);
+      });
+
+      th.addEventListener("dragend", function () {
+        draggingCol = "";
+        th.classList.remove("is-dragging");
+        clearDropMarkers();
+      });
+    });
+  }
+
+  function loadWidgetLayout() {
+    try {
+      const raw = localStorage.getItem(WIDGET_LAYOUT_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function saveWidgetLayout(layout) {
+    try { localStorage.setItem(WIDGET_LAYOUT_KEY, JSON.stringify(layout)); } catch (e) {}
+  }
+
+  function getWidgetInsertReference(zone, x, y) {
+    const axis = zone.getAttribute("data-axis") === "x" ? "x" : "y";
+    const items = Array.from(zone.querySelectorAll(".widget-item[data-widget-id]:not(.widget-hidden):not(.dragging)"));
+    let closest = { offset: Number.NEGATIVE_INFINITY, element: null };
+    items.forEach(function (item) {
+      const rect = item.getBoundingClientRect();
+      const offset = axis === "x"
+        ? x - rect.left - rect.width / 2
+        : y - rect.top - rect.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        closest = { offset: offset, element: item };
+      }
+    });
+    return closest.element;
+  }
+
+  function applyWidgetZoneOrder(zone, desiredOrder) {
+    const items = Array.from(zone.querySelectorAll(".widget-item[data-widget-id]"));
+    const existing = items.map(function (item) { return item.getAttribute("data-widget-id"); }).filter(Boolean);
+    const normalized = normalizeOrder(existing, desiredOrder);
+    normalized.forEach(function (widgetId) {
+      const item = zone.querySelector('.widget-item[data-widget-id="' + String(widgetId).replace(/"/g, '\\"') + '"]');
+      if (item) zone.appendChild(item);
+    });
+  }
+
+  function readWidgetLayoutFromDom() {
+    const zones = {};
+    document.querySelectorAll(".widget-zone[data-zone]").forEach(function (zone) {
+      const zoneKey = zone.getAttribute("data-zone");
+      zones[zoneKey] = Array.from(zone.querySelectorAll(".widget-item[data-widget-id]"))
+        .map(function (item) { return item.getAttribute("data-widget-id"); })
+        .filter(Boolean);
+    });
+
+    const hidden = [];
+    const links = {};
+    document.querySelectorAll(".widget-item[data-widget-id]").forEach(function (item) {
+      const widgetId = item.getAttribute("data-widget-id");
+      if (!widgetId) return;
+      if (item.classList.contains("widget-hidden")) hidden.push(widgetId);
+      const link = (item.getAttribute("data-link-target") || "").trim();
+      if (link) links[widgetId] = link;
+    });
+
+    return { zones: zones, hidden: hidden, links: links };
+  }
+
+  function applyWidgetLayout(layout) {
+    if (!layout || typeof layout !== "object") return;
+
+    const zones = layout.zones && typeof layout.zones === "object" ? layout.zones : {};
+    const hiddenSet = new Set(Array.isArray(layout.hidden) ? layout.hidden : []);
+    const links = layout.links && typeof layout.links === "object" ? layout.links : {};
+
+    document.querySelectorAll(".widget-zone[data-zone]").forEach(function (zone) {
+      const zoneKey = zone.getAttribute("data-zone");
+      applyWidgetZoneOrder(zone, zones[zoneKey]);
+    });
+
+    document.querySelectorAll(".widget-item[data-widget-id]").forEach(function (item) {
+      const widgetId = item.getAttribute("data-widget-id");
+      item.classList.toggle("widget-hidden", hiddenSet.has(widgetId));
+      item.setAttribute("data-link-target", typeof links[widgetId] === "string" ? links[widgetId] : "");
+      item.draggable = false;
+    });
+  }
+
+  function refreshWidgetLinkStyles() {
+    document.querySelectorAll(".widget-item[data-widget-id]").forEach(function (item) {
+      const link = (item.getAttribute("data-link-target") || "").trim();
+      item.classList.toggle("widget-linked", !!link);
+      if (link) {
+        item.setAttribute("title", "Apri collegamento configurato");
+      } else {
+        item.removeAttribute("title");
+      }
+    });
+  }
+
+  function buildWidgetManager() {
+    const host = document.getElementById("widgetManagerList");
+    if (!host) return;
+    host.innerHTML = "";
+
+    const standardLinks = WIDGET_LINK_CHOICES.map(function (opt) { return opt.value; }).filter(function (value) {
+      return value && value !== "__custom__";
+    });
+
+    document.querySelectorAll(".widget-zone[data-zone]").forEach(function (zone) {
+      const group = document.createElement("div");
+      group.className = "widget-manager-group";
+
+      const title = document.createElement("div");
+      title.className = "widget-manager-title";
+      title.textContent = zone.getAttribute("data-zone-label") || zone.getAttribute("data-zone") || "Widget";
+      group.appendChild(title);
+
+      Array.from(zone.querySelectorAll(".widget-item[data-widget-id]")).forEach(function (item) {
+        const widgetId = item.getAttribute("data-widget-id");
+        const widgetTitle = item.getAttribute("data-widget-title") || widgetId || "Widget";
+        if (!widgetId) return;
+
+        const row = document.createElement("div");
+        row.className = "widget-manager-row";
+
+        const label = document.createElement("label");
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = !item.classList.contains("widget-hidden");
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(widgetTitle));
+        row.appendChild(label);
+
+        const select = document.createElement("select");
+        select.className = "input";
+        WIDGET_LINK_CHOICES.forEach(function (opt) {
+          const option = document.createElement("option");
+          option.value = opt.value;
+          option.textContent = opt.label;
+          select.appendChild(option);
+        });
+        row.appendChild(select);
+
+        const customInput = document.createElement("input");
+        customInput.type = "text";
+        customInput.className = "input";
+        customInput.placeholder = "/assets/... oppure https://...";
+        row.appendChild(customInput);
+
+        const currentLink = (item.getAttribute("data-link-target") || "").trim();
+        if (currentLink && standardLinks.indexOf(currentLink) === -1) {
+          select.value = "__custom__";
+          customInput.value = currentLink;
+          customInput.style.display = "";
+        } else {
+          select.value = currentLink;
+          customInput.value = "";
+          customInput.style.display = "none";
+        }
+
+        checkbox.addEventListener("change", function () {
+          item.classList.toggle("widget-hidden", !checkbox.checked);
+          saveWidgetLayout(readWidgetLayoutFromDom());
+          setWidgetEditMode(document.body.classList.contains("widget-edit-mode"));
+        });
+
+        select.addEventListener("change", function () {
+          if (select.value === "__custom__") {
+            customInput.style.display = "";
+            item.setAttribute("data-link-target", customInput.value.trim());
+          } else {
+            customInput.style.display = "none";
+            item.setAttribute("data-link-target", select.value);
+          }
+          refreshWidgetLinkStyles();
+          saveWidgetLayout(readWidgetLayoutFromDom());
+        });
+
+        customInput.addEventListener("input", function () {
+          if (select.value !== "__custom__") return;
+          item.setAttribute("data-link-target", customInput.value.trim());
+          refreshWidgetLinkStyles();
+          saveWidgetLayout(readWidgetLayoutFromDom());
+        });
+
+        group.appendChild(row);
+      });
+
+      // Aggiungi sezione custom cards per zona KPI
+      if (zone.getAttribute("data-zone") === "kpi") {
+        const customList = loadCustomKpi();
+        if (customList.length > 0) {
+          const customSep = document.createElement("div");
+          customSep.style.cssText = "border-top:1px solid #e5ecf6;margin:4px 0 2px;font-size:10px;font-weight:700;color:#7f95b3;text-transform:uppercase;letter-spacing:.04em;";
+          customSep.textContent = "Card personalizzate";
+          group.appendChild(customSep);
+          customList.forEach(function (item) {
+            const crow = document.createElement("div");
+            crow.className = "wm-custom-row";
+            crow.innerHTML = '<span style="font-size:12px;font-weight:600;color:#334e77;">' + item.title + (item.value ? ' <span style="color:#8ea2bf;">(' + item.value + ')</span>' : '') + '</span>';
+            const removeBtn = document.createElement("button");
+            removeBtn.type = "button";
+            removeBtn.className = "wm-remove-btn";
+            removeBtn.textContent = "Rimuovi";
+            removeBtn.addEventListener("click", function () {
+              const updated = loadCustomKpi().filter(function (c) { return c.id !== item.id; });
+              saveCustomKpi(updated);
+              renderCustomKpiCards();
+              buildWidgetManager();
+            });
+            crow.appendChild(removeBtn);
+            group.appendChild(crow);
+          });
+        }
+
+        // Pulsante aggiungi
+        const addToggle = document.createElement("button");
+        addToggle.type = "button";
+        addToggle.className = "wm-add-toggle";
+        addToggle.textContent = "+ Aggiungi voce KPI";
+        group.appendChild(addToggle);
+
+        const addForm = document.createElement("div");
+        addForm.className = "wm-add-form";
+        addForm.style.display = "none";
+        addForm.innerHTML =
+          '<label>Titolo <input class="input" type="text" id="wm-new-title" placeholder="Es. Scadenze documenti"></label>' +
+          '<label>Valore <input class="input" type="text" id="wm-new-value" placeholder="Es. 12 (testo libero)"></label>' +
+          '<label>Sottotitolo <input class="input" type="text" id="wm-new-subtitle" placeholder="Opzionale"></label>' +
+          '<label>Collegamento<select class="input" id="wm-new-link">' +
+          WIDGET_LINK_CHOICES.filter(function(o){return o.value !== "__custom__";}).map(function(o){return '<option value="' + o.value + '">' + o.label + '</option>';}).join("") +
+          '</select></label>' +
+          '<button type="button" class="btn" id="wm-add-confirm" style="font-size:12px;padding:4px 10px;">Aggiungi</button>';
+        group.appendChild(addForm);
+
+        addToggle.addEventListener("click", function () {
+          addForm.style.display = addForm.style.display === "none" ? "grid" : "none";
+          addToggle.textContent = addForm.style.display === "none" ? "+ Aggiungi voce KPI" : "− Annulla";
+        });
+
+        addForm.querySelector("#wm-add-confirm").addEventListener("click", function () {
+          const title = (addForm.querySelector("#wm-new-title").value || "").trim();
+          if (!title) { alert("Inserisci un titolo."); return; }
+          const newItem = {
+            id: Date.now(),
+            title: title,
+            value: addForm.querySelector("#wm-new-value").value.trim(),
+            subtitle: addForm.querySelector("#wm-new-subtitle").value.trim(),
+            link: addForm.querySelector("#wm-new-link").value
+          };
+          const list = loadCustomKpi();
+          list.push(newItem);
+          saveCustomKpi(list);
+          renderCustomKpiCards();
+          buildWidgetManager();
+        });
+      }
+
+      host.appendChild(group);
+    });
+  }
+
+  function setWidgetEditMode(enabled) {
+    const active = !!enabled;
+    document.body.classList.toggle("widget-edit-mode", active);
+    const btn = document.getElementById("toggleWidgetEdit");
+    if (btn) {
+      btn.classList.toggle("active", active);
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+    }
+    document.querySelectorAll(".widget-item[data-widget-id]").forEach(function (item) {
+      item.draggable = active && !item.classList.contains("widget-hidden");
+      if (!active) item.classList.remove("dragging");
+    });
+  }
+
+  function bindWidgetDrag() {
+    let draggingItem = null;
+
+    document.querySelectorAll(".widget-item[data-widget-id]").forEach(function (item) {
+      item.addEventListener("mousedown", function (ev) {
+        item.dataset.dragArmed = ev.target.closest("[data-widget-handle]") ? "1" : "";
+      });
+
+      item.addEventListener("dragstart", function (ev) {
+        if (!document.body.classList.contains("widget-edit-mode")) {
+          ev.preventDefault();
+          return;
+        }
+        if (item.dataset.dragArmed !== "1" || item.classList.contains("widget-hidden")) {
+          ev.preventDefault();
+          return;
+        }
+        draggingItem = item;
+        item.classList.add("dragging");
+        if (ev.dataTransfer) {
+          ev.dataTransfer.effectAllowed = "move";
+          try { ev.dataTransfer.setData("text/plain", item.getAttribute("data-widget-id") || "widget"); } catch (e) {}
+        }
+      });
+
+      item.addEventListener("dragend", function () {
+        item.classList.remove("dragging");
+        item.dataset.dragArmed = "";
+        document.querySelectorAll(".widget-zone.drop-target").forEach(function (zone) {
+          zone.classList.remove("drop-target");
+        });
+        if (draggingItem) {
+          saveWidgetLayout(readWidgetLayoutFromDom());
+          buildWidgetManager();
+        }
+        draggingItem = null;
+      });
+    });
+
+    document.querySelectorAll(".widget-zone[data-zone]").forEach(function (zone) {
+      zone.addEventListener("dragover", function (ev) {
+        if (!draggingItem || !document.body.classList.contains("widget-edit-mode")) return;
+        const sourceZone = draggingItem.closest(".widget-zone[data-zone]");
+        if (sourceZone !== zone) return;
+        ev.preventDefault();
+        zone.classList.add("drop-target");
+        const before = getWidgetInsertReference(zone, ev.clientX, ev.clientY);
+        if (!before) {
+          zone.appendChild(draggingItem);
+        } else if (before !== draggingItem) {
+          zone.insertBefore(draggingItem, before);
+        }
+      });
+
+      zone.addEventListener("drop", function (ev) {
+        if (!draggingItem) return;
+        ev.preventDefault();
+        zone.classList.remove("drop-target");
+      });
+
+      zone.addEventListener("dragleave", function (ev) {
+        if (!zone.contains(ev.relatedTarget)) {
+          zone.classList.remove("drop-target");
+        }
+      });
+    });
+  }
+
+  document.querySelectorAll(".assets-row-link[data-href]").forEach(function (row) {
+    row.addEventListener("click", function (ev) {
+      if (ev.target.closest("a,button,input,select,textarea,label")) return;
+      const href = row.getAttribute("data-href");
+      if (href) window.location.href = href;
+    });
+  });
+
+  document.querySelectorAll(".widget-item[data-widget-id]").forEach(function (item) {
+    item.addEventListener("click", function (ev) {
+      if (document.body.classList.contains("widget-edit-mode")) return;
+      if (ev.target.closest("a,button,input,select,textarea,label,form,summary")) return;
+      const link = (item.getAttribute("data-link-target") || "").trim();
+      if (link) window.location.href = link;
+    });
+  });
+
+  const qf = document.getElementById("quickSearchForm");
+  const qi = document.getElementById("id_q");
+  if (qf && qi) {
+    const go = debounce(function () {
+      const v = qi.value.trim();
+      if (v.length >= 2 || v.length === 0) qf.submit();
+    }, 450);
+    qi.addEventListener("input", go);
+  }
+
+  const ac = document.getElementById("advancedFiltersCard");
+  const tb = document.getElementById("toggleAdvancedFilters");
+  if (ac && tb) {
+    tb.addEventListener("click", function () {
+      ac.open = !ac.open;
+      tb.classList.toggle("active", ac.open);
+    });
+  }
+
+  const cp = document.getElementById("columnManagerPanel");
+  const cb = document.getElementById("toggleColumnPanel");
+  if (cp && cb) {
+    cb.addEventListener("click", function () {
+      cp.hidden = !cp.hidden;
+      cb.classList.toggle("active", !cp.hidden);
+    });
+  }
+
+  const wp = document.getElementById("widgetManagerPanel");
+  const wb = document.getElementById("toggleWidgetPanel");
+  const sp = document.getElementById("syncPanel");
+  const sb = document.getElementById("toggleSyncPanel");
+
+  if (wb && wp) {
+    wb.addEventListener("click", function () {
+      const opening = wp.hidden;
+      wp.hidden = !opening;
+      wb.classList.toggle("active", opening);
+      if (sp && opening) { sp.hidden = true; if (sb) sb.classList.remove("active"); }
+    });
+  }
+
+  if (sb && sp) {
+    sb.addEventListener("click", function () {
+      const opening = sp.hidden;
+      sp.hidden = !opening;
+      sb.classList.toggle("active", opening);
+      if (wp && opening) { wp.hidden = true; if (wb) wb.classList.remove("active"); }
+    });
+  }
+
+  document.addEventListener("click", function (ev) {
+    const actsEl = document.querySelector(".hdr-acts");
+    if (actsEl && !actsEl.contains(ev.target)) {
+      if (wp) { wp.hidden = true; if (wb) wb.classList.remove("active"); }
+      if (sp) { sp.hidden = true; if (sb) sb.classList.remove("active"); }
+    }
+  });
+
+  const we = document.getElementById("toggleWidgetEdit");
+  if (we) {
+    we.addEventListener("click", function () {
+      setWidgetEditMode(!document.body.classList.contains("widget-edit-mode"));
+    });
+  }
+
+  document.querySelectorAll("[data-col-toggle]").forEach(function (input) {
+    input.addEventListener("change", applyColumnVisibility);
+  });
+
+  [["excelImportForm", "excelImportSubmit"], ["excelImportFormHdr", "excelImportSubmitHdr"]].forEach(function (pair) {
+    const f = document.getElementById(pair[0]);
+    const s = document.getElementById(pair[1]);
+    if (f && s) {
+      f.addEventListener("submit", function () {
+        s.disabled = true;
+        s.textContent = "Import in corso...";
+      });
+    }
+  });
+
+  document.querySelectorAll("button[data-delete-field]").forEach(function (btn) {
+    btn.addEventListener("click", function (event) {
+      const name = btn.getAttribute("data-delete-field") || "questo elemento";
+      if (!window.confirm('Eliminare "' + name + '"?')) event.preventDefault();
+    });
+  });
+
+  document.querySelectorAll("[data-admin-target]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      const id = btn.getAttribute("data-admin-target");
+      const el = id ? document.getElementById(id) : null;
+      if (!el) return;
+      el.open = true;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+
+  const adminStudioModal = document.getElementById("adminStudioModal");
+  const openAdminStudio = document.getElementById("openAdminStudio");
+  const closeAdminStudio = document.getElementById("closeAdminStudio");
+  function setAdminStudio(open) {
+    if (!adminStudioModal) return;
+    const isOpen = !!open;
+    adminStudioModal.classList.toggle("show", isOpen);
+    adminStudioModal.setAttribute("aria-hidden", isOpen ? "false" : "true");
+    document.body.classList.toggle("admin-studio-open", isOpen);
+    if (!isOpen) setTutorial(false);
+  }
+  if (openAdminStudio && adminStudioModal) {
+    openAdminStudio.addEventListener("click", function () { setAdminStudio(true); });
+    adminStudioModal.addEventListener("click", function (ev) {
+      if (ev.target === adminStudioModal) setAdminStudio(false);
+    });
+  }
+  if (closeAdminStudio) {
+    closeAdminStudio.addEventListener("click", function () { setAdminStudio(false); });
+  }
+
+  const tutModal = document.getElementById("adminTutorialModal");
+  const openTut = document.getElementById("openAdminTutorial");
+  const closeTut = document.getElementById("closeAdminTutorial");
+  function setTutorial(open) {
+    if (!tutModal) return;
+    const isOpen = !!open;
+    tutModal.classList.toggle("show", isOpen);
+    tutModal.setAttribute("aria-hidden", isOpen ? "false" : "true");
+  }
+  if (openTut && tutModal) {
+    openTut.addEventListener("click", function () { setTutorial(true); });
+    tutModal.addEventListener("click", function (ev) {
+      if (ev.target === tutModal) setTutorial(false);
+    });
+  }
+  if (closeTut) {
+    closeTut.addEventListener("click", function () { setTutorial(false); });
+  }
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key !== "Escape") return;
+    setTutorial(false);
+    setAdminStudio(false);
+  });
+
+  const resetTableLayoutBtn = document.getElementById("resetTableLayout");
+  if (resetTableLayoutBtn) {
+    resetTableLayoutBtn.addEventListener("click", function () {
+      try {
+        localStorage.removeItem("assets.table.visibleColumns.v1");
+        localStorage.removeItem("assets.table.colWidths.v1");
+        localStorage.removeItem("assets.table.columnOrder.v1");
+        localStorage.removeItem(COLUMN_VIS_KEY);
+        localStorage.removeItem(COLUMN_W_KEY);
+        localStorage.removeItem(COLUMN_ORDER_KEY);
+        localStorage.removeItem(WIDGET_LAYOUT_KEY);
+      } catch (e) {}
+      clearTimeout(tableLayoutSaveTimer);
+      saveTableLayoutToServer(buildCurrentTableLayoutPayload({
+        visible_columns: [],
+        column_order: [],
+        column_widths: {}
+      })).finally(function () {
+        window.location.reload();
+      });
+    });
+  }
+
+  const savedWidgetLayout = loadWidgetLayout();
+  if (savedWidgetLayout) {
+    applyWidgetLayout(savedWidgetLayout);
+  }
+  refreshWidgetLinkStyles();
+  buildWidgetManager();
+  bindWidgetDrag();
+  setWidgetEditMode(false);
+
+  restoreColumnOrder();
+  restoreColumnVisibility();
+  applyColumnVisibility(true);
+  applySavedWidths();
+  bindColumnResize();
+  bindColumnDrag();
+
+  // ─── Selezione multipla e modifica in blocco ──────────────────────────────
+
+  const BULK_UPDATE_URL = "{% url 'assets:asset_bulk_update' %}";
+
+  function getSelectedIds() {
+    return Array.from(document.querySelectorAll(".row-select-cb:checked")).map(function (cb) { return cb.value; });
+  }
+
+  function updateBulkToolbar() {
+    const ids = getSelectedIds();
+    const toolbar = document.getElementById("bulkToolbar");
+    const countEl = document.getElementById("bulkCountNum");
+    if (!toolbar) return;
+    if (ids.length > 0) {
+      toolbar.style.display = "flex";
+      if (countEl) countEl.textContent = ids.length;
+    } else {
+      toolbar.style.display = "none";
+    }
+    const selectAll = document.getElementById("select-all-cb");
+    if (selectAll) {
+      const total = document.querySelectorAll(".row-select-cb").length;
+      selectAll.checked = total > 0 && ids.length === total;
+      selectAll.indeterminate = ids.length > 0 && ids.length < total;
+    }
+  }
+
+  // Previeni navigazione al click sul checkbox
+  document.querySelectorAll(".row-select-cb").forEach(function (cb) {
+    cb.addEventListener("click", function (ev) { ev.stopPropagation(); });
+    cb.addEventListener("change", function () {
+      const row = cb.closest("tr");
+      if (row) row.classList.toggle("row-selected", cb.checked);
+      updateBulkToolbar();
+    });
+  });
+
+  const selectAllCb = document.getElementById("select-all-cb");
+  if (selectAllCb) {
+    selectAllCb.addEventListener("change", function () {
+      document.querySelectorAll(".row-select-cb").forEach(function (cb) {
+        cb.checked = selectAllCb.checked;
+        const row = cb.closest("tr");
+        if (row) row.classList.toggle("row-selected", cb.checked);
+      });
+      updateBulkToolbar();
+    });
+  }
+
+  const bulkDeselectBtn = document.getElementById("bulkDeselectBtn");
+  if (bulkDeselectBtn) {
+    bulkDeselectBtn.addEventListener("click", function () {
+      document.querySelectorAll(".row-select-cb").forEach(function (cb) {
+        cb.checked = false;
+        const row = cb.closest("tr");
+        if (row) row.classList.remove("row-selected");
+      });
+      updateBulkToolbar();
+    });
+  }
+
+  // Apri modale bulk edit
+  const bulkEditBtn = document.getElementById("bulkEditBtn");
+  const bulkModal = document.getElementById("bulkEditModal");
+  const bulkModalCount = document.getElementById("bulkModalCount");
+
+  function openBulkModal() {
+    const ids = getSelectedIds();
+    if (!ids.length) return;
+    if (bulkModalCount) bulkModalCount.textContent = ids.length;
+    if (bulkModal) { bulkModal.style.display = "flex"; document.body.style.overflow = "hidden"; }
+  }
+  function closeBulkModal() {
+    if (bulkModal) { bulkModal.style.display = ""; document.body.style.overflow = ""; }
+  }
+
+  if (bulkEditBtn) bulkEditBtn.addEventListener("click", openBulkModal);
+  document.getElementById("closeBulkModal") && document.getElementById("closeBulkModal").addEventListener("click", closeBulkModal);
+  document.getElementById("cancelBulkModal") && document.getElementById("cancelBulkModal").addEventListener("click", closeBulkModal);
+  if (bulkModal) {
+    bulkModal.addEventListener("click", function (ev) { if (ev.target === bulkModal) closeBulkModal(); });
+  }
+
+  // Applica bulk edit
+  document.getElementById("applyBulkBtn") && document.getElementById("applyBulkBtn").addEventListener("click", function () {
+    const ids = getSelectedIds();
+    if (!ids.length) return;
+    const fields = {};
+    [["status","bf-status","bv-status"],["reparto","bf-reparto","bv-reparto"],
+     ["manufacturer","bf-manufacturer","bv-manufacturer"],["model","bf-model","bv-model"],
+     ["notes","bf-notes","bv-notes"]].forEach(function (triple) {
+      const enabledCb = document.getElementById(triple[1]);
+      const valueEl = document.getElementById(triple[2]);
+      if (enabledCb && enabledCb.checked && valueEl) fields[triple[0]] = valueEl.value;
+    });
+    if (!Object.keys(fields).length) { alert("Seleziona almeno un campo da modificare."); return; }
+    const csrfEl = document.querySelector("[name=csrfmiddlewaretoken]");
+    const csrf = csrfEl ? csrfEl.value : "";
+    fetch(BULK_UPDATE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+      body: JSON.stringify({ ids: ids, fields: fields })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.ok) {
+        closeBulkModal();
+        window.location.reload();
+      } else {
+        alert("Errore: " + (data.error || "sconosciuto"));
+      }
+    })
+    .catch(function () { alert("Errore di rete. Riprova."); });
+  });
+
+  // ─── Custom KPI cards ────────────────────────────────────────────────────
+
+  function renderCustomKpiCards() {
+    const zone = document.querySelector(".widget-zone[data-zone='kpi']");
+    if (!zone) return;
+    zone.querySelectorAll(".custom-kpi-card").forEach(function (el) { el.remove(); });
+    loadCustomKpi().forEach(function (item) {
+      const art = document.createElement("article");
+      art.className = "k widget-item custom-kpi-card";
+      art.setAttribute("data-widget-id", "custom_" + item.id);
+      art.setAttribute("data-widget-title", item.title);
+      if (item.link) { art.setAttribute("data-link-target", item.link); art.style.cursor = "pointer"; art.addEventListener("click", function () { window.location.href = item.link; }); }
+      art.innerHTML = '<button class="widget-handle" type="button" data-widget-handle title="Trascina widget">::</button>' +
+        '<div class="kh">' + item.title + '</div>' +
+        '<div class="kv" style="font-size:22px;margin-top:6px;">' + (item.value || "—") + '</div>' +
+        (item.subtitle ? '<div class="ks">' + item.subtitle + '</div>' : '') +
+        '<div class="bar"><div class="fill" style="width:50%"></div></div>';
+      zone.appendChild(art);
+    });
+  }
+
+  renderCustomKpiCards();
+
+})();
+</script>
+{% endblock %}

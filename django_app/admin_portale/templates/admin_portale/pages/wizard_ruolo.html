@@ -1,0 +1,582 @@
+{% extends "core/base.html" %}
+
+{% block title %}Wizard Configura Ruolo | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .wizard-wrap { max-width: 860px; margin: 0 auto; }
+
+  /* Stepper (riusa lo stesso pattern di wizard_pulsante.html) */
+  .wizard-steps { display: flex; align-items: center; gap: 0; margin-bottom: 28px; }
+  .wstep { display: flex; flex-direction: column; align-items: center; flex: 1; position: relative; cursor: default; }
+  .wstep + .wstep::before {
+    content: ""; position: absolute; top: 15px; right: 50%;
+    width: 100%; height: 2px; background: var(--border, #ddd); z-index: 0;
+  }
+  .wstep.done + .wstep::before { background: var(--accent, #3b82f6); }
+  .wstep-num {
+    width: 30px; height: 30px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 600;
+    background: var(--bg-card, #f4f4f4); border: 2px solid var(--border, #ddd);
+    color: var(--text-muted, #888); position: relative; z-index: 1;
+    transition: background .2s, border-color .2s, color .2s;
+  }
+  .wstep.active .wstep-num { background: var(--accent, #3b82f6); border-color: var(--accent, #3b82f6); color: #fff; }
+  .wstep.done .wstep-num   { background: var(--accent, #3b82f6); border-color: var(--accent, #3b82f6); color: #fff; }
+  .wstep-lbl { font-size: 11px; margin-top: 4px; color: var(--text-muted, #888); white-space: nowrap; }
+  .wstep.active .wstep-lbl { color: var(--accent, #3b82f6); font-weight: 600; }
+
+  /* Pannelli */
+  .wizard-panel { display: none; }
+  .wizard-panel.active { display: block; }
+
+  /* Step 1: selezione ruolo */
+  .wiz-role-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+  .wiz-role-btn {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; border: 2px solid var(--border, #eee); border-radius: 8px;
+    background: var(--bg-card, #fafafa); cursor: pointer;
+    transition: border-color .15s, background .15s; text-align: left; width: 100%;
+  }
+  .wiz-role-btn:hover { border-color: var(--accent, #3b82f6); background: var(--bg-hover, #f0f7ff); }
+  .wiz-role-btn.selected { border-color: var(--accent, #3b82f6); background: #eff6ff; }
+  .wiz-role-icon {
+    width: 36px; height: 36px; border-radius: 8px;
+    background: var(--accent-light, #eff6ff); color: var(--accent, #3b82f6);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px; flex-shrink: 0;
+  }
+  .wiz-role-name { font-weight: 600; font-size: 14px; }
+  .wiz-role-id   { font-size: 12px; color: var(--text-muted, #999); }
+
+  /* Step 2: card per modulo */
+  .perm-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+  }
+  .perm-mod-card { border: 1px solid var(--border, #eee); border-radius: 10px; overflow: hidden; }
+  .perm-mod-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; background: var(--bg-card, #fafafa);
+    border-bottom: 1px solid var(--border, #eee); gap: 8px;
+  }
+  .perm-mod-head-left { display: flex; align-items: center; gap: 10px; }
+  .perm-mod-icon {
+    width: 30px; height: 30px; border-radius: 6px;
+    background: var(--accent-light, #eff6ff); color: var(--accent, #3b82f6);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 12px; flex-shrink: 0;
+  }
+  .perm-mod-name { font-weight: 600; font-size: 13px; }
+  .perm-mod-actions { display: flex; gap: 6px; }
+  .perm-mod-btn {
+    font-size: 10px; padding: 2px 8px; border-radius: 4px; cursor: pointer; border: none;
+    background: var(--border, #eee); color: var(--text-muted, #666);
+    transition: background .15s;
+  }
+  .perm-mod-btn:hover { background: #dbeafe; color: var(--accent, #3b82f6); }
+  .perm-mod-body { padding: 4px 0; }
+
+  /* Riga pulsante dentro card — layout a due righe */
+  .perm-puls-row {
+    display: flex; flex-direction: column; align-items: stretch;
+    padding: 8px 14px; border-bottom: 1px solid var(--border, #f0f0f0); gap: 5px;
+  }
+  .perm-puls-row:last-child { border-bottom: none; }
+  .perm-puls-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .perm-puls-label { font-size: 13px; color: var(--text, #333); flex: 1; min-width: 0; }
+  .perm-puls-code  { font-size: 10px; color: var(--text-muted, #999); font-family: monospace; display: block; }
+  .perm-vis-wrap   { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .flag-lbl        { font-size: 10px; color: var(--text-muted, #999); }
+  .perm-puls-extras { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  /* Toggle switch */
+  .toggle-switch { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute; cursor: pointer; inset: 0;
+    background: var(--border, #ccc); border-radius: 22px; transition: background .2s;
+  }
+  .toggle-slider::before {
+    content: ""; position: absolute;
+    height: 16px; width: 16px; left: 3px; bottom: 3px;
+    background: #fff; border-radius: 50%; transition: transform .2s;
+  }
+  .toggle-switch input:checked + .toggle-slider { background: var(--accent, #3b82f6); }
+  .toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); }
+
+  /* Flag extra e pulsante Tutto */
+  .perm-extra-flag { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text, #444); cursor: pointer; white-space: nowrap; }
+  .perm-extra-flag input[type=checkbox] { width: 14px; height: 14px; cursor: pointer; accent-color: var(--accent, #3b82f6); flex-shrink: 0; }
+  .perm-all-btn {
+    font-size: 10px; padding: 2px 8px; border-radius: 4px; cursor: pointer;
+    border: 1px solid var(--border, #ddd); background: #fff; color: var(--text-muted, #666);
+    transition: background .15s; margin-left: auto;
+  }
+  .perm-all-btn:hover { background: #dbeafe; color: var(--accent, #3b82f6); border-color: var(--accent, #3b82f6); }
+
+  /* Azioni wizard */
+  .wizard-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 20px; gap: 12px; flex-wrap: wrap; }
+  #wiz-status { font-size: 12px; color: var(--text-muted, #888); }
+
+  /* Step 3: riepilogo */
+  .diff-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .diff-table th {
+    font-size: 11px; font-weight: 600; color: var(--text-muted, #888);
+    text-transform: uppercase; padding: 7px 10px;
+    border-bottom: 2px solid var(--border, #eee); text-align: left;
+  }
+  .diff-table td { padding: 8px 10px; border-bottom: 1px solid var(--border, #f0f0f0); vertical-align: middle; }
+  .diff-table tr:last-child td { border-bottom: none; }
+  .badge-on  { display:inline-block; padding:2px 7px; border-radius:4px; font-size:11px; font-weight:600; background:#dcfce7; color:#166534; }
+  .badge-off { display:inline-block; padding:2px 7px; border-radius:4px; font-size:11px; font-weight:600; background:#fee2e2; color:#991b1b; }
+  .badge-arr { font-size:12px; color:var(--text-muted,#999); margin:0 4px; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Wizard Configura Ruolo" page_subtitle="Imposta i permessi di accesso per un ruolo in tre semplici passaggi." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <form id="perm-csrf-form" style="display:none;">{% csrf_token %}</form>
+
+  {# Dati per JS #}
+  {{ perm_map_json|json_script:"wiz-perm-map" }}
+
+  <div class="wizard-wrap">
+
+    {# Stepper #}
+    <div class="wizard-steps">
+      <div class="wstep active" id="step-ind-1">
+        <div class="wstep-num">1</div>
+        <div class="wstep-lbl">Scegli ruolo</div>
+      </div>
+      <div class="wstep" id="step-ind-2">
+        <div class="wstep-num">2</div>
+        <div class="wstep-lbl">Configura permessi</div>
+      </div>
+      <div class="wstep" id="step-ind-3">
+        <div class="wstep-num">3</div>
+        <div class="wstep-lbl">Riepilogo e salva</div>
+      </div>
+    </div>
+
+    {# ── STEP 1: Scegli ruolo ────────────────────────────────────────────── #}
+    <div class="wizard-panel active" id="panel-1">
+      <div class="card">
+        <div class="card-head"><div class="card-title">Seleziona il ruolo da configurare</div></div>
+        <div class="card-body">
+          <div class="wiz-role-list">
+            {% for ruolo in ruoli %}
+              <button type="button"
+                      class="wiz-role-btn {% if ruolo_id_presel == ruolo.id|stringformat:'d' %}selected{% endif %}"
+                      data-ruolo-id="{{ ruolo.id }}"
+                      data-ruolo-nome="{{ ruolo.nome }}">
+                <div class="wiz-role-icon">{{ ruolo.nome|slice:":1"|upper }}</div>
+                <div>
+                  <div class="wiz-role-name">{{ ruolo.nome }}</div>
+                  <div class="wiz-role-id">ID: {{ ruolo.id }}</div>
+                </div>
+              </button>
+            {% empty %}
+              <p class="cell-muted">Nessun ruolo trovato nel database.</p>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="wizard-actions">
+        <a href="{% url 'admin_portale:accessi_avanzati' %}" class="btn btn-secondary">← Torna agli Accessi Avanzati</a>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span id="wiz-status"></span>
+          <button type="button" class="btn" id="btn-1-next" disabled>Avanti: Configura permessi →</button>
+        </div>
+      </div>
+    </div>
+
+    {# ── STEP 2: Permessi per modulo ─────────────────────────────────────── #}
+    <div class="wizard-panel" id="panel-2">
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Permessi per: <span id="wiz-ruolo-name" style="color:var(--accent,#3b82f6);">—</span></div>
+            <div class="cell-muted" style="font-size:12px;margin-top:2px;">
+              Abilita o disabilita l'accesso ai singoli moduli. Il toggle controlla la <strong>visibilità</strong>; i checkbox inline impostano modifica, eliminazione e approvazione. <em>Tutto</em> seleziona tutti i permessi della riga.
+            </div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="perm-card-grid" id="perm-card-grid">
+            {% for modulo, pulsanti in moduli_pulsanti.items %}
+              <div class="perm-mod-card">
+                <div class="perm-mod-head">
+                  <div class="perm-mod-head-left">
+                    <div class="perm-mod-icon">{{ modulo|slice:":1"|upper }}</div>
+                    <span class="perm-mod-name">{{ modulo|capfirst }}</span>
+                  </div>
+                  <div class="perm-mod-actions">
+                    <button type="button" class="perm-mod-btn" data-modulo="{{ modulo }}" data-action="all-on">Tutto ON</button>
+                    <button type="button" class="perm-mod-btn" data-modulo="{{ modulo }}" data-action="all-off">Tutto OFF</button>
+                  </div>
+                </div>
+                <div class="perm-mod-body">
+                  {% for p in pulsanti %}
+                    <div class="perm-puls-row"
+                         data-modulo="{{ modulo }}"
+                         data-azione="{{ p.codice }}">
+                      <div class="perm-puls-top">
+                        <div class="perm-puls-label">
+                          {{ p.nome_visibile|default:p.codice }}
+                          <span class="perm-puls-code">{{ p.codice }}</span>
+                        </div>
+                        <div class="perm-vis-wrap">
+                          <span class="flag-lbl">visibile</span>
+                          <label class="toggle-switch">
+                            <input type="checkbox"
+                                   class="perm-cv-toggle"
+                                   data-modulo="{{ modulo }}"
+                                   data-azione="{{ p.codice }}"
+                                   data-field="can_view">
+                            <span class="toggle-slider"></span>
+                          </label>
+                        </div>
+                      </div>
+                      <div class="perm-puls-extras">
+                        <label class="perm-extra-flag" title="Può modificare i dati">
+                          <input type="checkbox" class="perm-extra-toggle" data-modulo="{{ modulo }}" data-azione="{{ p.codice }}" data-field="can_edit">
+                          Può modificare
+                        </label>
+                        <label class="perm-extra-flag" title="Può eliminare record o voci dalla sezione">
+                          <input type="checkbox" class="perm-extra-toggle" data-modulo="{{ modulo }}" data-azione="{{ p.codice }}" data-field="can_delete">
+                          Può eliminare
+                        </label>
+                        <label class="perm-extra-flag" title="Può approvare o validare richieste">
+                          <input type="checkbox" class="perm-extra-toggle" data-modulo="{{ modulo }}" data-azione="{{ p.codice }}" data-field="can_approve">
+                          Può approvare
+                        </label>
+                        <button type="button" class="perm-all-btn" data-modulo="{{ modulo }}" data-azione="{{ p.codice }}" data-action="row-all" title="Seleziona/deseleziona tutti i permessi della riga">Tutto</button>
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="wizard-actions">
+        <button type="button" class="btn btn-secondary" id="btn-2-back">← Scegli altro ruolo</button>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span id="wiz-status-2"></span>
+          <button type="button" class="btn" id="btn-2-next">Avanti: Riepilogo →</button>
+        </div>
+      </div>
+    </div>
+
+    {# ── STEP 3: Riepilogo e Salva ────────────────────────────────────────── #}
+    <div class="wizard-panel" id="panel-3">
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Riepilogo modifiche — <span id="riepilogo-ruolo-name" style="color:var(--accent,#3b82f6);">—</span></div>
+        </div>
+        <div class="card-body">
+          <div id="diff-empty" style="display:none;">
+            <p class="cell-muted">Nessuna modifica rispetto allo stato attuale. Puoi tornare indietro o salvare comunque.</p>
+          </div>
+          <div id="diff-container">
+            <table class="diff-table" id="diff-table">
+              <thead>
+                <tr>
+                  <th>Modulo</th>
+                  <th>Pulsante / Azione</th>
+                  <th>Campo</th>
+                  <th>Modifica</th>
+                </tr>
+              </thead>
+              <tbody id="diff-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="wizard-actions">
+        <button type="button" class="btn btn-secondary" id="btn-3-back">← Torna a modifica</button>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span id="wiz-status-3"></span>
+          <button type="button" class="btn" id="btn-3-save">💾 Salva permessi</button>
+        </div>
+      </div>
+    </div>
+
+  </div>{# /wizard-wrap #}
+
+<script>
+(function () {
+  "use strict";
+
+  const CSRF = (document.querySelector("#perm-csrf-form input[name='csrfmiddlewaretoken']") || {}).value || "";
+  const API_BULK = "{{ api_bulk_url|escapejs }}";
+  const ACCESSI_URL = "{{ accessi_url|escapejs }}";
+
+  // Carica mappa permessi iniziale dal server (per il ruolo pre-selezionato)
+  let initialPermMap = {};
+  try {
+    initialPermMap = JSON.parse(document.getElementById("wiz-perm-map").textContent || "{}");
+  } catch (e) {}
+
+  // Stato wizard
+  let selectedRuoloId = {{ ruolo_id_presel|default:"null" }};
+  let selectedRuoloNome = "";
+  let snapshotBefore = {};   // stato prima delle modifiche step 2
+  let currentStep = 1;
+
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+
+  function getPermKey(modulo, azione) { return modulo + "__" + azione; }
+
+  function setStatus(el, msg, isErr) {
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = isErr ? "#dc2626" : "#16a34a";
+  }
+
+  function goStep(n) {
+    currentStep = n;
+    for (let i = 1; i <= 3; i++) {
+      const ind = document.getElementById("step-ind-" + i);
+      const pan = document.getElementById("panel-" + i);
+      if (!ind || !pan) continue;
+      ind.className = "wstep" + (i === n ? " active" : (i < n ? " done" : ""));
+      pan.className = "wizard-panel" + (i === n ? " active" : "");
+    }
+  }
+
+  // ─── Step 1: Selezione ruolo ───────────────────────────────────────────────
+
+  const roleList = document.querySelectorAll(".wiz-role-btn");
+  const btnNext1 = document.getElementById("btn-1-next");
+
+  function selectRuolo(id, nome) {
+    selectedRuoloId = id;
+    selectedRuoloNome = nome;
+    roleList.forEach(function (b) {
+      b.classList.toggle("selected", b.dataset.ruoloId === String(id));
+    });
+    if (btnNext1) btnNext1.disabled = false;
+  }
+
+  roleList.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      selectRuolo(Number(btn.dataset.ruoloId), btn.dataset.ruoloNome);
+    });
+  });
+
+  // Pre-selezione da URL
+  {% if ruolo_id_presel %}
+    (function () {
+      const preBtn = document.querySelector('.wiz-role-btn[data-ruolo-id="{{ ruolo_id_presel }}"]');
+      if (preBtn) selectRuolo(Number(preBtn.dataset.ruoloId), preBtn.dataset.ruoloNome);
+    })();
+  {% endif %}
+
+  btnNext1 && btnNext1.addEventListener("click", function () {
+    if (!selectedRuoloId) { setStatus(document.getElementById("wiz-status"), "Seleziona un ruolo", true); return; }
+    // Se ruolo diverso da quello pre-caricato, dobbiamo ricaricare i permessi via fetch
+    loadPermessiAndProceed();
+  });
+
+  async function loadPermessiAndProceed() {
+    const statusEl = document.getElementById("wiz-status");
+    setStatus(statusEl, "Caricamento permessi...", false);
+    try {
+      // Ricarica la pagina con il ruolo selezionato per ottenere la perm_map aggiornata
+      // (pattern semplice: redirect a wizard-ruolo/?ruolo_id=X)
+      const preselId = {{ ruolo_id_presel|default:"null" }};
+      if (preselId === selectedRuoloId) {
+        // Già caricati
+        applyPermMapToToggles(initialPermMap);
+        snapshotBefore = captureCurrentState();
+        proceedToStep2();
+      } else {
+        window.location.href = "{% url 'admin_portale:wizard_ruolo' %}?ruolo_id=" + selectedRuoloId;
+      }
+    } catch (e) {
+      setStatus(statusEl, "Errore: " + e.message, true);
+    }
+  }
+
+  function proceedToStep2() {
+    const nameEl = document.getElementById("wiz-ruolo-name");
+    if (nameEl) nameEl.textContent = selectedRuoloNome;
+    goStep(2);
+  }
+
+  // ─── Applica perm_map ai toggle ────────────────────────────────────────────
+
+  function applyPermMapToToggles(permMap) {
+    document.querySelectorAll(".perm-cv-toggle, .perm-extra-toggle").forEach(function (cb) {
+      const key = getPermKey(cb.dataset.modulo, cb.dataset.azione);
+      const field = cb.dataset.field;
+      const entry = permMap[key];
+      cb.checked = entry ? Boolean(entry[field]) : false;
+    });
+  }
+
+  // Applica al caricamento
+  applyPermMapToToggles(initialPermMap);
+  // Se ruolo pre-selezionato da URL: vai direttamente allo step 2 con permessi già caricati
+  {% if ruolo_id_presel %}
+    (function () {
+      const preBtn = document.querySelector('.wiz-role-btn[data-ruolo-id="{{ ruolo_id_presel }}"]');
+      if (preBtn) {
+        snapshotBefore = captureCurrentState();
+        proceedToStep2();
+      }
+    })();
+  {% endif %}
+
+  // Snapshot dello stato corrente step 2
+  function captureCurrentState() {
+    const state = {};
+    document.querySelectorAll(".perm-cv-toggle, .perm-extra-toggle").forEach(function (cb) {
+      const key = getPermKey(cb.dataset.modulo, cb.dataset.azione);
+      if (!state[key]) state[key] = { modulo: cb.dataset.modulo, azione: cb.dataset.azione };
+      state[key][cb.dataset.field] = cb.checked ? 1 : 0;
+    });
+    return state;
+  }
+
+  // ─── Step 2: Pulsanti nella card ──────────────────────────────────────────
+
+  // Tutto ON / Tutto OFF per modulo
+  document.getElementById("perm-card-grid") && document.getElementById("perm-card-grid").addEventListener("click", function (e) {
+    // Tutto ON / Tutto OFF a livello modulo
+    const modBtn = e.target.closest(".perm-mod-btn");
+    if (modBtn) {
+      const modulo = modBtn.dataset.modulo;
+      const isOn = modBtn.dataset.action === "all-on";
+      document.querySelectorAll(
+        ".perm-cv-toggle[data-modulo='" + modulo + "'], .perm-extra-toggle[data-modulo='" + modulo + "']"
+      ).forEach(function (cb) { cb.checked = isOn; });
+      return;
+    }
+    // Tutto per riga (toggle: se tutti checked → deseleziona, altrimenti seleziona tutti)
+    const rowBtn = e.target.closest(".perm-all-btn[data-action='row-all']");
+    if (rowBtn) {
+      const modulo = rowBtn.dataset.modulo;
+      const azione = rowBtn.dataset.azione;
+      const all = document.querySelectorAll(
+        ".perm-cv-toggle[data-modulo='" + modulo + "'][data-azione='" + azione + "'], " +
+        ".perm-extra-toggle[data-modulo='" + modulo + "'][data-azione='" + azione + "']"
+      );
+      const allChecked = Array.from(all).every(function (cb) { return cb.checked; });
+      all.forEach(function (cb) { cb.checked = !allChecked; });
+      return;
+    }
+  });
+
+  document.getElementById("btn-2-back") && document.getElementById("btn-2-back").addEventListener("click", function () {
+    goStep(1);
+  });
+
+  document.getElementById("btn-2-next") && document.getElementById("btn-2-next").addEventListener("click", function () {
+    snapshotBefore = snapshotBefore && Object.keys(snapshotBefore).length > 0
+      ? snapshotBefore
+      : {};
+    buildDiff();
+    const riepilogoName = document.getElementById("riepilogo-ruolo-name");
+    if (riepilogoName) riepilogoName.textContent = selectedRuoloNome;
+    goStep(3);
+  });
+
+  // ─── Step 3: Riepilogo diff ────────────────────────────────────────────────
+
+  function buildDiff() {
+    const currentState = captureCurrentState();
+    const tbody = document.getElementById("diff-tbody");
+    const emptyEl = document.getElementById("diff-empty");
+    const tableEl = document.getElementById("diff-table");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    const fields = ["can_view", "can_edit", "can_delete", "can_approve"];
+    let diffCount = 0;
+
+    Object.keys(currentState).forEach(function (key) {
+      const cur = currentState[key];
+      const prev = initialPermMap[key] || {};
+      fields.forEach(function (f) {
+        const curVal = cur[f] || 0;
+        const prevVal = prev[f] || 0;
+        if (curVal !== prevVal) {
+          diffCount++;
+          const tr = document.createElement("tr");
+          tr.innerHTML =
+            "<td>" + cur.modulo + "</td>" +
+            "<td style='font-family:monospace;font-size:12px;'>" + cur.azione + "</td>" +
+            "<td style='font-family:monospace;font-size:12px;'>" + f + "</td>" +
+            "<td>" +
+              (prevVal ? "<span class='badge-on'>ON</span>" : "<span class='badge-off'>OFF</span>") +
+              "<span class='badge-arr'>→</span>" +
+              (curVal ? "<span class='badge-on'>ON</span>" : "<span class='badge-off'>OFF</span>") +
+            "</td>";
+          tbody.appendChild(tr);
+        }
+      });
+    });
+
+    if (emptyEl) emptyEl.style.display = diffCount === 0 ? "block" : "none";
+    if (tableEl) tableEl.style.display = diffCount === 0 ? "none" : "";
+  }
+
+  document.getElementById("btn-3-back") && document.getElementById("btn-3-back").addEventListener("click", function () {
+    goStep(2);
+  });
+
+  document.getElementById("btn-3-save") && document.getElementById("btn-3-save").addEventListener("click", async function () {
+    if (!selectedRuoloId) { setStatus(document.getElementById("wiz-status-3"), "Ruolo non selezionato", true); return; }
+    const statusEl = document.getElementById("wiz-status-3");
+    const btnSave = document.getElementById("btn-3-save");
+    btnSave.disabled = true;
+    setStatus(statusEl, "Salvataggio in corso...", false);
+
+    // Costruisce la lista di update da inviare
+    const currentState = captureCurrentState();
+    const rows = [];
+    const fields = ["can_view", "can_edit", "can_delete", "can_approve"];
+
+    Object.values(currentState).forEach(function (entry) {
+      fields.forEach(function (f) {
+        rows.push({ modulo: entry.modulo, azione: entry.azione, field: f, value: entry[f] || 0 });
+      });
+    });
+
+    try {
+      const resp = await fetch(API_BULK, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+        body: JSON.stringify({ ruolo_id: selectedRuoloId, mode: "update", rows: rows }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) throw new Error(data.error || "HTTP " + resp.status);
+      setStatus(statusEl, "Salvato! Reindirizzo...", false);
+      setTimeout(function () { window.location.href = ACCESSI_URL; }, 900);
+    } catch (err) {
+      setStatus(statusEl, "Errore: " + err.message, true);
+      btnSave.disabled = false;
+    }
+  });
+
+  // Avvia in step 2 se ruolo già pre-selezionato
+  {% if ruolo_id_presel %}
+    snapshotBefore = captureCurrentState();
+    proceedToStep2();
+  {% endif %}
+
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,157 @@
+{% extends "core/base.html" %}
+
+{% block title %}Automazioni - Dettaglio Regola | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .auto-grid { display:grid; gap:16px; }
+  .auto-grid-2 { display:grid; gap:16px; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); }
+  .auto-meta { display:grid; gap:10px; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); }
+  .auto-meta-item { padding:12px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; }
+  .auto-meta-label { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; }
+  .auto-meta-value { margin-top:6px; font-size:15px; color:#0f172a; word-break:break-word; }
+  .auto-table { width:100%; border-collapse:collapse; font-size:14px; }
+  .auto-table th, .auto-table td { padding:10px 12px; border-bottom:1px solid #e2e8f0; text-align:left; vertical-align:top; }
+  .auto-table th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; background:#f8fafc; }
+  .auto-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .auto-badge { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+  .auto-badge-active { background:#dcfce7; color:#166534; }
+  .auto-badge-inactive { background:#e2e8f0; color:#334155; }
+  .auto-badge-draft { background:#fef3c7; color:#92400e; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Dettaglio Regola" page_subtitle="Audit configurativo di trigger, condizioni, azioni e ultimi esiti runtime." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+  {% include "automazioni/components/subnav.html" %}
+
+  <div class="auto-grid">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">{{ rule.name }}</div>
+      </div>
+      <div class="card-body auto-grid">
+        <div class="auto-actions">
+          <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_list' %}">Torna alla lista</a>
+          <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_designer' rule.id %}">Apri designer visuale</a>
+          <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_edit' rule.id %}">Modifica</a>
+          <a class="btn" href="{% url 'admin_portale:automazioni_rule_test' rule.id %}">Test manuale</a>
+          <form method="post" action="{% url 'admin_portale:automazioni_rule_toggle' rule.id %}">
+            {% csrf_token %}
+            <button class="btn" type="submit">{% if rule.is_active and not rule.is_draft %}Disattiva{% else %}Attiva{% endif %}</button>
+          </form>
+        </div>
+
+        <div class="auto-meta">
+          <div class="auto-meta-item"><div class="auto-meta-label">Code</div><div class="auto-meta-value"><code>{{ rule.code }}</code></div></div>
+          <div class="auto-meta-item"><div class="auto-meta-label">Sorgente</div><div class="auto-meta-value">{{ rule.source_code }}</div></div>
+          <div class="auto-meta-item"><div class="auto-meta-label">Operazione</div><div class="auto-meta-value">{{ rule.operation_type }}</div></div>
+          <div class="auto-meta-item"><div class="auto-meta-label">Trigger scope</div><div class="auto-meta-value">{{ rule.trigger_scope }}</div></div>
+          <div class="auto-meta-item"><div class="auto-meta-label">Watched field</div><div class="auto-meta-value"><code>{{ rule.watched_field|default:"-" }}</code></div></div>
+          <div class="auto-meta-item">
+            <div class="auto-meta-label">Stato</div>
+            <div class="auto-meta-value">
+              <span class="auto-badge {% if rule.is_active and not rule.is_draft %}auto-badge-active{% else %}auto-badge-inactive{% endif %}">
+                {% if rule.is_active and not rule.is_draft %}attiva{% else %}non eseguibile{% endif %}
+              </span>
+              {% if rule.is_draft %}
+                <span class="auto-badge auto-badge-draft">bozza</span>
+              {% endif %}
+            </div>
+          </div>
+          <div class="auto-meta-item"><div class="auto-meta-label">Stop on first failure</div><div class="auto-meta-value">{{ rule.stop_on_first_failure|yesno:"Si,No" }}</div></div>
+          <div class="auto-meta-item"><div class="auto-meta-label">Ultimo run</div><div class="auto-meta-value">{{ rule.last_run_at|date:"d/m/Y H:i:s"|default:"-" }}</div></div>
+          <div class="auto-meta-item"><div class="auto-meta-label">Ultimo test</div><div class="auto-meta-value">{{ rule.last_test_at|date:"d/m/Y H:i:s"|default:"-" }}</div></div>
+        </div>
+
+        <div class="notice">
+          <strong>Descrizione:</strong>
+          {{ rule.description|default:"Nessuna descrizione." }}
+        </div>
+      </div>
+    </div>
+
+    <div class="auto-grid-2">
+      <div class="card">
+        <div class="card-head"><div class="card-title">Condizioni (AND)</div></div>
+        <div class="card-body">
+          <table class="auto-table">
+            <thead><tr><th>Order</th><th>Campo</th><th>Operatore</th><th>Valore atteso</th><th>Tipo</th><th>Old</th><th>Enabled</th></tr></thead>
+            <tbody>
+              {% for condition in conditions %}
+                <tr>
+                  <td>{{ condition.order }}</td>
+                  <td><code>{{ condition.field_name }}</code></td>
+                  <td>{{ condition.operator }}</td>
+                  <td>{{ condition.expected_value|default:"-" }}</td>
+                  <td>{{ condition.value_type }}</td>
+                  <td>{{ condition.compare_with_old|yesno:"Si,No" }}</td>
+                  <td>{{ condition.is_enabled|yesno:"Si,No" }}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="7">Nessuna condizione configurata.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-title">Azioni in sequenza</div></div>
+        <div class="card-body">
+          <table class="auto-table">
+            <thead><tr><th>Order</th><th>Tipo</th><th>Descrizione</th><th>Enabled</th></tr></thead>
+            <tbody>
+              {% for action in actions %}
+                <tr>
+                  <td>{{ action.order }}</td>
+                  <td>{{ action.action_type }}</td>
+                  <td>{{ action.description|default:"-" }}</td>
+                  <td>{{ action.is_enabled|yesno:"Si,No" }}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="4">Nessuna azione configurata.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">Ultimi run log collegati</div></div>
+      <div class="card-body">
+        <table class="auto-table">
+          <thead><tr><th>ID</th><th>Status</th><th>Started</th><th>Finished</th><th>Execution ms</th><th>Test</th><th>Messaggio</th></tr></thead>
+          <tbody>
+            {% for run_log in recent_run_logs %}
+              <tr>
+                <td><a href="{% url 'admin_portale:automazioni_run_log_detail' run_log.id %}">#{{ run_log.id }}</a></td>
+                <td>{{ run_log.status }}</td>
+                <td>{{ run_log.started_at|date:"d/m/Y H:i:s" }}</td>
+                <td>{{ run_log.finished_at|date:"d/m/Y H:i:s"|default:"-" }}</td>
+                <td>{{ run_log.execution_ms|default:"-" }}</td>
+                <td>{{ run_log.is_test|yesno:"Si,No" }}</td>
+                <td>{{ run_log.result_message|default:"-" }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="7">Nessun run log disponibile.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if latest_test_log %}
+          <div class="notice" style="margin-top:12px;">
+            <strong>Ultimo test:</strong>
+            <a href="{% url 'admin_portale:automazioni_run_log_detail' latest_test_log.id %}">Run log #{{ latest_test_log.id }}</a>
+            del {{ latest_test_log.started_at|date:"d/m/Y H:i:s" }} con stato {{ latest_test_log.status }}.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,183 @@
+{% extends "core/base.html" %}
+
+{% block title %}Login | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Override content per centrare verticalmente il login */
+  body { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-mid) 60%, #1a4a7a 100%); min-height: 100vh; }
+  .topnav { background: rgba(0,0,0,.18); box-shadow: none; border-bottom: 1px solid rgba(255,255,255,.08); }
+  .content { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 60px); padding: 24px 16px; }
+
+  .login-wrap {
+    width: 100%; max-width: 420px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .login-brand {
+    text-align: center;
+    color: white;
+  }
+  .login-brand-logo {
+    width: 56px; height: 56px; background: var(--accent);
+    border-radius: 16px; display: inline-flex; align-items: center;
+    justify-content: center; font-weight: 900; font-size: 24px;
+    color: white; margin-bottom: 12px;
+    box-shadow: 0 8px 24px rgba(249,115,22,.4);
+  }
+  .login-brand-img {
+    max-height: 72px; max-width: 220px; object-fit: contain;
+    margin-bottom: 12px; filter: drop-shadow(0 4px 12px rgba(0,0,0,.3));
+  }
+  .login-brand h1 { font-size: 22px; font-weight: 800; margin: 0 0 2px; }
+  .login-brand p  { font-size: 13px; opacity: .7; margin: 0; }
+
+  /* Banner */
+  .login-banner {
+    padding: 11px 16px; border-radius: 10px; font-size: 13px;
+    display: flex; align-items: flex-start; gap: 10px;
+  }
+  .login-banner.info    { background: #ebf8ff; border-left: 4px solid #3182ce; color: #2c5282; }
+  .login-banner.warning { background: #fffff0; border-left: 4px solid #d69e2e; color: #744210; }
+  .login-banner.danger  { background: var(--danger-bg); border-left: 4px solid var(--danger); color: #742a2a; }
+  .login-banner.success { background: var(--success-bg); border-left: 4px solid var(--success); color: #276749; }
+  .login-banners { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+
+  .login-card {
+    background: white; border-radius: 20px;
+    box-shadow: 0 24px 64px rgba(0,0,0,.25);
+    overflow: hidden;
+  }
+  .login-card-body { padding: 32px 32px 28px; }
+
+  .login-msg {
+    background: var(--accent-light); border-left: 4px solid var(--accent);
+    border-radius: 10px; padding: 12px 16px; font-size: 13px;
+    color: var(--text); margin-bottom: 20px;
+  }
+  .login-error {
+    background: var(--danger-bg); border-left: 4px solid var(--danger);
+    border-radius: 10px; padding: 12px 16px; font-size: 13px;
+    color: var(--danger); margin-bottom: 20px; font-weight: 600;
+  }
+  .login-notice {
+    background: var(--surface); border: 1px solid var(--border);
+    border-left: 4px solid var(--primary-mid);
+    border-radius: 10px; padding: 10px 14px; font-size: 13px;
+    color: var(--text); margin-bottom: 16px;
+  }
+  .login-notice.success { border-left-color: var(--success); }
+  .login-notice.warning { border-left-color: var(--warning); }
+
+  .login-field { margin-bottom: 16px; }
+  .login-field label {
+    display: block; font-size: 12px; font-weight: 700;
+    color: var(--text-mid); margin-bottom: 6px; letter-spacing: .03em;
+    text-transform: uppercase;
+  }
+  .login-field .input { width: 100%; font-size: 14px; padding: 11px 14px; border-radius: 10px; }
+  .login-field .input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(249,115,22,.15); }
+
+  .login-btn {
+    width: 100%; padding: 13px; font-size: 15px; font-weight: 700;
+    background: var(--accent); color: white; border: none; border-radius: 10px;
+    cursor: pointer; font-family: 'Outfit', sans-serif;
+    transition: all .15s;
+    box-shadow: 0 4px 16px rgba(249,115,22,.3);
+    margin-top: 4px;
+  }
+  .login-btn:hover { filter: brightness(1.05); box-shadow: 0 6px 20px rgba(249,115,22,.4); }
+
+  .login-divider {
+    display: flex; align-items: center; gap: 12px;
+    margin: 20px 0 16px; color: var(--text-light); font-size: 12px;
+  }
+  .login-divider::before, .login-divider::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
+
+  .login-sso-btn {
+    width: 100%; padding: 11px; font-size: 13px; font-weight: 600;
+    background: white; color: var(--primary); border: 1.5px solid var(--border);
+    border-radius: 10px; cursor: pointer; font-family: 'Outfit', sans-serif;
+    transition: all .15s; display: flex; align-items: center; justify-content: center;
+    gap: 10px; text-decoration: none;
+  }
+  .login-sso-btn:hover { border-color: var(--primary); background: #f0f4ff; }
+
+  .login-footer {
+    text-align: center; font-size: 11px; color: rgba(255,255,255,.45);
+    padding-top: 4px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-wrap">
+
+  <div class="login-brand">
+    {% if login_logo_url %}
+      <img src="{{ login_logo_url }}" alt="Logo" class="login-brand-img">
+    {% else %}
+      <div class="login-brand-logo">N</div>
+    {% endif %}
+    <h1>{{ login_titolo }}</h1>
+    <p>{{ login_sottotitolo }}</p>
+  </div>
+
+  <div class="login-card">
+    <div class="login-card-body">
+
+      {% if login_banners %}
+        <div class="login-banners">
+          {% for banner in login_banners %}
+            <div class="login-banner {{ banner.tipo }}">{{ banner.testo }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {% if messages %}
+        {% for message in messages %}
+          <div class="login-notice {% if message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% endif %}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+
+      {% if form.errors %}
+        <div class="login-error">Credenziali non valide. Riprova.</div>
+      {% endif %}
+
+      <form method="post" action="{% url 'login' %}">
+        {% csrf_token %}
+        {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+
+        <div class="login-field">
+          <label for="id_username">Username</label>
+          <input id="id_username" class="input" type="text" name="username" autocomplete="username" autofocus
+                 placeholder="es. l.bova" value="{{ form.username.value|default:'' }}">
+        </div>
+
+        <div class="login-field">
+          <label for="id_password">Password</label>
+          <input id="id_password" class="input" type="password" name="password" autocomplete="current-password"
+                 placeholder="••••••••">
+        </div>
+
+        <button type="submit" class="login-btn">Accedi</button>
+      </form>
+
+      {% if login_sso_visibile %}
+        <div class="login-divider">oppure</div>
+        <a href="{% url 'windows_sso' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="login-sso-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#0078d4">
+            <path d="M0 0h11.5v11.5H0zm12.5 0H24v11.5H12.5zM0 12.5h11.5V24H0zm12.5 0H24V24H12.5z"/>
+          </svg>
+          {{ login_sso_label }}
+        </a>
+      {% endif %}
+
+    </div>
+  </div>
+
+  <div class="login-footer">Area autenticata del portale applicativo</div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,99 @@
+{% extends "core/base.html" %}
+
+{% block title %}Schema Dati | Admin Portale{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Schema Dati Admin" page_subtitle="Mappa pratica delle tabelle usate dal portale: cosa sta nel DB legacy, cosa sta nel DB Django e chi le usa." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <div class="card">
+    {% include "admin_portale/components/card_head.html" with card_title="Principio operativo (versione semplice)" %}
+    <div class="card-body">
+      <div class="notice">
+        <strong>Regola pratica:</strong> ruoli, permessi e pulsanti stanno nel <strong>DB SQL Server legacy</strong>; Django gestisce autenticazione/sessione e fa da interfaccia di amministrazione.
+      </div>
+      <div class="cell-muted" style="margin-top:8px;">
+        In piu' il portale Django usa una tabella di supporto (<code>ui_pulsanti_meta</code>) per gestire posizione/contesto UI dei pulsanti senza hardcode.
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Tabelle e responsabilita'</div>
+      <div class="cell-muted">{{ tables|length }} elementi mappati</div>
+    </div>
+    <div class="card-body">
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Tabella / Modello</th>
+              <th>Dove vive</th>
+              <th>A cosa serve</th>
+              <th>Gestione</th>
+              <th>Record</th>
+              <th>Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in tables %}
+              <tr>
+                <td><code>{{ t.name }}</code></td>
+                <td>{{ t.layer }}</td>
+                <td>{{ t.used_for }}</td>
+                <td>{{ t.managed_from }}</td>
+                <td>
+                  {% if t.count is not None %}
+                    {{ t.count }}
+                  {% else %}
+                    <span class="cell-muted">n/d</span>
+                  {% endif %}
+                </td>
+                <td>{{ t.notes }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    {% include "admin_portale/components/card_head.html" with card_title="Come leggere i casi tipici" %}
+    <div class="card-body">
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Scenario</th>
+              <th>Dove guardare prima</th>
+              <th>Controllo rapido</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Utente LDAP entra ma vede 403</td>
+              <td><code>utenti</code> + <code>permessi</code> + <code>pulsanti</code></td>
+              <td>Verifica ruolo assegnato e usa <code>Admin Portale -> ACL</code> sul path che fallisce.</td>
+            </tr>
+            <tr>
+              <td>Link topbar punta alla pagina sbagliata</td>
+              <td><code>pulsanti</code> + <code>ui_pulsanti_meta</code></td>
+              <td>Controlla <code>url</code> (anche <code>route:...</code>) e metadati <code>slot/sezione/topbar</code>.</td>
+            </tr>
+            <tr>
+              <td>Utente nuovo LDAP non compare bene nel portale</td>
+              <td><code>utenti</code> + <code>core_profile</code> + <code>auth_user</code></td>
+              <td>Verifica auto-provisioning LDAP e mapping profile (legacy_user_id).</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{% endblock %}

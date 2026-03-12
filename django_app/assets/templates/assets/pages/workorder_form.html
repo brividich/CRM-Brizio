@@ -1,0 +1,454 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Nuovo intervento{% endblock %}
+
+{% block assets_shell_title %}Nuovo intervento - {{ asset.asset_tag }}{% endblock %}
+{% block assets_shell_subtitle %}
+<p>Registra un intervento su {{ asset.name }} e collega fornitore, verifica programmata e allegati in un unico passaggio.</p>
+{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.wof-page { max-width: 1080px; display: grid; gap: 16px; }
+.wof-backlink { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #5f7290; text-decoration: none; font-weight: 600; }
+.wof-backlink:hover { color: #1f64d8; }
+.wof-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.65fr);
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid #d9e4f2;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at top right, rgba(249, 115, 22, 0.10), transparent 32%),
+    linear-gradient(135deg, #ffffff 0%, #f7fbff 100%);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.07);
+}
+.wof-hero-main { display: grid; gap: 12px; }
+.wof-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #e8f1ff;
+  color: #1e4fbf;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.wof-hero-main h2 { margin: 0; font-size: 28px; line-height: 1.05; color: #0f172a; }
+.wof-hero-main p { margin: 0; max-width: 62ch; color: #5f7290; font-size: 14px; line-height: 1.6; }
+.wof-chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.wof-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid #d6e2f0;
+  background: rgba(255, 255, 255, 0.92);
+  color: #274264;
+  font-size: 12px;
+  font-weight: 700;
+}
+.wof-side {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+.wof-side-card {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid #dce6f3;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.9);
+}
+.wof-side-card span {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #7d91af;
+}
+.wof-side-card strong { font-size: 18px; color: #0f172a; }
+.wof-side-card small { color: #64748b; font-size: 12px; line-height: 1.5; }
+.wof-form {
+  display: grid;
+  gap: 0;
+  border: 1px solid #dbe3ef;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+}
+.wof-alert {
+  margin: 18px 18px 0;
+  padding: 12px 14px;
+  border: 1px solid #fecaca;
+  border-radius: 14px;
+  background: #fff4f4;
+  color: #b91c1c;
+  font-size: 13px;
+}
+.wof-form-body { display: grid; gap: 16px; padding: 18px; }
+.wof-section {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  background: #ffffff;
+}
+.wof-section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+  flex-wrap: wrap;
+}
+.wof-section-head h3 { margin: 0; font-size: 17px; color: #0f172a; }
+.wof-section-head p { margin: 4px 0 0; color: #64748b; font-size: 13px; }
+.wof-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.wof-field { display: grid; gap: 6px; min-width: 0; }
+.wof-field--full { grid-column: 1 / -1; }
+.wof-field label { font-size: 13px; font-weight: 700; color: #223756; }
+.wof-field input,
+.wof-field select,
+.wof-field textarea {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid #d6e1ee;
+  background: #fdfefe;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+.wof-field textarea { min-height: 116px; resize: vertical; }
+.wof-helper {
+  min-height: 18px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.wof-helper.is-highlight {
+  color: #1d4ed8;
+  font-weight: 600;
+}
+.wof-error { color: #b91c1c; font-size: 12px; }
+.wof-upload {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px dashed #c8d5e5;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+  cursor: pointer;
+  transition: border-color .18s ease, transform .18s ease, background .18s ease;
+}
+.wof-upload:hover {
+  border-color: #1f64d8;
+  background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
+  transform: translateY(-1px);
+}
+.wof-upload-main { display: flex; gap: 12px; align-items: flex-start; }
+.wof-upload-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex: 0 0 auto;
+}
+.wof-upload-copy { display: grid; gap: 4px; }
+.wof-upload-copy strong { color: #0f172a; font-size: 14px; }
+.wof-upload-copy span { color: #64748b; font-size: 12px; line-height: 1.5; }
+.wof-upload-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.wof-upload-status {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+}
+.wof-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 18px 18px;
+  border-top: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.45) 0%, rgba(255, 255, 255, 0.95) 100%);
+}
+.wof-actions-copy { color: #64748b; font-size: 12px; }
+.wof-actions-cta { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+
+@media (max-width: 900px) {
+  .wof-hero { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .wof-grid { grid-template-columns: 1fr; }
+  .wof-actions { align-items: stretch; }
+  .wof-actions-cta { justify-content: stretch; }
+}
+@media (max-width: 640px) {
+  .wof-page { gap: 14px; }
+  .wof-hero,
+  .wof-form-body,
+  .wof-actions { padding-left: 14px; padding-right: 14px; }
+  .wof-section { padding: 14px; }
+  .wof-hero-main h2 { font-size: 24px; }
+}
+</style>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="wof-page">
+  <header>
+    <a class="wof-backlink" href="{% url 'assets:asset_view' asset.id %}">&larr; Torna al dettaglio asset</a>
+  </header>
+
+  <section class="wof-hero">
+    <div class="wof-hero-main">
+      <span class="wof-eyebrow">Intervento operativo</span>
+      <h2>{{ asset.name }}</h2>
+      <p>Compila i dati essenziali, collega una verifica periodica quando l'intervento e programmato e allega subito report, foto o documenti tecnici.</p>
+      <div class="wof-chip-row">
+        <span class="wof-chip">Asset {{ asset.asset_tag }}</span>
+        <span class="wof-chip">{{ asset.get_asset_type_display }}</span>
+        <span class="wof-chip">Stato {{ asset.get_status_display }}</span>
+      </div>
+    </div>
+    <aside class="wof-side">
+      <div class="wof-side-card">
+        <span>Asset collegato</span>
+        <strong>{{ asset.asset_tag }}</strong>
+        <small>{{ asset.name }}</small>
+      </div>
+      <div class="wof-side-card">
+        <span>Compilazione smart</span>
+        <strong>Fornitore suggerito</strong>
+        <small>Se scegli un intervento programmato, il portale propone il fornitore associato. Negli altri casi puoi inserirlo manualmente.</small>
+      </div>
+    </aside>
+  </section>
+
+  <form method="post" enctype="multipart/form-data" class="wof-form">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="wof-alert">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    <div class="wof-form-body">
+      <section class="wof-section">
+        <div class="wof-section-head">
+          <div>
+            <h3>Impostazioni intervento</h3>
+            <p>Definisci tipo, stato e collegamenti operativi del ticket.</p>
+          </div>
+        </div>
+        <div class="wof-grid">
+          <div class="wof-field">
+            <label for="{{ form.kind.id_for_label }}">{{ form.kind.label }}</label>
+            {{ form.kind }}
+            {% if form.kind.errors %}<div class="wof-error">{{ form.kind.errors }}</div>{% endif %}
+          </div>
+
+          <div class="wof-field">
+            <label for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>
+            {{ form.status }}
+            {% if form.status.errors %}<div class="wof-error">{{ form.status.errors }}</div>{% endif %}
+          </div>
+
+          <div class="wof-field" id="periodicVerificationField">
+            <label for="{{ form.periodic_verification.id_for_label }}">{{ form.periodic_verification.label }}</label>
+            {{ form.periodic_verification }}
+            <div class="wof-helper">
+              {% if form.periodic_verification.help_text %}{{ form.periodic_verification.help_text }}{% endif %}
+            </div>
+            {% if form.periodic_verification.errors %}<div class="wof-error">{{ form.periodic_verification.errors }}</div>{% endif %}
+          </div>
+
+          <div class="wof-field" id="supplierField">
+            <label for="{{ form.supplier.id_for_label }}">{{ form.supplier.label }}</label>
+            {{ form.supplier }}
+            <div class="wof-helper" id="supplierSuggestion">
+              {% if form.supplier.help_text %}{{ form.supplier.help_text }}{% endif %}
+            </div>
+            {% if form.supplier.errors %}<div class="wof-error">{{ form.supplier.errors }}</div>{% endif %}
+          </div>
+
+          <div class="wof-field wof-field--full">
+            <label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
+            {{ form.title }}
+            {% if form.title.errors %}<div class="wof-error">{{ form.title.errors }}</div>{% endif %}
+          </div>
+        </div>
+      </section>
+
+      <section class="wof-section">
+        <div class="wof-section-head">
+          <div>
+            <h3>Dettagli attivita</h3>
+            <p>Descrivi il problema, i controlli eseguiti e l'eventuale soluzione.</p>
+          </div>
+        </div>
+        <div class="wof-grid">
+          <div class="wof-field wof-field--full">
+            <label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>
+            {{ form.description }}
+            {% if form.description.errors %}<div class="wof-error">{{ form.description.errors }}</div>{% endif %}
+          </div>
+
+          <div class="wof-field wof-field--full">
+            <label for="{{ form.resolution.id_for_label }}">{{ form.resolution.label }}</label>
+            {{ form.resolution }}
+            <div class="wof-helper">Puoi lasciare il campo vuoto se l'intervento e ancora aperto.</div>
+            {% if form.resolution.errors %}<div class="wof-error">{{ form.resolution.errors }}</div>{% endif %}
+          </div>
+        </div>
+      </section>
+
+      <section class="wof-section">
+        <div class="wof-section-head">
+          <div>
+            <h3>Costi e allegati</h3>
+            <p>Aggiungi documentazione tecnica e valori economici dell'intervento.</p>
+          </div>
+        </div>
+        <div class="wof-grid">
+          <div class="wof-field wof-field--full">
+            <label for="id_attachments">Allegati</label>
+            <label class="wof-upload" for="id_attachments">
+              <span class="wof-upload-main">
+                <span class="wof-upload-icon">&#128206;</span>
+                <span class="wof-upload-copy">
+                  <strong>Carica report, foto, preventivi o verbali</strong>
+                  <span>Formati supportati: PDF, Office, CSV e immagini. Puoi selezionare piu file in una sola volta.</span>
+                </span>
+              </span>
+              <span class="wof-upload-status" id="attachmentsStatus">Nessun file selezionato</span>
+            </label>
+            <input class="wof-upload-input" id="id_attachments" type="file" name="attachments" multiple accept="{{ attachment_accept }}">
+            <div class="wof-helper">Dimensione massima {{ attachment_max_mb }} MB per file.</div>
+          </div>
+
+          <div class="wof-field">
+            <label for="{{ form.downtime_minutes.id_for_label }}">{{ form.downtime_minutes.label }}</label>
+            {{ form.downtime_minutes }}
+            {% if form.downtime_minutes.errors %}<div class="wof-error">{{ form.downtime_minutes.errors }}</div>{% endif %}
+          </div>
+
+          <div class="wof-field">
+            <label for="{{ form.cost_eur.id_for_label }}">{{ form.cost_eur.label }}</label>
+            {{ form.cost_eur }}
+            {% if form.cost_eur.errors %}<div class="wof-error">{{ form.cost_eur.errors }}</div>{% endif %}
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="wof-actions">
+      <div class="wof-actions-copy">I campi possono essere completati subito o aggiornati in seguito dal dettaglio intervento.</div>
+      <div class="wof-actions-cta">
+        <a class="btn" href="{% url 'assets:asset_view' asset.id %}">Annulla</a>
+        <button type="submit" class="btn btn-primary">Crea intervento</button>
+      </div>
+    </div>
+  </form>
+</section>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(function () {
+  "use strict";
+
+  const verificationField = document.getElementById("periodicVerificationField");
+  const supplierField = document.getElementById("supplierField");
+  const kindEl = document.getElementById("id_kind");
+  const verificationEl = document.getElementById("id_periodic_verification");
+  const supplierEl = document.getElementById("id_supplier");
+  const suggestionEl = document.getElementById("supplierSuggestion");
+  const attachmentsEl = document.getElementById("id_attachments");
+  const attachmentsStatusEl = document.getElementById("attachmentsStatus");
+  const supplierMap = {{ periodic_verification_supplier_map_json|safe }};
+  const baseSupplierHelp = suggestionEl ? suggestionEl.textContent.trim() : "";
+
+  function togglePeriodicField() {
+    if (!verificationField || !kindEl) return;
+    const isPreventive = kindEl.value === "PREVENTIVE";
+    verificationField.hidden = !isPreventive;
+    if (supplierField) {
+      supplierField.classList.toggle("wof-field--full", !isPreventive);
+    }
+    if (!isPreventive && verificationEl) {
+      verificationEl.value = "";
+    }
+  }
+
+  function syncSuggestedSupplier() {
+    if (!verificationEl || !supplierEl || !suggestionEl) return;
+    const payload = supplierMap[String(verificationEl.value || "")] || null;
+    if (payload && payload.supplier_id) {
+      supplierEl.value = payload.supplier_id;
+      suggestionEl.textContent = "Fornitore proposto dall'intervento programmato: " + payload.supplier_label;
+      suggestionEl.classList.add("is-highlight");
+      return;
+    }
+    suggestionEl.textContent = baseSupplierHelp;
+    suggestionEl.classList.remove("is-highlight");
+  }
+
+  function syncAttachmentCount() {
+    if (!attachmentsEl || !attachmentsStatusEl) return;
+    const total = attachmentsEl.files ? attachmentsEl.files.length : 0;
+    if (!total) {
+      attachmentsStatusEl.textContent = "Nessun file selezionato";
+      return;
+    }
+    if (total === 1) {
+      attachmentsStatusEl.textContent = attachmentsEl.files[0].name;
+      return;
+    }
+    attachmentsStatusEl.textContent = total + " file selezionati";
+  }
+
+  if (kindEl) {
+    kindEl.addEventListener("change", function () {
+      togglePeriodicField();
+      syncSuggestedSupplier();
+    });
+  }
+  if (verificationEl) {
+    verificationEl.addEventListener("change", syncSuggestedSupplier);
+  }
+  if (attachmentsEl) {
+    attachmentsEl.addEventListener("change", syncAttachmentCount);
+  }
+
+  togglePeriodicField();
+  syncSuggestedSupplier();
+  syncAttachmentCount();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Portale Applicativo{% endblock %}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  {% include "core/components/topnav.html" %}
+  {% block subnav %}{% include "core/components/subnav.html" %}{% endblock %}
+  <div class="content">
+    {% block content %}{% endblock %}
+  </div>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

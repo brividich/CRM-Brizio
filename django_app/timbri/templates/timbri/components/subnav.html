@@ -1,0 +1,6 @@
+<div class="subnav">
+  <a class="sub-a{% if current == 'timbri:index' %} active{% endif %}" href="{% url 'timbri:index' %}">Elenco</a>
+  {% if can_manage_timbri_config %}
+    <a class="sub-a{% if current == 'timbri:configurazione' %} active{% endif %}" href="{% url 'timbri:configurazione' %}?tab=config">Configurazione</a>
+  {% endif %}
+</div>

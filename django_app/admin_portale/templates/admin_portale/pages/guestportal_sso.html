@@ -1,0 +1,141 @@
+{% extends "core/base.html" %}
+
+{% block title %}Accesso GuestPortal | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .gp-wrap { max-width: 480px; margin: 0 auto; }
+
+  .gp-connecting {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 16px; padding: 48px 24px; text-align: center;
+  }
+  .gp-spinner {
+    width: 48px; height: 48px; border: 4px solid var(--border, #eee);
+    border-top-color: var(--accent, #3b82f6); border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .gp-connecting-title { font-size: 16px; font-weight: 600; color: var(--text, #222); }
+  .gp-connecting-sub   { font-size: 13px; color: var(--text-muted, #888); }
+
+  .gp-info {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 14px 16px; background: #eff6ff; border: 1px solid #bfdbfe;
+    border-radius: 8px; margin-bottom: 20px; font-size: 13px; color: #1e40af;
+  }
+  .gp-info-icon { font-size: 20px; flex-shrink: 0; line-height: 1; }
+  .gp-target { font-family: monospace; font-size: 12px; color: var(--text-muted,#666); margin-top: 4px; word-break: break-all; }
+  .gp-form-group { margin-bottom: 16px; }
+  .gp-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; color: var(--text, #333); }
+  .gp-sublabel { font-size: 11px; color: var(--text-muted, #888); margin-top: 2px; }
+  .gp-input { width: 100%; }
+  .gp-actions { display: flex; align-items: center; gap: 12px; margin-top: 24px; }
+  .gp-btn-main { flex: 1; text-align: center; }
+  .gp-warning {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 14px; background: #fef9c3; border: 1px solid #fde047;
+    border-radius: 8px; margin-top: 16px; font-size: 12px; color: #713f12;
+  }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Accesso GuestPortal" page_subtitle="Connessione al pannello WiFi guest con le tue credenziali AD." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <div class="gp-wrap">
+    {% if gp_url %}
+
+      {% if gp_autosubmit %}
+        {# ── AUTO-SUBMIT: credenziali disponibili dalla sessione ── #}
+        <div class="card">
+          <div class="card-body">
+            <div class="gp-connecting">
+              <div class="gp-spinner"></div>
+              <div class="gp-connecting-title">Connessione al GuestPortal in corso…</div>
+              <div class="gp-connecting-sub">Verrai reindirizzato automaticamente.</div>
+            </div>
+          </div>
+        </div>
+
+        {# Form nascosto — si invia da solo via JS #}
+        <form id="gp-auto-form" method="POST" action="{{ gp_url }}" style="display:none;">
+          <input type="hidden" name="{{ gp_field_username }}" value="{{ gp_username|escapejs }}">
+          <input type="hidden" name="{{ gp_field_password }}" value="{{ gp_password|escapejs }}">
+        </form>
+
+        <script>
+          // Piccolo ritardo per mostrare lo spinner prima del redirect
+          setTimeout(function () {
+            document.getElementById("gp-auto-form").submit();
+          }, 600);
+        </script>
+
+      {% else %}
+        {# ── FORM MANUALE: password non in sessione (primo login / sessione nuova) ── #}
+        <div class="gp-info">
+          <span class="gp-info-icon">🔗</span>
+          <div>
+            La password verrà inviata <strong>direttamente</strong> al GuestPortal, non transita
+            dal portale applicativo. Dopo il primo accesso, la sessione viene ricordata automaticamente.
+            <div class="gp-target">Destinazione: {{ gp_url }}</div>
+          </div>
+        </div>
+
+        <form method="POST" action="{{ gp_url }}" class="card" style="padding:0; overflow:hidden;">
+          <div class="card-head">
+            <div class="card-title">Credenziali AD</div>
+          </div>
+          <div class="card-body">
+            <div class="gp-form-group">
+              <label class="gp-label" for="gp-username">Username</label>
+              <input type="text"
+                     id="gp-username"
+                     name="{{ gp_field_username }}"
+                     value="{{ gp_username }}"
+                     class="input gp-input"
+                     autocomplete="username"
+                     required>
+              <div class="gp-sublabel">Username AD (puoi modificarlo se necessario)</div>
+            </div>
+            <div class="gp-form-group">
+              <label class="gp-label" for="gp-password">Password AD</label>
+              <input type="password"
+                     id="gp-password"
+                     name="{{ gp_field_password }}"
+                     class="input gp-input"
+                     autocomplete="current-password"
+                     placeholder="La stessa password del login"
+                     required>
+              <div class="gp-sublabel">Non viene salvata. Verrà ricordata per la sessione corrente la prossima volta che accedi al portale.</div>
+            </div>
+            <div class="gp-actions">
+              <a href="{% url 'admin_portale:index' %}" class="btn btn-secondary">← Annulla</a>
+              <button type="submit" class="btn gp-btn-main">🔗 Accedi al GuestPortal</button>
+            </div>
+            <div class="gp-warning">
+              <span>⚠️</span>
+              <div>Se il GuestPortal non ti autentica, verifica i nomi dei campi
+              (<code>{{ gp_field_username }}</code> / <code>{{ gp_field_password }}</code>)
+              in <code>config.ini → [GUESTPORTAL]</code>.</div>
+            </div>
+          </div>
+        </form>
+      {% endif %}
+
+    {% else %}
+      <div class="card">
+        <div class="card-body">
+          <p class="cell-muted">URL GuestPortal non configurato.<br>
+          Aggiungi la sezione <code>[GUESTPORTAL]</code> nel file <code>config.ini</code>.</p>
+          <a href="{% url 'admin_portale:index' %}" class="btn btn-secondary" style="margin-top:12px;">← Torna alla home</a>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}

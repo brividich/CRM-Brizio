@@ -1,0 +1,292 @@
+{% extends "core/base.html" %}
+{% block title %}Dashboard Notizie - Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+.news-admin-wrap { max-width: 1240px; margin: 2rem auto; padding: 0 1rem; }
+.news-admin-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: .9rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.2rem;
+}
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  text-decoration: none;
+  border: none;
+  border-radius: 8px;
+  padding: .5rem .95rem;
+  font-size: .88rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: #fff;
+  background: #0f766e;
+}
+.btn-primary:hover { opacity: .9; }
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  text-decoration: none;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: .48rem .82rem;
+  font-size: .84rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: #0f172a;
+  background: #fff;
+}
+.btn-secondary:hover { background: #f8fafc; }
+.btn-danger {
+  border: 1px solid #fca5a5;
+  background: #fff1f2;
+  color: #b91c1c;
+}
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: .75rem;
+  margin-bottom: 1rem;
+}
+.kpi {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: .85rem .95rem;
+}
+.acl-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: .8rem .95rem;
+  margin-bottom: 1rem;
+}
+.acl-roles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: .4rem .7rem;
+  margin-top: .55rem;
+  max-height: 170px;
+  overflow: auto;
+  padding-right: .25rem;
+}
+.acl-role-item {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  font-size: .82rem;
+}
+.kpi .val { font-size: 1.2rem; font-weight: 700; color: #0f172a; }
+.kpi .lbl { font-size: .78rem; color: #64748b; margin-top: .2rem; }
+.filters {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: .85rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+}
+.filters label { display: block; font-size: .78rem; color: #64748b; margin-bottom: .2rem; }
+.filters input, .filters select {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: .42rem .6rem;
+  font-size: .88rem;
+}
+.news-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+}
+.news-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+.news-table thead th {
+  text-align: left;
+  background: #1e3a5f;
+  color: #fff;
+  padding: .6rem .65rem;
+  font-weight: 600;
+}
+.news-table tbody td {
+  border-bottom: 1px solid #f1f5f9;
+  padding: .55rem .65rem;
+  vertical-align: top;
+}
+.news-table tbody tr:hover td { background: #f8fafc; }
+.stato-badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: .16rem .5rem;
+  font-size: .74rem;
+  font-weight: 700;
+}
+.stato-bozza { background: #f1f5f9; color: #334155; }
+.stato-pubblicata { background: #dcfce7; color: #166534; }
+.stato-archiviata { background: #fee2e2; color: #b91c1c; }
+.tiny { font-size: .75rem; color: #64748b; }
+.actions { display: flex; gap: .4rem; flex-wrap: wrap; }
+.actions form { display: inline; margin: 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="news-admin-wrap">
+  <div class="news-admin-top">
+    <div>
+      <h1 style="margin:0;color:#1e3a5f;">Dashboard Notizie</h1>
+      <div class="tiny">Configurazione comunicazioni, monitoraggio letture e gestione allegati.</div>
+    </div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+      <a href="{% url 'notizie_report' %}" class="btn-secondary">Report Letture</a>
+      {% if can_gestione_admin %}
+        <a href="{% url 'notizie_gestione_admin' %}" class="btn-secondary">&#9881; Gestione Admin</a>
+      {% endif %}
+      <a href="{% url 'notizie_dashboard_create' %}" class="btn-primary">Nuova Notizia</a>
+    </div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi"><div class="val">{{ bozza_count }}</div><div class="lbl">Bozze</div></div>
+    <div class="kpi"><div class="val">{{ pubblicata_count }}</div><div class="lbl">Pubblicate</div></div>
+    <div class="kpi"><div class="val">{{ archiviata_count }}</div><div class="lbl">Archiviate</div></div>
+    <div class="kpi"><div class="val">{{ obbligatorie_pendenti }}</div><div class="lbl">Conferme obbligatorie pendenti</div></div>
+  </div>
+
+  {% if can_edit_dashboard_acl %}
+    <div class="acl-box">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:.7rem;flex-wrap:wrap;">
+        <div>
+          <strong>Visibilita pulsante Dashboard Notizie</strong>
+          <div class="tiny">Seleziona i ruoli che devono vedere/entrare in questa dashboard.</div>
+        </div>
+      </div>
+
+      {% if dashboard_acl_roles %}
+        <form method="post" style="margin-top:.55rem;">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="save_dashboard_acl">
+          <div class="acl-roles">
+            {% for role in dashboard_acl_roles %}
+              <label class="acl-role-item">
+                <input type="checkbox" name="role_ids" value="{{ role.role_id }}" {% if role.enabled %}checked{% endif %}>
+                <span>{{ role.role_name }} ({{ role.role_id }})</span>
+              </label>
+            {% endfor %}
+          </div>
+          <div style="margin-top:.65rem;">
+            <button class="btn-secondary" type="submit">Salva Permessi Dashboard</button>
+          </div>
+        </form>
+      {% else %}
+        <div class="tiny" style="margin-top:.5rem;">Ruoli legacy non disponibili in questa connessione.</div>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <form method="get" class="filters">
+    <div>
+      <label for="f-q">Ricerca</label>
+      <input id="f-q" type="text" name="q" value="{{ query }}" placeholder="Titolo o testo">
+    </div>
+    <div>
+      <label for="f-stato">Stato</label>
+      <select id="f-stato" name="stato">
+        <option value="">Tutti</option>
+        <option value="bozza" {% if filtro_stato == "bozza" %}selected{% endif %}>Bozza</option>
+        <option value="pubblicata" {% if filtro_stato == "pubblicata" %}selected{% endif %}>Pubblicata</option>
+        <option value="archiviata" {% if filtro_stato == "archiviata" %}selected{% endif %}>Archiviata</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:.45rem;">
+      <button class="btn-secondary" type="submit">Filtra</button>
+      <a class="btn-secondary" href="{% url 'notizie_dashboard' %}">Reset</a>
+    </div>
+  </form>
+
+  {% if not rows %}
+    <p class="tiny">Nessuna notizia trovata con i filtri correnti.</p>
+  {% else %}
+    <div class="news-table-wrap">
+      <table class="news-table">
+        <thead>
+          <tr>
+            <th style="min-width:260px;">Notizia</th>
+            <th>Stato</th>
+            <th>Audience</th>
+            <th>Conformi</th>
+            <th>Aperti</th>
+            <th>Non conformi</th>
+            <th>Non letti</th>
+            <th>Copertura</th>
+            <th style="min-width:255px;">Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              <td>
+                <div style="font-weight:600;">{{ row.notizia.titolo }}</div>
+                <div class="tiny">
+                  v{{ row.notizia.versione }}
+                  {% if row.notizia.obbligatoria %} | obbligatoria{% endif %}
+                  {% if row.notizia.pubblicato_il %} | {{ row.notizia.pubblicato_il|date:"d/m/Y H:i" }}{% endif %}
+                </div>
+              </td>
+              <td>
+                <span class="stato-badge stato-{{ row.notizia.stato }}">{{ row.notizia.get_stato_display }}</span>
+              </td>
+              <td>
+                {% if row.audience_labels %}
+                  {% for label in row.audience_labels %}
+                    <div class="tiny">{{ label }}</div>
+                  {% endfor %}
+                {% else %}
+                  <span class="tiny">Tutti</span>
+                {% endif %}
+              </td>
+              <td>{{ row.stats.conforme }}</td>
+              <td>{{ row.stats.aperto }}</td>
+              <td>{{ row.stats.non_conforme }}</td>
+              <td>{{ row.stats.non_letto }}</td>
+              <td>
+                <div>{{ row.completion_rate }}%</div>
+                <div class="tiny">{{ row.target_count }} utenti target</div>
+              </td>
+              <td>
+                <div class="actions">
+                  <a class="btn-secondary" href="{% url 'notizie_dashboard_edit' row.notizia.id %}">Modifica</a>
+                  {% if row.notizia.stato != "archiviata" %}
+                    <form method="post" action="{% url 'notizie_dashboard_publish' row.notizia.id %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                      <button class="btn-secondary" type="submit">
+                        {% if row.notizia.stato == "pubblicata" %}Ripubblica{% else %}Pubblica{% endif %}
+                      </button>
+                    </form>
+                    <form method="post" action="{% url 'notizie_dashboard_archive' row.notizia.id %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                      <button class="btn-secondary btn-danger" type="submit">Archivia</button>
+                    </form>
+                  {% endif %}
+                  {% if row.notizia.stato == "pubblicata" %}
+                    <a class="btn-secondary" href="{% url 'notizie_dettaglio' row.notizia.id %}">Apri</a>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

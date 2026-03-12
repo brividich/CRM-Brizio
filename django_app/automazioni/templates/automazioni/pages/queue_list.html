@@ -1,0 +1,183 @@
+{% extends "core/base.html" %}
+
+{% block title %}Automazioni - Queue | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .auto-grid { display:grid; gap:16px; }
+  .auto-table-wrap { overflow:auto; }
+  .auto-table { width:100%; border-collapse:collapse; font-size:14px; }
+  .auto-table th, .auto-table td { padding:10px 12px; border-bottom:1px solid #e2e8f0; text-align:left; vertical-align:top; }
+  .auto-table th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; background:#f8fafc; }
+  .auto-filters { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); align-items:end; }
+  .auto-field { display:grid; gap:6px; }
+  .auto-field label { font-size:12px; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:.04em; }
+  .auto-field input, .auto-field select { width:100%; padding:9px 10px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; }
+  .auto-stats { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); }
+  .auto-stat { border:1px solid #e2e8f0; border-radius:14px; padding:14px; background:#fff; }
+  .auto-stat-label { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; }
+  .auto-stat-value { margin-top:6px; font-size:26px; font-weight:800; color:#0f172a; }
+  .auto-badge { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+  .auto-badge-pending { background:#fef3c7; color:#92400e; }
+  .auto-badge-processing { background:#dbeafe; color:#1d4ed8; }
+  .auto-badge-done { background:#dcfce7; color:#166534; }
+  .auto-badge-error { background:#fee2e2; color:#991b1b; }
+  .auto-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .auto-actions form { margin:0; }
+  .auto-preline { white-space:pre-line; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Queue Operativa" page_subtitle="Monitoraggio eventi SQL in coda, reset controllato e retry singolo verso il worker Django." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+  {% include "automazioni/components/subnav.html" %}
+
+  <div class="auto-grid">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Riepilogo stati queue</div>
+      </div>
+      <div class="card-body auto-stats">
+        <div class="auto-stat">
+          <div class="auto-stat-label">Pending</div>
+          <div class="auto-stat-value">{{ queue_counts.pending }}</div>
+        </div>
+        <div class="auto-stat">
+          <div class="auto-stat-label">Processing</div>
+          <div class="auto-stat-value">{{ queue_counts.processing }}</div>
+        </div>
+        <div class="auto-stat">
+          <div class="auto-stat-label">Done</div>
+          <div class="auto-stat-value">{{ queue_counts.done }}</div>
+        </div>
+        <div class="auto-stat">
+          <div class="auto-stat-label">Error</div>
+          <div class="auto-stat-value">{{ queue_counts.error }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Filtri operativi</div>
+      </div>
+      <div class="card-body">
+        <form method="get" class="auto-filters">
+          <div class="auto-field">
+            <label for="id_status">Status</label>
+            <select id="id_status" name="status">
+              <option value="">Tutti</option>
+              {% for status_code in queue_status_choices %}
+                <option value="{{ status_code }}"{% if filters.status == status_code %} selected{% endif %}>{{ status_code|upper }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="auto-field">
+            <label for="id_source_code">Sorgente</label>
+            <select id="id_source_code" name="source_code">
+              <option value="">Tutte</option>
+              {% for source_code, source_label in source_choices %}
+                <option value="{{ source_code }}"{% if filters.source_code == source_code %} selected{% endif %}>{{ source_label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="auto-field">
+            <label for="id_operation_type">Operazione</label>
+            <select id="id_operation_type" name="operation_type">
+              <option value="">Tutte</option>
+              {% for operation_type in queue_operation_choices %}
+                <option value="{{ operation_type }}"{% if filters.operation_type == operation_type %} selected{% endif %}>{{ operation_type|upper }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="auto-actions">
+            <button class="btn" type="submit">Filtra</button>
+            <a class="btn btn-light" href="{% url 'admin_portale:automazioni_queue_list' %}">Reset filtri</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Eventi queue</div>
+      </div>
+      <div class="card-body auto-table-wrap">
+        <table class="auto-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Sorgente</th>
+              <th>PK</th>
+              <th>Operazione</th>
+              <th>Event code</th>
+              <th>Stato</th>
+              <th>Retry</th>
+              <th>Creato</th>
+              <th>Preso</th>
+              <th>Processato</th>
+              <th>Errore</th>
+              <th>Run log</th>
+              <th>Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for event in queue_events %}
+              <tr>
+                <td><a href="{% url 'admin_portale:automazioni_queue_detail' event.id %}"><strong>#{{ event.id }}</strong></a></td>
+                <td>
+                  <div><strong>{{ event.source_code }}</strong></div>
+                  <div><code>{{ event.source_table }}</code></div>
+                </td>
+                <td><code>{{ event.source_pk|default:"-" }}</code></td>
+                <td>{{ event.operation_type|upper }}</td>
+                <td><code>{{ event.event_code|default:"-" }}</code></td>
+                <td>
+                  <span class="auto-badge auto-badge-{{ event.status|lower }}">{{ event.status }}</span>
+                </td>
+                <td>{{ event.retry_count }}</td>
+                <td>{{ event.created_at|date:"d/m/Y H:i:s" }}</td>
+                <td>{{ event.picked_at|date:"d/m/Y H:i:s"|default:"-" }}</td>
+                <td>{{ event.processed_at|date:"d/m/Y H:i:s"|default:"-" }}</td>
+                <td class="auto-preline">{{ event.error_message_short|default:"-" }}</td>
+                <td>
+                  {% if event.run_log_count %}
+                    <a href="{% url 'admin_portale:automazioni_run_log_list' %}?queue_event_id={{ event.id }}">{{ event.run_log_count }} log</a>
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="auto-actions">
+                    <a class="btn btn-light" href="{% url 'admin_portale:automazioni_queue_detail' event.id %}">Dettaglio</a>
+                    {% if event.can_reset %}
+                      <form method="post" action="{% url 'admin_portale:automazioni_queue_reset' event.id %}">
+                        {% csrf_token %}
+                        <button class="btn btn-light" type="submit">Reset</button>
+                      </form>
+                    {% endif %}
+                    {% if event.can_retry %}
+                      <form method="post" action="{% url 'admin_portale:automazioni_queue_retry' event.id %}">
+                        {% csrf_token %}
+                        <button class="btn" type="submit">Retry</button>
+                      </form>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="13">Nessun evento queue per i filtri correnti.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{% endblock %}
