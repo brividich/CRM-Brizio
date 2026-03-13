@@ -75,6 +75,22 @@ def _coerce_int(value: Any) -> int | None:
         return None
 
 
+def _normalize_runtime_bool(value: Any) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float, Decimal)):
+        return bool(value)
+
+    normalized = str(value).strip().lower()
+    if normalized in _TRUTHY_VALUES:
+        return True
+    if normalized in _FALSY_VALUES:
+        return False
+    return None
+
+
 def _resolve_legacy_user_email(legacy_user_id: Any) -> str:
     resolved_id = _coerce_int(legacy_user_id)
     if resolved_id is None:
@@ -127,11 +143,42 @@ ORDER BY id DESC
     return str(row[0] or "").strip().lower()
 
 
+def _fetch_assenza_runtime_details(assenza_id: Any) -> dict[str, Any]:
+    resolved_id = _coerce_int(assenza_id)
+    if resolved_id is None:
+        return {}
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+SELECT email_esterna, salta_approvazione
+FROM assenze
+WHERE id = %s
+""",
+                [resolved_id],
+            )
+            row = cursor.fetchone()
+    except Exception:
+        row = None
+
+    if not row:
+        return {}
+
+    dipendente_email = str(row[0] or "").strip().lower()
+    return {
+        "dipendente_email": dipendente_email,
+        "salta_approvazione": _normalize_runtime_bool(row[1]),
+    }
+
+
 def _enrich_assenze_payload(payload: Any) -> Any:
     if not isinstance(payload, dict):
         return payload
 
     enriched = dict(payload)
+    runtime_details = _fetch_assenza_runtime_details(enriched.get("id"))
+
     capo_email = str(enriched.get("capo_email") or "").strip().lower()
     if not capo_email:
         capo_email = _resolve_legacy_user_email(enriched.get("capo_reparto_id"))
@@ -139,6 +186,24 @@ def _enrich_assenze_payload(payload: Any) -> Any:
         capo_email = _resolve_caporeparto_email_from_lookup(enriched.get("capo_reparto_lookup_id"))
     if capo_email:
         enriched["capo_email"] = capo_email
+
+    dipendente_email = str(
+        enriched.get("dipendente_email")
+        or enriched.get("email_esterna")
+        or runtime_details.get("dipendente_email")
+        or ""
+    ).strip().lower()
+    if not dipendente_email:
+        dipendente_email = _resolve_legacy_user_email(enriched.get("dipendente_id"))
+    if dipendente_email:
+        enriched["dipendente_email"] = dipendente_email
+
+    salta_approvazione = enriched.get("salta_approvazione")
+    if salta_approvazione in {None, ""}:
+        salta_approvazione = runtime_details.get("salta_approvazione")
+    normalized_salta_approvazione = _normalize_runtime_bool(salta_approvazione)
+    if normalized_salta_approvazione is not None:
+        enriched["salta_approvazione"] = normalized_salta_approvazione
     return enriched
 
 
@@ -147,6 +212,10 @@ def _enrich_payload_for_source(source_code: str | None, payload: Any) -> Any:
     if normalized_source == "assenze":
         return _enrich_assenze_payload(payload)
     return payload
+
+
+def enrich_payload_for_source(source_code: str | None, payload: Any) -> Any:
+    return _enrich_payload_for_source(source_code, payload)
 
 
 def _cursor_fetch_dicts(cursor) -> list[dict[str, Any]]:

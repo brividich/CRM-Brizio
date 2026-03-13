@@ -40,6 +40,8 @@ BEGIN
                 i.motivazione_richiesta,
                 i.moderation_status,
                 i.capo_reparto_id,
+                i.email_esterna AS dipendente_email,
+                i.salta_approvazione,
                 ui.email AS capo_email
             FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
         ),
@@ -53,6 +55,8 @@ BEGIN
                 d.motivazione_richiesta,
                 d.moderation_status,
                 d.capo_reparto_id,
+                d.email_esterna AS dipendente_email,
+                d.salta_approvazione,
                 ud.email AS capo_email
             FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
         ),

@@ -24,6 +24,7 @@ from .models import (
     AutomationRuleTriggerScope,
 )
 from .services import (
+    enrich_payload_for_source,
     evaluate_condition,
     render_template_string,
     safe_get_payload_value,
@@ -230,6 +231,41 @@ def _quote_name(name: str) -> str:
     return connection.ops.quote_name(name)
 
 
+def _build_source_select_projection(
+    source_code: str | None,
+    field_names: list[str],
+) -> tuple[list[str], list[str]]:
+    field_map = {
+        _string(field.get("name")): field
+        for field in get_source_fields(source_code)
+        if _string(field.get("name"))
+    }
+    projections: list[str] = []
+    selected_fields: list[str] = []
+
+    for field_name in field_names:
+        normalized_name = _string(field_name)
+        if not normalized_name or normalized_name in selected_fields:
+            continue
+
+        field_meta = field_map.get(normalized_name)
+        if field_meta is None:
+            db_column = normalized_name
+        else:
+            db_column = _string(field_meta.get("db_column"))
+            if not db_column:
+                continue
+
+        quoted_db_column = _quote_name(db_column)
+        if db_column == normalized_name:
+            projections.append(quoted_db_column)
+        else:
+            projections.append(f"{quoted_db_column} AS {_quote_name(normalized_name)}")
+        selected_fields.append(normalized_name)
+
+    return projections, selected_fields
+
+
 def _pick_display_fields(source_code: str | None, limit: int = 5) -> list[str]:
     preferred = ["title", "titolo", "name", "asset_tag", "status", "stato", "tipo_assenza", "priority", "priorita"]
     available = [_string(field.get("name")) for field in get_source_fields(source_code)]
@@ -253,7 +289,11 @@ def list_recent_source_records(source_code: str | None, limit: int = 12) -> list
     pk_field = _string(source.get("pk_field")) or "id"
     display_fields = _pick_display_fields(source_code)
     fields = [pk_field, *[field for field in display_fields if field != pk_field]]
-    quoted_fields = ", ".join(_quote_name(field) for field in fields)
+    select_fields, resolved_fields = _build_source_select_projection(source_code, fields)
+    if not select_fields or pk_field not in resolved_fields:
+        return []
+
+    quoted_fields = ", ".join(select_fields)
     quoted_pk = _quote_name(pk_field)
     quoted_table = _quote_name(_string(source.get("table_name")))
 
@@ -275,7 +315,11 @@ def list_recent_source_records(source_code: str | None, limit: int = 12) -> list
     records: list[dict[str, Any]] = []
     for row in rows:
         row_id = row.get(pk_field)
-        label_bits = [f"{field}={row.get(field)}" for field in fields if field != pk_field and row.get(field) not in {None, ""}]
+        label_bits = [
+            f"{field}={row.get(field)}"
+            for field in resolved_fields
+            if field != pk_field and row.get(field) not in {None, ""}
+        ]
         records.append(
             {
                 "id": row_id,
@@ -299,7 +343,11 @@ def load_source_record_payload(source_code: str | None, record_id: Any) -> dict[
     if pk_field not in fields:
         fields.insert(0, pk_field)
 
-    quoted_fields = ", ".join(_quote_name(field) for field in fields if field)
+    select_fields, resolved_fields = _build_source_select_projection(source_code, fields)
+    if not select_fields or pk_field not in resolved_fields:
+        return None
+
+    quoted_fields = ", ".join(select_fields)
     quoted_pk = _quote_name(pk_field)
     quoted_table = _quote_name(_string(source.get("table_name")))
     sql = f"SELECT {quoted_fields} FROM {quoted_table} WHERE {quoted_pk} = %s"
@@ -314,7 +362,7 @@ def load_source_record_payload(source_code: str | None, record_id: Any) -> dict[
 
     if row is None:
         return None
-    return dict(zip(columns, row))
+    return enrich_payload_for_source(source_code, dict(zip(columns, row)))
 
 
 def _build_base_alias_map(source_code: str | None) -> dict[str, str]:
@@ -322,7 +370,15 @@ def _build_base_alias_map(source_code: str | None) -> dict[str, str]:
     for field in get_source_fields(source_code):
         field_name = _string(field.get("name"))
         field_label = _string(field.get("label"))
-        for alias in {field_name, field_label}:
+        field_db_column = _string(field.get("db_column"))
+        field_aliases = field.get("aliases") or []
+        alias_candidates = {field_name, field_label}
+        if field_db_column:
+            alias_candidates.add(field_db_column)
+        for alias in field_aliases:
+            alias_candidates.add(_string(alias))
+
+        for alias in alias_candidates:
             normalized = _normalize_token(alias)
             if normalized:
                 alias_map[normalized] = field_name
@@ -419,11 +475,47 @@ def _iter_mapping_pairs(raw_mapping: Any) -> list[tuple[str, str]]:
     return pairs
 
 
+def _normalize_table_identifier(value: Any) -> str:
+    normalized = _string(value).replace("[", "").replace("]", "").replace('"', "")
+    if not normalized:
+        return ""
+    parts = [chunk for chunk in normalized.split(".") if chunk]
+    if not parts:
+        return ""
+    return parts[-1].strip().lower()
+
+
+def _resolve_mapping_context(
+    source_definition: dict[str, Any] | None,
+    target_context: Any,
+) -> dict[str, str | bool]:
+    runtime_table = _normalize_table_identifier(source_definition.get("table_name")) if source_definition else ""
+    if not isinstance(target_context, dict):
+        return {
+            "runtime_table": runtime_table,
+            "runtime_table_label": _string(source_definition.get("table_name")) if source_definition else "",
+            "target_table": "",
+            "target_table_label": "",
+            "is_external": False,
+        }
+
+    target_table_label = _string(target_context.get("full_name") or target_context.get("table"))
+    target_table = _normalize_table_identifier(target_table_label)
+    return {
+        "runtime_table": runtime_table,
+        "runtime_table_label": _string(source_definition.get("table_name")) if source_definition else "",
+        "target_table": target_table,
+        "target_table_label": target_table_label,
+        "is_external": bool(runtime_table and target_table and runtime_table != target_table),
+    }
+
+
 def _normalize_mapping_rows(
     raw_mapping: Any,
     *,
     source_code: str | None,
     mapping_source: str,
+    external_context: bool = False,
 ) -> tuple[list[dict[str, Any]], dict[str, str], list[str]]:
     alias_map = _build_base_alias_map(source_code)
     rows: list[dict[str, Any]] = []
@@ -444,12 +536,14 @@ def _normalize_mapping_rows(
             "target_field": effective_target,
             "mapping_source": mapping_source,
             "valid_target": bool(effective_target),
+            "status": "ok" if effective_target else ("external_context" if external_context else "mismatch"),
+            "status_label": "ok" if effective_target else ("contesto esterno" if external_context else "mismatch"),
         }
         if effective_target:
             normalized_source = _normalize_token(effective_source)
             if normalized_source:
                 alias_map[normalized_source] = effective_target
-        else:
+        elif not external_context:
             warnings.append(
                 f"Mapping non risolto: `{effective_source or '<vuoto>'}` -> `{target_field or '<vuoto>'}`."
             )
@@ -892,11 +986,21 @@ def analyze_package_dict(package_data: dict[str, Any], *, filename: str) -> dict
         else:
             package_warnings.append("Nessun mapping approvato disponibile: saranno usati solo i nomi campo gia' compatibili.")
 
+    mapping_context = _resolve_mapping_context(source_definition, target_context)
     mapping_rows, alias_map, mapping_warnings = _normalize_mapping_rows(
         raw_mapping,
         source_code=source_code,
         mapping_source=mapping_source,
+        external_context=bool(mapping_context["is_external"]),
     )
+    if mapping_context["is_external"]:
+        package_warnings.append(
+            "Il target_context punta a "
+            f"`{mapping_context['target_table_label'] or mapping_context['target_table']}` "
+            "diverso dalla sorgente runtime "
+            f"`{mapping_context['runtime_table_label'] or mapping_context['runtime_table']}`: "
+            "i mapping non coerenti con la sorgente verranno ignorati."
+        )
     package_warnings.extend(mapping_warnings)
 
     reserved_codes: set[str] = set()
@@ -1290,6 +1394,7 @@ def _create_imported_rule(
     package_version: str,
     created_by: Any,
     final_code: str,
+    activate_rule: bool = False,
 ) -> AutomationRule:
     rule = AutomationRule.objects.create(
         code=final_code,
@@ -1302,8 +1407,8 @@ def _create_imported_rule(
         operation_type=rule_plan["operation_type"],
         watched_field=rule_plan["watched_field"] or None,
         trigger_scope=rule_plan["trigger_scope"],
-        is_active=False,
-        is_draft=True,
+        is_active=bool(activate_rule),
+        is_draft=not bool(activate_rule),
         stop_on_first_failure=bool(rule_plan.get("stop_on_first_failure")),
         created_by=created_by,
         updated_by=created_by,
@@ -1334,7 +1439,12 @@ def _create_imported_rule(
     return rule
 
 
-def import_analyzed_package(analysis: dict[str, Any], *, created_by: Any) -> dict[str, Any]:
+def import_analyzed_package(
+    analysis: dict[str, Any],
+    *,
+    created_by: Any,
+    activate_created_rules: bool = False,
+) -> dict[str, Any]:
     if analysis.get("status") == "blocked":
         raise PackageImportError("Il package e' bloccato e non puo' essere importato.")
 
@@ -1364,12 +1474,15 @@ def import_analyzed_package(analysis: dict[str, Any], *, created_by: Any) -> dic
                 package_version=analysis.get("package_version") or "",
                 created_by=created_by,
                 final_code=final_code,
+                activate_rule=activate_created_rules,
             )
             created_rules.append(
                 {
                     "id": created_rule.id,
                     "name": created_rule.name,
                     "code": created_rule.code,
+                    "is_active": created_rule.is_active,
+                    "is_draft": created_rule.is_draft,
                     "warnings": list(rule_plan.get("warnings") or []),
                 }
             )
@@ -1382,6 +1495,9 @@ def import_analyzed_package(analysis: dict[str, Any], *, created_by: Any) -> dic
         "package_version": analysis.get("package_version"),
         "created_rules": created_rules,
         "created_rule_count": len(created_rules),
+        "activated_rule_count": len([rule for rule in created_rules if rule["is_active"]]),
+        "activation_requested": bool(activate_created_rules),
+        "activation_applied": bool(activate_created_rules and created_rules),
         "skipped_rules": skipped_rules,
         "warnings": list(analysis.get("warnings") or []),
         "source_code": analysis.get("source_code"),

@@ -172,6 +172,66 @@ def _build_package_dry_run_form(
     )
 
 
+def _build_dry_run_activation_state(dry_run_result: dict[str, object] | None) -> dict[str, object]:
+    if not isinstance(dry_run_result, dict):
+        return {}
+
+    serialized_rules: list[dict[str, object]] = []
+    for rule_result in dry_run_result.get("rules") or []:
+        if not isinstance(rule_result, dict):
+            continue
+        serialized_rules.append(
+            {
+                "portal_code": _string_value(rule_result.get("portal_code")),
+                "status": _string_value(rule_result.get("status")),
+                "is_valid": bool(rule_result.get("is_valid")),
+                "fields_exist": bool(rule_result.get("fields_exist")),
+                "actions_supported": bool(rule_result.get("actions_supported")),
+            }
+        )
+
+    return {
+        "status": _string_value(dry_run_result.get("status")),
+        "rules": serialized_rules,
+    }
+
+
+def _dry_run_allows_activation(
+    analysis: dict[str, object] | None,
+    dry_run_activation_state: dict[str, object] | None,
+) -> bool:
+    if not isinstance(analysis, dict) or not isinstance(dry_run_activation_state, dict):
+        return False
+
+    importable_codes = {
+        _string_value(rule.get("portal_code"))
+        for rule in analysis.get("rules") or []
+        if isinstance(rule, dict) and rule.get("is_importable")
+    }
+    importable_codes.discard("")
+    if not importable_codes:
+        return False
+
+    matching_rules = [
+        rule
+        for rule in dry_run_activation_state.get("rules") or []
+        if isinstance(rule, dict) and _string_value(rule.get("portal_code")) in importable_codes
+    ]
+    if not matching_rules:
+        return False
+
+    for rule in matching_rules:
+        if _string_value(rule.get("status")) == "skipped":
+            return False
+        if not bool(rule.get("is_valid")):
+            return False
+        if not bool(rule.get("fields_exist")):
+            return False
+        if not bool(rule.get("actions_supported")):
+            return False
+    return True
+
+
 def _truncate_text(value, limit: int = 120) -> str:
     text = _string_value(value)
     if len(text) <= limit:
@@ -1193,6 +1253,7 @@ def _build_package_import_context(
 ) -> dict[str, object]:
     state = _get_package_import_state(request)
     dry_run_completed_hash = str(state.get("dry_run_completed_hash") or "").strip()
+    dry_run_activation_state = state.get("dry_run_activation_state")
     analysis_hash = str((analysis or {}).get("package_hash") or "").strip()
     return {
         **_base_context(),
@@ -1215,6 +1276,12 @@ def _build_package_import_context(
             and int(analysis.get("importable_rule_count") or 0) > 0
             and analysis_hash
             and dry_run_completed_hash == analysis_hash
+        ),
+        "can_activate_after_import": bool(
+            analysis
+            and analysis_hash
+            and dry_run_completed_hash == analysis_hash
+            and _dry_run_allows_activation(analysis, dry_run_activation_state if isinstance(dry_run_activation_state, dict) else {})
         ),
     }
 
@@ -1251,6 +1318,7 @@ def rule_package_import_page(request):
                         {
                             "analysis": analysis,
                             "dry_run_completed_hash": "",
+                            "dry_run_activation_state": {},
                         },
                     )
                     messages.success(request, "Package analizzato. Esegui il test al volo prima di confermare l'import.")
@@ -1294,6 +1362,7 @@ def rule_package_import_page(request):
                         messages.error(request, str(exc))
                     else:
                         state["dry_run_completed_hash"] = analysis.get("package_hash") or ""
+                        state["dry_run_activation_state"] = _build_dry_run_activation_state(dry_run_result)
                         _set_package_import_state(request, state)
 
         elif action == "import":
@@ -1303,8 +1372,22 @@ def rule_package_import_page(request):
             if str(state.get("dry_run_completed_hash") or "") != str(analysis.get("package_hash") or ""):
                 messages.error(request, "Esegui prima il test al volo del package corrente.")
                 return redirect("admin_portale:automazioni_rule_import_package")
+            activate_after_import = _bool_value(request.POST.get("activate_after_import"))
+            if activate_after_import and not _dry_run_allows_activation(
+                analysis,
+                state.get("dry_run_activation_state") if isinstance(state.get("dry_run_activation_state"), dict) else {},
+            ):
+                messages.error(
+                    request,
+                    "L'attivazione diretta richiede un test al volo valido per tutte le regole importabili del package corrente.",
+                )
+                return redirect("admin_portale:automazioni_rule_import_package")
             try:
-                result = import_analyzed_package(analysis, created_by=request.user)
+                result = import_analyzed_package(
+                    analysis,
+                    created_by=request.user,
+                    activate_created_rules=activate_after_import,
+                )
             except PackageImportError as exc:
                 messages.error(request, str(exc))
             except Exception as exc:
@@ -1312,7 +1395,15 @@ def rule_package_import_page(request):
             else:
                 _set_package_import_result(request, result)
                 _clear_package_import_state(request)
-                messages.success(request, f"Import completato. Regole create: {result['created_rule_count']}.")
+                if result.get("activation_applied"):
+                    messages.success(
+                        request,
+                        "Import completato. "
+                        f"Regole create: {result['created_rule_count']}. "
+                        f"Regole attivate: {result['activated_rule_count']}.",
+                    )
+                else:
+                    messages.success(request, f"Import completato. Regole create: {result['created_rule_count']}.")
                 return redirect("admin_portale:automazioni_rule_import_result")
 
     context = _build_package_import_context(

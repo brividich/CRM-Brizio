@@ -22,7 +22,7 @@
 {% endblock %}
 
 {% block content %}
-  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Esito Import Package" page_subtitle="Risultato finale dell'import con regole create in draft e warning residui evidenziati." %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Esito Import Package" page_subtitle="Risultato finale dell'import con stato finale regole e warning residui evidenziati." %}
   {% include "admin_portale/components/flash_messages.html" %}
   {% include "automazioni/components/subnav.html" %}
 
@@ -35,19 +35,24 @@
           <span><strong>Flow:</strong> {{ result.flow_name|default:"-" }}</span>
           <span><strong>Versione package:</strong> {{ result.package_version|default:"-" }}</span>
           <span><strong>Regole create:</strong> {{ result.created_rule_count }}</span>
+          <span><strong>Regole attivate:</strong> {{ result.activated_rule_count|default:0 }}</span>
         </div>
         <div class="notice">
-          <strong>Safety:</strong> tutte le regole importate sono state create come <code>draft</code> con <code>is_active = False</code>.
+          {% if result.activation_applied %}
+            <strong>Attivazione esplicita:</strong> le regole importate sono state pubblicate solo per tua conferma esplicita dopo il dry-run.
+          {% else %}
+            <strong>Safety:</strong> tutte le regole importate sono state create come <code>draft</code> con <code>is_active = False</code>.
+          {% endif %}
         </div>
       </div>
     </div>
 
     <div class="card">
-      <div class="card-head"><div class="card-title">Regole draft create</div></div>
+      <div class="card-head"><div class="card-title">Regole create</div></div>
       <div class="card-body">
         <table class="auto-table">
           <thead>
-            <tr><th>ID</th><th>Nome</th><th>Code</th><th>Warning</th><th>Link</th></tr>
+            <tr><th>ID</th><th>Nome</th><th>Code</th><th>Stato finale</th><th>Warning</th><th>Link</th></tr>
           </thead>
           <tbody>
             {% for rule in result.created_rules %}
@@ -55,11 +60,12 @@
                 <td>#{{ rule.id }}</td>
                 <td>{{ rule.name }}</td>
                 <td><code>{{ rule.code }}</code></td>
-                <td>{% if rule.warnings %}{{ rule.warnings|join:" · " }}{% else %}-{% endif %}</td>
+                <td>{% if rule.is_active %}attiva{% else %}draft{% endif %}</td>
+                <td>{% if rule.warnings %}{{ rule.warnings|join:" Â· " }}{% else %}-{% endif %}</td>
                 <td><a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_detail' rule.id %}">Apri regola</a></td>
               </tr>
             {% empty %}
-              <tr><td colspan="5">Nessuna regola creata.</td></tr>
+              <tr><td colspan="6">Nessuna regola creata.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -75,7 +81,7 @@
               <li>
                 <strong>{{ rule.name }}</strong>
                 {% if rule.portal_code %}<code>{{ rule.portal_code }}</code>{% endif %}
-                {% if rule.reasons %}<br>{{ rule.reasons|join:" · " }}{% endif %}
+                {% if rule.reasons %}<br>{{ rule.reasons|join:" Â· " }}{% endif %}
               </li>
             {% endfor %}
           </ul>

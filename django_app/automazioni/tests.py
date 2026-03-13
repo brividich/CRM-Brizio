@@ -91,6 +91,19 @@ class SourceRegistryTests(SimpleTestCase):
             ("automazioni_view", "automazioni_manage", "automazioni_logs", "automazioni_execute"),
         )
 
+    def test_registered_sources_expose_consistent_field_metadata(self):
+        for source in get_registered_sources():
+            self.assertTrue(source["fields"])
+            for field in source["fields"]:
+                self.assertIn("db_column", field)
+                self.assertIn("is_virtual", field)
+                self.assertIn("aliases", field)
+                self.assertIsInstance(field["aliases"], list)
+                if field["is_virtual"]:
+                    self.assertIsNone(field["db_column"])
+                else:
+                    self.assertTrue(field["db_column"])
+
 
 class SourceRegistryFieldFilterTests(SimpleTestCase):
     def test_trigger_condition_template_and_action_fields_are_filtered(self):
@@ -100,12 +113,17 @@ class SourceRegistryFieldFilterTests(SimpleTestCase):
         template_fields = get_template_fields("assenze")
         action_mapping_fields = get_action_mapping_fields("assenze")
 
-        self.assertEqual(len(source_fields), 9)
+        self.assertEqual(len(source_fields), 11)
         self.assertEqual([field["name"] for field in trigger_fields], [field["name"] for field in source_fields])
         self.assertEqual([field["name"] for field in condition_fields], [field["name"] for field in source_fields])
         self.assertEqual([field["name"] for field in template_fields], [field["name"] for field in source_fields])
         self.assertEqual([field["name"] for field in action_mapping_fields], [field["name"] for field in source_fields])
         self.assertIn("capo_email", [field["name"] for field in template_fields])
+        self.assertIn("dipendente_email", [field["name"] for field in template_fields])
+        self.assertIn("salta_approvazione", [field["name"] for field in template_fields])
+        capo_email_field = next(field for field in source_fields if field["name"] == "capo_email")
+        self.assertTrue(capo_email_field["is_virtual"])
+        self.assertIsNone(capo_email_field["db_column"])
 
     def test_unknown_source_returns_empty_field_sets(self):
         self.assertEqual(get_source_fields("missing"), [])
@@ -120,14 +138,18 @@ class SourceRegistryFieldFilterTests(SimpleTestCase):
             ["{id}", "{title}", "{status}", "{priority}", "{assigned_to_id}", "{project_id}", "{due_date}"],
         )
         self.assertIn("{capo_email}", build_placeholder_examples("assenze"))
+        self.assertIn("{dipendente_email}", build_placeholder_examples("assenze"))
+        self.assertIn("{salta_approvazione}", build_placeholder_examples("assenze"))
         self.assertEqual(build_placeholder_examples("missing"), [])
 
     def test_package_import_example_payload_uses_realistic_email_and_assenze_values(self):
         payload = build_example_payload("assenze")
 
         self.assertEqual(payload["capo_email"], "demo@example.com")
+        self.assertEqual(payload["dipendente_email"], "demo@example.com")
         self.assertEqual(payload["tipo_assenza"], "Malattia")
         self.assertEqual(payload["moderation_status"], 0)
+        self.assertTrue(payload["salta_approvazione"])
 
 
 @override_settings(
@@ -1322,8 +1344,121 @@ class AutomationPackageImportTests(TestCase):
         self.assertEqual(rule.import_source_package_version, "2026.03")
         self.assertEqual(rule.conditions.count(), 1)
         self.assertEqual(rule.actions.count(), 2)
-        self.assertContains(response, "Regole draft create")
+        self.assertContains(response, "Regole create")
         self.assertContains(response, reverse("admin_portale:automazioni_rule_detail", args=[rule.id]))
+
+    def test_import_can_activate_rules_after_successful_dry_run(self):
+        package = self._base_package(
+            rules=[
+                {
+                    "code": "pa-task-activate",
+                    "name": "Import active task",
+                    "description": "Da package esterno",
+                    "source_code": "tasks",
+                    "operation_type": "update",
+                    "trigger_scope": "specific_field",
+                    "watched_field": "Task Status",
+                    "is_active": False,
+                    "is_draft": True,
+                    "conditions": [
+                        {
+                            "field": "Task Status",
+                            "operator": "equals",
+                            "value": "DONE",
+                            "value_type": "string",
+                        }
+                    ],
+                    "actions": [
+                        {
+                            "action_type": "write_log",
+                            "description": "Logga",
+                            "message_template": "Task {title} -> {status}",
+                        }
+                    ],
+                }
+            ]
+        )
+        self._analyze_package(package)
+        self._run_dry_run(
+            sample_mode="json",
+            payload={
+                "id": 99,
+                "title": "Task import",
+                "status": "DONE",
+                "assigned_to_id": self.user.id,
+                "project_id": 1,
+                "due_date": "2026-03-11",
+            },
+            old_payload={
+                "id": 99,
+                "title": "Task import",
+                "status": "TODO",
+                "assigned_to_id": self.user.id,
+                "project_id": 1,
+                "due_date": "2026-03-11",
+            },
+        )
+
+        response = self.client.post(
+            reverse("admin_portale:automazioni_rule_import_package"),
+            {"action": "import", "activate_after_import": "1"},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        rule = AutomationRule.objects.get(import_source_rule_code="pa-task-activate")
+        self.assertTrue(rule.is_active)
+        self.assertFalse(rule.is_draft)
+        self.assertContains(response, "Regole attivate")
+        self.assertContains(response, "attiva")
+
+    def test_activation_is_blocked_when_dry_run_importable_rules_have_errors(self):
+        package = self._base_package(
+            rules=[
+                {
+                    "code": "pa-task-activate-invalid",
+                    "name": "Import active invalid task",
+                    "description": "Da package esterno",
+                    "source_code": "tasks",
+                    "operation_type": "update",
+                    "trigger_scope": "all_updates",
+                    "is_active": False,
+                    "is_draft": True,
+                    "actions": [
+                        {
+                            "action_type": "send_email",
+                            "description": "Invia email",
+                            "to": "{title}",
+                            "from_email": "noreply@example.com",
+                            "subject_template": "Task {title}",
+                            "body_text_template": "Stato {status}",
+                        }
+                    ],
+                }
+            ]
+        )
+        self._analyze_package(package)
+        self._run_dry_run(
+            sample_mode="json",
+            payload={
+                "id": 100,
+                "title": "titolo non email",
+                "status": "DONE",
+                "assigned_to_id": self.user.id,
+                "project_id": 1,
+                "due_date": "2026-03-11",
+            },
+        )
+
+        response = self.client.post(
+            reverse("admin_portale:automazioni_rule_import_package"),
+            {"action": "import", "activate_after_import": "1"},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "attivazione diretta richiede un test al volo valido", html=False)
+        self.assertEqual(AutomationRule.objects.filter(import_source_rule_code="pa-task-activate-invalid").count(), 0)
 
     def test_import_rolls_back_if_a_rule_fails(self):
         package = self._base_package(
@@ -1444,6 +1579,284 @@ class AutomationPackageImportTests(TestCase):
         self.assertEqual(AutomationRule.objects.filter(import_flow_name="Task Import Flow").count(), 1)
         self.assertContains(response, "Rule non supportata")
         self.assertContains(response, "unsupported_magic")
+
+    def test_assenze_runtime_fields_are_importable_and_external_mapping_noise_is_condensed(self):
+        package = {
+            "package_version": "1.0",
+            "input": {"flow_name": "Certificazione presenza"},
+            "source_candidate": {"source_code": "assenze", "label": "Assenze"},
+            "compatibility": {"compatible": True, "status": "partial"},
+            "issues": [],
+            "target_context": {
+                "database": "PORTALE NOVICROM",
+                "schema": "dbo",
+                "table": "assenze_certificazionepresenza",
+                "full_name": "dbo.assenze_certificazionepresenza",
+            },
+            "approved_field_mapping": {
+                "ID": "id",
+                "DATAINIZIO": "data",
+                "Email": "dipendente_email",
+                "SALTAAPPROVAZIONE": "salta_approvazione",
+            },
+            "proposed_rules": [
+                {
+                    "code": "pa-assenze-update-approvata-notifica-dipendente",
+                    "name": "Esito approvazione assenza",
+                    "description": "",
+                    "source_code": "assenze",
+                    "operation_type": "update",
+                    "trigger_scope": "specific_field",
+                    "watched_field": "moderation_status",
+                    "is_active": False,
+                    "is_draft": True,
+                    "conditions": [
+                        {
+                            "field": "moderation_status",
+                            "operator": "changed_to",
+                            "value": "0",
+                            "value_type": "int",
+                            "compare_with_old": True,
+                        }
+                    ],
+                    "actions": [
+                        {
+                            "action_type": "send_email",
+                            "to": "{dipendente_email}",
+                            "from_email": "noreply@example.com",
+                            "subject_template": "Esito #{id}",
+                            "body_text_template": "Esito per {dipendente_email}",
+                        }
+                    ],
+                },
+                {
+                    "code": "pa-assenze-insert-skip-approval-audit",
+                    "name": "Audit skip approval",
+                    "description": "",
+                    "source_code": "assenze",
+                    "operation_type": "insert",
+                    "trigger_scope": "all_inserts",
+                    "is_active": False,
+                    "is_draft": True,
+                    "conditions": [
+                        {
+                            "field": "salta_approvazione",
+                            "operator": "is_true",
+                            "value_type": "bool",
+                        }
+                    ],
+                    "actions": [
+                        {
+                            "action_type": "write_log",
+                            "message_template": "skip {salta_approvazione}",
+                        }
+                    ],
+                },
+            ],
+        }
+
+        analysis = analyze_package_dict(package, filename="assenze.automation_package.json")
+
+        self.assertEqual(analysis["importable_rule_count"], 2)
+        self.assertTrue(all(rule["is_importable"] for rule in analysis["rules"]))
+        self.assertTrue(any("target_context punta" in warning for warning in analysis["warnings"]))
+        self.assertFalse(any("Mapping non risolto" in warning for warning in analysis["warnings"]))
+        mapping_rows = {row["source_field"]: row for row in analysis["mapping_rows"]}
+        self.assertEqual(mapping_rows["ID"]["status"], "ok")
+        self.assertEqual(mapping_rows["DATAINIZIO"]["status"], "ok")
+
+    @patch("automazioni.package_importer.enrich_payload_for_source")
+    @patch("automazioni.package_importer.connection.cursor")
+    def test_load_source_record_payload_supports_alias_fields_and_virtual_enrichment(
+        self,
+        mock_connection_cursor,
+        mock_enrich_payload,
+    ):
+        cursor = MagicMock()
+        cursor.fetchone.return_value = (
+            4051,
+            101,
+            "2026-03-11T06:00:00",
+            "2026-03-11T14:00:00",
+            "Ferie",
+            "Richiesta di test",
+            0,
+            22,
+            "dipendente@example.com",
+            True,
+        )
+        cursor.description = [
+            ("id",),
+            ("dipendente_id",),
+            ("data_inizio",),
+            ("data_fine",),
+            ("tipo_assenza",),
+            ("motivazione_richiesta",),
+            ("moderation_status",),
+            ("capo_reparto_id",),
+            ("dipendente_email",),
+            ("salta_approvazione",),
+        ]
+        cursor_context = MagicMock()
+        cursor_context.__enter__.return_value = cursor
+        cursor_context.__exit__.return_value = False
+        mock_connection_cursor.return_value = cursor_context
+        mock_enrich_payload.side_effect = lambda source_code, payload: {
+            **payload,
+            "capo_email": "capo@example.com",
+        }
+
+        payload = package_importer.load_source_record_payload("assenze", 4051)
+
+        self.assertEqual(payload["dipendente_email"], "dipendente@example.com")
+        self.assertTrue(payload["salta_approvazione"])
+        self.assertEqual(payload["capo_email"], "capo@example.com")
+        sql = cursor.execute.call_args.args[0]
+        self.assertIn("email_esterna", sql)
+        self.assertIn("dipendente_email", sql)
+        self.assertNotIn("capo_email", sql)
+
+    def test_aliases_are_resolved_for_all_registered_sources(self):
+        scenarios = [
+            {
+                "filename": "tasks.automation_package.json",
+                "source_code": "tasks",
+                "rule": {
+                    "code": "tasks-alias",
+                    "name": "Tasks alias",
+                    "source_code": "tasks",
+                    "operation_type": "update",
+                    "trigger_scope": "specific_field",
+                    "watched_field": "assigned_to",
+                    "conditions": [{"field": "task_status", "operator": "equals", "value": "DONE", "value_type": "string"}],
+                    "actions": [{"action_type": "write_log", "message_template": "Task {titolo} scade {deadline}"}],
+                },
+                "expected_watched_field": "assigned_to_id",
+                "expected_condition_field": "status",
+                "expected_template": "Task {title} scade {due_date}",
+            },
+            {
+                "filename": "assets.automation_package.json",
+                "source_code": "assets",
+                "rule": {
+                    "code": "assets-alias",
+                    "name": "Assets alias",
+                    "source_code": "assets",
+                    "operation_type": "update",
+                    "trigger_scope": "specific_field",
+                    "watched_field": "codice",
+                    "conditions": [{"field": "sede", "operator": "is_not_empty", "value_type": "string"}],
+                    "actions": [{"action_type": "write_log", "message_template": "Asset {codice} in {location}"}],
+                },
+                "expected_watched_field": "asset_tag",
+                "expected_condition_field": "assignment_location",
+                "expected_template": "Asset {asset_tag} in {assignment_location}",
+            },
+            {
+                "filename": "tickets.automation_package.json",
+                "source_code": "tickets",
+                "rule": {
+                    "code": "tickets-alias",
+                    "name": "Tickets alias",
+                    "source_code": "tickets",
+                    "operation_type": "update",
+                    "trigger_scope": "specific_field",
+                    "watched_field": "status",
+                    "conditions": [{"field": "category", "operator": "is_not_empty", "value_type": "string"}],
+                    "actions": [{"action_type": "write_log", "message_template": "Ticket {title} -> {assigned_to}"}],
+                },
+                "expected_watched_field": "stato",
+                "expected_condition_field": "categoria",
+                "expected_template": "Ticket {titolo} -> {assegnato_a}",
+            },
+            {
+                "filename": "anomalie.automation_package.json",
+                "source_code": "anomalie",
+                "rule": {
+                    "code": "anomalie-alias",
+                    "name": "Anomalie alias",
+                    "source_code": "anomalie",
+                    "operation_type": "update",
+                    "trigger_scope": "specific_field",
+                    "watched_field": "status",
+                    "conditions": [{"field": "created_by_user_id", "operator": "equals", "value": "15", "value_type": "int"}],
+                    "actions": [{"action_type": "write_log", "message_template": "Anomalia {pn} op {op}"}],
+                },
+                "expected_watched_field": "avanzamento",
+                "expected_condition_field": "created_by",
+                "expected_template": "Anomalia {seriale} op {ex_op_nominativo}",
+            },
+            {
+                "filename": "assenze.automation_package.json",
+                "source_code": "assenze",
+                "rule": {
+                    "code": "assenze-alias",
+                    "name": "Assenze alias",
+                    "source_code": "assenze",
+                    "operation_type": "update",
+                    "trigger_scope": "specific_field",
+                    "watched_field": "ModerationStatus",
+                    "conditions": [{"field": "SALTAAPPROVAZIONE", "operator": "is_true", "value_type": "bool"}],
+                    "actions": [{"action_type": "write_log", "message_template": "Assenza {Email} {CAR}"}],
+                },
+                "expected_watched_field": "moderation_status",
+                "expected_condition_field": "salta_approvazione",
+                "expected_template": "Assenza {dipendente_email} {capo_email}",
+            },
+        ]
+
+        for scenario in scenarios:
+            analysis = analyze_package_dict(
+                {
+                    "package_version": "1.0",
+                    "input": {"flow_name": f"{scenario['source_code']} import"},
+                    "source_candidate": {
+                        "source_code": scenario["source_code"],
+                        "label": scenario["source_code"].title(),
+                    },
+                    "compatibility": {"compatible": True, "status": "ok"},
+                    "issues": [],
+                    "target_context": {"module": "automazioni", "source": scenario["source_code"]},
+                    "proposed_rules": [scenario["rule"]],
+                },
+                filename=scenario["filename"],
+            )
+
+            self.assertEqual(analysis["importable_rule_count"], 1, msg=scenario["source_code"])
+            rule_plan = analysis["rules"][0]
+            self.assertTrue(rule_plan["is_importable"], msg=scenario["source_code"])
+            self.assertEqual(rule_plan["watched_field"], scenario["expected_watched_field"])
+            self.assertEqual(rule_plan["conditions"][0]["field_name"], scenario["expected_condition_field"])
+            self.assertEqual(
+                rule_plan["actions"][0]["config_json"]["message_template"],
+                scenario["expected_template"],
+            )
+
+    @patch("automazioni.package_importer.connection.cursor")
+    def test_load_source_record_payload_supports_anomalie_db_column_alias(self, mock_connection_cursor):
+        cursor = MagicMock()
+        cursor.fetchone.return_value = (91, "OP-001", 42, "SN-001", "APERTO", False, 7, 8001)
+        cursor.description = [
+            ("id",),
+            ("ex_op_nominativo",),
+            ("op_lookup_id",),
+            ("seriale",),
+            ("avanzamento",),
+            ("chiudere",),
+            ("created_by",),
+            ("ordine_id",),
+        ]
+        cursor_context = MagicMock()
+        cursor_context.__enter__.return_value = cursor
+        cursor_context.__exit__.return_value = False
+        mock_connection_cursor.return_value = cursor_context
+
+        payload = package_importer.load_source_record_payload("anomalie", 91)
+
+        self.assertEqual(payload["created_by"], 7)
+        sql = cursor.execute.call_args.args[0]
+        self.assertIn("created_by_user_id", sql)
+        self.assertIn("AS [created_by]", sql)
 
 
 class AutomationRuleModelTests(TestCase):
@@ -1842,6 +2255,36 @@ class AutomationRunRuleTests(TestCase):
 
         self.assertEqual(run_log.payload_json["capo_email"], "capo@example.com")
         self.assertEqual(run_log.old_payload_json["capo_email"], "capo@example.com")
+
+    @patch(
+        "automazioni.services._fetch_assenza_runtime_details",
+        return_value={"dipendente_email": "dipendente@example.com", "salta_approvazione": True},
+    )
+    @patch("automazioni.services._resolve_legacy_user_email", return_value="capo@example.com")
+    def test_run_rule_persists_enriched_assenze_runtime_fields_in_run_log(
+        self,
+        _mock_resolve_email,
+        _mock_runtime_details,
+    ):
+        rule = AutomationRule.objects.create(
+            code="assenze-runtime-fields-rule",
+            name="Assenze runtime fields rule",
+            source_code="assenze",
+            operation_type=AutomationRuleOperationType.UPDATE,
+            trigger_scope=AutomationRuleTriggerScope.ALL_UPDATES,
+        )
+
+        run_log = run_rule(
+            rule,
+            {**self.payload, "capo_reparto_id": 12},
+            old_payload={**self.old_payload, "capo_reparto_id": 12},
+        )
+
+        self.assertEqual(run_log.payload_json["capo_email"], "capo@example.com")
+        self.assertEqual(run_log.payload_json["dipendente_email"], "dipendente@example.com")
+        self.assertTrue(run_log.payload_json["salta_approvazione"])
+        self.assertEqual(run_log.old_payload_json["dipendente_email"], "dipendente@example.com")
+        self.assertTrue(run_log.old_payload_json["salta_approvazione"])
 
     def test_run_rule_success_with_update_dashboard_metric(self):
         rule = AutomationRule.objects.create(
@@ -2514,6 +2957,41 @@ class AutomationQueueProcessorTests(TestCase):
         old_payload = mock_run_rule.call_args.kwargs["old_payload"]
         self.assertEqual(payload["capo_email"], "capo@example.com")
         self.assertEqual(old_payload["capo_email"], "capo@example.com")
+
+    @patch(
+        "automazioni.services._fetch_assenza_runtime_details",
+        return_value={"dipendente_email": "dipendente@example.com", "salta_approvazione": True},
+    )
+    @patch("automazioni.services._resolve_legacy_user_email", return_value="capo@example.com")
+    @patch("automazioni.services.mark_queue_done")
+    @patch("automazioni.services.run_rule")
+    def test_process_queue_event_enriches_assenze_payload_with_runtime_fields(
+        self,
+        mock_run_rule,
+        mock_mark_done,
+        _mock_resolve_email,
+        _mock_runtime_details,
+    ):
+        mock_run_rule.return_value = SimpleNamespace(status=AutomationRunLogStatus.SUCCESS)
+
+        result = process_queue_event(
+            {
+                "id": 31,
+                "source_code": "assenze",
+                "operation_type": "update",
+                "payload_json": '{"id": 1, "capo_reparto_id": 12, "moderation_status": 1}',
+                "old_payload_json": '{"id": 1, "capo_reparto_id": 12, "moderation_status": 0}',
+            }
+        )
+
+        self.assertEqual(result["status"], "done")
+        mock_mark_done.assert_called_once_with(31)
+        payload = mock_run_rule.call_args.args[1]
+        old_payload = mock_run_rule.call_args.kwargs["old_payload"]
+        self.assertEqual(payload["dipendente_email"], "dipendente@example.com")
+        self.assertTrue(payload["salta_approvazione"])
+        self.assertEqual(old_payload["dipendente_email"], "dipendente@example.com")
+        self.assertTrue(old_payload["salta_approvazione"])
 
     @patch("automazioni.services.mark_queue_error")
     @patch("automazioni.services.run_rule", side_effect=RuntimeError("runtime exploded"))

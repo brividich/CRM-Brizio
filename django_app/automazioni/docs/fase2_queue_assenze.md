@@ -4,7 +4,7 @@ Questa fase introduce solo l'infrastruttura dati minima per accodare eventi `INS
 
 ## Strategia payload
 
-La queue usa **nomi DB reali** e resta coerente con il registry della Fase 1, che per `assenze` espone gia' gli stessi identificativi:
+La queue usa principalmente i nomi DB reali della tabella `dbo.assenze` e aggiunge solo gli alias runtime strettamente utili alle automazioni (`dipendente_email`, `capo_email`):
 
 - `id`
 - `dipendente_id`
@@ -14,8 +14,11 @@ La queue usa **nomi DB reali** e resta coerente con il registry della Fase 1, ch
 - `motivazione_richiesta`
 - `moderation_status`
 - `capo_reparto_id`
+- `dipendente_email`
+- `salta_approvazione`
+- `capo_email`
 
-Non vengono introdotti alias aggiuntivi come `utente_id` o `motivazione`.
+Non vengono introdotti alias applicativi aggiuntivi come `utente_id` o `motivazione`.
 
 ## Vincoli operativi fissati
 
@@ -55,7 +58,10 @@ In questa fase `watched_field` resta sempre `NULL`. Il confronto puntuale tra `p
   "tipo_assenza": "Permesso",
   "motivazione_richiesta": "Visita medica",
   "moderation_status": 2,
-  "capo_reparto_id": 7
+  "capo_reparto_id": 7,
+  "dipendente_email": "mario.rossi@example.com",
+  "salta_approvazione": false,
+  "capo_email": "responsabile@example.com"
 }
 ```
 
