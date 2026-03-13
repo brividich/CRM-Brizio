@@ -1,8 +1,5 @@
-<p align="center">
-  <img src="django_app/core/static/core/img/logo_novicrom.png" alt="Logo Novicrom" width="88">
-</p>
 
-<h1 align="center">Portale Novicrom</h1>
+<h1 align="center">BoluHUB</h1>
 
 <p align="center">
   Piattaforma Django modulare per dashboard operative, workflow interni, asset management,
