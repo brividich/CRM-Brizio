@@ -1,80 +1,80 @@
-<<<<<<< HEAD
-# Portale Applicativo Django
+<p align="center">
+  <img src="django_app/core/static/core/img/logo_novicrom.png" alt="Logo Novicrom" width="88">
+</p>
+
+<h1 align="center">Portale Novicrom</h1>
 
 <p align="center">
-  Repository pubblico di una piattaforma Django modulare per dashboard, workflow operativi, gestione dati e strumenti amministrativi.
+  Piattaforma Django modulare per dashboard operative, workflow interni, asset management,
+  automazioni e strumenti amministrativi.
 </p>
 
 <p align="center">
-  <strong>Python</strong> 3.12+ ·
-  <strong>Django</strong> 5.2 ·
-  <strong>Database</strong> SQLite / SQL Server ·
-  <strong>Auth</strong> Django / LDAP opzionale
+  <img alt="Python 3.12+" src="https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white">
+  <img alt="Django 5.2" src="https://img.shields.io/badge/Django-5.2-0C4B33?logo=django&logoColor=white">
+  <img alt="Version 0.6.40-dev" src="https://img.shields.io/badge/version-0.6.40--dev-F97316">
+  <img alt="Database SQLite or SQL Server" src="https://img.shields.io/badge/DB-SQLite%20%7C%20SQL%20Server-1E3A5F">
 </p>
 
----
+<p align="center">
+  Repository pubblico preparato per GitHub: configurazioni sensibili rimosse, placeholder sicuri,
+  struttura applicativa e moduli principali mantenuti.
+</p>
+
+![Preview dashboard del Portale Novicrom](.github/assets/dashboard-preview.svg)
 
 ## Panoramica
 
-Il codice applicativo vive in `django_app/` ed e' organizzato in moduli funzionali separati.
+Il codice applicativo vive in `django_app/` ed espone un portale aziendale costruito su Django 5.2,
+con moduli separati per operativita quotidiana, amministrazione, anagrafiche, asset, workflow e automazioni.
 
-Questo repository e' stato preparato per essere mantenuto pubblico:
+L'entrypoint corretto per lo sviluppo locale e `django_app/manage.py`.
 
-- configurazioni sensibili sostituite con placeholder sicuri
-- documentazione interna ridotta al minimo necessario
-- bootstrap e struttura runtime lasciati invariati
+## Cosa include
 
-## Stato Del Repository
-
-| Voce | Dettaglio |
+| Area | Descrizione |
 | --- | --- |
-| Codice Django | `django_app/` |
-| Entrypoint corretto | `django_app/manage.py` |
-| `manage.py` in root | placeholder, non usare |
-| Template config | `django_app/.env.example`, `.env.example`, `config.ini.example` |
-| Documentazione tecnica | `doc/README.md` |
+| Dashboard e UX | home modulare, viste per ruolo, scorciatoie operative, navigazione dinamica |
+| Workflow | assenze, anomalie, tickets, timbri, notizie e richieste interne |
+| Operations | inventory asset, work order, macchine di lavoro, planimetrie e verifiche periodiche |
+| Governance | gestione utenti, ACL legacy, pulsanti UI, audit, diagnostica LDAP e configurazione accessi |
+| Automazioni | designer visuale, sorgenti, queue processor, test regole e import package |
+| Compatibilita legacy | route storiche, tabelle unmanaged e fallback di navigazione/permessi |
 
-## Stack Tecnico
+## Preview
+
+Anteprime visuali GitHub-friendly dei flussi principali del portale.
+
+| Assets / Officina | Automazioni |
+| --- | --- |
+| ![Preview modulo assets e officina](.github/assets/assets-preview.svg) | ![Preview designer automazioni](.github/assets/automation-preview.svg) |
+
+## Stack tecnico
 
 | Area | Tecnologia |
 | --- | --- |
-| Runtime | Python 3.12 consigliato |
-| Web framework | Django 5.2 |
-| Database | SQLite per setup rapido, SQL Server per ambienti completi |
-| Driver SQL Server | `mssql-django`, `pyodbc` |
-| Autenticazione | Django auth, LDAP opzionale |
-| Integrazioni | Microsoft Graph / SharePoint opzionali |
+| Runtime | Python 3.12+ |
+| Framework | Django 5.2.11 |
+| Database dev | SQLite |
+| Database full environment | SQL Server via `mssql-django` e `pyodbc` |
+| Auth | Django auth, ACL legacy, LDAP opzionale |
+| Integrazioni opzionali | Microsoft Graph / SharePoint, SMTP, Active Directory |
 
-Le dipendenze principali sono in `django_app/requirements.txt`.
+Dipendenze principali: `django_app/requirements.txt`
 
-## Moduli Principali
+## Moduli principali
 
-| Area | Moduli |
+| Gruppo | Moduli |
 | --- | --- |
-| Base applicativa | `core`, `dashboard` |
-| Workflow | `assenze`, `anomalie`, `tickets` |
-| Operations | `assets`, `planimetria`, `tasks` |
-| Dati e contenuti | `anagrafica`, `timbri`, `notizie` |
-| Amministrazione | `admin_portale`, `automazioni` |
+| Core platform | `core`, `dashboard` |
+| HR e workflow | `assenze`, `anomalie`, `tickets`, `timbri`, `notizie` |
+| Operations | `assets`, `tasks`, `planimetria` |
+| Backoffice | `admin_portale`, `anagrafica` |
+| Automation | `automazioni` |
 
-## Struttura Essenziale
+## Quick start
 
-```text
-repo-root/
-|-- django_app/
-|   |-- manage.py
-|   |-- config/
-|   |-- core/
-|   `-- ...
-|-- doc/
-|-- .env.example
-|-- config.ini.example
-`-- .gitignore
-```
-
-## Quick Start
-
-### 1. Crea l'ambiente virtuale
+### 1. Crea l'ambiente
 
 ```powershell
 python -m venv .venv
@@ -84,9 +84,11 @@ pip install -r django_app\requirements.txt
 
 ### 2. Prepara la configurazione
 
-Crea `django_app/.env` partendo da `django_app/.env.example`.
+```powershell
+Copy-Item django_app\.env.example django_app\.env
+```
 
-Configurazione minima per sviluppo locale rapido:
+Configurazione minima consigliata per sviluppo locale:
 
 ```env
 DJANGO_SECRET_KEY=CHANGE_ME
@@ -95,14 +97,8 @@ DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost
 DB_ENGINE=sqlite
 ```
 
-Se serve SQL Server:
-
-- installa `ODBC Driver 18 for SQL Server`
-- imposta `DB_ENGINE=sqlserver`
-- valorizza `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`
-- usa `DB_TRUST_CERT=1` solo in sviluppo con certificati self-signed
-
-`config.ini.example` contiene chiavi legacy e integrazioni accessorie. Se necessario, copialo in `config.ini` e sostituisci i placeholder con i valori del tuo ambiente.
+`django_app/.env` e il file principale di runtime.
+`config.ini.example` resta utile solo per integrazioni legacy o configurazioni opzionali.
 
 ### 3. Avvia il progetto
 
@@ -111,36 +107,65 @@ python django_app\manage.py migrate
 python django_app\manage.py runserver
 ```
 
-`django_app/manage.py` usa di default `config.settings.dev`.
+Endpoint tipici in locale:
 
-Endpoint locali tipici:
+- `http://127.0.0.1:8000/`
+- `http://127.0.0.1:8000/assets/`
+- `http://127.0.0.1:8000/admin-portale/`
+- `http://127.0.0.1:8000/tickets/`
 
-- `http://127.0.0.1:8000`
-- `http://localhost:8000`
+## Configurazione ambienti
 
-## Produzione
+- `config.settings.dev` usa SQLite di default ed e il profilo caricato da `django_app/manage.py`.
+- `config.settings.prod` usa SQL Server di default, `ALLOWED_HOSTS` vuoto e impostazioni HTTP/HTTPS piu restrittive.
+- Per SQL Server serve `ODBC Driver 18 for SQL Server`.
+- LDAP, Graph e SMTP sono attivabili da variabili ambiente o da `config.ini` dove previsto.
 
-Per usare i settings di produzione:
+Check rapido del profilo produzione:
 
 ```powershell
 $env:DJANGO_SETTINGS_MODULE="config.settings.prod"
 python django_app\manage.py check
 ```
 
-Le impostazioni `prod` usano SQL Server come database di default e abilitano opzioni HTTP/HTTPS piu' restrittive. `ALLOWED_HOSTS` e trusted origins vanno forniti via variabili ambiente.
+## Comandi utili
 
-## File Utili
+```powershell
+python django_app\manage.py test
+python django_app\manage.py process_automation_queue
+python django_app\manage.py show_urls
+```
 
-- `django_app/config/settings/base.py`: configurazione comune
-- `django_app/config/settings/dev.py`: impostazioni sviluppo
-- `django_app/config/settings/prod.py`: impostazioni produzione
-- `django_app/.env.example`: esempio completo delle variabili runtime
-- `.env.example`: template alternativo a livello repository
-- `config.ini.example`: esempio configurazione legacy / integrazioni
+## Struttura repository
 
-## Documentazione
+```text
+repo-root/
+|-- django_app/
+|   |-- manage.py
+|   |-- config/
+|   |-- core/
+|   |-- assets/
+|   |-- automazioni/
+|   `-- ...
+|-- doc/
+|-- sql/
+|-- .github/assets/
+|-- .env.example
+`-- config.ini.example
+```
 
-Per l'indice dei documenti tecnici mantenuti nel repository, vedi `doc/README.md`.
-=======
-# CRM-Brizio
->>>>>>> 1e8d9ff84ffa1a10b5771f6c8e6831fbe862b9f5
+## Documentazione collegata
+
+- [Indice documentazione tecnica](doc/README.md)
+- [Struttura attuale del portale](doc/STRUTTURA_ATTUALE_PORTALE.md)
+- [Guida moduli applicativi](doc/GUIDA_MODULI_PROGRAMMA.html)
+- [Guida automazioni designer](doc/GUIDA_AUTOMAZIONI_DESIGNER.html)
+- [Note del modulo assets](django_app/assets/README.md)
+
+## Nota sul repository pubblico
+
+Questo repository e stato ripulito per una pubblicazione sicura:
+
+- credenziali reali e configurazioni sensibili non sono incluse
+- i file `.example` rappresentano solo template o placeholder
+- la documentazione mantenuta nel repository e limitata a cio che serve per orientarsi nel codice

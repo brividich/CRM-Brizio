@@ -8,6 +8,7 @@ from django.db import transaction
 from django.urls import NoReverseMatch, reverse
 
 from core.legacy_cache import normalize_legacy_path
+from core.module_registry import navigation_code_label_map
 from core.models import NavigationItem, NavigationRoleAccess, NavigationSnapshot
 
 
@@ -100,6 +101,7 @@ def _compiled_items_for_role(*, role_id: int | None, is_admin: bool, section: st
         access_map.setdefault(int(row.item_id), {})[int(row.legacy_role_id)] = bool(row.can_view)
 
     compiled: list[dict] = []
+    label_overrides = navigation_code_label_map(surface="menu")
     for item in items:
         item_access = access_map.get(int(item.id), {})
         # Nessun record accesso -> visibile a tutti
@@ -109,11 +111,12 @@ def _compiled_items_for_role(*, role_id: int | None, is_admin: bool, section: st
         if not allowed:
             continue
         href, coming = _resolve_item_href(item)
+        normalized_code = str(item.code or "").strip().lower()
         compiled.append(
             {
                 "id": int(item.id),
                 "code": item.code,
-                "label": item.label,
+                "label": label_overrides.get(normalized_code, item.label),
                 "href": href,
                 "order": _safe_int(item.order, 100),
                 "coming": coming,

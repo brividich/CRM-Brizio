@@ -1,0 +1,99 @@
+<svg width="1280" height="760" viewBox="0 0 1280 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="40" y1="20" x2="1240" y2="740" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FAFC"/>
+      <stop offset="1" stop-color="#E6EDF7"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="692" y1="196" x2="884" y2="510" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1E3A5F"/>
+      <stop offset="1" stop-color="#2D5282"/>
+    </linearGradient>
+    <filter id="shadow" x="76" y="50" width="1128" height="660" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#0F172A" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="760" rx="28" fill="url(#bg)"/>
+  <circle cx="1120" cy="132" r="94" fill="#DBEAFE"/>
+  <circle cx="164" cy="642" r="118" fill="#FFF4ED"/>
+
+  <g filter="url(#shadow)">
+    <rect x="100" y="74" width="1080" height="612" rx="28" fill="#EEF0F5"/>
+    <rect x="100" y="74" width="1080" height="72" rx="28" fill="#1E3A5F"/>
+    <rect x="100" y="118" width="1080" height="28" fill="#1E3A5F"/>
+
+    <circle cx="138" cy="110" r="6" fill="#FCA5A5"/>
+    <circle cx="158" cy="110" r="6" fill="#FCD34D"/>
+    <circle cx="178" cy="110" r="6" fill="#86EFAC"/>
+
+    <text x="214" y="117" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="12" opacity="0.72">AUTOMAZIONI</text>
+    <text x="214" y="134" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">Designer visuale</text>
+    <text x="934" y="120" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="13" opacity="0.76">trigger, condizioni, azioni, queue</text>
+
+    <rect x="128" y="178" width="232" height="480" rx="24" fill="#FFFFFF"/>
+    <text x="160" y="214" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Catalogo sorgenti</text>
+
+    <rect x="160" y="240" width="168" height="52" rx="16" fill="#EFF6FF"/>
+    <text x="184" y="262" fill="#1D4ED8" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700">SHAREPOINT</text>
+    <text x="184" y="281" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">Richieste assenze</text>
+
+    <rect x="160" y="304" width="168" height="52" rx="16" fill="#F8FAFC" stroke="#DDE1EC"/>
+    <text x="184" y="326" fill="#475569" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700">DATABASE</text>
+    <text x="184" y="345" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">Tabella queue eventi</text>
+
+    <rect x="160" y="368" width="168" height="52" rx="16" fill="#F8FAFC" stroke="#DDE1EC"/>
+    <text x="184" y="390" fill="#475569" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700">MANUALE</text>
+    <text x="184" y="409" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">Test payload rapido</text>
+
+    <rect x="160" y="448" width="168" height="128" rx="18" fill="#F8FAFC" stroke="#DDE1EC"/>
+    <text x="182" y="478" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700">RUNTIME</text>
+    <text x="182" y="506" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="700">3</text>
+    <text x="182" y="528" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="13">regole attive</text>
+    <text x="250" y="506" fill="#EA580C" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="700">18</text>
+    <text x="250" y="528" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="13">eventi in attesa</text>
+
+    <rect x="390" y="178" width="496" height="480" rx="24" fill="#FFFFFF"/>
+    <text x="424" y="214" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Flow builder</text>
+    <text x="424" y="238" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="13">Costruzione visuale di trigger, condizioni e azioni.</text>
+
+    <rect x="426" y="274" width="424" height="104" rx="22" fill="url(#accent)"/>
+    <text x="458" y="308" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" opacity="0.76">TRIGGER</text>
+    <text x="458" y="340" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">Nuovo record assenze in coda</text>
+    <text x="458" y="364" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="14" opacity="0.86">Sorgente: automation_event_queue - evento insert</text>
+
+    <line x1="638" y1="378" x2="638" y2="422" stroke="#F97316" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="638" cy="400" r="9" fill="#F97316"/>
+
+    <rect x="426" y="432" width="200" height="118" rx="20" fill="#FFF4ED" stroke="#FED7AA"/>
+    <text x="450" y="462" fill="#9A3412" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700">CONDIZIONE</text>
+    <text x="450" y="490" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="700">stato = pending</text>
+    <text x="450" y="515" fill="#7C2D12" font-family="Segoe UI, Arial, sans-serif" font-size="13">filtra solo richieste nuove</text>
+
+    <rect x="650" y="432" width="200" height="118" rx="20" fill="#ECFDF5" stroke="#BBF7D0"/>
+    <text x="674" y="462" fill="#166534" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700">AZIONE</text>
+    <text x="674" y="490" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="700">update_dashboard_metric</text>
+    <text x="674" y="515" fill="#166534" font-family="Segoe UI, Arial, sans-serif" font-size="13">incrementa il contatore CAR</text>
+
+    <line x1="626" y1="491" x2="650" y2="491" stroke="#CBD5E1" stroke-width="4" stroke-linecap="round"/>
+
+    <rect x="426" y="572" width="424" height="58" rx="18" fill="#F8FAFC" stroke="#DDE1EC"/>
+    <text x="450" y="607" fill="#475569" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="600">Preview: "Aggiorna metrica dashboard di assenze pending (+1)"</text>
+
+    <rect x="916" y="178" width="232" height="220" rx="24" fill="#FFFFFF"/>
+    <text x="948" y="214" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Queue live</text>
+
+    <rect x="948" y="240" width="168" height="48" rx="16" fill="#FFF7ED"/>
+    <text x="972" y="269" fill="#9A3412" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">Evento #4012 - pending</text>
+
+    <rect x="948" y="298" width="168" height="48" rx="16" fill="#ECFDF5"/>
+    <text x="972" y="327" fill="#166534" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">Evento #4011 - done</text>
+
+    <rect x="916" y="420" width="232" height="238" rx="24" fill="#FFFFFF"/>
+    <text x="948" y="456" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Run log</text>
+    <text x="948" y="494" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">ULTIMA ESECUZIONE</text>
+    <text x="948" y="518" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700">2026-03-12 22:43</text>
+    <text x="948" y="556" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">ESITO</text>
+    <text x="948" y="580" fill="#16A34A" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700">Successo</text>
+    <text x="948" y="618" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="13">Email, update metriche, log e retry centralizzati.</text>
+  </g>
+</svg>

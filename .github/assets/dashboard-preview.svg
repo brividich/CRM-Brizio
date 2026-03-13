@@ -1,0 +1,115 @@
+<svg width="1280" height="760" viewBox="0 0 1280 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="80" y1="60" x2="1200" y2="720" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7FAFC"/>
+      <stop offset="1" stop-color="#E5EBF4"/>
+    </linearGradient>
+    <linearGradient id="hero" x1="876" y1="174" x2="1214" y2="494" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F97316"/>
+      <stop offset="1" stop-color="#EA580C"/>
+    </linearGradient>
+    <filter id="shadow" x="118" y="78" width="1044" height="604" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#0F172A" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="760" rx="28" fill="url(#bg)"/>
+  <circle cx="1120" cy="98" r="104" fill="#FFF4ED"/>
+  <circle cx="184" cy="674" r="120" fill="#E0E7FF"/>
+  <circle cx="1188" cy="676" r="72" fill="#DBEAFE"/>
+
+  <g filter="url(#shadow)">
+    <rect x="140" y="100" width="1000" height="560" rx="28" fill="#EEF0F5"/>
+    <rect x="140" y="100" width="1000" height="72" rx="28" fill="#1E3A5F"/>
+    <rect x="140" y="144" width="1000" height="28" fill="#1E3A5F"/>
+
+    <circle cx="178" cy="136" r="6" fill="#FCA5A5"/>
+    <circle cx="198" cy="136" r="6" fill="#FCD34D"/>
+    <circle cx="218" cy="136" r="6" fill="#86EFAC"/>
+
+    <rect x="246" y="118" width="38" height="38" rx="10" fill="#F97316"/>
+    <text x="265" y="143" text-anchor="middle" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">N</text>
+
+    <text x="300" y="132" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="12" opacity="0.7">PORTALE</text>
+    <text x="300" y="149" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">Novicrom</text>
+
+    <text x="484" y="143" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="14" opacity="0.78">Dashboard</text>
+    <text x="578" y="143" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="14" opacity="0.58">Assets</text>
+    <text x="646" y="143" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="14" opacity="0.58">Automazioni</text>
+    <text x="764" y="143" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="14" opacity="0.58">Admin</text>
+
+    <rect x="972" y="118" width="130" height="38" rx="12" fill="rgba(255,255,255,0.1)"/>
+    <circle cx="996" cy="137" r="14" fill="#F97316"/>
+    <text x="996" y="142" text-anchor="middle" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="700">LB</text>
+    <text x="1018" y="134" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600">Luca Bova</text>
+    <text x="1018" y="148" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="10" opacity="0.66">Operations</text>
+
+    <rect x="172" y="196" width="410" height="122" rx="24" fill="#FFFFFF"/>
+    <text x="204" y="234" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600">OVERVIEW</text>
+    <text x="204" y="270" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700">Portale operativo unico</text>
+    <text x="204" y="297" fill="#475569" font-family="Segoe UI, Arial, sans-serif" font-size="16">Dashboard per ruolo, processi interni, asset, tickets e automazioni.</text>
+
+    <rect x="606" y="196" width="502" height="122" rx="24" fill="url(#hero)"/>
+    <text x="638" y="234" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" opacity="0.82">ALERT LIVE</text>
+    <text x="638" y="274" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="700">11 richieste in attesa di presa in carico</text>
+    <text x="638" y="301" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="16" opacity="0.88">Assenze, approvazioni e work order convergono nella stessa home.</text>
+    <rect x="959" y="236" width="117" height="38" rx="12" fill="white"/>
+    <text x="1017" y="260" text-anchor="middle" fill="#F97316" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">Apri board</text>
+
+    <rect x="172" y="342" width="212" height="104" rx="22" fill="#FFFFFF"/>
+    <rect x="196" y="368" width="48" height="48" rx="14" fill="#EBF4FF"/>
+    <text x="220" y="398" text-anchor="middle" fill="#1D4ED8" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">21</text>
+    <text x="262" y="387" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="700">21</text>
+    <text x="262" y="410" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600">Richieste aperte</text>
+
+    <rect x="398" y="342" width="212" height="104" rx="22" fill="#FFFFFF"/>
+    <rect x="422" y="368" width="48" height="48" rx="14" fill="#ECFDF5"/>
+    <text x="446" y="398" text-anchor="middle" fill="#059669" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">7</text>
+    <text x="488" y="387" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="700">7</text>
+    <text x="488" y="410" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600">Task in corso</text>
+
+    <rect x="624" y="342" width="212" height="104" rx="22" fill="#FFFFFF"/>
+    <rect x="648" y="368" width="48" height="48" rx="14" fill="#FFF7ED"/>
+    <text x="672" y="398" text-anchor="middle" fill="#EA580C" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">4</text>
+    <text x="714" y="387" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="700">4</text>
+    <text x="714" y="410" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600">Alert impianti</text>
+
+    <rect x="850" y="342" width="258" height="104" rx="22" fill="#FFFFFF"/>
+    <text x="882" y="378" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">Versione applicativa</text>
+    <text x="882" y="408" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="14">0.6.40-dev - moduli allineati</text>
+    <rect x="992" y="370" width="84" height="34" rx="12" fill="#1E3A5F"/>
+    <text x="1034" y="392" text-anchor="middle" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">Dettagli</text>
+
+    <rect x="172" y="472" width="614" height="156" rx="24" fill="#FFFFFF"/>
+    <text x="204" y="508" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Moduli disponibili</text>
+
+    <rect x="204" y="530" width="172" height="72" rx="18" fill="#F8FAFC" stroke="#DDE1EC"/>
+    <rect x="224" y="548" width="36" height="36" rx="12" fill="#FFFFFF"/>
+    <text x="242" y="571" text-anchor="middle" fill="#F97316" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">A</text>
+    <text x="274" y="558" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="700">Assenze</text>
+    <text x="274" y="578" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="12">Richieste e calendario</text>
+
+    <rect x="392" y="530" width="172" height="72" rx="18" fill="#F8FAFC" stroke="#DDE1EC"/>
+    <rect x="412" y="548" width="36" height="36" rx="12" fill="#FFFFFF"/>
+    <text x="430" y="571" text-anchor="middle" fill="#F97316" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">M</text>
+    <text x="462" y="558" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="700">Assets</text>
+    <text x="462" y="578" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="12">Inventory e officina</text>
+
+    <rect x="580" y="530" width="172" height="72" rx="18" fill="#FFF4ED" stroke="#FED7AA"/>
+    <rect x="600" y="548" width="36" height="36" rx="12" fill="#FFFFFF"/>
+    <text x="618" y="571" text-anchor="middle" fill="#F97316" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">Z</text>
+    <text x="650" y="558" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="700">Automazioni</text>
+    <text x="650" y="578" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="12">Designer e queue</text>
+
+    <rect x="812" y="472" width="296" height="156" rx="24" fill="#FFFFFF"/>
+    <text x="844" y="508" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Attivita recenti</text>
+
+    <circle cx="850" cy="543" r="5" fill="#F97316"/>
+    <text x="868" y="547" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="600">Ticket #248 chiuso da manutenzione</text>
+    <text x="868" y="566" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="12">5 minuti fa</text>
+
+    <circle cx="850" cy="586" r="5" fill="#22C55E"/>
+    <text x="868" y="590" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="600">Queue automazioni processata con successo</text>
+    <text x="868" y="609" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="12">12 minuti fa</text>
+  </g>
+</svg>

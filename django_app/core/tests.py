@@ -10,6 +10,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.contrib.sessions.middleware import SessionMiddleware
+from django.core.cache import cache
 from django.db import connection
 from django.db.utils import ProgrammingError
 from django.http import HttpResponse
@@ -20,12 +21,16 @@ from django.urls import reverse
 from core.audit import log_action
 from core.csrf_cookie_middleware import EnsureCSRFCookieMiddleware
 from core.impersonation import IMPERSONATION_SESSION_KEY
-from core.legacy_models import UtenteLegacy
+from core.context_processors import legacy_nav
+from core.legacy_models import Pulsante, UtenteLegacy
 from core.logging_handlers import SafeTimedRotatingFileHandler
 from core.middleware import AdaptiveSecureCookieMiddleware
+from core.legacy_cache import bump_legacy_cache_version
 from core.legacy_utils import sync_django_user_from_legacy
 from core.models import AuditLog, Profile
 from core.session_middleware import SessionIdleTimeoutMiddleware
+from core.module_registry import get_module_branding, navigation_code_label_map, resolve_module_label
+from core.navigation_registry import get_topbar_nodes
 from core.views import csrf_failure
 from config.settings.base import default_dev_allowed_hosts
 
@@ -93,6 +98,104 @@ def _clear_legacy_acl_tables() -> None:
     with connection.cursor() as cursor:
         cursor.execute("DELETE FROM utenti")
         cursor.execute("DELETE FROM ruoli")
+
+
+def _ensure_legacy_navigation_tables() -> None:
+    vendor = connection.vendor
+    with connection.cursor() as cursor:
+        if vendor == "sqlite":
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS pulsanti (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    codice VARCHAR(100) NOT NULL,
+                    nome_visibile VARCHAR(200) NULL,
+                    icona VARCHAR(20) NULL,
+                    modulo VARCHAR(100) NOT NULL,
+                    url VARCHAR(500) NOT NULL
+                )
+                """
+            )
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS permessi (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    modulo VARCHAR(100) NOT NULL,
+                    azione VARCHAR(100) NOT NULL,
+                    ruolo_id INTEGER NOT NULL,
+                    consentito INTEGER NULL,
+                    can_view INTEGER NULL,
+                    can_edit INTEGER NULL,
+                    can_delete INTEGER NULL,
+                    can_approve INTEGER NULL
+                )
+                """
+            )
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ui_pulsanti_meta (
+                    pulsante_id INTEGER PRIMARY KEY,
+                    ui_slot VARCHAR(50) NULL,
+                    ui_section VARCHAR(100) NULL,
+                    ui_order INTEGER NULL,
+                    visible_topbar INTEGER NOT NULL DEFAULT 1,
+                    enabled INTEGER NOT NULL DEFAULT 1
+                )
+                """
+            )
+            return
+
+        cursor.execute(
+            """
+            IF OBJECT_ID('pulsanti', 'U') IS NULL
+            CREATE TABLE pulsanti (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                codice NVARCHAR(100) NOT NULL,
+                nome_visibile NVARCHAR(200) NULL,
+                icona NVARCHAR(20) NULL,
+                modulo NVARCHAR(100) NOT NULL,
+                url NVARCHAR(500) NOT NULL
+            )
+            """
+        )
+        cursor.execute(
+            """
+            IF OBJECT_ID('permessi', 'U') IS NULL
+            CREATE TABLE permessi (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                modulo NVARCHAR(100) NOT NULL,
+                azione NVARCHAR(100) NOT NULL,
+                ruolo_id INT NOT NULL,
+                consentito INT NULL,
+                can_view INT NULL,
+                can_edit INT NULL,
+                can_delete INT NULL,
+                can_approve INT NULL
+            )
+            """
+        )
+        cursor.execute(
+            """
+            IF OBJECT_ID('ui_pulsanti_meta', 'U') IS NULL
+            CREATE TABLE ui_pulsanti_meta (
+                pulsante_id INT PRIMARY KEY,
+                ui_slot NVARCHAR(50) NULL,
+                ui_section NVARCHAR(100) NULL,
+                ui_order INT NULL,
+                visible_topbar BIT NOT NULL DEFAULT 1,
+                enabled BIT NOT NULL DEFAULT 1
+            )
+            """
+        )
+
+
+def _clear_legacy_navigation_tables() -> None:
+    with connection.cursor() as cursor:
+        for table_name in ("ui_pulsanti_meta", "permessi", "pulsanti"):
+            try:
+                cursor.execute(f"DELETE FROM {table_name}")
+            except Exception:
+                continue
 
 
 class DashboardRoutingTests(TestCase):
@@ -541,3 +644,165 @@ class SafeTimedRotatingFileHandlerTests(TestCase):
 
             with open(log_path, "r", encoding="utf-8") as stream:
                 self.assertIn("probe", stream.read())
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class ModuleBrandingRegistryTests(TestCase):
+    @override_settings(
+        MODULE_BRANDING={
+            "assets": {
+                "display_label": "Novicrom Assets",
+                "menu_label": "Novicrom Asset Hub",
+            }
+        }
+    )
+    def test_module_branding_merges_defaults_settings_and_siteconfig(self):
+        from core.models import SiteConfig
+
+        SiteConfig.objects.create(
+            chiave="module_branding.assets.menu_label",
+            valore="Novicrom Assets Menu",
+        )
+        SiteConfig.objects.create(
+            chiave="module_branding.assets.dashboard_label",
+            valore="Novicrom Assets Dashboard",
+        )
+
+        branding = get_module_branding("assets")
+
+        self.assertIsNotNone(branding)
+        assert branding is not None
+        self.assertEqual(branding.default_label, "Assets")
+        self.assertEqual(branding.display_label, "Novicrom Assets")
+        self.assertEqual(branding.menu_label, "Novicrom Assets Menu")
+        self.assertEqual(branding.short_label, "Assets")
+        self.assertEqual(branding.dashboard_label, "Novicrom Assets Dashboard")
+
+    @override_settings(
+        MODULE_BRANDING={
+            "assets": {
+                "display_label": "Novicrom Assets",
+            }
+        }
+    )
+    def test_navigation_code_label_map_uses_registered_module_navigation_codes(self):
+        mapping = navigation_code_label_map(surface="menu")
+
+        self.assertEqual(mapping.get("assets"), "Novicrom Assets")
+        self.assertEqual(resolve_module_label("assets", fallback="Asset", surface="dashboard"), "Novicrom Assets")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class NavigationRegistryBrandingTests(TestCase):
+    @override_settings(
+        MODULE_BRANDING={
+            "assets": {
+                "menu_label": "Novicrom Assets",
+            }
+        }
+    )
+    def test_navigation_registry_applies_branding_override_on_topbar_label(self):
+        from core.models import NavigationItem
+
+        NavigationItem.objects.filter(code="assets").delete()
+        NavigationItem.objects.create(
+            code="assets",
+            label="Inventario asset",
+            section="topbar",
+            route_name="dashboard_home",
+            order=35,
+            is_visible=True,
+            is_enabled=True,
+        )
+
+        nodes = get_topbar_nodes(current_path="/dashboard", role_id=None, is_admin=True)
+
+        assets_nodes = [node for node in nodes if node.codice == "assets"]
+
+        self.assertEqual(len(assets_nodes), 1)
+        self.assertEqual(assets_nodes[0].label, "Novicrom Assets")
+
+    @override_settings(
+        MODULE_BRANDING={
+            "assets": {
+                "menu_label": "Novicrom Assets",
+            }
+        }
+    )
+    def test_navigation_registry_branding_keeps_code_and_href_stable(self):
+        from core.models import NavigationItem
+
+        NavigationItem.objects.filter(code="assets").delete()
+        NavigationItem.objects.create(
+            code="assets",
+            label="Inventario asset",
+            section="topbar",
+            route_name="dashboard_home",
+            order=35,
+            is_visible=True,
+            is_enabled=True,
+        )
+
+        nodes = get_topbar_nodes(current_path="/dashboard", role_id=None, is_admin=True)
+        assets_nodes = [node for node in nodes if node.codice == "assets"]
+
+        self.assertEqual(len(assets_nodes), 1)
+        self.assertEqual(assets_nodes[0].codice, "assets")
+        self.assertEqual(assets_nodes[0].href, reverse("dashboard_home"))
+        self.assertEqual(
+            NavigationItem.objects.get(code="assets").route_name,
+            "dashboard_home",
+        )
+
+
+@override_settings(SECURE_SSL_REDIRECT=False)
+class LegacyNavigationBrandingTests(TestCase):
+    def setUp(self):
+        super().setUp()
+        _ensure_legacy_navigation_tables()
+        _clear_legacy_navigation_tables()
+        cache.clear()
+        self.factory = RequestFactory()
+        self.user = get_user_model().objects.create_user(username="legacy-nav-user", password="pass12345")
+        self.legacy_user = UtenteLegacy(
+            id=900,
+            nome="Legacy Admin",
+            email="legacy.admin@example.local",
+            password="x",
+            ruolo="admin",
+            attivo=True,
+            deve_cambiare_password=False,
+            ruolo_id=1,
+        )
+
+    @override_settings(
+        LEGACY_AUTH_ENABLED=True,
+        NAVIGATION_REGISTRY_ENABLED=False,
+        MODULE_BRANDING={
+            "assets": {
+                "menu_label": "Novicrom Assets",
+            }
+        },
+    )
+    def test_legacy_nav_fallback_applies_branding_override(self):
+        Pulsante.objects.create(
+            codice="assets",
+            nome_visibile="Asset Inventory",
+            icona="box",
+            modulo="assets",
+            url="route:assets:asset_list",
+        )
+        bump_legacy_cache_version()
+
+        request = self.factory.get("/dashboard")
+        _attach_session(request)
+        request.user = self.user
+        request.legacy_user = self.legacy_user
+
+        context = legacy_nav(request)
+        assets_items = [item for item in context["nav_items"] if item.codice == "assets"]
+
+        self.assertEqual(len(assets_items), 1)
+        self.assertEqual(assets_items[0].label, "Novicrom Assets")
+        self.assertEqual(assets_items[0].codice, "assets")
+        self.assertEqual(assets_items[0].href, reverse("assets:asset_list"))

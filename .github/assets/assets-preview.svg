@@ -1,0 +1,102 @@
+<svg width="1280" height="760" viewBox="0 0 1280 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="760" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FAFC"/>
+      <stop offset="1" stop-color="#E7EDF6"/>
+    </linearGradient>
+    <filter id="shadow" x="70" y="48" width="1140" height="664" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#0F172A" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="760" rx="28" fill="url(#bg)"/>
+  <circle cx="1060" cy="118" r="96" fill="#FFF4ED"/>
+  <circle cx="150" cy="632" r="110" fill="#DBEAFE"/>
+
+  <g filter="url(#shadow)">
+    <rect x="94" y="72" width="1092" height="616" rx="28" fill="#EEF0F5"/>
+    <rect x="94" y="72" width="1092" height="72" rx="28" fill="#1E3A5F"/>
+    <rect x="94" y="116" width="1092" height="28" fill="#1E3A5F"/>
+
+    <circle cx="132" cy="108" r="6" fill="#FCA5A5"/>
+    <circle cx="152" cy="108" r="6" fill="#FCD34D"/>
+    <circle cx="172" cy="108" r="6" fill="#86EFAC"/>
+
+    <text x="208" y="115" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="12" opacity="0.72">MODULO</text>
+    <text x="208" y="132" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">Assets / Officina</text>
+    <text x="968" y="120" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="13" opacity="0.75">work orders - verifiche - inventory</text>
+
+    <rect x="124" y="176" width="228" height="472" rx="24" fill="#FFFFFF"/>
+    <text x="154" y="212" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Filtri e viste</text>
+
+    <rect x="154" y="234" width="168" height="42" rx="14" fill="#FFF4ED"/>
+    <text x="182" y="260" fill="#EA580C" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">Asset attivi</text>
+
+    <rect x="154" y="286" width="168" height="42" rx="14" fill="#F8FAFC"/>
+    <text x="182" y="312" fill="#475569" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="600">Macchine di lavoro</text>
+
+    <rect x="154" y="338" width="168" height="42" rx="14" fill="#F8FAFC"/>
+    <text x="182" y="364" fill="#475569" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="600">Verifiche periodiche</text>
+
+    <rect x="154" y="404" width="168" height="104" rx="18" fill="#F8FAFC" stroke="#DDE1EC"/>
+    <text x="174" y="434" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700">KPI</text>
+    <text x="174" y="462" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="700">184</text>
+    <text x="174" y="484" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="13">asset censiti</text>
+    <text x="260" y="462" fill="#059669" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="700">12</text>
+    <text x="260" y="484" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="13">in scadenza</text>
+
+    <rect x="382" y="176" width="470" height="472" rx="24" fill="#FFFFFF"/>
+    <text x="414" y="212" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Inventory board</text>
+
+    <rect x="414" y="236" width="406" height="46" rx="14" fill="#F8FAFC" stroke="#DDE1EC"/>
+    <text x="438" y="264" fill="#94A3B8" font-family="Segoe UI, Arial, sans-serif" font-size="14">Cerca per tag, nome, reparto o matricola...</text>
+
+    <rect x="414" y="304" width="406" height="52" rx="14" fill="#1E293B"/>
+    <text x="440" y="336" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">TAG</text>
+    <text x="524" y="336" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">ASSET</text>
+    <text x="678" y="336" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">REPARTO</text>
+    <text x="764" y="336" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">STATO</text>
+
+    <rect x="414" y="364" width="406" height="58" rx="14" fill="#FFF4ED"/>
+    <text x="440" y="398" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">AST-0031</text>
+    <text x="524" y="398" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="14">Centro di lavoro Mazak</text>
+    <text x="678" y="398" fill="#475569" font-family="Segoe UI, Arial, sans-serif" font-size="14">Officina</text>
+    <rect x="748" y="380" width="56" height="26" rx="13" fill="#16A34A"/>
+    <text x="776" y="397" text-anchor="middle" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="700">OK</text>
+
+    <rect x="414" y="432" width="406" height="58" rx="14" fill="#F8FAFC" stroke="#DDE1EC"/>
+    <text x="440" y="466" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">AST-0084</text>
+    <text x="524" y="466" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="14">Compressore Atlas Copco</text>
+    <text x="678" y="466" fill="#475569" font-family="Segoe UI, Arial, sans-serif" font-size="14">Servizi</text>
+    <rect x="736" y="448" width="68" height="26" rx="13" fill="#EA580C"/>
+    <text x="770" y="465" text-anchor="middle" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="700">CHECK</text>
+
+    <rect x="414" y="500" width="406" height="58" rx="14" fill="#F8FAFC" stroke="#DDE1EC"/>
+    <text x="440" y="534" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">AST-0107</text>
+    <text x="524" y="534" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="14">Postazione collaudo CNC</text>
+    <text x="678" y="534" fill="#475569" font-family="Segoe UI, Arial, sans-serif" font-size="14">Qualita</text>
+    <rect x="734" y="516" width="70" height="26" rx="13" fill="#1D4ED8"/>
+    <text x="769" y="533" text-anchor="middle" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="700">ALLOCATO</text>
+
+    <rect x="882" y="176" width="274" height="226" rx="24" fill="#FFFFFF"/>
+    <text x="914" y="212" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Scheda macchina</text>
+    <text x="914" y="248" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">MODELLO</text>
+    <text x="914" y="271" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="700">Mazak Quick Turn 250</text>
+    <text x="914" y="307" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">PROSSIMA MANUTENZIONE</text>
+    <text x="914" y="330" fill="#EA580C" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="700">18 marzo 2026</text>
+    <text x="914" y="366" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">DOCUMENTI</text>
+    <text x="914" y="389" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="14">Manuale, scheda tecnica, storico interventi</text>
+
+    <rect x="882" y="422" width="274" height="226" rx="24" fill="#FFFFFF"/>
+    <text x="914" y="458" fill="#0F172A" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Work order</text>
+
+    <rect x="914" y="482" width="210" height="42" rx="14" fill="#FFF7ED"/>
+    <text x="934" y="508" fill="#9A3412" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">Lubrificazione mandrino</text>
+
+    <rect x="914" y="534" width="210" height="42" rx="14" fill="#ECFDF5"/>
+    <text x="934" y="560" fill="#166534" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">Verifica sicurezza completata</text>
+
+    <rect x="914" y="586" width="210" height="42" rx="14" fill="#EFF6FF"/>
+    <text x="934" y="612" fill="#1D4ED8" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">Aggiorna report PDF e QR</text>
+  </g>
+</svg>

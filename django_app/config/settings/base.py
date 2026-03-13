@@ -137,6 +137,19 @@ MODULE_VERSIONS = build_module_versions(APP_VERSION)
 LEGACY_AUTH_ENABLED = env_bool("LEGACY_AUTH_ENABLED", True)
 NAVIGATION_REGISTRY_ENABLED = env_bool("NAVIGATION_REGISTRY_ENABLED", True)
 NAVIGATION_LEGACY_FALLBACK_ENABLED = env_bool("NAVIGATION_LEGACY_FALLBACK_ENABLED", True)
+# Layer di presentazione per il branding moduli.
+# Precedenza runtime:
+# 1. SiteConfig: module_branding.<module_key>.<field>
+# 2. settings.MODULE_BRANDING
+# 3. default dichiarati nel module registry
+# Esempio:
+# MODULE_BRANDING = {
+#     "assets": {
+#         "display_label": "Novicrom Assets",
+#         "menu_label": "Novicrom Assets",
+#     }
+# }
+MODULE_BRANDING = {}
 LDAP_ENABLED = env_bool("LDAP_ENABLED", ini_bool("ACTIVE_DIRECTORY", "enabled", False))
 LDAP_SERVER = env("LDAP_SERVER", ini_get("ACTIVE_DIRECTORY", "server", ""))
 LDAP_DOMAIN = env("LDAP_DOMAIN", ini_get("ACTIVE_DIRECTORY", "domain", ""))

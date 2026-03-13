@@ -17,6 +17,7 @@ from core.legacy_cache import (
     get_cached_ui_meta_map,
     normalize_legacy_path,
 )
+from core.module_registry import resolve_module_label
 from core.navigation_registry import get_subnav_nodes, get_topbar_nodes
 from core.versioning import get_changelog_entries, get_current_release, get_module_versions
 
@@ -370,9 +371,13 @@ def legacy_nav(request):
             href_path = _normalize_path(urlsplit(href).path or "/")
             active = bool(current_variants.intersection({href_path, legacy_url}))
             ui_order_hint = meta.get("ui_order") if isinstance(meta, dict) else None
+            modulo_key = str(puls.get("modulo") or "").strip().lower()
+            label_value = str(puls.get("label", "N/D") or "N/D")
+            if modulo_key:
+                label_value = resolve_module_label(modulo_key, fallback=label_value, surface="menu")
             items.append(
                 NavItem(
-                    label=puls.get("label", "N/D"),
+                    label=label_value,
                     legacy_url=legacy_url,
                     href=href,
                     active=active,
