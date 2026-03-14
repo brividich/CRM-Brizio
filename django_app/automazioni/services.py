@@ -305,6 +305,7 @@ WITH picked AS (
     SELECT TOP ({batch_limit}) id
     FROM dbo.automation_event_queue WITH (READPAST, UPDLOCK, ROWLOCK)
     WHERE status = %s
+    AND (execute_after IS NULL OR execute_after <= GETUTCDATE())
     {source_filter_sql}
     ORDER BY id ASC
 )
@@ -361,6 +362,7 @@ SELECT TOP ({batch_limit})
     processed_at
 FROM dbo.automation_event_queue
 WHERE status = %s
+AND (execute_after IS NULL OR execute_after <= GETUTCDATE())
 {source_filter_sql}
 ORDER BY id ASC;
 """
@@ -1035,6 +1037,7 @@ def process_queue_event(queue_event: dict[str, Any]) -> dict[str, Any]:
                 queue_event_id=queue_id,
                 initiated_by=None,
                 is_test=False,
+                queue_event=queue_event,
             )
         except Exception as exc:
             logger.exception("Errore run_rule per queue event %s e regola %s", queue_id, rule.code)
@@ -1163,11 +1166,44 @@ def process_pending_queue_events(
     return summary
 
 
+def _schedule_queue_event(
+    source_code: str,
+    source_table: str,
+    source_pk: str | None,
+    operation_type: str,
+    event_code: str | None,
+    payload_json: str,
+    execute_after,
+) -> None:
+    """Inserisce un nuovo evento in coda con una data di esecuzione futura."""
+    from django.db import connections
+    vendor = str(connections["default"].vendor or "").lower()
+    execute_after_str = execute_after.strftime("%Y-%m-%d %H:%M:%S")
+    if "microsoft" in vendor or "mssql" in vendor:
+        sql = """
+            INSERT INTO dbo.automation_event_queue
+                (source_code, source_table, source_pk, operation_type, event_code,
+                 payload_json, old_payload_json, status, retry_count, created_at, execute_after)
+            VALUES (?, ?, ?, ?, ?, ?, NULL, 'pending', 0, SYSUTCDATETIME(), ?)
+        """
+    else:
+        sql = """
+            INSERT INTO automation_event_queue
+                (source_code, source_table, source_pk, operation_type, event_code,
+                 payload_json, old_payload_json, status, retry_count, created_at, execute_after)
+            VALUES (?, ?, ?, ?, ?, ?, NULL, 'pending', 0, datetime('now'), ?)
+        """
+    with connections["default"].cursor() as cursor:
+        cursor.execute(sql, [source_code, source_table, source_pk, operation_type,
+                             event_code, payload_json, execute_after_str])
+
+
 def execute_action(
     action: AutomationAction,
     payload: Any,
     old_payload: Any = None,
     run_log: AutomationRunLog | None = None,
+    queue_event: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     config = action.config_json if isinstance(action.config_json, dict) else {}
     payload_context = payload if isinstance(payload, dict) else {}
@@ -1326,6 +1362,32 @@ def execute_action(
             )
             return {"status": AutomationActionLogStatus.SUCCESS, "result_message": result_message, "action_log": action_log}
 
+        if action.action_type == AutomationActionType.DELAY_SCHEDULE:
+            giorni = int((action.config_json or {}).get("giorni", 1))
+            from django.utils import timezone as tz
+            import datetime
+            execute_after = tz.now() + datetime.timedelta(days=giorni)
+            event = queue_event or {}
+            import json as _json
+            payload_json_str = event.get("payload_json") or _json.dumps(payload if isinstance(payload, dict) else {})
+            _schedule_queue_event(
+                source_code=event.get("source_code", ""),
+                source_table=event.get("source_table", ""),
+                source_pk=event.get("source_pk"),
+                operation_type=event.get("operation_type", ""),
+                event_code=event.get("event_code"),
+                payload_json=payload_json_str,
+                execute_after=execute_after,
+            )
+            result_msg = f"Evento schedulato tra {giorni} giorno/i ({execute_after.isoformat()})"
+            action_log = _create_action_log(
+                run_log=run_log,
+                action=action,
+                status=AutomationActionLogStatus.SUCCESS,
+                result_message=result_msg,
+            )
+            return {"status": AutomationActionLogStatus.SUCCESS, "result_message": result_msg, "action_log": action_log}
+
         raise NotImplementedError(f"Action type '{action.action_type}' non ancora implementato in fase 4B.")
     except Exception as exc:
         error_trace = traceback.format_exc()
@@ -1347,6 +1409,7 @@ def run_rule(
     queue_event_id: int | None = None,
     initiated_by: Any = None,
     is_test: bool = False,
+    queue_event: dict[str, Any] | None = None,
 ) -> AutomationRunLog:
     started_at = timezone.now()
     payload = _enrich_payload_for_source(rule.source_code, payload)
@@ -1381,7 +1444,7 @@ def run_rule(
             enabled_actions = rule.actions.filter(is_enabled=True).order_by("order", "id")
             for action in enabled_actions:
                 action_count += 1
-                result = execute_action(action, payload, old_payload=old_payload, run_log=run_log)
+                result = execute_action(action, payload, old_payload=old_payload, run_log=run_log, queue_event=queue_event)
                 if result["status"] == AutomationActionLogStatus.ERROR:
                     action_errors += 1
                     if rule.stop_on_first_failure:

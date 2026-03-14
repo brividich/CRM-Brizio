@@ -56,6 +56,7 @@ class AutomationActionType(models.TextChoices):
     UPDATE_RECORD = "update_record", "Update record"
     UPDATE_DASHBOARD_METRIC = "update_dashboard_metric", "Update dashboard metric"
     WRITE_LOG = "write_log", "Write log"
+    DELAY_SCHEDULE = "delay_schedule", "Delay / Schedule (giorni)"
 
 
 class AutomationRunLogStatus(models.TextChoices):
