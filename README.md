@@ -1,24 +1,15 @@
 
 <h1 align="center">BoluHUB</h1>
 
-<p align="center">
-  Piattaforma Django modulare per dashboard operative, workflow interni, asset management,
-  automazioni e strumenti amministrativi.
-</p>
+![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
+![Django 5.2](https://img.shields.io/badge/Django-5.2-0C4B33?logo=django&logoColor=white)
+![Version 0.7.0](https://img.shields.io/badge/version-0.7.0-F97316)
+![Database SQLite or SQL Server](https://img.shields.io/badge/DB-SQLite%20%7C%20SQL%20Server-1E3A5F)
 
-<p align="center">
-  <img alt="Python 3.12+" src="https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white">
-  <img alt="Django 5.2" src="https://img.shields.io/badge/Django-5.2-0C4B33?logo=django&logoColor=white">
-  <img alt="Version 0.6.40-dev" src="https://img.shields.io/badge/version-0.6.40--dev-F97316">
-  <img alt="Database SQLite or SQL Server" src="https://img.shields.io/badge/DB-SQLite%20%7C%20SQL%20Server-1E3A5F">
-</p>
+Repository pubblico del software **BrizioHUB**. Il nome istanza è configurabile per deployment
+(es. "Portale Novicrom") tramite il wizard di configurazione al primo avvio.
 
-<p align="center">
-  Repository pubblico preparato per GitHub: configurazioni sensibili rimosse, placeholder sicuri,
-  struttura applicativa e moduli principali mantenuti.
-</p>
-
-![Preview dashboard del Portale Novicrom](.github/assets/dashboard-preview.svg)
+![Preview dashboard BrizioHUB](.github/assets/dashboard-preview.svg)
 
 ## Panoramica
 

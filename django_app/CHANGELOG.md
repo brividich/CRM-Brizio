@@ -1,5 +1,22 @@
-﻿
-## 0.6.40-dev - 2026-03-12
+﻿# Changelog
+
+## 0.7.0 — 2026-03-13
+
+### Setup Wizard & Rebrand BrizioHUB
+
+- **[feature] Setup Wizard integrato in Django** (`setup_wizard/`): al primo avvio il portale reindirizza automaticamente a `/setup/`, un wizard guidato a 9 step che configura l'intero ambiente di produzione senza toccare file a mano.
+- **[feature] Branding &amp; Identità** (Step 1): il wizard permette di scegliere il nome istanza (es. "Portale Novicrom"), caricare il logo aziendale e il favicon. Logo e favicon vengono salvati in `core/static/core/img/` e referenziati via `BRANDING_LOGO` / `BRANDING_FAVICON` nel `.env`.
+- **[feature] Configurazione SQL Server in-browser** (Step 4): il wizard include un tool live per testare la connessione al database SQL Server tramite l'API `/setup/api/test-db/` (usa pyodbc direttamente, risponde in tempo reale con la versione del server).
+- **[feature] Test live connessioni** (Steps 4/5/7): pulsanti "Testa connessione" per SQL Server (pyodbc), LDAP/AD (ldap3 + fallback porta TCP) e SMTP (smtplib + STARTTLS).
+- **[feature] Salvataggio configurazione server-side**: al termine del wizard, `/setup/api/save/` scrive `django_app/.env` e `config.ini` sul server e imposta `SETUP_COMPLETED=1`. Il middleware non reindirizzerà più al wizard.
+- **[feature] `SetupRequiredMiddleware`**: middleware file-based (legge `.env` direttamente, senza DB) che intercetta ogni richiesta e reindirizza a `/setup/` finché `SETUP_COMPLETED≠1`.
+- **[rebrand] BrizioHUB**: nome del software su GitHub cambiato in **BrizioHUB**. Il nome istanza è ora configurabile per-deployment tramite `INSTANCE_NAME` in `.env` (default `BrizioHUB`, override suggerito al primo avvio del wizard). Aggiornati: header wizard, `INSTALLED_APPS`, log dir (`briziohub_logs`), `.env.example`.
+- **[infra] `INSTANCE_NAME`, `BRANDING_LOGO`, `BRANDING_FAVICON`** aggiunti a `base.py` settings e `.env.example`.
+- **[infra] `/setup/`** aggiunto a `MIDDLEWARE_EXEMPT_PREFIXES` (ACL e session middleware non intercettano il wizard).
+- **[tool] `tools/setup-wizard.html`**: wizard standalone HTML (zero dipendenze) per generare `.env` / `config.ini` offline; mantenuto come tool di supporto alternativo.
+- **[versioning]** Bump versione `0.6.40-dev` → `0.7.0`.
+
+## 0.6.40-dev — 2026-03-12
 
 - **[fix] Automazioni Assenze -> `capo_email` nel payload runtime**: il designer ora espone il placeholder `{capo_email}` tra i campi suggeriti della sorgente `assenze`, il preset "Avviso al responsabile" lo usa direttamente nel destinatario email e il worker automazioni arricchisce payload e old payload risolvendo l'email dal caporeparto selezionato. Aggiornati anche i trigger SQL della queue `assenze` per serializzare `capo_email` nei nuovi eventi.
 - **[feature] Anagrafica centrale dipendenti**: la pagina `anagrafica/dipendenti/` non e' piu' solo in lettura. Ora consente l'inserimento diretto di dipendenti con stato `attivo` / `non attivo`, mantenendo i dipendenti non attivi senza account operativo ma sempre presenti nell'anagrafica centrale.

@@ -5,6 +5,7 @@ from .base import build_database_from_env, default_dev_allowed_hosts, env_bool, 
 DEBUG = env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", default_dev_allowed_hosts())
 DATABASES = {"default": build_database_from_env("sqlite")}
+SETUP_WIZARD_REQUIRED = env_bool("SETUP_WIZARD_REQUIRED", False)
 
 # Mai redirigere a HTTPS in sviluppo locale — evita che i browser cachino una 301
 # verso HTTPS rendendo impossibile ricevere il cookie CSRF su HTTP.

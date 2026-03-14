@@ -1,0 +1,148 @@
+{% extends "core/base.html" %}
+
+{% block title %}RENTRI | Registro Rifiuti{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Layout ── */
+.rn-wrap { display:flex; flex-direction:column; gap:24px; align-items:center; }
+
+/* ── Logo/header ── */
+.rn-header {
+  text-align:center;
+  padding:32px 20px 10px;
+}
+.rn-logo-title {
+  font-size:42px; font-weight:900; letter-spacing:-.04em; color:#1e3a5f;
+  text-transform:uppercase;
+}
+.rn-logo-sub {
+  font-size:13px; color:#64748b; margin-top:6px;
+  font-weight:500;
+}
+
+/* ── Button grid ── */
+.rn-grid {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:20px;
+  width:100%;
+  max-width:640px;
+}
+.rn-btn {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  height:120px;
+  border-radius:16px;
+  text-decoration:none;
+  font-weight:800;
+  font-size:15px;
+  font-family:inherit;
+  border:none;
+  cursor:pointer;
+  transition:background .15s, transform .1s, box-shadow .15s;
+  box-shadow:0 4px 14px rgba(0,0,0,.12);
+  padding:0 16px;
+  text-align:center;
+  line-height:1.3;
+}
+.rn-btn:hover {
+  transform:translateY(-2px);
+  box-shadow:0 8px 20px rgba(0,0,0,.18);
+}
+.rn-btn:active {
+  transform:translateY(0);
+}
+.rn-btn-icon {
+  font-size:28px;
+  line-height:1;
+}
+.rn-btn-label {
+  font-size:14px;
+  font-weight:800;
+}
+.rn-btn-sub {
+  font-size:11px;
+  font-weight:500;
+  opacity:.8;
+}
+
+/* Colori per tipo */
+.rn-btn-c  { background:#2296D0; color:#fff; }
+.rn-btn-c:hover  { background:#218ABF; }
+.rn-btn-o  { background:#E8996C; color:#fff; }
+.rn-btn-o:hover  { background:#D18B62; }
+.rn-btn-m  { background:#86BA31; color:#fff; }
+.rn-btn-m:hover  { background:#719E29; }
+.rn-btn-r  { background:#FFD251; color:#333; }
+.rn-btn-r:hover  { background:#E3BA49; }
+
+/* ── Footer link ── */
+.rn-footer-links {
+  display:flex; gap:16px; justify-content:center; flex-wrap:wrap;
+  margin-top:8px;
+}
+.rn-footer-link {
+  font-size:12px; font-weight:700; color:#1d4ed8; text-decoration:none;
+  padding:6px 14px; border-radius:8px; background:#eff6ff;
+}
+.rn-footer-link:hover { background:#dbeafe; }
+
+@media(max-width:520px) {
+  .rn-grid { grid-template-columns:1fr; }
+}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "rentri/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="rn-wrap">
+
+  <div class="rn-header">
+    <div class="rn-logo-title">RENTRI</div>
+    <div class="rn-logo-sub">Registro Elettronico Nazionale Tracciabilità Rifiuti</div>
+  </div>
+
+  <div class="rn-grid">
+
+    <!-- C - Carico -->
+    <a class="rn-btn rn-btn-c" href="{% url 'rentri_carico' %}">
+      <span class="rn-btn-icon">&#8679;</span>
+      <span class="rn-btn-label">C - Carico</span>
+      <span class="rn-btn-sub">Registra un carico</span>
+    </a>
+
+    <!-- O - Scarico originario -->
+    <a class="rn-btn rn-btn-o" href="{% url 'rentri_scarico_originale' %}">
+      <span class="rn-btn-icon">&#8681;</span>
+      <span class="rn-btn-label">O - Scarico originario</span>
+      <span class="rn-btn-sub">Scarico originale</span>
+    </a>
+
+    <!-- M - Scarico effettivo -->
+    <a class="rn-btn rn-btn-m" href="{% url 'rentri_scarico_effettivo' %}">
+      <span class="rn-btn-icon">&#8681;</span>
+      <span class="rn-btn-label">M - Scarico effettivo</span>
+      <span class="rn-btn-sub">Con FIR / rettifica</span>
+    </a>
+
+    <!-- R - Rettifica scarico -->
+    <a class="rn-btn rn-btn-r" href="{% url 'rentri_rettifica_scarico' %}">
+      <span class="rn-btn-icon">&#8634;</span>
+      <span class="rn-btn-label">R - Rettifica scarico</span>
+      <span class="rn-btn-sub">Rettifica una registrazione</span>
+    </a>
+
+  </div>
+
+  <div class="rn-footer-links">
+    <a class="rn-footer-link" href="{% url 'rentri_elenco' %}">Elenco registrazioni</a>
+    <a class="rn-footer-link" href="{% url 'dashboard_home' %}">&#8592; Dashboard</a>
+  </div>
+
+</div>
+{% endblock %}

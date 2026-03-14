@@ -1,0 +1,120 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Hub Tools — Moduli{% endblock %}
+
+{% block content %}
+<style>
+.hub-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+.hub-title{font-size:1.4rem;font-weight:800;display:flex;align-items:center;gap:10px}
+.hub-subtitle{font-size:.84rem;color:#64748b;margin-top:2px}
+.module-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.module-card{background:#fff;border:1.5px solid #d1d9e6;border-radius:10px;padding:18px;transition:border-color .2s,box-shadow .2s}
+.module-card.active{border-color:#1a6fc4}
+.module-card.core{border-color:#22a860;background:#f0fdf4}
+.module-card:hover:not(.core){box-shadow:0 4px 16px rgba(0,0,0,.08)}
+.module-top{display:flex;align-items:flex-start;gap:12px;margin-bottom:10px}
+.module-icon{font-size:2rem;line-height:1}
+.module-name{font-weight:700;font-size:.95rem;margin-bottom:2px}
+.module-desc{font-size:.78rem;color:#64748b;line-height:1.4}
+.module-footer{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:10px;border-top:1px solid #e2e8f0}
+.core-badge{font-size:.72rem;font-weight:700;color:#22a860;background:#dcfce7;padding:3px 10px;border-radius:20px}
+.toggle-switch{position:relative;display:inline-block;width:44px;height:24px}
+.toggle-switch input{opacity:0;width:0;height:0}
+.slider{position:absolute;inset:0;background:#cbd5e1;border-radius:24px;cursor:pointer;transition:.3s}
+.slider:before{content:'';position:absolute;width:18px;height:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s}
+input:checked+.slider{background:#1a6fc4}
+input:checked+.slider:before{transform:translateX(20px)}
+.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px}
+.dot-on{background:#22a860} .dot-off{background:#94a3b8}
+.alert-info{background:#eff6ff;border-left:3px solid #1a6fc4;padding:10px 14px;border-radius:7px;font-size:.83rem;margin-bottom:20px}
+</style>
+
+<div style="max-width:1100px;margin:0 auto;padding:24px 20px">
+
+  <div class="hub-header">
+    <div>
+      <div class="hub-title">🧩 Gestione Moduli</div>
+      <div class="hub-subtitle">Attiva o disattiva i moduli visibili nell'interfaccia. Le tabelle rimangono sempre presenti nel database.</div>
+    </div>
+    <a href="{% url 'admin_portale:dashboard' %}" style="font-size:.84rem;color:#64748b;text-decoration:none">← Torna all'admin</a>
+  </div>
+
+  <div class="alert-info">
+    Le modifiche sono immediate — nessun riavvio del server necessario. I moduli disattivati non appaiono nella navigazione ma i dati rimangono integri.
+  </div>
+
+  <div class="module-grid" id="moduleGrid">
+    {% for m in modules %}
+    <div class="module-card {% if m.core %}core{% elif m.enabled %}active{% endif %}" id="card_{{ m.key }}">
+      <div class="module-top">
+        <div class="module-icon">{{ m.icon }}</div>
+        <div style="flex:1">
+          <div class="module-name">{{ m.name }}</div>
+          <div class="module-desc">{{ m.desc }}</div>
+        </div>
+      </div>
+      <div class="module-footer">
+        {% if m.core %}
+          <span class="core-badge">✓ Core — sempre attivo</span>
+        {% else %}
+          <div style="display:flex;align-items:center;gap:6px;font-size:.82rem">
+            <span class="status-dot {% if m.enabled %}dot-on{% else %}dot-off{% endif %}" id="dot_{{ m.key }}"></span>
+            <span id="lbl_{{ m.key }}" style="color:{% if m.enabled %}#22a860{% else %}#94a3b8{% endif };font-weight:600">
+              {% if m.enabled %}Attivo{% else %}Disattivato{% endif %}
+            </span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="tog_{{ m.key }}" {% if m.enabled %}checked{% endif %}
+              onchange="toggleModule('{{ m.key }}', this.checked)">
+            <span class="slider"></span>
+          </label>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div id="toastMsg" style="position:fixed;bottom:24px;right:24px;background:#1e2333;color:#fff;padding:12px 20px;border-radius:8px;font-size:.85rem;display:none;box-shadow:0 4px 16px rgba(0,0,0,.2)"></div>
+</div>
+
+<script>
+const CSRF = '{{ csrf_token }}';
+
+async function toggleModule(key, enabled) {
+  const card = document.getElementById('card_' + key);
+  const dot  = document.getElementById('dot_' + key);
+  const lbl  = document.getElementById('lbl_' + key);
+  try {
+    const r = await fetch('{% url "hub_tools:hub_moduli_toggle" %}', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+      body: JSON.stringify({key, enabled}),
+    });
+    const data = await r.json();
+    if (data.ok) {
+      card.classList.toggle('active', enabled);
+      dot.className = 'status-dot ' + (enabled ? 'dot-on' : 'dot-off');
+      lbl.textContent = enabled ? 'Attivo' : 'Disattivato';
+      lbl.style.color = enabled ? '#22a860' : '#94a3b8';
+      showToast(enabled ? `✓ ${key} attivato` : `✗ ${key} disattivato`);
+    } else {
+      showToast('Errore: ' + data.error, true);
+      // Ripristina toggle
+      document.getElementById('tog_' + key).checked = !enabled;
+    }
+  } catch(e) {
+    showToast('Errore di rete', true);
+    document.getElementById('tog_' + key).checked = !enabled;
+  }
+}
+
+function showToast(msg, error) {
+  const el = document.getElementById('toastMsg');
+  el.textContent = msg;
+  el.style.background = error ? '#7f1d1d' : '#1e2333';
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 3000);
+}
+</script>
+{% endblock %}

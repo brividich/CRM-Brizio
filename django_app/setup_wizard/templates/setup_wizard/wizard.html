@@ -1,0 +1,1130 @@
+{% load static %}<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BrizioHUB — Setup Wizard</title>
+<style>
+:root {
+  --primary: #1a6fc4; --primary-dark: #135099; --primary-light: #e8f0fb;
+  --success: #22a860; --warning: #f59e0b; --danger: #dc2626;
+  --bg: #f0f4f9; --card: #fff; --border: #d1d9e6; --text: #1e2333;
+  --muted: #64748b; --step-done: #22a860; --step-inactive: #c8d3e0;
+  --radius: 10px; --shadow: 0 2px 10px rgba(0,0,0,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* Header */
+.hdr{background:linear-gradient(135deg,#1a3a6b 0%,#1a6fc4 100%);color:#fff;padding:0 32px;height:64px;display:flex;align-items:center;gap:16px;box-shadow:0 2px 12px rgba(0,0,0,.2)}
+.hdr-logo{font-size:1.4rem;font-weight:800;letter-spacing:-.5px}
+.hdr-sep{width:1px;height:28px;background:rgba(255,255,255,.25)}
+.hdr-sub{font-size:.82rem;opacity:.75}
+.hdr-badge{margin-left:auto;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);border-radius:20px;padding:3px 12px;font-size:.75rem;font-weight:600}
+
+/* Layout */
+.layout{display:flex;max-width:1060px;margin:28px auto 60px;gap:24px;padding:0 18px}
+
+/* Sidebar */
+.sidebar{width:220px;flex-shrink:0}
+.step-list{list-style:none;position:sticky;top:20px}
+.step-list li{display:flex;align-items:flex-start;gap:11px;padding:9px 12px;border-radius:8px;margin-bottom:3px;transition:background .15s}
+.step-list li.active{background:var(--primary-light)}
+.step-num{width:24px;height:24px;border-radius:50%;background:var(--step-inactive);color:#fff;font-size:.7rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;transition:background .2s}
+.step-list li.active .step-num{background:var(--primary)}
+.step-list li.done .step-num{background:var(--step-done)}
+.step-label{font-size:.82rem;line-height:1.35}
+.step-list li.active .step-label{font-weight:700;color:var(--primary)}
+.step-list li.done .step-label{color:var(--step-done)}
+.progress-wrap{height:4px;background:#e0e8f0;border-radius:2px;margin-top:14px;overflow:hidden}
+.progress-bar{height:100%;background:var(--primary);border-radius:2px;transition:width .35s}
+
+/* Main */
+.main{flex:1;min-width:0}
+.card{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);padding:30px;box-shadow:var(--shadow)}
+.card-title{font-size:1.18rem;font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:10px}
+.card-title .step-icon{font-size:1.4rem}
+.card-desc{font-size:.84rem;color:var(--muted);margin-bottom:22px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+
+/* Fields */
+.fg{margin-bottom:18px}
+.fg label{display:block;font-size:.82rem;font-weight:600;margin-bottom:4px;color:var(--text)}
+.fg .hint{font-size:.76rem;color:var(--muted);margin-bottom:5px}
+.fg input[type=text],.fg input[type=password],.fg input[type=number],.fg input[type=email],.fg select,.fg textarea{
+  width:100%;padding:8px 11px;border:1.5px solid var(--border);border-radius:7px;font-size:.88rem;font-family:inherit;background:#fdfdff;transition:border-color .15s,box-shadow .15s
+}
+.fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(26,111,196,.12)}
+.fg textarea{font-family:'Courier New',monospace;resize:vertical}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:15px}
+.fr3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:15px}
+.req{color:var(--danger);margin-left:2px}
+.input-row{display:flex;gap:8px}
+.input-row input{flex:1}
+
+/* Toggle */
+.tog-row{display:flex;align-items:center;gap:9px;margin-bottom:13px;padding:8px 10px;border-radius:7px;background:#f8fafc;border:1px solid var(--border)}
+.tog-row label{font-size:.85rem;font-weight:600;margin:0;cursor:pointer;flex:1}
+.tog-row .tog-hint{font-size:.76rem;color:var(--muted);margin-left:auto}
+input[type=checkbox]{width:17px;height:17px;cursor:pointer;accent-color:var(--primary);flex-shrink:0}
+
+/* Buttons */
+.btn{padding:9px 22px;border:none;border-radius:7px;font-size:.88rem;font-weight:600;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:7px}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-dark);transform:translateY(-1px)}
+.btn-secondary{background:#e9ecef;color:var(--text)}
+.btn-secondary:hover{background:#d5d9df}
+.btn-success{background:var(--success);color:#fff;font-size:.95rem;padding:11px 28px}
+.btn-success:hover{background:#1a9050;transform:translateY(-1px)}
+.btn-sm{padding:6px 13px;font-size:.78rem;font-weight:600;border:none;border-radius:5px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.btn-gen{background:#eef2fa;color:var(--primary)}
+.btn-gen:hover{background:#dce7f7}
+.btn-test{background:#f0faf5;color:var(--success);border:1px solid #b8e6cf}
+.btn-test:hover{background:#d8f3e5}
+.btn-test.loading{opacity:.7;pointer-events:none}
+
+/* Nav */
+.nav-btns{display:flex;justify-content:space-between;margin-top:28px;padding-top:18px;border-top:1px solid var(--border)}
+
+/* Alerts */
+.alert{padding:10px 14px;border-radius:7px;font-size:.82rem;margin-bottom:16px;line-height:1.5}
+.alert-info{background:#eff6ff;border-left:3px solid var(--primary)}
+.alert-warn{background:#fffbeb;border-left:3px solid var(--warning)}
+.alert-danger{background:#fef2f2;border-left:3px solid var(--danger)}
+.alert-success{background:#f0fdf4;border-left:3px solid var(--success)}
+
+/* Test result bubble */
+.test-result{margin-top:8px;padding:8px 12px;border-radius:6px;font-size:.8rem;display:none}
+.test-result.ok{background:#f0fdf4;border:1px solid #86efac;color:#166534}
+.test-result.fail{background:#fef2f2;border:1px solid #fca5a5;color:#7f1d1d}
+
+/* Section divider */
+.sep{border:none;border-top:1px solid var(--border);margin:20px 0}
+.section-label{font-size:.88rem;font-weight:700;margin-bottom:12px;color:var(--text)}
+
+/* Branding upload */
+.upload-area{border:2px dashed var(--border);border-radius:9px;padding:20px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;position:relative;overflow:hidden}
+.upload-area:hover{border-color:var(--primary);background:var(--primary-light)}
+.upload-area input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.upload-area .upload-icon{font-size:2rem;margin-bottom:6px}
+.upload-area .upload-label{font-size:.84rem;font-weight:600;color:var(--muted)}
+.upload-area .upload-hint{font-size:.75rem;color:var(--step-inactive)}
+.preview-img{max-height:80px;max-width:200px;margin-top:10px;border-radius:6px;object-fit:contain;display:none}
+.preview-ico{width:48px;height:48px;margin-top:10px;object-fit:contain;display:none}
+.upload-ok{font-size:.8rem;color:var(--success);font-weight:600;margin-top:6px;display:none}
+
+/* Checklist riepilogo */
+.checklist{list-style:none}
+.checklist li{padding:8px 0;border-bottom:1px solid var(--border);font-size:.85rem;display:flex;gap:10px;align-items:flex-start}
+.checklist li:last-child{border-bottom:none}
+.chk-icon{font-size:1.1rem;flex-shrink:0;margin-top:1px}
+
+/* Section hidden */
+.hidden{display:none!important}
+
+/* Loading spinner */
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media(max-width:700px){
+  .layout{flex-direction:column}
+  .sidebar{width:100%}
+  .step-list{display:flex;flex-wrap:wrap;gap:4px}
+  .step-list li{flex:1 1 130px}
+  .fr,.fr3{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <div class="hdr-logo">BrizioHUB</div>
+  <div class="hdr-sep"></div>
+  <div class="hdr-sub">Configurazione iniziale — Setup Wizard</div>
+  <div class="hdr-badge">Prima configurazione</div>
+</header>
+
+<div class="layout">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <ul class="step-list" id="stepList">
+      <li class="active" data-step="1"><div class="step-num">1</div><div class="step-label">Branding &amp; Identità</div></li>
+      <li data-step="2"><div class="step-num">2</div><div class="step-label">Applicazione</div></li>
+      <li data-step="3"><div class="step-num">3</div><div class="step-label">Sicurezza HTTPS</div></li>
+      <li data-step="4"><div class="step-num">4</div><div class="step-label">Database SQL Server</div></li>
+      <li data-step="5"><div class="step-num">5</div><div class="step-label">Active Directory</div></li>
+      <li data-step="6"><div class="step-num">6</div><div class="step-label">Microsoft Graph</div></li>
+      <li data-step="7"><div class="step-num">7</div><div class="step-label">Email SMTP</div></li>
+      <li data-step="8"><div class="step-num">8</div><div class="step-label">Sessioni &amp; Cache</div></li>
+      <li data-step="9"><div class="step-num">9</div><div class="step-label">Moduli</div></li>
+      <li data-step="10"><div class="step-num">10</div><div class="step-label">Utente Admin</div></li>
+      <li data-step="11"><div class="step-num">11</div><div class="step-label">Info Operative</div></li>
+      <li data-step="12"><div class="step-num">12</div><div class="step-label">Installa &amp; Avvia</div></li>
+    </ul>
+    <div class="progress-wrap"><div class="progress-bar" id="progressBar" style="width:11%"></div></div>
+    <p style="font-size:.75rem;color:var(--muted);margin-top:10px;text-align:center" id="stepCounter">Passo 1 di 9</p>
+  </nav>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- ═══ STEP 1: Branding ═══ -->
+    <div class="card" id="step1">
+      <div class="card-title"><span class="step-icon">🎨</span> Branding &amp; Identità</div>
+      <div class="card-desc">Personalizza il portale con il nome della tua azienda, il logo e il favicon. Questi elementi appariranno nell'interfaccia e nel browser.</div>
+
+      <div class="fr">
+        <div class="fg">
+          <label>Nome software <span style="color:var(--muted);font-weight:400">(GitHub)</span></label>
+          <div class="hint">Nome pubblico del software — non modificabile</div>
+          <input type="text" value="BrizioHUB" disabled style="background:#f0f4f9;color:var(--muted);cursor:not-allowed">
+        </div>
+        <div class="fg">
+          <label>Nome istanza <span class="req">*</span></label>
+          <div class="hint">Nome visualizzato agli utenti (es. Portale Novicrom)</div>
+          <input type="text" id="instance_name" placeholder="Portale Novicrom" value="BrizioHUB">
+        </div>
+      </div>
+
+      <hr class="sep">
+      <div class="section-label">Logo aziendale</div>
+      <div class="fr">
+        <div class="fg">
+          <div class="hint">PNG, SVG o JPG — max 2 MB. Verrà visualizzato nell'header e nella login page.</div>
+          <div class="upload-area" id="logoArea">
+            <input type="file" id="logoFile" accept="image/png,image/jpeg,image/svg+xml,image/webp" onchange="handleLogoUpload(this)">
+            <div class="upload-icon">🖼️</div>
+            <div class="upload-label">Clicca o trascina il logo</div>
+            <div class="upload-hint">PNG · SVG · JPG · WebP — max 2 MB</div>
+          </div>
+          <img id="logoPreview" class="preview-img" alt="Anteprima logo">
+          <div class="upload-ok" id="logoOk">✓ Logo caricato</div>
+        </div>
+        <div class="fg">
+          <div class="hint">ICO, PNG o SVG 16×16 / 32×32. Apparirà nella scheda del browser.</div>
+          <div class="upload-area" id="faviconArea">
+            <input type="file" id="faviconFile" accept="image/x-icon,image/png,image/svg+xml,.ico" onchange="handleFaviconUpload(this)">
+            <div class="upload-icon">🌐</div>
+            <div class="upload-label">Clicca o trascina il favicon</div>
+            <div class="upload-hint">ICO · PNG · SVG — 16×16 o 32×32</div>
+          </div>
+          <img id="faviconPreview" class="preview-ico" alt="Anteprima favicon">
+          <div class="upload-ok" id="faviconOk">✓ Favicon caricato</div>
+        </div>
+      </div>
+
+      <div class="alert alert-info" style="margin-top:8px">
+        Logo e favicon sono opzionali. Puoi caricarli in seguito tramite il pannello admin.
+      </div>
+
+      <div class="nav-btns">
+        <div></div>
+        <button class="btn btn-primary" onclick="goStep(2)">Avanti →</button>
+      </div>
+    </div>
+
+    <!-- ═══ STEP 2: Applicazione ═══ -->
+    <div class="card hidden" id="step2">
+      <div class="card-title"><span class="step-icon">⚙️</span> Applicazione</div>
+      <div class="card-desc">Parametri base di Django. La SECRET_KEY deve essere una stringa casuale di almeno 50 caratteri — non condividerla mai.</div>
+
+      <div class="fg">
+        <label>SECRET_KEY <span class="req">*</span></label>
+        <div class="hint">Chiave crittografica Django. Usa il generatore per crearne una sicura.</div>
+        <div class="input-row">
+          <input type="text" id="secret_key" placeholder="Clicca 'Genera' per una chiave sicura">
+          <button class="btn-sm btn-gen" onclick="generateKey()">⚙ Genera</button>
+        </div>
+      </div>
+
+      <div class="fg">
+        <label>ALLOWED_HOSTS <span class="req">*</span></label>
+        <div class="hint">Hostname o IP separati da virgola. Es: <code>portale.cnovicrom.local,10.0.0.79</code></div>
+        <input type="text" id="allowed_hosts" placeholder="portale.cnovicrom.local,10.0.0.79">
+      </div>
+
+      <div class="fr">
+        <div class="fg">
+          <label>APP_VERSION</label>
+          <input type="text" id="app_version" value="0.6.40">
+        </div>
+        <div class="fg">
+          <label>DJANGO_DEBUG</label>
+          <select id="django_debug">
+            <option value="0" selected>0 — Disabilitato (produzione)</option>
+            <option value="1">1 — Abilitato (solo sviluppo)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="alert alert-warn">⚠ Non abilitare DEBUG in produzione: espone stack trace e configurazione interna.</div>
+
+      <div class="nav-btns">
+        <button class="btn btn-secondary" onclick="goStep(1)">← Indietro</button>
+        <button class="btn btn-primary" onclick="goStep(3)">Avanti →</button>
+      </div>
+    </div>
+
+    <!-- ═══ STEP 3: Sicurezza HTTPS ═══ -->
+    <div class="card hidden" id="step3">
+      <div class="card-title"><span class="step-icon">🔒</span> Sicurezza HTTPS</div>
+      <div class="card-desc">Abilita queste opzioni solo se il server è raggiungibile via HTTPS con un certificato valido. In rete interna senza TLS lascia tutto disabilitato.</div>
+
+      <div class="alert alert-info">Se il server usa HTTPS, clicca "Abilita tutto" per configurare correttamente tutti i cookie di sicurezza.</div>
+
+      <div class="tog-row"><input type="checkbox" id="secure_ssl"><label for="secure_ssl">SECURE_SSL_REDIRECT</label><span class="tog-hint">Forza redirect HTTPS</span></div>
+      <div class="tog-row"><input type="checkbox" id="csrf_secure"><label for="csrf_secure">CSRF_COOKIE_SECURE</label><span class="tog-hint">Cookie CSRF solo su HTTPS</span></div>
+      <div class="tog-row"><input type="checkbox" id="session_secure"><label for="session_secure">SESSION_COOKIE_SECURE</label><span class="tog-hint">Cookie sessione solo su HTTPS</span></div>
+
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="btn-sm btn-gen" onclick="setHttps(true)">✅ Abilita tutto (HTTPS)</button>
+        <button class="btn-sm" style="background:#fef2f2;color:var(--danger)" onclick="setHttps(false)">✗ Disabilita tutto (HTTP)</button>
+      </div>
+
+      <div class="nav-btns">
+        <button class="btn btn-secondary" onclick="goStep(2)">← Indietro</button>
+        <button class="btn btn-primary" onclick="goStep(4)">Avanti →</button>
+      </div>
+    </div>
+
+    <!-- ═══ STEP 4: Database ═══ -->
+    <div class="card hidden" id="step4">
+      <div class="card-title"><span class="step-icon">🗄️</span> Database SQL Server</div>
+      <div class="card-desc">Connessione al database SQL Server di produzione. Verifica che il driver ODBC sia installato sul server.</div>
+
+      <div class="fg">
+        <label>DB_ENGINE</label>
+        <select id="db_engine" onchange="toggleDbFields()">
+          <option value="sqlserver" selected>sqlserver — SQL Server (produzione)</option>
+          <option value="sqlite">sqlite — SQLite (solo sviluppo locale)</option>
+        </select>
+      </div>
+
+      <div id="sqlserverFields">
+        <div class="fr">
+          <div class="fg">
+            <label>DB_HOST <span class="req">*</span></label>
+            <div class="hint">Hostname o IP del SQL Server</div>
+            <input type="text" id="db_host" placeholder="10.0.0.79 oppure sqlserver.local">
+          </div>
+          <div class="fg">
+            <label>DB_NAME <span class="req">*</span></label>
+            <div class="hint">Nome del database</div>
+            <input type="text" id="db_name" placeholder="NovicromPortale">
+          </div>
+        </div>
+
+        <div class="fr">
+          <div class="fg">
+            <label>DB_USER <span class="req">*</span></label>
+            <input type="text" id="db_user" placeholder="sa oppure utente_app" autocomplete="username">
+          </div>
+          <div class="fg">
+            <label>DB_PASSWORD <span class="req">*</span></label>
+            <input type="password" id="db_password" placeholder="password SQL Server" autocomplete="new-password">
+          </div>
+        </div>
+
+        <div class="fr">
+          <div class="fg">
+            <label>DB_DRIVER</label>
+            <select id="db_driver">
+              <option value="ODBC Driver 18 for SQL Server">ODBC Driver 18 (raccomandato)</option>
+              <option value="ODBC Driver 17 for SQL Server">ODBC Driver 17</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label>Percorso utenti.db (legacy)</label>
+            <input type="text" id="legacy_db_path" value="utenti.db" placeholder="utenti.db">
+          </div>
+        </div>
+
+        <div class="tog-row"><input type="checkbox" id="db_trust_cert"><label for="db_trust_cert">DB_TRUST_CERT — Trust Server Certificate</label><span class="tog-hint">Solo con certificati self-signed</span></div>
+
+        <!-- Test connessione DB -->
+        <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
+          <button class="btn-sm btn-test" id="btnTestDb" onclick="testDb()">🔌 Testa connessione DB</button>
+          <span style="font-size:.78rem;color:var(--muted)">Verifica credenziali prima di procedere</span>
+        </div>
+        <div class="test-result" id="testDbResult"></div>
+      </div>
+
+      <div class="nav-btns">
+        <button class="btn btn-secondary" onclick="goStep(3)">← Indietro</button>
+        <button class="btn btn-primary" onclick="goStep(5)">Avanti →</button>
+      </div>
+    </div>
+
+    <!-- ═══ STEP 5: Active Directory ═══ -->
+    <div class="card hidden" id="step5">
+      <div class="card-title"><span class="step-icon">👥</span> Active Directory / LDAP</div>
+      <div class="card-desc">Autenticazione tramite Active Directory aziendale. Se non usi AD lascia disabilitato — gli utenti accederanno con le credenziali legacy del database.</div>
+
+      <div class="tog-row" style="background:var(--primary-light);border-color:#b8d0f0">
+        <input type="checkbox" id="ldap_enabled" onchange="toggleLdap()">
+        <label for="ldap_enabled" style="font-size:.9rem">Abilita autenticazione Active Directory / LDAP</label>
+      </div>
+
+      <div id="ldapFields" class="hidden">
+        <div class="fr">
+          <div class="fg">
+            <label>LDAP_SERVER</label>
+            <div class="hint">URL server LDAP (ldap:// o ldaps://)</div>
+            <input type="text" id="ldap_server" value="ldap://10.0.0.5" placeholder="ldap://10.0.0.5">
+          </div>
+          <div class="fg">
+            <label>LDAP_DOMAIN</label>
+            <input type="text" id="ldap_domain" value="CNOVICROM" placeholder="CNOVICROM">
+          </div>
+        </div>
+
+        <div class="fr">
+          <div class="fg">
+            <label>LDAP_UPN_SUFFIX</label>
+            <input type="text" id="ldap_upn" value="@cnovicrom.local" placeholder="@cnovicrom.local">
+          </div>
+          <div class="fg">
+            <label>LDAP_TIMEOUT (s)</label>
+            <input type="number" id="ldap_timeout" value="5" min="1" max="30">
+          </div>
+        </div>
+
+        <div class="fr">
+          <div class="fg">
+            <label>LDAP_SERVICE_USER</label>
+            <div class="hint">Utente di servizio per query LDAP</div>
+            <input type="text" id="ldap_service_user" placeholder="svc_ldap@cnovicrom.local" autocomplete="username">
+          </div>
+          <div class="fg">
+            <label>LDAP_SERVICE_PASSWORD</label>
+            <input type="password" id="ldap_service_password" placeholder="password" autocomplete="new-password">
+          </div>
+        </div>
+
+        <div class="fg">
+          <label>LDAP_BASE_DN</label>
+          <input type="text" id="ldap_base_dn" value="DC=CNOVICROM,DC=LOCAL">
+        </div>
+        <div class="fg">
+          <label>LDAP_USER_FILTER</label>
+          <input type="text" id="ldap_user_filter" value="(&(objectCategory=person)(objectClass=user))">
+        </div>
+        <div class="fg">
+          <label>LDAP_GROUP_ALLOWLIST</label>
+          <div class="hint">Gruppi AD autorizzati, separati da virgola</div>
+          <input type="text" id="ldap_group_allowlist" placeholder="EMPLOYEES,MANAGERS,ADMINS">
+        </div>
+        <div class="fg">
+          <label>LDAP_SYNC_PAGE_SIZE</label>
+          <input type="number" id="ldap_sync_page_size" value="500" min="100" max="2000">
+        </div>
+
+        <!-- Test LDAP -->
+        <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
+          <button class="btn-sm btn-test" id="btnTestLdap" onclick="testLdap()">🔌 Testa connessione LDAP</button>
+        </div>
+        <div class="test-result" id="testLdapResult"></div>
+      </div>
+
+      <div class="nav-btns">
+        <button class="btn btn-secondary" onclick="goStep(4)">← Indietro</button>
+        <button class="btn btn-primary" onclick="goStep(6)">Avanti →</button>
+      </div>
+    </div>
+
+    <!-- ═══ STEP 6: Microsoft Graph ═══ -->
+    <div class="card hidden" id="step6">
+      <div class="card-title"><span class="step-icon">☁️</span> Microsoft Graph / SharePoint</div>
+      <div class="card-desc">Credenziali Azure per accesso a SharePoint (assenze, dipendenti, anomalie). I valori si trovano nel portale Azure → App registrations.</div>
+
+      <div class="alert alert-info">
+        Registra un'app in <strong>Azure Portal → App registrations</strong> con permessi:<br>
+        <code>Sites.ReadWrite.All</code>, <code>Lists.ReadWrite.All</code>
+      </div>
+
+      <div class="fr">
+        <div class="fg">
+          <label>GRAPH_TENANT_ID</label>
+          <input type="text" id="graph_tenant_id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+        </div>
+        <div class="fg">
+          <label>GRAPH_CLIENT_ID</label>
+          <input type="text" id="graph_client_id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+        </div>
+      </div>
+
+      <div class="fg">
+        <label>GRAPH_CLIENT_SECRET</label>
+        <input type="password" id="graph_client_secret" placeholder="secret dell'app Azure" autocomplete="new-password">
+      </div>
+      <div class="fg">
+        <label>GRAPH_SITE_ID</label>
+        <div class="hint">Formato: <code>tenantname.sharepoint.com,site-guid,web-guid</code></div>
+        <input type="text" id="graph_site_id" placeholder="cnovicrom.sharepoint.com,xxxxxxxx,...">
+      </div>
+
+      <hr class="sep">
+      <div class="section-label">ID Liste SharePoint</div>
+      <div class="fr">
+        <div class="fg"><label>Lista Assenze</label><input type="text" id="graph_list_assenze" placeholder="xxxxxxxx-xxxx-..."></div>
+        <div class="fg"><label>Lista Dipendenti</label><input type="text" id="graph_list_dipendenti" placeholder="xxxxxxxx-xxxx-..."></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label>Lista Caporeparto</label><input type="text" id="graph_list_caporeparto" placeholder="xxxxxxxx-xxxx-..."></div>
+        <div class="fg"><label>Lista Anomalie DB</label><input type="text" id="graph_list_anomalie_db" placeholder="xxxxxxxx-xxxx-..."></div>
+      </div>
+
+      <div class="nav-btns">
+        <button class="btn btn-secondary" onclick="goStep(5)">← Indietro</button>
+        <button class="btn btn-primary" onclick="goStep(7)">Avanti →</button>
+      </div>
+    </div>
+
+    <!-- ═══ STEP 7: Email SMTP ═══ -->
+    <div class="card hidden" id="step7">
+      <div class="card-title"><span class="step-icon">📧</span> Email SMTP</div>
+      <div class="card-desc">Usato dalle Automazioni per le azioni SEND_EMAIL. Configura un relay SMTP interno o un account Exchange.</div>
+
+      <div class="fr">
+        <div class="fg">
+          <label>EMAIL_HOST</label>
+          <div class="hint">Server SMTP</div>
+          <input type="text" id="email_host" placeholder="smtp.cnovicrom.local">
+        </div>
+        <div class="fg">
+          <label>EMAIL_PORT</label>
+          <input type="number" id="email_port" value="587" min="1" max="65535">
+        </div>
+      </div>
+      <div class="fr">
+        <div class="fg">
+          <label>EMAIL_HOST_USER</label>
+          <input type="text" id="email_user" placeholder="portale@cnovicrom.local" autocomplete="username">
+        </div>
+        <div class="fg">
+          <label>EMAIL_HOST_PASSWORD</label>
+          <input type="password" id="email_password" placeholder="password" autocomplete="new-password">
+        </div>
+      </div>
+      <div class="fr">
+        <div class="fg">
+          <label>DEFAULT_FROM_EMAIL</label>
+          <input type="email" id="email_from" placeholder="portale@cnovicrom.local">
+        </div>
+        <div class="fg">
+          <label>EMAIL_USE_TLS</label>
+          <select id="email_tls">
+            <option value="1" selected>1 — STARTTLS abilitato</option>
+            <option value="0">0 — Disabilitato</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Test SMTP -->
+      <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
+        <button class="btn-sm btn-test" id="btnTestSmtp" onclick="testSmtp()">🔌 Testa connessione SMTP</button>
+      </div>
+      <div class="test-result" id="testSmtpResult"></div>
+
+      <div class="nav-btns">
+        <button class="btn btn-secondary" onclick="goStep(6)">← Indietro</button>
+        <button class="btn btn-primary" onclick="goStep(8)">Avanti →</button>
+      </div>
+    </div>
+
+    <!-- ═══ STEP 8: Sessioni & Cache ═══ -->
+    <div class="card hidden" id="step8">
+      <div class="card-title"><span class="step-icon">⏱️</span> Sessioni &amp; Cache</div>
+      <div class="card-desc">Timeout sessione, TTL cache permessi/navigazione, parametri SharePoint. I valori di default sono adatti alla produzione.</div>
+
+      <div class="fr">
+        <div class="fg"><label>SESSION_IDLE_TIMEOUT_SECONDS</label><div class="hint">Scadenza per inattività</div><input type="number" id="session_timeout" value="3600" min="300"></div>
+        <div class="fg"><label>LEGACY_ACL_CACHE_TTL (s)</label><div class="hint">Cache permessi ACL</div><input type="number" id="acl_cache_ttl" value="120" min="30"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label>LEGACY_NAV_CACHE_TTL (s)</label><div class="hint">Cache navigazione</div><input type="number" id="nav_cache_ttl" value="120" min="30"></div>
+        <div class="fg"><label>ASSENZE_SP_PULL_INTERVAL_SECONDS</label><div class="hint">Sync assenze SharePoint</div><input type="number" id="assenze_interval" value="300" min="60"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label>ASSENZE_CALENDAR_MAX_EVENTS</label><input type="number" id="assenze_max_events" value="1500" min="100"></div>
+        <div class="fg"><label>ASSENZE_CALENDAR_COLORS_CACHE_TTL</label><input type="number" id="assenze_colors_ttl" value="300" min="60"></div>
+      </div>
+
+      <hr class="sep">
+      <div class="section-label">Feature flags</div>
+      <div class="tog-row"><input type="checkbox" id="legacy_auth" checked><label for="legacy_auth">LEGACY_AUTH_ENABLED</label><span class="tog-hint">Auth database legacy</span></div>
+      <div class="tog-row"><input type="checkbox" id="nav_registry" checked><label for="nav_registry">NAVIGATION_REGISTRY_ENABLED</label><span class="tog-hint">Navigation registry ORM</span></div>
+      <div class="tog-row"><input type="checkbox" id="nav_legacy_fallback"><label for="nav_legacy_fallback">NAVIGATION_LEGACY_FALLBACK_ENABLED</label><span class="tog-hint">Fallback nav legacy</span></div>
+      <div class="tog-row"><input type="checkbox" id="assenze_sync"><label for="assenze_sync">ASSENZE_SYNC_ON_PAGE_LOAD</label><span class="tog-hint">Sync SP ad ogni pagina</span></div>
+      <div class="tog-row"><input type="checkbox" id="session_expire" checked><label for="session_expire">SESSION_EXPIRE_AT_BROWSER_CLOSE</label><span class="tog-hint">Logout alla chiusura browser</span></div>
+
+      <div class="nav-btns">
+        <button class="btn btn-secondary" onclick="goStep(7)">← Indietro</button>
+        <button class="btn btn-primary" onclick="goStep(9)">Avanti →</button>
+      </div>
+    </div>
+
+    <!-- ═══ STEP 9: Moduli ═══ -->
+    <div class="card hidden" id="step9">
+      <div class="card-title"><span class="step-icon">🧩</span> Moduli installati</div>
+      <div class="card-desc">Scegli quali moduli attivare. Tutti i moduli vengono installati nel database — questa scelta controlla la visibilità nell'interfaccia. Puoi modificarla in qualsiasi momento dal pannello <strong>Hub Tools → Moduli</strong>.</div>
+
+      <div class="alert alert-info">
+        I moduli <strong>Core</strong>, <strong>Dashboard</strong> e <strong>Admin Portale</strong> sono sempre attivi e non disattivabili.
+      </div>
+
+      <!-- Core (sempre attivi) -->
+      <div class="section-label" style="margin-bottom:10px">Moduli core (sempre attivi)</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px" id="coreModules"></div>
+
+      <!-- Opzionali -->
+      <div class="section-label" style="margin-bottom:10px">Moduli opzionali</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px" id="optionalModules"></div>
+
+      <div class="nav-btns">
+        <button class="btn btn-secondary" onclick="goStep(8)">← Indietro</button>
+        <button class="btn btn-primary" onclick="goStep(10)">Avanti →</button>
+      </div>
+    </div>
+
+    <!-- ═══ STEP 10: Primo Utente Admin ═══ -->
+    <div class="card hidden" id="step10">
+      <div class="card-title"><span class="step-icon">👤</span> Primo utente amministratore</div>
+      <div class="card-desc">Crea l'account amministratore Django. Questo utente avrà accesso completo al pannello admin e a tutte le funzionalità del portale.</div>
+
+      <div class="alert alert-warn">
+        Scegli una password sicura — questo account è il principale punto di accesso amministrativo.
+      </div>
+
+      <div class="fr">
+        <div class="fg">
+          <label>Username <span class="req">*</span></label>
+          <input type="text" id="admin_username" placeholder="admin" autocomplete="username">
+        </div>
+        <div class="fg">
+          <label>Email amministratore</label>
+          <input type="email" id="admin_email" placeholder="admin@cnovicrom.local">
+        </div>
+      </div>
+      <div class="fr">
+        <div class="fg">
+          <label>Nome</label>
+          <input type="text" id="admin_firstname" placeholder="Nome">
+        </div>
+        <div class="fg">
+          <label>Cognome</label>
+          <input type="text" id="admin_lastname" placeholder="Cognome">
+        </div>
+      </div>
+      <div class="fr">
+        <div class="fg">
+          <label>Password <span class="req">*</span></label>
+          <input type="password" id="admin_password" placeholder="almeno 8 caratteri" autocomplete="new-password" oninput="checkPwdStrength()">
+        </div>
+        <div class="fg">
+          <label>Conferma password <span class="req">*</span></label>
+          <input type="password" id="admin_password2" placeholder="ripeti la password" autocomplete="new-password" oninput="checkPwdStrength()">
+        </div>
+      </div>
+
+      <!-- Password strength -->
+      <div id="pwdStrength" style="font-size:.8rem;margin-top:4px;display:none"></div>
+
+      <div class="nav-btns">
+        <button class="btn btn-secondary" onclick="goStep(9)">← Indietro</button>
+        <button class="btn btn-primary" onclick="validateAdmin()">Avanti →</button>
+      </div>
+    </div>
+
+    <!-- ═══ STEP 11: Info Operative ═══ -->
+    <div class="card hidden" id="step11">
+      <div class="card-title"><span class="step-icon">🏢</span> Informazioni operative</div>
+      <div class="card-desc">Dati aziendali e preferenze operative. Questi valori saranno visibili nell'interfaccia e nei report.</div>
+
+      <div class="fr">
+        <div class="fg">
+          <label>Nome azienda</label>
+          <div class="hint">Ragione sociale completa</div>
+          <input type="text" id="company_name" placeholder="Costruzioni Novicrom S.r.l.">
+        </div>
+        <div class="fg">
+          <label>Fuso orario</label>
+          <select id="timezone">
+            <option value="Europe/Rome" selected>Europe/Rome (CET/CEST)</option>
+            <option value="Europe/London">Europe/London (GMT/BST)</option>
+            <option value="Europe/Berlin">Europe/Berlin (CET/CEST)</option>
+            <option value="Europe/Paris">Europe/Paris (CET/CEST)</option>
+            <option value="UTC">UTC</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="fr">
+        <div class="fg">
+          <label>Indirizzo</label>
+          <input type="text" id="company_address" placeholder="Via Roma 1, 00100 Roma">
+        </div>
+        <div class="fg">
+          <label>Telefono</label>
+          <input type="text" id="company_phone" placeholder="+39 06 0000000">
+        </div>
+      </div>
+
+      <div class="fg">
+        <label>Email contatto</label>
+        <input type="email" id="company_email" placeholder="info@cnovicrom.local">
+      </div>
+
+      <hr class="sep">
+      <div class="section-label">Preferenze interfaccia</div>
+
+      <div class="fr">
+        <div class="fg">
+          <label>Lingua interfaccia</label>
+          <select id="language">
+            <option value="it-it" selected>Italiano</option>
+            <option value="en-us">English</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label>Formato data</label>
+          <select id="date_format">
+            <option value="dd/mm/yyyy" selected>dd/mm/yyyy</option>
+            <option value="mm/dd/yyyy">mm/dd/yyyy</option>
+            <option value="yyyy-mm-dd">yyyy-mm-dd (ISO)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="nav-btns">
+        <button class="btn btn-secondary" onclick="goStep(10)">← Indietro</button>
+        <button class="btn btn-primary" onclick="goStep(12)">Avanti →</button>
+      </div>
+    </div>
+
+    <!-- ═══ STEP 12: Installa & Avvia ═══ -->
+    <div class="card hidden" id="step12">
+      <div class="card-title"><span class="step-icon">🚀</span> Installa &amp; Avvia BrizioHUB</div>
+      <div class="card-desc">Il wizard eseguirà le seguenti operazioni in sequenza. Controlla la checklist e poi clicca <strong>Installa</strong>.</div>
+
+      <div id="checklistEl"></div>
+
+      <hr class="sep">
+
+      <!-- Install progress -->
+      <div id="installProgress" class="hidden">
+        <div class="section-label" style="margin-bottom:12px">Progresso installazione</div>
+        <div id="installSteps"></div>
+      </div>
+
+      <div class="alert alert-warn" style="margin-bottom:18px" id="installWarn">
+        <strong>⚠ Attenzione:</strong> una volta completata l'installazione, il wizard si disattiverà automaticamente. Per riconfigurare sarà necessario impostare <code>SETUP_COMPLETED=0</code> nel file <code>.env</code>.
+      </div>
+
+      <div style="text-align:center;margin-bottom:18px">
+        <button class="btn btn-success" id="btnInstall" onclick="runInstall()">
+          🚀 Installa BrizioHUB
+        </button>
+      </div>
+
+      <div class="alert alert-info hidden" id="postInstallEl">
+        <strong>✓ Installazione completata!</strong><br><br>
+        <strong>Se usi SQL Server legacy,</strong> applica gli script in <code>sql/</code> prima del primo accesso:<br>
+        <code>sql/automation_event_queue.sql</code><br>
+        <code>sql/trg_assenze_automation_*.sql</code><br><br>
+        Reindirizzamento al login in corso...
+      </div>
+
+      <div class="nav-btns">
+        <button class="btn btn-secondary" id="btnBack12" onclick="goStep(11)">← Indietro</button>
+        <div></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const TOTAL = 12;
+let currentStep = 1;
+const CSRF = '{{ csrf_token }}';
+
+// File upload state
+let logoB64 = '', logoExt = '', faviconB64 = '', faviconExt = '';
+
+// ── Definizione moduli ────────────────────────────────────────────────────────
+const CORE_MODULES = [
+  {key:'core', name:'Core & Auth', icon:'🔐'},
+  {key:'dashboard', name:'Dashboard', icon:'📊'},
+  {key:'admin_portale', name:'Admin Portale', icon:'🛠️'},
+];
+const OPT_MODULES = [
+  {key:'assenze', name:'Gestione Assenze', icon:'📅', desc:'Workflow assenze, ferie, permessi + SharePoint', def:true},
+  {key:'anomalie', name:'Segnalazioni Anomalie', icon:'⚠️', desc:'Raccolta, gestione e tracciamento anomalie operative', def:true},
+  {key:'assets', name:'Asset & Officina', icon:'🏭', desc:'Inventario macchinari, work order, schede tecniche, verifiche', def:true},
+  {key:'tasks', name:'Progetti & Task', icon:'📋', desc:'Gestione progetti con Gantt, task e milestone', def:true},
+  {key:'tickets', name:'Ticket IT & Manut.', icon:'🎫', desc:'Sistema ticket IT e manutenzione con deleghe e priorità', def:true},
+  {key:'notizie', name:'Bacheca Notizie', icon:'📰', desc:'Comunicazioni interne, notizie obbligatorie, avvisi', def:true},
+  {key:'anagrafica', name:'Anagrafica', icon:'👥', desc:'Registro centrale dipendenti, fornitori, reparti', def:true},
+  {key:'automazioni', name:'Automazioni', icon:'🤖', desc:'Designer regole, trigger, azioni email e integrazioni', def:true},
+  {key:'timbri', name:'Timbri & Presenze', icon:'🕐', desc:'Timbrature digitali con integrazione SharePoint', def:false},
+  {key:'planimetria', name:'Planimetria', icon:'🗺️', desc:'Mappe interattive stabilimento e asset positioning', def:false},
+];
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function goStep(n) {
+  if (n === TOTAL) buildChecklist();
+  if (n === 9) renderModuleStep();
+  document.getElementById('step' + currentStep).classList.add('hidden');
+  document.getElementById('step' + n).classList.remove('hidden');
+  document.querySelectorAll('#stepList li').forEach(li => {
+    const s = parseInt(li.dataset.step);
+    li.classList.toggle('active', s === n);
+    li.classList.toggle('done', s < n);
+  });
+  document.getElementById('progressBar').style.width = (n / TOTAL * 100) + '%';
+  document.getElementById('stepCounter').textContent = `Passo ${n} di ${TOTAL}`;
+  currentStep = n;
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function v(id, fallback='') { return (document.getElementById(id)?.value || fallback).trim(); }
+function chk(id) { return document.getElementById(id)?.checked || false; }
+
+// ── Render moduli step 9 ──────────────────────────────────────────────────────
+function renderModuleStep() {
+  const core = document.getElementById('coreModules');
+  if (core && !core.hasChildNodes()) {
+    core.innerHTML = CORE_MODULES.map(m =>
+      `<div style="display:flex;align-items:center;gap:8px;background:#f0fdf4;border:1px solid #86efac;border-radius:7px;padding:8px 14px">
+        <span>${m.icon}</span><span style="font-size:.84rem;font-weight:600">${m.name}</span>
+        <span style="margin-left:auto;font-size:.75rem;color:var(--success);font-weight:600">✓ Sempre attivo</span>
+      </div>`
+    ).join('');
+  }
+  const opt = document.getElementById('optionalModules');
+  if (opt && !opt.hasChildNodes()) {
+    opt.innerHTML = OPT_MODULES.map(m =>
+      `<label style="display:flex;align-items:flex-start;gap:10px;background:#f8fafc;border:1.5px solid var(--border);border-radius:8px;padding:12px;cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="if(!this.querySelector('input').checked)this.style.borderColor='var(--border)'">
+        <input type="checkbox" id="mod_${m.key}" ${m.def?'checked':''} style="margin-top:2px;width:16px;height:16px;accent-color:var(--primary)" onchange="this.closest('label').style.borderColor=this.checked?'var(--primary)':'var(--border)'">
+        <div>
+          <div style="font-size:.88rem;font-weight:700">${m.icon} ${m.name}</div>
+          <div style="font-size:.76rem;color:var(--muted);margin-top:2px">${m.desc}</div>
+        </div>
+      </label>`
+    ).join('');
+    // Imposta colori iniziali
+    OPT_MODULES.forEach(m => {
+      if (m.def) document.querySelector(`#mod_${m.key}`)?.closest('label')?.style && (document.querySelector(`#mod_${m.key}`).closest('label').style.borderColor = 'var(--primary)');
+    });
+  }
+}
+
+function getSelectedModules() {
+  return OPT_MODULES.filter(m => chk('mod_' + m.key)).map(m => m.key);
+}
+
+// ── Password strength ─────────────────────────────────────────────────────────
+function checkPwdStrength() {
+  const p = v('admin_password'), p2 = v('admin_password2');
+  const el = document.getElementById('pwdStrength');
+  if (!p) { el.style.display='none'; return; }
+  el.style.display = 'block';
+  let score = 0, hints = [];
+  if (p.length >= 8) score++; else hints.push('min 8 caratteri');
+  if (/[A-Z]/.test(p)) score++; else hints.push('una maiuscola');
+  if (/[0-9]/.test(p)) score++; else hints.push('un numero');
+  if (/[^a-zA-Z0-9]/.test(p)) score++; else hints.push('un carattere speciale');
+  const match = p === p2;
+  const colors = ['#dc2626','#f59e0b','#22a860','#15803d'];
+  const labels = ['Debole','Discreta','Buona','Ottima'];
+  el.innerHTML = `<span style="color:${colors[score-1]||colors[0]};font-weight:600">${labels[score-1]||labels[0]}</span>` +
+    (hints.length ? ` — mancano: ${hints.join(', ')}` : '') +
+    (p2 ? (match ? ' &nbsp;<span style="color:var(--success)">✓ Le password coincidono</span>' : ' &nbsp;<span style="color:var(--danger)">✗ Le password non coincidono</span>') : '');
+}
+
+function validateAdmin() {
+  const u = v('admin_username'), p = v('admin_password'), p2 = v('admin_password2');
+  if (!u) { alert('Inserisci uno username per l\'account admin.'); return; }
+  if (p.length < 8) { alert('La password deve essere di almeno 8 caratteri.'); return; }
+  if (p !== p2) { alert('Le password non coincidono.'); return; }
+  goStep(11);
+}
+
+function generateKey() {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*(-_=+)';
+  const arr = new Uint8Array(50);
+  crypto.getRandomValues(arr);
+  document.getElementById('secret_key').value = Array.from(arr, b => chars[b % chars.length]).join('');
+}
+
+function setHttps(enable) {
+  ['secure_ssl','csrf_secure','session_secure'].forEach(id => document.getElementById(id).checked = enable);
+}
+
+function toggleLdap() {
+  document.getElementById('ldapFields').classList.toggle('hidden', !chk('ldap_enabled'));
+}
+
+function toggleDbFields() {
+  document.getElementById('sqlserverFields').classList.toggle('hidden', v('db_engine') !== 'sqlserver');
+}
+
+// ── File upload ───────────────────────────────────────────────────────────────
+function handleLogoUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) { alert('Il logo supera i 2 MB.'); return; }
+  logoExt = file.name.split('.').pop().toLowerCase();
+  const reader = new FileReader();
+  reader.onload = e => {
+    const dataUrl = e.target.result;
+    logoB64 = dataUrl.split(',')[1];
+    const preview = document.getElementById('logoPreview');
+    preview.src = dataUrl; preview.style.display = 'block';
+    document.getElementById('logoOk').style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleFaviconUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  faviconExt = file.name.split('.').pop().toLowerCase();
+  const reader = new FileReader();
+  reader.onload = e => {
+    const dataUrl = e.target.result;
+    faviconB64 = dataUrl.split(',')[1];
+    const preview = document.getElementById('faviconPreview');
+    preview.src = dataUrl; preview.style.display = 'block';
+    document.getElementById('faviconOk').style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── API test helpers ──────────────────────────────────────────────────────────
+async function apiPost(url, data) {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify(data)
+  });
+  return r.json();
+}
+
+function showTestResult(elId, result) {
+  const el = document.getElementById(elId);
+  el.style.display = 'block';
+  el.className = 'test-result ' + (result.ok ? 'ok' : 'fail');
+  el.textContent = result.ok ? ('✓ ' + result.message) : ('✗ ' + result.error);
+}
+
+function setLoading(btnId, loading) {
+  const btn = document.getElementById(btnId);
+  btn.classList.toggle('loading', loading);
+  btn.innerHTML = loading
+    ? '<span class="spinner"></span> Test in corso...'
+    : (btnId === 'btnTestDb' ? '🔌 Testa connessione DB'
+       : btnId === 'btnTestLdap' ? '🔌 Testa connessione LDAP'
+       : '🔌 Testa connessione SMTP');
+}
+
+async function testDb() {
+  setLoading('btnTestDb', true);
+  try {
+    const res = await apiPost('/setup/api/test-db/', {
+      engine: v('db_engine'), host: v('db_host'), name: v('db_name'),
+      user: v('db_user'), password: v('db_password'),
+      driver: v('db_driver'), trust_cert: chk('db_trust_cert')
+    });
+    showTestResult('testDbResult', res);
+  } catch(e) { showTestResult('testDbResult', {ok:false, error: String(e)}); }
+  finally { setLoading('btnTestDb', false); }
+}
+
+async function testLdap() {
+  setLoading('btnTestLdap', true);
+  try {
+    const res = await apiPost('/setup/api/test-ldap/', {
+      server: v('ldap_server'), service_user: v('ldap_service_user'),
+      service_password: v('ldap_service_password'), timeout: v('ldap_timeout','5')
+    });
+    showTestResult('testLdapResult', res);
+  } catch(e) { showTestResult('testLdapResult', {ok:false, error: String(e)}); }
+  finally { setLoading('btnTestLdap', false); }
+}
+
+async function testSmtp() {
+  setLoading('btnTestSmtp', true);
+  try {
+    const res = await apiPost('/setup/api/test-smtp/', {
+      host: v('email_host'), port: v('email_port','587'),
+      user: v('email_user'), password: v('email_password'),
+      use_tls: v('email_tls') === '1'
+    });
+    showTestResult('testSmtpResult', res);
+  } catch(e) { showTestResult('testSmtpResult', {ok:false, error: String(e)}); }
+  finally { setLoading('btnTestSmtp', false); }
+}
+
+// ── Checklist ─────────────────────────────────────────────────────────────────
+function buildChecklist() {
+  const mods = getSelectedModules();
+  const checks = [
+    { label: 'Nome istanza configurato', ok: v('instance_name').length > 0 },
+    { label: 'SECRET_KEY valida (≥ 50 caratteri)', ok: v('secret_key').length >= 50, warn: v('secret_key').length > 0 && v('secret_key').length < 50, msg: 'Troppo corta — usa il generatore' },
+    { label: 'ALLOWED_HOSTS configurato', ok: v('allowed_hosts').length > 0 },
+    { label: 'DJANGO_DEBUG = 0', ok: v('django_debug') === '0', warn: v('django_debug') === '1', msg: 'DEBUG abilitato — pericoloso in produzione!' },
+    { label: 'DB_ENGINE = sqlserver', ok: v('db_engine') === 'sqlserver', warn: v('db_engine') !== 'sqlserver', msg: 'SQLite configurato — solo per sviluppo' },
+    { label: 'DB_HOST e DB_NAME configurati', ok: v('db_host').length > 0 && v('db_name').length > 0 },
+    { label: 'DB_USER e DB_PASSWORD configurati', ok: v('db_user').length > 0 && v('db_password').length > 0 },
+    { label: 'GRAPH_TENANT_ID configurato', ok: v('graph_tenant_id').length > 10, warn: !v('graph_tenant_id'), msg: 'Funzionalità SharePoint non disponibili' },
+    { label: 'EMAIL_HOST configurato', ok: v('email_host').length > 0, warn: !v('email_host'), msg: 'Email automazioni non funzioneranno' },
+    { label: `Moduli selezionati: ${mods.length + 3}`, ok: true, msg: `Core + ${mods.join(', ')||'nessuno opzionale'}` },
+    { label: 'Utente admin configurato', ok: v('admin_username').length > 0 && v('admin_password').length >= 8 },
+    { label: 'Logo aziendale caricato', ok: logoB64.length > 0, warn: logoB64.length === 0, msg: 'Opzionale — caricabile in seguito' },
+    { label: 'Favicon caricato', ok: faviconB64.length > 0, warn: faviconB64.length === 0, msg: 'Opzionale — caricabile in seguito' },
+  ];
+  let html = '<ul class="checklist">';
+  checks.forEach(c => {
+    let icon, note='';
+    if (c.ok) { icon='✅'; }
+    else if (c.warn) { icon='⚠️'; note = c.msg ? ` — <em style="color:var(--muted)">${c.msg}</em>` : ''; }
+    else { icon='❌'; note = c.msg ? ` — <em style="color:var(--danger)">${c.msg}</em>` : ' — <em style="color:var(--danger)">Campo obbligatorio mancante</em>'; }
+    html += `<li><span class="chk-icon">${icon}</span><span>${c.label}${note}</span></li>`;
+  });
+  html += '</ul>';
+  document.getElementById('checklistEl').innerHTML = html;
+}
+
+// ── Install flow ──────────────────────────────────────────────────────────────
+const INSTALL_STEPS = [
+  {id:'s_save',   label:'Salvataggio configurazione (.env + config.ini)'},
+  {id:'s_migrate',label:'Esecuzione migrazioni database'},
+  {id:'s_admin',  label:'Creazione utente amministratore'},
+  {id:'s_modules',label:'Attivazione moduli selezionati'},
+];
+
+function renderInstallSteps(activeId, error) {
+  const html = INSTALL_STEPS.map(s => {
+    let icon = '⏳', style = 'color:var(--muted)';
+    if (error && s.id === activeId) { icon='❌'; style='color:var(--danger);font-weight:600'; }
+    else if (s.id === activeId) { icon='<span class="spinner" style="display:inline-block"></span>'; style='color:var(--primary);font-weight:600'; }
+    else if (INSTALL_STEPS.findIndex(x=>x.id===s.id) < INSTALL_STEPS.findIndex(x=>x.id===activeId)) { icon='✅'; style='color:var(--success)'; }
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:.87rem;${style}"><span style="width:20px;text-align:center">${icon}</span>${s.label}</div>`;
+  }).join('');
+  document.getElementById('installSteps').innerHTML = html;
+}
+
+async function runInstall() {
+  const btn = document.getElementById('btnInstall');
+  btn.disabled = true;
+  document.getElementById('installProgress').classList.remove('hidden');
+  document.getElementById('installWarn').classList.add('hidden');
+  document.getElementById('btnBack12').disabled = true;
+
+  const payload = buildPayload();
+
+  // ── 1. Salva configurazione ───────────────────────────────────────────────
+  renderInstallSteps('s_save');
+  try {
+    const r1 = await apiPost('/setup/api/save/', payload);
+    if (!r1.ok) { renderInstallSteps('s_save', true); showInstallError('Salvataggio config: ' + r1.error); return; }
+  } catch(e) { renderInstallSteps('s_save', true); showInstallError(String(e)); return; }
+
+  // ── 2. Migrazioni ─────────────────────────────────────────────────────────
+  renderInstallSteps('s_migrate');
+  try {
+    const r2 = await apiPost('/setup/api/run-migrations/', {});
+    if (!r2.ok) { renderInstallSteps('s_migrate', true); showInstallError('Migrazioni: ' + r2.error); return; }
+  } catch(e) { renderInstallSteps('s_migrate', true); showInstallError(String(e)); return; }
+
+  // ── 3. Crea utente admin ──────────────────────────────────────────────────
+  renderInstallSteps('s_admin');
+  if (v('admin_username')) {
+    try {
+      const r3 = await apiPost('/setup/api/create-admin/', {
+        username: v('admin_username'), password: v('admin_password'),
+        email: v('admin_email'), first_name: v('admin_firstname'), last_name: v('admin_lastname'),
+      });
+      if (!r3.ok && !r3.warning) { renderInstallSteps('s_admin', true); showInstallError('Admin: ' + r3.error); return; }
+    } catch(e) { renderInstallSteps('s_admin', true); showInstallError(String(e)); return; }
+  }
+
+  // ── 4. Attiva moduli ──────────────────────────────────────────────────────
+  renderInstallSteps('s_modules');
+  try {
+    await apiPost('/setup/api/set-modules/', {modules: getSelectedModules()});
+  } catch(e) { /* non bloccante */ }
+
+  // ── Done ──────────────────────────────────────────────────────────────────
+  renderInstallSteps('s_done_fake');
+  document.getElementById('installSteps').innerHTML += `<div style="padding:8px 0;font-size:.87rem;color:var(--success);font-weight:600">✅ Installazione completata</div>`;
+  document.getElementById('postInstallEl').classList.remove('hidden');
+  setTimeout(() => { window.location.href = '/login/'; }, 4000);
+}
+
+function showInstallError(msg) {
+  btn.innerHTML = '🚀 Riprova installazione';
+  btn.disabled = false;
+  document.getElementById('btnBack12').disabled = false;
+  const d = document.createElement('div');
+  d.className = 'alert alert-danger'; d.style.marginTop = '12px';
+  d.textContent = '✗ ' + msg;
+  document.getElementById('step12').appendChild(d);
+}
+
+function buildPayload() {
+  return {
+    // Branding
+    instance_name: v('instance_name', 'BrizioHUB'),
+    logo_b64: logoB64, logo_ext: logoExt,
+    favicon_b64: faviconB64, favicon_ext: faviconExt,
+    // App
+    secret_key: v('secret_key'), app_version: v('app_version','0.7.0'),
+    debug: v('django_debug') === '1', allowed_hosts: v('allowed_hosts'),
+    // HTTPS
+    secure_ssl: chk('secure_ssl'), csrf_secure: chk('csrf_secure'), session_secure: chk('session_secure'),
+    // DB
+    db_engine: v('db_engine'), db_host: v('db_host'), db_name: v('db_name'),
+    db_user: v('db_user'), db_password: v('db_password'),
+    db_driver: v('db_driver'), db_trust_cert: chk('db_trust_cert'),
+    legacy_db_path: v('legacy_db_path','utenti.db'),
+    // LDAP
+    ldap_enabled: chk('ldap_enabled'), ldap_server: v('ldap_server'),
+    ldap_domain: v('ldap_domain'), ldap_upn: v('ldap_upn'),
+    ldap_timeout: v('ldap_timeout','5'), ldap_service_user: v('ldap_service_user'),
+    ldap_service_password: v('ldap_service_password'), ldap_base_dn: v('ldap_base_dn'),
+    ldap_user_filter: v('ldap_user_filter'), ldap_group_allowlist: v('ldap_group_allowlist'),
+    ldap_sync_page_size: v('ldap_sync_page_size','500'),
+    // Graph
+    graph_tenant_id: v('graph_tenant_id'), graph_client_id: v('graph_client_id'),
+    graph_client_secret: v('graph_client_secret'), graph_site_id: v('graph_site_id'),
+    graph_list_assenze: v('graph_list_assenze'), graph_list_dipendenti: v('graph_list_dipendenti'),
+    graph_list_caporeparto: v('graph_list_caporeparto'), graph_list_anomalie_db: v('graph_list_anomalie_db'),
+    // Email
+    email_host: v('email_host'), email_port: v('email_port','587'),
+    email_user: v('email_user'), email_password: v('email_password'),
+    email_tls: v('email_tls') === '1', email_from: v('email_from'),
+    // Sessions
+    session_timeout: v('session_timeout','3600'), session_expire: chk('session_expire'),
+    acl_cache_ttl: v('acl_cache_ttl','120'), nav_cache_ttl: v('nav_cache_ttl','120'),
+    assenze_interval: v('assenze_interval','300'), assenze_max_events: v('assenze_max_events','1500'),
+    assenze_colors_ttl: v('assenze_colors_ttl','300'),
+    // Flags
+    legacy_auth: chk('legacy_auth'), nav_registry: chk('nav_registry'),
+    nav_legacy_fallback: chk('nav_legacy_fallback'), assenze_sync: chk('assenze_sync'),
+    // Operative
+    timezone: v('timezone','Europe/Rome'), language: v('language','it-it'),
+    company_name: v('company_name'), company_address: v('company_address'),
+    company_phone: v('company_phone'), company_email: v('company_email'),
+    // Moduli
+    modules: getSelectedModules(),
+  };
+}
+
+
+</script>
+</body>
+</html>

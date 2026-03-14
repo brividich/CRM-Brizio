@@ -1,0 +1,315 @@
+{% extends "core/base.html" %}
+
+{% block title %}C - Carico | RENTRI{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Layout ── */
+.cp-wrap { display:flex; flex-direction:column; gap:20px; }
+
+/* ── Hero ── */
+.cp-hero {
+  background:#2296D0;
+  border-radius:14px; padding:26px 30px;
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px; color:#fff;
+}
+.cp-hero-title { font-size:22px; font-weight:900; letter-spacing:-.02em; }
+.cp-hero-sub   { font-size:13px; opacity:.75; margin-top:3px; }
+.cp-hero-btn   { display:inline-flex; align-items:center; gap:6px; padding:9px 18px; border-radius:9px; font-size:13px; font-weight:700; text-decoration:none; background:#fff; color:#2296D0; border:none; cursor:pointer; }
+.cp-hero-btn:hover { background:#e0f2fe; }
+
+/* ── Form card ── */
+.cp-form-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.cp-form-head { padding:16px 22px; background:#f8fafc; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; gap:10px; }
+.cp-form-title { font-size:14px; font-weight:800; color:#0f172a; }
+.cp-form-body  { padding:22px; }
+
+/* ── Griglia form ── */
+.cp-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.cp-full  { grid-column:1/-1; }
+.cp-field { display:flex; flex-direction:column; gap:5px; }
+.cp-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.06em; }
+.cp-label span.req { color:#dc2626; margin-left:2px; }
+.cp-input, .cp-select, .cp-textarea {
+  border:1px solid #d1d5db; border-radius:8px; padding:9px 12px; font-size:13px;
+  background:#fff; color:#0f172a; width:100%; box-sizing:border-box; transition:border-color .15s;
+}
+.cp-input:focus, .cp-select:focus, .cp-textarea:focus { outline:none; border-color:#2296D0; box-shadow:0 0 0 3px rgba(34,150,208,.12); }
+.cp-input.error, .cp-select.error { border-color:#dc2626; }
+.cp-error-msg { font-size:11px; color:#dc2626; font-weight:600; }
+.cp-textarea { min-height:80px; resize:vertical; }
+
+/* ── Toggle ── */
+.cp-toggle-row { display:flex; align-items:center; gap:12px; padding:10px 14px; background:#f0f9ff; border:1px solid #bae6fd; border-radius:10px; }
+.cp-toggle { position:relative; display:inline-block; width:42px; height:24px; flex-shrink:0; }
+.cp-toggle input { opacity:0; width:0; height:0; }
+.cp-toggle-slider { position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background:#cbd5e1; border-radius:24px; transition:.2s; }
+.cp-toggle-slider::before { content:""; position:absolute; height:18px; width:18px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.2s; }
+.cp-toggle input:checked + .cp-toggle-slider { background:#2296D0; }
+.cp-toggle input:checked + .cp-toggle-slider::before { transform:translateX(18px); }
+.cp-toggle-label { font-size:13px; font-weight:700; color:#0369a1; }
+
+/* ── Actions ── */
+.cp-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:20px; }
+.cp-btn { display:inline-flex; align-items:center; gap:6px; padding:10px 20px; border-radius:9px; font-size:13px; font-weight:700; border:none; cursor:pointer; transition:background .15s; text-decoration:none; }
+.cp-btn-primary { background:#2296D0; color:#fff; }
+.cp-btn-primary:hover { background:#218ABF; }
+.cp-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.cp-btn-ghost:hover { background:#e2e8f0; }
+
+/* ── Alert ── */
+.cp-alert { padding:12px 16px; border-radius:10px; font-size:13px; font-weight:600; }
+.cp-alert-success { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+.cp-alert-error   { background:#fef2f2; border:1px solid #fca5a5; color:#991b1b; }
+
+/* ── Modal ── */
+.rn-modal-overlay {
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,.45);
+  z-index:9999; align-items:center; justify-content:center;
+}
+.rn-modal-overlay.active { display:flex; }
+.rn-modal {
+  background:#fff; border-radius:16px; padding:32px 28px;
+  max-width:420px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,.25);
+  text-align:center;
+}
+.rn-modal-title { font-size:18px; font-weight:900; color:#0f172a; margin-bottom:8px; }
+.rn-modal-sub { font-size:13px; color:#64748b; margin-bottom:24px; }
+.rn-modal-actions { display:flex; gap:12px; justify-content:center; }
+.rn-modal-btn { padding:11px 28px; border-radius:10px; font-size:14px; font-weight:800; border:none; cursor:pointer; transition:background .15s; }
+.rn-modal-si { background:#2296D0; color:#fff; }
+.rn-modal-si:hover { background:#218ABF; }
+.rn-modal-no { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.rn-modal-no:hover { background:#e2e8f0; }
+
+@media(max-width:700px) {
+  .cp-grid { grid-template-columns:1fr; }
+  .cp-full { grid-column:1; }
+}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "rentri/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="cp-wrap">
+
+  <!-- Hero -->
+  <div class="cp-hero">
+    <div>
+      <div class="cp-hero-title">C - CARICO</div>
+      <div class="cp-hero-sub">Registra un carico nel registro rifiuti RENTRI</div>
+    </div>
+    <a class="cp-hero-btn" href="{% url 'rentri_menu' %}">&#8592; Menu</a>
+  </div>
+
+  <!-- Alert placeholder -->
+  <div id="rn-alert" style="display:none;" class="cp-alert"></div>
+
+  <!-- Form -->
+  <div class="cp-form-card">
+    <div class="cp-form-head">
+      <span style="font-size:17px;">&#8679;</span>
+      <div class="cp-form-title">
+        {% if edit_mode %}Modifica registrazione — {{ registro.id_registrazione }}{% else %}Nuovo carico{% endif %}
+      </div>
+    </div>
+    <div class="cp-form-body">
+      <div class="cp-grid" id="rn-form">
+
+        <!-- Data -->
+        <div class="cp-field">
+          <label class="cp-label">Data <span class="req">*</span></label>
+          <input type="date" id="f-data" class="cp-input"
+            value="{% if edit_mode %}{{ registro.data|date:'Y-m-d' }}{% endif %}" required>
+        </div>
+
+        <!-- Rif.Op -->
+        <div class="cp-field">
+          <label class="cp-label">Rif.Op</label>
+          <input type="text" id="f-rif-op" class="cp-input" placeholder="Riferimento operatore"
+            value="{% if edit_mode %}{{ registro.rif_op }}{% endif %}">
+        </div>
+
+        <!-- Codice CER -->
+        <div class="cp-field">
+          <label class="cp-label">Codice CER <span class="req">*</span></label>
+          <input type="text" id="f-codice" class="cp-input" placeholder="es. 150101"
+            value="{% if edit_mode %}{{ registro.codice }}{% endif %}" required>
+        </div>
+
+        <!-- Quantità -->
+        <div class="cp-field">
+          <label class="cp-label">Quantità</label>
+          <input type="number" id="f-quantita" class="cp-input" step="0.001" min="0"
+            placeholder="0.000"
+            value="{% if edit_mode %}{{ registro.quantita }}{% endif %}">
+        </div>
+
+        <!-- Pericolosità -->
+        <div class="cp-field">
+          <label class="cp-label">Pericolosità</label>
+          <input type="text" id="f-pericolosita" class="cp-input" placeholder="Classe pericolosità"
+            value="{% if edit_mode %}{{ registro.pericolosita }}{% endif %}">
+        </div>
+
+        <!-- Carico/Scarico -->
+        <div class="cp-field">
+          <label class="cp-label">Carico / Scarico</label>
+          <select id="f-carico-scarico" class="cp-select">
+            <option value="C" {% if edit_mode and registro.carico_scarico == 'C' %}selected{% endif %}>Carico</option>
+            <option value="S" {% if edit_mode and registro.carico_scarico == 'S' %}selected{% endif %}>Scarico</option>
+          </select>
+        </div>
+
+        <!-- Rentri SI/NO -->
+        <div class="cp-field cp-full">
+          <label class="cp-label">Invio RENTRI</label>
+          <div class="cp-toggle-row">
+            <label class="cp-toggle">
+              <input type="checkbox" id="f-rentri-si-no"
+                {% if edit_mode and registro.rentri_si_no %}checked{% endif %}>
+              <span class="cp-toggle-slider"></span>
+            </label>
+            <span class="cp-toggle-label">Scheda da inviare al RENTRI</span>
+          </div>
+        </div>
+
+        <!-- Note RENTRI -->
+        <div class="cp-field cp-full">
+          <label class="cp-label">Note RENTRI</label>
+          <textarea id="f-note-rentri" class="cp-textarea" placeholder="Note aggiuntive per RENTRI...">{% if edit_mode %}{{ registro.note_rentri }}{% endif %}</textarea>
+        </div>
+
+        <!-- Allegato -->
+        <div class="cp-field cp-full">
+          <label class="cp-label">Allegato</label>
+          <input type="file" id="f-allegato" class="cp-input">
+          {% if edit_mode and registro.allegato %}
+            <div style="font-size:11px;color:#64748b;margin-top:4px;">
+              File attuale: <a href="{{ registro.allegato.url }}" target="_blank">{{ registro.allegato.name }}</a>
+            </div>
+          {% endif %}
+        </div>
+
+      </div>
+
+      <!-- Actions -->
+      <div class="cp-actions">
+        <button type="button" class="cp-btn cp-btn-primary" id="btn-salva">
+          {% if edit_mode %}&#10003; Aggiorna{% else %}Salva{% endif %}
+        </button>
+        <button type="button" class="cp-btn cp-btn-ghost" id="btn-reset">Reset</button>
+        <a class="cp-btn cp-btn-ghost" href="{% url 'rentri_menu' %}">&#8592; Indietro</a>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- Modal conferma RENTRI -->
+<div class="rn-modal-overlay" id="rn-modal">
+  <div class="rn-modal">
+    <div class="rn-modal-title">Invio RENTRI</div>
+    <div class="rn-modal-sub">Vuoi inviare la scheda al RENTRI?</div>
+    <div class="rn-modal-actions">
+      <button class="rn-modal-btn rn-modal-si" id="modal-si">SI</button>
+      <button class="rn-modal-btn rn-modal-no" id="modal-no">NO</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var savedPk = {% if edit_mode %}{{ registro.pk }}{% else %}null{% endif %};
+  var savedIdReg = "{% if edit_mode %}{{ registro.id_registrazione }}{% endif %}";
+  var isEdit = {% if edit_mode %}true{% else %}false{% endif %};
+
+  var btnSalva = document.getElementById('btn-salva');
+  var btnReset = document.getElementById('btn-reset');
+  var modal    = document.getElementById('rn-modal');
+  var alertEl  = document.getElementById('rn-alert');
+
+  function showAlert(msg, isError) {
+    alertEl.className = 'cp-alert ' + (isError ? 'cp-alert-error' : 'cp-alert-success');
+    alertEl.textContent = msg;
+    alertEl.style.display = 'block';
+    alertEl.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+
+  function getFormData() {
+    return {
+      tipo: 'C',
+      data: document.getElementById('f-data').value,
+      rif_op: document.getElementById('f-rif-op').value,
+      codice: document.getElementById('f-codice').value,
+      quantita: document.getElementById('f-quantita').value,
+      pericolosita: document.getElementById('f-pericolosita').value,
+      carico_scarico: document.getElementById('f-carico-scarico').value,
+      rentri_si_no: document.getElementById('f-rentri-si-no').checked,
+      note_rentri: document.getElementById('f-note-rentri').value,
+    };
+  }
+
+  function getCsrf() {
+    var el = document.cookie.split(';').find(function(c) { return c.trim().startsWith('csrftoken='); });
+    return el ? el.trim().split('=')[1] : '';
+  }
+
+  btnSalva.addEventListener('click', function() {
+    var data = getFormData();
+    if (!data.data) { showAlert('Il campo Data è obbligatorio.', true); return; }
+    if (!data.codice) { showAlert('Il campo Codice CER è obbligatorio.', true); return; }
+
+    var url = isEdit ? '/rentri/' + savedPk + '/modifica/' : '/rentri/carico/';
+    fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+      body: JSON.stringify(data)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res.ok) { showAlert('Errore: ' + res.error, true); return; }
+      savedPk = res.id;
+      savedIdReg = res.id_registrazione;
+      isEdit = true;
+      // Show rentri modal
+      modal.classList.add('active');
+    })
+    .catch(function(e) { showAlert('Errore di rete: ' + e, true); });
+  });
+
+  btnReset.addEventListener('click', function() {
+    document.getElementById('f-data').value = '';
+    document.getElementById('f-rif-op').value = '';
+    document.getElementById('f-codice').value = '';
+    document.getElementById('f-quantita').value = '';
+    document.getElementById('f-pericolosita').value = '';
+    document.getElementById('f-carico-scarico').selectedIndex = 0;
+    document.getElementById('f-rentri-si-no').checked = false;
+    document.getElementById('f-note-rentri').value = '';
+    alertEl.style.display = 'none';
+  });
+
+  document.getElementById('modal-si').addEventListener('click', function() {
+    modal.classList.remove('active');
+    if (!savedPk) { window.location.href = '{% url "rentri_elenco" %}'; return; }
+    fetch('/rentri/' + savedPk + '/modifica/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+      body: JSON.stringify({rentri_si_no: true, _patch_only: true,
+        data: document.getElementById('f-data').value,
+        codice: document.getElementById('f-codice').value})
+    })
+    .then(function() { window.location.href = '{% url "rentri_elenco" %}'; })
+    .catch(function() { window.location.href = '{% url "rentri_elenco" %}'; });
+  });
+
+  document.getElementById('modal-no').addEventListener('click', function() {
+    modal.classList.remove('active');
+    window.location.href = '{% url "rentri_elenco" %}';
+  });
+})();
+</script>
+{% endblock %}

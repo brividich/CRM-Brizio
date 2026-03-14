@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Homepage Builder — Portale Novicrom</title>
+<style>
+:root {
+  --primary: #1e3a5f;
+  --accent: #f97316;
+  --bg: #f0f2f7;
+  --card: #ffffff;
+  --border: #dde1ec;
+  --text: #1a202c;
+  --muted: #64748b;
+  --success: #16a34a;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── Header ── */
+.hb-header { background: var(--primary); color: #fff; padding: 11px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+.hb-logo { font-size: 1rem; font-weight: 800; }
+.hb-sub  { font-size: .73rem; opacity: .65; margin-top: 1px; }
+.hb-actions { display: flex; gap: 8px; align-items: center; }
+.btn { padding: 7px 15px; border: none; border-radius: 7px; font-size: .8rem; font-weight: 600; cursor: pointer; transition: all .15s; display: inline-flex; align-items: center; gap: 5px; }
+.btn-accent   { background: var(--accent); color: #fff; }
+.btn-accent:hover { background: #ea6c00; }
+.btn-outline  { background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.28); }
+.btn-outline:hover  { background: rgba(255,255,255,.22); }
+.btn-outline.active { background: rgba(255,255,255,.25); border-color: rgba(255,255,255,.6); }
+.btn-green { background: #16a34a; color: #fff; }
+.btn-green:hover { background: #15803d; }
+.btn-blue  { background: #2563eb; color: #fff; }
+.btn-blue:hover  { background: #1d4ed8; }
+
+/* ── Layout ── */
+.hb-body { display: flex; flex: 1; overflow: hidden; }
+
+/* ── LEFT panel ── */
+.hb-left { width: 410px; flex-shrink: 0; overflow-y: auto; background: var(--card); border-right: 1px solid var(--border); }
+
+/* Accordion */
+.sec { border-bottom: 1px solid var(--border); }
+.sec-head { display: flex; align-items: center; gap: 9px; padding: 10px 15px; cursor: pointer; user-select: none; background: #f8fafc; transition: background .12s; }
+.sec-head:hover { background: #eff6ff; }
+.sec-head.open  { background: #eff6ff; }
+.sec-head.open .sec-lbl { color: #1d4ed8; font-weight: 700; }
+.sec-icon  { font-size: .95rem; width: 22px; text-align: center; }
+.sec-lbl   { flex: 1; font-size: .83rem; font-weight: 600; }
+.sec-arrow { font-size: .65rem; color: var(--muted); transition: transform .2s; }
+.sec-head.open .sec-arrow { transform: rotate(180deg); }
+.sec-badge { font-size: .62rem; font-weight: 700; padding: 2px 7px; border-radius: 10px; }
+.badge-on  { background: #dcfce7; color: #15803d; }
+.badge-off { background: #f1f5f9; color: #94a3b8; }
+.sec-body      { display: none; padding: 13px 15px; }
+.sec-body.open { display: block; }
+
+/* Fields */
+.f { margin-bottom: 11px; }
+.f label { display: block; font-size: .71rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 3px; }
+.f input[type=text], .f input[type=url], .f select, .f textarea { width: 100%; padding: 6px 9px; border: 1px solid var(--border); border-radius: 6px; font-size: .84rem; font-family: inherit; background: #fdfdff; transition: border-color .15s; }
+.f input:focus, .f select:focus, .f textarea:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,.13); }
+.f input[type=color] { padding: 2px 3px; height: 30px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border); width: 100%; }
+.f-row     { display: grid; gap: 8px; }
+.f-row.two { grid-template-columns: 1fr 1fr; }
+.hint { font-size: .71rem; color: #94a3b8; margin-bottom: 5px; }
+
+/* Toggle */
+.tog-row { display: flex; align-items: center; gap: 8px; margin-bottom: 11px; }
+.tog-row label { font-size: .84rem; font-weight: 600; cursor: pointer; margin: 0; }
+input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--primary); cursor: pointer; }
+
+/* Repeatable items */
+.items { display: flex; flex-direction: column; gap: 7px; margin-bottom: 9px; }
+.item { background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; }
+.item-hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.item-num { font-size: .71rem; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+.item-del { background: #fee2e2; color: #dc2626; border: none; border-radius: 5px; padding: 2px 8px; font-size: .71rem; cursor: pointer; }
+.item-del:hover { background: #fecaca; }
+.btn-add { width: 100%; padding: 7px; border-radius: 7px; font-size: .79rem; font-weight: 600; cursor: pointer; background: #f0fdf4; color: #16a34a; border: 1.5px dashed #86efac; }
+.btn-add:hover { background: #dcfce7; }
+.sec-sep { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+.info-box { background: #eff6ff; border-left: 3px solid #3b82f6; padding: 8px 10px; border-radius: 0 6px 6px 0; font-size: .76rem; color: #1e40af; margin-bottom: 11px; }
+
+/* ── RIGHT panel ── */
+.hb-right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.preview-bar { background: #fff; border-bottom: 1px solid var(--border); padding: 7px 14px; display: flex; align-items: center; gap: 8px; font-size: .78rem; color: var(--muted); flex-shrink: 0; }
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.dot-r { background: #f87171; } .dot-y { background: #fbbf24; } .dot-g { background: #4ade80; }
+.preview-url { flex: 1; background: #f1f5f9; border-radius: 5px; padding: 3px 10px; font-size: .74rem; color: #475569; }
+.preview-area { flex: 1; overflow: hidden; padding: 12px; background: #e8edf5; }
+.preview-area iframe { width: 100%; height: 100%; border: none; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,.12); display: block; background: #fff; }
+.output-area { flex: 1; display: none; flex-direction: column; overflow: hidden; }
+.output-area.active { display: flex; }
+.output-topbar { background: #1a2035; color: #94a3b8; padding: 9px 14px; display: flex; align-items: center; gap: 8px; font-size: .78rem; flex-shrink: 0; }
+.output-fn { color: #e2e8f0; font-weight: 700; font-size: .82rem; flex: 1; }
+.output-code { flex: 1; overflow: auto; background: #1a2035; color: #c8d3e8; font-family: 'Courier New', monospace; font-size: .74rem; line-height: 1.65; padding: 14px 16px; white-space: pre; margin: 0; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="hb-header">
+  <div>
+    <div class="hb-logo">🏠 Homepage Builder — Portale Novicrom</div>
+    <div class="hb-sub">Configura le sezioni · anteprima live · esporta template Django</div>
+  </div>
+  <div class="hb-actions">
+    <button class="btn btn-outline active" id="btn-preview" onclick="showPreview()">👁 Anteprima</button>
+    <button class="btn btn-outline" id="btn-output" onclick="showOutput()">⟨/⟩ Template Django</button>
+    <button class="btn btn-accent" onclick="downloadTemplate()">⬇ Scarica .html</button>
+  </div>
+</header>
+
+<!-- Body -->
+<div class="hb-body">
+
+  <!-- LEFT: form -->
+  <div class="hb-left" id="formPanel"></div>
+
+  <!-- RIGHT: preview / output -->
+  <div class="hb-right">
+    <div class="preview-bar">
+      <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
+      <span class="preview-url">http://portale.cnovicrom.local/homepage/</span>
+      <span style="font-size:.7rem;color:#94a3b8">Anteprima live — aggiornata ad ogni modifica</span>
+    </div>
+    <div class="preview-area" id="previewArea">
+      <iframe id="previewFrame" title="Anteprima Homepage"></iframe>
+    </div>
+    <div class="output-area" id="outputArea">
+      <div class="output-topbar">
+        <span class="output-fn">📄 dashboard/templates/dashboard/pages/homepage.html</span>
+        <button class="btn btn-blue" style="padding:4px 11px;font-size:.73rem" onclick="copyOutput()">Copia</button>
+        <button class="btn btn-green" style="padding:4px 11px;font-size:.73rem" onclick="downloadTemplate()">⬇ Scarica</button>
+      </div>
+      <pre class="output-code" id="outputCode"></pre>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────────────────────────
+const S = {
+  hero: [
+    { title: "Accedi all'area Manutenzione CN", desc: "Accedi al sito dell'area manutenzione CN, dove potrai aprire ticket tramite l'apposito form, consultare guide e rimanere aggiornato.", img: '', link: '/manutenzione/', link_text: 'Clicca qui per accedere', color: '#1e3a5f' },
+    { title: 'Registro Suggestion Corner', desc: 'Controlla il registro delle segnalazioni fornite dai dipendenti e segui lo stato di avanzamento.', img: '', link: '/suggestion-corner/', link_text: '', color: '#2d5282' },
+    { title: 'Ambiente e Sicurezza UNI ISO 45001', desc: "Accedi alla sezione dello standard per la salute e la sicurezza sul lavoro di Costruzioni Novicrom.", img: '', link: '/sicurezza/', link_text: 'Clicca qui per accedere', color: '#15803d' },
+  ],
+  assenze: {
+    enabled: true,
+    title: "Clicca qui per visualizzare le tue richieste",
+    link_all: '/assenze/',
+    buttons: [
+      { label: 'PERMESSO',               color: '#4ade80', link: '/assenze/nuova/?tipo=permesso' },
+      { label: 'FERIE',                   color: '#60a5fa', link: '/assenze/nuova/?tipo=ferie' },
+      { label: "FLESSIBILITA'",           color: '#facc15', link: '/assenze/nuova/?tipo=flessibilita' },
+      { label: 'MALATTIA',               color: '#f87171', link: '/assenze/nuova/?tipo=malattia' },
+      { label: 'CERTIFICAZIONE PRESENZA', color: '#c084fc', link: '/assenze/nuova/?tipo=certificazione' },
+    ],
+    footer_label: 'Attiva manutenzione',
+    footer_link: '/manutenzione/',
+  },
+  helpdesk: {
+    enabled: true,
+    title: 'PORTALE IT HELPDESK',
+    subtitle: 'Costruzioni Novicrom',
+    img: '',
+    link: '/tickets/',
+  },
+  servizi: {
+    enabled: true,
+    title: 'Collegamenti ai servizi',
+    items: [
+      { icon: '👥', name: 'Personale presente in azienda',          link: '#' },
+      { icon: '🚨', name: 'Squadra Emergency',                       link: '#' },
+      { icon: '📒', name: 'Rubrica telefonica aziendale',            link: '#' },
+      { icon: '📧', name: 'Email gruppi e liste distribuzione m/o',  link: '#' },
+      { icon: '⏱',  name: 'Registro Timbal MOD 130-RIT-Rev 1',      link: '#' },
+      { icon: '🔧', name: 'Presura messa',                           link: '#' },
+      { icon: '💰', name: 'Portale cedolini busta paga',             link: '#' },
+      { icon: '📋', name: 'Gestione NC',                             link: '#' },
+    ],
+  },
+  risorse: {
+    enabled: true,
+    title: 'Risorse e formazione self-help',
+    items: [
+      { icon: '📄', name: 'Guida 20A portale Welfare AON',                        link: '#' },
+      { icon: '🤖', name: "AI Literacy — comprendere l'IA in azienda",            link: '#' },
+      { icon: '📊', name: 'Standard di IMS',                                      link: '#' },
+      { icon: '📋', name: 'Formazione procedure CN 8865-6100-7201',               link: '#' },
+      { icon: '📝', name: 'Formazione modello organizzativo 231',                 link: '#' },
+      { icon: '📜', name: 'UNI PdR 125',                                          link: '#' },
+      { icon: '🖥',  name: 'Guida portale presentazione MENGA',                   link: '#' },
+      { icon: '🖨',  name: 'Guida copio centro NOVGAV',                           link: '#' },
+      { icon: '✅', name: 'Autenticatori per accesso e dati aziendali',           link: '#' },
+      { icon: '📅', name: 'Scadenziario',                                         link: '#' },
+      { icon: '🔒', name: 'Sicurezza Email',                                      link: '#' },
+      { icon: '📞', name: 'Manuale RI Conf',                                      link: '#' },
+      { icon: '🔑', name: 'Come creare una password sicura',                      link: '#' },
+      { icon: '🔗', name: 'Collegarsi tramite VPN',                               link: '#' },
+    ],
+  },
+  notizie: {
+    enabled: true,
+    title: 'Comunicazioni importanti',
+    link_all: '/notizie/',
+  },
+  chat: {
+    enabled: true,
+    buttons: [
+      { label: "Chatta con Luca dell'Help Desk",   link: '#', color: '#1e3a5f' },
+      { label: "Chatta con Simone dell'Help Desk", link: '#', color: '#2d5282' },
+    ],
+  },
+  team: {
+    enabled: true,
+    title: 'Scopri il team IT',
+    members: [
+      { name: 'Luca Bova',           role: 'Information Technology Assistant', photo: '' },
+      { name: 'Simone Granevilla',   role: 'Information Technology Manager',   photo: '' },
+    ],
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FORM BUILD
+// ─────────────────────────────────────────────────────────────────────────────
+const SECTIONS = [
+  { id: 'hero',     icon: '🏆', lbl: '1 — Hero Cards (3 card in alto)',    fn: rHero,     noToggle: true },
+  { id: 'assenze',  icon: '📋', lbl: '2 — Widget Assenze (sinistra)',       fn: rAssenze  },
+  { id: 'helpdesk', icon: '🎫', lbl: '3 — Widget IT Helpdesk (destra)',     fn: rHelpdesk },
+  { id: 'servizi',  icon: '🔗', lbl: '4 — Sezione Servizi',                 fn: rServizi  },
+  { id: 'risorse',  icon: '📚', lbl: '5 — Risorse e Formazione',            fn: rRisorse  },
+  { id: 'notizie',  icon: '📰', lbl: '6 — Comunicazioni Importanti',        fn: rNotizie  },
+  { id: 'chat',     icon: '💬', lbl: '7 — Pulsanti Chat Help Desk',         fn: rChat     },
+  { id: 'team',     icon: '👤', lbl: '8 — Team IT',                         fn: rTeam     },
+];
+
+function buildForm() {
+  const panel = document.getElementById('formPanel');
+  panel.innerHTML = '';
+  SECTIONS.forEach((sec, i) => {
+    const on = S[sec.id]?.enabled !== false;
+    const badge = sec.noToggle ? '' : `<span class="sec-badge ${on ? 'badge-on' : 'badge-off'}" id="badge-${sec.id}">${on ? 'ON' : 'OFF'}</span>`;
+    const div = document.createElement('div');
+    div.className = 'sec'; div.id = 'sec-' + sec.id;
+    div.innerHTML = `
+      <div class="sec-head${i===0?' open':''}" onclick="toggleSec('${sec.id}')">
+        <span class="sec-icon">${sec.icon}</span>
+        <span class="sec-lbl">${sec.lbl}</span>
+        ${badge}
+        <span class="sec-arrow">▼</span>
+      </div>
+      <div class="sec-body${i===0?' open':''}" id="body-${sec.id}">${sec.fn()}</div>`;
+    panel.appendChild(div);
+  });
+}
+
+function toggleSec(id) {
+  document.querySelector(`#sec-${id} .sec-head`).classList.toggle('open');
+  document.getElementById('body-'+id).classList.toggle('open');
+}
+
+function rebuildSec(id) {
+  const body = document.getElementById('body-'+id);
+  const open = body.classList.contains('open');
+  const sec = SECTIONS.find(s => s.id === id);
+  body.innerHTML = sec.fn();
+  if (open) body.classList.add('open');
+}
+
+function setEnabled(id, val) {
+  S[id].enabled = val;
+  const b = document.getElementById('badge-'+id);
+  if (b) { b.textContent = val?'ON':'OFF'; b.className = 'sec-badge '+(val?'badge-on':'badge-off'); }
+  refresh();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION RENDERERS
+// ─────────────────────────────────────────────────────────────────────────────
+function rHero() {
+  return `
+    <div class="hint">Fino a 3 card con immagine (URL) o colore di sfondo solido.</div>
+    <div class="items">${S.hero.map((c,i) => `
+      <div class="item">
+        <div class="item-hd"><span class="item-num">Card ${i+1}</span><button class="item-del" onclick="removeHero(${i})">Rimuovi</button></div>
+        <div class="f"><label>Titolo</label><input type="text" value="${x(c.title)}" oninput="S.hero[${i}].title=this.value;refresh()"></div>
+        <div class="f"><label>Descrizione</label><input type="text" value="${x(c.desc)}" oninput="S.hero[${i}].desc=this.value;refresh()"></div>
+        <div class="f"><label>URL Immagine (opzionale)</label><input type="text" placeholder="https://... oppure /media/..." value="${x(c.img)}" oninput="S.hero[${i}].img=this.value;refresh()"></div>
+        <div class="f-row two">
+          <div class="f"><label>Colore sfondo</label><input type="color" value="${c.color}" oninput="S.hero[${i}].color=this.value;refresh()"></div>
+          <div class="f"><label>Link URL</label><input type="text" value="${x(c.link)}" oninput="S.hero[${i}].link=this.value;refresh()"></div>
+        </div>
+        <div class="f"><label>Testo pulsante (vuoto = nessun pulsante)</label><input type="text" value="${x(c.link_text)}" oninput="S.hero[${i}].link_text=this.value;refresh()"></div>
+      </div>`).join('')}
+    </div>
+    ${S.hero.length < 3 ? `<button class="btn-add" onclick="addHero()">+ Aggiungi card</button>` : ''}`;
+}
+
+function rAssenze() {
+  const s = S.assenze;
+  return `
+    <div class="tog-row"><input type="checkbox" ${s.enabled?'checked':''} onchange="setEnabled('assenze',this.checked)"><label>Mostra sezione</label></div>
+    <div class="f"><label>Titolo widget</label><input type="text" value="${x(s.title)}" oninput="S.assenze.title=this.value;refresh()"></div>
+    <div class="f"><label>Link "Vedi tutte"</label><input type="text" value="${x(s.link_all)}" oninput="S.assenze.link_all=this.value;refresh()"></div>
+    <hr class="sec-sep">
+    <div class="hint">Bottoni tipo assenza:</div>
+    <div class="items">${s.buttons.map((b,i) => `
+      <div class="item">
+        <div class="item-hd"><span class="item-num" style="color:${b.color}">● Bottone ${i+1}</span><button class="item-del" onclick="removeAssenzaBtn(${i})">Rimuovi</button></div>
+        <div class="f-row two">
+          <div class="f"><label>Etichetta</label><input type="text" value="${x(b.label)}" oninput="S.assenze.buttons[${i}].label=this.value;refresh()"></div>
+          <div class="f"><label>Colore</label><input type="color" value="${b.color}" oninput="S.assenze.buttons[${i}].color=this.value;refresh()"></div>
+        </div>
+        <div class="f"><label>Link</label><input type="text" value="${x(b.link)}" oninput="S.assenze.buttons[${i}].link=this.value;refresh()"></div>
+      </div>`).join('')}
+    </div>
+    <button class="btn-add" onclick="addAssenzaBtn()">+ Aggiungi bottone</button>
+    <hr class="sec-sep">
+    <div class="f-row two">
+      <div class="f"><label>Label footer</label><input type="text" value="${x(s.footer_label)}" oninput="S.assenze.footer_label=this.value;refresh()"></div>
+      <div class="f"><label>Link footer</label><input type="text" value="${x(s.footer_link)}" oninput="S.assenze.footer_link=this.value;refresh()"></div>
+    </div>`;
+}
+
+function rHelpdesk() {
+  const s = S.helpdesk;
+  return `
+    <div class="tog-row"><input type="checkbox" ${s.enabled?'checked':''} onchange="setEnabled('helpdesk',this.checked)"><label>Mostra sezione</label></div>
+    <div class="f"><label>Titolo</label><input type="text" value="${x(s.title)}" oninput="S.helpdesk.title=this.value;refresh()"></div>
+    <div class="f"><label>Sottotitolo / nome azienda</label><input type="text" value="${x(s.subtitle)}" oninput="S.helpdesk.subtitle=this.value;refresh()"></div>
+    <div class="f"><label>URL immagine banner</label><input type="text" placeholder="https://... oppure /media/..." value="${x(s.img)}" oninput="S.helpdesk.img=this.value;refresh()"></div>
+    <div class="f"><label>Link principale</label><input type="text" value="${x(s.link)}" oninput="S.helpdesk.link=this.value;refresh()"></div>`;
+}
+
+function rServizi() {
+  const s = S.servizi;
+  return `
+    <div class="tog-row"><input type="checkbox" ${s.enabled?'checked':''} onchange="setEnabled('servizi',this.checked)"><label>Mostra sezione</label></div>
+    <div class="f"><label>Titolo sezione</label><input type="text" value="${x(s.title)}" oninput="S.servizi.title=this.value;refresh()"></div>
+    <hr class="sec-sep">
+    <div class="items">${s.items.map((it,i) => `
+      <div class="item">
+        <div class="item-hd"><span class="item-num">${it.icon} Servizio ${i+1}</span><button class="item-del" onclick="removeServizio(${i})">Rimuovi</button></div>
+        <div class="f-row two">
+          <div class="f"><label>Emoji / Icona</label><input type="text" value="${x(it.icon)}" oninput="S.servizi.items[${i}].icon=this.value;refresh()"></div>
+          <div class="f"><label>Link URL</label><input type="text" value="${x(it.link)}" oninput="S.servizi.items[${i}].link=this.value;refresh()"></div>
+        </div>
+        <div class="f"><label>Nome</label><input type="text" value="${x(it.name)}" oninput="S.servizi.items[${i}].name=this.value;refresh()"></div>
+      </div>`).join('')}
+    </div>
+    <button class="btn-add" onclick="addServizio()">+ Aggiungi servizio</button>`;
+}
+
+function rRisorse() {
+  const s = S.risorse;
+  return `
+    <div class="tog-row"><input type="checkbox" ${s.enabled?'checked':''} onchange="setEnabled('risorse',this.checked)"><label>Mostra sezione</label></div>
+    <div class="f"><label>Titolo sezione</label><input type="text" value="${x(s.title)}" oninput="S.risorse.title=this.value;refresh()"></div>
+    <hr class="sec-sep">
+    <div class="items">${s.items.map((it,i) => `
+      <div class="item">
+        <div class="item-hd"><span class="item-num">${it.icon} Risorsa ${i+1}</span><button class="item-del" onclick="removeRisorsa(${i})">Rimuovi</button></div>
+        <div class="f-row two">
+          <div class="f"><label>Emoji / Icona</label><input type="text" value="${x(it.icon)}" oninput="S.risorse.items[${i}].icon=this.value;refresh()"></div>
+          <div class="f"><label>Link URL</label><input type="text" value="${x(it.link)}" oninput="S.risorse.items[${i}].link=this.value;refresh()"></div>
+        </div>
+        <div class="f"><label>Nome</label><input type="text" value="${x(it.name)}" oninput="S.risorse.items[${i}].name=this.value;refresh()"></div>
+      </div>`).join('')}
+    </div>
+    <button class="btn-add" onclick="addRisorsa()">+ Aggiungi risorsa</button>`;
+}
+
+function rNotizie() {
+  const s = S.notizie;
+  return `
+    <div class="tog-row"><input type="checkbox" ${s.enabled?'checked':''} onchange="setEnabled('notizie',this.checked)"><label>Mostra sezione</label></div>
+    <div class="info-box">Questa sezione usa il modulo <strong>notizie</strong> di Django e mostra le comunicazioni dinamicamente. Configura solo titolo e link.</div>
+    <div class="f"><label>Titolo sezione</label><input type="text" value="${x(s.title)}" oninput="S.notizie.title=this.value;refresh()"></div>
+    <div class="f"><label>Link "Mostra tutto"</label><input type="text" value="${x(s.link_all)}" oninput="S.notizie.link_all=this.value;refresh()"></div>`;
+}
+
+function rChat() {
+  const s = S.chat;
+  return `
+    <div class="tog-row"><input type="checkbox" ${s.enabled?'checked':''} onchange="setEnabled('chat',this.checked)"><label>Mostra sezione</label></div>
+    <div class="items">${s.buttons.map((b,i) => `
+      <div class="item">
+        <div class="item-hd"><span class="item-num">Bottone ${i+1}</span><button class="item-del" onclick="removeChatBtn(${i})">Rimuovi</button></div>
+        <div class="f"><label>Testo</label><input type="text" value="${x(b.label)}" oninput="S.chat.buttons[${i}].label=this.value;refresh()"></div>
+        <div class="f-row two">
+          <div class="f"><label>Link (Teams, mailto…)</label><input type="text" value="${x(b.link)}" oninput="S.chat.buttons[${i}].link=this.value;refresh()"></div>
+          <div class="f"><label>Colore</label><input type="color" value="${b.color}" oninput="S.chat.buttons[${i}].color=this.value;refresh()"></div>
+        </div>
+      </div>`).join('')}
+    </div>
+    <button class="btn-add" onclick="addChatBtn()">+ Aggiungi bottone chat</button>`;
+}
+
+function rTeam() {
+  const s = S.team;
+  return `
+    <div class="tog-row"><input type="checkbox" ${s.enabled?'checked':''} onchange="setEnabled('team',this.checked)"><label>Mostra sezione</label></div>
+    <div class="f"><label>Titolo sezione</label><input type="text" value="${x(s.title)}" oninput="S.team.title=this.value;refresh()"></div>
+    <hr class="sec-sep">
+    <div class="items">${s.members.map((m,i) => `
+      <div class="item">
+        <div class="item-hd"><span class="item-num">Membro ${i+1}</span><button class="item-del" onclick="removeTeamMember(${i})">Rimuovi</button></div>
+        <div class="f"><label>Nome</label><input type="text" value="${x(m.name)}" oninput="S.team.members[${i}].name=this.value;refresh()"></div>
+        <div class="f"><label>Ruolo</label><input type="text" value="${x(m.role)}" oninput="S.team.members[${i}].role=this.value;refresh()"></div>
+        <div class="f"><label>URL Foto</label><input type="text" placeholder="/media/foto/... oppure URL esterno" value="${x(m.photo)}" oninput="S.team.members[${i}].photo=this.value;refresh()"></div>
+      </div>`).join('')}
+    </div>
+    <button class="btn-add" onclick="addTeamMember()">+ Aggiungi membro</button>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADD / REMOVE HANDLERS
+// ─────────────────────────────────────────────────────────────────────────────
+function addHero()         { if(S.hero.length<3){S.hero.push({title:'Nuova card',desc:'',img:'',link:'#',link_text:'',color:'#1e3a5f'});rebuildSec('hero');refresh();} }
+function removeHero(i)     { S.hero.splice(i,1); rebuildSec('hero'); refresh(); }
+
+function addAssenzaBtn()      { S.assenze.buttons.push({label:'NUOVO',color:'#94a3b8',link:'#'}); rebuildSec('assenze'); refresh(); }
+function removeAssenzaBtn(i)  { S.assenze.buttons.splice(i,1); rebuildSec('assenze'); refresh(); }
+
+function addServizio()     { S.servizi.items.push({icon:'🔗',name:'Nuovo servizio',link:'#'}); rebuildSec('servizi'); refresh(); }
+function removeServizio(i) { S.servizi.items.splice(i,1); rebuildSec('servizi'); refresh(); }
+
+function addRisorsa()      { S.risorse.items.push({icon:'📄',name:'Nuova risorsa',link:'#'}); rebuildSec('risorse'); refresh(); }
+function removeRisorsa(i)  { S.risorse.items.splice(i,1); rebuildSec('risorse'); refresh(); }
+
+function addChatBtn()      { S.chat.buttons.push({label:"Chatta con l'Help Desk",link:'#',color:'#1e3a5f'}); rebuildSec('chat'); refresh(); }
+function removeChatBtn(i)  { S.chat.buttons.splice(i,1); rebuildSec('chat'); refresh(); }
+
+function addTeamMember()      { S.team.members.push({name:'Nuovo Membro',role:'Ruolo',photo:''}); rebuildSec('team'); refresh(); }
+function removeTeamMember(i)  { S.team.members.splice(i,1); rebuildSec('team'); refresh(); }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PREVIEW HTML
+// ─────────────────────────────────────────────────────────────────────────────
+function genPreview() {
+  const hero = S.hero.map(c => `
+    <div style="flex:1;min-width:200px;border-radius:10px;overflow:hidden;position:relative;min-height:145px;
+      background:${c.img?`url(${c.img}) center/cover no-repeat`:c.color};display:flex;flex-direction:column;justify-content:flex-end;">
+      <div style="background:rgba(0,0,0,.38);padding:14px 16px;color:#fff">
+        <div style="font-weight:800;font-size:.92rem;margin-bottom:4px">${h(c.title)}</div>
+        <div style="font-size:.73rem;opacity:.87;margin-bottom:8px">${h(c.desc)}</div>
+        ${c.link_text?`<a href="${c.link}" style="display:inline-block;background:rgba(255,255,255,.2);color:#fff;text-decoration:none;padding:4px 12px;border-radius:6px;font-size:.72rem;border:1px solid rgba(255,255,255,.35)">${h(c.link_text)}</a>`:''}
+      </div>
+    </div>`).join('');
+
+  const assenze = S.assenze.enabled ? `
+    <div style="flex:1;min-width:230px;background:#fff;border-radius:10px;border:1px solid #e2e8f0;overflow:hidden">
+      <div style="background:#1e3a5f;color:#fff;padding:9px 13px;font-size:.8rem;font-weight:700">${h(S.assenze.title)}</div>
+      <div style="padding:8px 10px">
+        ${S.assenze.buttons.map(b=>`<a href="${b.link}" style="display:block;background:${b.color};color:#fff;text-decoration:none;border-radius:7px;padding:9px 13px;margin-bottom:5px;font-size:.8rem;font-weight:800;text-align:center;letter-spacing:.04em">${h(b.label)}</a>`).join('')}
+      </div>
+      ${S.assenze.footer_label?`<div style="padding:7px 13px;border-top:1px solid #e2e8f0;font-size:.7rem;color:#64748b">⚙ ${h(S.assenze.footer_label)}</div>`:''}
+    </div>` : '';
+
+  const helpdesk = S.helpdesk.enabled ? `
+    <div style="flex:1;min-width:230px;background:#fff;border-radius:10px;border:1px solid #e2e8f0;overflow:hidden">
+      <div style="background:#1e3a5f;color:#fff;padding:9px 13px;font-size:.8rem;font-weight:700">${h(S.helpdesk.title)}</div>
+      ${S.helpdesk.img
+        ? `<img src="${S.helpdesk.img}" style="width:100%;height:115px;object-fit:cover;display:block">`
+        : `<div style="height:115px;background:linear-gradient(135deg,#1e3a5f,#2563eb);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.85rem">${h(S.helpdesk.subtitle)}</div>`}
+      <div style="padding:8px 10px">
+        <a href="${S.helpdesk.link}" style="display:block;text-align:center;background:#1e3a5f;color:#fff;text-decoration:none;border-radius:7px;padding:8px;font-size:.77rem;font-weight:700">Apri Helpdesk →</a>
+      </div>
+    </div>` : '';
+
+  const servizi = S.servizi.enabled ? `
+    <div style="background:#fff;border-radius:10px;border:1px solid #e2e8f0;padding:15px">
+      <div style="font-size:.87rem;font-weight:800;color:#1e3a5f;margin-bottom:11px">${h(S.servizi.title)}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:7px">
+        ${S.servizi.items.map(it=>`<a href="${it.link}" style="display:flex;align-items:center;gap:6px;padding:6px 11px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;text-decoration:none;color:#1a202c;font-size:.76rem;font-weight:600"><span>${it.icon}</span><span>${h(it.name)}</span></a>`).join('')}
+      </div>
+    </div>` : '';
+
+  const risorse = S.risorse.enabled ? `
+    <div style="background:#fff;border-radius:10px;border:1px solid #e2e8f0;padding:15px">
+      <div style="font-size:.87rem;font-weight:800;color:#1e3a5f;margin-bottom:11px">${h(S.risorse.title)}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:7px">
+        ${S.risorse.items.map(it=>`<a href="${it.link}" style="display:flex;align-items:center;gap:7px;padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;text-decoration:none;color:#1a202c;font-size:.74rem;font-weight:600;line-height:1.25"><span style="font-size:1.05rem;flex-shrink:0">${it.icon}</span><span>${h(it.name)}</span></a>`).join('')}
+      </div>
+    </div>` : '';
+
+  const notizie = S.notizie.enabled ? `
+    <div style="background:#fff;border-radius:10px;border:1px solid #e2e8f0;padding:15px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-size:.87rem;font-weight:800;color:#1e3a5f">${h(S.notizie.title)}</div>
+        <a href="${S.notizie.link_all}" style="font-size:.74rem;color:#2563eb;text-decoration:none">Mostra tutto</a>
+      </div>
+      <div style="color:#94a3b8;font-size:.76rem;font-style:italic;padding:6px 0">← Contenuto dinamico dal modulo notizie (Django) →</div>
+    </div>` : '';
+
+  const chat = S.chat.enabled && S.chat.buttons.length ? `
+    <div style="display:flex;gap:9px;flex-wrap:wrap;justify-content:center">
+      ${S.chat.buttons.map(b=>`<a href="${b.link}" style="padding:10px 24px;background:${b.color};color:#fff;text-decoration:none;border-radius:8px;font-size:.8rem;font-weight:700">💬 ${h(b.label)}</a>`).join('')}
+    </div>` : '';
+
+  const team = S.team.enabled && S.team.members.length ? `
+    <div style="background:#fff;border-radius:10px;border:1px solid #e2e8f0;padding:15px">
+      <div style="font-size:.87rem;font-weight:800;color:#1e3a5f;margin-bottom:11px">${h(S.team.title)}</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        ${S.team.members.map(m=>`
+          <div style="display:flex;align-items:center;gap:10px">
+            ${m.photo
+              ? `<img src="${m.photo}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid #e2e8f0">`
+              : `<div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#1e3a5f,#2563eb);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:1rem">${m.name.charAt(0)}</div>`}
+            <div><div style="font-weight:700;font-size:.84rem">${h(m.name)}</div><div style="font-size:.7rem;color:#64748b">${h(m.role)}</div></div>
+          </div>`).join('')}
+      </div>
+    </div>` : '';
+
+  return `<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8">
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,'Segoe UI',sans-serif;background:#eef0f5;color:#1a202c}
+.nav{background:#1e3a5f;color:#fff;padding:11px 22px;display:flex;align-items:center;justify-content:space-between;font-weight:700;font-size:.88rem}
+.content{max-width:1100px;margin:0 auto;padding:18px 14px 36px;display:flex;flex-direction:column;gap:14px}</style>
+</head><body>
+<div class="nav"><span>📋 Portale Novicrom</span><span style="font-size:.7rem;opacity:.55;font-weight:400">Anteprima — non riflette il tema finale</span></div>
+<div class="content">
+  <div style="display:flex;gap:11px;flex-wrap:wrap">${hero}</div>
+  ${(S.assenze.enabled||S.helpdesk.enabled)?`<div style="display:flex;gap:11px;align-items:flex-start;flex-wrap:wrap">${assenze}${helpdesk}</div>`:''}
+  ${servizi}${risorse}${notizie}${chat}${team}
+</div></body></html>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DJANGO TEMPLATE OUTPUT
+// ─────────────────────────────────────────────────────────────────────────────
+function genDjango() {
+  const heroHtml = S.hero.map(c =>
+`    <div class="hp-hero-card" style="background-color:${c.color}${c.img?`;background-image:url('${c.img}')`:''}">\n      <div class="hp-hero-overlay">\n        <h3>${h(c.title)}</h3>\n        <p>${h(c.desc)}</p>\n        ${c.link_text?`<a href="${c.link}" class="hp-hero-btn">${h(c.link_text)}</a>`:''}\n      </div>\n    </div>`).join('\n');
+
+  const assenzeHtml = S.assenze.enabled ? `
+  {# ── Widget Assenze ── #}
+  <div class="hp-col-widget">
+    <div class="hp-widget-head">${h(S.assenze.title)}</div>
+    <div class="hp-widget-body">
+${S.assenze.buttons.map(b=>`      <a href="${b.link}" class="hp-assenza-btn" style="background:${b.color}">${h(b.label)}</a>`).join('\n')}
+    </div>
+    ${S.assenze.footer_label?`<div class="hp-widget-foot"><a href="${S.assenze.footer_link}">⚙ ${h(S.assenze.footer_label)}</a></div>`:''}\n  </div>` : '';
+
+  const helpdeskHtml = S.helpdesk.enabled ? `
+  {# ── Widget Helpdesk ── #}
+  <div class="hp-col-widget">
+    <div class="hp-widget-head">${h(S.helpdesk.title)}</div>
+    <div class="hp-widget-body">
+      ${S.helpdesk.img?`<img src="${S.helpdesk.img}" class="hp-helpdesk-img" alt="Helpdesk">`:`<div class="hp-helpdesk-placeholder">${h(S.helpdesk.subtitle)}</div>`}
+      <a href="${S.helpdesk.link}" class="hp-helpdesk-link">Apri Helpdesk &rarr;</a>
+    </div>
+  </div>` : '';
+
+  const serviziHtml = S.servizi.enabled ? `
+  {# ── Servizi ── #}
+  <section class="hp-section">
+    <h2 class="hp-section-title">${h(S.servizi.title)}</h2>
+    <div class="hp-servizi-grid">
+${S.servizi.items.map(it=>`      <a href="${it.link}" class="hp-servizio-item"><span class="hp-item-icon">${it.icon}</span><span>${h(it.name)}</span></a>`).join('\n')}
+    </div>
+  </section>` : '';
+
+  const risorseHtml = S.risorse.enabled ? `
+  {# ── Risorse ── #}
+  <section class="hp-section">
+    <h2 class="hp-section-title">${h(S.risorse.title)}</h2>
+    <div class="hp-risorse-grid">
+${S.risorse.items.map(it=>`      <a href="${it.link}" class="hp-risorsa-item"><span class="hp-item-icon">${it.icon}</span><span>${h(it.name)}</span></a>`).join('\n')}
+    </div>
+  </section>` : '';
+
+  const notizieHtml = S.notizie.enabled ? `
+  {# ── Notizie ── #}
+  <section class="hp-section">
+    <div class="hp-section-header">
+      <h2 class="hp-section-title">${h(S.notizie.title)}</h2>
+      <a href="${S.notizie.link_all}" class="hp-section-more">Mostra tutto</a>
+    </div>
+    <div class="hp-notizie-list">
+      {% for notizia in notizie_recenti %}
+      <div class="hp-notizia-item">
+        <div class="hp-notizia-title">{{ notizia.titolo }}</div>
+        <div class="hp-notizia-meta">{{ notizia.data_pubblicazione|date:"d/m/Y" }}</div>
+      </div>
+      {% empty %}
+      <div class="hp-empty">Nessuna comunicazione recente.</div>
+      {% endfor %}
+    </div>
+  </section>` : '';
+
+  const chatHtml = S.chat.enabled && S.chat.buttons.length ? `
+  {# ── Chat ── #}
+  <div class="hp-chat-row">
+${S.chat.buttons.map(b=>`    <a href="${b.link}" class="hp-chat-btn" style="background:${b.color}">&#128172; ${h(b.label)}</a>`).join('\n')}
+  </div>` : '';
+
+  const teamHtml = S.team.enabled && S.team.members.length ? `
+  {# ── Team IT ── #}
+  <section class="hp-section">
+    <h2 class="hp-section-title">${h(S.team.title)}</h2>
+    <div class="hp-team-row">
+${S.team.members.map(m=>`      <div class="hp-team-member">\n        ${m.photo?`<img src="${m.photo}" class="hp-team-photo" alt="${h(m.name)}">`:`<div class="hp-team-avatar">${m.name.charAt(0)}</div>`}\n        <div><div class="hp-team-name">${h(m.name)}</div><div class="hp-team-role">${h(m.role)}</div></div>\n      </div>`).join('\n')}
+    </div>
+  </section>` : '';
+
+  return `{% extends "core/base.html" %}
+{% load static %}
+{% block title %}Home | Portale Novicrom{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Homepage ─────────────────────────────────────────────────────── */
+.hp-root {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px 16px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Hero */
+.hp-hero-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.hp-hero-card {
+  flex: 1; min-width: 220px; min-height: 150px;
+  border-radius: 12px; overflow: hidden; position: relative;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  background-size: cover; background-position: center;
+}
+.hp-hero-overlay { background: rgba(0,0,0,.38); padding: 16px 18px; color: #fff; }
+.hp-hero-overlay h3 { font-size: .95rem; font-weight: 800; margin-bottom: 5px; }
+.hp-hero-overlay p  { font-size: .75rem; opacity: .87; margin-bottom: 10px; line-height: 1.4; }
+.hp-hero-btn {
+  display: inline-block; background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.4);
+  color: #fff; text-decoration: none; padding: 5px 14px; border-radius: 6px;
+  font-size: .75rem; font-weight: 600;
+}
+.hp-hero-btn:hover { background: rgba(255,255,255,.35); }
+
+/* Two-col widget row */
+.hp-col-row { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+.hp-col-widget {
+  flex: 1; min-width: 240px; background: #fff;
+  border: 1px solid var(--border, #e2e8f0); border-radius: 12px; overflow: hidden;
+}
+.hp-widget-head { background: var(--primary, #1e3a5f); color: #fff; padding: 10px 14px; font-size: .82rem; font-weight: 700; }
+.hp-widget-body { padding: 10px 12px; }
+.hp-widget-foot { padding: 8px 14px; border-top: 1px solid var(--border, #e2e8f0); font-size: .72rem; }
+.hp-widget-foot a { color: var(--text-mid, #4a5568); text-decoration: none; }
+
+/* Assenze buttons */
+.hp-assenza-btn {
+  display: block; color: #fff; text-decoration: none; border-radius: 8px;
+  padding: 10px 14px; margin-bottom: 6px; font-size: .83rem; font-weight: 800;
+  text-align: center; letter-spacing: .04em; transition: filter .15s;
+}
+.hp-assenza-btn:hover { filter: brightness(1.08); }
+.hp-assenza-btn:last-child { margin-bottom: 0; }
+
+/* Helpdesk */
+.hp-helpdesk-img { width: 100%; height: 130px; object-fit: cover; display: block; }
+.hp-helpdesk-placeholder {
+  height: 130px; background: linear-gradient(135deg, #1e3a5f, #2563eb);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 700; font-size: .9rem;
+}
+.hp-helpdesk-link {
+  display: block; text-align: center; background: var(--primary, #1e3a5f);
+  color: #fff; text-decoration: none; padding: 9px; font-size: .8rem; font-weight: 700;
+  margin: 10px 12px; border-radius: 7px; transition: background .15s;
+}
+.hp-helpdesk-link:hover { background: #162d4a; }
+
+/* Sections */
+.hp-section { background: #fff; border: 1px solid var(--border, #e2e8f0); border-radius: 12px; padding: 16px 18px; }
+.hp-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.hp-section-title { font-size: .9rem; font-weight: 800; color: var(--primary, #1e3a5f); margin-bottom: 12px; }
+.hp-section-header .hp-section-title { margin-bottom: 0; }
+.hp-section-more { font-size: .77rem; color: #2563eb; text-decoration: none; }
+.hp-item-icon { font-size: 1rem; flex-shrink: 0; }
+
+/* Servizi */
+.hp-servizi-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.hp-servizio-item {
+  display: flex; align-items: center; gap: 7px; padding: 7px 12px;
+  background: #f8fafc; border: 1px solid var(--border, #e2e8f0); border-radius: 8px;
+  text-decoration: none; color: var(--text, #1a202c); font-size: .78rem; font-weight: 600;
+  transition: background .12s;
+}
+.hp-servizio-item:hover { background: #eff6ff; }
+
+/* Risorse */
+.hp-risorse-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.hp-risorsa-item {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  background: #f8fafc; border: 1px solid var(--border, #e2e8f0); border-radius: 8px;
+  text-decoration: none; color: var(--text, #1a202c); font-size: .76rem; font-weight: 600;
+  line-height: 1.25; transition: background .12s;
+}
+.hp-risorsa-item:hover { background: #eff6ff; }
+
+/* Notizie */
+.hp-notizie-list { display: flex; flex-direction: column; }
+.hp-notizia-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; gap: 12px; }
+.hp-notizia-item:last-child { border-bottom: none; }
+.hp-notizia-title { font-size: .83rem; font-weight: 600; flex: 1; }
+.hp-notizia-meta  { font-size: .72rem; color: #94a3b8; white-space: nowrap; }
+.hp-empty { color: #94a3b8; font-size: .82rem; padding: 10px 0; }
+
+/* Chat */
+.hp-chat-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.hp-chat-btn { padding: 11px 28px; color: #fff; text-decoration: none; border-radius: 8px; font-size: .83rem; font-weight: 700; transition: filter .15s; }
+.hp-chat-btn:hover { filter: brightness(1.1); }
+
+/* Team */
+.hp-team-row { display: flex; gap: 20px; flex-wrap: wrap; }
+.hp-team-member { display: flex; align-items: center; gap: 12px; }
+.hp-team-photo { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border, #e2e8f0); }
+.hp-team-avatar {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: linear-gradient(135deg, #1e3a5f, #2563eb);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 800; font-size: 1.1rem; flex-shrink: 0;
+}
+.hp-team-name { font-weight: 700; font-size: .87rem; }
+.hp-team-role { font-size: .73rem; color: #64748b; margin-top: 1px; }
+
+@media (max-width: 720px) {
+  .hp-hero-row, .hp-col-row { flex-direction: column; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hp-root">
+
+  {# ── Hero cards ─────────────────────────────────────────────────── #}
+  <div class="hp-hero-row">
+${heroHtml}
+  </div>
+
+  {# ── Widget row ──────────────────────────────────────────────────── #}
+  <div class="hp-col-row">
+${assenzeHtml}
+${helpdeskHtml}
+  </div>
+${serviziHtml}
+${risorseHtml}
+${notizieHtml}
+${chatHtml}
+${teamHtml}
+
+</div>
+{% endblock %}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UI
+// ─────────────────────────────────────────────────────────────────────────────
+let _previewMode = true;
+
+function showPreview() {
+  _previewMode = true;
+  document.getElementById('previewArea').style.display = '';
+  document.getElementById('outputArea').classList.remove('active');
+  document.getElementById('btn-preview').classList.add('active');
+  document.getElementById('btn-output').classList.remove('active');
+}
+
+function showOutput() {
+  _previewMode = false;
+  document.getElementById('previewArea').style.display = 'none';
+  document.getElementById('outputArea').classList.add('active');
+  document.getElementById('btn-preview').classList.remove('active');
+  document.getElementById('btn-output').classList.add('active');
+  document.getElementById('outputCode').textContent = genDjango();
+}
+
+function copyOutput() {
+  navigator.clipboard.writeText(document.getElementById('outputCode').textContent).then(() => {
+    const btn = event.target; const orig = btn.textContent;
+    btn.textContent = 'Copiato!'; btn.style.background = '#15803d';
+    setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 1500);
+  });
+}
+
+function downloadTemplate() {
+  const code = genDjango();
+  const a = document.createElement('a');
+  a.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(code);
+  a.download = 'homepage.html';
+  a.click();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REFRESH (debounced)
+// ─────────────────────────────────────────────────────────────────────────────
+let _rt = null;
+function refresh() {
+  clearTimeout(_rt);
+  _rt = setTimeout(() => {
+    if (_previewMode) {
+      const f = document.getElementById('previewFrame');
+      const d = f.contentDocument || f.contentWindow.document;
+      d.open(); d.write(genPreview()); d.close();
+    } else {
+      document.getElementById('outputCode').textContent = genDjango();
+    }
+  }, 120);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UTILS
+// ─────────────────────────────────────────────────────────────────────────────
+function x(s)  { return (s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function h(s)  { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────────────────────────────────
+buildForm();
+refresh();
+</script>
+</body>
+</html>

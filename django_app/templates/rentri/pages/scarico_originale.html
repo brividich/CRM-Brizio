@@ -1,0 +1,250 @@
+{% extends "core/base.html" %}
+
+{% block title %}O - Scarico Originale | RENTRI{% endblock %}
+
+{% block extra_head %}
+<style>
+.cp-wrap { display:flex; flex-direction:column; gap:20px; }
+.cp-hero {
+  background:#E8996C;
+  border-radius:14px; padding:26px 30px;
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px; color:#fff;
+}
+.cp-hero-title { font-size:22px; font-weight:900; letter-spacing:-.02em; }
+.cp-hero-sub   { font-size:13px; opacity:.75; margin-top:3px; }
+.cp-hero-btn   { display:inline-flex; align-items:center; gap:6px; padding:9px 18px; border-radius:9px; font-size:13px; font-weight:700; text-decoration:none; background:#fff; color:#E8996C; border:none; cursor:pointer; }
+.cp-hero-btn:hover { background:#fff8f4; }
+.cp-form-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.cp-form-head { padding:16px 22px; background:#f8fafc; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; gap:10px; }
+.cp-form-title { font-size:14px; font-weight:800; color:#0f172a; }
+.cp-form-body  { padding:22px; }
+.cp-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.cp-full  { grid-column:1/-1; }
+.cp-field { display:flex; flex-direction:column; gap:5px; }
+.cp-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.06em; }
+.cp-label span.req { color:#dc2626; margin-left:2px; }
+.cp-input, .cp-select, .cp-textarea {
+  border:1px solid #d1d5db; border-radius:8px; padding:9px 12px; font-size:13px;
+  background:#fff; color:#0f172a; width:100%; box-sizing:border-box; transition:border-color .15s;
+}
+.cp-input:focus, .cp-select:focus, .cp-textarea:focus { outline:none; border-color:#E8996C; box-shadow:0 0 0 3px rgba(232,153,108,.12); }
+.cp-error-msg { font-size:11px; color:#dc2626; font-weight:600; }
+.cp-textarea { min-height:80px; resize:vertical; }
+.cp-toggle-row { display:flex; align-items:center; gap:12px; padding:10px 14px; background:#fff8f4; border:1px solid #fed7aa; border-radius:10px; }
+.cp-toggle { position:relative; display:inline-block; width:42px; height:24px; flex-shrink:0; }
+.cp-toggle input { opacity:0; width:0; height:0; }
+.cp-toggle-slider { position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background:#cbd5e1; border-radius:24px; transition:.2s; }
+.cp-toggle-slider::before { content:""; position:absolute; height:18px; width:18px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.2s; }
+.cp-toggle input:checked + .cp-toggle-slider { background:#E8996C; }
+.cp-toggle input:checked + .cp-toggle-slider::before { transform:translateX(18px); }
+.cp-toggle-label { font-size:13px; font-weight:700; color:#9a3412; }
+.cp-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:20px; }
+.cp-btn { display:inline-flex; align-items:center; gap:6px; padding:10px 20px; border-radius:9px; font-size:13px; font-weight:700; border:none; cursor:pointer; transition:background .15s; text-decoration:none; }
+.cp-btn-primary { background:#E8996C; color:#fff; }
+.cp-btn-primary:hover { background:#D18B62; }
+.cp-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.cp-btn-ghost:hover { background:#e2e8f0; }
+.cp-alert { padding:12px 16px; border-radius:10px; font-size:13px; font-weight:600; }
+.cp-alert-success { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; }
+.cp-alert-error   { background:#fef2f2; border:1px solid #fca5a5; color:#991b1b; }
+.rn-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9999; align-items:center; justify-content:center; }
+.rn-modal-overlay.active { display:flex; }
+.rn-modal { background:#fff; border-radius:16px; padding:32px 28px; max-width:420px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,.25); text-align:center; }
+.rn-modal-title { font-size:18px; font-weight:900; color:#0f172a; margin-bottom:8px; }
+.rn-modal-sub { font-size:13px; color:#64748b; margin-bottom:24px; }
+.rn-modal-actions { display:flex; gap:12px; justify-content:center; }
+.rn-modal-btn { padding:11px 28px; border-radius:10px; font-size:14px; font-weight:800; border:none; cursor:pointer; transition:background .15s; }
+.rn-modal-si { background:#E8996C; color:#fff; }
+.rn-modal-si:hover { background:#D18B62; }
+.rn-modal-no { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.rn-modal-no:hover { background:#e2e8f0; }
+@media(max-width:700px) { .cp-grid { grid-template-columns:1fr; } .cp-full { grid-column:1; } }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "rentri/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="cp-wrap">
+
+  <div class="cp-hero">
+    <div>
+      <div class="cp-hero-title">O - SCARICO ORIGINALE</div>
+      <div class="cp-hero-sub">Registra uno scarico originale nel registro rifiuti RENTRI</div>
+    </div>
+    <a class="cp-hero-btn" href="{% url 'rentri_menu' %}">&#8592; Menu</a>
+  </div>
+
+  <div id="rn-alert" style="display:none;" class="cp-alert"></div>
+
+  <div class="cp-form-card">
+    <div class="cp-form-head">
+      <span style="font-size:17px;">&#8681;</span>
+      <div class="cp-form-title">
+        {% if edit_mode %}Modifica — {{ registro.id_registrazione }}{% else %}Nuovo scarico originale{% endif %}
+      </div>
+    </div>
+    <div class="cp-form-body">
+      <div class="cp-grid">
+
+        <div class="cp-field">
+          <label class="cp-label">Data <span class="req">*</span></label>
+          <input type="date" id="f-data" class="cp-input"
+            value="{% if edit_mode %}{{ registro.data|date:'Y-m-d' }}{% endif %}" required>
+        </div>
+
+        <div class="cp-field">
+          <label class="cp-label">ID Registrazione</label>
+          <input type="text" id="f-id-reg" class="cp-input" placeholder="Auto-generato se vuoto"
+            value="{% if edit_mode %}{{ registro.id_registrazione }}{% endif %}">
+        </div>
+
+        <div class="cp-field">
+          <label class="cp-label">Rif.Op</label>
+          <input type="text" id="f-rif-op" class="cp-input" placeholder="Riferimento operatore"
+            value="{% if edit_mode %}{{ registro.rif_op }}{% endif %}">
+        </div>
+
+        <div class="cp-field">
+          <label class="cp-label">Codice CER <span class="req">*</span></label>
+          <input type="text" id="f-codice" class="cp-input" placeholder="es. 150101"
+            value="{% if edit_mode %}{{ registro.codice }}{% endif %}" required>
+        </div>
+
+        <div class="cp-field">
+          <label class="cp-label">Quantità</label>
+          <input type="number" id="f-quantita" class="cp-input" step="0.001" min="0" placeholder="0.000"
+            value="{% if edit_mode %}{{ registro.quantita }}{% endif %}">
+        </div>
+
+        <div class="cp-field">
+          <label class="cp-label">Carico / Scarico</label>
+          <select id="f-carico-scarico" class="cp-select">
+            <option value="C" {% if edit_mode and registro.carico_scarico == 'C' %}selected{% endif %}>Carico</option>
+            <option value="S" {% if edit_mode and registro.carico_scarico == 'S' %}selected{% endif %}>Scarico</option>
+          </select>
+        </div>
+
+        <div class="cp-field cp-full">
+          <label class="cp-label">Invio RENTRI</label>
+          <div class="cp-toggle-row">
+            <label class="cp-toggle">
+              <input type="checkbox" id="f-rentri-si-no"
+                {% if edit_mode and registro.rentri_si_no %}checked{% endif %}>
+              <span class="cp-toggle-slider"></span>
+            </label>
+            <span class="cp-toggle-label">Scheda da inviare al RENTRI</span>
+          </div>
+        </div>
+
+        <div class="cp-field cp-full">
+          <label class="cp-label">Note RENTRI</label>
+          <textarea id="f-note-rentri" class="cp-textarea" placeholder="Note aggiuntive...">{% if edit_mode %}{{ registro.note_rentri }}{% endif %}</textarea>
+        </div>
+
+      </div>
+
+      <div class="cp-actions">
+        <button type="button" class="cp-btn cp-btn-primary" id="btn-salva">
+          {% if edit_mode %}&#10003; Aggiorna{% else %}Salva{% endif %}
+        </button>
+        <button type="button" class="cp-btn cp-btn-ghost" id="btn-reset">Reset</button>
+        <a class="cp-btn cp-btn-ghost" href="{% url 'rentri_menu' %}">&#8592; Indietro</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="rn-modal-overlay" id="rn-modal">
+  <div class="rn-modal">
+    <div class="rn-modal-title">Invio RENTRI</div>
+    <div class="rn-modal-sub">Vuoi inviare la scheda al RENTRI?</div>
+    <div class="rn-modal-actions">
+      <button class="rn-modal-btn rn-modal-si" id="modal-si">SI</button>
+      <button class="rn-modal-btn rn-modal-no" id="modal-no">NO</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var savedPk = {% if edit_mode %}{{ registro.pk }}{% else %}null{% endif %};
+  var isEdit = {% if edit_mode %}true{% else %}false{% endif %};
+  var alertEl = document.getElementById('rn-alert');
+  var modal   = document.getElementById('rn-modal');
+
+  function showAlert(msg, isError) {
+    alertEl.className = 'cp-alert ' + (isError ? 'cp-alert-error' : 'cp-alert-success');
+    alertEl.textContent = msg;
+    alertEl.style.display = 'block';
+    alertEl.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+  function getCsrf() {
+    var el = document.cookie.split(';').find(function(c) { return c.trim().startsWith('csrftoken='); });
+    return el ? el.trim().split('=')[1] : '';
+  }
+  function getFormData() {
+    return {
+      tipo: 'O',
+      data: document.getElementById('f-data').value,
+      id_registrazione: document.getElementById('f-id-reg').value,
+      rif_op: document.getElementById('f-rif-op').value,
+      codice: document.getElementById('f-codice').value,
+      quantita: document.getElementById('f-quantita').value,
+      carico_scarico: document.getElementById('f-carico-scarico').value,
+      rentri_si_no: document.getElementById('f-rentri-si-no').checked,
+      note_rentri: document.getElementById('f-note-rentri').value,
+    };
+  }
+
+  document.getElementById('btn-salva').addEventListener('click', function() {
+    var data = getFormData();
+    if (!data.data) { showAlert('Il campo Data è obbligatorio.', true); return; }
+    if (!data.codice) { showAlert('Il campo Codice CER è obbligatorio.', true); return; }
+    var url = isEdit ? '/rentri/' + savedPk + '/modifica/' : '/rentri/scarico-originale/';
+    fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+      body: JSON.stringify(data)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res.ok) { showAlert('Errore: ' + res.error, true); return; }
+      savedPk = res.id; isEdit = true;
+      modal.classList.add('active');
+    })
+    .catch(function(e) { showAlert('Errore di rete: ' + e, true); });
+  });
+
+  document.getElementById('btn-reset').addEventListener('click', function() {
+    ['f-data','f-rif-op','f-codice','f-quantita','f-id-reg','f-note-rentri'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    document.getElementById('f-carico-scarico').selectedIndex = 0;
+    document.getElementById('f-rentri-si-no').checked = false;
+    alertEl.style.display = 'none';
+  });
+
+  document.getElementById('modal-si').addEventListener('click', function() {
+    modal.classList.remove('active');
+    if (!savedPk) { window.location.href = '{% url "rentri_elenco" %}'; return; }
+    fetch('/rentri/' + savedPk + '/modifica/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrf()},
+      body: JSON.stringify({rentri_si_no: true, _patch_only: true,
+        data: document.getElementById('f-data').value,
+        codice: document.getElementById('f-codice').value})
+    })
+    .then(function() { window.location.href = '{% url "rentri_elenco" %}'; })
+    .catch(function() { window.location.href = '{% url "rentri_elenco" %}'; });
+  });
+
+  document.getElementById('modal-no').addEventListener('click', function() {
+    modal.classList.remove('active');
+    window.location.href = '{% url "rentri_elenco" %}';
+  });
+})();
+</script>
+{% endblock %}

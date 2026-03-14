@@ -4,6 +4,7 @@ from .base import build_database_from_env, env_bool, env_list
 
 DEBUG = env_bool("DJANGO_DEBUG", False)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", [])
+SETUP_WIZARD_REQUIRED = env_bool("SETUP_WIZARD_REQUIRED", True)
 
 # Necessario da Django 4.0+. In prod deve includere il dominio/IP del server.
 # Override via variabile DJANGO_CSRF_TRUSTED_ORIGINS="https://app.example.local"

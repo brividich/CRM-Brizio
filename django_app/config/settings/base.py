@@ -111,7 +111,15 @@ def ini_bool(section: str, option: str, default: bool = False) -> bool:
 SECRET_KEY = env("DJANGO_SECRET_KEY", "change-me-in-dev")
 DEBUG = env_bool("DJANGO_DEBUG", False)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", ["127.0.0.1", "localhost"])
-APP_VERSION = env("APP_VERSION", "0.6.40-dev")
+APP_VERSION = env("APP_VERSION", "0.7.0")
+SETUP_WIZARD_REQUIRED = env_bool("SETUP_WIZARD_REQUIRED", True)
+
+# ── Branding istanza ──────────────────────────────────────────────────────────
+# INSTANCE_NAME: nome visualizzato nell'interfaccia (es. "Portale Novicrom").
+# Il nome del software su GitHub è sempre "BrizioHUB".
+INSTANCE_NAME = env("INSTANCE_NAME", "BrizioHUB")
+BRANDING_LOGO = env("BRANDING_LOGO", "")    # percorso relativo a STATICFILES (es. core/img/branding_logo.png)
+BRANDING_FAVICON = env("BRANDING_FAVICON", "")  # percorso relativo a STATICFILES
 
 
 def build_module_versions(default_version: str) -> dict[str, str]:
@@ -195,6 +203,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "setup_wizard.apps.SetupWizardConfig",
+    "hub_tools.apps.HubToolsConfig",
     "core.apps.CoreConfig",
     "dashboard.apps.DashboardConfig",
     "assenze.apps.AssenzeConfig",
@@ -208,6 +218,7 @@ INSTALLED_APPS = [
     "timbri.apps.TimbriConfig",
     "planimetria.apps.PlanimetriaConfig",
     "tickets.apps.TicketsConfig",
+    "rentri.apps.RentriConfig",
     "django_extensions",
 ]
 
@@ -221,6 +232,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "core.middleware.ImpersonationMiddleware",
     "core.session_middleware.SessionIdleTimeoutMiddleware",
+    "setup_wizard.middleware.SetupRequiredMiddleware",   # ← prima di ACL/notizie
     "core.middleware.ACLMiddleware",
     "notizie.mandatory_middleware.NotizieMandatoryMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -334,6 +346,8 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
     "/media/",
     "/admin/",
     "/favicon",
+    "/setup/",
+    "/admin-portale/hub/",
 )
 
 AUTHENTICATION_BACKENDS = [
@@ -343,7 +357,7 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 
-_default_log_dir = Path(tempfile.gettempdir()) / "portale_novicrom_logs"
+_default_log_dir = Path(tempfile.gettempdir()) / "briziohub_logs"
 LOG_DIR = Path(os.environ.get("DJANGO_LOG_DIR", str(_default_log_dir)))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 

@@ -1,0 +1,12 @@
+{% with current=request.resolver_match.url_name %}
+<div class="subnav">
+  <a class="sub-a{% if current == 'rentri_menu' %} active{% endif %}" href="{% url 'rentri_menu' %}">Menu</a>
+  <div class="sub-sep"></div>
+  <a class="sub-a{% if current == 'rentri_carico' %} active{% endif %}" href="{% url 'rentri_carico' %}">C - Carico</a>
+  <a class="sub-a{% if current == 'rentri_scarico_originale' %} active{% endif %}" href="{% url 'rentri_scarico_originale' %}">O - Scarico originale</a>
+  <a class="sub-a{% if current == 'rentri_scarico_effettivo' %} active{% endif %}" href="{% url 'rentri_scarico_effettivo' %}">M - Scarico effettivo</a>
+  <a class="sub-a{% if current == 'rentri_rettifica_scarico' %} active{% endif %}" href="{% url 'rentri_rettifica_scarico' %}">R - Rettifica scarico</a>
+  <a class="sub-a{% if current == 'rentri_elenco' %} active{% endif %}" href="{% url 'rentri_elenco' %}">Elenco registrazioni</a>
+  <a class="sub-a" href="{% url 'dashboard_home' %}">Dashboard</a>
+</div>
+{% endwith %}
