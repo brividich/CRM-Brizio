@@ -18,7 +18,7 @@ from django.core.files.base import ContentFile
 from django.core.paginator import Paginator
 from django.db import DatabaseError, connections, transaction
 from django.db.models import Count, Prefetch, Q
-from django.http import HttpResponse, HttpResponseForbidden, StreamingHttpResponse
+from django.http import HttpResponse, HttpResponseForbidden, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -177,6 +177,19 @@ def _can_edit_timbri(request) -> bool:
     if _legacy_role_name(legacy_user) in _EDIT_ROLE_NAMES:
         return True
     return user_can_modulo_action(request, "timbri", "timbri_edit")
+
+
+def _can_copy_timbri(request) -> bool:
+    if getattr(request.user, "is_superuser", False):
+        return True
+    legacy_user = _legacy_user(request)
+    if not legacy_user:
+        return False
+    if is_legacy_admin(legacy_user):
+        return True
+    if _legacy_role_name(legacy_user) in _EDIT_ROLE_NAMES:
+        return True
+    return user_can_modulo_action(request, "timbri", "timbri_copy")
 
 
 def _can_manage_timbri_config(request) -> bool:
@@ -641,6 +654,19 @@ def _resolve_operatore(lookup_value, label_value, matricola_value, reparto_value
     return _ensure_legacy_operatore(row)
 
 
+def _categorize_records(records: list[RegistroTimbro]) -> tuple[list, list, list]:
+    """Split records into (timbri, firme, sigle) based on tipo_timbro."""
+    timbri, firme, sigle = [], [], []
+    for r in records:
+        if r.tipo_timbro in RegistroTimbro.TIPI_FIRMA:
+            firme.append(r)
+        elif r.tipo_timbro in RegistroTimbro.TIPI_SIGLA:
+            sigle.append(r)
+        else:
+            timbri.append(r)
+    return timbri, firme, sigle
+
+
 def _attach_image_maps(registri: list[RegistroTimbro]) -> None:
     for registro in registri:
         registro.image_map = {img.variante: img for img in registro.immagini.all()}
@@ -831,6 +857,7 @@ def _base_context(request, **extra):
         "current": extra.get("current", "timbri:index"),
         "username": display_name,
         "can_edit_timbri": _can_edit_timbri(request),
+        "can_copy_timbri": _can_copy_timbri(request),
         "can_manage_timbri_config": _can_manage_timbri_config(request),
     }
     base.update(extra)
@@ -963,6 +990,106 @@ def operatore_delete(request, operatore_id: int):
 
 
 @login_required
+def operatore_preview(request, legacy_id: int):
+    if not _can_view_timbri(request):
+        return JsonResponse({"error": "forbidden"}, status=403)
+    schema_issue = _timbri_schema_issue()
+    if schema_issue:
+        return JsonResponse({"records": []})
+    operatore = OperatoreTimbri.objects.filter(legacy_anagrafica_id=legacy_id).first()
+    if not operatore:
+        return JsonResponse({"records": []})
+    records = list(
+        RegistroTimbro.objects.filter(operatore=operatore, is_attivo=True, is_archived=False)
+        .prefetch_related("immagini")
+        .order_by("-data_consegna")
+    )
+    _attach_image_maps(records)
+    data = []
+    for r in records:
+        slots = []
+        for slot in r.image_slots:
+            slots.append({
+                "label": slot["label"],
+                "url": slot["image"].image.url if slot["image"] else None,
+            })
+        data.append({
+            "codice": r.codice_timbro or "",
+            "qualifica": r.qualifica or "",
+            "tipo": r.get_tipo_timbro_display(),
+            "slots": slots,
+        })
+    return JsonResponse({"records": data})
+
+
+@login_required
+def operatore_report(request, legacy_id: int):
+    if not _can_view_timbri(request):
+        return _forbidden()
+    schema_issue = _timbri_schema_issue()
+    if schema_issue:
+        messages.error(request, schema_issue)
+        return redirect("timbri:index")
+    row = _load_legacy_employee(legacy_id)
+    if row is None:
+        messages.error(request, "Dipendente non trovato nell'anagrafica centrale.")
+        return redirect("timbri:index")
+
+    show_timbri = request.GET.get("timbri", "1") != "0"
+
+    # Timbri / firma / sigla
+    operatore = _ensure_legacy_operatore(row)
+    active_records = list(
+        RegistroTimbro.objects.filter(operatore=operatore, is_attivo=True, is_archived=False)
+        .prefetch_related(Prefetch("immagini", queryset=RegistroTimbroImmagine.objects.order_by("variante")))
+        .order_by("-data_consegna")
+    )
+    _attach_image_maps(active_records)
+    timbri, firme, sigle = _categorize_records(active_records)
+
+    # Asset assegnati
+    assets = []
+    try:
+        from assets.models import Asset
+        assets = list(
+            Asset.objects.filter(assigned_legacy_user_id=legacy_id)
+            .select_related("asset_category")
+            .order_by("name", "asset_tag")
+        )
+    except Exception:
+        logger.exception("Impossibile caricare asset per report dipendente %s", legacy_id)
+
+    employee = {
+        "legacy_id": int(row.get("id") or 0),
+        "full_name": _legacy_full_name(row),
+        "nome": _field_to_text(row.get("nome")),
+        "cognome": _field_to_text(row.get("cognome")),
+        "matricola": _field_to_text(row.get("matricola")),
+        "reparto": _field_to_text(row.get("reparto")),
+        "ruolo": _legacy_role_value(row),
+        "mansione": _field_to_text(row.get("mansione")),
+        "email": _field_to_text(row.get("email")),
+        "email_notifica": _field_to_text(row.get("email_notifica")),
+        "aliasusername": _field_to_text(row.get("aliasusername")),
+        "attivo": bool(row.get("attivo")) if row.get("attivo") is not None else True,
+    }
+
+    base_url = reverse("timbri:operatore_report", args=[legacy_id])
+    return render(request, "timbri/pages/report.html", {
+        "employee": employee,
+        "assets": assets,
+        "timbri": timbri,
+        "firme": firme,
+        "sigle": sigle,
+        "show_timbri": show_timbri,
+        "generated_at": timezone.now(),
+        "can_copy_timbri": _can_copy_timbri(request),
+        "url_completo": base_url + "?timbri=1",
+        "url_senza_timbri": base_url + "?timbri=0",
+    })
+
+
+@login_required
 def operatore_create(request):
     if not _can_edit_timbri(request):
         return _forbidden()
@@ -1041,6 +1168,9 @@ def operatore_detail_by_legacy(request, legacy_id: int):
     historical_records = list(registri_qs.exclude(is_attivo=True, is_archived=False))
     _attach_image_maps(active_records)
     _attach_image_maps(historical_records)
+    active_timbri, active_firme, active_sigle = _categorize_records(active_records)
+    hist_timbri, hist_firme, hist_sigle = _categorize_records(historical_records)
+    legacy_id_int = int(row.get("id") or 0)
 
     return render(
         request,
@@ -1050,7 +1180,7 @@ def operatore_detail_by_legacy(request, legacy_id: int):
             current="timbri:index",
             operatore=operatore,
             employee={
-                "legacy_id": int(row.get("id") or 0),
+                "legacy_id": legacy_id_int,
                 "full_name": _legacy_full_name(row),
                 "matricola": _field_to_text(row.get("matricola")),
                 "reparto": _field_to_text(row.get("reparto")),
@@ -1061,6 +1191,13 @@ def operatore_detail_by_legacy(request, legacy_id: int):
             is_central_profile=True,
             active_records=active_records,
             historical_records=historical_records,
+            active_timbri=active_timbri,
+            active_firme=active_firme,
+            active_sigle=active_sigle,
+            hist_timbri=hist_timbri,
+            hist_firme=hist_firme,
+            hist_sigle=hist_sigle,
+            report_url=reverse("timbri:operatore_report", args=[legacy_id_int]) if legacy_id_int else None,
             stats={
                 "totale": registri_qs.count(),
                 "attivi": len(active_records),

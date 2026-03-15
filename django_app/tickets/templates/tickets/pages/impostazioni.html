@@ -98,6 +98,15 @@
 .tkt-sp-field { display:flex; gap:8px; align-items:center; }
 .tkt-sp-field input { flex:1; padding:8px 11px; border:1px solid #cbd5e1; border-radius:9px; font-size:13px; font-family:monospace; }
 .tkt-sp-field input:focus { border-color:#0369a1; outline:none; }
+
+/* Import CSV */
+.tkt-import-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:22px 24px; }
+.tkt-import-cols { font-size:12px; color:#64748b; background:#f8fafc; border:1px solid #e2e8f0; border-radius:9px; padding:10px 14px; font-family:monospace; line-height:1.7; word-break:break-all; }
+.tkt-import-cols strong { color:#0369a1; }
+.tkt-import-result { margin-top:12px; font-size:13px; }
+.tkt-import-result .ok  { color:#16a34a; font-weight:700; }
+.tkt-import-result .err { color:#dc2626; }
+.tkt-import-result ul   { margin:6px 0 0 16px; padding:0; font-size:12px; color:#b91c1c; }
 </style>
 {% endblock %}
 
@@ -244,6 +253,64 @@
         <span class="tkt-save-status" id="man-save-status"></span>
       </div>
     </div>
+  </div>
+
+  <!-- Import CSV -->
+  <div class="tkt-import-card">
+    <div class="tkt-card-header" style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #f1f5f9;">
+      <div>
+        <div class="tkt-card-title">📥 Importa Ticket da CSV</div>
+        <div class="tkt-card-sub">Importa ticket storici o batch. I ticket con numero_ticket già esistente vengono saltati.</div>
+      </div>
+    </div>
+
+    <div class="tkt-field">
+      <label>Colonne previste (intestazione CSV)</label>
+      <div class="tkt-import-cols">
+        <strong>tipo</strong>, <strong>titolo</strong>, <strong>descrizione</strong>,
+        <strong>categoria</strong>, <strong>richiedente_nome</strong>,
+        priorita, stato, incide_sicurezza, richiedente_email,
+        assegnato_a, assegnato_email, note_interne, asset_descrizione_libera,
+        numero_ticket, created_at, closed_at, sharepoint_item_id
+      </div>
+      <span class="tkt-field-hint">
+        Campi in <strong>grassetto</strong> = obbligatori.
+        <code>tipo</code>: IT o MAN &nbsp;|&nbsp;
+        <code>priorita</code>: BASSA / MEDIA / ALTA / URGENTE &nbsp;|&nbsp;
+        <code>stato</code>: APERTA / IN_CARICO / RISOLTO / CHIUSO / ANNULLATO &nbsp;|&nbsp;
+        <code>incide_sicurezza</code>: 0 o 1 &nbsp;|&nbsp;
+        <code>created_at / closed_at</code>: gg/mm/aaaa HH:MM oppure aaaa-mm-gg
+      </span>
+    </div>
+
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <button type="button" class="tkt-save-btn" style="background:#64748b;" onclick="downloadCsvTemplate()">
+        Scarica template CSV
+      </button>
+
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="file" id="csv-file-input" accept=".csv,text/csv" style="display:none" onchange="onCsvFileChosen(this)">
+        <span class="tkt-save-btn" style="background:#0e7490;" onclick="document.getElementById('csv-file-input').click()">
+          Scegli file CSV…
+        </span>
+        <span id="csv-file-name" style="font-size:13px;color:#64748b;">Nessun file scelto</span>
+      </label>
+
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#374151;cursor:pointer;user-select:none;">
+        <input type="checkbox" id="csv-update-existing" style="width:15px;height:15px;cursor:pointer;">
+        Aggiorna ticket esistenti
+      </label>
+
+      <button type="button" id="csv-import-btn" class="tkt-save-btn" disabled onclick="importCsv()">
+        Importa
+      </button>
+    </div>
+    <div style="font-size:11px;color:#94a3b8;margin-top:6px;">
+      Con <em>Aggiorna ticket esistenti</em> attivo: i ticket trovati per <code>numero_ticket</code> vengono sovrascritti con i dati del CSV.
+      Senza: i ticket già presenti vengono saltati.
+    </div>
+
+    <div id="csv-import-result" class="tkt-import-result"></div>
   </div>
 </div>
 
@@ -415,6 +482,84 @@ async function saveImpostazioni(tipo) {
     if (inp && drop) initUserSearch(inp, drop, tipo, target);
   });
 });
+
+// ── Import CSV ──
+const API_IMPORT_CSV = "{% url 'tickets:api_import_csv' %}";
+
+const CSV_TEMPLATE_HEADER = [
+  "tipo","titolo","descrizione","categoria","richiedente_nome",
+  "priorita","stato","incide_sicurezza","richiedente_email",
+  "assegnato_a","assegnato_email","note_interne","asset_descrizione_libera",
+  "numero_ticket","created_at","closed_at","sharepoint_item_id"
+].join(",");
+
+const CSV_TEMPLATE_EXAMPLE = [
+  "IT","Problema stampante","La stampante dell'ufficio non stampa","STAMPANTE",
+  "Mario Rossi","ALTA","APERTA","0","mario.rossi@azienda.it",
+  "","","","","","","",""
+].join(",");
+
+function downloadCsvTemplate() {
+  const content = CSV_TEMPLATE_HEADER + "\n" + CSV_TEMPLATE_EXAMPLE + "\n";
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "template_import_ticket.csv";
+  a.click(); URL.revokeObjectURL(url);
+}
+
+function onCsvFileChosen(input) {
+  const btn = document.getElementById("csv-import-btn");
+  const label = document.getElementById("csv-file-name");
+  if (input.files.length) {
+    label.textContent = input.files[0].name;
+    btn.disabled = false;
+  } else {
+    label.textContent = "Nessun file scelto";
+    btn.disabled = true;
+  }
+}
+
+async function importCsv() {
+  const fileInput = document.getElementById("csv-file-input");
+  const btn       = document.getElementById("csv-import-btn");
+  const result    = document.getElementById("csv-import-result");
+  if (!fileInput.files.length) return;
+
+  btn.disabled = true;
+  result.innerHTML = '<span style="color:#64748b">Importazione in corso…</span>';
+
+  const updateExisting = document.getElementById("csv-update-existing").checked;
+  const formData = new FormData();
+  formData.append("csv_file", fileInput.files[0]);
+  formData.append("update_existing", updateExisting ? "1" : "0");
+
+  try {
+    const r = await fetch(API_IMPORT_CSV, {
+      method: "POST",
+      headers: { "X-CSRFToken": CSRF },
+      body: formData,
+    });
+    const d = await r.json();
+    if (d.ok) {
+      const parts = [];
+      if (d.created) parts.push(`${d.created} creati`);
+      if (d.updated) parts.push(`${d.updated} aggiornati`);
+      if (d.skipped) parts.push(`${d.skipped} saltati (duplicati)`);
+      let html = `<span class="ok">✓ Importazione completata — ${parts.join(", ") || "nessuna modifica"}.</span>`;
+      if (d.errors && d.errors.length) {
+        html += `<ul>${d.errors.map(e => `<li class="err">${e}</li>`).join("")}</ul>`;
+        if (d.errors.length === 30) html += '<li style="color:#64748b;font-style:italic">…(ulteriori errori troncati)</li>';
+      }
+      result.innerHTML = html;
+    } else {
+      result.innerHTML = `<span class="err">✗ ${d.error}</span>`;
+    }
+  } catch(e) {
+    result.innerHTML = '<span class="err">✗ Errore di rete.</span>';
+  }
+  btn.disabled = false;
+}
 
 // ── Test connessione SP ──
 async function testSP(tipo) {

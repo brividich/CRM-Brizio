@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Report dipendente – {{ employee.full_name }}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, sans-serif; background: #f1f5f9; color: #0f172a; font-size: 13px; line-height: 1.5; }
+
+    /* ── Layout ── */
+    .rpt-wrap { max-width: 960px; margin: 0 auto; padding: 28px 20px 48px; display: flex; flex-direction: column; gap: 24px; }
+
+    /* ── Toolbar (hidden on print) ── */
+    .rpt-toolbar { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    .rpt-toolbar-title { font-size: 12px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+    .rpt-toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .rpt-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; text-decoration: none; border: 1px solid #dbe4f0; background: #fff; color: #0f172a; cursor: pointer; white-space: nowrap; }
+    .rpt-btn-primary { background: #0f766e; border-color: #0f766e; color: #fff; }
+    .rpt-btn-active { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+    .rpt-btn-copy { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; font-size: 11px; padding: 5px 10px; }
+    .rpt-btn-copy.copied { background: #dcfce7; border-color: #86efac; color: #166534; }
+
+    /* ── Header card ── */
+    .rpt-header { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 24px; }
+    .rpt-header-top { display: flex; align-items: flex-start; gap: 18px; }
+    .rpt-avatar { width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(135deg, #0f766e, #0e9f6e); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; flex-shrink: 0; }
+    .rpt-name { font-size: 24px; font-weight: 800; color: #0f172a; letter-spacing: -.02em; }
+    .rpt-name-sub { font-size: 13px; color: #64748b; margin-top: 4px; display: flex; gap: 14px; flex-wrap: wrap; }
+    .rpt-name-sub span { display: flex; align-items: center; gap: 4px; }
+    .rpt-badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+    .rpt-badge-green { background: #dcfce7; color: #166534; }
+    .rpt-badge-gray { background: #f1f5f9; color: #475569; }
+    .rpt-divider { border: none; border-top: 1px solid #f1f5f9; margin: 16px 0; }
+    .rpt-dati-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+    .rpt-dati-item { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; }
+    .rpt-dati-k { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #94a3b8; }
+    .rpt-dati-v { font-size: 13px; font-weight: 700; color: #0f172a; margin-top: 3px; word-break: break-all; }
+
+    /* ── Section ── */
+    .rpt-section { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; }
+    .rpt-section-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid #f1f5f9; background: #f8fafc; }
+    .rpt-section-title { font-size: 14px; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 8px; }
+    .rpt-section-count { background: #e2e8f0; color: #475569; border-radius: 999px; padding: 1px 8px; font-size: 11px; font-weight: 700; }
+    .rpt-section-body { padding: 16px 20px; }
+
+    /* ── Assets table ── */
+    .rpt-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .rpt-table th { padding: 8px 10px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #64748b; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+    .rpt-table td { padding: 9px 10px; border-bottom: 1px solid #f8fafc; color: #334155; vertical-align: middle; }
+    .rpt-table tr:last-child td { border-bottom: none; }
+    .rpt-asset-tag { font-family: monospace; font-size: 11px; background: #f1f5f9; padding: 2px 6px; border-radius: 5px; color: #475569; }
+    .rpt-status { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; }
+    .rpt-status-use { background: #dcfce7; color: #166534; }
+    .rpt-status-stock { background: #dbeafe; color: #1e40af; }
+    .rpt-status-repair { background: #fef3c7; color: #92400e; }
+    .rpt-status-retired { background: #f1f5f9; color: #64748b; }
+
+    /* ── Timbri ── */
+    .rpt-records { display: flex; flex-direction: column; gap: 14px; }
+    .rpt-record { border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; }
+    .rpt-record-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+    .rpt-record-title { font-size: 15px; font-weight: 800; color: #0f172a; }
+    .rpt-record-sub { font-size: 12px; color: #64748b; margin-top: 2px; }
+    .rpt-pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #f1f5f9; color: #475569; }
+    .rpt-images { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+    .rpt-img-slot { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; text-align: center; background: #f8fafc; }
+    .rpt-img-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #64748b; margin-bottom: 8px; }
+    .rpt-img-slot img { max-width: 100%; max-height: 130px; object-fit: contain; display: block; margin: 0 auto 8px; }
+    .rpt-img-empty { height: 90px; display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 11px; }
+    .rpt-empty { color: #94a3b8; text-align: center; padding: 24px; font-size: 13px; }
+
+    /* ── Sub-tabs ── */
+    .rpt-subtabs { display: flex; gap: 0; border-bottom: 1px solid #e2e8f0; margin-bottom: 16px; }
+    .rpt-subtab { padding: 8px 16px; font-size: 12px; font-weight: 700; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .rpt-subtab.active { color: #0f766e; border-bottom-color: #0f766e; }
+    .rpt-subpanel { display: none; }
+    .rpt-subpanel.active { display: block; }
+
+    /* ── Footer ── */
+    .rpt-footer { text-align: center; font-size: 11px; color: #94a3b8; padding-top: 8px; }
+
+    /* ── Print ── */
+    @media print {
+      body { background: #fff; font-size: 11px; }
+      .rpt-toolbar { display: none !important; }
+      .rpt-wrap { padding: 0; gap: 16px; }
+      .rpt-btn-copy { display: none !important; }
+      .rpt-header, .rpt-section { border-radius: 0; border: none; border-bottom: 1px solid #e2e8f0; }
+      .rpt-record { break-inside: avoid; }
+      .rpt-images { break-inside: avoid; }
+      .rpt-subtab { display: none; }
+      .rpt-subpanel { display: block !important; }
+      .rpt-subpanel:not(:first-child) .rpt-section-head::before { content: ""; display: block; page-break-before: auto; }
+      .rpt-footer { display: none; }
+    }
+    @media (max-width: 700px) {
+      .rpt-dati-grid { grid-template-columns: repeat(2, 1fr); }
+      .rpt-images { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="rpt-wrap">
+
+  <!-- ── Toolbar ── -->
+  <div class="rpt-toolbar">
+    <div>
+      <div class="rpt-toolbar-title">Report dipendente</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:2px;">Generato il {{ generated_at|date:"d/m/Y \a\l\l\e H:i" }}</div>
+    </div>
+    <div class="rpt-toolbar-actions">
+      <a class="rpt-btn {% if show_timbri %}rpt-btn-active{% endif %}" href="{{ url_completo }}">Report completo</a>
+      <a class="rpt-btn {% if not show_timbri %}rpt-btn-active{% endif %}" href="{{ url_senza_timbri }}">Senza timbri</a>
+      <button class="rpt-btn rpt-btn-primary" onclick="window.print()">&#128438; Stampa / Salva PDF</button>
+      <button class="rpt-btn" onclick="window.close()">Chiudi</button>
+    </div>
+  </div>
+
+  <!-- ── Header anagrafica ── -->
+  <div class="rpt-header">
+    <div class="rpt-header-top">
+      <div class="rpt-avatar">{{ employee.cognome|first|upper }}{{ employee.nome|first|upper }}</div>
+      <div style="flex:1;">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div class="rpt-name">{{ employee.full_name }}</div>
+          {% if employee.attivo %}
+            <span class="rpt-badge rpt-badge-green">Attivo</span>
+          {% else %}
+            <span class="rpt-badge rpt-badge-gray">Non attivo</span>
+          {% endif %}
+        </div>
+        <div class="rpt-name-sub">
+          {% if employee.matricola %}<span>Matr. {{ employee.matricola }}</span>{% endif %}
+          {% if employee.reparto %}<span>{{ employee.reparto }}</span>{% endif %}
+          {% if employee.ruolo %}<span>{{ employee.ruolo }}</span>{% endif %}
+          {% if employee.mansione and employee.mansione != employee.ruolo %}<span>{{ employee.mansione }}</span>{% endif %}
+        </div>
+      </div>
+    </div>
+    <hr class="rpt-divider">
+    <div class="rpt-dati-grid">
+      <div class="rpt-dati-item">
+        <div class="rpt-dati-k">Nome</div>
+        <div class="rpt-dati-v">{{ employee.nome|default:"—" }}</div>
+      </div>
+      <div class="rpt-dati-item">
+        <div class="rpt-dati-k">Cognome</div>
+        <div class="rpt-dati-v">{{ employee.cognome|default:"—" }}</div>
+      </div>
+      <div class="rpt-dati-item">
+        <div class="rpt-dati-k">Matricola</div>
+        <div class="rpt-dati-v">{{ employee.matricola|default:"—" }}</div>
+      </div>
+      <div class="rpt-dati-item">
+        <div class="rpt-dati-k">Username</div>
+        <div class="rpt-dati-v">{{ employee.aliasusername|default:"—" }}</div>
+      </div>
+      <div class="rpt-dati-item">
+        <div class="rpt-dati-k">Reparto</div>
+        <div class="rpt-dati-v">{{ employee.reparto|default:"—" }}</div>
+      </div>
+      <div class="rpt-dati-item">
+        <div class="rpt-dati-k">Ruolo</div>
+        <div class="rpt-dati-v">{{ employee.ruolo|default:"—" }}</div>
+      </div>
+      <div class="rpt-dati-item">
+        <div class="rpt-dati-k">Mansione</div>
+        <div class="rpt-dati-v">{{ employee.mansione|default:"—" }}</div>
+      </div>
+      <div class="rpt-dati-item">
+        <div class="rpt-dati-k">Email notifica</div>
+        <div class="rpt-dati-v">{{ employee.email_notifica|default:"—" }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Asset assegnati ── -->
+  <div class="rpt-section">
+    <div class="rpt-section-head">
+      <div class="rpt-section-title">
+        &#128187; Asset assegnati
+        <span class="rpt-section-count">{{ assets|length }}</span>
+      </div>
+    </div>
+    <div class="rpt-section-body" style="padding:0;">
+      {% if assets %}
+        <table class="rpt-table">
+          <thead>
+            <tr>
+              <th>Tag</th>
+              <th>Nome</th>
+              <th>Categoria</th>
+              <th>Marca / Modello</th>
+              <th>S/N</th>
+              <th>Stato</th>
+              <th>Ubicazione</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in assets %}
+            <tr>
+              <td><span class="rpt-asset-tag">{{ a.asset_tag }}</span></td>
+              <td style="font-weight:700;color:#0f172a;">{{ a.name }}</td>
+              <td>{{ a.category_label }}</td>
+              <td>
+                {% if a.manufacturer or a.model %}
+                  {{ a.manufacturer|default:"" }}{% if a.manufacturer and a.model %} / {% endif %}{{ a.model|default:"" }}
+                {% else %}—{% endif %}
+              </td>
+              <td>{{ a.serial_number|default:"—" }}</td>
+              <td>
+                {% if a.status == "IN_USE" %}<span class="rpt-status rpt-status-use">In uso</span>
+                {% elif a.status == "IN_STOCK" %}<span class="rpt-status rpt-status-stock">In magazzino</span>
+                {% elif a.status == "IN_REPAIR" %}<span class="rpt-status rpt-status-repair">In riparazione</span>
+                {% elif a.status == "RETIRED" %}<span class="rpt-status rpt-status-retired">Dismesso</span>
+                {% else %}<span class="rpt-status rpt-status-retired">{{ a.get_status_display }}</span>{% endif %}
+              </td>
+              <td>{{ a.assignment_location|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div class="rpt-empty">Nessun asset assegnato.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── Timbri / Firma / Sigla ── -->
+  {% if show_timbri %}
+  <div class="rpt-section">
+    <div class="rpt-section-head">
+      <div class="rpt-section-title">
+        &#128396; Timbri, firme e sigle attive
+        <span class="rpt-section-count">{{ timbri|length|add:firme|length|add:sigle|length }}</span>
+      </div>
+    </div>
+    <div class="rpt-section-body">
+      {% if timbri or firme or sigle %}
+        <!-- Sub-tabs -->
+        <div class="rpt-subtabs">
+          <div class="rpt-subtab{% if timbri or not firme and not sigle %} active{% endif %}" data-panel="rpanel-timbri">
+            Timbri ({{ timbri|length }})
+          </div>
+          {% if firme %}
+          <div class="rpt-subtab{% if not timbri and firme %} active{% endif %}" data-panel="rpanel-firme">
+            Firme ({{ firme|length }})
+          </div>
+          {% endif %}
+          {% if sigle %}
+          <div class="rpt-subtab{% if not timbri and not firme and sigle %} active{% endif %}" data-panel="rpanel-sigle">
+            Sigle ({{ sigle|length }})
+          </div>
+          {% endif %}
+        </div>
+
+        <div id="rpanel-timbri" class="rpt-subpanel{% if timbri or not firme and not sigle %} active{% endif %}">
+          <div class="rpt-records">
+            {% for r in timbri %}{% include "timbri/components/report_record.html" with record=r can_copy=can_copy_timbri %}{% empty %}
+              <div class="rpt-empty">Nessun timbro attivo.</div>
+            {% endfor %}
+          </div>
+        </div>
+        {% if firme %}
+        <div id="rpanel-firme" class="rpt-subpanel{% if not timbri and firme %} active{% endif %}">
+          <div class="rpt-records">
+            {% for r in firme %}{% include "timbri/components/report_record.html" with record=r can_copy=can_copy_timbri %}{% endfor %}
+          </div>
+        </div>
+        {% endif %}
+        {% if sigle %}
+        <div id="rpanel-sigle" class="rpt-subpanel{% if not timbri and not firme and sigle %} active{% endif %}">
+          <div class="rpt-records">
+            {% for r in sigle %}{% include "timbri/components/report_record.html" with record=r can_copy=can_copy_timbri %}{% endfor %}
+          </div>
+        </div>
+        {% endif %}
+      {% else %}
+        <div class="rpt-empty">Nessun record attivo (timbri, firme o sigle).</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="rpt-footer">Portale Novicrom · {{ employee.full_name }} · {{ generated_at|date:"d/m/Y H:i" }}</div>
+</div>
+
+<!-- Sub-tabs JS -->
+<script>
+document.querySelectorAll('.rpt-subtab').forEach(tab => {
+  tab.addEventListener('click', function() {
+    const container = this.closest('.rpt-section-body');
+    container.querySelectorAll('.rpt-subtab').forEach(t => t.classList.remove('active'));
+    container.querySelectorAll('.rpt-subpanel').forEach(p => p.classList.remove('active'));
+    this.classList.add('active');
+    const panel = document.getElementById(this.dataset.panel);
+    if (panel) panel.classList.add('active');
+  });
+});
+</script>
+
+{% if can_copy_timbri %}
+<script>
+async function copyImg(btn, url) {
+  try {
+    btn.textContent = '…';
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    c.getContext('2d').drawImage(img, 0, 0);
+    const blob = await new Promise(res => c.toBlob(res, 'image/png'));
+    await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+    btn.textContent = '✓ Copiato'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copia'; btn.classList.remove('copied'); }, 2000);
+  } catch { btn.textContent = 'Errore'; setTimeout(() => { btn.textContent = 'Copia'; }, 2000); }
+}
+document.querySelectorAll('.rpt-btn-copy').forEach(b => b.addEventListener('click', () => copyImg(b, b.dataset.url)));
+</script>
+{% endif %}
+</body>
+</html>

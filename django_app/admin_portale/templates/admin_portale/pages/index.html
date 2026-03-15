@@ -4,34 +4,53 @@
 
 {% block extra_head %}
 <style>
+  /* ── versioning ───────────────────────────────────────────── */
   .admin-version-shell { display:grid; gap:16px; }
   .admin-version-hero {
-    border:1px solid #dbe1ea;
-    border-radius:16px;
-    padding:18px;
-    background:linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-    color:#e2e8f0;
+    border:1px solid #dbe1ea; border-radius:16px; padding:18px;
+    background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%); color:#e2e8f0;
   }
   .admin-version-kicker { font-size:12px; text-transform:uppercase; letter-spacing:.08em; opacity:.8; }
   .admin-version-number { margin-top:6px; font-size:34px; font-weight:800; letter-spacing:-.03em; }
-  .admin-version-date { margin-top:4px; font-size:13px; color:#cbd5e1; }
-  .admin-version-grid {
-    display:grid;
-    gap:10px;
-    grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
+  .admin-version-date   { margin-top:4px; font-size:13px; color:#cbd5e1; }
+  .admin-version-grid   { display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+  .admin-version-item   { border:1px solid #dbe1ea; border-radius:12px; padding:12px 14px; background:#f8fafc; }
+  .admin-version-label  { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; }
+  .admin-version-value  { margin-top:4px; font-size:20px; font-weight:800; color:#0f172a; }
+  .admin-version-meta   { margin-top:3px; font-size:12px; color:#64748b; }
+  .admin-release-list   { margin:0; padding-left:18px; color:#334155; display:grid; gap:8px; }
+  .admin-release-meta   { color:#64748b; font-size:13px; }
+  .admin-version-note   { color:#64748b; font-size:12px; }
+
+  /* ── section label ────────────────────────────────────────── */
+  .admin-section-label {
+    font-size:11px; font-weight:700; text-transform:uppercase;
+    letter-spacing:.08em; color:#94a3b8; margin:0 0 10px;
+    padding-bottom:6px; border-bottom:1px solid #e8edf5;
   }
-  .admin-version-item {
-    border:1px solid #dbe1ea;
-    border-radius:12px;
-    padding:12px 14px;
-    background:#f8fafc;
+
+  /* ── hub card ─────────────────────────────────────────────── */
+  .card-hub {
+    border:2px solid #1a6fc4; border-radius:12px; overflow:hidden;
   }
-  .admin-version-label { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; }
-  .admin-version-value { margin-top:4px; font-size:20px; font-weight:800; color:#0f172a; }
-  .admin-version-meta { margin-top:3px; font-size:12px; color:#64748b; }
-  .admin-release-list { margin:0; padding-left:18px; color:#334155; display:grid; gap:8px; }
-  .admin-release-meta { color:#64748b; font-size:13px; }
-  .admin-version-note { color:#64748b; font-size:12px; }
+  .card-hub .card-head {
+    background:linear-gradient(90deg,#1a3a5c 0%,#1e4976 100%);
+    color:#e2e8f0;
+  }
+  .card-hub .card-title { color:#e2e8f0; }
+  .card-hub .card-subtitle { font-size:.78rem; color:#94a3b8; margin-top:2px; }
+  .hub-mod {
+    display:flex; align-items:center; gap:16px;
+    padding:16px 18px; text-decoration:none; color:inherit;
+    border-radius:10px; border:1.5px solid #d1d9e6;
+    background:#fff; transition:border-color .15s, box-shadow .15s;
+    flex:1; min-width:220px;
+  }
+  .hub-mod:hover { border-color:#1a6fc4; box-shadow:0 3px 12px rgba(26,111,196,.12); }
+  .hub-mod-icon { font-size:2rem; line-height:1; flex-shrink:0; }
+  .hub-mod-name { font-weight:700; font-size:.95rem; color:#0f172a; }
+  .hub-mod-sub  { font-size:.78rem; color:#64748b; margin-top:2px; line-height:1.4; }
+  .hub-mods-row { display:flex; flex-wrap:wrap; gap:14px; }
 </style>
 {% endblock %}
 
@@ -40,15 +59,21 @@
 {% endblock %}
 
 {% block content %}
-  {% url 'admin_portale:schema_dati' as schema_dati_url %}
-  {% url 'admin_portale:acl_diagnostica' as acl_diag_url %}
-  {% url 'admin_portale:ldap_diagnostica' as ldap_diag_url %}
-  {% url 'admin_portale:automazioni_rule_list' as automazioni_rule_url %}
-  {% url 'admin_portale:automazioni_queue_list' as automazioni_queue_url %}
+  {% url 'admin_portale:schema_dati'          as schema_dati_url %}
+  {% url 'admin_portale:acl_diagnostica'      as acl_diag_url %}
+  {% url 'admin_portale:ldap_diagnostica'     as ldap_diag_url %}
+  {% url 'admin_portale:automazioni_rule_list'    as automazioni_rule_url %}
+  {% url 'admin_portale:automazioni_sorgenti'     as automazioni_sorgenti_url %}
+  {% url 'admin_portale:automazioni_contenuti'    as automazioni_contenuti_url %}
+  {% url 'admin_portale:automazioni_queue_list'   as automazioni_queue_url %}
   {% url 'admin_portale:automazioni_run_log_list' as automazioni_run_log_url %}
-  {% include "admin_portale/components/page_header.html" with page_title="Pannello Amministrazione" page_subtitle="Gestione utenti, permessi ACL legacy e pulsanti menu." %}
+  {% url 'hub_tools:hub_moduli'    as hub_moduli_url %}
+  {% url 'hub_tools:hub_database'  as hub_database_url %}
+
+  {% include "admin_portale/components/page_header.html" with page_title="Pannello Amministrazione" page_subtitle="Gestione utenti, permessi, navigazione, automazioni e strumenti di sistema." %}
   {% include "admin_portale/components/flash_messages.html" %}
 
+  <!-- ── Statistiche ────────────────────────────────────────── -->
   <div class="stats">
     <div class="stat">
       <div class="stat-icon-wrap blue">👤</div>
@@ -80,9 +105,10 @@
     </div>
   </div>
 
+  <!-- ── 1. Utenti & Accessi ────────────────────────────────── -->
   <div class="card">
     <div class="card-head">
-      <div class="card-title">Moduli amministrativi</div>
+      <div class="card-title">👤 Utenti &amp; Accessi</div>
     </div>
     <div class="card-body">
       <div class="modules-grid">
@@ -96,22 +122,54 @@
         <a class="mod" href="{% url 'admin_portale:accessi' %}">
           <div class="mod-icon">🛡️</div>
           <div>
-            <div class="mod-name">Gestione Accessi</div>
-            <div class="mod-sub">Ruoli, permessi, pulsanti e override utenti — punto unico</div>
+            <div class="mod-name">Accessi Semplici</div>
+            <div class="mod-sub">Gestione rapida ruoli — accesso modulo + pulsanti attivi</div>
           </div>
         </a>
+        <a class="mod" href="{% url 'admin_portale:accessi_avanzati' %}">
+          <div class="mod-icon">📊</div>
+          <div>
+            <div class="mod-name">Accessi Avanzati</div>
+            <div class="mod-sub">Dashboard tecnica: indicatori ruoli, override, link ACL avanzati</div>
+          </div>
+        </a>
+        <a class="mod" href="{% url 'admin_portale:permessi' %}">
+          <div class="mod-icon">🔐</div>
+          <div>
+            <div class="mod-name">Permessi ACL</div>
+            <div class="mod-sub">Matrice can_view / can_edit / can_delete / can_approve per ruolo</div>
+          </div>
+        </a>
+        <a class="mod" href="{% url 'admin_portale:wizard_ruolo' %}">
+          <div class="mod-icon">🧙</div>
+          <div>
+            <div class="mod-name">Wizard Configura Ruolo</div>
+            <div class="mod-sub">Flusso guidato 3-step per impostare tutti i permessi di un ruolo</div>
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 2. Navigazione & Menu ──────────────────────────────── -->
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">🧭 Navigazione &amp; Menu</div>
+    </div>
+    <div class="card-body">
+      <div class="modules-grid">
         <a class="mod" href="{% url 'admin_portale:pulsanti' %}">
           <div class="mod-icon">🧭</div>
           <div>
             <div class="mod-name">Gestione Pulsanti</div>
-            <div class="mod-sub">Menu dinamico, URL legacy e ordine opzionale</div>
+            <div class="mod-sub">Menu dinamico, URL legacy, slot/sezione e ordine</div>
           </div>
         </a>
         <a class="mod" href="{% url 'admin_portale:topbar_live' %}">
           <div class="mod-icon">NAV</div>
           <div>
             <div class="mod-name">Topbar Live</div>
-            <div class="mod-sub">Editor rapido della navigazione in alto, con salvataggio immediato</div>
+            <div class="mod-sub">Editor rapido barra navigazione con salvataggio immediato</div>
           </div>
         </a>
         <a class="mod" href="{% url 'admin_portale:navigation_builder' %}">
@@ -121,74 +179,196 @@
             <div class="mod-sub">Sorgente unica menu/ruoli con publish snapshot e rollback</div>
           </div>
         </a>
-        {% if automazioni_rule_url %}
-          <a class="mod" href="{{ automazioni_rule_url }}">
-            <div class="mod-icon">AUTO</div>
-            <div>
-              <div class="mod-name">Regole Automazioni</div>
-              <div class="mod-sub">Builder SSR per trigger, condizioni, azioni e test manuale</div>
-            </div>
-          </a>
-        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 3. Automazioni ─────────────────────────────────────── -->
+  {% if automazioni_rule_url %}
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">🤖 Automazioni</div>
+    </div>
+    <div class="card-body">
+      <div class="modules-grid">
+        <a class="mod" href="{{ automazioni_rule_url }}">
+          <div class="mod-icon">AUTO</div>
+          <div>
+            <div class="mod-name">Regole Automazioni</div>
+            <div class="mod-sub">Builder trigger, condizioni AND, azioni sequenziali e test manuale</div>
+          </div>
+        </a>
         {% if automazioni_queue_url %}
-          <a class="mod" href="{{ automazioni_queue_url }}">
-            <div class="mod-icon">Q</div>
-            <div>
-              <div class="mod-name">Queue Automazioni</div>
-              <div class="mod-sub">Plancia operativa per monitoraggio queue, reset e retry controllato</div>
-            </div>
-          </a>
+        <a class="mod" href="{{ automazioni_queue_url }}">
+          <div class="mod-icon">Q</div>
+          <div>
+            <div class="mod-name">Queue Automazioni</div>
+            <div class="mod-sub">Monitoraggio eventi pendenti, errori, reset e retry controllato</div>
+          </div>
+        </a>
         {% endif %}
         {% if automazioni_run_log_url %}
-          <a class="mod" href="{{ automazioni_run_log_url }}">
-            <div class="mod-icon">LOG</div>
-            <div>
-              <div class="mod-name">Run Log Automazioni</div>
-              <div class="mod-sub">Debug esecuzioni regole, payload e action log collegati</div>
-            </div>
-          </a>
-        {% endif %}
-        {% if schema_dati_url %}
-          <a class="mod" href="{{ schema_dati_url }}">
-            <div class="mod-icon">DB</div>
-            <div>
-              <div class="mod-name">Schema Dati Admin</div>
-              <div class="mod-sub">Mappa tabelle legacy/Django e responsabilita'</div>
-            </div>
-          </a>
-        {% endif %}
-        {% if acl_diag_url %}
-          <a class="mod" href="{{ acl_diag_url }}">
-            <div class="mod-icon">ACL</div>
-            <div>
-              <div class="mod-name">Diagnostica ACL</div>
-              <div class="mod-sub">Debug path, pulsante matchato e record permessi</div>
-            </div>
-          </a>
-        {% endif %}
-        {% if ldap_diag_url %}
-          <a class="mod" href="{{ ldap_diag_url }}">
-            <div class="mod-icon">LDAP</div>
-            <div>
-              <div class="mod-name">Config SRV</div>
-              <div class="mod-sub">LDAP / Active Directory + SMTP in un unico pannello di configurazione server</div>
-            </div>
-          </a>
-        {% endif %}
-        <a class="mod" href="{% url 'admin_portale:guestportal_sso' %}">
-          <div class="mod-icon">🌐</div>
+        <a class="mod" href="{{ automazioni_run_log_url }}">
+          <div class="mod-icon">LOG</div>
           <div>
-            <div class="mod-name">GuestPortal</div>
-            <div class="mod-sub">Accedi al pannello WiFi guest con le tue credenziali AD</div>
+            <div class="mod-name">Run Log Automazioni</div>
+            <div class="mod-sub">Debug esecuzioni regole, payload e action log collegati</div>
+          </div>
+        </a>
+        {% endif %}
+        {% if automazioni_sorgenti_url %}
+        <a class="mod" href="{{ automazioni_sorgenti_url }}">
+          <div class="mod-icon">SRC</div>
+          <div>
+            <div class="mod-name">Sorgenti Dati</div>
+            <div class="mod-sub">Catalogo sorgenti esposte al wizard: tabelle, PK, campi disponibili</div>
+          </div>
+        </a>
+        {% endif %}
+        {% if automazioni_contenuti_url %}
+        <a class="mod" href="{{ automazioni_contenuti_url }}">
+          <div class="mod-icon">MAP</div>
+          <div>
+            <div class="mod-name">Contenuti &amp; Mapping</div>
+            <div class="mod-sub">Matrice campi per trigger, condizioni, template e mapping azioni</div>
+          </div>
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ── 4. Configurazione ──────────────────────────────────── -->
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">⚙️ Configurazione</div>
+    </div>
+    <div class="card-body">
+      <div class="modules-grid">
+        <a class="mod" href="{% url 'admin_portale:anagrafica_config' %}">
+          <div class="mod-icon">👥</div>
+          <div>
+            <div class="mod-name">Anagrafica Config</div>
+            <div class="mod-sub">Reparti, capireparto, macchine e campi extra profilo dipendente</div>
+          </div>
+        </a>
+        <a class="mod" href="{% url 'admin_portale:login_config' %}">
+          <div class="mod-icon">🎨</div>
+          <div>
+            <div class="mod-name">Config Pagina Login</div>
+            <div class="mod-sub">Titolo, sottotitolo, avviso, logo e pulsante SSO della pagina accesso</div>
+          </div>
+        </a>
+        <a class="mod" href="{% url 'admin_portale:checklist_index' %}">
+          <div class="mod-icon">✅</div>
+          <div>
+            <div class="mod-name">Checklist Onboarding</div>
+            <div class="mod-sub">Voci check-in / check-out e monitoraggio stato per dipendente</div>
           </div>
         </a>
       </div>
     </div>
   </div>
 
+  <!-- ── 5. Sistema & Diagnostica ──────────────────────────── -->
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">🔧 Sistema &amp; Diagnostica</div>
+    </div>
+    <div class="card-body">
+      <div class="modules-grid">
+        <a class="mod" href="{% url 'admin_portale:audit_log' %}">
+          <div class="mod-icon">📋</div>
+          <div>
+            <div class="mod-name">Audit Log</div>
+            <div class="mod-sub">Traccia azioni utenti: data/ora, modulo, IP e dettaglio collassabile</div>
+          </div>
+        </a>
+        <a class="mod" href="{% url 'admin_portale:health_check' %}">
+          <div class="mod-icon">💚</div>
+          <div>
+            <div class="mod-name">Health Check</div>
+            <div class="mod-sub">Stato componenti di sistema — DB, cache, servizi esterni</div>
+          </div>
+        </a>
+        {% if schema_dati_url %}
+        <a class="mod" href="{{ schema_dati_url }}">
+          <div class="mod-icon">DB</div>
+          <div>
+            <div class="mod-name">Schema Dati Admin</div>
+            <div class="mod-sub">Mappa tabelle legacy/Django, responsabilità e relazioni</div>
+          </div>
+        </a>
+        {% endif %}
+        {% if acl_diag_url %}
+        <a class="mod" href="{{ acl_diag_url }}">
+          <div class="mod-icon">ACL</div>
+          <div>
+            <div class="mod-name">Diagnostica ACL</div>
+            <div class="mod-sub">Debug path → pulsante matchato → record permessi applicati</div>
+          </div>
+        </a>
+        {% endif %}
+        {% if ldap_diag_url %}
+        <a class="mod" href="{{ ldap_diag_url }}">
+          <div class="mod-icon">SRV</div>
+          <div>
+            <div class="mod-name">Config SRV</div>
+            <div class="mod-sub">LDAP / Active Directory + SMTP — pannello unico con test integrato</div>
+          </div>
+        </a>
+        {% endif %}
+        <a class="mod" href="{% url 'admin_portale:guestportal_sso' %}">
+          <div class="mod-icon">🌐</div>
+          <div>
+            <div class="mod-name">GuestPortal SSO</div>
+            <div class="mod-sub">Accedi al pannello WiFi guest con credenziali AD</div>
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 6. Hub Tools ───────────────────────────────────────── -->
+  {% if hub_moduli_url or hub_database_url %}
+  <div class="card card-hub">
+    <div class="card-head" style="display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div class="card-title">🛠️ Hub Tools</div>
+        <div class="card-subtitle">Strumenti di sistema riservati allo staff — gestione moduli e database</div>
+      </div>
+      <span style="font-size:.72rem;font-weight:700;color:#60a5fa;background:rgba(96,165,250,.15);padding:3px 12px;border-radius:20px;letter-spacing:.04em;">STAFF ONLY</span>
+    </div>
+    <div class="card-body">
+      <div class="hub-mods-row">
+        {% if hub_moduli_url %}
+        <a class="hub-mod" href="{{ hub_moduli_url }}">
+          <div class="hub-mod-icon">🧩</div>
+          <div>
+            <div class="hub-mod-name">Gestione Moduli</div>
+            <div class="hub-mod-sub">Attiva o disattiva i moduli opzionali del portale senza riavviare il server. I dati rimangono intatti.</div>
+          </div>
+        </a>
+        {% endif %}
+        {% if hub_database_url %}
+        <a class="hub-mod" href="{{ hub_database_url }}">
+          <div class="hub-mod-icon">🗄️</div>
+          <div>
+            <div class="hub-mod-name">Gestione Database</div>
+            <div class="hub-mod-sub">Statistiche tabelle, backup, pulizia sessioni/log, ottimizzazione e ripristino.</div>
+          </div>
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ── Versioning ─────────────────────────────────────────── -->
   <div class="card" id="versioning-card">
     <div class="card-head">
-      <div class="card-title">Versioning e Release Notes</div>
+      <div class="card-title">📦 Versioning e Release Notes</div>
     </div>
     <div class="card-body">
       <div class="admin-version-shell">
@@ -208,11 +388,7 @@
                 <div class="admin-version-label">{{ module.label }}</div>
                 <div class="admin-version-value">{{ module.version }}</div>
                 <div class="admin-version-meta">
-                  {% if module.is_overridden %}
-                    Override modulo attivo
-                  {% else %}
-                    Allineato alla release portale
-                  {% endif %}
+                  {% if module.is_overridden %}Override modulo attivo{% else %}Allineato alla release portale{% endif %}
                 </div>
               </div>
             {% endfor %}
@@ -233,7 +409,7 @@
 
         <div class="admin-version-note">
           Per gestire versioni separate puoi usare gli override per modulo in configurazione:
-          `APP_VERSION_ASSETS`, `APP_VERSION_TASKS`, `APP_VERSION_ADMIN_PORTALE`, ecc.
+          <code>APP_VERSION_ASSETS</code>, <code>APP_VERSION_TASKS</code>, <code>APP_VERSION_ADMIN_PORTALE</code>, ecc.
         </div>
       </div>
     </div>

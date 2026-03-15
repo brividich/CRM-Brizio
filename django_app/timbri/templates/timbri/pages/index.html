@@ -9,9 +9,12 @@
 .tim-topbar { align-items:center; justify-content:space-between; }
 .tim-title { font-size:27px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
 .tim-sub { font-size:13px; color:#64748b; margin-top:4px; }
-.tim-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 15px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; border:1px solid #dbe4f0; background:#fff; color:#0f172a; }
+.tim-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 15px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; border:1px solid #dbe4f0; background:#fff; color:#0f172a; cursor:pointer; }
 .tim-btn-main { background:#0f766e; border-color:#0f766e; color:#fff; }
 .tim-btn-ghost { background:#f8fafc; }
+.tim-btn-copy { background:#eff6ff; border-color:#bfdbfe; color:#1d4ed8; font-size:12px; padding:6px 10px; }
+.tim-btn-copy:hover { background:#dbeafe; }
+.tim-btn-copy.copied { background:#dcfce7; border-color:#86efac; color:#166534; }
 .tim-card, .tim-k { background:#fff; border:1px solid #e2e8f0; border-radius:16px; }
 .tim-kpi { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
 .tim-k { padding:18px 20px; }
@@ -25,7 +28,23 @@
 .tim-table { width:100%; border-collapse:collapse; font-size:13px; }
 .tim-table th { padding:11px 14px; background:#f8fafc; color:#64748b; font-size:11px; text-transform:uppercase; letter-spacing:.05em; text-align:left; border-bottom:1px solid #e2e8f0; }
 .tim-table td { padding:12px 14px; border-bottom:1px solid #f1f5f9; vertical-align:middle; color:#334155; }
-.tim-table tr:hover td { background:#fbfdff; }
+.tim-row { cursor:pointer; transition:background .12s; }
+.tim-row:hover td { background:#f0fdf9; }
+.tim-row.is-open td { background:#f0fdf9; border-bottom-color:transparent; }
+.tim-row-toggle { font-size:12px; color:#64748b; transition:transform .18s; display:inline-block; }
+.tim-row.is-open .tim-row-toggle { transform:rotate(90deg); }
+.tim-expand-row td { padding:0; border-bottom:1px solid #e2e8f0; background:#f8fafc; }
+.tim-expand-inner { padding:16px 20px; }
+.tim-preview-records { display:flex; flex-direction:column; gap:12px; }
+.tim-preview-record { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px; }
+.tim-preview-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+.tim-preview-title { font-size:15px; font-weight:800; color:#0f172a; }
+.tim-preview-sub { font-size:12px; color:#64748b; }
+.tim-preview-images { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.tim-preview-slot { border:1px solid #e2e8f0; border-radius:10px; padding:10px; text-align:center; background:#f8fafc; }
+.tim-preview-slot img { max-width:100%; max-height:120px; object-fit:contain; display:block; margin:0 auto 8px; }
+.tim-preview-slot-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
+.tim-preview-no-img { height:100px; display:flex; align-items:center; justify-content:center; color:#cbd5e1; font-size:12px; }
 .tim-avatar { width:34px; height:34px; border-radius:50%; background:#0f766e; color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; }
 .tim-name { display:flex; align-items:center; gap:10px; }
 .tim-pill { display:inline-block; padding:3px 8px; border-radius:999px; font-size:11px; font-weight:700; }
@@ -33,7 +52,7 @@
 .tim-pill-blue { background:#dbeafe; color:#1d4ed8; }
 .tim-empty { text-align:center; padding:36px; color:#94a3b8; }
 .tim-pag { display:flex; align-items:center; justify-content:center; gap:8px; padding:16px; }
-@media (max-width: 900px) { .tim-kpi { grid-template-columns:1fr; } }
+@media (max-width: 900px) { .tim-kpi { grid-template-columns:1fr; } .tim-preview-images { grid-template-columns:1fr; } }
 </style>
 {% endblock %}
 
@@ -101,11 +120,12 @@
             <th></th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="tim-tbody" data-can-copy="{{ can_copy_timbri|yesno:'true,false' }}">
           {% for operatore in page_obj %}
-            <tr>
+            <tr class="tim-row" data-legacy-id="{{ operatore.legacy_id }}" data-preview-url="{% url 'timbri:operatore_preview' operatore.legacy_id %}">
               <td>
                 <div class="tim-name">
+                  <span class="tim-row-toggle">&#9654;</span>
                   <div class="tim-avatar">{{ operatore.nome|first|upper }}{{ operatore.cognome|first|upper }}</div>
                   <div>
                     <div style="font-weight:800;color:#0f172a;">{{ operatore.full_name }}</div>
@@ -119,9 +139,14 @@
               <td>{{ operatore.active_records }}</td>
               <td>{{ operatore.historical_records }}</td>
               <td>
-                <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+                <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;" onclick="event.stopPropagation()">
                   <a class="tim-btn tim-btn-ghost" href="{% url 'timbri:operatore_detail_by_legacy' operatore.legacy_id %}">Apri</a>
                 </div>
+              </td>
+            </tr>
+            <tr class="tim-expand-row" id="expand-{{ operatore.legacy_id }}" style="display:none;">
+              <td colspan="7">
+                <div class="tim-expand-inner" id="expand-inner-{{ operatore.legacy_id }}"></div>
               </td>
             </tr>
           {% empty %}
@@ -139,4 +164,94 @@
     {% endif %}
   </div>
 </div>
+
+<script>
+(function () {
+  const canCopy = document.getElementById('tim-tbody').dataset.canCopy === 'true';
+
+  async function copyImageToClipboard(btn, imgUrl) {
+    try {
+      btn.textContent = '…';
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = imgUrl; });
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      canvas.getContext('2d').drawImage(img, 0, 0);
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      btn.textContent = '✓ Copiato';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copia'; btn.classList.remove('copied'); }, 2000);
+    } catch (e) {
+      btn.textContent = 'Errore';
+      setTimeout(() => { btn.textContent = 'Copia'; }, 2000);
+    }
+  }
+
+  function buildPreview(records) {
+    if (!records.length) {
+      return '<div style="color:#94a3b8;text-align:center;padding:16px;font-size:13px;">Nessun record attivo.</div>';
+    }
+    return '<div class="tim-preview-records">' + records.map(r => {
+      const slots = r.slots.map(s => {
+        const imgHtml = s.url
+          ? `<img src="${s.url}" alt="${s.label}" data-copy-url="${s.url}">`
+          : `<div class="tim-preview-no-img">Nessuna immagine</div>`;
+        const copyBtn = canCopy && s.url
+          ? `<button class="tim-btn tim-btn-copy" onclick="event.stopPropagation()" data-url="${s.url}">Copia</button>`
+          : '';
+        return `<div class="tim-preview-slot">
+          <div class="tim-preview-slot-label">${s.label}</div>
+          ${imgHtml}
+          ${copyBtn}
+        </div>`;
+      }).join('');
+      const badge = r.tipo ? `<span class="tim-pill tim-pill-gray">${r.tipo}</span>` : '';
+      return `<div class="tim-preview-record">
+        <div class="tim-preview-head">
+          <span class="tim-preview-title">${r.codice || 'Senza codice'}</span>
+          ${r.qualifica ? `<span class="tim-preview-sub">${r.qualifica}</span>` : ''}
+          ${badge}
+        </div>
+        <div class="tim-preview-images">${slots}</div>
+      </div>`;
+    }).join('') + '</div>';
+  }
+
+  document.querySelectorAll('.tim-row').forEach(row => {
+    const legacyId = row.dataset.legacyId;
+    const previewUrl = row.dataset.previewUrl;
+    const expandRow = document.getElementById('expand-' + legacyId);
+    const expandInner = document.getElementById('expand-inner-' + legacyId);
+    let loaded = false;
+
+    row.addEventListener('click', async function () {
+      const isOpen = row.classList.contains('is-open');
+      if (isOpen) {
+        row.classList.remove('is-open');
+        expandRow.style.display = 'none';
+        return;
+      }
+      row.classList.add('is-open');
+      expandRow.style.display = '';
+      if (!loaded) {
+        expandInner.innerHTML = '<div style="color:#94a3b8;padding:20px;text-align:center;font-size:13px;">Caricamento...</div>';
+        try {
+          const resp = await fetch(previewUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+          const data = await resp.json();
+          expandInner.innerHTML = buildPreview(data.records || []);
+          expandInner.querySelectorAll('.tim-btn-copy').forEach(btn => {
+            btn.addEventListener('click', () => copyImageToClipboard(btn, btn.dataset.url));
+          });
+          loaded = true;
+        } catch {
+          expandInner.innerHTML = '<div style="color:#b91c1c;padding:16px;font-size:13px;">Errore nel caricamento.</div>';
+        }
+      }
+    });
+  });
+})();
+</script>
 {% endblock %}

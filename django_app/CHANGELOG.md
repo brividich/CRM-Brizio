@@ -1,5 +1,30 @@
 ﻿# Changelog
 
+## 0.7.1 — 2026-03-14
+
+### Setup Wizard v2 + app Hub Tools
+
+#### Setup Wizard — wizard guidato esteso a 12 step
+
+- **[feature] Step 9 — Selezione moduli**: il wizard mostra tutti i moduli disponibili con icona, nome e descrizione. I moduli core (`Core & Auth`, `Dashboard`, `Admin Portale`) sono sempre attivi e visualizzati come tali. I moduli opzionali (`assenze`, `anomalie`, `assets`, `tasks`, `tickets`, `notizie`, `anagrafica`, `automazioni`, `timbri`, `planimetria`) sono selezionabili singolarmente con stato default configurato.
+- **[feature] Step 10 — Primo utente amministratore**: form con username, password (con strength meter visuale: lunghezza, maiuscola, numero, carattere speciale, corrispondenza), email, nome e cognome. Validazione client-side prima di procedere.
+- **[feature] Step 11 — Informazioni operative**: nome azienda, indirizzo, telefono, email di contatto, fuso orario (default `Europe/Rome`), lingua interfaccia e formato data.
+- **[feature] Step 12 — Installa & Avvia**: sostituisce il vecchio "Riepilogo & Salva". Esegue 4 fasi in sequenza con progress indicator in tempo reale: (1) salva `.env` + `config.ini`, (2) `manage.py migrate` via subprocess con rilevamento auto dev/prod settings, (3) crea superuser Django, (4) scrive visibilità moduli in `SiteConfig`. Redirect automatico a `/login/` al termine.
+- **[api] Nuovi endpoint setup wizard**: `POST /setup/api/run-migrations/`, `POST /setup/api/create-admin/`, `POST /setup/api/set-modules/`.
+
+#### Hub Tools — nuova app di gestione post-installazione
+
+- **[feature] App `hub_tools`** (`django_app/hub_tools/`): nuova app Django per la gestione operativa, accessibile dallo staff a `/admin-portale/hub/`. Registrata in `INSTALLED_APPS`, `config/urls.py` e `MIDDLEWARE_EXEMPT_PREFIXES`.
+- **[feature] Module Manager** (`/admin-portale/hub/moduli/`): toggle enable/disable per ogni modulo opzionale, effetto immediato senza riavvio del server. Aggiorna `SiteConfig` tramite `POST /admin-portale/hub/moduli/toggle/`.
+- **[feature] Database Manager** (`/admin-portale/hub/database/`): 5 operazioni — statistiche tabelle (righe + dimensione), backup (file SQLite o `BACKUP DATABASE` SQL Server), pulizia (sessioni scadute, log vecchi, event queue processati, notifiche lette), ottimizzazione (`VACUUM+ANALYZE` / `UPDATE STATISTICS + ALTER INDEX REBUILD`), ripristino da lista backup con salvataggio `.pre_restore`.
+- **[infra]** Namespace URL `hub_tools`; tutte le view protette da `is_staff`.
+
+#### Versioning
+
+- **[versioning]** Bump versione `0.7.0` → `0.7.1`.
+
+---
+
 ## 0.7.0 — 2026-03-13
 
 ### Setup Wizard & Rebrand BrizioHUB

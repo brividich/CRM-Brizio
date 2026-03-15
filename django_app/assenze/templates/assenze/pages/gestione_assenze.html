@@ -73,11 +73,15 @@
   <form id="gestione-csrf">{% csrf_token %}</form>
 
   <div class="page-header">
-    <div class="page-h">Gestione assenze</div>
-    <div class="page-sub">Le tue richieste di assenza e quelle in attesa di approvazione.</div>
-    <a href="{% url 'assenze_export_csv' %}" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#16a34a;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
-      ⬇ Esporta CSV
-    </a>
+    <div class="page-header-main">
+      <div class="page-h">Gestione assenze</div>
+      <div class="page-sub">Le tue richieste di assenza e quelle in attesa di approvazione.</div>
+    </div>
+    <div class="page-header-actions">
+      <a href="{% url 'assenze_export_csv' %}" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#16a34a;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
+        ⬇ Esporta CSV
+      </a>
+    </div>
   </div>
 
   <div class="card" style="margin-bottom:14px;">

@@ -5,9 +5,12 @@ Gestione locale + sincronizzazione con SharePoint tramite Microsoft Graph API.
 from __future__ import annotations
 
 import configparser
+import csv
+import io
 import json
 import os
-from datetime import datetime
+import re
+from datetime import date, datetime
 from datetime import timezone as dt_timezone
 from pathlib import Path
 
@@ -387,13 +390,99 @@ def rettifica_scarico(request):
     return _handle_form(request, "R", "rentri/pages/rettifica_scarico.html")
 
 
+def _build_families(records: list) -> list[dict]:
+    """
+    Raggruppa le registrazioni in famiglie: ogni famiglia ha uno o più C (carichi)
+    e i relativi O/R/M collegati tramite il campo rif_op.
+    Ritorna una lista ordinata per data del primo carico.
+    """
+    _ORM_ORDER = {"O": 0, "R": 1, "M": 2}
+
+    c_map: dict[str, object] = {}
+    ops: list = []
+    for r in records:
+        if r.tipo == "C":
+            c_map[r.id_registrazione] = r
+        else:
+            ops.append(r)
+
+    # family_key (tuple ordinata di id C) → lista di O/R/M
+    family_ops: dict[tuple, list] = {}
+    for op in ops:
+        rif = str(op.rif_op or "").strip()
+        fkey = tuple(sorted(x.strip() for x in rif.split(",") if x.strip())) if rif else ()
+        family_ops.setdefault(fkey, []).append(op)
+
+    # c_id → family_key
+    c_to_fkey: dict[str, tuple] = {}
+    for fkey in family_ops:
+        for cid in fkey:
+            c_to_fkey[cid] = fkey
+
+    seen: set[tuple] = set()
+    families: list[dict] = []
+
+    for c_rec in sorted(c_map.values(), key=lambda r: (r.data or date.min, r.id_registrazione or "")):
+        cid = c_rec.id_registrazione
+        fkey = c_to_fkey.get(cid)
+
+        if fkey:
+            if fkey in seen:
+                continue
+            seen.add(fkey)
+            carichi = sorted(
+                [c_map[i] for i in fkey if i in c_map],
+                key=lambda r: (r.data or date.min, r.id_registrazione or ""),
+            )
+            operazioni = sorted(
+                family_ops.get(fkey, []),
+                key=lambda r: (r.data or date.min, _ORM_ORDER.get(r.tipo, 9)),
+            )
+        else:
+            carichi = [c_rec]
+            operazioni = []
+
+        families.append({"carichi": carichi, "operazioni": operazioni})
+
+    # O/M/R orfani (nessun C trovato nel queryset corrente)
+    for fkey, ops_list in family_ops.items():
+        if fkey not in seen:
+            families.append({
+                "carichi": [],
+                "operazioni": sorted(ops_list, key=lambda r: (r.data or date.min,)),
+            })
+
+    return families
+
+
+_SORT_FIELDS = {
+    "data": "data",
+    "tipo": "tipo",
+    "id_reg": "id_registrazione",
+    "codice": "codice",
+    "quantita": "quantita",
+    "inserito_da": "inserito_da",
+}
+
+_GROUP_FIELDS = {
+    "codice": ("codice", lambda r: r.codice or "—"),
+    "tipo": ("tipo", lambda r: r.tipo),
+    "anno": ("data__year", lambda r: str(r.data.year) if r.data else "—"),
+    "inserito_da": ("inserito_da", lambda r: r.inserito_da or "—"),
+}
+
+
 @login_required
 def elenco(request):
     qs = RegistroRifiuti.objects.all()
 
-    q_tipo = request.GET.get("tipo", "").strip()
-    q_search = request.GET.get("q", "").strip()
-    q_anno = request.GET.get("anno", "").strip()
+    q_tipo   = request.GET.get("tipo",  "").strip()
+    q_search = request.GET.get("q",     "").strip()
+    q_anno   = request.GET.get("anno",  "").strip()
+    q_sort   = request.GET.get("sort",  "").strip()
+    q_dir    = request.GET.get("dir",   "desc").strip()
+    q_group  = request.GET.get("group", "").strip()
+    q_view   = request.GET.get("view",  "famiglie").strip()  # default: vista famiglie
 
     if q_tipo in ("C", "O", "M", "R"):
         qs = qs.filter(tipo=q_tipo)
@@ -401,20 +490,74 @@ def elenco(request):
         qs = qs.filter(codice__icontains=q_search) | qs.filter(rif_op__icontains=q_search)
     if q_anno:
         try:
-            anno_int = int(q_anno)
-            qs = qs.filter(data__year=anno_int)
+            qs = qs.filter(data__year=int(q_anno))
         except ValueError:
             pass
 
-    paginator = Paginator(qs.order_by("-data", "-id"), 50)
-    page_obj = paginator.get_page(request.GET.get("page"))
-
-    return render(request, "rentri/pages/elenco.html", {
-        "page_obj": page_obj,
+    ctx = {
         "q_tipo": q_tipo,
         "q_search": q_search,
         "q_anno": q_anno,
-    })
+        "q_sort": q_sort,
+        "q_dir": q_dir,
+        "q_group": q_group,
+        "q_view": q_view,
+    }
+
+    # ── Vista famiglie (default) ───────────────────────────────────────────────
+    if q_view == "famiglie" and not q_group:
+        # Carica tutti i record del filtro corrente, ordinati per data
+        # La famiglia viene costruita in Python tramite rif_op
+        records = list(qs.order_by("data", "id_registrazione"))
+        families = _build_families(records)
+        ctx["families"] = families
+        ctx["total"] = sum(len(f["carichi"]) + len(f["operazioni"]) for f in families)
+        return render(request, "rentri/pages/elenco.html", ctx)
+
+    # ── Vista lista con sort/group ─────────────────────────────────────────────
+    if q_sort in _SORT_FIELDS:
+        order_field = _SORT_FIELDS[q_sort]
+        qs = qs.order_by(order_field if q_dir == "asc" else f"-{order_field}", "id")
+    else:
+        qs = qs.order_by("-data", "-id")
+        q_sort = "data"
+        q_dir = "desc"
+        ctx["q_sort"] = q_sort
+        ctx["q_dir"] = q_dir
+
+    # Raggruppamento — nessuna paginazione
+    if q_group in _GROUP_FIELDS:
+        order_db, key_fn = _GROUP_FIELDS[q_group]
+        if q_sort in _SORT_FIELDS and q_sort != q_group:
+            prefix = "" if q_dir == "asc" else "-"
+            qs = qs.order_by(order_db, f"{prefix}{_SORT_FIELDS[q_sort]}", "id")
+        else:
+            qs = qs.order_by(order_db, "-data", "id")
+
+        records = list(qs)
+        groups = []
+        current_key = None
+        current_group: list = []
+        for r in records:
+            k = key_fn(r)
+            if k != current_key:
+                if current_group:
+                    groups.append({"key": current_key, "rows": current_group})
+                current_key = k
+                current_group = [r]
+            else:
+                current_group.append(r)
+        if current_group:
+            groups.append({"key": current_key, "rows": current_group})
+
+        ctx["groups"] = groups
+        ctx["total"] = len(records)
+        return render(request, "rentri/pages/elenco.html", ctx)
+
+    # Vista flat paginata
+    paginator = Paginator(qs, 50)
+    ctx["page_obj"] = paginator.get_page(request.GET.get("page"))
+    return render(request, "rentri/pages/elenco.html", ctx)
 
 
 @login_required
@@ -456,6 +599,411 @@ def elimina(request, pk: int):
     if sp_id and _graph_configured():
         _graph_delete(sp_id)
     return JsonResponse({"ok": True})
+
+
+# ── CSV Import helpers ─────────────────────────────────────────────────────────
+
+_IMPORT_TIPO_MAP = {
+    "C - Carico": "C",
+    "O - Scarico originario": "O",
+    "M - Scarico effettivo": "M",
+    "R - Rettifica scarico": "R",
+}
+
+
+def _parse_num_it(raw: str):
+    """Converte numero in formato italiano (1.234 → 1234) in float o None."""
+    s = raw.strip().replace(".", "").replace(",", ".")
+    if not s:
+        return None
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def _parse_pericolosita_csv(raw: str) -> str:
+    """Estrae codici HP (HP04, HP05…) da stringa JSON array."""
+    raw = raw.strip()
+    if not raw:
+        return ""
+    try:
+        items = json.loads(raw)
+        codes = []
+        for item in items:
+            m = re.match(r"(HP\d+)", str(item))
+            if m:
+                codes.append(m.group(1))
+        return ", ".join(codes)[:100]
+    except Exception:
+        return raw[:100]
+
+
+def _parse_csv_rows(content: str) -> tuple[list[dict], list[dict]]:
+    """Analizza il contenuto CSV; restituisce (righe_ok, errori)."""
+    rows: list[dict] = []
+    errors: list[dict] = []
+
+    reader = csv.reader(io.StringIO(content))
+    try:
+        next(reader)  # salta intestazione
+    except StopIteration:
+        return [], [{"riga": 0, "msg": "File vuoto o senza intestazione"}]
+
+    for line_no, row in enumerate(reader, start=2):
+        if not any(cell.strip() for cell in row):
+            continue
+        if len(row) < 12:
+            errors.append({"riga": line_no, "msg": f"Colonne insufficienti ({len(row)})"})
+            continue
+        try:
+            data_raw = row[0].strip()
+            try:
+                data = datetime.strptime(data_raw, "%d/%m/%Y").date()
+            except ValueError:
+                errors.append({"riga": line_no, "msg": f"Data non valida: '{data_raw}'"})
+                continue
+
+            tipo_raw = row[6].strip()
+            tipo = _IMPORT_TIPO_MAP.get(tipo_raw)
+            if not tipo:
+                errors.append({"riga": line_no, "msg": f"Tipo sconosciuto: '{tipo_raw}'"})
+                continue
+
+            id_reg = row[1].strip()
+            codice = " ".join(row[2].split())[:100]
+            pericolosita = _parse_pericolosita_csv(row[3])
+            quantita = _parse_num_it(row[4])
+            rettifica = _parse_num_it(row[5])
+            note = row[7].strip()
+            rentri_si_no = row[8].strip().lower() in ("vero", "true", "1")
+            arrivo_fir = row[9].strip()
+            inserito_da = row[10].strip()
+            rif_op = row[11].strip()
+
+            esiste = RegistroRifiuti.objects.filter(id_registrazione=id_reg, tipo=tipo).exists()
+
+            rows.append({
+                "riga": line_no,
+                "data": data.strftime("%d/%m/%Y"),
+                "_data_iso": data.isoformat(),
+                "tipo": tipo,
+                "id_reg": id_reg,
+                "codice": codice,
+                "quantita": str(quantita) if quantita is not None else "",
+                "rettifica": str(rettifica) if rettifica is not None else "",
+                "pericolosita": pericolosita,
+                "note": note,
+                "rentri_si_no": rentri_si_no,
+                "arrivo_fir": arrivo_fir,
+                "inserito_da": inserito_da,
+                "rif_op": rif_op,
+                "esiste": esiste,
+            })
+        except Exception as exc:
+            errors.append({"riga": line_no, "msg": str(exc)})
+
+    return rows, errors
+
+
+@login_required
+@require_POST
+def import_preview(request):
+    """POST: riceve un file CSV e restituisce un'anteprima JSON senza scrivere sul DB."""
+    csv_file = request.FILES.get("csv_file")
+    if not csv_file:
+        return JsonResponse({"ok": False, "error": "Nessun file selezionato"}, status=400)
+    try:
+        content = csv_file.read().decode("utf-8-sig")
+    except Exception as exc:
+        return JsonResponse({"ok": False, "error": f"Errore lettura file: {exc}"}, status=400)
+
+    rows, errors = _parse_csv_rows(content)
+    nuovi = sum(1 for r in rows if not r["esiste"])
+
+    return JsonResponse({
+        "ok": True,
+        "rows": rows,
+        "errors": errors,
+        "totale": len(rows),
+        "nuovi": nuovi,
+        "skip": len(rows) - nuovi,
+    })
+
+
+@login_required
+@require_POST
+def import_confirm(request):
+    """POST: importa effettivamente il CSV nel DB."""
+    csv_file = request.FILES.get("csv_file")
+    if not csv_file:
+        return JsonResponse({"ok": False, "error": "Nessun file"}, status=400)
+    try:
+        content = csv_file.read().decode("utf-8-sig")
+    except Exception as exc:
+        return JsonResponse({"ok": False, "error": str(exc)}, status=400)
+
+    rows, parse_errors = _parse_csv_rows(content)
+    created = 0
+    skipped = 0
+    import_errors = list(parse_errors)
+
+    for r in rows:
+        if r["esiste"]:
+            skipped += 1
+            continue
+        try:
+            data = datetime.fromisoformat(r["_data_iso"]).date()
+            quantita = float(r["quantita"]) if r["quantita"] else None
+            rettifica = float(r["rettifica"]) if r["rettifica"] else None
+
+            registro = RegistroRifiuti(
+                tipo=r["tipo"],
+                data=data,
+                id_registrazione=r["id_reg"],
+                codice=r["codice"],
+                quantita=quantita,
+                rettifica_scarico=rettifica,
+                carico_scarico=r["tipo"],
+                pericolosita=r["pericolosita"],
+                note_rentri=r["note"],
+                rentri_si_no=r["rentri_si_no"],
+                arrivo_fir=r["arrivo_fir"],
+                rif_op=r["rif_op"],
+                inserito_da=r["inserito_da"] or _get_username(request),
+            )
+            registro.save()
+            # Forza l'id_registrazione originale (save() potrebbe sovrascriverlo)
+            if registro.id_registrazione != r["id_reg"]:
+                RegistroRifiuti.objects.filter(pk=registro.pk).update(id_registrazione=r["id_reg"])
+            created += 1
+        except Exception as exc:
+            import_errors.append({"riga": r["riga"], "msg": str(exc)})
+
+    return JsonResponse({
+        "ok": True,
+        "created": created,
+        "skipped": skipped,
+        "errors": import_errors,
+    })
+
+
+@login_required
+def export_pdf(request):
+    """GET: genera ed invia un PDF con le registrazioni RENTRI."""
+    from io import BytesIO
+
+    from django.http import HttpResponse
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Table, TableStyle
+
+    # ── filtri ────────────────────────────────────────────────────────────────
+    q_tipo = request.GET.get("tipo", "").strip()
+    q_search = request.GET.get("q", "").strip()
+    q_anno = request.GET.get("anno", "").strip()
+
+    qs = RegistroRifiuti.objects.all()
+    if q_tipo in ("C", "O", "M", "R"):
+        qs = qs.filter(tipo=q_tipo)
+    if q_search:
+        qs = qs.filter(codice__icontains=q_search) | qs.filter(rif_op__icontains=q_search)
+    if q_anno:
+        try:
+            qs = qs.filter(data__year=int(q_anno))
+        except ValueError:
+            pass
+
+    records = list(qs.order_by("data", "id"))
+    now_str = datetime.now().strftime("%d/%m/%Y %H:%M")
+
+    # ── palette colori ────────────────────────────────────────────────────────
+    COL_DARK  = colors.HexColor("#1e3a5f")
+    COL_MID   = colors.HexColor("#2d5a9b")
+    COL_ALT   = colors.HexColor("#f0f4fb")
+    COL_GRID  = colors.HexColor("#d1d9e6")
+
+    TIPO_BG = {
+        "C": "#dbeafe",
+        "O": "#fed7aa",
+        "M": "#d9f99d",
+        "R": "#fef08a",
+    }
+    TIPO_FG = {
+        "C": "#1e40af",
+        "O": "#9a3412",
+        "M": "#166534",
+        "R": "#854d0e",
+    }
+    TIPO_LABEL = {
+        "C": "Carico",
+        "O": "Scarico orig.",
+        "M": "Scarico eff.",
+        "R": "Rettifica",
+    }
+
+    # ── dimensioni pagina ─────────────────────────────────────────────────────
+    PAGE_W, PAGE_H = landscape(A4)
+    MARGIN   = 1.5 * cm
+    HDR_H    = 2.1 * cm
+    FTR_H    = 0.9 * cm
+
+    # ── filtri stringa per footer ─────────────────────────────────────────────
+    filter_parts = []
+    if q_tipo:
+        filter_parts.append(f"Tipo: {TIPO_LABEL.get(q_tipo, q_tipo)}")
+    if q_anno:
+        filter_parts.append(f"Anno: {q_anno}")
+    if q_search:
+        filter_parts.append(f"Ricerca: {q_search}")
+    filters_str = " | ".join(filter_parts) if filter_parts else "Tutte le registrazioni"
+    n_records = len(records)
+
+    # ── callback decorazione pagina ───────────────────────────────────────────
+    def _draw_page(canv, doc):
+        canv.saveState()
+
+        # banner superiore
+        canv.setFillColor(COL_DARK)
+        canv.rect(0, PAGE_H - HDR_H, PAGE_W, HDR_H, fill=1, stroke=0)
+
+        # linea accent
+        canv.setFillColor(COL_MID)
+        canv.rect(0, PAGE_H - HDR_H - 2, PAGE_W, 2, fill=1, stroke=0)
+
+        # titolo sinistro
+        canv.setFillColor(colors.white)
+        canv.setFont("Helvetica-Bold", 15)
+        canv.drawString(MARGIN, PAGE_H - HDR_H + 0.75 * cm, "RENTRI")
+        canv.setFont("Helvetica", 8)
+        canv.drawString(MARGIN, PAGE_H - HDR_H + 0.30 * cm,
+                        "Registro Elettronico Nazionale Tracciabilità Rifiuti")
+
+        # info destra
+        canv.setFont("Helvetica-Bold", 8)
+        canv.drawRightString(PAGE_W - MARGIN, PAGE_H - HDR_H + 0.75 * cm,
+                             f"{n_records} registrazioni")
+        canv.setFont("Helvetica", 7.5)
+        canv.drawRightString(PAGE_W - MARGIN, PAGE_H - HDR_H + 0.30 * cm, now_str)
+
+        # riga separazione colori tipo (legenda)
+        legend_items = [
+            ("C", "Carico"),
+            ("O", "Scarico originario"),
+            ("M", "Scarico effettivo"),
+            ("R", "Rettifica"),
+        ]
+        lx = MARGIN
+        ly = PAGE_H - HDR_H - 1.05 * cm
+        dot_r = 3
+        canv.setFont("Helvetica", 6.5)
+        for tipo, label in legend_items:
+            canv.setFillColor(colors.HexColor(TIPO_BG[tipo]))
+            canv.circle(lx + dot_r, ly + dot_r, dot_r, fill=1, stroke=0)
+            canv.setFillColor(colors.HexColor(TIPO_FG[tipo]))
+            canv.drawString(lx + dot_r * 2 + 3, ly + 1, f"{tipo} – {label}")
+            lx += 4.8 * cm
+
+        # linea separazione legenda
+        canv.setStrokeColor(COL_GRID)
+        canv.setLineWidth(0.3)
+        canv.line(MARGIN, PAGE_H - HDR_H - 1.5 * cm, PAGE_W - MARGIN, PAGE_H - HDR_H - 1.5 * cm)
+
+        # footer
+        canv.setStrokeColor(COL_GRID)
+        canv.line(MARGIN, FTR_H + 0.1 * cm, PAGE_W - MARGIN, FTR_H + 0.1 * cm)
+        canv.setFillColor(colors.HexColor("#6b7280"))
+        canv.setFont("Helvetica", 6.5)
+        canv.drawString(MARGIN, FTR_H * 0.35, filters_str)
+        canv.drawRightString(PAGE_W - MARGIN, FTR_H * 0.35, f"Pagina {doc.page}")
+
+        canv.restoreState()
+
+    # ── documento ─────────────────────────────────────────────────────────────
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(A4),
+        leftMargin=MARGIN,
+        rightMargin=MARGIN,
+        topMargin=HDR_H + 1.7 * cm,   # spazio per banner + legenda
+        bottomMargin=FTR_H + 0.5 * cm,
+    )
+
+    # ── stili ─────────────────────────────────────────────────────────────────
+    cell_s = ParagraphStyle("cell", fontName="Helvetica", fontSize=7, leading=9, wordWrap="CJK")
+    cell_r = ParagraphStyle("cell_r", parent=cell_s, alignment=2)  # right-align numeri
+    hdr_s  = ParagraphStyle(
+        "hdr", fontName="Helvetica-Bold", fontSize=8, leading=10,
+        textColor=colors.white, alignment=1,
+    )
+
+    def _tipo_cell(tipo):
+        label = f"<b>{tipo}</b> {TIPO_LABEL.get(tipo, '')}"
+        fg = TIPO_FG.get(tipo, "#333333")
+        s = ParagraphStyle(
+            f"tipo_{tipo}", fontName="Helvetica", fontSize=7, leading=9,
+            textColor=colors.HexColor(fg), alignment=1,
+        )
+        return Paragraph(label, s)
+
+    # ── dati tabella ──────────────────────────────────────────────────────────
+    COL_W = [2.0*cm, 3.0*cm, 3.0*cm, 7.4*cm, 1.9*cm, 1.9*cm, 5.2*cm, 2.3*cm]
+
+    header_row = [
+        Paragraph("Data", hdr_s),
+        Paragraph("ID Reg.", hdr_s),
+        Paragraph("Tipo", hdr_s),
+        Paragraph("Codice EER", hdr_s),
+        Paragraph("Qtà", hdr_s),
+        Paragraph("Rettifica", hdr_s),
+        Paragraph("Note / FIR", hdr_s),
+        Paragraph("Inserito da", hdr_s),
+    ]
+    table_data = [header_row]
+    for r in records:
+        note_fir = r.note_rentri or r.arrivo_fir or ""
+        table_data.append([
+            Paragraph(r.data.strftime("%d/%m/%Y") if r.data else "", cell_s),
+            Paragraph(r.id_registrazione or "", cell_s),
+            _tipo_cell(r.tipo),
+            Paragraph((r.codice or "")[:80], cell_s),
+            Paragraph(str(r.quantita) if r.quantita is not None else "", cell_r),
+            Paragraph(str(r.rettifica_scarico) if r.rettifica_scarico is not None else "", cell_r),
+            Paragraph(note_fir[:70], cell_s),
+            Paragraph((r.inserito_da or "")[:22], cell_s),
+        ])
+
+    table = Table(table_data, colWidths=COL_W, repeatRows=1)
+    ts = TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, 0),  COL_DARK),
+        ("LINEBELOW",     (0, 0), (-1, 0),  1.5,  COL_MID),
+        ("ROWBACKGROUNDS",(0, 1), (-1, -1), [colors.white, COL_ALT]),
+        ("GRID",          (0, 0), (-1, -1), 0.25, COL_GRID),
+        ("LINEBEFORE",    (0, 0), (-1, -1), 0,    colors.white),   # annulla bordo sinistro
+        ("LINEAFTER",     (-1, 0),(-1, -1), 0,    colors.white),   # annulla bordo destro
+        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING",    (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 5),
+    ])
+    for i, r in enumerate(records, start=1):
+        bg = TIPO_BG.get(r.tipo)
+        if bg:
+            ts.add("BACKGROUND", (2, i), (2, i), colors.HexColor(bg))
+    table.setStyle(ts)
+
+    doc.build([table], onFirstPage=_draw_page, onLaterPages=_draw_page)
+
+    buffer.seek(0)
+    anno_str = q_anno or datetime.now().strftime("%Y")
+    filename = f"rentri_{anno_str}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    response = HttpResponse(buffer.read(), content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 @login_required

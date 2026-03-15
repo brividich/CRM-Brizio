@@ -1,45 +1,94 @@
 {% with current=request.resolver_match.view_name %}
-{% url 'admin_portale:ldap_diagnostica' as ldap_diag_url %}
-{% url 'admin_portale:acl_diagnostica' as acl_diag_url %}
-{% url 'admin_portale:schema_dati' as schema_dati_url %}
-{% url 'admin_portale:topbar_live' as topbar_live_url %}
-{% url 'admin_portale:navigation_builder' as navigation_builder_url %}
-{% url 'admin_portale:automazioni_rule_list' as automazioni_rule_url %}
-{% url 'admin_portale:automazioni_sorgenti' as automazioni_sorgenti_url %}
-{% url 'admin_portale:automazioni_contenuti' as automazioni_contenuti_url %}
-{% url 'admin_portale:automazioni_queue_list' as automazioni_queue_url %}
+{% url 'admin_portale:ldap_diagnostica'         as ldap_diag_url %}
+{% url 'admin_portale:acl_diagnostica'          as acl_diag_url %}
+{% url 'admin_portale:schema_dati'              as schema_dati_url %}
+{% url 'admin_portale:topbar_live'              as topbar_live_url %}
+{% url 'admin_portale:navigation_builder'       as navigation_builder_url %}
+{% url 'admin_portale:automazioni_rule_list'    as automazioni_rule_url %}
+{% url 'admin_portale:automazioni_sorgenti'     as automazioni_sorgenti_url %}
+{% url 'admin_portale:automazioni_contenuti'    as automazioni_contenuti_url %}
+{% url 'admin_portale:automazioni_queue_list'   as automazioni_queue_url %}
 {% url 'admin_portale:automazioni_run_log_list' as automazioni_run_log_url %}
+{% url 'hub_tools:hub_moduli'                   as hub_moduli_url %}
+{% url 'hub_tools:hub_database'                 as hub_database_url %}
 <div class="subnav">
-  <a class="sub-a{% if current == 'admin_portale:index' %} active{% endif %}" href="{% url 'admin_portale:index' %}">Home Admin</a>
+  <a class="sub-a{% if current == 'admin_portale:index' %} active{% endif %}"
+     href="{% url 'admin_portale:index' %}">Home Admin</a>
   <div class="sub-sep"></div>
-  <a class="sub-a{% if current == 'admin_portale:utenti_list' or current == 'admin_portale:utente_edit' or current == 'admin_portale:utente_permessi_effettivi' %} active{% endif %}" href="{% url 'admin_portale:utenti_list' %}">Utenti</a>
-  <a class="sub-a{% if current == 'admin_portale:accessi' or current == 'admin_portale:accessi_semplice' %} active{% endif %}" href="{% url 'admin_portale:accessi' %}">Accessi</a>
-  <a class="sub-a{% if current == 'admin_portale:accessi_avanzati' or current == 'admin_portale:wizard_ruolo' %} active{% endif %}" href="{% url 'admin_portale:accessi_avanzati' %}">Accessi Avanzati</a>
-  <a class="sub-a{% if current == 'admin_portale:permessi' %} active{% endif %}" href="{% url 'admin_portale:permessi' %}">Permessi</a>
-  <a class="sub-a{% if current == 'admin_portale:pulsanti' %} active{% endif %}" href="{% url 'admin_portale:pulsanti' %}">Pulsanti</a>
-  {% if automazioni_rule_url %}
-    <a class="sub-a{% if current == 'admin_portale:automazioni_rule_list' or current == 'admin_portale:automazioni_rule_import_package' or current == 'admin_portale:automazioni_rule_import_result' or current == 'admin_portale:automazioni_rule_create' or current == 'admin_portale:automazioni_rule_detail' or current == 'admin_portale:automazioni_rule_edit' or current == 'admin_portale:automazioni_rule_toggle' or current == 'admin_portale:automazioni_rule_test' or current == 'admin_portale:automazioni_sorgenti' or current == 'admin_portale:automazioni_contenuti' or current == 'admin_portale:automazioni_queue_list' or current == 'admin_portale:automazioni_queue_detail' or current == 'admin_portale:automazioni_queue_reset' or current == 'admin_portale:automazioni_queue_retry' or current == 'admin_portale:automazioni_run_log_list' or current == 'admin_portale:automazioni_run_log_detail' %} active{% endif %}" href="{{ automazioni_rule_url }}">Automazioni</a>
-  {% endif %}
-  <a class="sub-a{% if current == 'admin_portale:anagrafica_config' %} active{% endif %}" href="{% url 'admin_portale:anagrafica_config' %}">Anagrafica</a>
-  <a class="sub-a{% if current == 'admin_portale:login_config' %} active{% endif %}" href="{% url 'admin_portale:login_config' %}">Login</a>
-  <a class="sub-a{% if current == 'admin_portale:checklist_index' or current == 'admin_portale:checklist_utente' %} active{% endif %}" href="{% url 'admin_portale:checklist_index' %}">Checklist</a>
+
+  {# ── Utenti & Accessi #}
+  <a class="sub-a{% if current == 'admin_portale:utenti_list' or current == 'admin_portale:utente_edit' or current == 'admin_portale:utente_permessi_effettivi' %} active{% endif %}"
+     href="{% url 'admin_portale:utenti_list' %}">Utenti</a>
+  <a class="sub-a{% if current == 'admin_portale:accessi' or current == 'admin_portale:accessi_semplice' %} active{% endif %}"
+     href="{% url 'admin_portale:accessi' %}">Accessi</a>
+  <a class="sub-a{% if current == 'admin_portale:accessi_avanzati' or current == 'admin_portale:wizard_ruolo' %} active{% endif %}"
+     href="{% url 'admin_portale:accessi_avanzati' %}">Accessi Avanzati</a>
+  <a class="sub-a{% if current == 'admin_portale:permessi' %} active{% endif %}"
+     href="{% url 'admin_portale:permessi' %}">Permessi</a>
+  <div class="sub-sep"></div>
+
+  {# ── Navigazione #}
+  <a class="sub-a{% if current == 'admin_portale:pulsanti' %} active{% endif %}"
+     href="{% url 'admin_portale:pulsanti' %}">Pulsanti</a>
   {% if topbar_live_url %}
-    <a class="sub-a{% if current == 'admin_portale:topbar_live' %} active{% endif %}" href="{{ topbar_live_url }}">Topbar Live</a>
+    <a class="sub-a{% if current == 'admin_portale:topbar_live' %} active{% endif %}"
+       href="{{ topbar_live_url }}">Topbar Live</a>
   {% endif %}
   {% if navigation_builder_url %}
-    <a class="sub-a{% if current == 'admin_portale:navigation_builder' %} active{% endif %}" href="{{ navigation_builder_url }}">Navigation Builder</a>
+    <a class="sub-a{% if current == 'admin_portale:navigation_builder' %} active{% endif %}"
+       href="{{ navigation_builder_url }}">Navigation Builder</a>
   {% endif %}
+  <div class="sub-sep"></div>
+
+  {# ── Automazioni #}
+  {% if automazioni_rule_url %}
+    <a class="sub-a{% if current == 'admin_portale:automazioni_rule_list' or current == 'admin_portale:automazioni_rule_import_package' or current == 'admin_portale:automazioni_rule_import_result' or current == 'admin_portale:automazioni_rule_create' or current == 'admin_portale:automazioni_rule_detail' or current == 'admin_portale:automazioni_rule_edit' or current == 'admin_portale:automazioni_rule_toggle' or current == 'admin_portale:automazioni_rule_test' or current == 'admin_portale:automazioni_sorgenti' or current == 'admin_portale:automazioni_contenuti' or current == 'admin_portale:automazioni_queue_list' or current == 'admin_portale:automazioni_queue_detail' or current == 'admin_portale:automazioni_queue_reset' or current == 'admin_portale:automazioni_queue_retry' or current == 'admin_portale:automazioni_run_log_list' or current == 'admin_portale:automazioni_run_log_detail' %} active{% endif %}"
+       href="{{ automazioni_rule_url }}">Automazioni</a>
+  {% endif %}
+  <div class="sub-sep"></div>
+
+  {# ── Configurazione #}
+  <a class="sub-a{% if current == 'admin_portale:anagrafica_config' %} active{% endif %}"
+     href="{% url 'admin_portale:anagrafica_config' %}">Anagrafica</a>
+  <a class="sub-a{% if current == 'admin_portale:login_config' %} active{% endif %}"
+     href="{% url 'admin_portale:login_config' %}">Login</a>
+  <a class="sub-a{% if current == 'admin_portale:checklist_index' or current == 'admin_portale:checklist_utente' %} active{% endif %}"
+     href="{% url 'admin_portale:checklist_index' %}">Checklist</a>
+  <div class="sub-sep"></div>
+
+  {# ── Sistema #}
+  <a class="sub-a{% if current == 'admin_portale:audit_log' %} active{% endif %}"
+     href="{% url 'admin_portale:audit_log' %}">Audit Log</a>
+  <a class="sub-a{% if current == 'admin_portale:health_check' %} active{% endif %}"
+     href="{% url 'admin_portale:health_check' %}">Health Check</a>
   {% if schema_dati_url %}
-    <a class="sub-a{% if current == 'admin_portale:schema_dati' %} active{% endif %}" href="{{ schema_dati_url }}">Schema Dati</a>
+    <a class="sub-a{% if current == 'admin_portale:schema_dati' %} active{% endif %}"
+       href="{{ schema_dati_url }}">Schema Dati</a>
   {% endif %}
   {% if acl_diag_url %}
-    <a class="sub-a{% if current == 'admin_portale:acl_diagnostica' %} active{% endif %}" href="{{ acl_diag_url }}">ACL</a>
+    <a class="sub-a{% if current == 'admin_portale:acl_diagnostica' %} active{% endif %}"
+       href="{{ acl_diag_url }}">ACL</a>
   {% endif %}
   {% if ldap_diag_url %}
-    <a class="sub-a{% if current == 'admin_portale:ldap_diagnostica' %} active{% endif %}" href="{{ ldap_diag_url }}">Config SRV</a>
+    <a class="sub-a{% if current == 'admin_portale:ldap_diagnostica' %} active{% endif %}"
+       href="{{ ldap_diag_url }}">Config SRV</a>
+  {% endif %}
+
+  {# ── Hub Tools #}
+  {% if hub_moduli_url or hub_database_url %}
+    <div class="sub-sep"></div>
+    {% if hub_moduli_url %}
+      <a class="sub-a{% if current == 'hub_tools:hub_moduli' or current == 'hub_tools:hub_moduli_toggle' %} active{% endif %}"
+         href="{{ hub_moduli_url }}" style="color:#1a6fc4;font-weight:700;">🛠️ Hub / Moduli</a>
+    {% endif %}
+    {% if hub_database_url %}
+      <a class="sub-a{% if current == 'hub_tools:hub_database' or current == 'hub_tools:hub_db_stats' or current == 'hub_tools:hub_db_backup' or current == 'hub_tools:hub_db_cleanup' or current == 'hub_tools:hub_db_optimize' or current == 'hub_tools:hub_db_restore' %} active{% endif %}"
+         href="{{ hub_database_url }}" style="color:#1a6fc4;font-weight:700;">🗄️ Hub / Database</a>
+    {% endif %}
   {% endif %}
 </div>
-<div class="notice" style="margin-top: 10px;">
+
+<div class="notice" style="margin-top:10px;">
   {% if current == 'admin_portale:index' %}
     <strong>Home Admin:</strong> panoramica moduli amministrativi. Usa questa pagina come punto di ingresso per utenti, permessi, pulsanti e diagnostica.
   {% elif current == 'admin_portale:utenti_list' %}
@@ -58,6 +107,10 @@
     <strong>Permessi:</strong> matrice ACL per ruolo/modulo/azione. Abilita almeno <code>can_view</code> (o <code>consentito</code>) per rimuovere i 403.
   {% elif current == 'admin_portale:pulsanti' %}
     <strong>Pulsanti:</strong> configura menu, link e metadati UI (slot/sezione/ordine). I valori Slot/Sezione guidano topbar e organizzazione del portale.
+  {% elif current == 'admin_portale:topbar_live' %}
+    <strong>Topbar Live:</strong> editor rapido globale della barra in alto. Modifiche immediate su ordine, visibilità, stato attivo, label e link.
+  {% elif current == 'admin_portale:navigation_builder' %}
+    <strong>Navigation Builder:</strong> sorgente unica di menu + ruoli + snapshot + redirect legacy. Usa questa pagina per gestire la navigazione senza toccare codice.
   {% elif current == 'admin_portale:automazioni_rule_list' or current == 'admin_portale:automazioni_rule_import_package' or current == 'admin_portale:automazioni_rule_import_result' or current == 'admin_portale:automazioni_rule_create' or current == 'admin_portale:automazioni_rule_detail' or current == 'admin_portale:automazioni_rule_edit' or current == 'admin_portale:automazioni_rule_toggle' or current == 'admin_portale:automazioni_rule_test' %}
     <strong>Automazioni / Regole:</strong> builder SSR per definire trigger, condizioni in AND, azioni sequenziali e test manuali con pannello campi sempre visibile.
   {% elif current == 'admin_portale:automazioni_sorgenti' %}
@@ -68,22 +121,24 @@
     <strong>Automazioni / Queue:</strong> monitora gli eventi pendenti, gli errori di processamento e usa reset o retry controllato sui singoli eventi.
   {% elif current == 'admin_portale:automazioni_run_log_list' or current == 'admin_portale:automazioni_run_log_detail' %}
     <strong>Automazioni / Run log:</strong> vista operativa per debug esecuzioni regole, payload usati ed esito di ogni action figlia.
-  {% elif current == 'admin_portale:topbar_live' %}
-    <strong>Topbar Live:</strong> editor rapido globale della barra in alto. Modifiche immediate su ordine, visibilita', stato attivo, label e link.
-  {% elif current == 'admin_portale:navigation_builder' %}
-    <strong>Navigation Builder:</strong> sorgente unica di menu + ruoli + snapshot + redirect legacy. Usa questa pagina per gestire la navigazione senza toccare codice.
+  {% elif current == 'admin_portale:anagrafica_config' %}
+    <strong>Anagrafica:</strong> configura le liste dropdown (Reparti, Capireparto, Macchine) e i campi extra del profilo dipendente.
+  {% elif current == 'admin_portale:login_config' %}
+    <strong>Login:</strong> personalizza titolo, sottotitolo, messaggio di avviso e il bottone SSO della pagina di accesso.
+  {% elif current == 'admin_portale:checklist_index' or current == 'admin_portale:checklist_utente' %}
+    <strong>Checklist:</strong> gestisci le voci di onboarding (check-in) e offboarding (check-out) e monitora lo stato per ogni dipendente.
+  {% elif current == 'admin_portale:audit_log' %}
+    <strong>Audit Log:</strong> traccia completa delle azioni utenti — filtra per modulo, azione, data. Dettaglio collassabile con payload.
+  {% elif current == 'admin_portale:health_check' %}
+    <strong>Health Check:</strong> stato in tempo reale dei componenti di sistema — database, cache e servizi esterni.
   {% elif current == 'admin_portale:schema_dati' %}
     <strong>Schema Dati:</strong> riepilogo tabelle principali (legacy + Django), a cosa servono e dove si gestiscono dal portale.
   {% elif current == 'admin_portale:acl_diagnostica' %}
     <strong>Diagnostica ACL:</strong> inserisci un path (es. <code>/assenze/</code>) e opzionalmente un <code>legacy_user_id</code> per vedere match pulsante e record permessi.
   {% elif current == 'admin_portale:ldap_diagnostica' %}
     <strong>Config SRV:</strong> pannello unico per configurare e testare LDAP / Active Directory e SMTP, con persistenza su <code>config.ini</code>.
-  {% elif current == 'admin_portale:anagrafica_config' %}
-    <strong>Anagrafica:</strong> configura le liste dropdown (Reparti, Capireparto, Macchine) e i campi extra del profilo dipendente. I capireparto sono ora gestiti localmente nel portale.
-  {% elif current == 'admin_portale:login_config' %}
-    <strong>Login:</strong> personalizza titolo, sottotitolo, messaggio di avviso e il bottone SSO della pagina di accesso.
-  {% elif current == 'admin_portale:checklist_index' or current == 'admin_portale:checklist_utente' %}
-    <strong>Checklist:</strong> gestisci le voci di onboarding (check-in) e offboarding (check-out) e monitora lo stato per ogni dipendente.
+  {% elif 'hub_tools:' in current %}
+    <strong>Hub Tools:</strong> strumenti di sistema riservati allo staff — gestione moduli visibili e manutenzione database (backup, pulizia, ottimizzazione).
   {% else %}
     <strong>Admin Portale:</strong> area di gestione tecnica del portale (utenti, ACL, menu e diagnostica).
   {% endif %}

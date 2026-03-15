@@ -1,0 +1,147 @@
+{% extends "core/base.html" %}
+
+{% block title %}Diario Preposto — Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#dp-root { display:flex; flex-direction:column; gap:20px; }
+
+.dp-hero {
+  background:linear-gradient(135deg,#03787C 0%,#0f766e 60%,#14b8a6 100%);
+  border-radius:16px; padding:28px 32px;
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; color:#fff;
+}
+.dp-hero-title { font-size:26px; font-weight:900; letter-spacing:-.03em; }
+.dp-hero-sub   { font-size:13px; opacity:.75; margin-top:3px; }
+.dp-hero-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.dp-hbtn { display:inline-flex; align-items:center; gap:6px; padding:9px 18px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; border:none; cursor:pointer; transition:all .15s; }
+.dp-hbtn-white   { background:#fff; color:#03787C; }
+.dp-hbtn-white:hover { background:#f0fdfa; }
+
+.dp-kpi-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; }
+.dp-kpi { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; gap:4px; }
+.dp-kpi-val { font-size:32px; font-weight:900; line-height:1; color:#03787C; }
+.dp-kpi-lbl { font-size:12px; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
+
+.dp-filters {
+  background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px;
+  padding:14px 18px; display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end;
+}
+.dp-filters label { font-size:11px; font-weight:700; color:#64748b; display:flex; flex-direction:column; gap:4px; }
+.dp-filters select, .dp-filters input[type=text] {
+  padding:6px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px;
+  background:#fff; min-width:160px;
+}
+.dp-filters-btn { padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; background:#03787C; color:#fff; border:none; cursor:pointer; }
+.dp-filters-btn:hover { background:#0f766e; }
+.dp-filters-reset { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; text-decoration:none; padding:8px 12px; border-radius:8px; font-size:12px; font-weight:600; }
+
+.dp-table-wrap { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow-x:auto; }
+.dp-table { width:100%; border-collapse:collapse; font-size:13px; }
+.dp-table th { background:#f8fafc; padding:10px 14px; text-align:left; font-weight:700; color:#64748b; font-size:11px; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #e2e8f0; }
+.dp-table td { padding:12px 14px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+.dp-table tr:last-child td { border-bottom:none; }
+.dp-table tr:hover td { background:#f8fafc; }
+.dp-table a { color:#0f766e; font-weight:600; text-decoration:none; }
+.dp-table a:hover { text-decoration:underline; }
+.dp-empty { padding:40px; text-align:center; color:#94a3b8; font-size:14px; }
+
+@media (max-width:700px) {
+  .dp-hero { padding:20px; }
+  .dp-hero-title { font-size:20px; }
+  .dp-filters { flex-direction:column; }
+  .dp-filters label { width:100%; }
+  .dp-filters select, .dp-filters input[type=text] { width:100%; min-width:0; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="dp-root">
+
+  <div class="dp-hero">
+    <div>
+      <div class="dp-hero-title">Diario Preposto</div>
+      <div class="dp-hero-sub">RSPP · ASPP · RLS — Registro segnalazioni sicurezza</div>
+    </div>
+    <div class="dp-hero-actions">
+      {% if can_write %}
+      <a href="{% url 'diario_preposto:nuovo' %}" class="dp-hbtn dp-hbtn-white">+ Nuova segnalazione</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="dp-kpi-row">
+    <div class="dp-kpi">
+      <div class="dp-kpi-val">{{ totale }}</div>
+      <div class="dp-kpi-lbl">Segnalazioni{% if q or filtro_preposto %} (filtrate){% endif %}</div>
+    </div>
+  </div>
+
+  <form method="get" class="dp-filters">
+    <label>Cerca
+      <input type="text" name="q" value="{{ q }}" placeholder="Titolo, descrizione, nominativo...">
+    </label>
+    <label>Preposto
+      <select name="preposto">
+        <option value="">Tutti</option>
+        {% for p in preposti %}
+        <option value="{{ p }}"{% if filtro_preposto == p %} selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit" class="dp-filters-btn">Filtra</button>
+    {% if q or filtro_preposto %}
+    <a href="{% url 'diario_preposto:lista' %}" class="dp-filters-reset">Reset</a>
+    {% endif %}
+  </form>
+
+  <div class="dp-table-wrap">
+    {% if segnalazioni %}
+    <table class="dp-table">
+      <thead>
+        <tr>
+          <th>Titolo</th>
+          <th>Preposto</th>
+          <th>Chi segnala</th>
+          <th>Data segnalazione</th>
+          <th>Allegati</th>
+          <th>Export</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in segnalazioni %}
+        <tr>
+          <td><a href="{% url 'diario_preposto:dettaglio' s.pk %}">{{ s.titolo|truncatechars:70 }}</a></td>
+          <td>{{ s.preposto|default:"—" }}</td>
+          <td>{{ s.chi_segnala|default:"—" }}</td>
+          <td style="white-space:nowrap;">{{ s.data_segnalazione|date:"d/m/Y H:i" }}</td>
+          <td>
+            {% with n=s.allegati.count %}
+            {% if n %}
+            <span style="background:#f0fdfa;color:#0f766e;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;">{{ n }} file</span>
+            {% else %}—{% endif %}
+            {% endwith %}
+          </td>
+          <td>
+            <a href="{% url 'diario_preposto:export_pdf' s.pk %}" target="_blank"
+               style="display:inline-flex;align-items:center;padding:5px 10px;border-radius:8px;background:#f0fdfa;color:#0f766e;font-size:11px;font-weight:700;text-decoration:none;border:1px solid #99f6e4;">
+              PDF
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="dp-empty">
+      Nessuna segnalazione trovata.
+      {% if can_write %}
+      <br><a href="{% url 'diario_preposto:nuovo' %}" style="color:#0f766e;font-weight:700;">Inserisci la prima segnalazione</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

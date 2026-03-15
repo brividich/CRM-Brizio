@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portale Novicrom — Mappa Moduli</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3350;
+    --accent: #4f8ef7;
+    --accent2: #7c3aed;
+    --green: #22c55e;
+    --orange: #f97316;
+    --red: #ef4444;
+    --yellow: #eab308;
+    --cyan: #06b6d4;
+    --pink: #ec4899;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --text-faint: #475569;
+    --radius: 12px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    padding: 0 0 60px 0;
+  }
+
+  /* HEADER */
+  .header {
+    background: linear-gradient(135deg, #1a1d27 0%, #0f1117 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 36px 48px 28px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(12px);
+  }
+  .header-inner {
+    max-width: 1600px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+  }
+  .header-title {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .header-logo {
+    width: 44px; height: 44px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 800; color: white;
+    flex-shrink: 0;
+  }
+  .header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.3px; }
+  .header p { font-size: 13px; color: var(--text-dim); margin-top: 3px; }
+  .header-stats {
+    display: flex; gap: 28px;
+  }
+  .stat { text-align: right; }
+  .stat-value { font-size: 24px; font-weight: 800; color: var(--accent); }
+  .stat-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* TOOLBAR */
+  .toolbar {
+    max-width: 1600px;
+    margin: 24px auto 0;
+    padding: 0 48px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .toolbar-label { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-right: 4px; }
+  .filter-btn {
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-dim);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .filter-btn:hover, .filter-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(79,142,247,0.08);
+  }
+  .filter-btn.active { font-weight: 600; }
+
+  /* GRID */
+  .grid {
+    max-width: 1600px;
+    margin: 32px auto 0;
+    padding: 0 48px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
+    gap: 24px;
+  }
+
+  /* CARD */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+  }
+  .card.hidden { display: none; }
+
+  /* CARD HEADER */
+  .card-header {
+    padding: 18px 20px 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+  .module-icon {
+    width: 42px; height: 42px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+    background: rgba(255,255,255,0.05);
+  }
+  .card-meta { flex: 1; min-width: 0; }
+  .card-name {
+    font-size: 15px; font-weight: 700;
+    letter-spacing: -0.2px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-path {
+    font-size: 11px; color: var(--text-faint);
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    margin-top: 3px;
+  }
+  .badge {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .badge-routes { background: rgba(79,142,247,0.15); color: var(--accent); }
+  .badge-legacy { background: rgba(234,179,8,0.15); color: var(--yellow); }
+  .badge-new { background: rgba(34,197,94,0.15); color: var(--green); }
+  .badge-admin { background: rgba(124,58,237,0.15); color: #a78bfa; }
+  .badge-wip { background: rgba(249,115,22,0.15); color: var(--orange); }
+
+  /* CARD BODY */
+  .card-body { padding: 16px 20px; }
+
+  /* SEZIONI LIST */
+  .sections-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-faint);
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  .sections-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .section-chip {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-dim);
+    transition: all 0.12s;
+    cursor: default;
+  }
+  .section-chip:hover {
+    border-color: currentColor;
+    color: var(--text);
+  }
+  .section-chip .chip-icon { font-size: 12px; opacity: 0.7; }
+  .section-chip.is-api { background: rgba(6,182,212,0.06); color: var(--cyan); border-color: rgba(6,182,212,0.2); }
+  .section-chip.is-admin { background: rgba(124,58,237,0.06); color: #a78bfa; border-color: rgba(124,58,237,0.2); }
+  .section-chip.is-export { background: rgba(34,197,94,0.06); color: var(--green); border-color: rgba(34,197,94,0.2); }
+
+  /* DIVIDER */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 14px 0;
+  }
+
+  /* COMMENTS SECTION */
+  .comments-section { }
+  .comments-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-faint);
+    font-weight: 600;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .comment-block {
+    margin-bottom: 10px;
+  }
+  .comment-author {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .comment-author.claude { color: #818cf8; }
+  .comment-author.user { color: var(--green); }
+
+  .comment-bubble {
+    background: var(--surface2);
+    border-left: 3px solid transparent;
+    border-radius: 0 6px 6px 0;
+    padding: 8px 12px;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--text-dim);
+  }
+  .comment-bubble.claude-bubble { border-color: #818cf8; }
+  .comment-bubble.user-bubble { border-color: var(--green); background: rgba(34,197,94,0.05); }
+
+  textarea.user-note {
+    width: 100%;
+    background: rgba(34,197,94,0.05);
+    border: 1px dashed rgba(34,197,94,0.3);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--text);
+    font-family: inherit;
+    resize: vertical;
+    min-height: 64px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  textarea.user-note::placeholder { color: var(--text-faint); }
+  textarea.user-note:focus {
+    border-color: rgba(34,197,94,0.6);
+    border-style: solid;
+  }
+
+  /* CARD FOOTER */
+  .card-footer {
+    padding: 10px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(255,255,255,0.01);
+  }
+  .footer-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--surface2);
+    color: var(--text-faint);
+    border: 1px solid var(--border);
+  }
+  .save-btn {
+    padding: 5px 14px;
+    border-radius: 6px;
+    border: none;
+    background: rgba(79,142,247,0.15);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .save-btn:hover { background: rgba(79,142,247,0.25); }
+  .save-btn.saved { background: rgba(34,197,94,0.15); color: var(--green); }
+
+  /* ACCODRION toggle */
+  .expand-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 6px;
+    padding: 3px 9px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-left: auto;
+  }
+  .expand-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* LEGEND */
+  .legend {
+    max-width: 1600px;
+    margin: 0 auto 0;
+    padding: 24px 48px 0;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .legend-title { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.5px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* EXPORT BAR */
+  .export-bar {
+    max-width: 1600px;
+    margin: 28px auto 0;
+    padding: 0 48px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .export-bar span { font-size: 12px; color: var(--text-dim); }
+  .export-btn {
+    padding: 7px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-dim);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .export-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  @media (max-width: 800px) {
+    .header { padding: 20px 16px; }
+    .toolbar, .grid, .legend, .export-bar { padding-left: 16px; padding-right: 16px; }
+    .grid { grid-template-columns: 1fr; }
+    .header-stats { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="header-title">
+      <div class="header-logo">N</div>
+      <div>
+        <h1>Portale Novicrom — Mappa Moduli</h1>
+        <p>Architettura funzionale · 16 moduli · Generato il 15 marzo 2026</p>
+      </div>
+    </div>
+    <div class="header-stats">
+      <div class="stat">
+        <div class="stat-value">16</div>
+        <div class="stat-label">Moduli</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">385+</div>
+        <div class="stat-label">Route</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">120+</div>
+        <div class="stat-label">Template</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="legend">
+  <span class="legend-title">Legenda sezioni:</span>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--cyan)"></span> API endpoint</div>
+  <div class="legend-item"><span class="legend-dot" style="background:#a78bfa"></span> Vista admin</div>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--green)"></span> Export dati</div>
+  <div class="legend-item"><span class="legend-dot" style="background:var(--text-faint)"></span> Vista utente</div>
+</div>
+
+<div class="export-bar">
+  <span>Note:</span>
+  <button class="export-btn" onclick="saveAllNotes()">💾 Salva tutte le note (localStorage)</button>
+  <button class="export-btn" onclick="exportNotes()">📋 Esporta note come JSON</button>
+  <button class="export-btn" onclick="importNotes()">📂 Importa note</button>
+</div>
+
+<div class="toolbar">
+  <span class="toolbar-label">Filtra:</span>
+  <button class="filter-btn active" onclick="filterCards('all', this)">Tutti</button>
+  <button class="filter-btn" onclick="filterCards('user', this)">Area Utente</button>
+  <button class="filter-btn" onclick="filterCards('admin', this)">Amministrazione</button>
+  <button class="filter-btn" onclick="filterCards('operations', this)">Operativo</button>
+  <button class="filter-btn" onclick="filterCards('system', this)">Sistema</button>
+</div>
+
+<div class="grid" id="main-grid">
+
+  <!-- ===================== CORE ===================== -->
+  <div class="card" data-category="system">
+    <div class="card-header">
+      <div class="module-icon">⚙️</div>
+      <div class="card-meta">
+        <div class="card-name">Core <span class="badge badge-routes">26 route</span></div>
+        <div class="card-path">core/ · django_app/core/</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="sections-title">Sezioni & funzioni</div>
+      <div class="sections-grid">
+        <span class="section-chip"><span class="chip-icon">🔐</span> Login</span>
+        <span class="section-chip"><span class="chip-icon">🚪</span> Logout</span>
+        <span class="section-chip"><span class="chip-icon">👤</span> Profilo</span>
+        <span class="section-chip"><span class="chip-icon">🔑</span> Cambia password</span>
+        <span class="section-chip"><span class="chip-icon">📋</span> Rubrica</span>
+        <span class="section-chip"><span class="chip-icon">🏢</span> Organigramma</span>
+        <span class="section-chip"><span class="chip-icon">👥</span> Gestione reparto</span>
+        <span class="section-chip"><span class="chip-icon">🔔</span> Notifiche</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API notifiche leggi</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API gestione reparto assegna</span>
+        <span class="section-chip is-admin"><span class="chip-icon">🎭</span> Stop impersonation</span>
+        <span class="section-chip"><span class="chip-icon">🏥</span> Health check</span>
+        <span class="section-chip"><span class="chip-icon">🏷️</span> Version endpoint</span>
+        <span class="section-chip is-admin"><span class="chip-icon">🔀</span> Compat Flask (35 redirect)</span>
+      </div>
+      <div class="divider"></div>
+      <div class="comments-section">
+        <div class="comments-title">💬 Note & commenti</div>
+        <div class="comment-block">
+          <div class="comment-author claude">🤖 Claude</div>
+          <div class="comment-bubble claude-bubble">Modulo fondamentale: gestisce autenticazione (LDAPBackend → SQLServerLegacy → Django), navigazione globale, middleware ACL e compatibility layer con le 62 route Flask legacy. La rubrica e l'organigramma leggono da anagrafica_dipendenti (tabella SQL Server unmanaged). L'impersonation (solo admin) non ha audit log dedicato. 35 delle 62 route Flask sono redirect/410 — da considerare rimozione quando i vecchi link non circolano più.</div>
+        </div>
+        <div class="comment-block">
+          <div class="comment-author user">✏️ Tu</div>
+          <textarea class="user-note" data-module="core" placeholder="Aggiungi qui le tue note sul modulo Core..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="footer-tags">
+        <span class="tag">auth</span><span class="tag">middleware</span><span class="tag">legacy-compat</span>
+      </div>
+      <button class="save-btn" onclick="saveNote(this, 'core')">Salva</button>
+    </div>
+  </div>
+
+  <!-- ===================== DASHBOARD ===================== -->
+  <div class="card" data-category="user">
+    <div class="card-header">
+      <div class="module-icon">📊</div>
+      <div class="card-meta">
+        <div class="card-name">Dashboard <span class="badge badge-routes">11 route</span> <span class="badge badge-new">nuovo</span></div>
+        <div class="card-path">dashboard/ · django_app/dashboard/</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="sections-title">Sezioni & funzioni</div>
+      <div class="sections-grid">
+        <span class="section-chip"><span class="chip-icon">🏠</span> Dashboard principale</span>
+        <span class="section-chip"><span class="chip-icon">📋</span> Le mie richieste</span>
+        <span class="section-chip"><span class="chip-icon">⚠️</span> Menu anomalie</span>
+        <span class="section-chip"><span class="chip-icon">👤</span> Scheda dipendente</span>
+        <span class="section-chip"><span class="chip-icon">📄</span> Scheda dipendente PDF</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API toggle widget</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API layout dashboard</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API employee board data</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API widget config</span>
+      </div>
+      <div class="divider"></div>
+      <div class="comments-section">
+        <div class="comments-title">💬 Note & commenti</div>
+        <div class="comment-block">
+          <div class="comment-author claude">🤖 Claude</div>
+          <div class="comment-bubble claude-bubble">La dashboard è personalizzabile per utente tramite UserDashboardConfig: ogni widget può essere abilitato/disabilitato e riordinato via API. La scheda dipendente aggrega dati da più moduli (assenze, anomalie, assets, timbri) ed è esportabile in PDF. "Le mie richieste" aggrega le assenze in stato pendente dell'utente loggato.</div>
+        </div>
+        <div class="comment-block">
+          <div class="comment-author user">✏️ Tu</div>
+          <textarea class="user-note" data-module="dashboard" placeholder="Aggiungi qui le tue note sulla Dashboard..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="footer-tags">
+        <span class="tag">widget</span><span class="tag">personalizzabile</span><span class="tag">pdf</span>
+      </div>
+      <button class="save-btn" onclick="saveNote(this, 'dashboard')">Salva</button>
+    </div>
+  </div>
+
+  <!-- ===================== ASSENZE ===================== -->
+  <div class="card" data-category="user">
+    <div class="card-header">
+      <div class="module-icon">🏖️</div>
+      <div class="card-meta">
+        <div class="card-name">Assenze <span class="badge badge-routes">22 route</span></div>
+        <div class="card-path">assenze/ · django_app/assenze/</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="sections-title">Sezioni & funzioni</div>
+      <div class="sections-grid">
+        <span class="section-chip"><span class="chip-icon">📋</span> Menu assenze</span>
+        <span class="section-chip"><span class="chip-icon">✍️</span> Richiesta assenza</span>
+        <span class="section-chip"><span class="chip-icon">🗂️</span> Gestione assenze</span>
+        <span class="section-chip"><span class="chip-icon">📅</span> Calendario</span>
+        <span class="section-chip"><span class="chip-icon">🚗</span> CAR dashboard</span>
+        <span class="section-chip is-admin"><span class="chip-icon">🛡️</span> Gestione admin</span>
+        <span class="section-chip"><span class="chip-icon">✅</span> Certificazione presenza</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API eventi calendario</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API sync push/pull</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API CAR consenso</span>
+        <span class="section-chip is-export"><span class="chip-icon">📤</span> Export CSV gestione</span>
+        <span class="section-chip is-export"><span class="chip-icon">📤</span> Export CSV CAR</span>
+      </div>
+      <div class="divider"></div>
+      <div class="comments-section">
+        <div class="comments-title">💬 Note & commenti</div>
+        <div class="comment-block">
+          <div class="comment-author claude">🤖 Claude</div>
+          <div class="comment-bubble claude-bubble">Uno dei moduli più complessi. Il sync push/pull integra con SharePoint via Microsoft Graph. I trigger SQL Server (trg_assenze_automation_after_insert/update) alimentano la coda automazioni al salvataggio di ogni record. Il CAR (Calendario Assenze Reparto) permette al capo reparto di gestire il consenso. La sincronizzazione può fallire silenziosamente se le credenziali Graph scadono.</div>
+        </div>
+        <div class="comment-block">
+          <div class="comment-author user">✏️ Tu</div>
+          <textarea class="user-note" data-module="assenze" placeholder="Aggiungi qui le tue note sulle Assenze..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="footer-tags">
+        <span class="tag">sharepoint-sync</span><span class="tag">sql-trigger</span><span class="tag">CAR</span>
+      </div>
+      <button class="save-btn" onclick="saveNote(this, 'assenze')">Salva</button>
+    </div>
+  </div>
+
+  <!-- ===================== ANOMALIE ===================== -->
+  <div class="card" data-category="operations">
+    <div class="card-header">
+      <div class="module-icon">⚠️</div>
+      <div class="card-meta">
+        <div class="card-name">Anomalie <span class="badge badge-routes">20 route</span></div>
+        <div class="card-path">gestione-anomalie/ · django_app/anomalie/</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="sections-title">Sezioni & funzioni</div>
+      <div class="sections-grid">
+        <span class="section-chip"><span class="chip-icon">📋</span> Gestione anomalie</span>
+        <span class="section-chip"><span class="chip-icon">➕</span> Nuova segnalazione</span>
+        <span class="section-chip is-admin"><span class="chip-icon">⚙️</span> Configurazione</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API ordini DB</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API crea ordine</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API anomalie</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API allegati (upload/delete/serve)</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API campi configurabili</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API salva / sync</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API config liste</span>
+        <span class="section-chip is-export"><span class="chip-icon">📤</span> Export CSV</span>
+      </div>
+      <div class="divider"></div>
+      <div class="comments-section">
+        <div class="comments-title">💬 Note & commenti</div>
+        <div class="comment-block">
+          <div class="comment-author claude">🤖 Claude</div>
+          <div class="comment-bubble claude-bubble">Il modulo ha ~10 bare except: pass in views.py che silenziamo eccezioni critiche — debito tecnico prioritario. Supporta allegati file su filesystem server. Il gate API è hardcoded in middleware (BUG-5): "/api/anomalie/" è mappato esplicitamente. Ha ancora redirect verso route Flask legacy (gestione-anomalie/apertura). I campi anomalia sono configurabili dall'admin.</div>
+        </div>
+        <div class="comment-block">
+          <div class="comment-author user">✏️ Tu</div>
+          <textarea class="user-note" data-module="anomalie" placeholder="Aggiungi qui le tue note sulle Anomalie..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="footer-tags">
+        <span class="tag">allegati</span><span class="tag">configurabile</span><span class="tag">debito-tecnico</span>
+      </div>
+      <button class="save-btn" onclick="saveNote(this, 'anomalie')">Salva</button>
+    </div>
+  </div>
+
+  <!-- ===================== ASSETS ===================== -->
+  <div class="card" data-category="operations">
+    <div class="card-header">
+      <div class="module-icon">🏭</div>
+      <div class="card-meta">
+        <div class="card-name">Assets <span class="badge badge-routes">31 route</span> <span class="badge badge-new">più grande</span></div>
+        <div class="card-path">assets/ · django_app/assets/</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="sections-title">Sezioni & funzioni</div>
+      <div class="sections-grid">
+        <span class="section-chip"><span class="chip-icon">📦</span> Lista asset</span>
+        <span class="section-chip"><span class="chip-icon">🔍</span> Dettaglio asset</span>
+        <span class="section-chip"><span class="chip-icon">➕</span> Nuovo asset</span>
+        <span class="section-chip"><span class="chip-icon">✏️</span> Modifica asset</span>
+        <span class="section-chip"><span class="chip-icon">🔧</span> Macchine operatrici</span>
+        <span class="section-chip"><span class="chip-icon">📊</span> Dashboard macchine</span>
+        <span class="section-chip"><span class="chip-icon">🗺️</span> Mappa planimetrica</span>
+        <span class="section-chip"><span class="chip-icon">✏️</span> Editor planimetria</span>
+        <span class="section-chip"><span class="chip-icon">📋</span> Ordini di lavoro (lista)</span>
+        <span class="section-chip"><span class="chip-icon">📝</span> Nuovo OdL</span>
+        <span class="section-chip"><span class="chip-icon">🔍</span> Dettaglio OdL</span>
+        <span class="section-chip"><span class="chip-icon">✅</span> Chiudi OdL</span>
+        <span class="section-chip"><span class="chip-icon">🔄</span> Verifiche periodiche</span>
+        <span class="section-chip"><span class="chip-icon">📊</span> Report</span>
+        <span class="section-chip is-admin"><span class="chip-icon">⚙️</span> Admin template report</span>
+        <span class="section-chip"><span class="chip-icon">🏷️</span> Label designer</span>
+        <span class="section-chip"><span class="chip-icon">📱</span> QR label stampa</span>
+        <span class="section-chip"><span class="chip-icon">👤</span> Assegna asset</span>
+        <span class="section-chip is-admin"><span class="chip-icon">🛡️</span> Gestione admin</span>
+        <span class="section-chip"><span class="chip-icon">📋</span> Bulk update</span>
+        <span class="section-chip is-export"><span class="chip-icon">📄</span> Report PDF asset</span>
+        <span class="section-chip is-export"><span class="chip-icon">📄</span> PDF manutenzione mensile</span>
+      </div>
+      <div class="divider"></div>
+      <div class="comments-section">
+        <div class="comments-title">💬 Note & commenti</div>
+        <div class="comment-block">
+          <div class="comment-author claude">🤖 Claude</div>
+          <div class="comment-bubble claude-bubble">Il modulo più ricco in assoluto (74+ view, 21 template). Gestisce il ciclo di vita completo degli asset aziendali: inventario, assegnazioni, manutenzione (OdL), verifiche periodiche e report PDF. Ha il suo label designer per stampa etichette QR. La mappa planimetrica è interattiva (editor drag&drop). È l'unico modulo registrato nel module_registry per branding.</div>
+        </div>
+        <div class="comment-block">
+          <div class="comment-author user">✏️ Tu</div>
+          <textarea class="user-note" data-module="assets" placeholder="Aggiungi qui le tue note sugli Assets..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="footer-tags">
+        <span class="tag">OdL</span><span class="tag">QR</span><span class="tag">planimetria</span><span class="tag">report-pdf</span>
+      </div>
+      <button class="save-btn" onclick="saveNote(this, 'assets')">Salva</button>
+    </div>
+  </div>
+
+  <!-- ===================== TASKS ===================== -->
+  <div class="card" data-category="operations">
+    <div class="card-header">
+      <div class="module-icon">✅</div>
+      <div class="card-meta">
+        <div class="card-name">Tasks <span class="badge badge-routes">17 route</span></div>
+        <div class="card-path">tasks/ · django_app/tasks/</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="sections-title">Sezioni & funzioni</div>
+      <div class="sections-grid">
+        <span class="section-chip"><span class="chip-icon">📋</span> Lista task</span>
+        <span class="section-chip"><span class="chip-icon">📁</span> Lista progetti</span>
+        <span class="section-chip"><span class="chip-icon">📊</span> Gantt progetto</span>
+        <span class="section-chip"><span class="chip-icon">🔍</span> Dettaglio task</span>
+        <span class="section-chip"><span class="chip-icon">➕</span> Nuovo task</span>
+        <span class="section-chip"><span class="chip-icon">✏️</span> Modifica task</span>
+        <span class="section-chip"><span class="chip-icon">💬</span> Commenti task</span>
+        <span class="section-chip"><span class="chip-icon">💬</span> Commenti progetto</span>
+        <span class="section-chip"><span class="chip-icon">📎</span> Allegati task</span>
+        <span class="section-chip"><span class="chip-icon">✅</span> Subtask</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API Gantt update/shift</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API project info JSON</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API cambia stato</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API update due date</span>
+        <span class="section-chip is-admin"><span class="chip-icon">⚙️</span> Gestione admin</span>
+      </div>
+      <div class="divider"></div>
+      <div class="comments-section">
+        <div class="comments-title">💬 Note & commenti</div>
+        <div class="comment-block">
+          <div class="comment-author claude">🤖 Claude</div>
+          <div class="comment-bubble claude-bubble">Modulo project management con Gantt interattivo (drag task per spostare, shift per traslare intera catena). Supporta subtask, commenti e allegati. Il Gantt usa API AJAX per update/shift senza reload. La visibilità in nav è gated hardcoded su "tasks" → "/tasks/" in context_processors.py.</div>
+        </div>
+        <div class="comment-block">
+          <div class="comment-author user">✏️ Tu</div>
+          <textarea class="user-note" data-module="tasks" placeholder="Aggiungi qui le tue note sui Tasks..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="footer-tags">
+        <span class="tag">gantt</span><span class="tag">subtask</span><span class="tag">allegati</span>
+      </div>
+      <button class="save-btn" onclick="saveNote(this, 'tasks')">Salva</button>
+    </div>
+  </div>
+
+  <!-- ===================== AUTOMAZIONI ===================== -->
+  <div class="card" data-category="system">
+    <div class="card-header">
+      <div class="module-icon">🤖</div>
+      <div class="card-meta">
+        <div class="card-name">Automazioni <span class="badge badge-routes">20 route</span> <span class="badge badge-new">avanzato</span></div>
+        <div class="card-path">admin-portale/automazioni/ · django_app/automazioni/</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="sections-title">Sezioni & funzioni</div>
+      <div class="sections-grid">
+        <span class="section-chip"><span class="chip-icon">📦</span> Sorgenti dati</span>
+        <span class="section-chip"><span class="chip-icon">📝</span> Contenuti</span>
+        <span class="section-chip"><span class="chip-icon">📋</span> Lista regole</span>
+        <span class="section-chip"><span class="chip-icon">🔍</span> Dettaglio regola</span>
+        <span class="section-chip"><span class="chip-icon">➕</span> Nuova regola</span>
+        <span class="section-chip"><span class="chip-icon">🎨</span> Designer visuale (crea)</span>
+        <span class="section-chip"><span class="chip-icon">🎨</span> Designer visuale (modifica)</span>
+        <span class="section-chip"><span class="chip-icon">🧪</span> Test regola</span>
+        <span class="section-chip"><span class="chip-icon">📦</span> Import package</span>
+        <span class="section-chip"><span class="chip-icon">✅</span> Risultato import</span>
+        <span class="section-chip"><span class="chip-icon">⏳</span> Coda eventi</span>
+        <span class="section-chip"><span class="chip-icon">🔍</span> Dettaglio coda</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API reset coda</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API retry coda</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API toggle regola</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API reorder condizioni/azioni</span>
+        <span class="section-chip"><span class="chip-icon">📜</span> Run log (lista)</span>
+        <span class="section-chip"><span class="chip-icon">🔍</span> Dettaglio run log</span>
+      </div>
+      <div class="divider"></div>
+      <div class="comments-section">
+        <div class="comments-title">💬 Note & commenti</div>
+        <div class="comment-block">
+          <div class="comment-author claude">🤖 Claude</div>
+          <div class="comment-bubble claude-bubble">Sistema di automazione event-driven: trigger SQL Server → automation_event_queue → management command process_automation_queue. Il designer visuale consente di costruire regole condizione/azione senza codice. Ha scheduling differito (recente aggiunta v0.7.x) e alert scadenze RENTRI. Le regole sono importabili come "package" JSON. Il run log permette di tracciare ogni esecuzione e diagnosticare fallimenti.</div>
+        </div>
+        <div class="comment-block">
+          <div class="comment-author user">✏️ Tu</div>
+          <textarea class="user-note" data-module="automazioni" placeholder="Aggiungi qui le tue note sulle Automazioni..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="footer-tags">
+        <span class="tag">event-queue</span><span class="tag">sql-trigger</span><span class="tag">designer</span><span class="tag">scheduling</span>
+      </div>
+      <button class="save-btn" onclick="saveNote(this, 'automazioni')">Salva</button>
+    </div>
+  </div>
+
+  <!-- ===================== ADMIN PORTALE ===================== -->
+  <div class="card" data-category="admin">
+    <div class="card-header">
+      <div class="module-icon">🛡️</div>
+      <div class="card-meta">
+        <div class="card-name">Admin Portale <span class="badge badge-routes">96 route</span> <span class="badge badge-admin">admin</span></div>
+        <div class="card-path">admin-portale/ · django_app/admin_portale/</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="sections-title">Sezioni & funzioni</div>
+      <div class="sections-grid">
+        <span class="section-chip is-admin"><span class="chip-icon">🏠</span> Home admin</span>
+        <span class="section-chip is-admin"><span class="chip-icon">👥</span> Gestione utenti</span>
+        <span class="section-chip is-admin"><span class="chip-icon">🔐</span> Permessi ACL</span>
+        <span class="section-chip is-admin"><span class="chip-icon">🔘</span> Pulsanti navigazione</span>
+        <span class="section-chip is-admin"><span class="chip-icon">📡</span> Topbar live preview</span>
+        <span class="section-chip is-admin"><span class="chip-icon">🧭</span> Navigation builder</span>
+        <span class="section-chip is-admin"><span class="chip-icon">🗄️</span> Schema dati</span>
+        <span class="section-chip is-admin"><span class="chip-icon">🔍</span> ACL diagnostica</span>
+        <span class="section-chip is-admin"><span class="chip-icon">🔍</span> LDAP diagnostica</span>
+        <span class="section-chip is-admin"><span class="chip-icon">🎨</span> Config pagina login</span>
+        <span class="section-chip is-admin"><span class="chip-icon">📇</span> Config anagrafica</span>
+        <span class="section-chip is-admin"><span class="chip-icon">📥</span> Import CSV anagrafica</span>
+        <span class="section-chip is-admin"><span class="chip-icon">🧙</span> Wizard pulsante</span>
+        <span class="section-chip is-admin"><span class="chip-icon">✅</span> Checklist utente</span>
+        <span class="section-chip is-admin"><span class="chip-icon">📜</span> Audit log</span>
+        <span class="section-chip is-admin"><span class="chip-icon">🏥</span> Health check</span>
+        <span class="section-chip is-admin"><span class="chip-icon">🚪</span> Accessi semplice</span>
+        <span class="section-chip is-admin"><span class="chip-icon">🚪</span> Accessi avanzati</span>
+        <span class="section-chip is-admin"><span class="chip-icon">🎭</span> Impersonation utente</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> 29+ API endpoint</span>
+      </div>
+      <div class="divider"></div>
+      <div class="comments-section">
+        <div class="comments-title">💬 Note & commenti</div>
+        <div class="comment-block">
+          <div class="comment-author claude">🤖 Claude</div>
+          <div class="comment-bubble claude-bubble">Il pannello di controllo del portale — con 96 route è il modulo più grande. Gestisce utenti, ruoli, permessi (doppio sistema ACL legacy + registry), navigazione, branding login, checklist onboarding e diagnostica LDAP/ACL. L'impersonation consente agli admin di entrare come qualsiasi utente. Il navigation builder permette di riordinare/creare voci di menu senza codice. Include anche i moduli Hub Tools (database) e Automazioni come sub-mount.</div>
+        </div>
+        <div class="comment-block">
+          <div class="comment-author user">✏️ Tu</div>
+          <textarea class="user-note" data-module="admin_portale" placeholder="Aggiungi qui le tue note sull'Admin Portale..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="footer-tags">
+        <span class="tag">ACL</span><span class="tag">utenti</span><span class="tag">navigation</span><span class="tag">diagnostica</span>
+      </div>
+      <button class="save-btn" onclick="saveNote(this, 'admin_portale')">Salva</button>
+    </div>
+  </div>
+
+  <!-- ===================== ANAGRAFICA ===================== -->
+  <div class="card" data-category="operations">
+    <div class="card-header">
+      <div class="module-icon">📇</div>
+      <div class="card-meta">
+        <div class="card-name">Anagrafica <span class="badge badge-routes">15 route</span></div>
+        <div class="card-path">anagrafica/ · django_app/anagrafica/</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="sections-title">Sezioni & funzioni</div>
+      <div class="sections-grid">
+        <span class="section-chip"><span class="chip-icon">🏠</span> Index</span>
+        <span class="section-chip"><span class="chip-icon">👥</span> Lista dipendenti</span>
+        <span class="section-chip"><span class="chip-icon">🏢</span> Lista fornitori</span>
+        <span class="section-chip"><span class="chip-icon">🔍</span> Dettaglio fornitore</span>
+        <span class="section-chip"><span class="chip-icon">➕</span> Nuovo fornitore</span>
+        <span class="section-chip"><span class="chip-icon">✏️</span> Modifica fornitore</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> Toggle attivo fornitore</span>
+        <span class="section-chip is-api"><span class="chip-icon">📎</span> Documenti fornitore (add/delete)</span>
+        <span class="section-chip is-api"><span class="chip-icon">📋</span> Ordini fornitore (add/stato)</span>
+        <span class="section-chip is-api"><span class="chip-icon">⭐</span> Valutazioni fornitore (add/delete)</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔗</span> Asset fornitore (add/remove)</span>
+      </div>
+      <div class="divider"></div>
+      <div class="comments-section">
+        <div class="comments-title">💬 Note & commenti</div>
+        <div class="comment-block">
+          <div class="comment-author claude">🤖 Claude</div>
+          <div class="comment-bubble claude-bubble">Gestisce due entità distinte: i dipendenti (sola lettura, da SQL Server legacy via anagrafica_dipendenti unmanaged) e i fornitori (CRUD completo con documenti, ordini, valutazioni e collegamento agli asset). La lista dipendenti è essenzialmente una vista sulla tabella legacy. Recente refactoring della fornitori_list.html (in git status come modificata).</div>
+        </div>
+        <div class="comment-block">
+          <div class="comment-author user">✏️ Tu</div>
+          <textarea class="user-note" data-module="anagrafica" placeholder="Aggiungi qui le tue note sull'Anagrafica..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="footer-tags">
+        <span class="tag">fornitori</span><span class="tag">dipendenti</span><span class="tag">legacy-read</span>
+      </div>
+      <button class="save-btn" onclick="saveNote(this, 'anagrafica')">Salva</button>
+    </div>
+  </div>
+
+  <!-- ===================== NOTIZIE ===================== -->
+  <div class="card" data-category="user">
+    <div class="card-header">
+      <div class="module-icon">📰</div>
+      <div class="card-meta">
+        <div class="card-name">Notizie <span class="badge badge-routes">12 route</span></div>
+        <div class="card-path">notizie/ · django_app/notizie/</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="sections-title">Sezioni & funzioni</div>
+      <div class="sections-grid">
+        <span class="section-chip"><span class="chip-icon">📋</span> Lista notizie</span>
+        <span class="section-chip"><span class="chip-icon">🔍</span> Dettaglio notizia</span>
+        <span class="section-chip"><span class="chip-icon">✅</span> Conferma lettura</span>
+        <span class="section-chip"><span class="chip-icon">❗</span> Notizie obbligatorie</span>
+        <span class="section-chip is-admin"><span class="chip-icon">🗂️</span> Dashboard redazione</span>
+        <span class="section-chip is-admin"><span class="chip-icon">➕</span> Nuova notizia</span>
+        <span class="section-chip is-admin"><span class="chip-icon">✏️</span> Modifica notizia</span>
+        <span class="section-chip is-api"><span class="chip-icon">📡</span> Pubblica notizia</span>
+        <span class="section-chip is-api"><span class="chip-icon">🗄️</span> Archivia notizia</span>
+        <span class="section-chip is-admin"><span class="chip-icon">⚙️</span> Gestione admin</span>
+        <span class="section-chip is-admin"><span class="chip-icon">📊</span> Report letture</span>
+        <span class="section-chip is-export"><span class="chip-icon">📤</span> Export report CSV</span>
+      </div>
+      <div class="divider"></div>
+      <div class="comments-section">
+        <div class="comments-title">💬 Note & commenti</div>
+        <div class="comment-block">
+          <div class="comment-author claude">🤖 Claude</div>
+          <div class="comment-bubble claude-bubble">Sistema di comunicazione interna con workflow pubblica/archivia. Le "notizie obbligatorie" richiedono conferma esplicita di lettura da parte dei dipendenti (utile per comunicazioni normative, sicurezza). Il report traccia chi ha letto cosa e quando — esportabile in CSV per audit. La lista notizie è modificata in git status (in lavorazione).</div>
+        </div>
+        <div class="comment-block">
+          <div class="comment-author user">✏️ Tu</div>
+          <textarea class="user-note" data-module="notizie" placeholder="Aggiungi qui le tue note sulle Notizie..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="footer-tags">
+        <span class="tag">comunicazione</span><span class="tag">conferma-lettura</span><span class="tag">report</span>
+      </div>
+      <button class="save-btn" onclick="saveNote(this, 'notizie')">Salva</button>
+    </div>
+  </div>
+
+  <!-- ===================== TIMBRI ===================== -->
+  <div class="card" data-category="operations">
+    <div class="card-header">
+      <div class="module-icon">🕐</div>
+      <div class="card-meta">
+        <div class="card-name">Timbri <span class="badge badge-routes">10 route</span></div>
+        <div class="card-path">timbri/ · django_app/timbri/</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="sections-title">Sezioni & funzioni</div>
+      <div class="sections-grid">
+        <span class="section-chip"><span class="chip-icon">📋</span> Lista operatori</span>
+        <span class="section-chip"><span class="chip-icon">➕</span> Nuovo operatore</span>
+        <span class="section-chip"><span class="chip-icon">🗑️</span> Elimina operatore</span>
+        <span class="section-chip"><span class="chip-icon">🔍</span> Dettaglio operatore</span>
+        <span class="section-chip"><span class="chip-icon">🔍</span> Dettaglio per ID legacy</span>
+        <span class="section-chip"><span class="chip-icon">➕</span> Nuovo registro</span>
+        <span class="section-chip"><span class="chip-icon">✏️</span> Modifica registro</span>
+        <span class="section-chip is-admin"><span class="chip-icon">⚙️</span> Configurazione</span>
+        <span class="section-chip is-export"><span class="chip-icon">📤</span> Export CSV</span>
+      </div>
+      <div class="divider"></div>
+      <div class="comments-section">
+        <div class="comments-title">💬 Note & commenti</div>
+        <div class="comment-block">
+          <div class="comment-author claude">🤖 Claude</div>
+          <div class="comment-bubble claude-bubble">Gestione registro entrate/uscite (timbracartellini). Supporta doppio lookup operatore: per ID Django o per legacy_id (mapping verso anagrafica legacy). I media file (foto fotocard, firme) sono su filesystem server non in repo. Legge dati timbratura probabilmente da SQL Server legacy o da inserimento manuale.</div>
+        </div>
+        <div class="comment-block">
+          <div class="comment-author user">✏️ Tu</div>
+          <textarea class="user-note" data-module="timbri" placeholder="Aggiungi qui le tue note sui Timbri..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="footer-tags">
+        <span class="tag">presenze</span><span class="tag">legacy-id</span><span class="tag">media-server</span>
+      </div>
+      <button class="save-btn" onclick="saveNote(this, 'timbri')">Salva</button>
+    </div>
+  </div>
+
+  <!-- ===================== TICKETS ===================== -->
+  <div class="card" data-category="operations">
+    <div class="card-header">
+      <div class="module-icon">🎫</div>
+      <div class="card-meta">
+        <div class="card-name">Tickets <span class="badge badge-routes">14 route</span> <span class="badge badge-new">nuovo</span></div>
+        <div class="card-path">tickets/ · django_app/tickets/</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="sections-title">Sezioni & funzioni</div>
+      <div class="sections-grid">
+        <span class="section-chip"><span class="chip-icon">🏠</span> Dashboard ticket</span>
+        <span class="section-chip"><span class="chip-icon">➕</span> Nuovo ticket</span>
+        <span class="section-chip"><span class="chip-icon">🔍</span> Dettaglio ticket</span>
+        <span class="section-chip"><span class="chip-icon">📄</span> PDF ticket</span>
+        <span class="section-chip is-admin"><span class="chip-icon">🗂️</span> Gestione lista (operatori)</span>
+        <span class="section-chip is-admin"><span class="chip-icon">🔍</span> Gestione dettaglio</span>
+        <span class="section-chip is-admin"><span class="chip-icon">⚙️</span> Impostazioni</span>
+        <span class="section-chip is-api"><span class="chip-icon">💬</span> API commento</span>
+        <span class="section-chip is-api"><span class="chip-icon">📎</span> API allegato</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔄</span> API cambio stato</span>
+        <span class="section-chip is-api"><span class="chip-icon">👤</span> API assegna</span>
+        <span class="section-chip is-api"><span class="chip-icon">⚙️</span> API impostazioni</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔍</span> API cerca utenti</span>
+        <span class="section-chip is-api"><span class="chip-icon">🧪</span> API test SharePoint</span>
+      </div>
+      <div class="divider"></div>
+      <div class="comments-section">
+        <div class="comments-title">💬 Note & commenti</div>
+        <div class="comment-block">
+          <div class="comment-author claude">🤖 Claude</div>
+          <div class="comment-bubble claude-bubble">Sistema helpdesk interno con flusso utente→operatore. Integrazione SharePoint per allegati (api/test-sp suggerisce che usa Graph/SP per storage). Supporta commenti, allegati, cambio stato e assegnazione operatore. Dashboard in git status (modificata). Ha doppia vista: utente (crea/vede i propri) e operatori (gestiscono la coda). Esportabile in PDF per ogni ticket.</div>
+        </div>
+        <div class="comment-block">
+          <div class="comment-author user">✏️ Tu</div>
+          <textarea class="user-note" data-module="tickets" placeholder="Aggiungi qui le tue note sui Tickets..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="footer-tags">
+        <span class="tag">helpdesk</span><span class="tag">sharepoint</span><span class="tag">workflow</span>
+      </div>
+      <button class="save-btn" onclick="saveNote(this, 'tickets')">Salva</button>
+    </div>
+  </div>
+
+  <!-- ===================== RENTRI ===================== -->
+  <div class="card" data-category="operations">
+    <div class="card-header">
+      <div class="module-icon">♻️</div>
+      <div class="card-meta">
+        <div class="card-name">RENTRI <span class="badge badge-routes">9 route</span> <span class="badge badge-new">recente</span></div>
+        <div class="card-path">rentri/ · django_app/rentri/</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="sections-title">Sezioni & funzioni</div>
+      <div class="sections-grid">
+        <span class="section-chip"><span class="chip-icon">🏠</span> Menu RENTRI</span>
+        <span class="section-chip"><span class="chip-icon">📥</span> Carico rifiuti</span>
+        <span class="section-chip"><span class="chip-icon">📤</span> Scarico originale</span>
+        <span class="section-chip"><span class="chip-icon">📤</span> Scarico effettivo</span>
+        <span class="section-chip"><span class="chip-icon">✏️</span> Rettifica scarico</span>
+        <span class="section-chip"><span class="chip-icon">📋</span> Elenco movimenti</span>
+        <span class="section-chip"><span class="chip-icon">✏️</span> Modifica movimento</span>
+        <span class="section-chip"><span class="chip-icon">🗑️</span> Elimina movimento</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API sync pull</span>
+      </div>
+      <div class="divider"></div>
+      <div class="comments-section">
+        <div class="comments-title">💬 Note & commenti</div>
+        <div class="comment-block">
+          <div class="comment-author claude">🤖 Claude</div>
+          <div class="comment-bubble claude-bubble">Modulo aggiunto di recente (commit 56e87f9) per la tracciabilità rifiuti — obbligatorio per legge dal Registro Elettronico RENTRI (DL 116/2020). Gestisce carico/scarico rifiuti con possibilità di rettifica. Il scheduling automazioni ha alert per scadenze RENTRI (aggiunto nel commit successivo 2eccb7b). Da monitorare per completezza della compliance normativa.</div>
+        </div>
+        <div class="comment-block">
+          <div class="comment-author user">✏️ Tu</div>
+          <textarea class="user-note" data-module="rentri" placeholder="Aggiungi qui le tue note su RENTRI..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="footer-tags">
+        <span class="tag">compliance</span><span class="tag">rifiuti</span><span class="tag">normativa</span>
+      </div>
+      <button class="save-btn" onclick="saveNote(this, 'rentri')">Salva</button>
+    </div>
+  </div>
+
+  <!-- ===================== HUB TOOLS ===================== -->
+  <div class="card" data-category="admin">
+    <div class="card-header">
+      <div class="module-icon">🔧</div>
+      <div class="card-meta">
+        <div class="card-name">Hub Tools <span class="badge badge-routes">8 route</span> <span class="badge badge-admin">admin</span></div>
+        <div class="card-path">admin-portale/hub/ · django_app/hub_tools/</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="sections-title">Sezioni & funzioni</div>
+      <div class="sections-grid">
+        <span class="section-chip is-admin"><span class="chip-icon">🧩</span> Gestione moduli (toggle on/off)</span>
+        <span class="section-chip is-admin"><span class="chip-icon">🗄️</span> Database dashboard</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API toggle modulo</span>
+        <span class="section-chip is-api"><span class="chip-icon">📊</span> API stats DB</span>
+        <span class="section-chip is-api"><span class="chip-icon">💾</span> API backup DB</span>
+        <span class="section-chip is-api"><span class="chip-icon">🧹</span> API cleanup DB</span>
+        <span class="section-chip is-api"><span class="chip-icon">⚡</span> API optimize DB</span>
+        <span class="section-chip is-api"><span class="chip-icon">♻️</span> API restore DB</span>
+      </div>
+      <div class="divider"></div>
+      <div class="comments-section">
+        <div class="comments-title">💬 Note & commenti</div>
+        <div class="comment-block">
+          <div class="comment-author claude">🤖 Claude</div>
+          <div class="comment-bubble claude-bubble">Pannello di controllo infrastrutturale accessibile solo da admin. Permette di abilitare/disabilitare moduli a runtime e di gestire il database (backup, restore, ottimizzazione, cleanup). Attenzione: il restore DB da interfaccia web è un'operazione ad alto rischio — verificare che abbia protezioni adeguate (conferma, log, solo localhost).</div>
+        </div>
+        <div class="comment-block">
+          <div class="comment-author user">✏️ Tu</div>
+          <textarea class="user-note" data-module="hub_tools" placeholder="Aggiungi qui le tue note sull'Hub Tools..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="footer-tags">
+        <span class="tag">infrastruttura</span><span class="tag">db-ops</span><span class="tag">toggle-moduli</span>
+      </div>
+      <button class="save-btn" onclick="saveNote(this, 'hub_tools')">Salva</button>
+    </div>
+  </div>
+
+  <!-- ===================== PLANIMETRIA ===================== -->
+  <div class="card" data-category="operations">
+    <div class="card-header">
+      <div class="module-icon">🗺️</div>
+      <div class="card-meta">
+        <div class="card-name">Planimetria <span class="badge badge-routes">2 route</span> <span class="badge badge-wip">wrapper</span></div>
+        <div class="card-path">planimetria/ · django_app/planimetria/</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="sections-title">Sezioni & funzioni</div>
+      <div class="sections-grid">
+        <span class="section-chip"><span class="chip-icon">🗺️</span> Mappa planimetrica</span>
+        <span class="section-chip"><span class="chip-icon">✏️</span> Editor planimetria</span>
+      </div>
+      <div class="divider"></div>
+      <div class="comments-section">
+        <div class="comments-title">💬 Note & commenti</div>
+        <div class="comment-block">
+          <div class="comment-author claude">🤖 Claude</div>
+          <div class="comment-bubble claude-bubble">App essenzialmente vuota (models.py contiene solo un commento). Le viste mappa ed editor sono probabilmente delegati o alias per le omonime funzioni in Assets (plant_layout_map / plant_layout_editor). Da verificare se ha ancora senso come app separata o se può essere unificata con Assets.</div>
+        </div>
+        <div class="comment-block">
+          <div class="comment-author user">✏️ Tu</div>
+          <textarea class="user-note" data-module="planimetria" placeholder="Aggiungi qui le tue note sulla Planimetria..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="footer-tags">
+        <span class="tag">wrapper</span><span class="tag">assets-alias</span><span class="tag">wip</span>
+      </div>
+      <button class="save-btn" onclick="saveNote(this, 'planimetria')">Salva</button>
+    </div>
+  </div>
+
+  <!-- ===================== SETUP WIZARD ===================== -->
+  <div class="card" data-category="system">
+    <div class="card-header">
+      <div class="module-icon">🧙</div>
+      <div class="card-meta">
+        <div class="card-name">Setup Wizard <span class="badge badge-routes">8 route</span> <span class="badge badge-admin">sistema</span></div>
+        <div class="card-path">setup/ · django_app/setup_wizard/</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="sections-title">Sezioni & funzioni</div>
+      <div class="sections-grid">
+        <span class="section-chip"><span class="chip-icon">🏠</span> Home wizard</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API test DB</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API test LDAP</span>
+        <span class="section-chip is-api"><span class="chip-icon">🔌</span> API test SMTP</span>
+        <span class="section-chip is-api"><span class="chip-icon">💾</span> API save config</span>
+        <span class="section-chip is-api"><span class="chip-icon">⚡</span> API run migrations</span>
+        <span class="section-chip is-api"><span class="chip-icon">👤</span> API create admin</span>
+        <span class="section-chip is-api"><span class="chip-icon">🧩</span> API set modules</span>
+      </div>
+      <div class="divider"></div>
+      <div class="comments-section">
+        <div class="comments-title">💬 Note & commenti</div>
+        <div class="comment-block">
+          <div class="comment-author claude">🤖 Claude</div>
+          <div class="comment-bubble claude-bubble">Wizard di prima configurazione per nuove installazioni. Guida step-by-step la configurazione di DB, LDAP, SMTP, creazione admin e attivazione moduli. Da disabilitare/proteggere in produzione una volta completato il setup (espone operazioni critiche come run migrations e create admin via HTTP).</div>
+        </div>
+        <div class="comment-block">
+          <div class="comment-author user">✏️ Tu</div>
+          <textarea class="user-note" data-module="setup_wizard" placeholder="Aggiungi qui le tue note sul Setup Wizard..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <div class="footer-tags">
+        <span class="tag">onboarding</span><span class="tag">primo-avvio</span><span class="tag">sicurezza</span>
+      </div>
+      <button class="save-btn" onclick="saveNote(this, 'setup_wizard')">Salva</button>
+    </div>
+  </div>
+
+</div><!-- /grid -->
+
+<script>
+// ---- FILTER ----
+function filterCards(cat, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.card').forEach(card => {
+    if (cat === 'all' || card.dataset.category === cat) {
+      card.classList.remove('hidden');
+    } else {
+      card.classList.add('hidden');
+    }
+  });
+}
+
+// ---- SAVE / LOAD NOTES ----
+const STORAGE_KEY = 'portale_novicrom_notes_v1';
+
+function getAllNotes() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  } catch { return {}; }
+}
+
+function saveNote(btn, moduleKey) {
+  const ta = document.querySelector(`textarea[data-module="${moduleKey}"]`);
+  if (!ta) return;
+  const notes = getAllNotes();
+  notes[moduleKey] = ta.value;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+  btn.textContent = '✓ Salvato';
+  btn.classList.add('saved');
+  setTimeout(() => {
+    btn.textContent = 'Salva';
+    btn.classList.remove('saved');
+  }, 1800);
+}
+
+function saveAllNotes() {
+  const notes = getAllNotes();
+  document.querySelectorAll('textarea.user-note').forEach(ta => {
+    if (ta.dataset.module) notes[ta.dataset.module] = ta.value;
+  });
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+  alert('✓ Tutte le note salvate nel localStorage del browser.');
+}
+
+function loadNotes() {
+  const notes = getAllNotes();
+  document.querySelectorAll('textarea.user-note').forEach(ta => {
+    if (ta.dataset.module && notes[ta.dataset.module] !== undefined) {
+      ta.value = notes[ta.dataset.module];
+    }
+  });
+}
+
+function exportNotes() {
+  const notes = getAllNotes();
+  document.querySelectorAll('textarea.user-note').forEach(ta => {
+    if (ta.dataset.module) notes[ta.dataset.module] = ta.value;
+  });
+  const json = JSON.stringify(notes, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'portale_novicrom_note_moduli.json';
+  a.click();
+}
+
+function importNotes() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const notes = JSON.parse(ev.target.result);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+        loadNotes();
+        alert('✓ Note importate con successo.');
+      } catch { alert('❌ File JSON non valido.'); }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+// Auto-save on blur
+document.addEventListener('blur', e => {
+  if (e.target.matches('textarea.user-note')) {
+    const mod = e.target.dataset.module;
+    if (!mod) return;
+    const notes = getAllNotes();
+    notes[mod] = e.target.value;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+  }
+}, true);
+
+// Load on start
+loadNotes();
+</script>
+
+</body>
+</html>

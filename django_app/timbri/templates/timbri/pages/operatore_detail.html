@@ -7,8 +7,11 @@
 .tim-hero { display:flex; justify-content:space-between; gap:18px; flex-wrap:wrap; }
 .tim-title { font-size:28px; font-weight:800; color:#0f172a; }
 .tim-sub { color:#64748b; font-size:13px; margin-top:4px; }
-.tim-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 15px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; border:1px solid #dbe4f0; background:#fff; color:#0f172a; }
+.tim-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 15px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; border:1px solid #dbe4f0; background:#fff; color:#0f172a; cursor:pointer; }
 .tim-btn-main { background:#0f766e; border-color:#0f766e; color:#fff; }
+.tim-btn-report { background:#eff6ff; border-color:#bfdbfe; color:#1d4ed8; }
+.tim-btn-copy { background:#eff6ff; border-color:#bfdbfe; color:#1d4ed8; font-size:12px; padding:6px 10px; }
+.tim-btn-copy.copied { background:#dcfce7; border-color:#86efac; color:#166534; }
 .tim-kpi { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
 .tim-k { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:16px 18px; }
 .tim-k-val { font-size:28px; font-weight:800; color:#0f172a; }
@@ -17,6 +20,14 @@
 .tim-meta-item { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px 14px; }
 .tim-meta-k { font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; }
 .tim-meta-v { font-size:14px; color:#0f172a; font-weight:700; margin-top:4px; }
+
+/* Tabs */
+.tim-tabs { display:flex; gap:0; border-bottom:2px solid #e2e8f0; margin-bottom:18px; }
+.tim-tab { padding:10px 18px; font-size:13px; font-weight:700; color:#64748b; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px; user-select:none; white-space:nowrap; }
+.tim-tab.active { color:#0f766e; border-bottom-color:#0f766e; }
+.tim-tab-panel { display:none; }
+.tim-tab-panel.active { display:block; }
+
 .tim-records { display:grid; grid-template-columns:1fr; gap:14px; }
 .tim-record { border:1px solid #e2e8f0; border-radius:14px; padding:16px; }
 .tim-record-head { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:flex-start; }
@@ -27,8 +38,9 @@
 .tim-images { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:14px; }
 .tim-image { border:1px solid #e2e8f0; border-radius:12px; padding:10px; text-align:center; background:#f8fafc; }
 .tim-image img { max-width:100%; max-height:140px; object-fit:contain; display:block; margin:0 auto 8px; }
+.tim-img-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
 .tim-empty { color:#94a3b8; text-align:center; padding:20px; border:1px dashed #cbd5e1; border-radius:14px; }
-@media (max-width: 900px) { .tim-kpi, .tim-meta, .tim-images { grid-template-columns:1fr; } }
+@media (max-width: 900px) { .tim-kpi, .tim-meta, .tim-images { grid-template-columns:1fr; } .tim-tabs { overflow-x:auto; } }
 </style>
 {% endblock %}
 {% block subnav %}{% include "timbri/components/subnav.html" %}{% endblock %}
@@ -44,6 +56,10 @@
       </div>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      {% if report_url %}
+        <a class="tim-btn tim-btn-report" href="{{ report_url }}" target="_blank">&#128438; Report completo</a>
+        <a class="tim-btn" href="{{ report_url }}?timbri=0" target="_blank" style="border-color:#e2e8f0;color:#64748b;">&#128438; Senza timbri</a>
+      {% endif %}
       {% if can_edit_timbri and employee.legacy_id %}
         <a class="tim-btn tim-btn-main" href="{% url 'timbri:registro_create_by_legacy' employee.legacy_id %}">+ Nuovo record</a>
       {% elif can_edit_timbri %}
@@ -74,68 +90,99 @@
     </div>
   </div>
 
+  <!-- Record attivi con tabs -->
   <div class="tim-card">
     <div style="font-size:18px;font-weight:800;color:#0f172a;margin-bottom:14px;">Record attivi</div>
-    <div class="tim-records">
-      {% for record in active_records %}
-        <div class="tim-record">
-          <div class="tim-record-head">
-            <div>
-              <div style="font-size:18px;font-weight:800;color:#0f172a;">{{ record.codice_timbro|default:"Senza codice" }}</div>
-              <div style="font-size:13px;color:#64748b;">{{ record.qualifica|default:"Nessuna qualifica" }}</div>
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-              <span class="tim-pill tim-pill-green">{{ record.stato_label }}</span>
-              <span class="tim-pill tim-pill-gray">{{ record.get_tipo_timbro_display }}</span>
-              {% if can_edit_timbri %}<a class="tim-btn" href="{% url 'timbri:registro_edit' record.id %}">Modifica</a>{% endif %}
-            </div>
-          </div>
-          <div style="margin-top:10px;color:#475569;font-size:13px;">
-            Consegna: {{ record.data_consegna|default:"-" }} · Ritiro: {{ record.data_ritiro|default:"-" }}
-          </div>
-          {% if record.note %}<div style="margin-top:10px;font-size:13px;color:#334155;">{{ record.note|linebreaksbr }}</div>{% endif %}
-          <div class="tim-images">
-            {% for slot in record.image_slots %}
-              <div class="tim-image">
-                {% if slot.image %}
-                  <img src="{{ slot.image.image.url }}" alt="{{ slot.label }}">
-                {% else %}
-                  <div style="height:140px;display:flex;align-items:center;justify-content:center;color:#94a3b8;">Nessuna immagine</div>
-                {% endif %}
-                <div style="font-size:12px;font-weight:700;color:#64748b;">{{ slot.label }}</div>
-              </div>
-            {% endfor %}
-          </div>
+
+    {% if active_timbri or active_firme or active_sigle %}
+      <div class="tim-tabs">
+        <div class="tim-tab{% if active_timbri or not active_firme and not active_sigle %} active{% endif %}" data-tab="tab-timbri">
+          Timbri {% if active_timbri %}<span style="background:#f1f5f9;border-radius:999px;padding:1px 7px;font-size:11px;margin-left:4px;">{{ active_timbri|length }}</span>{% endif %}
         </div>
-      {% empty %}
-        <div class="tim-empty">Nessun record attivo per questo dipendente.</div>
-      {% endfor %}
-    </div>
+        {% if active_firme %}
+        <div class="tim-tab{% if not active_timbri and active_firme %} active{% endif %}" data-tab="tab-firme">
+          Firme <span style="background:#f1f5f9;border-radius:999px;padding:1px 7px;font-size:11px;margin-left:4px;">{{ active_firme|length }}</span>
+        </div>
+        {% endif %}
+        {% if active_sigle %}
+        <div class="tim-tab{% if not active_timbri and not active_firme and active_sigle %} active{% endif %}" data-tab="tab-sigle">
+          Sigle <span style="background:#f1f5f9;border-radius:999px;padding:1px 7px;font-size:11px;margin-left:4px;">{{ active_sigle|length }}</span>
+        </div>
+        {% endif %}
+      </div>
+
+      <div id="tab-timbri" class="tim-tab-panel{% if active_timbri or not active_firme and not active_sigle %} active{% endif %}">
+        <div class="tim-records">
+          {% for record in active_timbri %}
+            {% include "timbri/components/detail_record.html" with record=record active=True %}
+          {% empty %}
+            <div class="tim-empty">Nessun timbro attivo.</div>
+          {% endfor %}
+        </div>
+      </div>
+      {% if active_firme %}
+      <div id="tab-firme" class="tim-tab-panel{% if not active_timbri and active_firme %} active{% endif %}">
+        <div class="tim-records">
+          {% for record in active_firme %}
+            {% include "timbri/components/detail_record.html" with record=record active=True %}
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if active_sigle %}
+      <div id="tab-sigle" class="tim-tab-panel{% if not active_timbri and not active_firme and active_sigle %} active{% endif %}">
+        <div class="tim-records">
+          {% for record in active_sigle %}
+            {% include "timbri/components/detail_record.html" with record=record active=True %}
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    {% else %}
+      <div class="tim-empty">Nessun record attivo per questo dipendente.</div>
+    {% endif %}
   </div>
 
+  <!-- Storico -->
   <div class="tim-card">
     <div style="font-size:18px;font-weight:800;color:#0f172a;margin-bottom:14px;">Storico</div>
     <div class="tim-records">
       {% for record in historical_records %}
-        <div class="tim-record">
-          <div class="tim-record-head">
-            <div>
-              <div style="font-size:18px;font-weight:800;color:#0f172a;">{{ record.codice_timbro|default:"Senza codice" }}</div>
-              <div style="font-size:13px;color:#64748b;">{{ record.qualifica|default:"Nessuna qualifica" }}</div>
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-              <span class="tim-pill {% if record.is_archived %}tim-pill-gray{% else %}tim-pill-amber{% endif %}">{{ record.stato_label }}</span>
-              {% if can_edit_timbri %}<a class="tim-btn" href="{% url 'timbri:registro_edit' record.id %}">Apri</a>{% endif %}
-            </div>
-          </div>
-          <div style="margin-top:10px;color:#475569;font-size:13px;">
-            Consegna: {{ record.data_consegna|default:"-" }} · Ritiro: {{ record.data_ritiro|default:"-" }}
-          </div>
-        </div>
+        {% include "timbri/components/detail_record.html" with record=record active=False %}
       {% empty %}
         <div class="tim-empty">Nessun record storico.</div>
       {% endfor %}
     </div>
   </div>
 </div>
+
+<script>
+document.querySelectorAll('.tim-tab').forEach(tab => {
+  tab.addEventListener('click', function() {
+    const panel = this.dataset.tab;
+    this.closest('.tim-card').querySelectorAll('.tim-tab').forEach(t => t.classList.remove('active'));
+    this.closest('.tim-card').querySelectorAll('.tim-tab-panel').forEach(p => p.classList.remove('active'));
+    this.classList.add('active');
+    document.getElementById(panel).classList.add('active');
+  });
+});
+
+{% if can_copy_timbri %}
+async function copyImg(btn, url) {
+  try {
+    btn.textContent = '…';
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    c.getContext('2d').drawImage(img, 0, 0);
+    const blob = await new Promise(res => c.toBlob(res, 'image/png'));
+    await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+    btn.textContent = '✓ Copiato'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copia'; btn.classList.remove('copied'); }, 2000);
+  } catch { btn.textContent = 'Errore'; setTimeout(() => { btn.textContent = 'Copia'; }, 2000); }
+}
+document.querySelectorAll('.tim-btn-copy').forEach(b => b.addEventListener('click', () => copyImg(b, b.dataset.url)));
+{% endif %}
+</script>
 {% endblock %}

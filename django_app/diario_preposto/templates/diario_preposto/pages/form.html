@@ -1,0 +1,211 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ title }} — Diario Preposto{% endblock %}
+
+{% block extra_head %}
+<style>
+#dp-form-root { display:flex; flex-direction:column; gap:20px; max-width:760px; }
+
+.dp-breadcrumb { font-size:13px; color:#64748b; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.dp-breadcrumb a { color:#0f766e; text-decoration:none; font-weight:600; }
+.dp-breadcrumb a:hover { text-decoration:underline; }
+.dp-breadcrumb-sep { color:#cbd5e1; }
+
+.dp-form-card {
+  background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden;
+  box-shadow:0 1px 4px rgba(0,0,0,.06);
+}
+.dp-form-header {
+  background:linear-gradient(135deg,#03787C,#0f766e);
+  padding:18px 28px; color:#fff;
+}
+.dp-form-header-title { font-size:18px; font-weight:800; }
+
+.dp-form-body { padding:28px; display:flex; flex-direction:column; gap:20px; }
+
+.dp-field-group { display:flex; flex-direction:column; gap:5px; }
+.dp-field-group label { font-size:12px; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:.05em; }
+.dp-field-group .form-control,
+.dp-field-group input[type=text],
+.dp-field-group input[type=datetime-local],
+.dp-field-group textarea,
+.dp-field-group select {
+  width:100%; padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px;
+  font-size:14px; color:#1e293b; background:#fff;
+  transition:border-color .15s, box-shadow .15s; box-sizing:border-box;
+}
+.dp-field-group .form-control:focus,
+.dp-field-group input:focus,
+.dp-field-group textarea:focus {
+  outline:none; border-color:#03787C; box-shadow:0 0 0 3px rgba(3,120,124,.12);
+}
+.dp-field-group textarea { resize:vertical; min-height:140px; }
+.dp-field-group .errorlist { list-style:none; padding:0; margin:4px 0 0; }
+.dp-field-group .errorlist li { font-size:12px; color:#dc2626; font-weight:600; }
+
+.dp-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+
+.dp-allegati-section { display:flex; flex-direction:column; gap:10px; }
+.dp-section-label { font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.06em; }
+.dp-existing-allegati { display:flex; flex-direction:column; gap:6px; }
+.dp-allegato-item {
+  display:flex; align-items:center; gap:10px;
+  background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px;
+}
+.dp-allegato-name { font-size:13px; font-weight:600; color:#1e293b; flex:1; }
+.dp-allegato-link { font-size:12px; color:#0f766e; text-decoration:none; font-weight:700; }
+.dp-allegato-del {
+  background:none; border:none; cursor:pointer; color:#dc2626;
+  font-size:12px; font-weight:700; padding:3px 7px; border-radius:5px;
+}
+.dp-allegato-del:hover { background:#fee2e2; }
+
+.dp-file-drop {
+  border:2px dashed #cbd5e1; border-radius:10px; padding:20px;
+  text-align:center; color:#64748b; font-size:13px; cursor:pointer;
+  transition:border-color .15s, background .15s;
+}
+.dp-file-drop:hover { border-color:#03787C; background:#f0fdfa; }
+.dp-file-drop input[type=file] { display:none; }
+
+.dp-form-actions {
+  display:flex; gap:10px; flex-wrap:wrap;
+  border-top:1px solid #e2e8f0; padding-top:20px;
+}
+.dp-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 20px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; border:none; cursor:pointer; transition:all .15s; }
+.dp-btn-primary { background:#03787C; color:#fff; }
+.dp-btn-primary:hover { background:#0f766e; }
+.dp-btn-outline  { background:#fff; color:#475569; border:1px solid #e2e8f0; }
+.dp-btn-outline:hover { background:#f8fafc; color:#475569; text-decoration:none; }
+
+@media (max-width:580px) {
+  .dp-grid-2 { grid-template-columns:1fr; }
+  .dp-form-body { padding:18px; }
+  .dp-form-actions { flex-direction:column; }
+  .dp-btn { justify-content:center; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="dp-form-root">
+
+  <div class="dp-breadcrumb">
+    <a href="{% url 'diario_preposto:lista' %}">Diario Preposto</a>
+    <span class="dp-breadcrumb-sep">›</span>
+    {% if action == "modifica" and segnalazione %}
+    <a href="{% url 'diario_preposto:dettaglio' segnalazione.pk %}">{{ segnalazione.titolo|truncatechars:40 }}</a>
+    <span class="dp-breadcrumb-sep">›</span>
+    {% endif %}
+    <span>{{ title }}</span>
+  </div>
+
+  <div class="dp-form-card">
+    <div class="dp-form-header">
+      <div class="dp-form-header-title">{{ title }}</div>
+    </div>
+
+    <div class="dp-form-body">
+      <form method="post" enctype="multipart/form-data" id="dp-main-form">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+        <div style="background:#fee2e2;border:1px solid #fecaca;border-radius:8px;padding:12px 16px;color:#991b1b;font-size:13px;">
+          {{ form.non_field_errors }}
+        </div>
+        {% endif %}
+
+        <div class="dp-grid-2">
+          <div class="dp-field-group">
+            <label for="{{ form.data_segnalazione.id_for_label }}">{{ form.data_segnalazione.label }}</label>
+            {{ form.data_segnalazione }}
+            {{ form.data_segnalazione.errors }}
+          </div>
+          <div class="dp-field-group">
+            <label for="{{ form.titolo.id_for_label }}">{{ form.titolo.label }} *</label>
+            {{ form.titolo }}
+            {{ form.titolo.errors }}
+          </div>
+        </div>
+
+        <div class="dp-field-group">
+          <label for="{{ form.descrizione.id_for_label }}">{{ form.descrizione.label }} *</label>
+          {{ form.descrizione }}
+          {{ form.descrizione.errors }}
+        </div>
+
+        <div class="dp-allegati-section">
+          <div class="dp-section-label">Allegati</div>
+
+          {% if action == "modifica" and allegati %}
+          <div class="dp-existing-allegati" id="allegati-esistenti">
+            {% for a in allegati %}
+            <div class="dp-allegato-item" id="allegato-{{ a.pk }}">
+              <span>📎</span>
+              <span class="dp-allegato-name">{{ a.nome_file }}</span>
+              <a href="{{ a.file.url }}" target="_blank" rel="noopener" class="dp-allegato-link">Scarica</a>
+              <button type="button" class="dp-allegato-del"
+                      onclick="deleteAllegato({{ a.pk }}, this)"
+                      title="Rimuovi">✕</button>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          <div class="dp-file-drop" onclick="document.getElementById('id_allegati').click()">
+            <input type="file" name="allegati" id="id_allegati" multiple onchange="showFileNames(this)">
+            <div id="file-drop-label">
+              📁 Clicca per selezionare i file da allegare
+              <br><span style="font-size:11px;color:#94a3b8;">Puoi selezionare più file contemporaneamente</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="dp-form-actions">
+          <button type="submit" class="dp-btn dp-btn-primary">
+            {% if action == "modifica" %}💾 Salva modifiche{% else %}✅ Salva segnalazione{% endif %}
+          </button>
+          {% if action == "modifica" and segnalazione %}
+          <a href="{% url 'diario_preposto:dettaglio' segnalazione.pk %}" class="dp-btn dp-btn-outline">Annulla</a>
+          {% else %}
+          <a href="{% url 'diario_preposto:lista' %}" class="dp-btn dp-btn-outline">Annulla</a>
+          {% endif %}
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function showFileNames(input) {
+  var label = document.getElementById('file-drop-label');
+  if (input.files.length === 0) {
+    label.innerHTML = '📁 Clicca per selezionare i file da allegare<br><span style="font-size:11px;color:#94a3b8;">Puoi selezionare più file contemporaneamente</span>';
+  } else {
+    var names = Array.from(input.files).map(function(f){ return f.name; }).join(', ');
+    label.innerHTML = '✅ ' + input.files.length + ' file selezionati:<br><span style="font-size:11px;color:#0f766e;">' + names + '</span>';
+  }
+}
+
+{% if action == "modifica" and segnalazione %}
+function deleteAllegato(id, btn) {
+  if (!confirm('Rimuovere questo allegato?')) return;
+  var form = new FormData();
+  form.append('allegato_id', id);
+  form.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+  fetch('{% url "diario_preposto:api_allegato_delete" %}', { method:'POST', body:form })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        var el = document.getElementById('allegato-' + id);
+        if (el) el.remove();
+      } else {
+        alert('Errore: ' + data.error);
+      }
+    });
+}
+{% endif %}
+</script>
+{% endblock %}

@@ -1,0 +1,182 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ segnalazione.titolo }} — Diario Preposto{% endblock %}
+
+{% block extra_head %}
+<style>
+#dp-det-root { display:flex; flex-direction:column; gap:20px; max-width:860px; }
+
+.dp-breadcrumb { font-size:13px; color:#64748b; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.dp-breadcrumb a { color:#0f766e; text-decoration:none; font-weight:600; }
+.dp-breadcrumb a:hover { text-decoration:underline; }
+.dp-breadcrumb-sep { color:#cbd5e1; }
+
+.dp-card {
+  background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden;
+}
+.dp-card-header {
+  background:linear-gradient(135deg,#03787C,#0f766e);
+  padding:20px 28px; color:#fff;
+}
+.dp-card-title { font-size:20px; font-weight:800; line-height:1.3; }
+.dp-card-meta  { font-size:12px; opacity:.8; margin-top:6px; }
+
+.dp-card-body { padding:28px; display:flex; flex-direction:column; gap:20px; }
+
+.dp-fields-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; }
+.dp-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; display:block; margin-bottom:4px; }
+.dp-field .val  { font-size:14px; color:#1e293b; font-weight:500; }
+
+.dp-desc-box {
+  background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;
+  padding:16px 20px; font-size:14px; color:#1e293b; white-space:pre-wrap; line-height:1.7;
+}
+
+.dp-allegati { display:flex; flex-direction:column; gap:8px; }
+.dp-allegato-item {
+  display:flex; align-items:center; gap:10px;
+  background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px;
+}
+.dp-allegato-icon { font-size:20px; flex-shrink:0; }
+.dp-allegato-name { font-size:13px; font-weight:600; color:#1e293b; flex:1; }
+.dp-allegato-link { font-size:12px; color:#0f766e; text-decoration:none; font-weight:700; }
+.dp-allegato-link:hover { text-decoration:underline; }
+.dp-allegato-del {
+  background:none; border:none; cursor:pointer;
+  color:#dc2626; font-size:12px; font-weight:700; padding:4px 8px;
+  border-radius:6px; transition:background .15s;
+}
+.dp-allegato-del:hover { background:#fee2e2; }
+
+.dp-actions {
+  display:flex; gap:10px; flex-wrap:wrap; padding-top:8px;
+  border-top:1px solid #e2e8f0;
+}
+.dp-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 18px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; border:none; cursor:pointer; transition:all .15s; }
+.dp-btn-primary { background:#03787C; color:#fff; }
+.dp-btn-primary:hover { background:#0f766e; color:#fff; }
+.dp-btn-outline  { background:#fff; color:#475569; border:1px solid #e2e8f0; }
+.dp-btn-outline:hover { background:#f8fafc; color:#475569; }
+.dp-btn-danger   { background:#fff; color:#dc2626; border:1px solid #fecaca; }
+.dp-btn-danger:hover { background:#fee2e2; color:#dc2626; }
+.dp-btn-pdf { background:#f0fdfa; color:#0f766e; border:1px solid #99f6e4; }
+.dp-btn-pdf:hover { background:#ccfbf1; color:#0f766e; }
+
+.dp-section-label { font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.06em; }
+
+@media (max-width:600px) {
+  .dp-card-body { padding:18px; }
+  .dp-actions { flex-direction:column; }
+  .dp-btn { justify-content:center; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="dp-det-root">
+
+  <div class="dp-breadcrumb">
+    <a href="{% url 'diario_preposto:lista' %}">Diario Preposto</a>
+    <span class="dp-breadcrumb-sep">›</span>
+    <span>{{ segnalazione.titolo|truncatechars:60 }}</span>
+  </div>
+
+  <div class="dp-card">
+    <div class="dp-card-header">
+      <div class="dp-card-title">{{ segnalazione.titolo }}</div>
+      <div class="dp-card-meta">
+        Segnalazione #{{ segnalazione.pk }}
+        &nbsp;·&nbsp;
+        Inserita il {{ segnalazione.created_at|date:"d/m/Y H:i" }}
+      </div>
+    </div>
+
+    <div class="dp-card-body">
+
+      <div class="dp-fields-grid">
+        <div class="dp-field">
+          <label>Preposto</label>
+          <div class="val">{{ segnalazione.preposto|default:"—" }}</div>
+        </div>
+        <div class="dp-field">
+          <label>Chi segnala</label>
+          <div class="val">{{ segnalazione.chi_segnala|default:"—" }}</div>
+        </div>
+        <div class="dp-field">
+          <label>Data segnalazione</label>
+          <div class="val">{{ segnalazione.data_segnalazione|date:"d/m/Y H:i" }}</div>
+        </div>
+        {% if segnalazione.updated_at %}
+        <div class="dp-field">
+          <label>Ultima modifica</label>
+          <div class="val">{{ segnalazione.updated_at|date:"d/m/Y H:i" }}</div>
+        </div>
+        {% endif %}
+      </div>
+
+      <div>
+        <div class="dp-section-label" style="margin-bottom:8px;">Descrizione della segnalazione</div>
+        <div class="dp-desc-box">{{ segnalazione.descrizione }}</div>
+      </div>
+
+      {% if allegati %}
+      <div>
+        <div class="dp-section-label" style="margin-bottom:8px;">Allegati</div>
+        <div class="dp-allegati">
+          {% for a in allegati %}
+          <div class="dp-allegato-item" id="allegato-{{ a.pk }}">
+            <div class="dp-allegato-icon">📎</div>
+            <div class="dp-allegato-name">{{ a.nome_file }}</div>
+            <a href="{{ a.file.url }}" target="_blank" rel="noopener" class="dp-allegato-link">Scarica</a>
+            {% if can_write %}
+            <button
+              class="dp-allegato-del"
+              data-id="{{ a.pk }}"
+              onclick="deleteAllegato({{ a.pk }}, this)"
+              title="Rimuovi allegato">✕</button>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="dp-actions">
+        {% if can_write %}
+        <a href="{% url 'diario_preposto:modifica' segnalazione.pk %}" class="dp-btn dp-btn-primary">✏ Modifica</a>
+        <form method="post" action="{% url 'diario_preposto:elimina' segnalazione.pk %}"
+              onsubmit="return confirm('Eliminare questa segnalazione e tutti i suoi allegati?')">
+          {% csrf_token %}
+          <button type="submit" class="dp-btn dp-btn-danger">🗑 Elimina</button>
+        </form>
+        {% endif %}
+        <a href="{% url 'diario_preposto:export_pdf' segnalazione.pk %}" target="_blank" class="dp-btn dp-btn-pdf">⬇ Export PDF</a>
+        <a href="{% url 'diario_preposto:lista' %}" class="dp-btn dp-btn-outline">← Torna alla lista</a>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+{% if can_write %}
+<script>
+function deleteAllegato(id, btn) {
+  if (!confirm('Rimuovere questo allegato?')) return;
+  var form = new FormData();
+  form.append('allegato_id', id);
+  form.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+  fetch('{% url "diario_preposto:api_allegato_delete" %}', { method:'POST', body:form })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        var el = document.getElementById('allegato-' + id);
+        if (el) el.remove();
+      } else {
+        alert('Errore: ' + data.error);
+      }
+    });
+}
+</script>
+{% endif %}
+{% endblock %}

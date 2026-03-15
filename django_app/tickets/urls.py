@@ -17,4 +17,5 @@ urlpatterns = [
     path("api/impostazioni/",         views.api_impostazioni,        name="api_impostazioni"),
     path("api/cerca-utenti/",         views.api_cerca_utenti,        name="api_cerca_utenti"),
     path("api/test-sp/",              views.api_test_sp,             name="api_test_sp"),
+    path("api/import-csv/",          views.api_import_csv,          name="api_import_csv"),
 ]

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 import json
 import os
 from io import BytesIO
@@ -1102,3 +1104,154 @@ def api_test_sp(request):
 
     except Exception as e:
         return _json_err(str(e))
+
+
+# ---------------------------------------------------------------------------
+# API: import CSV ticket (solo admin)
+# ---------------------------------------------------------------------------
+
+@require_POST
+@login_required
+def api_import_csv(request):
+    from django.utils.timezone import make_aware
+
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    if not (legacy_user and is_legacy_admin(legacy_user)):
+        return _json_err("Non autorizzato", 403)
+
+    csv_file = request.FILES.get("csv_file")
+    if not csv_file:
+        return _json_err("Nessun file caricato")
+
+    try:
+        raw = csv_file.read()
+        try:
+            content = raw.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            content = raw.decode("latin-1")
+    except Exception:
+        return _json_err("Impossibile leggere il file. Usa codifica UTF-8.")
+
+    reader        = csv.DictReader(io.StringIO(content))
+    update_existing = request.POST.get("update_existing") == "1"
+
+    VALID_TIPI     = {TipoTicket.IT, TipoTicket.MAN}
+    VALID_STATI    = set(dict(StatoTicket.choices).keys())
+    VALID_PRIORITA = set(dict(PrioritaTicket.choices).keys())
+
+    created = 0
+    updated = 0
+    skipped = 0
+    errors  = []
+
+    def _parse_dt(raw: str):
+        for fmt in ("%d/%m/%Y %H:%M", "%d/%m/%Y", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+            try:
+                return make_aware(datetime.strptime(raw.strip(), fmt))
+            except (ValueError, OverflowError):
+                continue
+        return None
+
+    def _build_fields(row, tipo, priorita, stato, incide_sicurezza) -> dict:
+        return dict(
+            tipo=tipo,
+            titolo=(row.get("titolo") or "").strip()[:300],
+            descrizione=(row.get("descrizione") or "").strip(),
+            categoria=(row.get("categoria") or "").strip()[:30],
+            priorita=priorita,
+            stato=stato,
+            incide_sicurezza=incide_sicurezza,
+            richiedente_nome=(row.get("richiedente_nome") or "").strip()[:200],
+            richiedente_email=(row.get("richiedente_email") or "").strip()[:200],
+            assegnato_a=(row.get("assegnato_a") or "").strip()[:200],
+            assegnato_email=(row.get("assegnato_email") or "").strip()[:200],
+            note_interne=(row.get("note_interne") or "").strip(),
+            asset_descrizione_libera=(row.get("asset_descrizione_libera") or "").strip()[:300],
+            sharepoint_item_id=(row.get("sharepoint_item_id") or "").strip()[:100],
+        )
+
+    for row_num, row in enumerate(reader, start=2):
+        tipo = (row.get("tipo") or "").strip().upper()
+        if tipo not in VALID_TIPI:
+            errors.append(f"Riga {row_num}: tipo '{tipo}' non valido (usa IT o MAN)")
+            continue
+
+        titolo           = (row.get("titolo") or "").strip()
+        descrizione      = (row.get("descrizione") or "").strip()
+        categoria        = (row.get("categoria") or "").strip()
+        richiedente_nome = (row.get("richiedente_nome") or "").strip()
+
+        if not titolo or not descrizione or not categoria or not richiedente_nome:
+            errors.append(
+                f"Riga {row_num}: campi obbligatori mancanti "
+                "(titolo, descrizione, categoria, richiedente_nome)"
+            )
+            continue
+
+        priorita = (row.get("priorita") or PrioritaTicket.MEDIA).strip().upper()
+        if priorita not in VALID_PRIORITA:
+            priorita = PrioritaTicket.MEDIA
+
+        stato = (row.get("stato") or StatoTicket.APERTA).strip().upper()
+        if stato not in VALID_STATI:
+            stato = StatoTicket.APERTA
+
+        incide_raw       = (row.get("incide_sicurezza") or "0").strip().lower()
+        incide_sicurezza = incide_raw in ("1", "true", "si", "sì", "yes")
+        if incide_sicurezza:
+            priorita = PrioritaTicket.URGENTE
+
+        numero_ticket = (row.get("numero_ticket") or "").strip()
+        fields        = _build_fields(row, tipo, priorita, stato, incide_sicurezza)
+
+        # ── Aggiornamento ticket esistente ──
+        if numero_ticket:
+            existing = Ticket.objects.filter(numero_ticket=numero_ticket).first()
+            if existing:
+                if not update_existing:
+                    skipped += 1
+                    continue
+                # Aggiorna tutti i campi modificabili
+                for attr, val in fields.items():
+                    setattr(existing, attr, val)
+                existing.save()
+                ticket = existing
+                updated += 1
+            else:
+                # Nuovo con numero_ticket esplicito
+                ticket = Ticket(**fields)
+                ticket.numero_ticket = numero_ticket
+                ticket.save()
+                created += 1
+        else:
+            ticket = Ticket(**fields)
+            ticket.save()
+            created += 1
+
+        # Campi auto_now_add / nullable: aggiornati con .update()
+        dt_updates = {}
+        created_at_raw = (row.get("created_at") or "").strip()
+        if created_at_raw:
+            dt_val = _parse_dt(created_at_raw)
+            if dt_val:
+                dt_updates["created_at"] = dt_val
+
+        closed_at_raw = (row.get("closed_at") or "").strip()
+        if closed_at_raw:
+            dt_val = _parse_dt(closed_at_raw)
+            if dt_val:
+                dt_updates["closed_at"] = dt_val
+        elif not closed_at_raw and update_existing:
+            # Se il campo è vuoto in modalità update, azzera la data di chiusura
+            dt_updates["closed_at"] = None
+
+        if dt_updates:
+            Ticket.objects.filter(pk=ticket.pk).update(**dt_updates)
+
+    return JsonResponse({
+        "ok":      True,
+        "created": created,
+        "updated": updated,
+        "skipped": skipped,
+        "errors":  errors[:30],
+    })

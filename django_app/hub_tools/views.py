@@ -14,12 +14,11 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from django.contrib.auth.decorators import user_passes_test
 from django.http import FileResponse, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_GET, require_POST
 
-_staff_required = user_passes_test(lambda u: u.is_active and u.is_staff, login_url="/login/")
+from admin_portale.decorators import legacy_admin_required as _staff_required
 
 _APP_DIR = Path(__file__).resolve().parent.parent  # django_app/
 _BACKUP_DIR = _APP_DIR.parent / "backup" / "db"

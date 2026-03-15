@@ -37,10 +37,50 @@
 .cp-table-title { font-size:14px; font-weight:800; color:#0f172a; }
 .cp-table { width:100%; border-collapse:collapse; }
 .cp-table th { padding:9px 14px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:#94a3b8; background:#f8fafc; border-bottom:1px solid #f1f5f9; text-align:left; white-space:nowrap; }
+.cp-table th a { color:inherit; text-decoration:none; display:inline-flex; align-items:center; gap:4px; }
+.cp-table th a:hover { color:#1e3a5f; }
+.cp-table th.sort-active a { color:#1e3a5f; }
+.sort-arrow { font-size:9px; opacity:.5; }
+.sort-arrow.on { opacity:1; color:#1e3a5f; }
 .cp-table td { padding:10px 14px; font-size:13px; color:#334155; border-bottom:1px solid #f8fafc; vertical-align:middle; }
 .cp-table tr:last-child td { border-bottom:none; }
 .cp-table tr:hover td { background:#fafbff; }
 .cp-empty { padding:36px; text-align:center; color:#94a3b8; font-size:13px; }
+/* ── Group rows (raggruppamento campo) ── */
+.cp-group-header td {
+  background:#f1f5f9; font-size:12px; font-weight:800; color:#1e3a5f;
+  padding:8px 14px; border-bottom:2px solid #e2e8f0; border-top:2px solid #e2e8f0;
+}
+.cp-group-header:first-child td { border-top:none; }
+
+/* ── Vista famiglie ── */
+.rn-fam-c td {
+  background:#f0f7ff;
+  border-left:3px solid #2296D0;
+}
+.rn-fam-c td:first-child { padding-left:12px; }
+.rn-fam-op td {
+  background:#fff;
+  font-size:12px; color:#475569;
+}
+.rn-fam-op td:first-child {
+  padding-left:28px;   /* indentazione visiva */
+  border-left:3px solid #e2e8f0;
+  position:relative;
+}
+.rn-fam-sep td {
+  height:5px; background:#f8fafc; padding:0;
+  border-bottom:1px solid #e2e8f0; border-left:none !important;
+}
+/* Toggle vista */
+.rn-view-toggle { display:flex; gap:6px; }
+.rn-view-btn {
+  padding:5px 12px; border-radius:7px; font-size:11px; font-weight:700;
+  text-decoration:none; border:1px solid #e2e8f0; background:#fff; color:#64748b;
+  display:inline-flex; align-items:center; gap:5px;
+}
+.rn-view-btn.active { background:#1e3a5f; color:#fff; border-color:#1e3a5f; }
+.rn-view-btn:hover:not(.active) { background:#f1f5f9; }
 
 /* ── Tipo badges ── */
 .rn-badge { display:inline-block; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:800; line-height:1.4; }
@@ -99,6 +139,8 @@
   <!-- Filtri -->
   <div class="cp-filter-card">
     <form method="GET" class="cp-filter-row">
+      <input type="hidden" name="sort" value="{{ q_sort }}">
+      <input type="hidden" name="dir"  value="{{ q_dir }}">
       <div class="cp-field">
         <label class="cp-label">Tipo</label>
         <select name="tipo" class="cp-select">
@@ -117,114 +159,253 @@
         <label class="cp-label">Anno</label>
         <input type="number" name="anno" class="cp-input" placeholder="2025" style="width:90px;" value="{{ q_anno }}">
       </div>
+      <div class="cp-field">
+        <label class="cp-label">Raggruppa per</label>
+        <select name="group" class="cp-select">
+          <option value="">— nessuno —</option>
+          <option value="codice"      {% if q_group == 'codice'      %}selected{% endif %}>Codice EER</option>
+          <option value="tipo"        {% if q_group == 'tipo'        %}selected{% endif %}>Tipo (C/O/M/R)</option>
+          <option value="anno"        {% if q_group == 'anno'        %}selected{% endif %}>Anno</option>
+          <option value="inserito_da" {% if q_group == 'inserito_da' %}selected{% endif %}>Inserito da</option>
+        </select>
+      </div>
       <button type="submit" class="cp-btn cp-btn-primary" style="align-self:flex-end;">Filtra</button>
-      {% if q_tipo or q_search or q_anno %}
+      {% if q_tipo or q_search or q_anno or q_group %}
         <a href="{% url 'rentri_elenco' %}" class="cp-btn cp-btn-ghost" style="align-self:flex-end;">&#10005; Reset</a>
       {% endif %}
     </form>
   </div>
+
+{% comment %}
+  Helper template tag: genera l'URL per ordinare per un campo.
+  Parametri correnti: tipo, q, anno, group, sort, dir
+{% endcomment %}
 
   <!-- Tabella -->
   <div class="cp-table-card">
     <div class="cp-table-head">
       <div class="cp-table-title">
         Registrazioni
-        {% if page_obj.paginator.count %}
+        {% if families %}
+          <span style="font-size:12px;color:#64748b;font-weight:500;">({{ total }} record, {{ families|length }} famiglie)</span>
+        {% elif groups %}
+          <span style="font-size:12px;color:#64748b;font-weight:500;">({{ total }} totali, {{ groups|length }} gruppi)</span>
+        {% elif page_obj.paginator.count %}
           <span style="font-size:12px;color:#64748b;font-weight:500;">({{ page_obj.paginator.count }} totali)</span>
         {% endif %}
       </div>
+      <div class="rn-view-toggle">
+        <a class="rn-view-btn {% if q_view == 'famiglie' and not q_group %}active{% endif %}"
+           href="?tipo={{ q_tipo }}&q={{ q_search }}&anno={{ q_anno }}&view=famiglie">
+          &#128279; Famiglie
+        </a>
+        <a class="rn-view-btn {% if q_view != 'famiglie' or q_group %}active{% endif %}"
+           href="?tipo={{ q_tipo }}&q={{ q_search }}&anno={{ q_anno }}&view=lista&sort={{ q_sort }}&dir={{ q_dir }}&group={{ q_group }}">
+          &#8801; Lista
+        </a>
+      </div>
     </div>
 
-    {% if page_obj.object_list %}
+    {% comment %}Macro per un'intestazione ordinabile{% endcomment %}
+    {% with base_qs="tipo="|add:q_tipo|add:"&q="|add:q_search|add:"&anno="|add:q_anno|add:"&group="|add:q_group %}
+
     <div style="overflow-x:auto;">
     <table class="cp-table">
       <thead>
         <tr>
-          <th>Tipo</th>
-          <th>Data</th>
-          <th>ID Reg.</th>
+          <th class="{% if q_sort == 'tipo' %}sort-active{% endif %}">
+            <a href="?{{ base_qs }}&sort=tipo&dir={% if q_sort == 'tipo' and q_dir == 'asc' %}desc{% else %}asc{% endif %}">
+              Tipo
+              {% if q_sort == 'tipo' %}<span class="sort-arrow on">{% if q_dir == 'asc' %}▲{% else %}▼{% endif %}</span>
+              {% else %}<span class="sort-arrow">⇅</span>{% endif %}
+            </a>
+          </th>
+          <th class="{% if q_sort == 'data' %}sort-active{% endif %}">
+            <a href="?{{ base_qs }}&sort=data&dir={% if q_sort == 'data' and q_dir == 'asc' %}desc{% else %}asc{% endif %}">
+              Data
+              {% if q_sort == 'data' %}<span class="sort-arrow on">{% if q_dir == 'asc' %}▲{% else %}▼{% endif %}</span>
+              {% else %}<span class="sort-arrow">⇅</span>{% endif %}
+            </a>
+          </th>
+          <th class="{% if q_sort == 'id_reg' %}sort-active{% endif %}">
+            <a href="?{{ base_qs }}&sort=id_reg&dir={% if q_sort == 'id_reg' and q_dir == 'asc' %}desc{% else %}asc{% endif %}">
+              ID Reg.
+              {% if q_sort == 'id_reg' %}<span class="sort-arrow on">{% if q_dir == 'asc' %}▲{% else %}▼{% endif %}</span>
+              {% else %}<span class="sort-arrow">⇅</span>{% endif %}
+            </a>
+          </th>
           <th>Rif.Op</th>
-          <th>Codice</th>
-          <th>Quantità</th>
+          <th class="{% if q_sort == 'codice' %}sort-active{% endif %}">
+            <a href="?{{ base_qs }}&sort=codice&dir={% if q_sort == 'codice' and q_dir == 'asc' %}desc{% else %}asc{% endif %}">
+              Codice EER
+              {% if q_sort == 'codice' %}<span class="sort-arrow on">{% if q_dir == 'asc' %}▲{% else %}▼{% endif %}</span>
+              {% else %}<span class="sort-arrow">⇅</span>{% endif %}
+            </a>
+          </th>
+          <th class="{% if q_sort == 'quantita' %}sort-active{% endif %}">
+            <a href="?{{ base_qs }}&sort=quantita&dir={% if q_sort == 'quantita' and q_dir == 'asc' %}desc{% else %}asc{% endif %}">
+              Quantità
+              {% if q_sort == 'quantita' %}<span class="sort-arrow on">{% if q_dir == 'asc' %}▲{% else %}▼{% endif %}</span>
+              {% else %}<span class="sort-arrow">⇅</span>{% endif %}
+            </a>
+          </th>
           <th>C/S</th>
           <th>RENTRI</th>
           <th>Salva</th>
-          <th>Inserito da</th>
+          <th class="{% if q_sort == 'inserito_da' %}sort-active{% endif %}">
+            <a href="?{{ base_qs }}&sort=inserito_da&dir={% if q_sort == 'inserito_da' and q_dir == 'asc' %}desc{% else %}asc{% endif %}">
+              Inserito da
+              {% if q_sort == 'inserito_da' %}<span class="sort-arrow on">{% if q_dir == 'asc' %}▲{% else %}▼{% endif %}</span>
+              {% else %}<span class="sort-arrow">⇅</span>{% endif %}
+            </a>
+          </th>
           <th></th>
         </tr>
       </thead>
       <tbody>
-        {% for r in page_obj.object_list %}
-        <tr>
-          <td>
-            <span class="rn-badge rn-badge-{{ r.tipo }}">{{ r.tipo }}</span>
-          </td>
-          <td>{{ r.data|date:"d/m/Y" }}</td>
-          <td style="font-family:monospace;font-size:12px;">{{ r.id_registrazione|default:"—" }}</td>
-          <td>{{ r.rif_op|default:"—" }}</td>
-          <td><strong>{{ r.codice|default:"—" }}</strong></td>
-          <td>
-            {% if r.quantita is not None %}
-              {{ r.quantita }}
-            {% else %}
-              <span style="color:#94a3b8;">—</span>
-            {% endif %}
-          </td>
-          <td>{{ r.carico_scarico|default:"—" }}</td>
-          <td>
-            {% if r.rentri_si_no %}
-              <span class="rn-bool-yes">SI</span>
-            {% else %}
-              <span class="rn-bool-no">NO</span>
-            {% endif %}
-          </td>
-          <td>
-            {% if r.salva %}
-              <span class="rn-bool-yes">&#10003;</span>
-            {% else %}
-              <span class="rn-bool-no">—</span>
-            {% endif %}
-          </td>
-          <td style="font-size:11px;color:#94a3b8;">{{ r.inserito_da|default:"—" }}</td>
-          <td>
-            <div class="cp-row-actions">
-              <a class="cp-act-btn cp-act-edit" href="{% url 'rentri_modifica' r.pk %}">&#9998;</a>
-              <button type="button" class="cp-act-btn cp-act-del"
-                onclick="eliminaRecord({{ r.pk }}, this)">&#128465;</button>
-            </div>
-          </td>
-        </tr>
-        {% endfor %}
+
+        {% if families %}
+          {% comment %}── Vista famiglie (default) ──{% endcomment %}
+          {% for fam in families %}
+
+            {% comment %}Righe C (carichi){% endcomment %}
+            {% for r in fam.carichi %}
+            <tr class="rn-fam-c">
+              <td><span class="rn-badge rn-badge-C">C</span></td>
+              <td>{{ r.data|date:"d/m/Y" }}</td>
+              <td style="font-family:monospace;font-size:12px;">{{ r.id_registrazione|default:"—" }}</td>
+              <td style="color:#94a3b8;font-size:11px;">{{ r.rif_op|default:"—" }}</td>
+              <td><strong>{{ r.codice|default:"—" }}</strong></td>
+              <td>{% if r.quantita is not None %}<strong>{{ r.quantita }}</strong>{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
+              <td>{{ r.carico_scarico|default:"—" }}</td>
+              <td>{% if r.rentri_si_no %}<span class="rn-bool-yes">SI</span>{% else %}<span class="rn-bool-no">NO</span>{% endif %}</td>
+              <td>{% if r.salva %}<span class="rn-bool-yes">&#10003;</span>{% else %}<span class="rn-bool-no">—</span>{% endif %}</td>
+              <td style="font-size:11px;color:#94a3b8;">{{ r.inserito_da|default:"—" }}</td>
+              <td>
+                <div class="cp-row-actions">
+                  <a class="cp-act-btn cp-act-edit" href="{% url 'rentri_modifica' r.pk %}">&#9998;</a>
+                  <button type="button" class="cp-act-btn cp-act-del" onclick="eliminaRecord({{ r.pk }}, this)">&#128465;</button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+
+            {% comment %}Righe O/R/M (operazioni collegate, indentate){% endcomment %}
+            {% for r in fam.operazioni %}
+            <tr class="rn-fam-op">
+              <td><span class="rn-badge rn-badge-{{ r.tipo }}">{{ r.tipo }}</span></td>
+              <td>{{ r.data|date:"d/m/Y" }}</td>
+              <td style="font-family:monospace;font-size:11px;">{{ r.id_registrazione|default:"—" }}</td>
+              <td style="font-size:11px;color:#94a3b8;">{{ r.rif_op|default:"—" }}</td>
+              <td>{{ r.codice|default:"—" }}</td>
+              <td>{% if r.quantita is not None %}{{ r.quantita }}{% elif r.rettifica_scarico is not None %}<span style="color:#713f12;">{{ r.rettifica_scarico }}</span>{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
+              <td>{{ r.carico_scarico|default:"—" }}</td>
+              <td>{% if r.rentri_si_no %}<span class="rn-bool-yes">SI</span>{% else %}<span class="rn-bool-no">NO</span>{% endif %}</td>
+              <td>{% if r.salva %}<span class="rn-bool-yes">&#10003;</span>{% else %}<span class="rn-bool-no">—</span>{% endif %}</td>
+              <td style="font-size:11px;color:#94a3b8;">{{ r.inserito_da|default:"—" }}</td>
+              <td>
+                <div class="cp-row-actions">
+                  <a class="cp-act-btn cp-act-edit" href="{% url 'rentri_modifica' r.pk %}">&#9998;</a>
+                  <button type="button" class="cp-act-btn cp-act-del" onclick="eliminaRecord({{ r.pk }}, this)">&#128465;</button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+
+            {% comment %}Separatore tra famiglie{% endcomment %}
+            <tr class="rn-fam-sep"><td colspan="11"></td></tr>
+
+          {% empty %}
+            <tr><td colspan="11" class="cp-empty">Nessuna registrazione trovata{% if q_tipo or q_search or q_anno %} per i filtri selezionati{% endif %}.</td></tr>
+          {% endfor %}
+
+        {% elif groups %}
+          {% comment %}── Vista raggruppata per campo ──{% endcomment %}
+          {% for grp in groups %}
+          <tr class="cp-group-header">
+            <td colspan="11">
+              {{ grp.key }}
+              <span style="font-size:11px;font-weight:500;color:#64748b;margin-left:8px;">{{ grp.rows|length }} record</span>
+            </td>
+          </tr>
+          {% for r in grp.rows %}
+          <tr>
+            <td><span class="rn-badge rn-badge-{{ r.tipo }}">{{ r.tipo }}</span></td>
+            <td>{{ r.data|date:"d/m/Y" }}</td>
+            <td style="font-family:monospace;font-size:12px;">{{ r.id_registrazione|default:"—" }}</td>
+            <td>{{ r.rif_op|default:"—" }}</td>
+            <td><strong>{{ r.codice|default:"—" }}</strong></td>
+            <td>{% if r.quantita is not None %}{{ r.quantita }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
+            <td>{{ r.carico_scarico|default:"—" }}</td>
+            <td>{% if r.rentri_si_no %}<span class="rn-bool-yes">SI</span>{% else %}<span class="rn-bool-no">NO</span>{% endif %}</td>
+            <td>{% if r.salva %}<span class="rn-bool-yes">&#10003;</span>{% else %}<span class="rn-bool-no">—</span>{% endif %}</td>
+            <td style="font-size:11px;color:#94a3b8;">{{ r.inserito_da|default:"—" }}</td>
+            <td>
+              <div class="cp-row-actions">
+                <a class="cp-act-btn cp-act-edit" href="{% url 'rentri_modifica' r.pk %}">&#9998;</a>
+                <button type="button" class="cp-act-btn cp-act-del" onclick="eliminaRecord({{ r.pk }}, this)">&#128465;</button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+          {% endfor %}
+
+        {% elif page_obj.object_list %}
+          {% comment %}Vista flat paginata{% endcomment %}
+          {% for r in page_obj.object_list %}
+          <tr>
+            <td><span class="rn-badge rn-badge-{{ r.tipo }}">{{ r.tipo }}</span></td>
+            <td>{{ r.data|date:"d/m/Y" }}</td>
+            <td style="font-family:monospace;font-size:12px;">{{ r.id_registrazione|default:"—" }}</td>
+            <td>{{ r.rif_op|default:"—" }}</td>
+            <td><strong>{{ r.codice|default:"—" }}</strong></td>
+            <td>{% if r.quantita is not None %}{{ r.quantita }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
+            <td>{{ r.carico_scarico|default:"—" }}</td>
+            <td>{% if r.rentri_si_no %}<span class="rn-bool-yes">SI</span>{% else %}<span class="rn-bool-no">NO</span>{% endif %}</td>
+            <td>{% if r.salva %}<span class="rn-bool-yes">&#10003;</span>{% else %}<span class="rn-bool-no">—</span>{% endif %}</td>
+            <td style="font-size:11px;color:#94a3b8;">{{ r.inserito_da|default:"—" }}</td>
+            <td>
+              <div class="cp-row-actions">
+                <a class="cp-act-btn cp-act-edit" href="{% url 'rentri_modifica' r.pk %}">&#9998;</a>
+                <button type="button" class="cp-act-btn cp-act-del" onclick="eliminaRecord({{ r.pk }}, this)">&#128465;</button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+
+        {% else %}
+          <tr><td colspan="11" class="cp-empty">
+            Nessuna registrazione trovata{% if q_tipo or q_search or q_anno %} per i filtri selezionati{% endif %}.
+          </td></tr>
+        {% endif %}
+
       </tbody>
     </table>
     </div>
 
-    <!-- Paginazione -->
-    {% if page_obj.paginator.num_pages > 1 %}
+    {% endwith %}
+
+    <!-- Paginazione (solo in modalità flat) -->
+    {% if page_obj and page_obj.paginator.num_pages > 1 %}
     <div class="rn-pagination">
       {% if page_obj.has_previous %}
-        <a class="rn-page-btn" href="?{% if q_tipo %}tipo={{ q_tipo }}&{% endif %}{% if q_search %}q={{ q_search }}&{% endif %}{% if q_anno %}anno={{ q_anno }}&{% endif %}page={{ page_obj.previous_page_number }}">&#8592;</a>
+        <a class="rn-page-btn" href="?tipo={{ q_tipo }}&q={{ q_search }}&anno={{ q_anno }}&sort={{ q_sort }}&dir={{ q_dir }}&page={{ page_obj.previous_page_number }}">&#8592;</a>
       {% endif %}
       {% for num in page_obj.paginator.page_range %}
         {% if num == page_obj.number %}
           <span class="rn-page-btn active">{{ num }}</span>
         {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
-          <a class="rn-page-btn" href="?{% if q_tipo %}tipo={{ q_tipo }}&{% endif %}{% if q_search %}q={{ q_search }}&{% endif %}{% if q_anno %}anno={{ q_anno }}&{% endif %}page={{ num }}">{{ num }}</a>
+          <a class="rn-page-btn" href="?tipo={{ q_tipo }}&q={{ q_search }}&anno={{ q_anno }}&sort={{ q_sort }}&dir={{ q_dir }}&page={{ num }}">{{ num }}</a>
         {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}
           <span class="rn-page-info">…</span>
         {% endif %}
       {% endfor %}
       {% if page_obj.has_next %}
-        <a class="rn-page-btn" href="?{% if q_tipo %}tipo={{ q_tipo }}&{% endif %}{% if q_search %}q={{ q_search }}&{% endif %}{% if q_anno %}anno={{ q_anno }}&{% endif %}page={{ page_obj.next_page_number }}">&#8594;</a>
+        <a class="rn-page-btn" href="?tipo={{ q_tipo }}&q={{ q_search }}&anno={{ q_anno }}&sort={{ q_sort }}&dir={{ q_dir }}&page={{ page_obj.next_page_number }}">&#8594;</a>
       {% endif %}
     </div>
     {% endif %}
 
-    {% else %}
-    <div class="cp-empty">
-      Nessuna registrazione trovata{% if q_tipo or q_search or q_anno %} per i filtri selezionati{% endif %}.
-    </div>
-    {% endif %}
   </div>
 
 </div>

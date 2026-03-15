@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manuale Admin — Navigazione, Pulsanti e Permessi · Portale Novicrom</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --surface3: #2a2f47;
+    --border: #2e3350;
+    --accent: #4f8ef7;
+    --accent2: #7c3aed;
+    --green: #22c55e;
+    --orange: #f97316;
+    --red: #ef4444;
+    --yellow: #eab308;
+    --cyan: #06b6d4;
+    --pink: #ec4899;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --text-faint: #475569;
+    --radius: 12px;
+    --shadow: 0 4px 24px rgba(0,0,0,.4);
+    --sidebar-w: 260px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── TOPBAR ─────────────────── */
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+    background: #12151f;
+    border-bottom: 1px solid var(--border);
+    height: 58px;
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 24px;
+    backdrop-filter: blur(12px);
+  }
+  .topbar-logo {
+    width: 34px; height: 34px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 800; color: #fff;
+  }
+  .topbar-title { font-size: 15px; font-weight: 700; }
+  .topbar-sub { font-size: 12px; color: var(--text-dim); margin-left: 4px; }
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .topbar-badge {
+    font-size: 11px; padding: 3px 10px; border-radius: 20px; font-weight: 600;
+    background: rgba(79,142,247,.15); color: var(--accent); border: 1px solid rgba(79,142,247,.25);
+  }
+
+  /* ── LAYOUT ─────────────────── */
+  .layout {
+    display: flex;
+    margin-top: 58px;
+    min-height: calc(100vh - 58px);
+  }
+
+  /* ── SIDEBAR ─────────────────── */
+  .sidebar {
+    width: var(--sidebar-w);
+    flex-shrink: 0;
+    position: fixed;
+    top: 58px; left: 0;
+    height: calc(100vh - 58px);
+    overflow-y: auto;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 24px 0 40px;
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .sb-group { margin-bottom: 4px; }
+  .sb-group-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--text-faint); font-weight: 700;
+    padding: 12px 20px 6px;
+  }
+  .sb-link {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 20px;
+    font-size: 13px; color: var(--text-dim);
+    text-decoration: none;
+    border-left: 3px solid transparent;
+    transition: all .15s;
+  }
+  .sb-link:hover { background: var(--surface2); color: var(--text); border-left-color: var(--border); }
+  .sb-link.active { background: rgba(79,142,247,.08); color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+  .sb-icon { font-size: 14px; width: 18px; text-align: center; }
+  .sb-divider { height: 1px; background: var(--border); margin: 12px 20px; }
+
+  /* ── MAIN CONTENT ─────────────────── */
+  .main {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    padding: 48px 56px 80px;
+    max-width: 960px;
+  }
+
+  /* ── SECTION ─────────────────── */
+  .section { margin-bottom: 64px; }
+  .section-header {
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 28px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-icon {
+    width: 44px; height: 44px; flex-shrink: 0;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
+  .icon-blue { background: rgba(79,142,247,.15); }
+  .icon-purple { background: rgba(124,58,237,.15); }
+  .icon-green { background: rgba(34,197,94,.15); }
+  .icon-orange { background: rgba(249,115,22,.15); }
+  .icon-yellow { background: rgba(234,179,8,.15); }
+  .icon-cyan { background: rgba(6,182,212,.15); }
+  .icon-pink { background: rgba(236,72,153,.15); }
+  .icon-red { background: rgba(239,68,68,.15); }
+
+  .section-title { font-size: 24px; font-weight: 800; letter-spacing: -.4px; }
+  .section-sub { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
+
+  h3 {
+    font-size: 15px; font-weight: 700; color: var(--text);
+    margin: 28px 0 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  h3::before { content: ''; display: block; width: 4px; height: 16px; background: var(--accent); border-radius: 2px; }
+
+  p { font-size: 14px; line-height: 1.7; color: var(--text-dim); margin-bottom: 12px; }
+  strong { color: var(--text); font-weight: 600; }
+
+  /* ── CALLOUT ─────────────────── */
+  .callout {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 14px 16px; border-radius: 8px; margin: 16px 0;
+    font-size: 13px; line-height: 1.6;
+  }
+  .callout-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .callout.info { background: rgba(79,142,247,.08); border: 1px solid rgba(79,142,247,.2); color: #93c5fd; }
+  .callout.warn { background: rgba(234,179,8,.08); border: 1px solid rgba(234,179,8,.2); color: #fde047; }
+  .callout.danger { background: rgba(239,68,68,.08); border: 1px solid rgba(239,68,68,.2); color: #fca5a5; }
+  .callout.success { background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.2); color: #86efac; }
+
+  /* ── TABLE ─────────────────── */
+  .tbl-wrap { overflow-x: auto; margin: 16px 0; }
+  table {
+    width: 100%; border-collapse: collapse;
+    font-size: 13px;
+  }
+  thead th {
+    background: var(--surface2);
+    color: var(--text-dim);
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px;
+    padding: 10px 14px; text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  tbody tr { border-bottom: 1px solid rgba(46,51,80,.5); transition: background .1s; }
+  tbody tr:hover { background: rgba(255,255,255,.02); }
+  tbody td { padding: 10px 14px; color: var(--text-dim); vertical-align: top; }
+  tbody td:first-child { color: var(--text); font-family: 'Cascadia Code','Fira Code',monospace; font-size: 12px; }
+  .no-mono td:first-child { font-family: inherit; font-size: 13px; }
+
+  /* ── STEP LIST ─────────────────── */
+  .steps { list-style: none; margin: 16px 0; display: flex; flex-direction: column; gap: 10px; }
+  .steps li {
+    display: flex; gap: 14px; align-items: flex-start;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 16px;
+    font-size: 13px; line-height: 1.6; color: var(--text-dim);
+  }
+  .step-num {
+    flex-shrink: 0;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: rgba(79,142,247,.15); color: var(--accent);
+    font-size: 11px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .steps li strong { color: var(--text); }
+
+  /* ── CODE ─────────────────── */
+  code {
+    font-family: 'Cascadia Code','Fira Code',monospace;
+    font-size: 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    color: var(--cyan);
+  }
+  pre {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 20px;
+    font-family: 'Cascadia Code','Fira Code',monospace;
+    font-size: 12px; color: var(--text-dim);
+    line-height: 1.7; margin: 16px 0; overflow-x: auto;
+  }
+
+  /* ── FLOW CARD ─────────────────── */
+  .flow-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0; }
+  .flow-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .flow-card-title {
+    font-size: 13px; font-weight: 700; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  /* ── BADGE ─────────────────── */
+  .badge {
+    display: inline-flex; align-items: center;
+    font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px;
+    white-space: nowrap; vertical-align: middle;
+  }
+  .badge-blue { background: rgba(79,142,247,.15); color: var(--accent); }
+  .badge-green { background: rgba(34,197,94,.15); color: var(--green); }
+  .badge-yellow { background: rgba(234,179,8,.15); color: var(--yellow); }
+  .badge-orange { background: rgba(249,115,22,.15); color: var(--orange); }
+  .badge-purple { background: rgba(124,58,237,.15); color: #a78bfa; }
+  .badge-red { background: rgba(239,68,68,.15); color: var(--red); }
+
+  /* ── DIAGRAM ─────────────────── */
+  .diagram {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 20px; margin: 16px 0;
+    font-family: 'Cascadia Code','Fira Code',monospace;
+    font-size: 12px; line-height: 1.8; color: var(--text-dim);
+    overflow-x: auto;
+  }
+
+  /* ── HERO ─────────────────── */
+  .hero {
+    background: linear-gradient(135deg, #1a1d27 0%, #12151f 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 40px 56px 36px;
+    margin: -48px -56px 56px;
+  }
+  .hero-eyebrow {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px;
+    color: var(--accent); font-weight: 700; margin-bottom: 12px;
+  }
+  .hero-title { font-size: 32px; font-weight: 800; letter-spacing: -.6px; line-height: 1.2; margin-bottom: 10px; }
+  .hero-sub { font-size: 15px; color: var(--text-dim); line-height: 1.6; max-width: 680px; }
+  .hero-meta { margin-top: 20px; display: flex; gap: 24px; flex-wrap: wrap; }
+  .hero-meta-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-faint); }
+  .hero-meta-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+
+  /* ── COLUMNS ─────────────────── */
+  .cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+
+  /* ── TOGGLE EXAMPLE ─────────────────── */
+  .toggle-demo {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 14px; border-radius: 8px;
+    background: var(--surface2); border: 1px solid var(--border);
+    font-size: 13px; color: var(--text-dim); margin: 6px 0;
+  }
+  .toggle-pill {
+    width: 36px; height: 20px; border-radius: 10px;
+    flex-shrink: 0; position: relative; cursor: default;
+  }
+  .toggle-on { background: var(--green); }
+  .toggle-off { background: var(--text-faint); }
+  .toggle-partial { background: var(--yellow); }
+  .toggle-pill::after {
+    content: ''; position: absolute; top: 3px; width: 14px; height: 14px;
+    border-radius: 50%; background: white; transition: left .15s;
+  }
+  .toggle-on::after { left: 19px; }
+  .toggle-off::after { left: 3px; }
+  .toggle-partial::after { left: 11px; }
+
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .main { margin-left: 0; padding: 32px 24px 60px; }
+    .flow-grid { grid-template-columns: 1fr; }
+    .cols-2 { grid-template-columns: 1fr; }
+    .hero { margin: -32px -24px 40px; padding: 32px 24px 28px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="topbar-logo">N</div>
+  <span class="topbar-title">Portale Novicrom</span>
+  <span class="topbar-sub">/ Manuale Admin</span>
+  <div class="topbar-right">
+    <span class="topbar-badge">Aggiornato: Marzo 2026</span>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sb-group">
+      <div class="sb-group-label">Introduzione</div>
+      <a href="#panoramica" class="sb-link active"><span class="sb-icon">🗺️</span> Panoramica sistema</a>
+    </div>
+    <div class="sb-divider"></div>
+    <div class="sb-group">
+      <div class="sb-group-label">Navigazione</div>
+      <a href="#pulsanti" class="sb-link"><span class="sb-icon">🔘</span> Pulsanti (legacy)</a>
+      <a href="#topbar-live" class="sb-link"><span class="sb-icon">⚡</span> Topbar Live</a>
+      <a href="#nav-builder" class="sb-link"><span class="sb-icon">🧭</span> Navigation Builder</a>
+    </div>
+    <div class="sb-divider"></div>
+    <div class="sb-group">
+      <div class="sb-group-label">Accessi</div>
+      <a href="#permessi" class="sb-link"><span class="sb-icon">🔐</span> Permessi</a>
+      <a href="#wizard-pulsante" class="sb-link"><span class="sb-icon">✨</span> Wizard: pulsante</a>
+      <a href="#wizard-ruolo" class="sb-link"><span class="sb-icon">🎭</span> Wizard: ruolo</a>
+    </div>
+    <div class="sb-divider"></div>
+    <div class="sb-group">
+      <div class="sb-group-label">Guide operative</div>
+      <a href="#flussi" class="sb-link"><span class="sb-icon">▶️</span> Flussi comuni</a>
+      <a href="#riferimento" class="sb-link"><span class="sb-icon">📋</span> Riferimento campi</a>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- HERO -->
+    <div class="hero">
+      <div class="hero-eyebrow">Documentazione Admin</div>
+      <h1 class="hero-title">Navigazione, Pulsanti<br>e Permessi</h1>
+      <p class="hero-sub">
+        Guida completa alla configurazione del portale: come gestire le voci di menu,
+        i permessi per ruolo e per utente, e i due sistemi di navigazione in parallelo.
+      </p>
+      <div class="hero-meta">
+        <div class="hero-meta-item"><div class="hero-meta-dot"></div> Percorso: Admin Portale (menu principale)</div>
+        <div class="hero-meta-item"><div class="hero-meta-dot" style="background:var(--green)"></div> Versione portale: 0.7.x</div>
+        <div class="hero-meta-item"><div class="hero-meta-dot" style="background:var(--yellow)"></div> Marzo 2026</div>
+      </div>
+    </div>
+
+    <!-- 1. PANORAMICA -->
+    <section class="section" id="panoramica">
+      <div class="section-header">
+        <div class="section-icon icon-blue">🗺️</div>
+        <div>
+          <div class="section-title">1. Panoramica del sistema</div>
+          <div class="section-sub">Due sistemi di navigazione in parallelo</div>
+        </div>
+      </div>
+
+      <p>Il portale utilizza <strong>due sistemi di navigazione</strong> paralleli che coesistono durante la migrazione dal vecchio al nuovo:</p>
+
+      <div class="tbl-wrap">
+        <table class="no-mono">
+          <thead><tr><th>Sistema</th><th>Dove si gestisce</th><th>Scopo</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Pulsanti</strong> <span class="badge badge-yellow">legacy</span></td>
+              <td>Topbar Live · Gestione Pulsanti</td>
+              <td>Tabella storica del portale originale. Ancora usata per la topbar e per il sistema ACL (permessi).</td>
+            </tr>
+            <tr>
+              <td><strong>Navigation Builder</strong> <span class="badge badge-green">nuovo</span></td>
+              <td>Navigation Builder</td>
+              <td>Sistema Django per topbar, subnav, sidebar e link di pagina. Può importare i pulsanti legacy.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout info">
+        <span class="callout-icon">💡</span>
+        <div><strong>Regola pratica:</strong> per aggiungere voci al menu usa il <strong>Navigation Builder</strong>. Per modificare i permessi ACL usa <strong>Gestione Permessi</strong> (basata sempre sui Pulsanti legacy).</div>
+      </div>
+
+      <h3>Flusso di verifica permessi</h3>
+      <div class="diagram">Richiesta utente
+  → Middleware ACL
+      → Cerca pulsante con modulo + codice
+          → Controlla override utente (priorità alta)
+              → se nessun override → controlla permesso ruolo
+                  → accesso consentito / negato</div>
+    </section>
+
+    <!-- 2. PULSANTI -->
+    <section class="section" id="pulsanti">
+      <div class="section-header">
+        <div class="section-icon icon-yellow">🔘</div>
+        <div>
+          <div class="section-title">2. Pulsanti (sistema legacy)</div>
+          <div class="section-sub">Unità base del sistema ACL e navigazione</div>
+        </div>
+      </div>
+
+      <p>Un <strong>pulsante</strong> è l'unità base del sistema ACL. Rappresenta un'azione o una sezione del portale. A ogni pulsante corrispondono una voce nel menu (se abilitato) e un permesso verificabile.</p>
+
+      <div class="callout info">
+        <span class="callout-icon">📍</span>
+        <div><strong>Percorso:</strong> Admin Portale → Gestione Pulsanti</div>
+      </div>
+
+      <p>La pagina mostra una griglia di card, una per ogni modulo. Ogni card contiene i pulsanti del modulo con i relativi toggle.</p>
+
+      <h3>Campi principali</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Campo</th><th>Significato</th></tr></thead>
+          <tbody>
+            <tr><td>codice</td><td>Identificatore univoco (slug). <strong>Non modificare</strong> dopo averlo usato nei permessi.</td></tr>
+            <tr><td>modulo</td><td>Gruppo di appartenenza (es. <code>assenze</code>, <code>anomalie</code>, <code>assets</code>). Usato per raggruppare i permessi.</td></tr>
+            <tr><td>label / nome_visibile</td><td>Testo mostrato nel menu all'utente.</td></tr>
+            <tr><td>url</td><td>Destinazione del link. Usa <code>route:nome_route</code> per route Django interne.</td></tr>
+            <tr><td>visible_topbar</td><td>Se attivo, il pulsante compare nella barra in alto.</td></tr>
+            <tr><td>enabled</td><td>Se non attivo, il link è disabilitato (grigio) ma ancora visibile.</td></tr>
+            <tr><td>ui_slot</td><td>Posizione nel layout (<code>topbar</code>, <code>toolbar</code>, ecc.).</td></tr>
+            <tr><td>ui_section</td><td>Sezione di raggruppamento visiva (es. <code>dashboard</code>, <code>assenze</code>).</td></tr>
+            <tr><td>ui_order</td><td>Numero d'ordine nel menu — valore più basso = mostrato prima.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Stati toggle nell'interfaccia</h3>
+      <div class="toggle-demo">
+        <div class="toggle-pill toggle-on"></div>
+        <span><strong>Verde</strong> — funzionalità attiva</span>
+      </div>
+      <div class="toggle-demo">
+        <div class="toggle-pill toggle-off"></div>
+        <span><strong>Grigio</strong> — funzionalità disattiva</span>
+      </div>
+      <div class="toggle-demo">
+        <div class="toggle-pill toggle-partial"></div>
+        <span><strong>Giallo/parziale</strong> — solo alcuni pulsanti del modulo attivi</span>
+      </div>
+      <p style="margin-top:10px;">La riga diventa semi-trasparente durante il salvataggio (stato <em>saving</em>).</p>
+    </section>
+
+    <!-- 3. TOPBAR LIVE -->
+    <section class="section" id="topbar-live">
+      <div class="section-header">
+        <div class="section-icon icon-cyan">⚡</div>
+        <div>
+          <div class="section-title">3. Topbar Live</div>
+          <div class="section-sub">Editor rapido navigazione</div>
+        </div>
+      </div>
+
+      <div class="callout info">
+        <span class="callout-icon">📍</span>
+        <div><strong>Percorso:</strong> Admin Portale → Topbar Live</div>
+      </div>
+
+      <p>Interfaccia semplificata per modificare rapidamente la topbar senza uscire dalla pagina. Ideale per riordinare le voci o attivare/disattivare link in tempo reale.</p>
+
+      <h3>Come usarla</h3>
+      <ul class="steps">
+        <li><div class="step-num">1</div><div>Ogni riga rappresenta un pulsante legacy.</div></li>
+        <li><div class="step-num">2</div><div>Modifica direttamente i campi nella riga.</div></li>
+        <li><div class="step-num">3</div><div>Premi <strong>Salva</strong> sulla riga per applicare la modifica.</div></li>
+        <li><div class="step-num">4</div><div>I toggle <strong>Topbar</strong> e <strong>Attivo</strong> si salvano automaticamente al cambio — nessun Salva necessario.</div></li>
+      </ul>
+
+      <h3>Riordinare le voci</h3>
+      <p>Usa i pulsanti <strong>Su / Giù</strong> per spostare una voce, oppure modifica manualmente il campo <strong>Ord UI</strong> e premi Salva.<br>
+      Il pulsante <strong>Rinumera ordine UI</strong> ricalcola tutti i numeri in sequenza multipla di 10.</p>
+
+      <h3>Filtri disponibili</h3>
+      <div class="tbl-wrap">
+        <table class="no-mono">
+          <thead><tr><th>Filtro</th><th>Descrizione</th></tr></thead>
+          <tbody>
+            <tr><td>Ricerca</td><td>Cerca per nome, codice, modulo o URL.</td></tr>
+            <tr><td>Sezione UI</td><td>Filtra per sezione (<code>dashboard</code>, <code>assenze</code>, ecc.).</td></tr>
+            <tr><td>Vista "Solo topbar"</td><td>Mostra solo le voci con <code>visible_topbar = ON</code>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Catalogo route</h3>
+      <p>In fondo alla pagina si trova il <strong>Catalogo route Django</strong> con tutti gli URL interni disponibili. Per i link usa il formato <code>route:nome_route</code> nel campo Link (es. <code>route:dashboard_home</code>).</p>
+      <div class="callout info">
+        <span class="callout-icon">ℹ️</span>
+        <div>La voce Dashboard viene sempre garantita anche se non esplicitamente presente nel catalogo.</div>
+      </div>
+    </section>
+
+    <!-- 4. NAVIGATION BUILDER -->
+    <section class="section" id="nav-builder">
+      <div class="section-header">
+        <div class="section-icon icon-purple">🧭</div>
+        <div>
+          <div class="section-title">4. Navigation Builder</div>
+          <div class="section-sub">Sistema nuovo — gestione centralizzata del menu</div>
+        </div>
+      </div>
+
+      <div class="callout info">
+        <span class="callout-icon">📍</span>
+        <div><strong>Percorso:</strong> Admin Portale → Navigation Builder</div>
+      </div>
+
+      <p>Gestione centralizzata del menu senza modificare codice. Supporta topbar, subnav, sidebar e link di pagina. Le modifiche sono <strong>immediate</strong> e possono essere versionate attraverso snapshot.</p>
+
+      <h3>Struttura di una voce</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Campo</th><th>Significato</th></tr></thead>
+          <tbody>
+            <tr><td>Codice</td><td>Slug univoco. Se vuoto viene generato dalla label.</td></tr>
+            <tr><td>Label</td><td>Testo visualizzato nel menu <strong>(obbligatorio)</strong>.</td></tr>
+            <tr><td>Sezione</td><td>Dove appare: <code>topbar</code> · <code>subnav</code> · <code>sidebar</code> · <code>page</code></td></tr>
+            <tr><td>Gruppo subnav</td><td>Solo per sezione <code>subnav</code>: codice del gruppo (es. <code>assenze</code>). La subnav appare quando l'utente è nella sezione corrispondente.</td></tr>
+            <tr><td>Ordine</td><td>Numero d'ordine (basso = prima). Riordinabile anche trascinando.</td></tr>
+            <tr><td>Route name</td><td>Route Django interna <em>(consigliato per link interni)</em>. Autocomplete disponibile.</td></tr>
+            <tr><td>URL path</td><td>URL diretto o link esterno — solo se non c'è una route disponibile.</td></tr>
+            <tr><td>Ruoli abilitati</td><td>Limita la voce a specifici ruoli (per ID). Nessuna selezione = visibile a tutti.</td></tr>
+            <tr><td>Visibile</td><td>La voce compare nel menu.</td></tr>
+            <tr><td>Attivo</td><td>Il link è cliccabile.</td></tr>
+            <tr><td>Nuova tab</td><td>Apre in una nuova scheda del browser.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Creare una nuova voce</h3>
+      <ul class="steps">
+        <li><div class="step-num">1</div><div>Compila il form <strong>Nuova voce di navigazione</strong> in cima alla pagina.</div></li>
+        <li><div class="step-num">2</div><div>Il campo <strong>Codice</strong> è opzionale (viene autogenerato dalla label).</div></li>
+        <li><div class="step-num">3</div><div>Per link interni: usa <strong>Route name</strong> — l'autocomplete mostra tutte le route disponibili.</div></li>
+        <li><div class="step-num">4</div><div>Per <code>Sezione = subnav</code>: inserisci il <strong>Gruppo subnav</strong> (es. <code>assenze</code>) — indica a quale sezione del portale appartiene.</div></li>
+        <li><div class="step-num">5</div><div>Premi <strong>Crea voce</strong>.</div></li>
+      </ul>
+
+      <h3>Modificare le voci esistenti</h3>
+      <p>La tabella permette modifica inline: clicca direttamente sulle celle, poi premi <strong>Salva</strong> sulla riga. Per riordinare: trascina con l'handle <code>⠿</code> oppure modifica il campo <code>Ord.</code> Usa i filtri per sezione o ricerca testo per trovare rapidamente una voce.</p>
+
+      <h3>Ruoli abilitati (visibilità per ruolo)</h3>
+      <ul class="steps">
+        <li><div class="step-num">1</div><div>Apri la tabella dei ruoli cliccando su <strong>Ruoli Legacy</strong> (collassabile in cima).</div></li>
+        <li><div class="step-num">2</div><div>Usa gli <strong>ID numerici</strong> nel campo <code>Ruoli abilitati</code>.</div></li>
+        <li><div class="step-num">3</div><div>Tieni premuto <code>Ctrl</code> (o <code>Cmd</code> su Mac) per selezionare più ruoli.</div></li>
+        <li><div class="step-num">4</div><div><strong>Nessuna selezione</strong> = voce visibile a tutti i ruoli.</div></li>
+      </ul>
+
+      <h3>Publish / Rollback snapshot</h3>
+      <div class="callout info">
+        <span class="callout-icon">ℹ️</span>
+        <div>Le modifiche alle voci sono <strong>immediate</strong> ma non "certificate". Uno snapshot è un salvataggio versionato dell'intera configurazione.</div>
+      </div>
+
+      <div class="cols-2">
+        <div class="flow-card">
+          <div class="flow-card-title">📸 Pubblica snapshot</div>
+          <ul class="steps" style="gap:8px;">
+            <li><div class="step-num">1</div><div>Inserisci una nota descrittiva (es. <em>"Menu marzo 2026 – aggiunto link RENTRI"</em>).</div></li>
+            <li><div class="step-num">2</div><div>Premi <strong>Pubblica snapshot</strong>.</div></li>
+          </ul>
+        </div>
+        <div class="flow-card">
+          <div class="flow-card-title">↩️ Ripristina snapshot</div>
+          <ul class="steps" style="gap:8px;">
+            <li><div class="step-num">1</div><div>Seleziona la versione dall'elenco <strong>Ripristina snapshot</strong>.</div></li>
+            <li><div class="step-num">2</div><div>Premi <strong>Ripristina</strong> — la configurazione corrente viene <strong>sostituita completamente</strong>.</div></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout warn">
+        <span class="callout-icon">⚠️</span>
+        <div>Prima di operazioni rischiose (come "Sovrascrivi tutto dal legacy"), pubblica sempre uno snapshot per poter tornare indietro.</div>
+      </div>
+
+      <h3>Import da legacy</h3>
+      <div class="tbl-wrap">
+        <table class="no-mono">
+          <thead><tr><th>Modalità</th><th>Effetto</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Merge con legacy</strong> <span class="badge badge-green">consigliato</span></td>
+              <td>Aggiunge le voci legacy non ancora presenti, <strong>senza toccare</strong> quelle già configurate.</td>
+            </tr>
+            <tr>
+              <td><strong>Sovrascrivi tutto dal legacy</strong> <span class="badge badge-red">distruttivo</span></td>
+              <td>Elimina tutto e ricrea dal legacy da zero — irreversibile senza snapshot.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Redirect Legacy</h3>
+      <p>Intercetta vecchi URL del portale legacy e reindirizza verso i nuovi percorsi Django.</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Campo</th><th>Descrizione</th></tr></thead>
+          <tbody>
+            <tr><td>Legacy path</td><td>Vecchio URL da intercettare (es. <code>/admin/vecchio-path</code>).</td></tr>
+            <tr><td>Target route</td><td>Route Django di destinazione (autocomplete disponibile).</td></tr>
+            <tr><td>Target path</td><td>URL path diretto come alternativa alla route.</td></tr>
+            <tr><td>Attivo</td><td>Deseleziona per disabilitare temporaneamente senza eliminare.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>State Preview (JSON)</h3>
+      <p>Mostra in tempo reale il JSON dell'intera configurazione corrente — identico a quello salvato in uno snapshot. Utile per debug o backup manuale.</p>
+    </section>
+
+    <!-- 5. PERMESSI -->
+    <section class="section" id="permessi">
+      <div class="section-header">
+        <div class="section-icon icon-red">🔐</div>
+        <div>
+          <div class="section-title">5. Permessi</div>
+          <div class="section-sub">Gestione accessi per ruolo e per utente</div>
+        </div>
+      </div>
+
+      <div class="callout info">
+        <span class="callout-icon">📍</span>
+        <div><strong>Percorso:</strong> Admin Portale → Permessi</div>
+      </div>
+
+      <h3>Modalità: per Ruolo o per Utente</h3>
+      <div class="tbl-wrap">
+        <table class="no-mono">
+          <thead><tr><th>Tab</th><th>Effetto</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Per Ruolo</strong></td><td>Imposta i permessi standard per tutti gli utenti con quel ruolo.</td></tr>
+            <tr><td><strong>Per Utente</strong></td><td>Imposta un override personale che sovrascrive il ruolo per quel singolo utente.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Come funziona la griglia permessi</h3>
+      <p>La griglia mostra una card per ogni <strong>modulo</strong>, con all'interno i singoli <strong>pulsanti</strong>.</p>
+      <div class="diagram">┌─ Modulo: assenze ───────────────────── [●] toggle modulo ─┐
+│  richiesta_assenza    /assenze/richiesta    [●]             │
+│  gestione_assenze     /assenze/gestione     [○]             │
+│  calendario_assenze   /assenze/calendario   [●]             │
+└────────────────────────────────────────────────────────────┘</div>
+      <ul style="margin:12px 0 0 4px; display:flex; flex-direction:column; gap:8px; list-style:none;">
+        <li style="font-size:13px; color:var(--text-dim);"><strong style="color:var(--text);">Toggle modulo</strong> (in testa alla card): attiva/disattiva tutti i pulsanti del modulo in un colpo solo.</li>
+        <li style="font-size:13px; color:var(--text-dim);"><strong style="color:var(--text);">Toggle pulsante</strong> (riga): controlla il singolo pulsante.</li>
+        <li style="font-size:13px; color:var(--text-dim);">Badge <strong style="color:var(--yellow);">parziale</strong> = solo alcuni pulsanti del modulo sono attivi. Il toggle modulo diventa giallo (indeterminate).</li>
+      </ul>
+
+      <h3>Azioni bulk (solo modalità Ruolo)</h3>
+      <div class="tbl-wrap">
+        <table class="no-mono">
+          <thead><tr><th>Pulsante</th><th>Effetto</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Tutto ON</strong></td><td>Attiva tutti i moduli e tutti i pulsanti per il ruolo.</td></tr>
+            <tr><td><strong>Tutto OFF</strong></td><td>Disattiva tutto (chiede conferma).</td></tr>
+            <tr><td><strong>Reset ruolo</strong></td><td>Elimina tutti i permessi del ruolo (torna allo stato "nessuna impostazione").</td></tr>
+            <tr><td><strong>Copia da</strong> + <strong>Copia</strong></td><td>Copia i permessi da un altro ruolo selezionato.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Override per utente</h3>
+      <p>Nella tab <strong>Per Utente</strong>, ogni toggle imposta un override personale che ha <strong>priorità sul ruolo</strong>. Utile per:</p>
+      <ul style="margin:8px 0 0 20px; display:flex; flex-direction:column; gap:6px;">
+        <li style="font-size:13px; color:var(--text-dim);">Dare accesso temporaneo a una funzione senza cambiare il ruolo.</li>
+        <li style="font-size:13px; color:var(--text-dim);">Bloccare un singolo utente su una funzione specifica.</li>
+      </ul>
+
+      <h3>Permessi effettivi</h3>
+      <p>In <strong>Gestione Utenti</strong>, per ogni utente c'è il pulsante <strong>Permessi effettivi</strong> che mostra la lista completa dei permessi finali (combinazione ruolo + override personale).</p>
+    </section>
+
+    <!-- 6. WIZARD PULSANTE -->
+    <section class="section" id="wizard-pulsante">
+      <div class="section-header">
+        <div class="section-icon icon-green">✨</div>
+        <div>
+          <div class="section-title">6. Wizard: crea pulsante</div>
+          <div class="section-sub">Procedura guidata in 3 step</div>
+        </div>
+      </div>
+
+      <div class="callout info">
+        <span class="callout-icon">📍</span>
+        <div><strong>Percorso:</strong> Admin Portale → Pulsanti → Wizard nuovo pulsante<br>oppure dall'intestazione della card modulo.</div>
+      </div>
+
+      <div class="flow-grid">
+        <div class="flow-card">
+          <div class="flow-card-title">🔵 Step 1 — Dati base</div>
+          <ul style="margin:0; padding-left:18px; display:flex; flex-direction:column; gap:6px; list-style:disc;">
+            <li style="font-size:12px; color:var(--text-dim);"><strong>Modulo</strong> — gruppo di appartenenza (scegli da esistenti o creane uno nuovo).</li>
+            <li style="font-size:12px; color:var(--text-dim);"><strong>Codice/Azione</strong> — slug (es. <code>gestione_assenze</code>). No spazi.</li>
+            <li style="font-size:12px; color:var(--text-dim);"><strong>Label</strong> — testo mostrato nel menu.</li>
+            <li style="font-size:12px; color:var(--text-dim);"><strong>URL</strong> — usa <code>route:nome_route</code> per route interne.</li>
+          </ul>
+        </div>
+        <div class="flow-card">
+          <div class="flow-card-title">🟡 Step 2 — Permessi iniziali</div>
+          <ul style="margin:0; padding-left:18px; display:flex; flex-direction:column; gap:6px; list-style:disc;">
+            <li style="font-size:12px; color:var(--text-dim);"><strong>Preset rapido:</strong> "Tutti ON", "Tutti OFF", "Solo Admin", ecc.</li>
+            <li style="font-size:12px; color:var(--text-dim);"><strong>Manuale:</strong> espandi il ruolo e imposta singolarmente <code>can_view</code>.</li>
+          </ul>
+        </div>
+        <div class="flow-card" style="grid-column: 1 / -1;">
+          <div class="flow-card-title">🟢 Step 3 — Riepilogo e salvataggio</div>
+          <p style="font-size:12px; color:var(--text-dim); margin:0;">Verifica tutti i dati. Il pulsante viene creato e i permessi applicati in un'unica operazione. Dopo la creazione il pulsante è disponibile immediatamente in Permessi e Topbar Live.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7. WIZARD RUOLO -->
+    <section class="section" id="wizard-ruolo">
+      <div class="section-header">
+        <div class="section-icon icon-pink">🎭</div>
+        <div>
+          <div class="section-title">7. Wizard: configura ruolo</div>
+          <div class="section-sub">Procedura guidata in 3 step</div>
+        </div>
+      </div>
+
+      <div class="callout info">
+        <span class="callout-icon">📍</span>
+        <div><strong>Percorso:</strong> Admin Portale → Permessi → pulsante <strong>Apri Wizard</strong> (in alto a destra dopo aver selezionato un ruolo).</div>
+      </div>
+
+      <div class="flow-grid">
+        <div class="flow-card">
+          <div class="flow-card-title">🔵 Step 1 — Seleziona ruolo</div>
+          <p style="font-size:12px; color:var(--text-dim); margin:0;">Clicca sul ruolo da configurare dall'elenco.</p>
+        </div>
+        <div class="flow-card">
+          <div class="flow-card-title">🟡 Step 2 — Configura permessi</div>
+          <ul style="margin:0; padding-left:18px; display:flex; flex-direction:column; gap:6px; list-style:disc;">
+            <li style="font-size:12px; color:var(--text-dim);"><strong>Toggle modulo</strong> per attivare/disattivare l'intero gruppo.</li>
+            <li style="font-size:12px; color:var(--text-dim);"><strong>Pulsanti ON/OFF</strong> per configurazione rapida dentro la card.</li>
+            <li style="font-size:12px; color:var(--text-dim);">Espandi per vedere e configurare i singoli pulsanti.</li>
+          </ul>
+        </div>
+        <div class="flow-card" style="grid-column: 1 / -1;">
+          <div class="flow-card-title">🟢 Step 3 — Riepilogo e salvataggio</div>
+          <p style="font-size:12px; color:var(--text-dim); margin:0;">Mostra tutti i cambiamenti da applicare. Premi <strong>Salva configurazione ruolo</strong> per confermare. Ideale per configurare un ruolo appena creato da zero.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8. FLUSSI -->
+    <section class="section" id="flussi">
+      <div class="section-header">
+        <div class="section-icon icon-orange">▶️</div>
+        <div>
+          <div class="section-title">8. Flussi per operazioni comuni</div>
+          <div class="section-sub">Procedure passo-passo per le azioni più frequenti</div>
+        </div>
+      </div>
+
+      <h3>Aggiungere una voce al menu principale (topbar)</h3>
+      <ul class="steps">
+        <li><div class="step-num">1</div><div><strong>Navigation Builder</strong> → form <em>Nuova voce di navigazione</em>.</div></li>
+        <li><div class="step-num">2</div><div>Sezione: <code>topbar</code></div></li>
+        <li><div class="step-num">3</div><div>Route name: scegli dall'autocomplete.</div></li>
+        <li><div class="step-num">4</div><div>Ordine: inserisci un numero (es. <code>50</code> per metterla a metà).</div></li>
+        <li><div class="step-num">5</div><div>Crea voce. Se l'ordine è sbagliato, trascina dalla tabella o modifica il campo <code>Ord.</code></div></li>
+        <li><div class="step-num">6</div><div>(Facoltativo) Pubblica snapshot con una nota descrittiva.</div></li>
+      </ul>
+
+      <h3>Aggiungere una subnav a un modulo</h3>
+      <ul class="steps">
+        <li><div class="step-num">1</div><div><strong>Navigation Builder</strong> → form <em>Nuova voce di navigazione</em>.</div></li>
+        <li><div class="step-num">2</div><div>Sezione: <code>subnav</code></div></li>
+        <li><div class="step-num">3</div><div><strong>Gruppo subnav</strong>: inserisci il codice della sezione (es. <code>assenze</code>, <code>anagrafica</code>, <code>assets</code>).</div></li>
+        <li><div class="step-num">4</div><div>Route name: la pagina specifica.</div></li>
+        <li><div class="step-num">5</div><div>Crea voce. La subnav apparirà automaticamente quando l'utente è nella sezione corrispondente.</div></li>
+      </ul>
+
+      <h3>Limitare una voce a un ruolo specifico</h3>
+      <ul class="steps">
+        <li><div class="step-num">1</div><div><strong>Navigation Builder</strong> → trova la voce nella tabella.</div></li>
+        <li><div class="step-num">2</div><div>Campo <strong>Ruoli</strong>: seleziona i ruoli abilitati (<code>Ctrl</code>+click per più ruoli).</div></li>
+        <li><div class="step-num">3</div><div>Premi <strong>Salva</strong> sulla riga.</div></li>
+      </ul>
+
+      <h3>Dare accesso a un modulo per un intero ruolo</h3>
+      <ul class="steps">
+        <li><div class="step-num">1</div><div><strong>Permessi</strong> → tab <strong>Per Ruolo</strong> → seleziona il ruolo → Seleziona.</div></li>
+        <li><div class="step-num">2</div><div>Trova la card del modulo e attiva il <strong>toggle modulo</strong> (attiva tutti i pulsanti in un colpo).</div></li>
+        <li><div class="step-num">3</div><div>Il salvataggio è automatico — non serve premere Salva.</div></li>
+      </ul>
+
+      <h3>Creare un nuovo ruolo e configurarlo</h3>
+      <ul class="steps">
+        <li><div class="step-num">1</div><div>Gestione Utenti o Django Admin: crea il ruolo.</div></li>
+        <li><div class="step-num">2</div><div><strong>Permessi</strong> → tab <strong>Per Ruolo</strong> → seleziona il nuovo ruolo.</div></li>
+        <li><div class="step-num">3</div><div>Se hai un ruolo simile: <strong>Copia da</strong> → seleziona il ruolo sorgente → <strong>Copia</strong>. Poi aggiusta manualmente le differenze.</div></li>
+        <li><div class="step-num">4</div><div>In alternativa: usa il <strong>Wizard configura ruolo</strong> per procedura guidata.</div></li>
+      </ul>
+
+      <h3>Rollback dopo un errore di configurazione</h3>
+      <ul class="steps">
+        <li><div class="step-num">1</div><div><strong>Navigation Builder</strong> → sezione <em>Publish / Rollback snapshot</em>.</div></li>
+        <li><div class="step-num">2</div><div>Seleziona lo snapshot precedente all'errore.</div></li>
+        <li><div class="step-num">3</div><div>Premi <strong>Ripristina</strong> → conferma. La configurazione viene ripristinata immediatamente per tutti gli utenti.</div></li>
+      </ul>
+
+      <h3>Redirect di un vecchio URL</h3>
+      <ul class="steps">
+        <li><div class="step-num">1</div><div><strong>Navigation Builder</strong> → sezione <em>Redirect Legacy</em>.</div></li>
+        <li><div class="step-num">2</div><div><code>Legacy path</code> = vecchio URL (es. <code>/vecchio/percorso/</code>).</div></li>
+        <li><div class="step-num">3</div><div><code>Target route</code> = nome route Django di destinazione (usa l'autocomplete).</div></li>
+        <li><div class="step-num">4</div><div>Aggiungi redirect. Verifica aprendo il vecchio URL nel browser.</div></li>
+      </ul>
+    </section>
+
+    <!-- 9. RIFERIMENTO CAMPI -->
+    <section class="section" id="riferimento">
+      <div class="section-header">
+        <div class="section-icon icon-blue">📋</div>
+        <div>
+          <div class="section-title">9. Riferimento campi</div>
+          <div class="section-sub">Tabelle complete di tutti i campi configurabili</div>
+        </div>
+      </div>
+
+      <h3>Pulsante legacy — campi completi</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Campo</th><th>Tipo</th><th>Note</th></tr></thead>
+          <tbody>
+            <tr><td>id</td><td>Numero</td><td>Auto-generato.</td></tr>
+            <tr><td>codice</td><td>Slug</td><td>Identificatore univoco — usato dal sistema ACL. Non modificare dopo l'uso.</td></tr>
+            <tr><td>modulo</td><td>Testo</td><td>Gruppo funzionale (es. <code>assenze</code>, <code>assets</code>).</td></tr>
+            <tr><td>nome_visibile</td><td>Testo</td><td>Etichetta mostrata all'utente.</td></tr>
+            <tr><td>url</td><td>Testo</td><td>Destinazione — usa <code>route:nome_route</code> per Django.</td></tr>
+            <tr><td>ui_slot</td><td>Testo</td><td><code>topbar</code>, <code>toolbar</code>, ecc.</td></tr>
+            <tr><td>ui_section</td><td>Testo</td><td>Sezione di raggruppamento.</td></tr>
+            <tr><td>ui_order</td><td>Numero</td><td>Ordine di visualizzazione (basso = prima).</td></tr>
+            <tr><td>visible_topbar</td><td>Bool</td><td>Mostra nella topbar.</td></tr>
+            <tr><td>enabled</td><td>Bool</td><td>Link attivo/disattivo.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Voce Navigation Builder — campi completi</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Campo</th><th>Tipo</th><th>Note</th></tr></thead>
+          <tbody>
+            <tr><td>codice</td><td>Slug</td><td>Auto-generato se vuoto.</td></tr>
+            <tr><td>label</td><td>Testo</td><td><strong>Obbligatorio.</strong></td></tr>
+            <tr><td>section</td><td>Enum</td><td><code>topbar</code> · <code>subnav</code> · <code>sidebar</code> · <code>page</code></td></tr>
+            <tr><td>parent_code</td><td>Testo</td><td>Solo subnav: codice sezione (es. <code>assenze</code>).</td></tr>
+            <tr><td>order</td><td>Numero</td><td>Ordine nel menu.</td></tr>
+            <tr><td>route_name</td><td>Testo</td><td>Route Django — usa l'autocomplete.</td></tr>
+            <tr><td>url_path</td><td>Testo</td><td>URL diretto o link esterno.</td></tr>
+            <tr><td>role_ids_csv</td><td>CSV</td><td>ID ruoli abilitati separati da virgola.</td></tr>
+            <tr><td>is_visible</td><td>Bool</td><td>Mostra nel menu.</td></tr>
+            <tr><td>is_enabled</td><td>Bool</td><td>Link cliccabile.</td></tr>
+            <tr><td>open_in_new_tab</td><td>Bool</td><td>Apri in nuova scheda.</td></tr>
+            <tr><td>description</td><td>Testo</td><td>Nota interna, non mostrata agli utenti.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Codici sezione subnav — valori comuni</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Codice</th><th>Sezione attivata in</th></tr></thead>
+          <tbody>
+            <tr><td>dashboard</td><td>Dashboard principale</td></tr>
+            <tr><td>assenze</td><td>Modulo Assenze</td></tr>
+            <tr><td>anagrafica</td><td>Modulo Anagrafica</td></tr>
+            <tr><td>admin_portale</td><td>Admin Portale</td></tr>
+            <tr><td>assets</td><td>Modulo Assets</td></tr>
+            <tr><td>notizie</td><td>Modulo Notizie</td></tr>
+            <tr><td>tasks</td><td>Modulo Tasks</td></tr>
+            <tr><td>tickets</td><td>Modulo Tickets</td></tr>
+            <tr><td>rentri</td><td>Modulo RENTRI</td></tr>
+            <tr><td>timbri</td><td>Modulo Timbri</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div style="margin-top:40px; padding-top:24px; border-top:1px solid var(--border); font-size:12px; color:var(--text-faint);">
+      Portale Novicrom — Manuale Admin · Aggiornato marzo 2026
+    </div>
+
+  </main>
+</div>
+
+<script>
+// Sidebar active link on scroll
+(function(){
+  var links = document.querySelectorAll('.sb-link[href^="#"]');
+  var sections = [];
+  links.forEach(function(l){ var id = l.getAttribute('href').slice(1); var el = document.getElementById(id); if(el) sections.push({id:id, el:el, link:l}); });
+
+  function update(){
+    var scrollY = window.scrollY + 100;
+    var current = sections[0];
+    for(var i=0; i<sections.length; i++){
+      if(sections[i].el.offsetTop <= scrollY) current = sections[i];
+    }
+    links.forEach(function(l){ l.classList.remove('active'); });
+    if(current) current.link.classList.add('active');
+  }
+  window.addEventListener('scroll', update, {passive:true});
+  update();
+})();
+</script>
+</body>
+</html>

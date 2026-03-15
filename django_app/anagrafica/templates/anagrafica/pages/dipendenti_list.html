@@ -226,7 +226,10 @@
             </td>
             <td>
               {% if dip.timbri_legacy_id %}
-                <a class="ana-btn ana-btn-ghost ana-btn-sm" href="{% url 'timbri:operatore_detail_by_legacy' dip.timbri_legacy_id %}">Apri timbri</a>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                  <a class="ana-btn ana-btn-ghost ana-btn-sm" href="{% url 'timbri:operatore_detail_by_legacy' dip.timbri_legacy_id %}">Apri timbri</a>
+                  <a class="ana-btn ana-btn-ghost ana-btn-sm" href="{% url 'timbri:operatore_report' dip.timbri_legacy_id %}" target="_blank" title="Report timbri/firma/sigla">&#128438;</a>
+                </div>
               {% else %}
                 <span style="color:#cbd5e1;">-</span>
               {% endif %}

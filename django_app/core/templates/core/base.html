@@ -16,5 +16,38 @@
     {% block content %}{% endblock %}
   </div>
   {% block extra_scripts %}{% endblock %}
+  <script>
+  /* ── Protezione doppio-submit: blocca .btn submit al primo click ── */
+  (function () {
+    var pendingBtn = null;
+    var resetTimer = null;
+
+    /* Traccia quale pulsante ha scatenato il submit */
+    document.addEventListener('mousedown', function (e) {
+      var btn = e.target.closest('button[type="submit"], input[type="submit"]');
+      if (btn && btn.classList.contains('btn') && !btn.disabled) pendingBtn = btn;
+    }, true);
+
+    document.addEventListener('submit', function (e) {
+      var form = e.target;
+      if (!form || form.tagName !== 'FORM') return;
+
+      var btn = (pendingBtn && form.contains(pendingBtn)) ? pendingBtn : null;
+      if (!btn) btn = form.querySelector('button[type="submit"].btn:not([disabled])');
+      pendingBtn = null;
+      if (!btn || btn.disabled) return;
+
+      btn.disabled = true;
+      btn.classList.add('btn-loading');
+
+      /* Ripristino di sicurezza se la navigazione non avviene (validazione JS, errori rete) */
+      if (resetTimer) clearTimeout(resetTimer);
+      resetTimer = setTimeout(function () {
+        btn.disabled = false;
+        btn.classList.remove('btn-loading');
+      }, 10000);
+    });
+  })();
+  </script>
 </body>
 </html>

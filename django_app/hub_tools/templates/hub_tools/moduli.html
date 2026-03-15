@@ -27,6 +27,7 @@ input:checked+.slider{background:#1a6fc4}
 input:checked+.slider:before{transform:translateX(20px)}
 .status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px}
 .dot-on{background:#22a860} .dot-off{background:#94a3b8}
+.lbl-on{color:#22a860;font-weight:600} .lbl-off{color:#94a3b8;font-weight:600}
 .alert-info{background:#eff6ff;border-left:3px solid #1a6fc4;padding:10px 14px;border-radius:7px;font-size:.83rem;margin-bottom:20px}
 </style>
 
@@ -37,7 +38,7 @@ input:checked+.slider:before{transform:translateX(20px)}
       <div class="hub-title">🧩 Gestione Moduli</div>
       <div class="hub-subtitle">Attiva o disattiva i moduli visibili nell'interfaccia. Le tabelle rimangono sempre presenti nel database.</div>
     </div>
-    <a href="{% url 'admin_portale:dashboard' %}" style="font-size:.84rem;color:#64748b;text-decoration:none">← Torna all'admin</a>
+    <a href="{% url 'admin_portale:index' %}" style="font-size:.84rem;color:#64748b;text-decoration:none">← Torna all'admin</a>
   </div>
 
   <div class="alert-info">
@@ -60,7 +61,7 @@ input:checked+.slider:before{transform:translateX(20px)}
         {% else %}
           <div style="display:flex;align-items:center;gap:6px;font-size:.82rem">
             <span class="status-dot {% if m.enabled %}dot-on{% else %}dot-off{% endif %}" id="dot_{{ m.key }}"></span>
-            <span id="lbl_{{ m.key }}" style="color:{% if m.enabled %}#22a860{% else %}#94a3b8{% endif };font-weight:600">
+            <span id="lbl_{{ m.key }}" class="{% if m.enabled %}lbl-on{% else %}lbl-off{% endif %}">
               {% if m.enabled %}Attivo{% else %}Disattivato{% endif %}
             </span>
           </div>

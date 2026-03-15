@@ -91,8 +91,55 @@
 }
 .rn-footer-link:hover { background:#dbeafe; }
 
+/* ── Tool cards ── */
+.rn-tools {
+  display:grid; grid-template-columns:1fr 1fr; gap:16px;
+  width:100%; max-width:640px;
+}
+.rn-tool-card {
+  background:#fff; border:1px solid #e2e8f0; border-radius:14px;
+  padding:18px 20px; display:flex; flex-direction:column; gap:10px;
+}
+.rn-tool-title {
+  font-size:13px; font-weight:800; color:#1e3a5f;
+}
+.rn-tool-btn {
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  padding:9px 14px; border-radius:9px; font-size:12px; font-weight:700;
+  border:none; cursor:pointer; text-decoration:none; transition:background .15s;
+  background:#1e3a5f; color:#fff; width:100%; box-sizing:border-box;
+}
+.rn-tool-btn:hover { background:#163257; }
+.rn-tool-btn-outline {
+  background:#f1f5f9; color:#334155; border:1px solid #e2e8f0;
+}
+.rn-tool-btn-outline:hover { background:#e2e8f0; }
+/* ── Import preview panel ── */
+.rn-import-panel {
+  display:none; border-top:1px solid #e2e8f0; padding-top:12px;
+}
+.rn-import-panel.visible { display:block; }
+.rn-import-stats { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+.rn-stat { padding:3px 9px; border-radius:6px; font-size:11px; font-weight:700; }
+.rn-stat-new  { background:#d9f99d; color:#365314; }
+.rn-stat-skip { background:#fef08a; color:#713f12; }
+.rn-stat-err  { background:#fecaca; color:#991b1b; }
+.rn-preview-wrap { overflow-x:auto; max-height:220px; overflow-y:auto; margin-bottom:10px; border:1px solid #e2e8f0; border-radius:8px; }
+.rn-preview-table { width:100%; border-collapse:collapse; font-size:11px; }
+.rn-preview-table th { padding:5px 8px; background:#f8fafc; font-weight:700; color:#64748b; font-size:10px; text-transform:uppercase; border-bottom:1px solid #e2e8f0; white-space:nowrap; position:sticky; top:0; }
+.rn-preview-table td { padding:5px 8px; border-bottom:1px solid #f1f5f9; }
+.rn-preview-table tr.skip td { opacity:.5; }
+.rn-badge-tipo { display:inline-block; padding:2px 6px; border-radius:10px; font-size:10px; font-weight:800; }
+.rn-badge-tipo-C { background:#dbeafe; color:#1d4ed8; }
+.rn-badge-tipo-O { background:#fed7aa; color:#c2410c; }
+.rn-badge-tipo-M { background:#d9f99d; color:#365314; }
+.rn-badge-tipo-R { background:#fef08a; color:#713f12; }
+.rn-import-actions { display:flex; gap:8px; }
+.rn-import-actions .rn-tool-btn { flex:1; }
+
 @media(max-width:520px) {
   .rn-grid { grid-template-columns:1fr; }
+  .rn-tools { grid-template-columns:1fr; }
 }
 </style>
 {% endblock %}
@@ -139,10 +186,193 @@
 
   </div>
 
+  <!-- Tool cards: Import CSV + Export PDF -->
+  <div class="rn-tools">
+
+    <!-- Import CSV -->
+    <div class="rn-tool-card">
+      <div class="rn-tool-title">&#8659; Importa da CSV</div>
+      <input type="file" id="rn-csv-input" accept=".csv" style="display:none;">
+      <button type="button" class="rn-tool-btn rn-tool-btn-outline" id="rn-select-btn"
+              onclick="document.getElementById('rn-csv-input').click()">
+        &#128194; Seleziona file CSV
+      </button>
+      <div class="rn-import-panel" id="rn-import-panel">
+        <div class="rn-import-stats" id="rn-stats"></div>
+        <div class="rn-preview-wrap">
+          <table class="rn-preview-table">
+            <thead>
+              <tr>
+                <th>#</th><th>Data</th><th>ID Reg.</th><th>Tipo</th>
+                <th>Codice</th><th>Qtà</th><th>Stato</th>
+              </tr>
+            </thead>
+            <tbody id="rn-preview-body"></tbody>
+          </table>
+        </div>
+        <div id="rn-parse-errors" style="display:none;font-size:11px;color:#dc2626;margin-bottom:8px;"></div>
+        <div class="rn-import-actions" id="rn-import-actions" style="display:none;">
+          <button type="button" class="rn-tool-btn" id="rn-confirm-btn" onclick="rnConfirmImport()">
+            &#10003; Importa nel registro
+          </button>
+          <button type="button" class="rn-tool-btn rn-tool-btn-outline" style="width:auto;padding:9px 12px;"
+                  onclick="rnResetImport()" title="Annulla">&#10005;</button>
+        </div>
+        <div id="rn-import-result" style="display:none;font-size:12px;font-weight:700;margin-top:6px;"></div>
+      </div>
+    </div>
+
+    <!-- Export PDF -->
+    <div class="rn-tool-card">
+      <div class="rn-tool-title">&#128196; Esporta PDF</div>
+      <p style="font-size:11px;color:#64748b;margin:0;">
+        Scarica il registro completo in formato PDF (A4 orizzontale).
+      </p>
+      <a class="rn-tool-btn" href="{% url 'rentri_export_pdf' %}" target="_blank">
+        &#8659; Scarica PDF
+      </a>
+    </div>
+
+  </div>
+
   <div class="rn-footer-links">
     <a class="rn-footer-link" href="{% url 'rentri_elenco' %}">Elenco registrazioni</a>
     <a class="rn-footer-link" href="{% url 'dashboard_home' %}">&#8592; Dashboard</a>
   </div>
 
 </div>
+
+<script>
+(function () {
+  var _csvFile = null;
+
+  function getCsrf() {
+    var c = document.cookie.split(';').find(function(s){return s.trim().startsWith('csrftoken=');});
+    return c ? c.trim().split('=')[1] : '';
+  }
+
+  document.getElementById('rn-csv-input').addEventListener('change', function (e) {
+    var f = e.target.files[0];
+    if (!f) return;
+    _csvFile = f;
+    rnPreviewImport(f);
+  });
+
+  window.rnPreviewImport = function (file) {
+    var panel   = document.getElementById('rn-import-panel');
+    var body    = document.getElementById('rn-preview-body');
+    var stats   = document.getElementById('rn-stats');
+    var actions = document.getElementById('rn-import-actions');
+    var errors  = document.getElementById('rn-parse-errors');
+    var result  = document.getElementById('rn-import-result');
+
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:14px;color:#64748b;">Analisi in corso…</td></tr>';
+    stats.innerHTML = '';
+    errors.style.display = 'none';
+    actions.style.display = 'none';
+    result.style.display = 'none';
+    panel.classList.add('visible');
+
+    var fd = new FormData();
+    fd.append('csv_file', file);
+
+    fetch('{% url "rentri_import_preview" %}', {
+      method: 'POST',
+      body: fd,
+      headers: {'X-CSRFToken': getCsrf()}
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) {
+        body.innerHTML = '<tr><td colspan="7" style="color:#dc2626;padding:10px;">' + data.error + '</td></tr>';
+        return;
+      }
+
+      stats.innerHTML =
+        '<span class="rn-stat rn-stat-new">&#10003; ' + data.nuovi + ' nuovi</span>' +
+        '<span class="rn-stat rn-stat-skip">&#8677; ' + data.skip + ' già presenti</span>' +
+        (data.errors.length ? '<span class="rn-stat rn-stat-err">&#9888; ' + data.errors.length + ' errori riga</span>' : '');
+
+      var TLABEL = {C:'Carico', O:'Scarico orig.', M:'Scarico eff.', R:'Rettifica'};
+      var html = '';
+      data.rows.forEach(function (r) {
+        var cls = r.esiste ? 'skip' : '';
+        html +=
+          '<tr class="' + cls + '">' +
+          '<td style="color:#94a3b8;font-size:10px;">' + r.riga + '</td>' +
+          '<td style="white-space:nowrap;">' + r.data + '</td>' +
+          '<td style="font-family:monospace;font-size:10px;">' + r.id_reg + '</td>' +
+          '<td><span class="rn-badge-tipo rn-badge-tipo-' + r.tipo + '">' + (TLABEL[r.tipo]||r.tipo) + '</span></td>' +
+          '<td title="' + r.codice + '">' + r.codice.substring(0, 28) + (r.codice.length > 28 ? '…' : '') + '</td>' +
+          '<td>' + (r.quantita || '—') + '</td>' +
+          '<td>' + (r.esiste
+            ? '<span style="color:#94a3b8;">skip</span>'
+            : '<span style="color:#16a34a;font-weight:700;">nuovo</span>') + '</td>' +
+          '</tr>';
+      });
+      body.innerHTML = html || '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:12px;">Nessuna riga valida trovata</td></tr>';
+
+      if (data.errors.length) {
+        errors.style.display = 'block';
+        errors.innerHTML = '<strong>Errori di parsing (' + data.errors.length + '):</strong><br>' +
+          data.errors.slice(0, 10).map(function (e) { return 'Riga ' + e.riga + ': ' + e.msg; }).join('<br>') +
+          (data.errors.length > 10 ? '<br>…e altri ' + (data.errors.length - 10) + ' errori' : '');
+      }
+
+      if (data.nuovi > 0) {
+        actions.style.display = 'flex';
+      }
+    })
+    .catch(function () {
+      body.innerHTML = '<tr><td colspan="7" style="color:#dc2626;padding:10px;">Errore di rete</td></tr>';
+    });
+  };
+
+  window.rnConfirmImport = function () {
+    if (!_csvFile) return;
+    var btn    = document.getElementById('rn-confirm-btn');
+    var result = document.getElementById('rn-import-result');
+    var actions= document.getElementById('rn-import-actions');
+    btn.disabled = true;
+    btn.textContent = 'Importazione in corso…';
+
+    var fd = new FormData();
+    fd.append('csv_file', _csvFile);
+
+    fetch('{% url "rentri_import_confirm" %}', {
+      method: 'POST',
+      body: fd,
+      headers: {'X-CSRFToken': getCsrf()}
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      actions.style.display = 'none';
+      result.style.display = 'block';
+      if (data.ok) {
+        result.style.color = '#16a34a';
+        result.innerHTML =
+          '&#10003; Importati <strong>' + data.created + '</strong> record.' +
+          (data.skipped ? ' ' + data.skipped + ' già presenti ignorati.' : '') +
+          (data.errors.length ? ' <span style="color:#dc2626;">&#9888; ' + data.errors.length + ' errori.</span>' : '');
+      } else {
+        result.style.color = '#dc2626';
+        result.innerHTML = 'Errore: ' + data.error;
+        btn.disabled = false;
+        btn.textContent = '&#10003; Importa nel registro';
+        actions.style.display = 'flex';
+      }
+    })
+    .catch(function () {
+      btn.disabled = false;
+      btn.textContent = '&#10003; Importa nel registro';
+    });
+  };
+
+  window.rnResetImport = function () {
+    _csvFile = null;
+    document.getElementById('rn-csv-input').value = '';
+    document.getElementById('rn-import-panel').classList.remove('visible');
+  };
+})();
+</script>
 {% endblock %}

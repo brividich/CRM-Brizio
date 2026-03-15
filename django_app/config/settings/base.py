@@ -111,7 +111,7 @@ def ini_bool(section: str, option: str, default: bool = False) -> bool:
 SECRET_KEY = env("DJANGO_SECRET_KEY", "change-me-in-dev")
 DEBUG = env_bool("DJANGO_DEBUG", False)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", ["127.0.0.1", "localhost"])
-APP_VERSION = env("APP_VERSION", "0.7.0")
+APP_VERSION = env("APP_VERSION", "0.7.1")
 SETUP_WIZARD_REQUIRED = env_bool("SETUP_WIZARD_REQUIRED", True)
 
 # ── Branding istanza ──────────────────────────────────────────────────────────
@@ -219,6 +219,7 @@ INSTALLED_APPS = [
     "planimetria.apps.PlanimetriaConfig",
     "tickets.apps.TicketsConfig",
     "rentri.apps.RentriConfig",
+    "diario_preposto.apps.DiarioPrepostoConfig",
     "django_extensions",
 ]
 

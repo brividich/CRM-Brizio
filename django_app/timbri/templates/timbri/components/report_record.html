@@ -1,0 +1,32 @@
+<div class="rpt-record">
+  <div class="rpt-record-head">
+    <div>
+      <div class="rpt-record-title">{{ record.codice_timbro|default:"Senza codice" }}</div>
+      {% if record.qualifica %}<div class="rpt-record-sub">{{ record.qualifica }}</div>{% endif %}
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+      <span class="rpt-pill">{{ record.get_tipo_timbro_display }}</span>
+      {% if record.data_consegna %}<span class="rpt-pill">Consegna: {{ record.data_consegna|date:"d/m/Y" }}</span>{% endif %}
+    </div>
+  </div>
+  <div class="rpt-images">
+    {% for slot in record.image_slots %}
+      <div class="rpt-img-slot">
+        <div class="rpt-img-label">{{ slot.label }}</div>
+        {% if slot.image %}
+          <img src="{{ slot.image.image.url }}" alt="{{ slot.label }}">
+          {% if can_copy %}
+            <div class="rpt-img-actions">
+              <button class="rpt-btn rpt-btn-copy" data-url="{{ slot.image.image.url }}">Copia</button>
+            </div>
+          {% endif %}
+        {% else %}
+          <div class="rpt-img-empty">Nessuna immagine</div>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+  {% if record.note %}
+    <div style="margin-top:10px;font-size:12px;color:#475569;border-top:1px solid #f1f5f9;padding-top:8px;">{{ record.note|linebreaksbr }}</div>
+  {% endif %}
+</div>

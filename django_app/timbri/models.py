@@ -58,13 +58,22 @@ class RegistroTimbro(models.Model):
     TIPO_DIGITALE = "DIGITALE"
     TIPO_FISICO_E_DIGITALE = "FISICO_E_DIGITALE"
     TIPO_ALTRO = "ALTRO"
+    TIPO_SOLO_FIRMA = "SOLO_FIRMA"
+    TIPO_SOLO_SIGLA = "SOLO_SIGLA"
 
     TIPO_CHOICES = [
         (TIPO_FISICO, "Fisico"),
         (TIPO_DIGITALE, "Digitale"),
         (TIPO_FISICO_E_DIGITALE, "Fisico e digitale"),
         (TIPO_ALTRO, "Altro"),
+        (TIPO_SOLO_FIRMA, "Solo firma"),
+        (TIPO_SOLO_SIGLA, "Solo sigla"),
     ]
+
+    # Tipi che rappresentano un timbro "reale" (non solo firma/sigla)
+    TIPI_TIMBRO = {TIPO_FISICO, TIPO_DIGITALE, TIPO_FISICO_E_DIGITALE, TIPO_ALTRO}
+    TIPI_FIRMA = {TIPO_SOLO_FIRMA}
+    TIPI_SIGLA = {TIPO_SOLO_SIGLA}
 
     operatore = models.ForeignKey(OperatoreTimbri, on_delete=models.CASCADE, related_name="registri")
     codice_timbro = models.CharField(max_length=120, blank=True, default="", db_index=True)
