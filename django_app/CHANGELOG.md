@@ -1,5 +1,40 @@
 ﻿# Changelog
 
+## 0.7.2 — 2026-03-15
+
+### Diario Preposto, Report Timbri, Hub Database e miglioramenti
+
+#### Diario Preposto — nuova app
+
+- **[feature] App `diario_preposto`**: nuova app Django per la gestione delle segnalazioni del preposto. Include modelli, form, viste lista/dettaglio/form con ACL (`acl_bootstrap.py`) e migration iniziale.
+
+#### Timbri — report e nuovi componenti
+
+- **[feature] Report timbri** (`/timbri/report/`): nuova pagina di reportistica presenze con template dedicato `report.html`.
+- **[feature] Componenti `detail_record` e `report_record`**: nuovi componenti HTML riutilizzabili per la visualizzazione del dettaglio e del report di un singolo record di timbratura.
+- **[fix] Aggiornamenti** a `operatore_detail`, `record_form`, `index`, `views.py`, `urls.py` e `models.py` del modulo timbri.
+
+#### Hub Tools — sottovoce Database separata
+
+- **[ux] Subnav admin**: `Hub / Moduli` e `Hub / Database` ora compaiono come due voci separate nel subnav dell'Admin Portale, ciascuna con stato `active` indipendente.
+- **[fix] Aggiornamenti** a `database.html`, `moduli.html` e `views.py` di hub_tools.
+
+#### Tickets
+
+- **[fix/ux] Aggiornamenti** a dashboard, impostazioni, views e urls del modulo tickets.
+
+#### RENTRI
+
+- **[fix] Aggiornamenti** a views, urls e template `elenco.html` / `menu.html` del modulo RENTRI.
+
+#### Varie
+
+- **[fix/ux]** Aggiornamenti anagrafica (liste dipendenti e fornitori), assenze (gestione), core (base.html, topnav, theme.css, settings).
+- **[docs] Tools**: aggiunti manuale admin navigazione/permessi (HTML + MD) e riepilogo v0.7.1, mappa moduli HTML.
+- **[versioning]** Bump versione `0.7.1` → `0.7.2`.
+
+---
+
 ## 0.7.1 — 2026-03-14
 
 ### Setup Wizard v2 + app Hub Tools
