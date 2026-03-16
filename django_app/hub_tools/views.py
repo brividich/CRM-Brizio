@@ -97,20 +97,20 @@ def _read_env() -> dict:
 # ── Definizione moduli ────────────────────────────────────────────────────────
 MODULE_DEFS = [
     # core (sempre attivi)
-    {"key": "core",         "name": "Core & Auth",          "icon": "🔐", "desc": "Autenticazione, ACL, navigazione, sessioni", "core": True},
-    {"key": "dashboard",    "name": "Dashboard",             "icon": "📊", "desc": "Home operativa modulare con widget per ruolo", "core": True},
-    {"key": "admin_portale","name": "Admin Portale",         "icon": "🛠️", "desc": "Gestione utenti, ruoli, permessi, audit e configurazioni", "core": True},
+    {"key": "core",         "name": "Core & Auth",          "icon": "🔐", "desc": "Autenticazione, ACL, navigazione, sessioni", "core": True,  "home_url": "/"},
+    {"key": "dashboard",    "name": "Dashboard",             "icon": "📊", "desc": "Home operativa modulare con widget per ruolo", "core": True,  "home_url": "/"},
+    {"key": "admin_portale","name": "Admin Portale",         "icon": "🛠️", "desc": "Gestione utenti, ruoli, permessi, audit e configurazioni", "core": True,  "home_url": "/admin-portale/"},
     # opzionali
-    {"key": "assenze",      "name": "Gestione Assenze",      "icon": "📅", "desc": "Workflow assenze, ferie, permessi con integrazione SharePoint", "core": False},
-    {"key": "anomalie",     "name": "Segnalazioni Anomalie", "icon": "⚠️", "desc": "Raccolta, gestione e tracciamento segnalazioni operative", "core": False},
-    {"key": "assets",       "name": "Asset & Officina",      "icon": "🏭", "desc": "Inventario macchinari, work order, schede tecniche, verifiche periodiche", "core": False},
-    {"key": "tasks",        "name": "Progetti & Task",       "icon": "📋", "desc": "Gestione progetti con Gantt, task assegnabili e milestone", "core": False},
-    {"key": "tickets",      "name": "Ticket IT & Manut.",    "icon": "🎫", "desc": "Sistema ticket IT e manutenzione con priorità e deleghe", "core": False},
-    {"key": "notizie",      "name": "Bacheca Notizie",       "icon": "📰", "desc": "Comunicazioni interne, notizie obbligatorie, avvisi", "core": False},
-    {"key": "anagrafica",   "name": "Anagrafica",            "icon": "👥", "desc": "Registro centrale dipendenti, fornitori, reparti", "core": False},
-    {"key": "automazioni",  "name": "Automazioni",           "icon": "🤖", "desc": "Designer visuale regole, trigger, azioni email e integrazioni", "core": False},
-    {"key": "timbri",       "name": "Timbri & Presenze",     "icon": "🕐", "desc": "Timbrature digitali con integrazione SharePoint", "core": False},
-    {"key": "planimetria",  "name": "Planimetria",           "icon": "🗺️", "desc": "Mappe interattive stabilimento e posizionamento asset", "core": False},
+    {"key": "assenze",      "name": "Gestione Assenze",      "icon": "📅", "desc": "Workflow assenze, ferie, permessi con integrazione SharePoint", "core": False, "home_url": "/assenze/"},
+    {"key": "anomalie",     "name": "Segnalazioni Anomalie", "icon": "⚠️", "desc": "Raccolta, gestione e tracciamento segnalazioni operative", "core": False, "home_url": "/gestione-anomalie"},
+    {"key": "assets",       "name": "Asset & Officina",      "icon": "🏭", "desc": "Inventario macchinari, work order, schede tecniche, verifiche periodiche", "core": False, "home_url": "/assets/"},
+    {"key": "tasks",        "name": "Progetti & Task",       "icon": "📋", "desc": "Gestione progetti con Gantt, task assegnabili e milestone", "core": False, "home_url": "/tasks/"},
+    {"key": "tickets",      "name": "Ticket IT & Manut.",    "icon": "🎫", "desc": "Sistema ticket IT e manutenzione con priorità e deleghe", "core": False, "home_url": "/tickets/"},
+    {"key": "notizie",      "name": "Bacheca Notizie",       "icon": "📰", "desc": "Comunicazioni interne, notizie obbligatorie, avvisi", "core": False, "home_url": "/notizie/"},
+    {"key": "anagrafica",   "name": "Anagrafica",            "icon": "👥", "desc": "Registro centrale dipendenti, fornitori, reparti", "core": False, "home_url": "/anagrafica/"},
+    {"key": "automazioni",  "name": "Automazioni",           "icon": "🤖", "desc": "Designer visuale regole, trigger, azioni email e integrazioni", "core": False, "home_url": "/automazioni/"},
+    {"key": "timbri",       "name": "Timbri & Presenze",     "icon": "🕐", "desc": "Timbrature digitali con integrazione SharePoint", "core": False, "home_url": "/timbri/"},
+    {"key": "planimetria",  "name": "Planimetria",           "icon": "🗺️", "desc": "Mappe interattive stabilimento e posizionamento asset", "core": False, "home_url": "/planimetria/"},
 ]
 
 OPTIONAL_KEYS = [m["key"] for m in MODULE_DEFS if not m["core"]]
@@ -137,6 +137,25 @@ def _set_module_state(key: str, enabled: bool) -> None:
     )
 
 
+def _get_login_redirect_target() -> str:
+    """Restituisce la key del modulo impostato come redirect post-login, o '' se non configurato."""
+    try:
+        from core.models import SiteConfig
+        val = SiteConfig.objects.filter(key="module_login_redirect_target").values_list("value", flat=True).first()
+        return val or ""
+    except Exception:
+        return ""
+
+
+def _set_login_redirect_target(key: str) -> None:
+    """Imposta (o rimuove se key='') il redirect post-login verso un modulo."""
+    from core.models import SiteConfig
+    SiteConfig.objects.update_or_create(
+        key="module_login_redirect_target",
+        defaults={"value": key},
+    )
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Module Manager
 # ══════════════════════════════════════════════════════════════════════════════
@@ -144,13 +163,18 @@ def _set_module_state(key: str, enabled: bool) -> None:
 @_staff_required
 def moduli(request):
     states = _get_module_states()
+    redirect_target = _get_login_redirect_target()
     modules_ctx = []
     for m in MODULE_DEFS:
         modules_ctx.append({
             **m,
             "enabled": True if m["core"] else states.get(m["key"], True),
+            "login_redirect": (not m["core"]) and (m["key"] == redirect_target),
         })
-    return render(request, "hub_tools/moduli.html", {"modules": modules_ctx})
+    return render(request, "hub_tools/moduli.html", {
+        "modules": modules_ctx,
+        "login_redirect_target": redirect_target,
+    })
 
 
 @_staff_required
@@ -171,6 +195,31 @@ def api_toggle_module(request):
         _set_module_state(key, enabled)
         action = "attivato" if enabled else "disattivato"
         return JsonResponse({"ok": True, "message": f"Modulo '{key}' {action}."})
+    except Exception as exc:
+        return JsonResponse({"ok": False, "error": str(exc)})
+
+
+@_staff_required
+@require_POST
+def api_set_login_redirect(request):
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({"ok": False, "error": "JSON non valido"})
+
+    key = (data.get("key") or "").strip()
+
+    # key vuota = disabilita redirect
+    if key and key not in OPTIONAL_KEYS:
+        return JsonResponse({"ok": False, "error": f"Modulo '{key}' non trovato o non modificabile"})
+
+    try:
+        _set_login_redirect_target(key)
+        if key:
+            module = next((m for m in MODULE_DEFS if m["key"] == key), None)
+            url = module["home_url"] if module else f"/{key}/"
+            return JsonResponse({"ok": True, "target": key, "url": url, "message": f"Redirect post-login impostato su '{key}'."})
+        return JsonResponse({"ok": True, "target": "", "url": "", "message": "Redirect post-login disabilitato."})
     except Exception as exc:
         return JsonResponse({"ok": False, "error": str(exc)})
 
@@ -548,7 +597,7 @@ def api_reconfigure(request):
 # ── BrizioHUB — Configurazione aggiornata da Hub Setup Wizard ─────────────────
 INSTANCE_NAME={instance_name}
 DJANGO_SECRET_KEY={secret_key}
-APP_VERSION={s('app_version', current_env.get('APP_VERSION', '0.7.2'))}
+APP_VERSION={s('app_version', current_env.get('APP_VERSION', '0.7.3'))}
 DJANGO_DEBUG={current_env.get('DJANGO_DEBUG', '0')}
 DJANGO_ALLOWED_HOSTS={current_env.get('DJANGO_ALLOWED_HOSTS', '*')}
 SETUP_COMPLETED=1

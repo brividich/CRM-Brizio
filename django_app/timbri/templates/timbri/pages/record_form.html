@@ -46,19 +46,19 @@
     <div class="tim-images">
       <div class="tim-image">
         <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:#64748b;letter-spacing:.05em;margin-bottom:6px;">Timbro</div>
-        {% if record and record.image_map.TIMBRO %}<img src="{{ record.image_map.TIMBRO.image.url }}" alt="Timbro">{% else %}<div style="height:120px;display:flex;align-items:center;justify-content:center;color:#94a3b8;">Nessuna immagine</div>{% endif %}
+        {% if record and record.image_map.TIMBRO %}<img src="{% url 'timbri:serve_image' record.image_map.TIMBRO.id %}" alt="Timbro">{% else %}<div style="height:120px;display:flex;align-items:center;justify-content:center;color:#94a3b8;">Nessuna immagine</div>{% endif %}
         {% if record and record.image_map.TIMBRO %}<div class="tim-image-meta">File attuale: {{ record.image_map.TIMBRO.original_filename|default:"PNG" }}</div>{% endif %}
         <div class="tim-field"><label for="{{ form.image_timbro.id_for_label }}">Timbro</label>{{ form.image_timbro }}</div>
       </div>
       <div class="tim-image">
         <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:#64748b;letter-spacing:.05em;margin-bottom:6px;">Firma</div>
-        {% if record and record.image_map.FIRMA %}<img src="{{ record.image_map.FIRMA.image.url }}" alt="Firma">{% else %}<div style="height:120px;display:flex;align-items:center;justify-content:center;color:#94a3b8;">Nessuna immagine</div>{% endif %}
+        {% if record and record.image_map.FIRMA %}<img src="{% url 'timbri:serve_image' record.image_map.FIRMA.id %}" alt="Firma">{% else %}<div style="height:120px;display:flex;align-items:center;justify-content:center;color:#94a3b8;">Nessuna immagine</div>{% endif %}
         {% if record and record.image_map.FIRMA %}<div class="tim-image-meta">File attuale: {{ record.image_map.FIRMA.original_filename|default:"PNG" }}</div>{% endif %}
         <div class="tim-field"><label for="{{ form.image_firma.id_for_label }}">Firma</label>{{ form.image_firma }}</div>
       </div>
       <div class="tim-image">
         <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:#64748b;letter-spacing:.05em;margin-bottom:6px;">Sigla</div>
-        {% if record and record.image_map.SIGLA %}<img src="{{ record.image_map.SIGLA.image.url }}" alt="Sigla">{% else %}<div style="height:120px;display:flex;align-items:center;justify-content:center;color:#94a3b8;">Nessuna immagine</div>{% endif %}
+        {% if record and record.image_map.SIGLA %}<img src="{% url 'timbri:serve_image' record.image_map.SIGLA.id %}" alt="Sigla">{% else %}<div style="height:120px;display:flex;align-items:center;justify-content:center;color:#94a3b8;">Nessuna immagine</div>{% endif %}
         {% if record and record.image_map.SIGLA %}<div class="tim-image-meta">File attuale: {{ record.image_map.SIGLA.original_filename|default:"PNG" }}</div>{% endif %}
         <div class="tim-field"><label for="{{ form.image_sigla.id_for_label }}">Sigla</label>{{ form.image_sigla }}</div>
       </div>

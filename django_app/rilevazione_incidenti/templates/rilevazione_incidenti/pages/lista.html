@@ -1,0 +1,366 @@
+{% extends "core/base.html" %}
+
+{% block title %}Rilevazioni Sicurezza | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#sic-root { display:flex; flex-direction:column; gap:20px; }
+
+.sic-hero {
+  background:linear-gradient(135deg,#064e3b 0%,#065f46 60%,#047857 100%);
+  border-radius:16px; padding:28px 32px; color:#fff;
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  flex-wrap:wrap;
+}
+.sic-hero-title { font-size:24px; font-weight:900; letter-spacing:-.02em; }
+.sic-hero-sub { font-size:13px; opacity:.7; margin-top:3px; }
+.sic-hero-actions { display:flex; gap:10px; flex-wrap:wrap; }
+.sic-btn-primary {
+  background:#fff; color:#065f46; border:none; border-radius:10px;
+  padding:10px 20px; font-size:13px; font-weight:700; cursor:pointer;
+  text-decoration:none; display:inline-flex; align-items:center; gap:6px;
+  transition:all .15s;
+}
+.sic-btn-primary:hover { background:#d1fae5; }
+.sic-btn-outline {
+  background:transparent; color:#fff; border:2px solid rgba(255,255,255,.5);
+  border-radius:10px; padding:8px 18px; font-size:13px; font-weight:700;
+  cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:6px;
+  transition:all .15s;
+}
+.sic-btn-outline:hover { border-color:#fff; background:rgba(255,255,255,.1); }
+
+/* KPI row */
+.sic-kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+@media(max-width:900px){ .sic-kpi-row { grid-template-columns:repeat(2,1fr); } }
+@media(max-width:480px){ .sic-kpi-row { grid-template-columns:1fr 1fr; } }
+.sic-kpi-card {
+  background:#fff; border:1px solid #e2e8f0; border-radius:14px;
+  padding:18px 20px; display:flex; flex-direction:column; gap:4px;
+  transition:box-shadow .15s;
+}
+.sic-kpi-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.07); }
+.sic-kpi-label { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; }
+.sic-kpi-value { font-size:28px; font-weight:900; line-height:1; color:#0f172a; }
+.sic-kpi-sub { font-size:11px; color:#94a3b8; margin-top:2px; }
+.sic-kpi-bar { height:4px; border-radius:2px; margin-top:10px; background:#f1f5f9; overflow:hidden; }
+.sic-kpi-bar-fill { height:100%; border-radius:2px; }
+.kpi-aperti .sic-kpi-value { color:#a16207; }
+.kpi-aperti .sic-kpi-bar-fill { background:#eab308; }
+.kpi-approvati .sic-kpi-value { color:#15803d; }
+.kpi-approvati .sic-kpi-bar-fill { background:#22c55e; }
+.kpi-chiusi .sic-kpi-value { color:#064e3b; }
+.kpi-chiusi .sic-kpi-bar-fill { background:#15803d; }
+
+/* Tipo mini cards */
+.sic-tipo-row { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+@media(max-width:900px){ .sic-tipo-row { grid-template-columns:repeat(2,1fr); } }
+.sic-tipo-card {
+  border-radius:12px; padding:12px 16px;
+  display:flex; align-items:center; gap:10px;
+}
+.sic-tipo-card-uc { background:#dcfce7; }
+.sic-tipo-card-ua { background:#e0f2fe; }
+.sic-tipo-card-nm { background:#fff7ed; }
+.sic-tipo-card-ac { background:#fee2e2; }
+.sic-tipo-card-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.sic-tipo-card-uc .sic-tipo-card-dot { background:#16a34a; }
+.sic-tipo-card-ua .sic-tipo-card-dot { background:#0369a1; }
+.sic-tipo-card-nm .sic-tipo-card-dot { background:#ea580c; }
+.sic-tipo-card-ac .sic-tipo-card-dot { background:#dc2626; }
+.sic-tipo-card-label { font-size:11px; font-weight:700; flex:1; }
+.sic-tipo-card-uc .sic-tipo-card-label { color:#166534; }
+.sic-tipo-card-ua .sic-tipo-card-label { color:#0c4a6e; }
+.sic-tipo-card-nm .sic-tipo-card-label { color:#9a3412; }
+.sic-tipo-card-ac .sic-tipo-card-label { color:#991b1b; }
+.sic-tipo-card-num { font-size:18px; font-weight:900; }
+.sic-tipo-card-uc .sic-tipo-card-num { color:#15803d; }
+.sic-tipo-card-ua .sic-tipo-card-num { color:#0369a1; }
+.sic-tipo-card-nm .sic-tipo-card-num { color:#c2410c; }
+.sic-tipo-card-ac .sic-tipo-card-num { color:#991b1b; }
+
+.sic-filters {
+  background:#fff; border:1px solid #e2e8f0; border-radius:14px;
+  padding:16px 20px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;
+}
+.sic-filter-input {
+  padding:8px 12px; border:1px solid #cbd5e1; border-radius:8px;
+  font-size:13px; outline:none; flex:1; min-width:180px;
+}
+.sic-filter-input:focus { border-color:#065f46; box-shadow:0 0 0 3px rgba(6,95,70,.08); }
+.sic-filter-select {
+  padding:8px 12px; border:1px solid #cbd5e1; border-radius:8px;
+  font-size:13px; outline:none; background:#fff; cursor:pointer;
+}
+.sic-filter-btn {
+  padding:8px 16px; background:#065f46; color:#fff; border:none;
+  border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;
+}
+.sic-filter-reset {
+  padding:8px 14px; background:#f1f5f9; color:#475569; border:none;
+  border-radius:8px; font-size:13px; cursor:pointer; text-decoration:none;
+}
+
+.sic-table-card {
+  background:#fff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden;
+}
+.sic-table-header {
+  padding:14px 20px; border-bottom:1px solid #f1f5f9;
+  display:flex; align-items:center; justify-content:space-between;
+  font-size:13px; font-weight:700; color:#374151;
+}
+.sic-table { width:100%; border-collapse:collapse; }
+.sic-table th {
+  background:#f8fafc; padding:11px 14px; text-align:left; font-size:12px;
+  font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em;
+  border-bottom:1px solid #e2e8f0;
+}
+.sic-table td {
+  padding:12px 14px; font-size:13px; border-bottom:1px solid #f1f5f9;
+  vertical-align:middle;
+}
+.sic-table tr:last-child td { border-bottom:none; }
+.sic-table tr:hover td { background:#f8fafc; }
+.sic-table a { color:inherit; text-decoration:none; }
+
+.sic-tipo-badge {
+  display:inline-block; padding:3px 10px; border-radius:20px;
+  font-size:11px; font-weight:700; white-space:nowrap;
+}
+.sic-tipo-unsafe-condition { background:#dcfce7; color:#166534; }
+.sic-tipo-unsafe-act { background:#e0f2fe; color:#0c4a6e; }
+.sic-tipo-near-miss { background:#fff7ed; color:#9a3412; }
+.sic-tipo-accident { background:#fee2e2; color:#991b1b; }
+
+.sic-stato-dot {
+  display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px;
+}
+.sic-stato-aperto { background:#eab308; }
+.sic-stato-approvato { background:#22c55e; }
+.sic-stato-chiuso { background:#15803d; }
+.sic-stato-label { font-size:12px; font-weight:600; }
+.sic-stato-aperto-label { color:#a16207; }
+.sic-stato-approvato-label { color:#15803d; }
+.sic-stato-chiuso-label { color:#064e3b; }
+
+.sic-empty { text-align:center; padding:48px 20px; color:#94a3b8; }
+.sic-empty-icon { font-size:40px; margin-bottom:12px; }
+.sic-error {
+  background:#fef2f2; border:1px solid #fecaca; border-radius:12px;
+  padding:14px 18px; color:#991b1b; font-size:13px;
+}
+.sic-count-badge {
+  display:inline-block; background:#f1f5f9; color:#64748b;
+  padding:2px 8px; border-radius:20px; font-size:12px; font-weight:600;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="sic-root">
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 16px;color:#166534;font-size:13px;">
+      {{ msg }}
+    </div>
+    {% endfor %}
+  {% endif %}
+
+  <!-- Hero -->
+  <div class="sic-hero">
+    <div class="sic-hero-left">
+      <div class="sic-hero-title">&#128737; Rilevazioni Sicurezza</div>
+      <div class="sic-hero-sub">UnSafe Condition &bull; UnSafe Act &bull; Near Miss &bull; Accident</div>
+    </div>
+    <div class="sic-hero-actions">
+      {% if can_rspp %}
+      <a href="{% url 'rilevazione_incidenti:export_csv' %}" class="sic-btn-outline">&#128196; Export CSV</a>
+      {% endif %}
+      <a href="{% url 'rilevazione_incidenti:statistiche' %}" class="sic-btn-outline">&#128200; Statistiche</a>
+      {% if can_create %}
+      <a href="{% url 'rilevazione_incidenti:nuovo' %}" class="sic-btn-primary">+ Nuova rilevazione</a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if error %}
+  <div class="sic-error">&#9888; {{ error }}</div>
+  {% endif %}
+
+  <!-- KPI principali -->
+  {% if stats %}
+  <div class="sic-kpi-row">
+    <div class="sic-kpi-card">
+      <div class="sic-kpi-label">Totale rilevazioni</div>
+      <div class="sic-kpi-value">{{ stats.totale }}</div>
+      <div class="sic-kpi-sub">tutte le tipologie</div>
+      <div class="sic-kpi-bar"><div class="sic-kpi-bar-fill" style="width:100%;background:#065f46;"></div></div>
+    </div>
+    <div class="sic-kpi-card kpi-aperti">
+      <div class="sic-kpi-label">Aperti</div>
+      <div class="sic-kpi-value">{{ stats.aperti }}</div>
+      <div class="sic-kpi-sub">in attesa preposto</div>
+      <div class="sic-kpi-bar"><div class="sic-kpi-bar-fill" style="width:{% if stats.totale %}{% widthratio stats.aperti stats.totale 100 %}{% else %}0{% endif %}%;"></div></div>
+    </div>
+    <div class="sic-kpi-card kpi-approvati">
+      <div class="sic-kpi-label">Approvati RLS</div>
+      <div class="sic-kpi-value">{{ stats.approvati }}</div>
+      <div class="sic-kpi-sub">in attesa RSPP</div>
+      <div class="sic-kpi-bar"><div class="sic-kpi-bar-fill" style="width:{% if stats.totale %}{% widthratio stats.approvati stats.totale 100 %}{% else %}0{% endif %}%;"></div></div>
+    </div>
+    <div class="sic-kpi-card kpi-chiusi">
+      <div class="sic-kpi-label">Chiusi RSPP</div>
+      <div class="sic-kpi-value">{{ stats.chiusi }}</div>
+      <div class="sic-kpi-sub">completati</div>
+      <div class="sic-kpi-bar"><div class="sic-kpi-bar-fill" style="width:{% if stats.totale %}{% widthratio stats.chiusi stats.totale 100 %}{% else %}0{% endif %}%;"></div></div>
+    </div>
+  </div>
+
+  <!-- KPI tipologie -->
+  <div class="sic-tipo-row">
+    <div class="sic-tipo-card sic-tipo-card-uc">
+      <div class="sic-tipo-card-dot"></div>
+      <div class="sic-tipo-card-label">Unsafe Condition</div>
+      <div class="sic-tipo-card-num">{{ stats.unsafe_condition }}</div>
+    </div>
+    <div class="sic-tipo-card sic-tipo-card-ua">
+      <div class="sic-tipo-card-dot"></div>
+      <div class="sic-tipo-card-label">Unsafe Act</div>
+      <div class="sic-tipo-card-num">{{ stats.unsafe_act }}</div>
+    </div>
+    <div class="sic-tipo-card sic-tipo-card-nm">
+      <div class="sic-tipo-card-dot"></div>
+      <div class="sic-tipo-card-label">Near Miss</div>
+      <div class="sic-tipo-card-num">{{ stats.near_miss }}</div>
+    </div>
+    <div class="sic-tipo-card sic-tipo-card-ac">
+      <div class="sic-tipo-card-dot"></div>
+      <div class="sic-tipo-card-label">Accident</div>
+      <div class="sic-tipo-card-num">{{ stats.accident }}</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Filtri -->
+  <form method="get" class="sic-filters">
+    <input type="text" name="q" value="{{ search }}" placeholder="Cerca per nominativo, reparto..."
+           class="sic-filter-input">
+    <select name="tipo" class="sic-filter-select">
+      <option value="">Tutte le tipologie</option>
+      {% for t in tipologie %}
+      <option value="{{ t }}"{% if tipo_filter == t %} selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+    <select name="stato" class="sic-filter-select">
+      <option value="">Tutti gli stati</option>
+      <option value="APERTO"{% if stato_filter == "APERTO" %} selected{% endif %}>Aperto Preposto</option>
+      <option value="APPROVATO"{% if stato_filter == "APPROVATO" %} selected{% endif %}>Approvato RLS</option>
+      <option value="CHIUSO"{% if stato_filter == "CHIUSO" %} selected{% endif %}>Chiuso RSPP/ASPP</option>
+    </select>
+    {% if all_reparti %}
+    <select name="reparto" class="sic-filter-select">
+      <option value="">Tutti i reparti</option>
+      {% for r in all_reparti %}
+      <option value="{{ r }}"{% if reparto_filter == r %} selected{% endif %}>{{ r }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+    <button type="submit" class="sic-filter-btn">Filtra</button>
+    <a href="{% url 'rilevazione_incidenti:lista' %}" class="sic-filter-reset">Reset</a>
+  </form>
+
+  <!-- Tabella -->
+  <div class="sic-table-card">
+    <div class="sic-table-header">
+      <span>
+        Rilevazioni
+        <span class="sic-count-badge">{{ items|length }}</span>
+        {% if search or tipo_filter or stato_filter or reparto_filter %}
+        <span style="font-size:12px;font-weight:400;color:#94a3b8;margin-left:6px;">— filtrato</span>
+        {% endif %}
+      </span>
+    </div>
+    {% if items %}
+    <table class="sic-table">
+      <thead>
+        <tr>
+          <th>Stato</th>
+          <th>Tipologia</th>
+          <th>Nominativo</th>
+          <th>Reparto</th>
+          <th>Data rilevazione</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in items %}
+        <tr>
+          <td>
+            {% if f.stato == "CHIUSO" %}
+              <span class="sic-stato-dot sic-stato-chiuso"></span>
+              <span class="sic-stato-label sic-stato-chiuso-label">Chiuso RSPP</span>
+            {% elif f.stato == "APPROVATO" %}
+              <span class="sic-stato-dot sic-stato-approvato"></span>
+              <span class="sic-stato-label sic-stato-approvato-label">Approvato RLS</span>
+            {% else %}
+              <span class="sic-stato-dot sic-stato-aperto"></span>
+              <span class="sic-stato-label sic-stato-aperto-label">Aperto</span>
+            {% endif %}
+          </td>
+          <td>
+            {% with t=f.Tipologia_scheda|lower|default:"" %}
+            {% if "unsafe condition" in t %}
+              <span class="sic-tipo-badge sic-tipo-unsafe-condition">Unsafe Condition</span>
+            {% elif "unsafe act" in t %}
+              <span class="sic-tipo-badge sic-tipo-unsafe-act">Unsafe Act</span>
+            {% elif "near miss" in t %}
+              <span class="sic-tipo-badge sic-tipo-near-miss">Near Miss</span>
+            {% elif "accident" in t %}
+              <span class="sic-tipo-badge sic-tipo-accident">Accident</span>
+            {% else %}
+              <span class="sic-tipo-badge" style="background:#f1f5f9;color:#475569;">{{ f.Tipologia_scheda|default:"—" }}</span>
+            {% endif %}
+            {% endwith %}
+          </td>
+          <td style="font-weight:600;">{{ f.Nominativo|default:"—" }}</td>
+          <td style="color:#64748b;">{{ f.Reparto|default:f.Reparto_txt|default:"—" }}</td>
+          <td style="white-space:nowrap;color:#64748b;">
+            {% if f.Data_e_ora_rilevazione %}
+              {{ f.Data_e_ora_rilevazione|slice:":10" }}
+            {% else %}—{% endif %}
+          </td>
+          <td style="text-align:right;">
+            <a href="{% url 'rilevazione_incidenti:dettaglio' sp_id=f.sp_id %}"
+               style="padding:6px 14px;background:#065f46;color:#fff;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;">
+              Apri
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="sic-empty">
+      <div class="sic-empty-icon">&#128737;</div>
+      <div style="font-size:15px;font-weight:700;color:#475569;">Nessuna rilevazione trovata</div>
+      <div style="margin-top:6px;font-size:13px;">
+        {% if search or tipo_filter or stato_filter or reparto_filter %}
+          Prova a modificare i filtri di ricerca.
+        {% else %}
+          {% if can_create %}<a href="{% url 'rilevazione_incidenti:nuovo' %}" style="color:#065f46;font-weight:700;">Crea la prima rilevazione</a>{% endif %}
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Legenda -->
+  <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:12px;color:#64748b;padding:0 4px;">
+    <span><span class="sic-stato-dot sic-stato-aperto"></span>Aperto Preposto</span>
+    <span><span class="sic-stato-dot sic-stato-approvato"></span>Approvato RLS</span>
+    <span><span class="sic-stato-dot sic-stato-chiuso"></span>Chiuso RSPP/ASPP</span>
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,327 @@
+{% extends "core/base.html" %}
+
+{% block title %}Statistiche Sicurezza | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+#sic-root { display:flex; flex-direction:column; gap:24px; }
+
+.sic-hero {
+  background:linear-gradient(135deg,#064e3b 0%,#065f46 60%,#047857 100%);
+  border-radius:16px; padding:28px 32px; color:#fff;
+  display:flex; align-items:flex-start; justify-content:space-between; gap:20px; flex-wrap:wrap;
+}
+.sic-breadcrumb { font-size:12px; opacity:.6; margin-bottom:6px; }
+.sic-breadcrumb a { color:#fff; text-decoration:none; }
+.sic-hero-title { font-size:24px; font-weight:900; }
+.sic-hero-sub { font-size:13px; opacity:.7; margin-top:3px; }
+.sic-hero-actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:8px; }
+.sic-btn-outline {
+  background:transparent; color:#fff; border:2px solid rgba(255,255,255,.45);
+  border-radius:10px; padding:8px 16px; font-size:13px; font-weight:700;
+  cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:6px;
+}
+.sic-btn-outline:hover { border-color:#fff; background:rgba(255,255,255,.1); }
+.sic-hero-kpi { display:flex; gap:24px; flex-wrap:wrap; align-items:center; }
+.sic-hero-kpi-item { text-align:center; }
+.sic-hero-kpi-num { font-size:38px; font-weight:900; line-height:1; }
+.sic-hero-kpi-label { font-size:11px; opacity:.65; text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
+.sic-hero-kpi-sep { width:1px; height:40px; background:rgba(255,255,255,.2); }
+
+.sic-kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+@media(max-width:900px){.sic-kpi-grid{grid-template-columns:repeat(2,1fr);}}
+
+.sic-kpi-card {
+  background:#fff; border:1px solid #e2e8f0; border-radius:14px;
+  padding:20px 22px; border-left:4px solid #e2e8f0;
+}
+.sic-kpi-uc{border-color:#16a34a;} .sic-kpi-ua{border-color:#0369a1;}
+.sic-kpi-nm{border-color:#ea580c;} .sic-kpi-ac{border-color:#dc2626;}
+.sic-kpi-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.sic-kpi-icon { font-size:22px; }
+.sic-kpi-pct { font-size:11px; font-weight:700; color:#94a3b8; }
+.sic-kpi-num { font-size:32px; font-weight:900; color:#0f172a; line-height:1; }
+.sic-kpi-lbl { font-size:12px; color:#64748b; font-weight:600; margin-top:4px; }
+.sic-kpi-bar-bg { background:#f1f5f9; border-radius:4px; height:4px; margin-top:8px; }
+.sic-kpi-bar-fg { height:4px; border-radius:4px; }
+.sic-kpi-uc .sic-kpi-bar-fg{background:#16a34a;} .sic-kpi-ua .sic-kpi-bar-fg{background:#0369a1;}
+.sic-kpi-nm .sic-kpi-bar-fg{background:#ea580c;} .sic-kpi-ac .sic-kpi-bar-fg{background:#dc2626;}
+
+.sic-stato-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+@media(max-width:700px){.sic-stato-grid{grid-template-columns:1fr;}}
+.sic-stato-card {
+  background:#fff; border:1px solid #e2e8f0; border-radius:14px;
+  padding:18px 22px; display:flex; align-items:center; gap:14px;
+}
+.sic-stato-dot-big { width:14px; height:14px; border-radius:50%; flex-shrink:0; }
+.sic-dot-aperto{background:#eab308;} .sic-dot-approvato{background:#22c55e;} .sic-dot-chiuso{background:#15803d;}
+.sic-stato-num { font-size:28px; font-weight:900; color:#0f172a; line-height:1; }
+.sic-stato-lbl { font-size:12px; color:#64748b; font-weight:600; margin-top:2px; }
+.sic-stato-pct { font-size:11px; color:#94a3b8; margin-top:1px; }
+
+.sic-charts-row { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+@media(max-width:900px){.sic-charts-row{grid-template-columns:1fr;}}
+.sic-charts-row-wide { display:grid; grid-template-columns:2fr 1fr; gap:20px; }
+@media(max-width:900px){.sic-charts-row-wide{grid-template-columns:1fr;}}
+
+.sic-chart-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden; }
+.sic-chart-header {
+  background:#f8fafc; border-bottom:1px solid #e2e8f0;
+  padding:14px 20px; font-size:13px; font-weight:700; color:#374151;
+  display:flex; align-items:center; gap:8px;
+}
+.sic-chart-body { padding:20px; }
+.sic-chart-body canvas { width:100% !important; }
+
+.sic-causa-list { display:flex; flex-direction:column; gap:10px; }
+.sic-causa-item { display:flex; align-items:center; gap:10px; }
+.sic-causa-name { font-size:12px; color:#374151; font-weight:600; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sic-causa-bar-bg { flex:2; background:#f1f5f9; border-radius:4px; height:7px; }
+.sic-causa-bar-fg { height:7px; border-radius:4px; background:linear-gradient(90deg,#0369a1,#7dd3fc); }
+.sic-causa-count { font-size:11px; font-weight:700; color:#0369a1; min-width:28px; text-align:right; }
+
+.sic-reparto-list { display:flex; flex-direction:column; gap:10px; }
+.sic-reparto-item { display:flex; flex-direction:column; gap:4px; }
+.sic-reparto-row { display:flex; justify-content:space-between; align-items:center; }
+.sic-reparto-name { font-size:13px; font-weight:600; color:#374151; }
+.sic-reparto-count { font-size:12px; font-weight:700; color:#065f46; }
+.sic-reparto-bar-bg { background:#f1f5f9; border-radius:4px; height:6px; }
+.sic-reparto-bar-fg { height:6px; border-radius:4px; background:linear-gradient(90deg,#065f46,#34d399); }
+
+.sic-error { background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:14px 18px; color:#991b1b; font-size:13px; }
+.sic-empty-chart { display:flex; align-items:center; justify-content:center; height:160px; color:#94a3b8; font-size:13px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="sic-root">
+
+  {% for msg in messages %}
+  <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 16px;color:#166534;font-size:13px;">{{ msg }}</div>
+  {% endfor %}
+
+  {% if error %}<div class="sic-error">&#9888; {{ error }}</div>{% endif %}
+
+  <!-- Hero -->
+  <div class="sic-hero">
+    <div class="sic-hero-left">
+      <div class="sic-breadcrumb"><a href="{% url 'rilevazione_incidenti:lista' %}">&#8592; Rilevazioni Sicurezza</a></div>
+      <div class="sic-hero-title">&#128200; Statistiche Sicurezza</div>
+      <div class="sic-hero-sub">Analisi eventi, tendenze e distribuzione per tipologia e reparto</div>
+      <div class="sic-hero-actions">
+        <a href="{% url 'rilevazione_incidenti:lista' %}" class="sic-btn-outline">&#128203; Lista completa</a>
+        {% if anni_attivi %}
+        <span style="font-size:12px;opacity:.7;">{{ anni_attivi }} ann{{ anni_attivi|pluralize:"o,i" }} di storico</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="sic-hero-kpi">
+      <div class="sic-hero-kpi-item">
+        <div class="sic-hero-kpi-num">{{ totale }}</div>
+        <div class="sic-hero-kpi-label">Totale</div>
+      </div>
+      <div class="sic-hero-kpi-sep"></div>
+      <div class="sic-hero-kpi-item">
+        <div class="sic-hero-kpi-num">{{ n_aperto }}</div>
+        <div class="sic-hero-kpi-label">Aperti</div>
+      </div>
+      <div class="sic-hero-kpi-sep"></div>
+      <div class="sic-hero-kpi-item">
+        <div class="sic-hero-kpi-num">{{ n_chiuso }}</div>
+        <div class="sic-hero-kpi-label">Chiusi</div>
+      </div>
+    </div>
+  </div>
+
+  {% if totale %}
+
+  <!-- KPI tipologie -->
+  <div class="sic-kpi-grid">
+    <div class="sic-kpi-card sic-kpi-uc">
+      <div class="sic-kpi-top"><span class="sic-kpi-icon">&#9888;&#65039;</span><span class="sic-kpi-pct">{% widthratio n_unsafe_condition totale 100 %}%</span></div>
+      <div class="sic-kpi-num">{{ n_unsafe_condition }}</div>
+      <div class="sic-kpi-lbl">Unsafe Condition</div>
+      <div class="sic-kpi-bar-bg"><div class="sic-kpi-bar-fg" style="width:{% widthratio n_unsafe_condition totale 100 %}%"></div></div>
+    </div>
+    <div class="sic-kpi-card sic-kpi-ua">
+      <div class="sic-kpi-top"><span class="sic-kpi-icon">&#128694;</span><span class="sic-kpi-pct">{% widthratio n_unsafe_act totale 100 %}%</span></div>
+      <div class="sic-kpi-num">{{ n_unsafe_act }}</div>
+      <div class="sic-kpi-lbl">Unsafe Act</div>
+      <div class="sic-kpi-bar-bg"><div class="sic-kpi-bar-fg" style="width:{% widthratio n_unsafe_act totale 100 %}%"></div></div>
+    </div>
+    <div class="sic-kpi-card sic-kpi-nm">
+      <div class="sic-kpi-top"><span class="sic-kpi-icon">&#128680;</span><span class="sic-kpi-pct">{% widthratio n_near_miss totale 100 %}%</span></div>
+      <div class="sic-kpi-num">{{ n_near_miss }}</div>
+      <div class="sic-kpi-lbl">Near Miss</div>
+      <div class="sic-kpi-bar-bg"><div class="sic-kpi-bar-fg" style="width:{% widthratio n_near_miss totale 100 %}%"></div></div>
+    </div>
+    <div class="sic-kpi-card sic-kpi-ac">
+      <div class="sic-kpi-top"><span class="sic-kpi-icon">&#128721;</span><span class="sic-kpi-pct">{% widthratio n_accident totale 100 %}%</span></div>
+      <div class="sic-kpi-num">{{ n_accident }}</div>
+      <div class="sic-kpi-lbl">Accident</div>
+      <div class="sic-kpi-bar-bg"><div class="sic-kpi-bar-fg" style="width:{% widthratio n_accident totale 100 %}%"></div></div>
+    </div>
+  </div>
+
+  <!-- Stato workflow -->
+  <div class="sic-stato-grid">
+    <div class="sic-stato-card">
+      <span class="sic-stato-dot-big sic-dot-aperto"></span>
+      <div><div class="sic-stato-num">{{ n_aperto }}</div><div class="sic-stato-lbl">Aperti (in lavorazione)</div><div class="sic-stato-pct">{% widthratio n_aperto totale 100 %}% del totale</div></div>
+    </div>
+    <div class="sic-stato-card">
+      <span class="sic-stato-dot-big sic-dot-approvato"></span>
+      <div><div class="sic-stato-num">{{ n_approvato }}</div><div class="sic-stato-lbl">Approvati RLS</div><div class="sic-stato-pct">{% widthratio n_approvato totale 100 %}% del totale</div></div>
+    </div>
+    <div class="sic-stato-card">
+      <span class="sic-stato-dot-big sic-dot-chiuso"></span>
+      <div><div class="sic-stato-num">{{ n_chiuso }}</div><div class="sic-stato-lbl">Chiusi RSPP/ASPP</div><div class="sic-stato-pct">{% widthratio n_chiuso totale 100 %}% del totale</div></div>
+    </div>
+  </div>
+
+  <!-- Trend + Tipologie doughnut -->
+  <div class="sic-charts-row-wide">
+    <div class="sic-chart-card">
+      <div class="sic-chart-header">&#128200; Trend mensile (ultimi 12 mesi)</div>
+      <div class="sic-chart-body"><canvas id="chartTrend" height="120"></canvas></div>
+    </div>
+    <div class="sic-chart-card">
+      <div class="sic-chart-header">&#127775; Distribuzione tipologie</div>
+      <div class="sic-chart-body" style="display:flex;align-items:center;justify-content:center;">
+        <canvas id="chartTipologie" height="220"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reparti bar + Stato doughnut -->
+  <div class="sic-charts-row">
+    <div class="sic-chart-card">
+      <div class="sic-chart-header">&#127970; Segnalazioni per reparto (top 10)</div>
+      <div class="sic-chart-body"><canvas id="chartReparti" height="220"></canvas></div>
+    </div>
+    <div class="sic-chart-card">
+      <div class="sic-chart-header">&#127919; Stato workflow</div>
+      <div class="sic-chart-body" style="display:flex;align-items:center;justify-content:center;">
+        <canvas id="chartStati" height="220"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cause evento -->
+  {% if cause_top %}
+  <div class="sic-chart-card">
+    <div class="sic-chart-header">&#128269; Principali cause degli eventi</div>
+    <div class="sic-chart-body">
+      <div class="sic-causa-list">
+        {% with max_c=cause_top.0.1 %}
+        {% for causa, cnt in cause_top %}
+        <div class="sic-causa-item">
+          <span class="sic-causa-name" title="{{ causa }}">{{ causa }}</span>
+          <div class="sic-causa-bar-bg"><div class="sic-causa-bar-fg" style="width:{% widthratio cnt max_c 100 %}%"></div></div>
+          <span class="sic-causa-count">{{ cnt }}</span>
+        </div>
+        {% endfor %}
+        {% endwith %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Dettaglio reparti -->
+  {% if reparto_top %}
+  <div class="sic-chart-card">
+    <div class="sic-chart-header">&#128204; Dettaglio per reparto</div>
+    <div class="sic-chart-body">
+      <div class="sic-reparto-list">
+        {% with max_r=reparto_top.0.1 %}
+        {% for rep, cnt in reparto_top %}
+        <div class="sic-reparto-item">
+          <div class="sic-reparto-row">
+            <span class="sic-reparto-name">{{ rep }}</span>
+            <span class="sic-reparto-count">{{ cnt }}</span>
+          </div>
+          <div class="sic-reparto-bar-bg"><div class="sic-reparto-bar-fg" style="width:{% widthratio cnt max_r 100 %}%"></div></div>
+        </div>
+        {% endfor %}
+        {% endwith %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div style="text-align:center;padding:60px 20px;color:#94a3b8;font-size:15px;">
+    Nessuna rilevazione disponibile per le statistiche.<br>
+    <a href="{% url 'rilevazione_incidenti:lista' %}" style="color:#065f46;font-weight:700;margin-top:8px;display:inline-block;">Vai alla lista</a>
+  </div>
+  {% endif %}
+
+</div>
+
+<script>
+const _tipologie = {{ chart_tipologie|safe }};
+const _stati     = {{ chart_stati|safe }};
+const _trend     = {{ chart_trend|safe }};
+const _reparti   = {{ chart_reparti|safe }};
+
+Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+Chart.defaults.font.size = 12;
+Chart.defaults.color = '#64748b';
+
+const _doughnutOpts = (labels, data, colors) => ({
+  type: 'doughnut',
+  data: { labels, datasets:[{ data, backgroundColor:colors, borderWidth:2, borderColor:'#fff', hoverOffset:5 }] },
+  options: {
+    responsive:true, maintainAspectRatio:true, cutout:'62%',
+    plugins: {
+      legend:{ position:'bottom', labels:{ padding:10, boxWidth:12 } },
+      tooltip:{ callbacks:{ label: ctx => ` ${ctx.label}: ${ctx.parsed} (${Math.round(ctx.parsed/ctx.dataset.data.reduce((a,b)=>a+b,0)*100)}%)` } }
+    }
+  }
+});
+
+if (document.getElementById('chartTipologie'))
+  new Chart(document.getElementById('chartTipologie'), _doughnutOpts(_tipologie.labels, _tipologie.data, _tipologie.colors));
+
+if (document.getElementById('chartStati'))
+  new Chart(document.getElementById('chartStati'), _doughnutOpts(_stati.labels, _stati.data, _stati.colors));
+
+if (document.getElementById('chartTrend') && _trend.labels.length)
+  new Chart(document.getElementById('chartTrend'), {
+    type:'line',
+    data:{ labels:_trend.labels, datasets:[{
+      label:'Segnalazioni', data:_trend.data,
+      borderColor:'#065f46', backgroundColor:'rgba(6,95,70,.08)',
+      borderWidth:2, fill:true, tension:0.4,
+      pointBackgroundColor:'#065f46', pointRadius:4, pointHoverRadius:6,
+    }] },
+    options:{
+      responsive:true, maintainAspectRatio:true,
+      plugins:{ legend:{ display:false } },
+      scales:{
+        y:{ beginAtZero:true, ticks:{ stepSize:1, precision:0 }, grid:{ color:'#f1f5f9' } },
+        x:{ grid:{ display:false } }
+      }
+    }
+  });
+
+if (document.getElementById('chartReparti') && _reparti.labels.length)
+  new Chart(document.getElementById('chartReparti'), {
+    type:'bar',
+    data:{ labels:_reparti.labels, datasets:[{
+      label:'Segnalazioni', data:_reparti.data,
+      backgroundColor:'rgba(6,95,70,.75)', borderColor:'#065f46',
+      borderWidth:1, borderRadius:4, hoverBackgroundColor:'#064e3b',
+    }] },
+    options:{
+      indexAxis:'y', responsive:true, maintainAspectRatio:true,
+      plugins:{ legend:{ display:false } },
+      scales:{
+        x:{ beginAtZero:true, ticks:{ stepSize:1, precision:0 }, grid:{ color:'#f1f5f9' } },
+        y:{ grid:{ display:false } }
+      }
+    }
+  });
+</script>
+{% endblock %}

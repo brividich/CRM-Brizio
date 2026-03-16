@@ -1,0 +1,284 @@
+{% extends "core/base.html" %}
+
+{% block title %}Modifica Rilevazione | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#sic-root { display:flex; flex-direction:column; gap:20px; }
+.sic-hero {
+  background:linear-gradient(135deg,#064e3b 0%,#065f46 60%,#047857 100%);
+  border-radius:16px; padding:24px 32px; color:#fff;
+}
+.sic-hero-title { font-size:22px; font-weight:900; }
+.sic-hero-sub { font-size:13px; opacity:.7; margin-top:3px; }
+.sic-breadcrumb { font-size:12px; opacity:.6; margin-bottom:6px; }
+.sic-breadcrumb a { color:#fff; text-decoration:none; }
+
+.sic-form-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:28px 32px; }
+.sic-section { margin-bottom:28px; }
+.sic-section:last-child { margin-bottom:0; }
+.sic-section-title {
+  font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase;
+  letter-spacing:.06em; margin-bottom:16px; padding-bottom:8px; border-bottom:2px solid #f1f5f9;
+}
+.sic-section-num {
+  display:inline-flex; width:22px; height:22px; border-radius:50%;
+  background:#065f46; color:#fff; font-size:11px; align-items:center;
+  justify-content:center; margin-right:8px;
+}
+.sic-section-rspp-num { background:#0369a1; }
+
+.sic-field { display:flex; flex-direction:column; gap:5px; margin-bottom:16px; }
+.sic-field label { font-size:13px; font-weight:700; color:#374151; }
+.sic-field label .req { color:#dc2626; margin-left:2px; }
+.sic-field input[type=text], .sic-field input[type=datetime-local], .sic-field input[type=date],
+.sic-field select, .sic-field textarea {
+  padding:9px 12px; border:1px solid #cbd5e1; border-radius:10px;
+  font-size:14px; outline:none; font-family:inherit; transition:border-color .15s;
+}
+.sic-field input:focus, .sic-field select:focus, .sic-field textarea:focus {
+  border-color:#065f46; box-shadow:0 0 0 3px rgba(6,95,70,.08);
+}
+.sic-field textarea { resize:vertical; min-height:80px; }
+.sic-field-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+
+.sic-toggle-row { display:flex; align-items:center; gap:10px; padding:10px 14px; background:#f8fafc; border-radius:10px; margin-bottom:12px; }
+.sic-toggle-row label { font-size:13px; font-weight:600; color:#374151; cursor:pointer; flex:1; }
+.sic-toggle { position:relative; display:inline-block; width:44px; height:24px; flex-shrink:0; }
+.sic-toggle input { opacity:0; width:0; height:0; }
+.sic-toggle-slider { position:absolute; inset:0; background:#cbd5e1; border-radius:24px; transition:.3s; cursor:pointer; }
+.sic-toggle-slider:before { content:""; position:absolute; height:18px; width:18px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.3s; }
+.sic-toggle input:checked + .sic-toggle-slider { background:#065f46; }
+.sic-toggle input:checked + .sic-toggle-slider:before { transform:translateX(20px); }
+.sic-toggle input:checked ~ .sic-toggle-slider.rspp { background:#0369a1; }
+
+.sic-form-actions { display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; padding-top:20px; border-top:1px solid #f1f5f9; margin-top:20px; }
+.sic-btn-save { padding:11px 28px; background:#065f46; color:#fff; border:none; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; }
+.sic-btn-save:hover { background:#047857; }
+.sic-btn-back { padding:11px 22px; background:#f1f5f9; color:#475569; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; text-decoration:none; }
+
+.sic-rspp-box { background:#eff6ff; border:2px solid #bfdbfe; border-radius:14px; padding:20px; }
+.sic-tipo-pill { display:inline-block; padding:4px 14px; border-radius:20px; font-size:13px; font-weight:700; margin-bottom:16px; }
+.sic-error-box { background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:12px 16px; color:#991b1b; font-size:13px; margin-bottom:16px; }
+.hidden { display:none !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="sic-root">
+
+  <div class="sic-hero">
+    <div class="sic-breadcrumb">
+      <a href="{% url 'rilevazione_incidenti:dettaglio' sp_id=sp_id %}">&#8592; Torna al dettaglio</a>
+    </div>
+    <div class="sic-hero-title">Modifica Rilevazione</div>
+    <div class="sic-hero-sub">{{ f.Nominativo|default:"" }} &mdash; {{ f.Reparto|default:"" }}</div>
+  </div>
+
+  {% if error %}<div class="sic-error-box">&#9888; {{ error }}</div>{% endif %}
+
+  <form method="post" id="sic-form">
+    {% csrf_token %}
+
+    <div class="sic-form-card">
+
+      <!-- Tipologia read-only -->
+      {% with t=f.Tipologia_scheda|default:"" %}
+      {% if t == "Unsafe Condition" %}<span class="sic-tipo-pill" style="background:#dcfce7;color:#166534;">Unsafe Condition</span>
+      {% elif t == "Unsafe Act" %}<span class="sic-tipo-pill" style="background:#e0f2fe;color:#0c4a6e;">Unsafe Act</span>
+      {% elif t == "Near Miss" %}<span class="sic-tipo-pill" style="background:#fff7ed;color:#9a3412;">Near Miss</span>
+      {% elif t == "Accident" %}<span class="sic-tipo-pill" style="background:#fee2e2;color:#991b1b;">Accident</span>
+      {% endif %}
+      {% endwith %}
+      <input type="hidden" name="Tipologia_scheda" value="{{ f.Tipologia_scheda|default:'' }}">
+
+      {% if can_preposto and f.stato == "APERTO" %}
+      <!-- ---- SEZIONE 1: Dati evento (preposto) ---- -->
+      <div class="sic-section">
+        <div class="sic-section-title"><span class="sic-section-num">1</span>Dati dell'evento</div>
+
+        <div class="sic-field-row">
+          <div class="sic-field">
+            <label>Nominativo (Preposto) <span class="req">*</span></label>
+            <input type="text" name="Nominativo" value="{{ f.Nominativo|default:'' }}" required>
+          </div>
+          <div class="sic-field">
+            <label>Data e ora rilevazione <span class="req">*</span></label>
+            <input type="datetime-local" name="Data_e_ora_rilevazione"
+                   value="{{ f.Data_e_ora_rilevazione|slice:':16'|default:'' }}" required>
+          </div>
+        </div>
+
+        <div class="sic-field">
+          <label>Reparto <span class="req">*</span></label>
+          <select name="Reparto" required>
+            <option value="">— Seleziona —</option>
+            {% for r in reparti %}
+            <option value="{{ r }}"{% if f.Reparto == r or f.Reparto_txt == r %} selected{% endif %}>{{ r }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="sic-toggle-row">
+          <label for="toggle-macchina">La causa è l'uso di una macchina/attrezzatura manuale?</label>
+          <label class="sic-toggle">
+            <input type="checkbox" id="toggle-macchina" name="usa_macchina" value="1"
+                   onchange="document.getElementById('macchina-fields').classList.toggle('hidden',!this.checked)"
+                   {% if f.Incidenti_causato_da_uso_macchina_x0020_ %}checked{% endif %}>
+            <span class="sic-toggle-slider"></span>
+          </label>
+        </div>
+        <div id="macchina-fields" class="{% if not f.Incidenti_causato_da_uso_macchina_x0020_ %}hidden{% endif %}">
+          <div class="sic-field-row">
+            <div class="sic-field">
+              <label>Nome macchina/attrezzatura</label>
+              <input type="text" name="nome_macchina" value="{{ f.Nome_x0020_macchina_x002F_attrezzatura_e_utilizzo|default:'' }}">
+            </div>
+            <div class="sic-field" style="justify-content:flex-end;">
+              <div class="sic-toggle-row" style="margin-bottom:0;">
+                <label for="toggle-buono">Buono stato macchina?</label>
+                <label class="sic-toggle">
+                  <input type="checkbox" id="toggle-buono" name="buono_stato_macchina" value="1"
+                         {% if f.Buono_x0020_stato_x0020_macchina_x002F_attrezzatura %}checked{% endif %}>
+                  <span class="sic-toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sic-toggle-row">
+          <label>Utilizzo DPI previsti</label>
+          <label class="sic-toggle">
+            <input type="checkbox" name="utilizzo_dpi" value="1" {% if f.Utilizzo_x0020_DPI_x0020_previsti %}checked{% endif %}>
+            <span class="sic-toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="sic-field">
+          <label>Descrizione attività durante l'accaduto <span class="req">*</span></label>
+          <textarea name="descrizione_attivita" rows="3" required>{{ f.Descrizione_x0020_attivit_x00e0__x0020_che_x0020_venivano_x0020_svolte_x0020_durante_x0020_l_x0027_accaduto|default:'' }}</textarea>
+        </div>
+        <div class="sic-field">
+          <label>Descrizione avvenimento <span class="req">*</span></label>
+          <textarea name="descrizione_avvenimento" rows="4" required>{{ f.Descrizione_x0020_avvenimento|default:'' }}</textarea>
+        </div>
+        {% if f.Tipologia_scheda == "Near Miss" %}
+        <div class="sic-field">
+          <label>Descrizione quasi incidente</label>
+          <textarea name="descrizione_quasi_incidente" rows="3">{{ f.Descrizione_x0020_avvenimento_x0020__x0022_Quasi_x0020_incidente_x0022_|default:'' }}</textarea>
+        </div>
+        {% endif %}
+        <div class="sic-field-row">
+          <div class="sic-field">
+            <label>Causa che ha determinato l'evento</label>
+            <select name="causa_evento">
+              <option value="">— Seleziona —</option>
+              {% for c in cause_evento %}
+              <option value="{{ c }}"{% if f.Causa_x0020_che_x0020_ha_x0020_determinato_x0020_l_x0027_evento == c %} selected{% endif %}>{{ c }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="sic-field">
+            <label>Persone coinvolte</label>
+            <select name="persone_coinvolte">
+              <option value="">— Seleziona —</option>
+              {% for p in persone_coinvolte_choices %}
+              <option value="{{ p }}"{% if f.Persone_x0020_coinvolte == p %} selected{% endif %}>{{ p }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="sic-field">
+          <label>Altre cause</label>
+          <textarea name="altre_cause" rows="2">{{ f.Altre_x0020_cause|default:'' }}</textarea>
+        </div>
+        <div class="sic-toggle-row">
+          <label>Ci sono MISURE TECNICHE per evitare che riaccada?</label>
+          <label class="sic-toggle">
+            <input type="checkbox" name="misure_tecniche" value="1"
+                   onchange="document.getElementById('misure-fields').classList.toggle('hidden',!this.checked)"
+                   {% if f.Misure_x0020_tecniche_x002C__x0020_organizzative_x0020_o_x0020_procedurali_x0020_per_x0020_evitare_x0020_che_x0020_possa_x0020_riaccedere_x0020_questo_x0020_genere_x0020_di_x0020_evento %}checked{% endif %}>
+            <span class="sic-toggle-slider"></span>
+          </label>
+        </div>
+        <div id="misure-fields" class="{% if not f.Misure_x0020_tecniche_x002C__x0020_organizzative_x0020_o_x0020_procedurali_x0020_per_x0020_evitare_x0020_che_x0020_possa_x0020_riaccedere_x0020_questo_x0020_genere_x0020_di_x0020_evento %}hidden{% endif %}">
+          <div class="sic-field">
+            <label>Quali misure adottare</label>
+            <textarea name="quali_misure" rows="3">{{ f.Quali_x0020_misure_x0020_adottare|default:'' }}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---- SEZIONE 2: 5WHY ---- -->
+      <div class="sic-section">
+        <div class="sic-section-title"><span class="sic-section-num">2</span>Modello 5WHY</div>
+        <div class="sic-field">
+          <label>Partecipanti all'analisi</label>
+          <input type="text" name="partecipanti" value="{{ f.Partecipanti|default:'' }}">
+        </div>
+        <div class="sic-field"><label>1 WHY</label><textarea name="why_1" rows="2">{{ f.x31__x0020_WHY|default:'' }}</textarea></div>
+        <div class="sic-field"><label>2 WHY</label><textarea name="why_2" rows="2">{{ f.x32__x0020_WHY|default:'' }}</textarea></div>
+        <div class="sic-field"><label>3 WHY</label><textarea name="why_3" rows="2">{{ f.x33__x0020_WHY|default:'' }}</textarea></div>
+        <div class="sic-field"><label>4 WHY</label><textarea name="why_4" rows="2">{{ f.x34__x0020_WHY|default:'' }}</textarea></div>
+        <div class="sic-field"><label>5 WHY</label><textarea name="why_5" rows="2">{{ f.x35__x0020_WHY|default:'' }}</textarea></div>
+        <div class="sic-field"><label>Note preposto</label><textarea name="note_preposto" rows="3">{{ f.Note_x0020_preposto|default:'' }}</textarea></div>
+      </div>
+      {% endif %}
+
+      {% if can_rspp %}
+      <!-- ---- SEZIONE 3: RSPP/ASPP ---- -->
+      <div class="sic-section">
+        <div class="sic-section-title">
+          <span class="sic-section-num sic-section-rspp-num">3</span>Approvazione &amp; Chiusura (RSPP/ASPP)
+        </div>
+        <div class="sic-rspp-box">
+          <div class="sic-field-row">
+            <div class="sic-field">
+              <label>Approvazione RLS</label>
+              <select name="Approvazione_RLS">
+                <option value="">— Seleziona —</option>
+                {% for a in approvazione_rls_choices %}
+                <option value="{{ a }}"{% if f.Approvazione_RLS == a %} selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="sic-field">
+              <label>Data approvazione RLS</label>
+              <input type="date" name="Data_approvazione_RLS"
+                     value="{{ f.Data_approvazione_RLS|slice:':10'|default:'' }}">
+            </div>
+          </div>
+          <div class="sic-field">
+            <label>Note RSPP/ASPP</label>
+            <textarea name="note_rspp_aspp" rows="3">{{ f.Note_RSPP_x0020__x002F__x0020_ASPP|default:'' }}</textarea>
+          </div>
+          <div class="sic-toggle-row">
+            <label for="toggle-chiusura">Chiusura RSPP</label>
+            <label class="sic-toggle">
+              <input type="checkbox" id="toggle-chiusura" name="chiusura_rspp" value="1"
+                     onchange="document.getElementById('chiusura-fields').classList.toggle('hidden',!this.checked)"
+                     {% if f.Chiusura_RSPP %}checked{% endif %}>
+              <span class="sic-toggle-slider"></span>
+            </label>
+          </div>
+          <div id="chiusura-fields" class="{% if not f.Chiusura_RSPP %}hidden{% endif %}">
+            <div class="sic-field">
+              <label>Data chiusura RSPP</label>
+              <input type="date" name="data_chiusura_rspp"
+                     value="{{ f.Data_chiusura_RSPP|slice:':10'|default:'' }}">
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="sic-form-actions">
+        <a href="{% url 'rilevazione_incidenti:dettaglio' sp_id=sp_id %}" class="sic-btn-back">Annulla</a>
+        <button type="submit" class="sic-btn-save">&#128190; Salva modifiche</button>
+      </div>
+
+    </div>
+  </form>
+</div>
+{% endblock %}

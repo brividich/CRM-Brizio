@@ -3,7 +3,7 @@
 
 ![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
 ![Django 5.2](https://img.shields.io/badge/Django-5.2-0C4B33?logo=django&logoColor=white)
-![Version 0.7.0](https://img.shields.io/badge/version-0.7.0-F97316)
+![Version 0.7.3](https://img.shields.io/badge/version-0.7.3-F97316)
 ![Database SQLite or SQL Server](https://img.shields.io/badge/DB-SQLite%20%7C%20SQL%20Server-1E3A5F)
 
 Repository pubblico del software **BrizioHUB**. Il nome istanza è configurabile per deployment
@@ -56,6 +56,7 @@ Dipendenze principali: `django_app/requirements.txt`
 | --- | --- |
 | Core platform | `core`, `dashboard` |
 | HR e workflow | `assenze`, `anomalie`, `tickets`, `timbri`, `notizie` |
+| Sicurezza | `diario_preposto`, `rilevazione_incidenti` |
 | Operations | `assets`, `tasks`, `planimetria` |
 | Backoffice | `admin_portale`, `anagrafica` |
 | Automation | `automazioni` |

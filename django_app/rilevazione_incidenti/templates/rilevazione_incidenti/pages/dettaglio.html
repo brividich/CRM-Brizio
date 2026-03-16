@@ -1,0 +1,304 @@
+{% extends "core/base.html" %}
+
+{% block title %}Rilevazione Sicurezza | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#sic-root { display:flex; flex-direction:column; gap:20px; }
+.sic-hero {
+  background:linear-gradient(135deg,#064e3b 0%,#065f46 60%,#047857 100%);
+  border-radius:16px; padding:24px 32px; color:#fff;
+  display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;
+}
+.sic-hero-left {}
+.sic-hero-title { font-size:22px; font-weight:900; }
+.sic-hero-sub { font-size:13px; opacity:.7; margin-top:3px; }
+.sic-breadcrumb { font-size:12px; opacity:.6; margin-bottom:6px; }
+.sic-breadcrumb a { color:#fff; text-decoration:none; }
+.sic-hero-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:6px; }
+
+.sic-btn { padding:9px 18px; border:none; border-radius:9px; font-size:13px; font-weight:700;
+           cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:6px; }
+.sic-btn-edit { background:#fff; color:#065f46; }
+.sic-btn-edit:hover { background:#d1fae5; }
+.sic-btn-rspp { background:#0369a1; color:#fff; }
+.sic-btn-rspp:hover { background:#0284c7; }
+.sic-btn-danger { background:#fee2e2; color:#991b1b; }
+.sic-btn-danger:hover { background:#fecaca; }
+
+.sic-card {
+  background:#fff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden;
+}
+.sic-card-header {
+  background:#f8fafc; border-bottom:1px solid #e2e8f0;
+  padding:14px 20px; font-size:13px; font-weight:700; color:#374151;
+  display:flex; align-items:center; gap:8px;
+}
+.sic-card-body { padding:20px 24px; }
+.sic-field-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px 24px; }
+.sic-field-grid-1 { display:grid; grid-template-columns:1fr; gap:12px; }
+.sic-field-item {}
+.sic-field-label { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px; }
+.sic-field-value { font-size:14px; color:#1e293b; line-height:1.5; }
+.sic-field-value.empty { color:#cbd5e1; font-style:italic; }
+
+.sic-tipo-pill { display:inline-block; padding:4px 14px; border-radius:20px; font-size:13px; font-weight:700; }
+.sic-pill-unsafe-condition { background:#dcfce7; color:#166534; }
+.sic-pill-unsafe-act { background:#e0f2fe; color:#0c4a6e; }
+.sic-pill-near-miss { background:#fff7ed; color:#9a3412; }
+.sic-pill-accident { background:#fee2e2; color:#991b1b; }
+
+.sic-stato-badge { display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; }
+.sic-stato-aperto { background:#fef9c3; color:#a16207; }
+.sic-stato-approvato { background:#dcfce7; color:#15803d; }
+.sic-stato-chiuso { background:#d1fae5; color:#064e3b; }
+
+.sic-bool-yes { color:#16a34a; font-weight:700; }
+.sic-bool-no { color:#94a3b8; }
+
+.sic-why-list { display:flex; flex-direction:column; gap:8px; }
+.sic-why-item { display:flex; gap:12px; padding:10px 14px; background:#f8fafc; border-radius:10px; }
+.sic-why-num { font-size:12px; font-weight:800; color:#064e3b; min-width:40px; }
+.sic-why-text { font-size:14px; color:#1e293b; }
+
+.sic-approv-section {
+  background:#f0fdf4; border:2px solid #bbf7d0; border-radius:14px; padding:20px;
+}
+.sic-chiuso-section {
+  background:#ecfdf5; border:2px solid #6ee7b7; border-radius:14px; padding:20px;
+}
+
+.sic-error { background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:14px 18px; color:#991b1b; font-size:13px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="sic-root">
+
+  {% if messages %}
+    {% for msg in messages %}
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 16px;color:#166534;font-size:13px;">
+      {{ msg }}
+    </div>
+    {% endfor %}
+  {% endif %}
+
+  {% if error %}
+  <div class="sic-error">&#9888; {{ error }}</div>
+  {% else %}
+  {% if f %}
+
+  <!-- Hero -->
+  <div class="sic-hero">
+    <div class="sic-hero-left">
+      <div class="sic-breadcrumb"><a href="{% url 'rilevazione_incidenti:lista' %}">&#8592; Rilevazioni Sicurezza</a></div>
+      <div class="sic-hero-title">Rilevazione Sicurezza</div>
+      <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        {% with t=f.Tipologia_scheda|default:"" %}
+        {% if t == "Unsafe Condition" %}<span class="sic-tipo-pill sic-pill-unsafe-condition">Unsafe Condition</span>
+        {% elif t == "Unsafe Act" %}<span class="sic-tipo-pill sic-pill-unsafe-act">Unsafe Act</span>
+        {% elif t == "Near Miss" %}<span class="sic-tipo-pill sic-pill-near-miss">Near Miss</span>
+        {% elif t == "Accident" %}<span class="sic-tipo-pill sic-pill-accident">Accident</span>
+        {% else %}<span class="sic-tipo-pill" style="background:#f1f5f9;color:#475569;">{{ t }}</span>{% endif %}
+        {% endwith %}
+
+        {% if f.stato == "CHIUSO" %}
+          <span class="sic-stato-badge sic-stato-chiuso">&#9679; Chiuso RSPP/ASPP</span>
+        {% elif f.stato == "APPROVATO" %}
+          <span class="sic-stato-badge sic-stato-approvato">&#9679; Approvato RLS</span>
+        {% else %}
+          <span class="sic-stato-badge sic-stato-aperto">&#9679; Aperto Preposto</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="sic-hero-actions">
+      {% if can_edit_preposto %}
+      <a href="{% url 'rilevazione_incidenti:modifica' sp_id=sp_id %}" class="sic-btn sic-btn-edit">&#9998; Modifica</a>
+      {% endif %}
+      {% if can_edit_rspp %}
+      <a href="{% url 'rilevazione_incidenti:modifica' sp_id=sp_id %}" class="sic-btn sic-btn-rspp">&#128203; Gestisci RSPP</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Sezione 1: Dati evento -->
+  <div class="sic-card">
+    <div class="sic-card-header">&#128204; Dati dell'evento</div>
+    <div class="sic-card-body">
+      <div class="sic-field-grid">
+        <div class="sic-field-item">
+          <div class="sic-field-label">Nominativo</div>
+          <div class="sic-field-value">{{ f.Nominativo|default:"—" }}</div>
+        </div>
+        <div class="sic-field-item">
+          <div class="sic-field-label">Data e ora rilevazione</div>
+          <div class="sic-field-value">{{ f.Data_e_ora_rilevazione|slice:":16"|default:"—" }}</div>
+        </div>
+        <div class="sic-field-item">
+          <div class="sic-field-label">Reparto</div>
+          <div class="sic-field-value">{{ f.Reparto|default:f.Reparto_txt|default:"—" }}</div>
+        </div>
+        <div class="sic-field-item">
+          <div class="sic-field-label">Causa che ha determinato l'evento</div>
+          <div class="sic-field-value">{{ f.Causa_x0020_che_x0020_ha_x0020_determinato_x0020_l_x0027_evento|default:"—" }}</div>
+        </div>
+        <div class="sic-field-item">
+          <div class="sic-field-label">Utilizzo DPI previsti</div>
+          <div class="sic-field-value {% if f.Utilizzo_x0020_DPI_x0020_previsti %}sic-bool-yes{% else %}sic-bool-no{% endif %}">
+            {% if f.Utilizzo_x0020_DPI_x0020_previsti %}&#10003; Sì{% else %}No{% endif %}
+          </div>
+        </div>
+        <div class="sic-field-item">
+          <div class="sic-field-label">Causa macchina/attrezzatura</div>
+          <div class="sic-field-value {% if f.Incidenti_causato_da_uso_macchina_x0020_ %}sic-bool-yes{% else %}sic-bool-no{% endif %}">
+            {% if f.Incidenti_causato_da_uso_macchina_x0020_ %}&#10003; Sì{% else %}No{% endif %}
+          </div>
+        </div>
+        {% if f.Incidenti_causato_da_uso_macchina_x0020_ %}
+        <div class="sic-field-item">
+          <div class="sic-field-label">Nome macchina/attrezzatura</div>
+          <div class="sic-field-value">{{ f.Nome_x0020_macchina_x002F_attrezzatura_e_utilizzo|default:"—" }}</div>
+        </div>
+        <div class="sic-field-item">
+          <div class="sic-field-label">Buono stato macchina</div>
+          <div class="sic-field-value {% if f.Buono_x0020_stato_x0020_macchina_x002F_attrezzatura %}sic-bool-yes{% else %}sic-bool-no{% endif %}">
+            {% if f.Buono_x0020_stato_x0020_macchina_x002F_attrezzatura %}&#10003; Sì{% else %}No{% endif %}
+          </div>
+        </div>
+        {% endif %}
+        <div class="sic-field-item">
+          <div class="sic-field-label">Persone coinvolte</div>
+          <div class="sic-field-value">{{ f.Persone_x0020_coinvolte|default:"—" }}</div>
+        </div>
+        <div class="sic-field-item">
+          <div class="sic-field-label">Misure tecniche previste</div>
+          <div class="sic-field-value {% if f.Misure_x0020_tecniche_x002C__x0020_organizzative_x0020_o_x0020_procedurali_x0020_per_x0020_evitare_x0020_che_x0020_possa_x0020_riaccedere_x0020_questo_x0020_genere_x0020_di_x0020_evento %}sic-bool-yes{% else %}sic-bool-no{% endif %}">
+            {% if f.Misure_x0020_tecniche_x002C__x0020_organizzative_x0020_o_x0020_procedurali_x0020_per_x0020_evitare_x0020_che_x0020_possa_x0020_riaccedere_x0020_questo_x0020_genere_x0020_di_x0020_evento %}&#10003; Sì{% else %}No{% endif %}
+          </div>
+        </div>
+      </div>
+      {% if f.Descrizione_x0020_attivit_x00e0__x0020_che_x0020_venivano_x0020_svolte_x0020_durante_x0020_l_x0027_accaduto %}
+      <div class="sic-field-item" style="margin-top:16px;">
+        <div class="sic-field-label">Descrizione attività durante l'accaduto</div>
+        <div class="sic-field-value" style="white-space:pre-wrap;">{{ f.Descrizione_x0020_attivit_x00e0__x0020_che_x0020_venivano_x0020_svolte_x0020_durante_x0020_l_x0027_accaduto }}</div>
+      </div>
+      {% endif %}
+      {% if f.Descrizione_x0020_avvenimento %}
+      <div class="sic-field-item" style="margin-top:16px;">
+        <div class="sic-field-label">Descrizione avvenimento</div>
+        <div class="sic-field-value" style="white-space:pre-wrap;">{{ f.Descrizione_x0020_avvenimento }}</div>
+      </div>
+      {% endif %}
+      {% if f.Descrizione_x0020_avvenimento_x0020__x0022_Quasi_x0020_incidente_x0022_ %}
+      <div class="sic-field-item" style="margin-top:16px;">
+        <div class="sic-field-label">Descrizione quasi incidente</div>
+        <div class="sic-field-value" style="white-space:pre-wrap;">{{ f.Descrizione_x0020_avvenimento_x0020__x0022_Quasi_x0020_incidente_x0022_ }}</div>
+      </div>
+      {% endif %}
+      {% if f.Altre_x0020_cause %}
+      <div class="sic-field-item" style="margin-top:16px;">
+        <div class="sic-field-label">Altre cause</div>
+        <div class="sic-field-value" style="white-space:pre-wrap;">{{ f.Altre_x0020_cause }}</div>
+      </div>
+      {% endif %}
+      {% if f.Quali_x0020_misure_x0020_adottare %}
+      <div class="sic-field-item" style="margin-top:16px;">
+        <div class="sic-field-label">Quali misure adottare</div>
+        <div class="sic-field-value" style="white-space:pre-wrap;">{{ f.Quali_x0020_misure_x0020_adottare }}</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Sezione 2: 5WHY -->
+  <div class="sic-card">
+    <div class="sic-card-header">&#128270; Modello 5WHY</div>
+    <div class="sic-card-body">
+      {% if f.Partecipanti %}
+      <div class="sic-field-item" style="margin-bottom:16px;">
+        <div class="sic-field-label">Partecipanti</div>
+        <div class="sic-field-value">{{ f.Partecipanti }}</div>
+      </div>
+      {% endif %}
+      <div class="sic-why-list">
+        {% for n in "12345" %}
+        {% with key="x3"|add:n|add:"__x0020_WHY" val=f|default:"" %}
+        <div class="sic-why-item">
+          <div class="sic-why-num">{{ n }} WHY</div>
+          <div class="sic-why-text {% if not f|default:'' %}empty{% endif %}">
+            {% if n == "1" %}{{ f.x31__x0020_WHY|default:"—" }}{% endif %}
+            {% if n == "2" %}{{ f.x32__x0020_WHY|default:"—" }}{% endif %}
+            {% if n == "3" %}{{ f.x33__x0020_WHY|default:"—" }}{% endif %}
+            {% if n == "4" %}{{ f.x34__x0020_WHY|default:"—" }}{% endif %}
+            {% if n == "5" %}{{ f.x35__x0020_WHY|default:"—" }}{% endif %}
+          </div>
+        </div>
+        {% endwith %}
+        {% endfor %}
+      </div>
+      {% if f.Note_x0020_preposto %}
+      <div class="sic-field-item" style="margin-top:16px;">
+        <div class="sic-field-label">Note preposto</div>
+        <div class="sic-field-value" style="white-space:pre-wrap;">{{ f.Note_x0020_preposto }}</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Sezione 3: Approvazione / Chiusura -->
+  {% if f.Approvazione_RLS or f.Chiusura_RSPP or can_edit_rspp %}
+  <div class="sic-card">
+    <div class="sic-card-header">&#9989; Approvazione &amp; Chiusura</div>
+    <div class="sic-card-body">
+      {% if f.Approvazione_RLS %}
+      <div class="sic-approv-section" style="margin-bottom:16px;">
+        <div class="sic-field-grid">
+          <div class="sic-field-item">
+            <div class="sic-field-label">Approvazione RLS</div>
+            <div class="sic-field-value sic-bool-yes">{{ f.Approvazione_RLS }}</div>
+          </div>
+          <div class="sic-field-item">
+            <div class="sic-field-label">Data approvazione RLS</div>
+            <div class="sic-field-value">{{ f.Data_approvazione_RLS|slice:":10"|default:"—" }}</div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+      {% if f.Note_RSPP_x0020__x002F__x0020_ASPP %}
+      <div class="sic-field-item" style="margin-bottom:16px;">
+        <div class="sic-field-label">Note RSPP/ASPP</div>
+        <div class="sic-field-value" style="white-space:pre-wrap;">{{ f.Note_RSPP_x0020__x002F__x0020_ASPP }}</div>
+      </div>
+      {% endif %}
+      {% if f.Chiusura_RSPP %}
+      <div class="sic-chiuso-section">
+        <div class="sic-field-grid">
+          <div class="sic-field-item">
+            <div class="sic-field-label">Chiusura RSPP</div>
+            <div class="sic-field-value sic-bool-yes">&#10003; Chiuso</div>
+          </div>
+          <div class="sic-field-item">
+            <div class="sic-field-label">Data chiusura RSPP</div>
+            <div class="sic-field-value">{{ f.Data_chiusura_RSPP|slice:":10"|default:"—" }}</div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if can_edit_rspp %}
+  <div style="display:flex;gap:10px;justify-content:flex-end;">
+    <form method="post" action="{% url 'rilevazione_incidenti:elimina' sp_id=sp_id %}"
+          onsubmit="return confirm('Eliminare definitivamente questa rilevazione?')">
+      {% csrf_token %}
+      <button type="submit" class="sic-btn sic-btn-danger">&#128465; Elimina</button>
+    </form>
+  </div>
+  {% endif %}
+
+  {% endif %}{% endif %}
+
+</div>
+{% endblock %}

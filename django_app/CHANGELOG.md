@@ -1,5 +1,24 @@
 ﻿# Changelog
 
+## 0.7.3 — 2026-03-16
+
+### Rilevazione Incidenti — nuova app
+
+#### Rilevazione Incidenti — nuova app Django
+
+- **[feature] App `rilevazione_incidenti`** (`/rilevazione-incidenti/`): nuova app per la registrazione di segnalazioni di sicurezza nelle 4 tipologie previste (Unsafe Condition, Unsafe Act, Near Miss, Accident). Sostituisce sul portale la PowerApp omonima mantenendo SharePoint come unica fonte di verità: tutte le operazioni CRUD avvengono via Microsoft Graph API, senza modello Django per i dati incidenti.
+- **[feature] Workflow ACL tripartito**: ruoli distinti — Preposti/Capireparto (creazione + modifica Sezione 1-2 se stato APERTO), RSPP/ASPP (Sezione 3: approvazione RLS + chiusura), Admin (impostazioni). Whitelist JSON configurabile da `/rilevazione-incidenti/impostazioni/`.
+- **[feature] Selezione tipo**: prima schermata con 4 card illustrative (`?tipo=` query param), stessa UX del modulo Tickets.
+- **[feature] Form multi-sezione**: Sezione 1 (evento: tipologia, nominativo, reparto, macchina/DPI, descrizione, cause, persone coinvolte), Sezione 2 (analisi 5WHY + note preposto), Sezione 3 (approvazione RLS, data approvazione, note RSPP/ASPP, chiusura + data chiusura).
+- **[feature] Stato derivato** (nessuna colonna aggiuntiva SharePoint): `Chiusura_RSPP=True` → **CHIUSO**, `Approvazione_RLS` valorizzato → **APPROVATO**, altrimenti → **APERTO**.
+- **[feature] Statistiche** (`/rilevazione-incidenti/statistiche/`): KPI per tipologia (4 badge), stato workflow, top-10 reparti a barre orizzontali, trend mensile ultimi 12 mesi.
+- **[feature] ACL bootstrap**: 6 pulsanti registrati automaticamente nella tabella ACL legacy all'avvio; endpoint nascosti dalla UI via `ui_pulsanti_meta`.
+- **[fix] Regola template Django**: variabili/chiavi dict con nome iniziante per `_` causano `TemplateSyntaxError`. La regola è ora documentata in CLAUDE.md e applicata uniformemente (es. `stato` e `sp_id` invece di `_stato` e `_sp_id`).
+- **[fix] Audit log**: le chiamate `log_action` usano correttamente `"rilevazione_incidenti"` come nome modulo (non `"sicurezza"`).
+- **[versioning]** Bump versione `0.7.2` → `0.7.3`.
+
+---
+
 ## 0.7.2 — 2026-03-15
 
 ### Diario Preposto, Report Timbri, Hub Database e miglioramenti

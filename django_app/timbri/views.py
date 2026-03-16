@@ -18,7 +18,7 @@ from django.core.files.base import ContentFile
 from django.core.paginator import Paginator
 from django.db import DatabaseError, connections, transaction
 from django.db.models import Count, Prefetch, Q
-from django.http import HttpResponse, HttpResponseForbidden, JsonResponse, StreamingHttpResponse
+from django.http import FileResponse, HttpResponse, HttpResponseForbidden, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -1026,7 +1026,7 @@ def operatore_preview(request, legacy_id: int):
         for slot in r.image_slots:
             slots.append({
                 "label": slot["label"],
-                "url": slot["image"].image.url if slot["image"] else None,
+                "url": reverse("timbri:serve_image", args=[slot["image"].id]) if slot["image"] else None,
             })
         data.append({
             "codice": r.codice_timbro or "",
@@ -1564,3 +1564,19 @@ def export_csv(request):
     response = StreamingHttpResponse(stream(), content_type="text/csv; charset=utf-8-sig")
     response["Content-Disposition"] = 'attachment; filename="registro_timbri.csv"'
     return response
+
+
+@login_required
+def serve_timbri_image(request, image_id: int):
+    """Serve un'immagine timbro/firma verificando i permessi ACL.
+    I file sono in TIMBRI_PRIVATE_ROOT, mai esposta dal web server.
+    """
+    if not _can_view_timbri(request):
+        return HttpResponseForbidden("Accesso non autorizzato.")
+    img = get_object_or_404(RegistroTimbroImmagine, pk=image_id)
+    storage = img.image.storage
+    if not img.image or not img.image.name or not storage.exists(img.image.name):
+        return HttpResponse("Immagine non trovata.", status=404)
+    ext = Path(img.image.name).suffix.lower()
+    content_type = "image/png" if ext == ".png" else "image/jpeg" if ext in {".jpg", ".jpeg"} else "application/octet-stream"
+    return FileResponse(storage.open(img.image.name, "rb"), content_type=content_type)

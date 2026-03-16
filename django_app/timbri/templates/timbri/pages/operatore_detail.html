@@ -161,6 +161,15 @@
 </div>
 
 <script>
+function timToggleImages(btn) {
+  const record = btn.closest('.tim-record');
+  const images = record.querySelector('.tim-images');
+  if (!images) return;
+  const visible = images.style.display !== 'none';
+  images.style.display = visible ? 'none' : 'grid';
+  btn.textContent = visible ? 'Apri' : 'Chiudi';
+}
+
 document.querySelectorAll('.tim-tab').forEach(tab => {
   tab.addEventListener('click', function() {
     const panel = this.dataset.tab;

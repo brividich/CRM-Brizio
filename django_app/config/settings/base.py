@@ -111,7 +111,7 @@ def ini_bool(section: str, option: str, default: bool = False) -> bool:
 SECRET_KEY = env("DJANGO_SECRET_KEY", "change-me-in-dev")
 DEBUG = env_bool("DJANGO_DEBUG", False)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", ["127.0.0.1", "localhost"])
-APP_VERSION = env("APP_VERSION", "0.7.1")
+APP_VERSION = env("APP_VERSION", "0.7.3")
 SETUP_WIZARD_REQUIRED = env_bool("SETUP_WIZARD_REQUIRED", True)
 
 # ── Branding istanza ──────────────────────────────────────────────────────────
@@ -220,6 +220,7 @@ INSTALLED_APPS = [
     "tickets.apps.TicketsConfig",
     "rentri.apps.RentriConfig",
     "diario_preposto.apps.DiarioPrepostoConfig",
+    "rilevazione_incidenti.apps.RilevazioneIncidentiConfig",
     "django_extensions",
 ]
 
@@ -322,6 +323,10 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_ROOT = BASE_DIR / "media"
 MEDIA_URL = "/media/"
+
+# Immagini timbri/firme: cartella privata, MAI servita dal web server.
+# Il web server (IIS/nginx) non deve avere accesso a questa directory.
+TIMBRI_PRIVATE_ROOT = BASE_DIR / "media_private"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

@@ -6,6 +6,7 @@ urlpatterns = [
     # Moduli
     path("moduli/", views.moduli, name="hub_moduli"),
     path("moduli/toggle/", views.api_toggle_module, name="hub_moduli_toggle"),
+    path("moduli/login-redirect/", views.api_set_login_redirect, name="hub_moduli_login_redirect"),
     # Database
     path("database/", views.database, name="hub_database"),
     path("database/api/stats/", views.api_db_stats, name="hub_db_stats"),

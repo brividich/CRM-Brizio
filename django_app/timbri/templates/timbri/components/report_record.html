@@ -14,10 +14,10 @@
       <div class="rpt-img-slot">
         <div class="rpt-img-label">{{ slot.label }}</div>
         {% if slot.image %}
-          <img src="{{ slot.image.image.url }}" alt="{{ slot.label }}">
+          <img src="{% url 'timbri:serve_image' slot.image.id %}" alt="{{ slot.label }}">
           {% if can_copy %}
             <div class="rpt-img-actions">
-              <button class="rpt-btn rpt-btn-copy" data-url="{{ slot.image.image.url }}">Copia</button>
+              <button class="rpt-btn rpt-btn-copy" data-url="{% url 'timbri:serve_image' slot.image.id %}">Copia</button>
             </div>
           {% endif %}
         {% else %}

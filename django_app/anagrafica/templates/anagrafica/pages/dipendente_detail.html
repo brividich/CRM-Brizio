@@ -1,0 +1,442 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ dip.cognome }} {{ dip.nome }} | Scheda dipendente{% endblock %}
+
+{% block extra_head %}
+<style>
+/* Layout */
+.dp-page { display:flex; flex-direction:column; gap:20px; }
+.dp-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.dp-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
+.dp-sub { font-size:13px; color:#64748b; margin-top:2px; }
+
+/* Bottoni */
+.dp-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
+.dp-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.dp-btn-ghost:hover { background:#e2e8f0; }
+.dp-btn-primary { background:#1d4ed8; color:#fff; }
+.dp-btn-primary:hover { background:#1e40af; }
+.dp-btn-danger { background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; }
+.dp-btn-danger:hover { background:#fecaca; }
+.dp-btn-sm { padding:5px 10px; font-size:12px; border-radius:7px; }
+.dp-btn-xs { padding:3px 8px; font-size:11px; border-radius:6px; }
+
+/* Card generica */
+.dp-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.dp-card-head { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid #f1f5f9; }
+.dp-card-title { font-size:15px; font-weight:700; color:#1e293b; }
+.dp-card-body { padding:18px 20px; }
+
+/* Hero dipendente */
+.dp-hero { display:flex; align-items:center; gap:20px; background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px 24px; flex-wrap:wrap; }
+.dp-avatar { width:64px; height:64px; border-radius:50%; background:#1d4ed8; color:#fff; font-size:24px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.dp-hero-info { flex:1; min-width:0; }
+.dp-hero-name { font-size:22px; font-weight:800; color:#0f172a; }
+.dp-hero-meta { font-size:13px; color:#64748b; margin-top:3px; }
+.dp-hero-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.dp-pill { display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:600; }
+.dp-pill-blue { background:#dbeafe; color:#1e40af; }
+.dp-pill-gray { background:#f1f5f9; color:#475569; }
+.dp-pill-green { background:#dcfce7; color:#166534; }
+
+/* Info grid */
+.dp-info-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:12px; }
+.dp-info-item { display:flex; flex-direction:column; gap:2px; }
+.dp-info-label { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; }
+.dp-info-value { font-size:13px; color:#1e293b; font-weight:500; }
+
+/* === Widget statistiche === */
+.dp-stat-section { display:flex; flex-direction:column; gap:14px; }
+.dp-stat-toolbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+.dp-stat-toolbar-title { font-size:15px; font-weight:700; color:#1e293b; }
+
+/* Griglia widget — compatta */
+.dp-widget-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));
+  gap:10px;
+}
+.dp-widget {
+  background:#fff;
+  border:1px solid #e2e8f0;
+  border-radius:12px;
+  padding:14px 16px 12px;
+  position:relative;
+  transition:box-shadow .15s;
+  overflow:hidden;
+}
+.dp-widget:hover { box-shadow:0 2px 10px rgba(0,0,0,.07); }
+.dp-widget-accent {
+  position:absolute; top:0; left:0; right:0; height:3px;
+  border-radius:12px 12px 0 0;
+}
+.dp-widget-icon { font-size:18px; line-height:1; margin-bottom:6px; }
+.dp-widget-count { font-size:26px; font-weight:800; color:#0f172a; line-height:1; }
+.dp-widget-title { font-size:11px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-top:4px; }
+.dp-widget-link { display:block; margin-top:8px; font-size:11px; color:#1d4ed8; font-weight:600; text-decoration:none; }
+.dp-widget-link:hover { text-decoration:underline; }
+
+/* Tasto rimuovi widget (visibile in edit mode) */
+.dp-widget-remove {
+  display:none;
+  position:absolute; top:6px; right:6px;
+  background:#fee2e2; border:none; border-radius:50%;
+  width:20px; height:20px; cursor:pointer;
+  font-size:10px; color:#b91c1c; line-height:1;
+  align-items:center; justify-content:center;
+}
+.dp-edit-mode .dp-widget-remove { display:flex; }
+.dp-edit-mode .dp-widget { cursor:grab; }
+.dp-edit-mode .dp-widget:active { cursor:grabbing; }
+
+/* Edit bar */
+.dp-edit-bar {
+  display:none; background:#fffbeb; border:1px solid #fde68a;
+  border-radius:10px; padding:10px 16px;
+  align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+}
+.dp-edit-mode .dp-edit-bar { display:flex; }
+
+/* Panel aggiungi widget */
+.dp-add-panel {
+  display:none; background:#f8fafc; border:1px solid #e2e8f0;
+  border-radius:12px; padding:14px 16px;
+}
+.dp-edit-mode .dp-add-panel { display:block; }
+.dp-add-panel-title { font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:10px; }
+.dp-add-grid { display:flex; flex-wrap:wrap; gap:8px; }
+.dp-add-item { display:flex; align-items:center; gap:8px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:6px 12px; font-size:13px; }
+.dp-add-item.already-added { opacity:.4; pointer-events:none; }
+.dp-add-btn { background:#1d4ed8; color:#fff; border:none; border-radius:6px; padding:3px 10px; font-size:12px; font-weight:600; cursor:pointer; }
+.dp-add-btn:hover { background:#1e40af; }
+
+/* Ruoli operativi */
+.dp-ruoli-list { display:flex; flex-wrap:wrap; gap:8px; }
+.dp-ruolo-badge {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:5px 12px 5px 10px; border-radius:999px;
+  font-size:12px; font-weight:600; color:#fff;
+}
+.dp-ruolo-remove {
+  background:rgba(255,255,255,.3); border:none; border-radius:50%;
+  width:16px; height:16px; cursor:pointer; color:inherit;
+  display:inline-flex; align-items:center; justify-content:center;
+  font-size:10px; font-weight:800; padding:0; line-height:1;
+}
+.dp-ruolo-remove:hover { background:rgba(255,255,255,.5); }
+
+/* Form aggiungi ruolo */
+.dp-ruolo-form { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px; }
+.dp-select { border:1px solid #e2e8f0; border-radius:8px; padding:7px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; }
+.dp-select:focus { border-color:#1d4ed8; background:#fff; }
+
+/* Drag ghost */
+.dp-drag-ghost { opacity:.4; border:2px dashed #1d4ed8 !important; }
+
+@media (max-width:600px) {
+  .dp-widget-grid { grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); }
+  .dp-hero { flex-direction:column; align-items:flex-start; }
+}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="dp-page">
+
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <!-- TOPBAR -->
+  <div class="dp-topbar">
+    <div>
+      <div class="dp-title">{{ dip.cognome }} {{ dip.nome }}</div>
+      <div class="dp-sub">Scheda dipendente · ID {{ legacy_id }}</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      {% if dip.timbri_legacy_id %}
+        <a class="dp-btn dp-btn-ghost" href="{% url 'timbri:operatore_detail_by_legacy' legacy_id %}" title="Report timbri">🕐 Timbri</a>
+      {% endif %}
+      <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Torna all'elenco</a>
+    </div>
+  </div>
+
+  <!-- HERO -->
+  <div class="dp-hero">
+    <div class="dp-avatar">{{ dip.nome|first|upper }}{{ dip.cognome|first|upper }}</div>
+    <div class="dp-hero-info">
+      <div class="dp-hero-name">{{ dip.cognome }} {{ dip.nome }}</div>
+      <div class="dp-hero-meta">
+        {% if dip.mansione %}{{ dip.mansione }}{% endif %}
+        {% if dip.reparto %} &middot; <span class="dp-pill dp-pill-blue">{{ dip.reparto }}</span>{% endif %}
+        {% if dip.matricola %} &middot; Matricola: <strong>{{ dip.matricola }}</strong>{% endif %}
+      </div>
+      <div style="margin-top:6px;">
+        {% if dip.anagrafica_attivo %}
+          <span class="dp-pill dp-pill-green">Attivo</span>
+        {% else %}
+          <span class="dp-pill dp-pill-gray">Non attivo</span>
+        {% endif %}
+        {% if dip.aliasusername %}<span class="dp-pill dp-pill-gray" style="margin-left:4px;">{{ dip.aliasusername }}</span>{% endif %}
+      </div>
+    </div>
+    <div class="dp-hero-actions">
+      {% if dip.email_notifica %}
+        <a class="dp-btn dp-btn-ghost dp-btn-sm" href="mailto:{{ dip.email_notifica }}">✉ {{ dip.email_notifica }}</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- INFO ANAGRAFICHE -->
+  <div class="dp-card">
+    <div class="dp-card-head"><div class="dp-card-title">Dati anagrafici</div></div>
+    <div class="dp-card-body">
+      <div class="dp-info-grid">
+        <div class="dp-info-item"><div class="dp-info-label">Nome</div><div class="dp-info-value">{{ dip.nome|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Cognome</div><div class="dp-info-value">{{ dip.cognome|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Matricola</div><div class="dp-info-value">{{ dip.matricola|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Reparto</div><div class="dp-info-value">{{ dip.reparto|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Mansione</div><div class="dp-info-value">{{ dip.mansione|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Username</div><div class="dp-info-value">{{ dip.aliasusername|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Email account</div><div class="dp-info-value">{{ dip.email|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Email notifica</div><div class="dp-info-value">{% if dip.email_notifica %}<a href="mailto:{{ dip.email_notifica }}" style="color:#1d4ed8;">{{ dip.email_notifica }}</a>{% else %}—{% endif %}</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RUOLI OPERATIVI -->
+  <div class="dp-card">
+    <div class="dp-card-head">
+      <div class="dp-card-title">🏷 Ruoli operativi</div>
+      {% if is_admin %}
+        <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:ruoli_operativi_list' %}">Gestisci catalogo</a>
+      {% endif %}
+    </div>
+    <div class="dp-card-body">
+      <div class="dp-ruoli-list" id="ruoli-list">
+        {% for a in ruoli_assegnati %}
+          <span class="dp-ruolo-badge" style="background-color:{{ a.ruolo.colore }};">
+            {% if a.ruolo.icona %}{{ a.ruolo.icona }} {% endif %}{{ a.ruolo.nome }}
+            {% if is_admin %}
+              <form method="post" action="{% url 'anagrafica:dipendente_ruolo_rimuovi' legacy_id a.id %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="dp-ruolo-remove" title="Rimuovi ruolo" onclick="return confirm('Rimuovere il ruolo {{ a.ruolo.nome }}?')">×</button>
+              </form>
+            {% endif %}
+          </span>
+        {% empty %}
+          <span style="font-size:13px;color:#94a3b8;">Nessun ruolo operativo assegnato.</span>
+        {% endfor %}
+      </div>
+      {% if is_admin and ruoli_disponibili %}
+        <form method="post" action="{% url 'anagrafica:dipendente_ruolo_assegna' legacy_id %}" class="dp-ruolo-form">
+          {% csrf_token %}
+          <select name="ruolo_id" class="dp-select" required>
+            <option value="">— Seleziona ruolo —</option>
+            {% for r in ruoli_disponibili %}
+              <option value="{{ r.id }}">{% if r.icona %}{{ r.icona }} {% endif %}{{ r.nome }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">+ Assegna</button>
+        </form>
+      {% elif is_admin and not ruoli_disponibili and not ruoli_assegnati %}
+        <p style="font-size:13px;color:#94a3b8;margin-top:8px;">
+          Nessun ruolo nel catalogo. <a href="{% url 'anagrafica:ruoli_operativi_list' %}" style="color:#1d4ed8;">Crea i ruoli operativi</a>.
+        </p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- STATISTICHE -->
+  {% if can_stats %}
+  <div class="dp-stat-section" id="dp-stat-section">
+
+    <div class="dp-stat-toolbar">
+      <div class="dp-stat-toolbar-title">📊 Statistiche attività</div>
+      <div style="display:flex;gap:8px;">
+        {% if is_admin %}
+          <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:widget_permissions' %}" title="Impostazioni accesso statistiche">⚙ Accesso</a>
+        {% endif %}
+        <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm" id="dp-edit-btn" onclick="enterEditMode()">✏ Personalizza</button>
+      </div>
+    </div>
+
+    <!-- Edit bar -->
+    <div class="dp-edit-bar" id="dp-edit-bar">
+      <span style="font-size:13px;color:#92400e;">Modalità modifica — trascina per riordinare, clicca × per nascondere</span>
+      <div style="display:flex;gap:8px;">
+        <button type="button" class="dp-btn dp-btn-primary dp-btn-sm" onclick="saveLayout()">💾 Salva</button>
+        <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm" onclick="resetLayout()">↺ Ripristina</button>
+        <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm" onclick="exitEditMode()">Chiudi</button>
+      </div>
+    </div>
+
+    <!-- Widget grid -->
+    <div class="dp-widget-grid" id="dp-widget-grid">
+      {% for w in widgets_visible %}
+      <div class="dp-widget" data-wid="{{ w.id }}" draggable="false">
+        <div class="dp-widget-accent" style="background-color:{{ w.color }};"></div>
+        <button class="dp-widget-remove" onclick="removeWidget('{{ w.id }}')" title="Nascondi">×</button>
+        <div class="dp-widget-icon">{{ w.icon }}</div>
+        <div class="dp-widget-count">{{ w.count }}</div>
+        <div class="dp-widget-title">{{ w.title }}</div>
+        {% if w.link_url %}
+          <a class="dp-widget-link" href="{{ w.link_url }}">{{ w.link_label }} &rarr;</a>
+        {% endif %}
+      </div>
+      {% empty %}
+      <div style="grid-column:1/-1;padding:20px;text-align:center;color:#94a3b8;font-size:13px;">
+        Tutti i widget sono stati nascosti. Usa "Personalizza" per aggiungerli di nuovo.
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Add panel -->
+    <div class="dp-add-panel" id="dp-add-panel">
+      <div class="dp-add-panel-title">Widget disponibili</div>
+      <div class="dp-add-grid" id="dp-add-grid">
+        {% for w in all_widgets %}
+        <div class="dp-add-item {% for v in widgets_visible %}{% if v.id == w.id %}already-added{% endif %}{% endfor %}" data-add-wid="{{ w.id }}" id="add-item-{{ w.id }}">
+          <span>{{ w.icon }} {{ w.title }}</span>
+          <button type="button" class="dp-add-btn" onclick="addWidget('{{ w.id }}')">+ Aggiungi</button>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+  {% else %}
+  <div class="dp-card">
+    <div class="dp-card-body" style="text-align:center;padding:30px;color:#94a3b8;font-size:14px;">
+      Le statistiche non sono disponibili per il tuo profilo.
+      {% if is_admin %}<br><a href="{% url 'anagrafica:widget_permissions' %}" style="color:#1d4ed8;">Configura i permessi di accesso</a>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+{% if can_stats %}
+<script>
+const API_URL = "{% url 'anagrafica:api_dipendente_widget_layout' %}";
+const CSRF = "{{ csrf_token }}";
+const ALL_IDS = {{ all_widgets|json_encode_ids }};
+
+let editMode = false;
+let dirty = false;
+let dragSrc = null;
+
+// Costruisce lista id da tutti i widget noti
+function allWidgetIds() {
+  return [...document.querySelectorAll('#dp-widget-grid .dp-widget')].map(el => el.dataset.wid);
+}
+
+function hiddenIds() {
+  const visible = new Set(allWidgetIds());
+  const all = [{% for w in all_widgets %}"{{ w.id }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+  return all.filter(id => !visible.includes(id));
+}
+
+function enterEditMode() {
+  editMode = true;
+  document.getElementById('dp-stat-section').classList.add('dp-edit-mode');
+  document.getElementById('dp-edit-btn').style.display = 'none';
+  document.querySelectorAll('#dp-widget-grid .dp-widget').forEach(el => {
+    el.setAttribute('draggable', 'true');
+  });
+  syncAddPanel();
+}
+
+function exitEditMode() {
+  editMode = false;
+  document.getElementById('dp-stat-section').classList.remove('dp-edit-mode');
+  document.getElementById('dp-edit-btn').style.display = '';
+  document.querySelectorAll('#dp-widget-grid .dp-widget').forEach(el => {
+    el.setAttribute('draggable', 'false');
+  });
+  dirty = false;
+}
+
+function syncAddPanel() {
+  const visibleIds = new Set(allWidgetIds());
+  document.querySelectorAll('#dp-add-grid .dp-add-item').forEach(el => {
+    const wid = el.dataset.addWid;
+    el.classList.toggle('already-added', visibleIds.has(wid));
+  });
+}
+
+function removeWidget(wid) {
+  const el = document.querySelector(`#dp-widget-grid .dp-widget[data-wid="${wid}"]`);
+  if (el) {
+    el.style.transition = 'opacity .2s';
+    el.style.opacity = '0';
+    setTimeout(() => { el.remove(); syncAddPanel(); dirty = true; }, 200);
+  }
+}
+
+function addWidget(wid) {
+  // POST immediato con nuovo layout
+  const order = allWidgetIds();
+  order.push(wid);
+  const hidden = hiddenFromIds(order);
+  fetch(API_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify({ order: order, hidden: hidden }),
+  }).then(() => location.reload());
+}
+
+function hiddenFromIds(visibleOrder) {
+  const all = [{% for w in all_widgets %}"{{ w.id }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+  const visSet = new Set(visibleOrder);
+  return all.filter(id => !visSet.has(id));
+}
+
+function saveLayout() {
+  const order = allWidgetIds();
+  const hidden = hiddenFromIds(order);
+  fetch(API_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify({ order: order, hidden: hidden }),
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { dirty = false; exitEditMode(); }
+  });
+}
+
+function resetLayout() {
+  if (!confirm('Ripristinare il layout predefinito?')) return;
+  fetch(API_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify({ order: [], hidden: [] }),
+  }).then(() => location.reload());
+}
+
+// Drag & drop
+const grid = document.getElementById('dp-widget-grid');
+grid.addEventListener('dragstart', e => {
+  dragSrc = e.target.closest('.dp-widget');
+  if (dragSrc) dragSrc.classList.add('dp-drag-ghost');
+});
+grid.addEventListener('dragover', e => {
+  e.preventDefault();
+  const target = e.target.closest('.dp-widget');
+  if (target && target !== dragSrc) {
+    const rect = target.getBoundingClientRect();
+    const mid = rect.left + rect.width / 2;
+    if (e.clientX < mid) grid.insertBefore(dragSrc, target);
+    else grid.insertBefore(dragSrc, target.nextSibling);
+  }
+});
+grid.addEventListener('dragend', e => {
+  if (dragSrc) { dragSrc.classList.remove('dp-drag-ghost'); dirty = true; }
+  dragSrc = null;
+});
+
+window.addEventListener('beforeunload', e => {
+  if (dirty) { e.preventDefault(); e.returnValue = ''; }
+});
+</script>
+{% endif %}
+{% endblock %}

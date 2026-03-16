@@ -39,6 +39,7 @@ urlpatterns = [
     path("", include(("timbri.urls", "timbri"), namespace="timbri")),
     path("tickets/",    include(("tickets.urls",    "tickets"),    namespace="tickets")),
     path("diario-preposto/", include(("diario_preposto.urls", "diario_preposto"), namespace="diario_preposto")),
+    path("rilevazione-incidenti/", include(("rilevazione_incidenti.urls", "rilevazione_incidenti"), namespace="rilevazione_incidenti")),
     path("", include("rentri.urls")),
     path("", include(("planimetria.urls", "planimetria"), namespace="planimetria")),
     path("", include("core.urls")),

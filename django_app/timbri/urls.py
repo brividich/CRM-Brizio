@@ -18,4 +18,5 @@ urlpatterns = [
     path("timbri/record/<int:record_id>/modifica/", views.registro_edit, name="registro_edit"),
     path("timbri/configurazione/", views.configurazione_page, name="configurazione"),
     path("timbri/export-csv", views.export_csv, name="export_csv"),
+    path("timbri/immagine/<int:image_id>/", views.serve_timbri_image, name="serve_image"),
 ]

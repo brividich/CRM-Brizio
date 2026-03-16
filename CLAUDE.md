@@ -1,7 +1,7 @@
 # CLAUDE.md — Portale Novicrom
 
 Documento di contesto per AI coding assistant. Aggiornato continuamente con il progetto.
-Versione app corrente: **0.7.2**
+Versione app corrente: **0.7.3**
 
 ---
 
@@ -35,6 +35,7 @@ Versione app corrente: **0.7.2**
 | `tickets` | Sistema ticket interni |
 | `rentri` | Tracciabilità rifiuti (normativa RENTRI) |
 | `diario_preposto` | Diario del preposto sicurezza |
+| `rilevazione_incidenti` | Rilevazione incidenti / unsafe condition (CRUD via Graph API, SharePoint come fonte di verità) |
 | `hub_tools` | Hub strumenti interni: Module Manager + Database Manager |
 | `setup_wizard` | Wizard guidato prima configurazione (12 step) |
 
@@ -111,6 +112,21 @@ Pattern: `AppConfig.ready()` → chiama `bootstrap_*_acl_endpoints()` → upsert
 
 ---
 
+## Bump di versione — checklist obbligatoria
+
+Ad ogni bump di versione (es. 0.7.3 → 0.7.4) aggiornare **tutti** questi punti, senza eccezioni:
+
+1. `CLAUDE.md` riga 4 — `Versione app corrente: **X.Y.Z**`
+2. `config/settings/base.py` — `APP_VERSION = env("APP_VERSION", "X.Y.Z")`
+3. `setup_wizard/views.py` — default fallback in `APP_VERSION={s('app_version', 'X.Y.Z')}`
+4. `hub_tools/views.py` — default fallback in `APP_VERSION={s('app_version', current_env.get('APP_VERSION', 'X.Y.Z'))}`
+5. `.env` (file locale, non versionato) — `APP_VERSION=X.Y.Z`
+6. `CHANGELOG.md` — aggiungere sezione `## X.Y.Z - YYYY-MM-DD`
+
+Il file `.env` ha **la precedenza** su tutti i default nel codice: se non viene aggiornato, la UI mostrerà sempre il valore vecchio indipendentemente dagli altri file.
+
+---
+
 ## Pattern di sviluppo
 
 ### Import in tickets/views.py — REGOLA CRITICA
@@ -139,11 +155,26 @@ Il progetto usa quasi esclusivamente FBV. Non introdurre CBV senza necessità.
 - Variabili ambiente da `.env` (via `environ`) + `config.ini` (via `configparser`)
 - Per sviluppo: `--settings=config.settings.dev`
 
+### Template Django — REGOLA: variabili NON possono iniziare con underscore
+
+Django proibisce a livello di template engine l'accesso a chiavi dict o attributi che iniziano con `_`. Questo vale per template tag, dot notation e loop variables.
+
+```python
+# SBAGLIATO — causa TemplateSyntaxError a runtime
+f["_stato"] = "APERTO"     # nel template: {{ f._stato }} → ERRORE
+
+# CORRETTO
+f["stato"] = "APERTO"      # nel template: {{ f.stato }} → OK
+```
+
+Questo si applica anche a dict arbitrari passati al template (es. campi SharePoint arricchiti con metadati computed). Non usare mai chiavi `_xxx` in oggetti/dict che vengono passati al contesto template.
+
 ### Graph / SharePoint
 
 - Utility centralizzata: `core/graph_utils.py` — `acquire_graph_token(tenant_id, client_id, client_secret)`
 - Cache thread-safe con `Lock + dict`, rinnovo 60s prima della scadenza
 - **Non duplicare** la logica token nelle singole app — usare sempre `core/graph_utils.py`
+- I nomi di campo SharePoint con spazi usano encoding URL: spazio → `_x0020_`, slash → `_x002F_`. Verificare sempre i nomi reali via risposta Graph API prima di hardcodarli.
 
 ---
 
@@ -165,6 +196,47 @@ Questi componenti esistono solo sul server di produzione:
 - Designer visuale → regole salvate su DB → trigger SQL Server → inserimento in `automation_event_queue`
 - Management command: `python manage.py process_automation_queue`
 - File principali: `automazioni/models.py`, `automazioni/views.py`, `sql/`
+
+---
+
+## Audit Trail
+
+- Funzione: `core/audit.py` → `log_action(request, azione, modulo, dettaglio)`
+- Scrive su `core.models.AuditLog` (tabella Django, con migration)
+- Fire-and-forget: gli errori DB sono loggati ma non propagati alla view
+- Traccia automaticamente se l'azione è eseguita in impersonation (aggiunge `_impersonation` nel payload)
+- App che già usano audit log: `admin_portale`, `anomalie`, `assenze`, `assets`, `core`
+- **Da usare** per ogni operazione CRUD rilevante (creazione/modifica/cancellazione di entità)
+
+---
+
+## URL routing
+
+Tutte le app sono incluse in `config/urls.py`. Prefissi notevoli:
+
+| Prefisso | App |
+| --- | --- |
+| `/setup/` | `setup_wizard` |
+| `/admin-portale/` | `admin_portale` |
+| `/admin-portale/hub/` | `hub_tools` |
+| `/automazioni/` | `automazioni` |
+| `/anagrafica/` | `anagrafica` |
+| `/tickets/` | `tickets` |
+| `/diario-preposto/` | `diario_preposto` |
+| `/rilevazione-incidenti/` | `rilevazione_incidenti` |
+| `/notizie/` | `notizie` |
+| `/admin/` | Django admin nativo |
+
+Le app `dashboard`, `assenze`, `anomalie`, `timbri`, `rentri`, `core`, `planimetria` usano prefisso vuoto `""` (i path sono definiti internamente al loro `urls.py`).
+
+---
+
+## Logging
+
+- File log in `django_app/logs/`: `app.log`, `app-{hostname}.log`, `sql.log`
+- Handler custom `SafeTimedRotatingFileHandler` in `core/logging_handlers.py` (rotazione giornaliera, safe per multi-process)
+- SQL logging configurabile via env `SQL_LOG_ENABLED` e `SQL_LOG_LEVEL`
+- In produzione non usare `print()` — usare sempre `logging.getLogger(__name__)`
 
 ---
 

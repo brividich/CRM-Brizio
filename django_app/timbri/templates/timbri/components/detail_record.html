@@ -11,7 +11,12 @@
         <span class="tim-pill {% if record.is_archived %}tim-pill-gray{% else %}tim-pill-amber{% endif %}">{{ record.stato_label }}</span>
       {% endif %}
       <span class="tim-pill tim-pill-gray">{{ record.get_tipo_timbro_display }}</span>
-      {% if can_edit_timbri %}<a class="tim-btn" href="{% url 'timbri:registro_edit' record.id %}">{% if active %}Modifica{% else %}Apri{% endif %}</a>{% endif %}
+      {% if active %}
+        {% if can_edit_timbri %}<a class="tim-btn" href="{% url 'timbri:registro_edit' record.id %}">Modifica</a>{% endif %}
+      {% else %}
+        <button class="tim-btn" type="button" onclick="timToggleImages(this)">Apri</button>
+        {% if can_edit_timbri %}<a class="tim-btn" href="{% url 'timbri:registro_edit' record.id %}" style="font-size:11px;padding:5px 9px;color:#64748b;">Modifica</a>{% endif %}
+      {% endif %}
     </div>
   </div>
   <div style="margin-top:10px;color:#475569;font-size:13px;">
@@ -24,15 +29,14 @@
       {{ record.firma_testo|linebreaksbr }}
     </div>
   {% endif %}
-  {% if active %}
-  <div class="tim-images">
+  <div class="tim-images"{% if not active %} style="display:none"{% endif %}>
     {% for slot in record.image_slots %}
       <div class="tim-image">
         <div class="tim-img-label">{{ slot.label }}</div>
         {% if slot.image %}
-          <img src="{{ slot.image.image.url }}" alt="{{ slot.label }}">
+          <img src="{% url 'timbri:serve_image' slot.image.id %}" alt="{{ slot.label }}">
           {% if can_copy_timbri %}
-            <button class="tim-btn tim-btn-copy" data-url="{{ slot.image.image.url }}">Copia</button>
+            <button class="tim-btn tim-btn-copy" data-url="{% url 'timbri:serve_image' slot.image.id %}">Copia</button>
           {% endif %}
         {% else %}
           <div style="height:140px;display:flex;align-items:center;justify-content:center;color:#94a3b8;">Nessuna immagine</div>
@@ -40,5 +44,4 @@
       </div>
     {% endfor %}
   </div>
-  {% endif %}
 </div>

@@ -33,4 +33,21 @@ urlpatterns = [
     # Asset assegnati
     path("fornitori/<int:fornitore_id>/asset/add", views.fornitore_asset_add, name="fornitore_asset_add"),
     path("fornitori/<int:fornitore_id>/asset/<int:fa_id>/remove", views.fornitore_asset_remove, name="fornitore_asset_remove"),
+
+    # Scheda dettaglio dipendente
+    path("dipendenti/<int:legacy_id>/", views.dipendente_detail, name="dipendente_detail"),
+    path("dipendenti/<int:legacy_id>/ruoli/assegna", views.dipendente_ruolo_assegna, name="dipendente_ruolo_assegna"),
+    path("dipendenti/<int:legacy_id>/ruoli/<int:assegnazione_id>/rimuovi", views.dipendente_ruolo_rimuovi, name="dipendente_ruolo_rimuovi"),
+
+    # API widget layout
+    path("api/widget-layout/", views.api_dipendente_widget_layout, name="api_dipendente_widget_layout"),
+
+    # Ruoli operativi catalogo
+    path("ruoli-operativi/", views.ruoli_operativi_list, name="ruoli_operativi_list"),
+    path("ruoli-operativi/nuovo", views.ruolo_operativo_create, name="ruolo_operativo_create"),
+    path("ruoli-operativi/<int:ruolo_id>/modifica", views.ruolo_operativo_edit, name="ruolo_operativo_edit"),
+    path("ruoli-operativi/<int:ruolo_id>/elimina", views.ruolo_operativo_delete, name="ruolo_operativo_delete"),
+
+    # Impostazioni permessi widget
+    path("impostazioni-widget/", views.widget_permissions, name="widget_permissions"),
 ]

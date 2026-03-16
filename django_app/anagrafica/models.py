@@ -275,3 +275,98 @@ class FornitoreAsset(models.Model):
         if self.data_fine is None:
             return True
         return self.data_fine >= timezone.localdate()
+
+
+# ---------------------------------------------------------------------------
+# Ruoli operativi aziendali (preposto, RSPP, squadra antincendio, ecc.)
+# ---------------------------------------------------------------------------
+
+class RuoloOperativo(models.Model):
+    nome = models.CharField(max_length=100, unique=True)
+    descrizione = models.TextField(blank=True, default="")
+    colore = models.CharField(max_length=7, default="#64748b", help_text="Colore esadecimale es. #1d4ed8")
+    icona = models.CharField(max_length=10, blank=True, default="", help_text="Emoji o testo breve")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["nome"]
+        verbose_name = "Ruolo Operativo"
+        verbose_name_plural = "Ruoli Operativi"
+
+    def __str__(self) -> str:
+        return self.nome
+
+
+class DipendenteRuoloOperativo(models.Model):
+    """Assegnazione di un ruolo operativo a un dipendente (via ID legacy anagrafica)."""
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    ruolo = models.ForeignKey(RuoloOperativo, on_delete=models.CASCADE, related_name="assegnazioni")
+    assegnato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ruoli_operativi_assegnati",
+    )
+    assegnato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("legacy_anagrafica_id", "ruolo")]
+        verbose_name = "Ruolo operativo dipendente"
+        verbose_name_plural = "Ruoli operativi dipendenti"
+
+    def __str__(self) -> str:
+        return f"[{self.legacy_anagrafica_id}] → {self.ruolo.nome}"
+
+
+# ---------------------------------------------------------------------------
+# Layout widget statistiche scheda dipendente (personalizzabile per utente)
+# ---------------------------------------------------------------------------
+
+class DipendenteStatLayout(models.Model):
+    """Layout e visibilità widget statistiche nella scheda dipendente, per utente loggato."""
+    viewer_user_id = models.IntegerField(unique=True, db_index=True)
+    hidden = models.JSONField(default=list, blank=True, help_text="Lista widget_id nascosti")
+    order = models.JSONField(default=list, blank=True, help_text="Ordine dei widget_id")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Layout widget statistiche dipendente"
+        verbose_name_plural = "Layout widget statistiche dipendente"
+
+
+# ---------------------------------------------------------------------------
+# Impostazioni permessi sezione statistiche anagrafica (singleton)
+# ---------------------------------------------------------------------------
+
+class AnagraficaStatPermission(models.Model):
+    """Singleton: chi può vedere la sezione statistiche nella scheda dipendente."""
+    ACCESSO_TUTTI = "TUTTI"
+    ACCESSO_ADMIN = "ADMIN"
+    ACCESSO_RUOLI = "RUOLI"
+
+    ACCESSO_CHOICES = [
+        (ACCESSO_TUTTI, "Tutti gli utenti autenticati"),
+        (ACCESSO_ADMIN, "Solo amministratori"),
+        (ACCESSO_RUOLI, "Ruoli ACL specifici"),
+    ]
+
+    accesso = models.CharField(max_length=20, choices=ACCESSO_CHOICES, default=ACCESSO_ADMIN)
+    ruolo_ids = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Lista ruolo_id ACL legacy abilitati (usato solo se accesso=RUOLI)",
+    )
+
+    class Meta:
+        verbose_name = "Permessi statistiche anagrafica"
+        verbose_name_plural = "Permessi statistiche anagrafica"
+
+    def __str__(self) -> str:
+        return f"Permessi statistiche ({self.get_accesso_display()})"
+
+    @classmethod
+    def get_instance(cls) -> "AnagraficaStatPermission":
+        obj, _ = cls.objects.get_or_create(pk=1, defaults={"accesso": cls.ACCESSO_ADMIN})
+        return obj

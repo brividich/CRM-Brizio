@@ -9,6 +9,8 @@ from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
 
+from .storage import PrivateTimbriStorage
+
 
 PNG_MAX_SIZE = 20 * 1024 * 1024
 
@@ -172,7 +174,7 @@ class RegistroTimbroImmagine(models.Model):
 
     registro = models.ForeignKey(RegistroTimbro, on_delete=models.CASCADE, related_name="immagini")
     variante = models.CharField(max_length=20, choices=VARIANTE_CHOICES)
-    image = models.ImageField(upload_to=_registro_image_upload_to)
+    image = models.ImageField(upload_to=_registro_image_upload_to, storage=PrivateTimbriStorage)
     source_url = models.CharField(max_length=1000, blank=True, default="")
     original_filename = models.CharField(max_length=255, blank=True, default="")
     width = models.PositiveIntegerField(default=0)

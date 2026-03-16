@@ -1,0 +1,394 @@
+{% extends "core/base.html" %}
+
+{% block title %}Nuova Rilevazione Sicurezza | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#sic-root { display:flex; flex-direction:column; gap:20px; }
+
+.sic-hero {
+  background:linear-gradient(135deg,#064e3b 0%,#065f46 60%,#047857 100%);
+  border-radius:16px; padding:24px 32px; color:#fff;
+}
+.sic-hero-title { font-size:22px; font-weight:900; letter-spacing:-.02em; }
+.sic-hero-sub { font-size:13px; opacity:.7; margin-top:3px; }
+.sic-breadcrumb { font-size:12px; opacity:.6; margin-bottom:6px; }
+.sic-breadcrumb a { color:#fff; text-decoration:none; }
+
+/* ---- Selezione tipo ---- */
+.sic-tipo-grid {
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:20px;
+}
+.sic-tipo-card {
+  background:#fff; border:2px solid #e2e8f0; border-radius:18px;
+  padding:28px 20px; text-align:center; text-decoration:none; color:inherit;
+  display:flex; flex-direction:column; align-items:center; gap:14px;
+  transition:all .18s; cursor:pointer;
+}
+.sic-tipo-card:hover { transform:translateY(-3px); box-shadow:0 8px 28px rgba(6,95,70,.15); }
+.sic-tipo-unsafe-condition:hover { border-color:#16a34a; }
+.sic-tipo-unsafe-act:hover { border-color:#0369a1; }
+.sic-tipo-near-miss:hover { border-color:#ea580c; }
+.sic-tipo-accident:hover { border-color:#dc2626; }
+
+.sic-tipo-icon { font-size:52px; line-height:1; }
+.sic-tipo-label { font-size:17px; font-weight:800; color:#0f172a; }
+.sic-tipo-desc { font-size:12px; color:#64748b; line-height:1.5; }
+
+.sic-tipo-unsafe-condition .sic-tipo-badge-inline { background:#dcfce7; color:#166534; }
+.sic-tipo-unsafe-act .sic-tipo-badge-inline { background:#e0f2fe; color:#0c4a6e; }
+.sic-tipo-near-miss .sic-tipo-badge-inline { background:#fff7ed; color:#9a3412; }
+.sic-tipo-accident .sic-tipo-badge-inline { background:#fee2e2; color:#991b1b; }
+.sic-tipo-badge-inline {
+  padding:3px 12px; border-radius:20px; font-size:11px; font-weight:700;
+}
+
+/* ---- Form ---- */
+.sic-form-card {
+  background:#fff; border:1px solid #e2e8f0; border-radius:16px;
+  padding:28px 32px;
+}
+.sic-section { margin-bottom:28px; }
+.sic-section:last-child { margin-bottom:0; }
+.sic-section-title {
+  font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase;
+  letter-spacing:.06em; margin-bottom:16px; padding-bottom:8px;
+  border-bottom:2px solid #f1f5f9;
+}
+.sic-section-title .sic-section-num {
+  display:inline-flex; width:22px; height:22px; border-radius:50%;
+  background:#065f46; color:#fff; font-size:11px; align-items:center;
+  justify-content:center; margin-right:8px;
+}
+
+.sic-field { display:flex; flex-direction:column; gap:5px; margin-bottom:16px; }
+.sic-field label { font-size:13px; font-weight:700; color:#374151; }
+.sic-field label .req { color:#dc2626; margin-left:2px; }
+.sic-field input[type=text],
+.sic-field input[type=datetime-local],
+.sic-field input[type=date],
+.sic-field select,
+.sic-field textarea {
+  padding:9px 12px; border:1px solid #cbd5e1; border-radius:10px;
+  font-size:14px; transition:border-color .15s; outline:none;
+  font-family:inherit;
+}
+.sic-field input:focus,
+.sic-field select:focus,
+.sic-field textarea:focus {
+  border-color:#065f46; box-shadow:0 0 0 3px rgba(6,95,70,.08);
+}
+.sic-field textarea { resize:vertical; min-height:80px; }
+.sic-field-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.sic-field-row-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
+
+.sic-toggle-row {
+  display:flex; align-items:center; gap:10px; padding:10px 14px;
+  background:#f8fafc; border-radius:10px; margin-bottom:12px;
+}
+.sic-toggle-row label { font-size:13px; font-weight:600; color:#374151; cursor:pointer; flex:1; }
+.sic-toggle {
+  position:relative; display:inline-block; width:44px; height:24px;
+  flex-shrink:0;
+}
+.sic-toggle input { opacity:0; width:0; height:0; }
+.sic-toggle-slider {
+  position:absolute; inset:0; background:#cbd5e1; border-radius:24px;
+  transition:.3s; cursor:pointer;
+}
+.sic-toggle-slider:before {
+  content:""; position:absolute; height:18px; width:18px; left:3px; bottom:3px;
+  background:#fff; border-radius:50%; transition:.3s;
+}
+.sic-toggle input:checked + .sic-toggle-slider { background:#065f46; }
+.sic-toggle input:checked + .sic-toggle-slider:before { transform:translateX(20px); }
+
+.sic-tipo-pill {
+  display:inline-block; padding:4px 14px; border-radius:20px;
+  font-size:13px; font-weight:700; margin-bottom:16px;
+}
+
+.sic-form-actions {
+  display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;
+  padding-top:20px; border-top:1px solid #f1f5f9; margin-top:20px;
+}
+.sic-btn-save {
+  padding:11px 28px; background:#065f46; color:#fff; border:none;
+  border-radius:10px; font-size:14px; font-weight:700; cursor:pointer;
+}
+.sic-btn-save:hover { background:#047857; }
+.sic-btn-back {
+  padding:11px 22px; background:#f1f5f9; color:#475569; border:none;
+  border-radius:10px; font-size:14px; font-weight:600; cursor:pointer;
+  text-decoration:none;
+}
+.sic-error-box {
+  background:#fef2f2; border:1px solid #fecaca; border-radius:12px;
+  padding:12px 16px; color:#991b1b; font-size:13px; margin-bottom:16px;
+}
+
+.hidden { display:none !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="sic-root">
+
+  <!-- Hero -->
+  <div class="sic-hero">
+    <div class="sic-breadcrumb">
+      <a href="{% url 'rilevazione_incidenti:lista' %}">&#8592; Rilevazioni Sicurezza</a>
+    </div>
+    <div class="sic-hero-title">Nuova Rilevazione</div>
+    <div class="sic-hero-sub">Segnalazione UnSafe Condition / UnSafe Act / Near Miss / Accident</div>
+  </div>
+
+  {% if not tipo %}
+  <!-- ================================================================ -->
+  <!-- SCHERMATA 1: Selezione tipo evento                                -->
+  <!-- ================================================================ -->
+  <div class="sic-form-card">
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="font-size:18px;font-weight:800;color:#0f172a;">Scegli il tipo di evento accaduto</div>
+      <div style="font-size:13px;color:#64748b;margin-top:4px;">La tipologia non sarà modificabile dopo il salvataggio</div>
+    </div>
+    <div class="sic-tipo-grid">
+      <a href="{% url 'rilevazione_incidenti:nuovo' %}?tipo=Unsafe+Condition" class="sic-tipo-card sic-tipo-unsafe-condition">
+        <div class="sic-tipo-icon">&#9888;&#65039;</div>
+        <div class="sic-tipo-label">Unsafe Condition</div>
+        <div class="sic-tipo-desc">Condizione fisica pericolosa nell'ambiente di lavoro</div>
+        <span class="sic-tipo-badge-inline">Condizione non sicura</span>
+      </a>
+      <a href="{% url 'rilevazione_incidenti:nuovo' %}?tipo=Unsafe+Act" class="sic-tipo-card sic-tipo-unsafe-act">
+        <div class="sic-tipo-icon">&#128694;</div>
+        <div class="sic-tipo-label">Unsafe Act</div>
+        <div class="sic-tipo-desc">Comportamento o azione non sicura da parte di un lavoratore</div>
+        <span class="sic-tipo-badge-inline">Azione non sicura</span>
+      </a>
+      <a href="{% url 'rilevazione_incidenti:nuovo' %}?tipo=Near+Miss" class="sic-tipo-card sic-tipo-near-miss">
+        <div class="sic-tipo-icon">&#128680;</div>
+        <div class="sic-tipo-label">Near Miss</div>
+        <div class="sic-tipo-desc">Quasi incidente: evento che avrebbe potuto causare un infortunio</div>
+        <span class="sic-tipo-badge-inline">Quasi incidente</span>
+      </a>
+      <a href="{% url 'rilevazione_incidenti:nuovo' %}?tipo=Accident" class="sic-tipo-card sic-tipo-accident">
+        <div class="sic-tipo-icon">&#128721;</div>
+        <div class="sic-tipo-label">Accident</div>
+        <div class="sic-tipo-desc">Infortunio avvenuto con conseguenze per il lavoratore</div>
+        <span class="sic-tipo-badge-inline">Infortunio</span>
+      </a>
+    </div>
+  </div>
+
+  {% else %}
+  <!-- ================================================================ -->
+  <!-- SCHERMATA 2: Form di inserimento                                  -->
+  <!-- ================================================================ -->
+
+  {% if error %}
+  <div class="sic-error-box">&#9888; {{ error }}</div>
+  {% endif %}
+
+  <form method="post" id="sic-form">
+    {% csrf_token %}
+    <input type="hidden" name="Tipologia_scheda" value="{{ tipo }}">
+
+    <div class="sic-form-card">
+
+      <!-- Tipologia (read-only) -->
+      <div style="margin-bottom:20px;">
+        {% if tipo == "Unsafe Condition" %}
+          <span class="sic-tipo-pill" style="background:#dcfce7;color:#166534;">Unsafe Condition</span>
+        {% elif tipo == "Unsafe Act" %}
+          <span class="sic-tipo-pill" style="background:#e0f2fe;color:#0c4a6e;">Unsafe Act</span>
+        {% elif tipo == "Near Miss" %}
+          <span class="sic-tipo-pill" style="background:#fff7ed;color:#9a3412;">Near Miss</span>
+        {% elif tipo == "Accident" %}
+          <span class="sic-tipo-pill" style="background:#fee2e2;color:#991b1b;">Accident</span>
+        {% endif %}
+        <a href="{% url 'rilevazione_incidenti:nuovo' %}"
+           style="font-size:12px;color:#64748b;margin-left:10px;text-decoration:none;">
+          &#8592; cambia tipo
+        </a>
+      </div>
+
+      <!-- ---- SEZIONE 1: Dati evento ---- -->
+      <div class="sic-section">
+        <div class="sic-section-title">
+          <span class="sic-section-num">1</span>Dati dell'evento
+        </div>
+
+        <div class="sic-field-row">
+          <div class="sic-field">
+            <label>Nominativo (Preposto) <span class="req">*</span></label>
+            <input type="text" name="Nominativo" value="{{ form_data.Nominativo.0|default:nome_utente }}" required>
+          </div>
+          <div class="sic-field">
+            <label>Data e ora rilevazione <span class="req">*</span></label>
+            <input type="datetime-local" name="Data_e_ora_rilevazione"
+                   value="{{ form_data.Data_e_ora_rilevazione.0|default:'' }}" required>
+          </div>
+        </div>
+
+        <div class="sic-field">
+          <label>Reparto <span class="req">*</span></label>
+          <select name="Reparto" required>
+            <option value="">— Seleziona reparto —</option>
+            {% for r in reparti %}
+            <option value="{{ r }}"{% if form_data.Reparto.0 == r %} selected{% endif %}>{{ r }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="sic-toggle-row">
+          <label for="toggle-macchina">La causa è l'uso di una macchina/attrezzatura manuale?</label>
+          <label class="sic-toggle">
+            <input type="checkbox" id="toggle-macchina" name="usa_macchina" value="1"
+                   onchange="toggleMacchina(this)"
+                   {% if form_data.usa_macchina.0 == "1" %}checked{% endif %}>
+            <span class="sic-toggle-slider"></span>
+          </label>
+        </div>
+
+        <div id="macchina-fields" class="{% if form_data.usa_macchina.0 != '1' %}hidden{% endif %}">
+          <div class="sic-field-row">
+            <div class="sic-field">
+              <label>Nome macchina/attrezzatura e utilizzo</label>
+              <input type="text" name="nome_macchina"
+                     value="{{ form_data.nome_macchina.0|default:'' }}">
+            </div>
+            <div class="sic-field" style="justify-content:flex-end;">
+              <div class="sic-toggle-row" style="margin-bottom:0;">
+                <label for="toggle-buono-stato">Buono stato macchina/attrezzatura?</label>
+                <label class="sic-toggle">
+                  <input type="checkbox" id="toggle-buono-stato" name="buono_stato_macchina" value="1"
+                         {% if form_data.buono_stato_macchina.0 == "1" %}checked{% endif %}>
+                  <span class="sic-toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sic-toggle-row">
+          <label for="toggle-dpi">Utilizzo DPI previsti</label>
+          <label class="sic-toggle">
+            <input type="checkbox" id="toggle-dpi" name="utilizzo_dpi" value="1"
+                   {% if form_data.utilizzo_dpi.0 == "1" %}checked{% endif %}>
+            <span class="sic-toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="sic-field">
+          <label>Descrizione attività svolte durante l'accaduto <span class="req">*</span></label>
+          <textarea name="descrizione_attivita" rows="3" required>{{ form_data.descrizione_attivita.0|default:'' }}</textarea>
+        </div>
+
+        <div class="sic-field">
+          <label>Descrizione avvenimento <span class="req">*</span></label>
+          <textarea name="descrizione_avvenimento" rows="4" required>{{ form_data.descrizione_avvenimento.0|default:'' }}</textarea>
+        </div>
+
+        {% if tipo == "Near Miss" %}
+        <div class="sic-field">
+          <label>Descrizione avvenimento "Quasi incidente"</label>
+          <textarea name="descrizione_quasi_incidente" rows="3">{{ form_data.descrizione_quasi_incidente.0|default:'' }}</textarea>
+        </div>
+        <div class="sic-toggle-row">
+          <label for="toggle-prima-volta">Prima volta quasi incidente?</label>
+          <label class="sic-toggle">
+            <input type="checkbox" id="toggle-prima-volta" name="prima_volta_quasi_incidente" value="1"
+                   {% if form_data.prima_volta_quasi_incidente.0 == "1" %}checked{% endif %}>
+            <span class="sic-toggle-slider"></span>
+          </label>
+        </div>
+        {% endif %}
+
+        <div class="sic-field-row">
+          <div class="sic-field">
+            <label>Causa che ha determinato l'evento <span class="req">*</span></label>
+            <select name="causa_evento" required>
+              <option value="">— Seleziona —</option>
+              {% for c in cause_evento %}
+              <option value="{{ c }}"{% if form_data.causa_evento.0 == c %} selected{% endif %}>{{ c }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="sic-field">
+            <label>Persone coinvolte</label>
+            <select name="persone_coinvolte">
+              <option value="">— Seleziona —</option>
+              {% for p in persone_coinvolte_choices %}
+              <option value="{{ p }}"{% if form_data.persone_coinvolte.0 == p %} selected{% endif %}>{{ p }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="sic-field">
+          <label>Altre cause</label>
+          <textarea name="altre_cause" rows="2">{{ form_data.altre_cause.0|default:'' }}</textarea>
+        </div>
+
+        <div class="sic-toggle-row">
+          <label for="toggle-misure">Ci sono MISURE TECNICHE, organizzative o procedurali per evitare che possa riaccadere questo tipo di evento?</label>
+          <label class="sic-toggle">
+            <input type="checkbox" id="toggle-misure" name="misure_tecniche" value="1"
+                   onchange="toggleMisure(this)"
+                   {% if form_data.misure_tecniche.0 == "1" %}checked{% endif %}>
+            <span class="sic-toggle-slider"></span>
+          </label>
+        </div>
+        <div id="misure-fields" class="{% if form_data.misure_tecniche.0 != '1' %}hidden{% endif %}">
+          <div class="sic-field">
+            <label>Quali misure adottare</label>
+            <textarea name="quali_misure" rows="3">{{ form_data.quali_misure.0|default:'' }}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---- SEZIONE 2: Modello 5WHY ---- -->
+      <div class="sic-section">
+        <div class="sic-section-title">
+          <span class="sic-section-num">2</span>Modello 5WHY
+        </div>
+
+        <div class="sic-field">
+          <label>Partecipanti all'analisi</label>
+          <input type="text" name="partecipanti" value="{{ form_data.partecipanti.0|default:'' }}"
+                 placeholder="Nomi separati da virgola">
+        </div>
+        {% for i in "12345" %}
+        <div class="sic-field">
+          <label>{{ i }} WHY</label>
+          <textarea name="why_{{ i }}" rows="2">{{ form_data|default:"" }}</textarea>
+        </div>
+        {% endfor %}
+        <div class="sic-field">
+          <label>Note preposto</label>
+          <textarea name="note_preposto" rows="3">{{ form_data.note_preposto.0|default:'' }}</textarea>
+        </div>
+      </div>
+
+      <!-- Azioni -->
+      <div class="sic-form-actions">
+        <a href="{% url 'rilevazione_incidenti:lista' %}" class="sic-btn-back">Annulla</a>
+        <button type="reset" class="sic-btn-back" style="border:none;cursor:pointer;">Reset</button>
+        <button type="submit" class="sic-btn-save">&#128190; Salva rilevazione</button>
+      </div>
+
+    </div>
+  </form>
+  {% endif %}
+
+</div>
+
+<script>
+function toggleMacchina(cb) {
+  document.getElementById('macchina-fields').classList.toggle('hidden', !cb.checked);
+}
+function toggleMisure(cb) {
+  document.getElementById('misure-fields').classList.toggle('hidden', !cb.checked);
+}
+</script>
+{% endblock %}

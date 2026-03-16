@@ -29,6 +29,10 @@ input:checked+.slider:before{transform:translateX(20px)}
 .dot-on{background:#22a860} .dot-off{background:#94a3b8}
 .lbl-on{color:#22a860;font-weight:600} .lbl-off{color:#94a3b8;font-weight:600}
 .alert-info{background:#eff6ff;border-left:3px solid #1a6fc4;padding:10px 14px;border-radius:7px;font-size:.83rem;margin-bottom:20px}
+.redirect-btn{display:inline-flex;align-items:center;gap:5px;font-size:.75rem;font-weight:600;padding:4px 10px;border-radius:20px;border:1.5px solid #cbd5e1;background:#f8fafc;color:#64748b;cursor:pointer;transition:all .2s;white-space:nowrap}
+.redirect-btn:hover{border-color:#1a6fc4;color:#1a6fc4}
+.redirect-btn.active{border-color:#f59e0b;background:#fffbeb;color:#b45309}
+.module-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0}
 </style>
 
 <div style="max-width:1100px;margin:0 auto;padding:24px 20px">
@@ -72,6 +76,16 @@ input:checked+.slider:before{transform:translateX(20px)}
           </label>
         {% endif %}
       </div>
+      {% if not m.core %}
+      <div class="module-actions">
+        <button id="redir_{{ m.key }}"
+          class="redirect-btn {% if m.login_redirect %}active{% endif %}"
+          onclick="toggleLoginRedirect('{{ m.key }}', this)"
+          title="Dopo il login gli utenti vengono reindirizzati direttamente a questo modulo">
+          {% if m.login_redirect %}⚡ Redirect post-login attivo{% else %}↪ Imposta redirect post-login{% endif %}
+        </button>
+      </div>
+      {% endif %}
     </div>
     {% endfor %}
   </div>
@@ -116,6 +130,36 @@ function showToast(msg, error) {
   el.style.background = error ? '#7f1d1d' : '#1e2333';
   el.style.display = 'block';
   setTimeout(() => el.style.display = 'none', 3000);
+}
+
+async function toggleLoginRedirect(key, btn) {
+  const isActive = btn.classList.contains('active');
+  const newKey = isActive ? '' : key;  // se già attivo, disabilita
+  try {
+    const r = await fetch('{% url "hub_tools:hub_moduli_login_redirect" %}', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+      body: JSON.stringify({key: newKey}),
+    });
+    const data = await r.json();
+    if (data.ok) {
+      // Resetta tutti i pulsanti redirect
+      document.querySelectorAll('.redirect-btn').forEach(b => {
+        b.classList.remove('active');
+        b.textContent = '↪ Imposta redirect post-login';
+      });
+      // Attiva il nuovo se presente
+      if (data.target) {
+        btn.classList.add('active');
+        btn.textContent = '⚡ Redirect post-login attivo';
+      }
+      showToast(data.message);
+    } else {
+      showToast('Errore: ' + data.error, true);
+    }
+  } catch(e) {
+    showToast('Errore di rete', true);
+  }
 }
 </script>
 {% endblock %}

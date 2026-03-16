@@ -15,6 +15,7 @@ MODULE_VERSION_LABELS: tuple[tuple[str, str], ...] = (
     ("tasks", "Tasks"),
     ("admin_portale", "Admin"),
     ("notizie", "Notizie"),
+    ("rilevazione_incidenti", "Rilevazione Incidenti"),
 )
 
 _CHANGELOG_HEADER_RE = re.compile(r"^##\s+(?P<version>[^\-]+?)\s*-\s*(?P<date>\d{4}-\d{2}-\d{2})\s*$")
