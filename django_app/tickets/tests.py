@@ -133,6 +133,54 @@ class TicketAssetSearchDataTests(TestCase):
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class TicketDashboardTests(TestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = get_user_model().objects.create_user(
+            username="dashboard-ticket-user",
+            password="pass12345",
+            email="dashboard-ticket@example.com",
+        )
+        self.client.force_login(self.user)
+
+    def test_dashboard_shows_related_asset_column(self):
+        asset = Asset.objects.create(
+            asset_tag="IT-009999",
+            name="Notebook Ufficio Acquisti",
+            asset_type=Asset.TYPE_NOTEBOOK,
+            status=Asset.STATUS_IN_USE,
+        )
+        Ticket.objects.create(
+            tipo="IT",
+            titolo="Problema stampante virtuale",
+            descrizione="Descrizione ticket con asset",
+            categoria="PC",
+            priorita=PrioritaTicket.MEDIA,
+            richiedente_nome=self.user.username,
+            richiedente_email=self.user.email,
+            asset=asset,
+        )
+        Ticket.objects.create(
+            tipo="MAN",
+            titolo="Verifica compressore",
+            descrizione="Descrizione ticket con asset libero",
+            categoria="CNC",
+            priorita=PrioritaTicket.ALTA,
+            richiedente_nome=self.user.username,
+            richiedente_email=self.user.email,
+            asset_descrizione_libera="Compressore linea 2",
+        )
+
+        response = self.client.get(reverse("tickets:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Asset interessato")
+        self.assertContains(response, "Notebook Ufficio Acquisti")
+        self.assertContains(response, "IT-009999")
+        self.assertContains(response, "Compressore linea 2")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class TicketPdfTests(TestCase):
     def setUp(self):
         super().setUp()

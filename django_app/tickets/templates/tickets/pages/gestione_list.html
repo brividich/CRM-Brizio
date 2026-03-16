@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block title %}Gestione Ticket | Portale Applicativo{% endblock %}
+{% block title %}Lista Ticket | Portale Applicativo{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -23,21 +23,133 @@
 .tkt-kpi-blue .tkt-kpi-val { color:#0369a1; }
 .tkt-kpi-green .tkt-kpi-val { color:#16a34a; }
 
-.tkt-filters {
-  background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px;
-  padding:14px 18px; display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end;
+/* Tab tipo */
+.tkt-tabs { display:flex; gap:0; border-bottom:2px solid #e2e8f0; }
+.tkt-tab {
+  padding:10px 24px; font-size:13px; font-weight:700; cursor:pointer;
+  border:none; background:none; color:#64748b; border-bottom:3px solid transparent;
+  margin-bottom:-2px; text-decoration:none; display:inline-block;
 }
-.tkt-filters label { font-size:11px; font-weight:700; color:#64748b; display:flex; flex-direction:column; gap:4px; }
-.tkt-filters select, .tkt-filters input[type=text] {
-  padding:6px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; background:#fff; min-width:130px;
-}
-.tkt-filters-btn { padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; background:#0369a1; color:#fff; border:none; cursor:pointer; }
-.tkt-filters-btn:hover { background:#075985; }
-.tkt-filters-reset { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; text-decoration:none; padding:8px 12px; border-radius:8px; font-size:12px; font-weight:600; }
+.tkt-tab:hover { color:#0369a1; }
+.tkt-tab.active { color:#0369a1; border-bottom-color:#0369a1; }
+.tkt-tab-it.active  { color:#0369a1; border-bottom-color:#0369a1; }
+.tkt-tab-man.active { color:#15803d; border-bottom-color:#15803d; }
 
-.tkt-table-wrap { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+/* ── Filtri ─────────────────────────────────────────────── */
+.tkt-filter-card {
+  background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden;
+}
+.tkt-filter-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 18px; background:#f8fafc; border-bottom:1px solid #e2e8f0;
+  cursor:pointer; user-select:none;
+}
+.tkt-filter-header-left { display:flex; align-items:center; gap:8px; }
+.tkt-filter-header-title { font-size:13px; font-weight:700; color:#374151; }
+.tkt-filter-active-badge {
+  display:inline-flex; align-items:center; gap:4px;
+  font-size:11px; font-weight:700; padding:2px 8px; border-radius:99px;
+  background:#dbeafe; color:#1d4ed8;
+}
+.tkt-filter-toggle-icon { font-size:16px; color:#94a3b8; transition:transform .2s; }
+.tkt-filter-toggle-icon.open { transform:rotate(180deg); }
+
+.tkt-filter-body { padding:16px 18px; display:flex; flex-direction:column; gap:14px; }
+.tkt-filter-row { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
+.tkt-filter-row label { font-size:11px; font-weight:700; color:#64748b; display:flex; flex-direction:column; gap:4px; }
+.tkt-filter-row select,
+.tkt-filter-row input[type=text],
+.tkt-filter-row input[type=date] {
+  padding:7px 10px; border:1px solid #cbd5e1; border-radius:8px;
+  font-size:13px; background:#fff; min-width:130px; outline:none;
+}
+.tkt-filter-row select:focus,
+.tkt-filter-row input:focus { border-color:#0369a1; box-shadow:0 0 0 2px #bfdbfe; }
+
+.tkt-filter-actions { display:flex; align-items:center; gap:8px; margin-top:4px; }
+.tkt-filters-btn {
+  padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700;
+  background:#0369a1; color:#fff; border:none; cursor:pointer;
+  display:inline-flex; align-items:center; gap:6px;
+}
+.tkt-filters-btn:hover { background:#075985; }
+.tkt-filters-reset {
+  background:#f1f5f9; color:#475569; border:1px solid #e2e8f0;
+  text-decoration:none; padding:8px 14px; border-radius:8px;
+  font-size:12px; font-weight:600;
+}
+.tkt-filters-reset:hover { background:#e2e8f0; }
+
+/* Sort bar */
+.tkt-sort-bar {
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  padding:10px 4px;
+}
+.tkt-sort-label { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; }
+.tkt-sort-btn {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:5px 12px; border-radius:20px; font-size:12px; font-weight:600;
+  border:1px solid #e2e8f0; background:#fff; color:#475569; cursor:pointer;
+  text-decoration:none; transition:all .15s;
+}
+.tkt-sort-btn:hover { border-color:#0369a1; color:#0369a1; background:#eff6ff; }
+.tkt-sort-btn.active { border-color:#0369a1; color:#0369a1; background:#eff6ff; font-weight:700; }
+.tkt-sort-icon { font-size:13px; }
+
+/* Asset autocomplete */
+.tkt-autocomplete-wrap { position:relative; }
+.tkt-autocomplete-wrap input { width:100%; box-sizing:border-box; }
+.tkt-autocomplete-dropdown {
+  position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:200;
+  background:#fff; border:1px solid #e2e8f0; border-radius:10px;
+  box-shadow:0 4px 20px rgba(0,0,0,.12); max-height:220px; overflow-y:auto;
+  display:none;
+}
+.tkt-autocomplete-dropdown.show { display:block; }
+.tkt-ac-item {
+  padding:9px 12px; cursor:pointer; display:flex; align-items:center; gap:8px;
+  border-bottom:1px solid #f1f5f9;
+}
+.tkt-ac-item:last-child { border-bottom:none; }
+.tkt-ac-item:hover, .tkt-ac-item.highlighted { background:#f0f9ff; }
+.tkt-ac-name { font-size:13px; font-weight:600; color:#1e293b; }
+.tkt-ac-tag { font-size:11px; color:#64748b; background:#f1f5f9; padding:1px 6px; border-radius:4px; }
+.tkt-ac-tipo { font-size:11px; color:#94a3b8; }
+.tkt-ac-empty { padding:12px; text-align:center; font-size:12px; color:#94a3b8; }
+.tkt-ac-loading { padding:12px; text-align:center; font-size:12px; color:#94a3b8; }
+
+/* Sicurezza checkbox */
+.tkt-check-wrap {
+  display:flex; align-items:center; gap:6px;
+  padding:7px 10px; border:1px solid #cbd5e1; border-radius:8px;
+  background:#fff; cursor:pointer; min-width:unset;
+}
+.tkt-check-wrap input[type=checkbox] { width:14px; height:14px; accent-color:#dc2626; cursor:pointer; }
+.tkt-check-wrap span { font-size:12px; font-weight:600; color:#374151; white-space:nowrap; }
+
+/* Sezioni */
+.tkt-section { display:flex; flex-direction:column; gap:0; }
+.tkt-section-header {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 16px; border-radius:10px 10px 0 0; border:1px solid #e2e8f0; border-bottom:none;
+}
+.tkt-section-it  .tkt-section-header { background:#eff6ff; }
+.tkt-section-man .tkt-section-header { background:#f0fdf4; }
+.tkt-section-title { font-size:14px; font-weight:800; }
+.tkt-section-it  .tkt-section-title { color:#0369a1; }
+.tkt-section-man .tkt-section-title { color:#15803d; }
+.tkt-section-count { font-size:11px; font-weight:700; padding:2px 8px; border-radius:99px; }
+.tkt-section-it  .tkt-section-count { background:#dbeafe; color:#1e40af; }
+.tkt-section-man .tkt-section-count { background:#dcfce7; color:#166534; }
+
+.tkt-table-wrap { background:#fff; border:1px solid #e2e8f0; border-radius:0 0 14px 14px; overflow:hidden; }
+.tkt-table-wrap-solo { border-radius:14px; }
 .tkt-table { width:100%; border-collapse:collapse; font-size:13px; }
-.tkt-table th { background:#f8fafc; padding:10px 14px; text-align:left; font-weight:700; color:#64748b; font-size:11px; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #e2e8f0; }
+.tkt-table th {
+  background:#f8fafc; padding:10px 14px; text-align:left;
+  font-weight:700; color:#64748b; font-size:11px; text-transform:uppercase;
+  letter-spacing:.04em; border-bottom:1px solid #e2e8f0; white-space:nowrap;
+}
 .tkt-table td { padding:11px 14px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
 .tkt-table tr:last-child td { border-bottom:none; }
 .tkt-table tr:hover td { background:#f8fafc; }
@@ -51,26 +163,83 @@
 .tkt-pdf-link:hover { background:#dbeafe; text-decoration:none; }
 
 .tkt-badge { display:inline-block; padding:3px 10px; border-radius:99px; font-size:11px; font-weight:700; }
-.tkt-badge-APERTA { background:#dbeafe; color:#1e40af; }
+.tkt-badge-APERTA    { background:#dbeafe; color:#1e40af; }
 .tkt-badge-IN_CARICO { background:#fef3c7; color:#92400e; }
-.tkt-badge-RISOLTO { background:#d1fae5; color:#065f46; }
-.tkt-badge-CHIUSO { background:#f1f5f9; color:#475569; }
+.tkt-badge-RISOLTO   { background:#d1fae5; color:#065f46; }
+.tkt-badge-CHIUSO    { background:#f1f5f9; color:#475569; }
 .tkt-badge-ANNULLATO { background:#fee2e2; color:#991b1b; }
 
 .tkt-prio { display:inline-block; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:700; }
-.tkt-prio-BASSA { background:#f0fdf4; color:#166534; }
-.tkt-prio-MEDIA { background:#eff6ff; color:#1e40af; }
-.tkt-prio-ALTA { background:#fff7ed; color:#9a3412; }
+.tkt-prio-BASSA   { background:#f0fdf4; color:#166534; }
+.tkt-prio-MEDIA   { background:#eff6ff; color:#1e40af; }
+.tkt-prio-ALTA    { background:#fff7ed; color:#9a3412; }
 .tkt-prio-URGENTE { background:#fef2f2; color:#dc2626; }
-
-.tkt-tipo { display:inline-block; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:700; }
-.tkt-tipo-IT { background:#e0f2fe; color:#0369a1; }
-.tkt-tipo-MAN { background:#f0fdf4; color:#15803d; }
 
 .tkt-urgente-row td { background:#fff5f5 !important; }
 .tkt-urgente-row:hover td { background:#fee2e2 !important; }
+.tkt-urgente-row.tkt-selected td { background:#ffe4e4 !important; }
+.tkt-empty { padding:32px; text-align:center; color:#94a3b8; font-size:13px; }
 
-.tkt-empty { padding:40px; text-align:center; color:#94a3b8; font-size:14px; }
+/* ── Selezione / Bulk ──────────────────────────────────────────────── */
+.tkt-cb-col { width:36px; padding-left:14px !important; padding-right:4px !important; }
+.tkt-cb { width:16px; height:16px; cursor:pointer; accent-color:#0369a1; }
+.tkt-table tr.tkt-selected td { background:#eff6ff !important; }
+
+#bulk-toolbar {
+  display:none; position:sticky; bottom:16px; z-index:100;
+  background:#1e3a5f; color:#fff; border-radius:14px;
+  padding:12px 20px; align-items:center; gap:12px; flex-wrap:wrap;
+  box-shadow:0 8px 32px rgba(3,105,161,.35);
+}
+#bulk-toolbar.visible { display:flex; }
+#bulk-count { font-size:13px; font-weight:700; margin-right:4px; white-space:nowrap; }
+.bulk-btn {
+  padding:7px 16px; border-radius:8px; font-size:12px; font-weight:700;
+  border:none; cursor:pointer; display:inline-flex; align-items:center; gap:6px;
+}
+.bulk-btn-stato   { background:#0284c7; color:#fff; }
+.bulk-btn-stato:hover   { background:#0369a1; }
+.bulk-btn-assegna { background:#15803d; color:#fff; }
+.bulk-btn-assegna:hover { background:#166534; }
+.bulk-btn-annulla { background:#dc2626; color:#fff; }
+.bulk-btn-annulla:hover { background:#b91c1c; }
+.bulk-btn-desel   { background:rgba(255,255,255,.15); color:#fff; }
+.bulk-btn-desel:hover { background:rgba(255,255,255,.25); }
+
+.bulk-modal-overlay {
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,.45);
+  z-index:2000; align-items:center; justify-content:center;
+}
+.bulk-modal-overlay.open { display:flex; }
+.bulk-modal {
+  background:#fff; border-radius:16px; padding:28px 32px; width:420px; max-width:95vw;
+  box-shadow:0 20px 60px rgba(0,0,0,.2);
+}
+.bulk-modal h3 { font-size:16px; font-weight:800; margin:0 0 18px; }
+.bulk-modal label { font-size:12px; font-weight:700; color:#64748b; display:flex; flex-direction:column; gap:5px; margin-bottom:14px; }
+.bulk-modal select, .bulk-modal input[type=text] {
+  padding:8px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px;
+}
+.bulk-modal textarea {
+  padding:8px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px;
+  resize:vertical; min-height:60px; width:100%; box-sizing:border-box;
+}
+.bulk-modal-footer { display:flex; gap:10px; justify-content:flex-end; margin-top:18px; }
+.bulk-modal-confirm { padding:9px 22px; border-radius:8px; font-size:13px; font-weight:700; border:none; cursor:pointer; background:#0369a1; color:#fff; }
+.bulk-modal-confirm:hover { background:#075985; }
+.bulk-modal-confirm.danger { background:#dc2626; }
+.bulk-modal-confirm.danger:hover { background:#b91c1c; }
+.bulk-modal-cancel { padding:9px 18px; border-radius:8px; font-size:13px; font-weight:600; border:1px solid #e2e8f0; cursor:pointer; background:#f8fafc; color:#475569; }
+.bulk-modal-cancel:hover { background:#f1f5f9; }
+.bulk-ac-list {
+  position:absolute; left:0; right:0; top:100%; background:#fff;
+  border:1px solid #cbd5e1; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.1);
+  z-index:3000; max-height:180px; overflow-y:auto; display:none;
+}
+.bulk-ac-list.open { display:block; }
+.bulk-ac-item { padding:8px 12px; font-size:13px; cursor:pointer; border-bottom:1px solid #f1f5f9; }
+.bulk-ac-item:last-child { border-bottom:none; }
+.bulk-ac-item:hover { background:#eff6ff; }
 </style>
 {% endblock %}
 
@@ -80,8 +249,8 @@
 
   <div class="tkt-hero">
     <div>
-      <div class="tkt-hero-title">Gestione Ticket</div>
-      <div class="tkt-hero-sub">Tutti i ticket IT e Manutenzione</div>
+      <div class="tkt-hero-title">Lista Ticket</div>
+      <div class="tkt-hero-sub">Ticket IT e Manutenzione</div>
     </div>
   </div>
 
@@ -104,80 +273,599 @@
     </div>
   </div>
 
-  <form method="get" class="tkt-filters">
-    <label>Tipo
-      <select name="tipo">
-        <option value="">Tutti</option>
-        {% for val,lbl in tipi %}<option value="{{ val }}"{% if filtro_tipo == val %} selected{% endif %}>{{ lbl }}</option>{% endfor %}
-      </select>
-    </label>
-    <label>Stato
-      <select name="stato">
-        <option value="">Tutti</option>
-        {% for val,lbl in stati %}<option value="{{ val }}"{% if filtro_stato == val %} selected{% endif %}>{{ lbl }}</option>{% endfor %}
-      </select>
-    </label>
-    <label>Priorita
-      <select name="priorita">
-        <option value="">Tutte</option>
-        {% for val,lbl in priorita_list %}<option value="{{ val }}"{% if filtro_prio == val %} selected{% endif %}>{{ lbl }}</option>{% endfor %}
-      </select>
-    </label>
-    <label>Assegnato
-      <select name="assegnato">
-        <option value="">Tutti</option>
-        <option value="__none__"{% if filtro_ass == '__none__' %} selected{% endif %}>Non assegnati</option>
-      </select>
-    </label>
-    <label>Cerca
-      <input type="text" name="q" value="{{ filtro_cerca }}" placeholder="Numero, titolo, richiedente...">
-    </label>
-    <button type="submit" class="tkt-filters-btn">Filtra</button>
-    {% if filtro_tipo or filtro_stato or filtro_prio or filtro_cerca or filtro_ass %}
-    <a href="{% url 'tickets:gestione_list' %}" class="tkt-filters-reset">Reset</a>
-    {% endif %}
-  </form>
+  <!-- Tab tipo -->
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:0 16px;">
+    <div class="tkt-tabs">
+      <a href="?tipo=TUTTI{% if filtro_stato %}&stato={{ filtro_stato }}{% endif %}{% if filtro_prio %}&priorita={{ filtro_prio }}{% endif %}{% if filtro_cerca %}&q={{ filtro_cerca }}{% endif %}{% if filtro_ass %}&assegnato={{ filtro_ass }}{% endif %}{% if filtro_asset %}&asset={{ filtro_asset }}{% endif %}{% if filtro_cat %}&categoria={{ filtro_cat }}{% endif %}{% if filtro_ordine %}&ordine={{ filtro_ordine }}{% endif %}"
+         class="tkt-tab {% if tab_attivo == 'TUTTI' %}active{% endif %}">Tutti</a>
+      <a href="?tipo=IT{% if filtro_stato %}&stato={{ filtro_stato }}{% endif %}{% if filtro_prio %}&priorita={{ filtro_prio }}{% endif %}{% if filtro_cerca %}&q={{ filtro_cerca }}{% endif %}{% if filtro_ass %}&assegnato={{ filtro_ass }}{% endif %}{% if filtro_asset %}&asset={{ filtro_asset }}{% endif %}{% if filtro_cat %}&categoria={{ filtro_cat }}{% endif %}{% if filtro_ordine %}&ordine={{ filtro_ordine }}{% endif %}"
+         class="tkt-tab tkt-tab-it {% if tab_attivo == 'IT' %}active{% endif %}">Ticket IT</a>
+      <a href="?tipo=MAN{% if filtro_stato %}&stato={{ filtro_stato }}{% endif %}{% if filtro_prio %}&priorita={{ filtro_prio }}{% endif %}{% if filtro_cerca %}&q={{ filtro_cerca }}{% endif %}{% if filtro_ass %}&assegnato={{ filtro_ass }}{% endif %}{% if filtro_asset %}&asset={{ filtro_asset }}{% endif %}{% if filtro_cat %}&categoria={{ filtro_cat }}{% endif %}{% if filtro_ordine %}&ordine={{ filtro_ordine }}{% endif %}"
+         class="tkt-tab tkt-tab-man {% if tab_attivo == 'MAN' %}active{% endif %}">Ticket Manutenzione</a>
+    </div>
+  </div>
 
-  <div class="tkt-table-wrap">
-    {% if tickets %}
-    <table class="tkt-table">
-      <thead>
-        <tr>
-          <th>Numero</th>
-          <th>Tipo</th>
-          <th>Titolo</th>
-          <th>Cat.</th>
-          <th>Priorita</th>
-          <th>Stato</th>
-          <th>Richiedente</th>
-          <th>Assegnato a</th>
-          <th>Apertura</th>
-          <th>Report</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for t in tickets %}
-        <tr{% if t.priorita == 'URGENTE' and t.stato in 'APERTA,IN_CARICO' %} class="tkt-urgente-row"{% endif %}>
-          <td><a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.numero_ticket }}</a></td>
-          <td><span class="tkt-tipo tkt-tipo-{{ t.tipo }}">{{ t.label_tipo }}</span></td>
-          <td>
-            <a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.titolo|truncatechars:55 }}</a>
-            {% if t.incide_sicurezza %}<span style="margin-left:5px;font-size:10px;background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:4px;font-weight:700;">SIC</span>{% endif %}
-          </td>
-          <td style="font-size:12px;color:#64748b;">{{ t.label_categoria }}</td>
-          <td><span class="tkt-prio tkt-prio-{{ t.priorita }}">{{ t.label_priorita }}</span></td>
-          <td><span class="tkt-badge tkt-badge-{{ t.stato }}">{{ t.label_stato }}</span></td>
-          <td style="font-size:12px;">{{ t.richiedente_nome }}</td>
-          <td style="font-size:12px;">{{ t.assegnato_a|default:"-" }}</td>
-          <td style="font-size:12px;white-space:nowrap;">{{ t.created_at|date:"d/m/Y H:i" }}</td>
-          <td style="white-space:nowrap;"><a href="{% url 'tickets:pdf' t.pk %}" target="_blank" rel="noopener" class="tkt-pdf-link">PDF</a></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <div class="tkt-empty">Nessun ticket trovato con i filtri attuali.</div>
+  <!-- Filtri avanzati -->
+  {% with has_filter=filtro_stato|add:filtro_prio|add:filtro_cerca|add:filtro_ass|add:filtro_asset|add:filtro_cat|add:filtro_data_da|add:filtro_data_a|add:filtro_sicurezza %}
+  <div class="tkt-filter-card">
+    <div class="tkt-filter-header" id="tkt-filter-toggle" onclick="tktToggleFilters()">
+      <div class="tkt-filter-header-left">
+        <svg width="16" height="16" fill="none" stroke="#0369a1" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18M7 12h10M11 18h2"/></svg>
+        <span class="tkt-filter-header-title">Filtri di ricerca</span>
+        {% if has_filter %}
+        <span class="tkt-filter-active-badge">
+          <svg width="10" height="10" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10"/></svg>
+          Filtri attivi
+        </span>
+        {% endif %}
+      </div>
+      <span class="tkt-filter-toggle-icon" id="tkt-filter-icon">▼</span>
+    </div>
+
+    <div class="tkt-filter-body" id="tkt-filter-body">
+      <form method="get" id="tkt-filter-form">
+        <input type="hidden" name="tipo" value="{{ tab_attivo }}">
+        <input type="hidden" name="ordine" value="{{ filtro_ordine }}">
+
+        <!-- Riga 1: stato, priorità, assegnato, sicurezza -->
+        <div class="tkt-filter-row">
+          <label>Stato
+            <select name="stato">
+              <option value="">Tutti</option>
+              {% for val,lbl in stati %}<option value="{{ val }}"{% if filtro_stato == val %} selected{% endif %}>{{ lbl }}</option>{% endfor %}
+            </select>
+          </label>
+          <label>Priorità
+            <select name="priorita">
+              <option value="">Tutte</option>
+              {% for val,lbl in priorita_list %}<option value="{{ val }}"{% if filtro_prio == val %} selected{% endif %}>{{ lbl }}</option>{% endfor %}
+            </select>
+          </label>
+          <label>Assegnato a
+            <select name="assegnato">
+              <option value="">Tutti</option>
+              <option value="__none__"{% if filtro_ass == '__none__' %} selected{% endif %}>— Non assegnati</option>
+            </select>
+          </label>
+          <label>Categoria
+            <select name="categoria">
+              <option value="">Tutte</option>
+              {% if tab_attivo == 'IT' %}
+                {% for val,lbl in categorie_it %}<option value="{{ val }}"{% if filtro_cat == val %} selected{% endif %}>{{ lbl }}</option>{% endfor %}
+              {% elif tab_attivo == 'MAN' %}
+                {% for val,lbl in categorie_man %}<option value="{{ val }}"{% if filtro_cat == val %} selected{% endif %}>{{ lbl }}</option>{% endfor %}
+              {% else %}
+                <optgroup label="IT">{% for val,lbl in categorie_it %}<option value="{{ val }}"{% if filtro_cat == val %} selected{% endif %}>{{ lbl }}</option>{% endfor %}</optgroup>
+                <optgroup label="Manutenzione">{% for val,lbl in categorie_man %}<option value="{{ val }}"{% if filtro_cat == val %} selected{% endif %}>{{ lbl }}</option>{% endfor %}</optgroup>
+              {% endif %}
+            </select>
+          </label>
+          <label style="justify-content:flex-end;">
+            <span style="visibility:hidden;font-size:11px;">_</span>
+            <label class="tkt-check-wrap">
+              <input type="checkbox" name="sicurezza" value="1"{% if filtro_sicurezza == '1' %} checked{% endif %}>
+              <span>🔴 Solo sicurezza</span>
+            </label>
+          </label>
+        </div>
+
+        <!-- Riga 2: testo, asset (autocomplete), date -->
+        <div class="tkt-filter-row">
+          <label style="flex:2;min-width:180px;">Cerca testo
+            <input type="text" name="q" value="{{ filtro_cerca }}" placeholder="Numero, titolo, richiedente…">
+          </label>
+          <label style="flex:2;min-width:200px;">Cerca asset / macchinario
+            <div class="tkt-autocomplete-wrap">
+              <input type="text" id="tkt-asset-input" name="asset" value="{{ filtro_asset }}"
+                     placeholder="Nome o tag asset…" autocomplete="off">
+              <div class="tkt-autocomplete-dropdown" id="tkt-ac-dropdown"></div>
+            </div>
+          </label>
+          <label>Da data
+            <input type="date" name="data_da" value="{{ filtro_data_da }}">
+          </label>
+          <label>A data
+            <input type="date" name="data_a" value="{{ filtro_data_a }}">
+          </label>
+        </div>
+
+        <!-- Bottoni -->
+        <div class="tkt-filter-actions">
+          <button type="submit" class="tkt-filters-btn">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            Filtra
+          </button>
+          {% if has_filter %}
+          <a href="?tipo={{ tab_attivo }}" class="tkt-filters-reset">✕ Azzera filtri</a>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endwith %}
+
+  <!-- Sort bar -->
+  {% with base_url="?tipo="|add:tab_attivo %}
+  <div class="tkt-sort-bar">
+    <span class="tkt-sort-label">Ordina:</span>
+    <a class="tkt-sort-btn {% if not filtro_ordine or filtro_ordine == 'apertura_desc' %}active{% endif %}"
+       href="{{ base_url }}&stato={{ filtro_stato }}&priorita={{ filtro_prio }}&q={{ filtro_cerca }}&assegnato={{ filtro_ass }}&asset={{ filtro_asset }}&categoria={{ filtro_cat }}&data_da={{ filtro_data_da }}&data_a={{ filtro_data_a }}&sicurezza={{ filtro_sicurezza }}&ordine=apertura_desc">
+      <span class="tkt-sort-icon">↓</span> Più recenti
+    </a>
+    <a class="tkt-sort-btn {% if filtro_ordine == 'apertura_asc' %}active{% endif %}"
+       href="{{ base_url }}&stato={{ filtro_stato }}&priorita={{ filtro_prio }}&q={{ filtro_cerca }}&assegnato={{ filtro_ass }}&asset={{ filtro_asset }}&categoria={{ filtro_cat }}&data_da={{ filtro_data_da }}&data_a={{ filtro_data_a }}&sicurezza={{ filtro_sicurezza }}&ordine=apertura_asc">
+      <span class="tkt-sort-icon">↑</span> Meno recenti
+    </a>
+    <a class="tkt-sort-btn {% if filtro_ordine == 'priorita' %}active{% endif %}"
+       href="{{ base_url }}&stato={{ filtro_stato }}&priorita={{ filtro_prio }}&q={{ filtro_cerca }}&assegnato={{ filtro_ass }}&asset={{ filtro_asset }}&categoria={{ filtro_cat }}&data_da={{ filtro_data_da }}&data_a={{ filtro_data_a }}&sicurezza={{ filtro_sicurezza }}&ordine=priorita">
+      <span class="tkt-sort-icon">🔴</span> Priorità
+    </a>
+    <a class="tkt-sort-btn {% if filtro_ordine == 'stato' %}active{% endif %}"
+       href="{{ base_url }}&stato={{ filtro_stato }}&priorita={{ filtro_prio }}&q={{ filtro_cerca }}&assegnato={{ filtro_ass }}&asset={{ filtro_asset }}&categoria={{ filtro_cat }}&data_da={{ filtro_data_da }}&data_a={{ filtro_data_a }}&sicurezza={{ filtro_sicurezza }}&ordine=stato">
+      <span class="tkt-sort-icon">📋</span> Stato
+    </a>
+    <a class="tkt-sort-btn {% if filtro_ordine == 'assegnato' %}active{% endif %}"
+       href="{{ base_url }}&stato={{ filtro_stato }}&priorita={{ filtro_prio }}&q={{ filtro_cerca }}&assegnato={{ filtro_ass }}&asset={{ filtro_asset }}&categoria={{ filtro_cat }}&data_da={{ filtro_data_da }}&data_a={{ filtro_data_a }}&sicurezza={{ filtro_sicurezza }}&ordine=assegnato">
+      <span class="tkt-sort-icon">👤</span> Assegnato
+    </a>
+  </div>
+  {% endwith %}
+
+  <!-- Tabella ticket IT -->
+  {% if tickets_it is not None %}
+  <div class="tkt-section tkt-section-it">
+    {% if tab_attivo != 'IT' %}
+    <div class="tkt-section-header">
+      <span class="tkt-section-title">Ticket IT</span>
+      <span class="tkt-section-count">{{ tickets_it|length }}</span>
+    </div>
     {% endif %}
+    <div class="tkt-table-wrap {% if tab_attivo == 'IT' %}tkt-table-wrap-solo{% endif %}">
+      {% if tickets_it %}
+      <table class="tkt-table">
+        <thead>
+          <tr>
+            <th class="tkt-cb-col"><input type="checkbox" class="tkt-cb tkt-cb-all" title="Seleziona tutti"></th>
+            <th>Numero</th>
+            <th>Titolo</th>
+            <th>Cat.</th>
+            <th>Asset</th>
+            <th>Priorità</th>
+            <th>Stato</th>
+            <th>Richiedente</th>
+            <th>Assegnato a</th>
+            <th>Apertura</th>
+            <th>Report</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in tickets_it %}
+          <tr{% if t.priorita == 'URGENTE' and t.stato in 'APERTA,IN_CARICO' %} class="tkt-urgente-row"{% endif %} data-id="{{ t.pk }}">
+            <td class="tkt-cb-col"><input type="checkbox" class="tkt-cb tkt-cb-row" value="{{ t.pk }}"></td>
+            <td><a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.numero_ticket }}</a></td>
+            <td>
+              <a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.titolo|truncatechars:50 }}</a>
+              {% if t.incide_sicurezza %}<span style="margin-left:5px;font-size:10px;background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:4px;font-weight:700;">SIC</span>{% endif %}
+            </td>
+            <td style="font-size:12px;color:#64748b;">{{ t.label_categoria }}</td>
+            <td style="font-size:12px;color:#0369a1;">
+              {% if t.asset %}<a href="{% url 'assets:asset_view' t.asset.pk %}" style="color:#0369a1;">{{ t.asset.name }}</a>
+              {% elif t.asset_descrizione_libera %}<span style="color:#64748b;">{{ t.asset_descrizione_libera|truncatechars:25 }}</span>
+              {% else %}—{% endif %}
+            </td>
+            <td><span class="tkt-prio tkt-prio-{{ t.priorita }}">{{ t.label_priorita }}</span></td>
+            <td><span class="tkt-badge tkt-badge-{{ t.stato }}">{{ t.label_stato }}</span></td>
+            <td style="font-size:12px;">{{ t.richiedente_nome }}</td>
+            <td style="font-size:12px;">{{ t.assegnato_a|default:"—" }}</td>
+            <td style="font-size:12px;white-space:nowrap;">{{ t.created_at|date:"d/m/Y H:i" }}</td>
+            <td><a href="{% url 'tickets:pdf' t.pk %}" target="_blank" rel="noopener" class="tkt-pdf-link">PDF</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="tkt-empty">Nessun ticket IT trovato con i filtri impostati.</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Tabella ticket MAN -->
+  {% if tickets_man is not None %}
+  <div class="tkt-section tkt-section-man">
+    {% if tab_attivo != 'MAN' %}
+    <div class="tkt-section-header">
+      <span class="tkt-section-title">Ticket Manutenzione</span>
+      <span class="tkt-section-count">{{ tickets_man|length }}</span>
+    </div>
+    {% endif %}
+    <div class="tkt-table-wrap {% if tab_attivo == 'MAN' %}tkt-table-wrap-solo{% endif %}">
+      {% if tickets_man %}
+      <table class="tkt-table">
+        <thead>
+          <tr>
+            <th class="tkt-cb-col"><input type="checkbox" class="tkt-cb tkt-cb-all" title="Seleziona tutti"></th>
+            <th>Numero</th>
+            <th>Titolo</th>
+            <th>Cat.</th>
+            <th>Asset / Macchinario</th>
+            <th>Priorità</th>
+            <th>Stato</th>
+            <th>Richiedente</th>
+            <th>Assegnato a</th>
+            <th>Apertura</th>
+            <th>Report</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in tickets_man %}
+          <tr{% if t.priorita == 'URGENTE' and t.stato in 'APERTA,IN_CARICO' %} class="tkt-urgente-row"{% endif %} data-id="{{ t.pk }}">
+            <td class="tkt-cb-col"><input type="checkbox" class="tkt-cb tkt-cb-row" value="{{ t.pk }}"></td>
+            <td><a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.numero_ticket }}</a></td>
+            <td>
+              <a href="{% url 'tickets:gestione_detail' t.pk %}">{{ t.titolo|truncatechars:50 }}</a>
+              {% if t.incide_sicurezza %}<span style="margin-left:5px;font-size:10px;background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:4px;font-weight:700;">SIC</span>{% endif %}
+            </td>
+            <td style="font-size:12px;color:#64748b;">{{ t.label_categoria }}</td>
+            <td style="font-size:12px;">
+              {% if t.asset %}<a href="{% url 'assets:asset_view' t.asset.pk %}" style="color:#15803d;font-weight:600;">{{ t.asset.name }}</a>
+              {% elif t.asset_descrizione_libera %}<span style="color:#374151;">{{ t.asset_descrizione_libera|truncatechars:30 }}</span>
+              {% else %}—{% endif %}
+            </td>
+            <td><span class="tkt-prio tkt-prio-{{ t.priorita }}">{{ t.label_priorita }}</span></td>
+            <td><span class="tkt-badge tkt-badge-{{ t.stato }}">{{ t.label_stato }}</span></td>
+            <td style="font-size:12px;">{{ t.richiedente_nome }}</td>
+            <td style="font-size:12px;">{{ t.assegnato_a|default:"—" }}</td>
+            <td style="font-size:12px;white-space:nowrap;">{{ t.created_at|date:"d/m/Y H:i" }}</td>
+            <td><a href="{% url 'tickets:pdf' t.pk %}" target="_blank" rel="noopener" class="tkt-pdf-link">PDF</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="tkt-empty">Nessun ticket Manutenzione trovato con i filtri impostati.</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- ── Toolbar azioni bulk ──────────────────────────────────────────────── -->
+<div id="bulk-toolbar">
+  <span id="bulk-count"></span>
+  <button class="bulk-btn bulk-btn-stato"   onclick="bulkOpenStato()">Cambia stato</button>
+  <button class="bulk-btn bulk-btn-assegna" onclick="bulkOpenAssegna()">Assegna a…</button>
+  <button class="bulk-btn bulk-btn-annulla" onclick="bulkOpenAnnulla()">Annulla ticket</button>
+  <button class="bulk-btn bulk-btn-desel"   onclick="bulkDeselAll()">✕ Deseleziona</button>
+</div>
+
+<!-- Modal: Cambia stato -->
+<div id="modal-stato" class="bulk-modal-overlay">
+  <div class="bulk-modal">
+    <h3>Cambia stato</h3>
+    <label>Nuovo stato
+      <select id="bulk-stato-val">
+        {% for val,lbl in stati %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Nota (opzionale)
+      <textarea id="bulk-stato-nota" placeholder="Aggiunta al commento automatico…"></textarea>
+    </label>
+    <div class="bulk-modal-footer">
+      <button class="bulk-modal-cancel" onclick="bulkCloseModal('modal-stato')">Annulla</button>
+      <button class="bulk-modal-confirm" onclick="bulkExecStato()">Applica</button>
+    </div>
   </div>
 </div>
+
+<!-- Modal: Assegna a -->
+<div id="modal-assegna" class="bulk-modal-overlay">
+  <div class="bulk-modal">
+    <h3>Assegna a…</h3>
+    <label>Tecnico / Responsabile
+      <div style="position:relative;">
+        <input type="text" id="bulk-assegna-nome" placeholder="Cerca nome…" autocomplete="off">
+        <div id="bulk-assegna-list" class="bulk-ac-list"></div>
+      </div>
+    </label>
+    <input type="hidden" id="bulk-assegna-email">
+    <div class="bulk-modal-footer">
+      <button class="bulk-modal-cancel" onclick="bulkCloseModal('modal-assegna')">Annulla</button>
+      <button class="bulk-modal-confirm" onclick="bulkExecAssegna()">Assegna</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Annulla ticket -->
+<div id="modal-annulla" class="bulk-modal-overlay">
+  <div class="bulk-modal">
+    <h3>Annulla ticket</h3>
+    <p style="font-size:13px;color:#64748b;margin:0 0 16px;">
+      Verranno annullati <strong id="annulla-count"></strong> ticket. Continuare?
+    </p>
+    <label>Nota (opzionale)
+      <textarea id="bulk-annulla-nota" placeholder="Motivo annullamento…"></textarea>
+    </label>
+    <div class="bulk-modal-footer">
+      <button class="bulk-modal-cancel" onclick="bulkCloseModal('modal-annulla')">Indietro</button>
+      <button class="bulk-modal-confirm danger" onclick="bulkExecAnnulla()">Annulla ticket</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Toggle pannello filtri ───────────────────────────────────────────────────
+(function() {
+  var body   = document.getElementById('tkt-filter-body');
+  var icon   = document.getElementById('tkt-filter-icon');
+  var stored = sessionStorage.getItem('tktFiltersOpen');
+  // Se ci sono filtri attivi oppure era aperto in precedenza → aperto di default
+  var hasFilter = {% if filtro_stato or filtro_prio or filtro_cerca or filtro_ass or filtro_asset or filtro_cat or filtro_data_da or filtro_data_a or filtro_sicurezza %}true{% else %}false{% endif %};
+  var open = hasFilter || stored === '1';
+  if (!open) { body.style.display = 'none'; } else { icon.classList.add('open'); }
+  window.tktToggleFilters = function() {
+    open = !open;
+    body.style.display = open ? '' : 'none';
+    icon.classList.toggle('open', open);
+    sessionStorage.setItem('tktFiltersOpen', open ? '1' : '0');
+  };
+})();
+
+// ── Asset autocomplete ───────────────────────────────────────────────────────
+(function() {
+  var input    = document.getElementById('tkt-asset-input');
+  var dropdown = document.getElementById('tkt-ac-dropdown');
+  if (!input) return;
+
+  var debounceTimer = null;
+  var highlighted   = -1;
+  var items         = [];
+
+  function show(html) {
+    dropdown.innerHTML = html;
+    dropdown.classList.add('show');
+    highlighted = -1;
+    items = dropdown.querySelectorAll('.tkt-ac-item');
+  }
+  function hide() {
+    dropdown.classList.remove('show');
+    dropdown.innerHTML = '';
+    items = [];
+    highlighted = -1;
+  }
+
+  input.addEventListener('input', function() {
+    clearTimeout(debounceTimer);
+    var q = input.value.trim();
+    if (q.length < 2) { hide(); return; }
+    dropdown.innerHTML = '<div class="tkt-ac-loading">Ricerca…</div>';
+    dropdown.classList.add('show');
+    debounceTimer = setTimeout(function() {
+      fetch('{% url "tickets:api_assets_autocomplete" %}?q=' + encodeURIComponent(q))
+        .then(function(r){ return r.json(); })
+        .then(function(data) {
+          if (!data.results || data.results.length === 0) {
+            show('<div class="tkt-ac-empty">Nessun asset trovato</div>');
+            return;
+          }
+          var html = '';
+          data.results.forEach(function(a) {
+            html += '<div class="tkt-ac-item" data-name="' + escHtml(a.name) + '">' +
+              '<span class="tkt-ac-name">' + escHtml(a.name) + '</span>' +
+              (a.tag ? '<span class="tkt-ac-tag">' + escHtml(a.tag) + '</span>' : '') +
+              (a.tipo ? '<span class="tkt-ac-tipo">' + escHtml(a.tipo) + '</span>' : '') +
+              '</div>';
+          });
+          show(html);
+          items = dropdown.querySelectorAll('.tkt-ac-item');
+          items.forEach(function(el) {
+            el.addEventListener('mousedown', function(e) {
+              e.preventDefault();
+              input.value = el.dataset.name;
+              hide();
+            });
+          });
+        })
+        .catch(function(){ hide(); });
+    }, 220);
+  });
+
+  input.addEventListener('keydown', function(e) {
+    if (!dropdown.classList.contains('show')) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (highlighted < items.length - 1) {
+        if (highlighted >= 0) items[highlighted].classList.remove('highlighted');
+        highlighted++;
+        items[highlighted].classList.add('highlighted');
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (highlighted > 0) {
+        items[highlighted].classList.remove('highlighted');
+        highlighted--;
+        items[highlighted].classList.add('highlighted');
+      }
+    } else if (e.key === 'Enter') {
+      if (highlighted >= 0) {
+        e.preventDefault();
+        input.value = items[highlighted].dataset.name;
+        hide();
+      }
+    } else if (e.key === 'Escape') {
+      hide();
+    }
+  });
+
+  document.addEventListener('click', function(e) {
+    if (!input.contains(e.target) && !dropdown.contains(e.target)) hide();
+  });
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+})();
+
+// ── Bulk: selezione ───────────────────────────────────────────────────────────
+(function() {
+  function getSelectedIds() {
+    return [...document.querySelectorAll('.tkt-cb-row:checked')].map(cb => parseInt(cb.value));
+  }
+  function updateToolbar() {
+    var ids = getSelectedIds();
+    var tb  = document.getElementById('bulk-toolbar');
+    var cnt = document.getElementById('bulk-count');
+    if (ids.length > 0) {
+      tb.classList.add('visible');
+      cnt.textContent = ids.length + (ids.length === 1 ? ' ticket selezionato' : ' ticket selezionati');
+    } else {
+      tb.classList.remove('visible');
+    }
+  }
+  function updateRowHighlight(cb) {
+    var row = cb.closest('tr');
+    if (cb.checked) row.classList.add('tkt-selected');
+    else row.classList.remove('tkt-selected');
+  }
+  document.addEventListener('change', function(e) {
+    if (e.target.classList.contains('tkt-cb-all')) {
+      var tbl = e.target.closest('table');
+      tbl.querySelectorAll('.tkt-cb-row').forEach(function(cb) {
+        cb.checked = e.target.checked;
+        updateRowHighlight(cb);
+      });
+      updateToolbar();
+    }
+    if (e.target.classList.contains('tkt-cb-row')) {
+      updateRowHighlight(e.target);
+      updateToolbar();
+      var tbl = e.target.closest('table');
+      var allRows = [...tbl.querySelectorAll('.tkt-cb-row')];
+      var allCbAll = tbl.querySelector('.tkt-cb-all');
+      if (allCbAll) {
+        var anyChecked = allRows.some(function(c){ return c.checked; });
+        var allChecked = allRows.every(function(c){ return c.checked; });
+        allCbAll.indeterminate = anyChecked && !allChecked;
+        allCbAll.checked = allChecked;
+      }
+    }
+  });
+
+  window.bulkDeselAll = function() {
+    document.querySelectorAll('.tkt-cb-row, .tkt-cb-all').forEach(function(cb) {
+      cb.checked = false; cb.indeterminate = false;
+    });
+    document.querySelectorAll('tr.tkt-selected').forEach(function(r) { r.classList.remove('tkt-selected'); });
+    updateToolbar();
+  };
+
+  // Modal helpers
+  window.bulkOpenModal  = function(id) { document.getElementById(id).classList.add('open'); };
+  window.bulkCloseModal = function(id) { document.getElementById(id).classList.remove('open'); };
+  document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('bulk-modal-overlay')) e.target.classList.remove('open');
+  });
+
+  function csrf() {
+    var m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+  }
+
+  async function callBulk(payload, btn, btnLabel) {
+    btn.disabled = true; btn.textContent = 'Salvataggio…';
+    try {
+      var r = await fetch('{% url "tickets:api_bulk" %}', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','X-CSRFToken': csrf()},
+        body: JSON.stringify(payload)
+      });
+      var d = await r.json();
+      if (!d.ok) { alert('Errore: ' + d.error); return false; }
+      return d.aggiornati;
+    } finally { btn.disabled = false; btn.textContent = btnLabel; }
+  }
+
+  function bulkSuccess(msg) {
+    window.bulkDeselAll();
+    var tb = document.getElementById('bulk-toolbar');
+    tb.innerHTML = '<span style="font-size:13px;font-weight:700;">✓ ' + msg + '</span>' +
+      '<button class="bulk-btn bulk-btn-desel" onclick="location.reload()">Aggiorna pagina</button>';
+    tb.classList.add('visible');
+  }
+
+  // ── Cambia stato
+  window.bulkOpenStato = function() { window.bulkOpenModal('modal-stato'); };
+  window.bulkExecStato = async function() {
+    var ids   = getSelectedIds();
+    var stato = document.getElementById('bulk-stato-val').value;
+    var nota  = document.getElementById('bulk-stato-nota').value.trim();
+    var btn   = document.querySelector('#modal-stato .bulk-modal-confirm');
+    var n = await callBulk({ids:ids, azione:'stato', stato:stato, nota:nota}, btn, 'Applica');
+    if (n !== false) { bulkSuccess('Stato aggiornato su ' + n + ' ticket.'); window.bulkCloseModal('modal-stato'); }
+  };
+
+  // ── Assegna
+  window.bulkOpenAssegna = function() {
+    document.getElementById('bulk-assegna-nome').value  = '';
+    document.getElementById('bulk-assegna-email').value = '';
+    document.getElementById('bulk-assegna-list').classList.remove('open');
+    window.bulkOpenModal('modal-assegna');
+    setTimeout(function(){ document.getElementById('bulk-assegna-nome').focus(); }, 80);
+  };
+  var _assTimer = null;
+  document.getElementById('bulk-assegna-nome').addEventListener('input', function() {
+    clearTimeout(_assTimer);
+    var q = this.value.trim();
+    if (q.length < 2) { document.getElementById('bulk-assegna-list').classList.remove('open'); return; }
+    _assTimer = setTimeout(function() { _assSearch(q); }, 280);
+  });
+  document.getElementById('bulk-assegna-nome').addEventListener('blur', function() {
+    setTimeout(function(){ document.getElementById('bulk-assegna-list').classList.remove('open'); }, 150);
+  });
+  async function _assSearch(q) {
+    var r = await fetch('{% url "tickets:api_cerca_utenti" %}?q=' + encodeURIComponent(q));
+    var d = await r.json();
+    var list = document.getElementById('bulk-assegna-list');
+    list.innerHTML = '';
+    if (!d.results || !d.results.length) { list.classList.remove('open'); return; }
+    d.results.forEach(function(u) {
+      var el = document.createElement('div');
+      el.className = 'bulk-ac-item';
+      el.textContent = u.label;
+      el.addEventListener('mousedown', function(e){ e.preventDefault(); });
+      el.addEventListener('click', function() {
+        document.getElementById('bulk-assegna-nome').value  = u.nome;
+        document.getElementById('bulk-assegna-email').value = u.email_notifica || u.email || '';
+        list.classList.remove('open');
+      });
+      list.appendChild(el);
+    });
+    list.classList.add('open');
+  }
+  window.bulkExecAssegna = async function() {
+    var nome  = document.getElementById('bulk-assegna-nome').value.trim();
+    var email = document.getElementById('bulk-assegna-email').value.trim();
+    if (!nome) { alert('Inserisci il nome del tecnico.'); return; }
+    var ids = getSelectedIds();
+    var btn = document.querySelector('#modal-assegna .bulk-modal-confirm');
+    var n = await callBulk({ids:ids, azione:'assegna', assegnato_a:nome, assegnato_email:email}, btn, 'Assegna');
+    if (n !== false) { bulkSuccess('Assegnati ' + n + ' ticket a ' + nome + '.'); window.bulkCloseModal('modal-assegna'); }
+  };
+
+  // ── Annulla
+  window.bulkOpenAnnulla = function() {
+    document.getElementById('annulla-count').textContent = getSelectedIds().length;
+    document.getElementById('bulk-annulla-nota').value = '';
+    window.bulkOpenModal('modal-annulla');
+  };
+  window.bulkExecAnnulla = async function() {
+    var ids  = getSelectedIds();
+    var nota = document.getElementById('bulk-annulla-nota').value.trim();
+    var btn  = document.querySelector('#modal-annulla .bulk-modal-confirm');
+    var n = await callBulk({ids:ids, azione:'stato', stato:'ANNULLATO', nota:nota}, btn, 'Annulla ticket');
+    if (n !== false) { bulkSuccess('Annullati ' + n + ' ticket.'); window.bulkCloseModal('modal-annulla'); }
+  };
+})();
+</script>
 {% endblock %}

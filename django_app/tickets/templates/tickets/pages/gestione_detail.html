@@ -248,6 +248,67 @@
       </div>
       {% endif %}
 
+      <!-- Asset -->
+      <div class="tkt-card">
+        <div class="tkt-card-title">Asset collegato</div>
+        <div id="asset-current" style="font-size:13px;margin-bottom:10px;">
+          {% if ticket.asset %}
+            <a href="{% url 'assets:asset_view' ticket.asset.pk %}" style="color:#0369a1;font-weight:700;">
+              {{ ticket.asset.name }} [{{ ticket.asset.asset_tag }}]
+            </a>
+          {% elif ticket.asset_descrizione_libera %}
+            <span style="color:#374151;">{{ ticket.asset_descrizione_libera }}</span>
+            <span style="color:#94a3b8;font-size:11px;"> (testo libero)</span>
+          {% else %}
+            <span style="color:#94a3b8;">Nessun asset collegato</span>
+          {% endif %}
+        </div>
+
+        {% if my_assets_list %}
+        <!-- Miei asset / reparto -->
+        <div id="ag-my-section" style="margin-bottom:10px;">
+          <div style="font-size:10px;font-weight:700;color:#0e7490;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;">
+            {{ my_assets_label }}
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px;">
+            {% for a in my_assets_list %}
+            <button type="button"
+              style="padding:4px 10px;border-radius:16px;font-size:11px;font-weight:600;border:1.5px solid #bae6fd;background:#f0f9ff;color:#0e7490;cursor:pointer;"
+              class="ag-my-chip"
+              data-id="{{ a.id }}"
+              data-name="{{ a.name }} [{{ a.asset_tag }}]"
+              title="{{ a.asset_type_label }}{% if a.model %} · {{ a.model }}{% endif %}">
+              <strong>{{ a.name }}</strong> <span style="color:#64748b;font-size:10px;">{{ a.asset_tag }}</span>
+            </button>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        <div style="position:relative;">
+          <div style="display:flex;gap:6px;margin-bottom:6px;">
+            <button type="button" class="tkt-asset-tog-btn active" id="ag-tog-catalogo" style="font-size:11px;padding:3px 10px;" onclick="agToggle('catalogo')">Da catalogo</button>
+            <button type="button" class="tkt-asset-tog-btn" id="ag-tog-libero" style="font-size:11px;padding:3px 10px;" onclick="agToggle('libero')">Libera</button>
+          </div>
+          <div id="ag-catalogo">
+            <input type="text" id="ag-search" placeholder="Nome, tag, tipo, modello…" autocomplete="off"
+              style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;">
+            <div id="ag-results" style="display:none;position:absolute;z-index:100;left:0;right:0;border:1px solid #e2e8f0;border-radius:10px;background:#fff;margin-top:2px;max-height:220px;overflow-y:auto;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.1);"></div>
+          </div>
+          <div id="ag-libero" style="display:none;">
+            <input type="text" id="ag-libero-input" placeholder="Descrizione macchinario/dispositivo…" maxlength="300"
+              style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box;">
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+          <button class="tkt-btn-sm tkt-btn-blue" id="ag-save">Salva</button>
+          {% if ticket.asset or ticket.asset_descrizione_libera %}
+          <button class="tkt-btn-sm tkt-btn-gray" id="ag-clear">Rimuovi</button>
+          {% endif %}
+          <span id="ag-status" style="font-size:12px;color:#64748b;"></span>
+        </div>
+      </div>
+
       <!-- Meta -->
       <div class="tkt-card">
         <div class="tkt-card-title">Info ticket</div>
@@ -302,6 +363,8 @@ const CSRF        = "{{ csrf_token }}";
 const API_COMM    = "{% url 'tickets:api_commento' %}";
 const API_STATO   = "{% url 'tickets:api_stato' %}";
 const API_ASSEGNA = "{% url 'tickets:api_assegna' %}";
+const API_ASSET   = "{% url 'tickets:api_asset' %}";
+const ASSETS      = {{ assets_list|safe }};
 
 // ── Commenti ──
 async function sendCommento(isInterno) {
@@ -332,6 +395,119 @@ async function sendCommento(isInterno) {
 }
 document.getElementById('commento-pubbl')?.addEventListener('click', () => sendCommento(false));
 document.getElementById('commento-interno')?.addEventListener('click', () => sendCommento(true));
+
+// ── Asset ──
+let _agMode = 'catalogo';
+let _agSelectedId = null;
+
+// Chip "Miei asset" in gestione_detail
+document.querySelectorAll('.ag-my-chip').forEach(chip => {
+  chip.addEventListener('click', function() {
+    document.querySelectorAll('.ag-my-chip').forEach(c => c.style.background = '#f0f9ff');
+    this.style.background = '#0e7490';
+    this.style.color = '#fff';
+    _agSelectedId = parseInt(this.dataset.id);
+    _agMode = 'catalogo';
+    if (agSearch) agSearch.value = this.dataset.name;
+    document.getElementById('ag-status').textContent = '';
+  });
+});
+
+function agToggle(mode) {
+  _agMode = mode;
+  _agSelectedId = null;
+  document.getElementById('ag-tog-catalogo').classList.toggle('active', mode === 'catalogo');
+  document.getElementById('ag-tog-libero').classList.toggle('active', mode === 'libero');
+  document.getElementById('ag-catalogo').style.display = mode === 'catalogo' ? '' : 'none';
+  document.getElementById('ag-libero').style.display   = mode === 'libero'   ? '' : 'none';
+}
+
+function _scoreAsset(a, q) {
+  let s = 0;
+  const fields = [a.name, a.asset_tag, a.asset_type_label, a.asset_category, a.manufacturer, a.model, a.serial_number, a.reparto];
+  for (const f of fields) {
+    if (!f) continue;
+    const fl = f.toLowerCase();
+    if (fl === q) s += 100;
+    else if (fl.startsWith(q)) s += 50;
+    else if (fl.includes(q)) s += 20;
+  }
+  return s;
+}
+
+const agSearch = document.getElementById('ag-search');
+const agResults = document.getElementById('ag-results');
+
+if (agSearch) {
+  agSearch.addEventListener('input', function() {
+    const q = this.value.trim().toLowerCase();
+    _agSelectedId = null;
+    if (q.length < 2) { agResults.style.display = 'none'; return; }
+    const matches = ASSETS.map(a => ({ a, s: _scoreAsset(a, q) })).filter(x => x.s > 0)
+      .sort((x, y) => y.s - x.s || x.a.name.localeCompare(y.a.name)).slice(0, 8);
+    if (!matches.length) { agResults.style.display = 'none'; return; }
+    agResults.innerHTML = matches.map(({ a }) =>
+      `<div style="padding:7px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;" data-id="${a.id}" data-name="${a.name} [${a.asset_tag}]">
+        <strong>${a.name}</strong> <span style="color:#64748b;font-size:11px;">${a.asset_tag}</span><br>
+        <span style="color:#94a3b8;font-size:11px;">${a.asset_type_label||a.asset_type} · ${a.asset_category||a.model||''}</span>
+      </div>`).join('');
+    agResults.style.display = 'block';
+    agResults.querySelectorAll('[data-id]').forEach(el => {
+      el.addEventListener('click', () => {
+        _agSelectedId = parseInt(el.dataset.id);
+        agSearch.value = el.dataset.name;
+        agResults.style.display = 'none';
+      });
+    });
+  });
+  document.addEventListener('click', e => {
+    if (!agSearch.contains(e.target) && !agResults.contains(e.target)) agResults.style.display = 'none';
+  });
+}
+
+document.getElementById('ag-save')?.addEventListener('click', async () => {
+  const st = document.getElementById('ag-status');
+  st.textContent = 'Salvataggio…';
+  const payload = { ticket_id: TICKET_ID };
+  if (_agMode === 'catalogo') {
+    payload.asset_id = _agSelectedId || null;
+    payload.asset_descrizione_libera = '';
+  } else {
+    payload.asset_id = null;
+    payload.asset_descrizione_libera = document.getElementById('ag-libero-input').value.trim();
+  }
+  try {
+    const r = await fetch(API_ASSET, { method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF}, body: JSON.stringify(payload) });
+    const d = await r.json();
+    if (d.ok) {
+      st.textContent = 'Salvato.';
+      const cur = document.getElementById('asset-current');
+      if (d.asset_id) {
+        cur.innerHTML = `<a href="${d.asset_url}" style="color:#0369a1;font-weight:700;">${d.asset_name} [${d.asset_tag}]</a>`;
+      } else if (d.asset_lib) {
+        cur.innerHTML = `<span style="color:#374151;">${d.asset_lib}</span> <span style="color:#94a3b8;font-size:11px;">(testo libero)</span>`;
+      } else {
+        cur.innerHTML = `<span style="color:#94a3b8;">Nessun asset collegato</span>`;
+      }
+    } else st.textContent = d.error || 'Errore.';
+  } catch(e) { st.textContent = 'Errore di rete.'; }
+});
+
+document.getElementById('ag-clear')?.addEventListener('click', async () => {
+  const st = document.getElementById('ag-status');
+  st.textContent = 'Rimozione…';
+  try {
+    const r = await fetch(API_ASSET, { method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+      body: JSON.stringify({ ticket_id: TICKET_ID, asset_id: null, asset_descrizione_libera: '' }) });
+    const d = await r.json();
+    if (d.ok) {
+      st.textContent = 'Rimosso.';
+      document.getElementById('asset-current').innerHTML = `<span style="color:#94a3b8;">Nessun asset collegato</span>`;
+      if (agSearch) agSearch.value = '';
+      _agSelectedId = null;
+    } else st.textContent = d.error || 'Errore.';
+  } catch(e) { st.textContent = 'Errore di rete.'; }
+});
 
 // ── Cambio stato ──
 let pendingStato = null;

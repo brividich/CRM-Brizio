@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block title %}{{ segnalazione.titolo }} — Diario Preposto{% endblock %}
+{% block title %}{{ segnalazione.titolo }} - Diario Preposto{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -77,7 +77,7 @@
 
   <div class="dp-breadcrumb">
     <a href="{% url 'diario_preposto:lista' %}">Diario Preposto</a>
-    <span class="dp-breadcrumb-sep">›</span>
+    <span class="dp-breadcrumb-sep">></span>
     <span>{{ segnalazione.titolo|truncatechars:60 }}</span>
   </div>
 
@@ -85,8 +85,8 @@
     <div class="dp-card-header">
       <div class="dp-card-title">{{ segnalazione.titolo }}</div>
       <div class="dp-card-meta">
-        Segnalazione #{{ segnalazione.pk }}
-        &nbsp;·&nbsp;
+        ID {{ segnalazione.codice_identificativo|default:"-" }}
+        &nbsp;|&nbsp;
         Inserita il {{ segnalazione.created_at|date:"d/m/Y H:i" }}
       </div>
     </div>
@@ -95,12 +95,16 @@
 
       <div class="dp-fields-grid">
         <div class="dp-field">
+          <label>ID</label>
+          <div class="val">{{ segnalazione.codice_identificativo|default:"-" }}</div>
+        </div>
+        <div class="dp-field">
           <label>Preposto</label>
-          <div class="val">{{ segnalazione.preposto|default:"—" }}</div>
+          <div class="val">{{ segnalazione.preposto|default:"-" }}</div>
         </div>
         <div class="dp-field">
           <label>Chi segnala</label>
-          <div class="val">{{ segnalazione.chi_segnala|default:"—" }}</div>
+          <div class="val">{{ segnalazione.chi_segnala|default:"-" }}</div>
         </div>
         <div class="dp-field">
           <label>Data segnalazione</label>
@@ -125,7 +129,7 @@
         <div class="dp-allegati">
           {% for a in allegati %}
           <div class="dp-allegato-item" id="allegato-{{ a.pk }}">
-            <div class="dp-allegato-icon">📎</div>
+            <div class="dp-allegato-icon">[file]</div>
             <div class="dp-allegato-name">{{ a.nome_file }}</div>
             <a href="{{ a.file.url }}" target="_blank" rel="noopener" class="dp-allegato-link">Scarica</a>
             {% if can_write %}
@@ -133,7 +137,7 @@
               class="dp-allegato-del"
               data-id="{{ a.pk }}"
               onclick="deleteAllegato({{ a.pk }}, this)"
-              title="Rimuovi allegato">✕</button>
+              title="Rimuovi allegato">X</button>
             {% endif %}
           </div>
           {% endfor %}
@@ -143,15 +147,15 @@
 
       <div class="dp-actions">
         {% if can_write %}
-        <a href="{% url 'diario_preposto:modifica' segnalazione.pk %}" class="dp-btn dp-btn-primary">✏ Modifica</a>
+        <a href="{% url 'diario_preposto:modifica' segnalazione.pk %}" class="dp-btn dp-btn-primary">Modifica</a>
         <form method="post" action="{% url 'diario_preposto:elimina' segnalazione.pk %}"
               onsubmit="return confirm('Eliminare questa segnalazione e tutti i suoi allegati?')">
           {% csrf_token %}
-          <button type="submit" class="dp-btn dp-btn-danger">🗑 Elimina</button>
+          <button type="submit" class="dp-btn dp-btn-danger">Elimina</button>
         </form>
         {% endif %}
-        <a href="{% url 'diario_preposto:export_pdf' segnalazione.pk %}" target="_blank" class="dp-btn dp-btn-pdf">⬇ Export PDF</a>
-        <a href="{% url 'diario_preposto:lista' %}" class="dp-btn dp-btn-outline">← Torna alla lista</a>
+        <a href="{% url 'diario_preposto:export_pdf' segnalazione.pk %}" target="_blank" class="dp-btn dp-btn-pdf">Apri PDF</a>
+        <a href="{% url 'diario_preposto:lista' %}" class="dp-btn dp-btn-outline">Torna alla lista</a>
       </div>
 
     </div>

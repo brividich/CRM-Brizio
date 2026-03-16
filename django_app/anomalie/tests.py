@@ -210,3 +210,199 @@ class AnomalieConfigPageTests(TestCase):
             self.assertEqual(cfg.get("AZIENDA", "site_id"), "site-new")
             self.assertEqual(cfg.get("AZIENDA", "list_id_anomalie_db"), "list-new")
             self.assertEqual(cfg.get("AZIENDA", "client_secret"), "old-secret")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AnomalieReportTests(TestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = get_user_model().objects.create_user(username="anom-report-user", password="pass12345")
+        self.factory = RequestFactory()
+
+    def test_report_renders_op_summary_for_op_item_id(self):
+        request = self.factory.get(reverse("anomalie_report_segnalazione"), {"op_item_id": "157"})
+        request.user = self.user
+        request.legacy_user = None
+
+        op_row = [
+            {
+                "sharepoint_item_id": "157",
+                "title": "OP/2026/123",
+                "part_number": "0002-0003-0004",
+                "incaricato": "Simone Smarrella",
+                "capocomessa": "Simone Danesi",
+                "stato": "Aperto",
+                "in1text": "Nota OP",
+                "created_datetime": "2026-03-10 08:30:00",
+                "modified_datetime": "2026-03-15 16:45:00",
+            }
+        ]
+        anomaly_rows = [
+            {
+                "id": 12,
+                "sharepoint_item_id": "501",
+                "ex_op_nominativo": "OP/2026/123",
+                "seriale": "SN-001",
+                "descrizione": "Difetto A",
+                "note_capocommessa": "Nota A",
+                "pezzo_recuperato": 1,
+                "aprire_rdc": 0,
+                "segnalare_cliente": 1,
+                "chiudere": 0,
+                "avanzamento": "In attesa",
+                "numero_rdc": "RDC-1",
+                "created_datetime": "2026-03-10 09:00:00",
+                "modified_datetime": "2026-03-15 11:00:00",
+            },
+            {
+                "id": 13,
+                "sharepoint_item_id": "502",
+                "ex_op_nominativo": "OP/2026/123",
+                "seriale": "SN-002",
+                "descrizione": "Difetto B",
+                "note_capocommessa": "Nota B",
+                "pezzo_recuperato": 0,
+                "aprire_rdc": 1,
+                "segnalare_cliente": 0,
+                "chiudere": 1,
+                "avanzamento": "Finito trattato",
+                "numero_rdc": "",
+                "created_datetime": "2026-03-11 10:00:00",
+                "modified_datetime": "2026-03-15 12:30:00",
+            },
+        ]
+
+        with (
+            patch("anomalie.views._has_table", return_value=True),
+            patch(
+                "anomalie.views.legacy_table_columns",
+                return_value={
+                    "id",
+                    "sharepoint_item_id",
+                    "ex_op_nominativo",
+                    "seriale",
+                    "descrizione",
+                    "note_capocommessa",
+                    "pezzo_recuperato",
+                    "aprire_rdc",
+                    "segnalare_cliente",
+                    "chiudere",
+                    "avanzamento",
+                    "numero_rdc",
+                    "created_datetime",
+                    "modified_datetime",
+                },
+            ),
+            patch("anomalie.views._fetch_all_dict", side_effect=[op_row, anomaly_rows]),
+            patch("anomalie.views._list_attachments_for_local", side_effect=lambda local_id: [{"name": f"all-{local_id}.pdf", "size": 123, "mime_type": "application/pdf"}]),
+            patch("anomalie.views._can_view_anomalie_for_op", return_value=True),
+            patch("anomalie.views._load_report_template", return_value=None),
+        ):
+            response = anomalie_views.report_segnalazione_html.__wrapped__(request)
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode("utf-8")
+        self.assertIn("OP/2026/123", html)
+        self.assertIn("SN-001", html)
+        self.assertIn("SN-002", html)
+        self.assertIn("Difetto A", html)
+        self.assertIn("Report Documento OP", html)
+
+    def test_report_can_resolve_op_from_anomaly_id(self):
+        request = self.factory.get(reverse("anomalie_report_segnalazione"), {"id": "12"})
+        request.user = self.user
+        request.legacy_user = None
+
+        focus_row = [{"id": 12, "op_lookup_id": 157, "ex_op_nominativo": "OP/2026/123"}]
+        op_row = [
+            {
+                "sharepoint_item_id": "157",
+                "title": "OP/2026/123",
+                "part_number": "0002-0003-0004",
+                "incaricato": "Simone Smarrella",
+                "capocomessa": "Simone Danesi",
+                "stato": "Aperto",
+                "in1text": "",
+                "created_datetime": "",
+                "modified_datetime": "2026-03-15 16:45:00",
+            }
+        ]
+        anomaly_rows = [
+            {
+                "id": 12,
+                "sharepoint_item_id": "501",
+                "ex_op_nominativo": "OP/2026/123",
+                "seriale": "SN-001",
+                "descrizione": "Difetto A",
+                "note_capocommessa": "",
+                "pezzo_recuperato": 1,
+                "aprire_rdc": 0,
+                "segnalare_cliente": 1,
+                "chiudere": 0,
+                "avanzamento": "In attesa",
+                "numero_rdc": "",
+                "created_datetime": "",
+                "modified_datetime": "",
+            },
+            {
+                "id": 13,
+                "sharepoint_item_id": "502",
+                "ex_op_nominativo": "OP/2026/123",
+                "seriale": "SN-002",
+                "descrizione": "Difetto B",
+                "note_capocommessa": "",
+                "pezzo_recuperato": 0,
+                "aprire_rdc": 0,
+                "segnalare_cliente": 0,
+                "chiudere": 1,
+                "avanzamento": "Finito trattato",
+                "numero_rdc": "",
+                "created_datetime": "",
+                "modified_datetime": "",
+            },
+        ]
+
+        with (
+            patch("anomalie.views._has_table", return_value=True),
+            patch(
+                "anomalie.views.legacy_table_columns",
+                return_value={
+                    "id",
+                    "sharepoint_item_id",
+                    "ex_op_nominativo",
+                    "seriale",
+                    "descrizione",
+                    "note_capocommessa",
+                    "pezzo_recuperato",
+                    "aprire_rdc",
+                    "segnalare_cliente",
+                    "chiudere",
+                    "avanzamento",
+                    "numero_rdc",
+                    "created_datetime",
+                    "modified_datetime",
+                },
+            ),
+            patch("anomalie.views._fetch_all_dict", side_effect=[focus_row, op_row, anomaly_rows]),
+            patch("anomalie.views._list_attachments_for_local", return_value=[]),
+            patch("anomalie.views._can_view_anomalie_for_op", return_value=True),
+            patch("anomalie.views._load_report_template", return_value=None),
+        ):
+            response = anomalie_views.report_segnalazione_html.__wrapped__(request)
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode("utf-8")
+        self.assertIn("SN-001", html)
+        self.assertIn("SN-002", html)
+        self.assertIn("Record #12", html)
+
+    def test_report_default_template_download(self):
+        request = self.factory.get(reverse("anomalie_report_segnalazione"), {"_tpl_default": "1"})
+        request.user = self.user
+        request.legacy_user = None
+
+        response = anomalie_views.report_segnalazione_html.__wrapped__(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["Content-Disposition"], 'attachment; filename="report_default_op.html"')
+        self.assertIn("Report Documento OP", response.content.decode("utf-8"))

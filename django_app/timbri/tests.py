@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -14,7 +15,7 @@ from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
 from . import views as timbri_views
-from .models import OperatoreTimbri, RegistroTimbro, RegistroTimbroImmagine
+from .models import OperatoreTimbri, RegistroTimbro, RegistroTimbroImmagine, TimbriImportIssue
 
 User = get_user_model()
 
@@ -287,6 +288,38 @@ class TimbriViewTests(TestCase):
         with patch("timbri.views._graph_list_items", return_value=[{"id": "35", "fields": {"Operatore": "Gentile Sara", "Timbro": "CNO DI001"}}]):
             result = timbri_views._import_sharepoint_records(request)
         self.assertEqual(result["skipped"], 1)
+
+    def test_record_edit_prefills_html5_dates(self):
+        self.registro.data_consegna = datetime(2025, 3, 10).date()
+        self.registro.data_ritiro = datetime(2025, 3, 12).date()
+        self.registro.note = "Nota compilata"
+        self.registro.firma_testo = "Firma compilata"
+        self.registro.save(update_fields=["data_consegna", "data_ritiro", "note", "firma_testo"])
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("timbri:registro_edit", args=[self.registro.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'value="2025-03-10"', html=False)
+        self.assertContains(response, 'value="2025-03-12"', html=False)
+        self.assertContains(response, "Nota compilata")
+        self.assertContains(response, "Firma compilata")
+
+    def test_index_shows_pending_import_issues(self):
+        TimbriImportIssue.objects.create(
+            source_file="Registro timbri.csv",
+            csv_row_number=42,
+            sharepoint_item_id="999",
+            operatore_label="Operatore Test",
+            matricola="MISS001",
+            codice_timbro="CNO MISS001",
+            tipo_timbro_raw="Fisico e digitale",
+            motivo_scarto="Operatore non trovato nell'anagrafica centrale",
+        )
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("timbri:index"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Da gestire")
+        self.assertContains(response, "Operatore Test")
+        self.assertContains(response, "MISS001")
 
     def test_operatore_delete_removes_related_records(self):
         operatore = OperatoreTimbri.objects.create(nome="Manuale", cognome="Test")

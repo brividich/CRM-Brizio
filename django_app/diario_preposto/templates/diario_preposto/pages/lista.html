@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block title %}Diario Preposto — Portale Applicativo{% endblock %}
+{% block title %}Diario Preposto - Portale Applicativo{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -44,6 +44,7 @@
 .dp-table tr:hover td { background:#f8fafc; }
 .dp-table a { color:#0f766e; font-weight:600; text-decoration:none; }
 .dp-table a:hover { text-decoration:underline; }
+.dp-code { white-space:nowrap; font-weight:700; color:#0f766e; }
 .dp-empty { padding:40px; text-align:center; color:#94a3b8; font-size:14px; }
 
 @media (max-width:700px) {
@@ -62,7 +63,7 @@
   <div class="dp-hero">
     <div>
       <div class="dp-hero-title">Diario Preposto</div>
-      <div class="dp-hero-sub">RSPP · ASPP · RLS — Registro segnalazioni sicurezza</div>
+      <div class="dp-hero-sub">RSPP · ASPP · RLS - Registro segnalazioni sicurezza</div>
     </div>
     <div class="dp-hero-actions">
       {% if can_write %}
@@ -80,7 +81,7 @@
 
   <form method="get" class="dp-filters">
     <label>Cerca
-      <input type="text" name="q" value="{{ q }}" placeholder="Titolo, descrizione, nominativo...">
+      <input type="text" name="q" value="{{ q }}" placeholder="ID, titolo, descrizione, nominativo...">
     </label>
     <label>Preposto
       <select name="preposto">
@@ -101,6 +102,7 @@
     <table class="dp-table">
       <thead>
         <tr>
+          <th>ID</th>
           <th>Titolo</th>
           <th>Preposto</th>
           <th>Chi segnala</th>
@@ -112,21 +114,22 @@
       <tbody>
         {% for s in segnalazioni %}
         <tr>
+          <td class="dp-code">{{ s.codice_identificativo|default:"-" }}</td>
           <td><a href="{% url 'diario_preposto:dettaglio' s.pk %}">{{ s.titolo|truncatechars:70 }}</a></td>
-          <td>{{ s.preposto|default:"—" }}</td>
-          <td>{{ s.chi_segnala|default:"—" }}</td>
+          <td>{{ s.preposto|default:"-" }}</td>
+          <td>{{ s.chi_segnala|default:"-" }}</td>
           <td style="white-space:nowrap;">{{ s.data_segnalazione|date:"d/m/Y H:i" }}</td>
           <td>
             {% with n=s.allegati.count %}
             {% if n %}
             <span style="background:#f0fdfa;color:#0f766e;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;">{{ n }} file</span>
-            {% else %}—{% endif %}
+            {% else %}-{% endif %}
             {% endwith %}
           </td>
           <td>
             <a href="{% url 'diario_preposto:export_pdf' s.pk %}" target="_blank"
                style="display:inline-flex;align-items:center;padding:5px 10px;border-radius:8px;background:#f0fdfa;color:#0f766e;font-size:11px;font-weight:700;text-decoration:none;border:1px solid #99f6e4;">
-              PDF
+              Apri PDF
             </a>
           </td>
         </tr>

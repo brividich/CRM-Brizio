@@ -7,11 +7,14 @@
 #### Diario Preposto — nuova app
 
 - **[feature] App `diario_preposto`**: nuova app Django per la gestione delle segnalazioni del preposto. Include modelli, form, viste lista/dettaglio/form con ACL (`acl_bootstrap.py`) e migration iniziale.
+- **[ops] Import CSV Diario Preposto**: aggiunto comando `python django_app/manage.py import_preposto_csv <file.csv>` per caricare segnalazioni storiche nel modulo con parsing date italiane, `dry-run` e logica idempotente anti-doppioni.
 
 #### Timbri — report e nuovi componenti
 
 - **[feature] Report timbri** (`/timbri/report/`): nuova pagina di reportistica presenze con template dedicato `report.html`.
 - **[feature] Componenti `detail_record` e `report_record`**: nuovi componenti HTML riutilizzabili per la visualizzazione del dettaglio e del report di un singolo record di timbratura.
+- **[ops] Import CSV timbri senza immagini**: aggiunto comando `python django_app/manage.py import_timbri_csv <file.csv>` per importare i record dal registro SharePoint, agganciando solo gli operatori presenti in anagrafica centrale e ignorando le immagini.
+- **[ux/fix] Timbri**: aggiunto pannello `Da gestire` per le righe CSV non importate, form record con date HTML5 correttamente precompilate in modifica e azioni dedicate per firma/sigla.
 - **[fix] Aggiornamenti** a `operatore_detail`, `record_form`, `index`, `views.py`, `urls.py` e `models.py` del modulo timbri.
 
 #### Hub Tools — sottovoce Database separata

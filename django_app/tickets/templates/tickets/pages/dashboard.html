@@ -80,6 +80,9 @@
 .tkt-tipo-MAN { background:#f0fdf4; color:#15803d; }
 
 .tkt-empty { padding:40px; text-align:center; color:#94a3b8; font-size:14px; }
+.tkt-asset-cell { display:flex; flex-direction:column; gap:2px; min-width:150px; }
+.tkt-asset-main { color:#0f172a; font-weight:600; }
+.tkt-asset-meta { color:#64748b; font-size:11px; }
 
 @media (max-width:700px) {
   .tkt-hero { padding:20px; }
@@ -169,6 +172,7 @@
           <th>Tipo</th>
           <th>Titolo</th>
           <th>Categoria</th>
+          <th>Asset interessato</th>
           <th>Priorita</th>
           <th>Stato</th>
           <th>Data apertura</th>
@@ -196,6 +200,19 @@
             {% if t.incide_sicurezza %}<span style="margin-left:6px;font-size:11px;background:#fef2f2;color:#dc2626;padding:1px 6px;border-radius:4px;font-weight:700;">Sicurezza</span>{% endif %}
           </td>
           <td>{{ t.label_categoria }}</td>
+          <td>
+            <div class="tkt-asset-cell">
+              {% if t.asset %}
+              <span class="tkt-asset-main">{{ t.asset.name|truncatechars:30 }}</span>
+              <span class="tkt-asset-meta">{{ t.asset.asset_tag }}</span>
+              {% elif t.asset_descrizione_libera %}
+              <span class="tkt-asset-main">{{ t.asset_descrizione_libera|truncatechars:38 }}</span>
+              <span class="tkt-asset-meta">Descrizione libera</span>
+              {% else %}
+              <span class="tkt-asset-main">-</span>
+              {% endif %}
+            </div>
+          </td>
           <td><span class="tkt-prio tkt-prio-{{ t.priorita }}">{{ t.label_priorita }}</span></td>
           <td><span class="tkt-badge tkt-badge-{{ t.stato }}">{{ t.label_stato }}</span></td>
           <td style="white-space:nowrap;">{{ t.created_at|date:"d/m/Y H:i" }}</td>

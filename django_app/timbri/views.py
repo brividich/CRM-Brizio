@@ -31,7 +31,7 @@ from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_table_col
 from core.models import AuditLog
 
 from .forms import RegistroTimbroForm, save_variant_image
-from .models import OperatoreTimbri, RegistroTimbro, RegistroTimbroImmagine
+from .models import OperatoreTimbri, RegistroTimbro, RegistroTimbroImmagine, TimbriImportIssue
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,7 @@ _TIMBRI_REQUIRED_TABLES = {
     "timbri_operatoretimbri",
     "timbri_registrotimbro",
     "timbri_registrotimbroimmagine",
+    "timbri_timbriimportissue",
 }
 _GUID_RE = re.compile(r"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})")
 
@@ -845,6 +846,15 @@ def _empty_page(page_number):
     return Paginator([], 30).get_page(page_number)
 
 
+def _pending_import_issues(limit: int | None = None):
+    qs = TimbriImportIssue.objects.filter(is_resolved=False).order_by(
+        "operatore_label", "matricola", "csv_row_number", "id"
+    )
+    if limit:
+        return list(qs[:limit])
+    return list(qs)
+
+
 def _base_context(request, **extra):
     legacy_user = _legacy_user(request)
     display_name = (
@@ -886,7 +896,9 @@ def index(request):
                     "dipendenti": 0,
                     "con_timbri": 0,
                     "record_attivi": 0,
+                    "da_gestire": 0,
                 },
+                pending_issues=[],
             ),
         )
 
@@ -929,6 +941,7 @@ def index(request):
     entries = [_employee_row_payload(row, bridge_map.get(int(row.get("id") or 0))) for row in rows]
     paginator = Paginator(entries, 30)
     page_obj = paginator.get_page(request.GET.get("page"))
+    pending_issues = _pending_import_issues(100)
 
     return render(
         request,
@@ -944,7 +957,9 @@ def index(request):
                 "dipendenti": len(rows),
                 "con_timbri": sum(1 for item in entries if item["timbri_count"] > 0),
                 "record_attivi": RegistroTimbro.objects.filter(is_attivo=True, is_archived=False).count(),
+                "da_gestire": len(pending_issues),
             },
+            pending_issues=pending_issues,
         ),
     )
 
@@ -1238,6 +1253,8 @@ def registro_create(request, operatore_id: int):
     operatore = get_object_or_404(OperatoreTimbri, pk=operatore_id)
     if operatore.legacy_anagrafica_id:
         return redirect("timbri:registro_create_by_legacy", legacy_id=int(operatore.legacy_anagrafica_id))
+    initial_tipo = str(request.GET.get("tipo") or "").strip().upper()
+    allowed_types = {choice[0] for choice in RegistroTimbro.TIPO_CHOICES}
     if request.method == "POST":
         form = RegistroTimbroForm(request.POST, request.FILES)
         if form.is_valid():
@@ -1246,7 +1263,12 @@ def registro_create(request, operatore_id: int):
             messages.success(request, "Registro timbro salvato.")
             return redirect("timbri:operatore_detail", operatore_id=operatore.id)
     else:
-        form = RegistroTimbroForm(initial={"is_attivo": True, "tipo_timbro": RegistroTimbro.TIPO_FISICO_E_DIGITALE})
+        form = RegistroTimbroForm(
+            initial={
+                "is_attivo": True,
+                "tipo_timbro": initial_tipo if initial_tipo in allowed_types else RegistroTimbro.TIPO_FISICO_E_DIGITALE,
+            }
+        )
     return render(
         request,
         "timbri/pages/record_form.html",
@@ -1277,6 +1299,8 @@ def registro_create_by_legacy(request, legacy_id: int):
         return redirect("timbri:index")
 
     operatore = _ensure_legacy_operatore(row)
+    initial_tipo = str(request.GET.get("tipo") or "").strip().upper()
+    allowed_types = {choice[0] for choice in RegistroTimbro.TIPO_CHOICES}
     if request.method == "POST":
         form = RegistroTimbroForm(request.POST, request.FILES)
         if form.is_valid():
@@ -1285,7 +1309,12 @@ def registro_create_by_legacy(request, legacy_id: int):
             messages.success(request, "Registro timbro salvato.")
             return redirect("timbri:operatore_detail_by_legacy", legacy_id=legacy_id)
     else:
-        form = RegistroTimbroForm(initial={"is_attivo": True, "tipo_timbro": RegistroTimbro.TIPO_FISICO_E_DIGITALE})
+        form = RegistroTimbroForm(
+            initial={
+                "is_attivo": True,
+                "tipo_timbro": initial_tipo if initial_tipo in allowed_types else RegistroTimbro.TIPO_FISICO_E_DIGITALE,
+            }
+        )
     return render(
         request,
         "timbri/pages/record_form.html",

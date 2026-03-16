@@ -96,6 +96,14 @@
 }
 .tkt-asset-tog-btn.active { background:#0369a1; color:#fff; border-color:#0369a1; }
 .tkt-asset-search-meta { font-size:11px; color:#64748b; margin-top:4px; }
+.tkt-my-asset-chip {
+  padding:5px 12px; border-radius:20px; font-size:12px; font-weight:600;
+  border:1.5px solid #bae6fd; background:#f0f9ff; color:#0e7490;
+  cursor:pointer; transition:all .12s; white-space:nowrap;
+}
+.tkt-my-asset-chip:hover, .tkt-my-asset-chip.selected {
+  background:#0e7490; color:#fff; border-color:#0e7490;
+}
 
 .tkt-dropzone {
   border:2px dashed #cbd5e1; border-radius:12px; padding:24px;
@@ -280,22 +288,55 @@
           <div class="tkt-field-row">
             <div class="tkt-field" style="position:relative;">
               <label>Asset coinvolto</label>
-              <div style="display:flex;gap:6px;margin-bottom:6px;">
-                <button type="button" class="tkt-asset-tog-btn active" id="tog-catalogo" style="font-size:11px;padding:4px 10px;">Da catalogo</button>
-                <button type="button" class="tkt-asset-tog-btn" id="tog-libero" style="font-size:11px;padding:4px 10px;">Libera</button>
+
+              {% if my_assets_list %}
+              <!-- Miei asset / reparto -->
+              <div id="my-assets-section" style="margin-bottom:10px;">
+                <div style="font-size:11px;font-weight:700;color:#0e7490;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">
+                  {{ my_assets_label }}
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;" id="my-assets-chips">
+                  {% for a in my_assets_list %}
+                  <button type="button"
+                    class="tkt-my-asset-chip"
+                    data-id="{{ a.id }}"
+                    data-name="{{ a.name }} [{{ a.asset_tag }}]"
+                    title="{{ a.asset_type_label }}{% if a.model %} · {{ a.model }}{% endif %}{% if a.asset_category %} · {{ a.asset_category }}{% endif %}">
+                    <strong>{{ a.name }}</strong>
+                    <span style="color:#64748b;font-size:10px;margin-left:4px;">{{ a.asset_tag }}</span>
+                  </button>
+                  {% endfor %}
+                  <button type="button" class="tkt-my-asset-chip" id="my-asset-none"
+                    style="background:#f1f5f9;color:#94a3b8;border-color:#e2e8f0;"
+                    data-id="" data-name="">Altro…</button>
+                </div>
               </div>
-              <div id="asset-catalogo">
-                <input type="text" id="asset-search" placeholder="Nome, tag, tipo, modello o seriale..." autocomplete="off">
-                <input type="hidden" name="asset_id" id="asset-id-hidden" value="{{ form_data.asset_id|default:'' }}">
-                <div id="asset-results" style="display:none;position:absolute;z-index:100;left:0;right:0;border:1px solid #e2e8f0;border-radius:10px;background:#fff;margin-top:2px;max-height:240px;overflow-y:auto;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.1);"></div>
+              {% endif %}
+
+              <!-- Ricerca generale / testo libero -->
+              <div id="asset-extended"{% if my_assets_list %} style="display:none;"{% endif %}>
+                <div style="display:flex;gap:6px;margin-bottom:6px;">
+                  <button type="button" class="tkt-asset-tog-btn active" id="tog-catalogo" style="font-size:11px;padding:4px 10px;">Da catalogo</button>
+                  <button type="button" class="tkt-asset-tog-btn" id="tog-libero" style="font-size:11px;padding:4px 10px;">Libera</button>
+                  {% if my_assets_list %}
+                  <button type="button" class="tkt-asset-tog-btn" id="tog-mine" style="font-size:11px;padding:4px 10px;background:#0e7490;color:#fff;border-color:#0e7490;" onclick="showMyAssets()">← {{ my_assets_label }}</button>
+                  {% endif %}
+                </div>
+                <div id="asset-catalogo">
+                  <input type="text" id="asset-search" placeholder="Nome, tag, tipo, modello o seriale..." autocomplete="off">
+                  <div id="asset-results" style="display:none;position:absolute;z-index:100;left:0;right:0;border:1px solid #e2e8f0;border-radius:10px;background:#fff;margin-top:2px;max-height:240px;overflow-y:auto;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.1);"></div>
+                </div>
+                <div id="asset-libero" style="display:none;">
+                  <input type="text" name="asset_descrizione_libera" maxlength="300"
+                    placeholder="Es: PC ufficio vendite, Macchina reparto saldatura..."
+                    value="{{ form_data.asset_descrizione_libera|default:'' }}">
+                </div>
+                <div class="tkt-asset-search-meta">Ricerca per nome, tag, tipo, categoria, modello, seriale, reparto o produttore.</div>
               </div>
-              <div id="asset-libero" style="display:none;">
-                <input type="text" name="asset_descrizione_libera" maxlength="300"
-                  placeholder="Es: PC ufficio vendite, Macchina reparto saldatura..."
-                  value="{{ form_data.asset_descrizione_libera|default:'' }}">
-              </div>
+
+              <input type="hidden" name="asset_id" id="asset-id-hidden" value="{{ form_data.asset_id|default:'' }}">
+              <div id="asset-selected-label" style="font-size:12px;color:#0e7490;margin-top:4px;font-weight:600;"></div>
               <div class="tkt-field-hint">Lascia vuoto se non applicabile.</div>
-              <div class="tkt-asset-search-meta">Ricerca per nome, tag, tipo, categoria, modello, seriale, reparto o produttore. I risultati tollerano anche piccoli errori di digitazione.</div>
             </div>
 
             <div class="tkt-field" style="flex:2;">
@@ -391,19 +432,35 @@ const togLib = document.getElementById('tog-libero');
 const divCat = document.getElementById('asset-catalogo');
 const divLib = document.getElementById('asset-libero');
 const assetFreeInput = document.querySelector('input[name="asset_descrizione_libera"]');
+const assetExtended = document.getElementById('asset-extended');
+const myAssetsSection = document.getElementById('my-assets-section');
+const assetSelectedLabel = document.getElementById('asset-selected-label');
+
+function _setAssetLabel(name) {
+  if (assetSelectedLabel) assetSelectedLabel.textContent = name ? `✓ Selezionato: ${name}` : '';
+}
+
+function showMyAssets() {
+  if (myAssetsSection) myAssetsSection.style.display = '';
+  if (assetExtended) assetExtended.style.display = 'none';
+}
 
 function showCatalogoMode() {
-  togCat.classList.add('active');
-  togLib.classList.remove('active');
-  divCat.style.display = '';
-  divLib.style.display = 'none';
+  if (myAssetsSection) myAssetsSection.style.display = 'none';
+  if (assetExtended) assetExtended.style.display = '';
+  if (togCat) togCat.classList.add('active');
+  if (togLib) togLib.classList.remove('active');
+  if (divCat) divCat.style.display = '';
+  if (divLib) divLib.style.display = 'none';
 }
 
 function showLiberoMode() {
-  togLib.classList.add('active');
-  togCat.classList.remove('active');
-  divLib.style.display = '';
-  divCat.style.display = 'none';
+  if (myAssetsSection) myAssetsSection.style.display = 'none';
+  if (assetExtended) assetExtended.style.display = '';
+  if (togLib) togLib.classList.add('active');
+  if (togCat) togCat.classList.remove('active');
+  if (divLib) divLib.style.display = '';
+  if (divCat) divCat.style.display = 'none';
   document.getElementById('asset-id-hidden').value = '';
 }
 
@@ -412,10 +469,29 @@ if (togCat && togLib) {
   togLib.addEventListener('click', showLiberoMode);
   if (assetFreeInput && assetFreeInput.value.trim()) {
     showLiberoMode();
-  } else {
+  } else if (!myAssetsSection) {
     showCatalogoMode();
   }
 }
+
+// Gestione chip "Miei asset"
+document.querySelectorAll('.tkt-my-asset-chip').forEach(chip => {
+  chip.addEventListener('click', function() {
+    const id   = this.dataset.id;
+    const name = this.dataset.name;
+    document.querySelectorAll('.tkt-my-asset-chip').forEach(c => c.classList.remove('selected'));
+    document.getElementById('asset-id-hidden').value = id || '';
+    if (assetFreeInput) assetFreeInput.value = '';
+    if (id) {
+      this.classList.add('selected');
+      _setAssetLabel(name);
+    } else {
+      // "Altro…" → apri ricerca catalogo
+      showCatalogoMode();
+      _setAssetLabel('');
+    }
+  });
+});
 
 const assetSearch = document.getElementById('asset-search');
 const assetHidden = document.getElementById('asset-id-hidden');
@@ -545,6 +621,7 @@ if (assetSearch) {
         assetHidden.value = el.dataset.id;
         assetSearch.value = el.dataset.name;
         assetRes.style.display = 'none';
+        _setAssetLabel(el.dataset.name);
       });
     });
   });

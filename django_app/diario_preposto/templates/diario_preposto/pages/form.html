@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block title %}{{ title }} — Diario Preposto{% endblock %}
+{% block title %}{{ title }} - Diario Preposto{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -92,10 +92,10 @@
 
   <div class="dp-breadcrumb">
     <a href="{% url 'diario_preposto:lista' %}">Diario Preposto</a>
-    <span class="dp-breadcrumb-sep">›</span>
+    <span class="dp-breadcrumb-sep">></span>
     {% if action == "modifica" and segnalazione %}
     <a href="{% url 'diario_preposto:dettaglio' segnalazione.pk %}">{{ segnalazione.titolo|truncatechars:40 }}</a>
-    <span class="dp-breadcrumb-sep">›</span>
+    <span class="dp-breadcrumb-sep">></span>
     {% endif %}
     <span>{{ title }}</span>
   </div>
@@ -103,6 +103,9 @@
   <div class="dp-form-card">
     <div class="dp-form-header">
       <div class="dp-form-header-title">{{ title }}</div>
+      {% if action == "modifica" and segnalazione and segnalazione.codice_identificativo %}
+      <div style="margin-top:6px;font-size:12px;opacity:.82;">ID {{ segnalazione.codice_identificativo }}</div>
+      {% endif %}
     </div>
 
     <div class="dp-form-body">
@@ -141,12 +144,12 @@
           <div class="dp-existing-allegati" id="allegati-esistenti">
             {% for a in allegati %}
             <div class="dp-allegato-item" id="allegato-{{ a.pk }}">
-              <span>📎</span>
+              <span>[file]</span>
               <span class="dp-allegato-name">{{ a.nome_file }}</span>
               <a href="{{ a.file.url }}" target="_blank" rel="noopener" class="dp-allegato-link">Scarica</a>
               <button type="button" class="dp-allegato-del"
                       onclick="deleteAllegato({{ a.pk }}, this)"
-                      title="Rimuovi">✕</button>
+                      title="Rimuovi">X</button>
             </div>
             {% endfor %}
           </div>
@@ -155,15 +158,15 @@
           <div class="dp-file-drop" onclick="document.getElementById('id_allegati').click()">
             <input type="file" name="allegati" id="id_allegati" multiple onchange="showFileNames(this)">
             <div id="file-drop-label">
-              📁 Clicca per selezionare i file da allegare
-              <br><span style="font-size:11px;color:#94a3b8;">Puoi selezionare più file contemporaneamente</span>
+              Seleziona i file da allegare
+              <br><span style="font-size:11px;color:#94a3b8;">Puoi selezionare piu file contemporaneamente</span>
             </div>
           </div>
         </div>
 
         <div class="dp-form-actions">
           <button type="submit" class="dp-btn dp-btn-primary">
-            {% if action == "modifica" %}💾 Salva modifiche{% else %}✅ Salva segnalazione{% endif %}
+            {% if action == "modifica" %}Salva modifiche{% else %}Salva segnalazione{% endif %}
           </button>
           {% if action == "modifica" and segnalazione %}
           <a href="{% url 'diario_preposto:dettaglio' segnalazione.pk %}" class="dp-btn dp-btn-outline">Annulla</a>
@@ -182,10 +185,10 @@
 function showFileNames(input) {
   var label = document.getElementById('file-drop-label');
   if (input.files.length === 0) {
-    label.innerHTML = '📁 Clicca per selezionare i file da allegare<br><span style="font-size:11px;color:#94a3b8;">Puoi selezionare più file contemporaneamente</span>';
+    label.innerHTML = 'Seleziona i file da allegare<br><span style="font-size:11px;color:#94a3b8;">Puoi selezionare piu file contemporaneamente</span>';
   } else {
     var names = Array.from(input.files).map(function(f){ return f.name; }).join(', ');
-    label.innerHTML = '✅ ' + input.files.length + ' file selezionati:<br><span style="font-size:11px;color:#0f766e;">' + names + '</span>';
+    label.innerHTML = input.files.length + ' file selezionati:<br><span style="font-size:11px;color:#0f766e;">' + names + '</span>';
   }
 }
 

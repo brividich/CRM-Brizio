@@ -2510,15 +2510,14 @@ def export_anomalie_csv_filtrato(request):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Report singola segnalazione
+# Report riepilogativo OP
 # ─────────────────────────────────────────────────────────────────────────────
 
 _REPORT_TEMPLATE_FILENAME = "anomalie_report_template.html"
 _REPORT_TEMPLATE_MAX_SIZE = 512 * 1024  # 512 KB
-_REPORT_REQUIRED_PLACEHOLDERS = [
-    "{{ anomalia.id }}",
-    "{{ anomalia.seriale }}",
-    "{{ anomalia.descrizione }}",
+_REPORT_REQUIRED_PLACEHOLDER_GROUPS = [
+    ("{{ op.id }}", "{{ anomalia.seriale }}", "{{ anomalia.descrizione }}"),
+    ("{{ anomalia.id }}", "{{ anomalia.seriale }}", "{{ anomalia.descrizione }}"),
 ]
 _EXTERNAL_SCRIPT_RE = re.compile(r'<script[^>]+src\s*=\s*["\']https?://', re.IGNORECASE)
 
@@ -2527,13 +2526,17 @@ def _report_template_path() -> Path:
     return _repo_root() / "config" / _REPORT_TEMPLATE_FILENAME
 
 
+def _default_report_template_path() -> Path:
+    return _repo_root() / "django_app" / "anomalie" / "templates" / "anomalie" / "pages" / "report_segnalazione.html"
+
+
 def _load_report_template() -> str | None:
     p = _report_template_path()
     return p.read_text(encoding="utf-8") if p.exists() else None
 
 
 def _validate_report_template(content: bytes, filename: str) -> list[str]:
-    """Valida un template HTML per il report anomalie. Restituisce lista errori."""
+    """Valida un template HTML per il report riepilogativo OP."""
     errors: list[str] = []
     if not filename.lower().endswith(".html"):
         errors.append("Sono accettati solo file .html.")
@@ -2544,44 +2547,224 @@ def _validate_report_template(content: bytes, filename: str) -> list[str]:
     except UnicodeDecodeError:
         errors.append("Il file deve essere in formato UTF-8.")
         return errors
-    missing = [p for p in _REPORT_REQUIRED_PLACEHOLDERS if p not in text]
-    if missing:
-        errors.append(f"Placeholder obbligatori mancanti: {', '.join(missing)}")
+    has_required_group = any(all(placeholder in text for placeholder in group) for group in _REPORT_REQUIRED_PLACEHOLDER_GROUPS)
+    if not has_required_group:
+        errors.append(
+            "Il template deve includere i placeholder del report OP "
+            "({{ op.id }}, {{ anomalia.seriale }}, {{ anomalia.descrizione }}) "
+            "oppure quelli legacy della singola anomalia."
+        )
     if _EXTERNAL_SCRIPT_RE.search(text):
         errors.append("Il template non può caricare script da domini esterni (<script src=\"https://...\">).")
     return errors
 
 
+def _report_default_template_response() -> HttpResponse:
+    content = _default_report_template_path().read_text(encoding="utf-8")
+    response = HttpResponse(content, content_type="text/html; charset=utf-8")
+    response["Content-Disposition"] = 'attachment; filename="report_default_op.html"'
+    return response
+
+
+def _report_focus_anomaly_row(local_id: int) -> dict | None:
+    rows = _fetch_all_dict(
+        """
+        SELECT TOP 1 id, op_lookup_id, ex_op_nominativo
+        FROM anomalie
+        WHERE id = %s
+        """,
+        [int(local_id)],
+    )
+    return rows[0] if rows else None
+
+
+def _report_op_row(op_item_id: int | None, op_title: str | None) -> dict | None:
+    if not _has_table("ordini_produzione"):
+        return None
+
+    sql = """
+        SELECT TOP 1
+            sharepoint_item_id,
+            title,
+            part_number,
+            incaricato,
+            capocomessa,
+            stato,
+            in1text,
+            created_datetime,
+            modified_datetime
+        FROM ordini_produzione
+        WHERE {where_clause}
+        ORDER BY id DESC
+    """
+    if op_item_id is not None:
+        rows = _fetch_all_dict(sql.format(where_clause="TRY_CAST(sharepoint_item_id AS INT) = %s"), [int(op_item_id)])
+        if rows:
+            return rows[0]
+    if op_title:
+        rows = _fetch_all_dict(sql.format(where_clause="title = %s"), [str(op_title)])
+        if rows:
+            return rows[0]
+    return None
+
+
+def _report_anomalie_rows(op_item_id: int | None, op_title: str | None) -> list[dict]:
+    cols = set(legacy_table_columns("anomalie"))
+    select_cols = [
+        "id",
+        "sharepoint_item_id",
+        "ex_op_nominativo",
+        "seriale",
+        "descrizione",
+        "note_capocommessa",
+        "pezzo_recuperato",
+        "aprire_rdc",
+        "segnalare_cliente",
+        "chiudere",
+        "avanzamento",
+    ]
+    for optional_col in ("numero_rdc", "created_datetime", "modified_datetime"):
+        if optional_col in cols:
+            select_cols.append(optional_col)
+
+    where_parts: list[str] = []
+    params: list[object] = []
+    if op_item_id is not None:
+        where_parts.append("op_lookup_id = %s")
+        params.append(int(op_item_id))
+    if op_title:
+        where_parts.append("ex_op_nominativo = %s")
+        params.append(str(op_title))
+    if not where_parts:
+        return []
+
+    sql = f"""
+        SELECT {", ".join(select_cols)}
+        FROM anomalie
+        WHERE {" OR ".join(where_parts)}
+        ORDER BY seriale, id
+    """
+    return _fetch_all_dict(sql, params)
+
+
+def _serialize_report_anomalia(row: dict) -> dict:
+    local_id = int(row["id"]) if row.get("id") is not None else None
+    attachments: list[dict] = []
+    if local_id is not None:
+        try:
+            attachments = _list_attachments_for_local(local_id)
+        except Exception:
+            logger.exception("[anomalie] impossibile leggere allegati report local_id=%s", local_id)
+            attachments = []
+
+    data = {k: (str(v) if v is not None else "") for k, v in row.items()}
+    data.update(
+        {
+            "local_id": local_id,
+            "item_id": _display_item_id(row),
+            "is_closed": bool(row.get("chiudere")),
+            "aprire_rdc_bool": bool(row.get("aprire_rdc")),
+            "segnalare_cliente_bool": bool(row.get("segnalare_cliente")),
+            "pezzo_recuperato_bool": bool(row.get("pezzo_recuperato")),
+            "attachments": attachments,
+            "attachments_count": len(attachments),
+        }
+    )
+    return data
+
+
 @login_required
 def report_segnalazione_html(request):
-    """Genera un report HTML stampabile per una singola anomalia."""
-    anomalia_id_raw = request.GET.get("id", "").strip()
-    if not anomalia_id_raw:
-        return HttpResponse("Parametro 'id' mancante.", status=400)
-    try:
-        anomalia_id = int(anomalia_id_raw)
-    except ValueError:
-        return HttpResponse("ID non valido.", status=400)
+    """Genera un report HTML stampabile per un OP e le sue anomalie collegate."""
+    if request.GET.get("_tpl_default"):
+        return _report_default_template_response()
 
     if not _has_table("anomalie"):
         return HttpResponse("Tabella anomalie non disponibile.", status=503)
 
-    rows = _fetch_all_dict("SELECT * FROM anomalie WHERE id = %s", [anomalia_id])
-    if not rows:
-        return HttpResponse("Anomalia non trovata.", status=404)
+    anomalia_id_raw = str(request.GET.get("id") or "").strip()
+    op_item_id_raw = str(request.GET.get("op_item_id") or "").strip()
+    op_title = _safe_text(request.GET.get("op_id"), 100)
 
-    anomalia = {k: (str(v) if v is not None else "") for k, v in rows[0].items()}
+    anomalia_id: int | None = None
+    if anomalia_id_raw:
+        try:
+            anomalia_id = int(anomalia_id_raw)
+        except ValueError:
+            return HttpResponse("ID anomalia non valido.", status=400)
 
-    try:
-        att_root = _anomalie_attachments_root() / str(anomalia_id)
-        allegati = sorted(
-            f.name for f in att_root.iterdir()
-            if f.is_file() and f.name != ALLEGATI_SYNC_META_FILENAME
-        )
-    except Exception:
-        allegati = []
+    op_item_id: int | None = None
+    if op_item_id_raw:
+        try:
+            op_item_id = int(op_item_id_raw)
+        except ValueError:
+            return HttpResponse("OP item_id non valido.", status=400)
 
-    context = {"anomalia": anomalia, "allegati": allegati}
+    if anomalia_id is None and op_item_id is None and not op_title:
+        return HttpResponse("Parametro mancante: usa 'op_item_id', 'op_id' oppure 'id'.", status=400)
+
+    focus_row = None
+    if anomalia_id is not None:
+        focus_row = _report_focus_anomaly_row(anomalia_id)
+        if not focus_row:
+            return HttpResponse("Anomalia non trovata.", status=404)
+        if op_item_id is None:
+            try:
+                op_item_id = int(focus_row.get("op_lookup_id"))
+            except (TypeError, ValueError):
+                op_item_id = None
+        op_title = op_title or _safe_text(focus_row.get("ex_op_nominativo"), 100)
+
+    if op_item_id is None and op_title:
+        op_item_id = _resolve_op_lookup_id(None, op_title)
+
+    op_row = _report_op_row(op_item_id, op_title)
+    if not op_title and op_row:
+        op_title = _safe_text(op_row.get("title"), 100)
+
+    rows = _report_anomalie_rows(op_item_id, op_title)
+    if not rows and not op_row:
+        return HttpResponse("Documento OP non trovato.", status=404)
+
+    if not op_title and rows:
+        op_title = _safe_text(rows[0].get("ex_op_nominativo"), 100)
+
+    if op_title and not _can_view_anomalie_for_op(request, op_title):
+        return HttpResponse("Permesso negato.", status=403)
+
+    anomalie = [_serialize_report_anomalia(row) for row in rows]
+    focus_anomalia = next((row for row in anomalie if row.get("local_id") == anomalia_id), None)
+    if focus_anomalia is None and anomalie:
+        focus_anomalia = anomalie[0]
+
+    op = {
+        "item_id": str((op_row or {}).get("sharepoint_item_id") or (op_item_id if op_item_id is not None else "") or ""),
+        "id": str((op_row or {}).get("title") or op_title or ""),
+        "pn": str((op_row or {}).get("part_number") or ""),
+        "capo": str((op_row or {}).get("capocomessa") or ""),
+        "car": str((op_row or {}).get("incaricato") or ""),
+        "stato": str((op_row or {}).get("stato") or ""),
+        "info": str((op_row or {}).get("in1text") or ""),
+        "created_datetime": str((op_row or {}).get("created_datetime") or ""),
+        "modified_datetime": str((op_row or {}).get("modified_datetime") or ""),
+    }
+    anomalie_aperte = sum(1 for row in anomalie if not row.get("is_closed"))
+    total_attachments = sum(int(row.get("attachments_count") or 0) for row in anomalie)
+    focus_attachments = [str(item.get("name") or "") for item in (focus_anomalia or {}).get("attachments", [])]
+    context = {
+        "op": op,
+        "report": {
+            "anomalie_totali": len(anomalie),
+            "anomalie_aperte": anomalie_aperte,
+            "anomalie_chiuse": max(len(anomalie) - anomalie_aperte, 0),
+            "allegati_totali": total_attachments,
+            "generated_at": datetime.now().strftime("%d/%m/%Y %H:%M"),
+            "focus_local_id": anomalia_id or "",
+        },
+        "anomalie": anomalie,
+        "anomalia": focus_anomalia or {"id": "", "seriale": "", "descrizione": ""},
+        "allegati": focus_attachments,
+    }
 
     custom_tpl = _load_report_template()
     if custom_tpl:

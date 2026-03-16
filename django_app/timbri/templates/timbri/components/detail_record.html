@@ -18,6 +18,12 @@
     Consegna: {{ record.data_consegna|default:"-" }} · Ritiro: {{ record.data_ritiro|default:"-" }}
   </div>
   {% if record.note %}<div style="margin-top:10px;font-size:13px;color:#334155;">{{ record.note|linebreaksbr }}</div>{% endif %}
+  {% if record.firma_testo %}
+    <div style="margin-top:10px;font-size:13px;color:#334155;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;">
+      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">Firma / note firma</div>
+      {{ record.firma_testo|linebreaksbr }}
+    </div>
+  {% endif %}
   {% if active %}
   <div class="tim-images">
     {% for slot in record.image_slots %}

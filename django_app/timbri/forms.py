@@ -9,6 +9,16 @@ class RegistroTimbroForm(forms.ModelForm):
     image_timbro = forms.ImageField(required=False)
     image_firma = forms.ImageField(required=False)
     image_sigla = forms.ImageField(required=False)
+    data_consegna = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={"class": "tim-input", "type": "date"}, format="%Y-%m-%d"),
+        input_formats=["%Y-%m-%d", "%d/%m/%Y"],
+    )
+    data_ritiro = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={"class": "tim-input", "type": "date"}, format="%Y-%m-%d"),
+        input_formats=["%Y-%m-%d", "%d/%m/%Y"],
+    )
 
     class Meta:
         model = RegistroTimbro
@@ -26,10 +36,9 @@ class RegistroTimbroForm(forms.ModelForm):
             "codice_timbro": forms.TextInput(attrs={"class": "tim-input", "placeholder": "Codice timbro"}),
             "qualifica": forms.TextInput(attrs={"class": "tim-input", "placeholder": "Qualifica"}),
             "tipo_timbro": forms.Select(attrs={"class": "tim-input"}),
-            "data_consegna": forms.DateInput(attrs={"class": "tim-input", "type": "date"}),
-            "data_ritiro": forms.DateInput(attrs={"class": "tim-input", "type": "date"}),
             "note": forms.Textarea(attrs={"class": "tim-input", "rows": 4, "placeholder": "Note operative"}),
             "firma_testo": forms.Textarea(attrs={"class": "tim-input", "rows": 3, "placeholder": "Testo o note firma"}),
+            "is_attivo": forms.CheckboxInput(attrs={"class": "tim-checkbox"}),
         }
 
     def clean(self):

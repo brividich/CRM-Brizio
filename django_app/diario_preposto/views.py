@@ -4,6 +4,7 @@ import logging
 import os
 from functools import wraps
 from io import BytesIO
+from xml.sax.saxutils import escape
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -38,7 +39,7 @@ def _legacy_identity(request) -> tuple[str, str]:
 
 
 def _can_write(request) -> bool:
-    """Controlla se l'utente può creare/modificare/eliminare segnalazioni."""
+    """Controlla se l'utente puo creare/modificare/eliminare segnalazioni."""
     if not request.user.is_authenticated:
         return False
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
@@ -63,11 +64,20 @@ def _write_required(view_func):
         if not _can_write(request):
             return render(request, "core/pages/forbidden.html", status=403)
         return view_func(request, *args, **kwargs)
+
     return _wrapped
 
 
 def _json_err(msg: str, status: int = 400) -> JsonResponse:
     return JsonResponse({"ok": False, "error": msg}, status=status)
+
+
+def _pdf_safe_text(value: object, *, preserve_breaks: bool = False) -> str:
+    text = str(value or "-").strip() or "-"
+    text = escape(text)
+    if preserve_breaks:
+        return text.replace("\n", "<br/>")
+    return text
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +91,8 @@ def lista(request):
     q = request.GET.get("q", "").strip()
     if q:
         qs = qs.filter(
-            Q(titolo__icontains=q)
+            Q(codice_identificativo__icontains=q)
+            | Q(titolo__icontains=q)
             | Q(descrizione__icontains=q)
             | Q(chi_segnala__icontains=q)
             | Q(preposto__icontains=q)
@@ -98,25 +109,33 @@ def lista(request):
         .order_by("preposto")
     )
 
-    return render(request, "diario_preposto/pages/lista.html", {
-        "segnalazioni": qs,
-        "q": q,
-        "filtro_preposto": filtro_preposto,
-        "preposti": preposti,
-        "can_write": _can_write(request),
-        "totale": qs.count(),
-    })
+    return render(
+        request,
+        "diario_preposto/pages/lista.html",
+        {
+            "segnalazioni": qs,
+            "q": q,
+            "filtro_preposto": filtro_preposto,
+            "preposti": preposti,
+            "can_write": _can_write(request),
+            "totale": qs.count(),
+        },
+    )
 
 
 @login_required
 def dettaglio(request, pk):
     segnalazione = get_object_or_404(SegnalazionePreposto, pk=pk)
     allegati = segnalazione.allegati.all()
-    return render(request, "diario_preposto/pages/dettaglio.html", {
-        "segnalazione": segnalazione,
-        "allegati": allegati,
-        "can_write": _can_write(request),
-    })
+    return render(
+        request,
+        "diario_preposto/pages/dettaglio.html",
+        {
+            "segnalazione": segnalazione,
+            "allegati": allegati,
+            "can_write": _can_write(request),
+        },
+    )
 
 
 @_write_required
@@ -130,26 +149,31 @@ def nuovo(request):
             segnalazione.preposto = nome
             segnalazione.chi_segnala = nome
             segnalazione.save()
-            # Gestione allegati multipli
-            for f in request.FILES.getlist("allegati"):
+            for uploaded_file in request.FILES.getlist("allegati"):
                 SegnalazioneAllegato.objects.create(
                     segnalazione=segnalazione,
-                    nome_file=f.name,
-                    file=f,
+                    nome_file=uploaded_file.name,
+                    file=uploaded_file,
                 )
             messages.success(request, "Segnalazione inserita con successo.")
             return redirect("diario_preposto:dettaglio", pk=segnalazione.pk)
     else:
         now_local = timezone.localtime(timezone.now())
-        form = SegnalazioneForm(initial={
-            "chi_segnala": nome,
-            "data_segnalazione": now_local.strftime("%Y-%m-%dT%H:%M"),
-        })
-    return render(request, "diario_preposto/pages/form.html", {
-        "form": form,
-        "action": "nuovo",
-        "title": "Nuovo inserimento",
-    })
+        form = SegnalazioneForm(
+            initial={
+                "chi_segnala": nome,
+                "data_segnalazione": now_local.strftime("%Y-%m-%dT%H:%M"),
+            }
+        )
+    return render(
+        request,
+        "diario_preposto/pages/form.html",
+        {
+            "form": form,
+            "action": "nuovo",
+            "title": "Nuovo inserimento",
+        },
+    )
 
 
 @_write_required
@@ -159,12 +183,11 @@ def modifica(request, pk):
         form = SegnalazioneForm(request.POST, instance=segnalazione)
         if form.is_valid():
             form.save()
-            # Nuovi allegati
-            for f in request.FILES.getlist("allegati"):
+            for uploaded_file in request.FILES.getlist("allegati"):
                 SegnalazioneAllegato.objects.create(
                     segnalazione=segnalazione,
-                    nome_file=f.name,
-                    file=f,
+                    nome_file=uploaded_file.name,
+                    file=uploaded_file,
                 )
             messages.success(request, "Segnalazione aggiornata.")
             return redirect("diario_preposto:dettaglio", pk=segnalazione.pk)
@@ -174,20 +197,23 @@ def modifica(request, pk):
             local_dt = timezone.localtime(segnalazione.data_segnalazione)
             initial["data_segnalazione"] = local_dt.strftime("%Y-%m-%dT%H:%M")
         form = SegnalazioneForm(instance=segnalazione, initial=initial)
-    return render(request, "diario_preposto/pages/form.html", {
-        "form": form,
-        "action": "modifica",
-        "title": "Modifica segnalazione",
-        "segnalazione": segnalazione,
-        "allegati": segnalazione.allegati.all(),
-    })
+    return render(
+        request,
+        "diario_preposto/pages/form.html",
+        {
+            "form": form,
+            "action": "modifica",
+            "title": "Modifica segnalazione",
+            "segnalazione": segnalazione,
+            "allegati": segnalazione.allegati.all(),
+        },
+    )
 
 
 @_write_required
 @require_POST
 def elimina(request, pk):
     segnalazione = get_object_or_404(SegnalazionePreposto, pk=pk)
-    # Elimina fisicamente i file
     for allegato in segnalazione.allegati.all():
         try:
             if allegato.file and os.path.isfile(allegato.file.path):
@@ -202,98 +228,209 @@ def elimina(request, pk):
 @login_required
 def export_pdf(request, pk):
     segnalazione = get_object_or_404(SegnalazionePreposto, pk=pk)
-    allegati = segnalazione.allegati.all()
+    allegati = list(segnalazione.allegati.all())
 
     try:
-        from reportlab.lib.colors import HexColor
+        from reportlab.lib import colors
         from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
         from reportlab.lib.units import mm
-        from reportlab.pdfgen import canvas as rl_canvas
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
         buf = BytesIO()
-        c = rl_canvas.Canvas(buf, pagesize=A4)
-        w, h = A4
-
-        teal = HexColor("#03787C")
-        dark = HexColor("#1e293b")
-        grey = HexColor("#64748b")
-
-        # Header bar
-        c.setFillColor(teal)
-        c.rect(0, h - 40 * mm, w, 40 * mm, fill=1, stroke=0)
-        c.setFillColor(HexColor("#ffffff"))
-        c.setFont("Helvetica-Bold", 16)
-        c.drawString(20 * mm, h - 20 * mm, "Diario Preposto RSPP ASPP RLS")
-        c.setFont("Helvetica", 10)
-        c.drawString(20 * mm, h - 28 * mm, "Segnalazione n. " + str(segnalazione.pk))
-
-        y = h - 55 * mm
-
-        def field(label, value, bold_val=False):
-            nonlocal y
-            c.setFillColor(grey)
-            c.setFont("Helvetica", 8)
-            c.drawString(20 * mm, y, label.upper())
-            y -= 5 * mm
-            c.setFillColor(dark)
-            font = "Helvetica-Bold" if bold_val else "Helvetica"
-            c.setFont(font, 11)
-            # Word wrap semplice
-            max_w = w - 40 * mm
-            words = str(value or "—").split()
-            line = ""
-            for word in words:
-                test = (line + " " + word).strip()
-                if c.stringWidth(test, font, 11) > max_w:
-                    c.drawString(20 * mm, y, line)
-                    y -= 5 * mm
-                    line = word
-                else:
-                    line = test
-            if line:
-                c.drawString(20 * mm, y, line)
-            y -= 9 * mm
-
-        field("Titolo", segnalazione.titolo, bold_val=True)
-        field("Preposto", segnalazione.preposto)
-        field("Chi segnala", segnalazione.chi_segnala)
-        field(
-            "Data segnalazione",
+        generated_at = timezone.localtime(timezone.now())
+        codice = segnalazione.codice_identificativo or f"PK-{segnalazione.pk}"
+        data_segnalazione = (
             timezone.localtime(segnalazione.data_segnalazione).strftime("%d/%m/%Y %H:%M")
-            if segnalazione.data_segnalazione else "—",
+            if segnalazione.data_segnalazione
+            else "-"
+        )
+        created_at = timezone.localtime(segnalazione.created_at).strftime("%d/%m/%Y %H:%M")
+        updated_at = timezone.localtime(segnalazione.updated_at).strftime("%d/%m/%Y %H:%M")
+
+        doc = SimpleDocTemplate(
+            buf,
+            pagesize=A4,
+            leftMargin=16 * mm,
+            rightMargin=16 * mm,
+            topMargin=50 * mm,
+            bottomMargin=20 * mm,
+            title=f"Segnalazione {codice}",
+            author="Portale Applicativo - Costruzioni Novicrom SRL",
         )
 
-        # Separatore
-        c.setStrokeColor(HexColor("#e2e8f0"))
-        c.line(20 * mm, y + 4 * mm, w - 20 * mm, y + 4 * mm)
-        y -= 5 * mm
+        stylesheet = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            "DpTitle",
+            parent=stylesheet["Heading1"],
+            fontName="Helvetica-Bold",
+            fontSize=18,
+            leading=22,
+            textColor=colors.HexColor("#0f172a"),
+            spaceAfter=6,
+        )
+        body_style = ParagraphStyle(
+            "DpBody",
+            parent=stylesheet["BodyText"],
+            fontName="Helvetica",
+            fontSize=10,
+            leading=15,
+            textColor=colors.HexColor("#1e293b"),
+        )
+        muted_style = ParagraphStyle(
+            "DpMuted",
+            parent=stylesheet["BodyText"],
+            fontName="Helvetica",
+            fontSize=8,
+            leading=10,
+            textColor=colors.HexColor("#64748b"),
+        )
+        value_style = ParagraphStyle(
+            "DpValue",
+            parent=stylesheet["BodyText"],
+            fontName="Helvetica-Bold",
+            fontSize=11,
+            leading=14,
+            textColor=colors.HexColor("#0f172a"),
+        )
+        section_style = ParagraphStyle(
+            "DpSection",
+            parent=stylesheet["Heading2"],
+            fontName="Helvetica-Bold",
+            fontSize=10,
+            leading=12,
+            textColor=colors.HexColor("#0f766e"),
+            spaceAfter=6,
+        )
 
-        field("Descrizione della segnalazione", segnalazione.descrizione)
+        def meta_cell(label: str, value: object) -> list[Paragraph]:
+            return [
+                Paragraph(_pdf_safe_text(label).upper(), muted_style),
+                Paragraph(_pdf_safe_text(value), value_style),
+            ]
 
+        story = [
+            Paragraph(_pdf_safe_text(segnalazione.titolo), title_style),
+            Paragraph(
+                "Report della segnalazione di sicurezza con riepilogo dati, descrizione completa e allegati collegati.",
+                body_style,
+            ),
+            Spacer(1, 8 * mm),
+        ]
+
+        meta_table = Table(
+            [
+                [meta_cell("ID segnalazione", codice), meta_cell("Data segnalazione", data_segnalazione)],
+                [meta_cell("Preposto", segnalazione.preposto or "-"), meta_cell("Chi segnala", segnalazione.chi_segnala or "-")],
+                [meta_cell("Creato il", created_at), meta_cell("Ultimo aggiornamento", updated_at)],
+            ],
+            colWidths=[doc.width / 2, doc.width / 2],
+            hAlign="LEFT",
+        )
+        meta_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                    ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#cbd5e1")),
+                    ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                    ("TOPPADDING", (0, 0), (-1, -1), 10),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+                ]
+            )
+        )
+        story.extend([meta_table, Spacer(1, 8 * mm)])
+
+        story.append(Paragraph("Descrizione della segnalazione", section_style))
+        descrizione_table = Table(
+            [[Paragraph(_pdf_safe_text(segnalazione.descrizione, preserve_breaks=True), body_style)]],
+            colWidths=[doc.width],
+            hAlign="LEFT",
+        )
+        descrizione_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
+                    ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#dbeafe")),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 12),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                    ("TOPPADDING", (0, 0), (-1, -1), 12),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+                ]
+            )
+        )
+        story.extend([descrizione_table, Spacer(1, 8 * mm)])
+
+        story.append(Paragraph("Allegati", section_style))
         if allegati:
-            y -= 3 * mm
-            c.setFillColor(grey)
-            c.setFont("Helvetica", 8)
-            c.drawString(20 * mm, y, "ALLEGATI")
-            y -= 5 * mm
-            c.setFillColor(dark)
-            c.setFont("Helvetica", 10)
-            for a in allegati:
-                c.drawString(24 * mm, y, f"• {a.nome_file}")
-                y -= 5 * mm
+            allegati_table = Table(
+                [
+                    [Paragraph(str(index), muted_style), Paragraph(_pdf_safe_text(allegato.nome_file), body_style)]
+                    for index, allegato in enumerate(allegati, start=1)
+                ],
+                colWidths=[12 * mm, doc.width - 12 * mm],
+                hAlign="LEFT",
+            )
+            allegati_table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                        ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#cbd5e1")),
+                        ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                        ("TOPPADDING", (0, 0), (-1, -1), 7),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+                    ]
+                )
+            )
+            story.append(allegati_table)
+        else:
+            story.append(Paragraph("Nessun allegato associato.", body_style))
 
-        # Footer
-        c.setFillColor(grey)
-        c.setFont("Helvetica", 8)
-        c.drawString(20 * mm, 15 * mm, f"Esportato il {timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M')}")
-        c.drawRightString(w - 20 * mm, 15 * mm, "Portale Applicativo — Costruzioni Novicrom SRL")
+        def draw_page(canvas, document):
+            width, height = A4
+            teal = colors.HexColor("#03787C")
+            mint = colors.HexColor("#d1fae5")
+            dark = colors.HexColor("#0f172a")
+            muted = colors.HexColor("#64748b")
 
-        c.save()
+            canvas.saveState()
+            canvas.setFillColor(teal)
+            canvas.rect(0, height - 38 * mm, width, 38 * mm, fill=1, stroke=0)
+            canvas.setFillColor(mint)
+            canvas.circle(width - 18 * mm, height - 12 * mm, 10 * mm, fill=1, stroke=0)
+            canvas.circle(width - 34 * mm, height - 23 * mm, 6 * mm, fill=1, stroke=0)
+
+            canvas.setFillColor(colors.white)
+            canvas.setFont("Helvetica-Bold", 18)
+            canvas.drawString(16 * mm, height - 16 * mm, "Diario Preposto")
+            canvas.setFont("Helvetica", 10)
+            canvas.drawString(16 * mm, height - 23 * mm, "Report segnalazione sicurezza")
+            canvas.setFont("Helvetica-Bold", 12)
+            canvas.drawRightString(width - 16 * mm, height - 16 * mm, codice)
+            canvas.setFont("Helvetica", 8)
+            canvas.drawRightString(width - 16 * mm, height - 23 * mm, f"Generato il {generated_at.strftime('%d/%m/%Y %H:%M')}")
+
+            canvas.setStrokeColor(colors.HexColor("#cbd5e1"))
+            canvas.line(16 * mm, 15 * mm, width - 16 * mm, 15 * mm)
+            canvas.setFillColor(muted)
+            canvas.setFont("Helvetica", 8)
+            canvas.drawString(16 * mm, 9 * mm, "Portale Applicativo - Costruzioni Novicrom SRL")
+            canvas.setFillColor(dark)
+            canvas.drawRightString(width - 16 * mm, 9 * mm, f"Pagina {document.page}")
+            canvas.restoreState()
+
+        doc.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
         buf.seek(0)
-        filename = f"segnalazione_{segnalazione.pk}.pdf"
-        resp = HttpResponse(buf, content_type="application/pdf")
-        resp["Content-Disposition"] = f'attachment; filename="{filename}"'
-        return resp
+        export_code = codice.lower()
+        filename = f"segnalazione_{export_code}.pdf"
+        response = HttpResponse(buf, content_type="application/pdf")
+        response["Content-Disposition"] = f'inline; filename="{filename}"'
+        return response
 
     except ImportError:
         return HttpResponse("reportlab non disponibile", status=500)
@@ -310,20 +447,22 @@ def api_allegato_upload(request):
     if not pk:
         return _json_err("segnalazione_id obbligatorio")
     segnalazione = get_object_or_404(SegnalazionePreposto, pk=pk)
-    f = request.FILES.get("file")
-    if not f:
+    uploaded_file = request.FILES.get("file")
+    if not uploaded_file:
         return _json_err("Nessun file ricevuto")
     allegato = SegnalazioneAllegato.objects.create(
         segnalazione=segnalazione,
-        nome_file=f.name,
-        file=f,
+        nome_file=uploaded_file.name,
+        file=uploaded_file,
     )
-    return JsonResponse({
-        "ok": True,
-        "id": allegato.pk,
-        "nome_file": allegato.nome_file,
-        "url": allegato.file.url,
-    })
+    return JsonResponse(
+        {
+            "ok": True,
+            "id": allegato.pk,
+            "nome_file": allegato.nome_file,
+            "url": allegato.file.url,
+        }
+    )
 
 
 @_write_required

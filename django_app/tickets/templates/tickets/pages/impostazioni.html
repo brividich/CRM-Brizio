@@ -260,26 +260,52 @@
     <div class="tkt-card-header" style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #f1f5f9;">
       <div>
         <div class="tkt-card-title">📥 Importa Ticket da CSV</div>
-        <div class="tkt-card-sub">Importa ticket storici o batch. I ticket con numero_ticket già esistente vengono saltati.</div>
+        <div class="tkt-card-sub">Importa ticket storici o batch. I ticket già presenti vengono saltati (o aggiornati se l'opzione è attiva).</div>
       </div>
+    </div>
+
+    <!-- Selezione tipo -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+      <span style="font-size:13px;font-weight:600;color:#374151;">Tipo ticket:</span>
+      <button type="button" id="csv-tipo-it" class="tkt-save-btn"
+              style="background:#0e7490;padding:5px 18px;font-size:13px;"
+              onclick="setCsvTipo('IT')">IT</button>
+      <button type="button" id="csv-tipo-man" class="tkt-save-btn"
+              style="background:#64748b;padding:5px 18px;font-size:13px;"
+              onclick="setCsvTipo('MAN')">MAN</button>
     </div>
 
     <div class="tkt-field">
       <label>Colonne previste (intestazione CSV)</label>
-      <div class="tkt-import-cols">
-        <strong>tipo</strong>, <strong>titolo</strong>, <strong>descrizione</strong>,
-        <strong>categoria</strong>, <strong>richiedente_nome</strong>,
+      <!-- Formato standard -->
+      <div id="csv-cols-standard" class="tkt-import-cols">
+        <strong>titolo</strong>, <strong>descrizione</strong>, <strong>categoria</strong>, <strong>richiedente_nome</strong>,
         priorita, stato, incide_sicurezza, richiedente_email,
         assegnato_a, assegnato_email, note_interne, asset_descrizione_libera,
         numero_ticket, created_at, closed_at, sharepoint_item_id
       </div>
+      <!-- Formato SharePoint MAN -->
+      <div id="csv-cols-sp-man" class="tkt-import-cols" style="display:none;">
+        Stato approvazione, <strong>Problema</strong>, <strong>Descrizione del problema</strong>,
+        <strong>Tipologia problema</strong>, <strong>Problema registrato da</strong>,
+        Priorità, Chiuso, Impatto su sicurezza, Assegnato a:, Note, Macchinario,
+        Data/ora creazione, Data chiusura ticket, Data fine lavori, ID
+      </div>
+      <!-- Formato SharePoint IT -->
+      <div id="csv-cols-sp-it" class="tkt-import-cols" style="display:none;">
+        Stato approvazione, <strong>Problema</strong>, <strong>Descrizione del problema</strong>,
+        <strong>Tipologia</strong>, <strong>Problema registrato da</strong>,
+        Priorità, Chiuso, Impatto su sicurezza, Assegnato a, Note,
+        Data segnalazione, Data fine lavori, ID
+      </div>
       <span class="tkt-field-hint">
-        Campi in <strong>grassetto</strong> = obbligatori.
-        <code>tipo</code>: IT o MAN &nbsp;|&nbsp;
-        <code>priorita</code>: BASSA / MEDIA / ALTA / URGENTE &nbsp;|&nbsp;
-        <code>stato</code>: APERTA / IN_CARICO / RISOLTO / CHIUSO / ANNULLATO &nbsp;|&nbsp;
-        <code>incide_sicurezza</code>: 0 o 1 &nbsp;|&nbsp;
-        <code>created_at / closed_at</code>: gg/mm/aaaa HH:MM oppure aaaa-mm-gg
+        Campi in <strong>grassetto</strong> = obbligatori. Il tipo (IT/MAN) è impostato dal toggle sopra — non serve la colonna <code>tipo</code> nel CSV.
+        Sono accettati sia i nomi colonna standard che quelli SharePoint.&nbsp;|&nbsp;
+        <code>priorita/Priorità</code>: BASSA/MEDIA/ALTA/URGENTE oppure Bassa/Media/Alta/Urgente &nbsp;|&nbsp;
+        <code>stato</code>: APERTA/IN_CARICO/RISOLTO/CHIUSO/ANNULLATO &nbsp;|&nbsp;
+        <code>Chiuso</code>: 0 o 1 (formato SharePoint) &nbsp;|&nbsp;
+        <code>incide_sicurezza/Impatto su sicurezza</code>: 0 o 1 &nbsp;|&nbsp;
+        Date: gg/mm/aaaa HH:MM oppure aaaa-mm-gg
       </span>
     </div>
 
@@ -306,7 +332,7 @@
       </button>
     </div>
     <div style="font-size:11px;color:#94a3b8;margin-top:6px;">
-      Con <em>Aggiorna ticket esistenti</em> attivo: i ticket trovati per <code>numero_ticket</code> vengono sovrascritti con i dati del CSV.
+      Con <em>Aggiorna ticket esistenti</em> attivo: i ticket trovati per <code>numero_ticket</code> o <code>ID</code> (SharePoint) vengono sovrascritti.
       Senza: i ticket già presenti vengono saltati.
     </div>
 
@@ -486,25 +512,44 @@ async function saveImpostazioni(tipo) {
 // ── Import CSV ──
 const API_IMPORT_CSV = "{% url 'tickets:api_import_csv' %}";
 
-const CSV_TEMPLATE_HEADER = [
-  "tipo","titolo","descrizione","categoria","richiedente_nome",
-  "priorita","stato","incide_sicurezza","richiedente_email",
-  "assegnato_a","assegnato_email","note_interne","asset_descrizione_libera",
-  "numero_ticket","created_at","closed_at","sharepoint_item_id"
-].join(",");
+let _csvTipo = "IT";
 
-const CSV_TEMPLATE_EXAMPLE = [
-  "IT","Problema stampante","La stampante dell'ufficio non stampa","STAMPANTE",
-  "Mario Rossi","ALTA","APERTA","0","mario.rossi@azienda.it",
-  "","","","","","","",""
-].join(",");
+const CSV_TEMPLATES = {
+  IT: {
+    header: ["titolo","descrizione","categoria","richiedente_nome","priorita","stato",
+             "incide_sicurezza","richiedente_email","assegnato_a","assegnato_email",
+             "note_interne","asset_descrizione_libera","numero_ticket","created_at","closed_at","sharepoint_item_id"],
+    example: ["Problema PC","PC non si avvia","HARDWARE","Mario Rossi","ALTA","APERTA",
+              "0","mario.rossi@azienda.it","","","","","","","",""],
+  },
+  MAN: {
+    header: ["titolo","descrizione","categoria","richiedente_nome","priorita","stato",
+             "incide_sicurezza","richiedente_email","assegnato_a","assegnato_email",
+             "note_interne","asset_descrizione_libera","numero_ticket","created_at","closed_at","sharepoint_item_id"],
+    example: ["Guasto pressa","La pressa idraulica non parte","PRESSA","Mario Rossi","ALTA","APERTA",
+              "0","mario.rossi@azienda.it","","","","Pressa P1","","","",""],
+  },
+};
+
+function setCsvTipo(tipo) {
+  _csvTipo = tipo;
+  document.getElementById("csv-tipo-it").style.background  = tipo === "IT"  ? "#0e7490" : "#64748b";
+  document.getElementById("csv-tipo-man").style.background = tipo === "MAN" ? "#0e7490" : "#64748b";
+  document.getElementById("csv-cols-standard").style.display = "none";
+  document.getElementById("csv-cols-sp-man").style.display   = tipo === "MAN" ? "" : "none";
+  document.getElementById("csv-cols-sp-it").style.display    = tipo === "IT"  ? "" : "none";
+}
+
+// Inizializza al caricamento
+setCsvTipo("IT");
 
 function downloadCsvTemplate() {
-  const content = CSV_TEMPLATE_HEADER + "\n" + CSV_TEMPLATE_EXAMPLE + "\n";
+  const tpl = CSV_TEMPLATES[_csvTipo];
+  const content = tpl.header.join(",") + "\n" + tpl.example.join(",") + "\n";
   const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = "template_import_ticket.csv";
+  a.href = url; a.download = `template_import_ticket_${_csvTipo.toLowerCase()}.csv`;
   a.click(); URL.revokeObjectURL(url);
 }
 
@@ -533,6 +578,7 @@ async function importCsv() {
   const formData = new FormData();
   formData.append("csv_file", fileInput.files[0]);
   formData.append("update_existing", updateExisting ? "1" : "0");
+  formData.append("tipo_override", _csvTipo);
 
   try {
     const r = await fetch(API_IMPORT_CSV, {

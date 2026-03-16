@@ -16,7 +16,7 @@
 .tim-btn-copy:hover { background:#dbeafe; }
 .tim-btn-copy.copied { background:#dcfce7; border-color:#86efac; color:#166534; }
 .tim-card, .tim-k { background:#fff; border:1px solid #e2e8f0; border-radius:16px; }
-.tim-kpi { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+.tim-kpi { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; }
 .tim-k { padding:18px 20px; }
 .tim-k-val { font-size:30px; font-weight:800; color:#0f172a; line-height:1; }
 .tim-k-label { font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:.06em; margin-top:7px; }
@@ -52,6 +52,11 @@
 .tim-pill-blue { background:#dbeafe; color:#1d4ed8; }
 .tim-empty { text-align:center; padding:36px; color:#94a3b8; }
 .tim-pag { display:flex; align-items:center; justify-content:center; gap:8px; padding:16px; }
+.tim-issues { margin-top:18px; }
+.tim-issues table { width:100%; border-collapse:collapse; font-size:13px; }
+.tim-issues th, .tim-issues td { padding:11px 14px; border-bottom:1px solid #f1f5f9; text-align:left; vertical-align:top; }
+.tim-issues th { font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:.05em; background:#f8fafc; }
+.tim-issue-reason { font-size:12px; color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:8px 10px; }
 @media (max-width: 900px) { .tim-kpi { grid-template-columns:1fr; } .tim-preview-images { grid-template-columns:1fr; } }
 </style>
 {% endblock %}
@@ -82,6 +87,7 @@
     <div class="tim-k"><div class="tim-k-val">{{ stats.dipendenti }}</div><div class="tim-k-label">Dipendenti in anagrafica</div></div>
     <div class="tim-k"><div class="tim-k-val">{{ stats.con_timbri }}</div><div class="tim-k-label">Dipendenti con timbri</div></div>
     <div class="tim-k"><div class="tim-k-val">{{ stats.record_attivi }}</div><div class="tim-k-label">Record attivi</div></div>
+    <div class="tim-k"><div class="tim-k-val">{{ stats.da_gestire }}</div><div class="tim-k-label">Da gestire</div></div>
   </div>
 
   <form method="get" class="tim-card tim-filters">
@@ -161,6 +167,53 @@
         <span>Pagina {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
         {% if page_obj.has_next %}<a class="tim-btn tim-btn-ghost" href="?page={{ page_obj.next_page_number }}&q={{ q|urlencode }}&reparto={{ reparto|urlencode }}">Succ</a>{% endif %}
       </div>
+    {% endif %}
+  </div>
+
+  <div class="tim-card tim-issues">
+    <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;">
+      <div>
+        <div class="tim-title" style="font-size:20px;">Da gestire</div>
+        <div class="tim-sub">Righe del CSV non importate perch&eacute; l'operatore non &egrave; stato trovato nell'anagrafica centrale.</div>
+      </div>
+      {% if stats.da_gestire %}
+        <span class="tim-pill tim-pill-gray">{{ stats.da_gestire }} righe</span>
+      {% endif %}
+    </div>
+    {% if pending_issues %}
+      <div class="tim-table-wrap" style="margin-top:14px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Riga</th>
+              <th>Operatore</th>
+              <th>Matricola</th>
+              <th>Codice</th>
+              <th>Tipo</th>
+              <th>Motivo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for issue in pending_issues %}
+              <tr>
+                <td>{{ issue.csv_row_number }}</td>
+                <td>
+                  <strong>{{ issue.operatore_label|default:issue.operatore_label_alt|default:"-" }}</strong>
+                  {% if issue.sharepoint_item_id %}
+                    <div style="font-size:11px;color:#94a3b8;">ID SP {{ issue.sharepoint_item_id }}</div>
+                  {% endif %}
+                </td>
+                <td>{{ issue.matricola|default:"-" }}</td>
+                <td>{{ issue.codice_timbro|default:"-" }}</td>
+                <td>{{ issue.tipo_timbro_raw|default:"-" }}</td>
+                <td><div class="tim-issue-reason">{{ issue.motivo_scarto }}</div></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="tim-empty" style="margin-top:14px;">Nessuna riga da gestire.</div>
     {% endif %}
   </div>
 </div>

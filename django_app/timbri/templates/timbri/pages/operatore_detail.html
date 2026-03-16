@@ -62,8 +62,12 @@
       {% endif %}
       {% if can_edit_timbri and employee.legacy_id %}
         <a class="tim-btn tim-btn-main" href="{% url 'timbri:registro_create_by_legacy' employee.legacy_id %}">+ Nuovo record</a>
+        <a class="tim-btn" href="{% url 'timbri:registro_create_by_legacy' employee.legacy_id %}?tipo=SOLO_FIRMA">+ Firma</a>
+        <a class="tim-btn" href="{% url 'timbri:registro_create_by_legacy' employee.legacy_id %}?tipo=SOLO_SIGLA">+ Sigla</a>
       {% elif can_edit_timbri %}
         <a class="tim-btn tim-btn-main" href="{% url 'timbri:registro_create' operatore.id %}">+ Nuovo record</a>
+        <a class="tim-btn" href="{% url 'timbri:registro_create' operatore.id %}?tipo=SOLO_FIRMA">+ Firma</a>
+        <a class="tim-btn" href="{% url 'timbri:registro_create' operatore.id %}?tipo=SOLO_SIGLA">+ Sigla</a>
       {% endif %}
       {% if can_edit_timbri and not is_central_profile %}
         <form method="post" action="{% url 'timbri:operatore_delete' operatore.id %}" onsubmit="return confirm('Eliminare definitivamente {{ employee.full_name|escapejs }}?');">

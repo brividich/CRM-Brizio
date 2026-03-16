@@ -418,9 +418,10 @@
 
     <div class="card" id="card-report-template">
       <div class="card-head">
-        <div class="card-title">Template Report Segnalazione</div>
+        <div class="card-title">Template Report OP</div>
         <div class="card-sub">
-          Carica un template HTML personalizzato usato per generare il report riepilogativo di ogni segnalazione.
+          Carica un template HTML personalizzato usato per generare il report riepilogativo del documento OP
+          con tutte le anomalie collegate.
           Se non è presente un template personalizzato, viene usato quello di default del sistema.
         </div>
       </div>
@@ -431,16 +432,17 @@
           <strong style="display:block;margin-bottom:6px;">Linee guida per il template</strong>
           <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;">
             <li>Il file deve essere un <strong>.html</strong> valido in codifica <strong>UTF-8</strong>, max 512 KB.</li>
-            <li>Usa la sintassi <strong>Django Template</strong>: le variabili sono accessibili tramite <code>&#123;&#123; anomalia.campo &#125;&#125;</code>.</li>
+            <li>Usa la sintassi <strong>Django Template</strong>: i dati dell'OP sono in <code>&#123;&#123; op.campo &#125;&#125;</code> e le anomalie sono disponibili con <code>&#123;% for anomalia in anomalie %&#125; ... &#123;% endfor %&#125;</code>.</li>
             <li>Placeholder <strong>obbligatori</strong> (devono comparire nel file):
-              <code>&#123;&#123; anomalia.id &#125;&#125;</code>,
+              <code>&#123;&#123; op.id &#125;&#125;</code>,
               <code>&#123;&#123; anomalia.seriale &#125;&#125;</code>,
               <code>&#123;&#123; anomalia.descrizione &#125;&#125;</code>.
             </li>
-            <li>Altri campi disponibili: <code>ex_op_nominativo</code>, <code>avanzamento</code>, <code>note_capocommessa</code>, <code>numero_rdc</code>, <code>chiudere</code>, <code>created_datetime</code>, <code>modified_datetime</code>.</li>
+            <li>Campi utili: <code>op.pn</code>, <code>op.capo</code>, <code>op.car</code>, <code>report.anomalie_totali</code>, <code>report.allegati_totali</code>, <code>anomalia.avanzamento</code>, <code>anomalia.note_capocommessa</code>, <code>anomalia.numero_rdc</code>.</li>
+            <li>Per ogni anomalia puoi anche iterare <code>anomalia.attachments</code> per mostrare nome, dimensione e metadati degli allegati nel report OP.</li>
             <li>La lista allegati è in <code>&#123;&#123; allegati &#125;&#125;</code> (lista di nomi file).</li>
             <li>Non sono permessi tag <code>&lt;script src="https://..."&gt;</code> verso domini esterni.</li>
-            <li>Scarica il template di default come punto di partenza: <a href="/api/anomalie/report?id=0&_tpl_default=1" target="_blank" style="color:#1a5499;">report_default.html</a> (apri una segnalazione valida con <code>/api/anomalie/report?id=ID</code>).</li>
+            <li>Scarica il template di default come punto di partenza: <a href="/api/anomalie/report?_tpl_default=1" target="_blank" style="color:#1a5499;">report_default_op.html</a> (apri un report valido con <code>/api/anomalie/report?op_item_id=ITEM_ID</code> oppure <code>/api/anomalie/report?op_id=OP/2026/123</code>).</li>
           </ul>
         </div>
 
@@ -556,7 +558,7 @@
                 <td>{{ a.avanzamento|default:"—" }}</td>
                 <td>{% if a.chiudere %}<span class="ga-badge ga-badge-chiusa">Chiusa</span>{% else %}<span class="ga-badge ga-badge-aperta">Aperta</span>{% endif %}</td>
                 <td>{{ a.modified_datetime|default:"—" }}</td>
-                <td><a href="/api/anomalie/report?id={{ a.id }}" target="_blank" class="ga-btn ga-btn-primary" style="padding:3px 10px;font-size:11px;">Report</a></td>
+                <td><a href="/api/anomalie/report?op_id={{ a.ex_op_nominativo|urlencode }}" target="_blank" class="ga-btn ga-btn-primary" style="padding:3px 10px;font-size:11px;">Report OP</a></td>
               </tr>
             {% empty %}
               <tr><td colspan="6" style="color:#9aadcb;text-align:center;">Nessuna anomalia trovata</td></tr>

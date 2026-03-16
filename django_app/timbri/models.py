@@ -53,6 +53,35 @@ class OperatoreTimbri(models.Model):
         return " ".join(text.split()) or self.nome or self.matricola or f"operatore:{self.pk}"
 
 
+class TimbriImportIssue(models.Model):
+    source_file = models.CharField(max_length=255, blank=True, default="", db_index=True)
+    csv_row_number = models.PositiveIntegerField(db_index=True)
+    sharepoint_item_id = models.CharField(max_length=100, blank=True, default="", db_index=True)
+    operatore_label = models.CharField(max_length=200, blank=True, default="")
+    operatore_label_alt = models.CharField(max_length=200, blank=True, default="")
+    matricola = models.CharField(max_length=100, blank=True, default="", db_index=True)
+    reparto = models.CharField(max_length=200, blank=True, default="")
+    qualifica = models.CharField(max_length=200, blank=True, default="")
+    codice_timbro = models.CharField(max_length=120, blank=True, default="")
+    tipo_timbro_raw = models.CharField(max_length=100, blank=True, default="")
+    attivo_raw = models.CharField(max_length=20, blank=True, default="")
+    motivo_scarto = models.TextField(blank=True, default="")
+    raw_payload = models.TextField(blank=True, default="")
+    is_resolved = models.BooleanField(default=False, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["is_resolved", "operatore_label", "matricola", "csv_row_number", "id"]
+        unique_together = [("source_file", "csv_row_number")]
+        verbose_name = "Scarto import timbri"
+        verbose_name_plural = "Scarti import timbri"
+
+    def __str__(self) -> str:
+        base = self.operatore_label or self.operatore_label_alt or self.matricola or f"riga:{self.csv_row_number}"
+        return f"{base} - {self.motivo_scarto[:80]}"
+
+
 class RegistroTimbro(models.Model):
     TIPO_FISICO = "FISICO"
     TIPO_DIGITALE = "DIGITALE"

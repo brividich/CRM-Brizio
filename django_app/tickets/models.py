@@ -47,11 +47,12 @@ CATEGORIE_MAN = [
 ]
 
 
-def _next_ticket_number(tipo: str) -> str:
-    """Genera il numero progressivo per l'anno corrente.
+def _next_ticket_number(tipo: str, year: int | None = None) -> str:
+    """Genera il numero progressivo per l'anno indicato (default: anno corrente).
     Formato: IT-YYYY-NNNN  /  MAN-YYYY-NNNN
     """
-    year = datetime.now(dt_timezone.utc).year
+    if year is None:
+        year = datetime.now(dt_timezone.utc).year
     prefix = f"{tipo}-{year}-"
     last = (
         Ticket.objects.filter(numero_ticket__startswith=prefix)
