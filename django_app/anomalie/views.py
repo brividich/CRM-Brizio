@@ -16,10 +16,12 @@ import requests
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import DatabaseError, connections, transaction
-from django.http import FileResponse, JsonResponse, StreamingHttpResponse
+from django.http import FileResponse, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.conf import settings
+from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
+from django.views.decorators.http import require_POST
 from core.acl import user_can_modulo_action
 from core.audit import log_action
 from core.graph_utils import acquire_graph_token, is_placeholder_value
@@ -572,10 +574,37 @@ def _load_anomalie_lists() -> dict[str, list[str]]:
 def _save_anomalie_lists(lists_payload: dict[str, list[str]]) -> None:
     path = _anomalie_lists_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    cleaned: dict[str, list[str]] = {}
+    # Legge il file esistente per preservare chiavi non-lista (es. menu_logo)
+    try:
+        existing: dict = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except Exception:
+        existing = {}
     for key in ANOMALIE_LIST_KEYS:
-        cleaned[key] = _normalize_choice_list(lists_payload.get(key, []))
-    path.write_text(json.dumps(cleaned, ensure_ascii=False, indent=2), encoding="utf-8")
+        existing[key] = _normalize_choice_list(lists_payload.get(key, []))
+    path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _load_anomalie_menu_logo() -> str:
+    """Restituisce l'URL del logo personalizzato del menu anomalie, o stringa vuota."""
+    path = _anomalie_lists_path()
+    if not path.exists():
+        return ""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return str(payload.get("menu_logo") or "").strip()
+    except Exception:
+        return ""
+
+
+def _save_anomalie_menu_logo(url: str) -> None:
+    path = _anomalie_lists_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        existing: dict = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except Exception:
+        existing = {}
+    existing["menu_logo"] = str(url or "").strip()
+    path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _graph_settings() -> dict[str, str]:
@@ -2175,6 +2204,7 @@ def api_anomalie_config_liste(request):
                 "success": True,
                 "lists": _load_anomalie_lists(),
                 "attachments_dir": _anomalie_attachments_dir_value(),
+                "menu_logo": _load_anomalie_menu_logo(),
             }
         )
 
@@ -2223,6 +2253,48 @@ def api_anomalie_config_liste(request):
         pass
 
     return JsonResponse({"success": True, "lists": updated, "attachments_dir": saved_attachments_dir})
+
+
+@login_required
+@csrf_protect
+@require_POST
+def api_anomalie_config_logo(request):
+    """Upload del logo personalizzato per il menu anomalie."""
+    if not _can_manage_anomalie_config(request):
+        return JsonResponse({"success": False, "error": "Permesso negato"}, status=403)
+    uploaded = request.FILES.get("logo")
+    if not uploaded:
+        return JsonResponse({"success": False, "error": "Nessun file ricevuto"}, status=400)
+    ext = Path(uploaded.name).suffix.lower()
+    if ext not in {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}:
+        return JsonResponse({"success": False, "error": f"Formato non supportato: {ext}"}, status=400)
+    logo_dir = Path(settings.MEDIA_ROOT) / "anomalie_logo"
+    logo_dir.mkdir(parents=True, exist_ok=True)
+    logo_path = logo_dir / f"menu_logo{ext}"
+    # Rimuove eventuali loghi precedenti con estensione diversa
+    for old in logo_dir.glob("menu_logo.*"):
+        if old != logo_path:
+            old.unlink(missing_ok=True)
+    with open(logo_path, "wb") as fh:
+        for chunk in uploaded.chunks():
+            fh.write(chunk)
+    logo_url = f"{settings.MEDIA_URL.rstrip('/')}/anomalie_logo/menu_logo{ext}"
+    _save_anomalie_menu_logo(logo_url)
+    return JsonResponse({"success": True, "url": logo_url})
+
+
+@login_required
+@csrf_protect
+@require_POST
+def api_anomalie_config_logo_reset(request):
+    """Rimuove il logo personalizzato e ripristina quello di default."""
+    if not _can_manage_anomalie_config(request):
+        return JsonResponse({"success": False, "error": "Permesso negato"}, status=403)
+    logo_dir = Path(settings.MEDIA_ROOT) / "anomalie_logo"
+    for f in logo_dir.glob("menu_logo.*"):
+        f.unlink(missing_ok=True)
+    _save_anomalie_menu_logo("")
+    return JsonResponse({"success": True})
 
 
 @login_required
@@ -2282,3 +2354,293 @@ def export_anomalie_csv(request):
     resp["Content-Disposition"] = 'attachment; filename="anomalie.csv"'
     return resp
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Statistiche anomalie
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@login_required
+def anomalie_statistiche_page(request):
+    """Pagina statistiche ed estrazioni anomalie."""
+    context = {
+        "page_title": "Statistiche Anomalie",
+        "db_has_anomalie": _has_table("anomalie"),
+        "can_manage_config": _can_manage_anomalie_config(request),
+    }
+    return render(request, "anomalie/pages/anomalie_statistiche.html", context)
+
+
+@login_required
+def api_anomalie_statistiche(request):
+    """Statistiche aggregate anomalie con filtri opzionali."""
+    if not _has_table("anomalie"):
+        return _json_error("Tabella anomalie non disponibile.", 503)
+
+    cols = set(legacy_table_columns("anomalie"))
+    da = request.GET.get("da", "").strip()
+    a_val = request.GET.get("a", "").strip()
+    avanzamento = request.GET.get("avanzamento", "").strip()
+    capocommessa = request.GET.get("capocommessa", "").strip()
+
+    where_parts: list[str] = []
+    params: list = []
+
+    if da and "created_datetime" in cols:
+        where_parts.append("created_datetime >= %s")
+        params.append(da)
+    if a_val and "created_datetime" in cols:
+        where_parts.append("created_datetime < %s")
+        params.append(a_val + "T23:59:59")
+    if avanzamento and "avanzamento" in cols:
+        where_parts.append("avanzamento = %s")
+        params.append(avanzamento)
+    if capocommessa and "ex_op_nominativo" in cols:
+        where_parts.append("ex_op_nominativo = %s")
+        params.append(capocommessa)
+
+    def _where(extra: str = "") -> str:
+        parts = list(where_parts) + ([extra] if extra else [])
+        return ("WHERE " + " AND ".join(parts)) if parts else ""
+
+    totale = int((_fetch_all_dict(f"SELECT COUNT(*) AS n FROM anomalie {_where()}", params) or [{"n": 0}])[0]["n"])
+    chiuse = int((_fetch_all_dict(f"SELECT COUNT(*) AS n FROM anomalie {_where('chiudere = 1')}", params) or [{"n": 0}])[0]["n"])
+
+    per_avanzamento: list[dict] = []
+    if "avanzamento" in cols:
+        per_avanzamento = _fetch_all_dict(
+            f"SELECT COALESCE(avanzamento, '(non specificato)') AS avanzamento, COUNT(*) AS n "
+            f"FROM anomalie {_where()} GROUP BY avanzamento ORDER BY n DESC",
+            params,
+        )
+
+    per_mese: list[dict] = []
+    if "created_datetime" in cols:
+        try:
+            per_mese = _fetch_all_dict(
+                f"SELECT FORMAT(created_datetime, 'yyyy-MM') AS mese, COUNT(*) AS n "
+                f"FROM anomalie {_where()} "
+                f"GROUP BY FORMAT(created_datetime, 'yyyy-MM') ORDER BY mese DESC",
+                params,
+            )
+        except Exception:
+            per_mese = []
+
+    avanzamenti_list: list[str] = []
+    if "avanzamento" in cols:
+        avanzamenti_list = [
+            str(r["avanzamento"])
+            for r in _fetch_all_dict(
+                "SELECT DISTINCT avanzamento FROM anomalie "
+                "WHERE avanzamento IS NOT NULL AND avanzamento != '' ORDER BY avanzamento"
+            )
+        ]
+
+    capocommessa_list: list[str] = []
+    if "ex_op_nominativo" in cols:
+        capocommessa_list = [
+            str(r["ex_op_nominativo"])
+            for r in _fetch_all_dict(
+                "SELECT DISTINCT ex_op_nominativo FROM anomalie "
+                "WHERE ex_op_nominativo IS NOT NULL AND ex_op_nominativo != '' ORDER BY ex_op_nominativo"
+            )
+        ]
+
+    return JsonResponse({
+        "totale": totale,
+        "aperte": totale - chiuse,
+        "chiuse": chiuse,
+        "per_avanzamento": [dict(r) for r in per_avanzamento],
+        "per_mese": [dict(r) for r in per_mese],
+        "avanzamenti_disponibili": avanzamenti_list,
+        "capocommessa_disponibili": capocommessa_list,
+    })
+
+
+@login_required
+def export_anomalie_csv_filtrato(request):
+    """Export CSV anomalie con filtri (da, a, avanzamento, capocommessa)."""
+    if not _has_table("anomalie"):
+        return HttpResponse("Tabella anomalie non disponibile.", status=503)
+
+    cols_all = legacy_table_columns("anomalie")
+    wanted = [
+        c for c in [
+            "id", "ex_op_nominativo", "seriale", "descrizione",
+            "note_capocommessa", "numero_rdc", "avanzamento",
+            "chiudere", "created_datetime", "modified_datetime",
+        ]
+        if c in cols_all
+    ] or list(cols_all)[:10]
+
+    da = request.GET.get("da", "").strip()
+    a_val = request.GET.get("a", "").strip()
+    avanzamento = request.GET.get("avanzamento", "").strip()
+    capocommessa = request.GET.get("capocommessa", "").strip()
+
+    where_parts: list[str] = []
+    params: list = []
+    if da:
+        where_parts.append("created_datetime >= %s")
+        params.append(da)
+    if a_val:
+        where_parts.append("created_datetime < %s")
+        params.append(a_val + "T23:59:59")
+    if avanzamento:
+        where_parts.append("avanzamento = %s")
+        params.append(avanzamento)
+    if capocommessa:
+        where_parts.append("ex_op_nominativo = %s")
+        params.append(capocommessa)
+
+    where_clause = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
+    sql = f"SELECT TOP 5000 {', '.join(wanted)} FROM anomalie {where_clause} ORDER BY id DESC"
+
+    def stream():
+        writer = csv.writer(_Echo())
+        yield writer.writerow(wanted)
+        with connections["default"].cursor() as cur:
+            cur.execute(sql, params)
+            for row in cur.fetchall():
+                yield writer.writerow([str(v) if v is not None else "" for v in row])
+
+    resp = StreamingHttpResponse(stream(), content_type="text/csv; charset=utf-8-sig")
+    resp["Content-Disposition"] = 'attachment; filename="anomalie_export.csv"'
+    return resp
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Report singola segnalazione
+# ─────────────────────────────────────────────────────────────────────────────
+
+_REPORT_TEMPLATE_FILENAME = "anomalie_report_template.html"
+_REPORT_TEMPLATE_MAX_SIZE = 512 * 1024  # 512 KB
+_REPORT_REQUIRED_PLACEHOLDERS = [
+    "{{ anomalia.id }}",
+    "{{ anomalia.seriale }}",
+    "{{ anomalia.descrizione }}",
+]
+_EXTERNAL_SCRIPT_RE = re.compile(r'<script[^>]+src\s*=\s*["\']https?://', re.IGNORECASE)
+
+
+def _report_template_path() -> Path:
+    return _repo_root() / "config" / _REPORT_TEMPLATE_FILENAME
+
+
+def _load_report_template() -> str | None:
+    p = _report_template_path()
+    return p.read_text(encoding="utf-8") if p.exists() else None
+
+
+def _validate_report_template(content: bytes, filename: str) -> list[str]:
+    """Valida un template HTML per il report anomalie. Restituisce lista errori."""
+    errors: list[str] = []
+    if not filename.lower().endswith(".html"):
+        errors.append("Sono accettati solo file .html.")
+    if len(content) > _REPORT_TEMPLATE_MAX_SIZE:
+        errors.append("Il file supera il limite di 512 KB.")
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        errors.append("Il file deve essere in formato UTF-8.")
+        return errors
+    missing = [p for p in _REPORT_REQUIRED_PLACEHOLDERS if p not in text]
+    if missing:
+        errors.append(f"Placeholder obbligatori mancanti: {', '.join(missing)}")
+    if _EXTERNAL_SCRIPT_RE.search(text):
+        errors.append("Il template non può caricare script da domini esterni (<script src=\"https://...\">).")
+    return errors
+
+
+@login_required
+def report_segnalazione_html(request):
+    """Genera un report HTML stampabile per una singola anomalia."""
+    anomalia_id_raw = request.GET.get("id", "").strip()
+    if not anomalia_id_raw:
+        return HttpResponse("Parametro 'id' mancante.", status=400)
+    try:
+        anomalia_id = int(anomalia_id_raw)
+    except ValueError:
+        return HttpResponse("ID non valido.", status=400)
+
+    if not _has_table("anomalie"):
+        return HttpResponse("Tabella anomalie non disponibile.", status=503)
+
+    rows = _fetch_all_dict("SELECT * FROM anomalie WHERE id = %s", [anomalia_id])
+    if not rows:
+        return HttpResponse("Anomalia non trovata.", status=404)
+
+    anomalia = {k: (str(v) if v is not None else "") for k, v in rows[0].items()}
+
+    try:
+        att_root = _anomalie_attachments_root() / str(anomalia_id)
+        allegati = sorted(
+            f.name for f in att_root.iterdir()
+            if f.is_file() and f.name != ALLEGATI_SYNC_META_FILENAME
+        )
+    except Exception:
+        allegati = []
+
+    context = {"anomalia": anomalia, "allegati": allegati}
+
+    custom_tpl = _load_report_template()
+    if custom_tpl:
+        from django.template import Context, Template
+        try:
+            html = Template(custom_tpl).render(Context(context))
+            return HttpResponse(html)
+        except Exception as exc:
+            logger.warning("Errore rendering template report personalizzato: %s", exc)
+            # Fallback al template di default
+
+    return render(request, "anomalie/pages/report_segnalazione.html", context)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Configurazione template report
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@login_required
+@csrf_protect
+def api_anomalie_config_report_template(request):
+    """GET: stato template report. POST action=upload: carica nuovo. POST action=reset: ripristina default."""
+    if not _can_manage_anomalie_config(request):
+        return JsonResponse({"error": "Permesso negato"}, status=403)
+
+    if request.method == "GET":
+        p = _report_template_path()
+        if p.exists():
+            stat = p.stat()
+            return JsonResponse({
+                "has_custom": True,
+                "size": stat.st_size,
+                "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%d/%m/%Y %H:%M"),
+            })
+        return JsonResponse({"has_custom": False})
+
+    if request.method == "POST":
+        action = request.POST.get("action", "upload")
+        if action == "reset":
+            p = _report_template_path()
+            if p.exists():
+                p.unlink()
+            log_action(request, "anomalie_report_template_reset", "Template report ripristinato al default")
+            return JsonResponse({"success": True, "message": "Template ripristinato al default."})
+
+        file_obj = request.FILES.get("template")
+        if not file_obj:
+            return JsonResponse({"success": False, "errors": ["Nessun file caricato."]})
+
+        content = file_obj.read()
+        errors = _validate_report_template(content, file_obj.name)
+        if errors:
+            return JsonResponse({"success": False, "errors": errors})
+
+        p = _report_template_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(content)
+        log_action(request, "anomalie_report_template_upload", f"Template report aggiornato: {file_obj.name}")
+        return JsonResponse({"success": True, "message": f"Template '{file_obj.name}' caricato correttamente."})
+
+    return _json_error("Metodo non supportato.", 405)

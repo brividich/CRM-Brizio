@@ -1,0 +1,77 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Hub Tools — Guide e Manuali{% endblock %}
+
+{% block content %}
+<style>
+.guide-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px; }
+.guide-card {
+  background:#fff;
+  border:1.5px solid #d1d9e6;
+  border-radius:10px;
+  padding:20px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  transition:border-color .2s, box-shadow .2s;
+  text-decoration:none;
+  color:inherit;
+}
+.guide-card:hover {
+  border-color:#1a6fc4;
+  box-shadow:0 4px 16px rgba(0,0,0,.08);
+  text-decoration:none;
+}
+.guide-icon { font-size:2.2rem; line-height:1; }
+.guide-title { font-size:.98rem; font-weight:700; color:#1e2333; }
+.guide-desc { font-size:.8rem; color:#64748b; line-height:1.5; flex:1; }
+.guide-link {
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  font-size:.8rem;
+  font-weight:600;
+  color:#1a6fc4;
+  margin-top:4px;
+}
+.hub-alert-info {
+  background:#eff6ff;
+  border-left:3px solid #1a6fc4;
+  padding:10px 14px;
+  border-radius:0 7px 7px 0;
+  font-size:.83rem;
+  margin-bottom:20px;
+  color:#1e40af;
+}
+</style>
+
+<div style="max-width:1100px;margin:0 auto;padding:24px 20px">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+    <div>
+      <div style="font-size:1.3rem;font-weight:800;display:flex;align-items:center;gap:9px">📚 Guide e Manuali</div>
+      <div style="font-size:.84rem;color:#64748b;margin-top:2px">Documentazione tecnica, guide operative e strumenti di configurazione del portale</div>
+    </div>
+    <a href="{% url 'admin_portale:index' %}" style="font-size:.84rem;color:#64748b;text-decoration:none">← Torna all'admin</a>
+  </div>
+
+  <div class="hub-alert-info">
+    Tutti i documenti si aprono in un visualizzatore integrato. Usa <strong>↗ Apri in nuova scheda</strong> per una visualizzazione a schermo intero.
+  </div>
+
+  <div class="guide-grid">
+    {% for guide in guides %}
+    <a href="{% url 'hub_tools:hub_guide_view' guide.slug %}" class="guide-card">
+      <div class="guide-icon">{{ guide.icon }}</div>
+      <div>
+        <div class="guide-title">{{ guide.title }}</div>
+        <div class="guide-desc" style="margin-top:6px">{{ guide.desc }}</div>
+      </div>
+      <div class="guide-link">Apri guida →</div>
+    </a>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}

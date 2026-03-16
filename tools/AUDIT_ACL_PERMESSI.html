@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audit ACL / Permessi / Navigazione · Portale Novicrom</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --surface3: #2a2f47;
+    --border: #2e3350;
+    --accent: #4f8ef7;
+    --accent2: #7c3aed;
+    --green: #22c55e;
+    --orange: #f97316;
+    --red: #ef4444;
+    --yellow: #eab308;
+    --cyan: #06b6d4;
+    --pink: #ec4899;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --text-faint: #475569;
+    --radius: 12px;
+    --shadow: 0 4px 24px rgba(0,0,0,.4);
+    --sidebar-w: 270px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── TOPBAR ─────────────────── */
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+    background: #12151f;
+    border-bottom: 1px solid var(--border);
+    height: 58px;
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 24px;
+    backdrop-filter: blur(12px);
+  }
+  .topbar-logo {
+    width: 34px; height: 34px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--red), var(--orange));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 800; color: #fff;
+  }
+  .topbar-title { font-size: 15px; font-weight: 700; }
+  .topbar-sub { font-size: 12px; color: var(--text-dim); margin-left: 4px; }
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .topbar-badge {
+    font-size: 11px; padding: 3px 10px; border-radius: 20px; font-weight: 600;
+    background: rgba(239,68,68,.12); color: var(--red); border: 1px solid rgba(239,68,68,.22);
+  }
+  .topbar-badge-ok {
+    font-size: 11px; padding: 3px 10px; border-radius: 20px; font-weight: 600;
+    background: rgba(79,142,247,.12); color: var(--accent); border: 1px solid rgba(79,142,247,.22);
+  }
+
+  /* ── LAYOUT ─────────────────── */
+  .layout {
+    display: flex;
+    margin-top: 58px;
+    min-height: calc(100vh - 58px);
+  }
+
+  /* ── SIDEBAR ─────────────────── */
+  .sidebar {
+    width: var(--sidebar-w);
+    flex-shrink: 0;
+    position: fixed;
+    top: 58px; left: 0;
+    height: calc(100vh - 58px);
+    overflow-y: auto;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 24px 0 40px;
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .sb-group { margin-bottom: 4px; }
+  .sb-group-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--text-faint); font-weight: 700;
+    padding: 12px 20px 6px;
+  }
+  .sb-link {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 20px;
+    font-size: 13px; color: var(--text-dim);
+    text-decoration: none;
+    border-left: 3px solid transparent;
+    transition: all .15s;
+  }
+  .sb-link:hover { background: var(--surface2); color: var(--text); border-left-color: var(--border); }
+  .sb-link.active { background: rgba(79,142,247,.08); color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+  .sb-link.danger-link { color: #f87171; }
+  .sb-link.danger-link:hover { background: rgba(239,68,68,.06); border-left-color: var(--red); color: var(--red); }
+  .sb-icon { font-size: 14px; width: 18px; text-align: center; }
+  .sb-divider { height: 1px; background: var(--border); margin: 12px 20px; }
+  .sb-count {
+    margin-left: auto; font-size: 10px; font-weight: 700;
+    background: rgba(239,68,68,.15); color: #f87171;
+    padding: 2px 7px; border-radius: 20px;
+  }
+
+  /* ── MAIN CONTENT ─────────────────── */
+  .main {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    padding: 48px 56px 80px;
+    max-width: 980px;
+  }
+
+  /* ── HERO ─────────────────── */
+  .hero {
+    background: linear-gradient(135deg, #1a1d27 0%, #12151f 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 40px 56px 36px;
+    margin: -48px -56px 56px;
+  }
+  .hero-eyebrow {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px;
+    color: var(--red); font-weight: 700; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .hero-title { font-size: 32px; font-weight: 800; letter-spacing: -.6px; line-height: 1.2; margin-bottom: 10px; }
+  .hero-sub { font-size: 15px; color: var(--text-dim); line-height: 1.6; max-width: 700px; }
+  .hero-meta { margin-top: 20px; display: flex; gap: 24px; flex-wrap: wrap; }
+  .hero-meta-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-faint); }
+  .hero-meta-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--red); }
+  .hero-meta-dot.blue { background: var(--accent); }
+
+  /* ── SECTION ─────────────────── */
+  .section { margin-bottom: 72px; }
+  .section-header {
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 28px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-icon {
+    width: 44px; height: 44px; flex-shrink: 0;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
+  .icon-blue { background: rgba(79,142,247,.15); }
+  .icon-purple { background: rgba(124,58,237,.15); }
+  .icon-green { background: rgba(34,197,94,.15); }
+  .icon-orange { background: rgba(249,115,22,.15); }
+  .icon-yellow { background: rgba(234,179,8,.15); }
+  .icon-cyan { background: rgba(6,182,212,.15); }
+  .icon-pink { background: rgba(236,72,153,.15); }
+  .icon-red { background: rgba(239,68,68,.15); }
+
+  .section-title { font-size: 24px; font-weight: 800; letter-spacing: -.4px; }
+  .section-sub { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
+
+  h3 {
+    font-size: 15px; font-weight: 700; color: var(--text);
+    margin: 28px 0 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  h3::before { content: ''; display: block; width: 4px; height: 16px; background: var(--accent); border-radius: 2px; }
+  h3.h3-orange::before { background: var(--orange); }
+  h3.h3-red::before { background: var(--red); }
+  h3.h3-yellow::before { background: var(--yellow); }
+  h3.h3-green::before { background: var(--green); }
+  h3.h3-cyan::before { background: var(--cyan); }
+
+  p { font-size: 14px; line-height: 1.7; color: var(--text-dim); margin-bottom: 12px; }
+  strong { color: var(--text); font-weight: 600; }
+  ul { margin: 8px 0 12px 20px; }
+  ul li { font-size: 14px; line-height: 1.7; color: var(--text-dim); margin-bottom: 4px; }
+
+  /* ── CALLOUT ─────────────────── */
+  .callout {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 14px 16px; border-radius: 8px; margin: 16px 0;
+    font-size: 13px; line-height: 1.6;
+  }
+  .callout-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .callout.info { background: rgba(79,142,247,.08); border: 1px solid rgba(79,142,247,.2); color: #93c5fd; }
+  .callout.warn { background: rgba(234,179,8,.08); border: 1px solid rgba(234,179,8,.2); color: #fde047; }
+  .callout.danger { background: rgba(239,68,68,.08); border: 1px solid rgba(239,68,68,.2); color: #fca5a5; }
+  .callout.success { background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.2); color: #86efac; }
+
+  /* ── TABLE ─────────────────── */
+  .tbl-wrap { overflow-x: auto; margin: 16px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    background: var(--surface2);
+    color: var(--text-dim);
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px;
+    padding: 10px 14px; text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  tbody tr { border-bottom: 1px solid rgba(46,51,80,.5); transition: background .1s; }
+  tbody tr:hover { background: rgba(255,255,255,.02); }
+  tbody td { padding: 10px 14px; color: var(--text-dim); vertical-align: top; }
+  tbody td:first-child { color: var(--text); font-family: 'Cascadia Code','Fira Code',monospace; font-size: 12px; }
+  .no-mono td:first-child { font-family: inherit; font-size: 13px; }
+  .tbl-file { font-family: 'Cascadia Code','Fira Code',monospace; font-size: 11px; color: var(--cyan); }
+  .tbl-line { font-family: 'Cascadia Code','Fira Code',monospace; font-size: 11px; color: var(--text-faint); }
+
+  /* ── CODE ─────────────────── */
+  code {
+    font-family: 'Cascadia Code','Fira Code',monospace;
+    font-size: 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    color: var(--cyan);
+  }
+  pre {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 20px 22px;
+    font-family: 'Cascadia Code','Fira Code',monospace;
+    font-size: 12px; color: var(--text-dim);
+    line-height: 1.75; margin: 16px 0; overflow-x: auto;
+    white-space: pre;
+  }
+
+  /* ── BADGE ─────────────────── */
+  .badge {
+    display: inline-flex; align-items: center;
+    font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px;
+    white-space: nowrap; vertical-align: middle;
+  }
+  .badge-blue { background: rgba(79,142,247,.15); color: var(--accent); }
+  .badge-green { background: rgba(34,197,94,.15); color: var(--green); }
+  .badge-yellow { background: rgba(234,179,8,.15); color: var(--yellow); }
+  .badge-orange { background: rgba(249,115,22,.15); color: var(--orange); }
+  .badge-purple { background: rgba(124,58,237,.15); color: #a78bfa; }
+  .badge-red { background: rgba(239,68,68,.15); color: var(--red); }
+  .badge-cyan { background: rgba(6,182,212,.15); color: var(--cyan); }
+
+  /* ── BUG CARD ─────────────────── */
+  .bug-grid { display: flex; flex-direction: column; gap: 14px; margin: 16px 0; }
+  .bug-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px 20px;
+    border-left: 4px solid var(--red);
+    transition: border-color .15s;
+  }
+  .bug-card.warn { border-left-color: var(--yellow); }
+  .bug-card.info { border-left-color: var(--accent); }
+  .bug-card-header {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+  }
+  .bug-id {
+    font-family: 'Cascadia Code','Fira Code',monospace;
+    font-size: 11px; font-weight: 700;
+    color: var(--red);
+    background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.2);
+    padding: 2px 8px; border-radius: 4px;
+  }
+  .bug-card.warn .bug-id { color: var(--yellow); background: rgba(234,179,8,.1); border-color: rgba(234,179,8,.2); }
+  .bug-card.info .bug-id { color: var(--accent); background: rgba(79,142,247,.1); border-color: rgba(79,142,247,.2); }
+  .bug-title { font-size: 14px; font-weight: 700; color: var(--text); }
+  .bug-desc { font-size: 13px; line-height: 1.65; color: var(--text-dim); }
+  .bug-meta {
+    margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  }
+  .bug-meta-label { font-size: 11px; color: var(--text-faint); }
+
+  /* ── CASCADE SOURCE ─────────────────── */
+  .cascade { display: flex; flex-direction: column; gap: 0; margin: 16px 0; }
+  .cascade-item {
+    display: flex; align-items: flex-start; gap: 14px;
+    padding: 12px 16px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 0;
+    font-size: 13px; line-height: 1.6;
+    position: relative;
+  }
+  .cascade-item:first-child { border-radius: 8px 8px 0 0; }
+  .cascade-item:last-child { border-radius: 0 0 8px 8px; border-top: none; }
+  .cascade-item:not(:first-child):not(:last-child) { border-top: none; }
+  .cascade-num {
+    flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(79,142,247,.15); color: var(--accent);
+    font-size: 11px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 1px;
+  }
+
+  /* ── DIAGRAM ─────────────────── */
+  .diagram {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 22px 24px; margin: 16px 0;
+    font-family: 'Cascadia Code','Fira Code',monospace;
+    font-size: 12px; line-height: 1.8; color: var(--text-dim);
+    overflow-x: auto; white-space: pre;
+  }
+
+  /* ── COMPARE TABLE ─────────────────── */
+  .compare-tbl td:nth-child(1) { color: #f87171; font-family: inherit; font-size: 13px; }
+  .compare-tbl td:nth-child(2) { color: #86efac; }
+
+  /* ── FLOW CHIP ─────────────────── */
+  .flow-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+  .flow-chip {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 12px;
+    font-size: 12px; color: var(--text-dim);
+    font-family: 'Cascadia Code','Fira Code',monospace;
+  }
+
+  /* ── INCOHERENCE CARD ─────────────────── */
+  .inc-grid { display: flex; flex-direction: column; gap: 14px; margin: 16px 0; }
+  .inc-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px 20px;
+    border-left: 4px solid var(--yellow);
+  }
+  .inc-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .inc-id {
+    font-family: 'Cascadia Code','Fira Code',monospace;
+    font-size: 11px; font-weight: 700;
+    color: var(--yellow);
+    background: rgba(234,179,8,.1); border: 1px solid rgba(234,179,8,.2);
+    padding: 2px 8px; border-radius: 4px;
+  }
+  .inc-title { font-size: 14px; font-weight: 700; color: var(--text); }
+  .inc-desc { font-size: 13px; line-height: 1.65; color: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<!-- ── TOPBAR ──────────────────────────────────────────────── -->
+<div class="topbar">
+  <div class="topbar-logo">🔐</div>
+  <div>
+    <span class="topbar-title">Audit ACL &amp; Permessi</span>
+    <span class="topbar-sub">Portale Novicrom</span>
+  </div>
+  <div class="topbar-right">
+    <span class="topbar-badge">8 bug potenziali</span>
+    <span class="topbar-badge-ok">2026-03-13</span>
+  </div>
+</div>
+
+<!-- ── LAYOUT ──────────────────────────────────────────────── -->
+<div class="layout">
+
+  <!-- ── SIDEBAR ── -->
+  <nav class="sidebar">
+    <div class="sb-group">
+      <div class="sb-group-label">Panoramica</div>
+      <a href="#s1" class="sb-link active"><span class="sb-icon">👁️</span>Visibilità</a>
+      <a href="#s2" class="sb-link"><span class="sb-icon">🗺️</span>Mappa componenti</a>
+      <a href="#s4" class="sb-link"><span class="sb-icon">🔀</span>Flusso autorizzazione</a>
+    </div>
+    <div class="sb-divider"></div>
+    <div class="sb-group">
+      <div class="sb-group-label">Problemi</div>
+      <a href="#s3" class="sb-link danger-link"><span class="sb-icon">⚠️</span>Incoerenze <span class="sb-count">5</span></a>
+      <a href="#s5" class="sb-link danger-link"><span class="sb-icon">🔒</span>Hardcoded <span class="sb-count">3</span></a>
+      <a href="#s6" class="sb-link danger-link"><span class="sb-icon">🐛</span>Bug potenziali <span class="sb-count">8</span></a>
+    </div>
+    <div class="sb-divider"></div>
+    <div class="sb-group">
+      <div class="sb-group-label">Architettura</div>
+      <a href="#s7" class="sb-link"><span class="sb-icon">📊</span>Pipeline attuale</a>
+      <a href="#s8" class="sb-link"><span class="sb-icon">🏗️</span>Architettura target</a>
+    </div>
+  </nav>
+
+  <!-- ── MAIN ── -->
+  <main class="main">
+
+    <!-- HERO -->
+    <div class="hero">
+      <div class="hero-eyebrow">🔍 Documento tecnico &nbsp;·&nbsp; Sicurezza</div>
+      <div class="hero-title">Audit ACL / Permessi<br>Navigazione / Pulsanti</div>
+      <div class="hero-sub">Analisi completa del sistema di autorizzazione del Portale Novicrom: pipeline di controllo accessi, mappa dei componenti, incoerenze rilevate e architettura target proposta.</div>
+      <div class="hero-meta">
+        <div class="hero-meta-item"><div class="hero-meta-dot"></div>Data: 2026-03-13</div>
+        <div class="hero-meta-item"><div class="hero-meta-dot blue"></div>Progetto: Portale Novicrom</div>
+        <div class="hero-meta-item"><div class="hero-meta-dot"></div>8 bug potenziali identificati</div>
+        <div class="hero-meta-item"><div class="hero-meta-dot"></div>5 incoerenze strutturali</div>
+      </div>
+    </div>
+
+    <!-- ── SEZIONE 1: Visibilità ── -->
+    <section class="section" id="s1">
+      <div class="section-header">
+        <div class="section-icon icon-blue">👁️</div>
+        <div>
+          <div class="section-title">1. Come viene determinata la visibilità</div>
+          <div class="section-sub">Quattro livelli indipendenti: voce topbar, subnav, pulsante in pagina, route/pagina</div>
+        </div>
+      </div>
+
+      <h3>Voce topbar</h3>
+      <p>Il context processor <code>legacy_nav()</code> in <code>core/context_processors.py</code> (~287) costruisce <code>nav_items</code> e <code>subnav_items</code> usando <strong>due fonti in cascata</strong>:</p>
+
+      <div class="cascade">
+        <div class="cascade-item">
+          <div class="cascade-num">1</div>
+          <div>
+            <strong>Navigation Registry (prioritaria)</strong> — Query su <code>NavigationItem</code> + <code>NavigationRoleAccess</code>.<br>
+            Se esiste almeno un record <code>NavigationRoleAccess</code> per la voce → filtra per ruolo.<br>
+            Se <strong>nessun</strong> record → voce visibile a <strong>tutti</strong> <span class="badge badge-yellow">fallback permissivo ⚠️</span>
+          </div>
+        </div>
+        <div class="cascade-item">
+          <div class="cascade-num">2</div>
+          <div>
+            <strong>Fallback legacy</strong> — Pulsanti dalla tabella <code>pulsanti</code> + metadati UI
+          </div>
+        </div>
+      </div>
+
+      <div class="callout warn">
+        <span class="callout-icon">⚠️</span>
+        <div><strong>Gate speciali</strong> via <code>NAV_REGISTRY_ACL_GATES</code> (<code>context_processors.py</code> ~24):<br>
+        <code>"tasks": "/tasks/"</code> — la voce <code>tasks</code> usa <code>check_permesso(legacy_user, "/tasks/")</code> invece della sola visibilità ruolo.</div>
+      </div>
+
+      <h3>Subnav</h3>
+      <p><code>get_subnav_nodes(parent_code, role_id, is_admin)</code> in <code>core/navigation_registry.py</code> (~132). Stessa regola del topbar: se nessun <code>NavigationRoleAccess</code> → visibile a tutti.</p>
+
+      <h3 class="h3-orange">Pulsante in pagina</h3>
+      <p>Due meccanismi <strong>separati e non collegati tra loro</strong>:</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Modello</th><th>File</th><th>Riga</th><th>Effetto</th></tr></thead>
+          <tbody>
+            <tr><td>UserDashboardConfig</td><td class="tbl-file">core/models.py</td><td class="tbl-line">~35</td><td><code>visible</code> per-utente per pulsante — solo template</td></tr>
+            <tr><td>UserModuleVisibility</td><td class="tbl-file">core/models.py</td><td class="tbl-line">~48</td><td><code>visible</code> per-utente per modulo — solo template</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout danger">
+        <span class="callout-icon">🚨</span>
+        <div>Questi flag <strong>nascondono</strong> il pulsante nel template ma <strong>non controllano l'accesso alla route</strong>. Un pulsante nascosto ha la route comunque accessibile via URL diretto.</div>
+      </div>
+
+      <h3 class="h3-cyan">Route / pagina</h3>
+      <p><code>ACLMiddleware</code> in <code>core/middleware.py</code> (~38) — su ogni request:</p>
+      <div class="cascade">
+        <div class="cascade-item"><div class="cascade-num">1</div><div>Bypass per path esenti (<code>MIDDLEWARE_EXEMPT_PREFIXES</code>)</div></div>
+        <div class="cascade-item"><div class="cascade-num">2</div><div>Superuser Django → <span class="badge badge-green">PASS</span></div></div>
+        <div class="cascade-item"><div class="cascade-num">3</div><div><code>is_legacy_admin(legacy_user)</code> → bypass totale → <span class="badge badge-green">PASS</span></div></div>
+        <div class="cascade-item"><div class="cascade-num">4</div><div>Altrimenti: <code>check_permesso(legacy_user, path)</code> → True o <span class="badge badge-red">403</span></div></div>
+      </div>
+
+      <h3 class="h3-green">Azione specifica</h3>
+      <p><code>user_can_modulo_action(request, modulo, azione)</code> in <code>core/acl.py</code> (~216). <strong>Non</strong> viene usata dal middleware — va chiamata esplicitamente nelle view quando serve.</p>
+    </section>
+
+    <!-- ── SEZIONE 2: Mappa componenti ── -->
+    <section class="section" id="s2">
+      <div class="section-header">
+        <div class="section-icon icon-purple">🗺️</div>
+        <div>
+          <div class="section-title">2. Mappa dei componenti</div>
+          <div class="section-sub">Modelli DB, middleware, engine ACL, cache, context processor, decoratori</div>
+        </div>
+      </div>
+
+      <h3>Modelli DB</h3>
+      <div class="tbl-wrap">
+        <table class="no-mono">
+          <thead><tr><th>Componente</th><th>Tabella</th><th>File</th><th>Riga</th><th>Note</th></tr></thead>
+          <tbody>
+            <tr><td>Ruoli legacy</td><td class="tbl-file">ruoli</td><td class="tbl-file">core/legacy_models.py</td><td class="tbl-line">~10</td><td><code>Ruolo(id, nome)</code></td></tr>
+            <tr><td>Utenti legacy</td><td class="tbl-file">utenti</td><td class="tbl-file">core/legacy_models.py</td><td class="tbl-line">~22</td><td><code>UtenteLegacy</code> — <code>ruolo</code>, <code>ruolo_id</code>, <code>attivo</code></td></tr>
+            <tr><td>Permessi legacy</td><td class="tbl-file">permessi</td><td class="tbl-file">core/legacy_models.py</td><td class="tbl-line">~87</td><td><code>Permesso</code> — <code>modulo</code>, <code>azione</code>, <code>ruolo_id</code>, <code>can_view</code>, <code>can_edit</code>, <code>can_delete</code>, <code>can_approve</code>, <code>consentito</code></td></tr>
+            <tr><td>Pulsanti legacy</td><td class="tbl-file">pulsanti</td><td class="tbl-file">core/legacy_models.py</td><td class="tbl-line">~70</td><td><code>Pulsante</code> — <code>codice</code>, <code>modulo</code>, <code>url</code>, <code>icona</code>, <code>nome_visibile</code></td></tr>
+            <tr><td>Anagrafica dipendente</td><td class="tbl-file">anagrafica_dipendenti</td><td class="tbl-file">core/legacy_models.py</td><td class="tbl-line">~41</td><td>OneToOne → UtenteLegacy</td></tr>
+            <tr><td>Profilo Django↔Legacy</td><td>Django managed</td><td class="tbl-file">core/models.py</td><td class="tbl-line">~5</td><td><code>Profile</code> — <code>legacy_user_id</code>, <code>legacy_ruolo_id</code>, <code>legacy_ruolo</code></td></tr>
+            <tr><td>Override per-utente</td><td>Django managed</td><td class="tbl-file">core/models.py</td><td class="tbl-line">~15</td><td><code>UserPermissionOverride</code> — <code>None</code>=usa ruolo, <code>True/False</code>=override</td></tr>
+            <tr><td>Visibilità pulsanti per-utente</td><td>Django managed</td><td class="tbl-file">core/models.py</td><td class="tbl-line">~35</td><td><code>UserDashboardConfig</code> — solo template</td></tr>
+            <tr><td>Visibilità moduli per-utente</td><td>Django managed</td><td class="tbl-file">core/models.py</td><td class="tbl-line">~48</td><td><code>UserModuleVisibility</code> — solo template</td></tr>
+            <tr><td>Navigation Registry</td><td>Django managed</td><td class="tbl-file">core/models.py</td><td class="tbl-line">~75</td><td><code>NavigationItem</code> — <code>code</code>, <code>label</code>, <code>section</code>, <code>route_name</code>, <code>url_path</code>, <code>order</code>, <code>is_visible</code>, <code>is_enabled</code></td></tr>
+            <tr><td>Accesso ruoli al menu</td><td>Django managed</td><td class="tbl-file">core/models.py</td><td class="tbl-line">~117</td><td><code>NavigationRoleAccess</code> — <code>item</code>, <code>legacy_role_id</code>, <code>can_view</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Middleware</h3>
+      <div class="tbl-wrap">
+        <table class="no-mono">
+          <thead><tr><th>Middleware</th><th>File</th><th>Riga</th><th>Funzione</th></tr></thead>
+          <tbody>
+            <tr><td>ACLMiddleware</td><td class="tbl-file">core/middleware.py</td><td class="tbl-line">~38</td><td>Controllo accesso su ogni request</td></tr>
+            <tr><td>AdaptiveSecureCookieMiddleware</td><td class="tbl-file">core/middleware.py</td><td class="tbl-line">~18</td><td>Downgrade cookie su non-HTTPS</td></tr>
+            <tr><td>ImpersonationMiddleware</td><td class="tbl-file">core/middleware.py</td><td class="tbl-line">~78</td><td>Impersonazione utente</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Engine ACL</h3>
+      <div class="tbl-wrap">
+        <table class="no-mono">
+          <thead><tr><th>Funzione</th><th>File</th><th>Riga</th><th>Scopo</th></tr></thead>
+          <tbody>
+            <tr><td><code>check_permesso(legacy_user, path)</code></td><td class="tbl-file">core/acl.py</td><td class="tbl-line">~71</td><td>Controllo principale: path → pulsante → modulo+azione → ruolo</td></tr>
+            <tr><td><code>user_can_modulo_action(request, modulo, azione)</code></td><td class="tbl-file">core/acl.py</td><td class="tbl-line">~216</td><td>Controllo esplicito per modulo+azione nelle view</td></tr>
+            <tr><td><code>_match_pulsante(path)</code></td><td class="tbl-file">core/acl.py</td><td class="tbl-line">~50</td><td>Matching path normalizzato → Pulsante</td></tr>
+            <tr><td><code>_path_variants(path)</code></td><td class="tbl-file">core/acl.py</td><td class="tbl-line">~28</td><td>Genera varianti path (es. <code>/</code> ↔ <code>/dashboard</code>)</td></tr>
+            <tr><td><code>is_legacy_admin(legacy_user)</code></td><td class="tbl-file">core/legacy_utils.py</td><td class="tbl-line">~281</td><td>Bypass totale: ruolo.nome=="admin" OR ruolo_id in admin set</td></tr>
+            <tr><td><code>get_admin_role_ids()</code></td><td class="tbl-file">core/legacy_utils.py</td><td class="tbl-line">~273</td><td>Set ID ruoli admin — <code>@lru_cache(maxsize=1)</code> <span class="badge badge-yellow">⚠️ stale</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Cache</h3>
+      <div class="tbl-wrap">
+        <table class="no-mono">
+          <thead><tr><th>Cache</th><th>Key pattern</th><th>TTL</th><th>File</th><th>Riga</th></tr></thead>
+          <tbody>
+            <tr><td>Pulsanti catalogo</td><td class="tbl-file">legacy:pulsanti:vN</td><td>max(ACL, NAV)</td><td class="tbl-file">core/legacy_cache.py</td><td class="tbl-line">~114</td></tr>
+            <tr><td>Pulsanti ACL</td><td class="tbl-file">legacy:pulsanti_acl:vN</td><td>ACL_CACHE_TTL (120s)</td><td class="tbl-file">core/legacy_cache.py</td><td class="tbl-line">~147</td></tr>
+            <tr><td>Mappa permessi ruolo</td><td class="tbl-file">legacy:perm_map:{ruolo_id}:vN</td><td>ACL_CACHE_TTL (120s)</td><td class="tbl-file">core/legacy_cache.py</td><td class="tbl-line">~175</td></tr>
+            <tr><td>Invalidazione</td><td class="tbl-file">bump_legacy_cache_version()</td><td>—</td><td class="tbl-file">core/legacy_cache.py</td><td class="tbl-line">~48</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Context processor e navigazione</h3>
+      <div class="tbl-wrap">
+        <table class="no-mono">
+          <thead><tr><th>Componente</th><th>File</th><th>Riga</th></tr></thead>
+          <tbody>
+            <tr><td><code>legacy_nav()</code> — ritorna <code>nav_items</code>, <code>subnav_items</code></td><td class="tbl-file">core/context_processors.py</td><td class="tbl-line">~287</td></tr>
+            <tr><td><code>NAV_REGISTRY_ACL_GATES</code> — gate speciali per voce</td><td class="tbl-file">core/context_processors.py</td><td class="tbl-line">~24</td></tr>
+            <tr><td><code>get_topbar_nodes()</code></td><td class="tbl-file">core/navigation_registry.py</td><td class="tbl-line">~157</td></tr>
+            <tr><td><code>get_subnav_nodes()</code></td><td class="tbl-file">core/navigation_registry.py</td><td class="tbl-line">~132</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Decoratori e protezione view</h3>
+      <div class="tbl-wrap">
+        <table class="no-mono">
+          <thead><tr><th>Componente</th><th>File</th><th>Riga</th></tr></thead>
+          <tbody>
+            <tr><td><code>@legacy_admin_required</code></td><td class="tbl-file">admin_portale/decorators.py</td><td class="tbl-line">~11</td></tr>
+            <tr><td>Usato su tutte le view admin</td><td class="tbl-file">admin_portale/views.py</td><td class="tbl-line">~1407, ~3462, ~3511, ~1752...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Template tags</h3>
+      <div class="callout info">
+        <span class="callout-icon">ℹ️</span>
+        <div>Nessun template tag di permessi. Quelli esistenti sono solo utility generiche.</div>
+      </div>
+      <div class="tbl-wrap">
+        <table class="no-mono">
+          <thead><tr><th>Tag</th><th>File</th><th>Funzione</th></tr></thead>
+          <tbody>
+            <tr><td><code>get_item</code></td><td class="tbl-file">admin_portale/templatetags/admin_portale_extras.py</td><td>Accesso dict in template</td></tr>
+            <tr><td><code>asset_custom_display</code></td><td class="tbl-file">admin_portale/templatetags/assets_extras.py</td><td>Display asset fields</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── SEZIONE 3: Incoerenze ── -->
+    <section class="section" id="s3">
+      <div class="section-header">
+        <div class="section-icon icon-yellow">⚠️</div>
+        <div>
+          <div class="section-title">3. Incoerenze rilevate</div>
+          <div class="section-sub">5 incoerenze strutturali tra i sistemi di visibilità e accesso</div>
+        </div>
+      </div>
+
+      <div class="inc-grid">
+        <div class="inc-card">
+          <div class="inc-header">
+            <span class="inc-id">INC-A</span>
+            <span class="inc-title">Visibilità menu ≠ accesso reale alla route</span>
+          </div>
+          <div class="inc-desc">
+            <code>NavigationRoleAccess</code> con regola "nessun record = visibile a tutti" crea un <strong>fallback permissivo</strong>.<br><br>
+            Se una voce del Navigation Registry non ha record <code>NavigationRoleAccess</code>:
+            <ul style="margin-top:8px;">
+              <li>Il menu la mostra a tutti ✓</li>
+              <li>Ma il middleware ACL la gata via <code>check_permesso()</code> → un utente senza il pulsante corrispondente prende <span class="badge badge-red">403</span></li>
+            </ul>
+            <br><strong>Risultato:</strong> L'utente vede la voce nel menu ma cliccandola ottiene 403. I due sistemi non si parlano.
+          </div>
+        </div>
+
+        <div class="inc-card">
+          <div class="inc-header">
+            <span class="inc-id">INC-B</span>
+            <span class="inc-title">Pulsante nascosto ≠ route inaccessibile</span>
+          </div>
+          <div class="inc-desc">
+            <code>UserDashboardConfig.visible=False</code> nasconde il pulsante nel template ma <strong>non viene controllato dal middleware ACL</strong>. La route è raggiungibile direttamente via URL.
+          </div>
+        </div>
+
+        <div class="inc-card">
+          <div class="inc-header">
+            <span class="inc-id">INC-C</span>
+            <span class="inc-title">UserModuleVisibility disconnessa dall'ACL</span>
+          </div>
+          <div class="inc-desc">
+            <code>UserModuleVisibility</code> influenza solo la visibilità template, non l'accessibilità reale. Un modulo con <code>visible=False</code> per un utente è ancora navigabile se ha il permesso ACL.
+          </div>
+        </div>
+
+        <div class="inc-card">
+          <div class="inc-header">
+            <span class="inc-id">INC-D</span>
+            <span class="inc-title">Navigation Registry e ACL legacy non sincronizzati</span>
+          </div>
+          <div class="inc-desc">
+            Una voce <code>NavigationItem</code> può avere <code>is_visible=True</code> e <code>is_enabled=True</code>, ma se il <code>Pulsante</code> legacy corrispondente non esiste nella tabella <code>pulsanti</code>, <code>check_permesso()</code> non riesce a matchare il path → <span class="badge badge-red">403</span>.<br><br>
+            Non c'è nessun link esplicito tra <code>NavigationItem.route_name</code> e il pulsante legacy usato dall'ACL engine.
+          </div>
+        </div>
+
+        <div class="inc-card">
+          <div class="inc-header">
+            <span class="inc-id">INC-E</span>
+            <span class="inc-title">API gate separato dal pattern generale</span>
+          </div>
+          <div class="inc-desc">
+            <pre style="margin:8px 0;border-radius:6px;"># core/middleware.py ~13
+API_ACL_GATE_PATHS = {"/api/anomalie/": "/gestione-anomalie"}</pre>
+            Ogni nuova API deve essere aggiunta <strong>manualmente</strong> qui — facile dimenticarsi.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SEZIONE 4: Flusso ── -->
+    <section class="section" id="s4">
+      <div class="section-header">
+        <div class="section-icon icon-cyan">🔀</div>
+        <div>
+          <div class="section-title">4. Flusso completo di autorizzazione</div>
+          <div class="section-sub">Pipeline middleware + rendering navigazione in parallelo</div>
+        </div>
+      </div>
+
+      <h3>Pipeline middleware</h3>
+      <div class="diagram">HTTP Request
+    │
+    ▼
+AdaptiveSecureCookieMiddleware
+(downgrade cookie su non-HTTPS)
+    │
+    ▼
+ImpersonationMiddleware
+(sostituisce request.user se impersonazione attiva)
+    │
+    ▼
+ACLMiddleware                                     core/middleware.py ~38
+    │
+    ├─ path in MIDDLEWARE_EXEMPT_PREFIXES? ──────► PASS
+    │   (es: /static/, /login/, /favicon.ico)
+    │
+    ├─ user non autenticato? ────────────────────► redirect /login/
+    │
+    ├─ legacy_auth_enabled() == False? ──────────► PASS (flag emergenza/test)
+    │
+    ├─ get_legacy_user(request.user)
+    │   └─ Profile.legacy_user_id → UtenteLegacy
+    │
+    ├─ is_legacy_admin(legacy_user)? ────────────► PASS (bypass totale)
+    │   └─ ruolo.nome == "admin" OR ruolo_id in get_admin_role_ids()
+    │
+    ├─ path in API_ACL_GATE_PATHS?
+    │   └─ YES → check_permesso su gate_path alternativo
+    │
+    └─ check_permesso(legacy_user, request.path)      core/acl.py ~71
+           │
+           ├─ _match_pulsante(path)
+           │   └─ normalizza path + varianti → cerca in cache pulsanti
+           │
+           ├─ estrai modulo + azione dal Pulsante
+           │
+           ├─ UserPermissionOverride.can_view non-null?
+           │   └─ YES → usa override (True/False)
+           │
+           └─ load_perm_map(ruolo_id) → {(modulo, azione): bool}
+               └─ can_view OR consentito → True/False
+                   │
+                   ├─ True ──────────────────────────► view eseguita
+                   └─ False ─────────────────────────► 403 Forbidden</div>
+
+      <h3>Rendering navigazione (parallelo, non bloccante)</h3>
+      <div class="diagram">Context Processor legacy_nav()                    core/context_processors.py ~287
+    │
+    ├─ Navigation Registry enabled?
+    │   ├─ YES → NavigationItem filtrati per ruolo via NavigationRoleAccess
+    │   │         (nessun record = visibile a tutti ⚠️)
+    │   │         + NAV_REGISTRY_ACL_GATES per voci speciali
+    │   └─ NO  → fallback: pulsanti legacy con metadata UI
+    │
+    ├─ nav_items ──────────────────────────────────► topbar
+    ├─ subnav_items ───────────────────────────────► subnav
+    └─ Template itera nav_items (no permission check nei tag template)</div>
+    </section>
+
+    <!-- ── SEZIONE 5: Hardcoded ── -->
+    <section class="section" id="s5">
+      <div class="section-header">
+        <div class="section-icon icon-orange">🔒</div>
+        <div>
+          <div class="section-title">5. Elementi hardcoded</div>
+          <div class="section-sub">Nomi moduli, path speciali, ruoli e comportamenti impliciti</div>
+        </div>
+      </div>
+
+      <h3 class="h3-orange">Nomi moduli / path speciali</h3>
+      <div class="tbl-wrap">
+        <table class="no-mono">
+          <thead><tr><th>Valore</th><th>Uso</th><th>File</th><th>Riga</th></tr></thead>
+          <tbody>
+            <tr><td><code>"admin"</code>, <code>"dashboard"</code>, <code>"assenze"</code></td><td>Path variants speciali in ACL</td><td class="tbl-file">core/acl.py</td><td class="tbl-line">~40</td></tr>
+            <tr><td><code>"/api/anomalie/"</code> → <code>"/gestione-anomalie"</code></td><td>API gate nel middleware</td><td class="tbl-file">core/middleware.py</td><td class="tbl-line">~13</td></tr>
+            <tr><td><code>"tasks"</code> → <code>"/tasks/"</code></td><td>Nav ACL gate</td><td class="tbl-file">core/context_processors.py</td><td class="tbl-line">~24</td></tr>
+            <tr><td><code>"pannello_admin"</code>, <code>"gestione_utenti"</code>, <code>"gestione_permessi"</code>, ...</td><td>Explicit admin map</td><td class="tbl-file">admin_portale/views.py</td><td class="tbl-line">~59</td></tr>
+            <tr><td><code>"assenze"</code> → <code>"assenze_menu"</code>, <code>"anomalie"</code> → <code>"gestione_anomalie_page"</code></td><td>Route map moduli</td><td class="tbl-file">admin_portale/views.py</td><td class="tbl-line">~68</td></tr>
+            <tr><td><code>dashboard</code>, <code>admin</code>, <code>assenze</code>, <code>anomalie</code>, <code>gestione_utenti</code>, ...</td><td>MODULE_CATALOG</td><td class="tbl-file">admin_portale/views.py</td><td class="tbl-line">~85</td></tr>
+            <tr><td><code>"/"</code> ↔ <code>"/dashboard"</code></td><td>Path equivalenti</td><td class="tbl-file">core/acl.py</td><td class="tbl-line">~28</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="h3-orange">Ruoli hardcoded</h3>
+      <div class="tbl-wrap">
+        <table class="no-mono">
+          <thead><tr><th>Valore</th><th>Uso</th><th>File</th><th>Riga</th></tr></thead>
+          <tbody>
+            <tr><td><code>nome__iexact="admin"</code></td><td>Query ruoli admin</td><td class="tbl-file">core/legacy_utils.py</td><td class="tbl-line">~275</td></tr>
+            <tr><td><code>str(ruolo).lower() == "admin"</code></td><td>Fallback check admin</td><td class="tbl-file">core/legacy_utils.py</td><td class="tbl-line">~284</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="h3-orange">Comportamenti impliciti hardcoded</h3>
+      <div class="tbl-wrap">
+        <table class="no-mono">
+          <thead><tr><th>Comportamento</th><th>File</th><th>Riga</th><th>Rischio</th></tr></thead>
+          <tbody>
+            <tr><td><code>is_legacy_admin()</code> usa <code>@lru_cache</code> non invalidabile</td><td class="tbl-file">core/legacy_utils.py</td><td class="tbl-line">~273</td><td><span class="badge badge-red">Nuovo admin non riconosciuto fino a restart</span></td></tr>
+            <tr><td><code>NavigationRoleAccess</code> "nessun record = visibile a tutti"</td><td class="tbl-file">core/navigation_registry.py</td><td>—</td><td><span class="badge badge-yellow">Nuove voci esposte a tutti per default</span></td></tr>
+            <tr><td><code>consentito OR can_view</code> come logica accesso</td><td class="tbl-file">core/legacy_models.py</td><td class="tbl-line">~103</td><td><code>can_view=0</code> non basta se <code>consentito=1</code></td></tr>
+            <tr><td><code>UserPermissionOverride.can_view=None</code> = usa ruolo (implicito)</td><td class="tbl-file">core/models.py</td><td class="tbl-line">~15</td><td>Semantica ambigua, no validazione</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── SEZIONE 6: Bug ── -->
+    <section class="section" id="s6">
+      <div class="section-header">
+        <div class="section-icon icon-red">🐛</div>
+        <div>
+          <div class="section-title">6. Bug potenziali</div>
+          <div class="section-sub">8 problemi identificati — alcuni con impatto diretto sulla sicurezza</div>
+        </div>
+      </div>
+
+      <div class="bug-grid">
+
+        <div class="bug-card">
+          <div class="bug-card-header">
+            <span class="bug-id">BUG-1</span>
+            <span class="bug-title">Utente vede menu ma prende 403</span>
+          </div>
+          <div class="bug-desc">Navigation Registry fallback permissivo + ACL via pulsanti legacy disgiunti.<br>
+          <strong>Scenario:</strong> Voce <code>NavigationItem</code> senza <code>NavigationRoleAccess</code> → mostrata a tutti → click → <code>check_permesso()</code> fallisce perché pulsante legacy mancante → <span class="badge badge-red">403</span>.</div>
+          <div class="bug-meta">
+            <span class="bug-meta-label">File:</span>
+            <span class="badge badge-blue">core/navigation_registry.py</span>
+            <span class="badge badge-blue">core/acl.py</span>
+          </div>
+        </div>
+
+        <div class="bug-card">
+          <div class="bug-card-header">
+            <span class="bug-id">BUG-2</span>
+            <span class="bug-title">Cache admin roles non invalida mai in-process ⚠️</span>
+          </div>
+          <div class="bug-desc">
+            <pre style="margin:8px 0;border-radius:6px;"># core/legacy_utils.py ~273
+@lru_cache(maxsize=1)
+def get_admin_role_ids() -> set[int]:
+    return {int(r.id) for r in Ruolo.objects.filter(nome__iexact="admin")}</pre>
+            <code>bump_legacy_cache_version()</code> invalida Redis ma <strong>non</strong> questa cache Python in-process. Se si promuove un ruolo ad admin mentre il server è running → cambio non visibile fino al restart.
+          </div>
+          <div class="bug-meta">
+            <span class="bug-meta-label">File:</span>
+            <span class="badge badge-red">core/legacy_utils.py ~273</span>
+          </div>
+        </div>
+
+        <div class="bug-card warn">
+          <div class="bug-card-header">
+            <span class="bug-id">BUG-3</span>
+            <span class="bug-title">Fallback permissivo nel Navigation Registry</span>
+          </div>
+          <div class="bug-desc">Voci senza <code>NavigationRoleAccess</code> → visibili a tutti.<br>
+          Aggiungere una nuova voce al registry senza configurare i permessi la espone a tutti gli utenti immediatamente.<br><br>
+          <strong>Regola attuale:</strong> opt-out (devi esplicitamente nasconderla)<br>
+          <strong>Regola corretta:</strong> opt-in (devi esplicitamente darle visibilità)</div>
+          <div class="bug-meta">
+            <span class="bug-meta-label">File:</span>
+            <span class="badge badge-yellow">core/navigation_registry.py</span>
+          </div>
+        </div>
+
+        <div class="bug-card warn">
+          <div class="bug-card-header">
+            <span class="bug-id">BUG-4</span>
+            <span class="bug-title">UserPermissionOverride.can_view=None semantica implicita</span>
+          </div>
+          <div class="bug-desc"><code>None</code> = usa ruolo. <code>False</code> = nega sempre. Distinzione implicita nel codice, nessuna validazione a livello form/admin.<br>
+          Un admin che setta <code>can_view=None</code> pensando di "revocare" l'override non fa nulla.</div>
+          <div class="bug-meta">
+            <span class="bug-meta-label">File:</span>
+            <span class="badge badge-yellow">core/models.py ~15</span>
+            <span class="badge badge-yellow">core/acl.py ~89</span>
+          </div>
+        </div>
+
+        <div class="bug-card warn">
+          <div class="bug-card-header">
+            <span class="bug-id">BUG-5</span>
+            <span class="bug-title">API_ACL_GATE_PATHS richiede aggiornamento manuale</span>
+          </div>
+          <div class="bug-desc">Ogni nuova API protetta con gate alternativo va aggiunta hardcoded nel middleware. Facile dimenticarsi.</div>
+          <div class="bug-meta">
+            <span class="bug-meta-label">File:</span>
+            <span class="badge badge-yellow">core/middleware.py ~13</span>
+          </div>
+        </div>
+
+        <div class="bug-card info">
+          <div class="bug-card-header">
+            <span class="bug-id">BUG-6</span>
+            <span class="bug-title">UserDashboardConfig.visible=False non è sicurezza</span>
+          </div>
+          <div class="bug-desc">Nasconde il pulsante ma non blocca la route. Non è un bug di sicurezza (il middleware blocca comunque), ma crea <strong>falsa sensazione di controllo accessi</strong>. Può portare sviluppatori futuri a fidarsi della visibilità template come controllo sicurezza.</div>
+        </div>
+
+        <div class="bug-card warn">
+          <div class="bug-card-header">
+            <span class="bug-id">BUG-7</span>
+            <span class="bug-title">Due fonti di navigazione possono divergere</span>
+          </div>
+          <div class="bug-desc">Se <code>_navigation_registry_enabled()</code> è True → usa registry. Se False → usa fallback legacy. Se le due fonti hanno dati diversi → l'utente vede menu diverso a seconda del flag, potenzialmente rivelando/nascondendo voci in modo inatteso.</div>
+        </div>
+
+        <div class="bug-card">
+          <div class="bug-card-header">
+            <span class="bug-id">BUG-8</span>
+            <span class="bug-title">consentito OR can_view nel permesso legacy ⚠️</span>
+          </div>
+          <div class="bug-desc">
+            <pre style="margin:8px 0;border-radius:6px;"># core/legacy_models.py ~103
+view_allowed = bool(can_view) or bool(consentito)</pre>
+            Il campo <code>consentito</code> è residuo legacy. Se <code>consentito=1</code> e <code>can_view=0</code>, l'accesso viene comunque concesso.<br>
+            Un admin che setta <code>can_view=0</code> pensando di bloccare l'accesso può essere sorpreso.
+          </div>
+          <div class="bug-meta">
+            <span class="bug-meta-label">File:</span>
+            <span class="badge badge-red">core/legacy_models.py ~103</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ── SEZIONE 7: Pipeline attuale ── -->
+    <section class="section" id="s7">
+      <div class="section-header">
+        <div class="section-icon icon-pink">📊</div>
+        <div>
+          <div class="section-title">7. Pipeline attuale (diagramma)</div>
+          <div class="section-sub">I due sistemi ACL engine e Navigation Registry sono completamente separati</div>
+        </div>
+      </div>
+
+      <div class="callout danger">
+        <span class="callout-icon">🚨</span>
+        <div><strong>Problema strutturale:</strong> I due sistemi (ACL engine e Navigation Registry) sono <strong>COMPLETAMENTE SEPARATI</strong>. Non si sincronizzano automaticamente.</div>
+      </div>
+
+      <div class="diagram">┌─────────────────────────────────────────────────────────────────────────────┐
+│                           SISTEMI ACL ATTUALI                               │
+│                                                                             │
+│  FONTE DATI                  LOGICA                       OUTPUT            │
+│  ──────────                  ──────                       ──────            │
+│                                                                             │
+│  tabella ruoli          ──┐                                                 │
+│  tabella utenti         ──┼──► is_legacy_admin() ──────► BYPASS TOTALE     │
+│  @lru_cache (⚠️ stale)  ──┘   (ruolo.nome=="admin")                        │
+│                                                                             │
+│  tabella pulsanti       ──┐                                                 │
+│  Redis cache            ──┼──► _match_pulsante() ──────► modulo + azione   │
+│                           ┘                                    │            │
+│                                                                ▼            │
+│  tabella permessi       ──┐                                                 │
+│  Redis cache            ──┼──► perm_map[ruolo_id] ──┐                      │
+│                           ┘   (can_view OR consentito)│                     │
+│  UserPermissionOverride ───────────────────────────┼──► PASS / 403         │
+│                               (None=ruolo, T/F=fix) │                       │
+│                                                     ┘                       │
+│                                                                             │
+│  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ SEPARATO ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   │
+│                                                                             │
+│  NavigationItem         ──┐                                                 │
+│  NavigationRoleAccess   ──┼──► get_topbar_nodes() ──► nav_items (template) │
+│  Redis cache            ──┘   (⚠️ nessun record = visibile a tutti)         │
+│                                                                             │
+│  UserDashboardConfig    ───────────────────────────► visible in template   │
+│  UserModuleVisibility   ───────────────────────────► visible in template   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘</div>
+    </section>
+
+    <!-- ── SEZIONE 8: Architettura target ── -->
+    <section class="section" id="s8">
+      <div class="section-header">
+        <div class="section-icon icon-green">🏗️</div>
+        <div>
+          <div class="section-title">8. Architettura target proposta</div>
+          <div class="section-sub">Unica fonte di verità ACL — permission code slug univoco</div>
+        </div>
+      </div>
+
+      <div class="callout success">
+        <span class="callout-icon">✅</span>
+        <div><strong>Principio:</strong> Un singolo sistema unificato. Middleware, template tag, decoratori e navigazione usano tutti la stessa funzione <code>has_permission(user, permission_code)</code>.</div>
+      </div>
+
+      <div class="diagram">┌─────────────────────────────────────────────────────────────────────────────┐
+│                          ARCHITETTURA TARGET                                │
+│                                                                             │
+│  TABELLE DB                                                                 │
+│  ──────────                                                                 │
+│                                                                             │
+│  Permission                                                                 │
+│    code: SlugField (univoco, es. "assenze.view", "anomalie.edit")           │
+│    label: str                                                               │
+│    category: str (raggruppamento/modulo)                                    │
+│                                                                             │
+│  RolePermission                                                             │
+│    role_id → Role                                                           │
+│    permission → FK → Permission                                             │
+│    granted: BooleanField (default False ← opt-in, non opt-out)             │
+│                                                                             │
+│  UserPermissionOverride                                                     │
+│    user → FK → User                                                         │
+│    permission → FK → Permission                                             │
+│    granted: BooleanField (SOLO True/False, no NULL)                         │
+│                                                                             │
+│  NavigationItem                                                             │
+│    code: SlugField                                                          │
+│    label: str                                                               │
+│    url_path: str                                                            │
+│    permission_required: FK → Permission (nullable = voce pubblica)          │
+│    parent: FK → self (per subnav)                                           │
+│    order: IntegerField                                                      │
+│    section: "topbar" | "subnav"                                             │
+│    is_active: BooleanField                                                  │
+│                                                                             │
+│  ──────────────────────────────────────────────────────────────             │
+│  FUNZIONE UNICA ACL                                                         │
+│  ──────────────────────────────────────────────────────────────             │
+│                                                                             │
+│  has_permission(user, permission_code: str) -> bool                         │
+│      if user.is_superuser: return True                                      │
+│      override = UserPermissionOverride.get(user, code)                      │
+│      if override: return override.granted                                   │
+│      role_perm = RolePermission.get(user.role, code)                        │
+│      return role_perm.granted if role_perm else False   ← default DENY      │
+│                                                                             │
+│  ──────────────────────────────────────────────────────────────             │
+│  INTEGRAZIONE COERENTE                                                      │
+│  ──────────────────────────────────────────────────────────────             │
+│                                                                             │
+│  MIDDLEWARE   → has_permission(user, nav_item.permission_required)          │
+│  TEMPLATE TAG → {% has_perm user "assenze.view" %}...{% endhas_perm %}      │
+│  DECORATORE   → @require_permission("assenze.edit")                         │
+│  NAV          → NavigationItem.objects.filter(                              │
+│                     permission_required__code__in=user_permissions          │
+│                     | permission_required__isnull=True)                     │
+│                                                                             │
+│  ──────────────────────────────────────────────────────────────             │
+│  CACHE                                                                      │
+│  ──────────────────────────────────────────────────────────────             │
+│                                                                             │
+│  Un singolo set per utente: user_permissions = {code1, code2, ...}          │
+│  Cache key: "acl:user:{user_id}:v{version}"                                 │
+│  Invalida su: modifica RolePermission, modifica UserPermissionOverride      │
+│  NO @lru_cache in-process → solo Redis con TTL esplicito                    │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘</div>
+
+      <h3 class="h3-green">Confronto attuale vs target</h3>
+      <div class="tbl-wrap">
+        <table class="no-mono compare-tbl">
+          <thead><tr><th>Problema attuale</th><th>Soluzione target</th></tr></thead>
+          <tbody>
+            <tr><td>ACL via <code>path → pulsante → modulo → ruolo</code> (fragile, path-dipendente)</td><td>ACL via <code>permission_code</code> slug univoco diretto</td></tr>
+            <tr><td>Menu e ACL sistemi separati non sincronizzati</td><td><code>NavigationItem.permission_required</code> → stessa FK usata dal middleware</td></tr>
+            <tr><td>"Nessun record = visibile a tutti" (opt-out)</td><td>Default <code>False</code>, accesso opt-in esplicito</td></tr>
+            <tr><td><code>@lru_cache</code> non invalidabile in-process</td><td>Solo Redis con versioning, nessuna cache locale</td></tr>
+            <tr><td><code>consentito OR can_view</code> ambigui e legacy</td><td>Un solo campo <code>granted: bool</code></td></tr>
+            <tr><td>Moduli hardcoded nel middleware e ACL</td><td><code>Permission.category</code> libero, nessun modulo hardcoded</td></tr>
+            <tr><td>Nessun template tag permessi</td><td><code>{% has_perm user "code" %}</code> dichiarativo e uniforme</td></tr>
+            <tr><td><code>UserPermissionOverride.can_view=None</code> implicito</td><td>Override solo <code>True/False</code>, assenza = usa ruolo (esplicito)</td></tr>
+            <tr><td>API gate hardcoded per ogni nuova API</td><td><code>NavigationItem</code> con <code>permission_required</code> anche per route API</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <p style="font-size:12px;color:var(--text-faint);text-align:center;padding-top:24px;border-top:1px solid var(--border);">
+      Fine audit — generato 2026-03-13 &nbsp;·&nbsp; Portale Novicrom
+    </p>
+
+  </main>
+</div>
+
+<script>
+  // Active sidebar link on scroll
+  const sections = document.querySelectorAll('.section');
+  const sbLinks = document.querySelectorAll('.sb-link');
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        sbLinks.forEach(l => l.classList.remove('active'));
+        const id = e.target.id;
+        const link = document.querySelector(`.sb-link[href="#${id}"]`);
+        if (link) link.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

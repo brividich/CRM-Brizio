@@ -589,10 +589,12 @@ def _anomalie_access_flags(request) -> dict[str, bool]:
 
 @login_required
 def anomalie_menu(request):
+    from anomalie.views import _load_anomalie_menu_logo
     access_flags = _anomalie_access_flags(request)
     context = {
         "user": request.user,
         "sp_folder_url": settings.ANOMALIE_SP_FOLDER_URL,
+        "menu_logo_url": _load_anomalie_menu_logo(),
         **access_flags,
     }
     return render(request, "dashboard/pages/anomalie_menu.html", context)

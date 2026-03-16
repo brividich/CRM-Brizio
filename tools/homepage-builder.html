@@ -83,6 +83,12 @@ input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--primary); 
 .sec-sep { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
 .info-box { background: #eff6ff; border-left: 3px solid #3b82f6; padding: 8px 10px; border-radius: 0 6px 6px 0; font-size: .76rem; color: #1e40af; margin-bottom: 11px; }
 
+/* Drag & drop */
+.drag-handle { cursor: grab; color: #cbd5e1; font-size: 1.1rem; margin-right: 4px; user-select: none; flex-shrink: 0; }
+.drag-handle:hover { color: #94a3b8; }
+.item.dragging { opacity: .35; border-style: dashed; }
+.item.drag-over { border: 2px solid #3b82f6; background: #eff6ff; }
+
 /* ── RIGHT panel ── */
 .hb-right { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .preview-bar { background: #fff; border-bottom: 1px solid var(--border); padding: 7px 14px; display: flex; align-items: center; gap: 8px; font-size: .78rem; color: var(--muted); flex-shrink: 0; }
@@ -226,6 +232,18 @@ const S = {
       { name: 'Simone Granevilla',   role: 'Information Technology Manager',   photo: '' },
     ],
   },
+  applinks: {
+    enabled: true,
+    title: 'Accesso rapido alle app',
+    cols: 4,
+    items: [
+      { img: '', emoji: '📊', name: 'Dashboard',  subtitle: 'Panoramica attività',   link: '/dashboard/', color: '#1e3a5f' },
+      { img: '', emoji: '📅', name: 'Assenze',    subtitle: 'Ferie e permessi',       link: '/assenze/',   color: '#2563eb' },
+      { img: '', emoji: '⚠️', name: 'Anomalie',   subtitle: 'Segnalazioni operative', link: '/anomalie/',  color: '#ea580c' },
+      { img: '', emoji: '🏭', name: 'Asset',       subtitle: 'Officina e macchinari', link: '/assets/',    color: '#16a34a' },
+    ],
+  },
+  order: ['hero','widgets','servizi','risorse','notizie','chat','team','applinks'],
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -240,6 +258,7 @@ const SECTIONS = [
   { id: 'notizie',  icon: '📰', lbl: '6 — Comunicazioni Importanti',        fn: rNotizie  },
   { id: 'chat',     icon: '💬', lbl: '7 — Pulsanti Chat Help Desk',         fn: rChat     },
   { id: 'team',     icon: '👤', lbl: '8 — Team IT',                         fn: rTeam     },
+  { id: 'applinks', icon: '🚀', lbl: '9 — Accesso Rapido App (griglia icone/loghi)', fn: rAppLinks },
 ];
 
 function buildForm() {
@@ -289,8 +308,8 @@ function rHero() {
   return `
     <div class="hint">Fino a 3 card con immagine (URL) o colore di sfondo solido.</div>
     <div class="items">${S.hero.map((c,i) => `
-      <div class="item">
-        <div class="item-hd"><span class="item-num">Card ${i+1}</span><button class="item-del" onclick="removeHero(${i})">Rimuovi</button></div>
+      <div class="item" draggable="true" ondragstart="dStart(event,'hero',null,${i})" ondragover="dOver(event,'hero',${i})" ondrop="dDrop(event,'hero',null,${i})" ondragend="dEnd()">
+        <div class="item-hd"><span class="drag-handle" title="Trascina per riordinare">⠿</span><span class="item-num">Card ${i+1}</span><button class="item-del" onclick="removeHero(${i})">Rimuovi</button></div>
         <div class="f"><label>Titolo</label><input type="text" value="${x(c.title)}" oninput="S.hero[${i}].title=this.value;refresh()"></div>
         <div class="f"><label>Descrizione</label><input type="text" value="${x(c.desc)}" oninput="S.hero[${i}].desc=this.value;refresh()"></div>
         <div class="f"><label>URL Immagine (opzionale)</label><input type="text" placeholder="https://... oppure /media/..." value="${x(c.img)}" oninput="S.hero[${i}].img=this.value;refresh()"></div>
@@ -313,8 +332,8 @@ function rAssenze() {
     <hr class="sec-sep">
     <div class="hint">Bottoni tipo assenza:</div>
     <div class="items">${s.buttons.map((b,i) => `
-      <div class="item">
-        <div class="item-hd"><span class="item-num" style="color:${b.color}">● Bottone ${i+1}</span><button class="item-del" onclick="removeAssenzaBtn(${i})">Rimuovi</button></div>
+      <div class="item" draggable="true" ondragstart="dStart(event,'assenze','buttons',${i})" ondragover="dOver(event,'assenze',${i})" ondrop="dDrop(event,'assenze','buttons',${i})" ondragend="dEnd()">
+        <div class="item-hd"><span class="drag-handle" title="Trascina per riordinare">⠿</span><span class="item-num" style="color:${b.color}">● Bottone ${i+1}</span><button class="item-del" onclick="removeAssenzaBtn(${i})">Rimuovi</button></div>
         <div class="f-row two">
           <div class="f"><label>Etichetta</label><input type="text" value="${x(b.label)}" oninput="S.assenze.buttons[${i}].label=this.value;refresh()"></div>
           <div class="f"><label>Colore</label><input type="color" value="${b.color}" oninput="S.assenze.buttons[${i}].color=this.value;refresh()"></div>
@@ -347,8 +366,8 @@ function rServizi() {
     <div class="f"><label>Titolo sezione</label><input type="text" value="${x(s.title)}" oninput="S.servizi.title=this.value;refresh()"></div>
     <hr class="sec-sep">
     <div class="items">${s.items.map((it,i) => `
-      <div class="item">
-        <div class="item-hd"><span class="item-num">${it.icon} Servizio ${i+1}</span><button class="item-del" onclick="removeServizio(${i})">Rimuovi</button></div>
+      <div class="item" draggable="true" ondragstart="dStart(event,'servizi','items',${i})" ondragover="dOver(event,'servizi',${i})" ondrop="dDrop(event,'servizi','items',${i})" ondragend="dEnd()">
+        <div class="item-hd"><span class="drag-handle" title="Trascina per riordinare">⠿</span><span class="item-num">${it.icon} Servizio ${i+1}</span><button class="item-del" onclick="removeServizio(${i})">Rimuovi</button></div>
         <div class="f-row two">
           <div class="f"><label>Emoji / Icona</label><input type="text" value="${x(it.icon)}" oninput="S.servizi.items[${i}].icon=this.value;refresh()"></div>
           <div class="f"><label>Link URL</label><input type="text" value="${x(it.link)}" oninput="S.servizi.items[${i}].link=this.value;refresh()"></div>
@@ -366,8 +385,8 @@ function rRisorse() {
     <div class="f"><label>Titolo sezione</label><input type="text" value="${x(s.title)}" oninput="S.risorse.title=this.value;refresh()"></div>
     <hr class="sec-sep">
     <div class="items">${s.items.map((it,i) => `
-      <div class="item">
-        <div class="item-hd"><span class="item-num">${it.icon} Risorsa ${i+1}</span><button class="item-del" onclick="removeRisorsa(${i})">Rimuovi</button></div>
+      <div class="item" draggable="true" ondragstart="dStart(event,'risorse','items',${i})" ondragover="dOver(event,'risorse',${i})" ondrop="dDrop(event,'risorse','items',${i})" ondragend="dEnd()">
+        <div class="item-hd"><span class="drag-handle" title="Trascina per riordinare">⠿</span><span class="item-num">${it.icon} Risorsa ${i+1}</span><button class="item-del" onclick="removeRisorsa(${i})">Rimuovi</button></div>
         <div class="f-row two">
           <div class="f"><label>Emoji / Icona</label><input type="text" value="${x(it.icon)}" oninput="S.risorse.items[${i}].icon=this.value;refresh()"></div>
           <div class="f"><label>Link URL</label><input type="text" value="${x(it.link)}" oninput="S.risorse.items[${i}].link=this.value;refresh()"></div>
@@ -392,8 +411,8 @@ function rChat() {
   return `
     <div class="tog-row"><input type="checkbox" ${s.enabled?'checked':''} onchange="setEnabled('chat',this.checked)"><label>Mostra sezione</label></div>
     <div class="items">${s.buttons.map((b,i) => `
-      <div class="item">
-        <div class="item-hd"><span class="item-num">Bottone ${i+1}</span><button class="item-del" onclick="removeChatBtn(${i})">Rimuovi</button></div>
+      <div class="item" draggable="true" ondragstart="dStart(event,'chat','buttons',${i})" ondragover="dOver(event,'chat',${i})" ondrop="dDrop(event,'chat','buttons',${i})" ondragend="dEnd()">
+        <div class="item-hd"><span class="drag-handle" title="Trascina per riordinare">⠿</span><span class="item-num">Bottone ${i+1}</span><button class="item-del" onclick="removeChatBtn(${i})">Rimuovi</button></div>
         <div class="f"><label>Testo</label><input type="text" value="${x(b.label)}" oninput="S.chat.buttons[${i}].label=this.value;refresh()"></div>
         <div class="f-row two">
           <div class="f"><label>Link (Teams, mailto…)</label><input type="text" value="${x(b.link)}" oninput="S.chat.buttons[${i}].link=this.value;refresh()"></div>
@@ -411,14 +430,40 @@ function rTeam() {
     <div class="f"><label>Titolo sezione</label><input type="text" value="${x(s.title)}" oninput="S.team.title=this.value;refresh()"></div>
     <hr class="sec-sep">
     <div class="items">${s.members.map((m,i) => `
-      <div class="item">
-        <div class="item-hd"><span class="item-num">Membro ${i+1}</span><button class="item-del" onclick="removeTeamMember(${i})">Rimuovi</button></div>
+      <div class="item" draggable="true" ondragstart="dStart(event,'team','members',${i})" ondragover="dOver(event,'team',${i})" ondrop="dDrop(event,'team','members',${i})" ondragend="dEnd()">
+        <div class="item-hd"><span class="drag-handle" title="Trascina per riordinare">⠿</span><span class="item-num">Membro ${i+1}</span><button class="item-del" onclick="removeTeamMember(${i})">Rimuovi</button></div>
         <div class="f"><label>Nome</label><input type="text" value="${x(m.name)}" oninput="S.team.members[${i}].name=this.value;refresh()"></div>
         <div class="f"><label>Ruolo</label><input type="text" value="${x(m.role)}" oninput="S.team.members[${i}].role=this.value;refresh()"></div>
         <div class="f"><label>URL Foto</label><input type="text" placeholder="/media/foto/... oppure URL esterno" value="${x(m.photo)}" oninput="S.team.members[${i}].photo=this.value;refresh()"></div>
       </div>`).join('')}
     </div>
     <button class="btn-add" onclick="addTeamMember()">+ Aggiungi membro</button>`;
+}
+
+function rAppLinks() {
+  const s = S.applinks;
+  return `
+    <div class="tog-row"><input type="checkbox" ${s.enabled?'checked':''} onchange="setEnabled('applinks',this.checked)"><label>Mostra sezione</label></div>
+    <div class="f-row two">
+      <div class="f"><label>Titolo sezione</label><input type="text" value="${x(s.title)}" oninput="S.applinks.title=this.value;refresh()"></div>
+      <div class="f"><label>Colonne griglia (2–6)</label><input type="text" value="${x(String(s.cols))}" style="width:60px" oninput="S.applinks.cols=Math.max(2,Math.min(6,parseInt(this.value)||4));refresh()"></div>
+    </div>
+    <div class="info-box">Per ogni app puoi usare un <strong>logo immagine</strong> (URL) oppure un <strong>emoji</strong> su sfondo colorato come fallback.</div>
+    <hr class="sec-sep">
+    <div class="items">${s.items.map((it,i) => `
+      <div class="item" draggable="true" ondragstart="dStart(event,'applinks','items',${i})" ondragover="dOver(event,'applinks',${i})" ondrop="dDrop(event,'applinks','items',${i})" ondragend="dEnd()">
+        <div class="item-hd"><span class="drag-handle" title="Trascina per riordinare">⠿</span><span class="item-num">${it.emoji||'🔗'} App ${i+1}</span><button class="item-del" onclick="removeAppLink(${i})">Rimuovi</button></div>
+        <div class="f"><label>URL Logo / Immagine (lascia vuoto → usa emoji)</label><input type="text" placeholder="/media/loghi/app.png oppure https://..." value="${x(it.img)}" oninput="S.applinks.items[${i}].img=this.value;refresh()"></div>
+        <div class="f-row two">
+          <div class="f"><label>Emoji fallback</label><input type="text" value="${x(it.emoji||'🔗')}" oninput="S.applinks.items[${i}].emoji=this.value;refresh()"></div>
+          <div class="f"><label>Colore sfondo emoji</label><input type="color" value="${it.color||'#1e3a5f'}" oninput="S.applinks.items[${i}].color=this.value;refresh()"></div>
+        </div>
+        <div class="f"><label>Nome app</label><input type="text" value="${x(it.name)}" oninput="S.applinks.items[${i}].name=this.value;refresh()"></div>
+        <div class="f"><label>Sottotitolo (opzionale)</label><input type="text" value="${x(it.subtitle||'')}" oninput="S.applinks.items[${i}].subtitle=this.value;refresh()"></div>
+        <div class="f"><label>Link URL</label><input type="text" value="${x(it.link)}" oninput="S.applinks.items[${i}].link=this.value;refresh()"></div>
+      </div>`).join('')}
+    </div>
+    <button class="btn-add" onclick="addAppLink()">+ Aggiungi app</button>`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -442,12 +487,15 @@ function removeChatBtn(i)  { S.chat.buttons.splice(i,1); rebuildSec('chat'); ref
 function addTeamMember()      { S.team.members.push({name:'Nuovo Membro',role:'Ruolo',photo:''}); rebuildSec('team'); refresh(); }
 function removeTeamMember(i)  { S.team.members.splice(i,1); rebuildSec('team'); refresh(); }
 
+function addAppLink()     { S.applinks.items.push({img:'',emoji:'🔗',name:'Nuova App',subtitle:'',link:'#',color:'#1e3a5f'}); rebuildSec('applinks'); refresh(); }
+function removeAppLink(i) { S.applinks.items.splice(i,1); rebuildSec('applinks'); refresh(); }
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PREVIEW HTML
 // ─────────────────────────────────────────────────────────────────────────────
 function genPreview() {
-  const hero = S.hero.map(c => `
-    <div style="flex:1;min-width:200px;border-radius:10px;overflow:hidden;position:relative;min-height:145px;
+  const hero = S.hero.map((c,i) => `
+    <div draggable="true" data-sec="hero" data-path="" data-iidx="${i}" style="flex:1;min-width:200px;border-radius:10px;overflow:hidden;position:relative;min-height:145px;
       background:${c.img?`url(${c.img}) center/cover no-repeat`:c.color};display:flex;flex-direction:column;justify-content:flex-end;">
       <div style="background:rgba(0,0,0,.38);padding:14px 16px;color:#fff">
         <div style="font-weight:800;font-size:.92rem;margin-bottom:4px">${h(c.title)}</div>
@@ -460,7 +508,7 @@ function genPreview() {
     <div style="flex:1;min-width:230px;background:#fff;border-radius:10px;border:1px solid #e2e8f0;overflow:hidden">
       <div style="background:#1e3a5f;color:#fff;padding:9px 13px;font-size:.8rem;font-weight:700">${h(S.assenze.title)}</div>
       <div style="padding:8px 10px">
-        ${S.assenze.buttons.map(b=>`<a href="${b.link}" style="display:block;background:${b.color};color:#fff;text-decoration:none;border-radius:7px;padding:9px 13px;margin-bottom:5px;font-size:.8rem;font-weight:800;text-align:center;letter-spacing:.04em">${h(b.label)}</a>`).join('')}
+        ${S.assenze.buttons.map((b,i)=>`<a draggable="true" data-sec="assenze" data-path="buttons" data-iidx="${i}" href="${b.link}" style="display:block;background:${b.color};color:#fff;text-decoration:none;border-radius:7px;padding:9px 13px;margin-bottom:5px;font-size:.8rem;font-weight:800;text-align:center;letter-spacing:.04em">${h(b.label)}</a>`).join('')}
       </div>
       ${S.assenze.footer_label?`<div style="padding:7px 13px;border-top:1px solid #e2e8f0;font-size:.7rem;color:#64748b">⚙ ${h(S.assenze.footer_label)}</div>`:''}
     </div>` : '';
@@ -480,7 +528,7 @@ function genPreview() {
     <div style="background:#fff;border-radius:10px;border:1px solid #e2e8f0;padding:15px">
       <div style="font-size:.87rem;font-weight:800;color:#1e3a5f;margin-bottom:11px">${h(S.servizi.title)}</div>
       <div style="display:flex;flex-wrap:wrap;gap:7px">
-        ${S.servizi.items.map(it=>`<a href="${it.link}" style="display:flex;align-items:center;gap:6px;padding:6px 11px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;text-decoration:none;color:#1a202c;font-size:.76rem;font-weight:600"><span>${it.icon}</span><span>${h(it.name)}</span></a>`).join('')}
+        ${S.servizi.items.map((it,i)=>`<a draggable="true" data-sec="servizi" data-path="items" data-iidx="${i}" href="${it.link}" style="display:flex;align-items:center;gap:6px;padding:6px 11px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;text-decoration:none;color:#1a202c;font-size:.76rem;font-weight:600"><span>${it.icon}</span><span>${h(it.name)}</span></a>`).join('')}
       </div>
     </div>` : '';
 
@@ -488,7 +536,7 @@ function genPreview() {
     <div style="background:#fff;border-radius:10px;border:1px solid #e2e8f0;padding:15px">
       <div style="font-size:.87rem;font-weight:800;color:#1e3a5f;margin-bottom:11px">${h(S.risorse.title)}</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:7px">
-        ${S.risorse.items.map(it=>`<a href="${it.link}" style="display:flex;align-items:center;gap:7px;padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;text-decoration:none;color:#1a202c;font-size:.74rem;font-weight:600;line-height:1.25"><span style="font-size:1.05rem;flex-shrink:0">${it.icon}</span><span>${h(it.name)}</span></a>`).join('')}
+        ${S.risorse.items.map((it,i)=>`<a draggable="true" data-sec="risorse" data-path="items" data-iidx="${i}" href="${it.link}" style="display:flex;align-items:center;gap:7px;padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;text-decoration:none;color:#1a202c;font-size:.74rem;font-weight:600;line-height:1.25"><span style="font-size:1.05rem;flex-shrink:0">${it.icon}</span><span>${h(it.name)}</span></a>`).join('')}
       </div>
     </div>` : '';
 
@@ -503,15 +551,15 @@ function genPreview() {
 
   const chat = S.chat.enabled && S.chat.buttons.length ? `
     <div style="display:flex;gap:9px;flex-wrap:wrap;justify-content:center">
-      ${S.chat.buttons.map(b=>`<a href="${b.link}" style="padding:10px 24px;background:${b.color};color:#fff;text-decoration:none;border-radius:8px;font-size:.8rem;font-weight:700">💬 ${h(b.label)}</a>`).join('')}
+      ${S.chat.buttons.map((b,i)=>`<a draggable="true" data-sec="chat" data-path="buttons" data-iidx="${i}" href="${b.link}" style="padding:10px 24px;background:${b.color};color:#fff;text-decoration:none;border-radius:8px;font-size:.8rem;font-weight:700">💬 ${h(b.label)}</a>`).join('')}
     </div>` : '';
 
   const team = S.team.enabled && S.team.members.length ? `
     <div style="background:#fff;border-radius:10px;border:1px solid #e2e8f0;padding:15px">
       <div style="font-size:.87rem;font-weight:800;color:#1e3a5f;margin-bottom:11px">${h(S.team.title)}</div>
       <div style="display:flex;gap:16px;flex-wrap:wrap">
-        ${S.team.members.map(m=>`
-          <div style="display:flex;align-items:center;gap:10px">
+        ${S.team.members.map((m,i)=>`
+          <div draggable="true" data-sec="team" data-path="members" data-iidx="${i}" style="display:flex;align-items:center;gap:10px">
             ${m.photo
               ? `<img src="${m.photo}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid #e2e8f0">`
               : `<div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#1e3a5f,#2563eb);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:1rem">${m.name.charAt(0)}</div>`}
@@ -520,17 +568,67 @@ function genPreview() {
       </div>
     </div>` : '';
 
-  return `<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8">
-<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,'Segoe UI',sans-serif;background:#eef0f5;color:#1a202c}
-.nav{background:#1e3a5f;color:#fff;padding:11px 22px;display:flex;align-items:center;justify-content:space-between;font-weight:700;font-size:.88rem}
-.content{max-width:1100px;margin:0 auto;padding:18px 14px 36px;display:flex;flex-direction:column;gap:14px}</style>
-</head><body>
-<div class="nav"><span>📋 Portale Novicrom</span><span style="font-size:.7rem;opacity:.55;font-weight:400">Anteprima — non riflette il tema finale</span></div>
-<div class="content">
-  <div style="display:flex;gap:11px;flex-wrap:wrap">${hero}</div>
-  ${(S.assenze.enabled||S.helpdesk.enabled)?`<div style="display:flex;gap:11px;align-items:flex-start;flex-wrap:wrap">${assenze}${helpdesk}</div>`:''}
-  ${servizi}${risorse}${notizie}${chat}${team}
-</div></body></html>`;
+  const applinks = S.applinks.enabled && S.applinks.items.length ? `
+    <div style="background:#fff;border-radius:10px;border:1px solid #e2e8f0;padding:15px">
+      <div style="font-size:.87rem;font-weight:800;color:#1e3a5f;margin-bottom:11px">${h(S.applinks.title)}</div>
+      <div style="display:grid;grid-template-columns:repeat(${Math.min(S.applinks.cols||4,6)},1fr);gap:10px">
+        ${S.applinks.items.map((it,i)=>`
+          <a draggable="true" data-sec="applinks" data-path="items" data-iidx="${i}" href="${it.link}" style="display:flex;flex-direction:column;align-items:center;gap:7px;padding:14px 8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;text-decoration:none;color:#1a202c;text-align:center">
+            ${it.img
+              ? `<img src="${it.img}" style="width:48px;height:48px;object-fit:contain;border-radius:8px">`
+              : `<div style="width:48px;height:48px;border-radius:8px;background:${it.color||'#1e3a5f'};display:flex;align-items:center;justify-content:center;font-size:1.55rem">${it.emoji||'🔗'}</div>`}
+            <div style="font-size:.78rem;font-weight:700;line-height:1.25">${h(it.name)}</div>
+            ${it.subtitle?`<div style="font-size:.68rem;color:#64748b">${h(it.subtitle)}</div>`:''}
+          </a>`).join('')}
+      </div>
+    </div>` : '';
+
+  // ── Order-aware block wrapping ───────────────────────────────────────────
+  const _lbls = {hero:'Hero',widgets:'Widget',servizi:'Servizi',risorse:'Risorse',notizie:'Notizie',chat:'Chat',team:'Team IT',applinks:'App'};
+  const _blkC = {
+    hero:    '<div style="display:flex;gap:11px;flex-wrap:wrap">'+hero+'</div>',
+    widgets: (assenze||helpdesk) ? '<div style="display:flex;gap:11px;align-items:flex-start;flex-wrap:wrap">'+assenze+helpdesk+'</div>' : '',
+    servizi, risorse, notizie, chat, team, applinks,
+  };
+  const _body = S.order.map(function(k,i){
+    var c=_blkC[k]; if(!c) return '';
+    return '<div data-block="'+k+'" data-bidx="'+i+'" draggable="true" style="position:relative">'
+          +'<div class="blk-h">\u283F '+(_lbls[k]||k)+'</div>'+c+'</div>';
+  }).join('');
+
+  const _pjs = `(function(){
+  var bd=null,id=null;
+  document.addEventListener('dragstart',function(e){
+    var it=e.target.closest('[data-sec]'),bl=it?null:e.target.closest('[data-block]');
+    if(it){id={el:it,sec:it.dataset.sec,path:it.dataset.path||'',iidx:+it.dataset.iidx};e.dataTransfer.effectAllowed='move';e.stopPropagation();setTimeout(function(){it.classList.add('dg');},0);}
+    else if(bl){bd={el:bl,bidx:+bl.dataset.bidx};e.dataTransfer.effectAllowed='move';setTimeout(function(){bl.classList.add('bl-dg');},0);}
+  });
+  document.addEventListener('dragover',function(e){
+    if(id){var t=e.target.closest('[data-sec="'+id.sec+'"]');if(!t)return;e.preventDefault();
+      document.querySelectorAll('[data-sec="'+id.sec+'"]').forEach(function(x){x.classList.remove('dg-ov');});
+      if(t!==id.el)t.classList.add('dg-ov');}
+    else if(bd){var t=e.target.closest('[data-block]');if(!t)return;e.preventDefault();
+      document.querySelectorAll('[data-block]').forEach(function(x){x.classList.remove('bl-ov');});
+      if(t!==bd.el)t.classList.add('bl-ov');}
+  });
+  document.addEventListener('drop',function(e){
+    if(id){var t=e.target.closest('[data-sec="'+id.sec+'"]');if(!t||t===id.el){_e();return;}e.preventDefault();
+      window.parent.postMessage({type:'reorder-item',sec:id.sec,path:id.path,from:id.iidx,to:+t.dataset.iidx},'*');}
+    else if(bd){var t=e.target.closest('[data-block]');if(!t||t===bd.el){_e();return;}e.preventDefault();
+      window.parent.postMessage({type:'reorder-block',from:bd.bidx,to:+t.dataset.bidx},'*');}
+    _e();
+  });
+  document.addEventListener('dragend',_e);
+  function _e(){
+    document.querySelectorAll('[data-sec]').forEach(function(x){x.classList.remove('dg','dg-ov');});
+    document.querySelectorAll('[data-block]').forEach(function(x){x.classList.remove('bl-dg','bl-ov');});
+    bd=null;id=null;
+  }
+})();`;
+
+  return `<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,'Segoe UI',sans-serif;background:#eef0f5;color:#1a202c}.nav{background:#1e3a5f;color:#fff;padding:11px 22px;display:flex;align-items:center;justify-content:space-between;font-weight:700;font-size:.88rem}.content{max-width:1100px;margin:0 auto;padding:18px 14px 36px;display:flex;flex-direction:column;gap:14px}[data-block]{position:relative;transition:opacity .2s}[data-block].bl-dg{opacity:.35}[data-block].bl-ov{outline:2px dashed #3b82f6;border-radius:10px}.blk-h{position:absolute;top:-1px;right:8px;background:rgba(30,58,95,.85);color:#fff;font-size:.62rem;padding:2px 9px;border-radius:0 0 7px 7px;cursor:grab;opacity:0;transition:opacity .15s;z-index:9;user-select:none;white-space:nowrap}[data-block]:hover .blk-h{opacity:1}[data-sec]{cursor:grab;transition:opacity .15s}[data-sec]:hover{outline:2px solid rgba(59,130,246,.4);border-radius:8px}.dg{opacity:.35}.dg-ov{outline:2px solid #3b82f6!important;border-radius:8px!important}</style></head><body>
+<div class="nav"><span>\uD83D\uDCCB Portale Novicrom</span><span style="font-size:.7rem;opacity:.55;font-weight:400">Trascina sezioni e card per riordinare \xb7 anteprima live</span></div>
+<div class="content">${_body}</div><script>${_pjs}<\/script></body></html>`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -608,6 +706,15 @@ ${S.chat.buttons.map(b=>`    <a href="${b.link}" class="hp-chat-btn" style="back
     <h2 class="hp-section-title">${h(S.team.title)}</h2>
     <div class="hp-team-row">
 ${S.team.members.map(m=>`      <div class="hp-team-member">\n        ${m.photo?`<img src="${m.photo}" class="hp-team-photo" alt="${h(m.name)}">`:`<div class="hp-team-avatar">${m.name.charAt(0)}</div>`}\n        <div><div class="hp-team-name">${h(m.name)}</div><div class="hp-team-role">${h(m.role)}</div></div>\n      </div>`).join('\n')}
+    </div>
+  </section>` : '';
+
+  const applinksHtml = S.applinks.enabled && S.applinks.items.length ? `
+  {# ── Accesso Rapido App ── #}
+  <section class="hp-section">
+    <h2 class="hp-section-title">${h(S.applinks.title)}</h2>
+    <div class="hp-applinks-grid" style="--applinks-cols:${Math.min(S.applinks.cols||4,6)}">
+${S.applinks.items.map(it=>`      <a href="${it.link}" class="hp-applink-card">\n        ${it.img?`<img src="${it.img}" class="hp-applink-logo" alt="${h(it.name)}">`:`<div class="hp-applink-logo-placeholder" style="background:${it.color||'#1e3a5f'}">${it.emoji||'🔗'}</div>`}\n        <div class="hp-applink-name">${h(it.name)}</div>\n        ${it.subtitle?`<div class="hp-applink-sub">${h(it.subtitle)}</div>`:''}\n      </a>`).join('\n')}
     </div>
   </section>` : '';
 
@@ -733,8 +840,31 @@ ${S.team.members.map(m=>`      <div class="hp-team-member">\n        ${m.photo?`
 .hp-team-name { font-weight: 700; font-size: .87rem; }
 .hp-team-role { font-size: .73rem; color: #64748b; margin-top: 1px; }
 
+/* App Links */
+.hp-applinks-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--applinks-cols, 4), 1fr);
+  gap: 10px;
+}
+.hp-applink-card {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 16px 10px; background: #f8fafc;
+  border: 1px solid var(--border, #e2e8f0); border-radius: 10px;
+  text-decoration: none; color: var(--text, #1a202c); text-align: center;
+  transition: background .12s, transform .12s;
+}
+.hp-applink-card:hover { background: #eff6ff; transform: translateY(-2px); }
+.hp-applink-logo { width: 52px; height: 52px; object-fit: contain; border-radius: 8px; }
+.hp-applink-logo-placeholder {
+  width: 52px; height: 52px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center; font-size: 1.6rem;
+}
+.hp-applink-name { font-size: .8rem; font-weight: 700; line-height: 1.25; }
+.hp-applink-sub  { font-size: .7rem; color: #64748b; }
+
 @media (max-width: 720px) {
   .hp-hero-row, .hp-col-row { flex-direction: column; }
+  .hp-applinks-grid { grid-template-columns: repeat(2, 1fr); }
 }
 </style>
 {% endblock %}
@@ -742,21 +872,16 @@ ${S.team.members.map(m=>`      <div class="hp-team-member">\n        ${m.photo?`
 {% block content %}
 <div class="hp-root">
 
-  {# ── Hero cards ─────────────────────────────────────────────────── #}
-  <div class="hp-hero-row">
-${heroHtml}
-  </div>
-
-  {# ── Widget row ──────────────────────────────────────────────────── #}
-  <div class="hp-col-row">
-${assenzeHtml}
-${helpdeskHtml}
-  </div>
-${serviziHtml}
-${risorseHtml}
-${notizieHtml}
-${chatHtml}
-${teamHtml}
+${S.order.map(k => ({
+  hero:    '  {# ── Hero cards ── #}\n  <div class="hp-hero-row">\n'+heroHtml+'\n  </div>',
+  widgets: (assenzeHtml||helpdeskHtml) ? '  {# ── Widget row ── #}\n  <div class="hp-col-row">\n'+assenzeHtml+'\n'+helpdeskHtml+'\n  </div>' : '',
+  servizi:  serviziHtml,
+  risorse:  risorseHtml,
+  notizie:  notizieHtml,
+  chat:     chatHtml,
+  team:     teamHtml,
+  applinks: applinksHtml,
+})[k] || '').filter(Boolean).join('\n')}
 
 </div>
 {% endblock %}`;
@@ -818,10 +943,78 @@ function refresh() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// DRAG & DROP — riordina items dentro una sezione
+// ─────────────────────────────────────────────────────────────────────────────
+let _dSec = null, _dPath = null, _dIdx = null;
+
+function _getArr(sec, path) {
+  return path ? S[sec][path] : S[sec];
+}
+
+function dStart(e, sec, path, i) {
+  _dSec = sec; _dPath = path; _dIdx = i;
+  e.dataTransfer.effectAllowed = 'move';
+  // leggero delay per non nascondere subito l'elemento mentre si trascina
+  setTimeout(() => {
+    const items = document.querySelectorAll(`#body-${sec} .item`);
+    if (items[i]) items[i].classList.add('dragging');
+  }, 0);
+}
+
+function dOver(e, sec, i) {
+  if (_dSec !== sec) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll(`#body-${sec} .item`).forEach((el, idx) => {
+    el.classList.toggle('drag-over', idx === i && idx !== _dIdx);
+  });
+}
+
+function dDrop(e, sec, path, i) {
+  e.preventDefault();
+  if (_dSec !== sec || _dPath !== path || _dIdx === null || _dIdx === i) {
+    dEnd(); return;
+  }
+  const arr = _getArr(sec, path);
+  const moved = arr.splice(_dIdx, 1)[0];
+  arr.splice(i, 0, moved);
+  _dSec = null; _dPath = null; _dIdx = null;
+  rebuildSec(sec);
+  refresh();
+}
+
+function dEnd() {
+  _dSec = null; _dPath = null; _dIdx = null;
+  document.querySelectorAll('.item').forEach(el => el.classList.remove('dragging', 'drag-over'));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // UTILS
 // ─────────────────────────────────────────────────────────────────────────────
 function x(s)  { return (s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function h(s)  { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PREVIEW → PARENT MESSAGE BRIDGE
+// ─────────────────────────────────────────────────────────────────────────────
+window.addEventListener('message', function(e) {
+  if (!e.data || !e.data.type) return;
+  if (e.data.type === 'reorder-block') {
+    const {from, to} = e.data;
+    if (from === to) return;
+    const moved = S.order.splice(from, 1)[0];
+    S.order.splice(to, 0, moved);
+    refresh();
+  } else if (e.data.type === 'reorder-item') {
+    const {sec, path, from, to} = e.data;
+    if (from === to) return;
+    const arr = path ? S[sec][path] : S[sec];
+    const moved = arr.splice(from, 1)[0];
+    arr.splice(to, 0, moved);
+    rebuildSec(sec);
+    refresh();
+  }
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // INIT

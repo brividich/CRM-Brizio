@@ -1,11 +1,17 @@
 {% if subnav_items %}
 <div class="subnav">
+  {% with prev_group="" %}
   {% for item in subnav_items %}
+    {% if item.group and item.group != prev_group and not forloop.first %}
+      <div class="sub-sep"></div>
+    {% endif %}
     <a class="sub-a{% if item.active %} active{% endif %}{% if item.coming %} coming{% endif %}"
        href="{{ item.href }}"
        {% if item.coming %}title="In arrivo"{% endif %}>
-      {{ item.label }}
+      {% if item.icon %}<span style="margin-right:4px">{{ item.icon }}</span>{% endif %}{{ item.label }}
     </a>
+    {% with prev_group=item.group %}{% endwith %}
   {% endfor %}
+  {% endwith %}
 </div>
 {% endif %}

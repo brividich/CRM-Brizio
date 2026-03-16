@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Report Segnalazione #{{ anomalia.id }}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      font-size: 13px;
+      color: #1f2937;
+      background: #fff;
+      padding: 0;
+    }
+
+    /* ── Barra azioni (nascosta in stampa) ─────────────────────────────────── */
+    .action-bar {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 20px;
+      background: #1a5499; color: #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,.2);
+    }
+    .action-bar h1 { font-size: 14px; font-weight: 800; flex: 1; letter-spacing: .06em; text-transform: uppercase; }
+    .btn-print {
+      padding: 7px 18px; border-radius: 8px; border: 2px solid rgba(255,255,255,.6);
+      background: transparent; color: #fff; font-size: 13px; font-weight: 700;
+      cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn-print:hover { background: rgba(255,255,255,.15); }
+    .btn-back {
+      padding: 7px 14px; border-radius: 8px; border: none;
+      background: rgba(255,255,255,.18); color: #fff; font-size: 12px; font-weight: 700;
+      cursor: pointer; text-decoration: none;
+    }
+    .btn-back:hover { background: rgba(255,255,255,.28); }
+
+    /* ── Documento ─────────────────────────────────────────────────────────── */
+    .doc {
+      max-width: 860px;
+      margin: 28px auto 60px;
+      padding: 0 24px;
+    }
+
+    /* ── Intestazione ──────────────────────────────────────────────────────── */
+    .doc-header {
+      display: flex; align-items: flex-start; gap: 20px;
+      padding: 24px 28px;
+      background: linear-gradient(135deg, #1e3a5f 0%, #1a5499 100%);
+      border-radius: 16px 16px 0 0;
+      color: #fff;
+    }
+    .doc-header-title { flex: 1; }
+    .doc-header-title h2 { font-size: 22px; font-weight: 900; letter-spacing: .03em; margin-bottom: 4px; }
+    .doc-header-title .sub { font-size: 13px; color: rgba(255,255,255,.72); }
+    .doc-header-meta { text-align: right; font-size: 12px; color: rgba(255,255,255,.8); line-height: 1.7; }
+    .badge-stato {
+      display: inline-block; padding: 4px 14px; border-radius: 20px; font-size: 12px; font-weight: 800;
+      letter-spacing: .04em; text-transform: uppercase; margin-top: 8px;
+    }
+    .badge-aperta { background: rgba(251,191,36,.25); color: #fbbf24; border: 1.5px solid rgba(251,191,36,.5); }
+    .badge-chiusa { background: rgba(52,211,153,.25); color: #6ee7b7; border: 1.5px solid rgba(52,211,153,.5); }
+
+    /* ── Sezioni ───────────────────────────────────────────────────────────── */
+    .section {
+      border: 1px solid #e2e8f0; border-top: none;
+      padding: 20px 28px;
+    }
+    .section:last-child { border-radius: 0 0 16px 16px; }
+    .section-title {
+      font-size: 11px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .08em; color: #1a5499; margin-bottom: 14px;
+      padding-bottom: 8px; border-bottom: 2px solid #e2e8f0;
+    }
+
+    /* ── Griglia campi ─────────────────────────────────────────────────────── */
+    .fields-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 24px; }
+    .fields-grid.three-col { grid-template-columns: repeat(3, 1fr); }
+    .field { display: flex; flex-direction: column; gap: 3px; }
+    .field.full { grid-column: 1 / -1; }
+    .field-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: #94a3b8; }
+    .field-value {
+      font-size: 14px; color: #1f2937; font-weight: 500;
+      padding: 6px 0; border-bottom: 1px solid #f1f5f9; min-height: 28px;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .field-value.empty { color: #cbd5e1; font-style: italic; }
+
+    /* ── Avanzamento badge ─────────────────────────────────────────────────── */
+    .avanzamento-chip {
+      display: inline-block; padding: 5px 16px; border-radius: 20px;
+      font-size: 13px; font-weight: 700;
+      background: #eff6ff; color: #1d4ed8; border: 1.5px solid #bfdbfe;
+    }
+
+    /* ── Flag booleane ─────────────────────────────────────────────────────── */
+    .flag-row { display: flex; flex-wrap: wrap; gap: 10px; }
+    .flag {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 700;
+    }
+    .flag-yes { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .flag-no  { background: #f1f5f9; color: #94a3b8; border: 1px solid #e2e8f0; }
+    .flag-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .flag-yes .flag-dot { background: #16a34a; }
+    .flag-no  .flag-dot { background: #cbd5e1; }
+
+    /* ── Note ──────────────────────────────────────────────────────────────── */
+    .note-box {
+      background: #f8fafc; border: 1px solid #e2e8f0;
+      border-radius: 10px; padding: 14px 16px;
+      font-size: 13px; color: #374151; line-height: 1.6;
+      min-height: 60px; white-space: pre-wrap; word-break: break-word;
+    }
+    .note-box.empty { color: #cbd5e1; font-style: italic; }
+
+    /* ── Allegati ──────────────────────────────────────────────────────────── */
+    .allegati-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+    .allegati-list li {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+      font-size: 13px; color: #374151;
+    }
+    .allegati-list li .icon { font-size: 16px; }
+
+    /* ── Firma ─────────────────────────────────────────────────────────────── */
+    .sign-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px 30px; margin-top: 6px; }
+    .sign-block { display: flex; flex-direction: column; gap: 6px; }
+    .sign-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: #94a3b8; }
+    .sign-line { border-bottom: 1.5px solid #cbd5e1; height: 36px; }
+
+    /* ── Footer ────────────────────────────────────────────────────────────── */
+    .doc-footer {
+      margin-top: 20px; padding: 12px 0;
+      font-size: 11px; color: #94a3b8; text-align: center;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    /* ── STAMPA ────────────────────────────────────────────────────────────── */
+    @media print {
+      .action-bar { display: none !important; }
+      body { background: #fff !important; }
+      .doc { margin: 0; padding: 0; max-width: 100%; }
+      .doc-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .section { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Barra azioni -->
+<div class="action-bar">
+  <h1>Report Segnalazione #{{ anomalia.id }}</h1>
+  <a href="javascript:history.back()" class="btn-back">&#8592; Indietro</a>
+  <button class="btn-print" onclick="window.print()">&#128438; Stampa / PDF</button>
+</div>
+
+<div class="doc">
+
+  <!-- Intestazione documento -->
+  <div class="doc-header">
+    <div class="doc-header-title">
+      <h2>Segnalazione anomalia n. {{ anomalia.id }}</h2>
+      <div class="sub">Portale Novicrom — Gestione Anomalie</div>
+      {% if anomalia.chiudere == "1" or anomalia.chiudere == "True" %}
+        <div><span class="badge-stato badge-chiusa">&#10003; Chiusa</span></div>
+      {% else %}
+        <div><span class="badge-stato badge-aperta">&#9679; Aperta</span></div>
+      {% endif %}
+    </div>
+    <div class="doc-header-meta">
+      <div><strong>Creato il</strong><br>{{ anomalia.created_datetime|default:"—" }}</div>
+      <div style="margin-top:8px"><strong>Ultima modifica</strong><br>{{ anomalia.modified_datetime|default:"—" }}</div>
+    </div>
+  </div>
+
+  <!-- Identificazione OP -->
+  <div class="section">
+    <div class="section-title">Identificazione</div>
+    <div class="fields-grid three-col">
+      <div class="field">
+        <div class="field-label">Nominativo OP</div>
+        <div class="field-value {% if not anomalia.ex_op_nominativo %}empty{% endif %}">{{ anomalia.ex_op_nominativo|default:"—" }}</div>
+      </div>
+      <div class="field">
+        <div class="field-label">Seriale</div>
+        <div class="field-value {% if not anomalia.seriale %}empty{% endif %}">{{ anomalia.seriale|default:"—" }}</div>
+      </div>
+      <div class="field">
+        <div class="field-label">Avanzamento</div>
+        <div class="field-value">
+          {% if anomalia.avanzamento %}
+            <span class="avanzamento-chip">{{ anomalia.avanzamento }}</span>
+          {% else %}
+            <span class="empty">—</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Descrizione anomalia -->
+  <div class="section">
+    <div class="section-title">Descrizione anomalia</div>
+    <div class="note-box {% if not anomalia.descrizione %}empty{% endif %}">{{ anomalia.descrizione|default:"Nessuna descrizione inserita." }}</div>
+  </div>
+
+  <!-- Note capocommessa -->
+  <div class="section">
+    <div class="section-title">Note capocommessa</div>
+    <div class="note-box {% if not anomalia.note_capocommessa %}empty{% endif %}">{{ anomalia.note_capocommessa|default:"Nessuna nota." }}</div>
+  </div>
+
+  <!-- Dati RDC e azioni -->
+  <div class="section">
+    <div class="section-title">RDC e azioni richieste</div>
+    <div class="fields-grid">
+      <div class="field">
+        <div class="field-label">Numero RDC</div>
+        <div class="field-value {% if not anomalia.numero_rdc %}empty{% endif %}">{{ anomalia.numero_rdc|default:"—" }}</div>
+      </div>
+      <div class="field">
+        <div class="field-label">Pezzo recuperato</div>
+        <div class="field-value {% if not anomalia.pezzo_recuperato %}empty{% endif %}">{{ anomalia.pezzo_recuperato|default:"—" }}</div>
+      </div>
+      <div class="field full">
+        <div class="field-label">Flag azioni</div>
+        <div class="flag-row" style="margin-top:4px">
+          {% if anomalia.aprire_rdc == "1" or anomalia.aprire_rdc == "True" %}
+            <span class="flag flag-yes"><span class="flag-dot"></span>Aprire RDC</span>
+          {% else %}
+            <span class="flag flag-no"><span class="flag-dot"></span>Aprire RDC</span>
+          {% endif %}
+          {% if anomalia.segnalare_cliente == "1" or anomalia.segnalare_cliente == "True" %}
+            <span class="flag flag-yes"><span class="flag-dot"></span>Segnalare al cliente</span>
+          {% else %}
+            <span class="flag flag-no"><span class="flag-dot"></span>Segnalare al cliente</span>
+          {% endif %}
+          {% if anomalia.chiudere == "1" or anomalia.chiudere == "True" %}
+            <span class="flag flag-yes"><span class="flag-dot"></span>Chiusa</span>
+          {% else %}
+            <span class="flag flag-no"><span class="flag-dot"></span>Non chiusa</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Allegati -->
+  <div class="section">
+    <div class="section-title">Allegati ({{ allegati|length }})</div>
+    {% if allegati %}
+      <ul class="allegati-list">
+        {% for nome in allegati %}
+          <li>
+            <span class="icon">
+              {% if nome|lower|slice:"-4:" == ".pdf" %}📄
+              {% elif nome|lower|slice:"-4:" == ".jpg" or nome|lower|slice:"-4:" == "jpeg" or nome|lower|slice:"-4:" == ".png" %}🖼️
+              {% elif nome|lower|slice:"-4:" == ".xls" or nome|lower|slice:"-5:" == ".xlsx" %}📊
+              {% elif nome|lower|slice:"-4:" == ".doc" or nome|lower|slice:"-5:" == ".docx" %}📝
+              {% else %}📎
+              {% endif %}
+            </span>
+            {{ nome }}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="note-box empty">Nessun allegato presente.</div>
+    {% endif %}
+  </div>
+
+  <!-- Firme -->
+  <div class="section">
+    <div class="section-title">Firme e validazione</div>
+    <div class="sign-grid">
+      <div class="sign-block">
+        <div class="sign-label">Compilato da</div>
+        <div class="sign-line"></div>
+      </div>
+      <div class="sign-block">
+        <div class="sign-label">Capocommessa</div>
+        <div class="sign-line"></div>
+      </div>
+      <div class="sign-block">
+        <div class="sign-label">Responsabile qualità</div>
+        <div class="sign-line"></div>
+      </div>
+      <div class="sign-block">
+        <div class="sign-label">Data</div>
+        <div class="sign-line"></div>
+      </div>
+      <div class="sign-block">
+        <div class="sign-label">Data</div>
+        <div class="sign-line"></div>
+      </div>
+      <div class="sign-block">
+        <div class="sign-label">Data</div>
+        <div class="sign-line"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="doc-footer">
+    Report generato dal Portale Novicrom — Segnalazione #{{ anomalia.id }} — {{ anomalia.created_datetime|default:"" }}
+  </div>
+
+</div>
+</body>
+</html>

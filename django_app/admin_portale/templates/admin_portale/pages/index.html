@@ -67,8 +67,11 @@
   {% url 'admin_portale:automazioni_contenuti'    as automazioni_contenuti_url %}
   {% url 'admin_portale:automazioni_queue_list'   as automazioni_queue_url %}
   {% url 'admin_portale:automazioni_run_log_list' as automazioni_run_log_url %}
-  {% url 'hub_tools:hub_moduli'    as hub_moduli_url %}
-  {% url 'hub_tools:hub_database'  as hub_database_url %}
+  {% url 'hub_tools:hub_moduli'               as hub_moduli_url %}
+  {% url 'hub_tools:hub_database'             as hub_database_url %}
+  {% url 'hub_tools:hub_homepage_builder'     as hub_homepage_builder_url %}
+  {% url 'hub_tools:hub_setup_wizard'         as hub_setup_wizard_url %}
+  {% url 'hub_tools:hub_guide_list'           as hub_guide_list_url %}
 
   {% include "admin_portale/components/page_header.html" with page_title="Pannello Amministrazione" page_subtitle="Gestione utenti, permessi, navigazione, automazioni e strumenti di sistema." %}
   {% include "admin_portale/components/flash_messages.html" %}
@@ -331,12 +334,12 @@
   </div>
 
   <!-- ── 6. Hub Tools ───────────────────────────────────────── -->
-  {% if hub_moduli_url or hub_database_url %}
+  {% if hub_moduli_url or hub_database_url or hub_homepage_builder_url or hub_setup_wizard_url or hub_guide_list_url %}
   <div class="card card-hub">
     <div class="card-head" style="display:flex;align-items:center;justify-content:space-between;">
       <div>
         <div class="card-title">🛠️ Hub Tools</div>
-        <div class="card-subtitle">Strumenti di sistema riservati allo staff — gestione moduli e database</div>
+        <div class="card-subtitle">Strumenti di sistema riservati allo staff — moduli, database, builder e documentazione</div>
       </div>
       <span style="font-size:.72rem;font-weight:700;color:#60a5fa;background:rgba(96,165,250,.15);padding:3px 12px;border-radius:20px;letter-spacing:.04em;">STAFF ONLY</span>
     </div>
@@ -357,6 +360,33 @@
           <div>
             <div class="hub-mod-name">Gestione Database</div>
             <div class="hub-mod-sub">Statistiche tabelle, backup, pulizia sessioni/log, ottimizzazione e ripristino.</div>
+          </div>
+        </a>
+        {% endif %}
+        {% if hub_homepage_builder_url %}
+        <a class="hub-mod" href="{{ hub_homepage_builder_url }}">
+          <div class="hub-mod-icon">🏠</div>
+          <div>
+            <div class="hub-mod-name">Homepage Builder</div>
+            <div class="hub-mod-sub">Editor visuale per configurare le sezioni della homepage e generare il template Django.</div>
+          </div>
+        </a>
+        {% endif %}
+        {% if hub_setup_wizard_url %}
+        <a class="hub-mod" href="{{ hub_setup_wizard_url }}">
+          <div class="hub-mod-icon">⚙️</div>
+          <div>
+            <div class="hub-mod-name">Setup Wizard</div>
+            <div class="hub-mod-sub">Riconfigura il portale: database, LDAP, SMTP, moduli e altri parametri con valori attuali precompilati.</div>
+          </div>
+        </a>
+        {% endif %}
+        {% if hub_guide_list_url %}
+        <a class="hub-mod" href="{{ hub_guide_list_url }}">
+          <div class="hub-mod-icon">📚</div>
+          <div>
+            <div class="hub-mod-name">Guide e Manuali</div>
+            <div class="hub-mod-sub">Documentazione tecnica, guide operative e strumenti di riferimento per la gestione del portale.</div>
           </div>
         </a>
         {% endif %}

@@ -88,7 +88,19 @@ class NavigationItem(models.Model):
     is_visible = models.BooleanField(default=True)
     is_enabled = models.BooleanField(default=True)
     open_in_new_tab = models.BooleanField(default=False)
-    description = models.CharField(max_length=255, blank=True, default="")
+    icon = models.CharField(
+        max_length=20, blank=True, default="",
+        help_text="Emoji o icona breve mostrata accanto alla label (es. 🏠, 📊).",
+    )
+    group = models.CharField(
+        max_length=80, blank=True, default="",
+        help_text="Gruppo visivo per separatori nella subnav (es. accessi, navigazione, hub). Voci con stesso gruppo sono raggruppate.",
+    )
+    active_patterns = models.CharField(
+        max_length=500, blank=True, default="",
+        help_text="View name Django separati da virgola per rilevamento stato attivo (es. admin_portale:utenti_list,admin_portale:utente_edit). Lascia vuoto per usare solo l'URL.",
+    )
+    description = models.CharField(max_length=500, blank=True, default="")
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

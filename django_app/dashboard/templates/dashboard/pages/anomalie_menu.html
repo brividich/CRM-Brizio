@@ -62,13 +62,13 @@
 
     /* Logo */
     .logo-wrap {
-      margin-bottom: 8px;
+      margin-bottom: 12px;
     }
     .logo-img {
       width: 500px;
-      max-width: 78vw;
-      mix-blend-mode: multiply; /* makes white bg transparent against gray */
+      max-width: 75vw;
       display: block;
+      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.18));
     }
 
     /* Ghost title */
@@ -181,7 +181,7 @@
   <main class="main">
     <div class="logo-wrap">
       <img
-        src="{% static 'core/img/logo_novicrom.png' %}"
+        src="{% if menu_logo_url %}{{ menu_logo_url }}{% else %}{% static 'core/img/logo_novicrom.png' %}{% endif %}"
         alt="Logo applicativo"
         class="logo-img"
       />

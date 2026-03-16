@@ -27,6 +27,9 @@ class NavigationNode:
     legacy_url: str
     modulo: str
     codice: str
+    icon: str = ""
+    group: str = ""
+    active_patterns: str = ""
 
 
 def _safe_int(value, default: int) -> int:
@@ -104,12 +107,14 @@ def _compiled_items_for_role(*, role_id: int | None, is_admin: bool, section: st
     label_overrides = navigation_code_label_map(surface="menu")
     for item in items:
         item_access = access_map.get(int(item.id), {})
-        # Nessun record accesso -> visibile a tutti
-        allowed = True
-        if item_access and not is_admin:
-            allowed = bool(role_id is not None and item_access.get(int(role_id), False))
-        if not allowed:
+        # Nessun record accesso -> voce non ancora configurata, non mostrata
+        if not item_access:
             continue
+        # Ha righe accesso: admin vede sempre, non-admin controlla il proprio ruolo
+        if not is_admin:
+            allowed = bool(role_id is not None and item_access.get(int(role_id), False))
+            if not allowed:
+                continue
         href, coming = _resolve_item_href(item)
         normalized_code = str(item.code or "").strip().lower()
         compiled.append(
@@ -123,6 +128,9 @@ def _compiled_items_for_role(*, role_id: int | None, is_admin: bool, section: st
                 "route_name": item.route_name,
                 "url_path": item.url_path,
                 "parent_code": item.parent_code or "",
+                "icon": item.icon or "",
+                "group": item.group or "",
+                "active_patterns": item.active_patterns or "",
             }
         )
     cache.set(cache_key, compiled, timeout=_NAV_CACHE_TTL)
@@ -148,6 +156,9 @@ def get_subnav_nodes(*, parent_code: str, role_id: int | None, is_admin: bool) -
                 legacy_url=row.get("route_name") or row.get("url_path") or "",
                 modulo="navigation",
                 codice=row["code"],
+                icon=row.get("icon", ""),
+                group=row.get("group", ""),
+                active_patterns=row.get("active_patterns", ""),
             )
         )
     nodes.sort(key=lambda n: (n.order_hint, n.label.lower()))
@@ -172,6 +183,9 @@ def get_topbar_nodes(*, current_path: str, role_id: int | None, is_admin: bool) 
                 legacy_url=href_path,
                 modulo="navigation",
                 codice=row["code"],
+                icon=row.get("icon", ""),
+                group=row.get("group", ""),
+                active_patterns=row.get("active_patterns", ""),
             )
         )
     nodes.sort(key=lambda n: (n.order_hint, n.label.lower()))
@@ -186,12 +200,16 @@ def export_navigation_state() -> dict:
                 "code": item.code,
                 "label": item.label,
                 "section": item.section,
+                "parent_code": item.parent_code or "",
                 "route_name": item.route_name,
                 "url_path": item.url_path,
                 "order": item.order,
                 "is_visible": item.is_visible,
                 "is_enabled": item.is_enabled,
                 "open_in_new_tab": item.open_in_new_tab,
+                "icon": item.icon or "",
+                "group": item.group or "",
+                "active_patterns": item.active_patterns or "",
                 "description": item.description,
             }
         )
@@ -241,12 +259,16 @@ def restore_navigation_snapshot(snapshot: NavigationSnapshot) -> None:
                 code=code,
                 label=str(row.get("label") or code),
                 section=str(row.get("section") or "topbar"),
+                parent_code=str(row.get("parent_code") or "").strip(),
                 route_name=str(row.get("route_name") or "").strip(),
                 url_path=str(row.get("url_path") or "").strip(),
                 order=_safe_int(row.get("order"), 100),
                 is_visible=bool(row.get("is_visible", True)),
                 is_enabled=bool(row.get("is_enabled", True)),
                 open_in_new_tab=bool(row.get("open_in_new_tab", False)),
+                icon=str(row.get("icon") or "").strip(),
+                group=str(row.get("group") or "").strip(),
+                active_patterns=str(row.get("active_patterns") or "").strip(),
                 description=str(row.get("description") or "").strip(),
             )
             item_map[code] = item

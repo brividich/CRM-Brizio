@@ -702,10 +702,10 @@ class NavigationRegistryBrandingTests(TestCase):
         }
     )
     def test_navigation_registry_applies_branding_override_on_topbar_label(self):
-        from core.models import NavigationItem
+        from core.models import NavigationItem, NavigationRoleAccess
 
         NavigationItem.objects.filter(code="assets").delete()
-        NavigationItem.objects.create(
+        item = NavigationItem.objects.create(
             code="assets",
             label="Inventario asset",
             section="topbar",
@@ -714,6 +714,7 @@ class NavigationRegistryBrandingTests(TestCase):
             is_visible=True,
             is_enabled=True,
         )
+        NavigationRoleAccess.objects.create(item=item, legacy_role_id=1, can_view=True)
 
         nodes = get_topbar_nodes(current_path="/dashboard", role_id=None, is_admin=True)
 
@@ -730,10 +731,10 @@ class NavigationRegistryBrandingTests(TestCase):
         }
     )
     def test_navigation_registry_branding_keeps_code_and_href_stable(self):
-        from core.models import NavigationItem
+        from core.models import NavigationItem, NavigationRoleAccess
 
         NavigationItem.objects.filter(code="assets").delete()
-        NavigationItem.objects.create(
+        item = NavigationItem.objects.create(
             code="assets",
             label="Inventario asset",
             section="topbar",
@@ -742,6 +743,7 @@ class NavigationRegistryBrandingTests(TestCase):
             is_visible=True,
             is_enabled=True,
         )
+        NavigationRoleAccess.objects.create(item=item, legacy_role_id=1, can_view=True)
 
         nodes = get_topbar_nodes(current_path="/dashboard", role_id=None, is_admin=True)
         assets_nodes = [node for node in nodes if node.codice == "assets"]

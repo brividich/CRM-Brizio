@@ -144,7 +144,7 @@ def build_module_versions(default_version: str) -> dict[str, str]:
 MODULE_VERSIONS = build_module_versions(APP_VERSION)
 LEGACY_AUTH_ENABLED = env_bool("LEGACY_AUTH_ENABLED", True)
 NAVIGATION_REGISTRY_ENABLED = env_bool("NAVIGATION_REGISTRY_ENABLED", True)
-NAVIGATION_LEGACY_FALLBACK_ENABLED = env_bool("NAVIGATION_LEGACY_FALLBACK_ENABLED", True)
+NAVIGATION_LEGACY_FALLBACK_ENABLED = env_bool("NAVIGATION_LEGACY_FALLBACK_ENABLED", False)
 # Layer di presentazione per il branding moduli.
 # Precedenza runtime:
 # 1. SiteConfig: module_branding.<module_key>.<field>

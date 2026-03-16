@@ -4,6 +4,10 @@ hub_tools/views.py — Strumenti di gestione BrizioHUB
 Views:
   /admin-portale/hub/moduli/           → module manager
   /admin-portale/hub/database/         → DB manager (stats, backup, cleanup, ottimizza, ripristino)
+  /admin-portale/hub/homepage-builder/ → Homepage Builder (visual editor)
+  /admin-portale/hub/setup-wizard/     → Setup Wizard riconfigura (legge .env corrente)
+  /admin-portale/hub/guide/            → Guide e Manuali (lista)
+  /admin-portale/hub/guide/<slug>/     → Visualizza guida specifica
 
 Tutte le views richiedono utente staff (is_staff=True).
 """
@@ -14,14 +18,81 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from django.http import FileResponse, JsonResponse
+from django.http import FileResponse, HttpResponse, Http404, JsonResponse
 from django.shortcuts import render
+from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from admin_portale.decorators import legacy_admin_required as _staff_required
 
 _APP_DIR = Path(__file__).resolve().parent.parent  # django_app/
 _BACKUP_DIR = _APP_DIR.parent / "backup" / "db"
+_TOOLS_DIR = _APP_DIR.parent / "tools"
+_ENV_PATH = _APP_DIR / ".env"
+
+# ── Catalogo Guide e Manuali ──────────────────────────────────────────────────
+GUIDES = [
+    {
+        "slug": "manuale-navigazione",
+        "title": "Manuale Navigazione & Permessi",
+        "icon": "📖",
+        "file": "MANUALE_ADMIN_NAVIGAZIONE_PERMESSI.html",
+        "desc": "Guida completa alla gestione della navigazione, pulsanti legacy, Navigation Builder e permessi utente.",
+    },
+    {
+        "slug": "mappa-moduli",
+        "title": "Mappa Moduli",
+        "icon": "🗺️",
+        "file": "mappa_moduli.html",
+        "desc": "Catalogo completo dei moduli del portale con descrizione funzionale, dipendenze e configurazione.",
+    },
+    {
+        "slug": "audit-acl",
+        "title": "Audit ACL e Permessi",
+        "icon": "🔐",
+        "file": "AUDIT_ACL_PERMESSI.html",
+        "desc": "Documento di audit tecnico del sistema ACL: pipeline, bug noti, permessi hardcoded e architettura target.",
+    },
+    {
+        "slug": "homepage-builder-guida",
+        "title": "Homepage Builder — Guida",
+        "icon": "🏠",
+        "file": "homepage-builder.html",
+        "desc": "Editor visuale con drag&drop nell'anteprima per configurare e riordinare le sezioni della homepage. Supporta griglia app con loghi personalizzati. Genera template Django pronto all'uso.",
+    },
+    {
+        "slug": "setup-wizard-guida",
+        "title": "Setup Wizard — Guida",
+        "icon": "⚙️",
+        "file": "setup-wizard.html",
+        "desc": "Guida interattiva al setup iniziale del portale: configurazione database, LDAP, SMTP, moduli e branding.",
+    },
+    {
+        "slug": "schema-layout",
+        "title": "Schema Layout Pagine",
+        "icon": "📐",
+        "file": "schema-layout.html",
+        "desc": "Schema visivo del layout del portale: dove si trova la Topnav, la Subnav e il Content, e da dove vengono i dati di ciascuno.",
+    },
+]
+
+
+def _read_env() -> dict:
+    """Legge il file .env e restituisce un dizionario chiave→valore (senza virgolette)."""
+    values = {}
+    if not _ENV_PATH.exists():
+        return values
+    for raw in _ENV_PATH.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        key = key.strip()
+        val = val.strip().strip("'\"")
+        values[key] = val
+    return values
 
 # ── Definizione moduli ────────────────────────────────────────────────────────
 MODULE_DEFS = [
@@ -368,5 +439,248 @@ def api_db_restore(request):
             return JsonResponse({"ok": True, "message": f"Database SQL Server ripristinato da '{bak_path}'. Riavvia il server."})
 
         return JsonResponse({"ok": False, "error": f"Engine '{engine}' non supportato"})
+    except Exception as exc:
+        return JsonResponse({"ok": False, "error": str(exc)})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Homepage Builder
+# ══════════════════════════════════════════════════════════════════════════════
+
+@_staff_required
+def homepage_builder(request):
+    """Mostra l'Homepage Builder integrato nell'admin (in iframe)."""
+    return render(request, "hub_tools/homepage_builder.html")
+
+
+@_staff_required
+@xframe_options_exempt
+@require_GET
+def homepage_builder_tool(request):
+    """Serve il file standalone homepage-builder.html dalla cartella tools/."""
+    filepath = _TOOLS_DIR / "homepage-builder.html"
+    if not filepath.exists():
+        raise Http404("Homepage Builder non trovato")
+    return HttpResponse(filepath.read_text(encoding="utf-8"), content_type="text/html; charset=utf-8")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Setup Wizard — Riconfigura (legge .env corrente)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@_staff_required
+def setup_wizard_hub(request):
+    """Mostra il Setup Wizard precompilato con i valori del .env corrente."""
+    env = _read_env()
+    return render(request, "hub_tools/setup_wizard.html", {"env": env})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Guide e Manuali
+# ══════════════════════════════════════════════════════════════════════════════
+
+@_staff_required
+def guide_list(request):
+    """Elenco guide e manuali disponibili."""
+    return render(request, "hub_tools/guide_list.html", {"guides": GUIDES})
+
+
+@_staff_required
+def guide_view(request, slug):
+    """Visualizza una guida specifica in iframe."""
+    guide = next((g for g in GUIDES if g["slug"] == slug), None)
+    if not guide:
+        raise Http404("Guida non trovata")
+    return render(request, "hub_tools/guide_view.html", {"guide": guide})
+
+
+@_staff_required
+@xframe_options_exempt
+@require_GET
+def guide_serve(request, filename):
+    """Serve un file HTML dalla cartella tools/ (solo file nel catalogo GUIDES)."""
+    allowed = {g["file"] for g in GUIDES}
+    if filename not in allowed:
+        raise Http404("File non trovato")
+    filepath = _TOOLS_DIR / filename
+    if not filepath.exists():
+        raise Http404("File non trovato")
+    return HttpResponse(filepath.read_text(encoding="utf-8"), content_type="text/html; charset=utf-8")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# API Riconfigura — salva .env e config.ini anche a setup già completato
+# ══════════════════════════════════════════════════════════════════════════════
+
+@_staff_required
+@require_POST
+def api_reconfigure(request):
+    """
+    Salva la configurazione nel .env e config.ini senza verificare SETUP_COMPLETED.
+    Richiamato dal Setup Wizard hub (riconfigura sistema già installato).
+    """
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({"ok": False, "error": "JSON non valido"})
+
+    def s(key, default=""):
+        return str(data.get(key) or default).strip()
+
+    def b(key, default=False):
+        return "1" if data.get(key, default) else "0"
+
+    # Legge il .env attuale per preservare campi non gestiti da questo form
+    current_env = _read_env()
+
+    # Preserva SECRET_KEY e SETUP_COMPLETED esistenti
+    secret_key = current_env.get("DJANGO_SECRET_KEY", "")
+    if not secret_key or secret_key.upper() in ("CHANGE_ME", "CHANGE_ME_FROM_ENV"):
+        import secrets as _secrets
+        import string as _string
+        alphabet = _string.ascii_letters + _string.digits + "!@#$%^&*(-_=+)"
+        secret_key = "".join(_secrets.choice(alphabet) for _ in range(50))
+
+    instance_name = s("instance_name", current_env.get("INSTANCE_NAME", "BrizioHUB"))
+    ldap_enabled_ini = "true" if data.get("ldap_enabled") else "false"
+
+    env_lines = f"""\
+# ── BrizioHUB — Configurazione aggiornata da Hub Setup Wizard ─────────────────
+INSTANCE_NAME={instance_name}
+DJANGO_SECRET_KEY={secret_key}
+APP_VERSION={s('app_version', current_env.get('APP_VERSION', '0.7.2'))}
+DJANGO_DEBUG={current_env.get('DJANGO_DEBUG', '0')}
+DJANGO_ALLOWED_HOSTS={current_env.get('DJANGO_ALLOWED_HOSTS', '*')}
+SETUP_COMPLETED=1
+
+# Branding
+BRANDING_LOGO={current_env.get('BRANDING_LOGO', '')}
+BRANDING_FAVICON={current_env.get('BRANDING_FAVICON', '')}
+
+# Sicurezza HTTPS
+SECURE_SSL_REDIRECT={b('secure_ssl')}
+CSRF_COOKIE_SECURE={b('csrf_secure')}
+SESSION_COOKIE_SECURE={b('session_secure')}
+
+# Database
+DB_ENGINE={s('db_engine', current_env.get('DB_ENGINE', 'sqlserver'))}
+DB_HOST={s('db_host', current_env.get('DB_HOST', ''))}
+DB_NAME={s('db_name', current_env.get('DB_NAME', ''))}
+DB_USER={s('db_user', current_env.get('DB_USER', ''))}
+DB_PASSWORD={s('db_password', current_env.get('DB_PASSWORD', ''))}
+DB_DRIVER={s('db_driver', current_env.get('DB_DRIVER', 'ODBC Driver 18 for SQL Server'))}
+DB_TRUST_CERT={b('db_trust_cert')}
+
+# Autenticazione e navigazione
+LEGACY_AUTH_ENABLED={current_env.get('LEGACY_AUTH_ENABLED', '1')}
+NAVIGATION_REGISTRY_ENABLED={b('nav_registry', current_env.get('NAVIGATION_REGISTRY_ENABLED', '0') == '1')}
+NAVIGATION_LEGACY_FALLBACK_ENABLED=1
+ASSENZE_SYNC_ON_PAGE_LOAD={current_env.get('ASSENZE_SYNC_ON_PAGE_LOAD', '0')}
+SESSION_IDLE_TIMEOUT_SECONDS={s('session_timeout', current_env.get('SESSION_IDLE_TIMEOUT_SECONDS', '3600'))}
+SESSION_EXPIRE_AT_BROWSER_CLOSE={b('session_expire', True)}
+LEGACY_ACL_CACHE_TTL={s('acl_cache_ttl', current_env.get('LEGACY_ACL_CACHE_TTL', '120'))}
+LEGACY_NAV_CACHE_TTL={s('nav_cache_ttl', current_env.get('LEGACY_NAV_CACHE_TTL', '120'))}
+
+# Active Directory / LDAP
+LDAP_ENABLED={b('ldap_enabled')}
+LDAP_SERVER={s('ldap_server', current_env.get('LDAP_SERVER', ''))}
+LDAP_DOMAIN={s('ldap_domain', current_env.get('LDAP_DOMAIN', ''))}
+LDAP_UPN_SUFFIX={s('ldap_upn', current_env.get('LDAP_UPN_SUFFIX', ''))}
+LDAP_TIMEOUT={s('ldap_timeout', current_env.get('LDAP_TIMEOUT', '5'))}
+LDAP_SERVICE_USER={s('ldap_service_user', current_env.get('LDAP_SERVICE_USER', ''))}
+LDAP_SERVICE_PASSWORD={s('ldap_service_password', current_env.get('LDAP_SERVICE_PASSWORD', ''))}
+LDAP_BASE_DN={s('ldap_base_dn', current_env.get('LDAP_BASE_DN', ''))}
+LDAP_USER_FILTER={current_env.get('LDAP_USER_FILTER', '(&(objectCategory=person)(objectClass=user))')}
+LDAP_GROUP_ALLOWLIST={current_env.get('LDAP_GROUP_ALLOWLIST', '')}
+LDAP_SYNC_PAGE_SIZE={current_env.get('LDAP_SYNC_PAGE_SIZE', '500')}
+
+# Microsoft Graph / SharePoint
+GRAPH_TENANT_ID={s('graph_tenant_id', current_env.get('GRAPH_TENANT_ID', ''))}
+GRAPH_CLIENT_ID={s('graph_client_id', current_env.get('GRAPH_CLIENT_ID', ''))}
+GRAPH_CLIENT_SECRET={s('graph_client_secret', current_env.get('GRAPH_CLIENT_SECRET', ''))}
+GRAPH_SITE_ID={s('graph_site_id', current_env.get('GRAPH_SITE_ID', ''))}
+GRAPH_LIST_ID_ASSENZE={s('graph_list_assenze', current_env.get('GRAPH_LIST_ID_ASSENZE', ''))}
+GRAPH_LIST_ID_DIPENDENTI={s('graph_list_dipendenti', current_env.get('GRAPH_LIST_ID_DIPENDENTI', ''))}
+GRAPH_LIST_ID_CAPOREPARTO={s('graph_list_caporeparto', current_env.get('GRAPH_LIST_ID_CAPOREPARTO', ''))}
+GRAPH_LIST_ID_ANOMALIE_DB={s('graph_list_anomalie_db', current_env.get('GRAPH_LIST_ID_ANOMALIE_DB', ''))}
+
+# Assenze
+ASSENZE_SP_PULL_INTERVAL_SECONDS={current_env.get('ASSENZE_SP_PULL_INTERVAL_SECONDS', '300')}
+ASSENZE_CALENDAR_MAX_EVENTS={current_env.get('ASSENZE_CALENDAR_MAX_EVENTS', '1500')}
+ASSENZE_CALENDAR_COLORS_CACHE_TTL={current_env.get('ASSENZE_CALENDAR_COLORS_CACHE_TTL', '300')}
+
+# SQL logging
+SQL_LOG_ENABLED={current_env.get('SQL_LOG_ENABLED', '0')}
+SQL_LOG_LEVEL={current_env.get('SQL_LOG_LEVEL', 'DEBUG')}
+SQL_LOG_FORCE_DEBUG_CURSOR={current_env.get('SQL_LOG_FORCE_DEBUG_CURSOR', '0')}
+SQL_LOG_MAX_BYTES={current_env.get('SQL_LOG_MAX_BYTES', '10485760')}
+SQL_LOG_BACKUP_COUNT={current_env.get('SQL_LOG_BACKUP_COUNT', '10')}
+
+# SMTP
+EMAIL_HOST={s('email_host', current_env.get('EMAIL_HOST', ''))}
+EMAIL_PORT={s('email_port', current_env.get('EMAIL_PORT', '587'))}
+EMAIL_HOST_USER={s('email_user', current_env.get('EMAIL_HOST_USER', ''))}
+EMAIL_HOST_PASSWORD={s('email_password', current_env.get('EMAIL_HOST_PASSWORD', ''))}
+EMAIL_USE_TLS={b('email_tls', True)}
+DEFAULT_FROM_EMAIL={s('email_from', current_env.get('DEFAULT_FROM_EMAIL', ''))}
+"""
+
+    # Aggiorna anche config.ini
+    _CONFIG_INI_PATH = _APP_DIR.parent / "config.ini"
+    ini_lines = f"""\
+; BrizioHUB — Configurazione aggiornata da Hub Setup Wizard
+
+[APP]
+debug = False
+secret_key = LOADED_FROM_ENV
+
+[DATABASE]
+path = {current_env.get('LEGACY_DB_PATH', 'utenti.db')}
+
+[SQLSERVER]
+server = {s('db_host', current_env.get('DB_HOST', ''))}
+database = {s('db_name', current_env.get('DB_NAME', ''))}
+driver = {s('db_driver', current_env.get('DB_DRIVER', 'ODBC Driver 18 for SQL Server'))}
+username = {s('db_user', current_env.get('DB_USER', ''))}
+password = {s('db_password', current_env.get('DB_PASSWORD', ''))}
+encrypt = yes
+trust_server_certificate = {'yes' if data.get('db_trust_cert') else 'no'}
+login_timeout = 5
+
+[CACHE]
+foto_ttl = 600
+assenze_ttl = {s('session_timeout', current_env.get('ASSENZE_SP_PULL_INTERVAL_SECONDS', '300'))}
+capi_ttl = 600
+
+[AZIENDA]
+tenant_id = {s('graph_tenant_id', current_env.get('GRAPH_TENANT_ID', ''))}
+client_id = {s('graph_client_id', current_env.get('GRAPH_CLIENT_ID', ''))}
+client_secret = {s('graph_client_secret', current_env.get('GRAPH_CLIENT_SECRET', ''))}
+site_id = {s('graph_site_id', current_env.get('GRAPH_SITE_ID', ''))}
+list_id_assenze = {s('graph_list_assenze', current_env.get('GRAPH_LIST_ID_ASSENZE', ''))}
+list_id_dipendenti = {s('graph_list_dipendenti', current_env.get('GRAPH_LIST_ID_DIPENDENTI', ''))}
+list_id_caporeparto = {s('graph_list_caporeparto', current_env.get('GRAPH_LIST_ID_CAPOREPARTO', ''))}
+list_id_anomalie_db = {s('graph_list_anomalie_db', current_env.get('GRAPH_LIST_ID_ANOMALIE_DB', ''))}
+
+[ACTIVE_DIRECTORY]
+enabled = {ldap_enabled_ini}
+server = {s('ldap_server', current_env.get('LDAP_SERVER', ''))}
+domain = {s('ldap_domain', current_env.get('LDAP_DOMAIN', ''))}
+upn_suffix = {s('ldap_upn', current_env.get('LDAP_UPN_SUFFIX', ''))}
+timeout = {s('ldap_timeout', current_env.get('LDAP_TIMEOUT', '5'))}
+service_user = {s('ldap_service_user', current_env.get('LDAP_SERVICE_USER', ''))}
+service_password = {s('ldap_service_password', current_env.get('LDAP_SERVICE_PASSWORD', ''))}
+base_dn = {s('ldap_base_dn', current_env.get('LDAP_BASE_DN', ''))}
+
+[DEFAULT]
+default_password = CHANGE_ME
+"""
+
+    try:
+        _ENV_PATH.write_text(env_lines, encoding="utf-8")
+        _CONFIG_INI_PATH.write_text(ini_lines, encoding="utf-8")
+        return JsonResponse({"ok": True, "message": "Configurazione salvata con successo. Riavvia il server per applicare le modifiche al database/LDAP."})
+    except PermissionError as exc:
+        return JsonResponse({"ok": False, "error": f"Permessi insufficienti per scrivere .env: {exc}"})
     except Exception as exc:
         return JsonResponse({"ok": False, "error": str(exc)})

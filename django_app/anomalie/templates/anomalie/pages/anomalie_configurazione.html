@@ -211,6 +211,8 @@
     <div class="topbar-sep"></div>
     <a href="/gestione-anomalie/nuova-segnalazione">Apertura Segnalazione</a>
     <div class="topbar-sep"></div>
+    <a href="/gestione-anomalie/statistiche">Statistiche</a>
+    <div class="topbar-sep"></div>
     <div class="topbar-title">Gestione Anomalie</div>
     <div class="topbar-user">{{ username }}</div>
   </div>
@@ -372,6 +374,99 @@
       </form>
     </div>
 
+    <div class="card" id="card-logo">
+      <div class="card-head">
+        <div class="card-title">Logo Menu Anomalie</div>
+        <div class="card-sub">Sostituisce il logo al centro della pagina menu. Il logo viene mostrato senza sfondo — usa un file PNG con sfondo trasparente.</div>
+      </div>
+      <div class="card-body" style="grid-template-columns:1fr;gap:16px">
+
+        <!-- Requisiti immagine -->
+        <div style="background:#f0f5ff;border:1px solid #c7d8f0;border-radius:10px;padding:12px 16px;font-size:13px;line-height:1.7;color:#2c4a6e;">
+          <strong style="display:block;margin-bottom:4px;">Requisiti immagine</strong>
+          <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:2px;">
+            <li><strong>Formato consigliato:</strong> PNG con sfondo trasparente (alpha channel)</li>
+            <li><strong>Risoluzione consigliata:</strong> 1000 × 260 px (ratio ~3.8:1)</li>
+            <li><strong>Dimensione massima file:</strong> 2 MB</li>
+            <li><strong>Formati accettati:</strong> PNG, JPG, JPEG, SVG, WebP, GIF</li>
+            <li><strong>Nota:</strong> JPG e WebP non supportano la trasparenza — potrebbe apparire un rettangolo bianco dietro al logo</li>
+          </ul>
+        </div>
+
+        <div style="display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap">
+          <!-- Anteprima su sfondo uguale al menu -->
+          <div style="flex-shrink:0;background:radial-gradient(ellipse at 50% 40%,#c8d0d8 0%,#adb8c2 100%);border-radius:10px;padding:16px 24px;min-width:220px;display:flex;align-items:center;justify-content:center">
+            <img id="logo-preview" src="" alt="Anteprima logo"
+                 style="max-width:280px;max-height:80px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.18));display:none">
+            <span id="logo-placeholder" style="font-size:13px;color:rgba(30,60,90,.5);font-weight:600">Nessun logo personalizzato</span>
+          </div>
+          <div style="flex:1;min-width:200px">
+            <label class="field" style="gap:6px;display:flex;flex-direction:column">
+              <span style="font-size:13px;font-weight:800;color:#374151">Carica nuovo logo</span>
+              <input type="file" id="logo-file-input" accept=".png,.jpg,.jpeg,.gif,.svg,.webp"
+                     style="font-size:13px;padding:6px 0;">
+            </label>
+            <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+              <button class="btn btn-main" id="btn-logo-upload" type="button">Carica e salva</button>
+              <button class="btn btn-secondary" id="btn-logo-reset" type="button">Ripristina default</button>
+            </div>
+            <div id="logo-status" class="status" style="margin:10px 0 0;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="card-report-template">
+      <div class="card-head">
+        <div class="card-title">Template Report Segnalazione</div>
+        <div class="card-sub">
+          Carica un template HTML personalizzato usato per generare il report riepilogativo di ogni segnalazione.
+          Se non è presente un template personalizzato, viene usato quello di default del sistema.
+        </div>
+      </div>
+      <div class="card-body" style="grid-template-columns:1fr;gap:18px">
+
+        <!-- Linee guida -->
+        <div style="background:#f0f5ff;border:1px solid #c7d8f0;border-radius:10px;padding:14px 16px;font-size:13px;line-height:1.65;color:#2c4a6e;">
+          <strong style="display:block;margin-bottom:6px;">Linee guida per il template</strong>
+          <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;">
+            <li>Il file deve essere un <strong>.html</strong> valido in codifica <strong>UTF-8</strong>, max 512 KB.</li>
+            <li>Usa la sintassi <strong>Django Template</strong>: le variabili sono accessibili tramite <code>&#123;&#123; anomalia.campo &#125;&#125;</code>.</li>
+            <li>Placeholder <strong>obbligatori</strong> (devono comparire nel file):
+              <code>&#123;&#123; anomalia.id &#125;&#125;</code>,
+              <code>&#123;&#123; anomalia.seriale &#125;&#125;</code>,
+              <code>&#123;&#123; anomalia.descrizione &#125;&#125;</code>.
+            </li>
+            <li>Altri campi disponibili: <code>ex_op_nominativo</code>, <code>avanzamento</code>, <code>note_capocommessa</code>, <code>numero_rdc</code>, <code>chiudere</code>, <code>created_datetime</code>, <code>modified_datetime</code>.</li>
+            <li>La lista allegati è in <code>&#123;&#123; allegati &#125;&#125;</code> (lista di nomi file).</li>
+            <li>Non sono permessi tag <code>&lt;script src="https://..."&gt;</code> verso domini esterni.</li>
+            <li>Scarica il template di default come punto di partenza: <a href="/api/anomalie/report?id=0&_tpl_default=1" target="_blank" style="color:#1a5499;">report_default.html</a> (apri una segnalazione valida con <code>/api/anomalie/report?id=ID</code>).</li>
+          </ul>
+        </div>
+
+        <!-- Stato template corrente -->
+        <div id="tpl-status-row" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <span id="tpl-status-badge" style="padding:5px 14px;border-radius:20px;font-size:12px;font-weight:800;background:#e2e8f0;color:#475569;">Caricamento...</span>
+          <span id="tpl-status-detail" style="font-size:12px;color:#64748b;"></span>
+          <button id="btn-tpl-reset" class="btn btn-secondary" type="button" style="margin-left:auto;display:none;">Ripristina template default</button>
+        </div>
+
+        <!-- Upload form -->
+        <div>
+          <label class="field" style="gap:6px;display:flex;flex-direction:column;">
+            <span style="font-size:13px;font-weight:800;color:#374151;">Carica nuovo template (.html)</span>
+            <input type="file" id="tpl-file-input" accept=".html" style="font-size:13px;padding:6px 0;">
+          </label>
+          <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <button class="btn btn-main" id="btn-tpl-upload" type="button">Valida e carica</button>
+            <span id="tpl-upload-status" class="status" style="margin:0;"></span>
+          </div>
+          <!-- Risultato validazione -->
+          <div id="tpl-validation-result" style="display:none;margin-top:12px;padding:12px 14px;border-radius:10px;font-size:13px;"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-head">
         <div class="card-title">Gestione Liste</div>
@@ -451,7 +546,7 @@
         </form>
         <div style="overflow-x:auto;">
           <table class="ga-tbl">
-            <thead><tr><th>#</th><th>Nominativo OP</th><th>Seriale</th><th>Avanzamento</th><th>Stato</th><th>Modificata</th></tr></thead>
+            <thead><tr><th>#</th><th>Nominativo OP</th><th>Seriale</th><th>Avanzamento</th><th>Stato</th><th>Modificata</th><th></th></tr></thead>
             <tbody>
             {% for a in anomalie_record %}
               <tr>
@@ -461,6 +556,7 @@
                 <td>{{ a.avanzamento|default:"—" }}</td>
                 <td>{% if a.chiudere %}<span class="ga-badge ga-badge-chiusa">Chiusa</span>{% else %}<span class="ga-badge ga-badge-aperta">Aperta</span>{% endif %}</td>
                 <td>{{ a.modified_datetime|default:"—" }}</td>
+                <td><a href="/api/anomalie/report?id={{ a.id }}" target="_blank" class="ga-btn ga-btn-primary" style="padding:3px 10px;font-size:11px;">Report</a></td>
               </tr>
             {% empty %}
               <tr><td colspan="6" style="color:#9aadcb;text-align:center;">Nessuna anomalia trovata</td></tr>
@@ -612,6 +708,171 @@
       fill(window._CFG_LISTS || defaults, window._CFG_ATTACHMENTS_DIR || defaults.attachments_dir);
       loadFromApi();
     })();
+  </script>
+  <script>
+  // ── Logo Menu ──────────────────────────────────────────────────────────────
+  (function () {
+    const previewImg = document.getElementById('logo-preview');
+    const placeholder = document.getElementById('logo-placeholder');
+    const fileInput  = document.getElementById('logo-file-input');
+    const btnUpload  = document.getElementById('btn-logo-upload');
+    const btnReset   = document.getElementById('btn-logo-reset');
+    const statusEl   = document.getElementById('logo-status');
+    const getCsrf = () => (document.cookie.split(';').find(c => c.trim().startsWith('csrftoken=')) || '').split('=')[1] || '';
+
+    function showLogo(url) {
+      if (url) {
+        previewImg.src = url + '?t=' + Date.now();
+        previewImg.style.display = 'block';
+        placeholder.style.display = 'none';
+      } else {
+        previewImg.style.display = 'none';
+        placeholder.style.display = '';
+      }
+    }
+
+    function setStatus(ok, msg) {
+      statusEl.className = 'status ' + (ok ? 'ok' : 'err');
+      statusEl.textContent = msg;
+    }
+
+    // Carica anteprima logo corrente dal server
+    fetch('/api/anomalie/config/liste')
+      .then(r => r.json())
+      .then(d => showLogo(d.menu_logo || ''))
+      .catch(() => {});
+
+    // Preview locale prima dell'upload
+    fileInput.addEventListener('change', function () {
+      const file = this.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => showLogo(e.target.result);
+      reader.readAsDataURL(file);
+    });
+
+    btnUpload.addEventListener('click', async function () {
+      const file = fileInput.files[0];
+      if (!file) { setStatus(false, 'Seleziona prima un file.'); return; }
+      const fd = new FormData();
+      fd.append('logo', file);
+      btnUpload.disabled = true;
+      try {
+        const r = await fetch('/api/anomalie/config/logo', { method: 'POST', headers: { 'X-CSRFToken': getCsrf() }, body: fd });
+        const d = await r.json();
+        if (d.success) { showLogo(d.url); setStatus(true, 'Logo salvato. Ricarica il menu per vederlo.'); fileInput.value = ''; }
+        else setStatus(false, d.error || 'Errore upload');
+      } catch (e) { setStatus(false, e.message); }
+      btnUpload.disabled = false;
+    });
+
+    btnReset.addEventListener('click', async function () {
+      if (!confirm('Ripristinare il logo di default?')) return;
+      btnReset.disabled = true;
+      try {
+        const r = await fetch('/api/anomalie/config/logo/reset', { method: 'POST', headers: { 'X-CSRFToken': getCsrf() } });
+        const d = await r.json();
+        if (d.success) { showLogo(''); setStatus(true, 'Logo ripristinato al default.'); }
+        else setStatus(false, d.error || 'Errore');
+      } catch (e) { setStatus(false, e.message); }
+      btnReset.disabled = false;
+    });
+  })();
+  </script>
+  <script>
+  // ── Template Report Segnalazione ────────────────────────────────────────────
+  (function () {
+    const badge      = document.getElementById('tpl-status-badge');
+    const detail     = document.getElementById('tpl-status-detail');
+    const btnReset   = document.getElementById('btn-tpl-reset');
+    const fileInput  = document.getElementById('tpl-file-input');
+    const btnUpload  = document.getElementById('btn-tpl-upload');
+    const uploadSt   = document.getElementById('tpl-upload-status');
+    const valResult  = document.getElementById('tpl-validation-result');
+    if (!badge) return; // non siamo nella tab config
+    const getCsrf = () => (document.cookie.split(';').find(c => c.trim().startsWith('csrftoken=')) || '').split('=')[1] || '';
+
+    function setUploadStatus(ok, msg) {
+      uploadSt.className = 'status ' + (ok ? 'ok' : 'err');
+      uploadSt.textContent = msg;
+    }
+
+    function showValidation(errors) {
+      if (!errors || !errors.length) {
+        valResult.style.display = 'none';
+        return;
+      }
+      valResult.style.display = 'block';
+      valResult.style.background = '#fef2f2';
+      valResult.style.border = '1px solid #fca5a5';
+      valResult.style.color = '#991b1b';
+      valResult.innerHTML = '<strong>Errori di validazione:</strong><ul style="margin:6px 0 0;padding-left:18px;">'
+        + errors.map(e => `<li>${e}</li>`).join('') + '</ul>';
+    }
+
+    function refreshStatus() {
+      fetch('/api/anomalie/config/report-template')
+        .then(r => r.json())
+        .then(d => {
+          if (d.has_custom) {
+            badge.textContent = 'Template personalizzato';
+            badge.style.background = '#dcfce7';
+            badge.style.color = '#166534';
+            detail.textContent = `Caricato il ${d.modified} — ${Math.round(d.size / 1024)} KB`;
+            btnReset.style.display = '';
+          } else {
+            badge.textContent = 'Template di default';
+            badge.style.background = '#e2e8f0';
+            badge.style.color = '#475569';
+            detail.textContent = 'Nessun template personalizzato attivo.';
+            btnReset.style.display = 'none';
+          }
+        })
+        .catch(() => {
+          badge.textContent = 'Errore caricamento stato';
+          badge.style.color = '#dc2626';
+        });
+    }
+
+    btnReset.addEventListener('click', async function () {
+      if (!confirm('Ripristinare il template di default? Il template personalizzato verrà eliminato.')) return;
+      btnReset.disabled = true;
+      try {
+        const fd = new FormData();
+        fd.append('action', 'reset');
+        const r = await fetch('/api/anomalie/config/report-template', { method: 'POST', headers: { 'X-CSRFToken': getCsrf() }, body: fd });
+        const d = await r.json();
+        if (d.success) { refreshStatus(); setUploadStatus(true, d.message); valResult.style.display = 'none'; }
+        else setUploadStatus(false, d.error || 'Errore');
+      } catch (e) { setUploadStatus(false, e.message); }
+      btnReset.disabled = false;
+    });
+
+    btnUpload.addEventListener('click', async function () {
+      const file = fileInput.files[0];
+      if (!file) { setUploadStatus(false, 'Seleziona prima un file .html.'); return; }
+      valResult.style.display = 'none';
+      btnUpload.disabled = true;
+      try {
+        const fd = new FormData();
+        fd.append('action', 'upload');
+        fd.append('template', file);
+        const r = await fetch('/api/anomalie/config/report-template', { method: 'POST', headers: { 'X-CSRFToken': getCsrf() }, body: fd });
+        const d = await r.json();
+        if (d.success) {
+          refreshStatus();
+          setUploadStatus(true, d.message);
+          fileInput.value = '';
+        } else {
+          showValidation(d.errors);
+          setUploadStatus(false, 'Validazione fallita. Correggi gli errori e ricarica.');
+        }
+      } catch (e) { setUploadStatus(false, e.message); }
+      btnUpload.disabled = false;
+    });
+
+    refreshStatus();
+  })();
   </script>
 </body>
 </html>

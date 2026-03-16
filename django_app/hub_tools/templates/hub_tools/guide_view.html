@@ -1,0 +1,108 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Hub Tools — {{ guide.title }}{% endblock %}
+
+{% block content %}
+<style>
+.gv-wrap {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 120px);
+  min-height: 600px;
+}
+.gv-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: #1e3a5f;
+  border-radius: 10px 10px 0 0;
+  color: #fff;
+  flex-shrink: 0;
+  gap: 12px;
+}
+.gv-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.gv-icon { font-size: 1.3rem; flex-shrink: 0; }
+.gv-title { font-size: .9rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gv-topbar-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.gv-btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: .78rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.gv-btn-outline {
+  background: rgba(255,255,255,.12);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.3);
+}
+.gv-btn-outline:hover { background: rgba(255,255,255,.22); color: #fff; }
+.gv-iframe-wrap {
+  flex: 1;
+  border: 1px solid #d1d9e6;
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  overflow: hidden;
+  background: #fff;
+}
+.gv-iframe-wrap iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+</style>
+
+<div style="max-width:1400px;margin:0 auto;padding:20px">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <a href="{% url 'hub_tools:hub_guide_list' %}" style="font-size:.84rem;color:#64748b;text-decoration:none">← Guide e Manuali</a>
+      <span style="color:#d1d9e6">/</span>
+      <span style="font-size:.84rem;font-weight:600;color:#1e2333">{{ guide.title }}</span>
+    </div>
+    <a href="{% url 'hub_tools:hub_guide_serve' guide.file %}" target="_blank"
+       style="font-size:.82rem;color:#1a6fc4;text-decoration:none;display:inline-flex;align-items:center;gap:4px">
+      ↗ Apri in nuova scheda
+    </a>
+  </div>
+
+  <div class="gv-wrap">
+    <div class="gv-topbar">
+      <div class="gv-topbar-left">
+        <span class="gv-icon">{{ guide.icon }}</span>
+        <span class="gv-title">{{ guide.title }}</span>
+      </div>
+      <div class="gv-topbar-actions">
+        <a href="{% url 'hub_tools:hub_guide_serve' guide.file %}" target="_blank" class="gv-btn gv-btn-outline">
+          ↗ Nuova scheda
+        </a>
+        <a href="{% url 'hub_tools:hub_guide_list' %}" class="gv-btn gv-btn-outline">
+          ← Lista guide
+        </a>
+      </div>
+    </div>
+    <div class="gv-iframe-wrap">
+      <iframe
+        src="{% url 'hub_tools:hub_guide_serve' guide.file %}"
+        title="{{ guide.title }}"
+        allowfullscreen
+      ></iframe>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

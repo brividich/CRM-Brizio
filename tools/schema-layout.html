@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Schema Layout — Portale Novicrom</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f7; color: #1a202c; }
+
+/* ── Layout reale simulato ── */
+.sim-wrap { max-width: 1000px; margin: 30px auto; }
+
+h1 { font-size: 1.3rem; font-weight: 800; margin-bottom: 6px; color: #1e3a5f; }
+.intro { font-size: .85rem; color: #64748b; margin-bottom: 24px; line-height: 1.6; }
+
+/* ── Browser chrome ── */
+.browser {
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 8px 40px rgba(0,0,0,.18);
+  border: 1px solid #c8d3e0;
+}
+.browser-bar {
+  background: #e8edf5;
+  border-bottom: 1px solid #c8d3e0;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.b-dots { display: flex; gap: 5px; }
+.b-dot { width: 10px; height: 10px; border-radius: 50%; }
+.b-dot.r { background: #f87171; } .b-dot.y { background: #fbbf24; } .b-dot.g { background: #4ade80; }
+.b-url {
+  flex: 1;
+  background: #fff;
+  border: 1px solid #c8d3e0;
+  border-radius: 20px;
+  padding: 3px 14px;
+  font-size: .75rem;
+  color: #64748b;
+}
+
+/* ── TOPNAV ── */
+.topnav {
+  background: #1e3a5f;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 0;
+  position: relative;
+}
+.topnav-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 20px;
+  border-right: 1px solid rgba(255,255,255,.2);
+  margin-right: 16px;
+  flex-shrink: 0;
+}
+.logo-sq { width: 32px; height: 32px; background: #f97316; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: .95rem; }
+.logo-txt-wrap .co { font-size: .6rem; color: rgba(255,255,255,.55); letter-spacing: .1em; }
+.logo-txt-wrap .nm { font-size: .78rem; color: #fff; font-weight: 700; }
+.topnav-links { display: flex; align-items: center; gap: 2px; flex: 1; }
+.nav-a {
+  padding: 6px 13px;
+  border-radius: 6px;
+  font-size: .82rem;
+  font-weight: 500;
+  color: rgba(255,255,255,.75);
+  text-decoration: none;
+  cursor: default;
+}
+.nav-a.active { background: rgba(255,255,255,.15); color: #fff; font-weight: 600; }
+.nav-a:hover { color: #fff; }
+.topnav-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.avatar { width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,.2); display: flex; align-items: center; justify-content: center; font-size: .7rem; font-weight: 700; color: #fff; }
+.user-txt .uname { font-size: .78rem; font-weight: 600; color: #fff; }
+.user-txt .urole { font-size: .65rem; color: rgba(255,255,255,.6); }
+.logout { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2); border-radius: 5px; padding: 4px 10px; font-size: .72rem; color: rgba(255,255,255,.8); cursor: default; }
+
+/* ── SUBNAV ── */
+.subnav {
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 4px;
+}
+.sub-a {
+  padding: 5px 13px;
+  border-radius: 6px;
+  font-size: .8rem;
+  font-weight: 500;
+  color: #64748b;
+  text-decoration: none;
+  cursor: default;
+}
+.sub-a.active { background: #eff6ff; color: #1a6fc4; font-weight: 600; }
+.sub-sep { width: 1px; height: 20px; background: #e2e8f0; margin: 0 4px; }
+
+/* ── CONTENT ── */
+.content {
+  background: #f0f2f7;
+  padding: 24px;
+  min-height: 280px;
+}
+.content-inner {
+  background: #fff;
+  border: 1.5px solid #d1d9e6;
+  border-radius: 10px;
+  padding: 20px;
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: .85rem;
+  text-align: center;
+}
+
+/* ── Annotation overlays ── */
+.annot {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* ── Annotation table ── */
+.legend { margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+.leg-card {
+  background: #fff;
+  border: 1.5px solid #d1d9e6;
+  border-radius: 9px;
+  padding: 14px 16px;
+}
+.leg-card.c1 { border-color: #f97316; }
+.leg-card.c2 { border-color: #1a6fc4; }
+.leg-card.c3 { border-color: #22a860; }
+.leg-title { font-size: .82rem; font-weight: 800; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+.leg-card.c1 .leg-title { color: #f97316; }
+.leg-card.c2 .leg-title { color: #1a6fc4; }
+.leg-card.c3 .leg-title { color: #22a860; }
+.leg-row { font-size: .76rem; color: #475569; margin-bottom: 4px; display: flex; gap: 6px; }
+.leg-row b { color: #1e2333; font-weight: 600; min-width: 80px; }
+.leg-tag {
+  display: inline-block;
+  font-size: .65rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+.tag-db   { background: #fef3c7; color: #92400e; }
+.tag-code { background: #f3e8ff; color: #6b21a8; }
+.tag-nav  { background: #dbeafe; color: #1e40af; }
+
+/* ── Bracket annotations ── */
+.frame-wrap { position: relative; }
+.bracket {
+  position: absolute;
+  right: -110px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+.bracket-line {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.bracket-label {
+  background: #1e3a5f;
+  color: #fff;
+  font-size: .7rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+  letter-spacing: .04em;
+}
+.bracket-label.l-orange { background: #f97316; }
+.bracket-label.l-blue   { background: #1a6fc4; }
+.bracket-label.l-green  { background: #22a860; }
+.bracket-label.l-gray   { background: #64748b; }
+
+.h-line { position: absolute; right: 0; width: 8px; border-top: 2px solid; border-right: 2px solid; }
+.h-line.c-orange { border-color: #f97316; }
+.h-line.c-blue   { border-color: #1a6fc4; }
+.h-line.c-green  { border-color: #22a860; }
+.h-line.c-gray   { border-color: #64748b; }
+
+/* ── Source table ── */
+.src-table { margin-top: 28px; width: 100%; border-collapse: collapse; font-size: .8rem; }
+.src-table th { background: #f8fafc; padding: 8px 12px; text-align: left; font-size: .72rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid #e2e8f0; }
+.src-table td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+.src-table tr:last-child td { border-bottom: none; }
+.src-table tr:hover td { background: #f8fafc; }
+code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: .75rem; font-family: 'Courier New', monospace; color: #1e40af; }
+
+/* ── Section title ── */
+.sec-title { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #94a3b8; margin: 24px 0 10px; }
+</style>
+</head>
+<body>
+
+<div class="sim-wrap">
+
+  <h1>📐 Schema Layout — Portale Novicrom</h1>
+  <p class="intro">
+    Ogni pagina del portale è composta da tre fasce sovrapposte: <strong>Topnav</strong>, <strong>Subnav</strong> e <strong>Content</strong>.
+    Questo schema mostra dove si trovano, da dove vengono i dati e come si gestiscono.
+  </p>
+
+  <!-- ── Simulazione browser ── -->
+  <div class="browser">
+    <div class="browser-bar">
+      <div class="b-dots"><span class="b-dot r"></span><span class="b-dot y"></span><span class="b-dot g"></span></div>
+      <div class="b-url">http://portale.cnovicrom.local/assenze/</div>
+    </div>
+
+    <div style="position:relative">
+
+      <!-- TOPNAV con etichetta -->
+      <div style="position:relative">
+        <div class="topnav" id="topnav-bar">
+          <div class="topnav-logo">
+            <div class="logo-sq">N</div>
+            <div class="logo-txt-wrap"><div class="co">PORTALE</div><div class="nm">APPLICATIVO</div></div>
+          </div>
+          <div class="topnav-links">
+            <a class="nav-a">Dashboard</a>
+            <a class="nav-a active">Assenze</a>
+            <a class="nav-a">Anomalie</a>
+            <a class="nav-a">RENTRI</a>
+            <a class="nav-a">Admin</a>
+          </div>
+          <div class="topnav-right">
+            <div class="avatar">LB</div>
+            <div class="user-txt"><div class="uname">Luca Bova</div><div class="urole">Amministratore</div></div>
+            <span class="logout">Esci</span>
+          </div>
+        </div>
+        <!-- Badge annotation -->
+        <div style="position:absolute;top:0;right:0;height:60px;display:flex;align-items:center;padding-right:6px">
+          <div style="background:#f97316;color:#fff;font-size:.65rem;font-weight:800;padding:3px 9px;border-radius:0 0 0 8px;letter-spacing:.05em;position:absolute;top:0;right:0">
+            TOPNAV — 60px
+          </div>
+        </div>
+      </div>
+
+      <!-- SUBNAV con etichetta -->
+      <div style="position:relative">
+        <div class="subnav">
+          <a class="sub-a active">Riepilogo</a>
+          <a class="sub-a">Nuova richiesta</a>
+          <a class="sub-a">Calendario</a>
+          <div class="sub-sep"></div>
+          <a class="sub-a">Gestione</a>
+        </div>
+        <div style="position:absolute;top:0;right:0;height:44px;display:flex;align-items:center;padding-right:6px">
+          <div style="background:#1a6fc4;color:#fff;font-size:.65rem;font-weight:800;padding:3px 9px;border-radius:0 0 0 8px;letter-spacing:.05em;position:absolute;top:0;right:0">
+            SUBNAV — 44px
+          </div>
+        </div>
+      </div>
+
+      <!-- CONTENT con etichetta -->
+      <div style="position:relative">
+        <div class="content">
+          <div class="content-inner">
+            <div>
+              <div style="font-size:2rem;margin-bottom:8px">📄</div>
+              <div style="font-weight:700;color:#475569;margin-bottom:4px">Contenuto pagina (block content)</div>
+              <div style="font-size:.77rem">Template specifico del modulo<br><code>assenze/templates/assenze/pages/riepilogo.html</code></div>
+            </div>
+          </div>
+        </div>
+        <div style="position:absolute;top:0;right:0;padding-right:6px">
+          <div style="background:#22a860;color:#fff;font-size:.65rem;font-weight:800;padding:3px 9px;border-radius:0 0 0 8px;letter-spacing:.05em;position:absolute;top:0;right:0">
+            CONTENT — flex:1
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Legenda componenti ── -->
+  <div class="sec-title">Dettaglio componenti</div>
+  <div class="legend">
+
+    <div class="leg-card c1">
+      <div class="leg-title">🟠 TOPNAV</div>
+      <div class="leg-row"><b>Altezza</b> 60px, sempre visibile</div>
+      <div class="leg-row"><b>Template</b> <code>core/components/topnav.html</code></div>
+      <div class="leg-row"><b>Voci</b> da <code>nav_items</code> nel context</div>
+      <div class="leg-row"><b>Gestione</b>
+        <span class="leg-tag tag-nav">Navigation Builder</span>
+        <span class="leg-tag tag-db">DB</span>
+      </div>
+      <div class="leg-row" style="margin-top:6px;color:#94a3b8;font-size:.72rem">
+        Fallback hardcoded: Dashboard, Assenze, Anomalie, RENTRI, Admin
+      </div>
+    </div>
+
+    <div class="leg-card c2">
+      <div class="leg-title">🔵 SUBNAV</div>
+      <div class="leg-row"><b>Altezza</b> 44px, opzionale</div>
+      <div class="leg-row"><b>Template</b> <code>core/components/subnav.html</code></div>
+      <div class="leg-row"><b>Voci</b> da <code>subnav_items</code> nel context</div>
+      <div class="leg-row"><b>Gestione</b>
+        <span class="leg-tag tag-nav">Navigation Builder</span>
+        <span class="leg-tag tag-db">DB</span>
+      </div>
+      <div class="leg-row" style="margin-top:6px;color:#94a3b8;font-size:.72rem">
+        Filtrata per <code>parent_code</code> = namespace app corrente (es. <em>assenze</em>).
+        Se nessun nodo → barra non appare.
+      </div>
+    </div>
+
+    <div class="leg-card c3">
+      <div class="leg-title">🟢 CONTENT</div>
+      <div class="leg-row"><b>Padding</b> 28px 32px</div>
+      <div class="leg-row"><b>Base</b> <code>core/base.html</code></div>
+      <div class="leg-row"><b>Block</b> <code>{% block content %}</code></div>
+      <div class="leg-row"><b>Gestione</b>
+        <span class="leg-tag tag-code">Template Django</span>
+      </div>
+      <div class="leg-row" style="margin-top:6px;color:#94a3b8;font-size:.72rem">
+        Ogni pagina ha il suo template. Max-width 1600px, centrato.
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Tabella sorgenti ── -->
+  <div class="sec-title">Da dove viene ogni parte</div>
+  <table class="src-table">
+    <thead>
+      <tr>
+        <th>Fascia</th>
+        <th>Sorgente dati</th>
+        <th>Dove si gestisce</th>
+        <th>Context processor</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>🟠 Topnav — voci menu</strong></td>
+        <td>Tabella <code>NavigationNode</code> (DB) con <code>level=topnav</code></td>
+        <td>Admin → <strong>Navigation Builder</strong></td>
+        <td><code>legacy_nav()</code> → <code>nav_items</code></td>
+      </tr>
+      <tr>
+        <td><strong>🔵 Subnav — voci modulo</strong></td>
+        <td>Tabella <code>NavigationNode</code> (DB) filtrata per <code>parent_code</code> = namespace app</td>
+        <td>Admin → <strong>Navigation Builder</strong> (nodi figli)</td>
+        <td><code>legacy_nav()</code> → <code>subnav_items</code></td>
+      </tr>
+      <tr>
+        <td><strong>🟠 Topnav — utente / avatar</strong></td>
+        <td>Session Django + <code>LegacyUser</code></td>
+        <td>Admin → <strong>Utenti</strong></td>
+        <td><code>legacy_nav()</code> → <code>legacy_user</code></td>
+      </tr>
+      <tr>
+        <td><strong>🟢 Content</strong></td>
+        <td>Template Django del modulo</td>
+        <td>File in <code>modulo/templates/modulo/pages/</code></td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><strong>Admin subnav</strong> (solo area admin)</td>
+        <td>Hardcoded in <code>admin_subnav.html</code></td>
+        <td>Modifica diretta del template</td>
+        <td>override <code>{% block subnav %}</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ── Differenza admin vs moduli ── -->
+  <div class="sec-title">Eccezione: l'area Admin</div>
+  <div style="background:#fff;border:1.5px solid #d1d9e6;border-radius:9px;padding:16px 18px;font-size:.82rem;line-height:1.7;color:#475569">
+    Le pagine dell'<strong>Admin Portale</strong> (e Hub Tools) sovrascrivono il blocco subnav:<br>
+    <code>{% block subnav %}{% include "admin_portale/components/admin_subnav.html" %}{% endblock %}</code><br><br>
+    L'<strong>admin_subnav.html</strong> è hardcoded — non passa per il Navigation Registry.
+    È un componente statico che risolve le URL con <code>{% url %}</code> e gestisce lo stato attivo
+    confrontando <code>request.resolver_match.view_name</code>.<br><br>
+    I moduli operativi (assenze, anomalie, hub_tools…) usano invece il <strong>subnav dinamico</strong>
+    alimentato dal Navigation Builder.
+  </div>
+
+  <div style="margin-top:28px;text-align:center;font-size:.73rem;color:#94a3b8;padding-bottom:20px">
+    Portale Novicrom — Schema Layout v0.7.2
+  </div>
+
+</div>
+</body>
+</html>

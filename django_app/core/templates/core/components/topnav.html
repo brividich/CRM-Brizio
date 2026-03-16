@@ -25,21 +25,12 @@
     <span class="hbar"></span><span class="hbar"></span><span class="hbar"></span>
   </button>
   <div class="nav-links" id="nav-links-panel">
-    {% if nav_items %}
-      {% for item in nav_items %}
-        <a class="nav-a{% if item.active %} active{% endif %}" href="{{ item.href }}" title="{{ item.legacy_url }}">
-          {{ item.label }}
-          {% if item.coming %}<span class="dot"></span>{% endif %}
-        </a>
-      {% endfor %}
-    {% else %}
-      <a class="nav-a{% if request.resolver_match.url_name == 'dashboard' or request.resolver_match.url_name == 'dashboard_home' %} active{% endif %}" href="{% url 'dashboard_home' %}">Dashboard</a>
-      <a class="nav-a{% if request.resolver_match.url_name == 'assenze_menu' or request.resolver_match.url_name == 'assenze_richiesta' or request.resolver_match.url_name == 'assenze_gestione' or request.resolver_match.url_name == 'assenze_calendario' %} active{% endif %}" href="{% url 'assenze_menu' %}">Assenze</a>
-      <a class="nav-a{% if request.resolver_match.url_name == 'anomalie_menu' or request.resolver_match.url_name == 'gestione_anomalie_page' %} active{% endif %}" href="{% url 'anomalie_menu' %}">Anomalie</a>
-      <a class="nav-a{% if request.resolver_match.namespace == 'rentri' %} active{% endif %}" href="{% url 'rentri:rentri_menu' %}">RENTRI</a>
-      <a class="nav-a{% if request.resolver_match.url_name == 'organigramma' %} active{% endif %}" href="{% url 'organigramma' %}">Organigramma</a>
-      <a class="nav-a{% if request.resolver_match.url_name == 'coming_admin' %} active{% endif %}" href="{% url 'coming_admin' %}">Admin</a>
-    {% endif %}
+    {% for item in nav_items %}
+      <a class="nav-a{% if item.active %} active{% endif %}" href="{{ item.href }}" title="{{ item.legacy_url }}">
+        {% if item.icon %}<span style="margin-right:4px">{{ item.icon }}</span>{% endif %}{{ item.label }}
+        {% if item.coming %}<span class="dot"></span>{% endif %}
+      </a>
+    {% endfor %}
   </div>
   <div class="nav-right">
     {% if user.is_authenticated %}

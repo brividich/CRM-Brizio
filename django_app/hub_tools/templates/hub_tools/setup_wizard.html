@@ -1,0 +1,746 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Hub Tools — Setup Wizard (Riconfigura){% endblock %}
+
+{% block content %}
+<style>
+:root {
+  --sw-primary: #1a6fc4;
+  --sw-success: #22a860;
+  --sw-danger: #dc2626;
+  --sw-warning: #f59e0b;
+  --sw-border: #d1d9e6;
+  --sw-muted: #64748b;
+}
+.sw-page { max-width: 980px; margin: 0 auto; padding: 24px 20px; }
+.sw-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; }
+.sw-title { font-size: 1.3rem; font-weight: 800; display: flex; align-items: center; gap: 9px; }
+.sw-subtitle { font-size: .84rem; color: var(--sw-muted); margin-top: 3px; }
+
+/* Alert banner */
+.sw-alert {
+  padding: 10px 14px; border-radius: 7px; font-size: .83rem;
+  margin-bottom: 20px; line-height: 1.5; display: flex; align-items: flex-start; gap: 8px;
+}
+.sw-alert-warn { background: #fffbeb; border-left: 3px solid var(--sw-warning); color: #78350f; }
+.sw-alert-info { background: #eff6ff; border-left: 3px solid var(--sw-primary); color: #1e40af; }
+.sw-alert-ok   { background: #f0fdf4; border-left: 3px solid var(--sw-success); color: #14532d; }
+
+/* Section card */
+.sw-section {
+  background: #fff;
+  border: 1.5px solid var(--sw-border);
+  border-radius: 10px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.sw-section-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 18px; cursor: pointer; user-select: none;
+  background: #f8fafc; border-bottom: 1px solid var(--sw-border);
+  transition: background .12s;
+}
+.sw-section-head:hover { background: #eff6ff; }
+.sw-section-head.open { background: #eff6ff; }
+.sw-section-icon { font-size: 1.1rem; }
+.sw-section-label { flex: 1; font-size: .9rem; font-weight: 700; }
+.sw-section-head.open .sw-section-label { color: var(--sw-primary); }
+.sw-section-arrow { font-size: .65rem; color: var(--sw-muted); transition: transform .2s; }
+.sw-section-head.open .sw-section-arrow { transform: rotate(180deg); }
+.sw-section-body { display: none; padding: 20px 18px; }
+.sw-section-body.open { display: block; }
+
+/* Fields */
+.sw-fg { margin-bottom: 15px; }
+.sw-fg label {
+  display: block; font-size: .79rem; font-weight: 700;
+  color: var(--sw-muted); text-transform: uppercase;
+  letter-spacing: .04em; margin-bottom: 4px;
+}
+.sw-fg input[type=text],
+.sw-fg input[type=password],
+.sw-fg input[type=number],
+.sw-fg input[type=email],
+.sw-fg select {
+  width: 100%; padding: 7px 10px;
+  border: 1.5px solid var(--sw-border);
+  border-radius: 7px; font-size: .88rem; font-family: inherit;
+  background: #fdfdff; transition: border-color .15s, box-shadow .15s;
+}
+.sw-fg input:focus, .sw-fg select:focus {
+  outline: none; border-color: var(--sw-primary);
+  box-shadow: 0 0 0 3px rgba(26,111,196,.1);
+}
+.sw-fg .hint { font-size: .75rem; color: #94a3b8; margin-bottom: 4px; }
+.sw-fr2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.sw-fr3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+
+/* Toggle row */
+.sw-tog {
+  display: flex; align-items: center; gap: 9px; padding: 7px 10px;
+  border-radius: 7px; background: #f8fafc; border: 1px solid var(--sw-border);
+  margin-bottom: 10px;
+}
+.sw-tog label { font-size: .85rem; font-weight: 600; margin: 0; cursor: pointer; flex: 1; }
+.sw-tog .hint { font-size: .75rem; color: var(--sw-muted); margin-left: auto; }
+input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--sw-primary); }
+
+/* Module toggles */
+.sw-modules { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.sw-module-tog {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border-radius: 8px;
+  border: 1.5px solid var(--sw-border); background: #f8fafc;
+  cursor: pointer; transition: border-color .15s;
+}
+.sw-module-tog:hover { border-color: var(--sw-primary); background: #eff6ff; }
+.sw-module-tog.active { border-color: var(--sw-success); background: #f0fdf4; }
+.sw-module-tog input { margin: 0; }
+.sw-module-name { font-size: .83rem; font-weight: 600; }
+.sw-module-icon { font-size: 1rem; }
+
+/* Buttons */
+.sw-btn {
+  padding: 9px 22px; border: none; border-radius: 7px;
+  font-size: .88rem; font-weight: 600; cursor: pointer;
+  transition: all .15s; display: inline-flex; align-items: center; gap: 7px;
+}
+.sw-btn-primary { background: var(--sw-primary); color: #fff; }
+.sw-btn-primary:hover { background: #135099; transform: translateY(-1px); }
+.sw-btn-success { background: var(--sw-success); color: #fff; }
+.sw-btn-success:hover { background: #1a9050; }
+.sw-btn-test { background: #f0faf5; color: var(--sw-success); border: 1px solid #b8e6cf; }
+.sw-btn-test:hover { background: #d8f3e5; }
+.sw-btn-test.loading { opacity: .7; pointer-events: none; }
+
+/* Test result */
+.sw-test-result { margin-top: 8px; padding: 7px 11px; border-radius: 6px; font-size: .8rem; display: none; }
+.sw-test-result.ok   { background: #f0fdf4; border: 1px solid #86efac; color: #166534; display: block; }
+.sw-test-result.fail { background: #fef2f2; border: 1px solid #fca5a5; color: #7f1d1d; display: block; }
+
+/* Bottom bar */
+.sw-bottom {
+  position: sticky; bottom: 0;
+  background: #fff; border-top: 1.5px solid var(--sw-border);
+  padding: 14px 18px; display: flex; align-items: center;
+  justify-content: space-between; gap: 12px;
+  border-radius: 0 0 10px 10px; z-index: 10;
+}
+.sw-save-result { font-size: .85rem; display: none; }
+.sw-save-result.ok   { color: var(--sw-success); display: block; }
+.sw-save-result.fail { color: var(--sw-danger); display: block; }
+
+/* Section divider */
+.sw-sep { border: none; border-top: 1px solid var(--sw-border); margin: 14px 0; }
+</style>
+
+<div class="sw-page">
+
+  <div class="sw-header">
+    <div>
+      <div class="sw-title">⚙️ Setup Wizard — Riconfigura</div>
+      <div class="sw-subtitle">Modifica la configurazione del portale. I valori mostrati sono quelli attualmente nel file <code>.env</code>.</div>
+    </div>
+    <a href="{% url 'admin_portale:index' %}" style="font-size:.84rem;color:#64748b;text-decoration:none">← Torna all'admin</a>
+  </div>
+
+  <div class="sw-alert sw-alert-warn">
+    ⚠️ <div>
+      <strong>Attenzione:</strong> le modifiche vengono scritte direttamente nel file <code>.env</code> e in <code>config.ini</code>.
+      Per le impostazioni database, LDAP e SMTP è consigliato <strong>testare la connessione</strong> prima di salvare.
+      Alcune modifiche (es. cambio database) richiedono il <strong>riavvio del server Django</strong> per avere effetto.
+    </div>
+  </div>
+
+  <!-- ── 1. Branding & Identità ── -->
+  <div class="sw-section" id="sec-branding">
+    <div class="sw-section-head open" onclick="toggleSec('branding')">
+      <span class="sw-section-icon">🎨</span>
+      <span class="sw-section-label">Branding & Identità</span>
+      <span class="sw-section-arrow">▼</span>
+    </div>
+    <div class="sw-section-body open">
+      <div class="sw-fr2">
+        <div class="sw-fg">
+          <label>Nome istanza <span style="color:var(--sw-danger)">*</span></label>
+          <div class="hint">Nome visualizzato nella barra superiore e nei titoli</div>
+          <input type="text" id="f_instance_name" value="{{ env.INSTANCE_NAME|default:'BrizioHUB' }}">
+        </div>
+        <div class="sw-fg">
+          <label>Versione app</label>
+          <div class="hint">Numero versione mostrato nell'header</div>
+          <input type="text" id="f_app_version" value="{{ env.APP_VERSION|default:'' }}">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 2. Database ── -->
+  <div class="sw-section" id="sec-db">
+    <div class="sw-section-head" onclick="toggleSec('db')">
+      <span class="sw-section-icon">🗄️</span>
+      <span class="sw-section-label">Database SQL Server</span>
+      <span class="sw-section-arrow">▼</span>
+    </div>
+    <div class="sw-section-body">
+      <div class="sw-fr2">
+        <div class="sw-fg">
+          <label>Host / Server <span style="color:var(--sw-danger)">*</span></label>
+          <div class="hint">Nome host o IP del server SQL</div>
+          <input type="text" id="f_db_host" value="{{ env.DB_HOST|default:'' }}" placeholder="es. sqlserver.local\MSSQLSERVER">
+        </div>
+        <div class="sw-fg">
+          <label>Nome database <span style="color:var(--sw-danger)">*</span></label>
+          <input type="text" id="f_db_name" value="{{ env.DB_NAME|default:'' }}" placeholder="es. PortaleNovicrom">
+        </div>
+      </div>
+      <div class="sw-fr2">
+        <div class="sw-fg">
+          <label>Utente SQL</label>
+          <div class="hint">Lascia vuoto per Windows Auth (Trusted Connection)</div>
+          <input type="text" id="f_db_user" value="{{ env.DB_USER|default:'' }}" placeholder="sa">
+        </div>
+        <div class="sw-fg">
+          <label>Password SQL</label>
+          <input type="password" id="f_db_password" value="{{ env.DB_PASSWORD|default:'' }}" placeholder="••••••••">
+        </div>
+      </div>
+      <div class="sw-fg">
+        <label>Driver ODBC</label>
+        <select id="f_db_driver">
+          <option value="ODBC Driver 18 for SQL Server" {% if env.DB_DRIVER == 'ODBC Driver 18 for SQL Server' %}selected{% endif %}>ODBC Driver 18 for SQL Server</option>
+          <option value="ODBC Driver 17 for SQL Server" {% if env.DB_DRIVER == 'ODBC Driver 17 for SQL Server' %}selected{% endif %}>ODBC Driver 17 for SQL Server</option>
+          <option value="SQL Server Native Client 11.0" {% if env.DB_DRIVER == 'SQL Server Native Client 11.0' %}selected{% endif %}>SQL Server Native Client 11.0</option>
+        </select>
+      </div>
+      <div class="sw-tog">
+        <input type="checkbox" id="f_db_trust_cert" {% if env.DB_TRUST_CERT == '1' %}checked{% endif %}>
+        <label for="f_db_trust_cert">TrustServerCertificate</label>
+        <span class="hint">Necessario per certificati self-signed</span>
+      </div>
+      <div style="margin-top:10px">
+        <button class="sw-btn sw-btn-test" onclick="testDb()">🔌 Testa connessione DB</button>
+        <div class="sw-test-result" id="res-db"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 3. Active Directory / LDAP ── -->
+  <div class="sw-section" id="sec-ldap">
+    <div class="sw-section-head" onclick="toggleSec('ldap')">
+      <span class="sw-section-icon">🏢</span>
+      <span class="sw-section-label">Active Directory / LDAP</span>
+      <span class="sw-section-arrow">▼</span>
+    </div>
+    <div class="sw-section-body">
+      <div class="sw-tog">
+        <input type="checkbox" id="f_ldap_enabled" {% if env.LDAP_ENABLED == '1' %}checked{% endif %}>
+        <label for="f_ldap_enabled">Abilita autenticazione LDAP / Active Directory</label>
+      </div>
+      <div class="sw-fr2">
+        <div class="sw-fg">
+          <label>Server LDAP</label>
+          <input type="text" id="f_ldap_server" value="{{ env.LDAP_SERVER|default:'' }}" placeholder="ldap://dc.dominio.local">
+        </div>
+        <div class="sw-fg">
+          <label>Dominio</label>
+          <input type="text" id="f_ldap_domain" value="{{ env.LDAP_DOMAIN|default:'' }}" placeholder="DOMINIO">
+        </div>
+      </div>
+      <div class="sw-fr2">
+        <div class="sw-fg">
+          <label>UPN Suffix</label>
+          <input type="text" id="f_ldap_upn" value="{{ env.LDAP_UPN_SUFFIX|default:'' }}" placeholder="@dominio.local">
+        </div>
+        <div class="sw-fg">
+          <label>Timeout (sec)</label>
+          <input type="number" id="f_ldap_timeout" value="{{ env.LDAP_TIMEOUT|default:'5' }}" min="1" max="30">
+        </div>
+      </div>
+      <div class="sw-fr2">
+        <div class="sw-fg">
+          <label>Utente di servizio</label>
+          <input type="text" id="f_ldap_service_user" value="{{ env.LDAP_SERVICE_USER|default:'' }}" placeholder="svc_ldap@dominio.local">
+        </div>
+        <div class="sw-fg">
+          <label>Password di servizio</label>
+          <input type="password" id="f_ldap_service_password" value="{{ env.LDAP_SERVICE_PASSWORD|default:'' }}">
+        </div>
+      </div>
+      <div class="sw-fg">
+        <label>Base DN</label>
+        <input type="text" id="f_ldap_base_dn" value="{{ env.LDAP_BASE_DN|default:'' }}" placeholder="DC=dominio,DC=local">
+      </div>
+      <div style="margin-top:10px">
+        <button class="sw-btn sw-btn-test" onclick="testLdap()">🔌 Testa connessione LDAP</button>
+        <div class="sw-test-result" id="res-ldap"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 4. Microsoft Graph / SharePoint ── -->
+  <div class="sw-section" id="sec-graph">
+    <div class="sw-section-head" onclick="toggleSec('graph')">
+      <span class="sw-section-icon">☁️</span>
+      <span class="sw-section-label">Microsoft Graph / SharePoint</span>
+      <span class="sw-section-arrow">▼</span>
+    </div>
+    <div class="sw-section-body">
+      <div class="sw-fr2">
+        <div class="sw-fg">
+          <label>Tenant ID</label>
+          <input type="text" id="f_graph_tenant_id" value="{{ env.GRAPH_TENANT_ID|default:'' }}" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+        </div>
+        <div class="sw-fg">
+          <label>Client ID</label>
+          <input type="text" id="f_graph_client_id" value="{{ env.GRAPH_CLIENT_ID|default:'' }}" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+        </div>
+      </div>
+      <div class="sw-fg">
+        <label>Client Secret</label>
+        <input type="password" id="f_graph_client_secret" value="{{ env.GRAPH_CLIENT_SECRET|default:'' }}">
+      </div>
+      <div class="sw-fg">
+        <label>Site ID (SharePoint)</label>
+        <input type="text" id="f_graph_site_id" value="{{ env.GRAPH_SITE_ID|default:'' }}">
+      </div>
+      <hr class="sw-sep">
+      <div style="font-size:.8rem;font-weight:700;color:var(--sw-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">ID Liste SharePoint</div>
+      <div class="sw-fr2">
+        <div class="sw-fg">
+          <label>Lista Assenze</label>
+          <input type="text" id="f_graph_list_assenze" value="{{ env.GRAPH_LIST_ID_ASSENZE|default:'' }}">
+        </div>
+        <div class="sw-fg">
+          <label>Lista Dipendenti</label>
+          <input type="text" id="f_graph_list_dipendenti" value="{{ env.GRAPH_LIST_ID_DIPENDENTI|default:'' }}">
+        </div>
+      </div>
+      <div class="sw-fr2">
+        <div class="sw-fg">
+          <label>Lista Caporeparto</label>
+          <input type="text" id="f_graph_list_caporeparto" value="{{ env.GRAPH_LIST_ID_CAPOREPARTO|default:'' }}">
+        </div>
+        <div class="sw-fg">
+          <label>Lista Anomalie DB</label>
+          <input type="text" id="f_graph_list_anomalie_db" value="{{ env.GRAPH_LIST_ID_ANOMALIE_DB|default:'' }}">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 5. Email SMTP ── -->
+  <div class="sw-section" id="sec-smtp">
+    <div class="sw-section-head" onclick="toggleSec('smtp')">
+      <span class="sw-section-icon">📧</span>
+      <span class="sw-section-label">Email SMTP</span>
+      <span class="sw-section-arrow">▼</span>
+    </div>
+    <div class="sw-section-body">
+      <div class="sw-fr3">
+        <div class="sw-fg">
+          <label>Host SMTP</label>
+          <input type="text" id="f_email_host" value="{{ env.EMAIL_HOST|default:'' }}" placeholder="smtp.office365.com">
+        </div>
+        <div class="sw-fg">
+          <label>Porta</label>
+          <input type="number" id="f_email_port" value="{{ env.EMAIL_PORT|default:'587' }}" min="1" max="65535">
+        </div>
+        <div class="sw-fg">
+          <label>Email mittente</label>
+          <input type="email" id="f_email_from" value="{{ env.DEFAULT_FROM_EMAIL|default:'' }}" placeholder="noreply@azienda.it">
+        </div>
+      </div>
+      <div class="sw-fr2">
+        <div class="sw-fg">
+          <label>Utente SMTP</label>
+          <input type="text" id="f_email_user" value="{{ env.EMAIL_HOST_USER|default:'' }}">
+        </div>
+        <div class="sw-fg">
+          <label>Password SMTP</label>
+          <input type="password" id="f_email_password" value="{{ env.EMAIL_HOST_PASSWORD|default:'' }}">
+        </div>
+      </div>
+      <div class="sw-tog">
+        <input type="checkbox" id="f_email_tls" {% if env.EMAIL_USE_TLS != '0' %}checked{% endif %}>
+        <label for="f_email_tls">Usa STARTTLS</label>
+      </div>
+      <div style="margin-top:10px">
+        <button class="sw-btn sw-btn-test" onclick="testSmtp()">🔌 Testa connessione SMTP</button>
+        <div class="sw-test-result" id="res-smtp"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 6. Sessioni & Cache ── -->
+  <div class="sw-section" id="sec-sessioni">
+    <div class="sw-section-head" onclick="toggleSec('sessioni')">
+      <span class="sw-section-icon">⏱️</span>
+      <span class="sw-section-label">Sessioni & Cache</span>
+      <span class="sw-section-arrow">▼</span>
+    </div>
+    <div class="sw-section-body">
+      <div class="sw-fr3">
+        <div class="sw-fg">
+          <label>Timeout sessione (sec)</label>
+          <div class="hint">Default: 3600 (1 ora)</div>
+          <input type="number" id="f_session_timeout" value="{{ env.SESSION_IDLE_TIMEOUT_SECONDS|default:'3600' }}" min="60">
+        </div>
+        <div class="sw-fg">
+          <label>TTL cache ACL (sec)</label>
+          <div class="hint">Default: 120</div>
+          <input type="number" id="f_acl_cache_ttl" value="{{ env.LEGACY_ACL_CACHE_TTL|default:'120' }}" min="0">
+        </div>
+        <div class="sw-fg">
+          <label>TTL cache navigazione (sec)</label>
+          <div class="hint">Default: 120</div>
+          <input type="number" id="f_nav_cache_ttl" value="{{ env.LEGACY_NAV_CACHE_TTL|default:'120' }}" min="0">
+        </div>
+      </div>
+      <div class="sw-tog">
+        <input type="checkbox" id="f_session_expire" {% if env.SESSION_EXPIRE_AT_BROWSER_CLOSE == '1' %}checked{% endif %}>
+        <label for="f_session_expire">Sessione scade alla chiusura del browser</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 7. Sicurezza HTTPS ── -->
+  <div class="sw-section" id="sec-security">
+    <div class="sw-section-head" onclick="toggleSec('security')">
+      <span class="sw-section-icon">🔒</span>
+      <span class="sw-section-label">Sicurezza HTTPS</span>
+      <span class="sw-section-arrow">▼</span>
+    </div>
+    <div class="sw-section-body">
+      <div class="sw-alert sw-alert-info" style="margin-bottom:14px">
+        ℹ️ Abilitare questi flag solo se il server utilizza HTTPS con certificato valido.
+      </div>
+      <div class="sw-tog">
+        <input type="checkbox" id="f_secure_ssl" {% if env.SECURE_SSL_REDIRECT == '1' %}checked{% endif %}>
+        <label for="f_secure_ssl">Reindirizza HTTP → HTTPS (SECURE_SSL_REDIRECT)</label>
+      </div>
+      <div class="sw-tog">
+        <input type="checkbox" id="f_csrf_secure" {% if env.CSRF_COOKIE_SECURE == '1' %}checked{% endif %}>
+        <label for="f_csrf_secure">CSRF cookie sicuro (CSRF_COOKIE_SECURE)</label>
+      </div>
+      <div class="sw-tog">
+        <input type="checkbox" id="f_session_secure" {% if env.SESSION_COOKIE_SECURE == '1' %}checked{% endif %}>
+        <label for="f_session_secure">Sessione cookie sicura (SESSION_COOKIE_SECURE)</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 8. Navigazione & Accessi ── -->
+  <div class="sw-section" id="sec-nav">
+    <div class="sw-section-head open" onclick="toggleSec('nav')">
+      <span class="sw-section-icon">🧭</span>
+      <span class="sw-section-label">Navigazione & Accessi</span>
+      <span class="sw-section-arrow">▼</span>
+    </div>
+    <div class="sw-section-body open">
+
+      <div class="sw-alert sw-alert-info" style="margin-bottom:16px">
+        ℹ️ La navigazione è gestita dalla tabella <strong>Pulsante</strong> (legacy).
+        Per ogni ruolo puoi stabilire quali pulsanti sono visibili dalla pagina <strong>Accessi</strong>.
+        Il <em>Navigation Registry</em> è un sistema avanzato opzionale — di default è disabilitato.
+      </div>
+
+      <!-- Toggle registry -->
+      <div class="sw-tog" style="margin-bottom:18px">
+        <input type="checkbox" id="f_nav_registry" {% if env.NAVIGATION_REGISTRY_ENABLED == '1' %}checked{% endif %}>
+        <label for="f_nav_registry">Abilita Navigation Registry (avanzato)</label>
+        <span class="hint">Lascia disabilitato per usare il sistema Pulsante standard</span>
+      </div>
+
+      <hr class="sw-sep">
+      <div style="font-size:.79rem;font-weight:700;color:var(--sw-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:12px">Gestione rapida</div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px">
+
+        {% url 'admin_portale:pulsanti' as url_pulsanti %}
+        {% if url_pulsanti %}
+        <a href="{{ url_pulsanti }}" style="text-decoration:none">
+          <div style="padding:14px 16px;border:1.5px solid var(--sw-border);border-radius:9px;background:#f8fafc;transition:border-color .15s,background .15s" onmouseover="this.style.borderColor='#1a6fc4';this.style.background='#eff6ff'" onmouseout="this.style.borderColor='var(--sw-border)';this.style.background='#f8fafc'">
+            <div style="font-size:1.1rem;margin-bottom:5px">📌</div>
+            <div style="font-size:.87rem;font-weight:700;color:#1e293b">Pulsanti</div>
+            <div style="font-size:.75rem;color:var(--sw-muted);margin-top:3px">Aggiungi, rinomina o rimuovi voci di menu</div>
+          </div>
+        </a>
+        {% endif %}
+
+        {% url 'admin_portale:accessi' as url_accessi %}
+        {% if url_accessi %}
+        <a href="{{ url_accessi }}" style="text-decoration:none">
+          <div style="padding:14px 16px;border:1.5px solid var(--sw-border);border-radius:9px;background:#f8fafc;transition:border-color .15s,background .15s" onmouseover="this.style.borderColor='#1a6fc4';this.style.background='#eff6ff'" onmouseout="this.style.borderColor='var(--sw-border)';this.style.background='#f8fafc'">
+            <div style="font-size:1.1rem;margin-bottom:5px">🔑</div>
+            <div style="font-size:.87rem;font-weight:700;color:#1e293b">Accessi Semplici</div>
+            <div style="font-size:.75rem;color:var(--sw-muted);margin-top:3px">Assegna moduli e pulsanti per ruolo in una tabella</div>
+          </div>
+        </a>
+        {% endif %}
+
+        {% url 'admin_portale:wizard_ruolo' as url_wizard_ruolo %}
+        {% if url_wizard_ruolo %}
+        <a href="{{ url_wizard_ruolo }}" style="text-decoration:none">
+          <div style="padding:14px 16px;border:1.5px solid var(--sw-border);border-radius:9px;background:#f8fafc;transition:border-color .15s,background .15s" onmouseover="this.style.borderColor='#1a6fc4';this.style.background='#eff6ff'" onmouseout="this.style.borderColor='var(--sw-border)';this.style.background='#f8fafc'">
+            <div style="font-size:1.1rem;margin-bottom:5px">🧙</div>
+            <div style="font-size:.87rem;font-weight:700;color:#1e293b">Wizard Configura Ruolo</div>
+            <div style="font-size:.75rem;color:var(--sw-muted);margin-top:3px">Flusso guidato 3 passi per impostare un ruolo</div>
+          </div>
+        </a>
+        {% endif %}
+
+        {% url 'admin_portale:permessi' as url_permessi %}
+        {% if url_permessi %}
+        <a href="{{ url_permessi }}" style="text-decoration:none">
+          <div style="padding:14px 16px;border:1.5px solid var(--sw-border);border-radius:9px;background:#f8fafc;transition:border-color .15s,background .15s" onmouseover="this.style.borderColor='#1a6fc4';this.style.background='#eff6ff'" onmouseout="this.style.borderColor='var(--sw-border)';this.style.background='#f8fafc'">
+            <div style="font-size:1.1rem;margin-bottom:5px">🛡️</div>
+            <div style="font-size:.87rem;font-weight:700;color:#1e293b">Matrice Permessi</div>
+            <div style="font-size:.75rem;color:var(--sw-muted);margin-top:3px">Vista tecnica ACL per ruolo, modulo e azione</div>
+          </div>
+        </a>
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 9. Moduli ── -->
+  <div class="sw-section" id="sec-moduli">
+    <div class="sw-section-head" onclick="toggleSec('moduli')">
+      <span class="sw-section-icon">🧩</span>
+      <span class="sw-section-label">Moduli attivi</span>
+      <span class="sw-section-arrow">▼</span>
+    </div>
+    <div class="sw-section-body">
+      <div class="sw-alert sw-alert-info" style="margin-bottom:14px">
+        ℹ️ Puoi gestire i moduli in modo più dettagliato dalla pagina
+        <a href="{% url 'hub_tools:hub_moduli' %}" style="color:var(--sw-primary);font-weight:600">Hub → Moduli</a>.
+        Qui puoi fare una selezione rapida.
+      </div>
+      <div class="sw-modules" id="moduleToggles">
+        {% with modules="assenze,anomalie,assets,tasks,tickets,notizie,anagrafica,automazioni,timbri,planimetria" %}
+        {% for m in modules.split %}
+        {# handled by JS below #}
+        {% endfor %}
+        {% endwith %}
+      </div>
+      <script>
+      (function() {
+        const MODS = [
+          { key: 'assenze',     name: 'Assenze',      icon: '📅' },
+          { key: 'anomalie',    name: 'Anomalie',     icon: '⚠️' },
+          { key: 'assets',      name: 'Asset',        icon: '🏭' },
+          { key: 'tasks',       name: 'Progetti',     icon: '📋' },
+          { key: 'tickets',     name: 'Ticket',       icon: '🎫' },
+          { key: 'notizie',     name: 'Notizie',      icon: '📰' },
+          { key: 'anagrafica',  name: 'Anagrafica',   icon: '👥' },
+          { key: 'automazioni', name: 'Automazioni',  icon: '🤖' },
+          { key: 'timbri',      name: 'Timbri',       icon: '🕐' },
+          { key: 'planimetria', name: 'Planimetria',  icon: '🗺️' },
+        ];
+        const wrap = document.getElementById('moduleToggles');
+        wrap.innerHTML = '';
+        MODS.forEach(m => {
+          const label = document.createElement('label');
+          label.className = 'sw-module-tog';
+          label.innerHTML = `
+            <input type="checkbox" id="mod_${m.key}" checked>
+            <span class="sw-module-icon">${m.icon}</span>
+            <span class="sw-module-name">${m.name}</span>
+          `;
+          label.addEventListener('click', () => {
+            label.classList.toggle('active', label.querySelector('input').checked);
+          });
+          wrap.appendChild(label);
+        });
+        // Fetch actual state from module manager API
+        fetch('{% url "hub_tools:hub_moduli" %}', { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      })();
+      </script>
+    </div>
+  </div>
+
+  <!-- ── Save bar ── -->
+  <div class="sw-section" style="position:sticky;bottom:0;z-index:20;border-radius:10px;margin-top:20px">
+    <div style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div>
+        <div class="sw-save-result" id="res-save"></div>
+        <div style="font-size:.8rem;color:var(--sw-muted)">
+          Salva aggiorna <code>.env</code> e <code>config.ini</code>. Alcune modifiche richiedono il riavvio del server.
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;flex-shrink:0">
+        <button class="sw-btn sw-btn-primary" onclick="saveConfig()" id="btnSave">
+          💾 Salva configurazione
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /.sw-page -->
+
+<script>
+// ── Section accordion ─────────────────────────────────────────────────────────
+function toggleSec(id) {
+  const head = document.querySelector(`#sec-${id} .sw-section-head`);
+  const body = document.querySelector(`#sec-${id} .sw-section-body`);
+  head.classList.toggle('open');
+  body.classList.toggle('open');
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function v(id) { return (document.getElementById(id)?.value || '').trim(); }
+function chk(id) { return !!document.getElementById(id)?.checked; }
+
+function showResult(id, ok, msg) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'sw-test-result ' + (ok ? 'ok' : 'fail');
+  el.textContent = (ok ? '✓ ' : '✗ ') + msg;
+}
+
+// ── Test DB ───────────────────────────────────────────────────────────────────
+async function testDb() {
+  const btn = event.target; btn.classList.add('loading'); btn.textContent = '⏳ Test…';
+  try {
+    const r = await fetch('{% url "setup_wizard:setup_api_test_db" %}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify({
+        engine: 'sqlserver',
+        host: v('f_db_host'), name: v('f_db_name'),
+        user: v('f_db_user'), password: v('f_db_password'),
+        driver: v('f_db_driver'), trust_cert: chk('f_db_trust_cert'),
+      }),
+    });
+    const d = await r.json();
+    showResult('res-db', d.ok, d.message || d.error);
+  } catch(e) { showResult('res-db', false, e.message); }
+  btn.classList.remove('loading'); btn.textContent = '🔌 Testa connessione DB';
+}
+
+// ── Test LDAP ─────────────────────────────────────────────────────────────────
+async function testLdap() {
+  const btn = event.target; btn.classList.add('loading'); btn.textContent = '⏳ Test…';
+  try {
+    const r = await fetch('{% url "setup_wizard:setup_api_test_ldap" %}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify({
+        server: v('f_ldap_server'), service_user: v('f_ldap_service_user'),
+        service_password: v('f_ldap_service_password'), timeout: parseInt(v('f_ldap_timeout')) || 5,
+      }),
+    });
+    const d = await r.json();
+    showResult('res-ldap', d.ok, d.message || d.error);
+  } catch(e) { showResult('res-ldap', false, e.message); }
+  btn.classList.remove('loading'); btn.textContent = '🔌 Testa connessione LDAP';
+}
+
+// ── Test SMTP ─────────────────────────────────────────────────────────────────
+async function testSmtp() {
+  const btn = event.target; btn.classList.add('loading'); btn.textContent = '⏳ Test…';
+  try {
+    const r = await fetch('{% url "setup_wizard:setup_api_test_smtp" %}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify({
+        host: v('f_email_host'), port: parseInt(v('f_email_port')) || 587,
+        user: v('f_email_user'), password: v('f_email_password'), use_tls: chk('f_email_tls'),
+      }),
+    });
+    const d = await r.json();
+    showResult('res-smtp', d.ok, d.message || d.error);
+  } catch(e) { showResult('res-smtp', false, e.message); }
+  btn.classList.remove('loading'); btn.textContent = '🔌 Testa connessione SMTP';
+}
+
+// ── Salva configurazione ──────────────────────────────────────────────────────
+async function saveConfig() {
+  const btn = document.getElementById('btnSave');
+  btn.textContent = '⏳ Salvataggio…'; btn.disabled = true;
+
+  // Raccoglie moduli selezionati
+  const selectedModules = [];
+  document.querySelectorAll('#moduleToggles input[type=checkbox]').forEach(inp => {
+    if (inp.checked) selectedModules.push(inp.id.replace('mod_', ''));
+  });
+
+  const payload = {
+    instance_name: v('f_instance_name'),
+    app_version: v('f_app_version'),
+    db_engine: 'sqlserver',
+    db_host: v('f_db_host'),
+    db_name: v('f_db_name'),
+    db_user: v('f_db_user'),
+    db_password: v('f_db_password'),
+    db_driver: v('f_db_driver'),
+    db_trust_cert: chk('f_db_trust_cert'),
+    ldap_enabled: chk('f_ldap_enabled'),
+    ldap_server: v('f_ldap_server'),
+    ldap_domain: v('f_ldap_domain'),
+    ldap_upn: v('f_ldap_upn'),
+    ldap_timeout: v('f_ldap_timeout'),
+    ldap_service_user: v('f_ldap_service_user'),
+    ldap_service_password: v('f_ldap_service_password'),
+    ldap_base_dn: v('f_ldap_base_dn'),
+    graph_tenant_id: v('f_graph_tenant_id'),
+    graph_client_id: v('f_graph_client_id'),
+    graph_client_secret: v('f_graph_client_secret'),
+    graph_site_id: v('f_graph_site_id'),
+    graph_list_assenze: v('f_graph_list_assenze'),
+    graph_list_dipendenti: v('f_graph_list_dipendenti'),
+    graph_list_caporeparto: v('f_graph_list_caporeparto'),
+    graph_list_anomalie_db: v('f_graph_list_anomalie_db'),
+    email_host: v('f_email_host'),
+    email_port: v('f_email_port'),
+    email_user: v('f_email_user'),
+    email_password: v('f_email_password'),
+    email_tls: chk('f_email_tls'),
+    email_from: v('f_email_from'),
+    session_timeout: v('f_session_timeout'),
+    acl_cache_ttl: v('f_acl_cache_ttl'),
+    nav_cache_ttl: v('f_nav_cache_ttl'),
+    session_expire: chk('f_session_expire'),
+    secure_ssl: chk('f_secure_ssl'),
+    csrf_secure: chk('f_csrf_secure'),
+    session_secure: chk('f_session_secure'),
+    nav_registry: chk('f_nav_registry'),
+    modules: selectedModules,
+  };
+
+  try {
+    const r = await fetch('{% url "hub_tools:hub_api_reconfigure" %}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    const el = document.getElementById('res-save');
+    el.className = 'sw-save-result ' + (d.ok ? 'ok' : 'fail');
+    el.textContent = d.ok ? ('✓ ' + d.message) : ('✗ ' + d.error);
+    el.style.display = 'block';
+    if (d.ok && selectedModules.length > 0) {
+      // Aggiorna anche i moduli in SiteConfig
+      await fetch('{% url "setup_wizard:setup_api_set_modules" %}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+        body: JSON.stringify({ modules: selectedModules }),
+      });
+    }
+  } catch(e) {
+    const el = document.getElementById('res-save');
+    el.className = 'sw-save-result fail'; el.textContent = '✗ ' + e.message; el.style.display = 'block';
+  }
+  btn.textContent = '💾 Salva configurazione'; btn.disabled = false;
+}
+
+// ── CSRF ──────────────────────────────────────────────────────────────────────
+function getCsrf() {
+  return document.cookie.split(';').map(c => c.trim())
+    .find(c => c.startsWith('csrftoken='))?.split('=')[1] || '';
+}
+</script>
+{% endblock %}

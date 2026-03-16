@@ -11,6 +11,9 @@
 {% url 'admin_portale:automazioni_run_log_list' as automazioni_run_log_url %}
 {% url 'hub_tools:hub_moduli'                   as hub_moduli_url %}
 {% url 'hub_tools:hub_database'                 as hub_database_url %}
+{% url 'hub_tools:hub_homepage_builder'         as hub_homepage_builder_url %}
+{% url 'hub_tools:hub_setup_wizard'             as hub_setup_wizard_url %}
+{% url 'hub_tools:hub_guide_list'               as hub_guide_list_url %}
 <div class="subnav">
   <a class="sub-a{% if current == 'admin_portale:index' %} active{% endif %}"
      href="{% url 'admin_portale:index' %}">Home Admin</a>
@@ -75,15 +78,27 @@
   {% endif %}
 
   {# ── Hub Tools #}
-  {% if hub_moduli_url or hub_database_url %}
+  {% if hub_moduli_url or hub_database_url or hub_homepage_builder_url or hub_setup_wizard_url or hub_guide_list_url %}
     <div class="sub-sep"></div>
     {% if hub_moduli_url %}
       <a class="sub-a{% if current == 'hub_tools:hub_moduli' or current == 'hub_tools:hub_moduli_toggle' %} active{% endif %}"
-         href="{{ hub_moduli_url }}" style="color:#1a6fc4;font-weight:700;">🛠️ Hub / Moduli</a>
+         href="{{ hub_moduli_url }}" style="color:#1a6fc4;font-weight:700;">🛠️ Moduli</a>
     {% endif %}
     {% if hub_database_url %}
       <a class="sub-a{% if current == 'hub_tools:hub_database' or current == 'hub_tools:hub_db_stats' or current == 'hub_tools:hub_db_backup' or current == 'hub_tools:hub_db_cleanup' or current == 'hub_tools:hub_db_optimize' or current == 'hub_tools:hub_db_restore' %} active{% endif %}"
-         href="{{ hub_database_url }}" style="color:#1a6fc4;font-weight:700;">🗄️ Hub / Database</a>
+         href="{{ hub_database_url }}" style="color:#1a6fc4;font-weight:700;">🗄️ Database</a>
+    {% endif %}
+    {% if hub_homepage_builder_url %}
+      <a class="sub-a{% if current == 'hub_tools:hub_homepage_builder' %} active{% endif %}"
+         href="{{ hub_homepage_builder_url }}" style="color:#1a6fc4;font-weight:700;">🏠 Builder</a>
+    {% endif %}
+    {% if hub_setup_wizard_url %}
+      <a class="sub-a{% if current == 'hub_tools:hub_setup_wizard' %} active{% endif %}"
+         href="{{ hub_setup_wizard_url }}" style="color:#1a6fc4;font-weight:700;">⚙️ Wizard</a>
+    {% endif %}
+    {% if hub_guide_list_url %}
+      <a class="sub-a{% if current == 'hub_tools:hub_guide_list' or current == 'hub_tools:hub_guide_view' %} active{% endif %}"
+         href="{{ hub_guide_list_url }}" style="color:#1a6fc4;font-weight:700;">📚 Guide</a>
     {% endif %}
   {% endif %}
 </div>
@@ -137,6 +152,12 @@
     <strong>Diagnostica ACL:</strong> inserisci un path (es. <code>/assenze/</code>) e opzionalmente un <code>legacy_user_id</code> per vedere match pulsante e record permessi.
   {% elif current == 'admin_portale:ldap_diagnostica' %}
     <strong>Config SRV:</strong> pannello unico per configurare e testare LDAP / Active Directory e SMTP, con persistenza su <code>config.ini</code>.
+  {% elif current == 'hub_tools:hub_homepage_builder' %}
+    <strong>Homepage Builder:</strong> editor visuale per configurare le sezioni della homepage del portale. Genera il template Django pronto all'uso.
+  {% elif current == 'hub_tools:hub_setup_wizard' %}
+    <strong>Setup Wizard:</strong> riconfigura il portale modificando database, LDAP, SMTP e altri parametri. I valori mostrati sono quelli attualmente in uso.
+  {% elif current == 'hub_tools:hub_guide_list' or current == 'hub_tools:hub_guide_view' %}
+    <strong>Guide e Manuali:</strong> documentazione tecnica e guide operative per la gestione del portale.
   {% elif 'hub_tools:' in current %}
     <strong>Hub Tools:</strong> strumenti di sistema riservati allo staff — gestione moduli visibili e manutenzione database (backup, pulizia, ottimizzazione).
   {% else %}
