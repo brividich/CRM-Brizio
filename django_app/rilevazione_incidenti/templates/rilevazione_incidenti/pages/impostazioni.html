@@ -14,6 +14,23 @@
 .sic-breadcrumb { font-size:12px; opacity:.6; margin-bottom:6px; }
 .sic-breadcrumb a { color:#fff; text-decoration:none; }
 
+/* Tabs */
+.sic-tabs-nav {
+  display:flex; gap:4px; background:#fff; border:1px solid #e2e8f0;
+  border-radius:14px; padding:6px; flex-wrap:wrap;
+}
+.sic-tab-btn {
+  padding:9px 20px; border:none; background:transparent; border-radius:10px;
+  font-size:13px; font-weight:600; color:#64748b; cursor:pointer;
+  display:flex; align-items:center; gap:6px; transition:all .15s; white-space:nowrap;
+}
+.sic-tab-btn:hover { background:#f1f5f9; color:#0f172a; }
+.sic-tab-btn.active { background:#065f46; color:#fff; }
+
+/* Pannello tab */
+.sic-tab-panel { display:none; }
+.sic-tab-panel.active { display:block; }
+
 .sic-form-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:28px 32px; }
 .sic-section { margin-bottom:28px; }
 .sic-section:last-child { margin-bottom:0; }
@@ -22,22 +39,53 @@
   letter-spacing:.06em; margin-bottom:14px; padding-bottom:8px; border-bottom:2px solid #f1f5f9;
 }
 .sic-field { display:flex; flex-direction:column; gap:5px; margin-bottom:16px; }
+.sic-field:last-child { margin-bottom:0; }
 .sic-field label { font-size:13px; font-weight:700; color:#374151; }
 .sic-field-hint { font-size:11px; color:#94a3b8; margin-top:2px; }
 .sic-field input, .sic-field textarea {
   padding:9px 12px; border:1px solid #cbd5e1; border-radius:10px;
-  font-size:13px; outline:none; font-family:monospace; transition:border-color .15s;
+  font-size:13px; outline:none; font-family:inherit; transition:border-color .15s;
 }
 .sic-field input:focus, .sic-field textarea:focus {
   border-color:#065f46; box-shadow:0 0 0 3px rgba(6,95,70,.08);
 }
-.sic-field textarea { resize:vertical; min-height:100px; }
-.sic-form-actions { display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; padding-top:20px; border-top:1px solid #f1f5f9; margin-top:20px; }
+.sic-field textarea { resize:vertical; min-height:110px; font-family:monospace; }
+.sic-form-actions {
+  display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;
+  padding-top:20px; border-top:1px solid #f1f5f9; margin-top:20px;
+}
 .sic-btn-save { padding:11px 28px; background:#065f46; color:#fff; border:none; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; }
 .sic-btn-save:hover { background:#047857; }
-.sic-btn-back { padding:11px 22px; background:#f1f5f9; color:#475569; border:none; border-radius:10px; font-size:14px; font-weight:600; text-decoration:none; }
+.sic-btn-back { padding:11px 22px; background:#f1f5f9; color:#475569; border:none; border-radius:10px; font-size:14px; font-weight:600; text-decoration:none; display:inline-block; }
 .sic-error-box { background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:12px 16px; color:#991b1b; font-size:13px; margin-bottom:16px; }
-.sic-info-box { background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:14px 18px; font-size:13px; color:#1e40af; margin-bottom:16px; }
+.sic-info-box { background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:14px 18px; font-size:13px; color:#1e40af; }
+
+/* Info tab */
+.sic-info-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+@media(max-width:600px){ .sic-info-grid { grid-template-columns:1fr; } }
+.sic-info-stat {
+  background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px;
+  padding:18px 20px;
+}
+.sic-info-stat-label { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; }
+.sic-info-stat-value { font-size:22px; font-weight:900; color:#0f172a; }
+.sic-info-stat-sub { font-size:12px; color:#64748b; margin-top:4px; }
+
+.sic-default-list {
+  background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;
+  padding:14px 16px; max-height:180px; overflow-y:auto;
+}
+.sic-default-list-item {
+  font-size:12px; color:#475569; padding:4px 0; border-bottom:1px solid #f1f5f9;
+}
+.sic-default-list-item:last-child { border-bottom:none; }
+
+.sic-storage-badge {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:6px 14px; border-radius:20px; font-size:13px; font-weight:700;
+}
+.sic-storage-local { background:#fef9c3; color:#a16207; }
+.sic-storage-sharepoint { background:#dbeafe; color:#1e40af; }
 </style>
 {% endblock %}
 
@@ -47,7 +95,7 @@
   {% if messages %}
     {% for msg in messages %}
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 16px;color:#166534;font-size:13px;">
-      {{ msg }}
+      &#10003; {{ msg }}
     </div>
     {% endfor %}
   {% endif %}
@@ -58,70 +106,216 @@
     <div class="sic-hero-sub">Configurazione modulo Sicurezza — Solo amministratori</div>
   </div>
 
-  <div class="sic-info-box">
-    &#8505; Le impostazioni controllano l'integrazione con SharePoint e i permessi di accesso.
-    La lista SharePoint rimane la fonte dati principale (PowerApps continua a funzionare in parallelo).
-  </div>
-
   {% if error %}<div class="sic-error-box">&#9888; {{ error }}</div>{% endif %}
 
-  <form method="post">
-    {% csrf_token %}
+  <!-- Tab nav -->
+  <div class="sic-tabs-nav">
+    <button type="button" class="sic-tab-btn{% if active_tab == 'sharepoint' %} active{% endif %}"
+            onclick="switchTab('sharepoint')">
+      &#9729; SharePoint
+    </button>
+    <button type="button" class="sic-tab-btn{% if active_tab == 'permessi' %} active{% endif %}"
+            onclick="switchTab('permessi')">
+      &#128100; Permessi ACL
+    </button>
+    <button type="button" class="sic-tab-btn{% if active_tab == 'liste' %} active{% endif %}"
+            onclick="switchTab('liste')">
+      &#128196; Liste personalizzate
+    </button>
+    <button type="button" class="sic-tab-btn{% if active_tab == 'info' %} active{% endif %}"
+            onclick="switchTab('info')">
+      &#8505; Info &amp; Database
+    </button>
+  </div>
+
+  <!-- TAB: SharePoint -->
+  <div id="tab-sharepoint" class="sic-tab-panel{% if active_tab == 'sharepoint' %} active{% endif %}">
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="_tab" value="sharepoint">
+      <div class="sic-form-card">
+        <div class="sic-section">
+          <div class="sic-section-title">&#9729; Integrazione SharePoint / Microsoft Graph</div>
+          <div class="sic-info-box" style="margin-bottom:20px;">
+            &#8505; Se i campi sono vuoti il modulo funziona in modalità <strong>database locale</strong>.
+            Compilali per attivare la sincronizzazione con SharePoint (PowerApps continua a funzionare in parallelo).
+          </div>
+          <div class="sic-field">
+            <label>SharePoint Site ID</label>
+            <input type="text" name="sharepoint_site_id"
+                   value="{{ cfg.sharepoint_site_id }}"
+                   placeholder="es. tuodominio.sharepoint.com,xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx,xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+            <div class="sic-field-hint">
+              Trovalo su Graph Explorer: GET https://graph.microsoft.com/v1.0/sites?search=nomesito
+            </div>
+          </div>
+          <div class="sic-field">
+            <label>Lista SharePoint ID</label>
+            <input type="text" name="sharepoint_list_id" value="{{ cfg.sharepoint_list_id }}">
+            <div class="sic-field-hint">ID della lista "Rilevazione UnSafe Condition — UnSafe Act — Near Miss — Accident"</div>
+          </div>
+        </div>
+        <div class="sic-form-actions">
+          <a href="{% url 'rilevazione_incidenti:lista' %}" class="sic-btn-back">Annulla</a>
+          <button type="submit" class="sic-btn-save">&#128190; Salva</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- TAB: Permessi -->
+  <div id="tab-permessi" class="sic-tab-panel{% if active_tab == 'permessi' %} active{% endif %}">
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="_tab" value="permessi">
+      <div class="sic-form-card">
+        <div class="sic-section">
+          <div class="sic-section-title">&#128100; Accesso Preposti / Capireparto</div>
+          <div class="sic-field">
+            <label>Username o email autorizzati (uno per riga)</label>
+            <textarea name="acl_preposti" rows="7"
+                      placeholder="mario.rossi&#10;m.bianchi@azienda.it&#10;...">{{ acl_preposti_text }}</textarea>
+            <div class="sic-field-hint">
+              Lasciare vuoto = accesso aperto a tutti gli utenti autenticati.
+              Gli admin legacy bypassano sempre questa lista.
+            </div>
+          </div>
+        </div>
+        <div class="sic-section">
+          <div class="sic-section-title">&#128203; Accesso RSPP / ASPP</div>
+          <div class="sic-field">
+            <label>Username o email RSPP/ASPP (uno per riga)</label>
+            <textarea name="acl_rspp" rows="5"
+                      placeholder="rspp@azienda.it&#10;aspp@azienda.it&#10;...">{{ acl_rspp_text }}</textarea>
+            <div class="sic-field-hint">
+              Gli RSPP/ASPP possono approvare, chiudere ed esportare le rilevazioni.
+              Se vuoto = nessun utente abilitato (solo admin legacy).
+            </div>
+          </div>
+        </div>
+        <div class="sic-form-actions">
+          <a href="{% url 'rilevazione_incidenti:lista' %}" class="sic-btn-back">Annulla</a>
+          <button type="submit" class="sic-btn-save">&#128190; Salva</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- TAB: Liste personalizzate -->
+  <div id="tab-liste" class="sic-tab-panel{% if active_tab == 'liste' %} active{% endif %}">
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="_tab" value="liste">
+      <div class="sic-form-card">
+        <div class="sic-section">
+          <div class="sic-section-title">&#127970; Reparti</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+            <div>
+              <div class="sic-field">
+                <label>Reparti personalizzati (uno per riga)</label>
+                <textarea name="reparti_custom" rows="10"
+                          placeholder="AGGIUSTAGGIO&#10;TORNI / FRESE&#10;CNC&#10;...">{{ reparti_custom_text }}</textarea>
+                <div class="sic-field-hint">Vuoto = usa lista predefinita sotto.</div>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">
+                Lista predefinita
+              </div>
+              <div class="sic-default-list">
+                {% for r in reparti_default %}
+                <div class="sic-default-list-item">{{ r }}</div>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="sic-section">
+          <div class="sic-section-title">&#9888; Cause evento</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+            <div>
+              <div class="sic-field">
+                <label>Cause personalizzate (una per riga)</label>
+                <textarea name="cause_evento_custom" rows="8"
+                          placeholder="Comportamento non sicuro&#10;Condizione non sicura&#10;...">{{ cause_evento_custom_text }}</textarea>
+                <div class="sic-field-hint">Vuoto = usa lista predefinita sotto.</div>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">
+                Lista predefinita
+              </div>
+              <div class="sic-default-list">
+                {% for c in cause_evento_default %}
+                <div class="sic-default-list-item">{{ c }}</div>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="sic-form-actions">
+          <a href="{% url 'rilevazione_incidenti:lista' %}" class="sic-btn-back">Annulla</a>
+          <button type="submit" class="sic-btn-save">&#128190; Salva</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- TAB: Info & Database -->
+  <div id="tab-info" class="sic-tab-panel{% if active_tab == 'info' %} active{% endif %}">
     <div class="sic-form-card">
-
-      <!-- SharePoint -->
       <div class="sic-section">
-        <div class="sic-section-title">&#9729; Integrazione SharePoint</div>
-        <div class="sic-field">
-          <label>SharePoint Site ID</label>
-          <input type="text" name="sharepoint_site_id"
-                 value="{{ cfg.sharepoint_site_id }}"
-                 placeholder="es. tuodominio.sharepoint.com,xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx,xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-          <div class="sic-field-hint">
-            Trovalo su Graph Explorer: GET https://graph.microsoft.com/v1.0/sites?search=nomesito
+        <div class="sic-section-title">&#128202; Stato modulo</div>
+        <div class="sic-info-grid">
+          <div class="sic-info-stat">
+            <div class="sic-info-stat-label">Modalità storage</div>
+            {% if storage_mode == "locale" %}
+            <div style="margin-top:6px;">
+              <span class="sic-storage-badge sic-storage-local">&#128451; Database locale</span>
+            </div>
+            <div class="sic-info-stat-sub" style="margin-top:8px;">SharePoint non configurato — i dati sono salvati nel DB Django</div>
+            {% else %}
+            <div style="margin-top:6px;">
+              <span class="sic-storage-badge sic-storage-sharepoint">&#9729; SharePoint / Graph</span>
+            </div>
+            <div class="sic-info-stat-sub" style="margin-top:8px;">I dati vengono letti e scritti su SharePoint tramite Graph API</div>
+            {% endif %}
           </div>
-        </div>
-        <div class="sic-field">
-          <label>Lista SharePoint ID</label>
-          <input type="text" name="sharepoint_list_id" value="{{ cfg.sharepoint_list_id }}">
-          <div class="sic-field-hint">ID della lista "Rilevazione UnSafe Condition..."</div>
-        </div>
-      </div>
-
-      <!-- ACL Preposti -->
-      <div class="sic-section">
-        <div class="sic-section-title">&#128100; Accesso Preposti / Capireparto</div>
-        <div class="sic-field">
-          <label>Username o email autorizzati (uno per riga)</label>
-          <textarea name="acl_preposti" rows="6"
-                    placeholder="mario.rossi&#10;m.bianchi@azienda.it&#10;...">{{ acl_preposti_text }}</textarea>
-          <div class="sic-field-hint">
-            Lasciare vuoto = accesso aperto a tutti gli utenti autenticati.
-            Gli admin legacy bypassano sempre questa lista.
+          <div class="sic-info-stat">
+            <div class="sic-info-stat-label">Record nel DB locale</div>
+            <div class="sic-info-stat-value">{{ n_record_db }}</div>
+            <div class="sic-info-stat-sub">rilevazioni archiviate localmente</div>
           </div>
         </div>
       </div>
-
-      <!-- ACL RSPP -->
       <div class="sic-section">
-        <div class="sic-section-title">&#128203; Accesso RSPP / ASPP</div>
-        <div class="sic-field">
-          <label>Username o email RSPP/ASPP (uno per riga)</label>
-          <textarea name="acl_rspp" rows="4"
-                    placeholder="rspp@azienda.it&#10;aspp@azienda.it&#10;...">{{ acl_rspp_text }}</textarea>
-          <div class="sic-field-hint">
-            Gli RSPP/ASPP possono approvare e chiudere le rilevazioni (Sezione 3).
-            Se vuoto = nessun utente (solo admin legacy).
-          </div>
+        <div class="sic-section-title">&#128196; Configurazione attiva</div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;font-size:13px;font-family:monospace;">
+          <div style="color:#94a3b8;margin-bottom:4px;">sharepoint_site_id</div>
+          <div style="color:#0f172a;word-break:break-all;">{{ cfg.sharepoint_site_id|default:"(non configurato)" }}</div>
+          <div style="color:#94a3b8;margin-top:12px;margin-bottom:4px;">sharepoint_list_id</div>
+          <div style="color:#0f172a;word-break:break-all;">{{ cfg.sharepoint_list_id|default:"(non configurato)" }}</div>
+          <div style="color:#94a3b8;margin-top:12px;margin-bottom:4px;">acl_preposti</div>
+          <div style="color:#0f172a;">{% if cfg.acl_preposti %}{{ cfg.acl_preposti|length }} utente/i configurati{% else %}Accesso aperto a tutti{% endif %}</div>
+          <div style="color:#94a3b8;margin-top:12px;margin-bottom:4px;">acl_rspp</div>
+          <div style="color:#0f172a;">{% if cfg.acl_rspp %}{{ cfg.acl_rspp|length }} utente/i configurati{% else %}Nessuno (solo admin){% endif %}</div>
         </div>
       </div>
-
       <div class="sic-form-actions">
-        <a href="{% url 'rilevazione_incidenti:lista' %}" class="sic-btn-back">Annulla</a>
-        <button type="submit" class="sic-btn-save">&#128190; Salva impostazioni</button>
+        <a href="{% url 'rilevazione_incidenti:lista' %}" class="sic-btn-back">&#8592; Torna alla lista</a>
       </div>
-
     </div>
-  </form>
+  </div>
+
 </div>
+
+<script>
+function switchTab(tab) {
+  document.querySelectorAll('.sic-tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sic-tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.querySelector('[onclick="switchTab(\'' + tab + '\')"]').classList.add('active');
+  history.replaceState(null, '', '?tab=' + tab);
+}
+</script>
 {% endblock %}

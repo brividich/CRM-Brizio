@@ -2,14 +2,17 @@
 <div class="subnav">
   <a class="sub-a{% if current == 'anagrafica:index' %} active{% endif %}" href="{% url 'anagrafica:index' %}">Anagrafica</a>
   <div class="sub-sep"></div>
-  <a class="sub-a{% if current == 'anagrafica:dipendenti_list' %} active{% endif %}" href="{% url 'anagrafica:dipendenti_list' %}">Dipendenti</a>
+  <a class="sub-a{% if current == 'anagrafica:dipendenti_list' or current == 'anagrafica:dipendente_detail' %} active{% endif %}" href="{% url 'anagrafica:dipendenti_list' %}">Dipendenti</a>
   <a class="sub-a{% if current == 'anagrafica:fornitori_list' or current == 'anagrafica:fornitore_detail' or current == 'anagrafica:fornitore_create' or current == 'anagrafica:fornitore_edit' %} active{% endif %}" href="{% url 'anagrafica:fornitori_list' %}">Fornitori</a>
+  <a class="sub-a{% if current == 'anagrafica:ruoli_operativi_list' %} active{% endif %}" href="{% url 'anagrafica:ruoli_operativi_list' %}">Ruoli operativi</a>
 </div>
 <div class="notice" style="margin-top: 10px;">
   {% if current == 'anagrafica:index' %}
     <strong>Anagrafica:</strong> panoramica di dipendenti e fornitori aziendali.
   {% elif current == 'anagrafica:dipendenti_list' %}
-    <strong>Dipendenti:</strong> elenco dei dipendenti aziendali (dati da archivio legacy). Per modifiche strutturali usa l'Admin Portale.
+    <strong>Dipendenti:</strong> elenco dei dipendenti aziendali (dati da archivio legacy). Clicca "Scheda" per accedere al dettaglio.
+  {% elif current == 'anagrafica:dipendente_detail' %}
+    <strong>Scheda dipendente:</strong> dati anagrafici, ruoli operativi assegnati e statistiche attività nei moduli del portale.
   {% elif current == 'anagrafica:fornitori_list' %}
     <strong>Fornitori:</strong> gestione anagrafica fornitori. Clicca su un fornitore per vedere documenti, ordini e valutazioni.
   {% elif current == 'anagrafica:fornitore_detail' %}
@@ -18,6 +21,8 @@
     <strong>Nuovo fornitore:</strong> compila i campi obbligatori (ragione sociale) e salva. Potrai aggiungere documenti e ordini dalla scheda.
   {% elif current == 'anagrafica:fornitore_edit' %}
     <strong>Modifica fornitore:</strong> aggiorna i dati anagrafici del fornitore.
+  {% elif current == 'anagrafica:ruoli_operativi_list' %}
+    <strong>Ruoli operativi:</strong> catalogo ruoli aziendali (preposto, RSPP, ecc.) assegnabili ai dipendenti dalla loro scheda.
   {% else %}
     <strong>Anagrafica:</strong> gestione dipendenti e fornitori.
   {% endif %}

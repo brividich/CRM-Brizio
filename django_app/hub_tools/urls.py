@@ -20,6 +20,8 @@ urlpatterns = [
     # Setup Wizard (riconfigura)
     path("setup-wizard/", views.setup_wizard_hub, name="hub_setup_wizard"),
     path("setup-wizard/api/reconfigure/", views.api_reconfigure, name="hub_api_reconfigure"),
+    # DB Schema
+    path("database/schema/", views.db_schema, name="hub_db_schema"),
     # Guide e Manuali
     path("guide/", views.guide_list, name="hub_guide_list"),
     path("guide/serve/<str:filename>", views.guide_serve, name="hub_guide_serve"),

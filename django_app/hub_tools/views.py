@@ -529,6 +529,12 @@ def setup_wizard_hub(request):
 # ══════════════════════════════════════════════════════════════════════════════
 
 @_staff_required
+def db_schema(request):
+    """Infografica schema DB: modelli, campi e relazioni."""
+    return render(request, "hub_tools/db_schema.html")
+
+
+@_staff_required
 def guide_list(request):
     """Elenco guide e manuali disponibili."""
     return render(request, "hub_tools/guide_list.html", {"guides": GUIDES})

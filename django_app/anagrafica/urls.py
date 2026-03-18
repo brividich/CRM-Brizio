@@ -50,4 +50,23 @@ urlpatterns = [
 
     # Impostazioni permessi widget
     path("impostazioni-widget/", views.widget_permissions, name="widget_permissions"),
+
+    # Mansione dipendente (aggiorna campo legacy)
+    path("dipendenti/<int:legacy_id>/mansione/set", views.dipendente_mansione_set, name="dipendente_mansione_set"),
+
+    # Qualifiche dipendente
+    path("dipendenti/<int:legacy_id>/qualifiche/add", views.dipendente_qualifica_add, name="dipendente_qualifica_add"),
+    path("dipendenti/<int:legacy_id>/qualifiche/<int:q_id>/delete", views.dipendente_qualifica_delete, name="dipendente_qualifica_delete"),
+
+    # Mansioni catalogo
+    path("mansioni/", views.mansioni_list, name="mansioni_list"),
+    path("mansioni/nuovo", views.mansione_create, name="mansione_create"),
+    path("mansioni/<int:mansione_id>/modifica", views.mansione_edit, name="mansione_edit"),
+    path("mansioni/<int:mansione_id>/elimina", views.mansione_delete, name="mansione_delete"),
+
+    # Qualifiche catalogo + scadenze
+    path("qualifiche/", views.qualifiche_list, name="qualifiche_list"),
+    path("qualifiche/nuovo", views.tipo_qualifica_create, name="tipo_qualifica_create"),
+    path("qualifiche/<int:tipo_id>/modifica", views.tipo_qualifica_edit, name="tipo_qualifica_edit"),
+    path("qualifiche/<int:tipo_id>/elimina", views.tipo_qualifica_delete, name="tipo_qualifica_delete"),
 ]

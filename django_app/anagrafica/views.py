@@ -31,6 +31,7 @@ from .forms import (
 )
 from .models import (
     AnagraficaStatPermission,
+    DipendenteQualifica,
     DipendenteRuoloOperativo,
     DipendenteStatLayout,
     Fornitore,
@@ -38,7 +39,9 @@ from .models import (
     FornitoreDocumento,
     FornitoreOrdine,
     FornitoreValutazione,
+    Mansione,
     RuoloOperativo,
+    TipoQualifica,
 )
 
 logger = logging.getLogger(__name__)
@@ -668,6 +671,20 @@ def dipendente_detail(request, legacy_id: int):
         id__in=[a.ruolo_id for a in ruoli_assegnati]
     )
 
+    # Mansioni catalogo
+    mansioni_catalogo = list(Mansione.objects.filter(is_active=True).order_by("nome"))
+
+    # Qualifiche dipendente
+    from django.utils import timezone as tz
+    from datetime import timedelta
+    oggi = tz.localdate()
+    qualifiche_dip = list(
+        DipendenteQualifica.objects.filter(legacy_anagrafica_id=legacy_id)
+        .select_related("tipo")
+        .order_by("data_scadenza", "tipo__nome")
+    )
+    tipi_qualifica = list(TipoQualifica.objects.filter(is_active=True).order_by("categoria", "nome"))
+
     return render(request, "anagrafica/pages/dipendente_detail.html", {
         "dip": dip,
         "legacy_id": legacy_id,
@@ -678,6 +695,11 @@ def dipendente_detail(request, legacy_id: int):
         "all_widgets": STAT_WIDGETS,
         "ruoli_assegnati": ruoli_assegnati,
         "ruoli_disponibili": ruoli_disponibili,
+        "mansioni_catalogo": mansioni_catalogo,
+        "qualifiche_dip": qualifiche_dip,
+        "tipi_qualifica": tipi_qualifica,
+        "oggi": oggi,
+        "oggi_plus60": oggi + timedelta(days=60),
     })
 
 
@@ -754,9 +776,15 @@ def ruoli_operativi_list(request):
     is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
 
     ruoli = RuoloOperativo.objects.annotate(n_assegnati=Count("assegnazioni")).order_by("nome")
+    ruoli_suggeriti = [
+        "Preposto", "RSPP", "ASPP", "RLS",
+        "Squadra antincendio", "Squadra primo soccorso",
+        "Addetto emergenze", "Rappresentante sicurezza",
+    ]
     return render(request, "anagrafica/pages/ruoli_operativi.html", {
         "ruoli": ruoli,
         "is_admin": is_admin,
+        "ruoli_suggeriti": ruoli_suggeriti,
     })
 
 
@@ -868,3 +896,387 @@ def widget_permissions(request):
         "ACCESSO_ADMIN": AnagraficaStatPermission.ACCESSO_ADMIN,
         "ACCESSO_RUOLI": AnagraficaStatPermission.ACCESSO_RUOLI,
     })
+
+
+# ---------------------------------------------------------------------------
+# Mansione dipendente — set dal catalogo (scrive su legacy DB)
+# ---------------------------------------------------------------------------
+
+@login_required
+@require_POST
+def dipendente_mansione_set(request, legacy_id: int):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per modificare la mansione.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    mansione_nome = (request.POST.get("mansione_nome") or "").strip()[:200]
+
+    # Recupera la riga esistente per non sovrascrivere gli altri campi
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:dipendenti_list")
+    dip = rows[0]
+
+    try:
+        upsert_anagrafica_dipendente(
+            row_id=legacy_id,
+            aliasusername=dip.get("aliasusername") or "",
+            nome=dip.get("nome") or "",
+            cognome=dip.get("cognome") or "",
+            reparto=dip.get("reparto") or "",
+            mansione=mansione_nome,
+            ruolo=dip.get("ruolo") or "",
+            matricola=dip.get("matricola") or "",
+            email=dip.get("email") or "",
+            email_notifica=dip.get("email_notifica") or "",
+            attivo=bool(dip.get("attivo", True)),
+        )
+        messages.success(request, f'Mansione aggiornata a "{mansione_nome}".' if mansione_nome else "Mansione rimossa.")
+    except Exception:
+        logger.exception("Errore aggiornamento mansione dipendente %s", legacy_id)
+        messages.error(request, "Errore durante l'aggiornamento della mansione.")
+    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+
+# ---------------------------------------------------------------------------
+# Qualifiche dipendente — assegna/rimuovi
+# ---------------------------------------------------------------------------
+
+@login_required
+@require_POST
+def dipendente_qualifica_add(request, legacy_id: int):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per aggiungere qualifiche.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    tipo_id = int(request.POST.get("tipo_id") or 0)
+    tipo = get_object_or_404(TipoQualifica, pk=tipo_id, is_active=True)
+
+    data_cons_raw = (request.POST.get("data_conseguimento") or "").strip()
+    data_scad_raw = (request.POST.get("data_scadenza") or "").strip()
+
+    from datetime import date, timedelta
+    data_conseguimento = None
+    data_scadenza = None
+
+    if data_cons_raw:
+        try:
+            data_conseguimento = date.fromisoformat(data_cons_raw)
+        except ValueError:
+            pass
+
+    if data_scad_raw:
+        try:
+            data_scadenza = date.fromisoformat(data_scad_raw)
+        except ValueError:
+            pass
+    elif tipo.durata_mesi > 0 and data_conseguimento:
+        # Auto-calcola scadenza
+        from dateutil.relativedelta import relativedelta
+        try:
+            data_scadenza = data_conseguimento + relativedelta(months=tipo.durata_mesi)
+        except Exception:
+            data_scadenza = data_conseguimento + timedelta(days=tipo.durata_mesi * 30)
+
+    note = (request.POST.get("note") or "").strip()[:255]
+
+    DipendenteQualifica.objects.create(
+        legacy_anagrafica_id=legacy_id,
+        tipo=tipo,
+        data_conseguimento=data_conseguimento,
+        data_scadenza=data_scadenza,
+        note=note,
+        assegnato_da=request.user,
+    )
+    messages.success(request, f'Qualifica "{tipo.nome}" aggiunta.')
+    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+
+@login_required
+@require_POST
+def dipendente_qualifica_delete(request, legacy_id: int, q_id: int):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per rimuovere qualifiche.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    qualifica = get_object_or_404(DipendenteQualifica, pk=q_id, legacy_anagrafica_id=legacy_id)
+    nome = qualifica.tipo.nome
+    qualifica.delete()
+    messages.success(request, f'Qualifica "{nome}" rimossa.')
+    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+
+# ---------------------------------------------------------------------------
+# Mansioni — gestione catalogo
+# ---------------------------------------------------------------------------
+
+@login_required
+def mansioni_list(request):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+
+    mansioni = list(Mansione.objects.all().order_by("nome"))
+
+    # Conta dipendenti per mansione dal DB legacy
+    mansione_counts: dict[str, int] = {}
+    try:
+        from django.db import connections
+        conn_name = "legacy" if "legacy" in connections else "default"
+        with connections[conn_name].cursor() as cur:
+            cur.execute(
+                "SELECT LOWER(mansione), COUNT(*) FROM anagrafica_dipendenti "
+                "WHERE mansione IS NOT NULL AND mansione != '' GROUP BY LOWER(mansione)"
+            )
+            for row in cur.fetchall():
+                mansione_counts[row[0]] = row[1]
+    except Exception:
+        pass
+
+    for m in mansioni:
+        m.n_dipendenti = mansione_counts.get(m.nome.lower(), 0)
+
+    mansioni_suggerite = [
+        "Operaio generico", "Operaio specializzato", "Operaio qualificato",
+        "Impiegato", "Impiegato tecnico", "Impiegato amministrativo",
+        "Quadro", "Dirigente",
+    ]
+
+    return render(request, "anagrafica/pages/mansioni_list.html", {
+        "mansioni": mansioni,
+        "is_admin": is_admin,
+        "mansioni_suggerite": mansioni_suggerite,
+        "CATEGORIA_CHOICES": Mansione.CATEGORIA_CHOICES,
+    })
+
+
+@login_required
+@require_POST
+def mansione_create(request):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per creare mansioni.")
+        return redirect("anagrafica:mansioni_list")
+
+    nome = (request.POST.get("nome") or "").strip()[:100]
+    if not nome:
+        messages.error(request, "Il nome della mansione è obbligatorio.")
+        return redirect("anagrafica:mansioni_list")
+
+    _, created = Mansione.objects.get_or_create(
+        nome__iexact=nome,
+        defaults={
+            "nome": nome,
+            "categoria": (request.POST.get("categoria") or "").strip()[:20],
+            "descrizione": (request.POST.get("descrizione") or "").strip(),
+            "colore": (request.POST.get("colore") or "#64748b").strip()[:7],
+        },
+    )
+    if created:
+        messages.success(request, f'Mansione "{nome}" creata.')
+    else:
+        messages.warning(request, f'Esiste già una mansione con il nome "{nome}".')
+    return redirect("anagrafica:mansioni_list")
+
+
+@login_required
+@require_POST
+def mansione_edit(request, mansione_id: int):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per modificare mansioni.")
+        return redirect("anagrafica:mansioni_list")
+
+    mansione = get_object_or_404(Mansione, pk=mansione_id)
+    nome = (request.POST.get("nome") or "").strip()[:100]
+    if not nome:
+        messages.error(request, "Il nome della mansione è obbligatorio.")
+        return redirect("anagrafica:mansioni_list")
+
+    mansione.nome = nome
+    mansione.categoria = (request.POST.get("categoria") or "").strip()[:20]
+    mansione.descrizione = (request.POST.get("descrizione") or "").strip()
+    mansione.colore = (request.POST.get("colore") or "#64748b").strip()[:7]
+    mansione.is_active = request.POST.get("is_active") == "1"
+    mansione.save()
+    messages.success(request, f'Mansione "{mansione.nome}" aggiornata.')
+    return redirect("anagrafica:mansioni_list")
+
+
+@login_required
+@require_POST
+def mansione_delete(request, mansione_id: int):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per eliminare mansioni.")
+        return redirect("anagrafica:mansioni_list")
+
+    mansione = get_object_or_404(Mansione, pk=mansione_id)
+    nome = mansione.nome
+    mansione.delete()
+    messages.success(request, f'Mansione "{nome}" eliminata.')
+    return redirect("anagrafica:mansioni_list")
+
+
+# ---------------------------------------------------------------------------
+# Qualifiche — gestione catalogo + panoramica scadenze
+# ---------------------------------------------------------------------------
+
+@login_required
+def qualifiche_list(request):
+    from datetime import timedelta
+    from django.utils import timezone as tz
+
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    is_admin = request.user.is_superuser or is_legacy_admin(legacy_user)
+
+    tipi = list(
+        TipoQualifica.objects.annotate(n_assegnazioni=Count("assegnazioni")).order_by("categoria", "nome")
+    )
+
+    oggi = tz.localdate()
+    soglia = oggi + timedelta(days=60)
+
+    # Qualifiche in scadenza o scadute
+    scadenze_qs = list(
+        DipendenteQualifica.objects.filter(data_scadenza__isnull=False)
+        .filter(data_scadenza__lte=soglia)
+        .select_related("tipo")
+        .order_by("data_scadenza")
+    )
+
+    # Arricchisce con nome dipendente
+    legacy_ids = list({q.legacy_anagrafica_id for q in scadenze_qs})
+    nome_map: dict[int, str] = {}
+    if legacy_ids:
+        try:
+            rows = fetch_anagrafica_rows(ids=legacy_ids)
+            for r in rows:
+                rid = int(r.get("id") or 0)
+                if rid:
+                    nome_map[rid] = f"{r.get('cognome', '')} {r.get('nome', '')}".strip()
+        except Exception:
+            pass
+
+    scadenze = []
+    for q in scadenze_qs:
+        scadenze.append({
+            "id": q.id,
+            "legacy_anagrafica_id": q.legacy_anagrafica_id,
+            "dipendente": nome_map.get(q.legacy_anagrafica_id, f"Dip. #{q.legacy_anagrafica_id}"),
+            "tipo_nome": q.tipo.nome,
+            "tipo_categoria": q.tipo.categoria,
+            "data_conseguimento": q.data_conseguimento,
+            "data_scadenza": q.data_scadenza,
+            "scaduta": q.data_scadenza < oggi,
+            "in_scadenza": oggi <= q.data_scadenza <= soglia,
+            "note": q.note,
+        })
+
+    tipi_suggeriti = [
+        ("Patentino carrellista", "PROFESSIONALE", 60),
+        ("Primo soccorso", "SICUREZZA", 36),
+        ("Addetto antincendio (livello 1)", "SICUREZZA", 60),
+        ("Addetto antincendio (livello 2)", "SICUREZZA", 60),
+        ("Addetto antincendio (livello 3)", "SICUREZZA", 60),
+        ("RSPP", "SICUREZZA", 60),
+        ("RLS", "SICUREZZA", 60),
+        ("Preposto sicurezza", "SICUREZZA", 60),
+        ("Uso DPI anticaduta", "SICUREZZA", 60),
+    ]
+
+    return render(request, "anagrafica/pages/qualifiche_list.html", {
+        "tipi": tipi,
+        "scadenze": scadenze,
+        "is_admin": is_admin,
+        "oggi": oggi,
+        "CATEGORIA_CHOICES": TipoQualifica.CATEGORIA_CHOICES,
+        "tipi_suggeriti": tipi_suggeriti,
+    })
+
+
+@login_required
+@require_POST
+def tipo_qualifica_create(request):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per creare tipi di qualifica.")
+        return redirect("anagrafica:qualifiche_list")
+
+    nome = (request.POST.get("nome") or "").strip()[:150]
+    if not nome:
+        messages.error(request, "Il nome della qualifica è obbligatorio.")
+        return redirect("anagrafica:qualifiche_list")
+
+    durata_raw = request.POST.get("durata_mesi") or "0"
+    try:
+        durata_mesi = max(0, int(durata_raw))
+    except ValueError:
+        durata_mesi = 0
+
+    _, created = TipoQualifica.objects.get_or_create(
+        nome__iexact=nome,
+        defaults={
+            "nome": nome,
+            "categoria": (request.POST.get("categoria") or TipoQualifica.CAT_ALTRO).strip()[:20],
+            "durata_mesi": durata_mesi,
+            "descrizione": (request.POST.get("descrizione") or "").strip(),
+        },
+    )
+    if created:
+        messages.success(request, f'Tipo qualifica "{nome}" creato.')
+    else:
+        messages.warning(request, f'Esiste già un tipo qualifica con il nome "{nome}".')
+    return redirect("anagrafica:qualifiche_list")
+
+
+@login_required
+@require_POST
+def tipo_qualifica_edit(request, tipo_id: int):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per modificare tipi di qualifica.")
+        return redirect("anagrafica:qualifiche_list")
+
+    tipo = get_object_or_404(TipoQualifica, pk=tipo_id)
+    nome = (request.POST.get("nome") or "").strip()[:150]
+    if not nome:
+        messages.error(request, "Il nome della qualifica è obbligatorio.")
+        return redirect("anagrafica:qualifiche_list")
+
+    durata_raw = request.POST.get("durata_mesi") or "0"
+    try:
+        durata_mesi = max(0, int(durata_raw))
+    except ValueError:
+        durata_mesi = 0
+
+    tipo.nome = nome
+    tipo.categoria = (request.POST.get("categoria") or TipoQualifica.CAT_ALTRO).strip()[:20]
+    tipo.durata_mesi = durata_mesi
+    tipo.descrizione = (request.POST.get("descrizione") or "").strip()
+    tipo.is_active = request.POST.get("is_active") == "1"
+    tipo.save()
+    messages.success(request, f'Tipo qualifica "{tipo.nome}" aggiornato.')
+    return redirect("anagrafica:qualifiche_list")
+
+
+@login_required
+@require_POST
+def tipo_qualifica_delete(request, tipo_id: int):
+    legacy_user = UtenteLegacy.objects.filter(id=request.user.id).first()
+    if not (request.user.is_superuser or is_legacy_admin(legacy_user)):
+        messages.error(request, "Non hai i permessi per eliminare tipi di qualifica.")
+        return redirect("anagrafica:qualifiche_list")
+
+    tipo = get_object_or_404(TipoQualifica, pk=tipo_id)
+    if tipo.assegnazioni.exists():
+        messages.error(request, f'"{tipo.nome}" ha assegnazioni attive — non eliminabile.')
+        return redirect("anagrafica:qualifiche_list")
+
+    nome = tipo.nome
+    tipo.delete()
+    messages.success(request, f'Tipo qualifica "{nome}" eliminato.')
+    return redirect("anagrafica:qualifiche_list")

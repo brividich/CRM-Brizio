@@ -1,0 +1,135 @@
+{% extends "core/base.html" %}
+
+{% block title %}Impostazioni statistiche | Anagrafica{% endblock %}
+
+{% block extra_head %}
+<style>
+.wp-page { display:flex; flex-direction:column; gap:20px; max-width:700px; }
+.wp-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.wp-title { font-size:24px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
+.wp-sub { font-size:13px; color:#64748b; margin-top:2px; }
+.wp-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; }
+.wp-btn-primary { background:#1d4ed8; color:#fff; }
+.wp-btn-primary:hover { background:#1e40af; }
+.wp-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.wp-btn-ghost:hover { background:#e2e8f0; }
+.wp-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.wp-card-head { padding:14px 20px; border-bottom:1px solid #f1f5f9; }
+.wp-card-title { font-size:15px; font-weight:700; color:#1e293b; }
+.wp-card-body { padding:20px; display:flex; flex-direction:column; gap:16px; }
+.wp-field { display:flex; flex-direction:column; gap:6px; }
+.wp-label { font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+.wp-desc { font-size:12px; color:#94a3b8; }
+.wp-radio-group { display:flex; flex-direction:column; gap:8px; }
+.wp-radio-opt { display:flex; align-items:flex-start; gap:10px; padding:10px 14px; border:1px solid #e2e8f0; border-radius:9px; cursor:pointer; transition:border-color .15s; }
+.wp-radio-opt:has(input:checked) { border-color:#1d4ed8; background:#eff6ff; }
+.wp-radio-opt input[type=radio] { margin-top:2px; flex-shrink:0; }
+.wp-radio-label { font-size:13px; font-weight:600; color:#1e293b; }
+.wp-radio-desc { font-size:12px; color:#64748b; margin-top:2px; }
+.wp-ruoli-section { display:none; flex-direction:column; gap:8px; padding:12px; background:#f8fafc; border-radius:9px; border:1px solid #e2e8f0; }
+.wp-ruoli-section.visible { display:flex; }
+.wp-ruoli-grid { display:flex; flex-wrap:wrap; gap:6px; }
+.wp-ruolo-check { display:flex; align-items:center; gap:6px; padding:5px 10px; border:1px solid #e2e8f0; border-radius:7px; font-size:12px; font-weight:500; background:#fff; cursor:pointer; }
+.wp-ruolo-check:has(input:checked) { background:#dbeafe; border-color:#93c5fd; color:#1e40af; }
+.wp-notice { background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:12px 16px; font-size:13px; color:#92400e; }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="wp-page">
+
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <div class="wp-topbar">
+    <div>
+      <div class="wp-title">⚙ Impostazioni statistiche dipendente</div>
+      <div class="wp-sub">Definisci chi può visualizzare la sezione statistiche nella scheda dipendente</div>
+    </div>
+    <a class="wp-btn wp-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Dipendenti</a>
+  </div>
+
+  <div class="wp-notice">
+    Queste impostazioni controllano la visibilità della sezione <strong>Statistiche attività</strong> nella scheda di ogni dipendente (ticket, anomalie, diario preposto, rilevazioni, ecc.).
+    Gli amministratori vedono sempre tutto, indipendentemente da questa impostazione.
+  </div>
+
+  <div class="wp-card">
+    <div class="wp-card-head"><div class="wp-card-title">Accesso alla sezione statistiche</div></div>
+    <div class="wp-card-body">
+      <form method="post">
+        {% csrf_token %}
+
+        <div class="wp-field">
+          <div class="wp-label">Chi può vedere le statistiche di un dipendente?</div>
+          <div class="wp-radio-group" id="accesso-group">
+
+            <label class="wp-radio-opt">
+              <input type="radio" name="accesso" value="{{ ACCESSO_ADMIN }}"
+                {% if perm.accesso == ACCESSO_ADMIN %}checked{% endif %}
+                onchange="onAccessoChange()">
+              <div>
+                <div class="wp-radio-label">🔒 Solo amministratori</div>
+                <div class="wp-radio-desc">Solo gli utenti con ruolo admin possono vedere la sezione statistiche.</div>
+              </div>
+            </label>
+
+            <label class="wp-radio-opt">
+              <input type="radio" name="accesso" value="{{ ACCESSO_TUTTI }}"
+                {% if perm.accesso == ACCESSO_TUTTI %}checked{% endif %}
+                onchange="onAccessoChange()">
+              <div>
+                <div class="wp-radio-label">🌐 Tutti gli utenti autenticati</div>
+                <div class="wp-radio-desc">Qualsiasi utente loggato può vedere la sezione statistiche.</div>
+              </div>
+            </label>
+
+            <label class="wp-radio-opt">
+              <input type="radio" name="accesso" value="{{ ACCESSO_RUOLI }}"
+                {% if perm.accesso == ACCESSO_RUOLI %}checked{% endif %}
+                onchange="onAccessoChange()">
+              <div>
+                <div class="wp-radio-label">👥 Ruoli ACL specifici</div>
+                <div class="wp-radio-desc">Solo gli utenti con uno dei ruoli selezionati (oltre agli admin).</div>
+              </div>
+            </label>
+
+          </div>
+        </div>
+
+        <!-- Selezione ruoli ACL -->
+        <div class="wp-ruoli-section {% if perm.accesso == ACCESSO_RUOLI %}visible{% endif %}" id="ruoli-section">
+          <div class="wp-label">Seleziona i ruoli abilitati</div>
+          {% if ruoli_acl %}
+          <div class="wp-ruoli-grid">
+            {% for r in ruoli_acl %}
+            <label class="wp-ruolo-check">
+              <input type="checkbox" name="ruolo_ids" value="{{ r.id }}"
+                {% if r.id in perm.ruolo_ids %}checked{% endif %}>
+              {{ r.nome }}
+            </label>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div style="font-size:13px;color:#94a3b8;">Nessun ruolo ACL trovato nel sistema legacy.</div>
+          {% endif %}
+        </div>
+
+        <div style="margin-top:6px;">
+          <button type="submit" class="wp-btn wp-btn-primary">Salva impostazioni</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function onAccessoChange() {
+  const val = document.querySelector('input[name="accesso"]:checked')?.value;
+  const sec = document.getElementById('ruoli-section');
+  if (sec) sec.classList.toggle('visible', val === '{{ ACCESSO_RUOLI }}');
+}
+</script>
+{% endblock %}

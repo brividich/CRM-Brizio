@@ -1,0 +1,993 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Hub Tools — Schema DB{% endblock %}
+
+{% block content %}
+<style>
+/* ── Layout ── */
+.schema-wrap{display:flex;gap:0;align-items:flex-start;max-width:100%}
+.schema-sidebar{width:190px;flex-shrink:0;position:sticky;top:80px;height:calc(100vh - 80px);overflow-y:auto;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 10px;margin-right:20px}
+.schema-main{flex:1;min-width:0}
+
+/* ── Page header ── */
+.schema-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px}
+.schema-title{font-size:1.3rem;font-weight:800;display:flex;align-items:center;gap:10px}
+.schema-subtitle{font-size:.82rem;color:#64748b;margin-top:3px}
+.stats-bar{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.stat-pill{background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:4px 12px;font-size:.76rem;font-weight:600;color:#1d4ed8;white-space:nowrap}
+.stat-pill span{color:#64748b;font-weight:400;margin-right:4px}
+
+/* ── Sidebar nav ── */
+.sidebar-title{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;padding:0 8px;margin-bottom:8px}
+.nav-item{display:flex;align-items:center;padding:5px 8px;border-radius:7px;font-size:.78rem;font-weight:600;color:#475569;text-decoration:none;margin-bottom:2px;transition:all .15s;border-left:3px solid transparent}
+.nav-item:hover{background:#f1f5f9;color:#1e293b;text-decoration:none}
+.nav-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:7px;flex-shrink:0}
+.nav-count{margin-left:auto;font-size:.68rem;background:rgba(0,0,0,.07);border-radius:10px;padding:1px 6px}
+
+/* ── Legend ── */
+.legend{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:9px 14px}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:.75rem;color:#475569}
+
+/* ── App section ── */
+.app-section{margin-bottom:32px}
+.app-header{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid currentColor}
+.app-name{font-size:1.05rem;font-weight:800}
+.count-pill{font-size:.72rem;font-weight:700;padding:2px 9px;border-radius:10px;margin-left:auto}
+
+/* ── Model grid ── */
+.model-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+
+/* ── Model card ── */
+.model-card{background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;overflow:hidden;transition:box-shadow .2s,border-color .2s}
+.model-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.09);border-color:#cbd5e1}
+.model-card-header{padding:9px 12px 7px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #f1f5f9}
+.model-name{font-weight:800;font-size:.86rem}
+.model-table{font-size:.67rem;color:#94a3b8;font-style:italic;margin-top:1px}
+.unmanaged-badge{font-size:.63rem;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:8px;padding:1px 6px;white-space:nowrap}
+.field-list{padding:6px 0;max-height:240px;overflow-y:auto}
+.field-row{display:flex;align-items:center;gap:5px;padding:2px 12px;font-size:.74rem;color:#475569;transition:background .1s}
+.field-row:hover{background:#f8fafc}
+.field-section{font-size:.68rem;font-weight:700;padding:3px 12px;margin-top:2px}
+.field-name{font-weight:600;color:#1e293b;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.field-type{font-size:.66rem;color:#94a3b8;white-space:nowrap}
+.rel-badge{font-size:.63rem;font-weight:700;border-radius:5px;padding:1px 5px;white-space:nowrap;flex-shrink:0}
+.rel-fk{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
+.rel-o2o{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0}
+.rel-m2m{background:#fdf4ff;color:#7e22ce;border:1px solid #e9d5ff}
+.rel-target{font-size:.67rem;color:#64748b;font-style:italic;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.model-footer{padding:6px 12px;background:#f8fafc;border-top:1px solid #f1f5f9;font-size:.68rem;color:#94a3b8;display:flex;gap:6px;flex-wrap:wrap}
+.footer-tag{background:#e2e8f0;border-radius:4px;padding:1px 5px;color:#475569}
+
+/* ── App colors ── */
+.c-core{color:#1a6fc4} .bg-core{background:#eff6ff;border-color:#bfdbfe}
+.c-legacy{color:#475569} .bg-legacy{background:#f8fafc;border-color:#cbd5e1}
+.c-assets{color:#7c3aed} .bg-assets{background:#faf5ff;border-color:#ddd6fe}
+.c-tasks{color:#0891b2} .bg-tasks{background:#ecfeff;border-color:#a5f3fc}
+.c-automazioni{color:#d97706} .bg-automazioni{background:#fffbeb;border-color:#fde68a}
+.c-tickets{color:#dc2626} .bg-tickets{background:#fff1f2;border-color:#fecaca}
+.c-notizie{color:#16a34a} .bg-notizie{background:#f0fdf4;border-color:#bbf7d0}
+.c-anagrafica{color:#be185d} .bg-anagrafica{background:#fdf2f8;border-color:#fbcfe8}
+.c-timbri{color:#0f766e} .bg-timbri{background:#f0fdfa;border-color:#99f6e4}
+.c-diario{color:#c2410c} .bg-diario{background:#fff7ed;border-color:#fed7aa}
+.c-incidenti{color:#b45309} .bg-incidenti{background:#fffbeb;border-color:#fde68a}
+.c-rentri{color:#4338ca} .bg-rentri{background:#eef2ff;border-color:#c7d2fe}
+.c-assenze{color:#065f46} .bg-assenze{background:#f0fdf4;border-color:#a7f3d0}
+
+.cp-core{background:#1a6fc4;color:#fff}
+.cp-legacy{background:#475569;color:#fff}
+.cp-assets{background:#7c3aed;color:#fff}
+.cp-tasks{background:#0891b2;color:#fff}
+.cp-automazioni{background:#d97706;color:#fff}
+.cp-tickets{background:#dc2626;color:#fff}
+.cp-notizie{background:#16a34a;color:#fff}
+.cp-anagrafica{background:#be185d;color:#fff}
+.cp-timbri{background:#0f766e;color:#fff}
+.cp-diario{background:#c2410c;color:#fff}
+.cp-incidenti{background:#b45309;color:#fff}
+.cp-rentri{background:#4338ca;color:#fff}
+.cp-assenze{background:#065f46;color:#fff}
+
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:#f1f5f9}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+</style>
+
+<div style="padding:20px 24px 40px">
+
+  <!-- Page header -->
+  <div class="schema-header">
+    <div>
+      <div class="schema-title">🗄️ Schema DB — Portale Novicrom</div>
+      <div class="schema-subtitle">Mappa completa di modelli Django, campi e relazioni &nbsp;·&nbsp; versione app <strong>{{ APP_VERSION|default:"0.7.3" }}</strong></div>
+      <div class="stats-bar">
+        <div class="stat-pill"><span>App</span>13</div>
+        <div class="stat-pill"><span>Modelli Django</span>~104</div>
+        <div class="stat-pill"><span>Legacy (unmanaged)</span>5</div>
+        <div class="stat-pill"><span>ForeignKey</span>~90</div>
+        <div class="stat-pill"><span>OneToOne</span>~15</div>
+        <div class="stat-pill"><span>ManyToMany</span>~3</div>
+      </div>
+    </div>
+    <a href="{% url 'hub_tools:hub_database' %}" style="font-size:.82rem;color:#64748b;text-decoration:none;white-space:nowrap">← Database</a>
+  </div>
+
+  <div class="schema-wrap">
+
+    <!-- Sidebar -->
+    <nav class="schema-sidebar">
+      <div class="sidebar-title">App Django</div>
+      <a class="nav-item" href="#core" style="color:#1a6fc4;border-left-color:#1a6fc4"><span class="nav-dot" style="background:#1a6fc4"></span>core<span class="nav-count">22</span></a>
+      <a class="nav-item" href="#legacy" style="color:#475569;border-left-color:#64748b"><span class="nav-dot" style="background:#475569"></span>legacy<span class="nav-count">5</span></a>
+      <a class="nav-item" href="#assets" style="color:#7c3aed;border-left-color:#7c3aed"><span class="nav-dot" style="background:#7c3aed"></span>assets<span class="nav-count">25</span></a>
+      <a class="nav-item" href="#tasks" style="color:#0891b2;border-left-color:#0891b2"><span class="nav-dot" style="background:#0891b2"></span>tasks<span class="nav-count">7</span></a>
+      <a class="nav-item" href="#automazioni" style="color:#d97706;border-left-color:#d97706"><span class="nav-dot" style="background:#d97706"></span>automazioni<span class="nav-count">6</span></a>
+      <a class="nav-item" href="#tickets" style="color:#dc2626;border-left-color:#dc2626"><span class="nav-dot" style="background:#dc2626"></span>tickets<span class="nav-count">4</span></a>
+      <a class="nav-item" href="#notizie" style="color:#16a34a;border-left-color:#16a34a"><span class="nav-dot" style="background:#16a34a"></span>notizie<span class="nav-count">4</span></a>
+      <a class="nav-item" href="#anagrafica" style="color:#be185d;border-left-color:#be185d"><span class="nav-dot" style="background:#be185d"></span>anagrafica<span class="nav-count">9</span></a>
+      <a class="nav-item" href="#timbri" style="color:#0f766e;border-left-color:#0f766e"><span class="nav-dot" style="background:#0f766e"></span>timbri<span class="nav-count">4</span></a>
+      <a class="nav-item" href="#diario" style="color:#c2410c;border-left-color:#c2410c"><span class="nav-dot" style="background:#c2410c"></span>diario_preposto<span class="nav-count">3</span></a>
+      <a class="nav-item" href="#incidenti" style="color:#b45309;border-left-color:#b45309"><span class="nav-dot" style="background:#b45309"></span>rilevazione_incidenti<span class="nav-count">2</span></a>
+      <a class="nav-item" href="#rentri" style="color:#4338ca;border-left-color:#4338ca"><span class="nav-dot" style="background:#4338ca"></span>rentri<span class="nav-count">1</span></a>
+      <a class="nav-item" href="#assenze" style="color:#065f46;border-left-color:#065f46"><span class="nav-dot" style="background:#065f46"></span>assenze<span class="nav-count">1</span></a>
+    </nav>
+
+    <!-- Main -->
+    <div class="schema-main">
+
+      <!-- Legend -->
+      <div class="legend">
+        <strong style="font-size:.73rem;color:#475569;margin-right:4px">Relazioni:</strong>
+        <div class="legend-item"><span class="rel-badge rel-fk">FK</span> ForeignKey</div>
+        <div class="legend-item"><span class="rel-badge rel-o2o">1:1</span> OneToOneField</div>
+        <div class="legend-item"><span class="rel-badge rel-m2m">M:M</span> ManyToManyField</div>
+        <div class="legend-item" style="margin-left:6px;font-size:.72rem;color:#94a3b8">🔸 nullable &nbsp; 🔒 unique &nbsp; 📌 indexed</div>
+      </div>
+
+      <!-- ══════════ CORE ══════════ -->
+      <div class="app-section" id="core">
+        <div class="app-header c-core">
+          <span style="font-size:1.2rem">⚙️</span>
+          <span class="app-name">core</span>
+          <span style="font-size:.74rem;color:#64748b;margin-left:6px">models.py</span>
+          <span class="count-pill cp-core">22 modelli</span>
+        </div>
+        <div class="model-grid">
+
+          <div class="model-card bg-core">
+            <div class="model-card-header"><div><div class="model-name c-core">Profile</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="rel-badge rel-o2o">1:1</span><span class="rel-target">→ AUTH_USER_MODEL</span></div>
+              <div class="field-row"><span class="field-name">legacy_user_id</span><span class="field-type">Int 🔒</span></div>
+              <div class="field-row"><span class="field-name">legacy_ruolo_id</span><span class="field-type">Int 🔸</span></div>
+              <div class="field-row"><span class="field-name">legacy_ruolo</span><span class="field-type">Char(100)</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-core">
+            <div class="model-card-header"><div><div class="model-name c-core">UserPermissionOverride</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="field-name">legacy_user_id</span><span class="field-type">Int 📌</span></div>
+              <div class="field-row"><span class="field-name">modulo, azione</span><span class="field-type">Char(100)</span></div>
+              <div class="field-row"><span class="field-name">can_view / edit / delete / approve</span><span class="field-type">Bool 🔸</span></div>
+            </div>
+            <div class="model-footer"><span class="footer-tag">unique_together: user+modulo+azione</span></div>
+          </div>
+
+          <div class="model-card bg-core">
+            <div class="model-card-header"><div><div class="model-name c-core">NavigationItem</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="field-name">code 🔒, label</span><span class="field-type">Slug/Char(120)</span></div>
+              <div class="field-row"><span class="field-name">section 📌, parent_code 📌</span><span class="field-type">Char</span></div>
+              <div class="field-row"><span class="field-name">url_path, route_name</span><span class="field-type">Char(500)</span></div>
+              <div class="field-row"><span class="field-name">order, is_visible, is_enabled</span><span class="field-type">Int/Bool</span></div>
+              <div class="field-row"><span class="field-name">open_in_new_tab, icon, group</span><span class="field-type">Bool/Char</span></div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ AUTH_USER_MODEL (created_by, updated_by)</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-core">
+            <div class="model-card-header"><div><div class="model-name c-core">NavigationRoleAccess</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ NavigationItem</span></div>
+              <div class="field-row"><span class="field-name">legacy_role_id 📌, can_view</span><span class="field-type">Int/Bool</span></div>
+            </div>
+            <div class="model-footer"><span class="footer-tag">unique_together: item+role</span></div>
+          </div>
+
+          <div class="model-card bg-core">
+            <div class="model-card-header"><div><div class="model-name c-core">AuditLog</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="field-name">legacy_user_id 📌 🔸</span><span class="field-type">Int</span></div>
+              <div class="field-row"><span class="field-name">utente_display</span><span class="field-type">Char(200)</span></div>
+              <div class="field-row"><span class="field-name">azione 📌, modulo 📌</span><span class="field-type">Char(100)</span></div>
+              <div class="field-row"><span class="field-name">dettaglio</span><span class="field-type">JSON</span></div>
+              <div class="field-row"><span class="field-name">ip_address 🔸</span><span class="field-type">GenericIP</span></div>
+              <div class="field-row"><span class="field-name">created_at 📌</span><span class="field-type">DateTime</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-core">
+            <div class="model-card-header"><div><div class="model-name c-core">SiteConfig</div><div class="model-table">configurazione k/v runtime</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="field-name">chiave 🔒 📌</span><span class="field-type">Char(100)</span></div>
+              <div class="field-row"><span class="field-name">valore</span><span class="field-type">Text</span></div>
+              <div class="field-row"><span class="field-name">descrizione</span><span class="field-type">Char(300)</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-core">
+            <div class="model-card-header"><div><div class="model-name c-core">Notifica</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="field-name">legacy_user_id 📌</span><span class="field-type">Int</span></div>
+              <div class="field-row"><span class="field-name">tipo</span><span class="field-type">Char(50) choices</span></div>
+              <div class="field-row"><span class="field-name">messaggio, url_azione</span><span class="field-type">Char</span></div>
+              <div class="field-row"><span class="field-name">letta</span><span class="field-type">Bool</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-core">
+            <div class="model-card-header"><div><div class="model-name c-core">UserExtraInfo</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="field-name">legacy_user_id 🔒 📌</span><span class="field-type">Int</span></div>
+              <div class="field-row"><span class="field-name">reparto, caporeparto, macchina</span><span class="field-type">Char(200)</span></div>
+              <div class="field-row"><span class="field-name">telefono, cellulare, note</span><span class="field-type">Char/Text</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-core">
+            <div class="model-card-header"><div><div class="model-name c-core">Checklist*</div><div class="model-table">Voce / Esecuzione / Risposta</div></div></div>
+            <div class="field-list">
+              <div class="field-section c-core">ChecklistVoce</div>
+              <div class="field-row"><span class="field-name">tipo_checklist, categoria, label</span><span class="field-type">Char/JSON</span></div>
+              <div class="field-section c-core">ChecklistEsecuzione</div>
+              <div class="field-row"><span class="field-name">legacy_user_id, tipo_checklist</span><span class="field-type">Int/Char</span></div>
+              <div class="field-section c-core">ChecklistRisposta</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ ChecklistEsecuzione</span></div>
+              <div class="field-row"><span class="field-name">voce_id, voce_label, valore</span><span class="field-type">Int/Char/Text</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-core">
+            <div class="model-card-header"><div><div class="model-name c-core">AnagraficaVoce / Risposta</div></div></div>
+            <div class="field-list">
+              <div class="field-section c-core">AnagraficaVoce</div>
+              <div class="field-row"><span class="field-name">categoria, label, tipo_campo</span><span class="field-type">Char/JSON</span></div>
+              <div class="field-section c-core">AnagraficaRisposta</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ AnagraficaVoce</span></div>
+              <div class="field-row"><span class="field-name">legacy_user_id, valore</span><span class="field-type">Int/Text</span></div>
+            </div>
+            <div class="model-footer"><span class="footer-tag">unique_together: user+voce</span></div>
+          </div>
+
+          <div class="model-card bg-core">
+            <div class="model-card-header"><div><div class="model-name c-core">Dashboard & Board Config</div></div></div>
+            <div class="field-list">
+              <div class="field-section c-core">UserDashboardConfig</div>
+              <div class="field-row"><span class="field-name">legacy_user_id, pulsante_id, visible</span><span class="field-type">Int/Bool</span></div>
+              <div class="field-section c-core">UserDashboardLayout</div>
+              <div class="field-row"><span class="field-name">legacy_user_id 🔒, layout</span><span class="field-type">Int/JSON</span></div>
+              <div class="field-section c-core">UserModuleVisibility</div>
+              <div class="field-row"><span class="field-name">legacy_user_id, modulo, visible</span><span class="field-type">Int/Char/Bool</span></div>
+              <div class="field-section c-core">EmployeeBoardConfig</div>
+              <div class="field-row"><span class="field-name">legacy_user_id 🔒, layout, widget_configs</span><span class="field-type">Int/JSON</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-core">
+            <div class="model-card-header"><div><div class="model-name c-core">Altri modelli core</div></div></div>
+            <div class="field-list">
+              <div class="field-section c-core">NavigationSnapshot</div>
+              <div class="field-row"><span class="field-name">version, payload, note</span><span class="field-type">Int/JSON/Char</span></div>
+              <div class="field-section c-core">LegacyRedirect</div>
+              <div class="field-row"><span class="field-name">legacy_path 🔒, target_route_name</span><span class="field-type">Char</span></div>
+              <div class="field-section c-core">LoginBanner</div>
+              <div class="field-row"><span class="field-name">testo, tipo, ordine, is_active</span><span class="field-type">Text/Char/Int/Bool</span></div>
+              <div class="field-section c-core">RepartoCapoMapping</div>
+              <div class="field-row"><span class="field-name">reparto 📌, caporeparto</span><span class="field-type">Char(200)</span></div>
+              <div class="field-section c-core">OptioneConfig</div>
+              <div class="field-row"><span class="field-name">tipo 📌, valore, legacy_user_id</span><span class="field-type">Char/Int</span></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ══════════ LEGACY ══════════ -->
+      <div class="app-section" id="legacy">
+        <div class="app-header c-legacy" style="border-color:#64748b">
+          <span style="font-size:1.2rem">🏛️</span>
+          <span class="app-name">Legacy SQL Server</span>
+          <span style="font-size:.73rem;color:#64748b;margin-left:6px">legacy_models.py — managed=False</span>
+          <span class="count-pill cp-legacy">5 modelli</span>
+        </div>
+        <div class="model-grid">
+
+          <div class="model-card bg-legacy">
+            <div class="model-card-header"><div><div class="model-name c-legacy">Ruolo</div><div class="model-table">tabella: ruoli</div></div><span class="unmanaged-badge">unmanaged</span></div>
+            <div class="field-list">
+              <div class="field-row"><span class="field-name">id</span><span class="field-type">PK</span></div>
+              <div class="field-row"><span class="field-name">nome</span><span class="field-type">Char(100)</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-legacy">
+            <div class="model-card-header"><div><div class="model-name c-legacy">UtenteLegacy</div><div class="model-table">tabella: utenti</div></div><span class="unmanaged-badge">unmanaged</span></div>
+            <div class="field-list">
+              <div class="field-row"><span class="field-name">nome, email, password</span><span class="field-type">Char</span></div>
+              <div class="field-row"><span class="field-name">ruolo, ruolo_id</span><span class="field-type">Char/Int 🔸</span></div>
+              <div class="field-row"><span class="field-name">attivo, deve_cambiare_password</span><span class="field-type">Bool</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-legacy">
+            <div class="model-card-header"><div><div class="model-name c-legacy">AnagraficaDipendente</div><div class="model-table">tabella: anagrafica_dipendenti</div></div><span class="unmanaged-badge">unmanaged</span></div>
+            <div class="field-list">
+              <div class="field-row"><span class="rel-badge rel-o2o">1:1</span><span class="rel-target">→ UtenteLegacy 🔸</span></div>
+              <div class="field-row"><span class="field-name">aliasusername, nome, cognome</span><span class="field-type">Char</span></div>
+              <div class="field-row"><span class="field-name">mansione, reparto, email</span><span class="field-type">Char(200)</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-legacy">
+            <div class="model-card-header"><div><div class="model-name c-legacy">Pulsante</div><div class="model-table">tabella: pulsanti</div></div><span class="unmanaged-badge">unmanaged</span></div>
+            <div class="field-list">
+              <div class="field-row"><span class="field-name">codice, nome_visibile, icona</span><span class="field-type">Char</span></div>
+              <div class="field-row"><span class="field-name">modulo, url</span><span class="field-type">Char(100/500)</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-legacy">
+            <div class="model-card-header"><div><div class="model-name c-legacy">Permesso</div><div class="model-table">tabella: permessi</div></div><span class="unmanaged-badge">unmanaged</span></div>
+            <div class="field-list">
+              <div class="field-row"><span class="field-name">modulo, azione, ruolo_id</span><span class="field-type">Char/Int</span></div>
+              <div class="field-row"><span class="field-name">consentito</span><span class="field-type">Int 🔸</span></div>
+              <div class="field-row"><span class="field-name">can_view / edit / delete / approve</span><span class="field-type">Int 🔸</span></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ══════════ ASSETS ══════════ -->
+      <div class="app-section" id="assets">
+        <div class="app-header c-assets" style="border-color:#7c3aed">
+          <span style="font-size:1.2rem">🖥️</span>
+          <span class="app-name">assets</span>
+          <span style="font-size:.73rem;color:#64748b;margin-left:6px">Macchinari, attrezzature, IT, planimetria</span>
+          <span class="count-pill cp-assets">25 modelli</span>
+        </div>
+        <div class="model-grid">
+
+          <div class="model-card bg-assets">
+            <div class="model-card-header"><div><div class="model-name c-assets">Asset</div><div class="model-table">entità principale</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ AssetCategory 🔸</span></div>
+              <div class="field-row"><span class="field-name">asset_tag 🔒, name</span><span class="field-type">Char</span></div>
+              <div class="field-row"><span class="field-name">asset_type, status</span><span class="field-type">Char choices</span></div>
+              <div class="field-row"><span class="field-name">reparto, manufacturer, model</span><span class="field-type">Char(120)</span></div>
+              <div class="field-row"><span class="field-name">serial_number, source_key 🔒</span><span class="field-type">Char</span></div>
+              <div class="field-row"><span class="field-name">extra_columns</span><span class="field-type">JSON</span></div>
+              <div class="field-row"><span class="field-name">assigned_legacy_user_id 📌 🔸</span><span class="field-type">Int</span></div>
+              <div class="field-row"><span class="field-name">assignment_to, assignment_reparto</span><span class="field-type">Char</span></div>
+              <div class="field-row"><span class="field-name">sharepoint_folder_url/path</span><span class="field-type">Char</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-assets">
+            <div class="model-card-header"><div><div class="model-name c-assets">AssetCategory</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="field-name">code 🔒, label</span><span class="field-type">Slug/Char(120)</span></div>
+              <div class="field-row"><span class="field-name">base_asset_type 📌</span><span class="field-type">Char choices</span></div>
+              <div class="field-row"><span class="field-name">detail_*_title (×5)</span><span class="field-type">Char(120)</span></div>
+              <div class="field-row"><span class="field-name">sort_order, is_active</span><span class="field-type">Int/Bool</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-assets">
+            <div class="model-card-header"><div><div class="model-name c-assets">AssetITDetails</div><div class="model-table">dettagli IT (1:1)</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="rel-badge rel-o2o">1:1</span><span class="rel-target">→ Asset</span></div>
+              <div class="field-row"><span class="field-name">os, cpu, ram, disco</span><span class="field-type">Char(120)</span></div>
+              <div class="field-row"><span class="field-name">domain_joined, edr_enabled</span><span class="field-type">Bool</span></div>
+              <div class="field-row"><span class="field-name">ad360_managed, office_2fa_enabled</span><span class="field-type">Bool</span></div>
+              <div class="field-row"><span class="field-name">bios_pwd_set, vault_ref</span><span class="field-type">Bool/Char</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-assets">
+            <div class="model-card-header"><div><div class="model-name c-assets">WorkMachine</div><div class="model-table">macchinario (1:1)</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="rel-badge rel-o2o">1:1</span><span class="rel-target">→ Asset</span></div>
+              <div class="field-row"><span class="field-name">source_key 🔒</span><span class="field-type">Char(64)</span></div>
+              <div class="field-row"><span class="field-name">x/y/z_mm, diameter_mm, spindle_mm</span><span class="field-type">Int 🔸</span></div>
+              <div class="field-row"><span class="field-name">year, tmc, pressure_bar</span><span class="field-type">Int/Decimal</span></div>
+              <div class="field-row"><span class="field-name">tcr_enabled, cnc_controlled, five_axes</span><span class="field-type">Bool</span></div>
+              <div class="field-row"><span class="field-name">next_maintenance_date 📌 🔸</span><span class="field-type">Date</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-assets">
+            <div class="model-card-header"><div><div class="model-name c-assets">WorkOrder</div><div class="model-table">ordini di lavoro</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ Asset</span></div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ PeriodicVerification 🔸</span></div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ anagrafica.Fornitore 🔸</span></div>
+              <div class="field-row"><span class="field-name">kind, status</span><span class="field-type">Char choices</span></div>
+              <div class="field-row"><span class="field-name">title, description, resolution</span><span class="field-type">Char/Text</span></div>
+              <div class="field-row"><span class="field-name">opened_at, closed_at 🔸</span><span class="field-type">DateTime</span></div>
+              <div class="field-row"><span class="field-name">downtime_minutes, cost_eur 🔸</span><span class="field-type">Int/Decimal</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-assets">
+            <div class="model-card-header"><div><div class="model-name c-assets">WorkOrderAttachment / Log</div></div></div>
+            <div class="field-list">
+              <div class="field-section c-assets">WorkOrderAttachment</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ WorkOrder + AUTH_USER_MODEL</span></div>
+              <div class="field-row"><span class="field-name">file, original_name, notes</span><span class="field-type">File/Char</span></div>
+              <div class="field-section c-assets">WorkOrderLog</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ WorkOrder + AUTH_USER_MODEL</span></div>
+              <div class="field-row"><span class="field-name">ts, note</span><span class="field-type">DateTime/Text</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-assets">
+            <div class="model-card-header"><div><div class="model-name c-assets">PeriodicVerification</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ anagrafica.Fornitore 🔸</span></div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ AUTH_USER_MODEL</span></div>
+              <div class="field-row"><span class="rel-badge rel-m2m">M:M</span><span class="rel-target">→ Asset</span></div>
+              <div class="field-row"><span class="field-name">name, frequency_months</span><span class="field-type">Char/Int</span></div>
+              <div class="field-row"><span class="field-name">last_verification_date 🔸</span><span class="field-type">Date</span></div>
+              <div class="field-row"><span class="field-name">next_verification_date 📌 🔸</span><span class="field-type">Date</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-assets">
+            <div class="model-card-header"><div><div class="model-name c-assets">AssetEndpoint</div><div class="model-table">endpoint di rete</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ Asset</span></div>
+              <div class="field-row"><span class="field-name">endpoint_name, ip</span><span class="field-type">Char</span></div>
+              <div class="field-row"><span class="field-name">vlan 🔸, switch_name, switch_port</span><span class="field-type">Int/Char</span></div>
+            </div>
+            <div class="model-footer"><span class="footer-tag">unique: asset+name+vlan+ip</span></div>
+          </div>
+
+          <div class="model-card bg-assets">
+            <div class="model-card-header"><div><div class="model-name c-assets">Planimetria</div><div class="model-table">PlantLayout / Area / Marker</div></div></div>
+            <div class="field-list">
+              <div class="field-section c-assets">PlantLayout</div>
+              <div class="field-row"><span class="field-name">category, name, image, is_active</span><span class="field-type">Char/Image/Bool</span></div>
+              <div class="field-section c-assets">PlantLayoutArea</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ PlantLayout</span></div>
+              <div class="field-row"><span class="field-name">reparto_code, x/y/w/h_percent</span><span class="field-type">Char/Decimal</span></div>
+              <div class="field-section c-assets">PlantLayoutMarker</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ PlantLayout + Asset</span></div>
+              <div class="field-row"><span class="field-name">label, x_percent, y_percent</span><span class="field-type">Char/Decimal</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-assets">
+            <div class="model-card-header"><div><div class="model-name c-assets">AssetDocument</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ Asset + AUTH_USER_MODEL</span></div>
+              <div class="field-row"><span class="field-name">category 📌</span><span class="field-type">Char(20) choices</span></div>
+              <div class="field-row"><span class="field-name">file, original_name, notes</span><span class="field-type">File/Char</span></div>
+              <div class="field-row"><span class="field-name">document_date 🔸</span><span class="field-type">Date</span></div>
+              <div class="field-row"><span class="field-name">sharepoint_url, sharepoint_path</span><span class="field-type">Char</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-assets">
+            <div class="model-card-header"><div><div class="model-name c-assets">AssetLabelTemplate</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="rel-badge rel-o2o">1:1</span><span class="rel-target">→ Asset 🔸</span></div>
+              <div class="field-row"><span class="field-name">code 🔒, scope, asset_type</span><span class="field-type">Slug/Char choices</span></div>
+              <div class="field-row"><span class="field-name">page_w/h_mm, qr_size_mm</span><span class="field-type">Int</span></div>
+              <div class="field-row"><span class="field-name">background/border/text/accent_color</span><span class="field-type">Char(7)</span></div>
+              <div class="field-row"><span class="field-name">body_fields</span><span class="field-type">JSON</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-assets">
+            <div class="model-card-header"><div><div class="model-name c-assets">Asset Config / UI Models</div></div></div>
+            <div class="field-list">
+              <div class="field-section c-assets">AssetCustomField / AssetCategoryField</div>
+              <div class="field-row"><span class="field-name">code 🔒, label, field_type</span><span class="field-type">Slug/Char</span></div>
+              <div class="field-section c-assets">AssetDetailField / AssetDetailSectionLayout</div>
+              <div class="field-row"><span class="field-name">code 🔒, section, card_size</span><span class="field-type">Char choices</span></div>
+              <div class="field-section c-assets">AssetListLayout / AssetListOption</div>
+              <div class="field-row"><span class="field-name">context_key 🔒, visible_columns</span><span class="field-type">Char/JSON</span></div>
+              <div class="field-section c-assets">AssetActionButton / AssetSidebarButton</div>
+              <div class="field-row"><span class="field-name">code 🔒, label, zone/section</span><span class="field-type">Char choices</span></div>
+              <div class="field-section c-assets">AssetReportDefinition / AssetReportTemplate</div>
+              <div class="field-row"><span class="field-name">code 🔒, label, file</span><span class="field-type">Slug/Char/File</span></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ══════════ TASKS ══════════ -->
+      <div class="app-section" id="tasks">
+        <div class="app-header c-tasks" style="border-color:#0891b2">
+          <span style="font-size:1.2rem">✅</span>
+          <span class="app-name">tasks</span>
+          <span style="font-size:.73rem;color:#64748b;margin-left:6px">Task management, progetti, commesse</span>
+          <span class="count-pill cp-tasks">7 modelli</span>
+        </div>
+        <div class="model-grid">
+
+          <div class="model-card bg-tasks">
+            <div class="model-card-header"><div><div class="model-name c-tasks">Project</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ AUTH_USER_MODEL (pm, capo, programmer, created_by)</span></div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ Project self 🔸 (similar_project)</span></div>
+              <div class="field-row"><span class="field-name">name, client_name</span><span class="field-type">Char(180)</span></div>
+              <div class="field-row"><span class="field-name">control_method, part_number</span><span class="field-type">Char</span></div>
+              <div class="field-row"><span class="field-name">description, similar_work_note</span><span class="field-type">Text/Char</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-tasks">
+            <div class="model-card-header"><div><div class="model-name c-tasks">Task</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ Project 🔸</span></div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ AUTH_USER_MODEL (created_by, assigned_to)</span></div>
+              <div class="field-row"><span class="rel-badge rel-m2m">M:M</span><span class="rel-target">→ AUTH_USER_MODEL (subscribers)</span></div>
+              <div class="field-row"><span class="field-name">title, description</span><span class="field-type">Char(200)/Text</span></div>
+              <div class="field-row"><span class="field-name">status 📌, priority 📌</span><span class="field-type">Char choices</span></div>
+              <div class="field-row"><span class="field-name">tags, due_date 📌, next_step_due 📌</span><span class="field-type">Char/Date 🔸</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-tasks">
+            <div class="model-card-header"><div><div class="model-name c-tasks">SubTask / Commenti / Allegati</div></div></div>
+            <div class="field-list">
+              <div class="field-section c-tasks">SubTask</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ Task + AUTH_USER_MODEL 🔸</span></div>
+              <div class="field-row"><span class="field-name">title, status 📌, order_index 📌</span><span class="field-type">Char/choices/Int</span></div>
+              <div class="field-section c-tasks">TaskComment / ProjectComment</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ Task/Project + AUTH_USER_MODEL</span></div>
+              <div class="field-row"><span class="field-name">body</span><span class="field-type">Text</span></div>
+              <div class="field-section c-tasks">TaskEvent</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ Task + AUTH_USER_MODEL 🔸</span></div>
+              <div class="field-row"><span class="field-name">type 📌, payload</span><span class="field-type">Char/JSON</span></div>
+              <div class="field-section c-tasks">TaskAttachment</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ Task 🔸 / Project 🔸</span></div>
+              <div class="field-row"><span class="field-name">file, original_name</span><span class="field-type">File/Char(255)</span></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ══════════ AUTOMAZIONI ══════════ -->
+      <div class="app-section" id="automazioni">
+        <div class="app-header c-automazioni" style="border-color:#d97706">
+          <span style="font-size:1.2rem">⚡</span>
+          <span class="app-name">automazioni</span>
+          <span style="font-size:.73rem;color:#64748b;margin-left:6px">Designer visuale + trigger SQL Server</span>
+          <span class="count-pill cp-automazioni">6 modelli</span>
+        </div>
+        <div class="model-grid">
+
+          <div class="model-card bg-automazioni">
+            <div class="model-card-header"><div><div class="model-name c-automazioni">AutomationRule</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ AUTH_USER_MODEL (created_by, updated_by)</span></div>
+              <div class="field-row"><span class="field-name">code 🔒, name, description</span><span class="field-type">Slug/Char/Text</span></div>
+              <div class="field-row"><span class="field-name">source_code 📌, operation_type 📌</span><span class="field-type">Char choices</span></div>
+              <div class="field-row"><span class="field-name">trigger_scope 📌, watched_field 🔸</span><span class="field-type">Char choices</span></div>
+              <div class="field-row"><span class="field-name">is_active 📌, is_draft 📌</span><span class="field-type">Bool</span></div>
+              <div class="field-row"><span class="field-name">last_run_at 🔸, last_test_at 🔸</span><span class="field-type">DateTime</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-automazioni">
+            <div class="model-card-header"><div><div class="model-name c-automazioni">AutomationCondition / Action</div></div></div>
+            <div class="field-list">
+              <div class="field-section c-automazioni">AutomationCondition</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ AutomationRule</span></div>
+              <div class="field-row"><span class="field-name">order 📌, field_name, operator</span><span class="field-type">Int/Char choices</span></div>
+              <div class="field-row"><span class="field-name">expected_value, value_type, compare_with_old</span><span class="field-type">Text/Char/Bool</span></div>
+              <div class="field-section c-automazioni">AutomationAction</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ AutomationRule</span></div>
+              <div class="field-row"><span class="field-name">order 📌, action_type, config_json</span><span class="field-type">Int/Char/JSON</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-automazioni">
+            <div class="model-card-header"><div><div class="model-name c-automazioni">AutomationRunLog / ActionLog</div></div></div>
+            <div class="field-list">
+              <div class="field-section c-automazioni">AutomationRunLog</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ AutomationRule 🔸 + AUTH_USER_MODEL</span></div>
+              <div class="field-row"><span class="field-name">status 📌, source_code 📌, is_test 📌</span><span class="field-type">Char/Bool</span></div>
+              <div class="field-row"><span class="field-name">payload_json, old_payload_json, result_message</span><span class="field-type">JSON/Text</span></div>
+              <div class="field-row"><span class="field-name">started_at 📌, execution_ms 🔸</span><span class="field-type">DateTime/Int</span></div>
+              <div class="field-section c-automazioni">AutomationActionLog</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ AutomationRunLog + AutomationAction 🔸</span></div>
+              <div class="field-row"><span class="field-name">status 📌, result_message</span><span class="field-type">Char/Text</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-automazioni">
+            <div class="model-card-header"><div><div class="model-name c-automazioni">DashboardMetricValue</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="field-name">metric_code 🔒</span><span class="field-type">Slug(120)</span></div>
+              <div class="field-row"><span class="field-name">label</span><span class="field-type">Char(255)</span></div>
+              <div class="field-row"><span class="field-name">current_value</span><span class="field-type">Decimal(18,4)</span></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ══════════ TICKETS ══════════ -->
+      <div class="app-section" id="tickets">
+        <div class="app-header c-tickets" style="border-color:#dc2626">
+          <span style="font-size:1.2rem">🎫</span>
+          <span class="app-name">tickets</span>
+          <span style="font-size:.73rem;color:#64748b;margin-left:6px">Sistema ticket IT / Manutenzione</span>
+          <span class="count-pill cp-tickets">4 modelli</span>
+        </div>
+        <div class="model-grid">
+
+          <div class="model-card bg-tickets">
+            <div class="model-card-header"><div><div class="model-name c-tickets">Ticket</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ assets.Asset 🔸</span></div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ anagrafica.Fornitore 🔸</span></div>
+              <div class="field-row"><span class="field-name">numero_ticket 🔒</span><span class="field-type">Char(30)</span></div>
+              <div class="field-row"><span class="field-name">tipo 📌, stato 📌</span><span class="field-type">Char choices</span></div>
+              <div class="field-row"><span class="field-name">titolo, descrizione</span><span class="field-type">Char(300)/Text</span></div>
+              <div class="field-row"><span class="field-name">categoria, priorita, incide_sicurezza</span><span class="field-type">Char/Bool</span></div>
+              <div class="field-row"><span class="field-name">richiedente_nome/email/legacy_user_id</span><span class="field-type">Char/Int</span></div>
+              <div class="field-row"><span class="field-name">assegnato_a, assegnato_email</span><span class="field-type">Char(200)</span></div>
+              <div class="field-row"><span class="field-name">sharepoint_item_id, closed_at 🔸</span><span class="field-type">Char/DateTime</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-tickets">
+            <div class="model-card-header"><div><div class="model-name c-tickets">TicketCommento / Allegato</div></div></div>
+            <div class="field-list">
+              <div class="field-section c-tickets">TicketCommento</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ Ticket</span></div>
+              <div class="field-row"><span class="field-name">autore_nome, autore_email, testo</span><span class="field-type">Char/Text</span></div>
+              <div class="field-row"><span class="field-name">is_interno</span><span class="field-type">Bool</span></div>
+              <div class="field-section c-tickets">TicketAllegato</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ Ticket</span></div>
+              <div class="field-row"><span class="field-name">file, nome_originale, tipo_mime</span><span class="field-type">File/Char</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-tickets">
+            <div class="model-card-header"><div><div class="model-name c-tickets">TicketImpostazioni</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="field-name">tipo 🔒</span><span class="field-type">Char(5) choices</span></div>
+              <div class="field-row"><span class="field-name">sharepoint_list_id</span><span class="field-type">Char(100)</span></div>
+              <div class="field-row"><span class="field-name">team_gestori, acl_apertura, acl_gestione</span><span class="field-type">JSON</span></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ══════════ NOTIZIE ══════════ -->
+      <div class="app-section" id="notizie">
+        <div class="app-header c-notizie" style="border-color:#16a34a">
+          <span style="font-size:1.2rem">📰</span>
+          <span class="app-name">notizie</span>
+          <span style="font-size:.73rem;color:#64748b;margin-left:6px">Bacheca comunicazioni</span>
+          <span class="count-pill cp-notizie">4 modelli</span>
+        </div>
+        <div class="model-grid">
+
+          <div class="model-card bg-notizie">
+            <div class="model-card-header"><div><div class="model-name c-notizie">Notizia</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ AUTH_USER_MODEL (creato_da)</span></div>
+              <div class="field-row"><span class="field-name">titolo, corpo</span><span class="field-type">Char(300)/Text</span></div>
+              <div class="field-row"><span class="field-name">stato 📌</span><span class="field-type">Char(20) choices</span></div>
+              <div class="field-row"><span class="field-name">versione, hash_versione</span><span class="field-type">Int/Char(64)</span></div>
+              <div class="field-row"><span class="field-name">obbligatoria 📌, pubblicato_il 🔸</span><span class="field-type">Bool/DateTime</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-notizie">
+            <div class="model-card-header"><div><div class="model-name c-notizie">NotiziaAudience / Allegato / Lettura</div></div></div>
+            <div class="field-list">
+              <div class="field-section c-notizie">NotiziaAudience</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ Notizia</span></div>
+              <div class="field-row"><span class="field-name">legacy_role_id</span><span class="field-type">Int</span></div>
+              <div class="field-section c-notizie">NotiziaAllegato</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ Notizia</span></div>
+              <div class="field-row"><span class="field-name">nome_file, file 🔸, url_esterno</span><span class="field-type">Char/File</span></div>
+              <div class="field-section c-notizie">NotiziaLettura</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ Notizia</span></div>
+              <div class="field-row"><span class="field-name">legacy_user_id 📌, versione_letta</span><span class="field-type">Int</span></div>
+              <div class="field-row"><span class="field-name">opened_at 🔸, ack_at 🔸</span><span class="field-type">DateTime</span></div>
+            </div>
+            <div class="model-footer"><span class="footer-tag">unique: notizia+user+versione</span></div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ══════════ ANAGRAFICA ══════════ -->
+      <div class="app-section" id="anagrafica">
+        <div class="app-header c-anagrafica" style="border-color:#be185d">
+          <span style="font-size:1.2rem">👥</span>
+          <span class="app-name">anagrafica</span>
+          <span style="font-size:.73rem;color:#64748b;margin-left:6px">Fornitori, ruoli operativi, dipendenti</span>
+          <span class="count-pill cp-anagrafica">9 modelli</span>
+        </div>
+        <div class="model-grid">
+
+          <div class="model-card bg-anagrafica">
+            <div class="model-card-header"><div><div class="model-name c-anagrafica">Fornitore</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="field-name">ragione_sociale, piva, codice_fiscale</span><span class="field-type">Char</span></div>
+              <div class="field-row"><span class="field-name">indirizzo, citta, cap, provincia</span><span class="field-type">Char</span></div>
+              <div class="field-row"><span class="field-name">telefono, email, pec, website</span><span class="field-type">Char/Email/URL</span></div>
+              <div class="field-row"><span class="field-name">categoria</span><span class="field-type">Char(20) choices</span></div>
+              <div class="field-row"><span class="field-name">is_active, note</span><span class="field-type">Bool/Text</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-anagrafica">
+            <div class="model-card-header"><div><div class="model-name c-anagrafica">Fornitore* (Documento/Ordine/Valutazione/Asset)</div></div></div>
+            <div class="field-list">
+              <div class="field-section c-anagrafica">FornitoreDocumento</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ Fornitore + AUTH_USER_MODEL</span></div>
+              <div class="field-row"><span class="field-name">nome, tipo, file, note</span><span class="field-type">Char/File</span></div>
+              <div class="field-section c-anagrafica">FornitoreOrdine</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ Fornitore + AUTH_USER_MODEL</span></div>
+              <div class="field-row"><span class="field-name">numero_ordine, importo, stato</span><span class="field-type">Char/Decimal/choices</span></div>
+              <div class="field-section c-anagrafica">FornitoreValutazione</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ Fornitore + AUTH_USER_MODEL</span></div>
+              <div class="field-row"><span class="field-name">qualita, puntualita, comunicazione [1-5]</span><span class="field-type">Int</span></div>
+              <div class="field-section c-anagrafica">FornitoreAsset</div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ Fornitore + assets.Asset</span></div>
+              <div class="field-row"><span class="field-name">tipo, data_inizio, data_fine 🔸</span><span class="field-type">Char/Date</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-anagrafica">
+            <div class="model-card-header"><div><div class="model-name c-anagrafica">RuoloOperativo</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="field-name">nome 🔒, descrizione</span><span class="field-type">Char(100)/Text</span></div>
+              <div class="field-row"><span class="field-name">colore, icona, is_active</span><span class="field-type">Char/Bool</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-anagrafica">
+            <div class="model-card-header"><div><div class="model-name c-anagrafica">DipendenteRuoloOperativo</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ RuoloOperativo + AUTH_USER_MODEL</span></div>
+              <div class="field-row"><span class="field-name">legacy_anagrafica_id 📌</span><span class="field-type">Int</span></div>
+              <div class="field-row"><span class="field-name">assegnato_il</span><span class="field-type">DateTime</span></div>
+            </div>
+            <div class="model-footer"><span class="footer-tag">unique_together: anagrafica_id+ruolo</span></div>
+          </div>
+
+          <div class="model-card bg-anagrafica">
+            <div class="model-card-header"><div><div class="model-name c-anagrafica">DipendenteStatLayout / AnagraficaStatPermission</div></div></div>
+            <div class="field-list">
+              <div class="field-section c-anagrafica">DipendenteStatLayout</div>
+              <div class="field-row"><span class="field-name">viewer_user_id 🔒 📌</span><span class="field-type">Int</span></div>
+              <div class="field-row"><span class="field-name">hidden, order</span><span class="field-type">JSON</span></div>
+              <div class="field-section c-anagrafica">AnagraficaStatPermission</div>
+              <div class="field-row"><span class="field-name">accesso</span><span class="field-type">Char(20) choices</span></div>
+              <div class="field-row"><span class="field-name">ruolo_ids</span><span class="field-type">JSON</span></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ══════════ TIMBRI ══════════ -->
+      <div class="app-section" id="timbri">
+        <div class="app-header c-timbri" style="border-color:#0f766e">
+          <span style="font-size:1.2rem">🪪</span>
+          <span class="app-name">timbri</span>
+          <span style="font-size:.73rem;color:#64748b;margin-left:6px">Registro badge/timbri dipendenti</span>
+          <span class="count-pill cp-timbri">4 modelli</span>
+        </div>
+        <div class="model-grid">
+
+          <div class="model-card bg-timbri">
+            <div class="model-card-header"><div><div class="model-name c-timbri">OperatoreTimbri</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="field-name">legacy_anagrafica_id 📌 🔸</span><span class="field-type">Int</span></div>
+              <div class="field-row"><span class="field-name">nome, cognome, matricola 📌</span><span class="field-type">Char</span></div>
+              <div class="field-row"><span class="field-name">reparto 📌, ruolo, email_notifica</span><span class="field-type">Char(200)</span></div>
+              <div class="field-row"><span class="field-name">is_active_legacy</span><span class="field-type">Bool</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-timbri">
+            <div class="model-card-header"><div><div class="model-name c-timbri">RegistroTimbro</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ OperatoreTimbri</span></div>
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ AUTH_USER_MODEL (created_by, updated_by)</span></div>
+              <div class="field-row"><span class="field-name">codice_timbro 📌, qualifica</span><span class="field-type">Char</span></div>
+              <div class="field-row"><span class="field-name">tipo_timbro</span><span class="field-type">Char choices</span></div>
+              <div class="field-row"><span class="field-name">data_consegna 🔸, data_ritiro 🔸</span><span class="field-type">Date</span></div>
+              <div class="field-row"><span class="field-name">is_attivo 📌, is_archived 📌</span><span class="field-type">Bool</span></div>
+              <div class="field-row"><span class="field-name">sharepoint_item_id 📌</span><span class="field-type">Char(100)</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-timbri">
+            <div class="model-card-header"><div><div class="model-name c-timbri">RegistroTimbroImmagine</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ RegistroTimbro</span></div>
+              <div class="field-row"><span class="field-name">variante</span><span class="field-type">Char(20) choices</span></div>
+              <div class="field-row"><span class="field-name">image, source_url, original_filename</span><span class="field-type">Image/Char</span></div>
+              <div class="field-row"><span class="field-name">width, height, file_size</span><span class="field-type">Int</span></div>
+            </div>
+            <div class="model-footer"><span class="footer-tag">unique_together: registro+variante</span></div>
+          </div>
+
+          <div class="model-card bg-timbri">
+            <div class="model-card-header"><div><div class="model-name c-timbri">TimbriImportIssue</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="field-name">source_file 📌, csv_row_number 📌</span><span class="field-type">Char/Int</span></div>
+              <div class="field-row"><span class="field-name">sharepoint_item_id 📌, matricola 📌</span><span class="field-type">Char</span></div>
+              <div class="field-row"><span class="field-name">motivo_scarto, raw_payload</span><span class="field-type">Text</span></div>
+              <div class="field-row"><span class="field-name">is_resolved 📌</span><span class="field-type">Bool</span></div>
+            </div>
+            <div class="model-footer"><span class="footer-tag">unique_together: source_file+row</span></div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ══════════ DIARIO PREPOSTO ══════════ -->
+      <div class="app-section" id="diario">
+        <div class="app-header c-diario" style="border-color:#c2410c">
+          <span style="font-size:1.2rem">📋</span>
+          <span class="app-name">diario_preposto</span>
+          <span style="font-size:.73rem;color:#64748b;margin-left:6px">Segnalazioni sicurezza preposto</span>
+          <span class="count-pill cp-diario">3 modelli</span>
+        </div>
+        <div class="model-grid">
+
+          <div class="model-card bg-diario">
+            <div class="model-card-header"><div><div class="model-name c-diario">SegnalazionePreposto</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ AUTH_USER_MODEL (creato_da)</span></div>
+              <div class="field-row"><span class="field-name">codice_identificativo 🔒 📌</span><span class="field-type">Char(20)</span></div>
+              <div class="field-row"><span class="field-name">titolo, descrizione</span><span class="field-type">Char(300)/Text</span></div>
+              <div class="field-row"><span class="field-name">data_segnalazione</span><span class="field-type">DateTime</span></div>
+              <div class="field-row"><span class="field-name">preposto, chi_segnala</span><span class="field-type">Char(200)</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-diario">
+            <div class="model-card-header"><div><div class="model-name c-diario">SegnalazioneAllegato</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ SegnalazionePreposto</span></div>
+              <div class="field-row"><span class="field-name">nome_file, file</span><span class="field-type">Char/File</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-diario">
+            <div class="model-card-header"><div><div class="model-name c-diario">DiarioPrepostoImpostazioni</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="field-name">acl_scrittura</span><span class="field-type">JSON</span></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ══════════ RILEVAZIONE INCIDENTI ══════════ -->
+      <div class="app-section" id="incidenti">
+        <div class="app-header c-incidenti" style="border-color:#b45309">
+          <span style="font-size:1.2rem">🦺</span>
+          <span class="app-name">rilevazione_incidenti</span>
+          <span style="font-size:.73rem;color:#64748b;margin-left:6px">Quasi incidenti / unsafe condition (fonte: SharePoint)</span>
+          <span class="count-pill cp-incidenti">2 modelli</span>
+        </div>
+        <div class="model-grid">
+
+          <div class="model-card bg-incidenti">
+            <div class="model-card-header"><div><div class="model-name c-incidenti">RilevazioneIncidente</div><div class="model-table">cache locale da SharePoint</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="field-name">nominativo, reparto</span><span class="field-type">Char</span></div>
+              <div class="field-row"><span class="field-name">tipologia_scheda</span><span class="field-type">Char(50)</span></div>
+              <div class="field-row"><span class="field-name">data_segnalazione 🔸</span><span class="field-type">DateTime</span></div>
+              <div class="field-row"><span class="field-name">descrizione_attivita / avvenimento</span><span class="field-type">Text</span></div>
+              <div class="field-row"><span class="field-name">causa_evento, persone_coinvolte</span><span class="field-type">Char</span></div>
+              <div class="field-row"><span class="field-name">why_1 … why_5</span><span class="field-type">Text</span></div>
+              <div class="field-row"><span class="field-name">approvazione_rls, note_preposto/rspp</span><span class="field-type">Char/Text</span></div>
+              <div class="field-row"><span class="field-name">chiusura_rspp, data_chiusura_rspp</span><span class="field-type">Bool/Date</span></div>
+              <div class="field-row"><span class="field-name">partecipanti, contatore, id_originale 🔸</span><span class="field-type">Text/Int</span></div>
+            </div>
+          </div>
+
+          <div class="model-card bg-incidenti">
+            <div class="model-card-header"><div><div class="model-name c-incidenti">SicurezzaImpostazioni</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="field-name">sharepoint_site_id, sharepoint_list_id</span><span class="field-type">Char</span></div>
+              <div class="field-row"><span class="field-name">acl_preposti, acl_rspp</span><span class="field-type">JSON</span></div>
+              <div class="field-row"><span class="field-name">reparti_custom, cause_evento_custom</span><span class="field-type">JSON</span></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ══════════ RENTRI ══════════ -->
+      <div class="app-section" id="rentri">
+        <div class="app-header c-rentri" style="border-color:#4338ca">
+          <span style="font-size:1.2rem">♻️</span>
+          <span class="app-name">rentri</span>
+          <span style="font-size:.73rem;color:#64748b;margin-left:6px">Tracciabilità rifiuti (normativa RENTRI)</span>
+          <span class="count-pill cp-rentri">1 modello</span>
+        </div>
+        <div class="model-grid">
+          <div class="model-card bg-rentri">
+            <div class="model-card-header"><div><div class="model-name c-rentri">RegistroRifiuti</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="field-name">tipo 📌, data 📌, id_registrazione 📌</span><span class="field-type">Char(1)/Date/Char</span></div>
+              <div class="field-row"><span class="field-name">rif_op, codice, quantita</span><span class="field-type">Char/Decimal(12,3)</span></div>
+              <div class="field-row"><span class="field-name">carico_scarico, pericolosita</span><span class="field-type">Char</span></div>
+              <div class="field-row"><span class="field-name">rentri_si_no, salva</span><span class="field-type">Bool</span></div>
+              <div class="field-row"><span class="field-name">rettifica_scarico</span><span class="field-type">Decimal(12,3)</span></div>
+              <div class="field-row"><span class="field-name">arrivo_fir, allegato 🔸</span><span class="field-type">Char/File</span></div>
+              <div class="field-row"><span class="field-name">sharepoint_item_id, inserito_da</span><span class="field-type">Char</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════ ASSENZE ══════════ -->
+      <div class="app-section" id="assenze">
+        <div class="app-header c-assenze" style="border-color:#065f46">
+          <span style="font-size:1.2rem">📅</span>
+          <span class="app-name">assenze</span>
+          <span style="font-size:.73rem;color:#64748b;margin-left:6px">Certificazioni presenza + sync SharePoint</span>
+          <span class="count-pill cp-assenze">1 modello</span>
+        </div>
+        <div class="model-grid">
+          <div class="model-card bg-assenze">
+            <div class="model-card-header"><div><div class="model-name c-assenze">CertificazionePresenza</div></div></div>
+            <div class="field-list">
+              <div class="field-row"><span class="field-name">nome_dipendente, data</span><span class="field-type">Char(200)/Date</span></div>
+              <div class="field-row"><span class="field-name">entrata_mattina, uscita_mattina</span><span class="field-type">Time</span></div>
+              <div class="field-row"><span class="field-name">turno_pomeriggio</span><span class="field-type">Bool</span></div>
+              <div class="field-row"><span class="field-name">entrata/uscita_pomeriggio 🔸</span><span class="field-type">Time</span></div>
+              <div class="field-row"><span class="field-name">consenso</span><span class="field-type">Char(20) choices</span></div>
+              <div class="field-row"><span class="field-name">capo_reparto_email, salta_approvazione</span><span class="field-type">Char/Bool</span></div>
+              <div class="field-row"><span class="field-name">origine</span><span class="field-type">Char(10) choices</span></div>
+              <div class="field-row"><span class="field-name">assenza_id 🔸, inserito_da</span><span class="field-type">Int/Char</span></div>
+              <div class="field-row"><span class="field-name">sharepoint_item_id</span><span class="field-type">Char(64)</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /schema-main -->
+  </div><!-- /schema-wrap -->
+
+</div>
+
+<script>
+const sections = document.querySelectorAll('.app-section');
+const navItems = document.querySelectorAll('.nav-item');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      navItems.forEach(n => { n.style.background = ''; n.style.fontWeight = '600'; });
+      const active = document.querySelector(`.nav-item[href="#${e.target.id}"]`);
+      if (active) { active.style.background = '#f1f5f9'; active.style.fontWeight = '800'; }
+    }
+  });
+}, {threshold: 0.15, rootMargin: '-60px 0px -60% 0px'});
+sections.forEach(s => observer.observe(s));
+</script>
+{% endblock %}

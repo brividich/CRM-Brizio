@@ -370,3 +370,119 @@ class AnagraficaStatPermission(models.Model):
     def get_instance(cls) -> "AnagraficaStatPermission":
         obj, _ = cls.objects.get_or_create(pk=1, defaults={"accesso": cls.ACCESSO_ADMIN})
         return obj
+
+
+# ---------------------------------------------------------------------------
+# Mansioni aziendali (catalogo job title — sincronizza con campo legacy)
+# ---------------------------------------------------------------------------
+
+class Mansione(models.Model):
+    CAT_OPERAIO = "OPERAIO"
+    CAT_IMPIEGATO = "IMPIEGATO"
+    CAT_QUADRO = "QUADRO"
+    CAT_DIRIGENTE = "DIRIGENTE"
+    CAT_ALTRO = "ALTRO"
+
+    CATEGORIA_CHOICES = [
+        (CAT_OPERAIO, "Operaio"),
+        (CAT_IMPIEGATO, "Impiegato"),
+        (CAT_QUADRO, "Quadro"),
+        (CAT_DIRIGENTE, "Dirigente"),
+        (CAT_ALTRO, "Altro"),
+    ]
+
+    nome = models.CharField(max_length=100, unique=True)
+    categoria = models.CharField(
+        max_length=20, choices=CATEGORIA_CHOICES, blank=True, default=""
+    )
+    descrizione = models.TextField(blank=True, default="")
+    colore = models.CharField(max_length=7, default="#64748b", help_text="Colore esadecimale es. #1d4ed8")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["nome"]
+        verbose_name = "Mansione"
+        verbose_name_plural = "Mansioni"
+
+    def __str__(self) -> str:
+        return self.nome
+
+
+# ---------------------------------------------------------------------------
+# Qualifiche professionali (catalogo tipi + assegnazioni per dipendente)
+# ---------------------------------------------------------------------------
+
+class TipoQualifica(models.Model):
+    CAT_SICUREZZA = "SICUREZZA"
+    CAT_PROFESSIONALE = "PROFESSIONALE"
+    CAT_GESTIONALE = "GESTIONALE"
+    CAT_ALTRO = "ALTRO"
+
+    CATEGORIA_CHOICES = [
+        (CAT_SICUREZZA, "Sicurezza"),
+        (CAT_PROFESSIONALE, "Professionale"),
+        (CAT_GESTIONALE, "Gestionale"),
+        (CAT_ALTRO, "Altro"),
+    ]
+
+    nome = models.CharField(max_length=150, unique=True)
+    categoria = models.CharField(
+        max_length=20, choices=CATEGORIA_CHOICES, default=CAT_ALTRO
+    )
+    durata_mesi = models.PositiveSmallIntegerField(
+        default=0, help_text="Durata validità in mesi. 0 = nessuna scadenza automatica."
+    )
+    descrizione = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["categoria", "nome"]
+        verbose_name = "Tipo qualifica"
+        verbose_name_plural = "Tipi qualifica"
+
+    def __str__(self) -> str:
+        return self.nome
+
+
+class DipendenteQualifica(models.Model):
+    """Qualifica/certificazione assegnata a un dipendente (via ID legacy anagrafica)."""
+    legacy_anagrafica_id = models.IntegerField(db_index=True)
+    tipo = models.ForeignKey(
+        TipoQualifica, on_delete=models.CASCADE, related_name="assegnazioni"
+    )
+    data_conseguimento = models.DateField(null=True, blank=True)
+    data_scadenza = models.DateField(null=True, blank=True)
+    note = models.CharField(max_length=255, blank=True, default="")
+    assegnato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="qualifiche_assegnate",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["data_scadenza", "tipo__nome"]
+        verbose_name = "Qualifica dipendente"
+        verbose_name_plural = "Qualifiche dipendente"
+
+    def __str__(self) -> str:
+        return f"[{self.legacy_anagrafica_id}] {self.tipo.nome}"
+
+    @property
+    def is_scaduta(self) -> bool:
+        if self.data_scadenza is None:
+            return False
+        return self.data_scadenza < timezone.localdate()
+
+    @property
+    def in_scadenza(self) -> bool:
+        """Scade entro 60 giorni e non è ancora scaduta."""
+        if self.data_scadenza is None:
+            return False
+        from datetime import timedelta
+        oggi = timezone.localdate()
+        return oggi <= self.data_scadenza <= oggi + timedelta(days=60)

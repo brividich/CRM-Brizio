@@ -1,0 +1,248 @@
+{% extends "core/base.html" %}
+
+{% block title %}Ruoli Operativi | Anagrafica{% endblock %}
+
+{% block extra_head %}
+<style>
+.ro-page { display:flex; flex-direction:column; gap:20px; }
+.ro-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.ro-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
+.ro-sub { font-size:13px; color:#64748b; margin-top:2px; }
+.ro-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
+.ro-btn-primary { background:#1d4ed8; color:#fff; }
+.ro-btn-primary:hover { background:#1e40af; }
+.ro-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.ro-btn-ghost:hover { background:#e2e8f0; }
+.ro-btn-danger { background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; }
+.ro-btn-danger:hover { background:#fecaca; }
+.ro-btn-sm { padding:5px 10px; font-size:12px; border-radius:7px; }
+
+/* Card */
+.ro-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.ro-card-head { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid #f1f5f9; }
+.ro-card-title { font-size:15px; font-weight:700; color:#1e293b; }
+.ro-card-body { padding:18px 20px; }
+
+/* Griglia ruoli */
+.ro-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:14px; }
+.ro-item {
+  background:#fff; border:1px solid #e2e8f0; border-radius:12px;
+  padding:16px 18px; position:relative; overflow:hidden;
+}
+.ro-item-accent { position:absolute; top:0; left:0; bottom:0; width:4px; }
+.ro-item-body { padding-left:14px; }
+.ro-item-name { font-size:15px; font-weight:700; color:#0f172a; display:flex; align-items:center; gap:6px; }
+.ro-item-desc { font-size:13px; color:#64748b; margin-top:3px; }
+.ro-item-meta { font-size:12px; color:#94a3b8; margin-top:6px; }
+.ro-item-actions { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; align-items:center; }
+.ro-badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; }
+.ro-badge-blue { background:#dbeafe; color:#1e40af; }
+.ro-badge-gray { background:#f1f5f9; color:#475569; }
+.ro-badge-red { background:#fee2e2; color:#b91c1c; }
+
+/* Form nuovo ruolo */
+.ro-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.ro-field { display:flex; flex-direction:column; gap:4px; }
+.ro-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+.ro-input { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
+.ro-input:focus { border-color:#1d4ed8; background:#fff; }
+
+/* Modal edit */
+.ro-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:1000; align-items:center; justify-content:center; }
+.ro-modal-overlay.open { display:flex; }
+.ro-modal { background:#fff; border-radius:14px; padding:24px; width:100%; max-width:480px; box-shadow:0 8px 32px rgba(0,0,0,.12); }
+.ro-modal-title { font-size:17px; font-weight:700; color:#0f172a; margin-bottom:16px; }
+
+/* Colori predefiniti */
+.ro-color-swatches { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+.ro-swatch { width:24px; height:24px; border-radius:50%; border:2px solid transparent; cursor:pointer; transition:transform .1s; }
+.ro-swatch:hover, .ro-swatch.selected { border-color:#0f172a; transform:scale(1.15); }
+
+@media (max-width:600px) {
+  .ro-form-grid { grid-template-columns:1fr; }
+  .ro-grid { grid-template-columns:1fr; }
+}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="ro-page">
+
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <div class="ro-topbar">
+    <div>
+      <div class="ro-title">🏷 Ruoli Operativi</div>
+      <div class="ro-sub">Catalogo ruoli aziendali (preposto, RSPP, squadra antincendio…) assegnabili ai dipendenti</div>
+    </div>
+    <a class="ro-btn ro-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Dipendenti</a>
+  </div>
+
+  <!-- Griglia ruoli esistenti -->
+  <div class="ro-card">
+    <div class="ro-card-head">
+      <div class="ro-card-title">Ruoli nel catalogo ({{ ruoli|length }})</div>
+    </div>
+    <div class="ro-card-body">
+      {% if ruoli %}
+      <div class="ro-grid">
+        {% for r in ruoli %}
+        <div class="ro-item">
+          <div class="ro-item-accent" style="background-color:{{ r.colore }};"></div>
+          <div class="ro-item-body">
+            <div class="ro-item-name">
+              {% if r.icona %}<span>{{ r.icona }}</span>{% endif %}
+              {{ r.nome }}
+              {% if not r.is_active %}<span class="ro-badge ro-badge-red">Inattivo</span>{% endif %}
+            </div>
+            {% if r.descrizione %}
+              <div class="ro-item-desc">{{ r.descrizione }}</div>
+            {% endif %}
+            <div class="ro-item-meta">
+              <span class="ro-badge ro-badge-blue">{{ r.n_assegnati }} dipendent{{ r.n_assegnati|pluralize:"e,i" }}</span>
+            </div>
+            {% if is_admin %}
+            <div class="ro-item-actions">
+              <button type="button" class="ro-btn ro-btn-ghost ro-btn-sm"
+                onclick="openEdit({{ r.id }}, '{{ r.nome|escapejs }}', '{{ r.descrizione|escapejs }}', '{{ r.colore }}', '{{ r.icona|escapejs }}', {{ r.is_active|yesno:'true,false' }})">
+                ✏ Modifica
+              </button>
+              {% if r.n_assegnati == 0 %}
+              <form method="post" action="{% url 'anagrafica:ruolo_operativo_delete' r.id %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="ro-btn ro-btn-danger ro-btn-sm"
+                  onclick="return confirm('Eliminare definitivamente il ruolo {{ r.nome }}?')">🗑 Elimina</button>
+              </form>
+              {% else %}
+              <span style="font-size:11px;color:#94a3b8;">{{ r.n_assegnati }} assegnazion{{ r.n_assegnati|pluralize:"e,i" }} — non eliminabile</span>
+              {% endif %}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="text-align:center;padding:30px;color:#94a3b8;font-size:14px;">
+        Nessun ruolo nel catalogo. Creane uno qui sotto.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Form nuovo ruolo (solo admin) -->
+  {% if is_admin %}
+  <div class="ro-card">
+    <div class="ro-card-head"><div class="ro-card-title">+ Nuovo ruolo operativo</div></div>
+    <div class="ro-card-body">
+      <form method="post" action="{% url 'anagrafica:ruolo_operativo_create' %}">
+        {% csrf_token %}
+        <div class="ro-form-grid">
+          <div class="ro-field" style="grid-column:1/-1;">
+            <label>Nome ruolo *</label>
+            <input class="ro-input" type="text" name="nome" required placeholder="es. Preposto, RSPP, Squadra antincendio…" maxlength="100">
+          </div>
+          <div class="ro-field" style="grid-column:1/-1;">
+            <label>Descrizione</label>
+            <input class="ro-input" type="text" name="descrizione" placeholder="Breve descrizione del ruolo (opzionale)" maxlength="200">
+          </div>
+          <div class="ro-field">
+            <label>Colore badge</label>
+            <input class="ro-input" type="color" name="colore" value="#1d4ed8" style="height:40px;padding:4px 8px;cursor:pointer;">
+          </div>
+          <div class="ro-field">
+            <label>Icona (emoji, opzionale)</label>
+            <input class="ro-input" type="text" name="icona" placeholder="es. 🦺 🔥 🚑" maxlength="10">
+          </div>
+        </div>
+        <div style="margin-top:14px;">
+          <button type="submit" class="ro-btn ro-btn-primary">Crea ruolo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Ruoli predefiniti suggeriti -->
+  {% if is_admin and not ruoli %}
+  <div class="ro-card">
+    <div class="ro-card-head"><div class="ro-card-title">💡 Ruoli suggeriti — crea con un click</div></div>
+    <div class="ro-card-body">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        {% for sugg in ruoli_suggeriti %}
+        <form method="post" action="{% url 'anagrafica:ruolo_operativo_create' %}" style="display:inline;">
+          {% csrf_token %}
+          <input type="hidden" name="nome" value="{{ sugg }}">
+          <input type="hidden" name="colore" value="#1d4ed8">
+          <button type="submit" class="ro-btn ro-btn-ghost ro-btn-sm">+ {{ sugg }}</button>
+        </form>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- Modal modifica ruolo -->
+{% if is_admin %}
+<div class="ro-modal-overlay" id="ro-modal">
+  <div class="ro-modal">
+    <div class="ro-modal-title">Modifica ruolo</div>
+    <form method="post" id="ro-edit-form" action="">
+      {% csrf_token %}
+      <div class="ro-form-grid">
+        <div class="ro-field" style="grid-column:1/-1;">
+          <label>Nome *</label>
+          <input class="ro-input" type="text" name="nome" id="edit-nome" required maxlength="100">
+        </div>
+        <div class="ro-field" style="grid-column:1/-1;">
+          <label>Descrizione</label>
+          <input class="ro-input" type="text" name="descrizione" id="edit-desc" maxlength="200">
+        </div>
+        <div class="ro-field">
+          <label>Colore</label>
+          <input class="ro-input" type="color" name="colore" id="edit-colore" style="height:40px;padding:4px 8px;cursor:pointer;">
+        </div>
+        <div class="ro-field">
+          <label>Icona</label>
+          <input class="ro-input" type="text" name="icona" id="edit-icona" maxlength="10" placeholder="emoji opzionale">
+        </div>
+        <div class="ro-field" style="grid-column:1/-1;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;text-transform:none;letter-spacing:0;">
+            <input type="checkbox" name="is_active" value="1" id="edit-active">
+            Ruolo attivo (visibile per nuove assegnazioni)
+          </label>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
+        <button type="button" class="ro-btn ro-btn-ghost" onclick="closeEdit()">Annulla</button>
+        <button type="submit" class="ro-btn ro-btn-primary">Salva modifiche</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const BASE_EDIT_URL = "/anagrafica/ruoli-operativi/";
+
+function openEdit(id, nome, desc, colore, icona, isActive) {
+  document.getElementById('ro-edit-form').action = BASE_EDIT_URL + id + '/modifica';
+  document.getElementById('edit-nome').value = nome;
+  document.getElementById('edit-desc').value = desc;
+  document.getElementById('edit-colore').value = colore;
+  document.getElementById('edit-icona').value = icona;
+  document.getElementById('edit-active').checked = isActive;
+  document.getElementById('ro-modal').classList.add('open');
+}
+function closeEdit() {
+  document.getElementById('ro-modal').classList.remove('open');
+}
+document.getElementById('ro-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeEdit();
+});
+</script>
+{% endif %}
+{% endblock %}

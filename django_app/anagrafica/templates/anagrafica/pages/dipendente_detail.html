@@ -154,7 +154,7 @@
       <div class="dp-sub">Scheda dipendente · ID {{ legacy_id }}</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      {% if dip.timbri_legacy_id %}
+      {% if legacy_id %}
         <a class="dp-btn dp-btn-ghost" href="{% url 'timbri:operatore_detail_by_legacy' legacy_id %}" title="Report timbri">🕐 Timbri</a>
       {% endif %}
       <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Torna all'elenco</a>
@@ -172,7 +172,7 @@
         {% if dip.matricola %} &middot; Matricola: <strong>{{ dip.matricola }}</strong>{% endif %}
       </div>
       <div style="margin-top:6px;">
-        {% if dip.anagrafica_attivo %}
+        {% if dip.attivo %}
           <span class="dp-pill dp-pill-green">Attivo</span>
         {% else %}
           <span class="dp-pill dp-pill-gray">Non attivo</span>
@@ -320,7 +320,7 @@
 <script>
 const API_URL = "{% url 'anagrafica:api_dipendente_widget_layout' %}";
 const CSRF = "{{ csrf_token }}";
-const ALL_IDS = {{ all_widgets|json_encode_ids }};
+const ALL_IDS = [{% for w in all_widgets %}"{{ w.id }}"{% if not forloop.last %},{% endif %}{% endfor %}];
 
 let editMode = false;
 let dirty = false;

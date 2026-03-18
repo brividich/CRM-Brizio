@@ -178,6 +178,47 @@ Questo si applica anche a dict arbitrari passati al template (es. campi SharePoi
 
 ---
 
+## Hub Tools — Strumenti interni admin
+
+Percorso: `/admin-portale/hub/` — richiede `is_legacy_admin()`.
+
+| Sottopath | View | Descrizione |
+| --- | --- | --- |
+| `moduli/` | `moduli` | Module Manager: abilita/disabilita moduli visibili. Toggle via AJAX. Redirect post-login configurabile. |
+| `database/` | `database` | DB Manager: statistiche tabelle, backup, pulizia log/sessioni, ottimizzazione, ripristino. Engine rilevato automaticamente (SQLite in dev, SQL Server in prod). |
+| `database/schema/` | `db_schema` | **Schema DB infografica**: mappa visuale di tutti i modelli Django (campi, tipi, relazioni FK/1:1/M:M). Template: `hub_tools/templates/hub_tools/db_schema.html`. Versione standalone anche in `db_schema.html` nella root del repo. |
+| `homepage-builder/` | `homepage_builder` | Editor visuale layout home page per ruolo. |
+| `setup-wizard/` | `setup_wizard_hub` | Riesecuzione wizard configurazione (12 step), legge `.env` corrente. |
+| `guide/` | `guide_list` | Elenco guide/manuali (file statici da `tools/`). |
+| `guide/<slug>/` | `guide_view` | Visualizzazione singola guida. |
+
+### Schema DB — riepilogo modelli per app
+
+| App | Modelli | Note |
+| --- | --- | --- |
+| `core` | 22 | Profile, NavigationItem, NavigationRoleAccess, AuditLog, SiteConfig, Notifica, UserExtraInfo, Checklist*, AnagraficaVoce/Risposta, Dashboard configs, RepartoCapoMapping, OptioneConfig, LoginBanner, LegacyRedirect, NavigationSnapshot |
+| `legacy` (unmanaged) | 5 | Ruolo, UtenteLegacy, AnagraficaDipendente, Pulsante, Permesso — tabelle SQL Server preesistenti, `managed=False` |
+| `assets` | 25 | Asset, AssetCategory, AssetITDetails, WorkMachine, WorkOrder, WorkOrderAttachment/Log, PeriodicVerification, AssetEndpoint, PlantLayout/Area/Marker, AssetDocument, AssetLabelTemplate + modelli config UI |
+| `tasks` | 7 | Project, Task, SubTask, TaskComment, ProjectComment, TaskEvent, TaskAttachment |
+| `automazioni` | 6 | AutomationRule, AutomationCondition, AutomationAction, AutomationRunLog, AutomationActionLog, DashboardMetricValue |
+| `tickets` | 4 | Ticket, TicketCommento, TicketAllegato, TicketImpostazioni |
+| `notizie` | 4 | Notizia, NotiziaAudience, NotiziaAllegato, NotiziaLettura |
+| `anagrafica` | 9 | Fornitore, FornitoreDocumento/Ordine/Valutazione/Asset, RuoloOperativo, DipendenteRuoloOperativo, DipendenteStatLayout, AnagraficaStatPermission |
+| `timbri` | 4 | OperatoreTimbri, RegistroTimbro, RegistroTimbroImmagine, TimbriImportIssue |
+| `diario_preposto` | 3 | SegnalazionePreposto, SegnalazioneAllegato, DiarioPrepostoImpostazioni |
+| `rilevazione_incidenti` | 2 | RilevazioneIncidente (cache locale da SharePoint), SicurezzaImpostazioni |
+| `rentri` | 1 | RegistroRifiuti |
+| `assenze` | 1 | CertificazionePresenza |
+
+**Relazioni inter-app principali:**
+
+- `tickets.Ticket` → `assets.Asset` (FK), `anagrafica.Fornitore` (FK)
+- `assets.WorkOrder` → `anagrafica.Fornitore` (FK), `assets.PeriodicVerification` (FK)
+- `assets.PeriodicVerification` → `anagrafica.Fornitore` (FK), `assets.Asset` (M:M)
+- `assets.FornitoreAsset` → `assets.Asset` (FK), `anagrafica.Fornitore` (FK)
+
+---
+
 ## Infrastruttura server (NON riproducibile in dev)
 
 Questi componenti esistono solo sul server di produzione:

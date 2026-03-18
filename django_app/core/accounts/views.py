@@ -72,15 +72,19 @@ class LegacyLoginView(LoginView):
         if next_url:
             return next_url
         try:
-            from core.models import SiteConfig
-            redirect_target = SiteConfig.objects.filter(
-                key="module_login_redirect_target"
-            ).values_list("value", flat=True).first()
-            if redirect_target:
-                from hub_tools.views import MODULE_DEFS
-                module = next((m for m in MODULE_DEFS if m["key"] == redirect_target), None)
-                if module and module.get("home_url"):
-                    return module["home_url"]
+            # Gli amministratori vanno sempre alla dashboard, indipendentemente dal redirect configurato
+            if not self.request.user.is_superuser:
+                legacy_user = get_legacy_user(self.request.user)
+                if not (legacy_user and is_legacy_admin(legacy_user)):
+                    from core.models import SiteConfig
+                    redirect_target = SiteConfig.objects.filter(
+                        key="module_login_redirect_target"
+                    ).values_list("value", flat=True).first()
+                    if redirect_target:
+                        from hub_tools.views import MODULE_DEFS
+                        module = next((m for m in MODULE_DEFS if m["key"] == redirect_target), None)
+                        if module and module.get("home_url"):
+                            return module["home_url"]
         except Exception:
             pass
         return reverse("dashboard_home")

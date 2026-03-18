@@ -29,10 +29,17 @@ input:checked+.slider:before{transform:translateX(20px)}
 .dot-on{background:#22a860} .dot-off{background:#94a3b8}
 .lbl-on{color:#22a860;font-weight:600} .lbl-off{color:#94a3b8;font-weight:600}
 .alert-info{background:#eff6ff;border-left:3px solid #1a6fc4;padding:10px 14px;border-radius:7px;font-size:.83rem;margin-bottom:20px}
-.redirect-btn{display:inline-flex;align-items:center;gap:5px;font-size:.75rem;font-weight:600;padding:4px 10px;border-radius:20px;border:1.5px solid #cbd5e1;background:#f8fafc;color:#64748b;cursor:pointer;transition:all .2s;white-space:nowrap}
-.redirect-btn:hover{border-color:#1a6fc4;color:#1a6fc4}
-.redirect-btn.active{border-color:#f59e0b;background:#fffbeb;color:#b45309}
-.module-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0}
+.redirect-panel{background:#fff;border:1.5px solid #f59e0b;border-radius:10px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.redirect-panel-off{border-color:#d1d9e6;background:#f8fafc}
+.redirect-panel-label{font-size:.84rem;font-weight:700;color:#92400e;white-space:nowrap}
+.redirect-panel-off .redirect-panel-label{color:#64748b}
+.redirect-select{font-size:.84rem;padding:6px 10px;border:1.5px solid #cbd5e1;border-radius:7px;background:#fff;cursor:pointer;min-width:200px}
+.redirect-save-btn{font-size:.82rem;font-weight:700;padding:6px 16px;border-radius:7px;border:none;background:#f59e0b;color:#fff;cursor:pointer;transition:background .2s}
+.redirect-save-btn:hover{background:#d97706}
+.redirect-off-btn{font-size:.82rem;font-weight:600;padding:6px 14px;border-radius:7px;border:1.5px solid #d1d9e6;background:#fff;color:#64748b;cursor:pointer;transition:all .2s}
+.redirect-off-btn:hover{border-color:#ef4444;color:#ef4444}
+.redirect-status{font-size:.8rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:5px;padding:3px 10px}
+.redirect-status-off{color:#64748b;background:#f1f5f9;border-color:#e2e8f0}
 </style>
 
 <div style="max-width:1100px;margin:0 auto;padding:24px 20px">
@@ -43,6 +50,39 @@ input:checked+.slider:before{transform:translateX(20px)}
       <div class="hub-subtitle">Attiva o disattiva i moduli visibili nell'interfaccia. Le tabelle rimangono sempre presenti nel database.</div>
     </div>
     <a href="{% url 'admin_portale:index' %}" style="font-size:.84rem;color:#64748b;text-decoration:none">← Torna all'admin</a>
+  </div>
+
+  <!-- Redirect post-login -->
+  <div class="redirect-panel {% if not login_redirect_target %}redirect-panel-off{% endif %}" id="redirectPanel">
+    <div style="flex:0 0 auto">
+      <div class="redirect-panel-label" id="redirectPanelLabel">
+        {% if login_redirect_target %}⚡ Redirect post-login attivo{% else %}↪ Redirect post-login{% endif %}
+      </div>
+      <div style="font-size:.76rem;color:#64748b;margin-top:2px">Non si applica agli amministratori</div>
+    </div>
+    <select class="redirect-select" id="redirectSelect">
+      <option value="">— Nessun redirect (dashboard predefinita) —</option>
+      {% for m in modules %}
+        {% if not m.core %}
+        <option value="{{ m.key }}" {% if m.key == login_redirect_target %}selected{% endif %}>
+          {{ m.icon }} {{ m.name }}
+        </option>
+        {% endif %}
+      {% endfor %}
+    </select>
+    <button class="redirect-save-btn" onclick="saveLoginRedirect()">Salva</button>
+    {% if login_redirect_target %}
+    <button class="redirect-off-btn" id="redirectOffBtn" onclick="disableLoginRedirect()">Disabilita</button>
+    {% else %}
+    <button class="redirect-off-btn" id="redirectOffBtn" onclick="disableLoginRedirect()" style="display:none">Disabilita</button>
+    {% endif %}
+    <span class="redirect-status {% if not login_redirect_target %}redirect-status-off{% endif %}" id="redirectStatusBadge">
+      {% if login_redirect_target %}
+        → {{ login_redirect_target }}
+      {% else %}
+        disabilitato
+      {% endif %}
+    </span>
   </div>
 
   <div class="alert-info">
@@ -76,16 +116,6 @@ input:checked+.slider:before{transform:translateX(20px)}
           </label>
         {% endif %}
       </div>
-      {% if not m.core %}
-      <div class="module-actions">
-        <button id="redir_{{ m.key }}"
-          class="redirect-btn {% if m.login_redirect %}active{% endif %}"
-          onclick="toggleLoginRedirect('{{ m.key }}', this)"
-          title="Dopo il login gli utenti vengono reindirizzati direttamente a questo modulo">
-          {% if m.login_redirect %}⚡ Redirect post-login attivo{% else %}↪ Imposta redirect post-login{% endif %}
-        </button>
-      </div>
-      {% endif %}
     </div>
     {% endfor %}
   </div>
@@ -115,12 +145,56 @@ async function toggleModule(key, enabled) {
       showToast(enabled ? `✓ ${key} attivato` : `✗ ${key} disattivato`);
     } else {
       showToast('Errore: ' + data.error, true);
-      // Ripristina toggle
       document.getElementById('tog_' + key).checked = !enabled;
     }
   } catch(e) {
     showToast('Errore di rete', true);
     document.getElementById('tog_' + key).checked = !enabled;
+  }
+}
+
+async function saveLoginRedirect() {
+  const key = document.getElementById('redirectSelect').value;
+  await _applyLoginRedirect(key);
+}
+
+async function disableLoginRedirect() {
+  document.getElementById('redirectSelect').value = '';
+  await _applyLoginRedirect('');
+}
+
+async function _applyLoginRedirect(key) {
+  try {
+    const r = await fetch('{% url "hub_tools:hub_moduli_login_redirect" %}', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
+      body: JSON.stringify({key}),
+    });
+    const data = await r.json();
+    if (data.ok) {
+      const panel  = document.getElementById('redirectPanel');
+      const label  = document.getElementById('redirectPanelLabel');
+      const badge  = document.getElementById('redirectStatusBadge');
+      const offBtn = document.getElementById('redirectOffBtn');
+      if (data.target) {
+        panel.classList.remove('redirect-panel-off');
+        label.textContent = '⚡ Redirect post-login attivo';
+        badge.className = 'redirect-status';
+        badge.textContent = '→ ' + data.target;
+        offBtn.style.display = '';
+      } else {
+        panel.classList.add('redirect-panel-off');
+        label.textContent = '↪ Redirect post-login';
+        badge.className = 'redirect-status redirect-status-off';
+        badge.textContent = 'disabilitato';
+        offBtn.style.display = 'none';
+      }
+      showToast(data.message);
+    } else {
+      showToast('Errore: ' + data.error, true);
+    }
+  } catch(e) {
+    showToast('Errore di rete', true);
   }
 }
 
@@ -130,36 +204,6 @@ function showToast(msg, error) {
   el.style.background = error ? '#7f1d1d' : '#1e2333';
   el.style.display = 'block';
   setTimeout(() => el.style.display = 'none', 3000);
-}
-
-async function toggleLoginRedirect(key, btn) {
-  const isActive = btn.classList.contains('active');
-  const newKey = isActive ? '' : key;  // se già attivo, disabilita
-  try {
-    const r = await fetch('{% url "hub_tools:hub_moduli_login_redirect" %}', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json','X-CSRFToken': CSRF},
-      body: JSON.stringify({key: newKey}),
-    });
-    const data = await r.json();
-    if (data.ok) {
-      // Resetta tutti i pulsanti redirect
-      document.querySelectorAll('.redirect-btn').forEach(b => {
-        b.classList.remove('active');
-        b.textContent = '↪ Imposta redirect post-login';
-      });
-      // Attiva il nuovo se presente
-      if (data.target) {
-        btn.classList.add('active');
-        btn.textContent = '⚡ Redirect post-login attivo';
-      }
-      showToast(data.message);
-    } else {
-      showToast('Errore: ' + data.error, true);
-    }
-  } catch(e) {
-    showToast('Errore di rete', true);
-  }
 }
 </script>
 {% endblock %}

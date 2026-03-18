@@ -25,6 +25,8 @@
 .sic-btn-rspp:hover { background:#0284c7; }
 .sic-btn-danger { background:#fee2e2; color:#991b1b; }
 .sic-btn-danger:hover { background:#fecaca; }
+.sic-btn-pdf { background:rgba(255,255,255,.15); color:#fff; border:2px solid rgba(255,255,255,.4); }
+.sic-btn-pdf:hover { background:rgba(255,255,255,.25); border-color:#fff; }
 
 .sic-card {
   background:#fff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden;
@@ -112,6 +114,7 @@
       </div>
     </div>
     <div class="sic-hero-actions">
+      <a href="{% url 'rilevazione_incidenti:export_pdf' sp_id=sp_id %}" class="sic-btn sic-btn-pdf" target="_blank">&#128196; PDF</a>
       {% if can_edit_preposto %}
       <a href="{% url 'rilevazione_incidenti:modifica' sp_id=sp_id %}" class="sic-btn sic-btn-edit">&#9998; Modifica</a>
       {% endif %}

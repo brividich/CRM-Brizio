@@ -966,3 +966,240 @@ def export_csv(request):
 
     log_action(request, "export", "rilevazione_incidenti", f"Export CSV {len(items)} rilevazioni")
     return response
+
+
+# ---------------------------------------------------------------------------
+# View: export PDF singola rilevazione
+# ---------------------------------------------------------------------------
+
+
+def export_pdf(request, sp_id):
+    from django.http import HttpResponse
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        HRFlowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
+    )
+
+    cfg = _get_impostazioni()
+    item_fields = None
+    try:
+        if _use_local(cfg):
+            item = _fetch_item_local(sp_id)
+        else:
+            item = _fetch_item(sp_id)
+        item_fields = item.get("fields", {})
+        item_fields["stato"] = _deriva_stato(item_fields)
+    except Exception as exc:
+        logger.warning("rilevazione_incidenti export_pdf %s: %s", sp_id, exc)
+        return render(request, "core/pages/forbidden.html", status=404)
+
+    f = item_fields
+    response = HttpResponse(content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="rilevazione_{sp_id}.pdf"'
+
+    doc = SimpleDocTemplate(
+        response,
+        pagesize=A4,
+        leftMargin=20 * mm,
+        rightMargin=20 * mm,
+        topMargin=20 * mm,
+        bottomMargin=20 * mm,
+    )
+
+    styles = getSampleStyleSheet()
+    GREEN = colors.HexColor("#065f46")
+    LIGHT_GREEN = colors.HexColor("#d1fae5")
+    GREY_BG = colors.HexColor("#f8fafc")
+    BORDER = colors.HexColor("#e2e8f0")
+
+    style_title = ParagraphStyle(
+        "title", parent=styles["Heading1"],
+        fontSize=18, textColor=colors.white, leading=22, spaceAfter=2,
+    )
+    style_sub = ParagraphStyle(
+        "sub", parent=styles["Normal"],
+        fontSize=10, textColor=colors.HexColor("#bbf7d0"), spaceAfter=0,
+    )
+    style_section = ParagraphStyle(
+        "section", parent=styles["Normal"],
+        fontSize=9, textColor=colors.HexColor("#64748b"),
+        fontName="Helvetica-Bold", spaceBefore=14, spaceAfter=6,
+        textTransform="uppercase", letterSpacing=0.8,
+    )
+    style_label = ParagraphStyle(
+        "label", parent=styles["Normal"],
+        fontSize=8, textColor=colors.HexColor("#94a3b8"),
+        fontName="Helvetica-Bold", spaceAfter=1,
+    )
+    style_value = ParagraphStyle(
+        "value", parent=styles["Normal"],
+        fontSize=10, textColor=colors.HexColor("#1e293b"), spaceAfter=6,
+    )
+    style_body = ParagraphStyle(
+        "body", parent=styles["Normal"],
+        fontSize=9, textColor=colors.HexColor("#374151"), leading=13,
+    )
+
+    def val(key, default="—"):
+        v = f.get(key) or ""
+        return str(v).strip() or default
+
+    def bool_val(key):
+        return "Sì" if _bool_field(f, key) else "No"
+
+    TIPO = val("Tipologia_scheda")
+    STATO = {"CHIUSO": "Chiuso RSPP/ASPP", "APPROVATO": "Approvato RLS"}.get(f.get("stato", ""), "Aperto Preposto")
+
+    story = []
+
+    # --- Header banner ---
+    header_data = [[
+        Paragraph(f"Rilevazione Sicurezza &nbsp;&nbsp;—&nbsp;&nbsp; {TIPO}", style_title),
+        Paragraph(f"ID: {sp_id} &nbsp;|&nbsp; Stato: {STATO}", style_sub),
+    ]]
+    header_table = Table(header_data, colWidths=[doc.width])
+    header_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), GREEN),
+        ("TOPPADDING", (0, 0), (-1, -1), 14),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 14),
+        ("LEFTPADDING", (0, 0), (-1, -1), 16),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 16),
+        ("ROUNDEDCORNERS", (0, 0), (-1, -1), [8, 8, 8, 8]),
+    ]))
+    story.append(header_table)
+    story.append(Spacer(1, 10 * mm))
+
+    # --- Sezione 1: Dati evento ---
+    story.append(Paragraph("1. Dati dell'evento", style_section))
+    story.append(HRFlowable(width="100%", thickness=1, color=BORDER, spaceAfter=6))
+
+    row1 = [
+        [Paragraph("Nominativo", style_label), Paragraph(val("Nominativo"), style_value)],
+        [Paragraph("Data e ora rilevazione", style_label), Paragraph(val("Data_e_ora_rilevazione")[:16], style_value)],
+    ]
+    row2 = [
+        [Paragraph("Reparto", style_label), Paragraph(val("Reparto") if f.get("Reparto") else val("Reparto_txt"), style_value)],
+        [Paragraph("Persone coinvolte", style_label), Paragraph(val("Persone_x0020_coinvolte"), style_value)],
+    ]
+    row3 = [
+        [Paragraph("Causa evento", style_label), Paragraph(val("Causa_x0020_che_x0020_ha_x0020_determinato_x0020_l_x0027_evento"), style_value)],
+        [Paragraph("Utilizzo DPI previsti", style_label), Paragraph(bool_val("Utilizzo_x0020_DPI_x0020_previsti"), style_value)],
+    ]
+    row4 = [
+        [Paragraph("Causato da macchina", style_label), Paragraph(bool_val("Incidenti_causato_da_uso_macchina_x0020_"), style_value)],
+        [Paragraph("Nome macchina/attrezzatura", style_label), Paragraph(val("Nome_x0020_macchina_x002F_attrezzatura_e_utilizzo"), style_value)],
+    ]
+    row5 = [
+        [Paragraph("Misure tecniche previste", style_label), Paragraph(bool_val("Misure_x0020_tecniche_x002C__x0020_organizzative_x0020_o_x0020_procedurali_x0020_per_x0020_evitare_x0020_che_x0020_possa_x0020_riaccedere_x0020_questo_x0020_genere_x0020_di_x0020_evento"), style_value)],
+        [Paragraph("Prima volta quasi incidente", style_label), Paragraph(bool_val("Prima_x0020_volta_x0020_quasi_x0020_incidente"), style_value)],
+    ]
+
+    half = doc.width / 2 - 4 * mm
+    for row_data in [row1, row2, row3, row4, row5]:
+        t = Table(
+            [[Table([row_data[0]], colWidths=[half]), Table([row_data[1]], colWidths=[half])]],
+            colWidths=[half + 4 * mm, half + 4 * mm],
+        )
+        t.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        story.append(t)
+
+    # Testi lunghi
+    for lbl, key in [
+        ("Descrizione attività durante l'accaduto", "Descrizione_x0020_attivit_x00e0__x0020_che_x0020_venivano_x0020_svolte_x0020_durante_x0020_l_x0027_accaduto"),
+        ("Descrizione avvenimento", "Descrizione_x0020_avvenimento"),
+        ("Altre cause", "Altre_x0020_cause"),
+        ("Quali misure adottare", "Quali_x0020_misure_x0020_adottare"),
+    ]:
+        v = (f.get(key) or "").strip()
+        if v:
+            story.append(Paragraph(lbl, style_label))
+            bg_table = Table(
+                [[Paragraph(v, style_body)]],
+                colWidths=[doc.width],
+            )
+            bg_table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), GREY_BG),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("ROUNDEDCORNERS", (0, 0), (-1, -1), [4, 4, 4, 4]),
+            ]))
+            story.append(bg_table)
+            story.append(Spacer(1, 3 * mm))
+
+    # --- Sezione 2: 5WHY ---
+    story.append(Spacer(1, 4 * mm))
+    story.append(Paragraph("2. Modello 5WHY", style_section))
+    story.append(HRFlowable(width="100%", thickness=1, color=BORDER, spaceAfter=6))
+
+    if f.get("Partecipanti"):
+        story.append(Paragraph("Partecipanti", style_label))
+        story.append(Paragraph(val("Partecipanti"), style_value))
+
+    why_keys = [
+        ("x31__x0020_WHY", "1° WHY"),
+        ("x32__x0020_WHY", "2° WHY"),
+        ("x33__x0020_WHY", "3° WHY"),
+        ("x34__x0020_WHY", "4° WHY"),
+        ("x35__x0020_WHY", "5° WHY"),
+    ]
+    why_data = []
+    for key, lbl in why_keys:
+        why_data.append([
+            Paragraph(lbl, ParagraphStyle("wl", parent=styles["Normal"], fontSize=9, fontName="Helvetica-Bold", textColor=GREEN)),
+            Paragraph((f.get(key) or "—"), style_body),
+        ])
+    why_table = Table(why_data, colWidths=[20 * mm, doc.width - 20 * mm])
+    why_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), GREY_BG),
+        ("ROWBACKGROUNDS", (0, 0), (-1, -1), [GREY_BG, colors.white]),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("GRID", (0, 0), (-1, -1), 0.5, BORDER),
+    ]))
+    story.append(why_table)
+
+    if f.get("Note_x0020_preposto"):
+        story.append(Spacer(1, 4 * mm))
+        story.append(Paragraph("Note preposto", style_label))
+        story.append(Paragraph(val("Note_x0020_preposto"), style_body))
+
+    # --- Sezione 3: Approvazione / Chiusura ---
+    has_approv = bool(f.get("Approvazione_RLS") or f.get("Chiusura_RSPP") or f.get("Note_RSPP_x0020__x002F__x0020_ASPP"))
+    if has_approv:
+        story.append(Spacer(1, 4 * mm))
+        story.append(Paragraph("3. Approvazione & Chiusura", style_section))
+        story.append(HRFlowable(width="100%", thickness=1, color=BORDER, spaceAfter=6))
+        approv_data = [
+            [Paragraph("Approvazione RLS", style_label), Paragraph(val("Approvazione_RLS"), style_value)],
+            [Paragraph("Data approvazione RLS", style_label), Paragraph((val("Data_approvazione_RLS") or "")[:10] or "—", style_value)],
+            [Paragraph("Note RSPP/ASPP", style_label), Paragraph(val("Note_RSPP_x0020__x002F__x0020_ASPP"), style_value)],
+            [Paragraph("Chiusura RSPP", style_label), Paragraph("Sì" if f.get("Chiusura_RSPP") else "No", style_value)],
+            [Paragraph("Data chiusura RSPP", style_label), Paragraph((val("Data_chiusura_RSPP") or "")[:10] or "—", style_value)],
+        ]
+        approv_table = Table(approv_data, colWidths=[50 * mm, doc.width - 50 * mm])
+        approv_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (0, -1), LIGHT_GREEN),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("GRID", (0, 0), (-1, -1), 0.5, BORDER),
+        ]))
+        story.append(approv_table)
+
+    doc.build(story)
+    log_action(request, "export_pdf", "rilevazione_incidenti", f"Export PDF rilevazione id={sp_id}")
+    return response
