@@ -123,6 +123,14 @@
   background: #fdfefe;
   box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.03);
 }
+.wof-field input[type="checkbox"] {
+  width: auto;
+  border-radius: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  accent-color: #1d4ed8;
+}
 .wof-field textarea { min-height: 116px; resize: vertical; }
 .wof-helper {
   min-height: 18px;
@@ -288,6 +296,15 @@
             {% if form.periodic_verification.errors %}<div class="wof-error">{{ form.periodic_verification.errors }}</div>{% endif %}
           </div>
 
+          <div class="wof-field">
+            <label for="{{ form.maintenance_rule.id_for_label }}">{{ form.maintenance_rule.label }}</label>
+            {{ form.maintenance_rule }}
+            <div class="wof-helper">
+              {% if form.maintenance_rule.help_text %}{{ form.maintenance_rule.help_text }}{% endif %}
+            </div>
+            {% if form.maintenance_rule.errors %}<div class="wof-error">{{ form.maintenance_rule.errors }}</div>{% endif %}
+          </div>
+
           <div class="wof-field" id="supplierField">
             <label for="{{ form.supplier.id_for_label }}">{{ form.supplier.label }}</label>
             {{ form.supplier }}
@@ -295,6 +312,21 @@
               {% if form.supplier.help_text %}{{ form.supplier.help_text }}{% endif %}
             </div>
             {% if form.supplier.errors %}<div class="wof-error">{{ form.supplier.errors }}</div>{% endif %}
+          </div>
+
+          <div class="wof-field">
+            <label for="{{ form.assistance_contract.id_for_label }}">{{ form.assistance_contract.label }}</label>
+            {{ form.assistance_contract }}
+            <div class="wof-helper">
+              {% if form.assistance_contract.help_text %}{{ form.assistance_contract.help_text }}{% endif %}
+            </div>
+            {% if form.assistance_contract.errors %}<div class="wof-error">{{ form.assistance_contract.errors }}</div>{% endif %}
+          </div>
+
+          <div class="wof-field wof-field--full">
+            <label for="{{ form.covered_by_contract.id_for_label }}">{{ form.covered_by_contract.label }}</label>
+            {{ form.covered_by_contract }}
+            {% if form.covered_by_contract.errors %}<div class="wof-error">{{ form.covered_by_contract.errors }}</div>{% endif %}
           </div>
 
           <div class="wof-field wof-field--full">

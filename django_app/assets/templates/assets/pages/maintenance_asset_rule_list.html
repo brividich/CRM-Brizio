@@ -5,7 +5,7 @@
 {% block assets_shell_head %}
 <style>
 .mar-page { display:grid; gap:14px; }
-.mar-kpis { display:grid; gap:10px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
+.mar-kpis { display:grid; gap:10px; grid-template-columns:repeat(5, minmax(0, 1fr)); }
 .mar-kpi, .mar-card {
   border:1px solid #dbe1ea;
   border-radius:14px;
@@ -58,9 +58,21 @@
 .mar-pill.muted { background:#e2e8f0; color:#475569; }
 .mar-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
 .mar-reset-form { display:inline-flex; }
+.mar-inline-form { display:grid; gap:8px; min-width: 280px; }
+.mar-inline-grid { display:grid; gap:8px; grid-template-columns:repeat(2, minmax(0, 1fr)); }
+.mar-inline-form :is(input, textarea) {
+  width:100%;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  padding:8px 10px;
+  font:inherit;
+  background:#fff;
+}
+.mar-inline-form textarea { min-height:72px; resize:vertical; grid-column:1/-1; }
 .mar-empty { color:#64748b; font-size:var(--fs-base); }
 @media (max-width: 980px) {
   .mar-kpis { grid-template-columns:1fr; }
+  .mar-inline-grid { grid-template-columns:1fr; }
 }
 </style>
 {% endblock %}
@@ -89,6 +101,14 @@
       <div class="mar-kpi-label">Disabilitate</div>
       <div class="mar-kpi-value">{{ disabled_rule_count }}</div>
     </article>
+    <article class="mar-kpi">
+      <div class="mar-kpi-label">Con scadenza calcolata</div>
+      <div class="mar-kpi-value">{{ scheduled_rule_count }}</div>
+    </article>
+    <article class="mar-kpi">
+      <div class="mar-kpi-label">Prima esecuzione da impostare</div>
+      <div class="mar-kpi-value">{{ missing_execution_count }}</div>
+    </article>
   </section>
 
   <article class="mar-card">
@@ -107,7 +127,9 @@
             <thead>
               <tr>
                 <th>Intervento</th>
-                <th>Soglia</th>
+                <th>Cadenza</th>
+                <th>Ultima esecuzione</th>
+                <th>Scadenza operativa</th>
                 <th>Stato</th>
                 <th>Note</th>
                 <th>Azioni</th>
@@ -125,7 +147,28 @@
                   </td>
                   <td>
                     <strong>{{ row.effective_threshold_value }} {{ row.effective_threshold_label }}</strong><br>
+                    <span class="as-note">Warning: {{ row.effective_warning_days }} gg</span><br>
                     <span class="as-note">Base: {{ row.base_rule.threshold_value }} {{ row.base_rule.get_threshold_type_display }}</span>
+                  </td>
+                  <td>
+                    {% if row.last_execution_date %}
+                      <strong>{{ row.last_execution_date|date:"d/m/Y" }}</strong><br>
+                      <span class="as-note">
+                        {% if row.last_execution_workorder %}
+                          Da intervento #{{ row.last_execution_workorder.id }}
+                        {% else %}
+                          Storico manuale
+                        {% endif %}
+                      </span>
+                    {% else %}
+                      <span class="as-note">Nessuna esecuzione registrata</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if row.due_date %}
+                      <strong>{{ row.due_date|date:"d/m/Y" }}</strong><br>
+                    {% endif %}
+                    <span class="mar-pill {{ row.schedule_badge_class }}">{{ row.schedule_label }}</span>
                   </td>
                   <td>
                     <span class="mar-pill {{ row.status_badge_class }}">{{ row.status_label }}</span>
@@ -153,7 +196,28 @@
                       {% else %}
                         <a class="btn btn-primary" href="{{ row.create_url }}">Personalizza</a>
                       {% endif %}
+                      <a class="btn" href="{% url 'assets:wo_create' asset.id %}?rule={{ row.base_rule.id }}">Apri intervento</a>
                     </div>
+                    {% if row.effective_threshold_type == "DAYS" and not row.is_disabled %}
+                      <form method="post" class="mar-inline-form" style="margin-top:10px;">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="update_rule_execution">
+                        <input type="hidden" name="base_rule_id" value="{{ row.base_rule.id }}">
+                        <div class="mar-inline-grid">
+                          <input type="date" name="last_execution_date" value="{% if row.last_execution_date %}{{ row.last_execution_date|date:'Y-m-d' }}{% endif %}">
+                          <button type="submit" class="btn btn-primary">Salva esecuzione</button>
+                        </div>
+                        <textarea name="last_execution_notes" placeholder="Nota operativa opzionale">{{ row.last_execution_notes }}</textarea>
+                      </form>
+                      {% if row.last_execution_date %}
+                        <form method="post" class="mar-reset-form" style="margin-top:8px;">
+                          {% csrf_token %}
+                          <input type="hidden" name="action" value="clear_rule_execution">
+                          <input type="hidden" name="base_rule_id" value="{{ row.base_rule.id }}">
+                          <button type="submit" class="btn" onclick="return confirm('Azzerare lo storico manutentivo di questa regola?');">Azzera storico</button>
+                        </form>
+                      {% endif %}
+                    {% endif %}
                   </td>
                 </tr>
               {% endfor %}

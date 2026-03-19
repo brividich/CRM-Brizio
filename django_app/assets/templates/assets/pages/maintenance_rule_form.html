@@ -1,6 +1,80 @@
 {% extends "assets/base_shell.html" %}
 
 {% block title %}{% if is_edit %}Modifica regola manutenzione{% else %}Nuova regola manutenzione{% endif %}{% endblock %}
+{% block assets_shell_head %}
+<style>
+.mrf-support-card,
+.mrf-form-card {
+  border: 1px solid #dbe1ea;
+  border-radius: 14px;
+  background: #fff;
+}
+.mrf-support-card {
+  padding: 14px 16px;
+  display: grid;
+  gap: 14px;
+}
+.mrf-support-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.mrf-support-kpis {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.mrf-support-kpi {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fbff;
+  padding: 12px;
+}
+.mrf-support-kpi-label {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: #64748b;
+  font-weight: 800;
+}
+.mrf-support-kpi-value {
+  margin-top: 6px;
+  font-size: var(--fs-display-lg);
+  line-height: 1;
+  color: #0f172a;
+  font-weight: 800;
+}
+.mrf-support-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.mrf-form-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+.mrf-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.mrf-form-actions .btn[disabled] {
+  opacity: .55;
+  cursor: not-allowed;
+}
+@media (max-width: 900px) {
+  .mrf-support-kpis {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+{% endblock %}
 {% block assets_shell_title %}{% if is_edit %}Modifica regola manutenzione{% else %}Nuova regola manutenzione{% endif %}{% endblock %}
 {% block assets_shell_subtitle %}
 <p>Policy standard per categoria asset, basata su un template intervento e una soglia.</p>
@@ -20,7 +94,55 @@
     </div>
   </article>
 
-  <form method="post" style="display:grid;gap:12px;border:1px solid #dbe1ea;border-radius:14px;background:#fff;padding:16px;">
+  <article class="mrf-support-card">
+    <div class="mrf-support-top">
+      <div>
+        <div style="font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.05em;color:#1d4ed8;font-weight:800;">Template e categorie</div>
+        <div class="as-note" style="margin-top:6px;">
+          Il template definisce il tipo di intervento; la regola aggiunge soglia, warning e ordine operativo.
+        </div>
+      </div>
+      <div class="mrf-support-actions">
+        <a
+          id="maintenance-template-list-link"
+          class="btn"
+          href="{{ maintenance_rule_form_state.template_list_url }}"
+          data-base-url="{{ maintenance_rule_form_state.template_list_base_url }}"
+        >Apri template</a>
+        <a
+          id="maintenance-template-create-link"
+          class="btn btn-primary"
+          href="{{ maintenance_rule_form_state.template_create_url }}"
+          data-base-url="{{ maintenance_rule_form_state.template_create_base_url }}"
+        >Nuovo template</a>
+        <a class="btn btn-secondary" href="{{ maintenance_rule_form_state.category_admin_url }}">Gestisci categorie asset</a>
+      </div>
+    </div>
+
+    <div class="mrf-support-kpis">
+      <div class="mrf-support-kpi">
+        <div class="mrf-support-kpi-label">Categorie attive</div>
+        <div class="mrf-support-kpi-value">{{ maintenance_rule_form_state.category_option_count }}</div>
+      </div>
+      <div class="mrf-support-kpi">
+        <div class="mrf-support-kpi-label">Template attivi</div>
+        <div class="mrf-support-kpi-value">{{ maintenance_rule_form_state.active_template_count }}</div>
+      </div>
+      <div class="mrf-support-kpi">
+        <div class="mrf-support-kpi-label">{{ maintenance_rule_form_state.available_template_scope_label }}</div>
+        <div class="mrf-support-kpi-value">{{ maintenance_rule_form_state.available_template_count }}</div>
+        <div class="as-help" style="margin-top:4px;">Generali disponibili: {{ maintenance_rule_form_state.general_template_count }}</div>
+      </div>
+    </div>
+
+    {% if maintenance_rule_form_state.alert_message %}
+      <div class="assets-message{% if maintenance_rule_form_state.alert_level == 'warning' %} assets-message-warning{% endif %}">
+        {{ maintenance_rule_form_state.alert_message }}
+      </div>
+    {% endif %}
+  </article>
+
+  <form method="post" class="mrf-form-card">
     {% csrf_token %}
 
     {% if form.non_field_errors %}
@@ -50,10 +172,40 @@
       {% endfor %}
     </div>
 
-    <div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;">
+    <div class="mrf-form-actions">
+      {% if maintenance_rule_form_state.disable_submit %}
+        <div class="as-note" style="margin-right:auto;">Prima configura almeno una categoria attiva e un template compatibile.</div>
+      {% endif %}
       <a class="btn" href="{{ back_url }}">Annulla</a>
-      <button type="submit" class="btn btn-primary">Salva</button>
+      <button
+        type="submit"
+        class="btn btn-primary"
+        {% if maintenance_rule_form_state.disable_submit %}disabled aria-disabled="true"{% endif %}
+      >Salva</button>
     </div>
   </form>
 </section>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(function () {
+  const categorySelect = document.getElementById("{{ form.asset_category.id_for_label }}");
+  const listLink = document.getElementById("maintenance-template-list-link");
+  const createLink = document.getElementById("maintenance-template-create-link");
+  if (!categorySelect || !listLink || !createLink) return;
+
+  const listBaseUrl = listLink.getAttribute("data-base-url") || listLink.getAttribute("href");
+  const createBaseUrl = createLink.getAttribute("data-base-url") || createLink.getAttribute("href");
+
+  function syncTemplateLinks() {
+    const selected = (categorySelect.value || "").trim();
+    listLink.href = selected ? `${listBaseUrl}?category=${encodeURIComponent(selected)}` : listBaseUrl;
+    createLink.href = selected ? `${createBaseUrl}?category=${encodeURIComponent(selected)}` : createBaseUrl;
+  }
+
+  categorySelect.addEventListener("change", syncTemplateLinks);
+  syncTemplateLinks();
+})();
+</script>
 {% endblock %}

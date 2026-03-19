@@ -291,12 +291,37 @@
           {% else %}
             L'asset non ha una categoria: non puo ereditare regole standard.
           {% endif %}
+          {% if asset_next_maintenance_row %}
+            <br>{{ asset_next_maintenance_row.effective_intervention_template.label }}: {{ asset_next_maintenance_row.schedule_label }}.
+          {% endif %}
         </small>
-        {% if can_manage_asset_maintenance_rules %}
-          <div class="af-action-stack">
+        <div class="af-action-stack">
+          {% if can_manage_asset_maintenance_rules %}
             <a class="af-btn af-btn-ghost" href="{{ asset_maintenance_rule_list_url }}">Apri regole manutenzione</a>
-          </div>
-        {% endif %}
+          {% endif %}
+          <a class="af-btn" href="{{ asset_maintenance_schedule_url }}">Scadenzario</a>
+        </div>
+      </div>
+      <div class="af-summary-card">
+        <span>Copertura assistenza</span>
+        <strong>
+          {% if asset_primary_contract %}
+            {{ asset_primary_contract.supplier }}
+          {% else %}
+            Nessuna copertura
+          {% endif %}
+        </strong>
+        <small>
+          {% if asset_primary_contract %}
+            {{ asset_primary_contract.title }} · {{ asset_primary_contract_state.label }}.
+            {% if asset_primary_contract.coverage_summary %}{{ asset_primary_contract.coverage_summary|truncatechars:110 }}{% endif %}
+          {% else %}
+            Nessun contratto attivo collegato direttamente, per categoria o in forma generale.
+          {% endif %}
+        </small>
+        <div class="af-action-stack">
+          <a class="af-btn af-btn-ghost" href="{{ asset_assistance_contracts_url }}">Apri contratti</a>
+        </div>
       </div>
     </aside>
   </section>
@@ -322,6 +347,7 @@
               {% if can_manage_asset_maintenance_rules %}
                 <a class="af-btn af-btn-ghost" href="{{ asset_maintenance_rule_list_url }}">Regole manutenzione</a>
               {% endif %}
+              <a class="af-btn" href="{{ asset_assistance_contracts_url }}">Contratti</a>
               <a class="af-btn af-btn-primary" href="{% url 'assets:wo_create' asset.id %}">Registra intervento</a>
             </div>
           {% elif card.code == "PERIODIC" %}

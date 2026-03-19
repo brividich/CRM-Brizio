@@ -3,6 +3,7 @@ from __future__ import annotations
 import configparser
 import io
 import json
+import logging
 import os
 import re
 import tempfile
@@ -22,7 +23,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.management import call_command
 from django.core.paginator import Paginator
 from django.db import DatabaseError, connections, transaction
-from django.db.models import Count, OuterRef, Q, Subquery
+from django.db.models import Avg, Count, Q
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.templatetags.static import static
@@ -105,6 +106,8 @@ from .maintenance import (
     sync_workorder_maintenance_state,
     upsert_asset_maintenance_rule_state,
 )
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_IMPORT_SHEETS = ",".join(
     [
@@ -948,12 +951,72 @@ def _maintenance_rule_list_page_url(
     return f"{base_url}?{'&'.join(params)}" if params else base_url
 
 
+def _maintenance_rule_form_state(form: MaintenanceRuleForm, *, is_edit: bool) -> dict[str, object]:
+    selected_category_id = _as_int(form["asset_category"].value(), default=0)
+    selected_category = None
+    if selected_category_id:
+        selected_category = AssetCategory.objects.filter(pk=selected_category_id).only("id", "label").first()
+
+    category_option_count = form.fields["asset_category"].queryset.count()
+    available_template_count = form.fields["intervention_template"].queryset.count()
+    active_template_count = MaintenanceInterventionTemplate.objects.filter(is_active=True).count()
+    general_template_count = MaintenanceInterventionTemplate.objects.filter(
+        is_active=True,
+        asset_category__isnull=True,
+    ).count()
+
+    no_categories_available = category_option_count == 0
+    no_templates_available = active_template_count == 0
+    no_templates_for_selected_category = selected_category is not None and available_template_count == 0
+
+    alert_level = ""
+    alert_message = ""
+    if no_categories_available:
+        alert_level = "warning"
+        alert_message = "Non ci sono categorie asset attive. Prima crea almeno una categoria asset."
+    elif no_templates_available:
+        alert_level = "warning"
+        alert_message = "Non ci sono template manutenzione attivi. Crea prima almeno un template generale o associato a una categoria."
+    elif no_templates_for_selected_category:
+        alert_message = (
+            f'Nessun template compatibile con la categoria "{selected_category.label}". '
+            "Puoi creare un template generale oppure dedicato a questa categoria."
+        )
+
+    template_list_base_url = reverse("assets:maintenance_template_list")
+    template_create_base_url = reverse("assets:maintenance_template_create")
+    template_list_url = _maintenance_template_list_page_url(category_id=selected_category_id)
+    template_create_url = template_create_base_url
+    if selected_category_id:
+        template_create_url = f"{template_create_base_url}?category={selected_category_id}"
+
+    return {
+        "category_option_count": category_option_count,
+        "active_template_count": active_template_count,
+        "general_template_count": general_template_count,
+        "available_template_count": available_template_count,
+        "available_template_scope_label": (
+            f'Compatibili con "{selected_category.label}"' if selected_category is not None else "Visibili nel form"
+        ),
+        "selected_category": selected_category,
+        "alert_level": alert_level,
+        "alert_message": alert_message,
+        "disable_submit": not is_edit and (no_categories_available or available_template_count == 0),
+        "template_list_base_url": template_list_base_url,
+        "template_create_base_url": template_create_base_url,
+        "template_list_url": template_list_url,
+        "template_create_url": template_create_url,
+        "category_admin_url": f"{reverse('assets:asset_list')}#admin-asset-categories",
+    }
+
+
 def _asset_maintenance_rule_list_page_url(asset_id: int) -> str:
     return reverse("assets:asset_maintenance_rule_list", kwargs={"asset_id": int(asset_id)})
 
 
 def _maintenance_schedule_page_url(
     *,
+    asset_id: int = 0,
     status: str = "",
     category_id: int = 0,
     reparto: str = "",
@@ -961,6 +1024,8 @@ def _maintenance_schedule_page_url(
     q: str = "",
 ) -> str:
     params = []
+    if asset_id:
+        params.append(f"asset={int(asset_id)}")
     status_value = _clean_string(status)
     if status_value:
         params.append(f"status={quote(status_value)}")
@@ -3339,6 +3404,8 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
     asset_deadlines = reverse("assets:asset_administrative_deadline_list")
     maintenance_templates = reverse("assets:maintenance_template_list")
     maintenance_rules = reverse("assets:maintenance_rule_list")
+    maintenance_schedule = reverse("assets:maintenance_schedule")
+    assistance_contracts = reverse("assets:assistance_contract_list")
     work_machine_list = reverse("assets:work_machine_list")
     work_machine_dashboard = reverse("assets:work_machine_dashboard")
     periodic_verifications = reverse("assets:periodic_verifications")
@@ -3441,24 +3508,38 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Licenze software",
+            "label": "Interventi",
             "url": wo_list,
             "is_subitem": False,
             "active": current_route == "wo_list",
         },
         {
+            "section": AssetSidebarButton.SECTION_OPERATIONS,
+            "label": "Prossime manutenzioni",
+            "url": maintenance_schedule,
+            "is_subitem": False,
+            "active": current_route == "maintenance_schedule",
+        },
+        {
+            "section": AssetSidebarButton.SECTION_OPERATIONS,
+            "label": "Contratti assistenza",
+            "url": assistance_contracts,
+            "is_subitem": False,
+            "active": current_route == "assistance_contract_list",
+        },
+        {
             "section": AssetSidebarButton.SECTION_ANALYTICS,
-            "label": "Tracciamento ciclo di vita",
+            "label": "Report manutenzione",
             "url": reports,
             "is_subitem": False,
             "active": current_route == "reports",
         },
         {
             "section": AssetSidebarButton.SECTION_ANALYTICS,
-            "label": "Report conformita",
-            "url": reports,
+            "label": "Scadenzario operativo",
+            "url": maintenance_schedule,
             "is_subitem": False,
-            "active": current_route == "reports",
+            "active": current_route == "maintenance_schedule",
         },
     ]
 
@@ -3611,7 +3692,7 @@ def _default_sidebar_seed_rows() -> list[dict]:
         {
             "code": "software_licenses",
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Licenze software",
+            "label": "Interventi",
             "target_url": "django:assets:wo_list",
             "active_match": "/assets/workorders/",
             "is_subitem": False,
@@ -3620,9 +3701,31 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "is_visible": True,
         },
         {
+            "code": "maintenance_schedule",
+            "section": AssetSidebarButton.SECTION_OPERATIONS,
+            "label": "Prossime manutenzioni",
+            "target_url": "django:assets:maintenance_schedule",
+            "active_match": "/assets/manutenzione/prossime/",
+            "is_subitem": False,
+            "parent_code": "",
+            "sort_order": 66,
+            "is_visible": True,
+        },
+        {
+            "code": "assistance_contracts",
+            "section": AssetSidebarButton.SECTION_OPERATIONS,
+            "label": "Contratti assistenza",
+            "target_url": "django:assets:assistance_contract_list",
+            "active_match": "/assets/manutenzione/contratti/",
+            "is_subitem": False,
+            "parent_code": "",
+            "sort_order": 67,
+            "is_visible": True,
+        },
+        {
             "code": "lifecycle_tracking",
             "section": AssetSidebarButton.SECTION_ANALYTICS,
-            "label": "Tracciamento ciclo di vita",
+            "label": "Report manutenzione",
             "target_url": "django:assets:reports",
             "active_match": "/assets/reports/",
             "is_subitem": False,
@@ -3633,9 +3736,9 @@ def _default_sidebar_seed_rows() -> list[dict]:
         {
             "code": "compliance_reports",
             "section": AssetSidebarButton.SECTION_ANALYTICS,
-            "label": "Report conformita",
-            "target_url": "django:assets:reports",
-            "active_match": "/assets/reports/",
+            "label": "Scadenzario operativo",
+            "target_url": "django:assets:maintenance_schedule",
+            "active_match": "/assets/manutenzione/prossime/",
             "is_subitem": False,
             "parent_code": "",
             "sort_order": 80,
@@ -3675,7 +3778,9 @@ def _sidebar_input_suggestions() -> tuple[list[dict[str, str]], list[dict[str, s
         ("django:assets:periodic_verifications", "Verifiche periodiche"),
         ("django:assets:plant_layout_map", "Mappa officina"),
         ("django:assets:wo_list", "Interventi / Work order"),
-        ("django:assets:reports", "Report inventario"),
+        ("django:assets:maintenance_schedule", "Prossime manutenzioni"),
+        ("django:assets:assistance_contract_list", "Contratti assistenza"),
+        ("django:assets:reports", "Report manutenzione"),
         ("django:assets:gestione_admin", "Gestione assets"),
     ]
     for value, label in route_targets:
@@ -3699,7 +3804,9 @@ def _sidebar_input_suggestions() -> tuple[list[dict[str, str]], list[dict[str, s
         ("assets:periodic_verifications", "Verifiche periodiche"),
         ("assets:plant_layout_map", "Mappa officina"),
         ("assets:wo_list", "Interventi / Work order"),
-        ("assets:reports", "Report inventario"),
+        ("assets:maintenance_schedule", "Prossime manutenzioni"),
+        ("assets:assistance_contract_list", "Contratti assistenza"),
+        ("assets:reports", "Report manutenzione"),
         ("assets:gestione_admin", "Gestione assets"),
     ]
     for route_name, label in route_active_matches:
@@ -3723,6 +3830,29 @@ def _sidebar_input_suggestions() -> tuple[list[dict[str, str]], list[dict[str, s
         add_active_match(button.active_match, "Gia configurato")
 
     return target_suggestions, active_match_suggestions
+
+
+def _dashboard_open_workorder_alert_rows(limit: int = 4) -> list[WorkOrder]:
+    try:
+        return list(
+            WorkOrder.objects.select_related("asset")
+            .only(
+                "id",
+                "asset_id",
+                "status",
+                "opened_at",
+                "title",
+                "description",
+                "asset__id",
+                "asset__asset_tag",
+                "asset__name",
+            )
+            .filter(status=WorkOrder.STATUS_OPEN)
+            .order_by("-opened_at")[:limit]
+        )
+    except DatabaseError:
+        logger.warning("Impossibile caricare gli alert work order per la dashboard assets: schema WorkOrder non allineato.", exc_info=True)
+        return []
 
 
 def _sidebar_button_payload(
@@ -5813,7 +5943,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
         asset.endpoint_ip_display = endpoint_summary["ip"]
 
     recent_alerts: list[dict[str, str]] = []
-    open_wo_alerts = list(WorkOrder.objects.select_related("asset").filter(status=WorkOrder.STATUS_OPEN).order_by("-opened_at")[:4])
+    open_wo_alerts = _dashboard_open_workorder_alert_rows(limit=4)
     for workorder in open_wo_alerts:
         is_critical = workorder.opened_at < timezone.now() - timedelta(days=14)
         recent_alerts.append(
@@ -6352,7 +6482,15 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             )
     timeline_events.sort(key=lambda item: item.get("date") or now, reverse=True)
 
-    maintenance_rows = list(asset.workorders.select_related("asset").all()[:10])
+    maintenance_rows = list(
+        asset.workorders.select_related(
+            "asset",
+            "supplier",
+            "maintenance_rule",
+            "maintenance_rule__intervention_template",
+            "assistance_contract",
+        ).all()[:10]
+    )
     manageable_ticket_types = {
         ticket_type
         for ticket_type in (TipoTicket.IT, TipoTicket.MAN)
@@ -6389,6 +6527,19 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
         None,
     )
     resolved_maintenance_rule_rows = resolve_asset_maintenance_rules(asset)
+    asset_schedule_rows = build_day_based_maintenance_schedule_rows(
+        asset_queryset=Asset.objects.filter(pk=asset.id).select_related("asset_category"),
+        today=today,
+    )
+    next_maintenance_row = next(
+        (
+            row
+            for row in asset_schedule_rows
+            if row["schedule_status"] in {"overdue", "warning", "upcoming"}
+        ),
+        None,
+    )
+    primary_contract = get_primary_assistance_contract(asset, today=today)
     can_manage_asset_maintenance_rules = _is_assets_admin(request)
 
     buttons_by_zone = _build_action_buttons_for_asset(asset)
@@ -6506,6 +6657,15 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             ),
             "asset_maintenance_rule_list_url": _asset_maintenance_rule_list_page_url(asset.id),
             "can_manage_asset_maintenance_rules": can_manage_asset_maintenance_rules,
+            "asset_maintenance_schedule_url": _maintenance_schedule_page_url(asset_id=asset.id),
+            "asset_assistance_contracts_url": _assistance_contracts_page_url(asset_id=asset.id),
+            "asset_primary_contract": primary_contract,
+            "asset_primary_contract_state": (
+                contract_state_payload(primary_contract, today=today)
+                if primary_contract is not None
+                else None
+            ),
+            "asset_next_maintenance_row": next_maintenance_row,
             "header_action_buttons": buttons_by_zone.get(AssetActionButton.ZONE_HEADER, []),
             "quick_action_buttons": buttons_by_zone.get(AssetActionButton.ZONE_QUICK, []),
             "detail_section_cards": detail_section_cards,
@@ -7566,12 +7726,15 @@ def maintenance_rule_create(request: HttpRequest) -> HttpResponse:
     else:
         form = MaintenanceRuleForm(initial=initial)
 
+    form_state = _maintenance_rule_form_state(form, is_edit=False)
+
     return render(
         request,
         "assets/pages/maintenance_rule_form.html",
         {
             "page_title": "Nuova regola manutenzione",
             "form": form,
+            "maintenance_rule_form_state": form_state,
             "is_edit": False,
             "back_url": _maintenance_rule_list_page_url(
                 category_id=selected_category_id,
@@ -7627,12 +7790,15 @@ def maintenance_rule_edit(request: HttpRequest, id: int | None = None) -> HttpRe
     else:
         form = MaintenanceRuleForm(instance=rule)
 
+    form_state = _maintenance_rule_form_state(form, is_edit=True)
+
     return render(
         request,
         "assets/pages/maintenance_rule_form.html",
         {
             "page_title": f"Modifica regola {rule.intervention_template.label}",
             "form": form,
+            "maintenance_rule_form_state": form_state,
             "rule": rule,
             "is_edit": True,
             "back_url": _maintenance_rule_list_page_url(
@@ -7955,6 +8121,10 @@ def _maintenance_schedule_status_choices() -> list[tuple[str, str]]:
 
 @login_required
 def maintenance_schedule(request: HttpRequest) -> HttpResponse:
+    selected_asset_id = _as_int(request.GET.get("asset"), default=0)
+    selected_asset = None
+    if selected_asset_id:
+        selected_asset = Asset.objects.select_related("asset_category").filter(pk=selected_asset_id).first()
     status_filter = _clean_string(request.GET.get("status")) or "all"
     category_id = _as_int(request.GET.get("category"), default=0)
     reparto_filter = _clean_string(request.GET.get("reparto"))
@@ -7966,6 +8136,8 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
         "name",
         "asset_tag",
     )
+    if selected_asset is not None:
+        asset_qs = asset_qs.filter(pk=selected_asset.id)
     if category_id:
         asset_qs = asset_qs.filter(asset_category_id=category_id)
     if reparto_filter:
@@ -8027,6 +8199,7 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
         "assets/pages/maintenance_schedule.html",
         {
             "page_title": "Prossime manutenzioni",
+            "selected_asset": selected_asset,
             "schedule_rows": filtered_rows,
             "schedule_total": len(filtered_rows),
             "overdue_count": sum(1 for row in filtered_rows if row["schedule_status"] == "overdue"),
@@ -8043,11 +8216,11 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
             "status_choices": _maintenance_schedule_status_choices(),
             "coverage_filter": coverage_filter,
             "q": q,
-            "clear_filters_url": reverse("assets:maintenance_schedule"),
+            "clear_filters_url": _maintenance_schedule_page_url(asset_id=selected_asset.id if selected_asset else 0),
             **_assets_shell_context(
                 request,
                 rows=_as_int(request.GET.get("rows"), default=25),
-                search_action=reverse("assets:maintenance_schedule"),
+                search_action=_maintenance_schedule_page_url(asset_id=selected_asset.id if selected_asset else 0),
                 new_url=reverse("assets:asset_create"),
                 new_label="+ Nuovo asset",
                 search_placeholder="Ricerca manutenzioni per asset, reparto o intervento",
@@ -9249,41 +9422,109 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
 def reports_dashboard(request: HttpRequest) -> HttpResponse:
     now = timezone.now()
     today = timezone.localdate()
-    open_workorders = WorkOrder.objects.select_related("asset").filter(status=WorkOrder.STATUS_OPEN)
-    late_open_workorders = open_workorders.filter(opened_at__lt=now - timedelta(days=30))
-    recent_done_workorders = WorkOrder.objects.select_related("asset").filter(
-        status=WorkOrder.STATUS_DONE,
-        closed_at__gte=now - timedelta(days=30),
-    )
+    period_start = now - timedelta(days=90)
+    schedule_rows = build_day_based_maintenance_schedule_rows(today=today)
 
-    last_preventive_subquery = WorkOrder.objects.filter(
-        asset=OuterRef("pk"),
-        kind=WorkOrder.KIND_PREVENTIVE,
-        status=WorkOrder.STATUS_DONE,
-    ).order_by("-closed_at")
-    due_assets = (
-        Asset.objects.annotate(last_preventive_date=Subquery(last_preventive_subquery.values("closed_at")[:1]))
-        .filter(Q(last_preventive_date__isnull=True) | Q(last_preventive_date__lt=now - timedelta(days=180)))
-        .order_by("reparto", "name")
+    open_workorders = WorkOrder.objects.select_related("asset", "supplier").filter(status=WorkOrder.STATUS_OPEN)
+    late_open_workorders = open_workorders.filter(opened_at__lt=now - timedelta(days=30)).order_by("opened_at")
+    recent_done_workorders = (
+        WorkOrder.objects.select_related(
+            "asset",
+            "asset__asset_category",
+            "supplier",
+            "assistance_contract",
+        )
+        .filter(status=WorkOrder.STATUS_DONE, closed_at__gte=period_start)
+        .order_by("-closed_at", "-id")
     )
     maintenance_month_dataset = _build_work_machine_maintenance_month_dataset(
         month_value=request.GET.get("month"),
         today=today,
     )
+    done_rows = list(recent_done_workorders)
+    total_cost = sum((workorder.resolved_total_cost_eur or Decimal("0")) for workorder in done_rows)
+    duration_values = [
+        workorder.intervention_duration_minutes
+        for workorder in done_rows
+        if workorder.intervention_duration_minutes is not None
+    ]
+    avg_duration_minutes = round(sum(duration_values) / len(duration_values), 1) if duration_values else None
+    avg_downtime_minutes = (
+        WorkOrder.objects.filter(status=WorkOrder.STATUS_DONE, closed_at__gte=period_start)
+        .aggregate(value=Avg("downtime_minutes"))
+        .get("value")
+    )
+    covered_count = sum(1 for workorder in done_rows if workorder.covered_by_contract)
+    uncovered_count = len(done_rows) - covered_count
+
+    def _summary_rows(key_builder, label_builder):
+        grouped: dict[tuple, dict[str, object]] = {}
+        for workorder in done_rows:
+            key = key_builder(workorder)
+            bucket = grouped.setdefault(
+                key,
+                {
+                    "label": label_builder(workorder),
+                    "count": 0,
+                    "cost": Decimal("0"),
+                    "covered_count": 0,
+                },
+            )
+            bucket["count"] += 1
+            bucket["cost"] += workorder.resolved_total_cost_eur or Decimal("0")
+            if workorder.covered_by_contract:
+                bucket["covered_count"] += 1
+        rows = list(grouped.values())
+        rows.sort(key=lambda row: (-int(row["cost"] > 0), -row["cost"], -row["count"], str(row["label"]).casefold()))
+        return rows
+
+    asset_summary_rows = _summary_rows(
+        lambda workorder: (workorder.asset_id,),
+        lambda workorder: f"{workorder.asset.asset_tag} - {workorder.asset.name}",
+    )[:8]
+    category_summary_rows = _summary_rows(
+        lambda workorder: (getattr(workorder.asset, "asset_category_id", 0),),
+        lambda workorder: (
+            getattr(getattr(workorder.asset, "asset_category", None), "label", "")
+            or "Senza categoria"
+        ),
+    )[:8]
+    supplier_summary_rows = _summary_rows(
+        lambda workorder: (workorder.supplier_id or 0,),
+        lambda workorder: str(workorder.supplier) if workorder.supplier_id else "Fornitore non indicato",
+    )[:8]
+
+    overdue_rows = [row for row in schedule_rows if row["schedule_status"] == "overdue"]
+    warning_rows = [row for row in schedule_rows if row["schedule_status"] == "warning"]
+    upcoming_rows = [row for row in schedule_rows if row["schedule_status"] == "upcoming"]
+    missing_rows = [row for row in schedule_rows if row["schedule_status"] == "missing"]
 
     return render(
         request,
         "assets/pages/reports_dashboard.html",
         {
-            "page_title": "Report inventario",
-            "open_workorders": open_workorders[:25],
-            "late_open_workorders": late_open_workorders[:25],
-            "recent_done_workorders": recent_done_workorders[:25],
-            "due_assets": due_assets[:25],
+            "page_title": "Report manutenzione",
+            "open_workorders": open_workorders.order_by("opened_at", "id")[:8],
+            "late_open_workorders": late_open_workorders[:8],
+            "recent_done_workorders": done_rows[:8],
+            "asset_summary_rows": asset_summary_rows,
+            "category_summary_rows": category_summary_rows,
+            "supplier_summary_rows": supplier_summary_rows,
+            "overdue_rows": overdue_rows[:8],
+            "warning_rows": warning_rows[:8],
+            "upcoming_rows": upcoming_rows[:8],
             "open_count": open_workorders.count(),
             "late_count": late_open_workorders.count(),
-            "done_recent_count": recent_done_workorders.count(),
-            "due_assets_count": due_assets.count(),
+            "done_recent_count": len(done_rows),
+            "total_cost": total_cost,
+            "avg_duration_minutes": avg_duration_minutes,
+            "avg_downtime_minutes": round(avg_downtime_minutes, 1) if avg_downtime_minutes is not None else None,
+            "covered_count": covered_count,
+            "uncovered_count": uncovered_count,
+            "overdue_count": len(overdue_rows),
+            "warning_count": len(warning_rows),
+            "upcoming_count": len(upcoming_rows),
+            "missing_count": len(missing_rows),
             "maintenance_month_rows": maintenance_month_dataset["rows"][:10],
             "maintenance_month_count": maintenance_month_dataset["total_count"],
             "maintenance_month_overdue_count": maintenance_month_dataset["overdue_count"],
@@ -9295,6 +9536,8 @@ def reports_dashboard(request: HttpRequest) -> HttpResponse:
             "maintenance_month_pdf_url": _work_machine_maintenance_month_pdf_url(
                 month_code=str(maintenance_month_dataset["month_code"])
             ),
+            "maintenance_schedule_url": reverse("assets:maintenance_schedule"),
+            "assistance_contracts_url": reverse("assets:assistance_contract_list"),
             "report_templates_manage_url": (
                 reverse("assets:report_template_admin")
                 if _is_assets_admin(request)

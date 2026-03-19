@@ -17,7 +17,6 @@ from .maintenance import get_applicable_assistance_contracts, resolve_asset_main
 from .models import (
     Asset,
     AssetAdministrativeDeadline,
-    AssetMaintenanceRuleState,
     AssetCategory,
     AssetCategoryField,
     AssetComponent,

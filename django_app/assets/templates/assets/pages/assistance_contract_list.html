@@ -1,0 +1,300 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Contratti assistenza{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.ac-page { display:grid; gap:14px; }
+.ac-grid { display:grid; gap:14px; grid-template-columns:minmax(0, 1.2fr) minmax(320px, .8fr); align-items:start; }
+.ac-kpis { display:grid; gap:10px; grid-template-columns:repeat(4, minmax(0, 1fr)); }
+.ac-kpi, .ac-card {
+  border:1px solid #dbe1ea;
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 10px 24px rgba(15, 23, 42, .05);
+}
+.ac-kpi { padding:14px 16px; }
+.ac-kpi-label { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.08em; color:#64748b; font-weight:800; }
+.ac-kpi-value { margin-top:8px; font-size:var(--fs-display-lg); font-weight:800; color:#0f172a; }
+.ac-card-head {
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:flex-start;
+  padding:16px 18px;
+  border-bottom:1px solid #e5e7eb;
+  flex-wrap:wrap;
+}
+.ac-card-head h2 { margin:0; font-size:var(--fs-heading); color:#0f172a; }
+.ac-card-head p { margin:4px 0 0; color:#64748b; }
+.ac-card-body { padding:18px; }
+.ac-banner {
+  padding:14px 16px;
+  border:1px solid #d8e5f5;
+  border-radius:14px;
+  background:linear-gradient(135deg, #f7fbff 0%, #ffffff 100%);
+  color:#1e3a5f;
+}
+.ac-filters, .ac-form-grid { display:grid; gap:12px; grid-template-columns:repeat(4, minmax(0, 1fr)); align-items:end; }
+.ac-field { display:grid; gap:6px; }
+.ac-field--full { grid-column:1/-1; }
+.ac-field label { font-weight:700; color:#24364f; }
+.ac-field :is(input, select, textarea) {
+  width:100%;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  padding:10px 12px;
+  font:inherit;
+  background:#fff;
+}
+.ac-field textarea { min-height:100px; resize:vertical; }
+.ac-actions { display:flex; gap:8px; flex-wrap:wrap; grid-column:1/-1; }
+.ac-table-wrap { overflow:auto; }
+.ac-table { width:100%; border-collapse:collapse; }
+.ac-table th {
+  text-align:left;
+  padding:10px 8px;
+  border-bottom:1px solid #e5e7eb;
+  color:#64748b;
+  font-size:var(--fs-sm);
+  text-transform:uppercase;
+}
+.ac-table td {
+  padding:12px 8px;
+  border-bottom:1px solid #f1f5f9;
+  color:#0f172a;
+  vertical-align:top;
+}
+.ac-badge {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:5px 9px;
+  border-radius:999px;
+  font-size:var(--fs-xs);
+  font-weight:800;
+}
+.ac-badge.ok { background:#dcfce7; color:#15803d; }
+.ac-badge.warn { background:#fef3c7; color:#92400e; }
+.ac-badge.danger { background:#fee2e2; color:#b91c1c; }
+.ac-badge.muted { background:#e2e8f0; color:#475569; }
+.ac-meta { color:#64748b; font-size:var(--fs-sm); line-height:1.5; }
+.ac-row-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.ac-delete { display:inline-flex; }
+.ac-empty { color:#64748b; }
+@media (max-width: 1220px) {
+  .ac-grid { grid-template-columns:1fr; }
+  .ac-kpis { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 820px) {
+  .ac-kpis,
+  .ac-filters,
+  .ac-form-grid { grid-template-columns:1fr; }
+}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Contratti assistenza{% endblock %}
+{% block assets_shell_subtitle %}
+<p>Contratti collegati ai fornitori reali del portale, con copertura per asset, categoria o in forma generale.</p>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="ac-page">
+  {% if selected_asset %}
+    <div class="ac-banner">
+      Vista filtrata su <strong>{{ selected_asset.asset_tag }}</strong> - {{ selected_asset.name }}.
+      {% if selected_asset.asset_category %}Categoria {{ selected_asset.asset_category.label }}.{% endif %}
+    </div>
+  {% endif %}
+
+  <section class="ac-kpis">
+    <article class="ac-kpi"><div class="ac-kpi-label">Contratti visibili</div><div class="ac-kpi-value">{{ contract_total }}</div></article>
+    <article class="ac-kpi"><div class="ac-kpi-label">Attivi</div><div class="ac-kpi-value">{{ active_count }}</div></article>
+    <article class="ac-kpi"><div class="ac-kpi-label">In scadenza</div><div class="ac-kpi-value">{{ expiring_count }}</div></article>
+    <article class="ac-kpi"><div class="ac-kpi-label">Costo periodico attivo</div><div class="ac-kpi-value">{{ periodic_cost_total|default:"0" }} €</div></article>
+  </section>
+
+  <article class="ac-card">
+    <div class="ac-card-head">
+      <div>
+        <h2>Filtri</h2>
+        <p>Filtra per fornitore, stato e ambito di applicazione del contratto.</p>
+      </div>
+    </div>
+    <div class="ac-card-body">
+      <form method="get" class="ac-filters">
+        {% if selected_asset %}<input type="hidden" name="asset" value="{{ selected_asset.id }}">{% endif %}
+        <div class="ac-field">
+          <label for="id_supplier">Fornitore</label>
+          <select id="id_supplier" name="supplier">
+            <option value="">Tutti</option>
+            {% for supplier in supplier_options %}
+              <option value="{{ supplier.id }}" {% if supplier_filter == supplier.id %}selected{% endif %}>{{ supplier.ragione_sociale }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="ac-field">
+          <label for="id_state">Stato</label>
+          <select id="id_state" name="state">
+            {% for code, label in state_choices %}
+              <option value="{{ code }}" {% if state_filter == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="ac-field">
+          <label for="id_scope">Ambito</label>
+          <select id="id_scope" name="scope">
+            {% for code, label in scope_choices %}
+              <option value="{{ code }}" {% if scope_filter == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="ac-field">
+          <label for="id_q">Ricerca</label>
+          <input id="id_q" type="text" name="q" value="{{ q }}" placeholder="Codice, titolo, copertura">
+        </div>
+        <div class="ac-actions">
+          <button type="submit" class="btn btn-primary">Applica</button>
+          <a class="btn" href="{{ clear_filters_url }}">Reset</a>
+          <a class="btn btn-secondary" href="{% url 'assets:reports' %}">Apri report</a>
+        </div>
+      </form>
+    </div>
+  </article>
+
+  <section class="ac-grid">
+    <article class="ac-card">
+      <div class="ac-card-head">
+        <div>
+          <h2>Elenco contratti</h2>
+          <p>Stato, target e costo periodico restano leggibili senza trasformare la pagina in un mini ERP.</p>
+        </div>
+      </div>
+      <div class="ac-card-body">
+        {% if contract_rows %}
+          <div class="ac-table-wrap">
+            <table class="ac-table">
+              <thead>
+                <tr>
+                  <th>Contratto</th>
+                  <th>Fornitore</th>
+                  <th>Ambito</th>
+                  <th>Periodo</th>
+                  <th>Copertura</th>
+                  <th>Azioni</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in contract_rows %}
+                  <tr>
+                    <td>
+                      <strong>{{ row.contract.title }}</strong><br>
+                      <span class="ac-meta">
+                        {% if row.contract.code %}{{ row.contract.code }} · {% endif %}
+                        {{ row.contract.get_contract_type_display }}
+                      </span>
+                    </td>
+                    <td>
+                      <a href="{{ row.supplier_url }}">{{ row.contract.supplier }}</a><br>
+                      <span class="ac-badge {{ row.state.badge_class }}">{{ row.state.label }}</span>
+                    </td>
+                    <td>
+                      {% if row.contract.asset_id %}
+                        <a href="{{ row.asset_url }}">Asset {{ row.contract.asset.asset_tag }}</a>
+                      {% elif row.contract.asset_category_id %}
+                        Categoria {{ row.contract.asset_category.label }}
+                      {% else %}
+                        Generale
+                      {% endif %}
+                    </td>
+                    <td>
+                      <strong>{{ row.contract.start_date|date:"d/m/Y" }}</strong><br>
+                      <span class="ac-meta">
+                        {% if row.contract.end_date %}fino al {{ row.contract.end_date|date:"d/m/Y" }}{% else %}senza scadenza{% endif %}
+                        {% if row.contract.periodic_cost_eur %}<br>{{ row.contract.periodic_cost_eur }} €{% endif %}
+                      </span>
+                    </td>
+                    <td>
+                      {% if row.contract.coverage_summary %}
+                        {{ row.contract.coverage_summary|truncatechars:120 }}
+                      {% else %}
+                        <span class="ac-meta">Copertura non descritta</span>
+                      {% endif %}
+                      {% if row.contract.document and row.contract.document.file %}
+                        <br><a class="ac-meta" href="{{ row.contract.document.file.url }}" target="_blank" rel="noopener">Documento collegato</a>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <div class="ac-row-actions">
+                        {% if can_manage_contracts %}
+                          <a class="btn" href="{{ row.edit_url }}">Modifica</a>
+                          <form method="post" class="ac-delete">
+                            {% csrf_token %}
+                            {% if selected_asset %}<input type="hidden" name="asset_id" value="{{ selected_asset.id }}">{% endif %}
+                            <input type="hidden" name="action" value="delete_assistance_contract">
+                            <input type="hidden" name="contract_id" value="{{ row.contract.id }}">
+                            <button type="submit" class="btn" onclick="return confirm('Eliminare questo contratto assistenza?');">Elimina</button>
+                          </form>
+                        {% else %}
+                          <a class="btn" href="{{ row.supplier_url }}">Apri fornitore</a>
+                        {% endif %}
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="ac-empty">Nessun contratto trovato con i filtri correnti.</p>
+        {% endif %}
+      </div>
+    </article>
+
+    {% if can_manage_contracts %}
+      <article class="ac-card">
+        <div class="ac-card-head">
+          <div>
+            <h2>{% if is_edit %}Modifica contratto{% else %}Nuovo contratto{% endif %}</h2>
+            <p>Compila solo i dati gestionali essenziali: fornitore, target, finestra attiva e copertura.</p>
+          </div>
+        </div>
+        <div class="ac-card-body">
+          <form method="post" style="display:grid;gap:12px;">
+            {% csrf_token %}
+            {% if selected_asset %}<input type="hidden" name="asset_id" value="{{ selected_asset.id }}">{% endif %}
+            {% if is_edit and edit_contract %}<input type="hidden" name="edit_id" value="{{ edit_contract.id }}">{% endif %}
+            <input type="hidden" name="action" value="{% if is_edit %}update_assistance_contract{% else %}create_assistance_contract{% endif %}">
+
+            {% if form.non_field_errors %}
+              <div class="ac-banner">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <div class="ac-form-grid">
+              {% for field in form %}
+                {% if field.is_hidden %}
+                  {{ field }}
+                {% else %}
+                  <div class="ac-field {% if field.name == 'coverage_summary' or field.name == 'notes' %}ac-field--full{% endif %}">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.help_text %}<div class="ac-meta">{{ field.help_text }}</div>{% endif %}
+                    {% if field.errors %}<div class="as-error">{{ field.errors }}</div>{% endif %}
+                  </div>
+                {% endif %}
+              {% endfor %}
+              <div class="ac-actions">
+                {% if is_edit %}
+                  <a class="btn" href="{{ clear_filters_url }}">Annulla modifica</a>
+                {% endif %}
+                <button type="submit" class="btn btn-primary">{% if is_edit %}Salva contratto{% else %}Crea contratto{% endif %}</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </article>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}

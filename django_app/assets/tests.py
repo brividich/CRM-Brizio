@@ -34,7 +34,7 @@ from .forms import (
     MaintenanceRuleAssetOverrideForm,
     MaintenanceRuleForm,
 )
-from .maintenance import resolve_asset_maintenance_rules
+from .maintenance import build_day_based_maintenance_schedule_rows, resolve_asset_maintenance_rules
 from .models import (
     Asset,
     AssetActionButton,
@@ -51,9 +51,11 @@ from .models import (
     AssetLabelTemplate,
     AssetListLayout,
     AssetListOption,
+    AssetMaintenanceRuleState,
     MaintenanceInterventionTemplate,
     MaintenanceRule,
     MaintenanceRuleAssetOverride,
+    AssistanceContract,
     AssetReportDefinition,
     AssetReportTemplate,
     AssetSidebarButton,
@@ -265,6 +267,11 @@ class AssetsRoutingTests(TestCase):
         self.client.force_login(admin)
         response = self.client.get(reverse("assets:asset_list"))
         self.assertEqual(response.status_code, 200)
+
+    def test_dashboard_open_workorder_alert_rows_returns_empty_on_database_error(self):
+        with patch.object(asset_views.WorkOrder.objects, "select_related", side_effect=DatabaseError("schema mismatch")):
+            rows = asset_views._dashboard_open_workorder_alert_rows(limit=4)
+        self.assertEqual(rows, [])
 
     def test_assets_list_falls_back_when_layout_table_is_unavailable(self):
         self.client.force_login(self.user)
@@ -2347,6 +2354,68 @@ class WorkOrderFlowTests(TestCase):
         self.assertIsNone(workorder.periodic_verification)
         self.assertEqual(workorder.supplier, supplier)
 
+    def test_done_workorder_with_rule_and_contract_syncs_execution_state(self):
+        supplier = Fornitore.objects.create(
+            ragione_sociale="Service Integrato Srl",
+            categoria=Fornitore.CATEGORIA_MANUTENZIONE,
+        )
+        category = AssetCategory.objects.create(
+            code="wo-flow-category",
+            label="Categoria WO Flow",
+            base_asset_type=Asset.TYPE_SERVER,
+        )
+        self.asset.asset_category = category
+        self.asset.save(update_fields=["asset_category"])
+        template = MaintenanceInterventionTemplate.objects.create(
+            code="wo-flow-template",
+            label="Check semestrale server",
+            asset_category=category,
+        )
+        rule = MaintenanceRule.objects.create(
+            intervention_template=template,
+            asset_category=category,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=180,
+            warning_days=20,
+        )
+        contract = AssistanceContract.objects.create(
+            supplier=supplier,
+            asset=self.asset,
+            title="Contratto server mission critical",
+            contract_type=AssistanceContract.TYPE_FULL_SERVICE,
+            start_date=timezone.localdate() - timedelta(days=10),
+            coverage_summary="Copertura full service H24",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_create", args=[self.asset.id]),
+            {
+                "periodic_verification": "",
+                "maintenance_rule": str(rule.id),
+                "supplier": "",
+                "assistance_contract": str(contract.id),
+                "covered_by_contract": "on",
+                "kind": WorkOrder.KIND_PREVENTIVE,
+                "status": WorkOrder.STATUS_DONE,
+                "title": "Check server completato",
+                "description": "Intervento eseguito e chiuso nello stesso momento.",
+                "resolution": "Server verificato",
+                "downtime_minutes": "5",
+                "cost_eur": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        workorder = WorkOrder.objects.get(title="Check server completato")
+        self.assertEqual(workorder.maintenance_rule, rule)
+        self.assertEqual(workorder.assistance_contract, contract)
+        self.assertTrue(workorder.covered_by_contract)
+        self.assertEqual(workorder.supplier, supplier)
+        state = AssetMaintenanceRuleState.objects.get(asset=self.asset, base_rule=rule)
+        self.assertEqual(state.last_work_order, workorder)
+        self.assertEqual(state.last_execution_date, timezone.localdate())
+
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class AssetAdministrativeStepOneTests(TestCase):
@@ -2576,6 +2645,32 @@ class AssetMaintenanceStepTwoTests(TestCase):
         self.assertEqual(rule.threshold_type, MaintenanceRule.THRESHOLD_DAYS)
         self.assertEqual(rule.threshold_value, 90)
         self.assertTrue(rule.is_active)
+
+    def test_maintenance_rule_create_view_shows_template_management_when_templates_missing(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("assets:maintenance_rule_create") + f"?category={self.category.id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Non ci sono template manutenzione attivi.")
+        self.assertContains(response, reverse("assets:maintenance_template_list") + f"?category={self.category.id}")
+        self.assertContains(response, reverse("assets:maintenance_template_create") + f"?category={self.category.id}")
+        self.assertContains(response, reverse("assets:asset_list") + "#admin-asset-categories")
+        self.assertContains(response, 'aria-disabled="true"', html=False)
+
+    def test_maintenance_rule_create_view_warns_when_selected_category_has_no_compatible_templates(self):
+        MaintenanceInterventionTemplate.objects.create(
+            code="step-two-template-altro",
+            label="Template altra categoria",
+            asset_category=self.other_category,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("assets:maintenance_rule_create") + f"?category={self.category.id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Nessun template compatibile con la categoria")
+        self.assertContains(response, self.category.label)
 
     def test_maintenance_rule_form_rejects_mismatched_template_category(self):
         foreign_template = MaintenanceInterventionTemplate.objects.create(
@@ -2838,3 +2933,95 @@ class AssetMaintenanceStepThreeTests(TestCase):
         )
         self.assertEqual(reset_response.status_code, 302)
         self.assertFalse(MaintenanceRuleAssetOverride.objects.filter(pk=override.id).exists())
+
+    def test_day_based_schedule_uses_manual_execution_state(self):
+        today = timezone.localdate()
+        AssetMaintenanceRuleState.objects.create(
+            asset=self.asset,
+            base_rule=self.base_rule,
+            last_execution_date=today - timedelta(days=80),
+            notes="Baseline manuale",
+        )
+
+        rows = build_day_based_maintenance_schedule_rows(
+            asset_queryset=Asset.objects.filter(pk=self.asset.id).select_related("asset_category"),
+            today=today,
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["schedule_status"], "warning")
+        self.assertEqual(rows[0]["due_date"], today + timedelta(days=10))
+        self.assertEqual(rows[0]["last_execution_notes"], "Baseline manuale")
+
+    def test_asset_maintenance_rule_list_updates_execution_state(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("assets:asset_maintenance_rule_list", kwargs={"asset_id": self.asset.id}),
+            {
+                "action": "update_rule_execution",
+                "base_rule_id": str(self.base_rule.id),
+                "last_execution_date": "2026-03-01",
+                "last_execution_notes": "Manutenzione straordinaria registrata a mano",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        state = AssetMaintenanceRuleState.objects.get(asset=self.asset, base_rule=self.base_rule)
+        self.assertEqual(str(state.last_execution_date), "2026-03-01")
+        self.assertEqual(state.notes, "Manutenzione straordinaria registrata a mano")
+
+    def test_assistance_contract_list_creates_contract_for_selected_asset(self):
+        supplier = Fornitore.objects.create(
+            ragione_sociale="Fornitore Contratti Step 3",
+            categoria=Fornitore.CATEGORIA_MANUTENZIONE,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("assets:assistance_contract_list") + f"?asset={self.asset.id}",
+            {
+                "asset_id": str(self.asset.id),
+                "action": "create_assistance_contract",
+                "supplier": str(supplier.id),
+                "asset_category": "",
+                "code": "CTR-001",
+                "title": "Contratto officina asset specifico",
+                "contract_type": AssistanceContract.TYPE_FULL_SERVICE,
+                "start_date": "2026-01-01",
+                "end_date": "2026-12-31",
+                "is_active": "on",
+                "sla_description": "4h onsite",
+                "coverage_summary": "Ricambi inclusi",
+                "periodic_cost_eur": "450.00",
+                "notes": "Contratto di prova",
+                "document": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        contract = AssistanceContract.objects.get(code="CTR-001")
+        self.assertEqual(contract.asset, self.asset)
+        self.assertEqual(contract.supplier, supplier)
+
+    def test_new_schedule_and_contract_pages_render(self):
+        supplier = Fornitore.objects.create(
+            ragione_sociale="Fornitore Render",
+            categoria=Fornitore.CATEGORIA_MANUTENZIONE,
+        )
+        AssistanceContract.objects.create(
+            supplier=supplier,
+            asset_category=self.category,
+            title="Contratto categoria render",
+            contract_type=AssistanceContract.TYPE_ON_CALL,
+            start_date=timezone.localdate() - timedelta(days=5),
+        )
+        self.client.force_login(self.admin)
+
+        schedule_response = self.client.get(reverse("assets:maintenance_schedule"))
+        self.assertEqual(schedule_response.status_code, 200)
+        self.assertContains(schedule_response, "Prossime manutenzioni")
+
+        contracts_response = self.client.get(reverse("assets:assistance_contract_list"))
+        self.assertEqual(contracts_response.status_code, 200)
+        self.assertContains(contracts_response, "Contratti assistenza")

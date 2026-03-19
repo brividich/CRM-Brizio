@@ -98,6 +98,20 @@ _PULSANTI_DEFINITIONS = [
     },
     {
         "modulo": "assets",
+        "codice": "assets_maintenance_schedule",
+        "label": "Assets - Prossime manutenzioni",
+        "url": "/assets/manutenzione/prossime/",
+        "hide": True,
+    },
+    {
+        "modulo": "assets",
+        "codice": "assets_assistance_contracts",
+        "label": "Assets - Contratti assistenza",
+        "url": "/assets/manutenzione/contratti/",
+        "hide": True,
+    },
+    {
+        "modulo": "assets",
         "codice": "assets_asset_maintenance_rules",
         "label": "Assets - Regole manutenzione asset",
         "url": "/assets/manutenzione/asset-rules/",

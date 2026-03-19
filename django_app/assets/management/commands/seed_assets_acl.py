@@ -25,6 +25,8 @@ PULSANTI = [
     ("maintenance_rules", "Asset - Regole manutenzione", "maintenance_rule_list"),
     ("maintenance_rule_create", "Asset - Regola manutenzione nuova", "maintenance_rule_create"),
     ("maintenance_rule_edit", "Asset - Regola manutenzione modifica", "maintenance_rule_edit"),
+    ("maintenance_schedule", "Asset - Prossime manutenzioni", "maintenance_schedule"),
+    ("assistance_contract_list", "Asset - Contratti assistenza", "assistance_contract_list"),
     ("asset_maintenance_rules", "Asset - Regole manutenzione asset", "asset_maintenance_rule_list"),
     (
         "asset_maintenance_override_create",

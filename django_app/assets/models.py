@@ -978,8 +978,6 @@ class AssistanceContract(models.Model):
             raise ValidationError({"end_date": "La data fine non puo essere precedente alla data inizio."})
         if self.document_id and getattr(self.document, "fornitore_id", None) != self.supplier_id:
             raise ValidationError({"document": "Il documento selezionato appartiene a un fornitore diverso."})
-        if self.asset_id and self.asset and self.asset_category_id:
-            raise ValidationError({"asset": "Il contratto non puo essere collegato contemporaneamente ad asset e categoria."})
 
 
 class WorkMachine(models.Model):

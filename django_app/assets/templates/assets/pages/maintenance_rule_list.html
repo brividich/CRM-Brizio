@@ -204,6 +204,7 @@
                   </td>
                   <td>
                     {{ row.rule.threshold_value }} {{ row.rule.get_threshold_type_display }}<br>
+                    {% if row.rule.threshold_type == "DAYS" %}<span class="as-note">Warning {{ row.rule.warning_days }} gg</span><br>{% endif %}
                     {% if row.rule.notes %}<span class="as-note">{{ row.rule.notes }}</span>{% endif %}
                   </td>
                   <td>

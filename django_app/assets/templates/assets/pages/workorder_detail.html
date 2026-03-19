@@ -23,11 +23,17 @@
     <dl class="as-dl-grid">
       <dt>Titolo</dt><dd>{{ workorder.title }}</dd>
       <dt>Intervento programmato</dt><dd>{% if workorder.periodic_verification %}{{ workorder.periodic_verification.name }}{% else %}-{% endif %}</dd>
+      <dt>Regola manutenzione</dt><dd>{% if workorder.maintenance_rule %}{{ workorder.maintenance_rule.intervention_template.label }}{% else %}-{% endif %}</dd>
       <dt>Fornitore</dt><dd>{% if workorder.supplier %}{{ workorder.supplier }}{% else %}-{% endif %}</dd>
+      <dt>Contratto assistenza</dt><dd>{% if workorder.assistance_contract %}{{ workorder.assistance_contract.title }}{% else %}-{% endif %}</dd>
+      <dt>Coperto da contratto</dt><dd>{% if workorder.covered_by_contract %}Si{% else %}No{% endif %}</dd>
       <dt>Aperta il</dt><dd>{{ workorder.opened_at|date:"d/m/Y H:i" }}</dd>
       <dt>Chiusa il</dt><dd>{% if workorder.closed_at %}{{ workorder.closed_at|date:"d/m/Y H:i" }}{% else %}-{% endif %}</dd>
+      <dt>Durata intervento (min)</dt><dd>{{ workorder.intervention_duration_minutes|default:"-" }}</dd>
       <dt>Fermo impianto (min)</dt><dd>{{ workorder.downtime_minutes }}</dd>
-      <dt>Costo (EUR)</dt><dd>{{ workorder.cost_eur|default:"-" }}</dd>
+      <dt>Manodopera (EUR)</dt><dd>{{ workorder.labor_cost_eur|default:"-" }}</dd>
+      <dt>Materiali (EUR)</dt><dd>{{ workorder.materials_cost_eur|default:"-" }}</dd>
+      <dt>Costo totale (EUR)</dt><dd>{{ workorder.resolved_total_cost_eur|default:"-" }}</dd>
       <dt>Descrizione</dt><dd style="white-space:pre-wrap;">{{ workorder.description|default:"-" }}</dd>
       <dt>Risoluzione</dt><dd style="white-space:pre-wrap;">{{ workorder.resolution|default:"-" }}</dd>
     </dl>
