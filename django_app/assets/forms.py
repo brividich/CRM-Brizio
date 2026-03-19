@@ -13,7 +13,7 @@ from django.db.models import Q
 
 from anagrafica.models import Fornitore, FornitoreDocumento
 
-from .maintenance import get_applicable_assistance_contracts, resolve_asset_maintenance_rules
+from .maintenance import build_workorder_prefill_payload, get_applicable_assistance_contracts, resolve_asset_maintenance_rules
 from .models import (
     Asset,
     AssetAdministrativeDeadline,
@@ -1428,7 +1428,7 @@ class AssistanceContractForm(forms.ModelForm):
             "contract_type": "Tipo contratto",
             "asset": "Asset",
             "asset_category": "Categoria asset",
-            "document": "Documento collegato",
+            "document": "Documento",
             "start_date": "Data inizio",
             "end_date": "Data fine",
             "is_active": "Contratto attivo",
@@ -1901,6 +1901,42 @@ class AssetLabelTemplateForm(forms.ModelForm):
         return instance
 
 
+def _validate_workorder_relations(
+    *,
+    asset: Asset | None,
+    verification: PeriodicVerification | None,
+    maintenance_rule: MaintenanceRule | None,
+    supplier: Fornitore | None,
+    assistance_contract: AssistanceContract | None,
+    add_error,
+    keep_existing_coverage: bool = False,
+) -> tuple[Fornitore | None, bool]:
+    resolved_supplier = supplier
+    covered_by_contract = bool(keep_existing_coverage)
+
+    if verification is not None and asset is not None:
+        if not verification.assets.filter(pk=asset.pk).exists():
+            add_error("periodic_verification", "La verifica selezionata non appartiene a questo asset.")
+        elif resolved_supplier is None and verification.supplier_id:
+            resolved_supplier = verification.supplier
+
+    if maintenance_rule is not None and asset is not None:
+        if maintenance_rule.asset_category_id != getattr(asset, "asset_category_id", None):
+            add_error("maintenance_rule", "La regola selezionata non appartiene alla categoria dell'asset.")
+
+    if assistance_contract is not None:
+        if asset is not None and not assistance_contract.applies_to_asset(asset):
+            add_error("assistance_contract", "Il contratto selezionato non copre questo asset.")
+        if verification is not None and verification.supplier_id and verification.supplier_id != assistance_contract.supplier_id:
+            add_error("assistance_contract", "Il contratto selezionato usa un fornitore diverso dalla verifica.")
+        if resolved_supplier is not None and resolved_supplier.id != assistance_contract.supplier_id:
+            add_error("assistance_contract", "Il contratto selezionato appartiene a un fornitore diverso.")
+        resolved_supplier = assistance_contract.supplier
+        covered_by_contract = True
+
+    return resolved_supplier, covered_by_contract
+
+
 class WorkOrderForm(forms.ModelForm):
     class Meta:
         model = WorkOrder
@@ -1919,11 +1955,11 @@ class WorkOrderForm(forms.ModelForm):
             "cost_eur",
         ]
         labels = {
-            "periodic_verification": "Intervento programmato",
+            "periodic_verification": "Verifica periodica collegata",
             "maintenance_rule": "Regola manutenzione",
             "supplier": "Fornitore",
             "assistance_contract": "Contratto assistenza",
-            "covered_by_contract": "Coperto da contratto",
+            "covered_by_contract": "Copertura da contratto",
             "kind": "Tipo intervento",
             "status": "Stato",
             "title": "Titolo",
@@ -1943,7 +1979,16 @@ class WorkOrderForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         self.asset = kwargs.pop("asset", None)
+        self.prefill_payload = kwargs.pop("prefill_payload", None)
         super().__init__(*args, **kwargs)
+        if self.prefill_payload is None:
+            base_rule_id = 0
+            raw_rule_value = self.initial.get("maintenance_rule") or getattr(self.instance, "maintenance_rule_id", None)
+            try:
+                base_rule_id = int(raw_rule_value or 0)
+            except (TypeError, ValueError):
+                base_rule_id = 0
+            self.prefill_payload = build_workorder_prefill_payload(asset=self.asset, base_rule_id=base_rule_id)
         current_supplier_id = getattr(self.instance, "supplier_id", None)
         current_contract_id = getattr(self.instance, "assistance_contract_id", None)
         current_rule_id = getattr(self.instance, "maintenance_rule_id", None)
@@ -1953,7 +1998,11 @@ class WorkOrderForm(forms.ModelForm):
             "id",
         )
         self.fields["supplier"].required = False
-        self.fields["supplier"].help_text = "Se l'intervento e programmato il fornitore viene proposto automaticamente."
+        self.fields["supplier"].help_text = "Se colleghi una verifica periodica il fornitore viene proposto automaticamente."
+        self.fields["status"].required = False
+        self.fields["status"].widget = forms.HiddenInput()
+        self.fields["status"].initial = WorkOrder.STATUS_OPEN
+        self.initial["status"] = WorkOrder.STATUS_OPEN
         verification_field = self.fields["periodic_verification"]
         verification_field.required = False
         verification_field.help_text = "Seleziona la verifica periodica collegata per proporre il fornitore."
@@ -1972,8 +2021,8 @@ class WorkOrderForm(forms.ModelForm):
                 for row in resolve_asset_maintenance_rules(self.asset)
                 if row["base_rule"].is_active and not row["is_disabled"]
             ]
-        effective_rule_map = {row["base_rule"].id: row for row in rule_rows}
-        rule_ids = list(effective_rule_map.keys())
+        self.effective_rule_map = {row["base_rule"].id: row for row in rule_rows}
+        rule_ids = list(self.effective_rule_map.keys())
         rule_qs = MaintenanceRule.objects.none()
         if rule_ids:
             rule_qs = MaintenanceRule.objects.select_related("intervention_template", "asset_category").filter(pk__in=rule_ids)
@@ -1986,11 +2035,11 @@ class WorkOrderForm(forms.ModelForm):
         self.fields["maintenance_rule"].help_text = "Opzionale: collega il work order a una regola manutentiva effettiva dell'asset."
         self.fields["maintenance_rule"].label_from_instance = lambda rule: self._maintenance_rule_label(
             rule,
-            effective_rule_map,
+            self.effective_rule_map,
         )
 
-        contract_rows = get_applicable_assistance_contracts(self.asset) if self.asset is not None else []
-        contract_ids = [contract.id for contract in contract_rows]
+        self.contract_rows = get_applicable_assistance_contracts(self.asset) if self.asset is not None else []
+        contract_ids = [contract.id for contract in self.contract_rows]
         contract_qs = AssistanceContract.objects.none()
         if contract_ids:
             contract_qs = AssistanceContract.objects.select_related("supplier", "asset", "asset_category").filter(
@@ -2004,6 +2053,7 @@ class WorkOrderForm(forms.ModelForm):
         self.fields["assistance_contract"].queryset = contract_qs.order_by("supplier__ragione_sociale", "title", "id")
         self.fields["assistance_contract"].help_text = "Se presente, il contratto valorizza copertura e fornitore."
         self.fields["covered_by_contract"].required = False
+        self.fields["covered_by_contract"].help_text = "Disponibile solo con un contratto selezionato."
         if self.asset is not None and not self.is_bound:
             verifications = list(verification_qs)
             if len(verifications) == 1:
@@ -2011,13 +2061,29 @@ class WorkOrderForm(forms.ModelForm):
                 self.initial.setdefault("periodic_verification", verification.pk)
                 if verification.supplier_id:
                     self.initial.setdefault("supplier", verification.supplier_id)
-            if len(contract_rows) == 1:
-                contract = contract_rows[0]
-                self.initial.setdefault("assistance_contract", contract.id)
-                self.initial.setdefault("supplier", contract.supplier_id)
-                self.initial.setdefault("covered_by_contract", True)
+            self._apply_prefill_defaults()
         _attach_input_css(self)
         self.fields["covered_by_contract"].widget.attrs["class"] = ""
+
+    def _apply_prefill_defaults(self) -> None:
+        payload = self.prefill_payload or {}
+        preferred_rule = payload.get("maintenance_rule")
+        preferred_contract = payload.get("contract") or (self.contract_rows[0] if self.contract_rows else None)
+        preferred_supplier = payload.get("supplier")
+
+        if preferred_rule is not None:
+            self.initial.setdefault("maintenance_rule", preferred_rule.id)
+            self.initial.setdefault("kind", payload.get("kind") or WorkOrder.KIND_PREVENTIVE)
+        if payload.get("title"):
+            self.initial.setdefault("title", payload["title"])
+        if payload.get("description"):
+            self.initial.setdefault("description", payload["description"])
+        if preferred_contract is not None:
+            self.initial.setdefault("assistance_contract", preferred_contract.id)
+            self.initial.setdefault("covered_by_contract", True)
+            preferred_supplier = preferred_contract.supplier
+        if preferred_supplier is not None:
+            self.initial.setdefault("supplier", preferred_supplier.id)
 
     def _maintenance_rule_label(self, rule: MaintenanceRule, effective_rule_map: dict[int, dict]) -> str:
         row = effective_rule_map.get(rule.id)
@@ -2031,29 +2097,57 @@ class WorkOrderForm(forms.ModelForm):
             f"(warning {warning_days} gg)"
         )
 
+    def build_rule_suggestion_map(self) -> dict[str, dict[str, str]]:
+        payload: dict[str, dict[str, str]] = {}
+        for rule in self.fields["maintenance_rule"].queryset:
+            row = self.effective_rule_map.get(rule.id)
+            template = row["effective_intervention_template"] if row is not None else rule.intervention_template
+            template_description = (getattr(template, "description", "") or "").strip()
+            effective_notes = (str(row.get("effective_notes") or "").strip() if row is not None else "")
+            description_parts: list[str] = []
+            if template_description:
+                description_parts.append(template_description)
+            if effective_notes and effective_notes not in description_parts:
+                description_parts.append(effective_notes)
+            payload[str(rule.id)] = {
+                "title": (getattr(template, "label", "") or "").strip(),
+                "description": "\n\n".join(description_parts).strip(),
+                "template_label": (getattr(template, "label", "") or "").strip(),
+            }
+        return payload
+
+    def build_contract_suggestion_map(self) -> dict[str, dict[str, str]]:
+        return {
+            str(contract.id): {
+                "supplier_id": str(contract.supplier_id or ""),
+                "supplier_label": str(contract.supplier) if contract.supplier_id else "",
+                "contract_label": (contract.title or contract.code or "").strip(),
+            }
+            for contract in self.fields["assistance_contract"].queryset
+        }
+
     def clean(self):
         cleaned_data = super().clean()
         verification = cleaned_data.get("periodic_verification")
         maintenance_rule = cleaned_data.get("maintenance_rule")
         supplier = cleaned_data.get("supplier")
         assistance_contract = cleaned_data.get("assistance_contract")
-        if verification is not None and self.asset is not None:
-            if not verification.assets.filter(pk=self.asset.pk).exists():
-                self.add_error("periodic_verification", "La verifica selezionata non appartiene a questo asset.")
-            if supplier is None and verification.supplier_id:
-                cleaned_data["supplier"] = verification.supplier
-        if maintenance_rule is not None and self.asset is not None:
-            if maintenance_rule.asset_category_id != getattr(self.asset, "asset_category_id", None):
-                self.add_error("maintenance_rule", "La regola selezionata non appartiene alla categoria dell'asset.")
-        if assistance_contract is not None:
-            if self.asset is not None and not assistance_contract.applies_to_asset(self.asset):
-                self.add_error("assistance_contract", "Il contratto selezionato non copre questo asset.")
-            if verification is not None and verification.supplier_id and verification.supplier_id != assistance_contract.supplier_id:
-                self.add_error("assistance_contract", "Il contratto selezionato usa un fornitore diverso dalla verifica.")
-            if supplier is not None and supplier.id != assistance_contract.supplier_id:
-                self.add_error("assistance_contract", "Il contratto selezionato appartiene a un fornitore diverso.")
-            cleaned_data["supplier"] = assistance_contract.supplier
-            cleaned_data["covered_by_contract"] = True
+        if cleaned_data.get("covered_by_contract") and assistance_contract is None:
+            self.add_error("covered_by_contract", "Seleziona un contratto per indicare la copertura.")
+        supplier, covered_by_contract = _validate_workorder_relations(
+            asset=self.asset,
+            verification=verification,
+            maintenance_rule=maintenance_rule,
+            supplier=supplier,
+            assistance_contract=assistance_contract,
+            add_error=self.add_error,
+            keep_existing_coverage=bool(cleaned_data.get("covered_by_contract")),
+        )
+        cleaned_data["supplier"] = supplier
+        cleaned_data["covered_by_contract"] = covered_by_contract
+        # In creazione il workorder parte sempre aperto, anche se il client
+        # prova a forzare uno stato finale via POST.
+        cleaned_data["status"] = WorkOrder.STATUS_OPEN
         return cleaned_data
 
 
@@ -2064,7 +2158,7 @@ class WorkOrderCloseForm(forms.Form):
             (WorkOrder.STATUS_CANCELED, "Annullata"),
         ],
         initial=WorkOrder.STATUS_DONE,
-        label="Stato finale",
+        label="Esito finale",
     )
     resolution = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 4}), label="Risoluzione")
     intervention_duration_minutes = forms.IntegerField(required=False, min_value=0, label="Durata intervento (minuti)")
@@ -2077,11 +2171,11 @@ class WorkOrderCloseForm(forms.Form):
     log_note = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}), label="Nota di chiusura")
 
     def __init__(self, *args, **kwargs):
-        asset = kwargs.pop("asset", None)
-        workorder = kwargs.pop("workorder", None)
+        self.asset = kwargs.pop("asset", None)
+        self.workorder = kwargs.pop("workorder", None)
         super().__init__(*args, **kwargs)
-        current_contract_id = getattr(workorder, "assistance_contract_id", None)
-        contract_rows = get_applicable_assistance_contracts(asset) if asset is not None else []
+        current_contract_id = getattr(self.workorder, "assistance_contract_id", None)
+        contract_rows = get_applicable_assistance_contracts(self.asset) if self.asset is not None else []
         contract_ids = [contract.id for contract in contract_rows]
         contract_qs = AssistanceContract.objects.none()
         if contract_ids:
@@ -2094,6 +2188,8 @@ class WorkOrderCloseForm(forms.Form):
             )
         self.fields["assistance_contract"].queryset = contract_qs.order_by("supplier__ragione_sociale", "title", "id")
         self.fields["assistance_contract"].help_text = "Opzionale: collega la chiusura a un contratto assistenza."
+        self.fields["covered_by_contract"].help_text = "Disponibile solo con un contratto selezionato."
+        self.fields["cost_eur"].help_text = "Il costo totale viene calcolato automaticamente se non inserito."
         _attach_input_css(self)
         self.fields["covered_by_contract"].widget.attrs["class"] = ""
 
@@ -2103,8 +2199,20 @@ class WorkOrderCloseForm(forms.Form):
         materials_cost = cleaned_data.get("materials_cost_eur")
         total_cost = cleaned_data.get("cost_eur")
         assistance_contract = cleaned_data.get("assistance_contract")
+        if cleaned_data.get("covered_by_contract") and assistance_contract is None:
+            self.add_error("covered_by_contract", "Seleziona un contratto per indicare la copertura.")
         if total_cost in (None, "") and (labor_cost is not None or materials_cost is not None):
             cleaned_data["cost_eur"] = (labor_cost or 0) + (materials_cost or 0)
-        if assistance_contract is not None:
-            cleaned_data["covered_by_contract"] = True
+        supplier, covered_by_contract = _validate_workorder_relations(
+            asset=self.asset,
+            verification=getattr(self.workorder, "periodic_verification", None),
+            maintenance_rule=getattr(self.workorder, "maintenance_rule", None),
+            supplier=getattr(self.workorder, "supplier", None),
+            assistance_contract=assistance_contract,
+            add_error=self.add_error,
+            keep_existing_coverage=bool(cleaned_data.get("covered_by_contract")),
+        )
+        if supplier is not None and getattr(self.workorder, "supplier_id", None) is None:
+            cleaned_data["resolved_supplier"] = supplier
+        cleaned_data["covered_by_contract"] = covered_by_contract
         return cleaned_data

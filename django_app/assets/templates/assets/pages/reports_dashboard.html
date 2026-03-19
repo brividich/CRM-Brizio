@@ -5,7 +5,7 @@
 {% block assets_shell_head %}
 <style>
 .rd-page { display:grid; gap:14px; }
-.rd-kpis { display:grid; gap:10px; grid-template-columns:repeat(8, minmax(0, 1fr)); }
+.rd-kpis { display:grid; gap:10px; grid-template-columns:repeat(6, minmax(0, 1fr)); }
 .rd-kpi, .rd-card {
   border:1px solid #dbe1ea;
   border-radius:16px;
@@ -15,8 +15,6 @@
 .rd-kpi { padding:14px 16px; }
 .rd-kpi-label { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.08em; color:#64748b; font-weight:800; }
 .rd-kpi-value { margin-top:8px; font-size:var(--fs-display-md); font-weight:800; color:#0f172a; }
-.rd-grid-3 { display:grid; gap:14px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
-.rd-grid-2 { display:grid; gap:14px; grid-template-columns:repeat(2, minmax(0, 1fr)); }
 .rd-card-head {
   display:flex;
   justify-content:space-between;
@@ -29,16 +27,15 @@
 .rd-card-head h2 { margin:0; font-size:var(--fs-heading); color:#0f172a; }
 .rd-card-head p { margin:4px 0 0; color:#64748b; }
 .rd-card-body { padding:18px; }
-.rd-period-form { display:flex; gap:8px; align-items:end; flex-wrap:wrap; }
-.rd-period-form label { display:block; margin-bottom:6px; font-weight:700; color:#24364f; }
-.rd-period-form input {
-  height:38px;
-  border:1px solid #cbd5e1;
-  border-radius:10px;
-  padding:0 10px;
-  background:#fff;
-  font:inherit;
+.rd-summary-meta {
+  display:flex;
+  gap:14px;
+  flex-wrap:wrap;
+  margin-bottom:14px;
+  color:#64748b;
+  font-size:var(--fs-sm);
 }
+.rd-summary-grid { display:grid; gap:14px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
 .rd-table-wrap { overflow:auto; }
 .rd-table { width:100%; border-collapse:collapse; }
 .rd-table th {
@@ -55,34 +52,40 @@
   color:#0f172a;
   vertical-align:top;
 }
-.rd-list { display:grid; gap:10px; }
-.rd-item {
-  border:1px solid #e2e8f0;
-  border-radius:12px;
-  padding:12px 14px;
-  background:#fcfdff;
-}
-.rd-item strong { color:#0f172a; }
-.rd-meta { color:#64748b; font-size:var(--fs-sm); line-height:1.5; }
-.rd-badge {
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding:5px 9px;
-  border-radius:999px;
-  font-size:var(--fs-xs);
-  font-weight:800;
-}
-.rd-badge.ok { background:#dcfce7; color:#15803d; }
-.rd-badge.warn { background:#fef3c7; color:#92400e; }
-.rd-badge.danger { background:#fee2e2; color:#b91c1c; }
 .rd-empty { color:#64748b; }
-@media (max-width: 1400px) {
-  .rd-kpis { grid-template-columns:repeat(4, minmax(0, 1fr)); }
+.rd-tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+.rd-tab {
+  border:1px solid #dbe1ea;
+  border-radius:999px;
+  background:#fff;
+  color:#334155;
+  padding:8px 12px;
+  font:inherit;
+  font-weight:700;
+  cursor:pointer;
+}
+.rd-tab.is-active {
+  background:#eff6ff;
+  border-color:#bfdbfe;
+  color:#1d4ed8;
+}
+.rd-panel { display:none; }
+.rd-panel.is-active { display:block; }
+.rd-period-form { display:flex; gap:8px; align-items:end; flex-wrap:wrap; }
+.rd-period-form label { display:block; margin-bottom:6px; font-weight:700; color:#24364f; }
+.rd-period-form input {
+  height:38px;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  padding:0 10px;
+  background:#fff;
+  font:inherit;
+}
+@media (max-width: 1280px) {
+  .rd-kpis { grid-template-columns:repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 980px) {
-  .rd-grid-3,
-  .rd-grid-2 { grid-template-columns:1fr; }
+  .rd-summary-grid { grid-template-columns:1fr; }
 }
 @media (max-width: 760px) {
   .rd-kpis { grid-template-columns:repeat(2, minmax(0, 1fr)); }
@@ -91,9 +94,8 @@
 {% endblock %}
 
 {% block assets_shell_title %}Report manutenzione{% endblock %}
-{% block assets_shell_subtitle %}<p>Costi, durata, copertura e scadenzario costruiti a partire da work order, regole effettive e contratti reali.</p>{% endblock %}
+{% block assets_shell_subtitle %}<p>KPI in alto, riepilogo coerente sotto e un solo punto di approfondimento operativo per evitare effetto dashboard rumorosa.</p>{% endblock %}
 {% block assets_shell_toolbar %}
-  <a class="btn btn-primary" href="{{ maintenance_month_pdf_url }}" target="_blank" rel="noopener">PDF manutenzioni mese</a>
   <a class="btn" href="{{ maintenance_schedule_url }}">Prossime manutenzioni</a>
   <a class="btn" href="{{ assistance_contracts_url }}">Contratti assistenza</a>
   {% if report_templates_manage_url %}
@@ -103,45 +105,39 @@
 
 {% block assets_shell_content %}
 <section class="rd-page">
+  <section class="rd-kpis">
+    <article class="rd-kpi">
+      <div class="rd-kpi-label">Interventi aperti</div>
+      <div class="rd-kpi-value">{{ open_count }}</div>
+      <a class="as-link-subtle" href="{{ open_workorders_url }}">Apri tutti gli aperti</a>
+    </article>
+    <article class="rd-kpi"><div class="rd-kpi-label">Aperti oltre 30 gg</div><div class="rd-kpi-value">{{ late_count }}</div></article>
+    <article class="rd-kpi"><div class="rd-kpi-label">Scadenze critiche</div><div class="rd-kpi-value">{{ critical_count }}</div></article>
+    <article class="rd-kpi"><div class="rd-kpi-label">In warning</div><div class="rd-kpi-value">{{ warning_count }}</div></article>
+    <article class="rd-kpi"><div class="rd-kpi-label">Senza baseline</div><div class="rd-kpi-value">{{ missing_count }}</div></article>
+    <article class="rd-kpi"><div class="rd-kpi-label">Costo 90 gg</div><div class="rd-kpi-value">{{ total_cost }} €</div></article>
+  </section>
+
   <article class="rd-card">
     <div class="rd-card-head">
       <div>
-        <h2>Periodo report manutenzione macchine</h2>
-        <p>Seleziona il mese da usare per preview ed export PDF della pianificazione macchine.</p>
+        <h2>Riepilogo 90 giorni</h2>
+        <p>Prima il quadro generale: costi, tempi medi, copertura contrattuale e distribuzione per asset, categoria e fornitore.</p>
       </div>
-      <form method="get" class="rd-period-form">
-        <div>
-          <label for="maintenanceMonthInput">Mese</label>
-          <input id="maintenanceMonthInput" type="month" name="month" value="{{ maintenance_month_code }}">
-        </div>
-        <button class="btn" type="submit">Aggiorna</button>
-      </form>
     </div>
-  </article>
-
-  <section class="rd-kpis">
-    <article class="rd-kpi"><div class="rd-kpi-label">Interventi aperti</div><div class="rd-kpi-value">{{ open_count }}</div></article>
-    <article class="rd-kpi"><div class="rd-kpi-label">Aperti oltre 30 gg</div><div class="rd-kpi-value">{{ late_count }}</div></article>
-    <article class="rd-kpi"><div class="rd-kpi-label">Interventi chiusi 90 gg</div><div class="rd-kpi-value">{{ done_recent_count }}</div></article>
-    <article class="rd-kpi"><div class="rd-kpi-label">Costo totale 90 gg</div><div class="rd-kpi-value">{{ total_cost }} €</div></article>
-    <article class="rd-kpi"><div class="rd-kpi-label">Durata media</div><div class="rd-kpi-value">{% if avg_duration_minutes %}{{ avg_duration_minutes }} min{% else %}-{% endif %}</div></article>
-    <article class="rd-kpi"><div class="rd-kpi-label">Fermo medio</div><div class="rd-kpi-value">{% if avg_downtime_minutes %}{{ avg_downtime_minutes }} min{% else %}-{% endif %}</div></article>
-    <article class="rd-kpi"><div class="rd-kpi-label">Coperti da contratto</div><div class="rd-kpi-value">{{ covered_count }}</div></article>
-    <article class="rd-kpi"><div class="rd-kpi-label">Scadenze critiche</div><div class="rd-kpi-value">{{ overdue_count }}</div></article>
-  </section>
-
-  <section class="rd-grid-3">
-    <article class="rd-card">
-      <div class="rd-card-head">
-        <div>
-          <h2>Per asset</h2>
-          <p>Interventi e costo totale sui singoli beni.</p>
-        </div>
+    <div class="rd-card-body">
+      <div class="rd-summary-meta">
+        <span>Interventi chiusi: <strong>{{ done_recent_count }}</strong></span>
+        <span>Durata media: <strong>{% if avg_duration_minutes %}{{ avg_duration_minutes }} min{% else %}-{% endif %}</strong></span>
+        <span>Fermo medio: <strong>{% if avg_downtime_minutes %}{{ avg_downtime_minutes }} min{% else %}-{% endif %}</strong></span>
+        <span>Coperti: <strong>{{ covered_count }}</strong></span>
+        <span>Scoperti: <strong>{{ uncovered_count }}</strong></span>
       </div>
-      <div class="rd-card-body">
+
+      <div class="rd-summary-grid">
         <div class="rd-table-wrap">
           <table class="rd-table">
-            <thead><tr><th>Asset</th><th>Interventi</th><th>Costo</th><th>Coperti</th></tr></thead>
+            <thead><tr><th>Per asset</th><th>Interventi</th><th>Costo</th><th>Coperti</th></tr></thead>
             <tbody>
               {% for row in asset_summary_rows %}
                 <tr><td>{{ row.label }}</td><td>{{ row.count }}</td><td>{{ row.cost }} €</td><td>{{ row.covered_count }}</td></tr>
@@ -151,20 +147,10 @@
             </tbody>
           </table>
         </div>
-      </div>
-    </article>
 
-    <article class="rd-card">
-      <div class="rd-card-head">
-        <div>
-          <h2>Per categoria</h2>
-          <p>Vista sintetica per famiglia asset.</p>
-        </div>
-      </div>
-      <div class="rd-card-body">
         <div class="rd-table-wrap">
           <table class="rd-table">
-            <thead><tr><th>Categoria</th><th>Interventi</th><th>Costo</th><th>Coperti</th></tr></thead>
+            <thead><tr><th>Per categoria</th><th>Interventi</th><th>Costo</th><th>Coperti</th></tr></thead>
             <tbody>
               {% for row in category_summary_rows %}
                 <tr><td>{{ row.label }}</td><td>{{ row.count }}</td><td>{{ row.cost }} €</td><td>{{ row.covered_count }}</td></tr>
@@ -174,20 +160,10 @@
             </tbody>
           </table>
         </div>
-      </div>
-    </article>
 
-    <article class="rd-card">
-      <div class="rd-card-head">
-        <div>
-          <h2>Per fornitore</h2>
-          <p>Volume interventi, costo e copertura per esecutore.</p>
-        </div>
-      </div>
-      <div class="rd-card-body">
         <div class="rd-table-wrap">
           <table class="rd-table">
-            <thead><tr><th>Fornitore</th><th>Interventi</th><th>Costo</th><th>Coperti</th></tr></thead>
+            <thead><tr><th>Per fornitore</th><th>Interventi</th><th>Costo</th><th>Coperti</th></tr></thead>
             <tbody>
               {% for row in supplier_summary_rows %}
                 <tr><td>{{ row.label }}</td><td>{{ row.count }}</td><td>{{ row.cost }} €</td><td>{{ row.covered_count }}</td></tr>
@@ -198,169 +174,204 @@
           </table>
         </div>
       </div>
-    </article>
-  </section>
-
-  <section class="rd-grid-2">
-    <article class="rd-card">
-      <div class="rd-card-head">
-        <div>
-          <h2>Interventi aperti critici</h2>
-          <p>Work order ancora aperti oltre la soglia operativa.</p>
-        </div>
-      </div>
-      <div class="rd-card-body">
-        <div class="rd-list">
-          {% for wo in late_open_workorders %}
-            <div class="rd-item">
-              <strong><a href="{% url 'assets:wo_view' wo.id %}">#{{ wo.id }} - {{ wo.title }}</a></strong>
-              <div class="rd-meta">{{ wo.asset.asset_tag }} - {{ wo.asset.name }} · aperto il {{ wo.opened_at|date:"d/m/Y" }}</div>
-            </div>
-          {% empty %}
-            <div class="rd-empty">Nessun intervento aperto oltre soglia.</div>
-          {% endfor %}
-        </div>
-      </div>
-    </article>
-
-    <article class="rd-card">
-      <div class="rd-card-head">
-        <div>
-          <h2>Interventi chiusi recenti</h2>
-          <p>Ultimi work order conclusi nel perimetro report.</p>
-        </div>
-      </div>
-      <div class="rd-card-body">
-        <div class="rd-list">
-          {% for wo in recent_done_workorders %}
-            <div class="rd-item">
-              <strong><a href="{% url 'assets:wo_view' wo.id %}">#{{ wo.id }} - {{ wo.title }}</a></strong>
-              <div class="rd-meta">
-                {{ wo.asset.asset_tag }} - {{ wo.asset.name }} · chiuso il {{ wo.closed_at|date:"d/m/Y" }}
-                · {{ wo.resolved_total_cost_eur|default:"0" }} €
-                {% if wo.covered_by_contract %} · coperto da contratto{% endif %}
-              </div>
-            </div>
-          {% empty %}
-            <div class="rd-empty">Nessun intervento chiuso nel periodo.</div>
-          {% endfor %}
-        </div>
-      </div>
-    </article>
-  </section>
-
-  <section class="rd-grid-3">
-    <article class="rd-card">
-      <div class="rd-card-head">
-        <div>
-          <h2>Scadute</h2>
-          <p>Regole a giorni gia oltre scadenza.</p>
-        </div>
-      </div>
-      <div class="rd-card-body">
-        <div class="rd-list">
-          {% for row in overdue_rows %}
-            <div class="rd-item">
-              <strong>{{ row.asset.asset_tag }} - {{ row.effective_intervention_template.label }}</strong>
-              <div class="rd-meta">{{ row.asset.name }} · {% if row.due_date %}scadenza {{ row.due_date|date:"d/m/Y" }}{% endif %}</div>
-              <span class="rd-badge danger">{{ row.schedule_label }}</span>
-            </div>
-          {% empty %}
-            <div class="rd-empty">Nessuna scadenza critica.</div>
-          {% endfor %}
-        </div>
-      </div>
-    </article>
-
-    <article class="rd-card">
-      <div class="rd-card-head">
-        <div>
-          <h2>In warning</h2>
-          <p>Manutenzioni da pianificare a breve.</p>
-        </div>
-      </div>
-      <div class="rd-card-body">
-        <div class="rd-list">
-          {% for row in warning_rows %}
-            <div class="rd-item">
-              <strong>{{ row.asset.asset_tag }} - {{ row.effective_intervention_template.label }}</strong>
-              <div class="rd-meta">{{ row.asset.name }} · {% if row.due_date %}scadenza {{ row.due_date|date:"d/m/Y" }}{% endif %}</div>
-              <span class="rd-badge warn">{{ row.schedule_label }}</span>
-            </div>
-          {% empty %}
-            <div class="rd-empty">Nessuna manutenzione in warning.</div>
-          {% endfor %}
-        </div>
-      </div>
-    </article>
-
-    <article class="rd-card">
-      <div class="rd-card-head">
-        <div>
-          <h2>Prossime</h2>
-          <p>Manutenzioni gia pianificate fuori dalla soglia warning.</p>
-        </div>
-      </div>
-      <div class="rd-card-body">
-        <div class="rd-list">
-          {% for row in upcoming_rows %}
-            <div class="rd-item">
-              <strong>{{ row.asset.asset_tag }} - {{ row.effective_intervention_template.label }}</strong>
-              <div class="rd-meta">{{ row.asset.name }} · {% if row.due_date %}scadenza {{ row.due_date|date:"d/m/Y" }}{% endif %}</div>
-              <span class="rd-badge ok">{{ row.schedule_label }}</span>
-            </div>
-          {% empty %}
-            <div class="rd-empty">Nessuna manutenzione programmata oltre soglia.</div>
-          {% endfor %}
-        </div>
-      </div>
-    </article>
-  </section>
+    </div>
+  </article>
 
   <article class="rd-card">
     <div class="rd-card-head">
       <div>
-        <h2>Macchine con manutenzione nel mese</h2>
-        <p>{{ maintenance_month_label|capfirst }} · {{ maintenance_month_period_label }} · {{ maintenance_month_count }} macchine</p>
+        <h2>Focus operativo</h2>
+        <p>Un'unica area di drill-down per leggere criticità, aperti oltre soglia, chiusi recenti e piano mese senza frammentare la dashboard.</p>
       </div>
-      <a class="btn btn-primary" href="{{ maintenance_month_pdf_url }}" target="_blank" rel="noopener">Apri PDF</a>
+      <form method="get" class="rd-period-form">
+        <div>
+          <label for="maintenanceMonthInput">Mese piano</label>
+          <input id="maintenanceMonthInput" type="month" name="month" value="{{ maintenance_month_code }}">
+        </div>
+        <button class="btn" type="submit">Aggiorna</button>
+        <a class="btn btn-primary" id="maintenanceMonthPdfLink" href="{{ maintenance_month_pdf_url }}" target="_blank" rel="noopener" data-base-url="{{ maintenance_month_pdf_base_url }}">PDF manutenzioni mese</a>
+      </form>
     </div>
     <div class="rd-card-body">
-      <div class="rd-meta" style="margin-bottom:12px;">
-        Scadute {{ maintenance_month_overdue_count }} · In soglia {{ maintenance_month_warning_count }} · Pianificate {{ maintenance_month_ok_count }}
+      <div class="rd-tabs">
+        <button type="button" class="rd-tab is-active" data-rd-tab="critical">Criticita</button>
+        <button type="button" class="rd-tab" data-rd-tab="open">Interventi aperti</button>
+        <button type="button" class="rd-tab" data-rd-tab="done">Chiusi recenti</button>
+        <button type="button" class="rd-tab" data-rd-tab="month">Piano mese</button>
       </div>
-      <div class="rd-table-wrap">
-        <table class="rd-table">
-          <thead>
-            <tr>
-              <th>Data</th>
-              <th>Tag</th>
-              <th>Macchina</th>
-              <th>Reparto</th>
-              <th>Stato</th>
-              <th>Azioni</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in maintenance_month_rows %}
+
+      <section class="rd-panel is-active" data-rd-panel="critical">
+        <div class="rd-table-wrap">
+          <table class="rd-table">
+            <thead>
               <tr>
-                <td>{{ row.machine.next_maintenance_date|date:"d/m/Y" }}</td>
-                <td>{{ row.asset.asset_tag }}</td>
-                <td>{{ row.asset.name }}</td>
-                <td>{{ row.asset.reparto|default:"-" }}</td>
-                <td>{{ row.state.label }}</td>
-                <td>
-                  <a class="btn" href="{% url 'assets:asset_view' row.asset.id %}">Dettaglio</a>
-                  <a class="btn btn-primary" href="{% url 'assets:work_machine_edit' row.asset.id %}">Aggiorna</a>
-                </td>
+                <th>Asset</th>
+                <th>Intervento</th>
+                <th>Stato</th>
+                <th>Scadenza</th>
+                <th>Azioni</th>
               </tr>
-            {% empty %}
-              <tr><td colspan="6" class="rd-empty">Nessuna macchina con manutenzione pianificata nel mese selezionato.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {% for row in critical_rows %}
+                <tr>
+                  <td><a href="{{ row.asset_detail_url }}">{{ row.asset.asset_tag }}</a><br><span class="rd-empty">{{ row.asset.name }}</span></td>
+                  <td>{{ row.effective_intervention_template.label }}</td>
+                  <td><span class="as-badge as-badge--{{ row.schedule_badge_class }}">{{ row.schedule_label }}</span></td>
+                  <td>{% if row.due_date %}{{ row.due_date|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+                  <td><a class="btn btn-primary" href="{{ row.primary_action.url }}">{{ row.primary_action.label }}</a></td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="5" class="rd-empty">Nessuna criticita aperta sullo scadenzario.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="rd-panel" data-rd-panel="open">
+        <div class="rd-table-wrap">
+          <table class="rd-table">
+            <thead>
+              <tr>
+                <th>Work order</th>
+                <th>Asset</th>
+                <th>Aperto il</th>
+                <th>Aperto da</th>
+                <th>Fornitore</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in open_workorder_rows %}
+                <tr>
+                  <td><a href="{% url 'assets:wo_view' row.workorder.id %}">#{{ row.workorder.id }} - {{ row.workorder.title }}</a></td>
+                  <td>{{ row.workorder.asset.asset_tag }} - {{ row.workorder.asset.name }}</td>
+                  <td>{{ row.workorder.opened_at|date:"d/m/Y" }}</td>
+                  <td>
+                    {% if row.is_late %}
+                      <span class="as-badge as-badge--warn">{{ row.open_days }} gg</span>
+                    {% else %}
+                      {{ row.open_days }} gg
+                    {% endif %}
+                  </td>
+                  <td>{% if row.workorder.supplier %}{{ row.workorder.supplier }}{% else %}-{% endif %}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="5" class="rd-empty">Nessun intervento aperto.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="rd-panel" data-rd-panel="done">
+        <div class="rd-table-wrap">
+          <table class="rd-table">
+            <thead>
+              <tr>
+                <th>Work order</th>
+                <th>Asset</th>
+                <th>Chiuso il</th>
+                <th>Costo</th>
+                <th>Copertura</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for wo in recent_done_workorders %}
+                <tr>
+                  <td><a href="{% url 'assets:wo_view' wo.id %}">#{{ wo.id }} - {{ wo.title }}</a></td>
+                  <td>{{ wo.asset.asset_tag }} - {{ wo.asset.name }}</td>
+                  <td>{{ wo.closed_at|date:"d/m/Y" }}</td>
+                  <td>{{ wo.resolved_total_cost_eur|default:"0" }} €</td>
+                  <td>
+                    {% if wo.covered_by_contract %}
+                      <span class="as-badge as-badge--info">Coperto</span>
+                    {% else %}
+                      <span class="as-badge as-badge--muted">Scoperto</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="5" class="rd-empty">Nessun intervento chiuso nel periodo.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="rd-panel" data-rd-panel="month">
+        <p class="rd-empty" style="margin:0 0 12px;">{{ maintenance_month_label|capfirst }} · {{ maintenance_month_period_label }} · Scadute {{ maintenance_month_overdue_count }} · In soglia {{ maintenance_month_warning_count }} · Pianificate {{ maintenance_month_ok_count }}</p>
+        <div class="rd-table-wrap">
+          <table class="rd-table">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Tag</th>
+                <th>Macchina</th>
+                <th>Reparto</th>
+                <th>Stato</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in maintenance_month_rows %}
+                <tr>
+                  <td>{{ row.machine.next_maintenance_date|date:"d/m/Y" }}</td>
+                  <td>{{ row.asset.asset_tag }}</td>
+                  <td>{{ row.asset.name }}</td>
+                  <td>{{ row.asset.reparto|default:"-" }}</td>
+                  <td>
+                    <span class="as-badge as-badge--{% if row.state.status == 'overdue' %}danger{% elif row.state.status == 'warning' %}warn{% else %}ok{% endif %}">{{ row.state.label }}</span>
+                  </td>
+                  <td><a class="btn" href="{% url 'assets:asset_view' row.asset.id %}">Apri asset</a></td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="6" class="rd-empty">Nessuna macchina con manutenzione pianificata nel mese selezionato.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   </article>
 </section>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(function () {
+  const tabs = Array.from(document.querySelectorAll("[data-rd-tab]"));
+  const panels = Array.from(document.querySelectorAll("[data-rd-panel]"));
+  const monthInput = document.getElementById("maintenanceMonthInput");
+  const monthPdfLink = document.getElementById("maintenanceMonthPdfLink");
+
+  function activate(code) {
+    tabs.forEach(function (tab) {
+      tab.classList.toggle("is-active", tab.getAttribute("data-rd-tab") === code);
+    });
+    panels.forEach(function (panel) {
+      panel.classList.toggle("is-active", panel.getAttribute("data-rd-panel") === code);
+    });
+  }
+
+  tabs.forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      activate(tab.getAttribute("data-rd-tab"));
+    });
+  });
+
+  function syncMonthPdfHref() {
+    if (!monthInput || !monthPdfLink) return;
+    const baseUrl = monthPdfLink.getAttribute("data-base-url") || monthPdfLink.href;
+    const monthValue = (monthInput.value || "").trim();
+    monthPdfLink.href = monthValue ? (baseUrl + "?month=" + encodeURIComponent(monthValue)) : baseUrl;
+  }
+
+  if (monthInput) {
+    monthInput.addEventListener("change", syncMonthPdfHref);
+    monthInput.addEventListener("input", syncMonthPdfHref);
+  }
+  syncMonthPdfHref();
+})();
+</script>
 {% endblock %}

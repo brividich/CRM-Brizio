@@ -609,6 +609,57 @@ class GestioneAssenzeDeleteUrlTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'data-delete-url="/assenze/api/eventi/42/delete"')
 
+    @patch("assenze.views._template_perm_context", return_value={})
+    @patch("assenze.views._load_personal")
+    @patch("assenze.views._reconcile_pending_item_ids_with_sharepoint", return_value={"updated": 0})
+    @patch("assenze.views._load_pending_for_manager")
+    @patch("assenze.views._sync_on_page_load_enabled", return_value=False)
+    @patch("assenze.views._legacy_identity", return_value=("Luca Bova", "luca@example.com", 77))
+    def test_gestione_exposes_summary_context(
+        self,
+        _mock_identity,
+        _mock_sync_enabled,
+        mock_pending,
+        _mock_reconcile,
+        mock_load_personal,
+        _mock_template_ctx,
+    ):
+        mock_load_personal.return_value = [
+            {"id": 1, "stato": "In attesa", "certificato_medico": ""},
+            {"id": 2, "stato": "Approvato", "certificato_medico": "CERT-1"},
+            {"id": 3, "stato": "Rifiutato", "certificato_medico": ""},
+        ]
+        mock_pending.return_value = [
+            {"id": 10, "tipo": "Ferie", "certificato_medico": ""},
+            {"id": 11, "tipo": "Permesso", "certificato_medico": "CERT-2"},
+        ]
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("assenze_gestione"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context["summary_personali"],
+            {
+                "total": 3,
+                "approved": 1,
+                "waiting": 1,
+                "rejected": 1,
+                "editable": 1,
+                "medical": 1,
+            },
+        )
+        self.assertEqual(
+            response.context["summary_da_approvare"],
+            {
+                "total": 2,
+                "medical": 1,
+                "ferie": 1,
+                "permesso": 1,
+                "other": 0,
+            },
+        )
+
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class GestioneAssenzeDeleteApiTests(TestCase):

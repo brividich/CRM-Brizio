@@ -1,0 +1,63 @@
+{% extends "core/base.html" %}
+
+{% block title %}Monitor Automazioni | Monitoring{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Monitor automazioni" page_subtitle="Stato operativo dei job monitorati, con missing, ritardi e fallimenti consecutivi." %}
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Job monitorati</div>
+    </div>
+    <div class="card-body" style="padding:0;">
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Job</th>
+              <th>Ultima esecuzione</th>
+              <th>Ultimo stato</th>
+              <th>Fallimenti consecutivi</th>
+              <th>Durata ultima run</th>
+              <th>Prossima attesa</th>
+              <th>Criticita</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in job_rows %}
+              <tr>
+                <td>
+                  <a href="{% url 'monitoring_admin:automation_detail' row.job.pk %}"><strong>{{ row.job.name }}</strong></a>
+                  <div class="cell-muted">{{ row.job.code }} | {{ row.job.module_name|default:"monitoring" }}</div>
+                </td>
+                <td>{{ row.last_execution.started_at|date:"d/m/Y H:i"|default:"Mai eseguita" }}</td>
+                <td>
+                  {% if row.last_execution %}
+                    <span class="monitoring-pill status-{{ row.last_execution.status }}">{{ row.last_execution.status }}</span>
+                  {% else %}
+                    <span class="monitoring-pill status-new">n/d</span>
+                  {% endif %}
+                </td>
+                <td>{{ row.consecutive_failures }}</td>
+                <td>{{ row.last_duration_seconds|default:"-" }}</td>
+                <td>{{ row.next_expected_at|date:"d/m/Y H:i"|default:"-" }}</td>
+                <td>
+                  {% if row.job.is_critical %}<span class="monitoring-pill severity-critical">critica</span>{% else %}<span class="monitoring-pill severity-low">normale</span>{% endif %}
+                  {% if row.missing_alert %}<span class="monitoring-pill status-new" style="margin-left:4px;">missing</span>{% endif %}
+                  {% if row.stuck_alert %}<span class="monitoring-pill severity-high" style="margin-left:4px;">delayed</span>{% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="7" class="cell-muted">Nessun job monitorato.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+

@@ -1895,6 +1895,55 @@ def _load_personal(name: str, email: str, limit: int = 20) -> list[dict]:
     return out
 
 
+def _absence_status_bucket(value: str | None) -> str:
+    stato = str(value or "").strip().lower()
+    if "approv" in stato:
+        return "approved"
+    if "rifiut" in stato:
+        return "rejected"
+    return "waiting"
+
+
+def _summarize_personal_requests(rows: list[dict]) -> dict:
+    summary = {
+        "total": len(rows),
+        "approved": 0,
+        "waiting": 0,
+        "rejected": 0,
+        "editable": 0,
+        "medical": 0,
+    }
+    for row in rows:
+        bucket = _absence_status_bucket(row.get("stato"))
+        summary[bucket] += 1
+        if bucket == "waiting":
+            summary["editable"] += 1
+        if row.get("certificato_medico"):
+            summary["medical"] += 1
+    return summary
+
+
+def _summarize_pending_requests(rows: list[dict]) -> dict:
+    summary = {
+        "total": len(rows),
+        "medical": 0,
+        "ferie": 0,
+        "permesso": 0,
+        "other": 0,
+    }
+    for row in rows:
+        tipo = _norm_tipo(row.get("tipo"))
+        if row.get("certificato_medico"):
+            summary["medical"] += 1
+        if tipo == "Ferie":
+            summary["ferie"] += 1
+        elif tipo == "Permesso":
+            summary["permesso"] += 1
+        else:
+            summary["other"] += 1
+    return summary
+
+
 def _load_pending_for_manager(
     legacy_user_id: int | None,
     limit: int = 25,
@@ -2730,9 +2779,30 @@ def _render_richiesta(request, success: str = "", error: str = "", form_data: di
 
 @login_required
 def menu(request):
-    name, email, _legacy_id = _legacy_identity(request)
+    name, email, legacy_id = _legacy_identity(request)
     recenti = _load_personal(name, email, limit=8)
-    return render(request, "assenze/pages/menu.html", {"recenti": recenti, **_template_perm_context(request)})
+    perms = _assenze_permissions(request)
+    pending_count = 0
+    if perms.get("can_update_any"):
+        pending_count = len(_load_all_pending(limit=200))
+    elif perms.get("can_update_owned"):
+        pending_count = len(
+            _load_pending_for_manager(
+                legacy_id,
+                limit=200,
+                manager_name=name,
+                manager_email=email,
+            )
+        )
+    return render(
+        request,
+        "assenze/pages/menu.html",
+        {
+            "recenti": recenti,
+            "car_pending_count": pending_count,
+            **_template_perm_context(request),
+        },
+    )
 
 
 @login_required
@@ -2765,12 +2835,15 @@ def gestione_assenze(request):
             manager_name=name,
             manager_email=email,
         )
+    richieste_personali = _load_personal(name, email, limit=40)
     return render(
         request,
         "assenze/pages/gestione_assenze.html",
         {
-            "richieste_personali": _load_personal(name, email, limit=40),
+            "richieste_personali": richieste_personali,
             "richieste_da_approvare": richieste_da_approvare,
+            "summary_personali": _summarize_personal_requests(richieste_personali),
+            "summary_da_approvare": _summarize_pending_requests(richieste_da_approvare),
             "ruolo_corrente": "",
             **_template_perm_context(request),
         },

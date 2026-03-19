@@ -1,0 +1,45 @@
+{% if user.is_authenticated and monitoring_ui.enabled %}
+<div class="monitoring-modal-backdrop" id="monitoringProblemModal" hidden>
+  <div class="monitoring-modal" role="dialog" aria-modal="true" aria-labelledby="monitoringProblemModalTitle">
+    <div class="monitoring-modal-head">
+      <div>
+        <div class="monitoring-modal-title" id="monitoringProblemModalTitle">Segnala problema</div>
+        <div class="monitoring-modal-subtitle">Descrivi in poche righe cosa non ha funzionato. Il contesto tecnico viene allegato automaticamente.</div>
+      </div>
+      <button type="button" class="btn btn-secondary btn-sm" data-monitoring-report-close>Chiudi</button>
+    </div>
+    <form
+      id="monitoringProblemForm"
+      class="monitoring-modal-body"
+      action="{{ monitoring_ui.report_url }}"
+      method="post"
+      data-report-url="{{ monitoring_ui.report_url }}"
+    >
+      {% csrf_token %}
+      <div class="field">
+        <label for="monitoringProblemMessage">Descrizione problema</label>
+        <textarea
+          id="monitoringProblemMessage"
+          name="message"
+          class="input"
+          rows="5"
+          maxlength="4000"
+          placeholder="Es. cliccando su Salva ricevo una pagina bianca / un permesso negato inatteso / dati mancanti."
+          required
+        ></textarea>
+      </div>
+      <input type="hidden" name="current_url" id="monitoringProblemCurrentUrl" value="{{ request.get_full_path|default:request.path }}">
+      <input type="hidden" name="route_name" id="monitoringProblemRouteName" value="{{ monitoring_ui.route_name }}">
+      <input type="hidden" name="module_name" id="monitoringProblemModuleName" value="{{ monitoring_ui.module_name }}">
+      <input type="hidden" name="browser_info" id="monitoringProblemBrowserInfo" value="">
+      <input type="hidden" name="client_timestamp" id="monitoringProblemClientTimestamp" value="">
+      <div class="monitoring-modal-status" id="monitoringProblemStatus" aria-live="polite"></div>
+      <div class="monitoring-modal-actions">
+        <button type="button" class="btn btn-secondary" data-monitoring-report-close>Annulla</button>
+        <button type="submit" class="btn" id="monitoringProblemSubmit">Invia segnalazione</button>
+      </div>
+    </form>
+  </div>
+</div>
+<div class="monitoring-toast" id="monitoringProblemToast" hidden></div>
+{% endif %}

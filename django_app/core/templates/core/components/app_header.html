@@ -18,6 +18,20 @@
       <span class="app-header-brand-name">{{ portal_branding.portal_name|default:"Portale Novicrom" }}</span>
     </a>
   </div>
+  {% if user.is_authenticated and monitoring_ui.enabled %}
+    <div class="app-header-right">
+      <button
+        type="button"
+        class="app-header-report-btn"
+        data-monitoring-report-open
+        data-current-url="{{ request.get_full_path|default:request.path }}"
+        data-route-name="{{ monitoring_ui.route_name }}"
+        data-module-name="{{ monitoring_ui.module_name }}"
+      >
+        Segnala problema
+      </button>
+    </div>
+  {% endif %}
 </header>
 
 <script>

@@ -2,31 +2,183 @@
 
 {% block title %}Chiudi intervento{% endblock %}
 
+{% block assets_shell_head %}
+<style>
+.woc-page { max-width:980px; display:grid; gap:14px; }
+.woc-card {
+  border:1px solid #dbe1ea;
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 10px 24px rgba(15, 23, 42, .05);
+}
+.woc-card-body { padding:18px; display:grid; gap:16px; }
+.woc-summary {
+  display:grid;
+  gap:12px;
+  padding-bottom:16px;
+  border-bottom:1px solid #e5e7eb;
+}
+.woc-chip-row { display:flex; gap:8px; flex-wrap:wrap; }
+.woc-title { margin:0; font-size:var(--fs-display-md); color:#0f172a; }
+.woc-sub { margin:0; color:#64748b; }
+.woc-grid { display:grid; gap:14px; grid-template-columns:repeat(2, minmax(0, 1fr)); }
+.woc-field { display:grid; gap:6px; }
+.woc-field--full { grid-column:1/-1; }
+.woc-field label { font-weight:700; color:#24364f; }
+.woc-field textarea,
+.woc-field input,
+.woc-field select { width:100%; }
+.woc-meta-grid { display:grid; gap:10px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
+.woc-meta {
+  border:1px solid #e2e8f0;
+  border-radius:12px;
+  padding:12px 14px;
+  background:#fcfdff;
+}
+.woc-meta span { display:block; color:#64748b; font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.08em; font-weight:800; }
+.woc-meta strong { display:block; margin-top:6px; color:#0f172a; font-size:var(--fs-title-lg); }
+.woc-actions { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+@media (max-width: 760px) {
+  .woc-grid,
+  .woc-meta-grid { grid-template-columns:1fr; }
+}
+</style>
+{% endblock %}
+
 {% block assets_shell_title %}Chiudi intervento #{{ workorder.id }}{% endblock %}
 
 {% block assets_shell_content %}
-<section style="max-width:900px;display:grid;gap:14px;">
+<section class="woc-page">
   <header>
     <a href="{% url 'assets:wo_view' workorder.id %}" class="as-backlink">&larr; Torna all'intervento</a>
   </header>
 
-  <form method="post" style="display:grid;gap:10px;border:1px solid #dbe1ea;border-radius:14px;background:#fff;padding:16px;">
+  <form method="post" class="woc-card">
     {% csrf_token %}
-    <div class="as-form-grid-2">
-      {% for field in form %}
-        <div style="{% if field.name == 'resolution' or field.name == 'log_note' %}grid-column:1/-1;{% endif %}">
-          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-          {{ field }}
-          {% if field.errors %}
-            <div class="as-error">{{ field.errors }}</div>
-          {% endif %}
+    <div class="woc-card-body">
+      {% if form.non_field_errors %}
+        <div class="assets-message assets-message-error">{{ form.non_field_errors }}</div>
+      {% endif %}
+      <section class="woc-summary">
+        <div class="woc-chip-row">
+          <span class="as-badge as-badge--{{ workorder_status.badge_class }}">{{ workorder_status.label }}</span>
+          <span class="as-badge as-badge--{{ workorder_kind.badge_class }}">{{ workorder_kind.label }}</span>
+          <span class="as-badge as-badge--{{ workorder_coverage.badge_class }}">{{ workorder_coverage.label }}</span>
         </div>
-      {% endfor %}
-    </div>
-    <div style="display:flex;justify-content:flex-end;gap:8px;">
-      <a class="btn" href="{% url 'assets:wo_view' workorder.id %}">Annulla</a>
-      <button class="btn btn-primary" type="submit">Conferma chiusura</button>
+        <h2 class="woc-title">{{ workorder.title }}</h2>
+        <p class="woc-sub">{{ workorder.asset.asset_tag }} - {{ workorder.asset.name }}</p>
+        <div class="woc-meta-grid">
+          <div class="woc-meta"><span>Regola manutenzione</span><strong>{% if workorder.maintenance_rule %}{{ workorder.maintenance_rule.intervention_template.label }}{% else %}-{% endif %}</strong></div>
+          <div class="woc-meta"><span>Fornitore</span><strong>{% if workorder.supplier %}{{ workorder.supplier }}{% else %}-{% endif %}</strong></div>
+          <div class="woc-meta"><span>Contratto attuale</span><strong>{% if workorder.assistance_contract %}{{ workorder.assistance_contract.title }}{% else %}-{% endif %}</strong></div>
+        </div>
+      </section>
+
+      <section class="woc-grid">
+        <div class="woc-field">
+          <label for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>
+          {{ form.status }}
+          {% if form.status.errors %}<div class="as-error">{{ form.status.errors }}</div>{% endif %}
+        </div>
+
+        <div class="woc-field">
+          <label for="{{ form.assistance_contract.id_for_label }}">{{ form.assistance_contract.label }}</label>
+          {{ form.assistance_contract }}
+          {% if form.assistance_contract.help_text %}<div class="as-note">{{ form.assistance_contract.help_text }}</div>{% endif %}
+          {% if form.assistance_contract.errors %}<div class="as-error">{{ form.assistance_contract.errors }}</div>{% endif %}
+        </div>
+
+        <div class="woc-field woc-field--full">
+          <label for="{{ form.covered_by_contract.id_for_label }}">{{ form.covered_by_contract.label }}</label>
+          {{ form.covered_by_contract }}
+          {% if form.covered_by_contract.help_text %}<div class="as-note">{{ form.covered_by_contract.help_text }}</div>{% endif %}
+          {% if form.covered_by_contract.errors %}<div class="as-error">{{ form.covered_by_contract.errors }}</div>{% endif %}
+        </div>
+
+        <div class="woc-field">
+          <label for="{{ form.intervention_duration_minutes.id_for_label }}">{{ form.intervention_duration_minutes.label }}</label>
+          {{ form.intervention_duration_minutes }}
+          {% if form.intervention_duration_minutes.errors %}<div class="as-error">{{ form.intervention_duration_minutes.errors }}</div>{% endif %}
+        </div>
+
+        <div class="woc-field">
+          <label for="{{ form.downtime_minutes.id_for_label }}">{{ form.downtime_minutes.label }}</label>
+          {{ form.downtime_minutes }}
+          {% if form.downtime_minutes.errors %}<div class="as-error">{{ form.downtime_minutes.errors }}</div>{% endif %}
+        </div>
+
+        <div class="woc-field">
+          <label for="{{ form.labor_cost_eur.id_for_label }}">{{ form.labor_cost_eur.label }}</label>
+          {{ form.labor_cost_eur }}
+          {% if form.labor_cost_eur.errors %}<div class="as-error">{{ form.labor_cost_eur.errors }}</div>{% endif %}
+        </div>
+
+        <div class="woc-field">
+          <label for="{{ form.materials_cost_eur.id_for_label }}">{{ form.materials_cost_eur.label }}</label>
+          {{ form.materials_cost_eur }}
+          {% if form.materials_cost_eur.errors %}<div class="as-error">{{ form.materials_cost_eur.errors }}</div>{% endif %}
+        </div>
+
+        <div class="woc-field">
+          <label for="{{ form.cost_eur.id_for_label }}">{{ form.cost_eur.label }}</label>
+          {{ form.cost_eur }}
+          {% if form.cost_eur.help_text %}<div class="as-note">{{ form.cost_eur.help_text }}</div>{% endif %}
+          <div class="as-note">Dati calcolati automaticamente.</div>
+          {% if form.cost_eur.errors %}<div class="as-error">{{ form.cost_eur.errors }}</div>{% endif %}
+        </div>
+
+        <div class="woc-field woc-field--full">
+          <label for="{{ form.resolution.id_for_label }}">{{ form.resolution.label }}</label>
+          {{ form.resolution }}
+          {% if form.resolution.errors %}<div class="as-error">{{ form.resolution.errors }}</div>{% endif %}
+        </div>
+
+        <div class="woc-field woc-field--full">
+          <label for="{{ form.log_note.id_for_label }}">{{ form.log_note.label }}</label>
+          {{ form.log_note }}
+          {% if form.log_note.errors %}<div class="as-error">{{ form.log_note.errors }}</div>{% endif %}
+        </div>
+      </section>
+
+      <div class="woc-actions">
+        <a class="btn" href="{% url 'assets:wo_view' workorder.id %}">Annulla</a>
+        <button class="btn btn-primary" id="workorderCloseSubmit" type="submit">{{ close_submit_label }}</button>
+      </div>
     </div>
   </form>
 </section>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(function () {
+  const statusField = document.getElementById("id_status");
+  const contractField = document.getElementById("id_assistance_contract");
+  const coveredField = document.getElementById("id_covered_by_contract");
+  const submitButton = document.getElementById("workorderCloseSubmit");
+
+  function syncSubmitLabel() {
+    if (!statusField || !submitButton) return;
+    submitButton.textContent = statusField.value === "CANCELED" ? "Conferma annullamento" : "Conferma chiusura";
+  }
+
+  function syncCoverageAvailability() {
+    if (!coveredField) return;
+    const hasContract = Boolean(String(contractField ? contractField.value : "").trim());
+    coveredField.disabled = !hasContract;
+    if (!hasContract) {
+      coveredField.checked = false;
+    }
+  }
+
+  if (statusField) {
+    statusField.addEventListener("change", syncSubmitLabel);
+  }
+  if (contractField) {
+    contractField.addEventListener("change", syncCoverageAvailability);
+  }
+  syncSubmitLabel();
+  syncCoverageAvailability();
+})();
+</script>
 {% endblock %}

@@ -1,296 +1,322 @@
-{% extends "core/base.html" %}
+{% extends "assenze/base_shell.html" %}
 
 {% block title %}Segnalazioni Reparto | Portale Applicativo{% endblock %}
 
-{% block extra_head %}
+{% block assenze_shell_head %}
   <style>
-    .table-wrap { overflow-x: auto; }
-    .gest-table { width: 100%; border-collapse: collapse; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-    .gest-table thead th { background: #1d4ed8; color: #fff; text-align: left; font-size: 12px; padding: 10px 12px; }
-    .gest-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
-    .gest-table tbody tr:hover { background: #f8fafc; }
-    .state-approved { color: #166534; font-weight: 700; }
-    .state-waiting  { color: #92400e; font-weight: 700; }
-    .state-rejected { color: #b91c1c; font-weight: 700; }
     .car-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    @media (max-width: 900px) { .car-grid { grid-template-columns: 1fr; } }
-    .count-badge {
+    .car-type-pill {
       display: inline-flex;
       align-items: center;
-      justify-content: center;
-      min-width: 22px;
-      height: 22px;
+      min-height: 24px;
+      padding: 0 8px;
       border-radius: 999px;
+      background: #e0f2fe;
+      color: #0369a1;
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .car-note-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: #fee2e2;
+      color: #b91c1c;
       font-size: 11px;
       font-weight: 700;
-      padding: 0 6px;
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
-    .badge-warn { background: #fef3c7; color: #92400e; }
-    .badge-ok   { background: #dcfce7; color: #166534; }
-    .badge-info { background: #dbeafe; color: #1d4ed8; }
-    .tipo-pill {
-      display: inline-block;
-      font-size: 10px;
-      font-weight: 700;
-      padding: 2px 7px;
+    .car-cert-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 8px;
       border-radius: 999px;
-      background: #e0e7ff;
-      color: #3730a3;
+      background: #ccfbf1;
+      color: #0f766e;
+      font-size: 11px;
+      font-weight: 700;
     }
-    .action-row { display: flex; gap: 6px; flex-wrap: nowrap; }
-    .btn-approva { background: #16a34a; color: #fff; border: none; border-radius: 8px; padding: 4px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
-    .btn-approva:hover { background: #15803d; }
-    .btn-rifiuta { background: #dc2626; color: #fff; border: none; border-radius: 8px; padding: 4px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
-    .btn-rifiuta:hover { background: #b91c1c; }
-    .btn-approva:disabled, .btn-rifiuta:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-conferma-rifiuto { background: #b91c1c; color: #fff; border: none; border-radius: 8px; padding: 4px 14px; font-size: 12px; font-weight: 700; cursor: pointer; }
-    .btn-conferma-rifiuto:hover { background: #991b1b; }
-    .btn-annulla { background: #e5e7eb; color: #374151; border: none; border-radius: 8px; padding: 4px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
-    .btn-annulla:hover { background: #d1d5db; }
-    .note-row td { background: #fff7f7; padding: 10px 14px; border-bottom: 2px solid #fca5a5; }
-    .note-row textarea { width: 100%; min-height: 60px; padding: 6px 8px; font-size: 13px; border: 1px solid #fca5a5; border-radius: 8px; resize: vertical; box-sizing: border-box; }
-    .note-row .note-actions { margin-top: 6px; display: flex; gap: 6px; }
-    .note-pill { font-size: 11px; color: #7f1d1d; background: #fee2e2; border-radius: 6px; padding: 2px 7px; display: inline-block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .cert-pill { font-size: 11px; color: #0f766e; background: #ccfbf1; border-radius: 6px; padding: 2px 7px; display: inline-block; margin-top: 4px; }
-    #car-status { padding: 6px 0; font-size: 13px; min-height: 20px; }
+    .car-row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .car-status { padding: 6px 0; font-size: 13px; min-height: 20px; }
     .text-danger { color: #dc2626; }
     .text-warn { color: #92400e; }
-    .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .diag-chip {
       display: inline-flex;
       align-items: center;
       border-radius: 999px;
       padding: 3px 9px;
       font-size: 11px;
-      font-weight: 700;
+      font-weight: 800;
       line-height: 1.1;
     }
     .diag-ok { background: #dcfce7; color: #166534; }
     .diag-warn { background: #fef3c7; color: #92400e; }
     .diag-error { background: #fee2e2; color: #b91c1c; }
+    .note-row td { background: #fff7f7; padding: 10px 14px; border-top: 1px solid #fecaca; }
+    .note-row textarea {
+      width: 100%;
+      min-height: 64px;
+      padding: 8px 10px;
+      font-size: 13px;
+      border: 1px solid #fca5a5;
+      border-radius: 10px;
+      resize: vertical;
+      box-sizing: border-box;
+      font-family: "Outfit", sans-serif;
+    }
+    .note-row .note-actions { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+    .btn-approva,
+    .btn-rifiuta,
+    .btn-conferma-rifiuto,
+    .btn-annulla {
+      border: none;
+      border-radius: 8px;
+      min-height: 34px;
+      padding: 0 12px;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      font-family: "Outfit", sans-serif;
+    }
+    .btn-approva { background: #16a34a; color: #fff; }
+    .btn-approva:hover { background: #15803d; }
+    .btn-rifiuta,
+    .btn-conferma-rifiuto { background: #dc2626; color: #fff; }
+    .btn-rifiuta:hover,
+    .btn-conferma-rifiuto:hover { background: #b91c1c; }
+    .btn-annulla { background: #e5e7eb; color: #374151; }
+    .btn-annulla:hover { background: #d1d5db; }
+    .btn-approva:disabled, .btn-rifiuta:disabled, .btn-conferma-rifiuto:disabled, .btn-annulla:disabled { opacity: .5; cursor: not-allowed; }
+
+    @media (max-width: 960px) {
+      .car-grid { grid-template-columns: 1fr; }
+    }
   </style>
 {% endblock %}
 
-{% block subnav %}
-  {% include "assenze/components/subnav.html" %}
-{% endblock %}
-
-{% block content %}
+{% block assenze_shell_content %}
   <form id="car-csrf">{% csrf_token %}</form>
 
-  <div class="page-header">
-    <div class="page-h">Segnalazioni Reparto</div>
-    <div class="page-sub">
-      {% if is_admin_view %}
-        {% if pending_scope == "all" %}
-          Vista amministratore — tutte le richieste di assenza in attesa. Puoi approvare o rifiutare qualsiasi richiesta.
+  <section class="abs-hero">
+    <div class="abs-hero-copy">
+      <span class="abs-eyebrow">Segnalazioni</span>
+      <h1>Dashboard reparto assenze</h1>
+      <p>
+        {% if is_admin_view %}
+          {% if pending_scope == "all" %}
+            Vista amministrazione con coda globale, riepiloghi e strumenti di diagnostica sync.
+          {% else %}
+            Vista amministrazione focalizzata sulle richieste assegnate ai tuoi reparti.
+          {% endif %}
         {% else %}
-          Vista amministratore (filtro personale) — richieste in attesa assegnate ai tuoi reparti.
+          Vista capo reparto per approvare o rifiutare le richieste del personale e controllare l'andamento di oggi e settimana.
         {% endif %}
-      {% else %}
-        Vista Capo Reparto — richieste di assenza del tuo personale. Approva o rifiuta le segnalazioni in attesa.
-      {% endif %}
+      </p>
+      <div class="abs-hero-meta">
+        <span class="abs-hero-pill">{{ da_gestire|length }} in attesa</span>
+        <span class="abs-hero-pill">{{ riepilogo_oggi|length }} oggi</span>
+        <span class="abs-hero-pill">{{ gestite|length }} gia gestite</span>
+      </div>
     </div>
-    <div class="header-actions">
+    <div class="abs-hero-actions">
       {% if show_diag %}
         {% if is_admin_view and pending_scope == "all" %}
-          <a href="{% url 'assenze_car_dashboard' %}?scope=all" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#475569;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
-            Nascondi diagnostica
-          </a>
+          <a href="{% url 'assenze_car_dashboard' %}?scope=all" class="abs-hero-action">Nascondi diagnostica</a>
         {% else %}
-          <a href="{% url 'assenze_car_dashboard' %}" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#475569;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
-            Nascondi diagnostica
-          </a>
+          <a href="{% url 'assenze_car_dashboard' %}" class="abs-hero-action">Nascondi diagnostica</a>
         {% endif %}
       {% else %}
         {% if is_admin_view and pending_scope == "all" %}
-          <a href="{% url 'assenze_car_dashboard' %}?scope=all&amp;diag=1" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#f59e0b;color:#111827;border-radius:8px;text-decoration:none;font-size:13px;font-weight:700;">
-            Diagnostica sync
-          </a>
+          <a href="{% url 'assenze_car_dashboard' %}?scope=all&amp;diag=1" class="abs-hero-action">Diagnostica sync</a>
         {% else %}
-          <a href="{% url 'assenze_car_dashboard' %}?diag=1" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#f59e0b;color:#111827;border-radius:8px;text-decoration:none;font-size:13px;font-weight:700;">
-            Diagnostica sync
-          </a>
+          <a href="{% url 'assenze_car_dashboard' %}?diag=1" class="abs-hero-action">Diagnostica sync</a>
         {% endif %}
       {% endif %}
-      <a href="{% url 'assenze_car_export_csv' %}" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#16a34a;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
-        ⬇ Esporta CSV
-      </a>
+      <a href="{% url 'assenze_car_export_csv' %}" class="abs-hero-action abs-hero-action-primary">Esporta CSV</a>
     </div>
-  </div>
+  </section>
+
+  <section class="abs-kpis">
+    <article class="abs-kpi amber">
+      <div class="abs-kpi-label">In attesa</div>
+      <div class="abs-kpi-value">{{ da_gestire|length }}</div>
+      <div class="abs-kpi-note">Richieste che aspettano una decisione.</div>
+    </article>
+    <article class="abs-kpi teal">
+      <div class="abs-kpi-label">Oggi</div>
+      <div class="abs-kpi-value">{{ riepilogo_oggi|length }}</div>
+      <div class="abs-kpi-note">Assenze previste o in corso per {{ data_oggi }}.</div>
+    </article>
+    <article class="abs-kpi green">
+      <div class="abs-kpi-label">Settimana</div>
+      <div class="abs-kpi-value">{{ riepilogo_settimana|length }}</div>
+      <div class="abs-kpi-note">Finestra {{ data_lunedi }} - {{ data_domenica }}.</div>
+    </article>
+    <article class="abs-kpi red">
+      <div class="abs-kpi-label">Gestite</div>
+      <div class="abs-kpi-value">{{ gestite|length }}</div>
+      <div class="abs-kpi-note">Ultime richieste gia approvate o rifiutate.</div>
+    </article>
+  </section>
+
+  {% if is_admin_view %}
+    <section class="abs-panel">
+      <div class="abs-panel-body" style="padding-top:16px;padding-bottom:16px;">
+        <div class="abs-tabs">
+          <a class="abs-tab {% if pending_scope != 'all' %}active{% endif %}" href="{% url 'assenze_car_dashboard' %}">In attesa mie</a>
+          <a class="abs-tab {% if pending_scope == 'all' %}active{% endif %}" href="{% url 'assenze_car_dashboard' %}?scope=all">Tutte in attesa</a>
+        </div>
+      </div>
+    </section>
+  {% endif %}
 
   {% if show_diag and capo_diag %}
-    <div class="card" style="margin-bottom:12px;border-left:4px solid #f59e0b;">
-      <div class="card-head">
-        <div class="card-title">Diagnostica assegnazione CAR</div>
-      </div>
-      <div class="card-body">
-        <div class="cell-muted" style="font-size:12px;margin-bottom:6px;">
-          Identita usata dal filtro:
-          <strong>{{ capo_diag.manager_name|default:"-" }}</strong>
-          {% if capo_diag.manager_email %} ({{ capo_diag.manager_email }}){% endif %}
-          {% if capo_diag.legacy_user_id %} - legacy_user_id={{ capo_diag.legacy_user_id }}{% endif %}
+    <section class="abs-panel">
+      <div class="abs-panel-head">
+        <div class="abs-panel-title-wrap">
+          <h2 class="abs-panel-title">Diagnostica assegnazione CAR</h2>
+          <p class="abs-panel-subtitle">Controllo matching fra utente corrente, capi reparto e sorgenti legacy.</p>
         </div>
-        <div class="cell-muted" style="font-size:12px;margin-bottom:8px;">
-          Capi reparto trovati: <strong>{{ capo_diag.match_count }}</strong>
+      </div>
+      <div class="abs-panel-body">
+        <div class="abs-inline-actions">
+          <span class="abs-chip soft">Utente {{ capo_diag.manager_name|default:"-" }}</span>
+          {% if capo_diag.manager_email %}<span class="abs-chip soft">{{ capo_diag.manager_email }}</span>{% endif %}
+          {% if capo_diag.legacy_user_id %}<span class="abs-chip soft">legacy {{ capo_diag.legacy_user_id }}</span>{% endif %}
+          <span class="abs-chip">{{ capo_diag.match_count }} match</span>
         </div>
         {% if capo_diag.matched %}
-          <div class="table-wrap">
-            <table class="gest-table">
+          <div class="abs-table-wrap">
+            <table class="abs-table">
               <thead>
                 <tr>
-                  <th>ID</th>
-                  <th>Reparto</th>
-                  <th>Nome</th>
-                  <th>Email</th>
-                  <th>SP ID</th>
-                  <th>Utente ID</th>
+                  <th>ID</th><th>Reparto</th><th>Nome</th><th>Email</th><th>SP ID</th><th>Utente ID</th>
                 </tr>
               </thead>
               <tbody>
                 {% for c in capo_diag.matched %}
                   <tr>
-                    <td>{{ c.id|default:"-" }}</td>
-                    <td>{{ c.title|default:"-" }}</td>
-                    <td>{{ c.nome|default:"-" }}</td>
-                    <td>{{ c.indirizzo_email|default:"-" }}</td>
-                    <td>{{ c.sharepoint_item_id|default:"-" }}</td>
-                    <td>{{ c.utente_id|default:"-" }}</td>
+                    <td data-label="ID">{{ c.id|default:"-" }}</td>
+                    <td data-label="Reparto">{{ c.title|default:"-" }}</td>
+                    <td data-label="Nome">{{ c.nome|default:"-" }}</td>
+                    <td data-label="Email">{{ c.indirizzo_email|default:"-" }}</td>
+                    <td data-label="SP ID">{{ c.sharepoint_item_id|default:"-" }}</td>
+                    <td data-label="Utente ID">{{ c.utente_id|default:"-" }}</td>
                   </tr>
                 {% endfor %}
               </tbody>
             </table>
           </div>
         {% else %}
-          <div class="act-text text-danger" style="padding:8px 0;">
-            Nessun capo reparto associato al tuo utente con i criteri correnti.
+          <div class="abs-empty-state">
+            <h3 class="abs-empty-title">Nessun capo reparto associato</h3>
+            <p class="abs-empty-text">Con i criteri correnti non risultano capi reparto collegati al tuo utente.</p>
           </div>
         {% endif %}
       </div>
-    </div>
+    </section>
   {% endif %}
 
   {% if show_diag and sync_diag %}
-    <div class="card" style="margin-bottom:12px;border-left:4px solid #0f766e;">
-      <div class="card-head">
-        <div>
-          <div class="card-title">Diagnostica sincronizzazione SharePoint</div>
-          <div class="cell-muted" style="font-size:12px;">
-            Controllati {{ sync_diag.checked_count }} record.
-            Allineati: <strong>{{ sync_diag.ok_count }}</strong>,
-            avvisi: <strong>{{ sync_diag.warn_count }}</strong>,
-            errori: <strong>{{ sync_diag.error_count }}</strong>.
-          </div>
+    <section class="abs-panel">
+      <div class="abs-panel-head">
+        <div class="abs-panel-title-wrap">
+          <h2 class="abs-panel-title">Diagnostica sincronizzazione SharePoint</h2>
+          <p class="abs-panel-subtitle">Controllati {{ sync_diag.checked_count }} record. Allineati {{ sync_diag.ok_count }}, avvisi {{ sync_diag.warn_count }}, errori {{ sync_diag.error_count }}.</p>
         </div>
       </div>
-      <div class="card-body">
+      <div class="abs-panel-body">
         {% if not sync_diag.enabled %}
-          <div class="act-text text-warn" style="padding:8px 0;">
-            Diagnostica SharePoint non disponibile: sincronizzazione non configurata.
-          </div>
+          <div class="abs-alert abs-alert-warn">Diagnostica SharePoint non disponibile: sincronizzazione non configurata.</div>
         {% elif sync_diag.rows %}
-          <div class="table-wrap">
-            <table class="gest-table">
+          <div class="abs-table-wrap">
+            <table class="abs-table">
               <thead>
                 <tr>
-                  <th>ID</th>
-                  <th>SP ID</th>
-                  <th>Dipendente</th>
-                  <th>Locale</th>
-                  <th>SP Consenso</th>
-                  <th>SP Moderation</th>
-                  <th>Stato letto dal portale</th>
-                  <th>Esito</th>
+                  <th>ID</th><th>SP ID</th><th>Dipendente</th><th>Locale</th><th>SP Consenso</th><th>SP Moderation</th><th>Stato letto</th><th>Esito</th>
                 </tr>
               </thead>
               <tbody>
                 {% for r in sync_diag.rows %}
                   <tr>
-                    <td>{{ r.id }}</td>
-                    <td>{{ r.sharepoint_item_id|default:"-" }}</td>
-                    <td>
+                    <td data-label="ID">{{ r.id }}</td>
+                    <td data-label="SP ID">{{ r.sharepoint_item_id|default:"-" }}</td>
+                    <td data-label="Dipendente">
                       <div>{{ r.dipendente }}</div>
-                      <div class="cell-muted" style="font-size:11px;">{{ r.inizio_label }} {% if r.fine_label %}→ {{ r.fine_label }}{% endif %}</div>
+                      <div style="font-size:11px;color:#64748b;">{{ r.inizio_label }} {% if r.fine_label %}- {{ r.fine_label }}{% endif %}</div>
                     </td>
-                    <td>{{ r.local_status_label }}</td>
-                    <td>{{ r.sp_consenso_field }}</td>
-                    <td>{{ r.sp_moderation_label }}</td>
-                    <td>{{ r.sp_resolved_status }}</td>
-                    <td>
-                      <span class="diag-chip diag-{{ r.level }}">{{ r.diagnostic }}</span>
-                    </td>
+                    <td data-label="Locale">{{ r.local_status_label }}</td>
+                    <td data-label="SP Consenso">{{ r.sp_consenso_field }}</td>
+                    <td data-label="SP Moderation">{{ r.sp_moderation_label }}</td>
+                    <td data-label="Stato letto">{{ r.sp_resolved_status }}</td>
+                    <td data-label="Esito"><span class="diag-chip diag-{{ r.level }}">{{ r.diagnostic }}</span></td>
                   </tr>
                 {% endfor %}
               </tbody>
             </table>
           </div>
         {% else %}
-          <div class="act-text" style="padding:8px 0;">
-            Nessun record disponibile per la diagnostica di sync.
+          <div class="abs-empty-state">
+            <h3 class="abs-empty-title">Nessun record disponibile</h3>
+            <p class="abs-empty-text">Non ci sono record sufficienti per la diagnostica di sincronizzazione.</p>
           </div>
         {% endif %}
       </div>
-    </div>
+    </section>
   {% endif %}
 
-  <div id="car-status"></div>
+  <div id="car-status" class="car-status"></div>
 
-  {# ─── DA GESTIRE ─── #}
-  <div class="card" style="margin-bottom: 14px;">
-    <div class="card-head">
-      <div>
-        <div class="card-title">
-          Richieste in attesa
-          {% if da_gestire %}
-            <span class="count-badge badge-warn">{{ da_gestire|length }}</span>
-          {% else %}
-            <span class="count-badge badge-ok">0</span>
-          {% endif %}
-        </div>
-        <div class="cell-muted" style="font-size:12px;">
+  <section class="abs-panel">
+    <div class="abs-panel-head">
+      <div class="abs-panel-title-wrap">
+        <h2 class="abs-panel-title">Richieste in attesa</h2>
+        <p class="abs-panel-subtitle">
           {% if is_admin_view %}
             {% if pending_scope == "all" %}
               Tutte le assenze in attesa di approvazione.
             {% else %}
-              Solo assenze in attesa della tua decisione (assegnate ai tuoi reparti).
+              Solo le assenze in attesa della tua decisione, assegnate ai tuoi reparti.
             {% endif %}
           {% else %}
             Assenze del tuo reparto in attesa della tua decisione.
           {% endif %}
-          Premi <strong>Approva</strong> o <strong>Rifiuta</strong> su ciascuna riga.
-        </div>
+        </p>
       </div>
-      {% if is_admin_view %}
-        <div style="display:flex;gap:8px;align-items:center;">
-          <a class="btn btn-secondary btn-sm{% if pending_scope != 'all' %} active{% endif %}" href="{% url 'assenze_car_dashboard' %}">In attesa mie</a>
-          <a class="btn btn-secondary btn-sm{% if pending_scope == 'all' %} active{% endif %}" href="{% url 'assenze_car_dashboard' %}?scope=all">Tutte in attesa</a>
-        </div>
-      {% endif %}
+      <div class="abs-panel-meta">
+        <span class="abs-panel-badge">{{ da_gestire|length }} in coda</span>
+      </div>
     </div>
-    <div class="card-body">
+    <div class="abs-panel-body no-pad">
       {% if da_gestire %}
-        <div class="table-wrap">
-          <table class="gest-table" id="table-da-gestire">
+        <div class="abs-table-wrap">
+          <table class="abs-table" id="table-da-gestire">
             <thead>
               <tr>
-                <th>Dipendente</th>
-                <th>Tipo</th>
-                <th>Dal</th>
-                <th>Al</th>
-                <th>Motivo</th>
-                <th>Azioni</th>
+                <th>Dipendente</th><th>Tipo</th><th>Dal</th><th>Al</th><th>Motivo</th><th>Azioni</th>
               </tr>
             </thead>
             <tbody>
               {% for r in da_gestire %}
                 <tr data-id="{{ r.id }}">
-                  <td>{{ r.dipendente }}</td>
-                  <td><span class="tipo-pill">{{ r.tipo }}</span></td>
-                  <td>{{ r.inizio_label }}</td>
-                  <td>{{ r.fine_label }}</td>
-                  <td>{{ r.motivo|default:'—' }}</td>
-                  <td>
-                    <div class="action-row">
+                  <td data-label="Dipendente">{{ r.dipendente }}</td>
+                  <td data-label="Tipo">
+                    <div style="display:grid;gap:6px;">
+                      <span class="car-type-pill">{{ r.tipo }}</span>
+                      {% if r.certificato_medico %}<span class="car-cert-pill">Certificato {{ r.certificato_medico }}</span>{% endif %}
+                    </div>
+                  </td>
+                  <td data-label="Dal">{{ r.inizio_label }}</td>
+                  <td data-label="Al">{{ r.fine_label }}</td>
+                  <td data-label="Motivo">{{ r.motivo|default:"-" }}</td>
+                  <td data-label="Azioni">
+                    <div class="car-row-actions">
                       <button class="btn-approva" data-id="{{ r.id }}" data-action="Approvato" title="Approva questa richiesta">Approva</button>
                       <button class="btn-rifiuta" data-id="{{ r.id }}" data-action="Rifiutato" title="Inserisci il motivo del rifiuto">Rifiuta</button>
                     </div>
@@ -301,181 +327,163 @@
           </table>
         </div>
       {% else %}
-        <div class="act-text" style="padding: 12px 0;">Nessuna richiesta in attesa. Ottimo!</div>
+        <div class="abs-panel-body">
+          <div class="abs-empty-state">
+            <h3 class="abs-empty-title">Nessuna richiesta in attesa</h3>
+            <p class="abs-empty-text">Ottimo: al momento non ci sono richieste che richiedono il tuo intervento.</p>
+          </div>
+        </div>
       {% endif %}
     </div>
-  </div>
+  </section>
 
-  {# ─── OGGI + SETTIMANA in griglia ─── #}
-  <div class="car-grid" style="margin-bottom: 14px;">
-
-    {# Oggi #}
-    <div class="card">
-      <div class="card-head">
-        <div>
-          <div class="card-title">
-            Assenze oggi
-            {% if riepilogo_oggi %}
-              <span class="count-badge badge-info">{{ riepilogo_oggi|length }}</span>
-            {% endif %}
-          </div>
-          <div class="cell-muted" style="font-size:12px;">{{ data_oggi }}</div>
+  <div class="car-grid">
+    <section class="abs-panel">
+      <div class="abs-panel-head">
+        <div class="abs-panel-title-wrap">
+          <h2 class="abs-panel-title">Assenze oggi</h2>
+          <p class="abs-panel-subtitle">{{ data_oggi }}</p>
         </div>
+        <div class="abs-panel-meta"><span class="abs-panel-badge soft">{{ riepilogo_oggi|length }}</span></div>
       </div>
-      <div class="card-body">
+      <div class="abs-panel-body no-pad">
         {% if riepilogo_oggi %}
-          <div class="table-wrap">
-            <table class="gest-table">
-              <thead>
-                <tr>
-                  <th>Dipendente</th>
-                  <th>Tipo</th>
-                  <th>Dal</th>
-                  <th>Al</th>
-                  <th>Stato</th>
-                </tr>
-              </thead>
+          <div class="abs-table-wrap">
+            <table class="abs-table">
+              <thead><tr><th>Dipendente</th><th>Tipo</th><th>Dal</th><th>Al</th><th>Stato</th></tr></thead>
               <tbody>
                 {% for r in riepilogo_oggi %}
                   {% with cl=r.consenso|lower %}
-                  <tr>
-                    <td>{{ r.dipendente }}</td>
-                    <td><span class="tipo-pill">{{ r.tipo }}</span></td>
-                    <td>{{ r.inizio_label }}</td>
-                    <td>{{ r.fine_label }}</td>
-                    <td>
-                      {% if "approv" in cl %}<span class="state-approved">{{ r.consenso }}</span>
-                      {% elif "rifiut" in cl %}<span class="state-rejected">{{ r.consenso }}</span>
-                      {% else %}<span class="state-waiting">{{ r.consenso }}</span>{% endif %}
-                    </td>
-                  </tr>
+                    <tr>
+                      <td data-label="Dipendente">{{ r.dipendente }}</td>
+                      <td data-label="Tipo"><span class="car-type-pill">{{ r.tipo }}</span></td>
+                      <td data-label="Dal">{{ r.inizio_label }}</td>
+                      <td data-label="Al">{{ r.fine_label }}</td>
+                      <td data-label="Stato">
+                        {% if "approv" in cl %}<span class="abs-status abs-status-approved">{{ r.consenso }}</span>
+                        {% elif "rifiut" in cl %}<span class="abs-status abs-status-rejected">{{ r.consenso }}</span>
+                        {% else %}<span class="abs-status abs-status-waiting">{{ r.consenso }}</span>{% endif %}
+                      </td>
+                    </tr>
                   {% endwith %}
                 {% endfor %}
               </tbody>
             </table>
           </div>
         {% else %}
-          <div class="act-text" style="padding: 12px 0;">Nessuna assenza registrata per oggi.</div>
+          <div class="abs-panel-body">
+            <div class="abs-empty-state">
+              <h3 class="abs-empty-title">Nessuna assenza oggi</h3>
+              <p class="abs-empty-text">Per la giornata corrente non risultano assenze registrate.</p>
+            </div>
+          </div>
         {% endif %}
       </div>
-    </div>
+    </section>
 
-    {# Settimana #}
-    <div class="card">
-      <div class="card-head">
-        <div>
-          <div class="card-title">
-            Questa settimana
-            {% if riepilogo_settimana %}
-              <span class="count-badge badge-info">{{ riepilogo_settimana|length }}</span>
-            {% endif %}
-          </div>
-          <div class="cell-muted" style="font-size:12px;">{{ data_lunedi }} — {{ data_domenica }}</div>
+    <section class="abs-panel">
+      <div class="abs-panel-head">
+        <div class="abs-panel-title-wrap">
+          <h2 class="abs-panel-title">Questa settimana</h2>
+          <p class="abs-panel-subtitle">{{ data_lunedi }} - {{ data_domenica }}</p>
         </div>
+        <div class="abs-panel-meta"><span class="abs-panel-badge soft">{{ riepilogo_settimana|length }}</span></div>
       </div>
-      <div class="card-body" style="max-height: 380px; overflow: auto;">
+      <div class="abs-panel-body no-pad">
         {% if riepilogo_settimana %}
-          <div class="table-wrap">
-            <table class="gest-table">
-              <thead>
-                <tr>
-                  <th>Dipendente</th>
-                  <th>Tipo</th>
-                  <th>Dal</th>
-                  <th>Al</th>
-                  <th>Stato</th>
-                </tr>
-              </thead>
+          <div class="abs-table-wrap">
+            <table class="abs-table">
+              <thead><tr><th>Dipendente</th><th>Tipo</th><th>Dal</th><th>Al</th><th>Stato</th></tr></thead>
               <tbody>
                 {% for r in riepilogo_settimana %}
                   {% with cl=r.consenso|lower %}
-                  <tr>
-                    <td>{{ r.dipendente }}</td>
-                    <td><span class="tipo-pill">{{ r.tipo }}</span></td>
-                    <td>{{ r.inizio_label }}</td>
-                    <td>{{ r.fine_label }}</td>
-                    <td>
-                      {% if "approv" in cl %}<span class="state-approved">{{ r.consenso }}</span>
-                      {% elif "rifiut" in cl %}<span class="state-rejected">{{ r.consenso }}</span>
-                      {% else %}<span class="state-waiting">{{ r.consenso }}</span>{% endif %}
-                    </td>
-                  </tr>
+                    <tr>
+                      <td data-label="Dipendente">{{ r.dipendente }}</td>
+                      <td data-label="Tipo"><span class="car-type-pill">{{ r.tipo }}</span></td>
+                      <td data-label="Dal">{{ r.inizio_label }}</td>
+                      <td data-label="Al">{{ r.fine_label }}</td>
+                      <td data-label="Stato">
+                        {% if "approv" in cl %}<span class="abs-status abs-status-approved">{{ r.consenso }}</span>
+                        {% elif "rifiut" in cl %}<span class="abs-status abs-status-rejected">{{ r.consenso }}</span>
+                        {% else %}<span class="abs-status abs-status-waiting">{{ r.consenso }}</span>{% endif %}
+                      </td>
+                    </tr>
                   {% endwith %}
                 {% endfor %}
               </tbody>
             </table>
           </div>
         {% else %}
-          <div class="act-text" style="padding: 12px 0;">Nessuna assenza registrata per questa settimana.</div>
+          <div class="abs-panel-body">
+            <div class="abs-empty-state">
+              <h3 class="abs-empty-title">Nessuna assenza in settimana</h3>
+              <p class="abs-empty-text">Nel periodo selezionato non ci sono assenze registrate.</p>
+            </div>
+          </div>
         {% endif %}
       </div>
-    </div>
+    </section>
+  </div>
 
-  </div>{# /car-grid #}
-
-  {# ─── GIÀ GESTITE ─── #}
-  <div class="card">
-    <div class="card-head">
-      <div>
-        <div class="card-title">
-          Ultime gestite
-          {% if gestite %}
-            <span class="count-badge badge-ok">{{ gestite|length }}</span>
-          {% endif %}
-        </div>
-        <div class="cell-muted" style="font-size:12px;">
-          {% if is_admin_view %}Ultime {{ gestite|length }} richieste approvate o rifiutate.{% else %}Ultime richieste del tuo reparto che hai già gestito.{% endif %}
-        </div>
+  <section class="abs-panel">
+    <div class="abs-panel-head">
+      <div class="abs-panel-title-wrap">
+        <h2 class="abs-panel-title">Ultime gestite</h2>
+        <p class="abs-panel-subtitle">
+          {% if is_admin_view %}Ultime richieste approvate o rifiutate.{% else %}Ultime richieste del tuo reparto gia gestite.{% endif %}
+        </p>
       </div>
+      <div class="abs-panel-meta"><span class="abs-panel-badge">{{ gestite|length }}</span></div>
     </div>
-    <div class="card-body">
+    <div class="abs-panel-body no-pad">
       {% if gestite %}
-        <div class="table-wrap">
-          <table class="gest-table">
+        <div class="abs-table-wrap">
+          <table class="abs-table">
             <thead>
-              <tr>
-                <th>Dipendente</th>
-                <th>Tipo</th>
-                <th>Dal</th>
-                <th>Al</th>
-                <th>Esito</th>
-                <th>Motivo richiesta</th>
-                <th>Note rifiuto</th>
-              </tr>
+              <tr><th>Dipendente</th><th>Tipo</th><th>Dal</th><th>Al</th><th>Esito</th><th>Motivo richiesta</th><th>Note rifiuto</th></tr>
             </thead>
             <tbody>
               {% for r in gestite %}
                 {% with cl=r.consenso|lower %}
-                <tr>
-                  <td>{{ r.dipendente }}</td>
-                  <td><span class="tipo-pill">{{ r.tipo }}</span></td>
-                  <td>{{ r.inizio_label }}</td>
-                  <td>{{ r.fine_label }}</td>
-                  <td>
-                    {% if "approv" in cl %}<span class="state-approved">{{ r.consenso }}</span>
-                    {% else %}<span class="state-rejected">{{ r.consenso }}</span>{% endif %}
-                  </td>
-                  <td>{{ r.motivo|default:'—' }}</td>
-                  <td>
-                    {% if r.note_gestione %}
-                      <span class="note-pill" title="{{ r.note_gestione }}">{{ r.note_gestione }}</span>
-                    {% else %}—{% endif %}
-                  </td>
-                </tr>
+                  <tr>
+                    <td data-label="Dipendente">{{ r.dipendente }}</td>
+                    <td data-label="Tipo">
+                      <div style="display:grid;gap:6px;">
+                        <span class="car-type-pill">{{ r.tipo }}</span>
+                        {% if r.certificato_medico %}<span class="car-cert-pill">Certificato {{ r.certificato_medico }}</span>{% endif %}
+                      </div>
+                    </td>
+                    <td data-label="Dal">{{ r.inizio_label }}</td>
+                    <td data-label="Al">{{ r.fine_label }}</td>
+                    <td data-label="Esito">
+                      {% if "approv" in cl %}<span class="abs-status abs-status-approved">{{ r.consenso }}</span>
+                      {% else %}<span class="abs-status abs-status-rejected">{{ r.consenso }}</span>{% endif %}
+                    </td>
+                    <td data-label="Motivo richiesta">{{ r.motivo|default:"-" }}</td>
+                    <td data-label="Note rifiuto">
+                      {% if r.note_gestione %}
+                        <span class="car-note-pill" title="{{ r.note_gestione }}">{{ r.note_gestione }}</span>
+                      {% else %}-{% endif %}
+                    </td>
+                  </tr>
                 {% endwith %}
               {% endfor %}
             </tbody>
           </table>
         </div>
       {% else %}
-        <div class="act-text" style="padding: 12px 0;">Nessuna segnalazione ancora gestita.</div>
+        <div class="abs-panel-body">
+          <div class="abs-empty-state">
+            <h3 class="abs-empty-title">Nessuna segnalazione ancora gestita</h3>
+            <p class="abs-empty-text">Lo storico delle approvazioni comparira qui appena inizierai a lavorare le richieste.</p>
+          </div>
+        </div>
       {% endif %}
     </div>
-  </div>
-
+  </section>
 {% endblock %}
 
-{% block extra_scripts %}
+{% block assenze_shell_scripts %}
   <script>
     (function () {
       const csrf = document.querySelector("#car-csrf input[name='csrfmiddlewaretoken']")?.value || "";
@@ -524,37 +532,26 @@
         const itemId = btn.dataset.id;
         if (!row) return;
 
-        // Rimuovi eventuale nota già aperta per questa riga
         const existing = row.nextElementSibling;
         if (existing && existing.classList.contains("note-row")) {
           existing.remove();
-          btn.disabled = false;
-          btn.closest(".action-row")?.querySelectorAll("button").forEach(b => b.disabled = false);
+          row.querySelectorAll("button").forEach(function(b) { b.disabled = false; });
           return;
         }
 
-        // Disabilita i bottoni della riga
-        row.querySelectorAll("button").forEach(b => b.disabled = true);
+        row.querySelectorAll("button").forEach(function(b) { b.disabled = true; });
 
         const colCount = row.querySelectorAll("td").length;
         const noteRow = document.createElement("tr");
         noteRow.classList.add("note-row");
         noteRow.dataset.forId = itemId;
-        noteRow.innerHTML = `
-          <td colspan="${colCount}">
-            <div style="font-size:12px;font-weight:600;color:#b91c1c;margin-bottom:4px;">Motivo del rifiuto (opzionale):</div>
-            <textarea placeholder="Es: Periodo già coperto da un collega, organico insufficiente..."></textarea>
-            <div class="note-actions">
-              <button class="btn-conferma-rifiuto">Conferma rifiuto</button>
-              <button class="btn-annulla">Annulla</button>
-            </div>
-          </td>`;
+        noteRow.innerHTML = '<td colspan="' + colCount + '"><div style="font-size:12px;font-weight:700;color:#b91c1c;margin-bottom:6px;">Motivo del rifiuto (opzionale)</div><textarea placeholder="Es: periodo gia coperto, organico insufficiente, richiesta da riprogrammare..."></textarea><div class="note-actions"><button class="btn-conferma-rifiuto">Conferma rifiuto</button><button class="btn-annulla">Annulla</button></div></td>';
 
         row.after(noteRow);
 
         noteRow.querySelector(".btn-annulla").addEventListener("click", function () {
           noteRow.remove();
-          row.querySelectorAll("button").forEach(b => b.disabled = false);
+          row.querySelectorAll("button").forEach(function(b) { b.disabled = false; });
         });
 
         noteRow.querySelector(".btn-conferma-rifiuto").addEventListener("click", async function () {
@@ -579,8 +576,7 @@
         btn.addEventListener("click", async function () {
           const itemId = btn.dataset.id;
           const row = btn.closest("tr[data-id]");
-          row.querySelectorAll("button").forEach(b => b.disabled = true);
-          // Chiudi eventuale nota aperta per questa riga
+          row.querySelectorAll("button").forEach(function(b) { b.disabled = true; });
           const noteRow = row.nextElementSibling;
           if (noteRow && noteRow.classList.contains("note-row")) noteRow.remove();
           try {
@@ -590,7 +586,7 @@
             removeRow(row);
           } catch (err) {
             setStatus("Errore: " + err.message, true);
-            row.querySelectorAll("button").forEach(b => b.disabled = false);
+            row.querySelectorAll("button").forEach(function(b) { b.disabled = false; });
           }
         });
       });

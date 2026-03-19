@@ -1,423 +1,1036 @@
-{% extends "core/base.html" %}
+{% extends "assenze/base_shell.html" %}
 
 {% block title %}Gestione Assenze | Portale Applicativo{% endblock %}
 
-{% block extra_head %}
+{% block assenze_shell_head %}
   <style>
-    .table-wrap { overflow-x: auto; }
-    .gest-table { width: 100%; border-collapse: collapse; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-    .gest-table thead th { background: #1d4ed8; color: #fff; text-align: left; font-size: 12px; padding: 10px 12px; }
-    .gest-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
-    .gest-table tbody tr:hover { background: #f8fafc; }
-    .state-approved { color: #166534; font-weight: 700; }
-    .state-waiting { color: #92400e; font-weight: 700; }
-    .state-rejected { color: #b91c1c; font-weight: 700; }
-    .toolbar-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-    .toolbar-row select { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; font-family: 'Outfit', sans-serif; }
-    .section-title { color: #1d4ed8; font-size: 18px; font-weight: 700; margin: 0 0 10px 0; }
-    .note-rejected { font-size: 11px; color: #7f1d1d; background: #fee2e2; border-radius: 6px; padding: 2px 7px; display: inline-block; margin-top: 3px; }
-    .note-certificato { font-size: 11px; color: #0f766e; background: #ccfbf1; border-radius: 6px; padding: 2px 7px; display: inline-block; margin-top: 3px; }
-    .action-cell { display: flex; gap: 6px; flex-wrap: nowrap; }
-    .btn-modifica { background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 4px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
-    .btn-modifica:hover { background: #1d4ed8; }
+    #abs-root { display: grid; gap: 20px; }
 
-    /* Modal */
+    .abs-hero {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      flex-wrap: wrap;
+      padding: 28px 30px;
+      border-radius: 18px;
+      color: #fff;
+      background:
+        radial-gradient(circle at top right, rgba(255,255,255,.18), transparent 34%),
+        linear-gradient(135deg, #0f3f46 0%, #0f766e 52%, #0ea5a4 100%);
+      box-shadow: 0 18px 40px rgba(15, 118, 110, .22);
+    }
+    .abs-hero-copy { display: grid; gap: 10px; max-width: 760px; }
+    .abs-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      padding: 6px 11px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.14);
+      border: 1px solid rgba(255,255,255,.18);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .abs-hero h1 { margin: 0; font-size: 31px; font-weight: 900; letter-spacing: -.03em; line-height: 1.04; }
+    .abs-hero p { margin: 0; color: rgba(255,255,255,.82); font-size: 14px; line-height: 1.65; }
+    .abs-hero-meta { display: flex; gap: 8px; flex-wrap: wrap; }
+    .abs-hero-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 11px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.18);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .abs-hero-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .abs-hero-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 0 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.22);
+      background: rgba(255,255,255,.10);
+      color: #fff;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 700;
+      transition: background .15s ease, transform .15s ease;
+    }
+    .abs-hero-action:hover { background: rgba(255,255,255,.18); transform: translateY(-1px); }
+    .abs-hero-action-primary { background: #ffffff; color: #0f766e; border-color: #ffffff; }
+    .abs-hero-action-primary:hover { background: #f0fdfa; }
+
+    .abs-kpis {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .abs-kpi {
+      border: 1px solid #dbe7e5;
+      border-radius: 16px;
+      background: #fff;
+      padding: 16px 18px;
+      box-shadow: 0 10px 28px rgba(15, 23, 42, .05);
+    }
+    .abs-kpi-label {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: #64748b;
+    }
+    .abs-kpi-value {
+      margin-top: 10px;
+      font-size: 31px;
+      font-weight: 900;
+      line-height: 1;
+      color: #0f172a;
+    }
+    .abs-kpi-note {
+      margin-top: 6px;
+      font-size: 13px;
+      color: #64748b;
+      line-height: 1.5;
+    }
+    .abs-kpi.teal .abs-kpi-value { color: #0f766e; }
+    .abs-kpi.amber .abs-kpi-value { color: #b45309; }
+    .abs-kpi.green .abs-kpi-value { color: #15803d; }
+    .abs-kpi.red .abs-kpi-value { color: #b91c1c; }
+
+    .abs-panel {
+      border: 1px solid #dbe5ef;
+      border-radius: 18px;
+      background: #fff;
+      overflow: hidden;
+      box-shadow: 0 14px 36px rgba(15, 23, 42, .04);
+    }
+    .abs-panel-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 20px;
+      border-bottom: 1px solid #e5edf5;
+      background: linear-gradient(180deg, #fbfdff 0%, #f8fbff 100%);
+    }
+    .abs-panel-title-wrap { display: grid; gap: 7px; }
+    .abs-panel-title { margin: 0; font-size: 22px; font-weight: 900; color: #0f172a; letter-spacing: -.02em; }
+    .abs-panel-subtitle { margin: 0; font-size: 14px; color: #64748b; line-height: 1.55; }
+    .abs-panel-meta {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .abs-panel-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 28px;
+      padding: 0 11px;
+      border-radius: 999px;
+      background: #ecfeff;
+      color: #0f766e;
+      border: 1px solid #99f6e4;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .abs-panel-badge.soft {
+      background: #f8fafc;
+      border-color: #e2e8f0;
+      color: #475569;
+    }
+    .abs-panel-body { padding: 20px; display: grid; gap: 16px; }
+    .abs-panel-body.no-pad { padding: 0; }
+
+    .abs-filter-card {
+      display: grid;
+      gap: 14px;
+      padding: 16px 18px;
+      border-radius: 16px;
+      border: 1px solid #dbe7ef;
+      background: linear-gradient(180deg, #fbfdff 0%, #f8fbff 100%);
+    }
+    .abs-filter-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .abs-filter-title {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    .abs-filter-count {
+      font-size: 13px;
+      color: #64748b;
+      font-weight: 700;
+    }
+    .abs-filter-grid {
+      display: grid;
+      grid-template-columns: minmax(220px, 1.2fr) minmax(0, 2fr);
+      gap: 12px;
+      align-items: start;
+    }
+    .abs-search {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 44px;
+      padding: 0 14px;
+      border-radius: 12px;
+      border: 1px solid #d7e3ea;
+      background: #fff;
+    }
+    .abs-search input {
+      width: 100%;
+      border: none;
+      outline: none;
+      background: transparent;
+      color: #0f172a;
+      font: inherit;
+      font-size: 14px;
+    }
+    .abs-search-icon { color: #94a3b8; font-size: 15px; }
+    .abs-filter-pills {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .abs-filter-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 40px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid #d7e3ea;
+      background: #fff;
+      color: #475569;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all .15s ease;
+    }
+    .abs-filter-btn:hover { border-color: #14b8a6; color: #0f766e; background: #f0fdfa; }
+    .abs-filter-btn.active {
+      border-color: #0f766e;
+      background: #0f766e;
+      color: #fff;
+      box-shadow: 0 10px 24px rgba(15, 118, 110, .18);
+    }
+    .abs-filter-btn span {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, .06);
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .abs-filter-btn.active span { background: rgba(255,255,255,.18); }
+
+    .abs-table-wrap { overflow: auto; }
+    .abs-table {
+      width: 100%;
+      min-width: 880px;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    .abs-table thead th {
+      background: #f8fafc;
+      padding: 12px 16px;
+      border-bottom: 1px solid #e2e8f0;
+      text-align: left;
+      color: #64748b;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      white-space: nowrap;
+    }
+    .abs-table td {
+      padding: 14px 16px;
+      border-bottom: 1px solid #eef2f7;
+      vertical-align: top;
+      color: #0f172a;
+      line-height: 1.45;
+    }
+    .abs-table tbody tr:last-child td { border-bottom: none; }
+    .abs-table tbody tr:hover td { background: #fbfdff; }
+    .abs-table-empty { padding: 34px 24px; text-align: center; color: #64748b; font-size: 14px; }
+    .abs-row-main { display: grid; gap: 6px; }
+    .abs-row-title { font-size: 14px; font-weight: 800; color: #0f172a; }
+    .abs-row-sub { font-size: 12px; color: #64748b; }
+    .abs-note-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+    .abs-note-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .abs-note-pill.cert { background: #ccfbf1; color: #0f766e; }
+    .abs-note-pill.reject { background: #fee2e2; color: #b91c1c; }
+    .abs-note-pill.neutral { background: #eff6ff; color: #1d4ed8; }
+    .abs-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 30px;
+      padding: 0 11px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .abs-status-approved { background: #dcfce7; color: #166534; }
+    .abs-status-waiting { background: #fef3c7; color: #92400e; }
+    .abs-status-rejected { background: #fee2e2; color: #b91c1c; }
+    .abs-date-block { display: grid; gap: 4px; }
+    .abs-date-main { font-size: 14px; font-weight: 700; color: #0f172a; }
+    .abs-date-sub { font-size: 12px; color: #64748b; }
+    .abs-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      white-space: nowrap;
+    }
+    .abs-actions .btn { min-height: 36px; }
+    .abs-empty-state {
+      display: grid;
+      gap: 10px;
+      justify-items: start;
+      padding: 4px 0;
+    }
+    .abs-empty-title { margin: 0; font-size: 18px; font-weight: 900; color: #0f172a; }
+    .abs-empty-text { margin: 0; color: #64748b; line-height: 1.65; }
+
+    .abs-footer {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      padding-top: 2px;
+      flex-wrap: wrap;
+    }
+
     #modal-modifica-overlay {
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.45);
+      padding: 22px;
+      background: rgba(15, 23, 42, .55);
       z-index: 1000;
       align-items: center;
       justify-content: center;
+      backdrop-filter: blur(3px);
     }
     #modal-modifica-overlay.open { display: flex; }
     #modal-modifica {
-      background: #fff;
-      border-radius: 14px;
-      padding: 28px 28px 20px;
       width: 100%;
-      max-width: 480px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+      max-width: 560px;
+      border-radius: 18px;
+      background: #fff;
+      box-shadow: 0 28px 60px rgba(15, 23, 42, .28);
+      overflow: hidden;
     }
-    #modal-modifica h3 { margin: 0 0 16px; font-size: 16px; color: #1d4ed8; }
-    .modal-field { margin-bottom: 14px; }
-    .modal-field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-mid); margin-bottom: 4px; }
+    .abs-modal-head {
+      padding: 20px 22px 16px;
+      border-bottom: 1px solid #e5edf5;
+      background: linear-gradient(180deg, #fbfefe 0%, #f5fbfb 100%);
+    }
+    .abs-modal-head h3 { margin: 0; font-size: 21px; font-weight: 900; color: #0f172a; }
+    .abs-modal-head p { margin: 6px 0 0; color: #64748b; font-size: 13px; line-height: 1.55; }
+    .abs-modal-body { padding: 20px 22px 22px; display: grid; gap: 14px; }
+    .abs-modal-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .modal-field { display: grid; gap: 6px; }
+    .modal-field label { font-size: 12px; font-weight: 800; color: #475569; }
     .modal-field select,
     .modal-field input,
     .modal-field textarea {
       width: 100%;
       box-sizing: border-box;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 7px 10px;
-      font-family: 'Outfit', sans-serif;
-      font-size: 13px;
+      min-height: 42px;
+      padding: 0 12px;
+      border: 1px solid #d7e3ea;
+      border-radius: 10px;
+      background: #fff;
+      color: #0f172a;
+      font-family: "Outfit", sans-serif;
+      font-size: 14px;
+      transition: border-color .15s ease, box-shadow .15s ease;
     }
-    .modal-field textarea { min-height: 70px; resize: vertical; }
-    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
-    .btn-modal-save { background: #16a34a; color: #fff; border: none; border-radius: 8px; padding: 7px 20px; font-size: 13px; font-weight: 700; cursor: pointer; }
-    .btn-modal-save:hover { background: #15803d; }
-    .btn-modal-save:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-modal-cancel { background: #e5e7eb; color: #374151; border: none; border-radius: 8px; padding: 7px 16px; font-size: 13px; font-weight: 600; cursor: pointer; }
-    .btn-modal-cancel:hover { background: #d1d5db; }
-    #modal-error { color: #dc2626; font-size: 12px; min-height: 16px; margin-top: 6px; }
+    .modal-field textarea {
+      min-height: 100px;
+      padding: 10px 12px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+    .modal-field select:focus,
+    .modal-field input:focus,
+    .modal-field textarea:focus {
+      outline: none;
+      border-color: #14b8a6;
+      box-shadow: 0 0 0 3px rgba(20, 184, 166, .12);
+    }
+    .abs-modal-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+    #modal-error { min-height: 18px; color: #dc2626; font-size: 12px; font-weight: 700; }
+    .btn-modal-save {
+      background: #0f766e;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      min-height: 42px;
+      padding: 0 18px;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .btn-modal-save:hover { background: #115e59; }
+    .btn-modal-save:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-modal-cancel {
+      background: #f8fafc;
+      color: #475569;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      min-height: 42px;
+      padding: 0 16px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-modal-cancel:hover { background: #f1f5f9; }
+
+    @media (max-width: 1180px) {
+      .abs-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .abs-filter-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 900px) {
+      .abs-hero { padding: 24px 22px; }
+      .abs-hero h1 { font-size: 27px; }
+      .abs-panel-head { padding: 16px 18px; }
+      .abs-panel-body { padding: 18px; }
+      .abs-table { min-width: 0; }
+      .abs-table thead { display: none; }
+      .abs-table,
+      .abs-table tbody,
+      .abs-table tr,
+      .abs-table td { display: block; width: 100%; }
+      .abs-table tbody tr { padding: 16px 18px; border-bottom: 1px solid #eef2f7; }
+      .abs-table td {
+        padding: 0;
+        border: none;
+        margin-top: 10px;
+      }
+      .abs-table td:first-child { margin-top: 0; }
+      .abs-table td::before {
+        content: attr(data-label);
+        display: block;
+        margin-bottom: 4px;
+        color: #64748b;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+      }
+      .abs-table td.abs-cell-primary::before { display: none; }
+      .abs-modal-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .abs-kpis { grid-template-columns: 1fr; }
+      .abs-hero-actions,
+      .abs-hero-actions .abs-hero-action { width: 100%; }
+      .abs-hero-actions .abs-hero-action { justify-content: center; }
+      .abs-filter-pills { width: 100%; }
+      .abs-filter-btn { flex: 1 1 140px; justify-content: center; }
+      #modal-modifica-overlay { padding: 14px; }
+    }
   </style>
 {% endblock %}
 
-{% block subnav %}
-  {% include "assenze/components/subnav.html" %}
-{% endblock %}
-
-{% block content %}
+{% block assenze_shell_content %}
   <form id="gestione-csrf">{% csrf_token %}</form>
 
-  <div class="page-header">
-    <div class="page-header-main">
-      <div class="page-h">Gestione assenze</div>
-      <div class="page-sub">Le tue richieste di assenza e quelle in attesa di approvazione.</div>
-    </div>
-    <div class="page-header-actions">
-      <a href="{% url 'assenze_export_csv' %}" style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#16a34a;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
-        ⬇ Esporta CSV
-      </a>
-    </div>
-  </div>
+  <div id="abs-root">
+    <section class="abs-hero">
+      <div class="abs-hero-copy">
+        <span class="abs-eyebrow">Workflow assenze</span>
+        <h1>Gestione assenze</h1>
+        <p>Una vista piu leggibile per seguire richieste personali e approvazioni in attesa, con lo stesso approccio visuale gia usato nei moduli Asset e Ticket.</p>
+        <div class="abs-hero-meta">
+          <span class="abs-hero-pill">{{ summary_personali.total }} richiest{{ summary_personali.total|pluralize:"a,e" }} personal{{ summary_personali.total|pluralize:"e,i" }}</span>
+          <span class="abs-hero-pill">{{ summary_da_approvare.total }} da approvare</span>
+          <span class="abs-hero-pill">{{ summary_personali.editable }} ancora modificabil{{ summary_personali.editable|pluralize:"e,i" }}</span>
+        </div>
+      </div>
+      <div class="abs-hero-actions">
+        <a href="{% url 'assenze_richiesta' %}" class="abs-hero-action abs-hero-action-primary">+ Nuova richiesta</a>
+        {% if assenze_can_view_calendar %}
+          <a href="{% url 'assenze_calendario' %}" class="abs-hero-action">Calendario</a>
+        {% endif %}
+        <a href="{% url 'assenze_export_csv' %}" class="abs-hero-action">Esporta CSV</a>
+      </div>
+    </section>
 
-  <div class="card" style="margin-bottom:14px;">
-    <div class="card-body">
-      <h2 class="section-title">Richieste da approvare</h2>
-      {% if richieste_da_approvare and richieste_da_approvare|length > 0 %}
-        <div class="table-wrap">
-          <table class="gest-table">
-            <thead>
-              <tr>
-                <th>Dipendente</th>
-                <th>Tipo</th>
-                <th>Motivo</th>
-                <th>Inizio</th>
-                <th>Fine</th>
-                <th>Consenso</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for r in richieste_da_approvare %}
+    <section class="abs-kpis">
+      <article class="abs-kpi teal">
+        <div class="abs-kpi-label">Le mie richieste</div>
+        <div class="abs-kpi-value" id="kpi-my-total">{{ summary_personali.total }}</div>
+        <div class="abs-kpi-note">Storico personale disponibile in questa vista.</div>
+      </article>
+      <article class="abs-kpi amber">
+        <div class="abs-kpi-label">In attesa</div>
+        <div class="abs-kpi-value" id="kpi-my-waiting">{{ summary_personali.waiting }}</div>
+        <div class="abs-kpi-note">{{ summary_personali.editable }} modificabil{{ summary_personali.editable|pluralize:"e,i" }} prima della gestione.</div>
+      </article>
+      <article class="abs-kpi green">
+        <div class="abs-kpi-label">Approvate</div>
+        <div class="abs-kpi-value" id="kpi-my-approved">{{ summary_personali.approved }}</div>
+        <div class="abs-kpi-note">Richieste confermate e gia processate.</div>
+      </article>
+      <article class="abs-kpi red">
+        <div class="abs-kpi-label">Da approvare</div>
+        <div class="abs-kpi-value">{{ summary_da_approvare.total }}</div>
+        <div class="abs-kpi-note">{{ summary_personali.rejected }} rifiutat{{ summary_personali.rejected|pluralize:"a,e" }} nel tuo storico.</div>
+      </article>
+    </section>
+
+    <section class="abs-panel">
+      <div class="abs-panel-head">
+        <div class="abs-panel-title-wrap">
+          <h2 class="abs-panel-title">Richieste da approvare</h2>
+          <p class="abs-panel-subtitle">Coda operativa delle richieste che attendono ancora una decisione di reparto o amministrazione.</p>
+        </div>
+        <div class="abs-panel-meta">
+          <span class="abs-panel-badge">{{ summary_da_approvare.total }} in coda</span>
+          {% if summary_da_approvare.ferie %}
+            <span class="abs-panel-badge soft">{{ summary_da_approvare.ferie }} ferie</span>
+          {% endif %}
+          {% if summary_da_approvare.permesso %}
+            <span class="abs-panel-badge soft">{{ summary_da_approvare.permesso }} permessi</span>
+          {% endif %}
+          {% if summary_da_approvare.medical %}
+            <span class="abs-panel-badge soft">{{ summary_da_approvare.medical }} con certificato</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="abs-panel-body no-pad">
+        {% if richieste_da_approvare and richieste_da_approvare|length > 0 %}
+          <div class="abs-table-wrap">
+            <table class="abs-table">
+              <thead>
                 <tr>
-                  <td>{{ r.dipendente }}</td>
-                  <td>
-                    {{ r.tipo }}
-                    {% if r.certificato_medico %}
-                      <br><span class="note-certificato" title="{{ r.certificato_medico }}">Certificato: {{ r.certificato_medico }}</span>
-                    {% endif %}
-                  </td>
-                  <td>{{ r.motivo|default:'—' }}</td>
-                  <td>{{ r.inizio_label }}</td>
-                  <td>{{ r.fine_label }}</td>
-                  <td class="state-waiting">{{ r.consenso }}</td>
+                  <th>Dipendente</th>
+                  <th>Tipo</th>
+                  <th>Motivo</th>
+                  <th>Inizio</th>
+                  <th>Fine</th>
+                  <th>Stato</th>
                 </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {% for r in richieste_da_approvare %}
+                  <tr>
+                    <td data-label="Dipendente" class="abs-cell-primary">
+                      <div class="abs-row-main">
+                        <div class="abs-row-title">{{ r.dipendente }}</div>
+                        <div class="abs-row-sub">Richiesta in carico al workflow assenze</div>
+                      </div>
+                    </td>
+                    <td data-label="Tipo">
+                      <div class="abs-row-main">
+                        <div class="abs-row-title">{{ r.tipo }}</div>
+                        {% if r.certificato_medico %}
+                          <div class="abs-note-row">
+                            <span class="abs-note-pill cert">Certificato {{ r.certificato_medico }}</span>
+                          </div>
+                        {% endif %}
+                      </div>
+                    </td>
+                    <td data-label="Motivo">
+                      {% if r.motivo %}
+                        <span>{{ r.motivo }}</span>
+                      {% else %}
+                        <span style="color:#94a3b8;">Nessuna motivazione indicata</span>
+                      {% endif %}
+                    </td>
+                    <td data-label="Inizio">
+                      <div class="abs-date-block">
+                        <span class="abs-date-main">{{ r.inizio_label }}</span>
+                        <span class="abs-date-sub">Data avvio richiesta</span>
+                      </div>
+                    </td>
+                    <td data-label="Fine">
+                      <div class="abs-date-block">
+                        <span class="abs-date-main">{{ r.fine_label }}</span>
+                        <span class="abs-date-sub">Data fine richiesta</span>
+                      </div>
+                    </td>
+                    <td data-label="Stato">
+                      <span class="abs-status abs-status-waiting">{{ r.consenso }}</span>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="abs-panel-body">
+            <div class="abs-empty-state">
+              <h3 class="abs-empty-title">Nessuna approvazione in coda</h3>
+              <p class="abs-empty-text">La tua lista e pulita: al momento non ci sono richieste di assenza da prendere in carico.</p>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="abs-panel">
+      <div class="abs-panel-head">
+        <div class="abs-panel-title-wrap">
+          <h2 class="abs-panel-title">Le tue richieste di assenza</h2>
+          <p class="abs-panel-subtitle">Filtra rapidamente per stato e testo, poi modifica o elimina le richieste ancora in attesa.</p>
         </div>
-      {% else %}
-        <div class="act-text">Nessuna richiesta in attesa di approvazione.</div>
-      {% endif %}
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-body">
-      <h2 class="section-title">Le tue richieste di assenza</h2>
-
-      {% if richieste_personali and richieste_personali|length > 0 %}
-        <div class="toolbar-row">
-          <label for="filterStato" style="font-size:13px; color:var(--text-mid); font-weight:600;">Filtra per stato</label>
-          <select id="filterStato">
-            <option value="tutte">Tutte</option>
-            <option value="approvato">Approvate</option>
-            <option value="in attesa">In attesa</option>
-            <option value="rifiutato">Rifiutate</option>
-          </select>
+        <div class="abs-panel-meta">
+          <span class="abs-panel-badge">{{ summary_personali.total }} totali</span>
+          <span class="abs-panel-badge soft" id="abs-visible-count">
+            {% if summary_personali.total %}{{ summary_personali.total }} visibili{% else %}0 visibili{% endif %}
+          </span>
         </div>
+      </div>
+      <div class="abs-panel-body">
+        {% if richieste_personali and richieste_personali|length > 0 %}
+          <div class="abs-filter-card">
+            <div class="abs-filter-top">
+              <h3 class="abs-filter-title">Filtri rapidi</h3>
+              <div class="abs-filter-count">Usa i filtri per concentrarti su attese, approvate o richieste rifiutate.</div>
+            </div>
+            <div class="abs-filter-grid">
+              <label class="abs-search" for="filterSearch">
+                <span class="abs-search-icon">&#128269;</span>
+                <input id="filterSearch" type="text" placeholder="Cerca tipo, motivazione, note o certificato">
+              </label>
+              <div class="abs-filter-pills" role="tablist" aria-label="Filtra richieste per stato">
+                <button type="button" class="abs-filter-btn active" data-filter-status="all">
+                  Tutte
+                  <span>{{ summary_personali.total }}</span>
+                </button>
+                <button type="button" class="abs-filter-btn" data-filter-status="waiting">
+                  In attesa
+                  <span>{{ summary_personali.waiting }}</span>
+                </button>
+                <button type="button" class="abs-filter-btn" data-filter-status="approved">
+                  Approvate
+                  <span>{{ summary_personali.approved }}</span>
+                </button>
+                <button type="button" class="abs-filter-btn" data-filter-status="rejected">
+                  Rifiutate
+                  <span>{{ summary_personali.rejected }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
 
-        <div class="table-wrap">
-          <table id="tabellaRichieste" class="gest-table">
-            <thead>
-              <tr>
-                <th>Tipo</th>
-                <th>Inizio</th>
-                <th>Fine</th>
-                <th>Stato</th>
-                <th>Azioni</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for r in richieste_personali %}
-                {% with stato_l=r.stato|lower %}
-                  <tr data-stato="{{ stato_l }}" data-id="{{ r.id }}"
+          <div class="abs-table-wrap">
+            <table id="tabellaRichieste" class="abs-table">
+              <thead>
+                <tr>
+                  <th>Tipo</th>
+                  <th>Periodo</th>
+                  <th>Stato</th>
+                  <th>Dettagli</th>
+                  <th>Azioni</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in richieste_personali %}
+                  {% with stato_l=r.stato|lower %}
+                    <tr
+                      data-id="{{ r.id }}"
+                      data-stato="{{ stato_l }}"
+                      data-status-bucket="{% if 'approv' in stato_l %}approved{% elif 'rifiut' in stato_l %}rejected{% else %}waiting{% endif %}"
                       data-tipo="{{ r.tipo_raw }}"
                       data-inizio-iso="{{ r.inizio_iso }}"
                       data-fine-iso="{{ r.fine_iso }}"
                       data-motivazione="{{ r.motivazione }}"
-                      data-certificato-medico="{{ r.certificato_medico }}">
-                    <td>
-                      {{ r.tipo }}
-                      {% if r.certificato_medico %}
-                        <br><span class="note-certificato" title="{{ r.certificato_medico }}">Certificato: {{ r.certificato_medico }}</span>
-                      {% endif %}
-                    </td>
-                    <td>{{ r.inizio }}</td>
-                    <td>{{ r.fine }}</td>
-                    <td>
-                      {% if 'approv' in stato_l %}
-                        <span class="state-approved">{{ r.stato }}</span>
-                      {% elif 'rifiut' in stato_l %}
-                        <span class="state-rejected">{{ r.stato }}</span>
-                        {% if r.note_gestione %}
-                          <br><span class="note-rejected" title="{{ r.note_gestione }}">{{ r.note_gestione }}</span>
+                      data-certificato-medico="{{ r.certificato_medico }}"
+                    >
+                      <td data-label="Tipo" class="abs-cell-primary">
+                        <div class="abs-row-main">
+                          <div class="abs-row-title">{{ r.tipo }}</div>
+                          <div class="abs-row-sub">ID richiesta #{{ r.id }}</div>
+                          {% if r.certificato_medico %}
+                            <div class="abs-note-row">
+                              <span class="abs-note-pill cert">Certificato {{ r.certificato_medico }}</span>
+                            </div>
+                          {% endif %}
+                        </div>
+                      </td>
+                      <td data-label="Periodo">
+                        <div class="abs-date-block">
+                          <span class="abs-date-main">{{ r.inizio }}</span>
+                          <span class="abs-date-sub">a {{ r.fine }}</span>
+                        </div>
+                      </td>
+                      <td data-label="Stato">
+                        {% if 'approv' in stato_l %}
+                          <span class="abs-status abs-status-approved">{{ r.stato }}</span>
+                        {% elif 'rifiut' in stato_l %}
+                          <span class="abs-status abs-status-rejected">{{ r.stato }}</span>
+                        {% else %}
+                          <span class="abs-status abs-status-waiting">{{ r.stato }}</span>
                         {% endif %}
-                      {% else %}
-                        <span class="state-waiting">{{ r.stato }}</span>
-                      {% endif %}
-                    </td>
-                    <td>
-                      <div class="action-cell">
-                        {% if 'attesa' in stato_l %}
-                          <button class="btn-modifica"
-                                  data-id="{{ r.id }}"
-                                  data-tipo="{{ r.tipo_raw }}"
-                                  data-inizio-iso="{{ r.inizio_iso }}"
-                                  data-fine-iso="{{ r.fine_iso }}"
-                                  data-motivazione="{{ r.motivazione }}"
-                                  data-certificato-medico="{{ r.certificato_medico }}"
-                                  title="Modifica questa richiesta">Modifica</button>
-                        {% endif %}
-                        <button class="btn btn-danger btn-sm btn-elimina" data-id="{{ r.id }}" data-delete-url="{% url 'assenze_api_evento_delete' r.id %}" title="Elimina questa richiesta">Elimina</button>
-                      </div>
-                    </td>
-                  </tr>
-                {% endwith %}
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      {% else %}
-        <div class="act-text">Non hai ancora inserito alcuna richiesta di assenza.</div>
-      {% endif %}
+                      </td>
+                      <td data-label="Dettagli">
+                        <div class="abs-row-main">
+                          {% if r.motivazione %}
+                            <div>{{ r.motivazione }}</div>
+                          {% else %}
+                            <div style="color:#94a3b8;">Nessuna motivazione aggiuntiva</div>
+                          {% endif %}
+                          {% if r.note_gestione %}
+                            <div class="abs-note-row">
+                              <span class="abs-note-pill reject">{{ r.note_gestione }}</span>
+                            </div>
+                          {% endif %}
+                        </div>
+                      </td>
+                      <td data-label="Azioni">
+                        <div class="abs-actions">
+                          {% if 'attesa' in stato_l %}
+                            <button
+                              class="btn btn-sm btn-modifica"
+                              data-id="{{ r.id }}"
+                              data-tipo="{{ r.tipo_raw }}"
+                              data-inizio-iso="{{ r.inizio_iso }}"
+                              data-fine-iso="{{ r.fine_iso }}"
+                              data-motivazione="{{ r.motivazione }}"
+                              data-certificato-medico="{{ r.certificato_medico }}"
+                              title="Modifica questa richiesta"
+                            >
+                              Modifica
+                            </button>
+                          {% endif %}
+                          <button
+                            class="btn btn-secondary btn-sm btn-elimina"
+                            data-id="{{ r.id }}"
+                            data-delete-url="{% url 'assenze_api_evento_delete' r.id %}"
+                            title="Elimina questa richiesta"
+                          >
+                            Elimina
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  {% endwith %}
+                {% endfor %}
+                <tr id="abs-empty-filtered-row" style="display:none;">
+                  <td colspan="5" class="abs-table-empty">Nessuna richiesta corrisponde ai filtri impostati.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="abs-empty-state">
+            <h3 class="abs-empty-title">Ancora nessuna richiesta inserita</h3>
+            <p class="abs-empty-text">Puoi creare una nuova assenza e poi seguirne stato, esito e note di gestione da questa pagina.</p>
+            <a href="{% url 'assenze_richiesta' %}" class="btn">Apri la prima richiesta</a>
+          </div>
+        {% endif %}
 
-      <div style="margin-top:14px; text-align:right;">
-        <a href="{% url 'dashboard_home' %}" class="btn btn-secondary">Torna alla dashboard</a>
+        <div class="abs-footer">
+          <a href="{% url 'dashboard_home' %}" class="btn btn-secondary">Torna alla dashboard</a>
+        </div>
       </div>
-    </div>
+    </section>
   </div>
 
-  {# ─── Modal modifica richiesta ─── #}
   <div id="modal-modifica-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-modifica-title">
     <div id="modal-modifica">
-      <h3 id="modal-modifica-title">Modifica richiesta</h3>
-      <input type="hidden" id="modal-item-id">
-
-      <div class="modal-field">
-        <label for="modal-tipo">Tipo assenza</label>
-        <select id="modal-tipo">
-          <option value="Ferie">Ferie</option>
-          <option value="Permesso">Permesso</option>
-          <option value="Malattia">Malattia</option>
-          <option value="Flessibilità">Flessibilità</option>
-          <option value="Altro">Altro</option>
-        </select>
+      <div class="abs-modal-head">
+        <h3 id="modal-modifica-title">Modifica richiesta</h3>
+        <p>Aggiorna il periodo e le informazioni della richiesta finche resta in stato di attesa.</p>
       </div>
 
-      <div class="modal-field">
-        <label for="modal-inizio">Data/ora inizio</label>
-        <input type="datetime-local" id="modal-inizio">
-      </div>
+      <div class="abs-modal-body">
+        <input type="hidden" id="modal-item-id">
 
-      <div class="modal-field">
-        <label for="modal-fine">Data/ora fine</label>
-        <input type="datetime-local" id="modal-fine">
-      </div>
+        <div class="abs-modal-grid">
+          <div class="modal-field">
+            <label for="modal-tipo">Tipo assenza</label>
+            <select id="modal-tipo">
+              <option value="Ferie">Ferie</option>
+              <option value="Permesso">Permesso</option>
+              <option value="Malattia">Malattia</option>
+              <option value="Flessibilit&#224;">Flessibilita</option>
+              <option value="Altro">Altro</option>
+            </select>
+          </div>
+          <div class="modal-field" id="modal-certificato-wrap">
+            <label for="modal-certificato">Numero certificato medico</label>
+            <input type="text" id="modal-certificato" placeholder="Inserisci il numero del certificato">
+          </div>
+          <div class="modal-field">
+            <label for="modal-inizio">Data e ora inizio</label>
+            <input type="datetime-local" id="modal-inizio">
+          </div>
+          <div class="modal-field">
+            <label for="modal-fine">Data e ora fine</label>
+            <input type="datetime-local" id="modal-fine">
+          </div>
+        </div>
 
-      <div class="modal-field">
-        <label for="modal-motivazione">Motivazione</label>
-        <textarea id="modal-motivazione" placeholder="Descrivi il motivo della richiesta..."></textarea>
-      </div>
+        <div class="modal-field">
+          <label for="modal-motivazione">Motivazione</label>
+          <textarea id="modal-motivazione" placeholder="Descrivi il motivo della richiesta"></textarea>
+        </div>
 
-      <div class="modal-field" id="modal-certificato-wrap">
-        <label for="modal-certificato">Numero certificato medico</label>
-        <input type="text" id="modal-certificato" placeholder="Inserisci il numero del certificato">
-      </div>
+        <div id="modal-error"></div>
 
-      <div id="modal-error"></div>
-
-      <div class="modal-actions">
-        <button class="btn-modal-cancel" id="modal-cancel">Annulla</button>
-        <button class="btn-modal-save" id="modal-save">Salva modifiche</button>
+        <div class="abs-modal-actions">
+          <button class="btn-modal-cancel" id="modal-cancel" type="button">Annulla</button>
+          <button class="btn-modal-save" id="modal-save" type="button">Salva modifiche</button>
+        </div>
       </div>
     </div>
   </div>
-
 {% endblock %}
 
-{% block extra_scripts %}
+{% block assenze_shell_scripts %}
   <script>
-    (function() {
-      const csrf = document.querySelector('#gestione-csrf input[name="csrfmiddlewaretoken"]')?.value || '';
+    (function () {
+      const csrf = document.querySelector('#gestione-csrf input[name="csrfmiddlewaretoken"]')?.value || "";
 
       function isCsrfRetryResponse(response, payload) {
         if (payload && payload.csrf_retry) return true;
-        const finalUrl = String(response?.url || '');
-        return Boolean(response?.redirected && finalUrl.includes('csrf_retry=1'));
+        const finalUrl = String(response?.url || "");
+        return Boolean(response?.redirected && finalUrl.includes("csrf_retry=1"));
       }
 
       async function postJsonWithCsrfRetry(url, body) {
-        const doRequest = function() {
+        const doRequest = function () {
           return fetch(url, {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-            body: JSON.stringify(body)
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": csrf,
+            },
+            body: JSON.stringify(body),
           });
         };
 
         let res = await doRequest();
-        let data = await res.json().catch(function() { return {}; });
+        let data = await res.json().catch(function () { return {}; });
         if (!isCsrfRetryResponse(res, data)) return { res: res, data: data };
 
         res = await doRequest();
-        data = await res.json().catch(function() { return {}; });
+        data = await res.json().catch(function () { return {}; });
         if (!isCsrfRetryResponse(res, data)) return { res: res, data: data };
 
         const reloadUrl = data.reload_url || res.url || window.location.href;
         window.location.assign(reloadUrl);
-        throw new Error('Sessione scaduta o cookie mancante. Pagina ricaricata.');
+        throw new Error("Sessione scaduta o cookie mancante. Pagina ricaricata.");
       }
 
-      // Filtro per stato
-      const select = document.getElementById('filterStato');
-      if (select) {
-        select.addEventListener('change', function() {
-          const filtro = (this.value || 'tutte').toLowerCase();
-          document.querySelectorAll('#tabellaRichieste tbody tr').forEach(function(row) {
-            const stato = String(row.getAttribute('data-stato') || '').toLowerCase();
-            row.style.display = (filtro === 'tutte' || stato.includes(filtro)) ? '' : 'none';
-          });
+      const filterButtons = Array.from(document.querySelectorAll("[data-filter-status]"));
+      const searchInput = document.getElementById("filterSearch");
+      const tableRows = Array.from(document.querySelectorAll("#tabellaRichieste tbody tr[data-id]"));
+      const visibleCountNode = document.getElementById("abs-visible-count");
+      const emptyFilteredRow = document.getElementById("abs-empty-filtered-row");
+      let activeStatus = "all";
+
+      function updateVisibleCount(visible) {
+        if (!visibleCountNode) return;
+        visibleCountNode.textContent = visible + " visibili";
+      }
+
+      function applyFilters() {
+        if (!tableRows.length) return;
+        const query = String(searchInput?.value || "").trim().toLowerCase();
+        let visible = 0;
+
+        tableRows.forEach(function (row) {
+          const bucket = String(row.dataset.statusBucket || "waiting");
+          const haystack = String(row.textContent || "").toLowerCase();
+          const statusMatch = activeStatus === "all" || bucket === activeStatus;
+          const textMatch = !query || haystack.includes(query);
+          const show = statusMatch && textMatch;
+          row.style.display = show ? "" : "none";
+          if (show) visible += 1;
         });
+
+        if (emptyFilteredRow) emptyFilteredRow.style.display = visible ? "none" : "";
+        updateVisibleCount(visible);
       }
 
-      // Eliminazione
-      document.querySelectorAll('.btn-elimina').forEach(function(btn) {
-        btn.addEventListener('click', async function() {
-          if (!confirm('Eliminare questa richiesta di assenza? L\'operazione non è reversibile.')) return;
+      filterButtons.forEach(function (button) {
+        button.addEventListener("click", function () {
+          activeStatus = button.dataset.filterStatus || "all";
+          filterButtons.forEach(function (item) {
+            item.classList.toggle("active", item === button);
+          });
+          applyFilters();
+        });
+      });
+
+      if (searchInput) {
+        searchInput.addEventListener("input", applyFilters);
+      }
+
+      applyFilters();
+
+      document.querySelectorAll(".btn-elimina").forEach(function (btn) {
+        btn.addEventListener("click", async function () {
+          if (!confirm("Eliminare questa richiesta di assenza? L'operazione non e reversibile.")) return;
           const itemId = btn.dataset.id;
           const deleteUrl = btn.dataset.deleteUrl;
+          const originalText = btn.textContent;
           btn.disabled = true;
+          btn.textContent = "Eliminazione...";
           try {
             const result = await postJsonWithCsrfRetry(deleteUrl, { item_id: Number(itemId) });
-            const res = result.res;
-            const data = result.data;
-            if (!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
-            const row = btn.closest('tr[data-id]');
-            if (row) {
-              row.style.transition = 'opacity 0.3s';
-              row.style.opacity = '0';
-              setTimeout(function() { row.remove(); }, 320);
+            if (!result.res.ok || !result.data.ok) {
+              throw new Error(result.data.error || ("HTTP " + result.res.status));
             }
+            window.location.reload();
           } catch (err) {
-            alert('Errore eliminazione: ' + err.message);
+            alert("Errore eliminazione: " + err.message);
             btn.disabled = false;
+            btn.textContent = originalText;
           }
         });
       });
 
-      // Modal modifica
-      const overlay = document.getElementById('modal-modifica-overlay');
-      const modalItemId = document.getElementById('modal-item-id');
-      const modalTipo = document.getElementById('modal-tipo');
-      const modalInizio = document.getElementById('modal-inizio');
-      const modalFine = document.getElementById('modal-fine');
-      const modalMotivazione = document.getElementById('modal-motivazione');
-      const modalCertificatoWrap = document.getElementById('modal-certificato-wrap');
-      const modalCertificato = document.getElementById('modal-certificato');
-      const modalError = document.getElementById('modal-error');
-      const modalSave = document.getElementById('modal-save');
+      const overlay = document.getElementById("modal-modifica-overlay");
+      const modalItemId = document.getElementById("modal-item-id");
+      const modalTipo = document.getElementById("modal-tipo");
+      const modalInizio = document.getElementById("modal-inizio");
+      const modalFine = document.getElementById("modal-fine");
+      const modalMotivazione = document.getElementById("modal-motivazione");
+      const modalCertificatoWrap = document.getElementById("modal-certificato-wrap");
+      const modalCertificato = document.getElementById("modal-certificato");
+      const modalError = document.getElementById("modal-error");
+      const modalSave = document.getElementById("modal-save");
+      const modalCancel = document.getElementById("modal-cancel");
 
       function syncCertificatoVisibility() {
         if (!modalCertificatoWrap) return;
-        modalCertificatoWrap.style.display = modalTipo.value === 'Malattia' ? 'block' : 'none';
+        modalCertificatoWrap.style.display = modalTipo.value === "Malattia" ? "grid" : "none";
       }
 
       function isoToLocal(isoStr) {
-        // Converte "2026-03-01T08:00:00.000Z" → "2026-03-01T09:00" (locale, per datetime-local input)
-        if (!isoStr) return '';
+        if (!isoStr) return "";
         try {
           const d = new Date(isoStr);
-          if (isNaN(d)) return '';
-          const pad = n => String(n).padStart(2, '0');
-          return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
-                 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
-        } catch(e) { return ''; }
+          if (isNaN(d)) return "";
+          const pad = function (n) { return String(n).padStart(2, "0"); };
+          return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
+            "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
+        } catch (e) {
+          return "";
+        }
       }
 
-      document.querySelectorAll('.btn-modifica').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-          modalItemId.value = btn.dataset.id;
-          modalTipo.value = btn.dataset.tipo || 'Ferie';
+      function closeModal() {
+        overlay.classList.remove("open");
+      }
+
+      document.querySelectorAll(".btn-modifica").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          modalItemId.value = btn.dataset.id || "";
+          modalTipo.value = btn.dataset.tipo || "Ferie";
           modalInizio.value = isoToLocal(btn.dataset.inizioIso);
           modalFine.value = isoToLocal(btn.dataset.fineIso);
-          modalMotivazione.value = btn.dataset.motivazione || '';
-          modalCertificato.value = btn.dataset.certificatoMedico || '';
-          syncCertificatoVisibility();
-          modalError.textContent = '';
+          modalMotivazione.value = btn.dataset.motivazione || "";
+          modalCertificato.value = btn.dataset.certificatoMedico || "";
+          modalError.textContent = "";
           modalSave.disabled = false;
-          overlay.classList.add('open');
+          syncCertificatoVisibility();
+          overlay.classList.add("open");
           modalTipo.focus();
         });
       });
 
       if (modalTipo) {
-        modalTipo.addEventListener('change', syncCertificatoVisibility);
+        modalTipo.addEventListener("change", syncCertificatoVisibility);
         syncCertificatoVisibility();
       }
 
-      function closeModal() {
-        overlay.classList.remove('open');
+      if (modalCancel) {
+        modalCancel.addEventListener("click", closeModal);
       }
 
-      document.getElementById('modal-cancel').addEventListener('click', closeModal);
-      overlay.addEventListener('click', function(e) {
-        if (e.target === overlay) closeModal();
-      });
-      document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') closeModal();
+      overlay.addEventListener("click", function (event) {
+        if (event.target === overlay) closeModal();
       });
 
-      modalSave.addEventListener('click', async function() {
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape") closeModal();
+      });
+
+      modalSave.addEventListener("click", async function () {
         const itemId = modalItemId.value;
         if (!itemId) return;
-        modalSave.disabled = true;
-        modalError.textContent = '';
 
-        const inizio = modalInizio.value ? new Date(modalInizio.value).toISOString() : '';
-        const fine = modalFine.value ? new Date(modalFine.value).toISOString() : '';
+        modalSave.disabled = true;
+        modalError.textContent = "";
+
+        const inizio = modalInizio.value ? new Date(modalInizio.value).toISOString() : "";
+        const fine = modalFine.value ? new Date(modalFine.value).toISOString() : "";
 
         try {
-          const result = await postJsonWithCsrfRetry('/assenze/api/mia/' + itemId + '/update', {
+          const result = await postJsonWithCsrfRetry("/assenze/api/mia/" + itemId + "/update", {
             tipo: modalTipo.value,
             inizio: inizio,
             fine: fine,
             motivazione: modalMotivazione.value.trim(),
-            certificato_medico: modalCertificato.value.trim()
+            certificato_medico: modalCertificato.value.trim(),
           });
-          const res = result.res;
-          const data = result.data;
-          if (!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
-
-          closeModal();
-          // Ricarica la pagina per mostrare i dati aggiornati
+          if (!result.res.ok || !result.data.ok) {
+            throw new Error(result.data.error || ("HTTP " + result.res.status));
+          }
           window.location.reload();
         } catch (err) {
-          modalError.textContent = 'Errore: ' + err.message;
+          modalError.textContent = "Errore: " + err.message;
           modalSave.disabled = false;
         }
       });

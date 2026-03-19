@@ -1,225 +1,330 @@
-{% extends "core/base.html" %}
+{% extends "tasks/base_shell.html" %}
 
-{% block title %}{{ page_title }}{% endblock %}
-
-{% block extra_head %}
+{% block tasks_shell_head %}
 <style>
-.ga-wrap { max-width: 1200px; margin: 0 auto; padding: 18px 16px; }
-.ga-header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
-.ga-title { font-size: 22px; font-weight: 800; color: #0f172a; margin: 0; }
-.ga-badge { background: #1f64d8; color: #fff; border-radius: 6px; padding: 3px 9px; font-size: 12px; font-weight: 700; }
-.ga-tabs { display: flex; gap: 4px; border-bottom: 2px solid #e5ecf6; margin-bottom: 18px; }
-.ga-tab { padding: 8px 16px; border-radius: 8px 8px 0 0; text-decoration: none; font-weight: 600; font-size: 13px; color: #5a7296; border: 1px solid transparent; border-bottom: none; }
-.ga-tab:hover { background: #f0f5ff; color: #1f64d8; }
-.ga-tab.active { background: #fff; color: #1f64d8; border-color: #e5ecf6; margin-bottom: -2px; }
-.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 18px; }
-.kpi { background: #fff; border: 1px solid #dbe3f0; border-radius: 11px; padding: 14px; box-shadow: 0 2px 6px rgba(15,23,42,.04); }
-.kpi-label { font-size: 11px; text-transform: uppercase; color: #7e94b2; font-weight: 700; }
-.kpi-val { font-size: 30px; font-weight: 800; color: #0f172a; line-height: 1.1; margin-top: 4px; }
-.kpi-val.danger { color: #dc2626; }
-.card { background: #fff; border: 1px solid #dbe3f0; border-radius: 11px; box-shadow: 0 2px 6px rgba(15,23,42,.04); overflow: hidden; margin-bottom: 14px; }
-.card-head { padding: 10px 14px; border-bottom: 1px solid #e5ecf6; display: flex; justify-content: space-between; align-items: center; }
-.card-title { font-size: 14px; font-weight: 700; color: #0f172a; margin: 0; }
-.card-body { padding: 14px; }
-.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
-.tbl th { padding: 8px 10px; background: #f8fbff; color: #7f95b3; font-size: 11px; text-transform: uppercase; font-weight: 700; border-bottom: 1px solid #e5ecf6; text-align: left; }
-.tbl td { padding: 8px 10px; border-bottom: 1px solid #f0f4fa; vertical-align: middle; }
-.tbl tr:last-child td { border-bottom: none; }
-.tbl tr:hover td { background: #f8fbff; }
-.badge { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 700; }
-.badge-todo { background: #f1f5f9; color: #475569; }
-.badge-in_progress { background: #dbeafe; color: #1e40af; }
-.badge-done { background: #dcfce7; color: #166534; }
-.badge-canceled { background: #f1f5f9; color: #64748b; }
-.badge-high { background: #fee2e2; color: #991b1b; }
-.badge-medium { background: #fef9c3; color: #854d0e; }
-.badge-low { background: #f0fdf4; color: #166534; }
-.btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid transparent; text-decoration: none; }
-.btn-primary { background: #1f64d8; color: #fff; border-color: #1f64d8; }
-.btn-primary:hover { background: #1750b8; }
-.btn-sm { padding: 4px 9px; font-size: 12px; }
-.search-row { display: flex; gap: 8px; margin-bottom: 10px; }
-.search-row input, .search-row select { border: 1px solid #d1d9e8; border-radius: 8px; padding: 7px 12px; font-size: 13px; }
-.search-row input { flex: 1; }
-.pager { display: flex; gap: 6px; align-items: center; justify-content: flex-end; margin-top: 10px; font-size: 12px; color: #6b7280; }
-.pager a { padding: 4px 9px; border: 1px solid #dbe3f0; border-radius: 6px; text-decoration: none; color: #1f64d8; font-weight: 600; }
-.log-row { display: grid; grid-template-columns: 140px 90px 120px 1fr; gap: 8px; padding: 7px 10px; border-bottom: 1px solid #f0f4fa; font-size: 12px; }
-.log-row:last-child { border-bottom: none; }
-.log-head { font-size: 11px; text-transform: uppercase; color: #8fa5c0; font-weight: 700; }
-.section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-@media (max-width: 800px) { .section-grid { grid-template-columns: 1fr; } .kpi-row { grid-template-columns: repeat(2, 1fr); } }
+  .admin-tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .admin-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid #dbe5ef;
+    background: #fff;
+    color: #475569;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  .admin-tab:hover {
+    color: #1d4ed8;
+    border-color: #bfdbfe;
+  }
+
+  .admin-tab.active {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    color: #1d4ed8;
+  }
+
+  .admin-log-grid {
+    display: grid;
+    grid-template-columns: 140px 90px 120px 1fr;
+    gap: 10px;
+  }
+
+  .admin-log-row {
+    display: contents;
+  }
+
+  .admin-log-row > span {
+    padding: 10px 0;
+    border-bottom: 1px solid #eef2f7;
+    font-size: 12px;
+  }
+
+  .admin-log-head > span {
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .admin-search-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: end;
+  }
+
+  .admin-search-row .ts-field {
+    flex: 1;
+    min-width: 180px;
+  }
+
+  @media (max-width: 900px) {
+    .admin-log-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .admin-log-row > span {
+      border-bottom: 0;
+      padding: 0;
+    }
+
+    .admin-log-row {
+      display: grid;
+      gap: 6px;
+      padding: 12px 0;
+      border-bottom: 1px solid #eef2f7;
+    }
+
+    .admin-log-head {
+      display: none;
+    }
+  }
 </style>
 {% endblock %}
 
-{% block content %}
-<div class="ga-wrap">
-  <div class="ga-header">
-    <div class="ga-title">Gestione Tasks</div>
-    <span class="ga-badge">Admin</span>
-  </div>
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">Tasks / Gestione admin</span>{% endblock %}
+{% block tasks_shell_title %}Gestione tasks{% endblock %}
+{% block tasks_shell_subtitle %}Console amministrativa per riepilogo, record e log del modulo tasks.{% endblock %}
+{% block tasks_shell_meta %}
+  <span class="ts-hero-pill">Admin</span>
+  <span class="ts-hero-pill">{{ total_tasks }} task</span>
+  <span class="ts-hero-pill">{{ total_projects }} progetti</span>
+{% endblock %}
+{% block tasks_shell_actions %}
+  <a class="ts-hero-action" href="{% url 'tasks:list' %}">Dashboard task</a>
+  {% if tasks_shell_can_create %}
+    <a class="ts-hero-action primary" href="{% url 'tasks:create' %}">Nuova task</a>
+  {% endif %}
+{% endblock %}
 
-  <div class="ga-tabs">
-    <a href="?tab=riepilogo" class="ga-tab {% if tab == 'riepilogo' %}active{% endif %}">Riepilogo</a>
-    <a href="?tab=record" class="ga-tab {% if tab == 'record' %}active{% endif %}">Record</a>
-    <a href="?tab=log" class="ga-tab {% if tab == 'log' %}active{% endif %}">Log attivit&agrave;</a>
-  </div>
+{% block tasks_shell_kpis %}
+<section class="ts-kpis">
+  <article class="ts-kpi blue"><div class="ts-kpi-label">Task totali</div><div class="ts-kpi-value">{{ total_tasks }}</div><div class="ts-kpi-note">Volume complessivo gestito nel modulo.</div></article>
+  <article class="ts-kpi teal"><div class="ts-kpi-label">Progetti</div><div class="ts-kpi-value">{{ total_projects }}</div><div class="ts-kpi-note">Anagrafiche progetto presenti nel sistema.</div></article>
+  <article class="ts-kpi amber"><div class="ts-kpi-label">In corso</div><div class="ts-kpi-value">{{ in_progress_count }}</div><div class="ts-kpi-note">Task aperte in lavorazione.</div></article>
+  <article class="ts-kpi red"><div class="ts-kpi-label">Scadute</div><div class="ts-kpi-value">{{ tasks_overdue }}</div><div class="ts-kpi-note">Task aperte con data fine oltre la soglia.</div></article>
+</section>
+{% endblock %}
 
-  {# ========== TAB RIEPILOGO ========== #}
+{% block tasks_shell_content %}
+<div class="ts-stack">
+  <section class="ts-panel">
+    <div class="ts-panel-body" style="padding-top:18px;">
+      <div class="admin-tabs">
+        <a href="?tab=riepilogo" class="admin-tab {% if tab == 'riepilogo' %}active{% endif %}">Riepilogo</a>
+        <a href="?tab=record" class="admin-tab {% if tab == 'record' %}active{% endif %}">Record</a>
+        <a href="?tab=log" class="admin-tab {% if tab == 'log' %}active{% endif %}">Log attivita</a>
+      </div>
+    </div>
+  </section>
+
   {% if tab == 'riepilogo' %}
-  <div class="kpi-row">
-    <div class="kpi"><div class="kpi-label">Task totali</div><div class="kpi-val">{{ total_tasks }}</div></div>
-    <div class="kpi"><div class="kpi-label">Progetti</div><div class="kpi-val">{{ total_projects }}</div></div>
-    <div class="kpi"><div class="kpi-label">Da fare</div><div class="kpi-val">{{ todo_count }}</div></div>
-    <div class="kpi"><div class="kpi-label">In corso</div><div class="kpi-val">{{ in_progress_count }}</div></div>
-    <div class="kpi"><div class="kpi-label">Completati</div><div class="kpi-val">{{ done_count }}</div></div>
-    <div class="kpi"><div class="kpi-label">Scaduti</div><div class="kpi-val danger">{{ tasks_overdue }}</div></div>
-  </div>
+    <section class="ts-grid-2">
+      <article class="ts-panel">
+        <div class="ts-panel-head">
+          <div class="ts-panel-title-wrap">
+            <h2 class="ts-panel-title">Distribuzione per stato</h2>
+            <p class="ts-panel-subtitle">Lettura rapida del mix tra backlog aperto, avanzamento e chiusure.</p>
+          </div>
+        </div>
+        <div class="ts-panel-body no-pad">
+          <div class="ts-table-wrap" style="border:0;border-radius:0;">
+            <table class="ts-table" style="min-width:0;">
+              <thead><tr><th>Stato</th><th>Quantita</th></tr></thead>
+              <tbody>
+                {% for val, lbl, cnt in tasks_by_status %}
+                  <tr>
+                    <td><span class="ts-badge ts-badge--{{ val|lower }}">{{ lbl }}</span></td>
+                    <td><strong>{{ cnt }}</strong></td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </article>
 
-  <div class="section-grid">
-    <div class="card">
-      <div class="card-head"><h3 class="card-title">Distribuzione per stato</h3></div>
-      <div class="card-body">
-        <table class="tbl">
-          <thead><tr><th>Stato</th><th>Quantit&agrave;</th></tr></thead>
-          <tbody>
-          {% for val, lbl, cnt in tasks_by_status %}
-            <tr>
-              <td><span class="badge badge-{{ val|lower }}">{{ lbl }}</span></td>
-              <td><strong>{{ cnt }}</strong></td>
-            </tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-head"><h3 class="card-title">Top 10 assegnatari</h3></div>
-      <div class="card-body">
-        <table class="tbl">
-          <thead><tr><th>Utente</th><th>Task</th></tr></thead>
-          <tbody>
-          {% for row in top_assignees %}
-            <tr>
-              <td>{{ row.assigned_to__username }}</td>
-              <td><strong>{{ row.n }}</strong></td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="2" style="color:#9aadcb;text-align:center;">Nessun dato</td></tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
+      <article class="ts-panel">
+        <div class="ts-panel-head">
+          <div class="ts-panel-title-wrap">
+            <h2 class="ts-panel-title">Top 10 assegnatari</h2>
+            <p class="ts-panel-subtitle">Utenti con il maggior numero di task assegnate nel database attuale.</p>
+          </div>
+        </div>
+        <div class="ts-panel-body no-pad">
+          <div class="ts-table-wrap" style="border:0;border-radius:0;">
+            <table class="ts-table" style="min-width:0;">
+              <thead><tr><th>Utente</th><th>Task</th></tr></thead>
+              <tbody>
+                {% for row in top_assignees %}
+                  <tr>
+                    <td>{{ row.assigned_to__username }}</td>
+                    <td><strong>{{ row.n }}</strong></td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="2">Nessun dato disponibile.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </article>
+    </section>
   {% endif %}
 
-  {# ========== TAB RECORD ========== #}
   {% if tab == 'record' %}
-  <div class="card" style="margin-bottom:14px;">
-    <div class="card-head"><h3 class="card-title">Progetti ({{ projects_page.paginator.count }})</h3></div>
-    <div class="card-body">
-      <form method="get" class="search-row">
-        <input type="hidden" name="tab" value="record">
-        <input type="text" name="q_proj" value="{{ q_proj }}" placeholder="Cerca per nome o cliente...">
-        <button type="submit" class="btn btn-primary btn-sm">Cerca</button>
-        {% if q_proj %}<a href="?tab=record" class="btn btn-sm" style="border:1px solid #dbe3f0;">&#10005;</a>{% endif %}
-      </form>
-      <div style="overflow-x:auto;">
-        <table class="tbl">
-          <thead><tr><th>Nome</th><th>Cliente</th><th>PM</th><th>Creato</th><th></th></tr></thead>
-          <tbody>
-          {% for p in projects_page %}
-            <tr>
-              <td>{{ p.name }}</td>
-              <td>{{ p.client_name|default:"—" }}</td>
-              <td>{{ p.project_manager.username|default:"—" }}</td>
-              <td>{{ p.created_at|date:"d/m/Y" }}</td>
-              <td><a href="{% url 'tasks:project_gantt' p.id %}" class="btn btn-sm" style="border:1px solid #dbe3f0;">Gantt</a></td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="5" style="color:#9aadcb;text-align:center;">Nessun progetto</td></tr>
-          {% endfor %}
-          </tbody>
-        </table>
+    <section class="ts-panel">
+      <div class="ts-panel-head">
+        <div class="ts-panel-title-wrap">
+          <h2 class="ts-panel-title">Progetti</h2>
+          <p class="ts-panel-subtitle">{{ projects_page.paginator.count }} record con ricerca per nome o cliente.</p>
+        </div>
       </div>
-      {% if projects_page.has_other_pages %}
-      <div class="pager">
-        Pagina {{ projects_page.number }} di {{ projects_page.paginator.num_pages }}
-        {% if projects_page.has_previous %}<a href="?tab=record&q_proj={{ q_proj }}&proj_page={{ projects_page.previous_page_number }}">&#8592; Prec</a>{% endif %}
-        {% if projects_page.has_next %}<a href="?tab=record&q_proj={{ q_proj }}&proj_page={{ projects_page.next_page_number }}">Succ &#8594;</a>{% endif %}
-      </div>
-      {% endif %}
-    </div>
-  </div>
+      <div class="ts-panel-body">
+        <form method="get" class="admin-search-row">
+          <input type="hidden" name="tab" value="record">
+          <div class="ts-field">
+            <label for="id_q_proj">Cerca progetto</label>
+            <input id="id_q_proj" type="text" name="q_proj" value="{{ q_proj }}" class="input" placeholder="Nome o cliente">
+          </div>
+          <div class="ts-actions">
+            <button type="submit" class="btn btn-sm">Cerca</button>
+            {% if q_proj %}<a href="?tab=record" class="btn btn-secondary btn-sm">Reset</a>{% endif %}
+          </div>
+        </form>
 
-  <div class="card">
-    <div class="card-head"><h3 class="card-title">Task ({{ tasks_page.paginator.count }})</h3></div>
-    <div class="card-body">
-      <form method="get" class="search-row">
-        <input type="hidden" name="tab" value="record">
-        <input type="text" name="q_task" value="{{ q_task }}" placeholder="Cerca per titolo...">
-        <select name="filter_status">
-          <option value="">Tutti gli stati</option>
-          {% for val, lbl in task_status_choices %}
-            <option value="{{ val }}" {% if filter_status == val %}selected{% endif %}>{{ lbl }}</option>
-          {% endfor %}
-        </select>
-        <button type="submit" class="btn btn-primary btn-sm">Cerca</button>
-      </form>
-      <div style="overflow-x:auto;">
-        <table class="tbl">
-          <thead><tr><th>Titolo</th><th>Progetto</th><th>Stato</th><th>Priorit&agrave;</th><th>Assegnato a</th><th>Scadenza</th><th></th></tr></thead>
-          <tbody>
-          {% for t in tasks_page %}
-            <tr>
-              <td>{{ t.title }}</td>
-              <td>{{ t.project.name|default:"—" }}</td>
-              <td><span class="badge badge-{{ t.status|lower }}">{{ t.get_status_display }}</span></td>
-              <td><span class="badge badge-{{ t.priority|lower }}">{{ t.get_priority_display }}</span></td>
-              <td>{{ t.assigned_to.username|default:"—" }}</td>
-              <td>{% if t.due_date %}{{ t.due_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
-              <td><a href="{% url 'tasks:detail' t.id %}" class="btn btn-sm" style="border:1px solid #dbe3f0;">Apri</a></td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="7" style="color:#9aadcb;text-align:center;">Nessun task trovato</td></tr>
-          {% endfor %}
-          </tbody>
-        </table>
+        <div class="ts-table-wrap">
+          <table class="ts-table">
+            <thead><tr><th>Nome</th><th>Cliente</th><th>PM</th><th>Creato</th><th></th></tr></thead>
+            <tbody>
+              {% for p in projects_page %}
+                <tr>
+                  <td>{{ p.name }}</td>
+                  <td>{{ p.client_name|default:"-" }}</td>
+                  <td>{{ p.project_manager.username|default:"-" }}</td>
+                  <td>{{ p.created_at|date:"d/m/Y" }}</td>
+                  <td><a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_gantt' p.id %}">Gantt</a></td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="5">Nessun progetto trovato.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {% if projects_page.has_other_pages %}
+          <div class="ts-panel-footer">
+            <span class="ts-chip soft">Pagina {{ projects_page.number }} di {{ projects_page.paginator.num_pages }}</span>
+            {% if projects_page.has_previous %}<a class="btn btn-secondary btn-sm" href="?tab=record&q_proj={{ q_proj }}&proj_page={{ projects_page.previous_page_number }}">Prec</a>{% endif %}
+            {% if projects_page.has_next %}<a class="btn btn-secondary btn-sm" href="?tab=record&q_proj={{ q_proj }}&proj_page={{ projects_page.next_page_number }}">Succ</a>{% endif %}
+          </div>
+        {% endif %}
       </div>
-      {% if tasks_page.has_other_pages %}
-      <div class="pager">
-        Pagina {{ tasks_page.number }} di {{ tasks_page.paginator.num_pages }}
-        {% if tasks_page.has_previous %}<a href="?tab=record&q_task={{ q_task }}&filter_status={{ filter_status }}&task_page={{ tasks_page.previous_page_number }}">&#8592; Prec</a>{% endif %}
-        {% if tasks_page.has_next %}<a href="?tab=record&q_task={{ q_task }}&filter_status={{ filter_status }}&task_page={{ tasks_page.next_page_number }}">Succ &#8594;</a>{% endif %}
+    </section>
+
+    <section class="ts-panel">
+      <div class="ts-panel-head">
+        <div class="ts-panel-title-wrap">
+          <h2 class="ts-panel-title">Task</h2>
+          <p class="ts-panel-subtitle">{{ tasks_page.paginator.count }} record filtrabili per titolo e stato.</p>
+        </div>
       </div>
-      {% endif %}
-    </div>
-  </div>
+      <div class="ts-panel-body">
+        <form method="get" class="admin-search-row">
+          <input type="hidden" name="tab" value="record">
+          <div class="ts-field">
+            <label for="id_q_task">Cerca task</label>
+            <input id="id_q_task" type="text" name="q_task" value="{{ q_task }}" class="input" placeholder="Titolo task">
+          </div>
+          <div class="ts-field">
+            <label for="id_filter_status">Stato</label>
+            <select id="id_filter_status" name="filter_status" class="input">
+              <option value="">Tutti gli stati</option>
+              {% for val, lbl in task_status_choices %}
+                <option value="{{ val }}" {% if filter_status == val %}selected{% endif %}>{{ lbl }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="ts-actions">
+            <button type="submit" class="btn btn-sm">Cerca</button>
+          </div>
+        </form>
+
+        <div class="ts-table-wrap">
+          <table class="ts-table">
+            <thead><tr><th>Titolo</th><th>Progetto</th><th>Stato</th><th>Priorita</th><th>Assegnato a</th><th>Scadenza</th><th></th></tr></thead>
+            <tbody>
+              {% for t in tasks_page %}
+                <tr>
+                  <td>{{ t.title }}</td>
+                  <td>{{ t.project.name|default:"-" }}</td>
+                  <td><span class="ts-badge ts-badge--{{ t.status|lower }}">{{ t.get_status_display }}</span></td>
+                  <td><span class="ts-badge ts-badge--{{ t.priority|lower }}">{{ t.get_priority_display }}</span></td>
+                  <td>{{ t.assigned_to.username|default:"-" }}</td>
+                  <td>{% if t.due_date %}{{ t.due_date|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+                  <td><a class="btn btn-secondary btn-sm" href="{% url 'tasks:detail' t.id %}">Apri</a></td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="7">Nessun task trovato.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {% if tasks_page.has_other_pages %}
+          <div class="ts-panel-footer">
+            <span class="ts-chip soft">Pagina {{ tasks_page.number }} di {{ tasks_page.paginator.num_pages }}</span>
+            {% if tasks_page.has_previous %}<a class="btn btn-secondary btn-sm" href="?tab=record&q_task={{ q_task }}&filter_status={{ filter_status }}&task_page={{ tasks_page.previous_page_number }}">Prec</a>{% endif %}
+            {% if tasks_page.has_next %}<a class="btn btn-secondary btn-sm" href="?tab=record&q_task={{ q_task }}&filter_status={{ filter_status }}&task_page={{ tasks_page.next_page_number }}">Succ</a>{% endif %}
+          </div>
+        {% endif %}
+      </div>
+    </section>
   {% endif %}
 
-  {# ========== TAB LOG ========== #}
   {% if tab == 'log' %}
-  <div class="card">
-    <div class="card-head"><h3 class="card-title">Log attivit&agrave; Tasks (ultime 100)</h3></div>
-    <div class="card-body">
-      {% if audit_entries %}
-      <div class="log-row log-head">
-        <span>Data/ora</span><span>Utente</span><span>Azione</span><span>Dettaglio</span>
+    <section class="ts-panel">
+      <div class="ts-panel-head">
+        <div class="ts-panel-title-wrap">
+          <h2 class="ts-panel-title">Log attivita tasks</h2>
+          <p class="ts-panel-subtitle">Ultime 100 voci di audit per il modulo.</p>
+        </div>
       </div>
-      {% for entry in audit_entries %}
-      <div class="log-row">
-        <span>{{ entry.created_at|date:"d/m/Y H:i" }}</span>
-        <span>{{ entry.utente_display|default:"—" }}</span>
-        <span>{{ entry.azione }}</span>
-        <span style="color:#64748b;font-size:11px;">{{ entry.dettaglio }}</span>
+      <div class="ts-panel-body">
+        {% if audit_entries %}
+          <div class="admin-log-grid">
+            <div class="admin-log-row admin-log-head">
+              <span>Data/ora</span><span>Utente</span><span>Azione</span><span>Dettaglio</span>
+            </div>
+            {% for entry in audit_entries %}
+              <div class="admin-log-row">
+                <span>{{ entry.created_at|date:"d/m/Y H:i" }}</span>
+                <span>{{ entry.utente_display|default:"-" }}</span>
+                <span>{{ entry.azione }}</span>
+                <span style="color:#64748b;">{{ entry.dettaglio }}</span>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="ts-empty">
+            <strong>Nessuna voce di log disponibile.</strong>
+            <div>Il log si popola automaticamente quando vengono registrate azioni sul modulo.</div>
+          </div>
+        {% endif %}
       </div>
-      {% endfor %}
-      {% else %}
-      <p style="color:#9aadcb;text-align:center;padding:20px 0;">Nessuna voce di log per questo modulo.</p>
-      {% endif %}
-    </div>
-  </div>
+    </section>
   {% endif %}
-
 </div>
 {% endblock %}

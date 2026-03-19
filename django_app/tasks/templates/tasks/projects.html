@@ -1,79 +1,80 @@
-{% extends "core/base.html" %}
+{% extends "tasks/base_shell.html" %}
 
-{% block title %}Progetti Task - Portale Applicativo{% endblock %}
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">Tasks / Progetti</span>{% endblock %}
 
-{% block subnav %}
-<nav class="subnav">
-  <a class="sub-a" href="{% url 'tasks:list' %}">Dashboard</a>
-  <a class="sub-a active" href="{% url 'tasks:project_list' %}">Progetti</a>
-  <a class="sub-a" href="{% url 'tasks:list' %}?status=IN_PROGRESS">In corso</a>
-  <a class="sub-a" href="{% url 'tasks:list' %}?overdue=on">Overdue</a>
-  <span class="sub-sep"></span>
-  <a class="sub-a" href="{% url 'tasks:create' %}">Nuova task</a>
-</nav>
+{% block tasks_shell_title %}Vista progetti{% endblock %}
+
+{% block tasks_shell_subtitle %}
+  Elenco dei progetti visibili nel tuo scope con accesso diretto al diagramma Gantt e al backlog delle task collegate.
 {% endblock %}
 
-{% block extra_head %}
-<style>
-.project-grid { display:grid; gap:12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.project-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow); padding:14px; display:grid; gap:10px; }
-.project-title { font-weight:800; font-size:16px; color:var(--text); }
-.project-meta { display:flex; gap:8px; flex-wrap:wrap; font-size:12px; color:var(--text-mid); }
-.project-actions { display:flex; gap:8px; flex-wrap:wrap; }
-@media (max-width: 1100px) {
-  .project-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 700px) {
-  .project-grid { grid-template-columns: 1fr; }
-}
-</style>
+{% block tasks_shell_meta %}
+  <span class="ts-hero-pill">{{ projects|length }} progetti</span>
+  <span class="ts-hero-pill">{% if is_scope_admin %}Scope completo{% else %}Scope personale{% endif %}</span>
 {% endblock %}
 
-{% block content %}
-<div class="page-header">
-  <div class="page-header-main">
-    <h1 class="page-h">Progetti</h1>
-    <div class="page-sub">
-      Diagramma Gantt disponibile per tutti gli utenti con accesso task in scope.
-      {% if is_scope_admin %} Scope completo attivo.{% endif %}
+{% block tasks_shell_actions %}
+  <a class="ts-hero-action" href="{% url 'tasks:list' %}">Dashboard task</a>
+  {% if tasks_shell_can_create %}
+    <a class="ts-hero-action primary" href="{% url 'tasks:create' %}">Nuova task</a>
+  {% endif %}
+{% endblock %}
+
+{% block tasks_shell_content %}
+<section class="ts-panel">
+  <div class="ts-panel-head">
+    <div class="ts-panel-title-wrap">
+      <h2 class="ts-panel-title">Portfolio progetti</h2>
+      <p class="ts-panel-subtitle">Ogni card sintetizza volume task, stato di avanzamento e principali riferimenti del progetto.</p>
+    </div>
+    <div class="ts-panel-meta">
+      <a class="ts-chip soft" href="{% url 'tasks:list' %}?status=IN_PROGRESS">Task in corso</a>
+      <a class="ts-chip soft" href="{% url 'tasks:list' %}?overdue=on">Task overdue</a>
     </div>
   </div>
-  <div class="page-header-actions">
-    <a href="{% url 'tasks:list' %}" class="btn btn-secondary">Vai a task</a>
-  </div>
-</div>
-
-{% if projects %}
-  <section class="project-grid">
-    {% for project in projects %}
-      <article class="project-card">
-        <div class="project-title">{{ project.name }}</div>
-        {% if project.description %}
-          <div style="font-size:13px;color:var(--text-mid);">{{ project.description|truncatechars:140 }}</div>
+  <div class="ts-panel-body">
+    {% if projects %}
+      <div class="ts-card-grid">
+        {% for project in projects %}
+          <article class="ts-card">
+            <a class="ts-card-link" href="{% url 'tasks:project_gantt' project.id %}">
+              <h3 class="ts-card-title">{{ project.name }}</h3>
+            </a>
+            {% if project.description %}
+              <div class="ts-card-text" style="margin-top:8px;">{{ project.description|truncatechars:160 }}</div>
+            {% endif %}
+            <div class="ts-card-meta" style="margin-top:12px;">
+              <span class="ts-chip soft">Task totali: {{ project.task_total }}</span>
+              <span class="ts-chip info">Aperte: {{ project.task_open }}</span>
+              <span class="ts-chip ok">Chiuse: {{ project.task_done }}</span>
+            </div>
+            <div class="ts-card-meta" style="margin-top:10px;">
+              <span>Owner: {{ project.created_by.get_full_name|default:project.created_by.username }}</span>
+              {% if project.client_name %}<span>Cliente: {{ project.client_name }}</span>{% endif %}
+              {% if project.project_manager %}<span>PM: {{ project.project_manager.get_full_name|default:project.project_manager.username }}</span>{% endif %}
+              {% if project.capo_commessa %}<span>Capocommessa: {{ project.capo_commessa.get_full_name|default:project.capo_commessa.username }}</span>{% endif %}
+              {% if project.programmer %}<span>Programmatore: {{ project.programmer.get_full_name|default:project.programmer.username }}</span>{% endif %}
+              {% if project.part_number %}<span>P/N: {{ project.part_number }}</span>{% endif %}
+              {% if project.control_method %}<span>Controllo: {{ project.control_method }}</span>{% endif %}
+            </div>
+            <div class="ts-actions" style="margin-top:14px;">
+              <a class="btn btn-sm" href="{% url 'tasks:project_gantt' project.id %}">Apri Gantt</a>
+              <a class="btn btn-secondary btn-sm" href="{% url 'tasks:list' %}?project={{ project.id }}">Vedi task</a>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="ts-empty">
+        <strong>Nessun progetto disponibile nel tuo scope.</strong>
+        <div>Puoi iniziare creando una task collegata a un nuovo progetto oppure lavorare su task singole.</div>
+        {% if tasks_shell_can_create %}
+          <div class="ts-actions">
+            <a class="btn btn-sm" href="{% url 'tasks:create' %}">Crea task di progetto</a>
+          </div>
         {% endif %}
-        <div class="project-meta">
-          <span>Task totali: {{ project.task_total }}</span>
-          <span>Aperte: {{ project.task_open }}</span>
-          <span>Chiuse: {{ project.task_done }}</span>
-          <span>Owner: {{ project.created_by.get_full_name|default:project.created_by.username }}</span>
-          {% if project.client_name %}<span>Cliente: {{ project.client_name }}</span>{% endif %}
-          {% if project.project_manager %}<span>PM: {{ project.project_manager.get_full_name|default:project.project_manager.username }}</span>{% endif %}
-          {% if project.capo_commessa %}<span>Capocommessa: {{ project.capo_commessa.get_full_name|default:project.capo_commessa.username }}</span>{% endif %}
-          {% if project.programmer %}<span>Programmatore: {{ project.programmer.get_full_name|default:project.programmer.username }}</span>{% endif %}
-          {% if project.part_number %}<span>P/N: {{ project.part_number }}</span>{% endif %}
-          {% if project.control_method %}<span>Controllo: {{ project.control_method }}</span>{% endif %}
-        </div>
-        <div class="project-actions">
-          <a class="btn btn-sm" href="{% url 'tasks:project_gantt' project.id %}">Apri Gantt</a>
-          <a class="btn btn-secondary btn-sm" href="{% url 'tasks:list' %}?project={{ project.id }}">Vedi task</a>
-        </div>
-      </article>
-    {% endfor %}
-  </section>
-{% else %}
-  <div class="task-empty">
-    <div style="font-weight:700;margin-bottom:6px;">Nessun progetto disponibile nel tuo scope.</div>
-    <a class="btn btn-sm" href="{% url 'tasks:create' %}">Crea task in progetto</a>
+      </div>
+    {% endif %}
   </div>
-{% endif %}
+</section>
 {% endblock %}

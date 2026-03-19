@@ -147,16 +147,16 @@
 
   <div class="card pref-card" id="sidebar-footer-card" data-pref-sidebar="1"{% if current.nav_mode != 'side' %} hidden{% endif %}>
     <div class="card-head">
-      <div class="card-title">Icone rapide nel footer</div>
+      <div class="card-title">Scorciatoie operative nel footer</div>
     </div>
     <div class="card-body ui-prefs-grid">
-      <div class="page-sub">Scegli quali scorciatoie mostrare in basso nella sidebar e in quale ordine.</div>
+      <div class="page-sub">Scegli quali scorciatoie mostrare in basso nella sidebar. Profilo e Preferenze restano nel pannello utente, mentre Esci resta come azione dedicata.</div>
       <input type="hidden" name="sidebar_footer_actions" id="sidebar-footer-actions-input" value="{{ current.sidebar_footer_actions|join:',' }}">
 
       <div class="ui-footer-builder" id="sidebar-footer-builder">
         <section class="ui-footer-panel">
           <div>
-            <div class="ui-footer-panel-title">Attive nella sidebar</div>
+            <div class="ui-footer-panel-title">Attive nel footer</div>
             <div class="ui-footer-panel-sub">Puoi spostarle, rimuoverle o ripristinare l'ordine standard.</div>
           </div>
           <div class="ui-footer-toolbar">
@@ -168,7 +168,7 @@
         <section class="ui-footer-panel">
           <div>
             <div class="ui-footer-panel-title">Disponibili</div>
-            <div class="ui-footer-panel-sub">Aggiungi altre azioni rapide nel footer della sidebar.</div>
+            <div class="ui-footer-panel-sub">Aggiungi altre scorciatoie operative nel footer della sidebar.</div>
           </div>
           <div class="ui-footer-list" id="sidebar-footer-available"></div>
         </section>
@@ -272,7 +272,7 @@
     if (!selectedFooterKeys.length) {
       var emptySelected = document.createElement('div');
       emptySelected.className = 'ui-footer-empty';
-      emptySelected.textContent = 'Nessuna scorciatoia attiva. Puoi aggiungerle dal pannello a destra.';
+      emptySelected.textContent = 'Nessuna scorciatoia attiva. Il pannello utente resta comunque sempre disponibile in basso.';
       footerSelected.appendChild(emptySelected);
     } else {
       selectedFooterKeys.forEach(function (key, index) {

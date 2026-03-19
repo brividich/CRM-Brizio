@@ -1,8 +1,8 @@
-﻿{% extends "core/base.html" %}
+{% extends "assenze/base_shell.html" %}
 
 {% block title %}Calendario Assenze | Portale Applicativo{% endblock %}
 
-{% block extra_head %}
+{% block assenze_shell_head %}
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.17/index.global.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.17/locales-all.global.min.js"></script>
   <style>
@@ -13,7 +13,7 @@
       gap: 14px;
       align-items: start;
     }
-    .calendar-shell { padding: 8px; }
+    .calendar-shell .abs-panel-body { padding: 8px; }
     .calendar-side {
       display: grid;
       gap: 12px;
@@ -23,19 +23,19 @@
       overflow: auto;
       padding-bottom: 4px;
     }
-    .day-agenda .card-body {
+    .day-agenda .abs-panel-body {
       max-height: 45vh;
       overflow: auto;
-      padding-top: 8px;
-      padding-bottom: 8px;
+      padding-top: 12px;
+      padding-bottom: 12px;
     }
     .agenda-list { display: grid; gap: 8px; }
     .agenda-item {
       width: 100%;
       text-align: left;
-      border: 1px solid var(--border);
+      border: 1px solid #dbe5ef;
       border-left-width: 4px;
-      border-radius: 10px;
+      border-radius: 12px;
       padding: 10px 10px 10px 12px;
       background: #f8fafc;
       cursor: pointer;
@@ -48,50 +48,29 @@
       gap: 8px;
       margin-bottom: 5px;
     }
-    .agenda-name { font-size: 13px; font-weight: 700; color: var(--text); }
-    .agenda-time { font-size: 11px; color: var(--text-mid); margin-bottom: 2px; }
-    .agenda-meta { font-size: 11px; color: var(--text-mid); }
-    .agenda-empty {
-      color: var(--text-light);
-      font-size: 12px;
-      padding: 12px 4px;
-    }
-    .color-grid {
-      display: grid;
-      gap: 8px;
-    }
+    .agenda-name { font-size: 13px; font-weight: 800; color: #0f172a; }
+    .agenda-time { font-size: 11px; color: #64748b; margin-bottom: 2px; }
+    .agenda-meta { font-size: 11px; color: #64748b; }
+    .agenda-empty { color: #64748b; font-size: 12px; padding: 4px 2px; }
+    .color-grid { display: grid; gap: 8px; }
     .color-row {
       display: grid;
       grid-template-columns: 1fr 58px;
       gap: 8px;
       align-items: center;
     }
-    .color-row label {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text-mid);
-    }
+    .color-row label { font-size: 12px; font-weight: 700; color: #475569; }
     .color-row input[type="color"] {
       width: 58px;
       height: 30px;
-      border: 1px solid var(--border);
+      border: 1px solid #d7e3ea;
       border-radius: 8px;
       background: #fff;
       padding: 2px;
       cursor: pointer;
     }
-    .color-actions {
-      display: flex;
-      gap: 8px;
-      margin-top: 10px;
-      flex-wrap: wrap;
-    }
-    .color-status {
-      font-size: 11px;
-      color: var(--text-light);
-      min-height: 14px;
-      margin-top: 6px;
-    }
+    .color-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .color-status { font-size: 11px; color: #64748b; min-height: 14px; margin-top: 6px; }
     .event-modal-backdrop {
       position: fixed;
       inset: 0;
@@ -108,8 +87,8 @@
       max-height: 92vh;
       overflow: auto;
       background: #fff;
-      border-radius: 14px;
-      border: 1px solid var(--border);
+      border-radius: 16px;
+      border: 1px solid #dbe5ef;
       box-shadow: 0 24px 60px rgba(15, 23, 42, 0.3);
     }
     .event-modal-head {
@@ -117,11 +96,11 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid #e5edf5;
     }
-    .event-modal-title { font-size: 18px; font-weight: 800; color: var(--text); }
+    .event-modal-title { font-size: 18px; font-weight: 900; color: #0f172a; }
     .event-modal-close {
-      border: 1px solid var(--border);
+      border: 1px solid #d7e3ea;
       background: #fff;
       border-radius: 8px;
       width: 32px;
@@ -129,18 +108,18 @@
       cursor: pointer;
       font-size: 18px;
       line-height: 1;
-      color: var(--text-mid);
+      color: #64748b;
     }
     .event-modal-body { padding: 14px 16px; display: grid; gap: 12px; }
     .event-summary {
       display: grid;
       gap: 8px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
+      border: 1px solid #dbe5ef;
+      border-radius: 12px;
       background: #f8fafc;
       padding: 10px 12px;
     }
-    .event-summary-row { font-size: 13px; color: var(--text); }
+    .event-summary-row { font-size: 13px; color: #0f172a; }
     .event-summary-row strong { color: #0f172a; }
     .event-edit-grid {
       display: grid;
@@ -152,36 +131,33 @@
       display: grid;
       gap: 6px;
       font-size: 12px;
-      font-weight: 600;
-      color: var(--text-mid);
+      font-weight: 700;
+      color: #475569;
     }
     .event-edit-grid input,
     .event-edit-grid select,
     .event-edit-grid textarea {
       width: 100%;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px 9px;
-      font-family: 'Outfit', sans-serif;
+      border: 1px solid #d7e3ea;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-family: "Outfit", sans-serif;
       font-size: 13px;
       background: #fff;
-      color: var(--text);
+      color: #0f172a;
+      box-sizing: border-box;
     }
     .event-edit-grid textarea { min-height: 78px; resize: vertical; }
     .event-modal-foot {
-      padding: 12px 16px 14px 16px;
-      border-top: 1px solid var(--border);
+      padding: 12px 16px 14px;
+      border-top: 1px solid #e5edf5;
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 8px;
       flex-wrap: wrap;
     }
-    .event-modal-actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
+    .event-modal-actions { display: flex; gap: 8px; flex-wrap: wrap; }
     .status-chip {
       display: inline-flex;
       padding: 2px 8px;
@@ -211,7 +187,7 @@
       --fc-button-active-text-color: #ffffff;
       --fc-event-border-color: transparent;
       --fc-small-font-size: .78rem;
-      font-family: 'Outfit', sans-serif;
+      font-family: "Outfit", sans-serif;
     }
     .fc .fc-toolbar.fc-header-toolbar { padding: 6px 8px 10px 8px; margin-bottom: 8px; }
     .fc .fc-toolbar-title {
@@ -266,7 +242,7 @@
     @media (max-width: 1180px) {
       .calendar-layout { grid-template-columns: 1fr; }
       .calendar-side { position: static; max-height: none; }
-      .day-agenda .card-body { max-height: none; }
+      .day-agenda .abs-panel-body { max-height: none; }
     }
     @media (max-width: 700px) {
       .event-edit-grid { grid-template-columns: 1fr; }
@@ -274,35 +250,54 @@
   </style>
 {% endblock %}
 
-{% block subnav %}
-  {% include "assenze/components/subnav.html" %}
-{% endblock %}
-
-{% block content %}
-  <div class="page-header">
-    <div class="page-h">Calendario assenze</div>
-    <div class="page-sub">Clicca un evento per riepilogo, modifica o eliminazione record.</div>
-  </div>
+{% block assenze_shell_content %}
+  <section class="abs-hero">
+    <div class="abs-hero-copy">
+      <span class="abs-eyebrow">Calendario</span>
+      <h1>Calendario assenze</h1>
+      <p>Consulta mese, settimana o agenda, apri il dettaglio di un evento e gestisci colori o operazioni rapide senza uscire dalla vista calendario.</p>
+      <div class="abs-hero-meta">
+        <span class="abs-hero-pill">Vista mensile, settimanale e agenda</span>
+        {% if assenze_can_edit_events %}
+          <span class="abs-hero-pill">Modifica eventi abilitata</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="abs-hero-actions">
+      <a href="{% url 'assenze_gestione' %}" class="abs-hero-action">Le mie richieste</a>
+      <a href="{% url 'assenze_menu' %}" class="abs-hero-action">Menu modulo</a>
+    </div>
+  </section>
 
   <div class="calendar-layout">
-    <section class="card calendar-shell">
-      <div id="assenzeCalendar"></div>
+    <section class="abs-panel calendar-shell">
+      <div class="abs-panel-body">
+        <div id="assenzeCalendar"></div>
+      </div>
     </section>
 
     <aside class="calendar-side">
-      <section class="card day-agenda">
-        <div class="card-head">
-          <div class="card-title" id="agendaDateLabel">Oggi</div>
+      <section class="abs-panel day-agenda">
+        <div class="abs-panel-head">
+          <div class="abs-panel-title-wrap">
+            <h2 class="abs-panel-title" id="agendaDateLabel">Oggi</h2>
+            <p class="abs-panel-subtitle">Agenda del giorno selezionato.</p>
+          </div>
         </div>
-        <div class="card-body">
+        <div class="abs-panel-body">
           <div class="agenda-empty" id="agendaEmpty">Nessuna assenza nel giorno selezionato.</div>
           <div class="agenda-list" id="agendaList"></div>
         </div>
       </section>
 
-      <section class="card">
-        <div class="card-head"><div class="card-title">Colori calendario</div></div>
-        <div class="card-body">
+      <section class="abs-panel">
+        <div class="abs-panel-head">
+          <div class="abs-panel-title-wrap">
+            <h2 class="abs-panel-title">Colori calendario</h2>
+            <p class="abs-panel-subtitle">Personalizza la palette per tipo e stato.</p>
+          </div>
+        </div>
+        <div class="abs-panel-body">
           <div class="color-grid" id="colorGrid"></div>
           <div class="color-actions">
             <button class="btn btn-sm" type="button" id="saveColorsBtn">Salva colori</button>
@@ -337,7 +332,7 @@
               <option>Ferie</option>
               <option>Permesso</option>
               <option>Malattia</option>
-              <option>Flessibilità</option>
+              <option>Flessibilita</option>
               <option>Altro</option>
             </select>
           </label>
@@ -378,9 +373,14 @@
   </div>
 
   <noscript>
-    <div class="card" style="margin-top:14px;">
-      <div class="card-head"><div class="card-title">Preview eventi (ultimi 50)</div></div>
-      <div class="card-body">
+    <div class="abs-panel">
+      <div class="abs-panel-head">
+        <div class="abs-panel-title-wrap">
+          <h2 class="abs-panel-title">Preview eventi</h2>
+          <p class="abs-panel-subtitle">Fallback senza JavaScript, basato sugli ultimi 50 eventi disponibili.</p>
+        </div>
+      </div>
+      <div class="abs-panel-body">
         {% for e in eventi_preview %}
           <div class="activity-item">
             <div class="act-dot{% if e.consenso == 'Approvato' %} green{% elif e.consenso == 'Rifiutato' %}{% else %} blue{% endif %}"></div>
@@ -397,7 +397,7 @@
   </noscript>
 {% endblock %}
 
-{% block extra_scripts %}
+{% block assenze_shell_scripts %}
   <script>
     (function() {
       const endpoints = {
@@ -446,7 +446,7 @@
         { key: "tipo_ferie", label: "Ferie" },
         { key: "tipo_permesso", label: "Permesso" },
         { key: "tipo_malattia", label: "Malattia" },
-        { key: "tipo_infortunio", label: "Flessibilità" },
+        { key: "tipo_infortunio", label: "Flessibilita" },
         { key: "tipo_altro", label: "Altro" },
         { key: "stato_in_attesa", label: "Stato: In attesa" },
         { key: "stato_rifiutato", label: "Stato: Rifiutato" },
@@ -487,9 +487,9 @@
 
       function uidForEvent(item, idx) {
         if (item.id !== null && item.id !== undefined && String(item.id).trim() !== "") {
-          return `id:${item.id}`;
+          return "id:" + item.id;
         }
-        return `tmp:${idx}:${item.start || ""}:${item.title || ""}`;
+        return "tmp:" + idx + ":" + (item.start || "") + ":" + (item.title || "");
       }
 
       function statusClass(raw) {
@@ -513,16 +513,16 @@
         const start = parseDate(item.start);
         const end = parseDate(item.end);
         if (!start && !end) return "-";
-        if (start && end) return `${dateFmt.format(start)} ${timeFmt.format(start)} - ${dateFmt.format(end)} ${timeFmt.format(end)}`;
+        if (start && end) return dateFmt.format(start) + " " + timeFmt.format(start) + " - " + dateFmt.format(end) + " " + timeFmt.format(end);
         const d = start || end;
-        return `${dateFmt.format(d)} ${timeFmt.format(d)}`;
+        return dateFmt.format(d) + " " + timeFmt.format(d);
       }
 
       function toLocalInputValue(value) {
         const d = parseDate(value);
         if (!d) return "";
-        const p = (n) => String(n).padStart(2, "0");
-        return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+        const p = function(n) { return String(n).padStart(2, "0"); };
+        return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "T" + p(d.getHours()) + ":" + p(d.getMinutes());
       }
 
       function showColorStatus(text, isError) {
@@ -531,17 +531,14 @@
       }
 
       function renderColorInputs() {
-        colorGridEl.innerHTML = colorDefs.map((item) => `
-          <div class="color-row">
-            <label for="clr_${item.key}">${item.label}</label>
-            <input type="color" id="clr_${item.key}" data-color-key="${item.key}" value="${escapeHtml(state.colors[item.key] || "#999999")}">
-          </div>
-        `).join("");
+        colorGridEl.innerHTML = colorDefs.map(function(item) {
+          return '<div class="color-row"><label for="clr_' + item.key + '">' + item.label + '</label><input type="color" id="clr_' + item.key + '" data-color-key="' + item.key + '" value="' + escapeHtml(state.colors[item.key] || "#999999") + '"></div>';
+        }).join("");
       }
 
       async function loadColors() {
         const resp = await fetch(endpoints.colors, { credentials: "same-origin" });
-        if (!resp.ok) throw new Error(`Impossibile caricare colori (${resp.status})`);
+        if (!resp.ok) throw new Error("Impossibile caricare colori (" + resp.status + ")");
         const payload = await resp.json();
         state.colors = Object.assign({}, payload.colors || {});
         state.defaultColors = Object.assign({}, payload.defaults || {});
@@ -550,7 +547,7 @@
 
       async function saveColors() {
         const colors = {};
-        colorGridEl.querySelectorAll("input[data-color-key]").forEach((input) => {
+        colorGridEl.querySelectorAll("input[data-color-key]").forEach(function(input) {
           colors[input.dataset.colorKey] = input.value;
         });
         showColorStatus("Salvataggio...", false);
@@ -561,7 +558,7 @@
             "Content-Type": "application/json",
             "X-CSRFToken": getCookie("csrftoken")
           },
-          body: JSON.stringify({ colors })
+          body: JSON.stringify({ colors: colors })
         });
         const payload = await resp.json();
         if (!resp.ok || !payload.ok) throw new Error(payload.error || "Errore salvataggio colori.");
@@ -573,8 +570,8 @@
 
       function dayEvents(date) {
         return state.events
-          .filter((item) => inDay(item, date))
-          .sort((a, b) => {
+          .filter(function(item) { return inDay(item, date); })
+          .sort(function(a, b) {
             const as = parseDate(a.start);
             const bs = parseDate(b.start);
             return (as ? as.getTime() : 0) - (bs ? bs.getTime() : 0);
@@ -591,21 +588,15 @@
           return;
         }
         agendaEmptyEl.style.display = "none";
-        agendaListEl.innerHTML = rows.map((item) => {
+        agendaListEl.innerHTML = rows.map(function(item) {
           const tipo = item.extendedProps.tipo || "Altro";
           const consenso = item.extendedProps.consenso || "N/D";
           const capo = item.extendedProps.capo || "";
           const uid = item.extendedProps.uid || "";
-          return `
-            <button type="button" class="agenda-item" data-event-uid="${escapeHtml(uid)}" style="border-left-color:${escapeHtml(item.color || "#94a3b8")};">
-              <div class="agenda-head">
-                <div class="agenda-name">${escapeHtml(item.title || "N/D")}</div>
-                <span class="status-chip ${statusClass(consenso)}">${escapeHtml(consenso)}</span>
-              </div>
-              <div class="agenda-time">${escapeHtml(formatRange(item))}</div>
-              <div class="agenda-meta">${escapeHtml(tipo)}${capo ? ` Â· Capo: ${escapeHtml(capo)}` : ""}</div>
-            </button>
-          `;
+          return '<button type="button" class="agenda-item" data-event-uid="' + escapeHtml(uid) + '" style="border-left-color:' + escapeHtml(item.color || "#94a3b8") + ';">' +
+            '<div class="agenda-head"><div class="agenda-name">' + escapeHtml(item.title || "N/D") + '</div><span class="status-chip ' + statusClass(consenso) + '">' + escapeHtml(consenso) + '</span></div>' +
+            '<div class="agenda-time">' + escapeHtml(formatRange(item)) + '</div>' +
+            '<div class="agenda-meta">' + escapeHtml(tipo) + (capo ? " - Capo: " + escapeHtml(capo) : "") + '</div></button>';
         }).join("");
       }
 
@@ -639,11 +630,11 @@
         deleteEventBtn.style.display = canDeleteEvents ? "" : "none";
         saveEventBtn.disabled = !(canEditEvents && hasRecordId);
         deleteEventBtn.disabled = !(canDeleteEvents && hasRecordId);
-        document.querySelectorAll(".event-edit-grid input, .event-edit-grid select, .event-edit-grid textarea").forEach((el) => {
+        document.querySelectorAll(".event-edit-grid input, .event-edit-grid select, .event-edit-grid textarea").forEach(function(el) {
           el.disabled = !canEditEvents;
         });
         if (!canEditEvents && !canDeleteEvents) {
-          modalMessageEl.textContent = "Modalità sola lettura.";
+          modalMessageEl.textContent = "Modalita sola lettura.";
         }
         modalBackdrop.hidden = false;
       }
@@ -724,7 +715,7 @@
         dayMaxEventRows: 4,
         nowIndicator: true,
         moreLinkClick: "popover",
-        moreLinkContent: function(args) { return `+ altri ${args.num}`; },
+        moreLinkContent: function(args) { return "+ altri " + args.num; },
         eventTimeFormat: { hour: "2-digit", minute: "2-digit", hour12: false },
         headerToolbar: {
           left: "today prev,next",
@@ -741,15 +732,15 @@
           const params = new URLSearchParams();
           if (info && info.startStr) params.set("start", info.startStr);
           if (info && info.endStr) params.set("end", info.endStr);
-          fetch(`${endpoints.events}?${params.toString()}`, { credentials: "same-origin" })
-            .then((response) => {
-              if (!response.ok) throw new Error(`Errore API eventi: ${response.status}`);
+          fetch(endpoints.events + "?" + params.toString(), { credentials: "same-origin" })
+            .then(function(response) {
+              if (!response.ok) throw new Error("Errore API eventi: " + response.status);
               return response.json();
             })
-            .then((payload) => {
+            .then(function(payload) {
               const rows = Array.isArray(payload) ? payload : [];
               state.eventByUid = {};
-              state.events = rows.map((raw, idx) => {
+              state.events = rows.map(function(raw, idx) {
                 const event = Object.assign({}, raw || {});
                 event.extendedProps = Object.assign({}, event.extendedProps || {});
                 event.id = raw && raw.id !== undefined ? raw.id : null;
@@ -761,7 +752,7 @@
               successCallback(state.events);
               renderAgenda(state.selectedDate);
             })
-            .catch((err) => {
+            .catch(function(err) {
               agendaListEl.innerHTML = "";
               agendaEmptyEl.style.display = "block";
               agendaEmptyEl.textContent = err && err.message ? err.message : "Impossibile caricare gli eventi.";
@@ -800,18 +791,18 @@
       });
 
       saveEventBtn.addEventListener("click", function() {
-        saveSelectedEvent().catch((err) => {
+        saveSelectedEvent().catch(function(err) {
           modalMessageEl.textContent = err && err.message ? err.message : "Errore salvataggio.";
         });
       });
       deleteEventBtn.addEventListener("click", function() {
-        deleteSelectedEvent().catch((err) => {
+        deleteSelectedEvent().catch(function(err) {
           modalMessageEl.textContent = err && err.message ? err.message : "Errore eliminazione.";
         });
       });
 
       saveColorsBtn.addEventListener("click", function() {
-        saveColors().catch((err) => showColorStatus(err && err.message ? err.message : "Errore salvataggio colori.", true));
+        saveColors().catch(function(err) { showColorStatus(err && err.message ? err.message : "Errore salvataggio colori.", true); });
       });
       resetColorsBtn.addEventListener("click", function() {
         state.colors = Object.assign({}, state.defaultColors);
@@ -821,17 +812,15 @@
 
       Promise.resolve()
         .then(loadColors)
-        .catch((err) => showColorStatus(err && err.message ? err.message : "Impossibile caricare colori.", true));
+        .catch(function(err) { showColorStatus(err && err.message ? err.message : "Impossibile caricare colori.", true); });
 
       calendar.render();
       renderAgenda(state.selectedDate);
 
       const bgSyncIntervalMs = 5 * 60 * 1000;
-      const runBackgroundSync = () => fetch(endpoints.syncPull, { credentials: "same-origin" }).catch(() => null);
+      const runBackgroundSync = function() { return fetch(endpoints.syncPull, { credentials: "same-origin" }).catch(function() { return null; }); };
       window.setTimeout(runBackgroundSync, 1500);
       window.setInterval(runBackgroundSync, bgSyncIntervalMs);
     })();
   </script>
 {% endblock %}
-
-

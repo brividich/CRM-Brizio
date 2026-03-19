@@ -22,7 +22,7 @@ from openpyxl import Workbook
 from types import SimpleNamespace
 from PIL import Image
 
-from anagrafica.models import Fornitore
+from anagrafica.models import Fornitore, FornitoreDocumento
 from core.legacy_models import Pulsante
 from core.models import UserDashboardLayout
 from tickets.models import PrioritaTicket, StatoTicket, Ticket, TipoTicket
@@ -1785,6 +1785,38 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(response, "Applica parametro")
         self.assertContains(response, 'name="selected_layout_ids"', html=False)
 
+    def test_asset_detail_layout_admin_can_move_fixed_sections(self):
+        admin = User.objects.create_superuser(
+            username="asset-layout-move-admin",
+            email="asset-layout-move@test.local",
+            password="pass12345",
+        )
+        asset_views._ensure_default_asset_detail_section_layouts()
+        self.client.force_login(admin)
+
+        timeline_layout = AssetDetailSectionLayout.objects.get(code=AssetDetailSectionLayout.SECTION_TIMELINE)
+        response = self.client.post(
+            reverse("assets:asset_detail_layout_admin"),
+            {
+                "action": "move_detail_section_layout",
+                "layout_id": str(timeline_layout.id),
+                "direction": "up",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        ordered_codes = list(
+            AssetDetailSectionLayout.objects.order_by("sort_order", "id").values_list("code", flat=True)
+        )
+        self.assertEqual(
+            ordered_codes[:3],
+            [
+                AssetDetailSectionLayout.SECTION_TIMELINE,
+                AssetDetailSectionLayout.SECTION_SPECS,
+                AssetDetailSectionLayout.SECTION_MAINTENANCE,
+            ],
+        )
+
     def test_asset_detail_layout_admin_can_apply_bulk_size_to_all_sections(self):
         admin = User.objects.create_superuser(
             username="asset-layout-bulk-size-admin",
@@ -2354,7 +2386,7 @@ class WorkOrderFlowTests(TestCase):
         self.assertIsNone(workorder.periodic_verification)
         self.assertEqual(workorder.supplier, supplier)
 
-    def test_done_workorder_with_rule_and_contract_syncs_execution_state(self):
+    def test_workorder_with_rule_and_contract_syncs_execution_state_only_on_close(self):
         supplier = Fornitore.objects.create(
             ragione_sociale="Service Integrato Srl",
             categoria=Fornitore.CATEGORIA_MANUTENZIONE,
@@ -2412,9 +2444,161 @@ class WorkOrderFlowTests(TestCase):
         self.assertEqual(workorder.assistance_contract, contract)
         self.assertTrue(workorder.covered_by_contract)
         self.assertEqual(workorder.supplier, supplier)
+        self.assertEqual(workorder.status, WorkOrder.STATUS_OPEN)
+        self.assertIsNone(workorder.closed_at)
+        self.assertFalse(
+            AssetMaintenanceRuleState.objects.filter(asset=self.asset, base_rule=rule).exists()
+        )
+
+        close_response = self.client.post(
+            reverse("assets:wo_close", args=[workorder.id]),
+            {
+                "status": WorkOrder.STATUS_DONE,
+                "resolution": "Server verificato",
+                "assistance_contract": str(contract.id),
+                "covered_by_contract": "on",
+            },
+        )
+
+        self.assertEqual(close_response.status_code, 302)
+        workorder.refresh_from_db()
+        self.assertEqual(workorder.status, WorkOrder.STATUS_DONE)
         state = AssetMaintenanceRuleState.objects.get(asset=self.asset, base_rule=rule)
         self.assertEqual(state.last_work_order, workorder)
         self.assertEqual(state.last_execution_date, timezone.localdate())
+
+    def test_create_workorder_rejects_contract_coverage_without_contract(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_create", args=[self.asset.id]),
+            {
+                "periodic_verification": "",
+                "supplier": "",
+                "kind": WorkOrder.KIND_CORRECTIVE,
+                "status": WorkOrder.STATUS_DONE,
+                "covered_by_contract": "on",
+                "title": "Intervento senza contratto",
+                "description": "Verifica copertura non coerente",
+                "resolution": "",
+                "downtime_minutes": "0",
+                "cost_eur": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Seleziona un contratto per indicare la copertura.")
+        self.assertFalse(WorkOrder.objects.filter(title="Intervento senza contratto").exists())
+
+    def test_workorder_form_prefills_from_schedule_context(self):
+        supplier = Fornitore.objects.create(
+            ragione_sociale="Prefill Service Srl",
+            categoria=Fornitore.CATEGORIA_MANUTENZIONE,
+        )
+        category = AssetCategory.objects.create(
+            code="wo-prefill-category",
+            label="Categoria WO Prefill",
+            base_asset_type=Asset.TYPE_SERVER,
+        )
+        self.asset.asset_category = category
+        self.asset.save(update_fields=["asset_category"])
+        template = MaintenanceInterventionTemplate.objects.create(
+            code="wo-prefill-template",
+            label="Controllo annuale server",
+            description="Esegui checklist annuale e verifica parametri di backup.",
+            asset_category=category,
+        )
+        rule = MaintenanceRule.objects.create(
+            intervention_template=template,
+            asset_category=category,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=365,
+            warning_days=30,
+            notes="Verificare anche lo stato dei dischi.",
+        )
+        AssistanceContract.objects.create(
+            supplier=supplier,
+            asset=self.asset,
+            title="Contratto server enterprise",
+            contract_type=AssistanceContract.TYPE_FULL_SERVICE,
+            start_date=timezone.localdate() - timedelta(days=5),
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("assets:wo_create", args=[self.asset.id]) + f"?rule={rule.id}&source=maintenance_schedule"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        form = response.context["form"]
+        self.assertEqual(form.initial["maintenance_rule"], rule.id)
+        self.assertEqual(form.initial["kind"], WorkOrder.KIND_PREVENTIVE)
+        self.assertEqual(form.initial["title"], "Controllo annuale server")
+        self.assertIn("checklist annuale", form.initial["description"].lower())
+        self.assertIn("stato dei dischi", form.initial["description"].lower())
+        self.assertTrue(form.initial["covered_by_contract"])
+        self.assertContains(response, "Prossime manutenzioni")
+        self.assertContains(response, "Contratto suggerito")
+        self.assertNotContains(response, "Stato iniziale")
+
+    def test_close_workorder_rejects_incompatible_contract(self):
+        supplier = Fornitore.objects.create(
+            ragione_sociale="Supplier Originario",
+            categoria=Fornitore.CATEGORIA_MANUTENZIONE,
+        )
+        other_supplier = Fornitore.objects.create(
+            ragione_sociale="Supplier Incompatibile",
+            categoria=Fornitore.CATEGORIA_MANUTENZIONE,
+        )
+        category = AssetCategory.objects.create(
+            code="wo-close-category",
+            label="Categoria WO Close",
+            base_asset_type=Asset.TYPE_SERVER,
+        )
+        self.asset.asset_category = category
+        self.asset.save(update_fields=["asset_category"])
+        template = MaintenanceInterventionTemplate.objects.create(
+            code="wo-close-template",
+            label="Controllo chiusura",
+            asset_category=category,
+        )
+        rule = MaintenanceRule.objects.create(
+            intervention_template=template,
+            asset_category=category,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=90,
+        )
+        invalid_contract = AssistanceContract.objects.create(
+            supplier=other_supplier,
+            asset=self.asset,
+            title="Contratto incompatibile",
+            contract_type=AssistanceContract.TYPE_ON_CALL,
+            start_date=timezone.localdate() - timedelta(days=2),
+        )
+        workorder = WorkOrder.objects.create(
+            asset=self.asset,
+            maintenance_rule=rule,
+            supplier=supplier,
+            kind=WorkOrder.KIND_PREVENTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="WO da chiudere",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:wo_close", args=[workorder.id]),
+            {
+                "status": WorkOrder.STATUS_DONE,
+                "resolution": "Chiusura di test",
+                "assistance_contract": str(invalid_contract.id),
+                "covered_by_contract": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        workorder.refresh_from_db()
+        self.assertEqual(workorder.status, WorkOrder.STATUS_OPEN)
+        self.assertContains(response, "fornitore diverso")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -2573,8 +2757,8 @@ class AssetAdministrativeStepOneTests(TestCase):
 
         detail_page = self.client.get(reverse("assets:asset_view", kwargs={"id": self.asset.id}))
         self.assertEqual(detail_page.status_code, 200)
-        self.assertContains(detail_page, "Nuovo componente")
-        self.assertContains(detail_page, "Nuova scadenza")
+        self.assertContains(detail_page, "Crea intervento")
+        self.assertContains(detail_page, "Apri scadenze")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -2923,7 +3107,7 @@ class AssetMaintenanceStepThreeTests(TestCase):
 
         detail_response = self.client.get(reverse("assets:asset_view", kwargs={"id": self.asset.id}))
         self.assertEqual(detail_response.status_code, 200)
-        self.assertContains(detail_response, "Apri regole manutenzione")
+        self.assertContains(detail_response, "Regole manutenzione")
 
         reset_response = self.client.post(
             reverse(
@@ -3004,6 +3188,70 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertEqual(contract.asset, self.asset)
         self.assertEqual(contract.supplier, supplier)
 
+    def test_assistance_contract_list_preserves_filters_after_post(self):
+        supplier = Fornitore.objects.create(
+            ragione_sociale="Fornitore Redirect Filtri",
+            categoria=Fornitore.CATEGORIA_MANUTENZIONE,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("assets:assistance_contract_list")
+            + f"?asset={self.asset.id}&state=active&scope=asset&q=ricambi",
+            {
+                "asset_id": str(self.asset.id),
+                "action": "create_assistance_contract",
+                "supplier": str(supplier.id),
+                "asset_category": "",
+                "code": "CTR-FILTER",
+                "title": "Contratto con redirect filtrato",
+                "contract_type": AssistanceContract.TYPE_FULL_SERVICE,
+                "start_date": "2026-01-01",
+                "end_date": "2026-12-31",
+                "is_active": "on",
+                "sla_description": "",
+                "coverage_summary": "Ricambi inclusi",
+                "periodic_cost_eur": "",
+                "notes": "",
+                "document": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(f"asset={self.asset.id}", response["Location"])
+        self.assertIn("state=active", response["Location"])
+        self.assertIn("scope=asset", response["Location"])
+        self.assertIn("q=ricambi", response["Location"])
+
+    def test_assistance_contract_list_shows_selected_asset_context_and_document_name(self):
+        supplier = Fornitore.objects.create(
+            ragione_sociale="Fornitore Documento",
+            categoria=Fornitore.CATEGORIA_MANUTENZIONE,
+        )
+        self.client.force_login(self.admin)
+
+        with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            document = FornitoreDocumento.objects.create(
+                fornitore=supplier,
+                nome="Contratto officina firmato",
+                tipo=FornitoreDocumento.TIPO_CONTRATTO,
+                file=SimpleUploadedFile("contratto.pdf", b"%PDF-1.4 test", content_type="application/pdf"),
+            )
+            AssistanceContract.objects.create(
+                supplier=supplier,
+                asset=self.asset,
+                title="Contratto con documento",
+                contract_type=AssistanceContract.TYPE_FULL_SERVICE,
+                start_date=timezone.localdate() - timedelta(days=5),
+                document=document,
+            )
+
+            response = self.client.get(reverse("assets:assistance_contract_list") + f"?asset={self.asset.id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Stai creando un contratto per questo asset")
+        self.assertContains(response, document.nome)
+
     def test_new_schedule_and_contract_pages_render(self):
         supplier = Fornitore.objects.create(
             ragione_sociale="Fornitore Render",
@@ -3025,3 +3273,36 @@ class AssetMaintenanceStepThreeTests(TestCase):
         contracts_response = self.client.get(reverse("assets:assistance_contract_list"))
         self.assertEqual(contracts_response.status_code, 200)
         self.assertContains(contracts_response, "Contratti assistenza")
+
+    def test_schedule_and_asset_detail_show_contextual_suggestions(self):
+        self.client.force_login(self.admin)
+
+        schedule_response = self.client.get(reverse("assets:maintenance_schedule") + f"?asset={self.asset.id}")
+        self.assertEqual(schedule_response.status_code, 200)
+        self.assertContains(schedule_response, "Imposta prima esecuzione")
+        self.assertContains(schedule_response, "Verifica copertura")
+        self.assertContains(schedule_response, "Prima esecuzione da pianificare")
+
+        detail_response = self.client.get(reverse("assets:asset_view", kwargs={"id": self.asset.id}))
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertContains(detail_response, "Suggerimenti operativi")
+        self.assertContains(detail_response, "Imposta prima esecuzione")
+        self.assertContains(detail_response, "Verifica copertura")
+
+    def test_reports_dashboard_links_all_open_workorders_and_missing_baseline_action(self):
+        WorkOrder.objects.create(
+            asset=self.asset,
+            maintenance_rule=self.base_rule,
+            kind=WorkOrder.KIND_PREVENTIVE,
+            status=WorkOrder.STATUS_OPEN,
+            title="WO report aperto",
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("assets:reports"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Apri tutti gli aperti")
+        self.assertContains(response, "?status=OPEN")
+        self.assertContains(response, "Interventi aperti")
+        self.assertContains(response, "Imposta prima esecuzione")

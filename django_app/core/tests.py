@@ -22,7 +22,12 @@ from django.urls import reverse
 from core.audit import log_action
 from core.csrf_cookie_middleware import EnsureCSRFCookieMiddleware
 from core.impersonation import IMPERSONATION_SESSION_KEY
-from core.context_processors import legacy_nav
+from core.context_processors import (
+    get_default_sidebar_footer_actions,
+    get_sidebar_footer_catalog,
+    legacy_nav,
+    normalize_sidebar_footer_actions,
+)
 from core.legacy_models import Pulsante, UtenteLegacy
 from core.logging_handlers import SafeTimedRotatingFileHandler
 from core.middleware import AdaptiveSecureCookieMiddleware
@@ -857,3 +862,21 @@ class IconTemplateTagTests(SimpleTestCase):
         ).render(Context())
 
         self.assertIn(">D<", html)
+
+
+class SidebarFooterActionsTests(SimpleTestCase):
+    def test_footer_catalog_excludes_fixed_user_panel_actions(self):
+        keys = [item["key"] for item in get_sidebar_footer_catalog()]
+
+        self.assertEqual(keys, ["car", "notifications"])
+
+    def test_default_footer_actions_include_notifications_only(self):
+        self.assertEqual(get_default_sidebar_footer_actions(), ["notifications"])
+
+    def test_normalize_discards_legacy_user_panel_entries(self):
+        normalized = normalize_sidebar_footer_actions(
+            ["notifications", "preferences", "profile", "logout", "car"],
+            fallback_to_default=True,
+        )
+
+        self.assertEqual(normalized, ["notifications", "car"])

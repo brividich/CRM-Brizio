@@ -2,74 +2,182 @@
 
 {% block title %}Intervento #{{ workorder.id }}{% endblock %}
 
+{% block assets_shell_head %}
+<style>
+.wod-page { display:grid; gap:14px; max-width:1080px; }
+.wod-card {
+  border:1px solid #dbe1ea;
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 10px 24px rgba(15, 23, 42, .05);
+}
+.wod-card-body { padding:18px; }
+.wod-hero {
+  display:grid;
+  gap:16px;
+  grid-template-columns:minmax(0, 1.3fr) minmax(260px, .7fr);
+}
+.wod-title { margin:10px 0 6px; font-size:var(--fs-display-lg); color:#0f172a; }
+.wod-sub { color:#64748b; margin:0; }
+.wod-chip-row { display:flex; gap:8px; flex-wrap:wrap; }
+.wod-stats { display:grid; gap:10px; }
+.wod-stat {
+  border:1px solid #e2e8f0;
+  border-radius:14px;
+  padding:12px 14px;
+  background:#fcfdff;
+}
+.wod-stat span { display:block; color:#64748b; font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.08em; font-weight:800; }
+.wod-stat strong { display:block; margin-top:6px; color:#0f172a; font-size:var(--fs-title-lg); }
+.wod-grid { display:grid; gap:16px; grid-template-columns:repeat(2, minmax(0, 1fr)); margin-top:16px; }
+.wod-section-title { margin:0 0 10px; font-size:var(--fs-title-md); color:#0f172a; }
+.wod-list { display:grid; gap:10px; }
+.wod-row {
+  display:grid;
+  gap:4px;
+  padding:10px 0;
+  border-top:1px solid #f1f5f9;
+}
+.wod-row:first-child { border-top:none; padding-top:0; }
+.wod-row-label { color:#64748b; font-size:var(--fs-sm); }
+.wod-row-value { color:#0f172a; font-size:var(--fs-base); }
+.wod-note { white-space:pre-wrap; color:#0f172a; }
+.wod-attachments,
+.wod-logs { display:grid; gap:8px; }
+.wod-attachment,
+.wod-log {
+  border:1px solid #e2e8f0;
+  border-radius:12px;
+  padding:12px 14px;
+  background:#fcfdff;
+}
+.wod-log-meta { color:#64748b; font-size:var(--fs-sm); margin-bottom:6px; }
+@media (max-width: 860px) {
+  .wod-hero,
+  .wod-grid { grid-template-columns:1fr; }
+}
+</style>
+{% endblock %}
+
 {% block assets_shell_title %}Intervento #{{ workorder.id }}{% endblock %}
 {% block assets_shell_subtitle %}
-<p>{{ workorder.asset.asset_tag }} - {{ workorder.asset.name }} | {{ workorder.get_kind_display }} | {{ workorder.get_status_display }}</p>
+<p>{{ workorder.asset.asset_tag }} - {{ workorder.asset.name }}</p>
 {% endblock %}
 {% block assets_shell_toolbar %}
-  <a class="btn" href="{% url 'assets:asset_view' workorder.asset_id %}">Apri asset</a>
+  <a class="btn" href="{{ workorder_asset_url }}">Apri asset</a>
+  {% if workorder_rule_url %}
+    <a class="btn" href="{{ workorder_rule_url }}">Apri regola manutenzione</a>
+  {% endif %}
+  {% if workorder_contract_url %}
+    <a class="btn" href="{{ workorder_contract_url }}">{{ workorder_contract_label }}</a>
+  {% endif %}
   {% if workorder.status == 'OPEN' %}
-    <a class="btn btn-primary" href="{% url 'assets:wo_close' workorder.id %}">Chiudi</a>
+    <a class="btn btn-primary" href="{% url 'assets:wo_close' workorder.id %}">Chiudi intervento</a>
   {% endif %}
 {% endblock %}
 
 {% block assets_shell_content %}
-<section style="display:grid;gap:14px;">
+<section class="wod-page">
   <header>
     <a href="{% url 'assets:wo_list' %}" class="as-backlink">&larr; Torna agli interventi</a>
   </header>
 
-  <article style="border:1px solid #dbe1ea;border-radius:12px;background:#fff;padding:14px;">
-    <dl class="as-dl-grid">
-      <dt>Titolo</dt><dd>{{ workorder.title }}</dd>
-      <dt>Intervento programmato</dt><dd>{% if workorder.periodic_verification %}{{ workorder.periodic_verification.name }}{% else %}-{% endif %}</dd>
-      <dt>Regola manutenzione</dt><dd>{% if workorder.maintenance_rule %}{{ workorder.maintenance_rule.intervention_template.label }}{% else %}-{% endif %}</dd>
-      <dt>Fornitore</dt><dd>{% if workorder.supplier %}{{ workorder.supplier }}{% else %}-{% endif %}</dd>
-      <dt>Contratto assistenza</dt><dd>{% if workorder.assistance_contract %}{{ workorder.assistance_contract.title }}{% else %}-{% endif %}</dd>
-      <dt>Coperto da contratto</dt><dd>{% if workorder.covered_by_contract %}Si{% else %}No{% endif %}</dd>
-      <dt>Aperta il</dt><dd>{{ workorder.opened_at|date:"d/m/Y H:i" }}</dd>
-      <dt>Chiusa il</dt><dd>{% if workorder.closed_at %}{{ workorder.closed_at|date:"d/m/Y H:i" }}{% else %}-{% endif %}</dd>
-      <dt>Durata intervento (min)</dt><dd>{{ workorder.intervention_duration_minutes|default:"-" }}</dd>
-      <dt>Fermo impianto (min)</dt><dd>{{ workorder.downtime_minutes }}</dd>
-      <dt>Manodopera (EUR)</dt><dd>{{ workorder.labor_cost_eur|default:"-" }}</dd>
-      <dt>Materiali (EUR)</dt><dd>{{ workorder.materials_cost_eur|default:"-" }}</dd>
-      <dt>Costo totale (EUR)</dt><dd>{{ workorder.resolved_total_cost_eur|default:"-" }}</dd>
-      <dt>Descrizione</dt><dd style="white-space:pre-wrap;">{{ workorder.description|default:"-" }}</dd>
-      <dt>Risoluzione</dt><dd style="white-space:pre-wrap;">{{ workorder.resolution|default:"-" }}</dd>
-    </dl>
-  </article>
+  <article class="wod-card">
+    <div class="wod-card-body">
+      <div class="wod-hero">
+        <div>
+          <div class="wod-chip-row">
+            <span class="as-badge as-badge--{{ workorder_status.badge_class }}">{{ workorder_status.label }}</span>
+            <span class="as-badge as-badge--{{ workorder_kind.badge_class }}">{{ workorder_kind.label }}</span>
+            <span class="as-badge as-badge--{{ workorder_coverage.badge_class }}">{{ workorder_coverage.label }}</span>
+          </div>
+          <h2 class="wod-title">{{ workorder.title }}</h2>
+          <p class="wod-sub">
+            {% if workorder.maintenance_rule %}{{ workorder.maintenance_rule.intervention_template.label }}{% else %}Intervento non agganciato a una regola{% endif %}
+            {% if workorder.assistance_contract %} · {{ workorder.assistance_contract.title }}{% endif %}
+          </p>
 
-  <article style="border:1px solid #dbe1ea;border-radius:12px;background:#fff;padding:14px;">
-    <h3 style="margin-top:0;">Allegati</h3>
-    <div style="display:grid;gap:8px;">
-      {% for attachment in attachments %}
-        <a href="{{ attachment.file.url }}" target="_blank" rel="noopener" style="display:flex;justify-content:space-between;gap:12px;padding:10px;border:1px solid #e2e8f0;border-radius:10px;text-decoration:none;color:#0f172a;">
-          <span>{{ attachment.original_name|default:attachment.file.name }}</span>
-          <span class="as-help">{{ attachment.created_at|date:"d/m/Y H:i" }}</span>
-        </a>
-      {% empty %}
-        <p style="color:#64748b;margin:0;">Nessun allegato presente.</p>
-      {% endfor %}
+          <div class="wod-grid">
+            <div>
+              <h3 class="wod-section-title">Contesto operativo</h3>
+              <div class="wod-list">
+                <div class="wod-row"><span class="wod-row-label">Asset</span><span class="wod-row-value"><a href="{{ workorder_asset_url }}" style="color:#1d4ed8;text-decoration:none;">{{ workorder.asset.asset_tag }} - {{ workorder.asset.name }}</a></span></div>
+                <div class="wod-row"><span class="wod-row-label">Fornitore</span><span class="wod-row-value">{% if workorder.supplier %}{{ workorder.supplier }}{% else %}-{% endif %}</span></div>
+                <div class="wod-row"><span class="wod-row-label">Verifica periodica collegata</span><span class="wod-row-value">{% if workorder.periodic_verification %}{{ workorder.periodic_verification.name }}{% else %}-{% endif %}</span></div>
+                <div class="wod-row"><span class="wod-row-label">Regola manutenzione</span><span class="wod-row-value">{% if workorder.maintenance_rule and workorder_rule_url %}<a href="{{ workorder_rule_url }}" style="color:#1d4ed8;text-decoration:none;">{{ workorder.maintenance_rule.intervention_template.label }}</a>{% elif workorder.maintenance_rule %}{{ workorder.maintenance_rule.intervention_template.label }}{% else %}-{% endif %}</span></div>
+                <div class="wod-row"><span class="wod-row-label">Contratto assistenza</span><span class="wod-row-value">{% if workorder.assistance_contract %}<a href="{{ workorder_contract_url }}" style="color:#1d4ed8;text-decoration:none;">{{ workorder.assistance_contract.title }}</a>{% else %}-{% endif %}</span></div>
+              </div>
+            </div>
+
+            <div>
+              <h3 class="wod-section-title">Descrizione e chiusura</h3>
+              <div class="wod-list">
+                <div class="wod-row"><span class="wod-row-label">Descrizione</span><span class="wod-row-value wod-note">{{ workorder.description|default:"-" }}</span></div>
+                <div class="wod-row"><span class="wod-row-label">Risoluzione</span><span class="wod-row-value wod-note">{{ workorder.resolution|default:"-" }}</span></div>
+                <div class="wod-row"><span class="wod-row-label">Aperta il</span><span class="wod-row-value">{{ workorder.opened_at|date:"d/m/Y H:i" }}</span></div>
+                <div class="wod-row"><span class="wod-row-label">Chiusa il</span><span class="wod-row-value">{% if workorder.closed_at %}{{ workorder.closed_at|date:"d/m/Y H:i" }}{% else %}-{% endif %}</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="wod-stats">
+          <div class="wod-stat">
+            <span>Costo totale</span>
+            <strong>{{ workorder.resolved_total_cost_eur|default:"-" }} €</strong>
+          </div>
+          <div class="wod-stat">
+            <span>Durata intervento</span>
+            <strong>{{ workorder.intervention_duration_minutes|default:"-" }} min</strong>
+          </div>
+          <div class="wod-stat">
+            <span>Fermo impianto</span>
+            <strong>{{ workorder.downtime_minutes|default:"0" }} min</strong>
+          </div>
+          <div class="wod-stat">
+            <span>Costi componenti</span>
+            <strong>Manodopera {{ workorder.labor_cost_eur|default:"-" }} € · Materiali {{ workorder.materials_cost_eur|default:"-" }} €</strong>
+          </div>
+        </aside>
+      </div>
     </div>
   </article>
 
-  <article style="border:1px solid #dbe1ea;border-radius:12px;background:#fff;padding:14px;">
-    <h3 style="margin-top:0;">Log intervento</h3>
-    <form method="post" style="display:grid;gap:8px;margin-bottom:14px;">
-      {% csrf_token %}
-      <label for="id_log_note">Aggiungi nota</label>
-      <textarea id="id_log_note" name="log_note" rows="3" placeholder="Descrivi un avanzamento..."></textarea>
-      <div><button class="btn btn-primary" type="submit">Aggiungi log</button></div>
-    </form>
-    <div style="display:grid;gap:8px;">
-      {% for log in logs %}
-        <div style="border:1px solid #e2e8f0;border-radius:10px;padding:10px;">
-          <div class="as-help">{{ log.ts|date:"d/m/Y H:i" }}{% if log.author %} - {{ log.author.get_full_name|default:log.author.username }}{% endif %}</div>
-          <div style="white-space:pre-wrap;">{{ log.note }}</div>
-        </div>
-      {% empty %}
-        <p style="color:#64748b;margin:0;">Nessun log presente.</p>
-      {% endfor %}
+  <article class="wod-card">
+    <div class="wod-card-body">
+      <h3 class="wod-section-title">Allegati</h3>
+      <div class="wod-attachments">
+        {% for attachment in attachments %}
+          <a href="{{ attachment.file.url }}" target="_blank" rel="noopener" class="wod-attachment" style="text-decoration:none;color:inherit;">
+            <strong>{{ attachment.original_name|default:attachment.file.name }}</strong><br>
+            <span class="wod-log-meta">{{ attachment.created_at|date:"d/m/Y H:i" }}</span>
+          </a>
+        {% empty %}
+          <p class="as-note" style="margin:0;">Nessun allegato presente.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </article>
+
+  <article class="wod-card">
+    <div class="wod-card-body">
+      <h3 class="wod-section-title">Log intervento</h3>
+      <form method="post" style="display:grid;gap:8px;margin-bottom:14px;">
+        {% csrf_token %}
+        <label for="id_log_note">Aggiungi nota</label>
+        <textarea id="id_log_note" name="log_note" rows="3" placeholder="Descrivi un avanzamento..."></textarea>
+        <div><button class="btn btn-primary" type="submit">Aggiungi log</button></div>
+      </form>
+      <div class="wod-logs">
+        {% for log in logs %}
+          <div class="wod-log">
+            <div class="wod-log-meta">{{ log.ts|date:"d/m/Y H:i" }}{% if log.author %} - {{ log.author.get_full_name|default:log.author.username }}{% endif %}</div>
+            <div style="white-space:pre-wrap;">{{ log.note }}</div>
+          </div>
+        {% empty %}
+          <p class="as-note" style="margin:0;">Nessun log presente.</p>
+        {% endfor %}
+      </div>
     </div>
   </article>
 </section>

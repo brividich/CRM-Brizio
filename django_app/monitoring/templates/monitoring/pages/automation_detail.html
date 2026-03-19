@@ -1,0 +1,127 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ job.name }} | Monitoring{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% url 'monitoring_admin:automation_list' as monitoring_automation_list_url %}
+  {% include "admin_portale/components/page_header.html" with page_title=job.name page_subtitle=job.code page_secondary_action_label="Torna al monitor" page_secondary_action_url=monitoring_automation_list_url %}
+
+  <div class="monitoring-kpis">
+    <div class="monitoring-kpi">
+      <div class="monitoring-kpi-label">Ultimo stato</div>
+      <div class="monitoring-kpi-value" style="font-size:20px;">
+        {% if job_row.last_execution %}
+          <span class="monitoring-pill status-{{ job_row.last_execution.status }}">{{ job_row.last_execution.status }}</span>
+        {% else %}
+          <span class="monitoring-pill status-new">n/d</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="monitoring-kpi">
+      <div class="monitoring-kpi-label">Fallimenti consecutivi</div>
+      <div class="monitoring-kpi-value">{{ job_row.consecutive_failures }}</div>
+    </div>
+    <div class="monitoring-kpi">
+      <div class="monitoring-kpi-label">Missing / delayed</div>
+      <div class="monitoring-kpi-value" style="font-size:20px;">
+        {% if job_row.missing_alert or job_row.stuck_alert %}Si{% else %}No{% endif %}
+      </div>
+    </div>
+    <div class="monitoring-kpi">
+      <div class="monitoring-kpi-label">Criticita</div>
+      <div class="monitoring-kpi-value" style="font-size:20px;">{% if job.is_critical %}Alta{% else %}Normale{% endif %}</div>
+    </div>
+  </div>
+
+  <div class="monitoring-grid two-col">
+    <div class="monitoring-grid">
+      <div class="card">
+        <div class="card-head"><div class="card-title">Dati job</div></div>
+        <div class="card-body">
+          <div class="monitoring-inline-list">
+            <div class="monitoring-inline-item"><strong>Modulo</strong><div class="monitoring-meta">{{ job.module_name|default:"-" }}</div></div>
+            <div class="monitoring-inline-item"><strong>Schedule hint</strong><div class="monitoring-meta">{{ job.schedule_hint|default:"-" }}</div></div>
+            <div class="monitoring-inline-item"><strong>Intervallo massimo atteso</strong><div class="monitoring-meta">{{ job.expected_max_interval_minutes|default:"-" }} minuti</div></div>
+            <div class="monitoring-inline-item"><strong>Durata massima attesa</strong><div class="monitoring-meta">{{ job.expected_max_duration_seconds|default:"-" }} secondi</div></div>
+            <div class="monitoring-inline-item"><strong>Owners</strong><div class="monitoring-meta">{{ job.owners_text|default:"-" }}</div></div>
+            <div class="monitoring-inline-item"><strong>Descrizione</strong><div class="monitoring-meta">{{ job.description|default:"-" }}</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-title">Storico ultime esecuzioni</div></div>
+        <div class="card-body" style="padding:0;">
+          <div class="table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Start</th>
+                  <th>Fine</th>
+                  <th>Stato</th>
+                  <th>Durata</th>
+                  <th>Messaggio</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for execution in executions %}
+                  <tr>
+                    <td>{{ execution.started_at|date:"d/m/Y H:i" }}</td>
+                    <td>{{ execution.finished_at|date:"d/m/Y H:i"|default:"-" }}</td>
+                    <td><span class="monitoring-pill status-{{ execution.status }}">{{ execution.status }}</span></td>
+                    <td>{{ execution.duration_seconds|default:"-" }}</td>
+                    <td>{{ execution.message|default:execution.exception_class|truncatechars:160 }}</td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="5" class="cell-muted">Nessuna esecuzione registrata.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="monitoring-grid">
+      <div class="card">
+        <div class="card-head"><div class="card-title">Indicatori</div></div>
+        <div class="card-body">
+          <div class="monitoring-inline-list">
+            <div class="monitoring-inline-item">
+              <strong>Missing</strong>
+              <div class="monitoring-meta">{% if job_row.missing_alert %}Si, atteso entro {{ job_row.missing_alert.expected_at|date:"d/m/Y H:i" }}{% else %}No{% endif %}</div>
+            </div>
+            <div class="monitoring-inline-item">
+              <strong>Delayed / stuck</strong>
+              <div class="monitoring-meta">{% if job_row.stuck_alert %}Si, deadline {{ job_row.stuck_alert.deadline|date:"d/m/Y H:i" }}{% else %}No{% endif %}</div>
+            </div>
+            <div class="monitoring-inline-item">
+              <strong>Prossima esecuzione attesa</strong>
+              <div class="monitoring-meta">{{ job_row.next_expected_at|date:"d/m/Y H:i"|default:"-" }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-title">Issue collegate</div></div>
+        <div class="card-body">
+          <div class="monitoring-inline-list">
+            {% for issue in related_issues %}
+              <div class="monitoring-inline-item">
+                <a href="{% url 'monitoring_admin:issue_detail' issue.pk %}"><strong>{{ issue.code }}</strong></a>
+                <div class="monitoring-meta">{{ issue.title }}</div>
+              </div>
+            {% empty %}
+              <div class="monitoring-note">Nessuna issue collegata.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

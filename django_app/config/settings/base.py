@@ -194,6 +194,20 @@ SQL_LOG_LEVEL = env("SQL_LOG_LEVEL", "DEBUG").strip().upper() or "DEBUG"
 SQL_LOG_FORCE_DEBUG_CURSOR = env_bool("SQL_LOG_FORCE_DEBUG_CURSOR", SQL_LOG_ENABLED)
 SQL_LOG_MAX_BYTES = int(env("SQL_LOG_MAX_BYTES", str(10 * 1024 * 1024)) or str(10 * 1024 * 1024))
 SQL_LOG_BACKUP_COUNT = int(env("SQL_LOG_BACKUP_COUNT", "10") or "10")
+MONITORING_ENABLED = env_bool("MONITORING_ENABLED", True)
+MONITORING_CAPTURE_403 = env_bool("MONITORING_CAPTURE_403", True)
+MONITORING_CAPTURE_404 = env_bool("MONITORING_CAPTURE_404", False)
+MONITORING_SLOW_REQUEST_THRESHOLD_MS = int(env("MONITORING_SLOW_REQUEST_THRESHOLD_MS", "3000") or "3000")
+MONITORING_NOTIFY_CRITICAL_BY_EMAIL = env_bool("MONITORING_NOTIFY_CRITICAL_BY_EMAIL", True)
+MONITORING_ENVIRONMENT = env(
+    "MONITORING_ENVIRONMENT",
+    env("DJANGO_ENV", "development" if DEBUG else "production"),
+).strip()
+MONITORING_ADMIN_EMAILS = env_list("MONITORING_ADMIN_EMAILS", [])
+MONITORING_EMAIL_RATE_LIMIT_SECONDS = int(env("MONITORING_EMAIL_RATE_LIMIT_SECONDS", "1800") or "1800")
+MONITORING_WATCHDOG_CRITICAL_UNASSIGNED_MINUTES = int(
+    env("MONITORING_WATCHDOG_CRITICAL_UNASSIGNED_MINUTES", "120") or "120"
+)
 
 
 INSTALLED_APPS = [
@@ -212,6 +226,7 @@ INSTALLED_APPS = [
     "assets.apps.AssetsConfig",
     "tasks.apps.TasksConfig",
     "automazioni.apps.AutomazioniConfig",
+    "monitoring.apps.MonitoringConfig",
     "admin_portale.apps.AdminPortaleConfig",
     "notizie.apps.NotizieConfig",
     "anagrafica.apps.AnagraficaConfig",
@@ -233,6 +248,7 @@ MIDDLEWARE = [
     "core.csrf_cookie_middleware.EnsureCSRFCookieMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "core.middleware.ImpersonationMiddleware",
+    "monitoring.middleware.IssueCaptureMiddleware",
     "core.session_middleware.SessionIdleTimeoutMiddleware",
     "setup_wizard.middleware.SetupRequiredMiddleware",   # ← prima di ACL/notizie
     "core.middleware.ACLMiddleware",
@@ -256,6 +272,7 @@ TEMPLATES = [
                 "core.context_processors.legacy_nav",
                 "core.context_processors.app_meta",
                 "core.context_processors.ui_prefs_context",
+                "monitoring.context_processors.monitoring_ui",
             ],
         },
     },
@@ -355,6 +372,7 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
     "/favicon",
     "/setup/",
     "/admin-portale/hub/",
+    "/monitoring/report-problem/",
 )
 
 AUTHENTICATION_BACKENDS = [

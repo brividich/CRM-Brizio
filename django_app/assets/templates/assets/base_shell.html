@@ -41,6 +41,30 @@
 .as-kpi-label { color: #64748b; font-size: var(--fs-sm); }
 .as-kpi-value { font-size: var(--fs-display-lg); font-weight: 700; line-height: 1; }
 .as-meta { color: #94a3b8; font-size: var(--fs-sm); }
+.as-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+.as-badge--ok { background: #dcfce7; color: #15803d; }
+.as-badge--warn { background: #fef3c7; color: #92400e; }
+.as-badge--danger { background: #fee2e2; color: #b91c1c; }
+.as-badge--muted { background: #e2e8f0; color: #475569; }
+.as-badge--info { background: #dbeafe; color: #1d4ed8; }
+.as-link-subtle {
+  color: #1d4ed8;
+  text-decoration: none;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+.as-link-subtle:hover { text-decoration: underline; }
 .assets-messages { display: grid; gap: 8px; }
 .assets-message { border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; background: #f8fafc; font-size: var(--fs-base); }
 .assets-message-success { border-color: #86efac; background: #f0fdf4; color: #166534; }

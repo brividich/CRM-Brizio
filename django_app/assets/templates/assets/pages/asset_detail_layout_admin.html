@@ -102,6 +102,21 @@
   gap: 12px;
   align-items: start;
 }
+.adl-row-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.adl-move-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.adl-move-btn {
+  min-width: 38px;
+  padding-inline: 10px;
+}
 .adl-row-select {
   display: inline-flex;
   align-items: center;
@@ -251,6 +266,7 @@
             <input type="hidden" name="action" value="update_detail_section_layout">
             <input type="hidden" name="layout_id" value="{{ layout.id }}">
             <input type="hidden" name="code" value="{{ layout.code }}">
+            <input type="hidden" name="direction" value="">
             <div class="adl-row-head">
               <div class="adl-row-head-main">
                 <label class="adl-row-select" title="Seleziona per modifica massiva">
@@ -260,6 +276,24 @@
                 <div>
                   <p class="adl-row-title">{{ layout.get_code_display }}</p>
                   <div class="adl-row-sub">Codice {{ layout.code }}</div>
+                </div>
+              </div>
+              <div class="adl-row-head-actions">
+                <div class="adl-move-group">
+                  <button
+                    class="btn btn-secondary adl-move-btn"
+                    type="submit"
+                    {% if forloop.first %}disabled{% endif %}
+                    onclick="this.form.elements.action.value='move_detail_section_layout'; this.form.elements.direction.value='up';"
+                    title="Sposta in alto"
+                  >↑</button>
+                  <button
+                    class="btn btn-secondary adl-move-btn"
+                    type="submit"
+                    {% if forloop.last %}disabled{% endif %}
+                    onclick="this.form.elements.action.value='move_detail_section_layout'; this.form.elements.direction.value='down';"
+                    title="Sposta in basso"
+                  >↓</button>
                 </div>
               </div>
             </div>
@@ -282,7 +316,11 @@
               </div>
             </div>
             <div class="adl-form-actions">
-              <button class="btn btn-primary" type="submit">Salva riquadro</button>
+              <button
+                class="btn btn-primary"
+                type="submit"
+                onclick="this.form.elements.action.value='update_detail_section_layout'; this.form.elements.direction.value='';"
+              >Salva riquadro</button>
             </div>
           </form>
         {% endfor %}

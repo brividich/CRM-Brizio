@@ -237,7 +237,7 @@
     <div class="wof-hero-main">
       <span class="wof-eyebrow">Intervento operativo</span>
       <h2>{{ asset.name }}</h2>
-      <p>Compila i dati essenziali, collega una verifica periodica quando l'intervento e programmato e allega subito report, foto o documenti tecnici.</p>
+      <p>Compila pochi dati chiave per aprire il work order, collegando subito manutenzione, copertura e documentazione solo quando servono davvero.</p>
       <div class="wof-chip-row">
         <span class="wof-chip">Asset {{ asset.asset_tag }}</span>
         <span class="wof-chip">{{ asset.get_asset_type_display }}</span>
@@ -251,15 +251,35 @@
         <small>{{ asset.name }}</small>
       </div>
       <div class="wof-side-card">
-        <span>Compilazione smart</span>
-        <strong>Fornitore suggerito</strong>
-        <small>Se scegli un intervento programmato, il portale propone il fornitore associato. Negli altri casi puoi inserirlo manualmente.</small>
+        <span>Origine</span>
+        <strong>{{ workorder_prefill.source_label }}</strong>
+        {% if workorder_prefill.maintenance_template %}
+          <small>Template, titolo e descrizione vengono proposti dalla manutenzione selezionata, ma puoi modificarli liberamente.</small>
+        {% elif initial_contract %}
+          <small>Il contratto attivo viene suggerito come copertura operativa per ridurre data entry.</small>
+        {% else %}
+          <small>Compilazione assistita: se scegli regola, verifica o contratto il portale propone i collegamenti coerenti.</small>
+        {% endif %}
+      </div>
+      <div class="wof-side-card">
+        <span>Contesto manutentivo</span>
+        {% if workorder_prefill.maintenance_template %}
+          <strong>{{ workorder_prefill.maintenance_template.label }}</strong>
+          <small>{% if workorder_prefill.notes %}{{ workorder_prefill.notes }}{% else %}Regola manutentiva gia collegata al workorder in apertura.{% endif %}</small>
+        {% elif initial_contract %}
+          <strong>{{ initial_contract.supplier }}</strong>
+          <small>Contratto suggerito per questo asset. Opzioni disponibili: {{ available_contract_count }}.</small>
+        {% else %}
+          <strong>Compilazione smart</strong>
+          <small>Se scegli una verifica periodica collegata il portale propone il fornitore associato. Contratti disponibili: {{ available_contract_count }}.</small>
+        {% endif %}
       </div>
     </aside>
   </section>
 
   <form method="post" enctype="multipart/form-data" class="wof-form">
     {% csrf_token %}
+    {{ form.status }}
     {% if form.non_field_errors %}
       <div class="wof-alert">
         {{ form.non_field_errors }}
@@ -271,7 +291,7 @@
         <div class="wof-section-head">
           <div>
             <h3>Impostazioni intervento</h3>
-            <p>Definisci tipo, stato e collegamenti operativi del ticket.</p>
+            <p>Metti in primo piano tipo e collegamenti a manutenzione, fornitore e contratto.</p>
           </div>
         </div>
         <div class="wof-grid">
@@ -279,12 +299,6 @@
             <label for="{{ form.kind.id_for_label }}">{{ form.kind.label }}</label>
             {{ form.kind }}
             {% if form.kind.errors %}<div class="wof-error">{{ form.kind.errors }}</div>{% endif %}
-          </div>
-
-          <div class="wof-field">
-            <label for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>
-            {{ form.status }}
-            {% if form.status.errors %}<div class="wof-error">{{ form.status.errors }}</div>{% endif %}
           </div>
 
           <div class="wof-field" id="periodicVerificationField">
@@ -299,8 +313,12 @@
           <div class="wof-field">
             <label for="{{ form.maintenance_rule.id_for_label }}">{{ form.maintenance_rule.label }}</label>
             {{ form.maintenance_rule }}
-            <div class="wof-helper">
-              {% if form.maintenance_rule.help_text %}{{ form.maintenance_rule.help_text }}{% endif %}
+            <div class="wof-helper{% if workorder_prefill.maintenance_template %} is-highlight{% endif %}" id="maintenanceRuleSuggestion">
+              {% if workorder_prefill.maintenance_template %}
+                Template suggerito: {{ workorder_prefill.maintenance_template.label }}
+              {% elif form.maintenance_rule.help_text %}
+                {{ form.maintenance_rule.help_text }}
+              {% endif %}
             </div>
             {% if form.maintenance_rule.errors %}<div class="wof-error">{{ form.maintenance_rule.errors }}</div>{% endif %}
           </div>
@@ -317,8 +335,12 @@
           <div class="wof-field">
             <label for="{{ form.assistance_contract.id_for_label }}">{{ form.assistance_contract.label }}</label>
             {{ form.assistance_contract }}
-            <div class="wof-helper">
-              {% if form.assistance_contract.help_text %}{{ form.assistance_contract.help_text }}{% endif %}
+            <div class="wof-helper{% if initial_contract %} is-highlight{% endif %}" id="contractSuggestion">
+              {% if initial_contract %}
+                Contratto suggerito: {{ initial_contract.title }}{% if initial_contract.supplier %} con {{ initial_contract.supplier }}{% endif %}
+              {% elif form.assistance_contract.help_text %}
+                {{ form.assistance_contract.help_text }}
+              {% endif %}
             </div>
             {% if form.assistance_contract.errors %}<div class="wof-error">{{ form.assistance_contract.errors }}</div>{% endif %}
           </div>
@@ -326,12 +348,20 @@
           <div class="wof-field wof-field--full">
             <label for="{{ form.covered_by_contract.id_for_label }}">{{ form.covered_by_contract.label }}</label>
             {{ form.covered_by_contract }}
+            {% if form.covered_by_contract.help_text %}<div class="wof-helper">{{ form.covered_by_contract.help_text }}</div>{% endif %}
             {% if form.covered_by_contract.errors %}<div class="wof-error">{{ form.covered_by_contract.errors }}</div>{% endif %}
           </div>
 
           <div class="wof-field wof-field--full">
             <label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
             {{ form.title }}
+            <div class="wof-helper{% if workorder_prefill.title %} is-highlight{% endif %}" id="titleSuggestion">
+              {% if workorder_prefill.title %}
+                Titolo proposto dal template manutentivo.
+              {% else %}
+                Puoi usare un titolo libero oppure lasciare quello suggerito dalla regola.
+              {% endif %}
+            </div>
             {% if form.title.errors %}<div class="wof-error">{{ form.title.errors }}</div>{% endif %}
           </div>
         </div>
@@ -348,6 +378,13 @@
           <div class="wof-field wof-field--full">
             <label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>
             {{ form.description }}
+            <div class="wof-helper{% if workorder_prefill.description %} is-highlight{% endif %}" id="descriptionSuggestion">
+              {% if workorder_prefill.description %}
+                Descrizione precompilata dal template e dalle note operative della regola.
+              {% else %}
+                Descrivi attivita, controlli o anomalia riscontrata.
+              {% endif %}
+            </div>
             {% if form.description.errors %}<div class="wof-error">{{ form.description.errors }}</div>{% endif %}
           </div>
 
@@ -419,12 +456,27 @@
   const supplierField = document.getElementById("supplierField");
   const kindEl = document.getElementById("id_kind");
   const verificationEl = document.getElementById("id_periodic_verification");
+  const ruleEl = document.getElementById("id_maintenance_rule");
+  const contractEl = document.getElementById("id_assistance_contract");
+  const coveredByContractEl = document.getElementById("id_covered_by_contract");
   const supplierEl = document.getElementById("id_supplier");
   const suggestionEl = document.getElementById("supplierSuggestion");
+  const ruleSuggestionEl = document.getElementById("maintenanceRuleSuggestion");
+  const contractSuggestionEl = document.getElementById("contractSuggestion");
+  const titleSuggestionEl = document.getElementById("titleSuggestion");
+  const descriptionSuggestionEl = document.getElementById("descriptionSuggestion");
+  const titleEl = document.getElementById("id_title");
+  const descriptionEl = document.getElementById("id_description");
   const attachmentsEl = document.getElementById("id_attachments");
   const attachmentsStatusEl = document.getElementById("attachmentsStatus");
   const supplierMap = {{ periodic_verification_supplier_map_json|safe }};
+  const ruleMap = {{ maintenance_rule_suggestion_map_json|safe }};
+  const contractMap = {{ contract_suggestion_map_json|safe }};
   const baseSupplierHelp = suggestionEl ? suggestionEl.textContent.trim() : "";
+  const baseRuleHelp = ruleSuggestionEl ? ruleSuggestionEl.textContent.trim() : "";
+  const baseContractHelp = contractSuggestionEl ? contractSuggestionEl.textContent.trim() : "";
+  const baseTitleHelp = titleSuggestionEl ? titleSuggestionEl.textContent.trim() : "";
+  const baseDescriptionHelp = descriptionSuggestionEl ? descriptionSuggestionEl.textContent.trim() : "";
 
   function togglePeriodicField() {
     if (!verificationField || !kindEl) return;
@@ -438,12 +490,84 @@
     }
   }
 
+  function setAutoValue(field, value) {
+    if (!field) return;
+    const nextValue = String(value || "").trim();
+    if (!nextValue) return;
+    const currentValue = String(field.value || "").trim();
+    if (!currentValue || field.dataset.autofilled === "1") {
+      field.value = nextValue;
+      field.dataset.autofilled = "1";
+    }
+  }
+
+  function setHelperState(element, text, highlighted) {
+    if (!element) return;
+    element.textContent = text || "";
+    element.classList.toggle("is-highlight", Boolean(highlighted));
+  }
+
+  function syncRuleSuggestion() {
+    if (!ruleEl) return;
+    const payload = ruleMap[String(ruleEl.value || "")] || null;
+    if (payload) {
+      setHelperState(ruleSuggestionEl, "Template suggerito: " + (payload.template_label || payload.title || ""), true);
+      setHelperState(titleSuggestionEl, "Titolo proposto dal template manutentivo.", true);
+      setHelperState(
+        descriptionSuggestionEl,
+        payload.description
+          ? "Descrizione precompilata dal template e dalle note operative della regola."
+          : "La regola selezionata propone il titolo; la descrizione resta libera.",
+        true
+      );
+      setAutoValue(titleEl, payload.title);
+      setAutoValue(descriptionEl, payload.description);
+      return;
+    }
+    setHelperState(ruleSuggestionEl, baseRuleHelp, false);
+    setHelperState(titleSuggestionEl, baseTitleHelp, false);
+    setHelperState(descriptionSuggestionEl, baseDescriptionHelp, false);
+  }
+
+  function syncContractSuggestion() {
+    if (!contractEl) return;
+    const payload = contractMap[String(contractEl.value || "")] || null;
+    if (coveredByContractEl) {
+      coveredByContractEl.checked = Boolean(payload);
+    }
+    if (payload && payload.contract_label) {
+      setHelperState(
+        contractSuggestionEl,
+        "Contratto suggerito: " + payload.contract_label + (payload.supplier_label ? " con " + payload.supplier_label : ""),
+        true
+      );
+      return;
+    }
+    setHelperState(contractSuggestionEl, baseContractHelp, false);
+  }
+
+  function syncCoverageAvailability() {
+    if (!coveredByContractEl) return;
+    const hasContract = Boolean(String(contractEl ? contractEl.value : "").trim());
+    coveredByContractEl.disabled = !hasContract;
+    if (!hasContract) {
+      coveredByContractEl.checked = false;
+    }
+  }
+
   function syncSuggestedSupplier() {
     if (!verificationEl || !supplierEl || !suggestionEl) return;
+    const contractPayload = contractMap[String(contractEl ? contractEl.value : "")] || null;
+    if (contractPayload && contractPayload.supplier_id) {
+      setAutoValue(supplierEl, contractPayload.supplier_id);
+      suggestionEl.textContent = "Fornitore proposto dal contratto: " + contractPayload.supplier_label;
+      suggestionEl.classList.add("is-highlight");
+      return;
+    }
     const payload = supplierMap[String(verificationEl.value || "")] || null;
     if (payload && payload.supplier_id) {
-      supplierEl.value = payload.supplier_id;
-      suggestionEl.textContent = "Fornitore proposto dall'intervento programmato: " + payload.supplier_label;
+      setAutoValue(supplierEl, payload.supplier_id);
+      suggestionEl.textContent = "Fornitore proposto dalla verifica periodica collegata: " + payload.supplier_label;
       suggestionEl.classList.add("is-highlight");
       return;
     }
@@ -465,20 +589,67 @@
     attachmentsStatusEl.textContent = total + " file selezionati";
   }
 
+  function markTrackedFields() {
+    const rulePayload = ruleMap[String(ruleEl ? ruleEl.value : "")] || null;
+    if (titleEl && rulePayload && String(titleEl.value || "").trim() === String(rulePayload.title || "").trim()) {
+      titleEl.dataset.autofilled = "1";
+    }
+    if (descriptionEl && rulePayload && String(descriptionEl.value || "").trim() === String(rulePayload.description || "").trim()) {
+      descriptionEl.dataset.autofilled = "1";
+    }
+    const contractPayload = contractMap[String(contractEl ? contractEl.value : "")] || null;
+    const verificationPayload = supplierMap[String(verificationEl ? verificationEl.value : "")] || null;
+    const suggestedSupplierId = String(
+      (contractPayload && contractPayload.supplier_id) || (verificationPayload && verificationPayload.supplier_id) || ""
+    );
+    if (supplierEl && suggestedSupplierId && String(supplierEl.value || "") === suggestedSupplierId) {
+      supplierEl.dataset.autofilled = "1";
+    }
+  }
+
   if (kindEl) {
     kindEl.addEventListener("change", function () {
       togglePeriodicField();
       syncSuggestedSupplier();
     });
   }
+  if (ruleEl) {
+    ruleEl.addEventListener("change", syncRuleSuggestion);
+  }
   if (verificationEl) {
     verificationEl.addEventListener("change", syncSuggestedSupplier);
+  }
+  if (contractEl) {
+    contractEl.addEventListener("change", function () {
+      syncContractSuggestion();
+      syncCoverageAvailability();
+      syncSuggestedSupplier();
+    });
+  }
+  if (titleEl) {
+    titleEl.addEventListener("input", function () {
+      titleEl.dataset.autofilled = "0";
+    });
+  }
+  if (descriptionEl) {
+    descriptionEl.addEventListener("input", function () {
+      descriptionEl.dataset.autofilled = "0";
+    });
+  }
+  if (supplierEl) {
+    supplierEl.addEventListener("change", function () {
+      supplierEl.dataset.autofilled = "0";
+    });
   }
   if (attachmentsEl) {
     attachmentsEl.addEventListener("change", syncAttachmentCount);
   }
 
+  markTrackedFields();
   togglePeriodicField();
+  syncRuleSuggestion();
+  syncContractSuggestion();
+  syncCoverageAvailability();
   syncSuggestedSupplier();
   syncAttachmentCount();
 })();

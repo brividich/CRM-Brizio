@@ -15,7 +15,7 @@
   <div class="two-col">
     <div class="card">
       <div class="card-head">
-        <div class="card-title">👤 Identità</div>
+        <div class="card-title">Identita</div>
       </div>
       <div class="card-body">
         {% if legacy_user %}
@@ -26,7 +26,7 @@
             </div>
             <div>
               <div class="act-text" style="font-size:18px;font-weight:700;">{{ display_name }}</div>
-              <div class="act-time">{{ legacy_user.ruolo|default:"—" }}</div>
+              <div class="act-time">{{ legacy_user.ruolo|default:"-" }}</div>
             </div>
           </div>
 
@@ -35,7 +35,7 @@
               <div class="act-dot blue"></div>
               <div>
                 <div class="act-time">Email</div>
-                <div class="act-text">{{ legacy_user.email|default:"—" }}</div>
+                <div class="act-text">{{ legacy_user.email|default:"-" }}</div>
               </div>
             </div>
             <div class="activity-item">
@@ -49,7 +49,7 @@
               <div class="act-dot green"></div>
               <div>
                 <div class="act-time">Ruolo</div>
-                <div class="act-text">{{ legacy_user.ruolo|default:"—" }}</div>
+                <div class="act-text">{{ legacy_user.ruolo|default:"-" }}</div>
               </div>
             </div>
             {% if legacy_user.attivo is not None %}
@@ -81,7 +81,7 @@
     {% if anagrafica_row or extra_info %}
     <div class="card">
       <div class="card-head">
-        <div class="card-title">🏭 Reparto & Contatti</div>
+        <div class="card-title">Reparto e contatti</div>
       </div>
       <div class="card-body">
         <div style="display:flex;flex-direction:column;gap:10px;">
@@ -167,7 +167,7 @@
 
     <div class="card">
       <div class="card-head">
-        <div class="card-title">🔐 Sicurezza</div>
+        <div class="card-title">Sicurezza</div>
       </div>
       <div class="card-body">
         <div class="activity-item">
@@ -180,7 +180,7 @@
         <div class="activity-item">
           <div class="act-dot"></div>
           <div>
-            <a href="{% url 'cambia_password' %}" class="alert-btn">Cambia password →</a>
+            <a href="{% url 'cambia_password' %}" class="alert-btn">Cambia password &rarr;</a>
           </div>
         </div>
         {% if legacy_user and legacy_user.deve_cambiare_password %}
@@ -196,7 +196,28 @@
 
     <div class="card">
       <div class="card-head">
-        <div class="card-title">📊 Scheda Infografica</div>
+        <div class="card-title">Interfaccia</div>
+      </div>
+      <div class="card-body">
+        <div class="activity-item">
+          <div class="act-dot blue"></div>
+          <div>
+            <div class="act-text">Preferenze interfaccia</div>
+            <div class="act-time">Gestisci sidebar, scorciatoie rapide e leggibilita della shell.</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="act-dot"></div>
+          <div>
+            <a href="{% url 'ui_prefs_page' %}" class="alert-btn">Apri preferenze &rarr;</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Scheda infografica</div>
       </div>
       <div class="card-body">
         <div class="activity-item">

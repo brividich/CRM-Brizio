@@ -1,0 +1,131 @@
+{% extends "core/base.html" %}
+
+{% block title %}Lista Issue | Monitoring{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Lista issue" page_subtitle="Ricerca, filtri e triage operativo delle issue registrate dal sistema." %}
+
+  <div class="card" style="margin-bottom:18px;">
+    <div class="card-body">
+      <form method="get" class="admin-form-grid">
+        <div class="field">
+          <label for="f_status">Status</label>
+          <select id="f_status" name="status" class="input">
+            <option value="">Tutti</option>
+            {% for value, label in status_choices %}
+              <option value="{{ value }}"{% if filters.status == value %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="f_severity">Severita</label>
+          <select id="f_severity" name="severity" class="input">
+            <option value="">Tutte</option>
+            {% for value, label in severity_choices %}
+              <option value="{{ value }}"{% if filters.severity == value %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="f_source">Source</label>
+          <select id="f_source" name="source" class="input">
+            <option value="">Tutte</option>
+            {% for value, label in source_choices %}
+              <option value="{{ value }}"{% if filters.source == value %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="f_category">Categoria</label>
+          <select id="f_category" name="category" class="input">
+            <option value="">Tutte</option>
+            {% for value, label in category_choices %}
+              <option value="{{ value }}"{% if filters.category == value %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="f_module">Modulo</label>
+          <input id="f_module" type="text" name="module_name" class="input" value="{{ filters.module_name }}" placeholder="Es. assets">
+        </div>
+        <div class="field">
+          <label for="f_from">Da data</label>
+          <input id="f_from" type="date" name="date_from" class="input" value="{{ filters.date_from }}">
+        </div>
+        <div class="field">
+          <label for="f_to">A data</label>
+          <input id="f_to" type="date" name="date_to" class="input" value="{{ filters.date_to }}">
+        </div>
+        <div class="field field-checks">
+          <label>&nbsp;</label>
+          <label class="checkline"><input type="checkbox" name="open_only" value="1"{% if filters.open_only %} checked{% endif %}> Solo aperte</label>
+        </div>
+        <div class="field field-actions" style="grid-column:1 / -1;">
+          <button type="submit" class="btn">Applica filtri</button>
+          <a href="{% url 'monitoring_admin:issue_list' %}" class="btn btn-secondary">Reset</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Issue</div>
+      <div class="cell-muted">{{ page_obj.paginator.count }} record</div>
+    </div>
+    <div class="card-body" style="padding:0;">
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Titolo</th>
+              <th>Severita</th>
+              <th>Status</th>
+              <th>Source</th>
+              <th>Modulo</th>
+              <th>First seen</th>
+              <th>Last seen</th>
+              <th>Occorrenze</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for issue in page_obj.object_list %}
+              <tr>
+                <td><a href="{% url 'monitoring_admin:issue_detail' issue.pk %}"><strong>{{ issue.code }}</strong></a></td>
+                <td>{{ issue.title }}</td>
+                <td><span class="monitoring-pill severity-{{ issue.severity }}">{{ issue.get_severity_display }}</span></td>
+                <td><span class="monitoring-pill status-{{ issue.status }}">{{ issue.get_status_display }}</span></td>
+                <td><span class="monitoring-pill source-{{ issue.source }}">{{ issue.source }}</span></td>
+                <td>{{ issue.module_name|default:"-" }}</td>
+                <td>{{ issue.first_seen_at|date:"d/m/Y H:i" }}</td>
+                <td>{{ issue.last_seen_at|date:"d/m/Y H:i" }}</td>
+                <td>{{ issue.occurrences_count }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="9" class="cell-muted">Nessuna issue trovata con i filtri correnti.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {% if page_obj.paginator.num_pages > 1 %}
+    <div class="pagination-bar">
+      <div class="cell-muted">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}</div>
+      <div class="pagination-links">
+        {% if page_obj.has_previous %}
+          <a class="btn btn-secondary btn-sm" href="?page={{ page_obj.previous_page_number }}&status={{ filters.status }}&severity={{ filters.severity }}&source={{ filters.source }}&category={{ filters.category }}&module_name={{ filters.module_name }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}&open_only={{ filters.open_only }}">Precedente</a>
+        {% endif %}
+        {% if page_obj.has_next %}
+          <a class="btn btn-secondary btn-sm" href="?page={{ page_obj.next_page_number }}&status={{ filters.status }}&severity={{ filters.severity }}&source={{ filters.source }}&category={{ filters.category }}&module_name={{ filters.module_name }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}&open_only={{ filters.open_only }}">Successiva</a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}

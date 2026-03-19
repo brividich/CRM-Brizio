@@ -91,26 +91,26 @@
               <span class="sb-item-badge">{{ notifiche_count }}</span>
             {% endif %}
           </a>
-        {% elif footer_key == "preferences" %}
-          <a href="{% url 'ui_prefs_page' %}" class="sb-item sb-footer-item" title="Preferenze interfaccia">
-            <span class="sb-icon" aria-hidden="true">&#9881;</span>
-            <span class="sb-label">Preferenze</span>
-          </a>
-        {% elif footer_key == "profile" %}
-          <a href="{% url 'profilo' %}" class="sb-user" title="{{ display_name }}">
-            <span class="nav-avatar">{{ display_name|slice:":2"|upper }}</span>
-            <span class="sb-user-info">
-              <span class="sb-uname">{{ display_name }}</span>
-              <span class="sb-urole">{{ legacy_user.ruolo|default:"Utente" }}</span>
-            </span>
-          </a>
-        {% elif footer_key == "logout" %}
-          <a href="{% url 'logout' %}" class="sb-logout" title="Esci">
-            <span class="sb-icon" aria-hidden="true">&#128682;</span>
-            <span class="sb-label">Esci</span>
-          </a>
         {% endif %}
       {% endfor %}
+
+      <div class="sb-user-panel">
+        <a href="{% url 'profilo' %}" class="sb-user" title="{{ display_name }}" aria-label="{{ display_name }} - Apri profilo">
+          <span class="nav-avatar">{{ display_name|slice:":2"|upper }}</span>
+          <span class="sb-user-info">
+            <span class="sb-uname">{{ display_name }}</span>
+            <span class="sb-urole">{{ legacy_user.ruolo|default:"Utente" }}</span>
+          </span>
+        </a>
+        <a href="{% url 'ui_prefs_page' %}" class="sb-user-pref" title="Preferenze interfaccia" aria-label="Preferenze interfaccia">
+          <span class="sb-icon" aria-hidden="true">&#9881;</span>
+          <span class="sb-label">Preferenze</span>
+        </a>
+      </div>
+      <a href="{% url 'logout' %}" class="sb-logout" title="Esci" aria-label="Esci">
+        <span class="sb-icon" aria-hidden="true">&#128682;</span>
+        <span class="sb-label">Esci</span>
+      </a>
     {% else %}
       <a href="{% url 'login' %}" class="sb-item sb-footer-item" title="Accedi">
         <span class="sb-icon" aria-hidden="true">&#10140;</span>

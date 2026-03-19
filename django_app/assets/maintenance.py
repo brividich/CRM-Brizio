@@ -23,6 +23,20 @@ SCHEDULE_WARNING = "warning"
 SCHEDULE_OVERDUE = "overdue"
 SCHEDULE_MISSING = "missing"
 
+WORKORDER_SOURCE_MANUAL = "manual"
+WORKORDER_SOURCE_ASSET = "asset_detail"
+WORKORDER_SOURCE_SCHEDULE = "maintenance_schedule"
+WORKORDER_SOURCE_RULES = "maintenance_rules"
+WORKORDER_SOURCE_REPORTS = "maintenance_reports"
+
+WORKORDER_SOURCE_LABELS = {
+    WORKORDER_SOURCE_MANUAL: "Apertura manuale",
+    WORKORDER_SOURCE_ASSET: "Dettaglio asset",
+    WORKORDER_SOURCE_SCHEDULE: "Prossime manutenzioni",
+    WORKORDER_SOURCE_RULES: "Regole manutenzione asset",
+    WORKORDER_SOURCE_REPORTS: "Report manutenzione",
+}
+
 
 def _resolved_rule_row(
     *,
@@ -110,6 +124,64 @@ def resolve_asset_maintenance_rules(asset: Asset) -> list[dict[str, Any]]:
     return resolved_rows
 
 
+def get_effective_asset_maintenance_rule(asset: Asset | None, *, base_rule_id: int) -> dict[str, Any] | None:
+    if asset is None or not int(base_rule_id or 0):
+        return None
+
+    for row in resolve_asset_maintenance_rules(asset):
+        if row["base_rule"].id != int(base_rule_id):
+            continue
+        if not row["base_rule"].is_active or row["is_disabled"]:
+            return None
+        return row
+    return None
+
+
+def normalize_workorder_source(source: str) -> str:
+    value = str(source or "").strip().lower()
+    if value in WORKORDER_SOURCE_LABELS:
+        return value
+    return WORKORDER_SOURCE_MANUAL
+
+
+def build_workorder_prefill_payload(
+    *,
+    asset: Asset | None,
+    base_rule_id: int = 0,
+    source: str = WORKORDER_SOURCE_MANUAL,
+    today: date | None = None,
+) -> dict[str, Any]:
+    normalized_source = normalize_workorder_source(source)
+    contract = get_primary_assistance_contract(asset, today=today) if asset is not None else None
+    rule_row = get_effective_asset_maintenance_rule(asset, base_rule_id=int(base_rule_id or 0))
+    template = rule_row["effective_intervention_template"] if rule_row is not None else None
+    template_description = (getattr(template, "description", "") or "").strip()
+    rule_notes = (str(rule_row.get("effective_notes") or "").strip() if rule_row is not None else "")
+    description_parts: list[str] = []
+    if template_description:
+        description_parts.append(template_description)
+    if rule_notes and rule_notes not in description_parts:
+        description_parts.append(rule_notes)
+
+    return {
+        "source": normalized_source,
+        "source_label": WORKORDER_SOURCE_LABELS.get(normalized_source, WORKORDER_SOURCE_LABELS[WORKORDER_SOURCE_MANUAL]),
+        "is_from_maintenance": rule_row is not None,
+        "maintenance_rule": rule_row["base_rule"] if rule_row is not None else None,
+        "maintenance_rule_row": rule_row,
+        "maintenance_template": template,
+        "template_label": (getattr(template, "label", "") or "").strip(),
+        "template_description": template_description,
+        "notes": rule_notes,
+        "title": (getattr(template, "label", "") or "").strip(),
+        "description": "\n\n".join(description_parts).strip(),
+        "kind": WorkOrder.KIND_PREVENTIVE if rule_row is not None else "",
+        "contract": contract,
+        "covered_by_contract": bool(contract),
+        "supplier": getattr(contract, "supplier", None),
+    }
+
+
 def upsert_asset_maintenance_rule_state(
     *,
     asset: Asset,
@@ -119,10 +191,19 @@ def upsert_asset_maintenance_rule_state(
     notes: str = "",
 ) -> AssetMaintenanceRuleState:
     state, _created = AssetMaintenanceRuleState.objects.get_or_create(asset=asset, base_rule=base_rule)
-    state.last_execution_date = executed_on
-    state.last_work_order = workorder
-    state.notes = (notes or "").strip()
-    state.save()
+    cleaned_notes = (notes or "").strip()
+    changed_fields: list[str] = []
+    if state.last_execution_date != executed_on:
+        state.last_execution_date = executed_on
+        changed_fields.append("last_execution_date")
+    if state.last_work_order_id != getattr(workorder, "id", None):
+        state.last_work_order = workorder
+        changed_fields.append("last_work_order")
+    if state.notes != cleaned_notes:
+        state.notes = cleaned_notes
+        changed_fields.append("notes")
+    if changed_fields:
+        state.save(update_fields=[*changed_fields, "updated_at"])
     return state
 
 

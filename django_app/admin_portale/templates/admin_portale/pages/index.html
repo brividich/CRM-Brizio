@@ -67,6 +67,9 @@
   {% url 'admin_portale:automazioni_contenuti'    as automazioni_contenuti_url %}
   {% url 'admin_portale:automazioni_queue_list'   as automazioni_queue_url %}
   {% url 'admin_portale:automazioni_run_log_list' as automazioni_run_log_url %}
+  {% url 'monitoring_admin:dashboard'             as monitoring_dashboard_url %}
+  {% url 'monitoring_admin:issue_list'            as monitoring_issue_list_url %}
+  {% url 'monitoring_admin:automation_list'       as monitoring_automation_list_url %}
   {% url 'hub_tools:hub_moduli'               as hub_moduli_url %}
   {% url 'hub_tools:hub_database'             as hub_database_url %}
   {% url 'hub_tools:hub_homepage_builder'     as hub_homepage_builder_url %}
@@ -241,6 +244,37 @@
     </div>
   </div>
   {% endif %}
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Monitoraggio interno</div>
+    </div>
+    <div class="card-body">
+      <div class="modules-grid">
+        <a class="mod" href="{{ monitoring_dashboard_url }}">
+          <div class="mod-icon">MON</div>
+          <div>
+            <div class="mod-name">Monitor errori</div>
+            <div class="mod-sub">Dashboard issue, trend recenti, segnalazioni utente e criticita aperte.</div>
+          </div>
+        </a>
+        <a class="mod" href="{{ monitoring_automation_list_url }}">
+          <div class="mod-icon">JOB</div>
+          <div>
+            <div class="mod-name">Monitor automazioni</div>
+            <div class="mod-sub">Stato dei job interni, fallimenti consecutivi, missing e run history.</div>
+          </div>
+        </a>
+        <a class="mod" href="{{ monitoring_issue_list_url }}">
+          <div class="mod-icon">INC</div>
+          <div>
+            <div class="mod-name">Lista issue</div>
+            <div class="mod-sub">Vista operativa per filtro, triage, assegnazione e dettaglio tecnico.</div>
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
 
   <!-- ── 4. Configurazione ──────────────────────────────────── -->
   <div class="card">

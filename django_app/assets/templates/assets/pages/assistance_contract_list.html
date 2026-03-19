@@ -6,7 +6,7 @@
 <style>
 .ac-page { display:grid; gap:14px; }
 .ac-grid { display:grid; gap:14px; grid-template-columns:minmax(0, 1.2fr) minmax(320px, .8fr); align-items:start; }
-.ac-kpis { display:grid; gap:10px; grid-template-columns:repeat(4, minmax(0, 1fr)); }
+.ac-kpis { display:grid; gap:10px; grid-template-columns:repeat(5, minmax(0, 1fr)); }
 .ac-kpi, .ac-card {
   border:1px solid #dbe1ea;
   border-radius:16px;
@@ -65,19 +65,6 @@
   color:#0f172a;
   vertical-align:top;
 }
-.ac-badge {
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding:5px 9px;
-  border-radius:999px;
-  font-size:var(--fs-xs);
-  font-weight:800;
-}
-.ac-badge.ok { background:#dcfce7; color:#15803d; }
-.ac-badge.warn { background:#fef3c7; color:#92400e; }
-.ac-badge.danger { background:#fee2e2; color:#b91c1c; }
-.ac-badge.muted { background:#e2e8f0; color:#475569; }
 .ac-meta { color:#64748b; font-size:var(--fs-sm); line-height:1.5; }
 .ac-row-actions { display:flex; gap:8px; flex-wrap:wrap; }
 .ac-delete { display:inline-flex; }
@@ -112,6 +99,7 @@
     <article class="ac-kpi"><div class="ac-kpi-label">Contratti visibili</div><div class="ac-kpi-value">{{ contract_total }}</div></article>
     <article class="ac-kpi"><div class="ac-kpi-label">Attivi</div><div class="ac-kpi-value">{{ active_count }}</div></article>
     <article class="ac-kpi"><div class="ac-kpi-label">In scadenza</div><div class="ac-kpi-value">{{ expiring_count }}</div></article>
+    <article class="ac-kpi"><div class="ac-kpi-label">Scaduti</div><div class="ac-kpi-value">{{ expired_count }}</div></article>
     <article class="ac-kpi"><div class="ac-kpi-label">Costo periodico attivo</div><div class="ac-kpi-value">{{ periodic_cost_total|default:"0" }} €</div></article>
   </section>
 
@@ -143,7 +131,7 @@
           </select>
         </div>
         <div class="ac-field">
-          <label for="id_scope">Ambito</label>
+          <label for="id_scope">Dove si applica</label>
           <select id="id_scope" name="scope">
             {% for code, label in scope_choices %}
               <option value="{{ code }}" {% if scope_filter == code %}selected{% endif %}>{{ label }}</option>
@@ -179,7 +167,7 @@
                 <tr>
                   <th>Contratto</th>
                   <th>Fornitore</th>
-                  <th>Ambito</th>
+                  <th>Dove si applica</th>
                   <th>Periodo</th>
                   <th>Copertura</th>
                   <th>Azioni</th>
@@ -194,19 +182,20 @@
                         {% if row.contract.code %}{{ row.contract.code }} · {% endif %}
                         {{ row.contract.get_contract_type_display }}
                       </span>
+                      <br><span class="as-badge as-badge--{{ row.state.badge_class }}">{{ row.state.label }}</span>
                     </td>
                     <td>
-                      <a href="{{ row.supplier_url }}">{{ row.contract.supplier }}</a><br>
-                      <span class="ac-badge {{ row.state.badge_class }}">{{ row.state.label }}</span>
+                      <a href="{{ row.supplier_url }}">{{ row.contract.supplier }}</a>
                     </td>
                     <td>
-                      {% if row.contract.asset_id %}
-                        <a href="{{ row.asset_url }}">Asset {{ row.contract.asset.asset_tag }}</a>
-                      {% elif row.contract.asset_category_id %}
-                        Categoria {{ row.contract.asset_category.label }}
-                      {% else %}
-                        Generale
-                      {% endif %}
+                      <span class="as-badge as-badge--{{ row.scope_payload.badge_class }}">{{ row.scope_payload.label }}</span><br>
+                      <span class="ac-meta">
+                        {% if row.contract.asset_id %}
+                          <a href="{{ row.asset_url }}">{{ row.scope_payload.detail }}</a>
+                        {% else %}
+                          {{ row.scope_payload.detail }}
+                        {% endif %}
+                      </span>
                     </td>
                     <td>
                       <strong>{{ row.contract.start_date|date:"d/m/Y" }}</strong><br>
@@ -219,10 +208,10 @@
                       {% if row.contract.coverage_summary %}
                         {{ row.contract.coverage_summary|truncatechars:120 }}
                       {% else %}
-                        <span class="ac-meta">Copertura non descritta</span>
+                        <span class="ac-meta">Copertura non disponibile</span>
                       {% endif %}
                       {% if row.contract.document and row.contract.document.file %}
-                        <br><a class="ac-meta" href="{{ row.contract.document.file.url }}" target="_blank" rel="noopener">Documento collegato</a>
+                        <br><a class="ac-meta" href="{{ row.contract.document.file.url }}" target="_blank" rel="noopener">{{ row.contract.document.nome|default:row.contract.document.file.name }}</a>
                       {% endif %}
                     </td>
                     <td>
@@ -261,6 +250,11 @@
           </div>
         </div>
         <div class="ac-card-body">
+          {% if selected_asset and not is_edit %}
+            <div class="ac-banner" style="margin-bottom:14px;">
+              Stai creando un contratto per questo asset: <strong>{{ selected_asset.asset_tag }}</strong> - {{ selected_asset.name }}.
+            </div>
+          {% endif %}
           <form method="post" style="display:grid;gap:12px;">
             {% csrf_token %}
             {% if selected_asset %}<input type="hidden" name="asset_id" value="{{ selected_asset.id }}">{% endif %}

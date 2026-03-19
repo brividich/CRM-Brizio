@@ -35,7 +35,18 @@ from .forms import (
     TaskForm,
     TaskStatusForm,
 )
-from .models import Project, ProjectComment, SubTask, Task, TaskAttachment, TaskComment, TaskEvent, TaskEventType, TaskStatus
+from .models import (
+    Project,
+    ProjectComment,
+    SubTask,
+    Task,
+    TaskAttachment,
+    TaskComment,
+    TaskEvent,
+    TaskEventType,
+    TaskPriority,
+    TaskStatus,
+)
 
 TASK_MODULE_CODE = "tasks"
 OPEN_STATUSES = {TaskStatus.TODO, TaskStatus.IN_PROGRESS}
@@ -215,6 +226,20 @@ def _apply_default_ordering(qs):
         F("due_date").asc(nulls_last=True),
         "-updated_at",
     )
+
+
+def _tasks_shell_context(request, *, active: str, task: Task | None = None, project: Project | None = None) -> dict:
+    current_project = project
+    if current_project is None and task is not None and getattr(task, "project_id", None):
+        current_project = task.project
+    return {
+        "tasks_shell_active": active,
+        "tasks_shell_task": task,
+        "tasks_shell_project": current_project,
+        "tasks_shell_can_create": _has_task_permission(request, "tasks_create"),
+        "tasks_shell_can_admin": user_can_modulo_action(request, "tasks", "admin_tasks"),
+        "tasks_shell_is_scope_admin": _has_task_permission(request, "tasks_admin"),
+    }
 
 
 def _json_safe(value):
@@ -954,6 +979,7 @@ def task_list(request):
         request,
         "tasks/list.html",
         {
+            **_tasks_shell_context(request, active="dashboard"),
             "page_title": "Task",
             "tasks": tasks,
             "filter_form": filter_form,
@@ -966,7 +992,6 @@ def task_list(request):
             "showing_mine_default": (not is_scope_admin) or (not mine_explicit_false),
             "admin_console": admin_console,
             "admin_project_summary": admin_project_summary,
-            "can_gestione_admin": user_can_modulo_action(request, "tasks", "admin_tasks"),
         },
     )
 
@@ -985,6 +1010,7 @@ def task_detail(request, task_id: int):
         request,
         "tasks/detail.html",
         {
+            **_tasks_shell_context(request, active="detail", task=task),
             "page_title": task.title,
             "task": task,
             "task_status_form": TaskStatusForm(instance=task),
@@ -1106,6 +1132,7 @@ def task_create(request):
             request,
             "tasks/form.html",
             {
+                **_tasks_shell_context(request, active="create"),
                 "page_title": "Nuova task",
                 "form": form,
                 "mode": "create",
@@ -1118,6 +1145,7 @@ def task_create(request):
         request,
         "tasks/form.html",
         {
+            **_tasks_shell_context(request, active="create"),
             "page_title": "Nuova task",
             "form": form,
             "mode": "create",
@@ -1169,6 +1197,7 @@ def task_edit(request, task_id: int):
         request,
         "tasks/form.html",
         {
+            **_tasks_shell_context(request, active="edit", task=task),
             "page_title": "Modifica task",
             "form": form,
             "task": task,
@@ -1392,6 +1421,7 @@ def project_list(request):
         request,
         "tasks/projects.html",
         {
+            **_tasks_shell_context(request, active="projects"),
             "page_title": "Progetti Task",
             "projects": projects,
             "is_scope_admin": _has_task_permission(request, "tasks_admin"),
@@ -1434,6 +1464,41 @@ def project_gantt(request, project_id: int):
         user=request.user,
         notify_user_queryset=_project_notify_users_queryset(project),
     )
+    today = timezone.localdate()
+    total_tasks = len(tasks)
+    done_total = sum(1 for task in tasks if task.status == TaskStatus.DONE)
+    open_total = sum(1 for task in tasks if task.status in OPEN_STATUSES)
+    in_progress_total = sum(1 for task in tasks if task.status == TaskStatus.IN_PROGRESS)
+    overdue_total = sum(1 for task in tasks if task.is_overdue)
+    due_next_7d_total = sum(
+        1
+        for task in tasks
+        if task.status in OPEN_STATUSES
+        and task.due_date
+        and today <= task.due_date <= today + timedelta(days=7)
+    )
+    unassigned_total = sum(1 for task in tasks if not task.assigned_to_id)
+    high_priority_open_total = sum(
+        1 for task in tasks if task.status in OPEN_STATUSES and task.priority == TaskPriority.HIGH
+    )
+    invalid_range_total = sum(1 for row in gantt_meta["rows"] if row.get("invalid_range"))
+    absence_conflict_total = sum(1 for row in gantt_meta["rows"] if row.get("has_absence_conflicts"))
+    progress_percent = int(round((done_total / total_tasks) * 100)) if total_tasks else 0
+    project_summary = {
+        "total_tasks": total_tasks,
+        "open_tasks": open_total,
+        "in_progress_tasks": in_progress_total,
+        "done_tasks": done_total,
+        "overdue_tasks": overdue_total,
+        "due_next_7d_tasks": due_next_7d_total,
+        "unassigned_tasks": unassigned_total,
+        "high_priority_open_tasks": high_priority_open_total,
+        "invalid_range_tasks": invalid_range_total,
+        "absence_conflict_tasks": absence_conflict_total,
+        "progress_percent": progress_percent,
+        "planned_start": gantt_meta["timeline_start"],
+        "planned_end": gantt_meta["timeline_end"],
+    }
 
     task_update_forms = {}
     if can_edit_schedule:
@@ -1446,6 +1511,7 @@ def project_gantt(request, project_id: int):
         request,
         "tasks/project_gantt.html",
         {
+            **_tasks_shell_context(request, active="gantt", project=project),
             "page_title": f"Gantt progetto - {project.name}",
             "project": project,
             "tasks": tasks,
@@ -1459,6 +1525,7 @@ def project_gantt(request, project_id: int):
             "can_comment": can_comment,
             "task_update_forms": task_update_forms,
             "project_comment_form": comment_form,
+            "project_summary": project_summary,
             "gantt_option_window_days": gantt_options["window_days"],
             "gantt_option_cell_size": gantt_options["cell_size"],
             "gantt_option_name_width": gantt_options["name_width"],
@@ -1698,6 +1765,7 @@ def gestione_admin(request):
         request,
         "tasks/gestione_admin.html",
         {
+            **_tasks_shell_context(request, active="admin"),
             "page_title": "Gestione Tasks",
             "tab": tab,
             # stats

@@ -10,6 +10,7 @@
   {% endif %}
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
+  <link rel="stylesheet" href="{% static 'monitoring/css/monitoring.css' %}">
   {% block extra_head %}{% endblock %}
 </head>
 <body class="{% block body_class %}nav-{{ ui_prefs.nav_mode|default:'top' }} fs-{{ ui_prefs.font_scale|default:'normal' }}{% if ui_prefs.sidebar_collapsed %} sb-collapsed{% endif %}{% endblock %}">
@@ -37,7 +38,9 @@
   </div>
 </div>
 
+{% include "monitoring/components/report_problem_modal.html" %}
 {% block extra_scripts %}{% endblock %}
+<script src="{% static 'monitoring/js/report_problem.js' %}"></script>
 <script>
 (function () {
   var pendingBtn = null;

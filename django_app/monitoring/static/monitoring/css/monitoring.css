@@ -1,0 +1,260 @@
+.monitoring-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  z-index: 1400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.monitoring-modal-backdrop[hidden] {
+  display: none !important;
+}
+
+.monitoring-modal {
+  width: min(640px, 96vw);
+  border: 1px solid #d8e2f2;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.35);
+  overflow: hidden;
+}
+
+.monitoring-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid #dbe3f0;
+  background: #f8fbff;
+}
+
+.monitoring-modal-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.monitoring-modal-subtitle {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.monitoring-modal-body {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.monitoring-modal-status {
+  min-height: 18px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.monitoring-modal-status.is-error {
+  color: #b91c1c;
+}
+
+.monitoring-modal-status.is-success {
+  color: #166534;
+}
+
+.monitoring-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.monitoring-toast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 1450;
+  min-width: 220px;
+  max-width: 360px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #0f766e;
+  color: #fff;
+  box-shadow: 0 14px 32px rgba(15, 118, 110, 0.25);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.monitoring-toast[hidden] {
+  display: none !important;
+}
+
+.nav-report-btn,
+.app-header-report-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.nav-report-btn:hover,
+.app-header-report-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.app-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.monitoring-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.monitoring-grid.two-col {
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 1fr);
+}
+
+.monitoring-kpis {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  margin-bottom: 18px;
+}
+
+.monitoring-kpi {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #dbe3f0;
+  padding: 14px 16px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+}
+
+.monitoring-kpi-label {
+  font-size: 12px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.monitoring-kpi-value {
+  margin-top: 6px;
+  font-size: 30px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1;
+}
+
+.monitoring-stacktrace {
+  margin: 0;
+  padding: 14px;
+  border-radius: 10px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.monitoring-inline-list {
+  display: grid;
+  gap: 10px;
+}
+
+.monitoring-inline-item {
+  padding: 10px 12px;
+  border: 1px solid #dbe3f0;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.monitoring-meta {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.monitoring-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.monitoring-pill.severity-low,
+.monitoring-pill.status-resolved {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.monitoring-pill.severity-medium,
+.monitoring-pill.status-triage {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.monitoring-pill.severity-high,
+.monitoring-pill.status-in_progress {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.monitoring-pill.severity-critical,
+.monitoring-pill.status-new {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.monitoring-pill.status-ignored,
+.monitoring-pill.source-user_manual {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.monitoring-pill.source-automation,
+.monitoring-pill.source-system_watchdog {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.monitoring-note {
+  font-size: 13px;
+  color: #64748b;
+}
+
+@media (max-width: 768px) {
+  .monitoring-grid.two-col {
+    grid-template-columns: 1fr;
+  }
+
+  .monitoring-modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .nav-report-btn,
+  .app-header-report-btn {
+    padding: 0 10px;
+    font-size: 12px;
+  }
+}

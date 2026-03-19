@@ -9,6 +9,9 @@
 {% url 'admin_portale:automazioni_contenuti'    as automazioni_contenuti_url %}
 {% url 'admin_portale:automazioni_queue_list'   as automazioni_queue_url %}
 {% url 'admin_portale:automazioni_run_log_list' as automazioni_run_log_url %}
+{% url 'monitoring_admin:dashboard'             as monitoring_dashboard_url %}
+{% url 'monitoring_admin:issue_list'            as monitoring_issue_list_url %}
+{% url 'monitoring_admin:automation_list'       as monitoring_automation_url %}
 {% url 'hub_tools:hub_moduli'                   as hub_moduli_url %}
 {% url 'hub_tools:hub_database'                 as hub_database_url %}
 {% url 'hub_tools:hub_homepage_builder'         as hub_homepage_builder_url %}
@@ -48,6 +51,10 @@
     <a class="sub-a{% if current == 'admin_portale:automazioni_rule_list' or current == 'admin_portale:automazioni_rule_import_package' or current == 'admin_portale:automazioni_rule_import_result' or current == 'admin_portale:automazioni_rule_create' or current == 'admin_portale:automazioni_rule_detail' or current == 'admin_portale:automazioni_rule_edit' or current == 'admin_portale:automazioni_rule_toggle' or current == 'admin_portale:automazioni_rule_test' or current == 'admin_portale:automazioni_sorgenti' or current == 'admin_portale:automazioni_contenuti' or current == 'admin_portale:automazioni_queue_list' or current == 'admin_portale:automazioni_queue_detail' or current == 'admin_portale:automazioni_queue_reset' or current == 'admin_portale:automazioni_queue_retry' or current == 'admin_portale:automazioni_run_log_list' or current == 'admin_portale:automazioni_run_log_detail' %} active{% endif %}"
        href="{{ automazioni_rule_url }}">Automazioni</a>
   {% endif %}
+  <a class="sub-a{% if current == 'monitoring_admin:dashboard' or current == 'monitoring_admin:issue_list' or current == 'monitoring_admin:issue_detail' %} active{% endif %}"
+     href="{{ monitoring_dashboard_url }}">Monitor errori</a>
+  <a class="sub-a{% if current == 'monitoring_admin:automation_list' or current == 'monitoring_admin:automation_detail' %} active{% endif %}"
+     href="{{ monitoring_automation_url }}">Monitor automazioni</a>
   <div class="sub-sep"></div>
 
   {# ── Configurazione #}
@@ -136,6 +143,16 @@
     <strong>Automazioni / Queue:</strong> monitora gli eventi pendenti, gli errori di processamento e usa reset o retry controllato sui singoli eventi.
   {% elif current == 'admin_portale:automazioni_run_log_list' or current == 'admin_portale:automazioni_run_log_detail' %}
     <strong>Automazioni / Run log:</strong> vista operativa per debug esecuzioni regole, payload usati ed esito di ogni action figlia.
+  {% elif current == 'monitoring_admin:dashboard' %}
+    <strong>Monitoring:</strong> dashboard unificata per issue aperte, criticita recenti, segnalazioni utente e job in anomalia.
+  {% elif current == 'monitoring_admin:issue_list' %}
+    <strong>Monitor errori:</strong> filtra le issue per stato, severita, sorgente, categoria, modulo e finestra temporale.
+  {% elif current == 'monitoring_admin:issue_detail' %}
+    <strong>Dettaglio issue:</strong> riepilogo tecnico, occorrenze, stacktrace, utenti coinvolti, note interne e assegnazione responsabile.
+  {% elif current == 'monitoring_admin:automation_list' %}
+    <strong>Monitor automazioni:</strong> stato corrente dei job, fallimenti consecutivi, missing, ritardi e prossima esecuzione attesa.
+  {% elif current == 'monitoring_admin:automation_detail' %}
+    <strong>Dettaglio automazione:</strong> storico esecuzioni, issue collegate e indicatori missing / delayed / failing.
   {% elif current == 'admin_portale:anagrafica_config' %}
     <strong>Anagrafica:</strong> configura le liste dropdown (Reparti, Capireparto, Macchine) e i campi extra del profilo dipendente.
   {% elif current == 'admin_portale:login_config' %}

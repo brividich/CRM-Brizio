@@ -1,0 +1,181 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ issue.code }} | Monitoring{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% url 'monitoring_admin:issue_list' as monitoring_issue_list_url %}
+  {% include "admin_portale/components/page_header.html" with page_title=issue.code page_subtitle=issue.title page_secondary_action_label="Torna alla lista" page_secondary_action_url=monitoring_issue_list_url %}
+
+  <div class="monitoring-kpis">
+    <div class="monitoring-kpi">
+      <div class="monitoring-kpi-label">Severita</div>
+      <div class="monitoring-kpi-value" style="font-size:20px;"><span class="monitoring-pill severity-{{ issue.severity }}">{{ issue.get_severity_display }}</span></div>
+    </div>
+    <div class="monitoring-kpi">
+      <div class="monitoring-kpi-label">Status</div>
+      <div class="monitoring-kpi-value" style="font-size:20px;"><span class="monitoring-pill status-{{ issue.status }}">{{ issue.get_status_display }}</span></div>
+    </div>
+    <div class="monitoring-kpi">
+      <div class="monitoring-kpi-label">Occorrenze</div>
+      <div class="monitoring-kpi-value">{{ issue.occurrences_count }}</div>
+    </div>
+    <div class="monitoring-kpi">
+      <div class="monitoring-kpi-label">Utenti coinvolti</div>
+      <div class="monitoring-kpi-value">{{ issue.affected_users_count }}</div>
+    </div>
+  </div>
+
+  <div class="monitoring-grid two-col">
+    <div class="monitoring-grid">
+      <div class="card">
+        <div class="card-head"><div class="card-title">Riepilogo</div></div>
+        <div class="card-body">
+          <div class="monitoring-inline-list">
+            <div class="monitoring-inline-item"><strong>Categoria</strong><div class="monitoring-meta">{{ issue.get_category_display }}</div></div>
+            <div class="monitoring-inline-item"><strong>Source</strong><div class="monitoring-meta">{{ issue.source }}</div></div>
+            <div class="monitoring-inline-item"><strong>Modulo</strong><div class="monitoring-meta">{{ issue.module_name|default:"-" }}</div></div>
+            <div class="monitoring-inline-item"><strong>Route</strong><div class="monitoring-meta">{{ issue.route_name|default:"-" }}</div></div>
+            <div class="monitoring-inline-item"><strong>URL/Job</strong><div class="monitoring-meta">{{ issue.current_url|default:"-" }}</div></div>
+            <div class="monitoring-inline-item"><strong>Release / Ambiente</strong><div class="monitoring-meta">{{ issue.release_version|default:"-" }} / {{ issue.environment|default:"-" }}</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-title">Occorrenze recenti</div></div>
+        <div class="card-body" style="padding:0;">
+          <div class="table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Quando</th>
+                  <th>Source</th>
+                  <th>Messaggio</th>
+                  <th>Utente</th>
+                  <th>HTTP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for occurrence in occurrences %}
+                  <tr>
+                    <td>{{ occurrence.occurred_at|date:"d/m/Y H:i" }}</td>
+                    <td><span class="monitoring-pill source-{{ occurrence.source }}">{{ occurrence.source }}</span></td>
+                    <td>{{ occurrence.message|default:occurrence.exception_class|truncatechars:160 }}</td>
+                    <td>{{ occurrence.username_snapshot|default:"-" }}</td>
+                    <td>{{ occurrence.status_code|default:"-" }}</td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="5" class="cell-muted">Nessuna occorrenza disponibile.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-title">Stacktrace ultimo evento</div></div>
+        <div class="card-body">
+          {% if latest_occurrence and latest_occurrence.traceback_text %}
+            <pre class="monitoring-stacktrace">{{ latest_occurrence.traceback_text }}</pre>
+          {% else %}
+            <div class="monitoring-note">Nessuno stacktrace registrato per l'ultimo evento.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="monitoring-grid">
+      <div class="card">
+        <div class="card-head"><div class="card-title">Cambio stato e assegnazione</div></div>
+        <div class="card-body">
+          <form method="post" class="monitoring-grid">
+            {% csrf_token %}
+            <div class="field">
+              <label for="issue_status">Status</label>
+              <select id="issue_status" name="status" class="input">
+                {% for value, label in status_choices %}
+                  <option value="{{ value }}"{% if issue.status == value %} selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="field">
+              <label for="issue_assigned_to">Responsabile</label>
+              <select id="issue_assigned_to" name="assigned_to" class="input">
+                <option value="">Non assegnato</option>
+                {% for user_item in assignable_users %}
+                  <option value="{{ user_item.pk }}"{% if issue.assigned_to_id == user_item.pk %} selected{% endif %}>{{ user_item.get_full_name|default:user_item.username }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="field">
+              <label for="issue_notes_internal">Note interne</label>
+              <textarea id="issue_notes_internal" name="notes_internal" class="input" rows="6">{{ issue.notes_internal }}</textarea>
+            </div>
+            <div class="field">
+              <label for="issue_resolution_summary">Risoluzione</label>
+              <textarea id="issue_resolution_summary" name="resolution_summary" class="input" rows="4">{{ issue.resolution_summary }}</textarea>
+            </div>
+            <div class="field-actions">
+              <button type="submit" class="btn">Salva modifiche</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-title">Utenti coinvolti</div></div>
+        <div class="card-body">
+          <div class="monitoring-inline-list">
+            {% for item in users_involved %}
+              <div class="monitoring-inline-item">
+                <strong>{{ item.username_snapshot }}</strong>
+                <div class="monitoring-meta">{{ item.total }} occorrenze</div>
+              </div>
+            {% empty %}
+              <div class="monitoring-note">Nessun utente coinvolto registrato.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-title">Segnalazioni utente correlate</div></div>
+        <div class="card-body">
+          <div class="monitoring-inline-list">
+            {% for report in related_reports %}
+              <div class="monitoring-inline-item">
+                <strong>{{ report.username_snapshot|default:"Utente" }}</strong>
+                <div class="monitoring-meta">{{ report.created_at|date:"d/m/Y H:i" }} | {{ report.module_name|default:"modulo n/d" }}</div>
+                <div style="margin-top:6px;">{{ report.message }}</div>
+              </div>
+            {% empty %}
+              <div class="monitoring-note">Nessuna segnalazione utente collegata.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-title">Automation executions correlate</div></div>
+        <div class="card-body">
+          <div class="monitoring-inline-list">
+            {% for execution in related_automation_executions %}
+              <div class="monitoring-inline-item">
+                <strong>{{ execution.job.name }}</strong>
+                <div class="monitoring-meta">{{ execution.started_at|date:"d/m/Y H:i" }} | {{ execution.status }}</div>
+                <div style="margin-top:6px;">{{ execution.message|default:execution.exception_class|truncatechars:160 }}</div>
+              </div>
+            {% empty %}
+              <div class="monitoring-note">Nessuna esecuzione collegata.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

@@ -44,18 +44,6 @@
   font-size:var(--fs-base);
   vertical-align:top;
 }
-.mar-pill {
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  border-radius:999px;
-  padding:4px 8px;
-  font-size:var(--fs-xs);
-  font-weight:800;
-}
-.mar-pill.ok { background:#dcfce7; color:#15803d; }
-.mar-pill.warn { background:#fef3c7; color:#92400e; }
-.mar-pill.muted { background:#e2e8f0; color:#475569; }
 .mar-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
 .mar-reset-form { display:inline-flex; }
 .mar-inline-form { display:grid; gap:8px; min-width: 280px; }
@@ -70,6 +58,7 @@
 }
 .mar-inline-form textarea { min-height:72px; resize:vertical; grid-column:1/-1; }
 .mar-empty { color:#64748b; font-size:var(--fs-base); }
+.mar-row-focus { background:#f8fbff; }
 @media (max-width: 980px) {
   .mar-kpis { grid-template-columns:1fr; }
   .mar-inline-grid { grid-template-columns:1fr; }
@@ -90,7 +79,7 @@
 
   <section class="mar-kpis">
     <article class="mar-kpi">
-      <div class="mar-kpi-label">Regole standard</div>
+      <div class="mar-kpi-label">Regole effettive</div>
       <div class="mar-kpi-value">{{ rule_total }}</div>
     </article>
     <article class="mar-kpi">
@@ -129,15 +118,15 @@
                 <th>Intervento</th>
                 <th>Cadenza</th>
                 <th>Ultima esecuzione</th>
-                <th>Scadenza operativa</th>
-                <th>Stato</th>
+                <th>Stato scadenza</th>
+                <th>Policy regola</th>
                 <th>Note</th>
                 <th>Azioni</th>
               </tr>
             </thead>
             <tbody>
               {% for row in rule_rows %}
-                <tr>
+                <tr id="rule-{{ row.base_rule.id }}" {% if row.is_focus %}class="mar-row-focus"{% endif %}>
                   <td>
                     <strong>{{ row.effective_intervention_template.label }}</strong><br>
                     <span class="as-note">Base: {{ row.base_rule.intervention_template.label }}</span>
@@ -168,10 +157,10 @@
                     {% if row.due_date %}
                       <strong>{{ row.due_date|date:"d/m/Y" }}</strong><br>
                     {% endif %}
-                    <span class="mar-pill {{ row.schedule_badge_class }}">{{ row.schedule_label }}</span>
+                    <span class="as-badge as-badge--{{ row.schedule_badge_class }}">{{ row.schedule_label }}</span>
                   </td>
                   <td>
-                    <span class="mar-pill {{ row.status_badge_class }}">{{ row.status_label }}</span>
+                    <span class="as-badge as-badge--{{ row.status_badge_class }}">{{ row.status_label }}</span>
                     {% if row.is_redundant_override %}
                       <div class="as-note" style="margin-top:6px;">Override presente ma senza differenze effettive.</div>
                     {% endif %}
@@ -196,7 +185,7 @@
                       {% else %}
                         <a class="btn btn-primary" href="{{ row.create_url }}">Personalizza</a>
                       {% endif %}
-                      <a class="btn" href="{% url 'assets:wo_create' asset.id %}?rule={{ row.base_rule.id }}">Apri intervento</a>
+                      <a class="btn" href="{{ row.workorder_create_url }}">Crea intervento</a>
                     </div>
                     {% if row.effective_threshold_type == "DAYS" and not row.is_disabled %}
                       <form method="post" class="mar-inline-form" style="margin-top:10px;">
@@ -205,7 +194,9 @@
                         <input type="hidden" name="base_rule_id" value="{{ row.base_rule.id }}">
                         <div class="mar-inline-grid">
                           <input type="date" name="last_execution_date" value="{% if row.last_execution_date %}{{ row.last_execution_date|date:'Y-m-d' }}{% endif %}">
-                          <button type="submit" class="btn btn-primary">Salva esecuzione</button>
+                          <button type="submit" class="btn btn-primary">
+                            {% if row.last_execution_date %}Aggiorna esecuzione{% else %}Imposta prima esecuzione{% endif %}
+                          </button>
                         </div>
                         <textarea name="last_execution_notes" placeholder="Nota operativa opzionale">{{ row.last_execution_notes }}</textarea>
                       </form>

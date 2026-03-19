@@ -43,30 +43,32 @@ _SIDEBAR_FOOTER_ACTION_CATALOG: tuple[dict[str, str], ...] = (
         "hint": "Centro notifiche con badge dei messaggi non letti.",
     },
     {
-        "key": "preferences",
+        "key": "user_panel_preferences",
         "label": "Preferenze",
         "icon": "⚙",
         "hint": "Apre la pagina delle preferenze interfaccia.",
     },
     {
-        "key": "profile",
+        "key": "user_panel_profile",
         "label": "Profilo",
         "icon": "👤",
         "hint": "Accesso rapido al profilo utente.",
     },
     {
-        "key": "logout",
+        "key": "user_panel_logout",
         "label": "Esci",
         "icon": "🚪",
         "hint": "Disconnessione rapida dal portale.",
     },
 )
-_SIDEBAR_FOOTER_ACTION_KEYS = {item["key"] for item in _SIDEBAR_FOOTER_ACTION_CATALOG}
-_SIDEBAR_FOOTER_DEFAULT_ORDER = tuple(item["key"] for item in _SIDEBAR_FOOTER_ACTION_CATALOG)
+_SIDEBAR_FOOTER_ACTION_KEYS = {
+    item["key"] for item in _SIDEBAR_FOOTER_ACTION_CATALOG if not item["key"].startswith("user_panel_")
+}
+_SIDEBAR_FOOTER_DEFAULT_ORDER = ("notifications",)
 
 
 def get_sidebar_footer_catalog() -> list[dict[str, str]]:
-    return [dict(item) for item in _SIDEBAR_FOOTER_ACTION_CATALOG]
+    return [dict(item) for item in _SIDEBAR_FOOTER_ACTION_CATALOG if not item["key"].startswith("user_panel_")]
 
 
 def get_default_sidebar_footer_actions() -> list[str]:

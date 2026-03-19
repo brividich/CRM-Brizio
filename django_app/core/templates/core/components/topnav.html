@@ -68,6 +68,19 @@
         </a>
       {% endif %}
 
+      {% if monitoring_ui.enabled %}
+        <button
+          type="button"
+          class="nav-report-btn"
+          data-monitoring-report-open
+          data-current-url="{{ request.get_full_path|default:request.path }}"
+          data-route-name="{{ monitoring_ui.route_name }}"
+          data-module-name="{{ monitoring_ui.module_name }}"
+        >
+          Segnala problema
+        </button>
+      {% endif %}
+
       <a href="{% url 'notifiche' %}" class="nav-icon" title="Notifiche" aria-label="Notifiche{% if notifiche_count %}: {{ notifiche_count }} non lette{% endif %}">
         <span aria-hidden="true">&#128276;</span>
         {% if notifiche_count %}

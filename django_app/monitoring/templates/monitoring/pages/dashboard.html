@@ -1,0 +1,177 @@
+{% extends "core/base.html" %}
+
+{% block title %}Monitoring | Admin Portale{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% url 'monitoring_admin:issue_list' as monitoring_issue_list_url %}
+  {% include "admin_portale/components/page_header.html" with page_title="Monitoring" page_subtitle="Cruscotto unificato per errori applicativi, segnalazioni utente e automazioni interne." page_action_label="Lista issue" page_action_url=monitoring_issue_list_url %}
+
+  <div class="monitoring-kpis">
+    <div class="monitoring-kpi">
+      <div class="monitoring-kpi-label">Issue aperte</div>
+      <div class="monitoring-kpi-value">{{ open_issues_count }}</div>
+    </div>
+    <div class="monitoring-kpi">
+      <div class="monitoring-kpi-label">Issue critiche</div>
+      <div class="monitoring-kpi-value">{{ critical_issues_count }}</div>
+    </div>
+    <div class="monitoring-kpi">
+      <div class="monitoring-kpi-label">Nuove ultime 24h</div>
+      <div class="monitoring-kpi-value">{{ new_issues_24h_count }}</div>
+    </div>
+    <div class="monitoring-kpi">
+      <div class="monitoring-kpi-label">Non assegnate</div>
+      <div class="monitoring-kpi-value">{{ unassigned_open_issues_count }}</div>
+    </div>
+    <div class="monitoring-kpi">
+      <div class="monitoring-kpi-label">Job falliti oggi</div>
+      <div class="monitoring-kpi-value">{{ job_failed_today_count }}</div>
+    </div>
+    <div class="monitoring-kpi">
+      <div class="monitoring-kpi-label">Job missing</div>
+      <div class="monitoring-kpi-value">{{ job_missing_count }}</div>
+    </div>
+  </div>
+
+  <div class="monitoring-grid two-col">
+    <div class="monitoring-grid">
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Issue aperte recenti</div>
+          <a class="btn btn-secondary btn-sm" href="{% url 'monitoring_admin:issue_list' %}?open_only=1">Apri lista</a>
+        </div>
+        <div class="card-body" style="padding:0;">
+          <div class="table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Titolo</th>
+                  <th>Severita</th>
+                  <th>Ultimo evento</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for issue in recent_open_issues %}
+                  <tr>
+                    <td><a href="{% url 'monitoring_admin:issue_detail' issue.pk %}"><strong>{{ issue.code }}</strong></a></td>
+                    <td>{{ issue.title }}</td>
+                    <td><span class="monitoring-pill severity-{{ issue.severity }}">{{ issue.get_severity_display }}</span></td>
+                    <td>{{ issue.last_seen_at|date:"d/m/Y H:i" }}</td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="4" class="cell-muted">Nessuna issue aperta.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Top moduli problematici</div>
+        </div>
+        <div class="card-body">
+          <div class="monitoring-inline-list">
+            {% for row in top_modules %}
+              <div class="monitoring-inline-item">
+                <strong>{{ row.module_name }}</strong>
+                <div class="monitoring-meta">Issue: {{ row.total }} | Occorrenze: {{ row.occurrences|default:0 }}</div>
+              </div>
+            {% empty %}
+              <div class="monitoring-note">Nessun modulo problematico nel perimetro corrente.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Top URL problematiche</div>
+        </div>
+        <div class="card-body">
+          <div class="monitoring-inline-list">
+            {% for row in top_urls %}
+              <div class="monitoring-inline-item">
+                <strong>{{ row.current_url }}</strong>
+                <div class="monitoring-meta">Issue: {{ row.total }} | Occorrenze: {{ row.occurrences|default:0 }}</div>
+              </div>
+            {% empty %}
+              <div class="monitoring-note">Nessuna URL problematica disponibile.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="monitoring-grid">
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Breakdown sorgenti</div>
+        </div>
+        <div class="card-body">
+          <div class="monitoring-inline-list">
+            {% for row in source_breakdown %}
+              <div class="monitoring-inline-item">
+                <span class="monitoring-pill source-{{ row.source }}">{{ row.source }}</span>
+                <div class="monitoring-meta" style="margin-top:6px;">{{ row.total }} issue nelle ultime 24h</div>
+              </div>
+            {% empty %}
+              <div class="monitoring-note">Nessun dato sorgente disponibile.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Ultime segnalazioni manuali</div>
+        </div>
+        <div class="card-body">
+          <div class="monitoring-inline-list">
+            {% for report in latest_manual_reports %}
+              <div class="monitoring-inline-item">
+                <strong>{{ report.username_snapshot|default:"Utente" }}</strong>
+                <div class="monitoring-meta">{{ report.created_at|date:"d/m/Y H:i" }} | {{ report.module_name|default:"modulo n/d" }}</div>
+                <div style="margin-top:6px;">{{ report.message|truncatechars:180 }}</div>
+                {% if report.issue %}
+                  <div class="monitoring-meta" style="margin-top:6px;">
+                    Issue correlata:
+                    <a href="{% url 'monitoring_admin:issue_detail' report.issue.pk %}">{{ report.issue.code }}</a>
+                  </div>
+                {% endif %}
+              </div>
+            {% empty %}
+              <div class="monitoring-note">Nessuna segnalazione manuale recente.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Job missing</div>
+        </div>
+        <div class="card-body">
+          <div class="monitoring-inline-list">
+            {% for item in missing_jobs %}
+              <div class="monitoring-inline-item">
+                <strong>{{ item.job.name }}</strong>
+                <div class="monitoring-meta">
+                  Atteso entro {{ item.expected_at|date:"d/m/Y H:i" }} | Ritardo {{ item.overdue_minutes }} min
+                </div>
+              </div>
+            {% empty %}
+              <div class="monitoring-note">Nessun job missing al momento.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

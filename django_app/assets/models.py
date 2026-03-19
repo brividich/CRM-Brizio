@@ -1516,6 +1516,26 @@ class WorkOrder(models.Model):
     def __str__(self) -> str:
         return f"WO#{self.id} {self.asset.asset_tag} {self.title}"
 
+    def clean(self):
+        if not self.asset_id:
+            return
+        if self.periodic_verification_id and self.periodic_verification:
+            if not self.periodic_verification.assets.filter(pk=self.asset_id).exists():
+                raise ValidationError({"periodic_verification": "La verifica selezionata non appartiene a questo asset."})
+        if self.maintenance_rule_id and self.maintenance_rule:
+            if self.maintenance_rule.asset_category_id != getattr(self.asset, "asset_category_id", None):
+                raise ValidationError({"maintenance_rule": "La regola selezionata non appartiene alla categoria dell'asset."})
+        if self.assistance_contract_id and self.assistance_contract:
+            if not self.assistance_contract.applies_to_asset(self.asset):
+                raise ValidationError({"assistance_contract": "Il contratto selezionato non copre questo asset."})
+            if self.periodic_verification_id and getattr(self.periodic_verification, "supplier_id", None):
+                if self.periodic_verification.supplier_id != self.assistance_contract.supplier_id:
+                    raise ValidationError(
+                        {"assistance_contract": "Il contratto selezionato usa un fornitore diverso dalla verifica."}
+                    )
+            if self.supplier_id and self.supplier_id != self.assistance_contract.supplier_id:
+                raise ValidationError({"assistance_contract": "Il contratto selezionato appartiene a un fornitore diverso."})
+
     @property
     def resolved_total_cost_eur(self) -> Decimal | None:
         if self.cost_eur is not None:
@@ -1557,12 +1577,17 @@ class WorkOrder(models.Model):
             self.materials_cost_eur = materials_cost
         if covered_by_contract is not None:
             self.covered_by_contract = bool(covered_by_contract)
-        if assistance_contract is not None or self.covered_by_contract:
+        if assistance_contract is not None:
             self.assistance_contract = assistance_contract
+            if self.supplier_id is None and assistance_contract.supplier_id:
+                self.supplier = assistance_contract.supplier
+        elif covered_by_contract is False:
+            self.assistance_contract = None
         if cost is not None:
             self.cost_eur = cost
         elif labor_cost is not None or materials_cost is not None:
             self.cost_eur = self.resolved_total_cost_eur
+        self.full_clean()
         self.save(
             update_fields=[
                 "status",
@@ -1572,6 +1597,7 @@ class WorkOrder(models.Model):
                 "downtime_minutes",
                 "labor_cost_eur",
                 "materials_cost_eur",
+                "supplier",
                 "covered_by_contract",
                 "assistance_contract",
                 "cost_eur",
