@@ -11,13 +11,13 @@
   display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;
 }
 .sic-hero-left {}
-.sic-hero-title { font-size:22px; font-weight:900; }
-.sic-hero-sub { font-size:13px; opacity:.7; margin-top:3px; }
-.sic-breadcrumb { font-size:12px; opacity:.6; margin-bottom:6px; }
+.sic-hero-title { font-size: var(--fs-heading); font-weight:900; }
+.sic-hero-sub { font-size: var(--fs-base); opacity:.7; margin-top:3px; }
+.sic-breadcrumb { font-size: var(--fs-sm); opacity:.6; margin-bottom:6px; }
 .sic-breadcrumb a { color:#fff; text-decoration:none; }
 .sic-hero-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:6px; }
 
-.sic-btn { padding:9px 18px; border:none; border-radius:9px; font-size:13px; font-weight:700;
+.sic-btn { padding:9px 18px; border:none; border-radius:9px; font-size: var(--fs-base); font-weight:700;
            cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:6px; }
 .sic-btn-edit { background:#fff; color:#065f46; }
 .sic-btn-edit:hover { background:#d1fae5; }
@@ -33,24 +33,24 @@
 }
 .sic-card-header {
   background:#f8fafc; border-bottom:1px solid #e2e8f0;
-  padding:14px 20px; font-size:13px; font-weight:700; color:#374151;
+  padding:14px 20px; font-size: var(--fs-base); font-weight:700; color:#374151;
   display:flex; align-items:center; gap:8px;
 }
 .sic-card-body { padding:20px 24px; }
 .sic-field-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px 24px; }
 .sic-field-grid-1 { display:grid; grid-template-columns:1fr; gap:12px; }
 .sic-field-item {}
-.sic-field-label { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px; }
-.sic-field-value { font-size:14px; color:#1e293b; line-height:1.5; }
+.sic-field-label { font-size: var(--fs-xs); font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px; }
+.sic-field-value { font-size: var(--fs-md); color:#1e293b; line-height:1.5; }
 .sic-field-value.empty { color:#cbd5e1; font-style:italic; }
 
-.sic-tipo-pill { display:inline-block; padding:4px 14px; border-radius:20px; font-size:13px; font-weight:700; }
+.sic-tipo-pill { display:inline-block; padding:4px 14px; border-radius:20px; font-size: var(--fs-base); font-weight:700; }
 .sic-pill-unsafe-condition { background:#dcfce7; color:#166534; }
 .sic-pill-unsafe-act { background:#e0f2fe; color:#0c4a6e; }
 .sic-pill-near-miss { background:#fff7ed; color:#9a3412; }
 .sic-pill-accident { background:#fee2e2; color:#991b1b; }
 
-.sic-stato-badge { display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; }
+.sic-stato-badge { display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:20px; font-size: var(--fs-sm); font-weight:700; }
 .sic-stato-aperto { background:#fef9c3; color:#a16207; }
 .sic-stato-approvato { background:#dcfce7; color:#15803d; }
 .sic-stato-chiuso { background:#d1fae5; color:#064e3b; }
@@ -60,8 +60,8 @@
 
 .sic-why-list { display:flex; flex-direction:column; gap:8px; }
 .sic-why-item { display:flex; gap:12px; padding:10px 14px; background:#f8fafc; border-radius:10px; }
-.sic-why-num { font-size:12px; font-weight:800; color:#064e3b; min-width:40px; }
-.sic-why-text { font-size:14px; color:#1e293b; }
+.sic-why-num { font-size: var(--fs-sm); font-weight:800; color:#064e3b; min-width:40px; }
+.sic-why-text { font-size: var(--fs-md); color:#1e293b; }
 
 .sic-approv-section {
   background:#f0fdf4; border:2px solid #bbf7d0; border-radius:14px; padding:20px;
@@ -70,7 +70,7 @@
   background:#ecfdf5; border:2px solid #6ee7b7; border-radius:14px; padding:20px;
 }
 
-.sic-error { background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:14px 18px; color:#991b1b; font-size:13px; }
+.sic-error { background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:14px 18px; color:#991b1b; font-size: var(--fs-base); }
 </style>
 {% endblock %}
 
@@ -79,7 +79,7 @@
 
   {% if messages %}
     {% for msg in messages %}
-    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 16px;color:#166534;font-size:13px;">
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 16px;color:#166534;">
       {{ msg }}
     </div>
     {% endfor %}

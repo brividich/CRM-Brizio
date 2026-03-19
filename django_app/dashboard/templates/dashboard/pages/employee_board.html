@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load ui_icons %}
 
 {% block title %}Scheda Dipendente | Portale Applicativo{% endblock %}
 
@@ -418,7 +419,7 @@
         <div class="eb-widget-head">
           <div class="eb-widget-title">
             <span class="eb-drag-handle" title="Trascina">&#x2630;</span>
-            <span class="eb-widget-icon">{{ w.icon }}</span>
+            <span class="eb-widget-icon">{% render_icon w.icon w.title %}</span>
             {{ w.title }}
           </div>
           <div class="eb-widget-actions">
@@ -647,7 +648,7 @@
     <div class="eb-add-grid" id="eb-add-grid">
       {% for w in all_widgets %}
       <div class="eb-add-item" data-wid="{{ w.id }}" id="eb-add-{{ w.id }}">
-        <span>{{ w.icon }} {{ w.title }}</span>
+        <span>{% render_icon w.icon w.title %} {{ w.title }}</span>
         <button type="button" data-add-wid="{{ w.id }}" title="{{ w.description }}">+ Aggiungi</button>
       </div>
       {% endfor %}

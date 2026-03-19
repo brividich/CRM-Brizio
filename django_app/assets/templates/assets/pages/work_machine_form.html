@@ -6,38 +6,38 @@
 {% block assets_shell_head %}
 <style>
 .wmf-page { display:grid; gap:16px; max-width:1180px; }
-.wmf-back { color:#64748b; font-size:13px; text-decoration:none; }
+.wmf-back { color:#64748b; font-size: var(--fs-base); text-decoration:none; }
 .wmf-grid { display:grid; gap:16px; }
 .wmf-card { border:1px solid #dbe1ea; border-radius:14px; background:#fff; overflow:hidden; }
 .wmf-card-head { padding:14px 18px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
-.wmf-card-head h2 { margin:0; font-size:22px; color:#0f172a; }
-.wmf-card-head p { margin:4px 0 0; color:#64748b; font-size:13px; }
+.wmf-card-head h2 { margin:0; font-size: var(--fs-heading); color:#0f172a; }
+.wmf-card-head p { margin:4px 0 0; color:#64748b; font-size: var(--fs-base); }
 .wmf-card-body { padding:18px; display:grid; gap:14px; }
 .wmf-fields { display:grid; gap:12px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
-.wmf-field label { display:block; margin-bottom:6px; color:#334155; font-size:13px; font-weight:700; }
+.wmf-field label { display:block; margin-bottom:6px; color:#334155; font-size: var(--fs-base); font-weight:700; }
 .wmf-field.wide { grid-column:1 / -1; }
-.wmf-error { margin-top:4px; color:#b91c1c; font-size:12px; }
+.wmf-error { margin-top:4px; color:#b91c1c; font-size: var(--fs-sm); }
 .wmf-checks { display:grid; gap:10px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
 .wmf-check { border:1px solid #dbe1ea; border-radius:12px; background:#f8fafc; padding:12px; display:flex; align-items:center; gap:8px; color:#334155; font-weight:700; }
 .wmf-doc-grid { display:grid; gap:14px; }
 .wmf-doc-section { border:1px solid #e2e8f0; border-radius:12px; background:#f8fafc; padding:14px; display:grid; gap:10px; }
 .wmf-doc-head { display:flex; justify-content:space-between; align-items:center; gap:10px; }
-.wmf-doc-title { font-size:15px; font-weight:800; color:#0f172a; }
+.wmf-doc-title { font-size: var(--fs-title-sm); font-weight:800; color:#0f172a; }
 .wmf-doc-list { display:grid; gap:10px; }
 .wmf-doc-row { border:1px solid #dbe1ea; border-radius:12px; background:#fff; padding:12px; display:grid; gap:10px; }
 .wmf-doc-row-grid { display:grid; gap:10px; grid-template-columns:1.2fr 1.5fr .8fr .8fr auto; align-items:end; }
-.wmf-doc-row label { display:grid; gap:6px; color:#334155; font-size:12px; font-weight:700; }
+.wmf-doc-row label { display:grid; gap:6px; color:#334155; font-size: var(--fs-sm); font-weight:700; }
 .wmf-upload-block { border-top:1px solid #dbe1ea; padding-top:10px; display:grid; gap:10px; }
 .wmf-upload-list { display:grid; gap:8px; }
 .wmf-upload-item { border:1px solid #dbe1ea; border-radius:10px; background:#fff; padding:10px 12px; display:grid; gap:6px; }
 .wmf-upload-top { display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap; }
-.wmf-upload-meta { color:#64748b; font-size:12px; }
-.wmf-upload-remove { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:#b91c1c; font-weight:700; }
-.wmf-doc-empty { color:#64748b; font-size:13px; }
-.wmf-help { color:#64748b; font-size:12px; }
+.wmf-upload-meta { color:#64748b; font-size: var(--fs-sm); }
+.wmf-upload-remove { display:inline-flex; align-items:center; gap:6px; font-size: var(--fs-sm); color:#b91c1c; font-weight:700; }
+.wmf-doc-empty { color:#64748b; font-size: var(--fs-base); }
+.wmf-help { color:#64748b; font-size: var(--fs-sm); }
 .wmf-actions { display:flex; justify-content:flex-end; gap:8px; align-items:center; }
 .wmf-inline-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-.wmf-inline-note { color:#64748b; font-size:12px; }
+.wmf-inline-note { color:#64748b; font-size: var(--fs-sm); }
 @media (max-width: 980px) {
   .wmf-fields, .wmf-checks, .wmf-doc-row-grid { grid-template-columns:1fr; }
 }
@@ -273,7 +273,7 @@
               <div class="wmf-doc-list" data-doc-list></div>
               <div class="wmf-help">Ogni riga accetta nome, URL o percorso, data e una nota libera come dimensione/versione.</div>
               <div class="wmf-upload-block">
-                <div class="wmf-doc-title" style="font-size:14px;">File archiviati nel portale</div>
+                <div class="wmf-doc-title text-md">File archiviati nel portale</div>
                 {% with uploaded_list=uploaded_documents_by_category|dict_get:meta.0 %}
                   <div class="wmf-upload-list">
                     {% if uploaded_list %}

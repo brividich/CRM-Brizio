@@ -1,17 +1,15 @@
+{% load ui_icons %}
 {% if subnav_items %}
 <div class="subnav">
-  {% with prev_group="" %}
   {% for item in subnav_items %}
-    {% if item.group and item.group != prev_group and not forloop.first %}
-      <div class="sub-sep"></div>
-    {% endif %}
-    <a class="sub-a{% if item.active %} active{% endif %}{% if item.coming %} coming{% endif %}"
-       href="{{ item.href }}"
-       {% if item.coming %}title="In arrivo"{% endif %}>
-      {% if item.icon %}<span style="margin-right:4px">{{ item.icon }}</span>{% endif %}{{ item.label }}
+    {% ifchanged item.group %}
+      {% if item.group and not forloop.first %}<div class="sub-sep"></div>{% endif %}
+    {% endifchanged %}
+    <a class="sub-a{% if item.active %} active{% endif %}{% if item.coming %} coming{% endif %}" href="{{ item.href }}"{% if item.coming %} title="In arrivo"{% endif %}>
+      {% if item.icon %}<span class="sub-icon" aria-hidden="true">{% render_icon item.icon item.label %}</span>{% endif %}
+      <span>{{ item.label }}</span>
+      {% if item.coming %}<span class="dot"></span>{% endif %}
     </a>
-    {% with prev_group=item.group %}{% endwith %}
   {% endfor %}
-  {% endwith %}
 </div>
 {% endif %}

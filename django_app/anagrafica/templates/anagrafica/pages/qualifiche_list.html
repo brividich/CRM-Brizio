@@ -1,0 +1,323 @@
+{% extends "core/base.html" %}
+
+{% block title %}Qualifiche | Anagrafica{% endblock %}
+
+{% block extra_head %}
+<style>
+.ql-page { display:flex; flex-direction:column; gap:20px; }
+.ql-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.ql-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
+.ql-sub { font-size:13px; color:#64748b; margin-top:2px; }
+.ql-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
+.ql-btn-primary { background:#1d4ed8; color:#fff; }
+.ql-btn-primary:hover { background:#1e40af; }
+.ql-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.ql-btn-ghost:hover { background:#e2e8f0; }
+.ql-btn-danger { background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; }
+.ql-btn-danger:hover { background:#fecaca; }
+.ql-btn-sm { padding:5px 10px; font-size:12px; border-radius:7px; }
+
+.ql-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.ql-card-head { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid #f1f5f9; }
+.ql-card-title { font-size:15px; font-weight:700; color:#1e293b; }
+.ql-card-body { padding:18px 20px; }
+
+.ql-badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; }
+.ql-badge-blue { background:#dbeafe; color:#1e40af; }
+.ql-badge-gray { background:#f1f5f9; color:#475569; }
+.ql-badge-red { background:#fee2e2; color:#b91c1c; }
+.ql-badge-orange { background:#ffedd5; color:#9a3412; }
+.ql-badge-green { background:#dcfce7; color:#166534; }
+.ql-badge-purple { background:#ede9fe; color:#5b21b6; }
+
+.ql-table { width:100%; border-collapse:collapse; font-size:13px; }
+.ql-table th { padding:10px 16px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#64748b; background:#f8fafc; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
+.ql-table td { padding:11px 16px; border-bottom:1px solid #f8fafc; color:#334155; vertical-align:middle; }
+.ql-table tr:last-child td { border-bottom:none; }
+.ql-table tr:hover td { background:#f8fafc; }
+
+.ql-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.ql-field { display:flex; flex-direction:column; gap:4px; }
+.ql-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+.ql-input { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
+.ql-input:focus { border-color:#1d4ed8; background:#fff; }
+
+.ql-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:1000; align-items:center; justify-content:center; }
+.ql-modal-overlay.open { display:flex; }
+.ql-modal { background:#fff; border-radius:14px; padding:24px; width:100%; max-width:520px; box-shadow:0 8px 32px rgba(0,0,0,.12); max-height:90vh; overflow-y:auto; }
+.ql-modal-title { font-size:17px; font-weight:700; color:#0f172a; margin-bottom:16px; }
+
+.ql-scad-row-red td { background:#fff5f5 !important; }
+.ql-scad-row-orange td { background:#fffbf0 !important; }
+
+@media (max-width:700px) {
+  .ql-form-grid { grid-template-columns:1fr; }
+}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="ql-page">
+
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <div class="ql-topbar">
+    <div>
+      <div class="ql-title">📜 Qualifiche professionali</div>
+      <div class="ql-sub">Catalogo certificazioni e attestati con tracciamento scadenze</div>
+    </div>
+    <a class="ql-btn ql-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Dipendenti</a>
+  </div>
+
+  <!-- Sezione scadenze -->
+  {% if scadenze %}
+  <div class="ql-card" style="border-color:#fde68a;">
+    <div class="ql-card-head" style="background:#fffbeb;">
+      <div class="ql-card-title" style="color:#92400e;">⚠ Scadenze in arrivo o già scadute ({{ scadenze|length }})</div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="ql-table">
+        <thead>
+          <tr>
+            <th>Dipendente</th>
+            <th>Qualifica</th>
+            <th>Categoria</th>
+            <th>Conseguita</th>
+            <th>Scadenza</th>
+            <th>Stato</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in scadenze %}
+          <tr class="{% if s.scaduta %}ql-scad-row-red{% elif s.in_scadenza %}ql-scad-row-orange{% endif %}">
+            <td>
+              <a href="{% url 'anagrafica:dipendente_detail' s.legacy_anagrafica_id %}" style="color:#1d4ed8;font-weight:600;text-decoration:none;">
+                {{ s.dipendente }}
+              </a>
+            </td>
+            <td style="font-weight:600;">{{ s.tipo_nome }}</td>
+            <td>
+              {% if s.tipo_categoria == "SICUREZZA" %}<span class="ql-badge ql-badge-red">Sicurezza</span>
+              {% elif s.tipo_categoria == "PROFESSIONALE" %}<span class="ql-badge ql-badge-blue">Professionale</span>
+              {% elif s.tipo_categoria == "GESTIONALE" %}<span class="ql-badge ql-badge-purple">Gestionale</span>
+              {% else %}<span class="ql-badge ql-badge-gray">Altro</span>{% endif %}
+            </td>
+            <td>{% if s.data_conseguimento %}{{ s.data_conseguimento|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+            <td style="font-weight:600;{% if s.scaduta %}color:#b91c1c;{% elif s.in_scadenza %}color:#9a3412;{% endif %}">
+              {{ s.data_scadenza|date:"d/m/Y" }}
+            </td>
+            <td>
+              {% if s.scaduta %}
+                <span class="ql-badge ql-badge-red">🔴 Scaduta</span>
+              {% else %}
+                <span class="ql-badge ql-badge-orange">🟠 In scadenza</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Catalogo TipoQualifica raggruppato per categoria -->
+  {% if tipi_grouped %}
+    {% for cat_code, cat_label, items in tipi_grouped %}
+    <div class="ql-card">
+      <div class="ql-card-head">
+        <div class="ql-card-title">
+          {% if cat_code == "SICUREZZA" %}🦺
+          {% elif cat_code == "PROFESSIONALE" %}🎓
+          {% elif cat_code == "GESTIONALE" %}📊
+          {% else %}📌{% endif %}
+          {{ cat_label }} <span style="font-size:13px;font-weight:400;color:#94a3b8;">({{ items|length }})</span>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="ql-table">
+          <thead>
+            <tr>
+              <th>Nome qualifica</th>
+              <th>Durata validità</th>
+              <th>Assegnazioni</th>
+              <th>Stato</th>
+              {% if is_admin %}<th></th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in items %}
+            <tr>
+              <td style="font-weight:600;">{{ t.nome }}</td>
+              <td>
+                {% if t.durata_mesi %}
+                  <span class="ql-badge ql-badge-orange">{{ t.durata_mesi }} mesi</span>
+                {% else %}
+                  <span style="color:#94a3b8;">Nessuna scadenza</span>
+                {% endif %}
+              </td>
+              <td><span class="ql-badge ql-badge-blue">{{ t.n_assegnazioni }}</span></td>
+              <td>
+                {% if t.is_active %}
+                  <span class="ql-badge ql-badge-green">Attiva</span>
+                {% else %}
+                  <span class="ql-badge ql-badge-gray">Inattiva</span>
+                {% endif %}
+              </td>
+              {% if is_admin %}
+              <td>
+                <div style="display:flex;gap:6px;">
+                  <button type="button" class="ql-btn ql-btn-ghost ql-btn-sm"
+                    onclick="openEdit({{ t.id }}, '{{ t.nome|escapejs }}', '{{ t.categoria }}', {{ t.durata_mesi }}, '{{ t.descrizione|escapejs }}', {{ t.is_active|yesno:'true,false' }})">
+                    ✏ Modifica
+                  </button>
+                  {% if t.n_assegnazioni == 0 %}
+                  <form method="post" action="{% url 'anagrafica:tipo_qualifica_delete' t.id %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="ql-btn ql-btn-danger ql-btn-sm"
+                      onclick="return confirm('Eliminare definitivamente {{ t.nome }}?')">🗑</button>
+                  </form>
+                  {% endif %}
+                </div>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+  <div class="ql-card">
+    <div class="ql-card-body" style="text-align:center;padding:30px;color:#94a3b8;font-size:14px;">
+      Nessun tipo di qualifica nel catalogo.
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Form nuovo tipo -->
+  {% if is_admin %}
+  <div class="ql-card">
+    <div class="ql-card-head"><div class="ql-card-title">+ Nuovo tipo di qualifica</div></div>
+    <div class="ql-card-body">
+      <form method="post" action="{% url 'anagrafica:tipo_qualifica_create' %}">
+        {% csrf_token %}
+        <div class="ql-form-grid">
+          <div class="ql-field" style="grid-column:1/-1;">
+            <label>Nome qualifica *</label>
+            <input class="ql-input" type="text" name="nome" required placeholder="es. Patentino carrellista, Primo soccorso…" maxlength="150">
+          </div>
+          <div class="ql-field">
+            <label>Categoria</label>
+            <select class="ql-input" name="categoria">
+              {% for val, label in CATEGORIA_CHOICES %}
+                <option value="{{ val }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="ql-field">
+            <label>Durata validità (mesi, 0 = nessuna scadenza)</label>
+            <input class="ql-input" type="number" name="durata_mesi" value="0" min="0" max="999">
+          </div>
+          <div class="ql-field" style="grid-column:1/-1;">
+            <label>Descrizione (opzionale)</label>
+            <input class="ql-input" type="text" name="descrizione" placeholder="Breve descrizione" maxlength="255">
+          </div>
+        </div>
+        <div style="margin-top:14px;">
+          <button type="submit" class="ql-btn ql-btn-primary">Crea tipo qualifica</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Suggeriti -->
+  {% if not tipi %}
+  <div class="ql-card">
+    <div class="ql-card-head"><div class="ql-card-title">💡 Tipi suggeriti — crea con un click</div></div>
+    <div class="ql-card-body">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        {% for nome, cat, mesi in tipi_suggeriti %}
+        <form method="post" action="{% url 'anagrafica:tipo_qualifica_create' %}" style="display:inline;">
+          {% csrf_token %}
+          <input type="hidden" name="nome" value="{{ nome }}">
+          <input type="hidden" name="categoria" value="{{ cat }}">
+          <input type="hidden" name="durata_mesi" value="{{ mesi }}">
+          <button type="submit" class="ql-btn ql-btn-ghost ql-btn-sm">+ {{ nome }}</button>
+        </form>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% endif %}
+
+</div>
+
+<!-- Modal modifica tipo -->
+{% if is_admin %}
+<div class="ql-modal-overlay" id="ql-modal">
+  <div class="ql-modal">
+    <div class="ql-modal-title">Modifica tipo qualifica</div>
+    <form method="post" id="ql-edit-form" action="">
+      {% csrf_token %}
+      <div class="ql-form-grid">
+        <div class="ql-field" style="grid-column:1/-1;">
+          <label>Nome *</label>
+          <input class="ql-input" type="text" name="nome" id="edit-nome" required maxlength="150">
+        </div>
+        <div class="ql-field">
+          <label>Categoria</label>
+          <select class="ql-input" name="categoria" id="edit-categoria">
+            {% for val, label in CATEGORIA_CHOICES %}
+              <option value="{{ val }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="ql-field">
+          <label>Durata validità (mesi)</label>
+          <input class="ql-input" type="number" name="durata_mesi" id="edit-durata" min="0" max="999">
+        </div>
+        <div class="ql-field" style="grid-column:1/-1;">
+          <label>Descrizione</label>
+          <input class="ql-input" type="text" name="descrizione" id="edit-desc" maxlength="255">
+        </div>
+        <div class="ql-field" style="grid-column:1/-1;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;text-transform:none;letter-spacing:0;">
+            <input type="checkbox" name="is_active" value="1" id="edit-active">
+            Tipo attivo (visibile per nuove assegnazioni)
+          </label>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
+        <button type="button" class="ql-btn ql-btn-ghost" onclick="closeEdit()">Annulla</button>
+        <button type="submit" class="ql-btn ql-btn-primary">Salva modifiche</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const BASE_EDIT_URL = "/anagrafica/qualifiche/";
+
+function openEdit(id, nome, categoria, durata, desc, isActive) {
+  document.getElementById('ql-edit-form').action = BASE_EDIT_URL + id + '/modifica';
+  document.getElementById('edit-nome').value = nome;
+  document.getElementById('edit-categoria').value = categoria;
+  document.getElementById('edit-durata').value = durata;
+  document.getElementById('edit-desc').value = desc;
+  document.getElementById('edit-active').checked = isActive;
+  document.getElementById('ql-modal').classList.add('open');
+}
+function closeEdit() {
+  document.getElementById('ql-modal').classList.remove('open');
+}
+document.getElementById('ql-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeEdit();
+});
+</script>
+{% endif %}
+{% endblock %}

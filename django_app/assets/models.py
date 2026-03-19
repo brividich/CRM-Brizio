@@ -7,6 +7,7 @@ from pathlib import Path
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, models
 from django.utils import timezone
 from django.utils.text import slugify
@@ -577,6 +578,410 @@ class AssetITDetails(models.Model):
         return f"ITDetails<{self.asset.asset_tag}>"
 
 
+class AssetComponent(models.Model):
+    asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name="components")
+    code = models.CharField(max_length=80, blank=True, default="")
+    name = models.CharField(max_length=200)
+    component_type = models.CharField(max_length=120, blank=True, default="")
+    serial_number = models.CharField(max_length=120, blank=True, default="")
+    manufacturer = models.CharField(max_length=120, blank=True, default="")
+    model = models.CharField(max_length=120, blank=True, default="")
+    installed_on = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["asset__name", "-is_active", "name", "code", "id"]
+        verbose_name = "Componente asset"
+        verbose_name_plural = "Componenti asset"
+
+    def __str__(self) -> str:
+        if self.code:
+            return f"{self.asset.asset_tag} - {self.code} - {self.name}"
+        return f"{self.asset.asset_tag} - {self.name}"
+
+    def clean(self):
+        self.code = (self.code or "").strip()
+        self.name = (self.name or "").strip()
+        if not self.name:
+            raise ValidationError({"name": "Inserisci il nome del componente."})
+        if self.asset_id and self.code:
+            duplicate_qs = AssetComponent.objects.filter(asset_id=self.asset_id, code__iexact=self.code)
+            if self.pk:
+                duplicate_qs = duplicate_qs.exclude(pk=self.pk)
+            if duplicate_qs.exists():
+                raise ValidationError({"code": "Esiste gia un componente con questo codice per questo asset."})
+
+
+# Scadenze manuali amministrative o tecniche: convivono con PeriodicVerification
+# ma non la sostituiscono, perche non gestiscono ricorrenze.
+class AssetAdministrativeDeadline(models.Model):
+    TYPE_REVISION = "REVISION"
+    TYPE_CERTIFICATE = "CERTIFICATE"
+    TYPE_ADMINISTRATIVE = "ADMINISTRATIVE"
+    TYPE_TECHNICAL = "TECHNICAL"
+    TYPE_OTHER = "OTHER"
+    TYPE_CHOICES = [
+        (TYPE_REVISION, "Revisione"),
+        (TYPE_CERTIFICATE, "Certificato"),
+        (TYPE_ADMINISTRATIVE, "Scadenza amministrativa"),
+        (TYPE_TECHNICAL, "Scadenza tecnica"),
+        (TYPE_OTHER, "Altro"),
+    ]
+
+    asset = models.ForeignKey(Asset, on_delete=models.CASCADE, related_name="administrative_deadlines")
+    component = models.ForeignKey(
+        "AssetComponent",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="administrative_deadlines",
+    )
+    deadline_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default=TYPE_ADMINISTRATIVE, db_index=True)
+    title = models.CharField(max_length=200)
+    reference_code = models.CharField(max_length=120, blank=True, default="")
+    issuer = models.CharField(max_length=200, blank=True, default="")
+    issued_on = models.DateField(null=True, blank=True)
+    due_date = models.DateField(db_index=True)
+    warning_days = models.PositiveIntegerField(default=30)
+    is_active = models.BooleanField(default=True, db_index=True)
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["due_date", "asset__name", "title", "id"]
+        verbose_name = "Scadenza asset"
+        verbose_name_plural = "Scadenze asset"
+
+    def __str__(self) -> str:
+        return f"{self.title} - {self.asset.asset_tag} ({self.due_date:%d/%m/%Y})"
+
+    def clean(self):
+        self.title = (self.title or "").strip()
+        self.reference_code = (self.reference_code or "").strip()
+        self.issuer = (self.issuer or "").strip()
+        if not self.title:
+            raise ValidationError({"title": "Inserisci un titolo per la scadenza."})
+        if self.component_id and self.asset_id and self.component and self.component.asset_id != self.asset_id:
+            raise ValidationError({"component": "Il componente selezionato non appartiene all'asset indicato."})
+
+    def days_until_due(self, reference_date=None) -> int | None:
+        if not self.due_date:
+            return None
+        current_day = reference_date or timezone.localdate()
+        return (self.due_date - current_day).days
+
+
+class MaintenanceInterventionTemplate(models.Model):
+    code = models.SlugField(max_length=80, unique=True)
+    label = models.CharField(max_length=120)
+    description = models.TextField(blank=True, default="")
+    asset_category = models.ForeignKey(
+        AssetCategory,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="maintenance_intervention_templates",
+    )
+    sort_order = models.IntegerField(default=100)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sort_order", "label", "id"]
+        verbose_name = "Template intervento manutenzione"
+        verbose_name_plural = "Template interventi manutenzione"
+
+    def __str__(self) -> str:
+        if self.asset_category_id and self.asset_category:
+            return f"{self.asset_category.label} - {self.label}"
+        return self.label
+
+    def clean(self):
+        self.label = (self.label or "").strip()
+        self.description = (self.description or "").strip()
+        if not self.label:
+            raise ValidationError({"label": "Inserisci il nome del template intervento."})
+
+
+class MaintenanceRule(models.Model):
+    THRESHOLD_DAYS = "DAYS"
+    THRESHOLD_HOURS = "HOURS"
+    THRESHOLD_KM = "KM"
+    THRESHOLD_CYCLES = "CYCLES"
+    THRESHOLD_TYPE_CHOICES = [
+        (THRESHOLD_DAYS, "Giorni"),
+        (THRESHOLD_HOURS, "Ore"),
+        (THRESHOLD_KM, "Km"),
+        (THRESHOLD_CYCLES, "Cicli"),
+    ]
+
+    intervention_template = models.ForeignKey(
+        "MaintenanceInterventionTemplate",
+        on_delete=models.PROTECT,
+        related_name="maintenance_rules",
+    )
+    asset_category = models.ForeignKey(
+        AssetCategory,
+        on_delete=models.CASCADE,
+        related_name="maintenance_rules",
+    )
+    # In Step 2 i threshold a ore/km/cicli sono modellati ma non ancora pienamente operativi.
+    threshold_type = models.CharField(max_length=20, choices=THRESHOLD_TYPE_CHOICES, default=THRESHOLD_DAYS, db_index=True)
+    threshold_value = models.PositiveIntegerField()
+    warning_days = models.PositiveIntegerField(default=15)
+    sort_order = models.IntegerField(default=100)
+    is_active = models.BooleanField(default=True, db_index=True)
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["asset_category__sort_order", "asset_category__label", "sort_order", "id"]
+        verbose_name = "Regola manutenzione"
+        verbose_name_plural = "Regole manutenzione"
+
+    def __str__(self) -> str:
+        return (
+            f"{self.asset_category.label} - {self.intervention_template.label} "
+            f"({self.threshold_value} {self.get_threshold_type_display()})"
+        )
+
+    def clean(self):
+        self.notes = (self.notes or "").strip()
+        if not self.asset_category_id:
+            raise ValidationError({"asset_category": "Seleziona una categoria asset."})
+        if not self.intervention_template_id:
+            raise ValidationError({"intervention_template": "Seleziona un template intervento."})
+        template_category_id = getattr(self.intervention_template, "asset_category_id", None)
+        if template_category_id and template_category_id != self.asset_category_id:
+            raise ValidationError(
+                {
+                    "intervention_template": (
+                        "Il template selezionato e legato a una categoria diversa rispetto alla regola."
+                    )
+                }
+        )
+
+
+class MaintenanceRuleAssetOverride(models.Model):
+    asset = models.ForeignKey(
+        Asset,
+        on_delete=models.CASCADE,
+        related_name="maintenance_rule_overrides",
+    )
+    base_rule = models.ForeignKey(
+        "MaintenanceRule",
+        on_delete=models.CASCADE,
+        related_name="asset_overrides",
+    )
+    override_threshold_type = models.CharField(
+        max_length=20,
+        choices=MaintenanceRule.THRESHOLD_TYPE_CHOICES,
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+    override_threshold_value = models.PositiveIntegerField(null=True, blank=True)
+    override_intervention_template = models.ForeignKey(
+        "MaintenanceInterventionTemplate",
+        on_delete=models.PROTECT,
+        related_name="asset_rule_overrides",
+        null=True,
+        blank=True,
+    )
+    is_disabled = models.BooleanField(default=False, db_index=True)
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["asset__name", "asset__asset_tag", "base_rule__sort_order", "id"]
+        verbose_name = "Override regola manutenzione asset"
+        verbose_name_plural = "Override regole manutenzione asset"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["asset", "base_rule"],
+                name="uniq_maintenance_rule_asset_override",
+            )
+        ]
+
+    def __str__(self) -> str:
+        asset_label = getattr(self.asset, "asset_tag", self.asset_id)
+        rule_label = getattr(getattr(self.base_rule, "intervention_template", None), "label", self.base_rule_id)
+        return f"{asset_label} - {rule_label}"
+
+    @property
+    def has_effective_override(self) -> bool:
+        return bool(
+            self.is_disabled
+            or self.override_threshold_type
+            or self.override_threshold_value is not None
+            or self.override_intervention_template_id
+            or (self.notes or "").strip()
+        )
+
+    @property
+    def is_redundant(self) -> bool:
+        return not self.has_effective_override
+
+    def clean(self):
+        self.notes = (self.notes or "").strip()
+        if not self.asset_id:
+            raise ValidationError({"asset": "Seleziona un asset."})
+        if not self.base_rule_id:
+            raise ValidationError({"base_rule": "Seleziona una regola base."})
+
+        asset_category_id = getattr(self.asset, "asset_category_id", None)
+        base_rule_category_id = getattr(self.base_rule, "asset_category_id", None)
+        if not asset_category_id:
+            raise ValidationError(
+                {"asset": "L'asset selezionato non ha una categoria compatibile con le regole standard."}
+            )
+        if asset_category_id != base_rule_category_id:
+            raise ValidationError(
+                {"base_rule": "La regola base non appartiene alla stessa categoria dell'asset selezionato."}
+            )
+
+        if self.override_threshold_type and self.override_threshold_value is None:
+            raise ValidationError(
+                {
+                    "override_threshold_value": (
+                        "Quando cambi il tipo soglia devi indicare anche il valore soglia dell'override."
+                    )
+                }
+            )
+
+        override_template_category_id = getattr(self.override_intervention_template, "asset_category_id", None)
+        if override_template_category_id and override_template_category_id != base_rule_category_id:
+            raise ValidationError(
+                {
+                    "override_intervention_template": (
+                        "Il template override deve essere generale oppure della stessa categoria della regola base."
+                    )
+                }
+            )
+
+
+class AssistanceContract(models.Model):
+    TYPE_FULL_SERVICE = "FULL_SERVICE"
+    TYPE_ON_CALL = "ON_CALL"
+    TYPE_WARRANTY = "WARRANTY"
+    TYPE_RENTAL = "RENTAL"
+    TYPE_OTHER = "OTHER"
+    TYPE_CHOICES = [
+        (TYPE_FULL_SERVICE, "Full service"),
+        (TYPE_ON_CALL, "A chiamata"),
+        (TYPE_WARRANTY, "Garanzia"),
+        (TYPE_RENTAL, "Noleggio / service"),
+        (TYPE_OTHER, "Altro"),
+    ]
+
+    supplier = models.ForeignKey(
+        "anagrafica.Fornitore",
+        on_delete=models.CASCADE,
+        related_name="assistance_contracts",
+    )
+    asset = models.ForeignKey(
+        Asset,
+        on_delete=models.CASCADE,
+        related_name="assistance_contracts",
+        null=True,
+        blank=True,
+    )
+    asset_category = models.ForeignKey(
+        AssetCategory,
+        on_delete=models.CASCADE,
+        related_name="assistance_contracts",
+        null=True,
+        blank=True,
+    )
+    document = models.ForeignKey(
+        "anagrafica.FornitoreDocumento",
+        on_delete=models.SET_NULL,
+        related_name="assistance_contracts",
+        null=True,
+        blank=True,
+    )
+    code = models.CharField(max_length=80, blank=True, default="")
+    title = models.CharField(max_length=200)
+    contract_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default=TYPE_OTHER, db_index=True)
+    start_date = models.DateField(default=timezone.localdate, db_index=True)
+    end_date = models.DateField(null=True, blank=True, db_index=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    sla_description = models.CharField(max_length=255, blank=True, default="")
+    coverage_summary = models.TextField(blank=True, default="")
+    periodic_cost_eur = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        default=None,
+    )
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-is_active", "end_date", "supplier__ragione_sociale", "title", "id"]
+        verbose_name = "Contratto assistenza"
+        verbose_name_plural = "Contratti assistenza"
+
+    def __str__(self) -> str:
+        label = self.code or self.title
+        return f"{self.supplier} - {label}"
+
+    @property
+    def target_label(self) -> str:
+        if self.asset_id and self.asset:
+            return f"Asset {self.asset.asset_tag}"
+        if self.asset_category_id and self.asset_category:
+            return f"Categoria {self.asset_category.label}"
+        return "Generale"
+
+    def is_current(self, reference_date=None) -> bool:
+        current_day = reference_date or timezone.localdate()
+        if not self.is_active:
+            return False
+        if self.start_date and self.start_date > current_day:
+            return False
+        if self.end_date and self.end_date < current_day:
+            return False
+        return True
+
+    def applies_to_asset(self, asset: Asset | None) -> bool:
+        if asset is None:
+            return False
+        if self.asset_id:
+            return self.asset_id == asset.id
+        if self.asset_category_id:
+            return self.asset_category_id == getattr(asset, "asset_category_id", None)
+        return True
+
+    def clean(self):
+        self.code = (self.code or "").strip()
+        self.title = (self.title or "").strip()
+        self.sla_description = (self.sla_description or "").strip()
+        self.coverage_summary = (self.coverage_summary or "").strip()
+        self.notes = (self.notes or "").strip()
+        if not self.title:
+            raise ValidationError({"title": "Inserisci un titolo contratto."})
+        if self.asset_id and self.asset_category_id:
+            raise ValidationError(
+                {"asset_category": "Scegli un contratto generale, per categoria oppure per singolo asset, non entrambi."}
+            )
+        if self.end_date and self.start_date and self.end_date < self.start_date:
+            raise ValidationError({"end_date": "La data fine non puo essere precedente alla data inizio."})
+        if self.document_id and getattr(self.document, "fornitore_id", None) != self.supplier_id:
+            raise ValidationError({"document": "Il documento selezionato appartiene a un fornitore diverso."})
+        if self.asset_id and self.asset and self.asset_category_id:
+            raise ValidationError({"asset": "Il contratto non puo essere collegato contemporaneamente ad asset e categoria."})
+
+
 class WorkMachine(models.Model):
     asset = models.OneToOneField(Asset, on_delete=models.CASCADE, related_name="work_machine")
     source_key = models.CharField(max_length=64, unique=True, db_index=True)
@@ -1061,6 +1466,21 @@ class WorkOrder(models.Model):
         blank=True,
         related_name="asset_workorders",
     )
+    maintenance_rule = models.ForeignKey(
+        "MaintenanceRule",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="workorders",
+    )
+    assistance_contract = models.ForeignKey(
+        "AssistanceContract",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="workorders",
+    )
+    covered_by_contract = models.BooleanField(default=False, db_index=True)
     kind = models.CharField(max_length=20, choices=KIND_CHOICES, default=KIND_OTHER)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_OPEN)
     opened_at = models.DateTimeField(default=timezone.now)
@@ -1068,7 +1488,22 @@ class WorkOrder(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, default="")
     resolution = models.TextField(blank=True, default="")
+    intervention_duration_minutes = models.PositiveIntegerField(default=0)
     downtime_minutes = models.PositiveIntegerField(default=0)
+    labor_cost_eur = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        default=None,
+    )
+    materials_cost_eur = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        default=None,
+    )
     cost_eur = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -1083,21 +1518,64 @@ class WorkOrder(models.Model):
     def __str__(self) -> str:
         return f"WO#{self.id} {self.asset.asset_tag} {self.title}"
 
-    def close(self, *, status: str = STATUS_DONE, resolution: str = "", downtime: int | None = None, cost: Decimal | None = None):
+    @property
+    def resolved_total_cost_eur(self) -> Decimal | None:
+        if self.cost_eur is not None:
+            return self.cost_eur
+        total = Decimal("0")
+        has_component_cost = False
+        if self.labor_cost_eur is not None:
+            total += self.labor_cost_eur
+            has_component_cost = True
+        if self.materials_cost_eur is not None:
+            total += self.materials_cost_eur
+            has_component_cost = True
+        return total if has_component_cost else None
+
+    def close(
+        self,
+        *,
+        status: str = STATUS_DONE,
+        resolution: str = "",
+        downtime: int | None = None,
+        cost: Decimal | None = None,
+        labor_cost: Decimal | None = None,
+        materials_cost: Decimal | None = None,
+        intervention_duration: int | None = None,
+        covered_by_contract: bool | None = None,
+        assistance_contract: "AssistanceContract" | None = None,
+    ):
         self.status = status
         self.closed_at = timezone.now()
         if resolution:
             self.resolution = resolution
+        if intervention_duration is not None:
+            self.intervention_duration_minutes = max(0, int(intervention_duration))
         if downtime is not None:
             self.downtime_minutes = max(0, int(downtime))
+        if labor_cost is not None:
+            self.labor_cost_eur = labor_cost
+        if materials_cost is not None:
+            self.materials_cost_eur = materials_cost
+        if covered_by_contract is not None:
+            self.covered_by_contract = bool(covered_by_contract)
+        if assistance_contract is not None or self.covered_by_contract:
+            self.assistance_contract = assistance_contract
         if cost is not None:
             self.cost_eur = cost
+        elif labor_cost is not None or materials_cost is not None:
+            self.cost_eur = self.resolved_total_cost_eur
         self.save(
             update_fields=[
                 "status",
                 "closed_at",
                 "resolution",
+                "intervention_duration_minutes",
                 "downtime_minutes",
+                "labor_cost_eur",
+                "materials_cost_eur",
+                "covered_by_contract",
+                "assistance_contract",
                 "cost_eur",
             ]
         )
@@ -1164,6 +1642,58 @@ class WorkOrderLog(models.Model):
 
     def __str__(self) -> str:
         return f"WOLog<{self.work_order_id} {self.ts:%Y-%m-%d %H:%M}>"
+
+
+class AssetMaintenanceRuleState(models.Model):
+    asset = models.ForeignKey(
+        Asset,
+        on_delete=models.CASCADE,
+        related_name="maintenance_rule_states",
+    )
+    base_rule = models.ForeignKey(
+        "MaintenanceRule",
+        on_delete=models.CASCADE,
+        related_name="asset_states",
+    )
+    last_execution_date = models.DateField(null=True, blank=True, db_index=True)
+    last_work_order = models.ForeignKey(
+        WorkOrder,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="maintenance_rule_states",
+    )
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["asset__name", "base_rule__sort_order", "id"]
+        verbose_name = "Stato manutenzione asset"
+        verbose_name_plural = "Stati manutenzione asset"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["asset", "base_rule"],
+                name="uniq_asset_maintenance_rule_state",
+            )
+        ]
+
+    def __str__(self) -> str:
+        asset_label = getattr(self.asset, "asset_tag", self.asset_id)
+        rule_label = getattr(getattr(self.base_rule, "intervention_template", None), "label", self.base_rule_id)
+        return f"{asset_label} - {rule_label}"
+
+    def clean(self):
+        self.notes = (self.notes or "").strip()
+        if not self.asset_id:
+            raise ValidationError({"asset": "Seleziona un asset."})
+        if not self.base_rule_id:
+            raise ValidationError({"base_rule": "Seleziona una regola base."})
+        asset_category_id = getattr(self.asset, "asset_category_id", None)
+        if asset_category_id != getattr(self.base_rule, "asset_category_id", None):
+            raise ValidationError({"base_rule": "La regola selezionata non appartiene alla categoria dell'asset."})
+        if self.last_work_order_id and getattr(self.last_work_order, "asset_id", None) != self.asset_id:
+            raise ValidationError({"last_work_order": "Il work order collegato appartiene a un asset diverso."})
 
 
 class AssetHeaderTool(models.Model):

@@ -149,6 +149,9 @@ Automation_Designer_Guide.pdf
 Thumbs.db
 Desktop.ini
 
+
+doc/*
+django_app/staticfiles/
 django_app/.env
 config/capi_reparto.json
 genera_documentazione.py

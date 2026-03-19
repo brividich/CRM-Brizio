@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load static ui_icons %}
 
 {% block title %}Navigation Builder | Admin Portale{% endblock %}
 
@@ -61,6 +62,151 @@
       min-height: 20px;
     }
     .nav-builder .text-danger { color: #dc2626; }
+    .nav-builder .nav-icon-picker {
+      display: grid;
+      gap: 8px;
+    }
+    .nav-builder .nav-icon-picker-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .nav-builder .nav-icon-picker-inline {
+      min-width: 280px;
+    }
+    .nav-builder .nav-icon-picker-inline .nav-icon-picker-row {
+      gap: 6px;
+      align-items: stretch;
+    }
+    .nav-builder .nav-icon-preview {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      border: 1px solid var(--border, #dde1ec);
+      background: #f8fafc;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 700;
+      color: #334155;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .nav-builder .nav-icon-picker-inline .nav-icon-preview {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .nav-builder .nav-icon-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+    .nav-builder .nav-icon-picker-inline .input.input-sm[data-icon-input] {
+      min-width: 150px;
+      flex: 1 1 auto;
+    }
+    .nav-builder .nav-icon-picker-inline .btn {
+      flex-shrink: 0;
+    }
+    .nav-builder .nav-icon-modal[hidden] { display: none !important; }
+    .nav-builder .nav-icon-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 260;
+      background: rgba(15, 23, 42, 0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .nav-builder .nav-icon-modal-card {
+      width: min(1040px, 100%);
+      max-height: 88vh;
+      overflow: hidden;
+      border-radius: 18px;
+      background: #fff;
+      box-shadow: 0 24px 80px rgba(15, 23, 42, 0.28);
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+    }
+    .nav-builder .nav-icon-modal-head,
+    .nav-builder .nav-icon-modal-tools {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border, #dde1ec);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .nav-builder .nav-icon-modal-head {
+      justify-content: space-between;
+    }
+    .nav-builder .nav-icon-modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .nav-builder .nav-icon-modal-copy {
+      font-size: 12px;
+      color: #64748b;
+    }
+    .nav-builder .nav-icon-modal-grid {
+      padding: 18px;
+      overflow: auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 12px;
+      align-content: start;
+      background: #f8fafc;
+    }
+    .nav-builder .nav-icon-card {
+      border: 1px solid #dbe2ee;
+      border-radius: 14px;
+      background: #fff;
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+      box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+    }
+    .nav-builder .nav-icon-card-preview {
+      height: 74px;
+      border-radius: 12px;
+      background: linear-gradient(180deg, #f8fafc, #eef2ff);
+      border: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .nav-builder .nav-icon-card-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      padding: 10px;
+    }
+    .nav-builder .nav-icon-card-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: #0f172a;
+      word-break: break-word;
+    }
+    .nav-builder .nav-icon-card-value {
+      font-size: 11px;
+      color: #64748b;
+      word-break: break-all;
+    }
+    .nav-builder .nav-icon-empty {
+      grid-column: 1 / -1;
+      padding: 28px 14px;
+      text-align: center;
+      color: #64748b;
+      font-size: 13px;
+    }
     @media (max-width: 1100px) {
       .nav-builder .admin-form-grid > .field,
       .nav-builder .admin-form-grid > .field.field-wide,
@@ -79,6 +225,8 @@
     {% include "admin_portale/components/flash_messages.html" %}
 
     <form id="nav-builder-csrf">{% csrf_token %}</form>
+    <div id="nav-icon-config" data-static-prefix="{% get_static_prefix %}" data-media-prefix="{% get_media_prefix %}" hidden></div>
+    {{ icon_library|json_script:"nav-icon-library-data" }}
 
     {# Datalist globale per tutte le route Django disponibili — usato nei campi "Route name" #}
     <datalist id="route-catalog-options">
@@ -157,6 +305,21 @@
             <label>Ordine</label>
             <input class="input" type="number" name="order" value="100">
             <div class="field-help">Numero d'ordine. Più basso = mostrato prima.</div>
+          </div>
+
+          <div class="field field-wide">
+            <label>Icona / immagine <span class="cell-muted">(opzionale)</span></label>
+            <div class="nav-icon-picker" data-nav-icon-picker data-fallback-name="label">
+              <div class="nav-icon-picker-row">
+                <input class="input" type="text" name="icon" data-icon-input placeholder="emoji, testo breve, /media/app.ico, static:core/icons/app.ico o https://...">
+                <button class="btn btn-secondary" type="button" data-open-icon-library>Galleria</button>
+                <button class="btn btn-secondary" type="button" data-clear-icon>Reset</button>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <div class="nav-icon-preview" data-icon-preview>{% render_icon "" "?" %}</div>
+                <div class="field-help">Supporta testo breve oppure immagini come <code>.ico</code>, <code>.png</code> e <code>.svg</code>. La galleria mostra le icone caricate sul server.</div>
+              </div>
+            </div>
           </div>
 
           <div class="field field-wide">
@@ -270,6 +433,7 @@
                 <th title="topbar / subnav / sidebar / page">Sezione</th>
                 <th title="Per subnav: gruppo di appartenenza (es. dashboard, assenze)">Gruppo</th>
                 <th title="Numero d'ordine — trascina per riordinare">Ord.</th>
+                <th title="Emoji, testo breve o URL immagine (.ico, .png, .svg)">Icona</th>
                 <th title="Route Django — digita o scegli dalla lista">Route name</th>
                 <th title="URL path alternativo o link esterno">URL path</th>
                 <th title="Ruoli abilitati — Ctrl+click per più ruoli, nessuno = tutti">Ruoli</th>
@@ -297,6 +461,16 @@
                   <td><input class="input input-sm" type="text" data-name="parent_code" value="{{ row.parent_code }}" placeholder="es. assenze" title="Gruppo subnav" style="min-width:90px;"></td>
                   <td><input class="input input-sm" type="number" data-name="order" value="{{ row.order }}" style="width:62px;" title="Ordine"></td>
                   <td>
+                    <div class="nav-icon-picker nav-icon-picker-inline" data-nav-icon-picker data-fallback-name="label">
+                      <div class="nav-icon-picker-row">
+                        <div class="nav-icon-preview" data-icon-preview>{% render_icon row.icon row.label %}</div>
+                        <input class="input input-sm" type="text" data-name="icon" data-icon-input value="{{ row.icon }}" title="Icona o URL immagine" placeholder="/media/app.ico">
+                        <button class="btn btn-secondary btn-sm" type="button" data-open-icon-library>Galleria</button>
+                        <button class="btn btn-secondary btn-sm" type="button" data-clear-icon>Reset</button>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
                     <input class="input input-sm" type="text" data-name="route_name"
                            value="{{ row.route_name }}" list="route-catalog-options"
                            title="Route Django — digita o scegli dalla lista" style="min-width:160px;">
@@ -319,7 +493,7 @@
                   </td>
                 </tr>
               {% empty %}
-                <tr><td colspan="14" class="cell-muted">Nessuna voce. Creane una dal modulo qui sopra oppure importa dalla topbar legacy.</td></tr>
+                <tr><td colspan="15" class="cell-muted">Nessuna voce. Creane una dal modulo qui sopra oppure importa dalla topbar legacy.</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -469,6 +643,24 @@
       </div>
     </div>
 
+    <div class="nav-icon-modal" id="nav-icon-modal" hidden>
+      <div class="nav-icon-modal-card" role="dialog" aria-modal="true" aria-labelledby="nav-icon-modal-title">
+        <div class="nav-icon-modal-head">
+          <div>
+            <div class="nav-icon-modal-title" id="nav-icon-modal-title">Libreria icone</div>
+            <div class="nav-icon-modal-copy">Carica una nuova immagine oppure scegli una icona gia presente nel server.</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" type="button" id="nav-icon-modal-close">Chiudi</button>
+        </div>
+        <div class="nav-icon-modal-tools">
+          <input class="input" type="text" id="nav-icon-search" placeholder="Cerca per nome file o percorso..." style="min-width:240px;flex:1 1 260px;">
+          <input class="input input-sm" type="file" id="nav-icon-upload-input" accept=".ico,.png,.svg,.jpg,.jpeg,.gif,.webp,.bmp,.avif,image/*" style="max-width:280px;">
+          <button class="btn btn-secondary btn-sm" type="button" id="nav-icon-upload-btn">Carica nuova icona</button>
+        </div>
+        <div class="nav-icon-modal-grid" id="nav-icon-grid"></div>
+      </div>
+    </div>
+
     <div id="nav-builder-status"></div>
   </div>
 
@@ -479,6 +671,24 @@
       const statusEl = document.getElementById("nav-builder-status");
       const itemsTable = document.getElementById("nav-items-table");
       const redirectTable = document.getElementById("legacy-redirect-table");
+      const iconConfig = document.getElementById("nav-icon-config");
+      const iconModal = document.getElementById("nav-icon-modal");
+      const iconGrid = document.getElementById("nav-icon-grid");
+      const iconSearch = document.getElementById("nav-icon-search");
+      const iconUploadInput = document.getElementById("nav-icon-upload-input");
+      const iconUploadBtn = document.getElementById("nav-icon-upload-btn");
+      const iconModalCloseBtn = document.getElementById("nav-icon-modal-close");
+      const mediaPrefix = (iconConfig?.dataset.mediaPrefix || "/media/").replace(/\/?$/, "/");
+      const staticPrefix = (iconConfig?.dataset.staticPrefix || "/static/").replace(/\/?$/, "/");
+      const iconImageExtensions = [".ico", ".png", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".avif"];
+      let iconLibrary = [];
+      let activeIconPicker = null;
+
+      try {
+        iconLibrary = JSON.parse(document.getElementById("nav-icon-library-data")?.textContent || "[]");
+      } catch (e) {
+        iconLibrary = [];
+      }
 
       const urls = {
         create: "{% url 'admin_portale:api_navigation_item_create' %}",
@@ -488,9 +698,139 @@
         bootstrapLegacy: "{% url 'admin_portale:api_navigation_bootstrap_from_legacy' %}",
         publish: "{% url 'admin_portale:api_navigation_publish' %}",
         restore: "{% url 'admin_portale:api_navigation_restore' %}",
+        iconUpload: "{% url 'admin_portale:api_navigation_icon_upload' %}",
         redUpsert: "{% url 'admin_portale:api_legacy_redirect_upsert' %}",
         redDelete: "{% url 'admin_portale:api_legacy_redirect_delete' %}"
       };
+
+      function escapeHtml(value) {
+        return String(value || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function iconLooksLikeImage(value) {
+        const raw = String(value || "").trim();
+        if (!raw) return false;
+        const lower = raw.toLowerCase();
+        if (
+          lower.startsWith("http://") ||
+          lower.startsWith("https://") ||
+          lower.startsWith("data:image/") ||
+          lower.startsWith("media:") ||
+          lower.startsWith("static:")
+        ) {
+          return true;
+        }
+        const normalized = raw.split("#", 1)[0].split("?", 1)[0].toLowerCase();
+        return iconImageExtensions.some(function (ext) { return normalized.endsWith(ext); });
+      }
+
+      function iconUrl(value) {
+        const raw = String(value || "").trim();
+        if (!raw || !iconLooksLikeImage(raw)) return "";
+        const lower = raw.toLowerCase();
+        if (
+          lower.startsWith("http://") ||
+          lower.startsWith("https://") ||
+          lower.startsWith("data:image/") ||
+          raw.startsWith("/")
+        ) {
+          return raw;
+        }
+        if (lower.startsWith("media:")) return mediaPrefix + raw.slice(6).replace(/^\/+/, "");
+        if (lower.startsWith("static:")) return staticPrefix + raw.slice(7).replace(/^\/+/, "");
+        return mediaPrefix + raw.replace(/^\/+/, "");
+      }
+
+      function pickerInput(picker) {
+        return picker?.querySelector("[data-icon-input]") || null;
+      }
+
+      function pickerFallbackText(picker) {
+        if (!picker) return "?";
+        const root = picker.closest("tr[data-id]") || picker.closest("form") || picker;
+        const fallbackName = picker.dataset.fallbackName || "label";
+        const field = root.querySelector('[name="' + fallbackName + '"], [data-name="' + fallbackName + '"]');
+        const value = String(field?.value || field?.textContent || picker.dataset.fallback || "").trim();
+        return value || "?";
+      }
+
+      function renderIconPreview(value, fallbackText) {
+        const text = String(value || "").trim();
+        if (iconLooksLikeImage(text)) {
+          const src = iconUrl(text);
+          if (src) return "<img src='" + escapeHtml(src) + "' alt=''>";
+        }
+        const fallback = text || String(fallbackText || "?").trim();
+        return escapeHtml((fallback || "?").slice(0, 1).toUpperCase());
+      }
+
+      function updateIconPreview(picker) {
+        const preview = picker?.querySelector("[data-icon-preview]");
+        const input = pickerInput(picker);
+        if (!preview || !input) return;
+        preview.innerHTML = renderIconPreview(input.value, pickerFallbackText(picker));
+      }
+
+      function refreshScopedPickers(source) {
+        const scope = source.closest("tr[data-id]") || source.closest("form") || source.closest(".field") || document;
+        scope.querySelectorAll("[data-nav-icon-picker]").forEach(function (picker) {
+          updateIconPreview(picker);
+        });
+      }
+
+      function renderIconLibrary() {
+        if (!iconGrid) return;
+        const query = String(iconSearch?.value || "").trim().toLowerCase();
+        const items = iconLibrary.filter(function (item) {
+          if (!query) return true;
+          return (
+            String(item.name || "").toLowerCase().includes(query) ||
+            String(item.label || "").toLowerCase().includes(query) ||
+            String(item.value || "").toLowerCase().includes(query)
+          );
+        });
+
+        if (!items.length) {
+          iconGrid.innerHTML = "<div class='nav-icon-empty'>Nessuna icona trovata.</div>";
+          return;
+        }
+
+        iconGrid.innerHTML = items.map(function (item) {
+          const label = escapeHtml(item.label || item.name || "Icona");
+          const value = escapeHtml(item.value || "");
+          const url = escapeHtml(item.url || "");
+          return (
+            "<div class='nav-icon-card'>" +
+              "<div class='nav-icon-card-preview'><img src='" + url + "' alt=''></div>" +
+              "<div class='nav-icon-card-name'>" + label + "</div>" +
+              "<div class='nav-icon-card-value'>" + value + "</div>" +
+              "<button class='btn btn-secondary btn-sm' type='button' data-use-icon='" + value + "'>Usa questa</button>" +
+            "</div>"
+          );
+        }).join("");
+      }
+
+      function openIconLibrary(picker) {
+        activeIconPicker = picker;
+        if (!iconModal) return;
+        iconModal.hidden = false;
+        document.body.style.overflow = "hidden";
+        if (iconSearch) iconSearch.value = "";
+        renderIconLibrary();
+      }
+
+      function closeIconLibrary() {
+        if (!iconModal) return;
+        iconModal.hidden = true;
+        document.body.style.overflow = "";
+        if (iconUploadInput) iconUploadInput.value = "";
+        activeIconPicker = null;
+      }
 
       function setStatus(text, isError) {
         if (!statusEl) return;
@@ -535,6 +875,17 @@
         return data;
       }
 
+      async function postFormData(url, formData) {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "X-CSRFToken": csrf },
+          body: formData
+        });
+        const data = await res.json().catch(function () { return {}; });
+        if (!res.ok || !data.ok) throw new Error(data.error || ("HTTP " + res.status));
+        return data;
+      }
+
       // Pre-seleziona i ruoli nei select multipli della tabella in base a data-role-ids.
       function initTableRoleSelects() {
         document.querySelectorAll("tr[data-id][data-role-ids]").forEach(function (row) {
@@ -548,6 +899,95 @@
         });
       }
       initTableRoleSelects();
+      document.querySelectorAll("[data-nav-icon-picker]").forEach(function (picker) {
+        updateIconPreview(picker);
+      });
+
+      document.addEventListener("input", function (ev) {
+        const target = ev.target;
+        if (!(target instanceof HTMLElement)) return;
+        if (target.matches("[data-icon-input]")) {
+          updateIconPreview(target.closest("[data-nav-icon-picker]"));
+          return;
+        }
+        if (target.matches("[name='label'], [data-name='label']")) {
+          refreshScopedPickers(target);
+        }
+      });
+
+      document.addEventListener("click", function (ev) {
+        const target = ev.target;
+        if (!(target instanceof HTMLElement)) return;
+
+        const openBtn = target.closest("[data-open-icon-library]");
+        if (openBtn) {
+          openIconLibrary(openBtn.closest("[data-nav-icon-picker]"));
+          return;
+        }
+
+        const clearBtn = target.closest("[data-clear-icon]");
+        if (clearBtn) {
+          const picker = clearBtn.closest("[data-nav-icon-picker]");
+          const input = pickerInput(picker);
+          if (input) input.value = "";
+          updateIconPreview(picker);
+          return;
+        }
+
+        const useBtn = target.closest("[data-use-icon]");
+        if (useBtn && activeIconPicker) {
+          const input = pickerInput(activeIconPicker);
+          if (input) {
+            input.value = useBtn.getAttribute("data-use-icon") || "";
+            updateIconPreview(activeIconPicker);
+          }
+          closeIconLibrary();
+          return;
+        }
+
+        if (target === iconModal) {
+          closeIconLibrary();
+        }
+      });
+
+      iconSearch?.addEventListener("input", renderIconLibrary);
+      iconModalCloseBtn?.addEventListener("click", closeIconLibrary);
+      document.addEventListener("keydown", function (ev) {
+        if (ev.key === "Escape" && iconModal && !iconModal.hidden) {
+          closeIconLibrary();
+        }
+      });
+
+      iconUploadBtn?.addEventListener("click", async function () {
+        const file = iconUploadInput?.files?.[0];
+        if (!file) {
+          setStatus("Seleziona un file icona prima del caricamento.", true);
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append("icon", file);
+        try {
+          const data = await postFormData(urls.iconUpload, formData);
+          if (data.icon) {
+            iconLibrary = [data.icon].concat(iconLibrary.filter(function (item) {
+              return String(item.value || "") !== String(data.icon.value || "");
+            }));
+            renderIconLibrary();
+            if (activeIconPicker) {
+              const input = pickerInput(activeIconPicker);
+              if (input) {
+                input.value = data.icon.value || "";
+                updateIconPreview(activeIconPicker);
+              }
+            }
+          }
+          if (iconUploadInput) iconUploadInput.value = "";
+          setStatus("Icona caricata nella libreria.", false);
+        } catch (err) {
+          setStatus("Errore upload icona: " + err.message, true);
+        }
+      });
 
       // ── Crea nuova voce ──
       document.getElementById("nav-create-form")?.addEventListener("submit", async function (ev) {

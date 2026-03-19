@@ -1,0 +1,281 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Hub Tools — Categorie Moduli{% endblock %}
+
+{% block content %}
+<style>
+.hub-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+.hub-title{font-size:1.4rem;font-weight:800;display:flex;align-items:center;gap:10px}
+.hub-subtitle{font-size:.84rem;color:#64748b;margin-top:2px}
+.section-title{font-size:1rem;font-weight:700;color:#1e293b;margin:28px 0 12px}
+.cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:32px}
+.cat-card{background:#fff;border:2px solid #e2e8f0;border-radius:10px;overflow:hidden}
+.cat-color-bar{height:8px}
+.cat-body{padding:14px 16px 12px}
+.cat-label{font-weight:700;font-size:.95rem;margin-bottom:2px}
+.cat-key{font-size:.75rem;color:#94a3b8;font-family:monospace;margin-bottom:10px}
+.cat-actions{display:flex;gap:8px;margin-top:10px}
+.btn-sm{font-size:.78rem;padding:4px 12px;border-radius:6px;border:none;cursor:pointer;font-weight:600}
+.btn-edit{background:#f1f5f9;color:#334155}
+.btn-edit:hover{background:#e2e8f0}
+.btn-del{background:#fee2e2;color:#dc2626}
+.btn-del:hover{background:#fecaca}
+.color-dot{width:14px;height:14px;border-radius:50%;display:inline-block;border:1px solid rgba(0,0,0,.1);vertical-align:middle;margin-right:6px}
+.nav-item-row{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px}
+.nav-item-info{display:flex;align-items:center;gap:10px;font-size:.88rem}
+.nav-item-code{font-family:monospace;font-size:.75rem;color:#94a3b8}
+.cat-select{font-size:.82rem;padding:4px 8px;border:1px solid #d1d9e6;border-radius:6px;background:#f8fafc}
+.form-card{background:#f8fafc;border:1.5px dashed #cbd5e1;border-radius:10px;padding:20px 24px;margin-bottom:28px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr 90px 100px 80px auto;gap:10px;align-items:end}
+.form-group label{font-size:.78rem;font-weight:600;color:#475569;display:block;margin-bottom:4px}
+.form-control{width:100%;font-size:.84rem;padding:7px 10px;border:1px solid #d1d9e6;border-radius:7px;background:#fff}
+.btn-primary{background:#1a6fc4;color:#fff;border:none;padding:8px 18px;border-radius:7px;font-weight:700;cursor:pointer;font-size:.84rem;white-space:nowrap}
+.btn-primary:hover{background:#1558a0}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:12px;padding:28px 32px;min-width:320px;max-width:480px;width:100%}
+.modal h3{margin:0 0 18px;font-size:1.05rem;font-weight:800}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+.badge-cat{font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:700;color:#fff;white-space:nowrap}
+.cat-icon{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:#eef2ff;font-size:1rem;flex-shrink:0}
+.brand-preview{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px}
+.brand-preview-card{background:#fff;border:1px solid #dbe3ef;border-radius:10px;padding:14px;min-width:220px}
+.brand-preview-label{font-size:.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+.brand-preview-logo{height:48px;display:flex;align-items:center;justify-content:flex-start;padding:8px 10px;border-radius:10px;background:#1e3a5f;color:#fff;overflow:hidden}
+.brand-preview-logo img{max-width:100%;max-height:100%;object-fit:contain}
+.brand-preview-fallback{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;background:#f97316;color:#fff;font-weight:800}
+.nav-item-icon-form{display:flex;align-items:center;gap:8px}
+.nav-item-icon-input{width:80px;text-align:center}
+</style>
+
+<div class="hub-header">
+  <div>
+    <div class="hub-title">🏷️ Categorie Moduli</div>
+    <div class="hub-subtitle">Raggruppa i moduli di navigazione, assegna icone e configura il branding sidebar.</div>
+  </div>
+  <a href="{% url 'hub_tools:hub_moduli' %}" class="btn-sm btn-edit" style="padding:8px 16px;">← Torna ai Moduli</a>
+</div>
+
+<div class="form-card">
+  <div style="font-size:.88rem;font-weight:700;color:#475569;margin-bottom:12px;">Branding sidebar</div>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="branding">
+    <div class="form-grid" style="grid-template-columns:1fr 1fr">
+      <div class="form-group">
+        <label>Nome portale</label>
+        <input class="form-control" name="portal_name" value="{{ branding_values.portal_name }}" placeholder="Portale Novicrom">
+      </div>
+      <div class="form-group">
+        <label>Sottotitolo</label>
+        <input class="form-control" name="portal_subtitle" value="{{ branding_values.portal_subtitle }}" placeholder="blank per nascondere">
+      </div>
+      <div class="form-group">
+        <label>Logo sidebar espansa</label>
+        <input class="form-control" name="brand_logo_full" value="{{ branding_values.brand_logo_full }}" placeholder="/media/... o https://...">
+      </div>
+      <div class="form-group">
+        <label>Logo sidebar compressa</label>
+        <input class="form-control" name="brand_logo_compact" value="{{ branding_values.brand_logo_compact }}" placeholder="/media/... o https://...">
+      </div>
+    </div>
+    <div class="brand-preview">
+      <div class="brand-preview-card">
+        <div class="brand-preview-label">Espansa</div>
+        <div class="brand-preview-logo">
+          {% if branding_values.brand_logo_full %}
+            <img src="{{ branding_values.brand_logo_full }}" alt="{{ branding_values.portal_name }}">
+          {% else %}
+            <span class="brand-preview-fallback">{{ portal_branding.monogram }}</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="brand-preview-card">
+        <div class="brand-preview-label">Compressa</div>
+        <div class="brand-preview-logo">
+          {% if branding_values.brand_logo_compact %}
+            <img src="{{ branding_values.brand_logo_compact }}" alt="{{ branding_values.portal_name }}">
+          {% else %}
+            <span class="brand-preview-fallback">{{ portal_branding.monogram }}</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:14px">
+      <button type="submit" class="btn-primary">Salva branding</button>
+    </div>
+  </form>
+</div>
+
+<!-- Crea nuova categoria -->
+<div class="form-card">
+  <div style="font-size:.88rem;font-weight:700;color:#475569;margin-bottom:12px;">Nuova categoria</div>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="create">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Key (slug)</label>
+        <input class="form-control" name="key" placeholder="es. manutenzione" pattern="[a-z0-9_-]+" required>
+      </div>
+      <div class="form-group">
+        <label>Nome visualizzato</label>
+        <input class="form-control" name="label" placeholder="es. MANUTENZIONE" required>
+      </div>
+      <div class="form-group">
+        <label>Icona</label>
+        <input class="form-control" name="icon" placeholder="es. 🛠️">
+      </div>
+      <div class="form-group">
+        <label>Colore topbar</label>
+        <input type="color" class="form-control" name="topbar_color" value="#1e3a5f" style="padding:3px 6px;height:37px">
+      </div>
+      <div class="form-group">
+        <label>Ordine</label>
+        <input type="number" class="form-control" name="order" value="100" min="0">
+      </div>
+      <div class="form-group">
+        <label>&nbsp;</label>
+        <button type="submit" class="btn-primary">+ Crea</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- Lista categorie esistenti -->
+<div class="section-title">Categorie ({{ categorie|length }})</div>
+{% if not categorie %}
+  <p style="color:#94a3b8;font-size:.88rem;">Nessuna categoria ancora. Creane una sopra.</p>
+{% else %}
+<div class="cat-grid">
+  {% for cat in categorie %}
+  <div class="cat-card">
+    <div class="cat-color-bar" style="background:{{ cat.topbar_color }}"></div>
+    <div class="cat-body">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="cat-icon">{% firstof cat.icon cat.label|slice:":1"|upper %}</span>
+        <div>
+          <div class="cat-label">{{ cat.label }}</div>
+          <div class="cat-key">{{ cat.key }} &nbsp;·&nbsp; ordine {{ cat.order }}</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:.8rem;color:#475569">
+        <span class="color-dot" style="background:{{ cat.topbar_color }}"></span>
+        {{ cat.topbar_color }}
+      </div>
+      {% if cat.icon %}
+      <div style="margin-top:6px;font-size:.78rem;color:#64748b">Icona: <strong>{{ cat.icon }}</strong></div>
+      {% endif %}
+      <div class="cat-actions">
+        <button class="btn-sm btn-edit" onclick="openEditModal({{ cat.id }}, '{{ cat.label|escapejs }}', '{{ cat.icon|escapejs }}', '{{ cat.topbar_color|escapejs }}', {{ cat.order }})">Modifica</button>
+        <form method="post" style="margin:0" onsubmit="return confirm('Eliminare la categoria \'{{ cat.label|escapejs }}\'?')">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="delete">
+          <input type="hidden" name="id" value="{{ cat.id }}">
+          <button type="submit" class="btn-sm btn-del">Elimina</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Assegna categorie ai moduli topbar -->
+<div class="section-title">Voci topbar — assegna categoria</div>
+{% if not nav_items %}
+  <p style="color:#94a3b8;font-size:.88rem;">Nessuna voce topbar trovata nel Navigation Registry.</p>
+{% else %}
+  {% for item in nav_items %}
+  <div class="nav-item-row">
+    <div class="nav-item-info">
+      <span class="cat-icon">{% firstof item.icon item.label|slice:":1"|upper %}</span>
+      <div>
+        <div style="font-weight:600">{{ item.label }}</div>
+        <div class="nav-item-code">{{ item.code }}</div>
+      </div>
+      {% if item.category %}
+        <span class="badge-cat" style="background:{{ item.category.topbar_color }}">{{ item.category.label }}</span>
+      {% endif %}
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+      <form method="post" class="nav-item-icon-form" style="margin:0">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="item_icon">
+        <input type="hidden" name="nav_item_id" value="{{ item.id }}">
+        <input class="form-control nav-item-icon-input" name="icon" value="{{ item.icon }}" placeholder="icona">
+        <button type="submit" class="btn-sm btn-edit">Salva icona</button>
+      </form>
+      <form method="post" style="margin:0">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="assign">
+        <input type="hidden" name="nav_item_id" value="{{ item.id }}">
+        <select class="cat-select" name="category_id" onchange="this.form.submit()">
+          <option value="">— Nessuna —</option>
+          {% for cat in categorie %}
+            <option value="{{ cat.id }}" {% if item.category_id == cat.id %}selected{% endif %}>{{ cat.label }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+{% endif %}
+
+<!-- Modal modifica -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h3>Modifica categoria</h3>
+    <form method="post" id="editForm">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="edit">
+      <input type="hidden" name="id" id="editId">
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Nome visualizzato</label>
+        <input class="form-control" name="label" id="editLabel" required>
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Icona</label>
+        <input class="form-control" name="icon" id="editIcon" placeholder="es. 🛠️">
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Colore topbar</label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="color" class="form-control" name="topbar_color" id="editColor" style="width:70px;padding:3px 6px;height:37px">
+          <span id="editColorHex" style="font-family:monospace;font-size:.85rem;color:#475569"></span>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:4px">
+        <label>Ordine</label>
+        <input type="number" class="form-control" name="order" id="editOrder" min="0">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-sm btn-edit" onclick="closeEditModal()" style="padding:8px 16px">Annulla</button>
+        <button type="submit" class="btn-primary">Salva</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openEditModal(id, label, icon, color, order) {
+  document.getElementById('editId').value = id;
+  document.getElementById('editLabel').value = label;
+  document.getElementById('editIcon').value = icon;
+  document.getElementById('editColor').value = color;
+  document.getElementById('editColorHex').textContent = color;
+  document.getElementById('editOrder').value = order;
+  document.getElementById('editModal').classList.add('open');
+}
+function closeEditModal() {
+  document.getElementById('editModal').classList.remove('open');
+}
+document.getElementById('editColor').addEventListener('input', function() {
+  document.getElementById('editColorHex').textContent = this.value;
+});
+document.getElementById('editModal').addEventListener('click', function(e) {
+  if (e.target === this) closeEditModal();
+});
+</script>
+{% endblock %}

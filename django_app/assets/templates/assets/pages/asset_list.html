@@ -1,4 +1,4 @@
-﻿{% extends "core/base.html" %}
+{% extends "core/base.html" %}
 {% load assets_extras %}
 
 {% block title %}Cruscotto inventario asset{% endblock %}
@@ -10,20 +10,20 @@
 .side { align-self: start; background: #f8fbff; border-right: 1px solid #dbe3f0; padding: 14px; display: grid; grid-template-rows: auto 1fr auto; gap: 12px; }
 .brand { display: flex; align-items: center; gap: 10px; }
 .logo { width: 34px; height: 34px; border-radius: 9px; background: #1f64d8; color: #fff; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
-.name { font-size: 28px; font-weight: 800; color: #0f172a; }
+.name { font-size: var(--fs-display-lg); font-weight: 800; color: #0f172a; }
 .name span { color: #1f64d8; }
 .menu { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 4px; }
-.mh { font-size: 10px; color: #8ea2bf; text-transform: uppercase; letter-spacing: .08em; margin: 7px 4px; font-weight: 700; }
-.ma, .ms { display: block; color: #24395e; text-decoration: none; border-radius: 8px; padding: 5px 8px; font-weight: 600; line-height: 1.1; font-size: 12px; }
+.mh { font-size: var(--fs-2xs); color: #8ea2bf; text-transform: uppercase; letter-spacing: .08em; margin: 7px 4px; font-weight: 700; }
+.ma, .ms { display: block; color: #24395e; text-decoration: none; border-radius: 8px; padding: 5px 8px; font-weight: 600; line-height: 1.1; font-size: var(--fs-sm); }
 .ma:hover, .ms:hover { background: #edf3fc; }
 .ma.active, .ms.active { background: #dce8fb; color: #1f64d8; }
-.ms { font-size: 11px; color: #5f7698; padding-left: 18px; }
+.ms { font-size: var(--fs-xs); color: #5f7698; padding-left: 18px; }
 .user { border-top: 1px solid #dbe3f0; padding-top: 10px; display: flex; gap: 8px; align-items: center; }
-.av { width: 28px; height: 28px; border-radius: 999px; background: #dce6f5; color: #355380; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+.av { width: 28px; height: 28px; border-radius: 999px; background: #dce6f5; color: #355380; display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-sm); font-weight: 700; }
 .main { min-width: 0; padding: 12px; display: grid; gap: 10px; align-content: start; }
 .top { display: flex; gap: 8px; align-items: center; }
 .search { flex: 1; display: flex; gap: 8px; align-items: center; height: 46px; border: 1px solid #dbe3f0; border-radius: 11px; background: #edf2f9; padding: 0 11px; }
-.search input { border: none; background: transparent; outline: none; width: 100%; font-size: 15px; color: #1f3559; font-family: 'Outfit', sans-serif; }
+.search input { border: none; background: transparent; outline: none; width: 100%; font-size: var(--fs-title-sm); color: #1f3559; font-family: 'Outfit', sans-serif; }
 .ib, .tool { width: 40px; height: 40px; border: 1px solid #d8e2f2; border-radius: 10px; background: #f8fbff; color: #6a819f; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; cursor: pointer; }
 .ib:hover, .tool:hover { background: #edf3fc; }
 .tool.active { background: #1f64d8; border-color: #1f64d8; color: #fff; }
@@ -31,18 +31,18 @@
 .nb { background: #1f64d8; color: #fff; border: 1px solid #1f64d8; border-radius: 10px; padding: 10px 14px; text-decoration: none; font-weight: 700; }
 .kpi { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .k { background: #fff; border: 1px solid #dbe3f0; border-radius: 11px; padding: 10px; box-shadow: 0 2px 8px rgba(15, 23, 42, .05); }
-.kh { font-size: 11px; text-transform: uppercase; color: #7e94b2; font-weight: 700; }
-.kv { margin-top: 8px; font-size: 34px; font-weight: 800; color: #0f172a; line-height: 1; }
-.ks { font-size: 12px; color: #7d93b1; margin-top: 4px; }
+.kh { font-size: var(--fs-xs); text-transform: uppercase; color: #7e94b2; font-weight: 700; }
+.kv { margin-top: 8px; font-size: var(--fs-display-2xl); font-weight: 800; color: #0f172a; line-height: 1; }
+.ks { font-size: var(--fs-sm); color: #7d93b1; margin-top: 4px; }
 .bar { height: 4px; border-radius: 99px; background: #e8edf5; margin-top: 8px; overflow: hidden; }
 .fill { height: 100%; background: #1f64d8; }
 .grid { display: grid; grid-template-columns: minmax(0, 1.7fr) 320px; gap: 8px; }
 .card { background: #fff; border: 1px solid #dbe3f0; border-radius: 11px; box-shadow: 0 2px 8px rgba(15, 23, 42, .05); overflow: hidden; }
 .ch { padding: 10px 12px; border-bottom: 1px solid #e5ecf6; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.t { margin: 0; font-size: 28px; color: #0f172a; }
+.t { margin: 0; font-size: var(--fs-display-lg); color: #0f172a; }
 .tools { display: flex; gap: 8px; align-items: center; }
 .c { display: inline-flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
-.chip { border: 1px solid #dce6f5; background: #edf3fc; color: #56739d; border-radius: 999px; padding: 3px 8px; font-size: 11px; font-weight: 700; }
+.chip { border: 1px solid #dce6f5; background: #edf3fc; color: #56739d; border-radius: 999px; padding: 3px 8px; font-size: var(--fs-xs); font-weight: 700; }
 .chip.a { background: #e2ecff; color: #1f64d8; }
 .f { padding: 10px 12px; border-bottom: 1px solid #e5ecf6; background: #f9fbff; }
 .fg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
@@ -54,8 +54,8 @@
 .tw { overflow: auto; }
 .tbl { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 980px; }
 .tbl th, .tbl td { padding: 7px 8px; border-bottom: 1px solid #e7edf6; text-align: left; vertical-align: middle; }
-.tbl td { font-size: 13px; line-height: 1.25; }
-.tbl th { font-size: 10px; text-transform: uppercase; color: #7f95b3; background: #fbfdff; position: relative; letter-spacing: .04em; }
+.tbl td { font-size: var(--fs-base); line-height: 1.25; }
+.tbl th { font-size: var(--fs-2xs); text-transform: uppercase; color: #7f95b3; background: #fbfdff; position: relative; letter-spacing: .04em; }
 .tbl th[data-col] { cursor: grab; }
 .tbl th[data-col].is-dragging { opacity: .48; cursor: grabbing; }
 .tbl th[data-col].col-drop-before { box-shadow: inset 2px 0 0 #1f64d8; }
@@ -66,7 +66,7 @@
 .widget-item { position: relative; }
 .widget-item.widget-hidden { display: none !important; }
 .widget-item.widget-linked { cursor: pointer; box-shadow: 0 0 0 1px rgba(31, 100, 216, .22), 0 2px 8px rgba(15, 23, 42, .05); }
-.widget-handle { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border: 1px dashed #cbd5e1; border-radius: 6px; background: #fff; color: #64748b; display: none; align-items: center; justify-content: center; font-size: 12px; line-height: 1; cursor: grab; z-index: 3; }
+.widget-handle { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border: 1px dashed #cbd5e1; border-radius: 6px; background: #fff; color: #64748b; display: none; align-items: center; justify-content: center; font-size: var(--fs-sm); line-height: 1; cursor: grab; z-index: 3; }
 .widget-handle:active { cursor: grabbing; }
 .widget-edit-mode .widget-handle { display: inline-flex; }
 .widget-edit-mode .widget-item { user-select: none; }
@@ -74,25 +74,25 @@
 .widget-zone.drop-target { outline: 2px dashed #93c5fd; outline-offset: 4px; border-radius: 12px; }
 .widget-manager-list { display: grid; gap: 8px; margin-top: 8px; }
 .widget-manager-group { border: 1px solid #dbe3f0; border-radius: 10px; background: #fff; padding: 8px; display: grid; gap: 6px; }
-.widget-manager-title { font-size: 11px; font-weight: 800; color: #314f79; text-transform: uppercase; letter-spacing: .04em; }
+.widget-manager-title { font-size: var(--fs-xs); font-weight: 800; color: #314f79; text-transform: uppercase; letter-spacing: .04em; }
 .widget-manager-row { display: grid; grid-template-columns: minmax(0, 1fr) 210px minmax(0, 1fr); gap: 8px; align-items: center; }
-.widget-manager-row label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #334e77; font-weight: 600; }
+.widget-manager-row label { display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); color: #334e77; font-weight: 600; }
 .widget-manager-row .input { min-height: 34px; }
 .ac { display: flex; gap: 6px; align-items: center; }
-.ai { width: 26px; height: 26px; border-radius: 7px; background: #edf2f8; color: #4e6e97; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex: 0 0 auto; }
-.am { font-size: 13px; font-weight: 700; color: #11243f; line-height: 1.2; }
-.as { font-size: 11px; color: #8195b1; line-height: 1.2; }
-.st { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 2px 7px; font-size: 11px; font-weight: 700; }
+.ai { width: 26px; height: 26px; border-radius: 7px; background: #edf2f8; color: #4e6e97; display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-xs); font-weight: 700; flex: 0 0 auto; }
+.am { font-size: var(--fs-base); font-weight: 700; color: #11243f; line-height: 1.2; }
+.as { font-size: var(--fs-xs); color: #8195b1; line-height: 1.2; }
+.st { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 2px 7px; font-size: var(--fs-xs); font-weight: 700; }
 .ok { background: #dcfce7; color: #15803d; }
 .wg { background: #fef3c7; color: #a16207; }
 .er { background: #fee2e2; color: #b91c1c; }
 .id { background: #e2e8f0; color: #475569; }
-.tf { padding: 10px 12px; color: #6d84a6; font-size: 12px; display: flex; justify-content: space-between; }
+.tf { padding: 10px 12px; color: #6d84a6; font-size: var(--fs-sm); display: flex; justify-content: space-between; }
 .rows-tools { display: flex; gap: 6px; align-items: center; }
-.rows-btn { border: 1px solid #d8e2f2; border-radius: 7px; background: #fff; color: #5d7496; padding: 3px 8px; text-decoration: none; font-size: 12px; font-weight: 700; }
+.rows-btn { border: 1px solid #d8e2f2; border-radius: 7px; background: #fff; color: #5d7496; padding: 3px 8px; text-decoration: none; font-size: var(--fs-sm); font-weight: 700; }
 .rows-btn.active { background: #1f64d8; border-color: #1f64d8; color: #fff; }
 .pager { display: flex; gap: 6px; align-items: center; margin-left: 8px; }
-.pg-btn { border: 1px solid #d8e2f2; border-radius: 7px; background: #fff; color: #5d7496; padding: 3px 8px; text-decoration: none; font-size: 12px; font-weight: 700; min-width: 28px; text-align: center; }
+.pg-btn { border: 1px solid #d8e2f2; border-radius: 7px; background: #fff; color: #5d7496; padding: 3px 8px; text-decoration: none; font-size: var(--fs-sm); font-weight: 700; min-width: 28px; text-align: center; }
 .pg-btn.active { background: #1f64d8; border-color: #1f64d8; color: #fff; }
 .pg-btn.disabled { opacity: .45; pointer-events: none; }
 .stack { display: grid; gap: 8px; }
@@ -104,16 +104,16 @@
 .alerts { list-style: none; margin: 0; padding: 0; }
 .alerts li { padding: 10px 12px; border-bottom: 1px solid #e8eef7; }
 .alerts li:last-child { border-bottom: none; }
-.at { display: flex; gap: 6px; align-items: center; font-size: 14px; font-weight: 700; color: #132440; }
+.at { display: flex; gap: 6px; align-items: center; font-size: var(--fs-md); font-weight: 700; color: #132440; }
 .dot { width: 8px; height: 8px; border-radius: 999px; }
 .dot.ok { background: #22c55e; }
 .dot.warning { background: #f59e0b; }
 .dot.critical { background: #ef4444; }
-.ad { margin: 4px 0 0 14px; color: #7088a8; font-size: 12px; }
-.tm { margin: 4px 0 0 14px; color: #90a3bd; font-size: 11px; }
-.admin { padding: 10px 12px; color: #56739d; font-size: 13px; }
+.ad { margin: 4px 0 0 14px; color: #7088a8; font-size: var(--fs-sm); }
+.tm { margin: 4px 0 0 14px; color: #90a3bd; font-size: var(--fs-xs); }
+.admin { padding: 10px 12px; color: #56739d; font-size: var(--fs-base); }
 .assets-messages { display: grid; gap: 8px; }
-.assets-message { border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; background: #f8fafc; font-size: 13px; }
+.assets-message { border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; background: #f8fafc; font-size: var(--fs-base); }
 .assets-message-success { border-color: #86efac; background: #f0fdf4; color: #166534; }
 .assets-message-error, .assets-message-danger { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
 .assets-message-warning { border-color: #fde68a; background: #fffbeb; color: #92400e; }
@@ -121,7 +121,7 @@
 .admin-panel { margin-top: 12px; padding-top: 12px; border-top: 1px solid #dbe3f0; display: grid; gap: 10px; }
 .admin-form { display: grid; gap: 8px; border: 1px solid #dbe3f0; border-radius: 10px; padding: 10px; background: #f8fbff; }
 .admin-row { display: grid; grid-template-columns: 1fr 150px 110px 110px 120px; gap: 8px; align-items: end; }
-.admin-row .checkline { font-size: 12px; color: #4f6688; }
+.admin-row .checkline { font-size: var(--fs-sm); color: #4f6688; }
 .admin-list { display: grid; gap: 8px; max-height: 320px; overflow: auto; }
 .admin-item { border: 1px solid #e1e8f3; border-radius: 10px; padding: 8px; background: #fff; display: grid; gap: 8px; }
 .admin-item-row { display: grid; grid-template-columns: 1fr 140px 95px 90px 105px auto auto; gap: 8px; align-items: end; }
@@ -129,20 +129,52 @@
 .admin-tab-btn:hover { background: #edf3fc; }
 .admin-help-btn { border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; border-radius: 8px; padding: 6px 10px; font-weight: 700; cursor: pointer; }
 .admin-section { scroll-margin-top: 80px; }
-.admin-hint { font-size: 12px; color: #64748b; }
+.admin-hint { font-size: var(--fs-sm); color: #64748b; }
 .admin-metrics { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:8px; margin-top:10px; }
 .admin-metric { border:1px solid #dbe3f0; border-radius:10px; background:#fff; padding:8px; }
-.admin-metric .n { font-size:20px; font-weight:800; color:#0f172a; line-height:1; }
-.admin-metric .l { margin-top:4px; font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:.03em; }
+.admin-metric .n { font-size: var(--fs-title-lg); font-weight:800; color:#0f172a; line-height:1; }
+.admin-metric .l { margin-top:4px; font-size: var(--fs-xs); color:#64748b; text-transform:uppercase; letter-spacing:.03em; }
 .admin-checks { border:1px solid #dbe3f0; border-radius:10px; background:#fff; padding:8px; margin-top:8px; display:grid; gap:6px; }
-.admin-checks .ok { color:#15803d; font-size:12px; font-weight:700; }
-.admin-checks .warn { color:#92400e; font-size:12px; }
+.admin-checks .ok { color:#15803d; font-size: var(--fs-sm); font-weight:700; }
+.admin-checks .warn { color:#92400e; font-size: var(--fs-sm); }
 .admin-ops { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+#admin-sidebar-buttons .admin-form { gap: 6px; }
+#admin-sidebar-buttons .admin-row,
+#admin-sidebar-buttons .admin-item-row {
+  grid-template-columns: minmax(200px, 1.3fr) minmax(170px, 1fr) minmax(220px, 1.2fr) 100px;
+  gap: 8px;
+}
+#admin-sidebar-buttons .admin-list { gap: 10px; max-height: none; }
+#admin-sidebar-buttons .admin-item { padding: 10px; gap: 6px; }
+#admin-sidebar-buttons .admin-row > .field:nth-of-type(7),
+#admin-sidebar-buttons .admin-row > .field:nth-of-type(8),
+#admin-sidebar-buttons .admin-item-row > .field:nth-of-type(7),
+#admin-sidebar-buttons .admin-item-row > .field:nth-of-type(8) {
+  grid-column: span 2;
+}
+#admin-sidebar-buttons .admin-row > div:last-child,
+#admin-sidebar-buttons .admin-item-row > div:last-child {
+  display: flex;
+  justify-content: flex-end;
+}
+#admin-sidebar-buttons .admin-row .checkline,
+#admin-sidebar-buttons .admin-item-row .checkline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  color: #4f6688;
+}
+#admin-sidebar-buttons .admin-item + form {
+  margin-top: -2px !important;
+  display: flex;
+  justify-content: flex-end;
+}
 .admin-modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, .55); z-index: 1400; display: none; align-items: center; justify-content: center; padding: 20px; }
 .admin-modal-backdrop.show { display: flex; }
 .admin-modal { width: min(860px, 96vw); max-height: 86vh; overflow: auto; border: 1px solid #d8e2f2; border-radius: 12px; background: #fff; box-shadow: 0 18px 50px rgba(15, 23, 42, .35); }
 .admin-modal-head { position: sticky; top: 0; background: #f8fbff; border-bottom: 1px solid #dbe3f0; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; z-index: 1; }
-.admin-modal-body { padding: 12px; display: grid; gap: 10px; color: #304a6c; font-size: 13px; }
+.admin-modal-body { padding: 12px; display: grid; gap: 10px; color: #304a6c; font-size: var(--fs-base); }
 .admin-close { border: 1px solid #d8e2f2; background: #fff; color: #4c6281; border-radius: 8px; padding: 5px 8px; cursor: pointer; }
 .admin-studio-modal { width: min(1580px, 98vw); max-height: 90vh; }
 .admin-studio-modal .admin-modal-body { padding: 12px; }
@@ -152,9 +184,25 @@ body.admin-studio-open { overflow: hidden; }
   .admin-row, .admin-item-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+@media (max-width: 1100px) {
+  #admin-sidebar-buttons .admin-row,
+  #admin-sidebar-buttons .admin-item-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #admin-sidebar-buttons .admin-row > .field:nth-of-type(7),
+  #admin-sidebar-buttons .admin-row > .field:nth-of-type(8),
+  #admin-sidebar-buttons .admin-item-row > .field:nth-of-type(7),
+  #admin-sidebar-buttons .admin-item-row > .field:nth-of-type(8) { grid-column: auto; }
+  #admin-sidebar-buttons .admin-row > div:last-child,
+  #admin-sidebar-buttons .admin-item-row > div:last-child { grid-column: 2; }
+}
 @media (max-width: 1200px) { .kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid { grid-template-columns: 1fr; } }
 @media (max-width: 980px) { .dash { grid-template-columns: 1fr; } .side { border-right: none; border-bottom: 1px solid #dbe3f0; } .user { display: none; } }
 @media (max-width: 760px) { .top { flex-direction: column; align-items: stretch; } .kpi { grid-template-columns: 1fr; } .fg { grid-template-columns: 1fr; } .tbl { min-width: 760px; } }
+@media (max-width: 680px) {
+  #admin-sidebar-buttons .admin-row,
+  #admin-sidebar-buttons .admin-item-row { grid-template-columns: 1fr; }
+  #admin-sidebar-buttons .admin-row > div:last-child,
+  #admin-sidebar-buttons .admin-item-row > div:last-child { grid-column: auto; justify-content: flex-start; }
+}
 @media (max-width: 680px) { .admin-metrics { grid-template-columns: 1fr; } }
 @media (max-width: 980px) { .widget-manager-row { grid-template-columns: 1fr; } }
 /* Header action group & floating panels */
@@ -165,7 +213,7 @@ body.admin-studio-open { overflow: hidden; }
 /* Bulk selection */
 .r.row-selected { background: #eff6ff !important; }
 .r.row-selected:hover { background: #dbeafe !important; }
-.bulk-toolbar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #eff6ff; border-bottom: 1px solid #bfdbfe; font-size: 13px; flex-wrap: wrap; }
+.bulk-toolbar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #eff6ff; border-bottom: 1px solid #bfdbfe; font-size: var(--fs-base); flex-wrap: wrap; }
 .bulk-count { font-weight: 700; color: #1e40af; }
 /* Bulk edit modal */
 .bulk-modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.55); z-index: 1600; display: none; align-items: center; justify-content: center; padding: 20px; }
@@ -173,18 +221,18 @@ body.admin-studio-open { overflow: hidden; }
 .bulk-modal { width: min(480px, 96vw); border: 1px solid #d8e2f2; border-radius: 12px; background: #fff; box-shadow: 0 18px 50px rgba(15,23,42,.35); overflow: hidden; }
 .bulk-modal-head { background: #f8fbff; border-bottom: 1px solid #dbe3f0; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
 .bulk-modal-body { padding: 14px; display: grid; gap: 10px; }
-.bulk-field-row { display: grid; grid-template-columns: 20px 130px 1fr; gap: 8px; align-items: center; font-size: 13px; }
+.bulk-field-row { display: grid; grid-template-columns: 20px 130px 1fr; gap: 8px; align-items: center; font-size: var(--fs-base); }
 .bulk-field-row label { font-weight: 600; color: #334e77; }
 .bulk-modal-foot { padding: 10px 14px; border-top: 1px solid #dbe3f0; display: flex; justify-content: flex-end; gap: 8px; }
 /* Custom KPI card in widget manager */
 .wm-custom-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 6px; align-items: center; padding: 4px 0; border-top: 1px solid #f0f4fa; margin-top: 2px; }
-.wm-remove-btn { border: none; background: #fee2e2; color: #b91c1c; border-radius: 6px; padding: 2px 8px; cursor: pointer; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.wm-remove-btn { border: none; background: #fee2e2; color: #b91c1c; border-radius: 6px; padding: 2px 8px; cursor: pointer; font-size: var(--fs-xs); font-weight: 700; flex-shrink: 0; }
 .wm-remove-btn:hover { background: #fecaca; }
-.wm-add-toggle { border: 1px dashed #93c5fd; background: #f0f9ff; color: #0369a1; border-radius: 7px; padding: 4px 10px; cursor: pointer; font-size: 11px; font-weight: 700; width: 100%; margin-top: 4px; }
+.wm-add-toggle { border: 1px dashed #93c5fd; background: #f0f9ff; color: #0369a1; border-radius: 7px; padding: 4px 10px; cursor: pointer; font-size: var(--fs-xs); font-weight: 700; width: 100%; margin-top: 4px; }
 .wm-add-toggle:hover { background: #e0f2fe; }
 .wm-add-form { border: 1px solid #bfdbfe; border-radius: 8px; padding: 8px; background: #f8fbff; display: grid; gap: 6px; margin-top: 4px; }
-.wm-add-form label { font-size: 11px; font-weight: 600; color: #334e77; }
-.wm-add-form .input { min-height: 28px; font-size: 12px; }
+.wm-add-form label { font-size: var(--fs-xs); font-weight: 600; color: #334e77; }
+.wm-add-form .input { min-height: 28px; font-size: var(--fs-sm); }
 </style>
 {% endblock %}
 
@@ -203,7 +251,7 @@ body.admin-studio-open { overflow: hidden; }
     {% if can_gestione_admin %}
     <a class="ma" href="{% url 'assets:gestione_admin' %}" style="background:#eef2ff;color:#1f64d8;font-weight:700;">&#9881; Gestione Admin</a>
     {% endif %}
-    <div class="user"><span class="av">{{ request.user.username|slice:":1"|upper }}</span><div><div style="font-size:13px;font-weight:700;color:#1e2f4f;">{{ request.user.get_full_name|default:request.user.username }}</div><div style="font-size:11px;color:#7f92af;">Amministratore sistema</div></div></div>
+    <div class="user"><span class="av">{{ request.user.username|slice:":1"|upper }}</span><div><div class="text-base font-bold" style="color:#1e2f4f;">{{ request.user.get_full_name|default:request.user.username }}</div><div class="text-xs" style="color:#7f92af;">Amministratore sistema</div></div></div>
   </aside>
 
   <main class="main">
@@ -243,14 +291,14 @@ body.admin-studio-open { overflow: hidden; }
 
         <!-- Widget dashboard floating panel -->
         <div id="widgetManagerPanel" class="hdr-panel" hidden>
-          <div style="font-size:13px;color:#4d6890;font-weight:700;margin-bottom:10px;">Widget dashboard — visibilità &amp; collegamenti</div>
+          <div class="text-base font-bold" style="color:#4d6890;margin-bottom:10px;">Widget dashboard — visibilità &amp; collegamenti</div>
           <div id="widgetManagerList" class="widget-manager-list"></div>
-          <div class="muted" style="margin-top:8px;font-size:12px;">Seleziona quali elementi mostrare e collega ogni widget a una pagina. Usa il pulsante drag &amp; drop nella barra tabella per riordinare.</div>
+          <div class="muted text-sm" style="margin-top:8px;">Seleziona quali elementi mostrare e collega ogni widget a una pagina. Usa il pulsante drag &amp; drop nella barra tabella per riordinare.</div>
         </div>
 
         <!-- Sincronizzazione cloud floating panel -->
         <div id="syncPanel" class="hdr-panel hdr-panel-sm" hidden>
-          <div style="font-size:13px;color:#4d6890;font-weight:700;margin-bottom:10px;">Sincronizzazione inventario cloud</div>
+          <div class="text-base font-bold" style="color:#4d6890;margin-bottom:10px;">Sincronizzazione inventario cloud</div>
           <form method="post" enctype="multipart/form-data" id="excelImportFormHdr" style="display:grid;gap:8px;">
             {% csrf_token %}
             <input type="hidden" name="action" value="import_excel">
@@ -293,7 +341,7 @@ body.admin-studio-open { overflow: hidden; }
               <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
             </a>
             <button class="tool tool-wide" id="toggleColumnPanel" type="button" title="Aggiungi o rimuovi colonne">
-              <span style="font-size:18px;line-height:1;">+</span>
+              <span class="text-xl" style="line-height:1;">+</span>
               <span>Colonne</span>
             </button>
             <button class="tool" id="toggleAdvancedFilters" type="button" title="Filtri avanzati">
@@ -328,7 +376,7 @@ body.admin-studio-open { overflow: hidden; }
               {% endwith %}
             {% endfor %}
           </div>
-          <div class="muted" style="margin-top:8px;font-size:12px;">
+          <div class="muted text-sm" style="margin-top:8px;">
             Vista suggerita per {{ asset_list_context_label }}. Puoi aggiungere o togliere manualmente le colonne con il pulsante +. Le impostazioni sono salvate nel browser per questa vista.
           </div>
         </div>
@@ -336,12 +384,12 @@ body.admin-studio-open { overflow: hidden; }
 
         <div id="bulkToolbar" class="bulk-toolbar" style="display:none;">
           <span class="bulk-count"><span id="bulkCountNum">0</span> asset selezionati</span>
-          <button type="button" class="btn" id="bulkEditBtn" style="font-size:12px;padding:4px 12px;">✏ Modifica in blocco</button>
+          <button type="button" class="btn text-sm" id="bulkEditBtn" style="padding:4px 12px;">✏ Modifica in blocco</button>
           <button type="button" class="admin-close" id="bulkDeselectBtn">Deseleziona tutti</button>
         </div>
 
         <details id="advancedFiltersCard" class="f" {% if request.GET.asset_type or request.GET.reparto or request.GET.vlan or request.GET.ip %}open{% endif %}>
-          <summary style="cursor:pointer;font-size:13px;color:#4d6890;font-weight:600;">Filtri avanzati</summary>
+          <summary class="text-base font-semibold" style="cursor:pointer;color:#4d6890;">Filtri avanzati</summary>
           <form method="get" style="margin-top:8px;">
             <input type="hidden" name="q" value="{{ request.GET.q|default:'' }}">
             <input type="hidden" name="rows" value="{{ rows }}">
@@ -425,15 +473,15 @@ body.admin-studio-open { overflow: hidden; }
       <aside class="stack widget-zone" data-zone="side" data-zone-label="Colonna destra" data-axis="y">
         <article class="card widget-item" data-widget-id="side_lifecycle" data-widget-title="Andamento ciclo di vita">
           <button class="widget-handle" type="button" data-widget-handle title="Trascina widget">::</button>
-          <div class="ch"><h3 class="t" style="font-size:20px;">Andamento ciclo di vita</h3></div><div class="life"><div class="bars"><div class="b" style="height:{{ lifecycle_phase_1|default:10 }}%"></div><div class="b b2" style="height:{{ lifecycle_phase_2|default:10 }}%"></div><div class="b b3" style="height:{{ lifecycle_phase_3|default:10 }}%"></div></div><div class="c"><span class="chip">P1 {{ phase_1_count }}</span><span class="chip">P2 {{ phase_2_count }}</span><span class="chip">P3 {{ phase_3_count }}</span></div></div>
+          <div class="ch"><h3 class="t text-title-lg">Andamento ciclo di vita</h3></div><div class="life"><div class="bars"><div class="b" style="height:{{ lifecycle_phase_1|default:10 }}%"></div><div class="b b2" style="height:{{ lifecycle_phase_2|default:10 }}%"></div><div class="b b3" style="height:{{ lifecycle_phase_3|default:10 }}%"></div></div><div class="c"><span class="chip">P1 {{ phase_1_count }}</span><span class="chip">P2 {{ phase_2_count }}</span><span class="chip">P3 {{ phase_3_count }}</span></div></div>
         </article>
         <article class="card widget-item" data-widget-id="side_alerts" data-widget-title="Avvisi recenti">
           <button class="widget-handle" type="button" data-widget-handle title="Trascina widget">::</button>
-          <div class="ch"><h3 class="t" style="font-size:20px;">Avvisi recenti</h3><span class="chip a">NUOVO</span></div><ul class="alerts">{% for alert in recent_alerts %}<li><div class="at"><span class="dot {{ alert.level }}"></span>{{ alert.title }}</div><div class="ad">{{ alert.message|truncatechars:120 }}</div><div class="tm">{{ alert.time }}</div></li>{% endfor %}</ul>
+          <div class="ch"><h3 class="t text-title-lg">Avvisi recenti</h3><span class="chip a">NUOVO</span></div><ul class="alerts">{% for alert in recent_alerts %}<li><div class="at"><span class="dot {{ alert.level }}"></span>{{ alert.title }}</div><div class="ad">{{ alert.message|truncatechars:120 }}</div><div class="tm">{{ alert.time }}</div></li>{% endfor %}</ul>
         </article>
         <article class="card widget-item" data-widget-id="side_sync" data-widget-title="Sincronizzazione inventario cloud">
           <button class="widget-handle" type="button" data-widget-handle title="Trascina widget">::</button>
-          <div class="ch"><h3 class="t" style="font-size:20px;">Sincronizzazione inventario cloud</h3></div>
+          <div class="ch"><h3 class="t text-title-lg">Sincronizzazione inventario cloud</h3></div>
           <form method="post" enctype="multipart/form-data" id="excelImportForm" style="padding:12px;display:grid;gap:8px;">
             {% csrf_token %}
             <input type="hidden" name="action" value="import_excel">
@@ -1128,7 +1176,7 @@ body.admin-studio-open { overflow: hidden; }
                   <div class="field" style="grid-column:1/-1;">
                     <label>Sorgente dato</label>
                     <input class="input" type="text" name="source_ref" list="asset-detail-source-options" placeholder="Seleziona o digita es. asset:manufacturer" required>
-                    <div class="muted" style="font-size:12px;">Puoi usare asset, it, work_machine, extra, custom, computed. Esempi: `asset:manufacturer`, `work_machine:x_mm`, `custom:centro_costo`, `computed:travel_xyz`.</div>
+                    <div class="muted text-sm">Puoi usare asset, it, work_machine, extra, custom, computed. Esempi: `asset:manufacturer`, `work_machine:x_mm`, `custom:centro_costo`, `computed:travel_xyz`.</div>
                   </div>
                   <div class="field">
                     <label>Mostra anche se vuoto</label>
@@ -1220,6 +1268,16 @@ body.admin-studio-open { overflow: hidden; }
 
             <details id="admin-sidebar-buttons" class="admin-section">
               <summary style="cursor:pointer;font-weight:700;">Gestione pulsanti menu laterale (aggiungi/rimuovi/visibile)</summary>
+              <datalist id="assets-sidebar-target-options">
+                {% for option in sidebar_target_suggestions %}
+                  <option value="{{ option.value }}">{{ option.label }}</option>
+                {% endfor %}
+              </datalist>
+              <datalist id="assets-sidebar-active-match-options">
+                {% for option in sidebar_active_match_suggestions %}
+                  <option value="{{ option.value }}">{{ option.label }}</option>
+                {% endfor %}
+              </datalist>
               <div class="admin-form">
                 <form method="post" class="admin-row">
                   {% csrf_token %}
@@ -1259,12 +1317,12 @@ body.admin-studio-open { overflow: hidden; }
                   </div>
                   <div class="field" style="grid-column:1/-1;">
                     <label>URL destinazione</label>
-                    <input class="input" type="text" name="target_url" placeholder="/assets/?asset_type=SERVER&rows={rows}">
-                    <div class="muted" style="font-size:12px;">Puoi usare anche `django:assets:wo_list` oppure `{rows}`.</div>
+                    <input class="input" type="text" name="target_url" list="assets-sidebar-target-options" placeholder="/assets/?asset_type=SERVER&rows={rows}">
+                    <div class="muted text-sm">Puoi usare anche `django:assets:wo_list` oppure `{rows}`.</div>
                   </div>
                   <div class="field" style="grid-column:1/-1;">
                     <label>Criterio attivo (opzionale)</label>
-                    <input class="input" type="text" name="active_match" placeholder="asset_type=SERVER">
+                    <input class="input" type="text" name="active_match" list="assets-sidebar-active-match-options" placeholder="asset_type=SERVER">
                   </div>
                   <div>
                     <button class="btn btn-primary btn-sm" type="submit">Aggiungi voce</button>
@@ -1313,11 +1371,11 @@ body.admin-studio-open { overflow: hidden; }
                       </div>
                       <div class="field" style="grid-column:1/-1;">
                         <label>URL destinazione</label>
-                        <input class="input" type="text" name="target_url" value="{{ item.target_url }}">
+                        <input class="input" type="text" name="target_url" list="assets-sidebar-target-options" value="{{ item.target_url }}">
                       </div>
                       <div class="field" style="grid-column:1/-1;">
                         <label>Criterio attivo</label>
-                        <input class="input" type="text" name="active_match" value="{{ item.active_match }}">
+                        <input class="input" type="text" name="active_match" list="assets-sidebar-active-match-options" value="{{ item.active_match }}">
                       </div>
                       <div>
                         <button class="btn btn-primary btn-sm" type="submit">Salva</button>
@@ -1331,7 +1389,7 @@ body.admin-studio-open { overflow: hidden; }
                     <button class="btn btn-secondary btn-sm" type="submit" data-delete-field="{{ item.label }}">Elimina</button>
                   </form>
                 {% empty %}
-                  <div class="muted" style="font-size:12px;">Nessuna voce personalizzata: sono attive quelle predefinite.</div>
+                  <div class="muted text-sm">Nessuna voce personalizzata: sono attive quelle predefinite.</div>
                   <form method="post">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="seed_sidebar_buttons">
@@ -1353,7 +1411,7 @@ body.admin-studio-open { overflow: hidden; }
                       <input type="hidden" name="tool_id" value="{{ tool.id }}">
                       <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;">
                         <div>
-                          <div style="font-weight:700;font-size:13px;">{{ tool.label }}</div>
+                          <div class="text-base font-bold">{{ tool.label }}</div>
                           <div class="admin-hint">{{ tool.description }}</div>
                           <div class="admin-hint" style="font-family:monospace;">codice: {{ tool.code }}</div>
                         </div>
@@ -1366,7 +1424,7 @@ body.admin-studio-open { overflow: hidden; }
                     </form>
                   </div>
                 {% empty %}
-                  <div class="muted" style="font-size:12px;">Nessuno strumento header trovato. Applica le migrazioni per popolare i dati.</div>
+                  <div class="muted text-sm">Nessuno strumento header trovato. Applica le migrazioni per popolare i dati.</div>
                 {% endfor %}
               </div>
             </details>
@@ -2000,13 +2058,13 @@ body.admin-studio-open { overflow: hidden; }
         const customList = loadCustomKpi();
         if (customList.length > 0) {
           const customSep = document.createElement("div");
-          customSep.style.cssText = "border-top:1px solid #e5ecf6;margin:4px 0 2px;font-size:10px;font-weight:700;color:#7f95b3;text-transform:uppercase;letter-spacing:.04em;";
+          customSep.className = "text-2xs font-bold"; customSep.style.cssText = "border-top:1px solid #e5ecf6;margin:4px 0 2px;color:#7f95b3;text-transform:uppercase;letter-spacing:.04em;";
           customSep.textContent = "Card personalizzate";
           group.appendChild(customSep);
           customList.forEach(function (item) {
             const crow = document.createElement("div");
             crow.className = "wm-custom-row";
-            crow.innerHTML = '<span style="font-size:12px;font-weight:600;color:#334e77;">' + item.title + (item.value ? ' <span style="color:#8ea2bf;">(' + item.value + ')</span>' : '') + '</span>';
+            crow.innerHTML = '<span class="text-sm font-semibold" style="color:#334e77;">' + item.title + (item.value ? ' <span style="color:#8ea2bf;">(' + item.value + ')</span>' : '') + '</span>';
             const removeBtn = document.createElement("button");
             removeBtn.type = "button";
             removeBtn.className = "wm-remove-btn";
@@ -2039,7 +2097,7 @@ body.admin-studio-open { overflow: hidden; }
           '<label>Collegamento<select class="input" id="wm-new-link">' +
           WIDGET_LINK_CHOICES.filter(function(o){return o.value !== "__custom__";}).map(function(o){return '<option value="' + o.value + '">' + o.label + '</option>';}).join("") +
           '</select></label>' +
-          '<button type="button" class="btn" id="wm-add-confirm" style="font-size:12px;padding:4px 10px;">Aggiungi</button>';
+          '<button type="button" class="btn text-sm" id="wm-add-confirm" style="padding:4px 10px;">Aggiungi</button>';
         group.appendChild(addForm);
 
         addToggle.addEventListener("click", function () {
@@ -2479,7 +2537,7 @@ body.admin-studio-open { overflow: hidden; }
       if (item.link) { art.setAttribute("data-link-target", item.link); art.style.cursor = "pointer"; art.addEventListener("click", function () { window.location.href = item.link; }); }
       art.innerHTML = '<button class="widget-handle" type="button" data-widget-handle title="Trascina widget">::</button>' +
         '<div class="kh">' + item.title + '</div>' +
-        '<div class="kv" style="font-size:22px;margin-top:6px;">' + (item.value || "—") + '</div>' +
+        '<div class="kv text-heading" style="margin-top:6px;">' + (item.value || "—") + '</div>' +
         (item.subtitle ? '<div class="ks">' + item.subtitle + '</div>' : '') +
         '<div class="bar"><div class="fill" style="width:50%"></div></div>';
       zone.appendChild(art);

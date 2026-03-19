@@ -5,6 +5,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Apertura Segnalazione | Portale Applicativo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
   <script src="{% static 'anomalie/js/react.development.js' %}"></script>
   <script src="{% static 'anomalie/js/react-dom.development.js' %}"></script>
   <script src="{% static 'anomalie/js/babel.min.js' %}"></script>
@@ -13,7 +15,9 @@
     html, body, #root { height: 100%; }
 
     body {
-      font-family: 'Segoe UI', Arial, sans-serif;
+      font-family: "Outfit", sans-serif;
+      font-size: var(--fs-base);
+      line-height: var(--lh-base);
       background: #bdc6cf;
       position: relative;
     }
@@ -44,7 +48,7 @@
     .topbar-back {
       color: rgba(255,255,255,0.80);
       text-decoration: none;
-      font-size: 13px;
+      font-size: var(--fs-base);
       font-weight: 600;
       letter-spacing: 0.04em;
       white-space: nowrap;
@@ -54,14 +58,14 @@
     .topbar-sep { width: 1px; height: 22px; background: rgba(255,255,255,0.25); flex-shrink: 0; }
     .topbar-title {
       flex: 1;
-      font-size: 14px;
+      font-size: var(--fs-md);
       font-weight: 800;
       letter-spacing: 0.10em;
       text-transform: uppercase;
       color: #fff;
     }
     .topbar-user {
-      font-size: 12px;
+      font-size: var(--fs-sm);
       font-weight: 600;
       color: rgba(255,255,255,0.70);
       white-space: nowrap;
@@ -101,11 +105,11 @@
       color: #fff;
       border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      font-size: 16px; font-weight: 800;
+      font-size: var(--fs-lg); font-weight: 800;
       flex-shrink: 0;
     }
     .step-header h2 {
-      font-size: 17px;
+      font-size: var(--fs-title-md);
       font-weight: 700;
       color: #1e3a5f;
       letter-spacing: 0.02em;
@@ -118,7 +122,7 @@
       padding: 10px 14px;
       border: 1.5px solid #cbd5e1;
       border-radius: 8px;
-      font-size: 14px;
+      font-size: var(--fs-md);
       font-family: inherit;
       background: #f8fafc;
       outline: none;
@@ -136,10 +140,10 @@
     .create-op-btn {
       align-self: flex-start;
       padding: 9px 14px;
-      font-size: 12px;
+      font-size: var(--fs-sm);
     }
     .create-op-hint {
-      font-size: 12px;
+      font-size: var(--fs-sm);
       color: #64748b;
     }
     .create-op-panel {
@@ -161,7 +165,7 @@
       display: flex;
       align-items: center;
       gap: 7px;
-      font-size: 13px;
+      font-size: var(--fs-base);
       color: #334155;
       user-select: none;
     }
@@ -191,7 +195,7 @@
     .op-row:last-child { border-bottom: none; }
     .op-row:hover { background: rgba(38,112,184,0.07); }
     .op-row-title {
-      font-size: 14px;
+      font-size: var(--fs-md);
       font-weight: 700;
       color: #1e3a5f;
     }
@@ -199,7 +203,7 @@
       display: flex;
       gap: 16px;
       flex-wrap: wrap;
-      font-size: 12px;
+      font-size: var(--fs-sm);
       color: #64748b;
     }
     .op-row-meta span { display: flex; align-items: center; gap: 4px; }
@@ -212,7 +216,7 @@
       border: 1px solid #93c5fd;
       border-radius: 99px;
       padding: 1px 8px;
-      font-size: 11px;
+      font-size: var(--fs-xs);
       font-weight: 700;
     }
 
@@ -231,7 +235,7 @@
       color: #fff;
       border-radius: 6px;
       padding: 5px 12px;
-      font-size: 12px;
+      font-size: var(--fs-sm);
       font-weight: 700;
       cursor: pointer;
       letter-spacing: 0.04em;
@@ -245,7 +249,7 @@
       border: 1px solid rgba(255,255,255,0.20);
       border-radius: 6px;
       padding: 3px 10px;
-      font-size: 12px;
+      font-size: var(--fs-sm);
       color: rgba(255,255,255,0.90);
     }
     .op-info-chip strong { color: #fff; font-weight: 700; }
@@ -255,7 +259,7 @@
 
     .field-group { display: flex; flex-direction: column; gap: 6px; }
     .field-label {
-      font-size: 13px;
+      font-size: var(--fs-base);
       font-weight: 700;
       color: #374151;
       letter-spacing: 0.02em;
@@ -268,7 +272,7 @@
       display: flex;
       align-items: center;
       gap: 7px;
-      font-size: 13px;
+      font-size: var(--fs-base);
       color: #374151;
       cursor: pointer;
       user-select: none;
@@ -285,7 +289,7 @@
       padding: 9px 12px;
       border: 1.5px solid #cbd5e1;
       border-radius: 8px;
-      font-size: 14px;
+      font-size: var(--fs-md);
       font-family: inherit;
       background: #f8fafc;
       color: #1e293b;
@@ -301,7 +305,7 @@
     /* Ã¢â€â‚¬Ã¢â€â‚¬ Range row Ã¢â€â‚¬Ã¢â€â‚¬ */
     .range-row { display: flex; align-items: center; gap: 10px; }
     .range-row .text-input { flex: 1; }
-    .range-sep { font-size: 18px; color: #94a3b8; font-weight: 700; flex-shrink: 0; }
+    .range-sep { font-size: var(--fs-xl); color: #94a3b8; font-weight: 700; flex-shrink: 0; }
 
     /* Ã¢â€â‚¬Ã¢â€â‚¬ Error / Status Ã¢â€â‚¬Ã¢â€â‚¬ */
     .error-msg {
@@ -310,7 +314,7 @@
       color: #b91c1c;
       border-radius: 8px;
       padding: 10px 14px;
-      font-size: 13px;
+      font-size: var(--fs-base);
       font-weight: 600;
     }
     .info-msg {
@@ -319,13 +323,13 @@
       color: #0369a1;
       border-radius: 8px;
       padding: 10px 14px;
-      font-size: 13px;
+      font-size: var(--fs-base);
       font-weight: 600;
     }
     .loading-msg, .empty-msg {
       padding: 32px 28px;
       text-align: center;
-      font-size: 14px;
+      font-size: var(--fs-md);
       color: #94a3b8;
     }
 
@@ -343,7 +347,7 @@
       border: none;
       border-radius: 8px;
       padding: 10px 20px;
-      font-size: 13px;
+      font-size: var(--fs-base);
       font-weight: 700;
       letter-spacing: 0.04em;
       cursor: pointer;
@@ -358,7 +362,7 @@
       border: 1.5px solid #cbd5e1;
       border-radius: 8px;
       padding: 10px 18px;
-      font-size: 13px;
+      font-size: var(--fs-base);
       font-weight: 700;
       letter-spacing: 0.04em;
       cursor: pointer;
@@ -379,7 +383,7 @@
       padding: 12px 28px;
       border-radius: 10px;
       font-weight: 700;
-      font-size: 14px;
+      font-size: var(--fs-md);
       box-shadow: 0 4px 20px rgba(0,0,0,0.20);
       z-index: 9999;
       white-space: nowrap;
@@ -392,7 +396,7 @@
 
     @media (max-width: 760px) {
       .topbar { padding: 0 12px; gap: 10px; }
-      .topbar-title { font-size: 12px; letter-spacing: 0.06em; }
+      .topbar-title { font-size: var(--fs-sm); letter-spacing: 0.06em; }
       .topbar-user { display: none; }
       .step-header { padding: 16px 18px 14px; }
       .create-op-wrap,
@@ -404,7 +408,7 @@
     }
   </style>
 </head>
-<body>
+<body class="fs-{{ ui_prefs.font_scale|default:'normal' }}">
   <div id="root"></div>
 
   <script>
@@ -1097,7 +1101,7 @@
               gap: 8,
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                <div style={{ fontSize: 12, color: '#64748b' }}>
+                <div className="text-sm" style={{ color: '#64748b' }}>
                   {isRange
                     ? 'Con range S/N gli allegati sono disabilitati.'
                     : 'Carica immagini o documenti (PDF, Word, Excel). Max 20 MB per file.'}
@@ -1113,7 +1117,7 @@
               </div>
 
               {!pendingFiles.length ? (
-                <div style={{ fontSize: 12, color: '#94a3b8' }}>Nessun allegato selezionato.</div>
+                <div className="text-sm" style={{ color: '#94a3b8' }}>Nessun allegato selezionato.</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
                   {pendingFiles.map((f, idx) => (
@@ -1128,10 +1132,10 @@
                       padding: '7px 9px',
                     }}>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 13, color: '#1e293b', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div className="text-base font-semibold" style={{ color: '#1e293b', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {f.name}
                         </div>
-                        <div style={{ fontSize: 11, color: '#64748b' }}>
+                        <div className="text-xs" style={{ color: '#64748b' }}>
                           {formatBytes(f.size)}
                         </div>
                       </div>
@@ -1140,7 +1144,8 @@
                         type="button"
                         onClick={() => removePendingFile(idx)}
                         disabled={saving}
-                        style={{ padding: '6px 10px', fontSize: 12 }}
+                        className="text-sm"
+                        style={{ padding: '6px 10px' }}
                       >
                         Rimuovi
                       </button>

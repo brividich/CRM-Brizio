@@ -1,4 +1,4 @@
-{% load static %}
+{% load static ui_icons %}
 <!DOCTYPE html>
 <html lang="it">
 <head>
@@ -65,6 +65,7 @@
       gap: 6px;
     }
     .pdf-widget-body { padding: 10px 12px; }
+    .ui-icon-img { display: inline-block; width: 1em; height: 1em; object-fit: contain; vertical-align: middle; }
 
     /* ── Profilo ────────────────────────────────────────────────────────────── */
     .pdf-profilo-wrap {
@@ -215,7 +216,7 @@
 
       {% if w.id == "profilo" %}
       <div class="pdf-widget">
-        <div class="pdf-widget-head">{{ w.icon }} {{ w.title }}</div>
+        <div class="pdf-widget-head">{% render_icon w.icon w.title %} {{ w.title }}</div>
         <div class="pdf-widget-body">
           {% with d=widget_data.profilo %}
           <div class="pdf-profilo-wrap">
@@ -239,7 +240,7 @@
 
       {% elif w.id == "tasks_stats" %}
       <div class="pdf-widget">
-        <div class="pdf-widget-head">{{ w.icon }} {{ w.title }}</div>
+        <div class="pdf-widget-head">{% render_icon w.icon w.title %} {{ w.title }}</div>
         <div class="pdf-widget-body">
           {% with d=widget_data.tasks_stats %}
           <div class="pdf-stats-row">
@@ -266,7 +267,7 @@
 
       {% elif w.id == "tasks_assegnati" %}
       <div class="pdf-widget full">
-        <div class="pdf-widget-head">{{ w.icon }} {{ w.title }}</div>
+        <div class="pdf-widget-head">{% render_icon w.icon w.title %} {{ w.title }}</div>
         <div class="pdf-widget-body">
           {% with d=widget_data.tasks_assegnati %}
           {% if d.items %}
@@ -305,7 +306,7 @@
 
       {% elif w.id == "assenze_future" %}
       <div class="pdf-widget">
-        <div class="pdf-widget-head">{{ w.icon }} {{ w.title }}</div>
+        <div class="pdf-widget-head">{% render_icon w.icon w.title %} {{ w.title }}</div>
         <div class="pdf-widget-body">
           {% with items=widget_data.assenze_future %}
           {% if items %}
@@ -331,7 +332,7 @@
 
       {% elif w.id == "assenze_da_approvare" %}
       <div class="pdf-widget">
-        <div class="pdf-widget-head">{{ w.icon }} {{ w.title }}</div>
+        <div class="pdf-widget-head">{% render_icon w.icon w.title %} {{ w.title }}</div>
         <div class="pdf-widget-body">
           {% with items=widget_data.assenze_da_approvare %}
           {% if items %}
@@ -357,7 +358,7 @@
 
       {% elif w.id == "progetti_capo" %}
       <div class="pdf-widget">
-        <div class="pdf-widget-head">{{ w.icon }} {{ w.title }}</div>
+        <div class="pdf-widget-head">{% render_icon w.icon w.title %} {{ w.title }}</div>
         <div class="pdf-widget-body">
           {% with items=widget_data.progetti_capo %}
           {% if items %}
@@ -383,7 +384,7 @@
 
       {% elif w.id == "anomalie_gestione" %}
       <div class="pdf-widget">
-        <div class="pdf-widget-head">{{ w.icon }} {{ w.title }}</div>
+        <div class="pdf-widget-head">{% render_icon w.icon w.title %} {{ w.title }}</div>
         <div class="pdf-widget-body">
           {% with items=widget_data.anomalie_gestione %}
           {% if items %}
@@ -409,7 +410,7 @@
 
       {% elif w.id == "notifiche" %}
       <div class="pdf-widget">
-        <div class="pdf-widget-head">{{ w.icon }} {{ w.title }}</div>
+        <div class="pdf-widget-head">{% render_icon w.icon w.title %} {{ w.title }}</div>
         <div class="pdf-widget-body">
           {% with items=widget_data.notifiche %}
           {% if items %}

@@ -4,50 +4,69 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}Portale Applicativo{% endblock %}</title>
+  <title>{% block title %}{{ portal_branding.portal_name|default:"Portale Novicrom" }}{% endblock %}</title>
+  {% if portal_branding.brand_favicon %}
+  <link rel="icon" href="{{ portal_branding.brand_favicon }}">
+  {% endif %}
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
   {% block extra_head %}{% endblock %}
 </head>
-<body>
-  {% include "core/components/topnav.html" %}
+<body class="{% block body_class %}nav-{{ ui_prefs.nav_mode|default:'top' }} fs-{{ ui_prefs.font_scale|default:'normal' }}{% if ui_prefs.sidebar_collapsed %} sb-collapsed{% endif %}{% endblock %}">
+
+{% block layout_sidebar %}
+  {% if ui_prefs.nav_mode == "side" %}
+    {% include "core/components/sidebar.html" %}
+  {% endif %}
+{% endblock %}
+
+<div class="main-wrap">
+  {% block layout_header %}
+    {% if ui_prefs.nav_mode == "top" %}
+      {% include "core/components/topnav.html" %}
+    {% elif ui_prefs.nav_mode == "side" %}
+      {% include "core/components/app_header.html" %}
+    {% endif %}
+  {% endblock %}
+
+  {% include "core/components/impersonation_banner.html" %}
   {% block subnav %}{% include "core/components/subnav.html" %}{% endblock %}
+
   <div class="content">
     {% block content %}{% endblock %}
   </div>
-  {% block extra_scripts %}{% endblock %}
-  <script>
-  /* ── Protezione doppio-submit: blocca .btn submit al primo click ── */
-  (function () {
-    var pendingBtn = null;
-    var resetTimer = null;
+</div>
 
-    /* Traccia quale pulsante ha scatenato il submit */
-    document.addEventListener('mousedown', function (e) {
-      var btn = e.target.closest('button[type="submit"], input[type="submit"]');
-      if (btn && btn.classList.contains('btn') && !btn.disabled) pendingBtn = btn;
-    }, true);
+{% block extra_scripts %}{% endblock %}
+<script>
+(function () {
+  var pendingBtn = null;
+  var resetTimer = null;
 
-    document.addEventListener('submit', function (e) {
-      var form = e.target;
-      if (!form || form.tagName !== 'FORM') return;
+  document.addEventListener('mousedown', function (e) {
+    var btn = e.target.closest('button[type="submit"], input[type="submit"]');
+    if (btn && btn.classList.contains('btn') && !btn.disabled) pendingBtn = btn;
+  }, true);
 
-      var btn = (pendingBtn && form.contains(pendingBtn)) ? pendingBtn : null;
-      if (!btn) btn = form.querySelector('button[type="submit"].btn:not([disabled])');
-      pendingBtn = null;
-      if (!btn || btn.disabled) return;
+  document.addEventListener('submit', function (e) {
+    var form = e.target;
+    if (!form || form.tagName !== 'FORM') return;
 
-      btn.disabled = true;
-      btn.classList.add('btn-loading');
+    var btn = (pendingBtn && form.contains(pendingBtn)) ? pendingBtn : null;
+    if (!btn) btn = form.querySelector('button[type="submit"].btn:not([disabled])');
+    pendingBtn = null;
+    if (!btn || btn.disabled) return;
 
-      /* Ripristino di sicurezza se la navigazione non avviene (validazione JS, errori rete) */
-      if (resetTimer) clearTimeout(resetTimer);
-      resetTimer = setTimeout(function () {
-        btn.disabled = false;
-        btn.classList.remove('btn-loading');
-      }, 10000);
-    });
-  })();
-  </script>
+    btn.disabled = true;
+    btn.classList.add('btn-loading');
+
+    if (resetTimer) clearTimeout(resetTimer);
+    resetTimer = setTimeout(function () {
+      btn.disabled = false;
+      btn.classList.remove('btn-loading');
+    }, 10000);
+  });
+})();
+</script>
 </body>
 </html>

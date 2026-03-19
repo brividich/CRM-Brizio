@@ -7,7 +7,7 @@
 {% block assets_shell_content %}
 <section style="max-width:900px;display:grid;gap:14px;">
   <header>
-    <a href="{% url 'assets:wo_view' workorder.id %}" style="font-size:13px;color:#64748b;text-decoration:none;">&larr; Torna all'intervento</a>
+    <a href="{% url 'assets:wo_view' workorder.id %}" class="as-backlink">&larr; Torna all'intervento</a>
   </header>
 
   <form method="post" style="display:grid;gap:10px;border:1px solid #dbe1ea;border-radius:14px;background:#fff;padding:16px;">
@@ -18,7 +18,7 @@
           <label for="{{ field.id_for_label }}">{{ field.label }}</label>
           {{ field }}
           {% if field.errors %}
-            <div style="color:#b91c1c;font-size:12px;">{{ field.errors }}</div>
+            <div class="as-error">{{ field.errors }}</div>
           {% endif %}
         </div>
       {% endfor %}

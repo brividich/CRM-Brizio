@@ -8,22 +8,22 @@
 .plx-top { display:grid; gap:10px; grid-template-columns:minmax(0, 1.3fr) minmax(280px, .7fr); }
 .plx-card { border:1px solid #dbe1ea; border-radius:18px; background:#fff; overflow:hidden; box-shadow:0 4px 18px rgba(15, 23, 42, .05); }
 .plx-card-head { padding:16px 18px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
-.plx-card-head h2 { margin:0; font-size:22px; color:#0f172a; }
-.plx-card-head p { margin:4px 0 0; color:#64748b; font-size:13px; }
+.plx-card-head h2 { margin:0; font-size: var(--fs-heading); color:#0f172a; }
+.plx-card-head p { margin:4px 0 0; color:#64748b; font-size: var(--fs-base); }
 .plx-card-body { padding:16px 18px; display:grid; gap:14px; }
 .plx-form-grid { display:grid; gap:12px; grid-template-columns:repeat(4, minmax(0, 1fr)); }
 .plx-form-grid .field { display:grid; gap:6px; }
-.plx-field-note { color:#64748b; font-size:12px; }
-.plx-errors { color:#b91c1c; font-size:12px; display:grid; gap:4px; }
+.plx-field-note { color:#64748b; font-size: var(--fs-sm); }
+.plx-errors { color:#b91c1c; font-size: var(--fs-sm); display:grid; gap:4px; }
 .plx-layout-list { display:grid; gap:8px; }
 .plx-layout-link { display:block; border:1px solid #dbe1ea; border-radius:12px; padding:12px; text-decoration:none; color:#334155; }
 .plx-layout-link.active { border-color:#1d4ed8; background:#eff6ff; color:#1d4ed8; }
-.plx-layout-meta { margin-top:4px; color:#64748b; font-size:12px; }
-.plx-layout-badge { display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:4px 8px; background:#dcfce7; color:#166534; font-size:11px; font-weight:800; }
+.plx-layout-meta { margin-top:4px; color:#64748b; font-size: var(--fs-sm); }
+.plx-layout-badge { display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:4px 8px; background:#dcfce7; color:#166534; font-size: var(--fs-xs); font-weight:800; }
 .plx-workspace { display:grid; grid-template-columns:minmax(0, 1.55fr) minmax(360px, .85fr); gap:16px; align-items:start; }
 .plx-stage-tools { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .plx-stage-wrap { padding:18px; background:linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%); display:grid; gap:12px; }
-.plx-stage-status { color:#475569; font-size:13px; font-weight:700; }
+.plx-stage-status { color:#475569; font-size: var(--fs-base); font-weight:700; }
 .plx-stage { position:relative; width:100%; border-radius:16px; overflow:hidden; border:1px solid #d5e0f0; background:#dbe7f7; min-height:320px; }
 .plx-stage img { display:block; width:100%; height:auto; }
 .plx-empty-stage { position:absolute; inset:0; display:grid; place-items:center; color:#64748b; text-align:center; padding:32px; }
@@ -31,7 +31,7 @@
 .plx-overlay.is-select { cursor:default; }
 .plx-area { position:absolute; border:2px solid var(--area-color, #2563EB); background:var(--area-bg, rgba(37,99,235,0.22)); border-radius:14px; }
 .plx-area.is-selected { box-shadow:0 0 0 3px rgba(37, 99, 235, .18), 0 14px 28px rgba(15, 23, 42, .12); background:var(--area-bg-active, rgba(37,99,235,0.38)); }
-.plx-area-label { position:absolute; left:8px; top:8px; display:inline-flex; align-items:center; gap:8px; background:rgba(15, 23, 42, .78); color:#fff; border-radius:999px; padding:5px 9px; font-size:11px; font-weight:800; max-width:calc(100% - 16px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.plx-area-label { position:absolute; left:8px; top:8px; display:inline-flex; align-items:center; gap:8px; background:rgba(15, 23, 42, .78); color:#fff; border-radius:999px; padding:5px 9px; font-size: var(--fs-xs); font-weight:800; max-width:calc(100% - 16px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .plx-marker { position:absolute; width:18px; height:18px; border:none; border-radius:999px; background:#dc2626; transform:translate(-50%, -50%); box-shadow:0 0 0 4px rgba(255,255,255,.94), 0 8px 16px rgba(15,23,42,.18); cursor:grab; }
 .plx-marker:active { cursor:grabbing; }
 .plx-marker::after { content:""; position:absolute; inset:6px; border-radius:999px; background:#fff; }
@@ -41,22 +41,22 @@
 .plx-list { display:grid; gap:8px; max-height:260px; overflow:auto; }
 .plx-item { border:1px solid #dbe1ea; border-radius:12px; padding:10px 12px; background:#fff; text-align:left; cursor:pointer; }
 .plx-item.is-selected { border-color:#1d4ed8; background:#eff6ff; }
-.plx-item-title { font-size:13px; font-weight:800; color:#0f172a; }
-.plx-item-sub { margin-top:3px; color:#64748b; font-size:12px; }
+.plx-item-title { font-size: var(--fs-base); font-weight:800; color:#0f172a; }
+.plx-item-sub { margin-top:3px; color:#64748b; font-size: var(--fs-sm); }
 .plx-panel-grid { display:grid; gap:10px; }
 .plx-panel-grid .field { display:grid; gap:6px; }
 .plx-panel-grid input[type="color"] { width:100%; min-height:42px; padding:4px; }
 .plx-coords { display:grid; gap:10px; grid-template-columns:repeat(2, minmax(0, 1fr)); }
 .plx-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-.plx-inline-note { color:#64748b; font-size:12px; }
+.plx-inline-note { color:#64748b; font-size: var(--fs-sm); }
 .plx-machine-toolbar { display:flex; gap:8px; align-items:center; }
 .plx-machine-toolbar input { width:100%; }
 .plx-machine-preview { display:grid; gap:8px; max-height:170px; overflow:auto; }
 .plx-machine-chip { border:1px solid #dbe1ea; border-radius:12px; padding:10px; background:#f8fafc; }
-.plx-machine-chip strong { display:block; font-size:13px; color:#0f172a; }
-.plx-machine-chip span { display:block; margin-top:4px; font-size:12px; color:#64748b; }
+.plx-machine-chip strong { display:block; font-size: var(--fs-base); color:#0f172a; }
+.plx-machine-chip span { display:block; margin-top:4px; font-size: var(--fs-sm); color:#64748b; }
 .plx-footer { display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap; }
-.plx-footer-meta { color:#64748b; font-size:12px; }
+.plx-footer-meta { color:#64748b; font-size: var(--fs-sm); }
 @media (max-width: 1200px) {
   .plx-top, .plx-workspace { grid-template-columns:1fr; }
 }
@@ -167,7 +167,7 @@
               {% csrf_token %}
               <input type="hidden" name="action" value="activate_layout">
               <input type="hidden" name="layout_id" value="{{ row.id }}">
-              <button class="btn btn-primary" type="submit" style="width:100%;font-size:12px;padding:6px 10px;">Pubblica come attiva</button>
+              <button class="btn btn-primary text-sm" type="submit" style="width:100%;padding:6px 10px;">Pubblica come attiva</button>
             </form>
             {% endif %}
           </div>
@@ -199,7 +199,7 @@
           {% else %}
           <div class="plx-empty-stage" id="plx-empty-stage">
             <div>
-              <strong style="display:block;color:#0f172a;font-size:18px;margin-bottom:8px;">Carica una planimetria</strong>
+              <strong class="text-xl" style="display:block;color:#0f172a;margin-bottom:8px;">Carica una planimetria</strong>
               Salva una PNG/JPG per attivare il canvas interattivo.
             </div>
           </div>

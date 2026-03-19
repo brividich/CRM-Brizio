@@ -1,0 +1,198 @@
+{% load ui_icons %}
+<aside class="sidebar" id="sidebar" aria-label="Navigazione principale">
+  <div class="sb-header">
+    <div class="sb-header-top">
+      <button class="sb-toggle" id="sb-toggle" type="button" aria-label="Comprimi o espandi menu" title="Comprimi o espandi menu">
+        &#8249;
+      </button>
+    </div>
+    <div class="sb-header-brand">
+      <a class="sb-logo" href="{% url 'dashboard_home' %}" aria-label="Vai alla dashboard">
+        <span class="sb-brand sb-brand-full{% if not portal_branding.brand_logo_full and not portal_branding.brand_logo_compact %} is-fallback{% endif %}">
+          {% if portal_branding.brand_logo_full %}
+            <img src="{{ portal_branding.brand_logo_full }}" alt="{{ portal_branding.portal_name }}" class="brand-mark-img" onerror="this.parentElement.classList.add('is-fallback');this.remove();">
+          {% elif portal_branding.brand_logo_compact %}
+            <img src="{{ portal_branding.brand_logo_compact }}" alt="{{ portal_branding.portal_name }}" class="brand-mark-img" onerror="this.parentElement.classList.add('is-fallback');this.remove();">
+          {% endif %}
+          <span class="brand-mark-fallback">{{ portal_branding.monogram }}</span>
+        </span>
+        <span class="sb-brand sb-brand-compact{% if not portal_branding.brand_logo_compact and not portal_branding.brand_logo_full %} is-fallback{% endif %}">
+          {% if portal_branding.brand_logo_compact %}
+            <img src="{{ portal_branding.brand_logo_compact }}" alt="{{ portal_branding.portal_name }}" class="brand-mark-img" onerror="this.parentElement.classList.add('is-fallback');this.remove();">
+          {% elif portal_branding.brand_logo_full %}
+            <img src="{{ portal_branding.brand_logo_full }}" alt="{{ portal_branding.portal_name }}" class="brand-mark-img" onerror="this.parentElement.classList.add('is-fallback');this.remove();">
+          {% endif %}
+          <span class="brand-mark-fallback">{{ portal_branding.monogram }}</span>
+        </span>
+        <span class="sb-logo-txt">
+          <span class="sb-logo-name">{{ portal_branding.portal_name|default:"Portale Novicrom" }}</span>
+          {% if portal_branding.portal_subtitle %}
+            <span class="sb-logo-co">{{ portal_branding.portal_subtitle }}</span>
+          {% endif %}
+        </span>
+      </a>
+    </div>
+  </div>
+
+  <nav class="sb-nav" aria-label="Menu principale">
+    {% for grp in topbar_groups %}
+      {% if grp.type == "category" %}
+        <div class="sb-category{% if grp.active %} open active{% endif %}" data-key="{{ grp.key }}">
+          <button class="sb-cat-btn" type="button" aria-expanded="{% if grp.active %}true{% else %}false{% endif %}">
+            <span class="sb-icon" aria-hidden="true">{% render_icon grp.icon grp.label %}</span>
+            <span class="sb-label">{{ grp.label }}</span>
+            <span class="sb-cat-arrow" aria-hidden="true">&#8250;</span>
+          </button>
+          <div class="sb-cat-items">
+            {% for item in grp.items %}
+              <a class="sb-item sb-sub-item{% if item.active %} active{% endif %}" href="{{ item.href }}" title="{{ item.label }}"{% if item.active %} aria-current="page"{% endif %}>
+                <span class="sb-icon" aria-hidden="true">{% render_icon item.icon item.label %}</span>
+                <span class="sb-label">{{ item.label }}</span>
+                {% if item.coming %}<span class="sb-item-badge sb-item-badge-dot" aria-hidden="true"></span>{% endif %}
+              </a>
+            {% endfor %}
+          </div>
+        </div>
+      {% else %}
+        <a class="sb-item{% if grp.item.active %} active{% endif %}" href="{{ grp.item.href }}" title="{{ grp.item.label }}"{% if grp.item.active %} aria-current="page"{% endif %}>
+          <span class="sb-icon" aria-hidden="true">{% render_icon grp.item.icon grp.item.label %}</span>
+          <span class="sb-label">{{ grp.item.label }}</span>
+          {% if grp.item.coming %}<span class="sb-item-badge sb-item-badge-dot" aria-hidden="true"></span>{% endif %}
+        </a>
+      {% endif %}
+    {% empty %}
+      {% for item in nav_items %}
+        <a class="sb-item{% if item.active %} active{% endif %}" href="{{ item.href }}" title="{{ item.label }}"{% if item.active %} aria-current="page"{% endif %}>
+          <span class="sb-icon" aria-hidden="true">{% render_icon item.icon item.label %}</span>
+          <span class="sb-label">{{ item.label }}</span>
+          {% if item.coming %}<span class="sb-item-badge sb-item-badge-dot" aria-hidden="true"></span>{% endif %}
+        </a>
+      {% endfor %}
+    {% endfor %}
+  </nav>
+
+  <div class="sb-footer">
+    {% if user.is_authenticated %}
+      {% firstof user.get_full_name legacy_user.nome user.username as display_name %}
+      {% for footer_key in ui_prefs.sidebar_footer_actions %}
+        {% if footer_key == "car" %}
+          {% if car_pending_count %}
+            <a href="{% url 'assenze_car_dashboard' %}" class="sb-item sb-footer-item sb-footer-alert" title="{{ car_pending_count }} richieste CAR in attesa">
+              <span class="sb-icon" aria-hidden="true">&#9888;</span>
+              <span class="sb-label">CAR</span>
+              <span class="sb-item-badge">{{ car_pending_count }}</span>
+            </a>
+          {% endif %}
+        {% elif footer_key == "notifications" %}
+          <a href="{% url 'notifiche' %}" class="sb-item sb-footer-item" title="Notifiche" aria-label="Notifiche{% if notifiche_count %}: {{ notifiche_count }} non lette{% endif %}">
+            <span class="sb-icon" aria-hidden="true">&#128276;</span>
+            <span class="sb-label">Notifiche</span>
+            {% if notifiche_count %}
+              <span class="sb-item-badge">{{ notifiche_count }}</span>
+            {% endif %}
+          </a>
+        {% elif footer_key == "preferences" %}
+          <a href="{% url 'ui_prefs_page' %}" class="sb-item sb-footer-item" title="Preferenze interfaccia">
+            <span class="sb-icon" aria-hidden="true">&#9881;</span>
+            <span class="sb-label">Preferenze</span>
+          </a>
+        {% elif footer_key == "profile" %}
+          <a href="{% url 'profilo' %}" class="sb-user" title="{{ display_name }}">
+            <span class="nav-avatar">{{ display_name|slice:":2"|upper }}</span>
+            <span class="sb-user-info">
+              <span class="sb-uname">{{ display_name }}</span>
+              <span class="sb-urole">{{ legacy_user.ruolo|default:"Utente" }}</span>
+            </span>
+          </a>
+        {% elif footer_key == "logout" %}
+          <a href="{% url 'logout' %}" class="sb-logout" title="Esci">
+            <span class="sb-icon" aria-hidden="true">&#128682;</span>
+            <span class="sb-label">Esci</span>
+          </a>
+        {% endif %}
+      {% endfor %}
+    {% else %}
+      <a href="{% url 'login' %}" class="sb-item sb-footer-item" title="Accedi">
+        <span class="sb-icon" aria-hidden="true">&#10140;</span>
+        <span class="sb-label">Login</span>
+      </a>
+    {% endif %}
+  </div>
+</aside>
+
+<script>
+(function () {
+  var sidebar = document.getElementById('sidebar');
+  var toggle = document.getElementById('sb-toggle');
+  var body = document.body;
+  if (!sidebar || !toggle) return;
+
+  var TOGGLE_URL = '{% url "ui_sidebar_save" %}';
+  var LS_KEY = 'sb_collapsed';
+  var CSRF_RE = /csrftoken=([^;]+)/;
+
+  function csrf() { return (document.cookie.match(CSRF_RE) || [])[1] || ''; }
+
+  function syncToggleState() {
+    toggle.setAttribute('aria-expanded', body.classList.contains('sb-collapsed') ? 'false' : 'true');
+  }
+
+  function persistCollapsed(collapsed) {
+    try { localStorage.setItem(LS_KEY, collapsed ? '1' : '0'); } catch (e) {}
+    fetch(TOGGLE_URL, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrf() },
+      body: new URLSearchParams({ sidebar_collapsed: collapsed ? '1' : '0' })
+    }).catch(function () {});
+  }
+
+  syncToggleState();
+
+  toggle.addEventListener('click', function () {
+    var nowCollapsed = body.classList.toggle('sb-collapsed');
+    syncToggleState();
+    persistCollapsed(nowCollapsed);
+  });
+
+  sidebar.querySelectorAll('.sb-cat-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var cat = btn.closest('.sb-category');
+      if (!cat) return;
+      var isOpen = cat.classList.contains('open');
+
+      sidebar.querySelectorAll('.sb-category.open:not(.active)').forEach(function (el) {
+        if (el !== cat) {
+          el.classList.remove('open');
+          el.querySelector('.sb-cat-btn').setAttribute('aria-expanded', 'false');
+        }
+      });
+
+      cat.classList.toggle('open', !isOpen);
+      btn.setAttribute('aria-expanded', !isOpen ? 'true' : 'false');
+
+      if (!isOpen && body.classList.contains('sb-collapsed')) {
+        body.classList.remove('sb-collapsed');
+        syncToggleState();
+        persistCollapsed(false);
+      }
+    });
+  });
+
+  document.addEventListener('click', function (e) {
+    if (
+      body.classList.contains('sb-mobile-open') &&
+      !sidebar.contains(e.target) &&
+      e.target.id !== 'sb-mobile-toggle' &&
+      !e.target.closest('#sb-mobile-toggle')
+    ) {
+      body.classList.remove('sb-mobile-open');
+    }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && body.classList.contains('sb-mobile-open')) {
+      body.classList.remove('sb-mobile-open');
+    }
+  });
+})();
+</script>

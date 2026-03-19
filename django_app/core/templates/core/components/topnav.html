@@ -1,93 +1,148 @@
-{% if impersonation_active %}
-<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 18px;background:#fff7ed;border-bottom:1px solid #fed7aa;color:#9a3412;font-size:13px;font-weight:600;">
-  <div>
-    Impersonazione attiva: stai operando come <strong>{{ impersonated_display }}</strong>
-    {% if impersonator_display %} per conto di <strong>{{ impersonator_display }}</strong>{% endif %}.
-  </div>
-  {% if impersonation_stop_url %}
-    <form method="post" action="{{ impersonation_stop_url }}" class="inline-form" style="margin:0;">
-      {% csrf_token %}
-      <input type="hidden" name="next" value="{{ request.get_full_path }}">
-      <button type="submit" class="logout-a" style="background:#9a3412;">Termina impersonazione</button>
-    </form>
-  {% endif %}
-</div>
-{% endif %}
-<nav class="topnav" id="topnav">
+{% load ui_icons %}
+<nav class="topnav" id="topnav"{% if topbar_color %} style="--topnav-bg: {{ topbar_color }}"{% endif %}>
   <a class="nav-logo" href="{% url 'dashboard_home' %}" aria-label="Vai alla dashboard">
-    <div class="logo-square">N</div>
-    <div class="logo-txt">
-      <div class="co">PORTALE</div>
-      <div class="name">APPLICATIVO</div>
-    </div>
+    <span class="brand-mark nav-logo-mark{% if not portal_branding.brand_logo_full and not portal_branding.brand_logo_compact %} is-fallback{% endif %}">
+      {% if portal_branding.brand_logo_full %}
+        <img src="{{ portal_branding.brand_logo_full }}" alt="{{ portal_branding.portal_name }}" class="brand-mark-img" onerror="this.parentElement.classList.add('is-fallback');this.remove();">
+      {% elif portal_branding.brand_logo_compact %}
+        <img src="{{ portal_branding.brand_logo_compact }}" alt="{{ portal_branding.portal_name }}" class="brand-mark-img" onerror="this.parentElement.classList.add('is-fallback');this.remove();">
+      {% endif %}
+      <span class="brand-mark-fallback">{{ portal_branding.monogram }}</span>
+    </span>
+    <span class="logo-txt">
+      {% if portal_branding.portal_subtitle %}
+        <span class="co">{{ portal_branding.portal_subtitle }}</span>
+      {% endif %}
+      <span class="name">{{ portal_branding.portal_name|default:"Portale Novicrom" }}</span>
+    </span>
   </a>
-  <button class="nav-hamburger" id="nav-toggle" aria-label="Apri menu" aria-expanded="false">
+
+  <button class="nav-hamburger" id="nav-toggle" type="button" aria-label="Apri menu" aria-expanded="false">
     <span class="hbar"></span><span class="hbar"></span><span class="hbar"></span>
   </button>
+
   <div class="nav-links" id="nav-links-panel">
-    {% for item in nav_items %}
-      <a class="nav-a{% if item.active %} active{% endif %}" href="{{ item.href }}" title="{{ item.legacy_url }}">
-        {% if item.icon %}<span style="margin-right:4px">{{ item.icon }}</span>{% endif %}{{ item.label }}
-        {% if item.coming %}<span class="dot"></span>{% endif %}
-      </a>
-    {% endfor %}
-  </div>
-  <div class="nav-right">
-    {% if user.is_authenticated %}
-      {% firstof user.get_full_name user.username as display_name %}
-      {% if car_pending_count %}
-        <a href="{% url 'assenze_car_dashboard' %}" title="{{ car_pending_count }} richieste in attesa" style="display:inline-flex;align-items:center;gap:5px;text-decoration:none;color:#fff;font-size:12px;font-weight:700;background:#dc2626;border-radius:99px;padding:3px 10px 3px 8px;">
-          <span style="font-size:15px;line-height:1;">&#9888;</span> {{ car_pending_count }}
+    {% for grp in topbar_groups %}
+      {% if grp.type == "category" %}
+        <div class="nav-dropdown{% if grp.active %} active{% endif %}">
+          <button class="nav-a nav-dropdown-btn{% if grp.active %} active{% endif %}" type="button" aria-haspopup="true" aria-expanded="false">
+            {% if grp.icon %}<span class="nav-item-icon" aria-hidden="true">{% render_icon grp.icon grp.label %}</span>{% endif %}
+            {{ grp.label }}<span class="nav-caret" aria-hidden="true">&#9662;</span>
+          </button>
+          <div class="nav-dropdown-menu" role="menu">
+            {% for item in grp.items %}
+              <a class="nav-dropdown-item{% if item.active %} active{% endif %}" href="{{ item.href }}" role="menuitem">
+                {% if item.icon %}<span class="nav-item-icon" aria-hidden="true">{% render_icon item.icon item.label %}</span>{% endif %}
+                <span>{{ item.label }}</span>
+                {% if item.coming %}<span class="dot"></span>{% endif %}
+              </a>
+            {% endfor %}
+          </div>
+        </div>
+      {% else %}
+        <a class="nav-a{% if grp.item.active %} active{% endif %}" href="{{ grp.item.href }}" title="{{ grp.item.legacy_url }}">
+          {% if grp.item.icon %}<span class="nav-item-icon" aria-hidden="true">{% render_icon grp.item.icon grp.item.label %}</span>{% endif %}
+          <span>{{ grp.item.label }}</span>
+          {% if grp.item.coming %}<span class="dot"></span>{% endif %}
         </a>
       {% endif %}
-      <a href="{% url 'notifiche' %}" title="Notifiche" style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;text-decoration:none;color:#64748b;font-size:18px;">
-        &#128276;
+    {% empty %}
+      {% for item in nav_items %}
+        <a class="nav-a{% if item.active %} active{% endif %}" href="{{ item.href }}" title="{{ item.legacy_url }}">
+          {% if item.icon %}<span class="nav-item-icon" aria-hidden="true">{% render_icon item.icon item.label %}</span>{% endif %}
+          <span>{{ item.label }}</span>
+          {% if item.coming %}<span class="dot"></span>{% endif %}
+        </a>
+      {% endfor %}
+    {% endfor %}
+  </div>
+
+  <div class="nav-right">
+    {% if user.is_authenticated %}
+      {% firstof user.get_full_name legacy_user.nome user.username as display_name %}
+
+      {% if car_pending_count %}
+        <a href="{% url 'assenze_car_dashboard' %}" class="nav-alert-pill" title="{{ car_pending_count }} richieste in attesa">
+          <span aria-hidden="true">&#9888;</span>
+          <span>{{ car_pending_count }}</span>
+        </a>
+      {% endif %}
+
+      <a href="{% url 'notifiche' %}" class="nav-icon" title="Notifiche" aria-label="Notifiche{% if notifiche_count %}: {{ notifiche_count }} non lette{% endif %}">
+        <span aria-hidden="true">&#128276;</span>
         {% if notifiche_count %}
-          <span style="position:absolute;top:2px;right:2px;width:16px;height:16px;background:#dc2626;color:#fff;border-radius:50%;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;">{{ notifiche_count }}</span>
+          <span class="nav-icon-badge" aria-hidden="true">{{ notifiche_count }}</span>
         {% endif %}
       </a>
-      <a href="{% url 'profilo' %}" class="nav-user" title="Il tuo profilo" style="text-decoration:none;color:inherit;">
-        <div class="nav-avatar">{{ display_name|slice:":2"|upper }}</div>
-        <div class="nav-user-text">
-          <div class="nav-uname">{{ display_name }}</div>
-          <div class="nav-urole">{{ legacy_user.ruolo|default:"Utente" }}</div>
-        </div>
+
+      <a href="{% url 'profilo' %}" class="nav-user" title="Il tuo profilo">
+        <span class="nav-avatar">{{ display_name|slice:":2"|upper }}</span>
+        <span class="nav-user-text">
+          <span class="nav-uname">{{ display_name }}</span>
+          <span class="nav-urole">{{ legacy_user.ruolo|default:"Utente" }}</span>
+        </span>
+      </a>
+
+      <a href="{% url 'ui_prefs_page' %}" class="nav-icon" title="Preferenze interfaccia" aria-label="Preferenze interfaccia">
+        <span aria-hidden="true">&#9881;</span>
       </a>
       <a href="{% url 'logout' %}" class="logout-a">Esci</a>
     {% else %}
-      <div class="nav-user">
-        <div class="nav-avatar">G</div>
-        <div class="nav-user-text">
-          <div class="nav-uname">Guest</div>
-          <div class="nav-urole">Anonimo</div>
-        </div>
-      </div>
       <a class="logout-a" href="{% url 'login' %}">Login</a>
     {% endif %}
   </div>
 </nav>
+
 <script>
 (function(){
   var btn = document.getElementById('nav-toggle');
   var panel = document.getElementById('nav-links-panel');
   if (!btn || !panel) return;
+
   btn.addEventListener('click', function(){
     var open = panel.classList.toggle('open');
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     btn.classList.toggle('open', open);
   });
+
   panel.addEventListener('click', function(e){
-    if (e.target.tagName === 'A') {
+    if (e.target.closest('a')) {
       panel.classList.remove('open');
       btn.setAttribute('aria-expanded', 'false');
       btn.classList.remove('open');
     }
   });
+
   document.addEventListener('click', function(e){
     if (!e.target.closest('#topnav') && panel.classList.contains('open')) {
       panel.classList.remove('open');
       btn.setAttribute('aria-expanded', 'false');
       btn.classList.remove('open');
+    }
+  });
+
+  document.querySelectorAll('.nav-dropdown-btn').forEach(function(ddBtn){
+    var dd = ddBtn.closest('.nav-dropdown');
+    ddBtn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var isOpen = dd.classList.contains('open');
+      document.querySelectorAll('.nav-dropdown.open').forEach(function(el){
+        el.classList.remove('open');
+        el.querySelector('.nav-dropdown-btn').setAttribute('aria-expanded', 'false');
+      });
+      if (!isOpen) {
+        dd.classList.add('open');
+        ddBtn.setAttribute('aria-expanded', 'true');
+      }
+    });
+  });
+
+  document.addEventListener('click', function(e){
+    if (!e.target.closest('.nav-dropdown')) {
+      document.querySelectorAll('.nav-dropdown.open').forEach(function(el){
+        el.classList.remove('open');
+        el.querySelector('.nav-dropdown-btn').setAttribute('aria-expanded', 'false');
+      });
     }
   });
 })();

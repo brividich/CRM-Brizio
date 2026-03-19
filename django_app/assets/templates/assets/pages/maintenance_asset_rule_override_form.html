@@ -1,0 +1,70 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}{% if is_edit %}Modifica override regola asset{% else %}Nuovo override regola asset{% endif %}{% endblock %}
+{% block assets_shell_title %}{% if is_edit %}Modifica override regola asset{% else %}Nuovo override regola asset{% endif %}{% endblock %}
+{% block assets_shell_subtitle %}
+<p>{{ asset.asset_tag }} - {{ asset.name }}</p>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section style="max-width:1040px;display:grid;gap:14px;">
+  <header>
+    <a href="{{ back_url }}" class="as-backlink">&larr; Torna alle regole manutenzione asset</a>
+  </header>
+
+  <article style="border:1px solid #dbe1ea;border-radius:14px;background:#f8fbff;padding:14px 16px;display:grid;gap:8px;">
+    <div style="font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.05em;color:#1d4ed8;font-weight:800;">Regola base</div>
+    <div><strong>Template:</strong> {{ base_rule.intervention_template.label }}</div>
+    <div><strong>Soglia:</strong> {{ base_rule.threshold_value }} {{ base_rule.get_threshold_type_display }}</div>
+    {% if base_rule.notes %}
+      <div><strong>Note base:</strong> {{ base_rule.notes }}</div>
+    {% endif %}
+    <div class="as-note">
+      I campi override lasciati vuoti continuano a ereditare i valori standard della regola base.
+    </div>
+  </article>
+
+  <form method="post" style="display:grid;gap:12px;border:1px solid #dbe1ea;border-radius:14px;background:#fff;padding:16px;">
+    {% csrf_token %}
+    {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+
+    {% if form.non_field_errors %}
+      <div style="padding:10px;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;border-radius:10px;">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    <div class="as-form-grid-3">
+      {% for field in form.visible_fields %}
+        <div style="{% if field.name == 'notes' %}grid-column:1/-1;{% endif %}">
+          {% if field.field.widget.input_type == 'checkbox' %}
+            <label style="display:flex;gap:8px;align-items:center;min-height:44px;">
+              {{ field }} <span>{{ field.label }}</span>
+            </label>
+          {% else %}
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+          {% endif %}
+          {% if field.help_text %}
+            <div class="as-help" style="margin-top:4px;">{{ field.help_text }}</div>
+          {% endif %}
+          {% if field.errors %}
+            <div class="as-error">{{ field.errors }}</div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+
+    {% if is_edit and override and override.is_redundant %}
+      <div style="padding:10px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;border-radius:10px;">
+        Questo record non introduce differenze effettive rispetto alla regola base. Puoi ripristinare l'ereditarieta dalla lista.
+      </div>
+    {% endif %}
+
+    <div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;">
+      <a class="btn" href="{{ back_url }}">Annulla</a>
+      <button type="submit" class="btn btn-primary">Salva</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

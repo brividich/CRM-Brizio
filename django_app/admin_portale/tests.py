@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import configparser
+import json
+import tempfile
+from pathlib import Path
 from unittest.mock import ANY, MagicMock, patch
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -502,3 +507,146 @@ class AdminPortaleConfigSrvSmtpTests(TestCase):
         self.assertContains(response, "Indirizzo email non valido")
         connection_factory.assert_not_called()
         email_factory.assert_not_called()
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AdminPortaleConfigSrvLdapTests(TestCase):
+    def setUp(self):
+        _ensure_utenti_table()
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM utenti")
+
+        self.admin_user = User.objects.create_superuser(
+            username="admin-portale-ldap",
+            email="admin.ldap@test.local",
+            password="pass12345",
+        )
+        self.admin_legacy = UtenteLegacy.objects.create(
+            nome="Admin LDAP",
+            email="admin.ldap@test.local",
+            password="*AD_MANAGED*",
+            ruolo="admin",
+            ruolo_id=1,
+            attivo=True,
+            deve_cambiare_password=False,
+        )
+        self.url = reverse("admin_portale:ldap_diagnostica")
+
+    def test_config_srv_can_save_ldap_config(self):
+        self.client.force_login(self.admin_user)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = Path(tmpdir) / "config.ini"
+            config_path.write_text("[ACTIVE_DIRECTORY]\nserver = ldap://old.local\nenabled = false\n", encoding="utf-8")
+
+            with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+                "admin_portale.decorators.is_legacy_admin",
+                return_value=True,
+            ), patch("admin_portale.views._config_ini_path", return_value=config_path):
+                response = self.client.post(
+                    self.url,
+                    {
+                        "action": "save_ldap_config",
+                        "enabled": "on",
+                        "server": "ldap://dc1.example.local",
+                        "domain": "EXAMPLE",
+                        "upn_suffix": "@example.local",
+                        "timeout": "8",
+                        "base_dn": "DC=EXAMPLE,DC=LOCAL",
+                        "user_filter": "(&(objectCategory=person)(objectClass=user))",
+                        "group_allowlist": "EMPLOYEES,ADMINS",
+                        "sync_page_size": "750",
+                    },
+                )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "Configurazione LDAP salvata")
+
+            parser = configparser.ConfigParser()
+            parser.read(config_path, encoding="utf-8")
+
+            self.assertEqual(parser.get("ACTIVE_DIRECTORY", "enabled"), "true")
+            self.assertEqual(parser.get("ACTIVE_DIRECTORY", "server"), "ldap://dc1.example.local")
+            self.assertEqual(parser.get("ACTIVE_DIRECTORY", "domain"), "EXAMPLE")
+            self.assertEqual(parser.get("ACTIVE_DIRECTORY", "upn_suffix"), "@example.local")
+            self.assertEqual(parser.get("ACTIVE_DIRECTORY", "timeout"), "8")
+            self.assertEqual(parser.get("ACTIVE_DIRECTORY", "base_dn"), "DC=EXAMPLE,DC=LOCAL")
+            self.assertEqual(parser.get("ACTIVE_DIRECTORY", "user_filter"), "(&(objectCategory=person)(objectClass=user))")
+            self.assertEqual(parser.get("ACTIVE_DIRECTORY", "group_allowlist"), "EMPLOYEES,ADMINS")
+            self.assertEqual(parser.get("ACTIVE_DIRECTORY", "sync_page_size"), "750")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AdminPortaleNavigationIconTests(TestCase):
+    def setUp(self):
+        _ensure_utenti_table()
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM utenti")
+
+        self.admin_user = User.objects.create_superuser(
+            username="admin-portale-nav-icons",
+            email="admin.nav.icons@test.local",
+            password="pass12345",
+        )
+        self.admin_legacy = UtenteLegacy.objects.create(
+            nome="Admin Navigation",
+            email="admin.nav.icons@test.local",
+            password="*AD_MANAGED*",
+            ruolo="admin",
+            ruolo_id=1,
+            attivo=True,
+            deve_cambiare_password=False,
+        )
+
+    def test_api_navigation_item_create_persists_image_icon(self):
+        from core.models import NavigationItem
+
+        self.client.force_login(self.admin_user)
+        payload = {
+            "code": "assets-icon-test",
+            "label": "Assets",
+            "section": "topbar",
+            "route_name": "dashboard_home",
+            "icon": "/media/icons/assets-menu.ico",
+            "is_visible": True,
+            "is_enabled": True,
+        }
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.post(
+                reverse("admin_portale:api_navigation_item_create"),
+                data=json.dumps(payload),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        item = NavigationItem.objects.get(code="assets-icon-test")
+        self.assertEqual(item.icon, "/media/icons/assets-menu.ico")
+
+    def test_api_navigation_icon_upload_stores_file_in_library(self):
+        self.client.force_login(self.admin_user)
+        upload = SimpleUploadedFile(
+            "assets-menu.ico",
+            b"\x00\x00\x01\x00test-ico",
+            content_type="image/x-icon",
+        )
+
+        with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root, MEDIA_URL="/media/"), patch(
+            "admin_portale.decorators.get_legacy_user",
+            return_value=self.admin_legacy,
+        ), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.post(
+                reverse("admin_portale:api_navigation_icon_upload"),
+                {"icon": upload},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["icon"]["value"].startswith("navigation/icons/"))
+        self.assertTrue(payload["icon"]["url"].startswith("/media/navigation/icons/"))

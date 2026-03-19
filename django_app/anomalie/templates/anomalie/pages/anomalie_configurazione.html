@@ -1,14 +1,19 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="it">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Configurazione Anomalie | Portale Applicativo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       min-height: 100vh;
-      font-family: "Segoe UI", Arial, sans-serif;
+      font-family: "Outfit", sans-serif;
+      font-size: var(--fs-base);
+      line-height: var(--lh-base);
       background: radial-gradient(ellipse at 50% 22%, #cad3dc 0%, #aebac5 100%);
       color: #1f2937;
     }
@@ -27,7 +32,7 @@
     .topbar a {
       color: rgba(255, 255, 255, 0.92);
       text-decoration: none;
-      font-size: 13px;
+      font-size: var(--fs-base);
       font-weight: 700;
       letter-spacing: 0.03em;
       white-space: nowrap;
@@ -37,14 +42,14 @@
     .topbar-title {
       flex: 1;
       color: #fff;
-      font-size: 14px;
+      font-size: var(--fs-md);
       font-weight: 800;
       letter-spacing: 0.1em;
       text-transform: uppercase;
     }
     .topbar-user {
       color: rgba(255, 255, 255, 0.74);
-      font-size: 12px;
+      font-size: var(--fs-sm);
       font-weight: 600;
       white-space: nowrap;
     }
@@ -67,14 +72,14 @@
       border-bottom: 1px solid rgba(0, 0, 0, 0.08);
     }
     .card-title {
-      font-size: 17px;
+      font-size: var(--fs-title-md);
       font-weight: 800;
       color: #1e3a5f;
       letter-spacing: 0.02em;
     }
     .card-sub {
       margin-top: 6px;
-      font-size: 13px;
+      font-size: var(--fs-base);
       color: #64748b;
       line-height: 1.4;
     }
@@ -91,14 +96,14 @@
     }
     .field.full { grid-column: 1 / -1; }
     .field label {
-      font-size: 13px;
+      font-size: var(--fs-base);
       font-weight: 800;
       color: #374151;
       letter-spacing: 0.02em;
     }
     .field small {
       color: #64748b;
-      font-size: 12px;
+      font-size: var(--fs-sm);
       line-height: 1.35;
       margin-top: -2px;
     }
@@ -108,7 +113,7 @@
       border: 1.5px solid #cbd5e1;
       border-radius: 10px;
       padding: 10px 12px;
-      font-size: 13px;
+      font-size: var(--fs-base);
       line-height: 1.35;
       font-family: "Segoe UI", Arial, sans-serif;
       background: #f8fafc;
@@ -137,7 +142,7 @@
       border-radius: 9px;
       padding: 10px 18px;
       cursor: pointer;
-      font-size: 13px;
+      font-size: var(--fs-base);
       font-weight: 800;
       letter-spacing: 0.04em;
       white-space: nowrap;
@@ -155,7 +160,7 @@
       display: none;
       padding: 11px 14px;
       border-radius: 10px;
-      font-size: 13px;
+      font-size: var(--fs-base);
       font-weight: 700;
       margin: 0 20px 16px;
     }
@@ -176,36 +181,36 @@
       .topbar-user { display: none; }
     }
     .ga-tabs { display: flex; gap: 4px; border-bottom: 2px solid rgba(0,0,0,.1); margin: 0 0 0; padding: 10px 16px 0; background: rgba(255,255,255,.18); }
-    .ga-tab { padding: 7px 15px; border-radius: 8px 8px 0 0; text-decoration: none; font-weight: 700; font-size: 13px; color: rgba(255,255,255,.8); border: 1px solid transparent; border-bottom: none; }
+    .ga-tab { padding: 7px 15px; border-radius: 8px 8px 0 0; text-decoration: none; font-weight: 700; font-size: var(--fs-base); color: rgba(255,255,255,.8); border: 1px solid transparent; border-bottom: none; }
     .ga-tab:hover { background: rgba(255,255,255,.15); color: #fff; }
     .ga-tab.active { background: rgba(255,255,255,.95); color: #1a5499; margin-bottom: -2px; }
     .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 10px; }
     .kpi { background: rgba(255,255,255,.9); border-radius: 11px; padding: 14px; box-shadow: 0 4px 12px rgba(0,0,0,.08); }
-    .kpi-label { font-size: 11px; text-transform: uppercase; color: #7e94b2; font-weight: 700; }
-    .kpi-val { font-size: 28px; font-weight: 800; color: #0f172a; margin-top: 4px; }
-    .kpi-sub { margin-top: 6px; font-size: 12px; color: #64748b; line-height: 1.35; }
+    .kpi-label { font-size: var(--fs-xs); text-transform: uppercase; color: #7e94b2; font-weight: 700; }
+    .kpi-val { font-size: var(--fs-display-lg); font-weight: 800; color: #0f172a; margin-top: 4px; }
+    .kpi-sub { margin-top: 6px; font-size: var(--fs-sm); color: #64748b; line-height: 1.35; }
     .ga-card { background: rgba(255,255,255,.9); border-radius: 14px; box-shadow: 0 6px 18px rgba(0,0,0,.1); overflow: hidden; }
-    .ga-card-head { padding: 12px 16px; border-bottom: 1px solid rgba(0,0,0,.08); font-size: 14px; font-weight: 800; color: #1e3a5f; display: flex; justify-content: space-between; align-items: center; }
+    .ga-card-head { padding: 12px 16px; border-bottom: 1px solid rgba(0,0,0,.08); font-size: var(--fs-md); font-weight: 800; color: #1e3a5f; display: flex; justify-content: space-between; align-items: center; }
     .ga-card-body { padding: 14px 16px; }
-    .ga-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .ga-tbl th { padding: 7px 10px; background: #f0f5ff; color: #6080a0; font-size: 11px; text-transform: uppercase; font-weight: 700; border-bottom: 1px solid #dde4f0; text-align: left; }
+    .ga-tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-base); }
+    .ga-tbl th { padding: 7px 10px; background: #f0f5ff; color: #6080a0; font-size: var(--fs-xs); text-transform: uppercase; font-weight: 700; border-bottom: 1px solid #dde4f0; text-align: left; }
     .ga-tbl td { padding: 7px 10px; border-bottom: 1px solid #eef2f8; vertical-align: middle; }
     .ga-tbl tr:last-child td { border-bottom: none; }
     .ga-tbl tr:hover td { background: #f5f9ff; }
-    .ga-badge { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 700; }
+    .ga-badge { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: var(--fs-xs); font-weight: 700; }
     .ga-badge-aperta { background: #dcfce7; color: #166534; }
     .ga-badge-chiusa { background: #f1f5f9; color: #64748b; }
     .ga-search { display: flex; gap: 8px; margin-bottom: 10px; }
-    .ga-search input { flex: 1; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 6px 11px; font-size: 13px; }
-    .ga-btn { display: inline-flex; align-items: center; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; border: 1px solid transparent; text-decoration: none; }
+    .ga-search input { flex: 1; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 6px 11px; font-size: var(--fs-base); }
+    .ga-btn { display: inline-flex; align-items: center; padding: 6px 12px; border-radius: 8px; font-size: var(--fs-sm); font-weight: 700; cursor: pointer; border: 1px solid transparent; text-decoration: none; }
     .ga-btn-primary { background: #1a5499; color: #fff; }
     .ga-btn-primary:hover { opacity: .9; }
-    .log-row { display: grid; grid-template-columns: 130px 80px 110px 1fr; gap: 8px; padding: 6px 8px; border-bottom: 1px solid #eef2f8; font-size: 12px; }
+    .log-row { display: grid; grid-template-columns: 130px 80px 110px 1fr; gap: 8px; padding: 6px 8px; border-bottom: 1px solid #eef2f8; font-size: var(--fs-sm); }
     .log-row:last-child { border-bottom: none; }
-    .log-head { font-size: 11px; text-transform: uppercase; color: #8fa5c0; font-weight: 700; background: #f0f5ff; border-radius: 6px; }
+    .log-head { font-size: var(--fs-xs); text-transform: uppercase; color: #8fa5c0; font-weight: 700; background: #f0f5ff; border-radius: 6px; }
   </style>
 </head>
-<body>
+<body class="fs-{{ ui_prefs.font_scale|default:'normal' }}">
   <div class="topbar">
     <a href="/anomalie-menu">&#8592; Menu Anomalie</a>
     <div class="topbar-sep"></div>
@@ -275,7 +280,7 @@
         <div class="kpi-row" style="grid-column:1 / -1;">
           <div class="kpi">
             <div class="kpi-label">Runtime Graph</div>
-            <div class="kpi-val" style="font-size:22px;">{% if sharepoint_admin_config.runtime_ready %}OK{% else %}KO{% endif %}</div>
+            <div class="kpi-val" >{% if sharepoint_admin_config.runtime_ready %}OK{% else %}KO{% endif %}</div>
             <div class="kpi-sub">
               {% if sharepoint_admin_config.runtime_ready %}
                 Configurazione completa per il push anomalie.
@@ -286,12 +291,12 @@
           </div>
           <div class="kpi">
             <div class="kpi-label">Secret</div>
-            <div class="kpi-val" style="font-size:22px;">{% if sharepoint_admin_config.client_secret_configured %}Presente{% else %}Assente{% endif %}</div>
+            <div class="kpi-val" >{% if sharepoint_admin_config.client_secret_configured %}Presente{% else %}Assente{% endif %}</div>
             <div class="kpi-sub">Il valore non viene mostrato in chiaro.</div>
           </div>
           <div class="kpi">
             <div class="kpi-label">Lista anomalie DB</div>
-            <div class="kpi-val" style="font-size:22px;">{{ sharepoint_admin_config.list_id_anomalie_db|default:"-" }}</div>
+            <div class="kpi-val" >{{ sharepoint_admin_config.list_id_anomalie_db|default:"-" }}</div>
             <div class="kpi-sub">ID lista usato da `POST /api/anomalie/sync`.</div>
           </div>
         </div>
@@ -382,7 +387,7 @@
       <div class="card-body" style="grid-template-columns:1fr;gap:16px">
 
         <!-- Requisiti immagine -->
-        <div style="background:#f0f5ff;border:1px solid #c7d8f0;border-radius:10px;padding:12px 16px;font-size:13px;line-height:1.7;color:#2c4a6e;">
+        <div style="background:#f0f5ff;border:1px solid #c7d8f0;border-radius:10px;padding:12px 16px;line-height:1.7;color:#2c4a6e;">
           <strong style="display:block;margin-bottom:4px;">Requisiti immagine</strong>
           <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:2px;">
             <li><strong>Formato consigliato:</strong> PNG con sfondo trasparente (alpha channel)</li>
@@ -398,13 +403,13 @@
           <div style="flex-shrink:0;background:radial-gradient(ellipse at 50% 40%,#c8d0d8 0%,#adb8c2 100%);border-radius:10px;padding:16px 24px;min-width:220px;display:flex;align-items:center;justify-content:center">
             <img id="logo-preview" src="" alt="Anteprima logo"
                  style="max-width:280px;max-height:80px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.18));display:none">
-            <span id="logo-placeholder" style="font-size:13px;color:rgba(30,60,90,.5);font-weight:600">Nessun logo personalizzato</span>
+            <span id="logo-placeholder" style="color:rgba(30,60,90,.5);font-weight:600">Nessun logo personalizzato</span>
           </div>
           <div style="flex:1;min-width:200px">
             <label class="field" style="gap:6px;display:flex;flex-direction:column">
-              <span style="font-size:13px;font-weight:800;color:#374151">Carica nuovo logo</span>
+              <span style="font-weight:800;color:#374151">Carica nuovo logo</span>
               <input type="file" id="logo-file-input" accept=".png,.jpg,.jpeg,.gif,.svg,.webp"
-                     style="font-size:13px;padding:6px 0;">
+                     style="padding:6px 0;">
             </label>
             <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
               <button class="btn btn-main" id="btn-logo-upload" type="button">Carica e salva</button>
@@ -428,7 +433,7 @@
       <div class="card-body" style="grid-template-columns:1fr;gap:18px">
 
         <!-- Linee guida -->
-        <div style="background:#f0f5ff;border:1px solid #c7d8f0;border-radius:10px;padding:14px 16px;font-size:13px;line-height:1.65;color:#2c4a6e;">
+        <div style="background:#f0f5ff;border:1px solid #c7d8f0;border-radius:10px;padding:14px 16px;line-height:1.65;color:#2c4a6e;">
           <strong style="display:block;margin-bottom:6px;">Linee guida per il template</strong>
           <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;">
             <li>Il file deve essere un <strong>.html</strong> valido in codifica <strong>UTF-8</strong>, max 512 KB.</li>
@@ -448,23 +453,23 @@
 
         <!-- Stato template corrente -->
         <div id="tpl-status-row" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-          <span id="tpl-status-badge" style="padding:5px 14px;border-radius:20px;font-size:12px;font-weight:800;background:#e2e8f0;color:#475569;">Caricamento...</span>
-          <span id="tpl-status-detail" style="font-size:12px;color:#64748b;"></span>
+          <span id="tpl-status-badge" style="padding:5px 14px;border-radius:20px;font-weight:800;background:#e2e8f0;color:#475569;">Caricamento...</span>
+          <span id="tpl-status-detail" style="color:#64748b;"></span>
           <button id="btn-tpl-reset" class="btn btn-secondary" type="button" style="margin-left:auto;display:none;">Ripristina template default</button>
         </div>
 
         <!-- Upload form -->
         <div>
           <label class="field" style="gap:6px;display:flex;flex-direction:column;">
-            <span style="font-size:13px;font-weight:800;color:#374151;">Carica nuovo template (.html)</span>
-            <input type="file" id="tpl-file-input" accept=".html" style="font-size:13px;padding:6px 0;">
+            <span style="font-weight:800;color:#374151;">Carica nuovo template (.html)</span>
+            <input type="file" id="tpl-file-input" accept=".html" style="padding:6px 0;">
           </label>
           <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
             <button class="btn btn-main" id="btn-tpl-upload" type="button">Valida e carica</button>
             <span id="tpl-upload-status" class="status" style="margin:0;"></span>
           </div>
           <!-- Risultato validazione -->
-          <div id="tpl-validation-result" style="display:none;margin-top:12px;padding:12px 14px;border-radius:10px;font-size:13px;"></div>
+          <div id="tpl-validation-result" style="display:none;margin-top:12px;padding:12px 14px;border-radius:10px;"></div>
         </div>
       </div>
     </div>
@@ -558,7 +563,7 @@
                 <td>{{ a.avanzamento|default:"—" }}</td>
                 <td>{% if a.chiudere %}<span class="ga-badge ga-badge-chiusa">Chiusa</span>{% else %}<span class="ga-badge ga-badge-aperta">Aperta</span>{% endif %}</td>
                 <td>{{ a.modified_datetime|default:"—" }}</td>
-                <td><a href="/api/anomalie/report?op_id={{ a.ex_op_nominativo|urlencode }}" target="_blank" class="ga-btn ga-btn-primary" style="padding:3px 10px;font-size:11px;">Report OP</a></td>
+                <td><a href="/api/anomalie/report?op_id={{ a.ex_op_nominativo|urlencode }}" target="_blank" class="ga-btn ga-btn-primary" style="padding:3px 10px;">Report OP</a></td>
               </tr>
             {% empty %}
               <tr><td colspan="6" style="color:#9aadcb;text-align:center;">Nessuna anomalia trovata</td></tr>
@@ -584,7 +589,7 @@
           <span>{{ entry.created_at|date:"d/m/Y H:i" }}</span>
           <span>{{ entry.utente_display|default:"—" }}</span>
           <span>{{ entry.azione }}</span>
-          <span style="color:#64748b;font-size:11px;">{{ entry.dettaglio }}</span>
+          <span style="color:#64748b;">{{ entry.dettaglio }}</span>
         </div>
         {% endfor %}
         {% else %}

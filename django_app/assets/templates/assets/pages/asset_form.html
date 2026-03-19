@@ -7,7 +7,7 @@
 {% block assets_shell_content %}
 <section style="max-width:980px;display:grid;gap:14px;">
   <header>
-    <a href="{% if asset %}{% url 'assets:asset_view' asset.id %}{% else %}{% url 'assets:asset_list' %}{% endif %}" style="font-size:13px;color:#64748b;text-decoration:none;">&larr; Indietro</a>
+    <a href="{% if asset %}{% url 'assets:asset_view' asset.id %}{% else %}{% url 'assets:asset_list' %}{% endif %}" class="as-backlink">&larr; Indietro</a>
   </header>
 
   <form method="post" style="display:grid;gap:10px;border:1px solid #dbe1ea;border-radius:14px;background:#fff;padding:16px;">
@@ -24,10 +24,10 @@
             <label for="{{ field.id_for_label }}">{{ field.label }}</label>
             {{ field }}
             {% if field.help_text %}
-              <div style="color:#64748b;font-size:12px;margin-top:4px;">{{ field.help_text }}</div>
+              <div class="as-help" style="margin-top:4px;">{{ field.help_text }}</div>
             {% endif %}
             {% if field.errors %}
-              <div style="color:#b91c1c;font-size:12px;">{{ field.errors }}</div>
+              <div class="as-error">{{ field.errors }}</div>
             {% endif %}
           </div>
         {% endif %}
@@ -36,10 +36,10 @@
       {% if category_field_groups %}
         <div style="grid-column:1/-1;border-top:1px solid #e2e8f0;padding-top:12px;margin-top:2px;">
           <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-            <h3 style="margin:0;font-size:16px;">Campi categoria</h3>
-            <div style="color:#64748b;font-size:12px;">Seleziona una categoria asset per caricare i campi dedicati.</div>
+            <h3 class="as-section-title">Campi categoria</h3>
+            <div class="as-help">Seleziona una categoria asset per caricare i campi dedicati.</div>
           </div>
-          <div data-category-empty style="padding:12px;border:1px dashed #cbd5e1;border-radius:12px;background:#f8fafc;color:#64748b;font-size:13px;">
+          <div data-category-empty class="as-note" style="padding:12px;border:1px dashed #cbd5e1;border-radius:12px;background:#f8fafc;">
             Nessuna categoria selezionata.
           </div>
           {% for group in category_field_groups %}
@@ -47,7 +47,7 @@
               <div style="margin-bottom:10px;">
                 <div style="font-weight:700;color:#0f172a;">{{ group.category.label }}</div>
                 {% if group.category.description %}
-                  <div style="color:#64748b;font-size:12px;margin-top:2px;">{{ group.category.description }}</div>
+                  <div class="as-help" style="margin-top:2px;">{{ group.category.description }}</div>
                 {% endif %}
               </div>
               <div class="as-form-grid-3">
@@ -57,10 +57,10 @@
                       <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                       {{ field }}
                       {% if field.help_text %}
-                        <div style="color:#64748b;font-size:12px;margin-top:4px;">{{ field.help_text }}</div>
+                        <div class="as-help" style="margin-top:4px;">{{ field.help_text }}</div>
                       {% endif %}
                       {% if field.errors %}
-                        <div style="color:#b91c1c;font-size:12px;">{{ field.errors }}</div>
+                        <div class="as-error">{{ field.errors }}</div>
                       {% endif %}
                     </div>
                   {% endif %}
@@ -74,7 +74,7 @@
       {% if verification_field_names %}
         <div style="grid-column:1/-1;border-top:1px solid #e2e8f0;padding-top:12px;margin-top:2px;">
           <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-            <h3 style="margin:0;font-size:16px;">Verifiche periodiche</h3>
+            <h3 class="as-section-title">Verifiche periodiche</h3>
             {% if asset %}
               <a class="btn" href="{% url 'assets:periodic_verifications' %}?asset={{ asset.id }}">Gestisci verifiche</a>
             {% endif %}
@@ -86,10 +86,10 @@
                   <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                   {{ field }}
                   {% if field.help_text %}
-                    <div style="color:#64748b;font-size:12px;margin-top:4px;">{{ field.help_text }}</div>
+                    <div class="as-help" style="margin-top:4px;">{{ field.help_text }}</div>
                   {% endif %}
                   {% if field.errors %}
-                    <div style="color:#b91c1c;font-size:12px;">{{ field.errors }}</div>
+                    <div class="as-error">{{ field.errors }}</div>
                   {% endif %}
                 </div>
               {% endif %}
@@ -100,7 +100,7 @@
 
       {% if dynamic_field_names %}
         <div style="grid-column:1/-1;border-top:1px solid #e2e8f0;padding-top:12px;margin-top:2px;">
-          <h3 style="margin:0 0 10px;font-size:16px;">Campi personalizzati</h3>
+          <h3 class="as-section-title" style="margin-bottom:10px;">Campi personalizzati</h3>
           <div class="as-form-grid-3">
             {% for field in form %}
               {% if field.name in dynamic_field_names %}
@@ -108,10 +108,10 @@
                   <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                   {{ field }}
                   {% if field.help_text %}
-                    <div style="color:#64748b;font-size:12px;margin-top:4px;">{{ field.help_text }}</div>
+                    <div class="as-help" style="margin-top:4px;">{{ field.help_text }}</div>
                   {% endif %}
                   {% if field.errors %}
-                    <div style="color:#b91c1c;font-size:12px;">{{ field.errors }}</div>
+                    <div class="as-error">{{ field.errors }}</div>
                   {% endif %}
                 </div>
               {% endif %}
@@ -121,7 +121,7 @@
       {% endif %}
     </div>
     {% if list_suggestions %}
-      <div style="font-size:12px;color:#64748b;">
+      <div class="as-help">
         I campi testuali con elenco suggerimenti restano comunque modificabili manualmente.
       </div>
     {% endif %}

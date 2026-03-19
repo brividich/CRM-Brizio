@@ -5,12 +5,20 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Gestione Anomalie</title>
+  <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
   <script src="{% static 'anomalie/js/react.development.js' %}"></script>
   <script src="{% static 'anomalie/js/react-dom.development.js' %}"></script>
   <script src="{% static 'anomalie/js/babel.min.js' %}"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body, #root { height: 100%; }
+    body {
+      font-family: "DM Sans", sans-serif;
+      font-size: var(--fs-base);
+      line-height: var(--lh-base);
+      background: #f8fafc;
+      color: #0f172a;
+    }
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
     *::-webkit-scrollbar { width: 6px; }
     *::-webkit-scrollbar-track { background: transparent; }
@@ -20,7 +28,7 @@
     input::placeholder, textarea::placeholder { color: #94a3b8; }
   </style>
 </head>
-<body>
+<body class="fs-{{ ui_prefs.font_scale|default:'normal' }}">
   <div id="root"></div>
 
   <script>
@@ -199,9 +207,9 @@
       };
       const c = colors[variant] || colors.aperto;
       return (
-        <span style={{
+        <span className="text-xs font-semibold" style={{
           display: "inline-block", padding: "2px 10px", borderRadius: "99px",
-          fontSize: "11px", fontWeight: 600, letterSpacing: "0.03em",
+          fontWeight: 600, letterSpacing: "0.03em",
           background: c.bg, color: c.text, border: `1px solid ${c.border}`,
           textTransform: "uppercase", whiteSpace: "nowrap",
         }}>{text}</span>
@@ -209,19 +217,19 @@
     };
 
     const IconBtn = ({ children, onClick, title, accent, disabled }) => (
-      <button onClick={onClick} title={title} disabled={disabled} style={{
+      <button className="text-sm font-medium" onClick={onClick} title={title} disabled={disabled} style={{
         background: accent ? "#2563eb" : "transparent",
         border: accent ? "none" : "1px solid #e2e8f0",
         borderRadius: 8, padding: accent ? "6px 14px" : "6px 8px", cursor: disabled ? "not-allowed" : "pointer",
         display: "inline-flex", alignItems: "center", gap: 6,
-        color: accent ? "#fff" : "#64748b", fontSize: 12, fontWeight: 500,
+        color: accent ? "#fff" : "#64748b", fontWeight: 500,
         transition: "all 0.15s ease", opacity: disabled ? 0.6 : 1,
       }}>{children}</button>
     );
 
     const FieldLabel = ({ children, required }) => (
-      <label style={{
-        display: "block", fontSize: 11, fontWeight: 600, color: "#94a3b8",
+      <label className="text-xs font-semibold" style={{
+        display: "block", fontWeight: 600, color: "#94a3b8",
         textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6,
       }}>
         {children}
@@ -243,7 +251,7 @@
             transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
           }} />
         </div>
-        <span style={{ fontSize: 13, color: "#475569", fontWeight: 500 }}>{label}</span>
+        <span className="text-base font-medium" style={{ color: "#475569", fontWeight: 500 }}>{label}</span>
       </div>
     );
 
@@ -721,40 +729,40 @@
                 display: "flex", alignItems: "center", justifyContent: "center",
                 width: 32, height: 32, borderRadius: 8,
                 background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)",
-                color: "#94a3b8", textDecoration: "none", fontSize: 16,
+                color: "#94a3b8", textDecoration: "none",
               }}>
                 <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
                   <path d="M15 18l-6-6 6-6"/>
                 </svg>
               </a>
-              {!isMobile && <h1 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#fff", letterSpacing: "-0.01em" }}>
+              {!isMobile && <h1 className="text-lg font-bold" style={{ margin: 0, fontWeight: 700, color: "#fff", letterSpacing: "-0.01em" }}>
                 Gestione Anomalie
               </h1>}
               {isMobile && mobilePanel === "dettaglio" && sn.sn && (
-                <span style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0" }}>
+                <span className="text-base font-semibold" style={{ fontWeight: 600, color: "#e2e8f0" }}>
                   {op.id ? `${op.id} / ${sn.sn}` : sn.sn}
                 </span>
               )}
               {isMobile && mobilePanel === "serie" && op.id && (
-                <span style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0" }}>{op.id}</span>
+                <span className="text-base font-semibold" style={{ fontWeight: 600, color: "#e2e8f0" }}>{op.id}</span>
               )}
               {isMobile && mobilePanel === "ordini" && (
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>Gestione Anomalie</span>
+                <span className="text-base font-bold" style={{ fontWeight: 700, color: "#fff" }}>Gestione Anomalie</span>
               )}
               {!isMobile && op.id && (
-                <span style={{
+                <span className="text-sm font-medium" style={{
                   background: "rgba(255,255,255,.1)", padding: "3px 12px",
-                  borderRadius: 99, fontSize: 12, color: "#94a3b8", fontWeight: 500,
+                  borderRadius: 99, color: "#94a3b8", fontWeight: 500,
                 }}>{op.id}</span>
               )}
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12 }}>
               {!isMobile && IS_ADMIN && ADMIN_URL && (
-                <a href={ADMIN_URL} style={{
+                <a className="text-base font-bold" href={ADMIN_URL} style={{
                   display: "inline-flex", alignItems: "center", gap: 6,
                   background: "#1f64d8", color: "#fff", borderRadius: 8,
-                  padding: "6px 12px", fontSize: 13, fontWeight: 700,
+                  padding: "6px 12px", fontWeight: 700,
                   textDecoration: "none", boxShadow: "0 2px 8px rgba(15,23,42,.25)",
                   whiteSpace: "nowrap",
                 }}>
@@ -763,8 +771,8 @@
               )}
               {/* Messaggio di salvataggio / sync */}
               {saveMsg && !isMobile && (
-                <span style={{
-                  fontSize: 13, fontWeight: 500,
+                <span className="text-base font-medium" style={{
+                  fontWeight: 500,
                   color: saveMsg.ok ? "#86efac" : "#fca5a5",
                   background: "rgba(255,255,255,.07)",
                   padding: "5px 12px", borderRadius: 6,
@@ -777,7 +785,7 @@
                   background: syncing || !SYNC_AVAILABLE ? "rgba(255,255,255,.04)" : "rgba(255,255,255,.08)",
                   border: "1px solid rgba(255,255,255,.12)",
                   borderRadius: 8, padding: "7px 14px", color: syncing ? "#64748b" : "#94a3b8",
-                  fontSize: 13, fontWeight: 500, cursor: syncing || !SYNC_AVAILABLE ? "not-allowed" : "pointer",
+                  fontWeight: 500, cursor: syncing || !SYNC_AVAILABLE ? "not-allowed" : "pointer",
                   display: "flex", alignItems: "center", gap: 6,
                 }}>
                   <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
@@ -803,7 +811,7 @@
               {!isMobile && <button style={{
                 background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.12)",
                 borderRadius: 8, padding: "7px 16px", color: "#e2e8f0",
-                fontSize: 13, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+                fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
               }}>
                 <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
@@ -818,7 +826,7 @@
                 }} style={{
                   background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.12)",
                   borderRadius: 8, padding: "7px 16px", color: "#e2e8f0",
-                  fontSize: 13, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+                  fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
                 }}>
                   <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                   Duplica
@@ -828,7 +836,7 @@
                 <button onClick={handleOpenReport} title="Apri il report riepilogativo dell'OP" style={{
                   background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.12)",
                   borderRadius: 8, padding: "7px 16px", color: "#e2e8f0",
-                  fontSize: 13, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+                  fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
                 }}>
                   <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
@@ -836,10 +844,10 @@
                   Report OP
                 </button>
               )}
-              <button onClick={handleSave} disabled={saving || !canEditCurrentOp} style={{
+              <button className={isMobile ? "text-md font-semibold" : "text-base font-semibold"} onClick={handleSave} disabled={saving || !canEditCurrentOp} style={{
                 background: saving ? "#3b82f6" : "#2563eb", border: "none", borderRadius: 8,
                 padding: isMobile ? "8px 16px" : "7px 18px", color: "#fff",
-                fontSize: isMobile ? 14 : 13, fontWeight: 600,
+                fontWeight: 600,
                 cursor: saving || !canEditCurrentOp ? "not-allowed" : "pointer",
                 display: "flex", alignItems: "center", gap: 6,
                 boxShadow: "0 2px 8px rgba(37,99,235,.3)",
@@ -885,10 +893,10 @@
             }}>
               <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid #f1f5f9" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                  <h2 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#1e293b", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  <h2 className="text-base font-bold" style={{ margin: 0, fontWeight: 700, color: "#1e293b", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     Ordini di Produzione
                   </h2>
-                  <span style={{ background: "#f1f5f9", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, color: "#64748b" }}>
+                  <span className="text-xs font-semibold" style={{ background: "#f1f5f9", padding: "2px 8px", borderRadius: 99, fontWeight: 600, color: "#64748b" }}>
                     {loadingOrdini ? "…" : filteredOrdini.length}
                   </span>
                 </div>
@@ -909,11 +917,11 @@
                           color: active ? "#1d4ed8" : "#475569",
                           borderRadius: 999,
                           padding: "6px 10px",
-                          fontSize: 11,
                           fontWeight: 700,
                           letterSpacing: "0.02em",
                           cursor: "pointer",
                         }}
+                        className="text-xs font-bold"
                       >
                         {filterOpt.label}
                       </button>
@@ -929,7 +937,7 @@
                     placeholder="Cerca OP, P/N, capocommessa..."
                     style={{
                       width: "100%", padding: "9px 12px 9px 32px",
-                      border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 13,
+                      border: "1px solid #e2e8f0", borderRadius: 8,
                       outline: "none", background: "#f8fafc", color: "#334155",
                     }}
                     onFocus={e => e.target.style.borderColor="#93c5fd"}
@@ -940,11 +948,11 @@
 
               <div style={{ flex: 1, overflowY: "auto", padding: "8px" }}>
                 {loadingOrdini ? (
-                  <div style={{ padding: 24, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+                  <div className="text-base" style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>
                     Caricamento ordini…
                   </div>
                 ) : filteredOrdini.length === 0 ? (
-                  <div style={{ padding: 24, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+                  <div className="text-base" style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>
                     {pageFilter === "in_carico"
                       ? "Nessuna anomalia in carico per l'utente corrente"
                       : pageFilter === "aperte"
@@ -960,13 +968,13 @@
                       transition: "all 0.15s ease",
                     }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>{o.id}</span>
+                        <span className="text-md font-bold" style={{ fontWeight: 700, color: "#0f172a" }}>{o.id}</span>
                         {o.stato && <StatusBadge text={o.stato} variant="benestare" />}
                       </div>
-                      <div style={{ fontSize: 12, color: "#64748b", marginBottom: 4, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "-0.02em" }}>
+                      <div className="text-sm" style={{ color: "#64748b", marginBottom: 4, fontFamily: "'JetBrains Mono',monospace", letterSpacing: "-0.02em" }}>
                         P/N: {o.pn}
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 12, color: "#94a3b8" }}>
+                      <div className="text-sm" style={{ display: "flex", alignItems: "center", gap: 12, color: "#94a3b8" }}>
                         <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
                           <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                             <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
@@ -1001,13 +1009,13 @@
               </div>
 
               <div style={{ padding: "12px 16px", borderTop: "1px solid #e2e8f0", display: "flex", gap: 8 }}>
-                <button onClick={() => history.back()} style={{
+                <button className="text-base font-semibold" onClick={() => history.back()} style={{
                   flex: 1, padding: "9px", border: "1px solid #fecaca", borderRadius: 8,
-                  background: "#fff", color: "#dc2626", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                  background: "#fff", color: "#dc2626", fontWeight: 600, cursor: "pointer",
                 }}>Indietro</button>
-                <button onClick={loadOrdini} style={{
+                <button className="text-base font-medium" onClick={loadOrdini} style={{
                   flex: 1, padding: "9px", border: "1px solid #e2e8f0", borderRadius: 8,
-                  background: "#fff", color: "#475569", fontSize: 13, fontWeight: 500, cursor: "pointer",
+                  background: "#fff", color: "#475569", fontWeight: 500, cursor: "pointer",
                 }}>Aggiorna</button>
               </div>
             </div>
@@ -1020,17 +1028,17 @@
               minHeight: isMobile ? "calc(100vh - 56px)" : undefined,
             }}>
               {isMobile && (
-                <button onClick={() => setMobilePanel("ordini")} style={{
+                <button className="text-base font-semibold" onClick={() => setMobilePanel("ordini")} style={{
                   display: "flex", alignItems: "center", gap: 6, padding: "10px 14px",
                   background: "none", border: "none", borderBottom: "1px solid #f1f5f9",
-                  color: "#2563eb", fontSize: 13, fontWeight: 600, cursor: "pointer", width: "100%",
+                  color: "#2563eb", fontWeight: 600, cursor: "pointer", width: "100%",
                 }}>
                   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
                   Ordini di Produzione
                 </button>
               )}
               <div style={{ padding: "16px 14px 12px", borderBottom: "1px solid #f1f5f9" }}>
-                <h2 style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700, color: "#1e293b", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                <h2 className="text-base font-bold" style={{ margin: "0 0 12px", fontWeight: 700, color: "#1e293b", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   {isMobile && op.id ? `S/N — ${op.id}` : "Numeri di Serie"}
                 </h2>
                 <div style={{ position: "relative" }}>
@@ -1042,7 +1050,7 @@
                     placeholder="Cerca S/N..."
                     style={{
                       width: "100%", padding: "9px 12px 9px 32px",
-                      border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 13,
+                      border: "1px solid #e2e8f0", borderRadius: 8,
                       outline: "none", background: "#fff", color: "#334155",
                     }}
                     onFocus={e => e.target.style.borderColor="#93c5fd"}
@@ -1053,11 +1061,11 @@
 
               <div style={{ flex: 1, overflowY: "auto", padding: "8px" }}>
                 {loadingAnom ? (
-                  <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+                  <div className="text-base" style={{ padding: 20, textAlign: "center", color: "#94a3b8" }}>
                     Caricamento…
                   </div>
                 ) : filteredSeriali.length === 0 ? (
-                  <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+                  <div className="text-base" style={{ padding: 20, textAlign: "center", color: "#94a3b8" }}>
                     {op.id && op.id !== '\u2014'
                       ? (pageFilter === "aperte" || pageFilter === "in_carico"
                           ? "Nessuna anomalia aperta per questo ordine"
@@ -1077,24 +1085,24 @@
                       }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                           <div style={{ width: 10, height: 10, borderRadius: "50%", background: col, boxShadow: `0 0 0 3px ${col}22` }} />
-                          <span style={{ fontSize: 13, fontWeight: 600, color: "#1e293b", fontFamily: "'JetBrains Mono',monospace" }}>
+                          <span className="text-base font-semibold" style={{ fontWeight: 600, color: "#1e293b", fontFamily: "'JetBrains Mono',monospace" }}>
                             S/N: {a.sn || '\u2014'}
                           </span>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 18 }}>
-                          <span style={{ fontSize: 12, color: "#64748b" }}>{a.avanzamento || "Aperto"}</span>
+                          <span className="text-sm" style={{ color: "#64748b" }}>{a.avanzamento || "Aperto"}</span>
                           {a.modified && (
-                            <span style={{ fontSize: 10, color: "#94a3b8" }}>
+                            <span className="text-2xs" style={{ color: "#94a3b8" }}>
                               {new Date(a.modified).toLocaleDateString("it-IT", { day:"2-digit", month:"2-digit", year:"2-digit" })}
                             </span>
                           )}
                           {a.pezzi_prec && (
-                            <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd", fontWeight: 500 }}>
+                            <span className="text-2xs font-medium" style={{ padding: "1px 6px", borderRadius: 4, background: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd", fontWeight: 500 }}>
                               prec. benestare
                             </span>
                           )}
                           {a.chiudere && (
-                            <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", fontWeight: 500 }}>
+                            <span className="text-2xs font-medium" style={{ padding: "1px 6px", borderRadius: 4, background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", fontWeight: 500 }}>
                               da chiudere
                             </span>
                           )}
@@ -1125,10 +1133,10 @@
               flexDirection: "column",
             }}>
               {isMobile && (
-                <button onClick={() => setMobilePanel("serie")} style={{
+                <button className="text-base font-semibold" onClick={() => setMobilePanel("serie")} style={{
                   display: "flex", alignItems: "center", gap: 6, padding: "10px 14px",
                   background: "none", border: "none", borderBottom: "1px solid #f1f5f9",
-                  color: "#2563eb", fontSize: 13, fontWeight: 600, cursor: "pointer", width: "100%",
+                  color: "#2563eb", fontWeight: 600, cursor: "pointer", width: "100%",
                 }}>
                   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
                   S/N — {sn.sn || "lista"}
@@ -1142,23 +1150,23 @@
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr auto", gap: isMobile ? 12 : 16, alignItems: "start" }}>
                   <div>
                     <FieldLabel>Capocommessa</FieldLabel>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{op.capo || '\u2014'}</div>
+                    <div className="text-md font-semibold" style={{ fontWeight: 600, color: "#0f172a" }}>{op.capo || '\u2014'}</div>
                   </div>
                   <div>
                     <FieldLabel>CAR</FieldLabel>
-                    <div style={{ fontSize: 14, fontWeight: 500, color: "#334155" }}>{op.car || '\u2014'}</div>
+                    <div className="text-md font-medium" style={{ fontWeight: 500, color: "#334155" }}>{op.car || '\u2014'}</div>
                   </div>
                   <div>
                     <FieldLabel>S/N selezionato</FieldLabel>
-                    <div style={{ fontSize: 14, fontWeight: 500, color: "#334155", fontFamily: "'JetBrains Mono',monospace" }}>
+                    <div className="text-md font-medium" style={{ fontWeight: 500, color: "#334155", fontFamily: "'JetBrains Mono',monospace" }}>
                       {sn.sn || '\u2014'}
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <FieldLabel>Identificativo</FieldLabel>
-                    <span style={{
+                    <span className="text-base font-bold" style={{
                       display: "inline-block", padding: "4px 12px", borderRadius: 6,
-                      background: "#f1f5f9", fontWeight: 700, fontSize: 13,
+                      background: "#f1f5f9", fontWeight: 700,
                       color: "#1e293b", fontFamily: "'JetBrains Mono',monospace",
                     }}>{op.id || '\u2014'}</span>
                   </div>
@@ -1166,13 +1174,13 @@
                 <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 12, paddingTop: 12, borderTop: "1px solid #f1f5f9" }}>
                   <div>
                     <FieldLabel>P/N</FieldLabel>
-                    <span style={{ fontSize: 13, fontFamily: "'JetBrains Mono',monospace", color: "#475569" }}>
+                    <span className="text-base" style={{ fontFamily: "'JetBrains Mono',monospace", color: "#475569" }}>
                       {op.pn || '\u2014'}
                     </span>
                   </div>
                   <div>
                     <FieldLabel>Item ID SharePoint</FieldLabel>
-                    <span style={{ fontSize: 12, color: "#94a3b8" }}>
+                    <span className="text-sm" style={{ color: "#94a3b8" }}>
                       {currentItemId || "nuovo record"}
                     </span>
                   </div>
@@ -1182,14 +1190,13 @@
                   </div>
                 </div>
                 {!canEditCurrentOp && op.id && op.id !== '\u2014' && (
-                  <div style={{
+                  <div className="text-sm font-semibold" style={{
                     marginTop: 12,
                     padding: "10px 12px",
                     borderRadius: 8,
                     border: "1px solid #fcd34d",
                     background: "#fffbeb",
                     color: "#92400e",
-                    fontSize: 12,
                     fontWeight: 600,
                   }}>
                     Modalità sola lettura: puoi visualizzare i dati ma non modificare questo OP.
@@ -1207,7 +1214,7 @@
                       <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={4} disabled={!canEditCurrentOp}
                         style={{
                           width: "100%", padding: "10px 14px",
-                          border: "1px solid #e2e8f0", borderRadius: 10, fontSize: 14,
+                          border: "1px solid #e2e8f0", borderRadius: 10,
                           fontFamily: "inherit", resize: "vertical", outline: "none",
                           lineHeight: 1.5, color: "#334155", background: canEditCurrentOp ? "#fafbfc" : "#f1f5f9",
                         }}
@@ -1231,7 +1238,7 @@
                       <select value={avanzamento} onChange={e => setAvanzamento(e.target.value)} disabled={segnalare || !canEditCurrentOp}
                         style={{
                           width: "100%", padding: "9px 14px", border: "1px solid #e2e8f0",
-                          borderRadius: 8, fontSize: 14, color: "#334155",
+                          borderRadius: 8, color: "#334155",
                           background: segnalare || !canEditCurrentOp ? "#f8fafc" : "#fff", outline: "none",
                           cursor: segnalare || !canEditCurrentOp ? "not-allowed" : "pointer",
                           opacity: segnalare || !canEditCurrentOp ? 0.75 : 1,
@@ -1250,7 +1257,7 @@
                       <textarea value={note} onChange={e => setNote(e.target.value)} rows={3} disabled={!canEditCurrentOp}
                         style={{
                           width: "100%", padding: "10px 14px",
-                          border: "1px solid #e2e8f0", borderRadius: 10, fontSize: 14,
+                          border: "1px solid #e2e8f0", borderRadius: 10,
                           fontFamily: "inherit", resize: "vertical", outline: "none",
                           lineHeight: 1.5, color: "#334155", background: canEditCurrentOp ? "#fafbfc" : "#f1f5f9",
                         }}
@@ -1272,7 +1279,7 @@
                       />
                       <div style={{ borderRadius: 12, border: "1px solid #e2e8f0", background: "#fff", padding: 12 }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
-                          <div style={{ fontSize: 12, color: "#64748b" }}>
+                          <div className="text-sm" style={{ color: "#64748b" }}>
                             {currentLocalId
                               ? `Record locale #${currentLocalId}`
                               : "Salva prima la segnalazione per abilitare gli allegati"}
@@ -1288,9 +1295,9 @@
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                           {loadingAttachments ? (
-                            <div style={{ fontSize: 12, color: "#64748b" }}>Caricamento allegati...</div>
+                            <div className="text-sm" style={{ color: "#64748b" }}>Caricamento allegati...</div>
                           ) : attachments.length === 0 ? (
-                            <div style={{ fontSize: 12, color: "#94a3b8" }}>
+                            <div className="text-sm" style={{ color: "#94a3b8" }}>
                               Nessun allegato. Formati ammessi: immagini, PDF, Word, Excel.
                             </div>
                           ) : (
@@ -1338,7 +1345,7 @@
                                     }}>
                                       {(fileExt(selectedAttachment.name).replace(".", "").toUpperCase() || "FILE").slice(0, 4)}
                                     </div>
-                                    <div style={{ fontSize: 13, fontWeight: 600 }}>{selectedAttachment.name}</div>
+                                    <div className="text-base font-semibold" style={{ fontWeight: 600 }}>{selectedAttachment.name}</div>
                                     <div style={{ display: "flex", gap: 8 }}>
                                       <IconBtn onClick={() => openAttachment(selectedAttachment.file_id, false)} accent title="Apri allegato">
                                         Apri
@@ -1385,7 +1392,7 @@
                                           }}
                                         />
                                       ) : (
-                                        <div style={{
+                                        <div className="text-xs font-bold" style={{
                                           width: 54,
                                           height: 54,
                                           borderRadius: 8,
@@ -1394,7 +1401,6 @@
                                           display: "flex",
                                           alignItems: "center",
                                           justifyContent: "center",
-                                          fontSize: 11,
                                           fontWeight: 700,
                                           color: "#475569",
                                         }}>
@@ -1402,8 +1408,7 @@
                                         </div>
                                       )}
                                       <div style={{ minWidth: 0 }}>
-                                        <div title={file.name} style={{
-                                          fontSize: 13,
+                                        <div className="text-base font-semibold" title={file.name} style={{
                                           color: "#0f172a",
                                           fontWeight: 600,
                                           overflow: "hidden",
@@ -1412,11 +1417,11 @@
                                         }}>
                                           {file.name}
                                         </div>
-                                        <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                                        <div className="text-xs" style={{ color: "#64748b", marginTop: 2 }}>
                                           {formatBytes(file.size)} • {file.mime_type || "file"} • {attachmentSyncLabel(file)}
                                         </div>
                                         {file.sync_last_error ? (
-                                          <div title={file.sync_last_error} style={{ fontSize: 10, color: "#b91c1c", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                          <div className="text-2xs" title={file.sync_last_error} style={{ color: "#b91c1c", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                             {file.sync_last_error}
                                           </div>
                                         ) : null}
@@ -1456,7 +1461,7 @@
                           disabled={!canEditCurrentOp}
                           style={{
                             width: "100%", padding: "9px 14px",
-                            border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 14,
+                            border: "1px solid #e2e8f0", borderRadius: 8,
                             outline: "none", color: "#334155", background: canEditCurrentOp ? "#fff" : "#f1f5f9",
                           }}
                           onFocus={e => e.target.style.borderColor="#93c5fd"}

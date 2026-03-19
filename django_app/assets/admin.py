@@ -3,8 +3,10 @@ from django.contrib import admin
 from .models import (
     Asset,
     AssetActionButton,
+    AssetAdministrativeDeadline,
     AssetCategory,
     AssetCategoryField,
+    AssetComponent,
     AssetCustomField,
     AssetDetailField,
     AssetDetailSectionLayout,
@@ -15,6 +17,9 @@ from .models import (
     AssetListLayout,
     AssetListOption,
     AssetSidebarButton,
+    MaintenanceInterventionTemplate,
+    MaintenanceRule,
+    MaintenanceRuleAssetOverride,
     PeriodicVerification,
     PlantLayout,
     PlantLayoutArea,
@@ -49,12 +54,31 @@ class AssetDocumentInline(admin.TabularInline):
     readonly_fields = ("created_at",)
 
 
+class AssetComponentInline(admin.TabularInline):
+    model = AssetComponent
+    extra = 0
+    fields = ("code", "name", "component_type", "serial_number", "manufacturer", "model", "installed_on", "is_active")
+
+
+class AssetAdministrativeDeadlineInline(admin.TabularInline):
+    model = AssetAdministrativeDeadline
+    extra = 0
+    fields = ("deadline_type", "title", "component", "due_date", "warning_days", "is_active")
+
+
 @admin.register(Asset)
 class AssetAdmin(admin.ModelAdmin):
     list_display = ("asset_tag", "name", "asset_type", "asset_category", "reparto", "status", "updated_at")
     list_filter = ("asset_type", "asset_category", "status", "reparto")
     search_fields = ("asset_tag", "name", "serial_number", "manufacturer", "model", "sharepoint_folder_url", "sharepoint_folder_path")
-    inlines = [AssetEndpointInline, AssetITDetailsInline, WorkMachineInline, AssetDocumentInline]
+    inlines = [
+        AssetEndpointInline,
+        AssetITDetailsInline,
+        WorkMachineInline,
+        AssetDocumentInline,
+        AssetComponentInline,
+        AssetAdministrativeDeadlineInline,
+    ]
 
 
 @admin.register(AssetCustomField)
@@ -165,6 +189,57 @@ class AssetDocumentAdmin(admin.ModelAdmin):
     list_display = ("asset", "category", "original_name", "document_date", "sharepoint_path", "uploaded_by", "created_at")
     list_filter = ("category", "created_at")
     search_fields = ("asset__asset_tag", "asset__name", "original_name", "notes", "sharepoint_path", "sharepoint_url")
+
+
+@admin.register(AssetComponent)
+class AssetComponentAdmin(admin.ModelAdmin):
+    list_display = ("name", "code", "asset", "component_type", "serial_number", "is_active", "updated_at")
+    list_filter = ("is_active", "component_type", "asset__reparto")
+    list_select_related = ("asset",)
+    search_fields = ("name", "code", "asset__asset_tag", "asset__name", "serial_number", "manufacturer", "model")
+    ordering = ("asset__name", "-is_active", "name", "code")
+
+
+@admin.register(AssetAdministrativeDeadline)
+class AssetAdministrativeDeadlineAdmin(admin.ModelAdmin):
+    list_display = ("title", "deadline_type", "asset", "component", "due_date", "warning_days", "is_active")
+    list_filter = ("deadline_type", "is_active", "asset__reparto")
+    list_select_related = ("asset", "component")
+    search_fields = ("title", "reference_code", "issuer", "asset__asset_tag", "asset__name", "component__name", "component__code")
+    ordering = ("due_date", "asset__name", "title")
+
+
+@admin.register(MaintenanceInterventionTemplate)
+class MaintenanceInterventionTemplateAdmin(admin.ModelAdmin):
+    list_display = ("label", "code", "asset_category", "sort_order", "is_active", "updated_at")
+    list_filter = ("is_active", "asset_category")
+    list_select_related = ("asset_category",)
+    search_fields = ("label", "code", "description", "asset_category__label")
+    ordering = ("sort_order", "label", "id")
+
+
+@admin.register(MaintenanceRule)
+class MaintenanceRuleAdmin(admin.ModelAdmin):
+    list_display = ("asset_category", "intervention_template", "threshold_type", "threshold_value", "sort_order", "is_active")
+    list_filter = ("is_active", "threshold_type", "asset_category")
+    list_select_related = ("asset_category", "intervention_template")
+    search_fields = ("asset_category__label", "intervention_template__label", "intervention_template__code", "notes")
+    ordering = ("asset_category__sort_order", "asset_category__label", "sort_order", "id")
+
+
+@admin.register(MaintenanceRuleAssetOverride)
+class MaintenanceRuleAssetOverrideAdmin(admin.ModelAdmin):
+    list_display = ("asset", "base_rule", "override_intervention_template", "is_disabled", "updated_at")
+    list_filter = ("is_disabled", "base_rule__asset_category")
+    list_select_related = ("asset", "base_rule", "base_rule__asset_category", "override_intervention_template")
+    search_fields = (
+        "asset__asset_tag",
+        "asset__name",
+        "base_rule__intervention_template__label",
+        "base_rule__intervention_template__code",
+        "notes",
+    )
+    ordering = ("asset__name", "asset__asset_tag", "base_rule__sort_order", "id")
 
 
 @admin.register(AssetLabelTemplate)

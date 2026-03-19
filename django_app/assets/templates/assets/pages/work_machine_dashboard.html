@@ -8,36 +8,36 @@
 .wmd-filters { display:flex; gap:8px; flex-wrap:wrap; }
 .wmd-toolbar-form { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .wmd-toolbar-form input[type="month"] { height:38px; border:1px solid #cbd5e1; border-radius:10px; padding:0 10px; background:#fff; color:#0f172a; font:inherit; }
-.wmd-chip { border:1px solid #dbeafe; background:#eff6ff; color:#1d4ed8; border-radius:999px; padding:6px 11px; text-decoration:none; font-size:12px; font-weight:700; }
+.wmd-chip { border:1px solid #dbeafe; background:#eff6ff; color:#1d4ed8; border-radius:999px; padding:6px 11px; text-decoration:none; font-size: var(--fs-sm); font-weight:700; }
 .wmd-chip.active { background:#1d4ed8; border-color:#1d4ed8; color:#fff; }
 .wmd-kpis { display:grid; gap:10px; grid-template-columns:repeat(6, minmax(0, 1fr)); }
 .wmd-kpi { border:1px solid #dbe1ea; border-radius:14px; background:#fff; padding:14px 16px; box-shadow:0 2px 8px rgba(15, 23, 42, .05); }
-.wmd-kpi-label { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:700; }
-.wmd-kpi-value { margin-top:8px; font-size:32px; line-height:1; font-weight:800; color:#0f172a; }
-.wmd-kpi-meta { margin-top:4px; color:#64748b; font-size:12px; }
+.wmd-kpi-label { font-size: var(--fs-xs); text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:700; }
+.wmd-kpi-value { margin-top:8px; font-size: var(--fs-display-xl); line-height:1; font-weight:800; color:#0f172a; }
+.wmd-kpi-meta { margin-top:4px; color:#64748b; font-size: var(--fs-sm); }
 .wmd-grid { display:grid; gap:14px; grid-template-columns:1.3fr 1fr; }
 .wmd-card { border:1px solid #dbe1ea; border-radius:14px; background:#fff; overflow:hidden; }
 .wmd-card-head { padding:14px 16px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center; gap:10px; }
-.wmd-card-head h2 { margin:0; font-size:22px; color:#0f172a; }
-.wmd-card-head p { margin:0; color:#64748b; font-size:13px; }
+.wmd-card-head h2 { margin:0; font-size: var(--fs-heading); color:#0f172a; }
+.wmd-card-head p { margin:0; color:#64748b; font-size: var(--fs-base); }
 .wmd-card-body { padding:16px; display:grid; gap:12px; }
 .wmd-table-wrap { overflow:auto; }
 .wmd-table { width:100%; border-collapse:collapse; min-width:680px; }
 .wmd-table th, .wmd-table td { padding:10px 8px; border-bottom:1px solid #eef2f7; text-align:left; vertical-align:top; }
-.wmd-table th { background:#f8fafc; color:#64748b; font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
+.wmd-table th { background:#f8fafc; color:#64748b; font-size: var(--fs-xs); text-transform:uppercase; letter-spacing:.05em; }
 .wmd-link { color:#1d4ed8; text-decoration:none; font-weight:700; }
 .wmd-list { display:grid; gap:10px; }
 .wmd-list-item { border:1px solid #e2e8f0; border-radius:12px; background:#f8fafc; padding:12px; display:grid; gap:6px; }
 .wmd-list-top { display:flex; justify-content:space-between; gap:8px; align-items:flex-start; }
-.wmd-list-title { color:#0f172a; font-size:14px; font-weight:800; }
-.wmd-list-meta { color:#64748b; font-size:12px; }
-.wmd-pill { display:inline-flex; align-items:center; justify-content:center; border-radius:999px; padding:4px 8px; font-size:11px; font-weight:800; }
+.wmd-list-title { color:#0f172a; font-size: var(--fs-md); font-weight:800; }
+.wmd-list-meta { color:#64748b; font-size: var(--fs-sm); }
+.wmd-pill { display:inline-flex; align-items:center; justify-content:center; border-radius:999px; padding:4px 8px; font-size: var(--fs-xs); font-weight:800; }
 .wmd-pill.warn { background:#fef3c7; color:#a16207; }
 .wmd-pill.danger { background:#fee2e2; color:#b91c1c; }
 .wmd-pill.ok { background:#dcfce7; color:#15803d; }
 .wmd-progress-group { display:grid; gap:12px; }
 .wmd-progress-row { display:grid; gap:6px; }
-.wmd-progress-head { display:flex; justify-content:space-between; gap:8px; font-size:13px; color:#334155; font-weight:700; }
+.wmd-progress-head { display:flex; justify-content:space-between; gap:8px; font-size: var(--fs-base); color:#334155; font-weight:700; }
 .wmd-progress-track { height:10px; border-radius:999px; background:#e2e8f0; overflow:hidden; }
 .wmd-progress-fill { height:100%; border-radius:999px; background:linear-gradient(90deg, #2563eb, #1d4ed8); }
 @media (max-width: 1400px) {

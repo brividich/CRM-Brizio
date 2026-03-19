@@ -1,0 +1,51 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}{% if is_edit %}Modifica template manutenzione{% else %}Nuovo template manutenzione{% endif %}{% endblock %}
+{% block assets_shell_title %}{% if is_edit %}Modifica template manutenzione{% else %}Nuovo template manutenzione{% endif %}{% endblock %}
+{% block assets_shell_subtitle %}
+<p>Definisci il tipo standard di intervento da riusare nelle regole manutentive.</p>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section style="max-width:980px;display:grid;gap:14px;">
+  <header>
+    <a href="{{ back_url }}" class="as-backlink">&larr; Indietro</a>
+  </header>
+
+  <form method="post" style="display:grid;gap:12px;border:1px solid #dbe1ea;border-radius:14px;background:#fff;padding:16px;">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div style="padding:10px;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;border-radius:10px;">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    <div class="as-form-grid-3">
+      {% for field in form %}
+        <div style="{% if field.name == 'description' %}grid-column:1/-1;{% endif %}">
+          {% if field.field.widget.input_type == 'checkbox' %}
+            <label style="display:flex;gap:8px;align-items:center;min-height:44px;">
+              {{ field }} <span>{{ field.label }}</span>
+            </label>
+          {% else %}
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+          {% endif %}
+          {% if field.help_text %}
+            <div class="as-help" style="margin-top:4px;">{{ field.help_text }}</div>
+          {% endif %}
+          {% if field.errors %}
+            <div class="as-error">{{ field.errors }}</div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;">
+      <a class="btn" href="{{ back_url }}">Annulla</a>
+      <button type="submit" class="btn btn-primary">Salva</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

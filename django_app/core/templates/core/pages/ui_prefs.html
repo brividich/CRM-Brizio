@@ -1,0 +1,391 @@
+{% extends "core/base.html" %}
+
+{% block title %}Preferenze interfaccia | {{ portal_branding.portal_name }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .ui-prefs-form { display:flex; flex-direction:column; gap:24px; max-width:760px; }
+  .ui-prefs-grid { display:grid; gap:14px; }
+  .ui-prefs-preview { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+  .ui-prefs-preview-card { border:1px solid var(--border); border-radius:10px; background:var(--bg); padding:14px; }
+  .ui-prefs-preview-title { font-size:var(--fs-sm); font-weight:700; color:var(--text-mid); margin-bottom:8px; }
+  .ui-footer-builder { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:16px; align-items:start; }
+  .ui-footer-panel { border:1px solid var(--border); border-radius:12px; background:var(--bg); padding:14px; display:grid; gap:12px; }
+  .ui-footer-panel-title { font-size:var(--fs-md); font-weight:700; color:var(--text); }
+  .ui-footer-panel-sub { font-size:var(--fs-sm); color:var(--text-mid); }
+  .ui-footer-list { display:grid; gap:10px; }
+  .ui-footer-item { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; border:1px solid var(--border); border-radius:12px; background:var(--surface); padding:12px; }
+  .ui-footer-item-main { display:flex; gap:12px; min-width:0; flex:1; }
+  .ui-footer-item-icon { width:40px; height:40px; border-radius:12px; background:var(--accent-light); color:var(--accent); display:inline-flex; align-items:center; justify-content:center; font-size:var(--fs-xl); flex-shrink:0; }
+  .ui-footer-item-copy { display:grid; gap:4px; min-width:0; }
+  .ui-footer-item-title { font-size:var(--fs-base); font-weight:700; color:var(--text); }
+  .ui-footer-item-hint { font-size:var(--fs-sm); color:var(--text-mid); }
+  .ui-footer-item-actions { display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; }
+  .ui-footer-empty { border:1px dashed var(--border); border-radius:12px; background:var(--surface); padding:14px; color:var(--text-mid); font-size:var(--fs-sm); }
+  .ui-footer-toolbar { display:flex; justify-content:flex-end; }
+  @media (max-width:760px) {
+    .ui-prefs-preview { grid-template-columns:1fr; }
+    .ui-footer-builder { grid-template-columns:1fr; }
+    .ui-footer-item { flex-direction:column; }
+    .ui-footer-item-actions { justify-content:flex-start; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-main">
+    <div class="page-h">Preferenze interfaccia</div>
+    <div class="page-sub">Personalizza navigazione, leggibilita e comportamento della shell.</div>
+  </div>
+</div>
+
+{% if saved %}
+<div class="notice notice-success">
+  &#10003; Preferenze salvate correttamente.
+</div>
+{% endif %}
+
+<form method="post" class="ui-prefs-form">
+  {% csrf_token %}
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Dimensione caratteri</div>
+    </div>
+    <div class="card-body ui-prefs-grid">
+      <div class="pref-options" id="font-scale-options">
+        <label class="pref-option{% if current.font_scale == 'small' %} selected{% endif %}">
+          <input type="radio" name="font_scale" value="small" {% if current.font_scale == 'small' %}checked{% endif %} class="pref-radio">
+          <span class="pref-option-icon pref-option-icon-sm">A</span>
+          Piccolo
+          <span class="pref-hint">Compatto</span>
+        </label>
+
+        <label class="pref-option{% if current.font_scale == 'normal' %} selected{% endif %}">
+          <input type="radio" name="font_scale" value="normal" {% if current.font_scale == 'normal' %}checked{% endif %} class="pref-radio">
+          <span class="pref-option-icon pref-option-icon-md">A</span>
+          Normale
+          <span class="pref-hint">Predefinito</span>
+        </label>
+
+        <label class="pref-option{% if current.font_scale == 'large' %} selected{% endif %}">
+          <input type="radio" name="font_scale" value="large" {% if current.font_scale == 'large' %}checked{% endif %} class="pref-radio">
+          <span class="pref-option-icon pref-option-icon-lg">A</span>
+          Grande
+          <span class="pref-hint">Maggiore leggibilita</span>
+        </label>
+
+        <label class="pref-option{% if current.font_scale == 'xl' %} selected{% endif %}">
+          <input type="radio" name="font_scale" value="xl" {% if current.font_scale == 'xl' %}checked{% endif %} class="pref-radio">
+          <span class="pref-option-icon pref-option-icon-xl">A</span>
+          Extra grande
+          <span class="pref-hint">Massima accessibilita</span>
+        </label>
+      </div>
+
+      <div class="ui-prefs-preview">
+        <div class="ui-prefs-preview-card">
+          <div class="ui-prefs-preview-title">Navigazione</div>
+          <span class="badge">Menu</span>
+          <span class="badge badge-success">Badge</span>
+        </div>
+        <div class="ui-prefs-preview-card">
+          <div class="ui-prefs-preview-title">Controlli</div>
+          <button type="button" class="btn btn-sm">Pulsante</button>
+          <input type="text" class="input input-sm" value="Input" readonly>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Menu di navigazione</div>
+    </div>
+    <div class="card-body">
+      <div class="pref-options">
+        <label class="pref-option{% if current.nav_mode == 'side' %} selected{% endif %}">
+          <input type="radio" name="nav_mode" value="side" {% if current.nav_mode == 'side' %}checked{% endif %} class="pref-radio">
+          <span class="pref-option-icon">&#9664;</span>
+          Barra laterale
+          <span class="pref-hint">Sidebar sinistra</span>
+        </label>
+
+        <label class="pref-option{% if current.nav_mode == 'top' %} selected{% endif %}">
+          <input type="radio" name="nav_mode" value="top" {% if current.nav_mode == 'top' %}checked{% endif %} class="pref-radio">
+          <span class="pref-option-icon">&#9650;</span>
+          Barra superiore
+          <span class="pref-hint">Stile classico</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="card pref-card" id="sidebar-default-card" data-pref-sidebar="1"{% if current.nav_mode != 'side' %} hidden{% endif %}>
+    <div class="card-head">
+      <div class="card-title">Sidebar di default</div>
+    </div>
+    <div class="card-body">
+      <div class="pref-options">
+        <label class="pref-option{% if not current.sidebar_collapsed %} selected{% endif %}">
+          <input type="radio" name="sidebar_collapsed" value="0" {% if not current.sidebar_collapsed %}checked{% endif %} class="pref-radio">
+          <span class="pref-option-icon">&#9664;&#9654;</span>
+          Espansa
+          <span class="pref-hint">Menu etichette visibili</span>
+        </label>
+
+        <label class="pref-option{% if current.sidebar_collapsed %} selected{% endif %}">
+          <input type="radio" name="sidebar_collapsed" value="1" {% if current.sidebar_collapsed %}checked{% endif %} class="pref-radio">
+          <span class="pref-option-icon">&#9654;&#9664;</span>
+          Compressa
+          <span class="pref-hint">Solo icone</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="card pref-card" id="sidebar-footer-card" data-pref-sidebar="1"{% if current.nav_mode != 'side' %} hidden{% endif %}>
+    <div class="card-head">
+      <div class="card-title">Icone rapide nel footer</div>
+    </div>
+    <div class="card-body ui-prefs-grid">
+      <div class="page-sub">Scegli quali scorciatoie mostrare in basso nella sidebar e in quale ordine.</div>
+      <input type="hidden" name="sidebar_footer_actions" id="sidebar-footer-actions-input" value="{{ current.sidebar_footer_actions|join:',' }}">
+
+      <div class="ui-footer-builder" id="sidebar-footer-builder">
+        <section class="ui-footer-panel">
+          <div>
+            <div class="ui-footer-panel-title">Attive nella sidebar</div>
+            <div class="ui-footer-panel-sub">Puoi spostarle, rimuoverle o ripristinare l'ordine standard.</div>
+          </div>
+          <div class="ui-footer-toolbar">
+            <button type="button" class="btn btn-secondary btn-sm" id="sidebar-footer-reset">Ripristina default</button>
+          </div>
+          <div class="ui-footer-list" id="sidebar-footer-selected"></div>
+        </section>
+
+        <section class="ui-footer-panel">
+          <div>
+            <div class="ui-footer-panel-title">Disponibili</div>
+            <div class="ui-footer-panel-sub">Aggiungi altre azioni rapide nel footer della sidebar.</div>
+          </div>
+          <div class="ui-footer-list" id="sidebar-footer-available"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <button type="submit" class="btn">Salva preferenze</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+{{ sidebar_footer_catalog|json_script:"sidebar-footer-catalog" }}
+<script>
+(function () {
+  var sidebarCards = document.querySelectorAll('[data-pref-sidebar="1"]');
+  var footerCatalogNode = document.getElementById('sidebar-footer-catalog');
+  var footerInput = document.getElementById('sidebar-footer-actions-input');
+  var footerSelected = document.getElementById('sidebar-footer-selected');
+  var footerAvailable = document.getElementById('sidebar-footer-available');
+  var footerReset = document.getElementById('sidebar-footer-reset');
+  var footerCatalog = [];
+  var footerCatalogMap = {};
+  var footerDefaultOrder = [];
+  var selectedFooterKeys = [];
+
+  function toggleSidebarCards(enabled) {
+    sidebarCards.forEach(function (card) {
+      card.hidden = !enabled;
+    });
+  }
+
+  function parseFooterInput() {
+    if (!footerInput) return [];
+    return footerInput.value
+      .split(',')
+      .map(function (value) { return value.trim(); })
+      .filter(Boolean);
+  }
+
+  function syncFooterInput() {
+    if (footerInput) {
+      footerInput.value = selectedFooterKeys.join(',');
+    }
+  }
+
+  function footerCard(item, options) {
+    var wrapper = document.createElement('div');
+    wrapper.className = 'ui-footer-item';
+
+    var main = document.createElement('div');
+    main.className = 'ui-footer-item-main';
+
+    var icon = document.createElement('div');
+    icon.className = 'ui-footer-item-icon';
+    icon.textContent = item.icon || item.label.slice(0, 1);
+
+    var copy = document.createElement('div');
+    copy.className = 'ui-footer-item-copy';
+
+    var title = document.createElement('div');
+    title.className = 'ui-footer-item-title';
+    title.textContent = item.label;
+
+    var hint = document.createElement('div');
+    hint.className = 'ui-footer-item-hint';
+    hint.textContent = item.hint;
+
+    copy.appendChild(title);
+    copy.appendChild(hint);
+    main.appendChild(icon);
+    main.appendChild(copy);
+
+    var actions = document.createElement('div');
+    actions.className = 'ui-footer-item-actions';
+
+    (options.buttons || []).forEach(function (buttonSpec) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-secondary btn-sm';
+      btn.dataset.action = buttonSpec.action;
+      btn.dataset.key = item.key;
+      btn.textContent = buttonSpec.label;
+      if (buttonSpec.disabled) btn.disabled = true;
+      actions.appendChild(btn);
+    });
+
+    wrapper.appendChild(main);
+    wrapper.appendChild(actions);
+    return wrapper;
+  }
+
+  function renderFooterBuilder() {
+    if (!footerInput || !footerSelected || !footerAvailable) return;
+
+    footerSelected.innerHTML = '';
+    footerAvailable.innerHTML = '';
+
+    if (!selectedFooterKeys.length) {
+      var emptySelected = document.createElement('div');
+      emptySelected.className = 'ui-footer-empty';
+      emptySelected.textContent = 'Nessuna scorciatoia attiva. Puoi aggiungerle dal pannello a destra.';
+      footerSelected.appendChild(emptySelected);
+    } else {
+      selectedFooterKeys.forEach(function (key, index) {
+        var item = footerCatalogMap[key];
+        if (!item) return;
+        footerSelected.appendChild(footerCard(item, {
+          buttons: [
+            { action: 'move-up', label: 'Su', disabled: index === 0 },
+            { action: 'move-down', label: 'Giù', disabled: index === selectedFooterKeys.length - 1 },
+            { action: 'remove', label: 'Rimuovi' }
+          ]
+        }));
+      });
+    }
+
+    var availableItems = footerCatalog.filter(function (item) {
+      return selectedFooterKeys.indexOf(item.key) === -1;
+    });
+
+    if (!availableItems.length) {
+      var emptyAvailable = document.createElement('div');
+      emptyAvailable.className = 'ui-footer-empty';
+      emptyAvailable.textContent = 'Hai già attivato tutte le azioni disponibili.';
+      footerAvailable.appendChild(emptyAvailable);
+    } else {
+      availableItems.forEach(function (item) {
+        footerAvailable.appendChild(footerCard(item, {
+          buttons: [{ action: 'add', label: 'Aggiungi' }]
+        }));
+      });
+    }
+
+    syncFooterInput();
+  }
+
+  if (footerCatalogNode) {
+    try {
+      footerCatalog = JSON.parse(footerCatalogNode.textContent || '[]');
+    } catch (e) {
+      footerCatalog = [];
+    }
+    footerCatalog.forEach(function (item) {
+      footerCatalogMap[item.key] = item;
+      footerDefaultOrder.push(item.key);
+    });
+    selectedFooterKeys = parseFooterInput().filter(function (key) {
+      return !!footerCatalogMap[key];
+    });
+    renderFooterBuilder();
+
+    if (footerSelected) {
+      footerSelected.addEventListener('click', function (event) {
+        var button = event.target.closest('button[data-action]');
+        if (!button) return;
+        var action = button.dataset.action;
+        var key = button.dataset.key;
+        var index = selectedFooterKeys.indexOf(key);
+        if (index < 0) return;
+
+        if (action === 'move-up' && index > 0) {
+          var prev = selectedFooterKeys[index - 1];
+          selectedFooterKeys[index - 1] = key;
+          selectedFooterKeys[index] = prev;
+        } else if (action === 'move-down' && index < selectedFooterKeys.length - 1) {
+          var next = selectedFooterKeys[index + 1];
+          selectedFooterKeys[index + 1] = key;
+          selectedFooterKeys[index] = next;
+        } else if (action === 'remove') {
+          selectedFooterKeys.splice(index, 1);
+        }
+        renderFooterBuilder();
+      });
+    }
+
+    if (footerAvailable) {
+      footerAvailable.addEventListener('click', function (event) {
+        var button = event.target.closest('button[data-action="add"]');
+        if (!button) return;
+        var key = button.dataset.key;
+        if (footerCatalogMap[key] && selectedFooterKeys.indexOf(key) === -1) {
+          selectedFooterKeys.push(key);
+          renderFooterBuilder();
+        }
+      });
+    }
+
+    if (footerReset) {
+      footerReset.addEventListener('click', function () {
+        selectedFooterKeys = footerDefaultOrder.slice();
+        renderFooterBuilder();
+      });
+    }
+  }
+
+  document.querySelectorAll('.pref-radio').forEach(function (radio) {
+    radio.addEventListener('change', function () {
+      var group = radio.closest('.pref-options');
+      if (group) {
+        group.querySelectorAll('.pref-option').forEach(function (label) {
+          label.classList.remove('selected');
+        });
+        radio.closest('.pref-option').classList.add('selected');
+      }
+
+      if (radio.name === 'font_scale') {
+        document.body.className = document.body.className.replace(/\bfs-\S+/, 'fs-' + radio.value);
+      } else if (radio.name === 'nav_mode') {
+        toggleSidebarCards(radio.value === 'side');
+      } else if (radio.name === 'sidebar_collapsed') {
+        document.body.classList.toggle('sb-collapsed', radio.value === '1');
+      }
+    });
+  });
+})();
+</script>
+{% endblock %}

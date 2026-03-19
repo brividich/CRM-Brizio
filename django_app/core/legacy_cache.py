@@ -97,17 +97,18 @@ def _load_pulsanti_catalog() -> list[dict]:
         modulo = (p.modulo or "").strip()
         codice = (p.codice or "").strip()
         rows.append(
-            {
-                "id": int(p.id),
-                "modulo": modulo,
-                "modulo_norm": modulo.lower(),
-                "codice": codice,
-                "codice_norm": codice.lower(),
-                "label": p.label,
-                "url": (p.url or "").strip() or "/",
-                "url_normalized": normalize_legacy_button_url(p.url or "/"),
-            }
-        )
+                {
+                    "id": int(p.id),
+                    "modulo": modulo,
+                    "modulo_norm": modulo.lower(),
+                    "codice": codice,
+                    "codice_norm": codice.lower(),
+                    "label": p.label,
+                    "icon": (p.icona or "").strip(),
+                    "url": (p.url or "").strip() or "/",
+                    "url_normalized": normalize_legacy_button_url(p.url or "/"),
+                }
+            )
     return rows
 
 

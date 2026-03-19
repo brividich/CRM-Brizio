@@ -12,19 +12,19 @@
   display:flex; align-items:center; justify-content:space-between; gap:16px;
   flex-wrap:wrap;
 }
-.sic-hero-title { font-size:24px; font-weight:900; letter-spacing:-.02em; }
-.sic-hero-sub { font-size:13px; opacity:.7; margin-top:3px; }
+.sic-hero-title { font-size: var(--fs-display-sm); font-weight:900; letter-spacing:-.02em; }
+.sic-hero-sub { font-size: var(--fs-base); opacity:.7; margin-top:3px; }
 .sic-hero-actions { display:flex; gap:10px; flex-wrap:wrap; }
 .sic-btn-primary {
   background:#fff; color:#065f46; border:none; border-radius:10px;
-  padding:10px 20px; font-size:13px; font-weight:700; cursor:pointer;
+  padding:10px 20px; font-size: var(--fs-base); font-weight:700; cursor:pointer;
   text-decoration:none; display:inline-flex; align-items:center; gap:6px;
   transition:all .15s;
 }
 .sic-btn-primary:hover { background:#d1fae5; }
 .sic-btn-outline {
   background:transparent; color:#fff; border:2px solid rgba(255,255,255,.5);
-  border-radius:10px; padding:8px 18px; font-size:13px; font-weight:700;
+  border-radius:10px; padding:8px 18px; font-size: var(--fs-base); font-weight:700;
   cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:6px;
   transition:all .15s;
 }
@@ -40,9 +40,9 @@
   transition:box-shadow .15s;
 }
 .sic-kpi-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.07); }
-.sic-kpi-label { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; }
-.sic-kpi-value { font-size:28px; font-weight:900; line-height:1; color:#0f172a; }
-.sic-kpi-sub { font-size:11px; color:#94a3b8; margin-top:2px; }
+.sic-kpi-label { font-size: var(--fs-xs); font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; }
+.sic-kpi-value { font-size: var(--fs-display-lg); font-weight:900; line-height:1; color:#0f172a; }
+.sic-kpi-sub { font-size: var(--fs-xs); color:#94a3b8; margin-top:2px; }
 .sic-kpi-bar { height:4px; border-radius:2px; margin-top:10px; background:#f1f5f9; overflow:hidden; }
 .sic-kpi-bar-fill { height:100%; border-radius:2px; }
 .kpi-aperti .sic-kpi-value { color:#a16207; }
@@ -68,12 +68,12 @@
 .sic-tipo-card-ua .sic-tipo-card-dot { background:#0369a1; }
 .sic-tipo-card-nm .sic-tipo-card-dot { background:#ea580c; }
 .sic-tipo-card-ac .sic-tipo-card-dot { background:#dc2626; }
-.sic-tipo-card-label { font-size:11px; font-weight:700; flex:1; }
+.sic-tipo-card-label { font-size: var(--fs-xs); font-weight:700; flex:1; }
 .sic-tipo-card-uc .sic-tipo-card-label { color:#166534; }
 .sic-tipo-card-ua .sic-tipo-card-label { color:#0c4a6e; }
 .sic-tipo-card-nm .sic-tipo-card-label { color:#9a3412; }
 .sic-tipo-card-ac .sic-tipo-card-label { color:#991b1b; }
-.sic-tipo-card-num { font-size:18px; font-weight:900; }
+.sic-tipo-card-num { font-size: var(--fs-xl); font-weight:900; }
 .sic-tipo-card-uc .sic-tipo-card-num { color:#15803d; }
 .sic-tipo-card-ua .sic-tipo-card-num { color:#0369a1; }
 .sic-tipo-card-nm .sic-tipo-card-num { color:#c2410c; }
@@ -85,20 +85,20 @@
 }
 .sic-filter-input {
   padding:8px 12px; border:1px solid #cbd5e1; border-radius:8px;
-  font-size:13px; outline:none; flex:1; min-width:180px;
+  font-size: var(--fs-base); outline:none; flex:1; min-width:180px;
 }
 .sic-filter-input:focus { border-color:#065f46; box-shadow:0 0 0 3px rgba(6,95,70,.08); }
 .sic-filter-select {
   padding:8px 12px; border:1px solid #cbd5e1; border-radius:8px;
-  font-size:13px; outline:none; background:#fff; cursor:pointer;
+  font-size: var(--fs-base); outline:none; background:#fff; cursor:pointer;
 }
 .sic-filter-btn {
   padding:8px 16px; background:#065f46; color:#fff; border:none;
-  border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;
+  border-radius:8px; font-size: var(--fs-base); font-weight:600; cursor:pointer;
 }
 .sic-filter-reset {
   padding:8px 14px; background:#f1f5f9; color:#475569; border:none;
-  border-radius:8px; font-size:13px; cursor:pointer; text-decoration:none;
+  border-radius:8px; font-size: var(--fs-base); cursor:pointer; text-decoration:none;
 }
 
 .sic-table-card {
@@ -107,16 +107,16 @@
 .sic-table-header {
   padding:14px 20px; border-bottom:1px solid #f1f5f9;
   display:flex; align-items:center; justify-content:space-between;
-  font-size:13px; font-weight:700; color:#374151;
+  font-size: var(--fs-base); font-weight:700; color:#374151;
 }
 .sic-table { width:100%; border-collapse:collapse; }
 .sic-table th {
-  background:#f8fafc; padding:11px 14px; text-align:left; font-size:12px;
+  background:#f8fafc; padding:11px 14px; text-align:left; font-size: var(--fs-sm);
   font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em;
   border-bottom:1px solid #e2e8f0;
 }
 .sic-table td {
-  padding:12px 14px; font-size:13px; border-bottom:1px solid #f1f5f9;
+  padding:12px 14px; font-size: var(--fs-base); border-bottom:1px solid #f1f5f9;
   vertical-align:middle;
 }
 .sic-table tr:last-child td { border-bottom:none; }
@@ -125,7 +125,7 @@
 
 .sic-tipo-badge {
   display:inline-block; padding:3px 10px; border-radius:20px;
-  font-size:11px; font-weight:700; white-space:nowrap;
+  font-size: var(--fs-xs); font-weight:700; white-space:nowrap;
 }
 .sic-tipo-unsafe-condition { background:#dcfce7; color:#166534; }
 .sic-tipo-unsafe-act { background:#e0f2fe; color:#0c4a6e; }
@@ -138,20 +138,20 @@
 .sic-stato-aperto { background:#eab308; }
 .sic-stato-approvato { background:#22c55e; }
 .sic-stato-chiuso { background:#15803d; }
-.sic-stato-label { font-size:12px; font-weight:600; }
+.sic-stato-label { font-size: var(--fs-sm); font-weight:600; }
 .sic-stato-aperto-label { color:#a16207; }
 .sic-stato-approvato-label { color:#15803d; }
 .sic-stato-chiuso-label { color:#064e3b; }
 
 .sic-empty { text-align:center; padding:48px 20px; color:#94a3b8; }
-.sic-empty-icon { font-size:40px; margin-bottom:12px; }
+.sic-empty-icon { font-size: var(--fs-display-3xl); margin-bottom:12px; }
 .sic-error {
   background:#fef2f2; border:1px solid #fecaca; border-radius:12px;
-  padding:14px 18px; color:#991b1b; font-size:13px;
+  padding:14px 18px; color:#991b1b; font-size: var(--fs-base);
 }
 .sic-count-badge {
   display:inline-block; background:#f1f5f9; color:#64748b;
-  padding:2px 8px; border-radius:20px; font-size:12px; font-weight:600;
+  padding:2px 8px; border-radius:20px; font-size: var(--fs-sm); font-weight:600;
 }
 </style>
 {% endblock %}
@@ -161,7 +161,7 @@
 
   {% if messages %}
     {% for msg in messages %}
-    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 16px;color:#166534;font-size:13px;">
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 16px;color:#166534;">
       {{ msg }}
     </div>
     {% endfor %}
@@ -277,7 +277,7 @@
         Rilevazioni
         <span class="sic-count-badge">{{ items|length }}</span>
         {% if search or tipo_filter or stato_filter or reparto_filter %}
-        <span style="font-size:12px;font-weight:400;color:#94a3b8;margin-left:6px;">— filtrato</span>
+        <span style="font-weight:400;color:#94a3b8;margin-left:6px;">— filtrato</span>
         {% endif %}
       </span>
     </div>
@@ -332,7 +332,7 @@
           </td>
           <td style="text-align:right;">
             <a href="{% url 'rilevazione_incidenti:dettaglio' sp_id=f.sp_id %}"
-               style="padding:6px 14px;background:#065f46;color:#fff;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;">
+               style="padding:6px 14px;background:#065f46;color:#fff;border-radius:8px;font-weight:700;text-decoration:none;">
               Apri
             </a>
           </td>
@@ -343,8 +343,8 @@
     {% else %}
     <div class="sic-empty">
       <div class="sic-empty-icon">&#128737;</div>
-      <div style="font-size:15px;font-weight:700;color:#475569;">Nessuna rilevazione trovata</div>
-      <div style="margin-top:6px;font-size:13px;">
+      <div style="font-weight:700;color:#475569;">Nessuna rilevazione trovata</div>
+      <div style="margin-top:6px;">
         {% if search or tipo_filter or stato_filter or reparto_filter %}
           Prova a modificare i filtri di ricerca.
         {% else %}
@@ -356,7 +356,7 @@
   </div>
 
   <!-- Legenda -->
-  <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:12px;color:#64748b;padding:0 4px;">
+  <div style="display:flex;gap:20px;flex-wrap:wrap;color:#64748b;padding:0 4px;">
     <span><span class="sic-stato-dot sic-stato-aperto"></span>Aperto Preposto</span>
     <span><span class="sic-stato-dot sic-stato-approvato"></span>Approvato RLS</span>
     <span><span class="sic-stato-dot sic-stato-chiuso"></span>Chiuso RSPP/ASPP</span>

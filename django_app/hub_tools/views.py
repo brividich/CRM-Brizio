@@ -603,7 +603,7 @@ def api_reconfigure(request):
 # ── BrizioHUB — Configurazione aggiornata da Hub Setup Wizard ─────────────────
 INSTANCE_NAME={instance_name}
 DJANGO_SECRET_KEY={secret_key}
-APP_VERSION={s('app_version', current_env.get('APP_VERSION', '0.7.3'))}
+APP_VERSION={s('app_version', current_env.get('APP_VERSION', '0.7.4'))}
 DJANGO_DEBUG={current_env.get('DJANGO_DEBUG', '0')}
 DJANGO_ALLOWED_HOSTS={current_env.get('DJANGO_ALLOWED_HOSTS', '*')}
 SETUP_COMPLETED=1
@@ -739,3 +739,93 @@ default_password = CHANGE_ME
         return JsonResponse({"ok": False, "error": f"Permessi insufficienti per scrivere .env: {exc}"})
     except Exception as exc:
         return JsonResponse({"ok": False, "error": str(exc)})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Categorie moduli
+# ══════════════════════════════════════════════════════════════════════════════
+
+@_staff_required
+def categorie(request):
+    from django.shortcuts import redirect
+
+    from core.branding import PORTAL_BRANDING_DEFAULTS
+    from core.models import ModuleCategory, NavigationItem, SiteConfig
+    from core.navigation_registry import bump_navigation_registry_version
+
+    branding_keys = {
+        "portal_name": "Nome portale globale.",
+        "portal_subtitle": "Sottotitolo branding globale.",
+        "brand_logo_full": "URL logo esteso usato nella sidebar espansa.",
+        "brand_logo_compact": "URL logo compatto usato nella sidebar collassata.",
+    }
+
+    if request.method == "POST":
+        action = request.POST.get("action", "")
+        if action == "branding":
+            for key, description in branding_keys.items():
+                SiteConfig.set(key, request.POST.get(key, "").strip(), description)
+        elif action == "create":
+            key = request.POST.get("key", "").strip()
+            label = request.POST.get("label", "").strip()
+            icon = request.POST.get("icon", "").strip()
+            color = request.POST.get("topbar_color", "#1e3a5f").strip()
+            order = int(request.POST.get("order", 100) or 100)
+            if key and label:
+                ModuleCategory.objects.get_or_create(
+                    key=key,
+                    defaults={"label": label, "icon": icon, "topbar_color": color, "order": order},
+                )
+                bump_navigation_registry_version()
+        elif action == "edit":
+            cat_id = request.POST.get("id")
+            try:
+                cat = ModuleCategory.objects.get(pk=cat_id)
+                cat.label = request.POST.get("label", cat.label).strip() or cat.label
+                cat.icon = request.POST.get("icon", cat.icon).strip()
+                cat.topbar_color = request.POST.get("topbar_color", cat.topbar_color).strip() or cat.topbar_color
+                cat.order = int(request.POST.get("order", cat.order) or cat.order)
+                cat.save()
+                bump_navigation_registry_version()
+            except ModuleCategory.DoesNotExist:
+                pass
+        elif action == "delete":
+            cat_id = request.POST.get("id")
+            ModuleCategory.objects.filter(pk=cat_id).delete()
+            bump_navigation_registry_version()
+        elif action == "assign":
+            nav_item_id = request.POST.get("nav_item_id")
+            cat_id = request.POST.get("category_id") or None
+            try:
+                nav_item = NavigationItem.objects.get(pk=nav_item_id)
+                nav_item.category_id = int(cat_id) if cat_id else None
+                nav_item.save(update_fields=["category"])
+                bump_navigation_registry_version()
+            except NavigationItem.DoesNotExist:
+                pass
+        elif action == "item_icon":
+            nav_item_id = request.POST.get("nav_item_id")
+            try:
+                nav_item = NavigationItem.objects.get(pk=nav_item_id)
+                nav_item.icon = request.POST.get("icon", "").strip()
+                nav_item.save(update_fields=["icon"])
+                bump_navigation_registry_version()
+            except NavigationItem.DoesNotExist:
+                pass
+        return redirect("hub_tools:hub_categorie")
+
+    cats = list(ModuleCategory.objects.all())
+    nav_items = list(NavigationItem.objects.filter(section="topbar").select_related("category").order_by("order", "label"))
+    branding_values = SiteConfig.get_many(
+        {
+            "portal_name": PORTAL_BRANDING_DEFAULTS["portal_name"],
+            "portal_subtitle": PORTAL_BRANDING_DEFAULTS["portal_subtitle"],
+            "brand_logo_full": PORTAL_BRANDING_DEFAULTS["brand_logo_full"],
+            "brand_logo_compact": PORTAL_BRANDING_DEFAULTS["brand_logo_compact"],
+        }
+    )
+    return render(request, "hub_tools/categorie.html", {
+        "categorie": cats,
+        "nav_items": nav_items,
+        "branding_values": branding_values,
+    })

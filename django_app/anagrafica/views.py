@@ -642,6 +642,45 @@ def dipendente_detail(request, legacy_id: int):
     if can_stats:
         widget_counts = _compute_widget_counts(dip)
 
+    # Costruisce URL filtrati per dipendente
+    from urllib.parse import urlencode
+    from django.urls import reverse as _reverse
+
+    _nome = str(dip.get("nome") or "").strip()
+    _cognome = str(dip.get("cognome") or "").strip()
+    _nome_completo = f"{_cognome} {_nome}".strip()
+    _alias = str(dip.get("aliasusername") or "").strip()
+
+    def _qs(**params):
+        return "?" + urlencode(params) if params else ""
+
+    try:
+        _ticket_base = _reverse("tickets:gestione_list")
+    except Exception:
+        _ticket_base = "/tickets/gestione/"
+    try:
+        _diario_base = _reverse("diario_preposto:lista")
+    except Exception:
+        _diario_base = "/diario-preposto/"
+    try:
+        _rilevazioni_base = _reverse("rilevazione_incidenti:lista")
+    except Exception:
+        _rilevazioni_base = "/rilevazione-incidenti/"
+    try:
+        _timbri_base = _reverse("timbri:operatore_detail_by_legacy", args=[legacy_id])
+    except Exception:
+        _timbri_base = ""
+
+    _widget_links: dict[str, str] = {
+        "tickets_aperti": _ticket_base + _qs(q=_nome_completo, stato="APERTA"),
+        "tickets_totali": _ticket_base + _qs(q=_nome_completo),
+        "anomalie": "/gestione-anomalie/",
+        "diario_preposto": _diario_base + _qs(q=_nome_completo),
+        "rilevazioni": _rilevazioni_base + _qs(q=_nome_completo),
+        "assenze": "/assenze/",
+        "timbri": _timbri_base,
+    }
+
     # Costruisce lista widget con dati
     widget_map = {w["id"]: w for w in STAT_WIDGETS}
     widgets_visible = []
@@ -649,13 +688,8 @@ def dipendente_detail(request, legacy_id: int):
     for wid in ordered:
         w = dict(widget_map[wid])
         w["count"] = widget_counts.get(wid, 0)
-        # link timbri specifico per il dipendente
-        if wid == "timbri" and int(dip.get("id") or 0):
-            try:
-                from django.urls import reverse
-                w["link_url"] = reverse("timbri:operatore_detail_by_legacy", args=[int(dip["id"])])
-            except Exception:
-                pass
+        if wid in _widget_links:
+            w["link_url"] = _widget_links[wid]
         if wid in hidden_ids:
             widgets_hidden.append(w)
         else:
@@ -1039,6 +1073,23 @@ def mansioni_list(request):
     for m in mansioni:
         m.n_dipendenti = mansione_counts.get(m.nome.lower(), 0)
 
+    # Raggruppa per categoria nell'ordine definito
+    cat_order = [c for c, _ in Mansione.CATEGORIA_CHOICES]
+    cat_labels = dict(Mansione.CATEGORIA_CHOICES)
+    # Le mansioni senza categoria vanno in "Altro"
+    grouped: list[tuple[str, str, list]] = []
+    seen_cats: set[str] = set()
+    for cat_code in cat_order:
+        items = [m for m in mansioni if (m.categoria or Mansione.CAT_ALTRO) == cat_code]
+        if items:
+            grouped.append((cat_code, cat_labels[cat_code], items))
+            seen_cats.add(cat_code)
+    # Mansioni senza categoria classificate come "Altro"
+    senza_cat = [m for m in mansioni if not m.categoria and Mansione.CAT_ALTRO not in seen_cats]
+    if senza_cat:
+        altro_label = cat_labels.get(Mansione.CAT_ALTRO, "Altro")
+        grouped.append((Mansione.CAT_ALTRO, altro_label, senza_cat))
+
     mansioni_suggerite = [
         "Operaio generico", "Operaio specializzato", "Operaio qualificato",
         "Impiegato", "Impiegato tecnico", "Impiegato amministrativo",
@@ -1047,6 +1098,7 @@ def mansioni_list(request):
 
     return render(request, "anagrafica/pages/mansioni_list.html", {
         "mansioni": mansioni,
+        "mansioni_grouped": grouped,
         "is_admin": is_admin,
         "mansioni_suggerite": mansioni_suggerite,
         "CATEGORIA_CHOICES": Mansione.CATEGORIA_CHOICES,
@@ -1188,8 +1240,18 @@ def qualifiche_list(request):
         ("Uso DPI anticaduta", "SICUREZZA", 60),
     ]
 
+    # Raggruppa tipi per categoria
+    cat_order_q = [c for c, _ in TipoQualifica.CATEGORIA_CHOICES]
+    cat_labels_q = dict(TipoQualifica.CATEGORIA_CHOICES)
+    tipi_grouped: list[tuple[str, str, list]] = []
+    for cat_code in cat_order_q:
+        items = [t for t in tipi if t.categoria == cat_code]
+        if items:
+            tipi_grouped.append((cat_code, cat_labels_q[cat_code], items))
+
     return render(request, "anagrafica/pages/qualifiche_list.html", {
         "tipi": tipi,
+        "tipi_grouped": tipi_grouped,
         "scadenze": scadenze,
         "is_admin": is_admin,
         "oggi": oggi,

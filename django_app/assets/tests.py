@@ -28,11 +28,20 @@ from core.models import UserDashboardLayout
 from tickets.models import PrioritaTicket, StatoTicket, Ticket, TipoTicket
 
 from . import views as asset_views
+from .forms import (
+    AssetAdministrativeDeadlineForm,
+    AssetComponentForm,
+    MaintenanceRuleAssetOverrideForm,
+    MaintenanceRuleForm,
+)
+from .maintenance import resolve_asset_maintenance_rules
 from .models import (
     Asset,
     AssetActionButton,
+    AssetAdministrativeDeadline,
     AssetCategory,
     AssetCategoryField,
+    AssetComponent,
     AssetCustomField,
     AssetDetailField,
     AssetDetailSectionLayout,
@@ -42,6 +51,9 @@ from .models import (
     AssetLabelTemplate,
     AssetListLayout,
     AssetListOption,
+    MaintenanceInterventionTemplate,
+    MaintenanceRule,
+    MaintenanceRuleAssetOverride,
     AssetReportDefinition,
     AssetReportTemplate,
     AssetSidebarButton,
@@ -1143,6 +1155,66 @@ class AssetsRoutingTests(TestCase):
         self.assertIn(asset.asset_tag, content)
         self.assertIn("Template personale macchina", content)
 
+    def test_gestione_admin_shows_sidebar_management_card(self):
+        AssetSidebarButton.objects.create(
+            code="impianti",
+            section=AssetSidebarButton.SECTION_MAIN,
+            label="Impianti",
+            target_url="django:assets:plant_layout_map",
+            sort_order=10,
+            is_visible=True,
+        )
+
+        request = self.factory.get(reverse("assets:gestione_admin"), {"tab": "config"})
+        _attach_session(request)
+        request.user = self.user
+        request.legacy_user = None
+        setattr(request, "_messages", FallbackStorage(request))
+
+        response = asset_views.gestione_admin.__wrapped__(request)
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode("utf-8")
+        self.assertIn("Menu laterale inventario", content)
+        self.assertIn("Nuova voce sidebar", content)
+        self.assertIn("Impianti", content)
+        self.assertIn("assets-sidebar-target-options", content)
+        self.assertIn("assets-sidebar-active-match-options", content)
+        self.assertIn("django:assets:reports", content)
+        self.assertIn("asset_type=SERVER", content)
+
+    def test_gestione_admin_can_seed_sidebar_buttons(self):
+        AssetSidebarButton.objects.all().delete()
+
+        request = self.factory.post(
+            reverse("assets:gestione_admin"),
+            {
+                "action": "seed_sidebar_buttons",
+            },
+        )
+        _attach_session(request)
+        request.user = self.user
+        request.legacy_user = None
+        setattr(request, "_messages", FallbackStorage(request))
+
+        response = asset_views.gestione_admin.__wrapped__(request)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(AssetSidebarButton.objects.filter(code="dashboard").exists())
+        self.assertTrue(AssetSidebarButton.objects.filter(code="software_licenses").exists())
+
+    def test_sidebar_input_suggestions_include_routes_and_filters(self):
+        target_suggestions, active_match_suggestions = asset_views._sidebar_input_suggestions()
+
+        target_values = {row["value"] for row in target_suggestions}
+        active_values = {row["value"] for row in active_match_suggestions}
+
+        self.assertIn("django:assets:reports", target_values)
+        self.assertIn("django:assets:asset_list?asset_type=SERVER&rows={rows}", target_values)
+        self.assertIn("/assets/reports/", active_values)
+        self.assertIn("asset_type=SERVER", active_values)
+        self.assertIn("reparto=", active_values)
+
     def test_gestione_admin_can_delete_non_default_label_template(self):
         template = AssetLabelTemplate.objects.create(
             asset_type=Asset.TYPE_WORK_MACHINE,
@@ -1760,6 +1832,142 @@ class AssetsRoutingTests(TestCase):
         self.assertEqual(hidden_rows, set(selected_ids))
         self.assertTrue(AssetDetailSectionLayout.objects.get(pk=untouched_id).is_visible)
 
+    def test_asset_detail_layout_admin_shows_bulk_controls_for_detail_fields(self):
+        admin = User.objects.create_superuser(
+            username="asset-layout-detail-bulk-ui-admin",
+            email="asset-layout-detail-bulk-ui@test.local",
+            password="pass12345",
+        )
+        AssetDetailField.objects.create(
+            code="bulk-ui-detail-field",
+            label="Seriale",
+            section=AssetDetailField.SECTION_SPECS,
+            asset_scope=AssetDetailField.SCOPE_ALL,
+            source_ref="asset:serial_number",
+            value_format=AssetDetailField.FORMAT_TEXT,
+            card_size=AssetDetailField.CARD_THIRD,
+            sort_order=10,
+            is_active=True,
+        )
+        self.client.force_login(admin)
+
+        response = self.client.get(reverse("assets:asset_detail_layout_admin"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Modifica massiva campi")
+        self.assertContains(response, 'value="update_detail_field_bulk"', html=False)
+        self.assertContains(response, 'name="selected_detail_field_ids"', html=False)
+
+    def test_asset_detail_layout_admin_can_apply_bulk_card_size_to_all_detail_fields(self):
+        admin = User.objects.create_superuser(
+            username="asset-layout-detail-bulk-size-admin",
+            email="asset-layout-detail-bulk-size@test.local",
+            password="pass12345",
+        )
+        field_a = AssetDetailField.objects.create(
+            code="bulk-size-field-a",
+            label="Produttore",
+            section=AssetDetailField.SECTION_SPECS,
+            asset_scope=AssetDetailField.SCOPE_ALL,
+            source_ref="asset:manufacturer",
+            value_format=AssetDetailField.FORMAT_TEXT,
+            card_size=AssetDetailField.CARD_THIRD,
+            sort_order=10,
+            is_active=True,
+        )
+        field_b = AssetDetailField.objects.create(
+            code="bulk-size-field-b",
+            label="Modello",
+            section=AssetDetailField.SECTION_SPECS,
+            asset_scope=AssetDetailField.SCOPE_ALL,
+            source_ref="asset:model",
+            value_format=AssetDetailField.FORMAT_TEXT,
+            card_size=AssetDetailField.CARD_HALF,
+            sort_order=20,
+            is_active=True,
+        )
+        self.client.force_login(admin)
+
+        response = self.client.post(
+            reverse("assets:asset_detail_layout_admin"),
+            {
+                "action": "update_detail_field_bulk",
+                "bulk_field": "card_size",
+                "bulk_card_size": AssetDetailField.CARD_FULL,
+                "apply_scope": "all",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            set(
+                AssetDetailField.objects.filter(pk__in=[field_a.id, field_b.id]).values_list("card_size", flat=True)
+            ),
+            {AssetDetailField.CARD_FULL},
+        )
+
+    def test_asset_detail_layout_admin_can_apply_bulk_active_state_to_selected_detail_fields(self):
+        admin = User.objects.create_superuser(
+            username="asset-layout-detail-bulk-active-admin",
+            email="asset-layout-detail-bulk-active@test.local",
+            password="pass12345",
+        )
+        field_a = AssetDetailField.objects.create(
+            code="bulk-active-field-a",
+            label="Produttore",
+            section=AssetDetailField.SECTION_SPECS,
+            asset_scope=AssetDetailField.SCOPE_ALL,
+            source_ref="asset:manufacturer",
+            value_format=AssetDetailField.FORMAT_TEXT,
+            card_size=AssetDetailField.CARD_THIRD,
+            sort_order=10,
+            is_active=True,
+        )
+        field_b = AssetDetailField.objects.create(
+            code="bulk-active-field-b",
+            label="Modello",
+            section=AssetDetailField.SECTION_METRICS,
+            asset_scope=AssetDetailField.SCOPE_ALL,
+            source_ref="asset:model",
+            value_format=AssetDetailField.FORMAT_TEXT,
+            card_size=AssetDetailField.CARD_HALF,
+            sort_order=20,
+            is_active=True,
+        )
+        field_c = AssetDetailField.objects.create(
+            code="bulk-active-field-c",
+            label="Reparto",
+            section=AssetDetailField.SECTION_PROFILE,
+            asset_scope=AssetDetailField.SCOPE_ALL,
+            source_ref="asset:reparto",
+            value_format=AssetDetailField.FORMAT_TEXT,
+            card_size=AssetDetailField.CARD_HALF,
+            sort_order=30,
+            is_active=True,
+        )
+        selected_ids = [field_a.id, field_b.id]
+        self.client.force_login(admin)
+
+        response = self.client.post(
+            reverse("assets:asset_detail_layout_admin"),
+            {
+                "action": "update_detail_field_bulk",
+                "bulk_field": "is_active",
+                "bulk_is_active": "inactive",
+                "apply_scope": "selected",
+                "selected_detail_field_ids": [str(row_id) for row_id in selected_ids],
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        inactive_ids = set(
+            AssetDetailField.objects.filter(pk__in=[field_a.id, field_b.id, field_c.id], is_active=False).values_list(
+                "id", flat=True
+            )
+        )
+        self.assertEqual(inactive_ids, set(selected_ids))
+        self.assertTrue(AssetDetailField.objects.get(pk=field_c.id).is_active)
+
     def test_asset_detail_shows_layout_button_for_layout_manager(self):
         asset = Asset.objects.create(
             asset_tag="AST-LAYOUT-001",
@@ -2138,3 +2346,495 @@ class WorkOrderFlowTests(TestCase):
         workorder = WorkOrder.objects.get(title="Intervento urgente")
         self.assertIsNone(workorder.periodic_verification)
         self.assertEqual(workorder.supplier, supplier)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AssetAdministrativeStepOneTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="asset-step-one", password="pass12345")
+        self.asset = Asset.objects.create(
+            name="Carroponte reparto A",
+            asset_type=Asset.TYPE_HW,
+            reparto="OFF",
+            source_key="manual-step-one-asset-a",
+        )
+        self.other_asset = Asset.objects.create(
+            name="Compressore reparto B",
+            asset_type=Asset.TYPE_HW,
+            reparto="MAN",
+            source_key="manual-step-one-asset-b",
+        )
+
+    def test_asset_component_form_prevents_duplicate_code_per_asset(self):
+        AssetComponent.objects.create(
+            asset=self.asset,
+            code="FILTRO-001",
+            name="Filtro aspirazione",
+        )
+
+        form = AssetComponentForm(
+            data={
+                "asset": str(self.asset.id),
+                "code": "FILTRO-001",
+                "name": "Filtro ricambio",
+                "component_type": "Filtro",
+                "serial_number": "",
+                "manufacturer": "",
+                "model": "",
+                "installed_on": "",
+                "notes": "",
+                "is_active": "on",
+            }
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("code", form.errors)
+
+    def test_component_create_view_creates_component(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:asset_component_create") + f"?asset={self.asset.id}",
+            {
+                "asset": str(self.asset.id),
+                "code": "POMPA-01",
+                "name": "Pompa olio",
+                "component_type": "Pompa",
+                "serial_number": "SN-POMPA-01",
+                "manufacturer": "SKF",
+                "model": "PO-200",
+                "installed_on": "2026-03-01",
+                "notes": "Componente test step 1",
+                "is_active": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        component = AssetComponent.objects.get(code="POMPA-01")
+        self.assertEqual(component.asset, self.asset)
+        self.assertTrue(component.is_active)
+
+    def test_deadline_create_view_links_component(self):
+        component = AssetComponent.objects.create(
+            asset=self.asset,
+            code="CERT-01",
+            name="Quadro elettrico",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("assets:asset_administrative_deadline_create") + f"?asset={self.asset.id}&component={component.id}",
+            {
+                "asset": str(self.asset.id),
+                "component": str(component.id),
+                "deadline_type": AssetAdministrativeDeadline.TYPE_CERTIFICATE,
+                "title": "Certificato CE quadro elettrico",
+                "reference_code": "CE-2026-001",
+                "issuer": "Ente Certificatore",
+                "issued_on": "2026-03-01",
+                "due_date": "2026-06-30",
+                "warning_days": "15",
+                "notes": "Scadenza collegata al componente",
+                "is_active": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        deadline = AssetAdministrativeDeadline.objects.get(reference_code="CE-2026-001")
+        self.assertEqual(deadline.asset, self.asset)
+        self.assertEqual(deadline.component, component)
+
+    def test_deadline_form_rejects_component_from_other_asset(self):
+        foreign_component = AssetComponent.objects.create(
+            asset=self.other_asset,
+            code="ALTRO-01",
+            name="Valvola esterna",
+        )
+
+        form = AssetAdministrativeDeadlineForm(
+            data={
+                "asset": str(self.asset.id),
+                "component": str(foreign_component.id),
+                "deadline_type": AssetAdministrativeDeadline.TYPE_TECHNICAL,
+                "title": "Scadenza test",
+                "reference_code": "REF-001",
+                "issuer": "Officina interna",
+                "issued_on": "2026-03-01",
+                "due_date": "2026-05-31",
+                "warning_days": "10",
+                "notes": "",
+                "is_active": "on",
+            }
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("component", form.errors)
+
+    def test_step_one_routes_render_and_asset_detail_contains_links(self):
+        component = AssetComponent.objects.create(
+            asset=self.asset,
+            code="RID-01",
+            name="Riduttore",
+        )
+        AssetAdministrativeDeadline.objects.create(
+            asset=self.asset,
+            component=component,
+            deadline_type=AssetAdministrativeDeadline.TYPE_REVISION,
+            title="Revisione riduttore",
+            due_date=date(2026, 4, 15),
+            warning_days=20,
+        )
+
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("assets:asset_component_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Elenco componenti")
+
+        asset_components_page = self.client.get(
+            reverse("assets:asset_component_list_for_asset", kwargs={"asset_id": self.asset.id})
+        )
+        self.assertEqual(asset_components_page.status_code, 200)
+        self.assertContains(asset_components_page, self.asset.asset_tag)
+        self.assertContains(asset_components_page, "Riduttore")
+
+        deadline_page = self.client.get(reverse("assets:asset_administrative_deadline_list"))
+        self.assertEqual(deadline_page.status_code, 200)
+        self.assertContains(deadline_page, "Elenco scadenze")
+
+        detail_page = self.client.get(reverse("assets:asset_view", kwargs={"id": self.asset.id}))
+        self.assertEqual(detail_page.status_code, 200)
+        self.assertContains(detail_page, "Nuovo componente")
+        self.assertContains(detail_page, "Nuova scadenza")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AssetMaintenanceStepTwoTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username="asset-step-two-admin",
+            email="asset-step-two-admin@test.local",
+            password="pass12345",
+        )
+        self.category = AssetCategory.objects.create(
+            code="macchine-step-two",
+            label="Macchine Step Two",
+            base_asset_type=Asset.TYPE_WORK_MACHINE,
+            sort_order=10,
+        )
+        self.other_category = AssetCategory.objects.create(
+            code="impianti-step-two",
+            label="Impianti Step Two",
+            base_asset_type=Asset.TYPE_HW,
+            sort_order=20,
+        )
+
+    def test_maintenance_template_create_view_creates_template(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("assets:maintenance_template_create") + f"?category={self.category.id}",
+            {
+                "code": "cambio-olio-step-two",
+                "label": "Cambio olio",
+                "description": "Template standard per cambio olio",
+                "asset_category": str(self.category.id),
+                "sort_order": "15",
+                "is_active": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        template = MaintenanceInterventionTemplate.objects.get(code="cambio-olio-step-two")
+        self.assertEqual(template.asset_category, self.category)
+        self.assertEqual(template.label, "Cambio olio")
+        self.assertTrue(template.is_active)
+
+    def test_maintenance_rule_create_view_creates_category_rule(self):
+        template = MaintenanceInterventionTemplate.objects.create(
+            code="lubrificazione-step-two",
+            label="Lubrificazione",
+            asset_category=self.category,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("assets:maintenance_rule_create") + f"?category={self.category.id}&template={template.id}",
+            {
+                "intervention_template": str(template.id),
+                "asset_category": str(self.category.id),
+                "threshold_type": MaintenanceRule.THRESHOLD_DAYS,
+                "threshold_value": "90",
+                "sort_order": "30",
+                "is_active": "on",
+                "notes": "Intervento periodico standard",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        rule = MaintenanceRule.objects.get(intervention_template=template, asset_category=self.category)
+        self.assertEqual(rule.threshold_type, MaintenanceRule.THRESHOLD_DAYS)
+        self.assertEqual(rule.threshold_value, 90)
+        self.assertTrue(rule.is_active)
+
+    def test_maintenance_rule_form_rejects_mismatched_template_category(self):
+        foreign_template = MaintenanceInterventionTemplate.objects.create(
+            code="controllo-elettrico-step-two",
+            label="Controllo elettrico",
+            asset_category=self.other_category,
+        )
+
+        form = MaintenanceRuleForm(
+            data={
+                "intervention_template": str(foreign_template.id),
+                "asset_category": str(self.category.id),
+                "threshold_type": MaintenanceRule.THRESHOLD_DAYS,
+                "threshold_value": "45",
+                "sort_order": "10",
+                "is_active": "on",
+                "notes": "",
+            }
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("intervention_template", form.errors)
+
+    def test_maintenance_templates_and_rules_routes_render(self):
+        general_template = MaintenanceInterventionTemplate.objects.create(
+            code="verifica-sicurezza-step-two",
+            label="Verifica sicurezza",
+            sort_order=5,
+        )
+        category_template = MaintenanceInterventionTemplate.objects.create(
+            code="revisione-gruppo-step-two",
+            label="Revisione gruppo",
+            asset_category=self.category,
+            sort_order=10,
+        )
+        MaintenanceRule.objects.create(
+            intervention_template=category_template,
+            asset_category=self.category,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=180,
+            sort_order=10,
+            notes="Regola standard di test",
+        )
+
+        self.client.force_login(self.admin)
+
+        template_list_response = self.client.get(reverse("assets:maintenance_template_list"))
+        self.assertEqual(template_list_response.status_code, 200)
+        self.assertContains(template_list_response, "Template manutenzione")
+        self.assertContains(template_list_response, general_template.label)
+        self.assertContains(template_list_response, category_template.label)
+
+        rule_list_response = self.client.get(reverse("assets:maintenance_rule_list"))
+        self.assertEqual(rule_list_response.status_code, 200)
+        self.assertContains(rule_list_response, "Regole manutenzione")
+        self.assertContains(rule_list_response, category_template.label)
+        self.assertContains(rule_list_response, self.category.label)
+
+    def test_maintenance_form_accepts_global_template_for_category_rule(self):
+        template = MaintenanceInterventionTemplate.objects.create(
+            code="controllo-filtri-step-two",
+            label="Controllo filtri",
+        )
+
+        form = MaintenanceRuleForm(
+            data={
+                "intervention_template": str(template.id),
+                "asset_category": str(self.category.id),
+                "threshold_type": MaintenanceRule.THRESHOLD_HOURS,
+                "threshold_value": "250",
+                "sort_order": "40",
+                "is_active": "on",
+                "notes": "Template generale applicato a categoria specifica",
+            }
+        )
+
+        self.assertTrue(form.is_valid(), form.errors.as_json())
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AssetMaintenanceStepThreeTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username="asset-step-three-admin",
+            email="asset-step-three-admin@test.local",
+            password="pass12345",
+        )
+        self.category = AssetCategory.objects.create(
+            code="step-three-category",
+            label="Categoria Step Three",
+            base_asset_type=Asset.TYPE_WORK_MACHINE,
+            sort_order=10,
+        )
+        self.other_category = AssetCategory.objects.create(
+            code="step-three-other-category",
+            label="Categoria Step Three Altro",
+            base_asset_type=Asset.TYPE_HW,
+            sort_order=20,
+        )
+        self.asset = Asset.objects.create(
+            name="Centro di lavoro ST3",
+            asset_type=Asset.TYPE_WORK_MACHINE,
+            asset_category=self.category,
+            reparto="OFF",
+            source_key="asset-step-three-main",
+        )
+        self.general_template = MaintenanceInterventionTemplate.objects.create(
+            code="step-three-general-template",
+            label="Verifica sicurezza generale",
+        )
+        self.category_template = MaintenanceInterventionTemplate.objects.create(
+            code="step-three-category-template",
+            label="Lubrificazione guidata",
+            asset_category=self.category,
+        )
+        self.other_category_template = MaintenanceInterventionTemplate.objects.create(
+            code="step-three-other-template",
+            label="Template altra categoria",
+            asset_category=self.other_category,
+        )
+        self.base_rule = MaintenanceRule.objects.create(
+            intervention_template=self.category_template,
+            asset_category=self.category,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=90,
+            sort_order=10,
+            notes="Regola standard di categoria",
+        )
+        self.foreign_rule = MaintenanceRule.objects.create(
+            intervention_template=self.other_category_template,
+            asset_category=self.other_category,
+            threshold_type=MaintenanceRule.THRESHOLD_DAYS,
+            threshold_value=120,
+            sort_order=20,
+            notes="Regola altra categoria",
+        )
+
+    def test_override_create_view_creates_valid_override(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse(
+                "assets:asset_maintenance_rule_override_create",
+                kwargs={"asset_id": self.asset.id, "rule_id": self.base_rule.id},
+            ),
+            {
+                "asset": str(self.asset.id),
+                "base_rule": str(self.base_rule.id),
+                "override_threshold_type": MaintenanceRule.THRESHOLD_DAYS,
+                "override_threshold_value": "120",
+                "override_intervention_template": str(self.general_template.id),
+                "is_disabled": "",
+                "notes": "Intervallo aumentato per questo asset",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        override = MaintenanceRuleAssetOverride.objects.get(asset=self.asset, base_rule=self.base_rule)
+        self.assertEqual(override.override_threshold_type, MaintenanceRule.THRESHOLD_DAYS)
+        self.assertEqual(override.override_threshold_value, 120)
+        self.assertEqual(override.override_intervention_template, self.general_template)
+
+    def test_override_form_rejects_rule_from_other_category(self):
+        form = MaintenanceRuleAssetOverrideForm(
+            data={
+                "asset": str(self.asset.id),
+                "base_rule": str(self.foreign_rule.id),
+                "override_threshold_type": "",
+                "override_threshold_value": "45",
+                "override_intervention_template": "",
+                "is_disabled": "",
+                "notes": "",
+            }
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("base_rule", form.errors)
+
+    def test_override_form_rejects_override_template_from_other_category(self):
+        form = MaintenanceRuleAssetOverrideForm(
+            data={
+                "asset": str(self.asset.id),
+                "base_rule": str(self.base_rule.id),
+                "override_threshold_type": MaintenanceRule.THRESHOLD_DAYS,
+                "override_threshold_value": "45",
+                "override_intervention_template": str(self.other_category_template.id),
+                "is_disabled": "",
+                "notes": "",
+            }
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("override_intervention_template", form.errors)
+
+    def test_resolve_asset_maintenance_rules_returns_inherited_status(self):
+        rows = resolve_asset_maintenance_rules(self.asset)
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["status"], "inherited")
+        self.assertEqual(rows[0]["effective_threshold_type"], self.base_rule.threshold_type)
+        self.assertEqual(rows[0]["effective_threshold_value"], self.base_rule.threshold_value)
+        self.assertEqual(rows[0]["effective_intervention_template"], self.base_rule.intervention_template)
+
+    def test_resolve_asset_maintenance_rules_returns_overridden_status(self):
+        MaintenanceRuleAssetOverride.objects.create(
+            asset=self.asset,
+            base_rule=self.base_rule,
+            override_threshold_value=150,
+            override_intervention_template=self.general_template,
+            notes="Override asset-specifico",
+        )
+
+        rows = resolve_asset_maintenance_rules(self.asset)
+
+        self.assertEqual(rows[0]["status"], "overridden")
+        self.assertEqual(rows[0]["effective_threshold_type"], self.base_rule.threshold_type)
+        self.assertEqual(rows[0]["effective_threshold_value"], 150)
+        self.assertEqual(rows[0]["effective_intervention_template"], self.general_template)
+        self.assertEqual(rows[0]["effective_notes"], "Override asset-specifico")
+
+    def test_resolve_asset_maintenance_rules_returns_disabled_status(self):
+        MaintenanceRuleAssetOverride.objects.create(
+            asset=self.asset,
+            base_rule=self.base_rule,
+            is_disabled=True,
+            notes="Regola non applicabile a questo asset",
+        )
+
+        rows = resolve_asset_maintenance_rules(self.asset)
+
+        self.assertEqual(rows[0]["status"], "disabled")
+        self.assertTrue(rows[0]["is_disabled"])
+
+    def test_asset_maintenance_routes_render_and_reset_override(self):
+        override = MaintenanceRuleAssetOverride.objects.create(
+            asset=self.asset,
+            base_rule=self.base_rule,
+            override_threshold_value=110,
+            notes="Override da resettare",
+        )
+        self.client.force_login(self.admin)
+
+        list_response = self.client.get(
+            reverse("assets:asset_maintenance_rule_list", kwargs={"asset_id": self.asset.id})
+        )
+        self.assertEqual(list_response.status_code, 200)
+        self.assertContains(list_response, "Regole manutenzione asset")
+        self.assertContains(list_response, self.base_rule.intervention_template.label)
+        self.assertContains(list_response, "Personalizzata")
+
+        detail_response = self.client.get(reverse("assets:asset_view", kwargs={"id": self.asset.id}))
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertContains(detail_response, "Apri regole manutenzione")
+
+        reset_response = self.client.post(
+            reverse(
+                "assets:asset_maintenance_rule_override_reset",
+                kwargs={"asset_id": self.asset.id, "id": override.id},
+            )
+        )
+        self.assertEqual(reset_response.status_code, 302)
+        self.assertFalse(MaintenanceRuleAssetOverride.objects.filter(pk=override.id).exists())

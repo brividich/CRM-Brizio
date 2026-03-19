@@ -30,6 +30,11 @@ class NavigationNode:
     icon: str = ""
     group: str = ""
     active_patterns: str = ""
+    category_color: str = ""
+    category_key: str = ""
+    category_label: str = ""
+    category_icon: str = ""
+    category_order: int = 0
 
 
 def _safe_int(value, default: int) -> int:
@@ -94,7 +99,7 @@ def _compiled_items_for_role(*, role_id: int | None, is_admin: bool, section: st
     if cached is not None:
         return cached
 
-    qs = NavigationItem.objects.filter(section=section, is_visible=True, is_enabled=True).order_by("order", "id")
+    qs = NavigationItem.objects.filter(section=section, is_visible=True, is_enabled=True).select_related("category").order_by("order", "id")
     items = list(qs)
     item_ids = [int(item.id) for item in items]
     access_rows = list(NavigationRoleAccess.objects.filter(item_id__in=item_ids))
@@ -131,6 +136,11 @@ def _compiled_items_for_role(*, role_id: int | None, is_admin: bool, section: st
                 "icon": item.icon or "",
                 "group": item.group or "",
                 "active_patterns": item.active_patterns or "",
+                "category_color": (item.category.topbar_color if item.category_id and item.category else ""),
+                "category_key": (item.category.key if item.category_id and item.category else ""),
+                "category_label": (item.category.label if item.category_id and item.category else ""),
+                "category_icon": (item.category.icon if item.category_id and item.category else ""),
+                "category_order": (item.category.order if item.category_id and item.category else 0),
             }
         )
     cache.set(cache_key, compiled, timeout=_NAV_CACHE_TTL)
@@ -186,6 +196,11 @@ def get_topbar_nodes(*, current_path: str, role_id: int | None, is_admin: bool) 
                 icon=row.get("icon", ""),
                 group=row.get("group", ""),
                 active_patterns=row.get("active_patterns", ""),
+                category_color=row.get("category_color", ""),
+                category_key=row.get("category_key", ""),
+                category_label=row.get("category_label", ""),
+                category_icon=row.get("category_icon", ""),
+                category_order=row.get("category_order", 0),
             )
         )
     nodes.sort(key=lambda n: (n.order_hint, n.label.lower()))

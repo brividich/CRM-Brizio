@@ -1,0 +1,231 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Regole manutenzione{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.mr-page { display:grid; gap:14px; }
+.mr-banner, .mr-card, .mr-kpi {
+  border:1px solid #dbe1ea;
+  border-radius:14px;
+  background:#fff;
+  box-shadow:0 6px 18px rgba(15, 23, 42, .04);
+}
+.mr-banner { padding:16px; background:linear-gradient(135deg, #f8fbff 0%, #ffffff 100%); }
+.mr-banner-title { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.05em; color:#1d4ed8; font-weight:800; }
+.mr-banner-note { margin-top:6px; color:#365b9d; font-size:var(--fs-base); }
+.mr-kpis { display:grid; gap:10px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
+.mr-kpi { padding:14px 16px; }
+.mr-kpi-label { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:700; }
+.mr-kpi-value { margin-top:8px; font-size:var(--fs-display-xl); line-height:1; font-weight:800; color:#0f172a; }
+.mr-card-head {
+  padding:14px 16px;
+  border-bottom:1px solid #e5e7eb;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.mr-card-head h2 { margin:0; font-size:var(--fs-heading); color:#0f172a; }
+.mr-card-head p { margin:4px 0 0; color:#64748b; font-size:var(--fs-base); }
+.mr-card-body { padding:16px; }
+.mr-filter { display:grid; gap:12px; grid-template-columns:repeat(5, minmax(0, 1fr)); align-items:end; }
+.mr-field label { display:block; margin-bottom:6px; color:#334155; font-size:var(--fs-base); font-weight:700; }
+.mr-field :is(input, select) {
+  width:100%;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:#fff;
+  color:#0f172a;
+  padding:10px 12px;
+  font:inherit;
+}
+.mr-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.mr-table-wrap { overflow:auto; }
+.mr-table { width:100%; border-collapse:collapse; }
+.mr-table th {
+  text-align:left;
+  padding:10px 8px;
+  border-bottom:1px solid #e5e7eb;
+  color:#64748b;
+  font-size:var(--fs-sm);
+  text-transform:uppercase;
+}
+.mr-table td {
+  padding:12px 8px;
+  border-bottom:1px solid #f1f5f9;
+  color:#0f172a;
+  font-size:var(--fs-base);
+  vertical-align:top;
+}
+.mr-pill {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  padding:4px 8px;
+  font-size:var(--fs-xs);
+  font-weight:800;
+}
+.mr-pill.ok { background:#dcfce7; color:#15803d; }
+.mr-pill.muted { background:#e2e8f0; color:#475569; }
+.mr-empty { color:#64748b; font-size:var(--fs-base); }
+@media (max-width: 1200px) {
+  .mr-kpis,
+  .mr-filter { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .mr-kpis,
+  .mr-filter { grid-template-columns:1fr; }
+}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Regole manutenzione{% endblock %}
+{% block assets_shell_subtitle %}
+<p>Policy standard per categoria asset, con soglia e template intervento riusabile.</p>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="mr-page">
+  <article class="mr-banner">
+    <div class="mr-banner-title">Nota dominio</div>
+    <div class="mr-banner-note">
+      In questo step le soglie a <strong>giorni</strong> sono quelle pronte all'uso immediato.
+      Le soglie a <strong>ore</strong>, <strong>km</strong> e <strong>cicli</strong> sono gia modellate,
+      ma la valutazione operativa completa arrivera in step successivi.
+    </div>
+  </article>
+
+  <section class="mr-kpis">
+    <article class="mr-kpi">
+      <div class="mr-kpi-label">Regole visibili</div>
+      <div class="mr-kpi-value">{{ rule_total }}</div>
+    </article>
+    <article class="mr-kpi">
+      <div class="mr-kpi-label">Attive</div>
+      <div class="mr-kpi-value">{{ active_rule_count }}</div>
+    </article>
+    <article class="mr-kpi">
+      <div class="mr-kpi-label">A giorni</div>
+      <div class="mr-kpi-value">{{ days_rule_count }}</div>
+    </article>
+  </section>
+
+  <article class="mr-card">
+    <div class="mr-card-head">
+      <div>
+        <h2>Filtri</h2>
+        <p>Filtra per categoria, template, tipo soglia e stato della regola.</p>
+      </div>
+    </div>
+    <div class="mr-card-body">
+      <form method="get" class="mr-filter">
+        <div class="mr-field">
+          <label for="id_category">Categoria</label>
+          <select id="id_category" name="category">
+            <option value="">Tutte le categorie</option>
+            {% for category in category_options %}
+              <option value="{{ category.id }}" {% if selected_category_id == category.id %}selected{% endif %}>
+                {{ category.label }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mr-field">
+          <label for="id_template">Template</label>
+          <select id="id_template" name="template">
+            <option value="">Tutti i template</option>
+            {% for template in template_options %}
+              <option value="{{ template.id }}" {% if selected_template_id == template.id %}selected{% endif %}>
+                {{ template.label }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mr-field">
+          <label for="id_threshold_type">Tipo soglia</label>
+          <select id="id_threshold_type" name="threshold_type">
+            <option value="">Tutte</option>
+            {% for code, label in threshold_type_choices %}
+              <option value="{{ code }}" {% if selected_threshold_type == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mr-field">
+          <label for="id_active">Stato</label>
+          <select id="id_active" name="active">
+            <option value="active" {% if active_filter == "active" %}selected{% endif %}>Solo attive</option>
+            <option value="inactive" {% if active_filter == "inactive" %}selected{% endif %}>Solo disattive</option>
+            <option value="all" {% if active_filter == "all" %}selected{% endif %}>Tutte</option>
+          </select>
+        </div>
+        <div class="mr-field">
+          <label for="id_q">Ricerca</label>
+          <input id="id_q" type="text" name="q" value="{{ q }}" placeholder="Template, categoria, note">
+        </div>
+        <div class="mr-actions" style="grid-column:1/-1;">
+          <button type="submit" class="btn btn-primary">Applica</button>
+          <a class="btn" href="{{ clear_filters_url }}">Reset</a>
+          <a class="btn btn-secondary" href="{{ create_url }}">Nuova regola</a>
+        </div>
+      </form>
+    </div>
+  </article>
+
+  <article class="mr-card">
+    <div class="mr-card-head">
+      <div>
+        <h2>Elenco regole</h2>
+        <p>Ogni regola definisce una policy standard per categoria asset; gli override per singolo asset non sono ancora parte di questo step.</p>
+      </div>
+    </div>
+    <div class="mr-card-body">
+      {% if rule_rows %}
+        <div class="mr-table-wrap">
+          <table class="mr-table">
+            <thead>
+              <tr>
+                <th>Categoria</th>
+                <th>Template</th>
+                <th>Soglia</th>
+                <th>Stato</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in rule_rows %}
+                <tr>
+                  <td>{{ row.rule.asset_category.label }}</td>
+                  <td>
+                    <strong>{{ row.rule.intervention_template.label }}</strong><br>
+                    <span class="as-note">{{ row.rule.intervention_template.code }}</span>
+                  </td>
+                  <td>
+                    {{ row.rule.threshold_value }} {{ row.rule.get_threshold_type_display }}<br>
+                    {% if row.rule.notes %}<span class="as-note">{{ row.rule.notes }}</span>{% endif %}
+                  </td>
+                  <td>
+                    {% if row.rule.is_active %}
+                      <span class="mr-pill ok">Attiva</span>
+                    {% else %}
+                      <span class="mr-pill muted">Disattiva</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <a href="{{ row.edit_url }}">Modifica</a><br>
+                    <a href="{{ row.template_url }}">Apri template</a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="mr-empty">Nessuna regola trovata con i filtri correnti.</p>
+      {% endif %}
+    </div>
+  </article>
+</section>
+{% endblock %}

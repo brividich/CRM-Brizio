@@ -1,0 +1,236 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Componenti asset{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.ac-page { display:grid; gap:14px; }
+.ac-banner, .ac-card, .ac-kpi {
+  border:1px solid #dbe1ea;
+  border-radius:14px;
+  background:#fff;
+  box-shadow:0 6px 18px rgba(15, 23, 42, .04);
+}
+.ac-banner { padding:16px; background:linear-gradient(135deg, #f8fbff 0%, #ffffff 100%); }
+.ac-banner-title { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:800; }
+.ac-banner-text { margin-top:6px; color:#0f172a; font-size:var(--fs-title-lg); font-weight:800; }
+.ac-banner-note { margin-top:4px; color:#64748b; font-size:var(--fs-base); }
+.ac-kpis { display:grid; gap:10px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
+.ac-kpi { padding:14px 16px; }
+.ac-kpi-label { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:700; }
+.ac-kpi-value { margin-top:8px; font-size:var(--fs-display-xl); line-height:1; font-weight:800; color:#0f172a; }
+.ac-card-head {
+  padding:14px 16px;
+  border-bottom:1px solid #e5e7eb;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.ac-card-head h2 { margin:0; font-size:var(--fs-heading); color:#0f172a; }
+.ac-card-head p { margin:4px 0 0; color:#64748b; font-size:var(--fs-base); }
+.ac-card-body { padding:16px; }
+.ac-filter { display:grid; gap:12px; grid-template-columns:repeat(4, minmax(0, 1fr)); align-items:end; }
+.ac-field label { display:block; margin-bottom:6px; color:#334155; font-size:var(--fs-base); font-weight:700; }
+.ac-field :is(input, select) {
+  width:100%;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:#fff;
+  color:#0f172a;
+  padding:10px 12px;
+  font:inherit;
+}
+.ac-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.ac-table-wrap { overflow:auto; }
+.ac-table { width:100%; border-collapse:collapse; }
+.ac-table th {
+  text-align:left;
+  padding:10px 8px;
+  border-bottom:1px solid #e5e7eb;
+  color:#64748b;
+  font-size:var(--fs-sm);
+  text-transform:uppercase;
+}
+.ac-table td {
+  padding:12px 8px;
+  border-bottom:1px solid #f1f5f9;
+  color:#0f172a;
+  font-size:var(--fs-base);
+  vertical-align:top;
+}
+.ac-pill {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  padding:4px 8px;
+  font-size:var(--fs-xs);
+  font-weight:800;
+}
+.ac-pill.ok { background:#dcfce7; color:#15803d; }
+.ac-pill.muted { background:#e2e8f0; color:#475569; }
+.ac-link-stack { display:grid; gap:6px; }
+.ac-empty { color:#64748b; font-size:var(--fs-base); }
+@media (max-width: 1100px) {
+  .ac-kpis,
+  .ac-filter { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .ac-kpis,
+  .ac-filter { grid-template-columns:1fr; }
+}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Componenti{% endblock %}
+{% block assets_shell_subtitle %}
+<p>Anagrafica minima dei pezzi collegati agli asset, senza BOM o storico installazioni.</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+  {% if selected_asset %}
+    <a class="btn" href="{% url 'assets:asset_view' selected_asset.id %}">Torna all'asset</a>
+  {% endif %}
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="ac-page">
+  {% if selected_asset %}
+    <article class="ac-banner">
+      <div class="ac-banner-title">Asset selezionato</div>
+      <div class="ac-banner-text">
+        {{ selected_asset.asset_tag }} - {{ selected_asset.name }}
+        {% if selected_asset.reparto %} | {{ selected_asset.reparto }}{% endif %}
+      </div>
+      <div class="ac-banner-note">
+        Componenti visibili per questo asset: {{ component_total }}. Attivi: {{ selected_asset_component_count }}.
+      </div>
+    </article>
+  {% endif %}
+
+  <section class="ac-kpis">
+    <article class="ac-kpi">
+      <div class="ac-kpi-label">Componenti visibili</div>
+      <div class="ac-kpi-value">{{ component_total }}</div>
+    </article>
+    <article class="ac-kpi">
+      <div class="ac-kpi-label">Attivi</div>
+      <div class="ac-kpi-value">{{ active_component_count }}</div>
+    </article>
+    <article class="ac-kpi">
+      <div class="ac-kpi-label">Disattivi</div>
+      <div class="ac-kpi-value">{{ inactive_component_count }}</div>
+    </article>
+  </section>
+
+  <article class="ac-card">
+    <div class="ac-card-head">
+      <div>
+        <h2>Filtri</h2>
+        <p>Filtra per asset, stato o testo libero su codice, nome, seriale e produttore.</p>
+      </div>
+    </div>
+    <div class="ac-card-body">
+      <form method="get" class="ac-filter">
+        <div class="ac-field">
+          <label for="id_asset">Asset</label>
+          <select id="id_asset" name="asset" {% if selected_asset and request.resolver_match.url_name == 'asset_component_list_for_asset' %}disabled{% endif %}>
+            <option value="">Tutti gli asset</option>
+            {% for asset_option in asset_options %}
+              <option value="{{ asset_option.id }}" {% if selected_asset and selected_asset.id == asset_option.id %}selected{% endif %}>
+                {{ asset_option.asset_tag }} - {{ asset_option.name }}
+              </option>
+            {% endfor %}
+          </select>
+          {% if selected_asset and request.resolver_match.url_name == 'asset_component_list_for_asset' %}
+            <input type="hidden" name="asset" value="{{ selected_asset.id }}">
+          {% endif %}
+        </div>
+        <div class="ac-field">
+          <label for="id_q">Ricerca</label>
+          <input id="id_q" type="text" name="q" value="{{ q }}" placeholder="Codice, nome, seriale, produttore">
+        </div>
+        <div class="ac-field">
+          <label for="id_active">Stato</label>
+          <select id="id_active" name="active">
+            <option value="active" {% if active_filter == "active" %}selected{% endif %}>Solo attivi</option>
+            <option value="inactive" {% if active_filter == "inactive" %}selected{% endif %}>Solo disattivi</option>
+            <option value="all" {% if active_filter == "all" %}selected{% endif %}>Tutti</option>
+          </select>
+        </div>
+        <div class="ac-actions">
+          <button type="submit" class="btn btn-primary">Applica</button>
+          <a class="btn" href="{{ clear_filters_url }}">Reset</a>
+        </div>
+      </form>
+    </div>
+  </article>
+
+  <article class="ac-card">
+    <div class="ac-card-head">
+      <div>
+        <h2>Elenco componenti</h2>
+        <p>Ogni componente resta semplice e disattivabile, senza introdurre logiche di magazzino o gerarchie.</p>
+      </div>
+      <div class="ac-actions">
+        <a class="btn btn-primary" href="{{ create_url }}">Nuovo componente</a>
+      </div>
+    </div>
+    <div class="ac-card-body">
+      {% if component_rows %}
+        <div class="ac-table-wrap">
+          <table class="ac-table">
+            <thead>
+              <tr>
+                <th>Componente</th>
+                <th>Tipo</th>
+                <th>Asset</th>
+                <th>Seriale</th>
+                <th>Scadenze</th>
+                <th>Stato</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in component_rows %}
+                <tr>
+                  <td>
+                    <strong>{{ row.component.name }}</strong><br>
+                    <span class="as-note">{% if row.component.code %}{{ row.component.code }}{% else %}Codice non indicato{% endif %}</span>
+                  </td>
+                  <td>{{ row.component.component_type|default:"-" }}</td>
+                  <td>
+                    <a href="{% url 'assets:asset_view' row.component.asset_id %}">{{ row.component.asset.asset_tag }}</a><br>
+                    <span class="as-note">{{ row.component.asset.name }}</span>
+                  </td>
+                  <td>{{ row.component.serial_number|default:"-" }}</td>
+                  <td>
+                    <a href="{{ row.deadline_list_url }}">{{ row.active_deadline_count }} attive</a><br>
+                    <span class="as-note">{{ row.deadline_total }} totali</span>
+                  </td>
+                  <td>
+                    {% if row.component.is_active %}
+                      <span class="ac-pill ok">Attivo</span>
+                    {% else %}
+                      <span class="ac-pill muted">Disattivo</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div class="ac-link-stack">
+                      <a href="{{ row.edit_url }}">Modifica</a>
+                      <a href="{{ row.deadline_list_url }}">Scadenze</a>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="ac-empty">Nessun componente trovato con i filtri correnti.</p>
+      {% endif %}
+    </div>
+  </article>
+</section>
+{% endblock %}

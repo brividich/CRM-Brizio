@@ -1,0 +1,259 @@
+{% extends "core/base.html" %}
+
+{% block title %}Mansioni | Anagrafica{% endblock %}
+
+{% block extra_head %}
+<style>
+.mn-page { display:flex; flex-direction:column; gap:20px; }
+.mn-topbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.mn-title { font-size:26px; font-weight:800; color:#0f172a; letter-spacing:-.02em; }
+.mn-sub { font-size:13px; color:#64748b; margin-top:2px; }
+.mn-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; border:none; transition:background .15s; }
+.mn-btn-primary { background:#1d4ed8; color:#fff; }
+.mn-btn-primary:hover { background:#1e40af; }
+.mn-btn-ghost { background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; }
+.mn-btn-ghost:hover { background:#e2e8f0; }
+.mn-btn-danger { background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; }
+.mn-btn-danger:hover { background:#fecaca; }
+.mn-btn-sm { padding:5px 10px; font-size:12px; border-radius:7px; }
+
+.mn-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
+.mn-card-head { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid #f1f5f9; }
+.mn-card-title { font-size:15px; font-weight:700; color:#1e293b; }
+.mn-card-body { padding:18px 20px; }
+
+.mn-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:14px; }
+.mn-item { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; position:relative; overflow:hidden; }
+.mn-item-accent { position:absolute; top:0; left:0; bottom:0; width:4px; }
+.mn-item-body { padding-left:14px; }
+.mn-item-name { font-size:15px; font-weight:700; color:#0f172a; display:flex; align-items:center; gap:6px; }
+.mn-item-desc { font-size:13px; color:#64748b; margin-top:3px; }
+.mn-item-meta { font-size:12px; color:#94a3b8; margin-top:6px; display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.mn-item-actions { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; align-items:center; }
+.mn-badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; }
+.mn-badge-blue { background:#dbeafe; color:#1e40af; }
+.mn-badge-gray { background:#f1f5f9; color:#475569; }
+.mn-badge-red { background:#fee2e2; color:#b91c1c; }
+.mn-badge-green { background:#dcfce7; color:#166534; }
+.mn-badge-orange { background:#ffedd5; color:#9a3412; }
+.mn-badge-purple { background:#ede9fe; color:#5b21b6; }
+
+.mn-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.mn-field { display:flex; flex-direction:column; gap:4px; }
+.mn-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+.mn-input { border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none; width:100%; box-sizing:border-box; }
+.mn-input:focus { border-color:#1d4ed8; background:#fff; }
+
+.mn-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:1000; align-items:center; justify-content:center; }
+.mn-modal-overlay.open { display:flex; }
+.mn-modal { background:#fff; border-radius:14px; padding:24px; width:100%; max-width:500px; box-shadow:0 8px 32px rgba(0,0,0,.12); }
+.mn-modal-title { font-size:17px; font-weight:700; color:#0f172a; margin-bottom:16px; }
+
+@media (max-width:600px) {
+  .mn-form-grid { grid-template-columns:1fr; }
+  .mn-grid { grid-template-columns:1fr; }
+}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="mn-page">
+
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <div class="mn-topbar">
+    <div>
+      <div class="mn-title">💼 Mansioni</div>
+      <div class="mn-sub">Catalogo job title aziendali — impostabili sulla scheda di ogni dipendente</div>
+    </div>
+    <a class="mn-btn mn-btn-ghost" href="{% url 'anagrafica:dipendenti_list' %}">&larr; Dipendenti</a>
+  </div>
+
+  <!-- Mansioni raggruppate per categoria -->
+  {% if mansioni_grouped %}
+    {% for cat_code, cat_label, items in mansioni_grouped %}
+    <div class="mn-card">
+      <div class="mn-card-head">
+        <div class="mn-card-title">
+          {% if cat_code == "OPERAIO" %}👷
+          {% elif cat_code == "IMPIEGATO" %}🖊
+          {% elif cat_code == "QUADRO" %}📋
+          {% elif cat_code == "DIRIGENTE" %}🏢
+          {% else %}📌{% endif %}
+          {{ cat_label }} <span style="font-size:13px;font-weight:400;color:#94a3b8;">({{ items|length }})</span>
+        </div>
+      </div>
+      <div class="mn-card-body">
+        <div class="mn-grid">
+          {% for m in items %}
+          <div class="mn-item">
+            <div class="mn-item-accent" style="background-color:{{ m.colore }};"></div>
+            <div class="mn-item-body">
+              <div class="mn-item-name">
+                {{ m.nome }}
+                {% if not m.is_active %}<span class="mn-badge mn-badge-red">Inattiva</span>{% endif %}
+              </div>
+              {% if m.descrizione %}
+                <div class="mn-item-desc">{{ m.descrizione }}</div>
+              {% endif %}
+              <div class="mn-item-meta">
+                <span class="mn-badge mn-badge-gray">{{ m.n_dipendenti }} dip.</span>
+              </div>
+              {% if is_admin %}
+              <div class="mn-item-actions">
+                <button type="button" class="mn-btn mn-btn-ghost mn-btn-sm"
+                  onclick="openEdit({{ m.id }}, '{{ m.nome|escapejs }}', '{{ m.descrizione|escapejs }}', '{{ m.colore }}', '{{ m.categoria }}', {{ m.is_active|yesno:'true,false' }})">
+                  ✏ Modifica
+                </button>
+                {% if m.n_dipendenti == 0 %}
+                <form method="post" action="{% url 'anagrafica:mansione_delete' m.id %}" style="display:inline;">
+                  {% csrf_token %}
+                  <button type="submit" class="mn-btn mn-btn-danger mn-btn-sm"
+                    onclick="return confirm('Eliminare la mansione {{ m.nome }}?')">🗑 Elimina</button>
+                </form>
+                {% else %}
+                <span style="font-size:11px;color:#94a3b8;">non eliminabile</span>
+                {% endif %}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+  <div class="mn-card">
+    <div class="mn-card-body" style="text-align:center;padding:30px;color:#94a3b8;font-size:14px;">
+      Nessuna mansione nel catalogo. Creane una qui sotto.
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Form nuovo -->
+  {% if is_admin %}
+  <div class="mn-card">
+    <div class="mn-card-head"><div class="mn-card-title">+ Nuova mansione</div></div>
+    <div class="mn-card-body">
+      <form method="post" action="{% url 'anagrafica:mansione_create' %}">
+        {% csrf_token %}
+        <div class="mn-form-grid">
+          <div class="mn-field" style="grid-column:1/-1;">
+            <label>Nome mansione *</label>
+            <input class="mn-input" type="text" name="nome" required placeholder="es. Operaio specializzato, Impiegato tecnico…" maxlength="100">
+          </div>
+          <div class="mn-field">
+            <label>Categoria</label>
+            <select class="mn-input" name="categoria">
+              <option value="">— Nessuna categoria —</option>
+              {% for val, label in CATEGORIA_CHOICES %}
+                <option value="{{ val }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mn-field">
+            <label>Colore badge</label>
+            <input class="mn-input" type="color" name="colore" value="#1d4ed8" style="height:40px;padding:4px 8px;cursor:pointer;">
+          </div>
+          <div class="mn-field" style="grid-column:1/-1;">
+            <label>Descrizione (opzionale)</label>
+            <input class="mn-input" type="text" name="descrizione" placeholder="Breve descrizione" maxlength="255">
+          </div>
+        </div>
+        <div style="margin-top:14px;">
+          <button type="submit" class="mn-btn mn-btn-primary">Crea mansione</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Suggeriti (solo se catalogo vuoto) -->
+  {% if is_admin and not mansioni %}
+  <div class="mn-card">
+    <div class="mn-card-head"><div class="mn-card-title">💡 Mansioni suggerite — crea con un click</div></div>
+    <div class="mn-card-body">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        {% for sugg in mansioni_suggerite %}
+        <form method="post" action="{% url 'anagrafica:mansione_create' %}" style="display:inline;">
+          {% csrf_token %}
+          <input type="hidden" name="nome" value="{{ sugg }}">
+          <input type="hidden" name="colore" value="#1d4ed8">
+          <button type="submit" class="mn-btn mn-btn-ghost mn-btn-sm">+ {{ sugg }}</button>
+        </form>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- Modal modifica -->
+{% if is_admin %}
+<div class="mn-modal-overlay" id="mn-modal">
+  <div class="mn-modal">
+    <div class="mn-modal-title">Modifica mansione</div>
+    <form method="post" id="mn-edit-form" action="">
+      {% csrf_token %}
+      <div class="mn-form-grid">
+        <div class="mn-field" style="grid-column:1/-1;">
+          <label>Nome *</label>
+          <input class="mn-input" type="text" name="nome" id="edit-nome" required maxlength="100">
+        </div>
+        <div class="mn-field">
+          <label>Categoria</label>
+          <select class="mn-input" name="categoria" id="edit-categoria">
+            <option value="">— Nessuna categoria —</option>
+            {% for val, label in CATEGORIA_CHOICES %}
+              <option value="{{ val }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mn-field">
+          <label>Colore</label>
+          <input class="mn-input" type="color" name="colore" id="edit-colore" style="height:40px;padding:4px 8px;cursor:pointer;">
+        </div>
+        <div class="mn-field" style="grid-column:1/-1;">
+          <label>Descrizione</label>
+          <input class="mn-input" type="text" name="descrizione" id="edit-desc" maxlength="255">
+        </div>
+        <div class="mn-field" style="grid-column:1/-1;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;text-transform:none;letter-spacing:0;">
+            <input type="checkbox" name="is_active" value="1" id="edit-active">
+            Mansione attiva (visibile per assegnazione)
+          </label>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
+        <button type="button" class="mn-btn mn-btn-ghost" onclick="closeEdit()">Annulla</button>
+        <button type="submit" class="mn-btn mn-btn-primary">Salva modifiche</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const BASE_EDIT_URL = "/anagrafica/mansioni/";
+
+function openEdit(id, nome, desc, colore, categoria, isActive) {
+  document.getElementById('mn-edit-form').action = BASE_EDIT_URL + id + '/modifica';
+  document.getElementById('edit-nome').value = nome;
+  document.getElementById('edit-desc').value = desc;
+  document.getElementById('edit-colore').value = colore;
+  document.getElementById('edit-categoria').value = categoria;
+  document.getElementById('edit-active').checked = isActive;
+  document.getElementById('mn-modal').classList.add('open');
+}
+function closeEdit() {
+  document.getElementById('mn-modal').classList.remove('open');
+}
+document.getElementById('mn-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeEdit();
+});
+</script>
+{% endif %}
+{% endblock %}

@@ -9,9 +9,9 @@
   background:linear-gradient(135deg,#064e3b 0%,#065f46 60%,#047857 100%);
   border-radius:16px; padding:24px 32px; color:#fff;
 }
-.sic-hero-title { font-size:22px; font-weight:900; }
-.sic-hero-sub { font-size:13px; opacity:.7; margin-top:3px; }
-.sic-breadcrumb { font-size:12px; opacity:.6; margin-bottom:6px; }
+.sic-hero-title { font-size: var(--fs-heading); font-weight:900; }
+.sic-hero-sub { font-size: var(--fs-base); opacity:.7; margin-top:3px; }
+.sic-breadcrumb { font-size: var(--fs-sm); opacity:.6; margin-bottom:6px; }
 .sic-breadcrumb a { color:#fff; text-decoration:none; }
 
 /* Tabs */
@@ -21,7 +21,7 @@
 }
 .sic-tab-btn {
   padding:9px 20px; border:none; background:transparent; border-radius:10px;
-  font-size:13px; font-weight:600; color:#64748b; cursor:pointer;
+  font-size: var(--fs-base); font-weight:600; color:#64748b; cursor:pointer;
   display:flex; align-items:center; gap:6px; transition:all .15s; white-space:nowrap;
 }
 .sic-tab-btn:hover { background:#f1f5f9; color:#0f172a; }
@@ -35,16 +35,16 @@
 .sic-section { margin-bottom:28px; }
 .sic-section:last-child { margin-bottom:0; }
 .sic-section-title {
-  font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase;
+  font-size: var(--fs-sm); font-weight:700; color:#64748b; text-transform:uppercase;
   letter-spacing:.06em; margin-bottom:14px; padding-bottom:8px; border-bottom:2px solid #f1f5f9;
 }
 .sic-field { display:flex; flex-direction:column; gap:5px; margin-bottom:16px; }
 .sic-field:last-child { margin-bottom:0; }
-.sic-field label { font-size:13px; font-weight:700; color:#374151; }
-.sic-field-hint { font-size:11px; color:#94a3b8; margin-top:2px; }
+.sic-field label { font-size: var(--fs-base); font-weight:700; color:#374151; }
+.sic-field-hint { font-size: var(--fs-xs); color:#94a3b8; margin-top:2px; }
 .sic-field input, .sic-field textarea {
   padding:9px 12px; border:1px solid #cbd5e1; border-radius:10px;
-  font-size:13px; outline:none; font-family:inherit; transition:border-color .15s;
+  font-size: var(--fs-base); outline:none; font-family:inherit; transition:border-color .15s;
 }
 .sic-field input:focus, .sic-field textarea:focus {
   border-color:#065f46; box-shadow:0 0 0 3px rgba(6,95,70,.08);
@@ -54,11 +54,11 @@
   display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;
   padding-top:20px; border-top:1px solid #f1f5f9; margin-top:20px;
 }
-.sic-btn-save { padding:11px 28px; background:#065f46; color:#fff; border:none; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; }
+.sic-btn-save { padding:11px 28px; background:#065f46; color:#fff; border:none; border-radius:10px; font-size: var(--fs-md); font-weight:700; cursor:pointer; }
 .sic-btn-save:hover { background:#047857; }
-.sic-btn-back { padding:11px 22px; background:#f1f5f9; color:#475569; border:none; border-radius:10px; font-size:14px; font-weight:600; text-decoration:none; display:inline-block; }
-.sic-error-box { background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:12px 16px; color:#991b1b; font-size:13px; margin-bottom:16px; }
-.sic-info-box { background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:14px 18px; font-size:13px; color:#1e40af; }
+.sic-btn-back { padding:11px 22px; background:#f1f5f9; color:#475569; border:none; border-radius:10px; font-size: var(--fs-md); font-weight:600; text-decoration:none; display:inline-block; }
+.sic-error-box { background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:12px 16px; color:#991b1b; font-size: var(--fs-base); margin-bottom:16px; }
+.sic-info-box { background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:14px 18px; font-size: var(--fs-base); color:#1e40af; }
 
 /* Info tab */
 .sic-info-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
@@ -67,22 +67,22 @@
   background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px;
   padding:18px 20px;
 }
-.sic-info-stat-label { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; }
-.sic-info-stat-value { font-size:22px; font-weight:900; color:#0f172a; }
-.sic-info-stat-sub { font-size:12px; color:#64748b; margin-top:4px; }
+.sic-info-stat-label { font-size: var(--fs-xs); font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; }
+.sic-info-stat-value { font-size: var(--fs-heading); font-weight:900; color:#0f172a; }
+.sic-info-stat-sub { font-size: var(--fs-sm); color:#64748b; margin-top:4px; }
 
 .sic-default-list {
   background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;
   padding:14px 16px; max-height:180px; overflow-y:auto;
 }
 .sic-default-list-item {
-  font-size:12px; color:#475569; padding:4px 0; border-bottom:1px solid #f1f5f9;
+  font-size: var(--fs-sm); color:#475569; padding:4px 0; border-bottom:1px solid #f1f5f9;
 }
 .sic-default-list-item:last-child { border-bottom:none; }
 
 .sic-storage-badge {
   display:inline-flex; align-items:center; gap:6px;
-  padding:6px 14px; border-radius:20px; font-size:13px; font-weight:700;
+  padding:6px 14px; border-radius:20px; font-size: var(--fs-base); font-weight:700;
 }
 .sic-storage-local { background:#fef9c3; color:#a16207; }
 .sic-storage-sharepoint { background:#dbeafe; color:#1e40af; }
@@ -94,7 +94,7 @@
 
   {% if messages %}
     {% for msg in messages %}
-    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 16px;color:#166534;font-size:13px;">
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 16px;color:#166534;">
       &#10003; {{ msg }}
     </div>
     {% endfor %}
@@ -219,7 +219,7 @@
               </div>
             </div>
             <div>
-              <div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">
+              <div style="font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">
                 Lista predefinita
               </div>
               <div class="sic-default-list">
@@ -242,7 +242,7 @@
               </div>
             </div>
             <div>
-              <div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">
+              <div style="font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">
                 Lista predefinita
               </div>
               <div class="sic-default-list">
@@ -290,7 +290,7 @@
       </div>
       <div class="sic-section">
         <div class="sic-section-title">&#128196; Configurazione attiva</div>
-        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;font-size:13px;font-family:monospace;">
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;font-family:monospace;">
           <div style="color:#94a3b8;margin-bottom:4px;">sharepoint_site_id</div>
           <div style="color:#0f172a;word-break:break-all;">{{ cfg.sharepoint_site_id|default:"(non configurato)" }}</div>
           <div style="color:#94a3b8;margin-top:12px;margin-bottom:4px;">sharepoint_list_id</div>

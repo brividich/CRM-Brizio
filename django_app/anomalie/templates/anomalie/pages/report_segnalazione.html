@@ -1,15 +1,20 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="it">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Report OP {{ op.id|default:"Documento OP" }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
   <style>
     *, *::before, *::after { box-sizing: border-box; }
 
     body {
       margin: 0;
-      font-family: "Segoe UI", Arial, sans-serif;
+      font-family: "Outfit", sans-serif;
+      font-size: var(--fs-base);
+      line-height: var(--lh-base);
       background: #f8fafc;
       color: #1e293b;
     }
@@ -29,7 +34,7 @@
 
     .action-title {
       flex: 1;
-      font-size: 14px;
+      font-size: var(--fs-md);
       font-weight: 800;
       letter-spacing: 0.05em;
       text-transform: uppercase;
@@ -44,7 +49,7 @@
       border: 1px solid rgba(255, 255, 255, 0.18);
       background: rgba(255, 255, 255, 0.08);
       color: #fff;
-      font-size: 13px;
+      font-size: var(--fs-base);
       font-weight: 700;
       text-decoration: none;
       cursor: pointer;
@@ -72,7 +77,7 @@
     }
 
     .eyebrow {
-      font-size: 12px;
+      font-size: var(--fs-sm);
       font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
@@ -82,14 +87,14 @@
 
     .hero h1 {
       margin: 0;
-      font-size: 30px;
+      font-size: var(--fs-display-lg);
       line-height: 1.1;
       letter-spacing: -0.03em;
     }
 
     .hero-sub {
       margin-top: 10px;
-      font-size: 14px;
+      font-size: var(--fs-md);
       line-height: 1.6;
       color: rgba(255, 255, 255, 0.78);
     }
@@ -100,7 +105,7 @@
       border-radius: 18px;
       background: rgba(255, 255, 255, 0.12);
       border: 1px solid rgba(255, 255, 255, 0.16);
-      font-size: 12px;
+      font-size: var(--fs-sm);
       line-height: 1.7;
     }
 
@@ -115,7 +120,7 @@
       margin-top: 14px;
       padding: 6px 14px;
       border-radius: 999px;
-      font-size: 12px;
+      font-size: var(--fs-sm);
       font-weight: 800;
       letter-spacing: 0.04em;
       text-transform: uppercase;
@@ -159,7 +164,7 @@
     }
 
     .summary-label {
-      font-size: 11px;
+      font-size: var(--fs-xs);
       font-weight: 800;
       letter-spacing: 0.08em;
       text-transform: uppercase;
@@ -168,7 +173,7 @@
     }
 
     .summary-value {
-      font-size: 30px;
+      font-size: var(--fs-display-lg);
       font-weight: 900;
       color: #0f172a;
       line-height: 1;
@@ -176,7 +181,7 @@
 
     .summary-note {
       margin-top: 8px;
-      font-size: 12px;
+      font-size: var(--fs-sm);
       color: #64748b;
     }
 
@@ -193,7 +198,7 @@
 
     .section-title {
       margin: 0 0 16px;
-      font-size: 12px;
+      font-size: var(--fs-sm);
       font-weight: 800;
       letter-spacing: 0.08em;
       text-transform: uppercase;
@@ -215,7 +220,7 @@
     }
 
     .field-label {
-      font-size: 11px;
+      font-size: var(--fs-xs);
       font-weight: 800;
       letter-spacing: 0.08em;
       text-transform: uppercase;
@@ -225,7 +230,7 @@
     .field-value,
     .note-box {
       min-height: 22px;
-      font-size: 14px;
+      font-size: var(--fs-md);
       line-height: 1.6;
       color: #1e293b;
       word-break: break-word;
@@ -266,14 +271,14 @@
 
     .anomalia-title {
       margin: 0;
-      font-size: 20px;
+      font-size: var(--fs-title-lg);
       font-weight: 800;
       color: #0f172a;
     }
 
     .anomalia-sub {
       margin-top: 6px;
-      font-size: 13px;
+      font-size: var(--fs-base);
       color: #64748b;
     }
 
@@ -292,7 +297,7 @@
       border-radius: 999px;
       border: 1px solid #cbd5e1;
       background: #f8fafc;
-      font-size: 12px;
+      font-size: var(--fs-sm);
       font-weight: 700;
       color: #334155;
     }
@@ -330,7 +335,7 @@
     .flag-card strong {
       display: block;
       margin-top: 8px;
-      font-size: 14px;
+      font-size: var(--fs-md);
       color: #0f172a;
     }
 
@@ -346,7 +351,7 @@
       border-radius: 12px;
       background: #f8fafc;
       border: 1px solid #e2e8f0;
-      font-size: 12px;
+      font-size: var(--fs-sm);
       color: #334155;
     }
 
@@ -366,7 +371,7 @@
     .footer {
       margin-top: 24px;
       text-align: center;
-      font-size: 12px;
+      font-size: var(--fs-sm);
       color: #64748b;
     }
 
@@ -417,7 +422,7 @@
     }
   </style>
 </head>
-<body>
+<body class="fs-{{ ui_prefs.font_scale|default:'normal' }}">
   <div class="action-bar">
     <div class="action-title">Report Documento OP</div>
     <a href="javascript:history.back()" class="action-btn">&#8592; Indietro</a>

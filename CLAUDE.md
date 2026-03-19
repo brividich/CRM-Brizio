@@ -1,7 +1,7 @@
 # CLAUDE.md — Portale Novicrom
 
 Documento di contesto per AI coding assistant. Aggiornato continuamente con il progetto.
-Versione app corrente: **0.7.3**
+Versione app corrente: **0.7.4**
 
 ---
 

@@ -1,0 +1,38 @@
+<header class="app-header" id="app-header">
+  <div class="app-header-left">
+    <button class="app-hbg" id="sb-mobile-toggle" type="button" aria-label="Apri o chiudi menu" aria-expanded="false">
+      <span class="hbar"></span>
+      <span class="hbar"></span>
+      <span class="hbar"></span>
+    </button>
+
+    <a class="app-header-brand" href="{% url 'dashboard_home' %}" aria-label="Vai alla dashboard">
+      <span class="brand-mark app-header-brand-mark{% if not portal_branding.brand_logo_compact and not portal_branding.brand_logo_full %} is-fallback{% endif %}">
+        {% if portal_branding.brand_logo_compact %}
+          <img src="{{ portal_branding.brand_logo_compact }}" alt="{{ portal_branding.portal_name }}" class="brand-mark-img" onerror="this.parentElement.classList.add('is-fallback');this.remove();">
+        {% elif portal_branding.brand_logo_full %}
+          <img src="{{ portal_branding.brand_logo_full }}" alt="{{ portal_branding.portal_name }}" class="brand-mark-img" onerror="this.parentElement.classList.add('is-fallback');this.remove();">
+        {% endif %}
+        <span class="brand-mark-fallback">{{ portal_branding.monogram }}</span>
+      </span>
+      <span class="app-header-brand-name">{{ portal_branding.portal_name|default:"Portale Novicrom" }}</span>
+    </a>
+  </div>
+</header>
+
+<script>
+(function () {
+  var toggle = document.getElementById('sb-mobile-toggle');
+  if (!toggle) return;
+
+  function syncState() {
+    toggle.setAttribute('aria-expanded', document.body.classList.contains('sb-mobile-open') ? 'true' : 'false');
+  }
+
+  syncState();
+  toggle.addEventListener('click', function () {
+    document.body.classList.toggle('sb-mobile-open');
+    syncState();
+  });
+})();
+</script>

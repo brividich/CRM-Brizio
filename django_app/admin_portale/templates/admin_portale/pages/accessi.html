@@ -90,6 +90,7 @@
     </div>
     <div class="card-body" style="padding:0;">
       {% if ruoli_info %}
+        <div class="table-wrap">
         <table class="ruoli-table">
           <thead>
             <tr>
@@ -136,6 +137,7 @@
             {% endfor %}
           </tbody>
         </table>
+        </div>
       {% else %}
         <div style="padding:16px;"><p class="cell-muted">Nessun ruolo trovato.</p></div>
       {% endif %}
@@ -155,6 +157,7 @@
     </div>
     <div class="card-body" style="padding:0;">
       {% if override_recenti %}
+        <div class="table-wrap">
         <table class="ov-table">
           <thead>
             <tr>
@@ -202,6 +205,7 @@
             {% endfor %}
           </tbody>
         </table>
+        </div>
       {% else %}
         <div style="padding:16px;"><p class="cell-muted">Nessun override utente. Tutti gli utenti seguono il proprio ruolo.</p></div>
       {% endif %}

@@ -16,10 +16,18 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from core.audit import log_action
+from core.context_processors import (
+    _UI_PREFS_DEFAULTS,
+    _UI_PREFS_SESSION_KEY,
+    compact_sidebar_footer_actions,
+    get_default_sidebar_footer_actions,
+    get_sidebar_footer_catalog,
+    normalize_sidebar_footer_actions,
+)
 from core.impersonation import clear_impersonation_state, display_name_for_user, get_impersonation_state, is_impersonation_stop_path
 from core.legacy_models import AnagraficaDipendente, UtenteLegacy
 from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_table_columns
-from core.models import OptioneConfig, UserExtraInfo
+from core.models import OptioneConfig, UserExtraInfo, UserUiPreference
 
 
 _SAFE_HTTP_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
@@ -653,3 +661,185 @@ def api_notifica_leggi(request, notifica_id: int):
         return JsonResponse({"ok": False, "error": "Utente non trovato"}, status=403)
     updated = Notifica.objects.filter(id=notifica_id, legacy_user_id=legacy_user.id).update(letta=True)
     return JsonResponse({"ok": bool(updated)})
+
+
+_VALID_NAV_MODES = {"top", "side"}
+_VALID_FONT_SCALES = {"small", "normal", "large", "xl"}
+
+
+@login_required
+def ui_prefs_page(request):
+    if request.method == "POST":
+        prefs, _ = UserUiPreference.objects.get_or_create(
+            user=request.user,
+            defaults={
+                "nav_mode": "side",
+                "font_scale": "normal",
+                "sidebar_collapsed": False,
+                "sidebar_footer_actions": None,
+            },
+        )
+        nav_mode = request.POST.get("nav_mode", "").strip()
+        font_scale = request.POST.get("font_scale", "").strip()
+        sidebar_collapsed_raw = request.POST.get("sidebar_collapsed", "0").strip()
+        sidebar_footer_actions_raw = request.POST.get("sidebar_footer_actions") if "sidebar_footer_actions" in request.POST else None
+
+        changed = False
+        if nav_mode in _VALID_NAV_MODES:
+            prefs.nav_mode = nav_mode
+            changed = True
+        if font_scale in _VALID_FONT_SCALES:
+            prefs.font_scale = font_scale
+            changed = True
+        if sidebar_collapsed_raw in {"0", "1"}:
+            prefs.sidebar_collapsed = sidebar_collapsed_raw == "1"
+            changed = True
+        if sidebar_footer_actions_raw is not None:
+            compact_actions = compact_sidebar_footer_actions(sidebar_footer_actions_raw)
+            if prefs.sidebar_footer_actions != compact_actions:
+                prefs.sidebar_footer_actions = compact_actions
+                changed = True
+        if changed:
+            prefs.save()
+            try:
+                request.session[_UI_PREFS_SESSION_KEY] = {
+                    "nav_mode": prefs.nav_mode,
+                    "font_scale": prefs.font_scale,
+                    "sidebar_collapsed": prefs.sidebar_collapsed,
+                    "sidebar_footer_actions": normalize_sidebar_footer_actions(
+                        prefs.sidebar_footer_actions, fallback_to_default=True
+                    ),
+                }
+            except Exception:
+                pass
+        return redirect(reverse("ui_prefs_page") + "?saved=1")
+
+    prefs = UserUiPreference.objects.filter(user=request.user).first()
+    current = {
+        "nav_mode": prefs.nav_mode if prefs else _UI_PREFS_DEFAULTS["nav_mode"],
+        "font_scale": prefs.font_scale if prefs else _UI_PREFS_DEFAULTS["font_scale"],
+        "sidebar_collapsed": prefs.sidebar_collapsed if prefs else _UI_PREFS_DEFAULTS["sidebar_collapsed"],
+        "sidebar_footer_actions": normalize_sidebar_footer_actions(
+            getattr(prefs, "sidebar_footer_actions", None), fallback_to_default=True
+        ) if prefs else get_default_sidebar_footer_actions(),
+    }
+    sidebar_footer_catalog = get_sidebar_footer_catalog()
+    return render(request, "core/pages/ui_prefs.html", {
+        "page_title": "Preferenze interfaccia",
+        "current": current,
+        "saved": request.GET.get("saved") == "1",
+        "sidebar_footer_catalog": sidebar_footer_catalog,
+    })
+
+
+@login_required
+@require_POST
+def api_ui_prefs_save(request):  # route: ui_prefs_api_save
+    nav_mode = request.POST.get("nav_mode", "").strip()
+    font_scale = request.POST.get("font_scale", "").strip()
+    sidebar_collapsed_raw = request.POST.get("sidebar_collapsed", "").strip()
+    sidebar_footer_actions_raw = request.POST.get("sidebar_footer_actions") if "sidebar_footer_actions" in request.POST else None
+
+    # Recupera o crea il record (solo qui avviene la creazione del record)
+    prefs, _ = UserUiPreference.objects.get_or_create(
+        user=request.user,
+        defaults={
+            "nav_mode": "side",
+            "font_scale": "normal",
+            "sidebar_collapsed": False,
+            "sidebar_footer_actions": None,
+        },
+    )
+
+    changed = False
+    if nav_mode in _VALID_NAV_MODES:
+        prefs.nav_mode = nav_mode
+        changed = True
+    if font_scale in _VALID_FONT_SCALES:
+        prefs.font_scale = font_scale
+        changed = True
+    if sidebar_collapsed_raw in {"0", "1"}:
+        prefs.sidebar_collapsed = sidebar_collapsed_raw == "1"
+        changed = True
+    if sidebar_footer_actions_raw is not None:
+        compact_actions = compact_sidebar_footer_actions(sidebar_footer_actions_raw)
+        if prefs.sidebar_footer_actions != compact_actions:
+            prefs.sidebar_footer_actions = compact_actions
+            changed = True
+
+    if changed:
+        prefs.save()
+
+    # Aggiorna la cache di sessione per evitare un DB hit alla prossima request
+    session_data = {
+        "nav_mode": prefs.nav_mode,
+        "font_scale": prefs.font_scale,
+        "sidebar_collapsed": prefs.sidebar_collapsed,
+        "sidebar_footer_actions": normalize_sidebar_footer_actions(
+            prefs.sidebar_footer_actions, fallback_to_default=True
+        ),
+    }
+    try:
+        request.session[_UI_PREFS_SESSION_KEY] = session_data
+    except Exception:
+        pass
+
+    return JsonResponse({"ok": True, "prefs": session_data})
+
+
+def sidebar_toggle_save(request):
+    """Endpoint dedicato e leggero per salvare solo sidebar_collapsed.
+
+    Non usa @login_required (che farebbe redirect 302): restituisce JSON 401
+    per utenti non autenticati, così il client AJAX non va in errore silenzioso.
+    CSRF verificato automaticamente da CsrfViewMiddleware su ogni POST.
+    """
+    if request.method != "POST":
+        from django.http import HttpResponseNotAllowed
+        return HttpResponseNotAllowed(["POST"])
+
+    if not getattr(request, "user", None) or not request.user.is_authenticated:
+        return JsonResponse({"ok": False, "reason": "unauthenticated"}, status=401)
+
+    raw = request.POST.get("sidebar_collapsed", "").strip()
+    if raw not in {"0", "1"}:
+        return JsonResponse({"ok": False, "reason": "invalid_value"}, status=400)
+
+    collapsed = raw == "1"
+
+    # Crea il record solo se non esiste ancora; altrimenti aggiorna solo il campo.
+    prefs, created = UserUiPreference.objects.get_or_create(
+        user=request.user,
+        defaults={
+            "nav_mode": "side",
+            "font_scale": "normal",
+            "sidebar_collapsed": collapsed,
+            "sidebar_footer_actions": None,
+        },
+    )
+    if not created:
+        prefs.sidebar_collapsed = collapsed
+        prefs.save(update_fields=["sidebar_collapsed"])
+
+    # Aggiorna cache di sessione senza invalidarla completamente
+    cached = request.session.get(_UI_PREFS_SESSION_KEY)
+    if isinstance(cached, dict) and "nav_mode" in cached:
+        cached["sidebar_collapsed"] = collapsed
+        cached["sidebar_footer_actions"] = normalize_sidebar_footer_actions(
+            cached.get("sidebar_footer_actions"), fallback_to_default=True
+        )
+    else:
+        cached = {
+            "nav_mode": prefs.nav_mode,
+            "font_scale": prefs.font_scale,
+            "sidebar_collapsed": collapsed,
+            "sidebar_footer_actions": normalize_sidebar_footer_actions(
+                prefs.sidebar_footer_actions, fallback_to_default=True
+            ),
+        }
+    try:
+        request.session[_UI_PREFS_SESSION_KEY] = cached
+    except Exception:
+        pass
+
+    return JsonResponse({"ok": True})

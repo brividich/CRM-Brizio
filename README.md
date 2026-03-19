@@ -3,7 +3,7 @@
 
 ![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
 ![Django 5.2](https://img.shields.io/badge/Django-5.2-0C4B33?logo=django&logoColor=white)
-![Version 0.7.3](https://img.shields.io/badge/version-0.7.3-F97316)
+![Version 0.7.4](https://img.shields.io/badge/version-0.7.4-F97316)
 ![Database SQLite or SQL Server](https://img.shields.io/badge/DB-SQLite%20%7C%20SQL%20Server-1E3A5F)
 
 Repository pubblico del software **BrizioHUB**. Il nome istanza è configurabile per deployment
@@ -18,11 +18,23 @@ con moduli separati per operativita quotidiana, amministrazione, anagrafiche, as
 
 L'entrypoint corretto per lo sviluppo locale e `django_app/manage.py`.
 
+## Personalizzazione interfaccia
+
+Il portale include un sistema di preferenze UI per utente che permette di adattare
+la leggibilita e i comandi rapidi senza modificare codice o template:
+
+- `font_scale` globale con profili `small`, `normal`, `large`, `xl`
+- tipografia coerente su dashboard, moduli operativi, form, tabelle, card e widget
+- sidebar con toggle compatto in alto e logo separato
+- footer sidebar personalizzabile con azioni rapide aggiungibili, rimovibili e riordinabili
+
+Le preferenze vengono salvate lato server e riapplicate automaticamente al login successivo.
+
 ## Cosa include
 
 | Area | Descrizione |
 | --- | --- |
-| Dashboard e UX | home modulare, viste per ruolo, scorciatoie operative, navigazione dinamica |
+| Dashboard e UX | home modulare, viste per ruolo, scorciatoie operative, navigazione dinamica, font scaling globale e sidebar personalizzabile |
 | Workflow | assenze, anomalie, tickets, timbri, notizie e richieste interne |
 | Operations | inventory asset, work order, macchine di lavoro, planimetrie e verifiche periodiche |
 | Governance | gestione utenti, ACL legacy, pulsanti UI, audit, diagnostica LDAP e configurazione accessi |

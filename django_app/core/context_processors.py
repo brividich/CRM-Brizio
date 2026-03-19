@@ -8,6 +8,7 @@ from django.db import DatabaseError, connections
 from django.urls import NoReverseMatch, reverse
 
 from core.acl import check_permesso
+from core.branding import get_portal_branding
 from core.impersonation import display_name_for_user
 from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_auth_enabled, legacy_table_has_column
 from core.legacy_cache import (
@@ -25,6 +26,137 @@ NAV_REGISTRY_ACL_GATES: dict[str, str] = {
     "tasks": "/tasks/",
 }
 
+# ── UI Preferences helpers ──────────────────────────────────────────────────
+_UI_PREFS_SESSION_KEY = "_ui_prefs_v2"
+_UI_PREFS_DEFAULTS: dict = {"nav_mode": "side", "font_scale": "normal", "sidebar_collapsed": False}
+_SIDEBAR_FOOTER_ACTION_CATALOG: tuple[dict[str, str], ...] = (
+    {
+        "key": "car",
+        "label": "CAR",
+        "icon": "⚠",
+        "hint": "Collegamento alle richieste CAR. Compare solo se ci sono elementi in attesa.",
+    },
+    {
+        "key": "notifications",
+        "label": "Notifiche",
+        "icon": "🔔",
+        "hint": "Centro notifiche con badge dei messaggi non letti.",
+    },
+    {
+        "key": "preferences",
+        "label": "Preferenze",
+        "icon": "⚙",
+        "hint": "Apre la pagina delle preferenze interfaccia.",
+    },
+    {
+        "key": "profile",
+        "label": "Profilo",
+        "icon": "👤",
+        "hint": "Accesso rapido al profilo utente.",
+    },
+    {
+        "key": "logout",
+        "label": "Esci",
+        "icon": "🚪",
+        "hint": "Disconnessione rapida dal portale.",
+    },
+)
+_SIDEBAR_FOOTER_ACTION_KEYS = {item["key"] for item in _SIDEBAR_FOOTER_ACTION_CATALOG}
+_SIDEBAR_FOOTER_DEFAULT_ORDER = tuple(item["key"] for item in _SIDEBAR_FOOTER_ACTION_CATALOG)
+
+
+def get_sidebar_footer_catalog() -> list[dict[str, str]]:
+    return [dict(item) for item in _SIDEBAR_FOOTER_ACTION_CATALOG]
+
+
+def get_default_sidebar_footer_actions() -> list[str]:
+    return list(_SIDEBAR_FOOTER_DEFAULT_ORDER)
+
+
+def normalize_sidebar_footer_actions(raw_value, *, fallback_to_default: bool = True) -> list[str]:
+    if raw_value is None:
+        return get_default_sidebar_footer_actions() if fallback_to_default else []
+
+    if isinstance(raw_value, str):
+        values = [part.strip() for part in raw_value.split(",")]
+    elif isinstance(raw_value, (list, tuple, set)):
+        values = list(raw_value)
+    else:
+        return get_default_sidebar_footer_actions() if fallback_to_default else []
+
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        key = str(value or "").strip().lower()
+        if not key or key not in _SIDEBAR_FOOTER_ACTION_KEYS or key in seen:
+            continue
+        seen.add(key)
+        result.append(key)
+    return result
+
+
+def compact_sidebar_footer_actions(raw_value) -> list[str] | None:
+    normalized = normalize_sidebar_footer_actions(raw_value, fallback_to_default=False)
+    if normalized == get_default_sidebar_footer_actions():
+        return None
+    return normalized
+
+
+def _get_ui_prefs(request) -> dict:
+    """Legge le preferenze UI dalla cache di sessione; se assente le carica dal DB
+    (solo se il record esiste già) oppure usa i default.
+    NON crea mai record UserUiPreference: la creazione avviene solo al salvataggio esplicito."""
+    if not getattr(request, "user", None) or not request.user.is_authenticated:
+        return {
+            **_UI_PREFS_DEFAULTS,
+            "sidebar_footer_actions": get_default_sidebar_footer_actions(),
+        }
+
+    cached = request.session.get(_UI_PREFS_SESSION_KEY)
+    if cached and isinstance(cached, dict) and "nav_mode" in cached and "font_scale" in cached:
+        data = {
+            "nav_mode": cached.get("nav_mode") or _UI_PREFS_DEFAULTS["nav_mode"],
+            "font_scale": cached.get("font_scale") or _UI_PREFS_DEFAULTS["font_scale"],
+            "sidebar_collapsed": bool(cached.get("sidebar_collapsed")),
+            "sidebar_footer_actions": normalize_sidebar_footer_actions(
+                cached.get("sidebar_footer_actions"), fallback_to_default=True
+            ),
+        }
+        if data != cached:
+            try:
+                request.session[_UI_PREFS_SESSION_KEY] = data
+            except Exception:
+                pass
+        return data
+
+    try:
+        from core.models import UserUiPreference
+        prefs = UserUiPreference.objects.filter(user=request.user).first()
+        if prefs:
+            data = {
+                "nav_mode": prefs.nav_mode,
+                "font_scale": prefs.font_scale,
+                "sidebar_collapsed": prefs.sidebar_collapsed,
+                "sidebar_footer_actions": normalize_sidebar_footer_actions(
+                    getattr(prefs, "sidebar_footer_actions", None), fallback_to_default=True
+                ),
+            }
+        else:
+            data = {
+                **_UI_PREFS_DEFAULTS,
+                "sidebar_footer_actions": get_default_sidebar_footer_actions(),
+            }
+        try:
+            request.session[_UI_PREFS_SESSION_KEY] = data
+        except Exception:
+            pass
+        return data
+    except Exception:
+        return {
+            **_UI_PREFS_DEFAULTS,
+            "sidebar_footer_actions": get_default_sidebar_footer_actions(),
+        }
+
 
 @dataclass
 class NavItem:
@@ -35,7 +167,47 @@ class NavItem:
     coming: bool
     modulo: str
     codice: str
+    icon: str = ""
+    group: str = ""
     order_hint: int | None = None
+    category_color: str = ""
+    category_key: str = ""
+    category_label: str = ""
+    category_icon: str = ""
+    category_order: int = 0
+
+
+def _group_nav_items(items: list) -> list[dict]:
+    """Raggruppa le voci topbar per categoria.
+
+    Ritorna una lista ordinata di dict:
+    - type='category': {key, label, color, order, active, items: [NavItem, ...]}
+    - type='item':     {item: NavItem, order: int}
+    """
+    cat_map: dict[str, dict] = {}
+    direct: list[dict] = []
+    for item in items:
+        if item.category_key:
+            if item.category_key not in cat_map:
+                cat_map[item.category_key] = {
+                    "type": "category",
+                    "key": item.category_key,
+                    "label": item.category_label,
+                    "icon": item.category_icon,
+                    "color": item.category_color,
+                    "order": item.category_order,
+                    "active": False,
+                    "items": [],
+                }
+            grp = cat_map[item.category_key]
+            grp["items"].append(item)
+            if item.active:
+                grp["active"] = True
+        else:
+            direct.append({"type": "item", "item": item, "order": item.order_hint or 100})
+    merged = list(cat_map.values()) + direct
+    merged.sort(key=lambda x: x["order"])
+    return merged
 
 
 def _normalize_path(path: str) -> str:
@@ -188,7 +360,14 @@ def _load_registry_nav_items(request, legacy_user) -> list[NavItem]:
             coming=node.coming,
             modulo=node.modulo,
             codice=node.codice,
+            icon=node.icon,
+            group=node.group,
             order_hint=node.order_hint,
+            category_color=node.category_color,
+            category_key=node.category_key,
+            category_label=node.category_label,
+            category_icon=node.category_icon,
+            category_order=node.category_order,
         )
         for node in nodes
     ]
@@ -279,6 +458,8 @@ def _load_subnav_items(request, legacy_user) -> list:
             coming=node.coming,
             modulo="navigation",
             codice=node.codice,
+            icon=node.icon,
+            group=node.group,
             order_hint=node.order_hint,
         ))
     return result
@@ -287,14 +468,17 @@ def _load_subnav_items(request, legacy_user) -> list:
 def legacy_nav(request):
     result = {
         "nav_items": [],
+        "topbar_groups": [],
         "legacy_user": None,
         "car_pending_count": 0,
         "notifiche_count": 0,
         "subnav_items": [],
+        "topbar_color": "",
         "impersonation_active": False,
         "impersonator_display": "",
         "impersonated_display": "",
         "impersonation_stop_url": "",
+        "ui_prefs": _get_ui_prefs(request),
     }
     if not getattr(request, "user", None) or not request.user.is_authenticated:
         return result
@@ -342,6 +526,11 @@ def legacy_nav(request):
             registry_items = _ensure_dashboard_nav(registry_items, current_variants)
             registry_items.sort(key=lambda x: ((x.order_hint if x.order_hint is not None else 999999), x.label.lower()))
             result["nav_items"] = registry_items
+            result["topbar_groups"] = _group_nav_items(registry_items)
+            result["topbar_color"] = next(
+                (item.category_color for item in registry_items if item.active and item.category_color),
+                "",
+            )
             result["subnav_items"] = _load_subnav_items(request, legacy_user)
             return result
 
@@ -384,6 +573,7 @@ def legacy_nav(request):
                     coming=coming,
                     modulo=(puls.get("modulo") or ""),
                     codice=(puls.get("codice") or ""),
+                    icon=(puls.get("icon") or ""),
                     order_hint=(ui_order_hint if ui_order_hint is not None else order_map.get(pulsante_id)),
                 )
             )
@@ -398,9 +588,25 @@ def legacy_nav(request):
     return result
 
 
+def ui_prefs_context(request):
+    """Espone le preferenze UI come variabili piatte nel contesto template.
+
+    Riusa la cache di sessione di _get_ui_prefs: nessun hit DB aggiuntivo se
+    legacy_nav è già stato eseguito nello stesso request. Funziona anche per
+    utenti non autenticati (restituisce i valori di default).
+    """
+    prefs = _get_ui_prefs(request)
+    return {
+        "ui_font_scale": prefs["font_scale"],
+        "ui_sidebar_collapsed": prefs["sidebar_collapsed"],
+        "ui_sidebar_footer_actions": prefs.get("sidebar_footer_actions", get_default_sidebar_footer_actions()),
+    }
+
+
 def app_meta(_request):
     current_release = get_current_release()
     return {
+        "portal_branding": get_portal_branding(),
         "app_version": str(getattr(settings, "APP_VERSION", "") or "").strip(),
         "module_versions": get_module_versions(),
         "current_release": current_release,

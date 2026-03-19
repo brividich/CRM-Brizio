@@ -7,27 +7,27 @@
 <style>
 .ga-wrap { max-width: 1200px; margin: 0 auto; padding: 18px 16px; }
 .ga-header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
-.ga-title { font-size: 22px; font-weight: 800; color: #0f172a; margin: 0; }
-.ga-badge { background: #1f64d8; color: #fff; border-radius: 6px; padding: 3px 9px; font-size: 12px; font-weight: 700; }
+.ga-title { font-size: var(--fs-heading); font-weight: 800; color: #0f172a; margin: 0; }
+.ga-badge { background: #1f64d8; color: #fff; border-radius: 6px; padding: 3px 9px; font-size: var(--fs-sm); font-weight: 700; }
 .ga-tabs { display: flex; gap: 4px; border-bottom: 2px solid #e5ecf6; margin-bottom: 18px; }
-.ga-tab { padding: 8px 16px; border-radius: 8px 8px 0 0; text-decoration: none; font-weight: 600; font-size: 13px; color: #5a7296; border: 1px solid transparent; border-bottom: none; }
+.ga-tab { padding: 8px 16px; border-radius: 8px 8px 0 0; text-decoration: none; font-weight: 600; font-size: var(--fs-base); color: #5a7296; border: 1px solid transparent; border-bottom: none; }
 .ga-tab:hover { background: #f0f5ff; color: #1f64d8; }
 .ga-tab.active { background: #fff; color: #1f64d8; border-color: #e5ecf6; margin-bottom: -2px; }
 .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 18px; }
 .kpi { background: #fff; border: 1px solid #dbe3f0; border-radius: 11px; padding: 14px; box-shadow: 0 2px 6px rgba(15,23,42,.04); }
-.kpi-label { font-size: 11px; text-transform: uppercase; color: #7e94b2; font-weight: 700; }
-.kpi-val { font-size: 30px; font-weight: 800; color: #0f172a; line-height: 1.1; margin-top: 4px; }
-.kpi-sub { font-size: 12px; color: #8fa5c0; margin-top: 2px; }
+.kpi-label { font-size: var(--fs-xs); text-transform: uppercase; color: #7e94b2; font-weight: 700; }
+.kpi-val { font-size: var(--fs-display-lg); font-weight: 800; color: #0f172a; line-height: 1.1; margin-top: 4px; }
+.kpi-sub { font-size: var(--fs-sm); color: #8fa5c0; margin-top: 2px; }
 .card { background: #fff; border: 1px solid #dbe3f0; border-radius: 11px; box-shadow: 0 2px 6px rgba(15,23,42,.04); overflow: hidden; margin-bottom: 14px; }
 .card-head { padding: 10px 14px; border-bottom: 1px solid #e5ecf6; display: flex; justify-content: space-between; align-items: center; }
-.card-title { font-size: 14px; font-weight: 700; color: #0f172a; margin: 0; }
+.card-title { font-size: var(--fs-md); font-weight: 700; color: #0f172a; margin: 0; }
 .card-body { padding: 14px; }
-.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
-.tbl th { padding: 8px 10px; background: #f8fbff; color: #7f95b3; font-size: 11px; text-transform: uppercase; font-weight: 700; border-bottom: 1px solid #e5ecf6; text-align: left; }
+.tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-base); }
+.tbl th { padding: 8px 10px; background: #f8fbff; color: #7f95b3; font-size: var(--fs-xs); text-transform: uppercase; font-weight: 700; border-bottom: 1px solid #e5ecf6; text-align: left; }
 .tbl td { padding: 8px 10px; border-bottom: 1px solid #f0f4fa; vertical-align: middle; }
 .tbl tr:last-child td { border-bottom: none; }
 .tbl tr:hover td { background: #f8fbff; }
-.badge { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 700; }
+.badge { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: var(--fs-xs); font-weight: 700; }
 .badge-open { background: #fef9c3; color: #854d0e; }
 .badge-done { background: #dcfce7; color: #166534; }
 .badge-canceled { background: #f1f5f9; color: #64748b; }
@@ -35,37 +35,63 @@
 .badge-in_stock { background: #f0fdf4; color: #166534; }
 .badge-in_repair { background: #fff7ed; color: #9a3412; }
 .badge-retired { background: #f1f5f9; color: #64748b; }
-.btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid transparent; text-decoration: none; }
+.btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px; border-radius: 8px; font-size: var(--fs-base); font-weight: 600; cursor: pointer; border: 1px solid transparent; text-decoration: none; }
 .btn-primary { background: #1f64d8; color: #fff; border-color: #1f64d8; }
 .btn-primary:hover { background: #1750b8; }
 .btn-danger { background: #fff; color: #dc2626; border-color: #fca5a5; }
 .btn-danger:hover { background: #fef2f2; }
-.btn-sm { padding: 4px 9px; font-size: 12px; }
+.btn-sm { padding: 4px 9px; font-size: var(--fs-sm); }
 .form-row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
 .form-group { display: flex; flex-direction: column; gap: 3px; }
-.form-group label { font-size: 11px; color: #6b7280; font-weight: 600; text-transform: uppercase; }
-.form-group input, .form-group select { border: 1px solid #d1d9e8; border-radius: 7px; padding: 6px 10px; font-size: 13px; background: #f9fbff; }
+.form-group label { font-size: var(--fs-xs); color: #6b7280; font-weight: 600; text-transform: uppercase; }
+.form-group input, .form-group select { border: 1px solid #d1d9e8; border-radius: 7px; padding: 6px 10px; font-size: var(--fs-base); background: #f9fbff; }
 .search-row { display: flex; gap: 8px; margin-bottom: 10px; }
-.search-row input { flex: 1; border: 1px solid #d1d9e8; border-radius: 8px; padding: 7px 12px; font-size: 13px; }
-.pager { display: flex; gap: 6px; align-items: center; justify-content: flex-end; margin-top: 10px; font-size: 12px; color: #6b7280; }
+.search-row input { flex: 1; border: 1px solid #d1d9e8; border-radius: 8px; padding: 7px 12px; font-size: var(--fs-base); }
+.pager { display: flex; gap: 6px; align-items: center; justify-content: flex-end; margin-top: 10px; font-size: var(--fs-sm); color: #6b7280; }
 .pager a { padding: 4px 9px; border: 1px solid #dbe3f0; border-radius: 6px; text-decoration: none; color: #1f64d8; font-weight: 600; }
-.log-row { display: grid; grid-template-columns: 140px 90px 120px 1fr; gap: 8px; padding: 7px 10px; border-bottom: 1px solid #f0f4fa; font-size: 12px; }
+.log-row { display: grid; grid-template-columns: 140px 90px 120px 1fr; gap: 8px; padding: 7px 10px; border-bottom: 1px solid #f0f4fa; font-size: var(--fs-sm); }
 .log-row:last-child { border-bottom: none; }
-.log-head { font-size: 11px; text-transform: uppercase; color: #8fa5c0; font-weight: 700; }
+.log-head { font-size: var(--fs-xs); text-transform: uppercase; color: #8fa5c0; font-weight: 700; }
 .section-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.muted-note { font-size: 12px; color: #64748b; }
-.chip-soft { display:inline-flex; align-items:center; border-radius:999px; padding:2px 8px; font-size:11px; font-weight:700; }
+.muted-note { font-size: var(--fs-sm); color: #64748b; }
+.chip-soft { display:inline-flex; align-items:center; border-radius:999px; padding:2px 8px; font-size: var(--fs-xs); font-weight:700; }
 .chip-soft.blue { background:#dbeafe; color:#1d4ed8; }
 .chip-soft.green { background:#dcfce7; color:#166534; }
 .chip-soft.slate { background:#e2e8f0; color:#475569; }
 .inline-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-@media (max-width: 800px) { .section-grid { grid-template-columns: 1fr; } .kpi-row { grid-template-columns: repeat(2, 1fr); } }
+.sidebar-shell { display:grid; gap:14px; }
+.sidebar-editor { border:1px solid #dbe3f0; border-radius:11px; padding:12px; display:grid; gap:10px; }
+.sidebar-editor-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+.sidebar-editor-title { display:grid; gap:4px; }
+.sidebar-editor-grid { display:grid; gap:10px; }
+.sidebar-editor-grid.meta { grid-template-columns: minmax(220px, 1.3fr) minmax(180px, 1fr) minmax(220px, 1.2fr) 110px; }
+.sidebar-editor-grid.routes { grid-template-columns: minmax(280px, 1.35fr) minmax(240px, 1fr); }
+.sidebar-editor-footer { display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap; }
+.sidebar-editor-flags { display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+.sidebar-editor-check { display:inline-flex; align-items:center; gap:8px; font-size:var(--fs-base); color:#0f172a; text-transform:none; }
+.sidebar-editor-check input { margin:0; }
+.sidebar-editor-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+@media (max-width: 1000px) {
+  .sidebar-editor-grid.meta,
+  .sidebar-editor-grid.routes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 800px) {
+  .section-grid { grid-template-columns: 1fr; }
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .sidebar-editor-grid.meta,
+  .sidebar-editor-grid.routes { grid-template-columns: 1fr; }
+  .sidebar-editor-footer { align-items:stretch; }
+  .sidebar-editor-actions { width:100%; }
+}
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="ga-wrap">
   <div class="ga-header">
+    <a class="btn-back" href="{% url 'assets:asset_list' %}" onclick="if (window.history.length > 1) { window.history.back(); return false; }">&larr; Indietro</a>
     <div class="ga-title">Gestione Assets</div>
     <span class="ga-badge">Admin</span>
   </div>
@@ -134,7 +160,7 @@
     <div class="card-head"><h3 class="card-title">Etichette QR stampabili</h3></div>
     <div class="card-body" style="display:grid;gap:14px;">
       <div style="display:grid;gap:8px;">
-        <div style="font-size:13px;color:#475569;">
+        <div class="muted-note" style="color:#475569;">
           Qui gestisci il <strong>template generale</strong> e i template dedicati per <strong>tipologia asset</strong>.
           L'ordine di risoluzione e: <strong>override asset</strong> -> <strong>template tipologia</strong> -> <strong>template generale</strong>.
         </div>
@@ -254,12 +280,211 @@
   </div>
 
   <div class="card" style="margin-bottom:14px;">
+    <div class="card-head"><h3 class="card-title">Policy manutenzione standard</h3></div>
+    <div class="card-body" style="display:grid;gap:10px;">
+      <div class="muted-note">
+        Da qui puoi aprire il catalogo dei template intervento e le regole manutentive standard per categoria.
+        Gli override per singolo asset restano fuori da questo step.
+      </div>
+      <div class="inline-actions">
+        <a href="{% url 'assets:maintenance_template_list' %}" class="btn btn-primary btn-sm">Apri template manutenzione</a>
+        <a href="{% url 'assets:maintenance_rule_list' %}" class="btn btn-primary btn-sm">Apri regole manutenzione</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-head"><h3 class="card-title">Menu laterale inventario</h3></div>
+    <div class="card-body" style="display:grid;gap:14px;">
+      <div class="muted-note">
+        Qui personalizzi le voci mostrate nella colonna laterale del modulo asset. Se non esiste ancora una configurazione dedicata,
+        il portale continua a usare il menu predefinito finche non premi il caricamento iniziale.
+      </div>
+
+      {% if sidebar_buttons %}
+        <div class="inline-actions">
+          <span class="chip-soft blue">Configurato</span>
+          <strong>{{ sidebar_buttons|length }}</strong>
+          <span class="muted-note">voci personalizzate attive o gestibili da questa schermata.</span>
+        </div>
+      {% else %}
+        <div class="inline-actions">
+          <span class="chip-soft slate">Fallback attivo</span>
+          <span class="muted-note">La sidebar visibile usa ancora il menu predefinito hardcoded.</span>
+        </div>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="seed_sidebar_buttons">
+          <button type="submit" class="btn btn-primary btn-sm">Crea menu predefinito modificabile</button>
+        </form>
+      {% endif %}
+
+      <datalist id="assets-sidebar-target-options">
+        {% for option in sidebar_target_suggestions %}
+          <option value="{{ option.value }}">{{ option.label }}</option>
+        {% endfor %}
+      </datalist>
+      <datalist id="assets-sidebar-active-match-options">
+        {% for option in sidebar_active_match_suggestions %}
+          <option value="{{ option.value }}">{{ option.label }}</option>
+        {% endfor %}
+      </datalist>
+
+      <div class="sidebar-editor">
+        <div>
+          <div class="card-title" style="margin-bottom:4px;">Nuova voce sidebar</div>
+          <div class="muted-note">Puoi creare voci di primo livello o sottovoci collegate a una voce padre.</div>
+        </div>
+        <form method="post" style="display:grid;gap:12px;">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create_sidebar_button">
+          <div class="sidebar-editor-grid meta">
+            <div class="form-group">
+              <label>Etichetta</label>
+              <input type="text" name="label" placeholder="Es. TVCC" required>
+            </div>
+            <div class="form-group">
+              <label>Sezione</label>
+              <select name="section">
+                {% for section_code, section_label in sidebar_section_choices %}
+                  <option value="{{ section_code }}">{{ section_label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Voce padre</label>
+              <select name="parent_sidebar_button_id">
+                <option value="">Nessuna (primo livello)</option>
+                {% for parent_item in sidebar_parent_choices %}
+                  <option value="{{ parent_item.id }}">{{ parent_item.get_section_display }} - {{ parent_item.label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Ordine</label>
+              <input type="number" name="sort_order" value="100">
+            </div>
+          </div>
+          <div class="sidebar-editor-grid routes">
+            <div class="form-group" style="max-width:none;">
+              <label>URL destinazione</label>
+              <input type="text" name="target_url" list="assets-sidebar-target-options" placeholder="/assets/?asset_type=SERVER&rows={rows} oppure django:assets:wo_list">
+            </div>
+            <div class="form-group" style="max-width:none;">
+              <label>Criterio attivo</label>
+              <input type="text" name="active_match" list="assets-sidebar-active-match-options" placeholder="asset_type=SERVER oppure /assets/work-machines/">
+            </div>
+          </div>
+          <div class="sidebar-editor-footer">
+            <div class="sidebar-editor-flags">
+              <label class="sidebar-editor-check">
+                <input type="checkbox" name="is_subitem" value="1">
+                Sottovoce
+              </label>
+              <label class="sidebar-editor-check">
+                <input type="checkbox" name="is_visible" value="1" checked>
+                Visibile
+              </label>
+            </div>
+            <div class="sidebar-editor-actions">
+              <button type="submit" class="btn btn-primary btn-sm">Aggiungi voce</button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      {% if sidebar_buttons %}
+        <div class="sidebar-shell">
+          {% for item in sidebar_buttons %}
+            <div class="sidebar-editor">
+              <div class="sidebar-editor-head">
+                <div class="sidebar-editor-title">
+                  <strong>{{ item.label }}</strong>
+                  <span class="muted-note">codice: <code>{{ item.code }}</code></span>
+                </div>
+                <span class="chip-soft {% if item.is_visible %}green{% else %}slate{% endif %}">
+                  {% if item.is_visible %}Visibile{% else %}Nascosta{% endif %}
+                </span>
+              </div>
+              <form id="sidebar-edit-{{ item.id }}" method="post" style="display:grid;gap:10px;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="update_sidebar_button">
+                <input type="hidden" name="sidebar_button_id" value="{{ item.id }}">
+                <div class="sidebar-editor-grid meta">
+                  <div class="form-group">
+                    <label>Etichetta</label>
+                    <input type="text" name="label" value="{{ item.label }}" required>
+                  </div>
+                  <div class="form-group">
+                    <label>Sezione</label>
+                    <select name="section">
+                      {% for section_code, section_label in sidebar_section_choices %}
+                        <option value="{{ section_code }}" {% if item.section == section_code %}selected{% endif %}>{{ section_label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Voce padre</label>
+                    <select name="parent_sidebar_button_id">
+                      <option value="">Nessuna (primo livello)</option>
+                      {% for parent_item in sidebar_parent_choices %}
+                        <option value="{{ parent_item.id }}" {% if item.parent_id == parent_item.id %}selected{% endif %}>{{ parent_item.get_section_display }} - {{ parent_item.label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Ordine</label>
+                    <input type="number" name="sort_order" value="{{ item.sort_order }}">
+                  </div>
+                </div>
+                <div class="sidebar-editor-grid routes">
+                  <div class="form-group" style="max-width:none;">
+                    <label>URL destinazione</label>
+                    <input type="text" name="target_url" list="assets-sidebar-target-options" value="{{ item.target_url }}">
+                  </div>
+                  <div class="form-group" style="max-width:none;">
+                    <label>Criterio attivo</label>
+                    <input type="text" name="active_match" list="assets-sidebar-active-match-options" value="{{ item.active_match }}">
+                  </div>
+                </div>
+                <div class="sidebar-editor-footer">
+                  <div class="sidebar-editor-flags">
+                    <label class="sidebar-editor-check">
+                      <input type="checkbox" name="is_subitem" value="1" {% if item.is_subitem %}checked{% endif %}>
+                      Sottovoce
+                    </label>
+                    <label class="sidebar-editor-check">
+                      <input type="checkbox" name="is_visible" value="1" {% if item.is_visible %}checked{% endif %}>
+                      Visibile
+                    </label>
+                  </div>
+                  <div class="sidebar-editor-actions">
+                    <button type="submit" form="sidebar-edit-{{ item.id }}" class="btn btn-primary btn-sm">Salva</button>
+                  </div>
+                </div>
+              </form>
+              <div class="sidebar-editor-actions" style="justify-content:flex-end;">
+                <form method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="delete_sidebar_button">
+                  <input type="hidden" name="sidebar_button_id" value="{{ item.id }}">
+                  <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Eliminare la voce di menu?')">Elimina</button>
+                </form>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px;">
     <div class="card-head"><h3 class="card-title">SharePoint / Microsoft Graph</h3></div>
     <div class="card-body" style="display:grid;gap:14px;">
       <div class="kpi-row" style="margin-bottom:0;">
         <div class="kpi">
           <div class="kpi-label">Runtime Graph</div>
-          <div class="kpi-val" style="font-size:22px;">{% if sharepoint_admin_config.runtime_ready %}OK{% else %}KO{% endif %}</div>
+          <div class="kpi-val text-heading">{% if sharepoint_admin_config.runtime_ready %}OK{% else %}KO{% endif %}</div>
           <div class="kpi-sub">
             {% if sharepoint_admin_config.runtime_ready %}
               Connessione configurabile dall'app.
@@ -270,28 +495,28 @@
         </div>
         <div class="kpi">
           <div class="kpi-label">Secret</div>
-          <div class="kpi-val" style="font-size:22px;">{% if sharepoint_admin_config.client_secret_configured %}Presente{% else %}Assente{% endif %}</div>
+          <div class="kpi-val text-heading">{% if sharepoint_admin_config.client_secret_configured %}Presente{% else %}Assente{% endif %}</div>
           <div class="kpi-sub">Il valore non viene mostrato in chiaro.</div>
         </div>
         <div class="kpi">
           <div class="kpi-label">Root asset</div>
-          <div class="kpi-val" style="font-size:22px;">{{ sharepoint_admin_config.asset_root_path|default:"-" }}</div>
+          <div class="kpi-val text-heading">{{ sharepoint_admin_config.asset_root_path|default:"-" }}</div>
           <div class="kpi-sub">Usata come default per nuovi asset.</div>
         </div>
         <div class="kpi">
           <div class="kpi-label">Root macchine</div>
-          <div class="kpi-val" style="font-size:22px;">{{ sharepoint_admin_config.work_machine_root_path|default:"-" }}</div>
+          <div class="kpi-val text-heading">{{ sharepoint_admin_config.work_machine_root_path|default:"-" }}</div>
           <div class="kpi-sub">Usata come default per nuove macchine.</div>
         </div>
       </div>
 
       {% if sharepoint_admin_config.env_override_active %}
-        <div style="padding:10px 12px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;border-radius:10px;font-size:13px;">
+        <div class="text-base" style="padding:10px 12px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;border-radius:10px;">
           Alcuni valori Graph arrivano da variabili ambiente. In quel caso hanno priorita rispetto a <code>config.ini</code>.
         </div>
       {% endif %}
 
-      <div style="font-size:13px;color:#475569;display:grid;gap:4px;">
+      <div class="text-base" style="color:#475569;display:grid;gap:4px;">
         <div><strong>Sorgente tenant:</strong> {{ sharepoint_admin_config.runtime_sources.tenant_id }}</div>
         <div><strong>Sorgente client:</strong> {{ sharepoint_admin_config.runtime_sources.client_id }}</div>
         <div><strong>Sorgente secret:</strong> {{ sharepoint_admin_config.runtime_sources.client_secret }}</div>
@@ -526,7 +751,7 @@
         <span>{{ entry.created_at|date:"d/m/Y H:i" }}</span>
         <span>{{ entry.utente_display|default:"—" }}</span>
         <span>{{ entry.azione }}</span>
-        <span style="color:#64748b;font-size:11px;">{{ entry.dettaglio }}</span>
+        <span class="text-xs" style="color:#64748b;">{{ entry.dettaglio }}</span>
       </div>
       {% endfor %}
       {% else %}

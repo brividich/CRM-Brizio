@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load ui_icons %}
 
 {% block title %}Dashboard | Portale Applicativo{% endblock %}
 
@@ -38,7 +39,7 @@
         <div class="modules-grid">
           {% for module in modules %}
             <a class="mod" href="{% url module.url_name %}">
-              <div class="mod-icon">{{ module.icon }}</div>
+              <div class="mod-icon">{% render_icon module.icon module.name %}</div>
               <div>
                 <div class="mod-name">{{ module.name }}</div>
                 <div class="mod-sub">{{ module.sub }}</div>

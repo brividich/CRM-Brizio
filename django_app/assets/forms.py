@@ -11,14 +11,22 @@ from django import forms
 from django.db import transaction
 from django.db.models import Q
 
-from anagrafica.models import Fornitore
+from anagrafica.models import Fornitore, FornitoreDocumento
 
+from .maintenance import get_applicable_assistance_contracts, resolve_asset_maintenance_rules
 from .models import (
     Asset,
+    AssetAdministrativeDeadline,
+    AssetMaintenanceRuleState,
     AssetCategory,
     AssetCategoryField,
+    AssetComponent,
     AssetCustomField,
     AssetLabelTemplate,
+    AssistanceContract,
+    MaintenanceInterventionTemplate,
+    MaintenanceRule,
+    MaintenanceRuleAssetOverride,
     PeriodicVerification,
     PlantLayout,
     PlantLayoutArea,
@@ -516,6 +524,517 @@ class WorkMachineFilterForm(forms.Form):
             self.fields[field_name].widget.attrs["class"] = ""
 
 
+class AssetComponentForm(forms.ModelForm):
+    class Meta:
+        model = AssetComponent
+        fields = [
+            "asset",
+            "code",
+            "name",
+            "component_type",
+            "serial_number",
+            "manufacturer",
+            "model",
+            "installed_on",
+            "notes",
+            "is_active",
+        ]
+        labels = {
+            "asset": "Asset",
+            "code": "Codice componente",
+            "name": "Nome componente",
+            "component_type": "Tipo componente",
+            "serial_number": "Numero seriale",
+            "manufacturer": "Produttore",
+            "model": "Modello",
+            "installed_on": "Installato il",
+            "notes": "Note",
+            "is_active": "Attivo",
+        }
+        widgets = {
+            "installed_on": forms.DateInput(attrs={"type": "date"}),
+            "notes": forms.Textarea(attrs={"rows": 4}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        locked_asset = kwargs.pop("locked_asset", None)
+        asset_queryset = kwargs.pop("asset_queryset", None)
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk and locked_asset is None:
+            locked_asset = self.instance.asset
+        self.locked_asset = locked_asset
+        self.fields["asset"].queryset = asset_queryset or Asset.objects.order_by("name", "asset_tag", "id")
+        self.fields["asset"].help_text = "Asset proprietario del componente."
+        if self.locked_asset is not None:
+            self.fields["asset"].queryset = Asset.objects.filter(pk=self.locked_asset.pk)
+            self.fields["asset"].required = False
+            self.initial["asset"] = self.locked_asset.pk
+            self.fields["asset"].widget = forms.HiddenInput()
+        _attach_input_css(self)
+        if isinstance(self.fields["asset"].widget, forms.HiddenInput):
+            self.fields["asset"].widget.attrs.pop("class", None)
+
+    def clean_code(self):
+        return (self.cleaned_data.get("code") or "").strip()
+
+    def clean_name(self):
+        return (self.cleaned_data.get("name") or "").strip()
+
+    def clean_component_type(self):
+        return (self.cleaned_data.get("component_type") or "").strip()
+
+    def clean_serial_number(self):
+        return (self.cleaned_data.get("serial_number") or "").strip()
+
+    def clean_manufacturer(self):
+        return (self.cleaned_data.get("manufacturer") or "").strip()
+
+    def clean_model(self):
+        return (self.cleaned_data.get("model") or "").strip()
+
+    def clean_notes(self):
+        return (self.cleaned_data.get("notes") or "").strip()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        asset = self.locked_asset or cleaned_data.get("asset")
+        code = (cleaned_data.get("code") or "").strip()
+        if self.locked_asset is not None:
+            cleaned_data["asset"] = self.locked_asset
+        if asset and code:
+            duplicate_qs = AssetComponent.objects.filter(asset=asset, code__iexact=code)
+            if self.instance.pk:
+                duplicate_qs = duplicate_qs.exclude(pk=self.instance.pk)
+            if duplicate_qs.exists():
+                self.add_error("code", "Esiste gia un componente con questo codice per l'asset selezionato.")
+        return cleaned_data
+
+
+class AssetAdministrativeDeadlineForm(forms.ModelForm):
+    class Meta:
+        model = AssetAdministrativeDeadline
+        fields = [
+            "asset",
+            "component",
+            "deadline_type",
+            "title",
+            "reference_code",
+            "issuer",
+            "issued_on",
+            "due_date",
+            "warning_days",
+            "notes",
+            "is_active",
+        ]
+        labels = {
+            "asset": "Asset",
+            "component": "Componente",
+            "deadline_type": "Tipo scadenza",
+            "title": "Titolo",
+            "reference_code": "Riferimento",
+            "issuer": "Ente / Emittente",
+            "issued_on": "Data emissione",
+            "due_date": "Data scadenza",
+            "warning_days": "Preavviso (giorni)",
+            "notes": "Note",
+            "is_active": "Attiva",
+        }
+        widgets = {
+            "issued_on": forms.DateInput(attrs={"type": "date"}),
+            "due_date": forms.DateInput(attrs={"type": "date"}),
+            "notes": forms.Textarea(attrs={"rows": 4}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        locked_asset = kwargs.pop("locked_asset", None)
+        asset_queryset = kwargs.pop("asset_queryset", None)
+        preselected_component = kwargs.pop("preselected_component", None)
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk and locked_asset is None:
+            locked_asset = self.instance.asset
+        self.locked_asset = locked_asset
+        self.preselected_component = preselected_component
+
+        self.fields["asset"].queryset = asset_queryset or Asset.objects.order_by("name", "asset_tag", "id")
+        self.fields["asset"].help_text = "L'asset a cui appartiene la scadenza."
+        self.fields["component"].required = False
+        self.fields["component"].help_text = "Opzionale: collega la scadenza a un componente dello stesso asset."
+        self.fields["warning_days"].help_text = "Numero di giorni usato per evidenziare le scadenze imminenti."
+
+        selected_asset_id = None
+        selected_component_id = None
+        if self.locked_asset is not None:
+            selected_asset_id = self.locked_asset.pk
+            self.fields["asset"].queryset = Asset.objects.filter(pk=self.locked_asset.pk)
+            self.fields["asset"].required = False
+            self.initial["asset"] = self.locked_asset.pk
+            self.fields["asset"].widget = forms.HiddenInput()
+        elif self.is_bound:
+            selected_asset_id = self.data.get(self.add_prefix("asset")) or self.data.get("asset")
+        elif self.instance and self.instance.pk:
+            selected_asset_id = self.instance.asset_id
+        else:
+            selected_asset_id = self.initial.get("asset") or getattr(preselected_component, "asset_id", None)
+
+        if self.is_bound:
+            selected_component_id = self.data.get(self.add_prefix("component")) or self.data.get("component")
+        elif self.instance and self.instance.pk:
+            selected_component_id = self.instance.component_id
+        elif preselected_component is not None:
+            selected_component_id = preselected_component.pk
+
+        component_qs = AssetComponent.objects.none()
+        if selected_asset_id:
+            component_filter = Q(asset_id=selected_asset_id)
+            if selected_component_id:
+                component_filter |= Q(pk=selected_component_id)
+            component_qs = AssetComponent.objects.filter(component_filter).order_by("-is_active", "name", "code", "id")
+        elif selected_component_id:
+            component_qs = AssetComponent.objects.filter(pk=selected_component_id).order_by("-is_active", "name", "code", "id")
+        self.fields["component"].queryset = component_qs
+
+        if preselected_component is not None and not self.is_bound and not self.instance.pk:
+            self.initial.setdefault("component", preselected_component.pk)
+            self.initial.setdefault("asset", preselected_component.asset_id)
+
+        _attach_input_css(self)
+        if isinstance(self.fields["asset"].widget, forms.HiddenInput):
+            self.fields["asset"].widget.attrs.pop("class", None)
+
+    def clean_title(self):
+        return (self.cleaned_data.get("title") or "").strip()
+
+    def clean_reference_code(self):
+        return (self.cleaned_data.get("reference_code") or "").strip()
+
+    def clean_issuer(self):
+        return (self.cleaned_data.get("issuer") or "").strip()
+
+    def clean_notes(self):
+        return (self.cleaned_data.get("notes") or "").strip()
+
+    def clean_warning_days(self):
+        value = self.cleaned_data.get("warning_days")
+        if value in (None, ""):
+            return 30
+        return int(value)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        asset = self.locked_asset or cleaned_data.get("asset")
+        component = cleaned_data.get("component")
+        if self.locked_asset is not None:
+            cleaned_data["asset"] = self.locked_asset
+        if asset is not None and component is not None and component.asset_id != asset.id:
+            self.add_error("component", "Il componente selezionato non appartiene all'asset indicato.")
+        return cleaned_data
+
+
+class MaintenanceInterventionTemplateForm(forms.ModelForm):
+    class Meta:
+        model = MaintenanceInterventionTemplate
+        fields = [
+            "code",
+            "label",
+            "description",
+            "asset_category",
+            "sort_order",
+            "is_active",
+        ]
+        labels = {
+            "code": "Codice",
+            "label": "Nome template",
+            "description": "Descrizione",
+            "asset_category": "Categoria asset",
+            "sort_order": "Ordine",
+            "is_active": "Attivo",
+        }
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 4}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        current_category_id = getattr(self.instance, "asset_category_id", None)
+        category_qs = AssetCategory.objects.filter(Q(is_active=True) | Q(pk=current_category_id)).order_by(
+            "sort_order",
+            "label",
+            "id",
+        )
+        self.fields["asset_category"].required = False
+        self.fields["asset_category"].queryset = category_qs
+        self.fields["asset_category"].help_text = "Lascia vuoto per un template generale riutilizzabile su piu categorie."
+        self.fields["description"].help_text = "Descrizione standard del tipo di intervento manutentivo."
+        _attach_input_css(self)
+
+    def clean_code(self):
+        return (self.cleaned_data.get("code") or "").strip()
+
+    def clean_label(self):
+        return (self.cleaned_data.get("label") or "").strip()
+
+    def clean_description(self):
+        return (self.cleaned_data.get("description") or "").strip()
+
+
+class MaintenanceRuleForm(forms.ModelForm):
+    class Meta:
+        model = MaintenanceRule
+        fields = [
+            "intervention_template",
+            "asset_category",
+            "threshold_type",
+            "threshold_value",
+            "warning_days",
+            "sort_order",
+            "is_active",
+            "notes",
+        ]
+        labels = {
+            "intervention_template": "Template intervento",
+            "asset_category": "Categoria asset",
+            "threshold_type": "Tipo soglia",
+            "threshold_value": "Valore soglia",
+            "warning_days": "Warning (giorni)",
+            "sort_order": "Ordine",
+            "is_active": "Attiva",
+            "notes": "Note",
+        }
+        widgets = {
+            "notes": forms.Textarea(attrs={"rows": 4}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        current_category_id = getattr(self.instance, "asset_category_id", None)
+        selected_category_id = None
+        if self.is_bound:
+            selected_category_id = self.data.get(self.add_prefix("asset_category")) or self.data.get("asset_category")
+        elif current_category_id:
+            selected_category_id = current_category_id
+        else:
+            selected_category_id = self.initial.get("asset_category")
+
+        current_template_id = getattr(self.instance, "intervention_template_id", None)
+
+        category_qs = AssetCategory.objects.filter(Q(is_active=True) | Q(pk=current_category_id)).order_by(
+            "sort_order",
+            "label",
+            "id",
+        )
+        template_filter = Q(is_active=True)
+        if selected_category_id:
+            template_filter &= Q(asset_category__isnull=True) | Q(asset_category_id=selected_category_id)
+        if current_template_id:
+            template_filter |= Q(pk=current_template_id)
+        template_qs = MaintenanceInterventionTemplate.objects.filter(template_filter).order_by(
+            "sort_order",
+            "label",
+            "id",
+        )
+
+        self.fields["asset_category"].queryset = category_qs
+        self.fields["intervention_template"].queryset = template_qs
+        self.fields["warning_days"].required = False
+        self.fields["intervention_template"].help_text = (
+            "Sono disponibili i template generali e quelli della categoria selezionata."
+        )
+        self.fields["threshold_value"].help_text = (
+            "Giorni pronti subito; ore, km e cicli sono modellati ora per usi successivi."
+        )
+        self.fields["warning_days"].help_text = "Giorni di preallerta prima della scadenza operativa."
+        self.fields["notes"].help_text = "Note operative o eccezioni della policy standard."
+        _attach_input_css(self)
+
+    def clean_notes(self):
+        return (self.cleaned_data.get("notes") or "").strip()
+
+    def clean_warning_days(self):
+        value = self.cleaned_data.get("warning_days")
+        if value in (None, ""):
+            return 15
+        return int(value)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        category = cleaned_data.get("asset_category")
+        template = cleaned_data.get("intervention_template")
+        if category is not None and template is not None:
+            if template.asset_category_id and template.asset_category_id != category.id:
+                self.add_error(
+                    "intervention_template",
+                    "Il template selezionato appartiene a una categoria diversa dalla regola.",
+                )
+        return cleaned_data
+
+
+class MaintenanceRuleAssetOverrideForm(forms.ModelForm):
+    class Meta:
+        model = MaintenanceRuleAssetOverride
+        fields = [
+            "asset",
+            "base_rule",
+            "override_threshold_type",
+            "override_threshold_value",
+            "override_intervention_template",
+            "is_disabled",
+            "notes",
+        ]
+        labels = {
+            "asset": "Asset",
+            "base_rule": "Regola base",
+            "override_threshold_type": "Tipo soglia override",
+            "override_threshold_value": "Valore soglia override",
+            "override_intervention_template": "Template intervento override",
+            "is_disabled": "Disabilita per questo asset",
+            "notes": "Note override",
+        }
+        widgets = {
+            "notes": forms.Textarea(attrs={"rows": 4}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        locked_asset = kwargs.pop("locked_asset", None)
+        locked_base_rule = kwargs.pop("locked_base_rule", None)
+        super().__init__(*args, **kwargs)
+
+        if self.instance and self.instance.pk and locked_asset is None:
+            locked_asset = self.instance.asset
+        if self.instance and self.instance.pk and locked_base_rule is None:
+            locked_base_rule = self.instance.base_rule
+
+        self.locked_asset = locked_asset
+        self.locked_base_rule = locked_base_rule
+
+        current_asset_id = getattr(self.instance, "asset_id", None)
+        current_rule_id = getattr(self.instance, "base_rule_id", None)
+        current_template_id = getattr(self.instance, "override_intervention_template_id", None)
+
+        selected_asset_id = None
+        if locked_asset is not None:
+            selected_asset_id = locked_asset.id
+        elif self.is_bound:
+            selected_asset_id = self.data.get(self.add_prefix("asset")) or self.data.get("asset")
+        elif current_asset_id:
+            selected_asset_id = current_asset_id
+        else:
+            selected_asset_id = self.initial.get("asset")
+
+        selected_rule_id = None
+        if locked_base_rule is not None:
+            selected_rule_id = locked_base_rule.id
+        elif self.is_bound:
+            selected_rule_id = self.data.get(self.add_prefix("base_rule")) or self.data.get("base_rule")
+        elif current_rule_id:
+            selected_rule_id = current_rule_id
+        else:
+            selected_rule_id = self.initial.get("base_rule")
+
+        asset_qs = Asset.objects.select_related("asset_category").order_by("name", "asset_tag", "id")
+        if current_asset_id:
+            asset_qs = asset_qs.filter(Q(pk=current_asset_id) | Q(asset_category__isnull=False))
+        self.fields["asset"].queryset = asset_qs
+
+        if locked_asset is not None:
+            self.fields["asset"].queryset = Asset.objects.filter(pk=locked_asset.pk)
+            self.fields["asset"].required = False
+            self.initial["asset"] = locked_asset.pk
+            self.fields["asset"].widget = forms.HiddenInput()
+
+        rule_qs = MaintenanceRule.objects.select_related("asset_category", "intervention_template").order_by(
+            "asset_category__sort_order",
+            "asset_category__label",
+            "sort_order",
+            "id",
+        )
+        if selected_asset_id:
+            asset_for_rules = Asset.objects.filter(pk=selected_asset_id).only("asset_category_id").first()
+            if asset_for_rules and asset_for_rules.asset_category_id:
+                rule_qs = rule_qs.filter(asset_category_id=asset_for_rules.asset_category_id)
+            elif locked_base_rule is None and current_rule_id is None:
+                rule_qs = rule_qs.none()
+        if current_rule_id:
+            rule_qs = MaintenanceRule.objects.select_related("asset_category", "intervention_template").filter(
+                Q(pk=current_rule_id) | Q(pk__in=rule_qs.values("pk"))
+            )
+        self.fields["base_rule"].queryset = rule_qs
+
+        if locked_base_rule is not None:
+            self.fields["base_rule"].queryset = MaintenanceRule.objects.filter(pk=locked_base_rule.pk)
+            self.fields["base_rule"].required = False
+            self.initial["base_rule"] = locked_base_rule.pk
+            self.fields["base_rule"].widget = forms.HiddenInput()
+
+        template_qs = MaintenanceInterventionTemplate.objects.order_by("sort_order", "label", "id")
+        category_id = None
+        if locked_base_rule is not None:
+            category_id = locked_base_rule.asset_category_id
+        elif selected_rule_id:
+            base_rule = MaintenanceRule.objects.filter(pk=selected_rule_id).only("asset_category_id").first()
+            category_id = getattr(base_rule, "asset_category_id", None)
+        if category_id:
+            template_qs = template_qs.filter(Q(is_active=True), Q(asset_category__isnull=True) | Q(asset_category_id=category_id))
+        else:
+            template_qs = template_qs.filter(is_active=True, asset_category__isnull=True)
+        if current_template_id:
+            template_qs = MaintenanceInterventionTemplate.objects.filter(Q(pk=current_template_id) | Q(pk__in=template_qs.values("pk")))
+        self.fields["override_intervention_template"].required = False
+        self.fields["override_intervention_template"].queryset = template_qs.order_by("sort_order", "label", "id")
+
+        self.fields["override_threshold_type"].required = False
+        self.fields["override_threshold_value"].required = False
+        self.fields["asset"].help_text = "Asset su cui applicare la personalizzazione."
+        self.fields["base_rule"].help_text = "Regola standard ereditata dalla categoria dell'asset."
+        self.fields["override_threshold_type"].help_text = (
+            "Lascia vuoto per mantenere il tipo soglia standard; se lo cambi, indica anche il nuovo valore."
+        )
+        self.fields["override_threshold_value"].help_text = "Lascia vuoto per mantenere il valore soglia standard."
+        self.fields["override_intervention_template"].help_text = (
+            "Disponibili template generali o della stessa categoria della regola base."
+        )
+        self.fields["notes"].help_text = "Note specifiche dell'override per questo asset."
+        _attach_input_css(self)
+        for field_name in ("asset", "base_rule"):
+            if isinstance(self.fields[field_name].widget, forms.HiddenInput):
+                self.fields[field_name].widget.attrs.pop("class", None)
+
+    def clean_notes(self):
+        return (self.cleaned_data.get("notes") or "").strip()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        asset = self.locked_asset or cleaned_data.get("asset")
+        base_rule = self.locked_base_rule or cleaned_data.get("base_rule")
+        override_type = cleaned_data.get("override_threshold_type")
+        override_value = cleaned_data.get("override_threshold_value")
+        override_template = cleaned_data.get("override_intervention_template")
+
+        if self.locked_asset is not None:
+            cleaned_data["asset"] = self.locked_asset
+        if self.locked_base_rule is not None:
+            cleaned_data["base_rule"] = self.locked_base_rule
+
+        if asset is not None and base_rule is not None:
+            asset_category_id = getattr(asset, "asset_category_id", None)
+            if not asset_category_id or asset_category_id != base_rule.asset_category_id:
+                self.add_error("base_rule", "La regola selezionata non appartiene alla categoria dell'asset.")
+
+        if override_type and override_value in (None, ""):
+            self.add_error(
+                "override_threshold_value",
+                "Quando imposti un tipo soglia override devi indicare anche il valore soglia override.",
+            )
+
+        if override_template is not None and base_rule is not None:
+            if override_template.asset_category_id and override_template.asset_category_id != base_rule.asset_category_id:
+                self.add_error(
+                    "override_intervention_template",
+                    "Il template override deve essere generale oppure della stessa categoria della regola base.",
+                )
+
+        return cleaned_data
+
+
 class WorkMachineAssetForm(AssetCategoryFieldMixin, forms.ModelForm):
     asset_tag = forms.CharField(required=False, label="Tag bene")
     sharepoint_folder_url = forms.CharField(required=False, label="URL cartella SharePoint", max_length=1000)
@@ -882,6 +1401,138 @@ class PeriodicVerificationForm(forms.ModelForm):
             instance.save()
             instance.assets.set(self.cleaned_data.get("asset_ids") or [])
         return instance
+
+
+class AssistanceContractForm(forms.ModelForm):
+    class Meta:
+        model = AssistanceContract
+        fields = [
+            "supplier",
+            "code",
+            "title",
+            "contract_type",
+            "asset",
+            "asset_category",
+            "document",
+            "start_date",
+            "end_date",
+            "is_active",
+            "periodic_cost_eur",
+            "sla_description",
+            "coverage_summary",
+            "notes",
+        ]
+        labels = {
+            "supplier": "Fornitore",
+            "code": "Codice contratto",
+            "title": "Titolo",
+            "contract_type": "Tipo contratto",
+            "asset": "Asset",
+            "asset_category": "Categoria asset",
+            "document": "Documento collegato",
+            "start_date": "Data inizio",
+            "end_date": "Data fine",
+            "is_active": "Contratto attivo",
+            "periodic_cost_eur": "Costo periodico (EUR)",
+            "sla_description": "SLA base",
+            "coverage_summary": "Copertura",
+            "notes": "Note",
+        }
+        widgets = {
+            "start_date": forms.DateInput(attrs={"type": "date"}),
+            "end_date": forms.DateInput(attrs={"type": "date"}),
+            "coverage_summary": forms.Textarea(attrs={"rows": 3}),
+            "notes": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        locked_asset = kwargs.pop("locked_asset", None)
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk and locked_asset is None:
+            locked_asset = self.instance.asset
+        self.locked_asset = locked_asset
+
+        current_supplier_id = getattr(self.instance, "supplier_id", None)
+        current_document_id = getattr(self.instance, "document_id", None)
+        current_category_id = getattr(self.instance, "asset_category_id", None)
+
+        selected_supplier_id = None
+        if self.is_bound:
+            selected_supplier_id = self.data.get(self.add_prefix("supplier")) or self.data.get("supplier")
+        elif current_supplier_id:
+            selected_supplier_id = current_supplier_id
+        else:
+            selected_supplier_id = self.initial.get("supplier")
+
+        self.fields["supplier"].queryset = Fornitore.objects.filter(Q(is_active=True) | Q(pk=current_supplier_id)).order_by(
+            "ragione_sociale",
+            "id",
+        )
+        self.fields["asset"].required = False
+        self.fields["asset"].queryset = Asset.objects.order_by("name", "asset_tag", "id")
+        self.fields["asset_category"].required = False
+        self.fields["asset_category"].queryset = AssetCategory.objects.filter(
+            Q(is_active=True) | Q(pk=current_category_id)
+        ).order_by("sort_order", "label", "id")
+
+        if self.locked_asset is not None:
+            self.fields["asset"].queryset = Asset.objects.filter(pk=self.locked_asset.pk)
+            self.fields["asset"].required = False
+            self.initial["asset"] = self.locked_asset.pk
+            self.fields["asset"].widget = forms.HiddenInput()
+
+        document_qs = FornitoreDocumento.objects.none()
+        if selected_supplier_id:
+            document_qs = FornitoreDocumento.objects.filter(fornitore_id=selected_supplier_id).order_by(
+                "-uploaded_at",
+                "nome",
+                "id",
+            )
+        if current_document_id:
+            document_qs = FornitoreDocumento.objects.filter(Q(pk=current_document_id) | Q(pk__in=document_qs.values("pk")))
+        self.fields["document"].required = False
+        self.fields["document"].queryset = document_qs
+
+        self.fields["supplier"].help_text = "Usa il fornitore reale gia presente in anagrafica."
+        self.fields["asset"].help_text = "Opzionale: collega il contratto a un singolo asset."
+        self.fields["asset_category"].help_text = "Opzionale: alternativa al singolo asset per contratti di categoria."
+        self.fields["document"].help_text = "Opzionale: collega un documento gia caricato sul fornitore."
+        self.fields["coverage_summary"].help_text = "Descrizione sintetica di cosa e incluso."
+        self.fields["sla_description"].help_text = "Esempio: presa in carico 8h, onsite 24h."
+        _attach_input_css(self)
+        self.fields["is_active"].widget.attrs["class"] = ""
+        if isinstance(self.fields["asset"].widget, forms.HiddenInput):
+            self.fields["asset"].widget.attrs.pop("class", None)
+
+    def clean_code(self):
+        return (self.cleaned_data.get("code") or "").strip()
+
+    def clean_title(self):
+        return (self.cleaned_data.get("title") or "").strip()
+
+    def clean_sla_description(self):
+        return (self.cleaned_data.get("sla_description") or "").strip()
+
+    def clean_coverage_summary(self):
+        return (self.cleaned_data.get("coverage_summary") or "").strip()
+
+    def clean_notes(self):
+        return (self.cleaned_data.get("notes") or "").strip()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        asset = self.locked_asset or cleaned_data.get("asset")
+        asset_category = cleaned_data.get("asset_category")
+        supplier = cleaned_data.get("supplier")
+        document = cleaned_data.get("document")
+
+        if self.locked_asset is not None:
+            cleaned_data["asset"] = self.locked_asset
+        if asset is not None and asset_category is not None:
+            self.add_error("asset_category", "Scegli un contratto per asset oppure per categoria, non entrambi.")
+        if document is not None and supplier is not None and document.fornitore_id != supplier.id:
+            self.add_error("document", "Il documento selezionato appartiene a un fornitore diverso.")
+        return cleaned_data
 
 
 class PlantLayoutForm(forms.ModelForm):
@@ -1256,7 +1907,10 @@ class WorkOrderForm(forms.ModelForm):
         model = WorkOrder
         fields = [
             "periodic_verification",
+            "maintenance_rule",
             "supplier",
+            "assistance_contract",
+            "covered_by_contract",
             "kind",
             "status",
             "title",
@@ -1267,18 +1921,23 @@ class WorkOrderForm(forms.ModelForm):
         ]
         labels = {
             "periodic_verification": "Intervento programmato",
+            "maintenance_rule": "Regola manutenzione",
             "supplier": "Fornitore",
+            "assistance_contract": "Contratto assistenza",
+            "covered_by_contract": "Coperto da contratto",
             "kind": "Tipo intervento",
             "status": "Stato",
             "title": "Titolo",
             "description": "Descrizione",
             "resolution": "Risoluzione",
             "downtime_minutes": "Fermo impianto (minuti)",
-            "cost_eur": "Costo (EUR)",
+            "cost_eur": "Costo totale (EUR)",
         }
         widgets = {
             "periodic_verification": forms.Select(),
+            "maintenance_rule": forms.Select(),
             "supplier": forms.Select(),
+            "assistance_contract": forms.Select(),
             "description": forms.Textarea(attrs={"rows": 4}),
             "resolution": forms.Textarea(attrs={"rows": 3}),
         }
@@ -1286,7 +1945,14 @@ class WorkOrderForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.asset = kwargs.pop("asset", None)
         super().__init__(*args, **kwargs)
-        self.fields["supplier"].queryset = Fornitore.objects.filter(is_active=True).order_by("ragione_sociale", "id")
+        current_supplier_id = getattr(self.instance, "supplier_id", None)
+        current_contract_id = getattr(self.instance, "assistance_contract_id", None)
+        current_rule_id = getattr(self.instance, "maintenance_rule_id", None)
+
+        self.fields["supplier"].queryset = Fornitore.objects.filter(Q(is_active=True) | Q(pk=current_supplier_id)).order_by(
+            "ragione_sociale",
+            "id",
+        )
         self.fields["supplier"].required = False
         self.fields["supplier"].help_text = "Se l'intervento e programmato il fornitore viene proposto automaticamente."
         verification_field = self.fields["periodic_verification"]
@@ -1300,6 +1966,45 @@ class WorkOrderForm(forms.ModelForm):
                 .order_by("name", "id")
             )
         verification_field.queryset = verification_qs
+        rule_rows = []
+        if self.asset is not None and getattr(self.asset, "asset_category_id", None):
+            rule_rows = [
+                row
+                for row in resolve_asset_maintenance_rules(self.asset)
+                if row["base_rule"].is_active and not row["is_disabled"]
+            ]
+        effective_rule_map = {row["base_rule"].id: row for row in rule_rows}
+        rule_ids = list(effective_rule_map.keys())
+        rule_qs = MaintenanceRule.objects.none()
+        if rule_ids:
+            rule_qs = MaintenanceRule.objects.select_related("intervention_template", "asset_category").filter(pk__in=rule_ids)
+        if current_rule_id:
+            rule_qs = MaintenanceRule.objects.select_related("intervention_template", "asset_category").filter(
+                Q(pk=current_rule_id) | Q(pk__in=rule_qs.values("pk"))
+            )
+        self.fields["maintenance_rule"].required = False
+        self.fields["maintenance_rule"].queryset = rule_qs.order_by("sort_order", "id")
+        self.fields["maintenance_rule"].help_text = "Opzionale: collega il work order a una regola manutentiva effettiva dell'asset."
+        self.fields["maintenance_rule"].label_from_instance = lambda rule: self._maintenance_rule_label(
+            rule,
+            effective_rule_map,
+        )
+
+        contract_rows = get_applicable_assistance_contracts(self.asset) if self.asset is not None else []
+        contract_ids = [contract.id for contract in contract_rows]
+        contract_qs = AssistanceContract.objects.none()
+        if contract_ids:
+            contract_qs = AssistanceContract.objects.select_related("supplier", "asset", "asset_category").filter(
+                pk__in=contract_ids
+            )
+        if current_contract_id:
+            contract_qs = AssistanceContract.objects.select_related("supplier", "asset", "asset_category").filter(
+                Q(pk=current_contract_id) | Q(pk__in=contract_qs.values("pk"))
+            )
+        self.fields["assistance_contract"].required = False
+        self.fields["assistance_contract"].queryset = contract_qs.order_by("supplier__ragione_sociale", "title", "id")
+        self.fields["assistance_contract"].help_text = "Se presente, il contratto valorizza copertura e fornitore."
+        self.fields["covered_by_contract"].required = False
         if self.asset is not None and not self.is_bound:
             verifications = list(verification_qs)
             if len(verifications) == 1:
@@ -1307,17 +2012,49 @@ class WorkOrderForm(forms.ModelForm):
                 self.initial.setdefault("periodic_verification", verification.pk)
                 if verification.supplier_id:
                     self.initial.setdefault("supplier", verification.supplier_id)
+            if len(contract_rows) == 1:
+                contract = contract_rows[0]
+                self.initial.setdefault("assistance_contract", contract.id)
+                self.initial.setdefault("supplier", contract.supplier_id)
+                self.initial.setdefault("covered_by_contract", True)
         _attach_input_css(self)
+        self.fields["covered_by_contract"].widget.attrs["class"] = ""
+
+    def _maintenance_rule_label(self, rule: MaintenanceRule, effective_rule_map: dict[int, dict]) -> str:
+        row = effective_rule_map.get(rule.id)
+        if row is None:
+            return str(rule)
+        template = row["effective_intervention_template"]
+        threshold_label = row.get("effective_threshold_label") or rule.get_threshold_type_display()
+        warning_days = int(row.get("effective_warning_days") or 0)
+        return (
+            f"{template.label} - {row['effective_threshold_value']} {threshold_label.lower()} "
+            f"(warning {warning_days} gg)"
+        )
 
     def clean(self):
         cleaned_data = super().clean()
         verification = cleaned_data.get("periodic_verification")
+        maintenance_rule = cleaned_data.get("maintenance_rule")
         supplier = cleaned_data.get("supplier")
+        assistance_contract = cleaned_data.get("assistance_contract")
         if verification is not None and self.asset is not None:
             if not verification.assets.filter(pk=self.asset.pk).exists():
                 self.add_error("periodic_verification", "La verifica selezionata non appartiene a questo asset.")
             if supplier is None and verification.supplier_id:
                 cleaned_data["supplier"] = verification.supplier
+        if maintenance_rule is not None and self.asset is not None:
+            if maintenance_rule.asset_category_id != getattr(self.asset, "asset_category_id", None):
+                self.add_error("maintenance_rule", "La regola selezionata non appartiene alla categoria dell'asset.")
+        if assistance_contract is not None:
+            if self.asset is not None and not assistance_contract.applies_to_asset(self.asset):
+                self.add_error("assistance_contract", "Il contratto selezionato non copre questo asset.")
+            if verification is not None and verification.supplier_id and verification.supplier_id != assistance_contract.supplier_id:
+                self.add_error("assistance_contract", "Il contratto selezionato usa un fornitore diverso dalla verifica.")
+            if supplier is not None and supplier.id != assistance_contract.supplier_id:
+                self.add_error("assistance_contract", "Il contratto selezionato appartiene a un fornitore diverso.")
+            cleaned_data["supplier"] = assistance_contract.supplier
+            cleaned_data["covered_by_contract"] = True
         return cleaned_data
 
 
@@ -1331,10 +2068,44 @@ class WorkOrderCloseForm(forms.Form):
         label="Stato finale",
     )
     resolution = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 4}), label="Risoluzione")
+    intervention_duration_minutes = forms.IntegerField(required=False, min_value=0, label="Durata intervento (minuti)")
     downtime_minutes = forms.IntegerField(required=False, min_value=0, label="Fermo impianto (minuti)")
-    cost_eur = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2, label="Costo (EUR)")
+    labor_cost_eur = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2, label="Manodopera (EUR)")
+    materials_cost_eur = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2, label="Ricambi / materiali (EUR)")
+    cost_eur = forms.DecimalField(required=False, min_value=0, max_digits=10, decimal_places=2, label="Costo totale (EUR)")
+    assistance_contract = forms.ModelChoiceField(required=False, queryset=AssistanceContract.objects.none(), label="Contratto assistenza")
+    covered_by_contract = forms.BooleanField(required=False, label="Coperto da contratto")
     log_note = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}), label="Nota di chiusura")
 
     def __init__(self, *args, **kwargs):
+        asset = kwargs.pop("asset", None)
+        workorder = kwargs.pop("workorder", None)
         super().__init__(*args, **kwargs)
+        current_contract_id = getattr(workorder, "assistance_contract_id", None)
+        contract_rows = get_applicable_assistance_contracts(asset) if asset is not None else []
+        contract_ids = [contract.id for contract in contract_rows]
+        contract_qs = AssistanceContract.objects.none()
+        if contract_ids:
+            contract_qs = AssistanceContract.objects.select_related("supplier", "asset", "asset_category").filter(
+                pk__in=contract_ids
+            )
+        if current_contract_id:
+            contract_qs = AssistanceContract.objects.select_related("supplier", "asset", "asset_category").filter(
+                Q(pk=current_contract_id) | Q(pk__in=contract_qs.values("pk"))
+            )
+        self.fields["assistance_contract"].queryset = contract_qs.order_by("supplier__ragione_sociale", "title", "id")
+        self.fields["assistance_contract"].help_text = "Opzionale: collega la chiusura a un contratto assistenza."
         _attach_input_css(self)
+        self.fields["covered_by_contract"].widget.attrs["class"] = ""
+
+    def clean(self):
+        cleaned_data = super().clean()
+        labor_cost = cleaned_data.get("labor_cost_eur")
+        materials_cost = cleaned_data.get("materials_cost_eur")
+        total_cost = cleaned_data.get("cost_eur")
+        assistance_contract = cleaned_data.get("assistance_contract")
+        if total_cost in (None, "") and (labor_cost is not None or materials_cost is not None):
+            cleaned_data["cost_eur"] = (labor_cost or 0) + (materials_cost or 0)
+        if assistance_contract is not None:
+            cleaned_data["covered_by_contract"] = True
+        return cleaned_data

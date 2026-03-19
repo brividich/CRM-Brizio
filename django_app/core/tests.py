@@ -15,7 +15,8 @@ from django.db import connection
 from django.db.utils import ProgrammingError
 from django.http import HttpResponse
 from django.middleware.csrf import CsrfViewMiddleware
-from django.test import RequestFactory, TestCase, override_settings
+from django.template import Context, Template
+from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from core.audit import log_action
@@ -487,8 +488,8 @@ class LoginViewHardeningTests(TestCase):
         response = self.client.get(reverse("login"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Portale Applicativo")
-        self.assertContains(response, "Example Organization")
+        self.assertContains(response, "Portale Novicrom")
+        self.assertContains(response, "Area autenticata")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -756,6 +757,36 @@ class NavigationRegistryBrandingTests(TestCase):
             "dashboard_home",
         )
 
+    def test_navigation_registry_exposes_category_icon_for_grouped_items(self):
+        from core.models import ModuleCategory, NavigationItem, NavigationRoleAccess
+        from core.navigation_registry import bump_navigation_registry_version
+
+        category = ModuleCategory.objects.create(
+            key="sicurezza-test",
+            label="Sicurezza",
+            icon="🛡️",
+            topbar_color="#1e3a5f",
+            order=10,
+        )
+        item = NavigationItem.objects.create(
+            code="sicurezza_test",
+            label="Segnalazioni sicurezza",
+            section="topbar",
+            route_name="dashboard_home",
+            order=20,
+            is_visible=True,
+            is_enabled=True,
+            category=category,
+        )
+        NavigationRoleAccess.objects.create(item=item, legacy_role_id=1, can_view=True)
+        bump_navigation_registry_version()
+
+        nodes = get_topbar_nodes(current_path="/dashboard", role_id=None, is_admin=True)
+        sicurezza_nodes = [node for node in nodes if node.codice == "sicurezza_test"]
+
+        self.assertEqual(len(sicurezza_nodes), 1)
+        self.assertEqual(sicurezza_nodes[0].category_icon, "🛡️")
+
 
 @override_settings(SECURE_SSL_REDIRECT=False)
 class LegacyNavigationBrandingTests(TestCase):
@@ -808,3 +839,21 @@ class LegacyNavigationBrandingTests(TestCase):
         self.assertEqual(assets_items[0].label, "Novicrom Assets")
         self.assertEqual(assets_items[0].codice, "assets")
         self.assertEqual(assets_items[0].href, reverse("assets:asset_list"))
+
+
+@override_settings(MEDIA_URL="/media/")
+class IconTemplateTagTests(SimpleTestCase):
+    def test_render_icon_renders_image_for_ico_sources(self):
+        html = Template(
+            "{% load ui_icons %}<span>{% render_icon 'media:nav/test-icon.ico' 'Dashboard' %}</span>"
+        ).render(Context())
+
+        self.assertIn("<img", html)
+        self.assertIn('/media/nav/test-icon.ico', html)
+
+    def test_render_icon_falls_back_to_text_when_value_is_not_image(self):
+        html = Template(
+            "{% load ui_icons %}<span>{% render_icon '' 'Dashboard' %}</span>"
+        ).render(Context())
+
+        self.assertIn(">D<", html)

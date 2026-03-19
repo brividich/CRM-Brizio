@@ -5,11 +5,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Statistiche Anomalie | Portale Applicativo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       min-height: 100vh;
-      font-family: "Segoe UI", Arial, sans-serif;
+      font-family: "Outfit", sans-serif;
+      font-size: var(--fs-base);
+      line-height: var(--lh-base);
       background: radial-gradient(ellipse at 50% 22%, #cad3dc 0%, #aebac5 100%);
       color: #1f2937;
     }
@@ -20,11 +24,11 @@
       background: rgba(26, 84, 153, 0.93);
       box-shadow: 0 2px 8px rgba(0,0,0,.2);
     }
-    .topbar a { color: rgba(255,255,255,.92); text-decoration: none; font-size: 13px; font-weight: 700; letter-spacing: .03em; white-space: nowrap; }
+    .topbar a { color: rgba(255,255,255,.92); text-decoration: none; font-size: var(--fs-base); font-weight: 700; letter-spacing: .03em; white-space: nowrap; }
     .topbar a:hover { color: #fff; }
     .topbar-sep { width: 1px; height: 22px; background: rgba(255,255,255,.28); }
-    .topbar-title { flex: 1; color: #fff; font-size: 14px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
-    .topbar-user { color: rgba(255,255,255,.74); font-size: 12px; font-weight: 600; white-space: nowrap; }
+    .topbar-title { flex: 1; color: #fff; font-size: var(--fs-md); font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    .topbar-user { color: rgba(255,255,255,.74); font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; }
 
     .page { max-width: 1040px; margin: 22px auto 40px; padding: 0 16px; display: flex; flex-direction: column; gap: 16px; }
 
@@ -37,10 +41,10 @@
     }
     .filter-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
     .filter-field { display: flex; flex-direction: column; gap: 5px; min-width: 160px; }
-    .filter-field label { font-size: 12px; font-weight: 800; color: #374151; letter-spacing: .03em; }
+    .filter-field label { font-size: var(--fs-sm); font-weight: 800; color: #374151; letter-spacing: .03em; }
     .filter-field input, .filter-field select {
       padding: 7px 10px; border: 1.5px solid #d1d5db; border-radius: 8px;
-      font-size: 13px; color: #1f2937; background: #fff;
+      font-size: var(--fs-base); color: #1f2937; background: #fff;
     }
     .filter-field input:focus, .filter-field select:focus { outline: none; border-color: #1a5499; }
 
@@ -54,11 +58,11 @@
       box-shadow: 0 6px 20px rgba(0,0,0,.1);
       text-align: center;
     }
-    .kpi-label { font-size: 12px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
-    .kpi-val { font-size: 42px; font-weight: 900; color: #1e3a5f; line-height: 1; }
+    .kpi-label { font-size: var(--fs-sm); font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+    .kpi-val { font-size: var(--fs-display-3xl); font-weight: 900; color: #1e3a5f; line-height: 1; }
     .kpi-val.green { color: #166534; }
     .kpi-val.orange { color: #c2410c; }
-    .kpi-sub { font-size: 12px; color: #94a3b8; margin-top: 6px; }
+    .kpi-sub { font-size: var(--fs-sm); color: #94a3b8; margin-top: 6px; }
 
     /* Card tabella */
     .card {
@@ -68,12 +72,12 @@
       overflow: hidden;
     }
     .card-head { padding: 16px 20px; border-bottom: 1px solid rgba(0,0,0,.08); display: flex; align-items: center; gap: 12px; }
-    .card-title { font-size: 15px; font-weight: 800; color: #1e3a5f; letter-spacing: .02em; flex: 1; }
+    .card-title { font-size: var(--fs-title-sm); font-weight: 800; color: #1e3a5f; letter-spacing: .02em; flex: 1; }
     .card-body { padding: 16px 20px; }
 
     /* Tabelle */
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    thead th { text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 800; text-transform: uppercase; color: #8fa5c0; background: #f0f5ff; border-radius: 0; }
+    table { width: 100%; border-collapse: collapse; font-size: var(--fs-base); }
+    thead th { text-align: left; padding: 8px 10px; font-size: var(--fs-xs); font-weight: 800; text-transform: uppercase; color: #8fa5c0; background: #f0f5ff; border-radius: 0; }
     tbody tr { border-bottom: 1px solid #eef2f8; }
     tbody tr:last-child { border-bottom: none; }
     tbody td { padding: 8px 10px; color: #374151; }
@@ -88,19 +92,19 @@
     @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
 
     /* Bottoni */
-    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 10px; font-size: 13px; font-weight: 800; cursor: pointer; border: none; text-decoration: none; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 10px; font-size: var(--fs-base); font-weight: 800; cursor: pointer; border: none; text-decoration: none; }
     .btn-main { background: #1a5499; color: #fff; }
     .btn-main:hover { opacity: .9; }
     .btn-secondary { background: #e2e8f0; color: #334155; }
     .btn-secondary:hover { background: #cbd5e1; }
-    .btn-sm { padding: 6px 13px; font-size: 12px; border-radius: 8px; }
+    .btn-sm { padding: 6px 13px; font-size: var(--fs-sm); border-radius: 8px; }
 
-    .empty-msg { color: #9aadcb; text-align: center; padding: 24px; font-size: 13px; }
-    .loading { color: #64748b; font-size: 13px; padding: 20px; text-align: center; }
-    .err-msg { color: #dc2626; font-size: 13px; padding: 12px 16px; background: #fef2f2; border-radius: 10px; }
+    .empty-msg { color: #9aadcb; text-align: center; padding: 24px; font-size: var(--fs-base); }
+    .loading { color: #64748b; font-size: var(--fs-base); padding: 20px; text-align: center; }
+    .err-msg { color: #dc2626; font-size: var(--fs-base); padding: 12px 16px; background: #fef2f2; border-radius: 10px; }
   </style>
 </head>
-<body>
+<body class="fs-{{ ui_prefs.font_scale|default:'normal' }}">
 
 <div class="topbar">
   <a href="/anomalie-menu">&#8592; Menu Anomalie</a>
@@ -189,7 +193,7 @@
       <div class="card-title">Esportazione dati</div>
       <a id="btn-export-csv" href="/api/anomalie/export-csv-filtrato" class="btn btn-main btn-sm">&#8595; Esporta CSV (con filtri attivi)</a>
     </div>
-    <div class="card-body" style="color:#64748b;font-size:13px;padding:12px 20px;">
+    <div class="card-body" style="color:#64748b;padding:12px 20px;">
       L'export CSV include i filtri attivi (al massimo 5.000 righe). Contiene: ID, nominativo OP, seriale, descrizione, note capocommessa, numero RDC, avanzamento, stato chiuso, date.
     </div>
   </div>

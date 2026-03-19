@@ -1,0 +1,202 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Template manutenzione{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.mt-page { display:grid; gap:14px; }
+.mt-card, .mt-kpi {
+  border:1px solid #dbe1ea;
+  border-radius:14px;
+  background:#fff;
+  box-shadow:0 6px 18px rgba(15, 23, 42, .04);
+}
+.mt-kpis { display:grid; gap:10px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
+.mt-kpi { padding:14px 16px; }
+.mt-kpi-label { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:700; }
+.mt-kpi-value { margin-top:8px; font-size:var(--fs-display-xl); line-height:1; font-weight:800; color:#0f172a; }
+.mt-card-head {
+  padding:14px 16px;
+  border-bottom:1px solid #e5e7eb;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.mt-card-head h2 { margin:0; font-size:var(--fs-heading); color:#0f172a; }
+.mt-card-head p { margin:4px 0 0; color:#64748b; font-size:var(--fs-base); }
+.mt-card-body { padding:16px; }
+.mt-filter { display:grid; gap:12px; grid-template-columns:repeat(4, minmax(0, 1fr)); align-items:end; }
+.mt-field label { display:block; margin-bottom:6px; color:#334155; font-size:var(--fs-base); font-weight:700; }
+.mt-field :is(input, select) {
+  width:100%;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:#fff;
+  color:#0f172a;
+  padding:10px 12px;
+  font:inherit;
+}
+.mt-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.mt-table-wrap { overflow:auto; }
+.mt-table { width:100%; border-collapse:collapse; }
+.mt-table th {
+  text-align:left;
+  padding:10px 8px;
+  border-bottom:1px solid #e5e7eb;
+  color:#64748b;
+  font-size:var(--fs-sm);
+  text-transform:uppercase;
+}
+.mt-table td {
+  padding:12px 8px;
+  border-bottom:1px solid #f1f5f9;
+  color:#0f172a;
+  font-size:var(--fs-base);
+  vertical-align:top;
+}
+.mt-pill {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  padding:4px 8px;
+  font-size:var(--fs-xs);
+  font-weight:800;
+}
+.mt-pill.ok { background:#dcfce7; color:#15803d; }
+.mt-pill.muted { background:#e2e8f0; color:#475569; }
+.mt-empty { color:#64748b; font-size:var(--fs-base); }
+@media (max-width: 1100px) {
+  .mt-kpis,
+  .mt-filter { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .mt-kpis,
+  .mt-filter { grid-template-columns:1fr; }
+}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Template manutenzione{% endblock %}
+{% block assets_shell_subtitle %}
+<p>Catalogo standard dei tipi di intervento manutentivo, generali o legati a una categoria asset.</p>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="mt-page">
+  <section class="mt-kpis">
+    <article class="mt-kpi">
+      <div class="mt-kpi-label">Template visibili</div>
+      <div class="mt-kpi-value">{{ template_total }}</div>
+    </article>
+    <article class="mt-kpi">
+      <div class="mt-kpi-label">Attivi</div>
+      <div class="mt-kpi-value">{{ active_template_count }}</div>
+    </article>
+    <article class="mt-kpi">
+      <div class="mt-kpi-label">Generali</div>
+      <div class="mt-kpi-value">{{ general_template_count }}</div>
+    </article>
+  </section>
+
+  <article class="mt-card">
+    <div class="mt-card-head">
+      <div>
+        <h2>Filtri</h2>
+        <p>Filtra per categoria, stato o testo libero su codice, nome e descrizione.</p>
+      </div>
+    </div>
+    <div class="mt-card-body">
+      <form method="get" class="mt-filter">
+        <div class="mt-field">
+          <label for="id_category">Categoria</label>
+          <select id="id_category" name="category">
+            <option value="">Tutte le categorie</option>
+            {% for category in category_options %}
+              <option value="{{ category.id }}" {% if selected_category and selected_category.id == category.id %}selected{% endif %}>
+                {{ category.label }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mt-field">
+          <label for="id_active">Stato</label>
+          <select id="id_active" name="active">
+            <option value="active" {% if active_filter == "active" %}selected{% endif %}>Solo attivi</option>
+            <option value="inactive" {% if active_filter == "inactive" %}selected{% endif %}>Solo disattivi</option>
+            <option value="all" {% if active_filter == "all" %}selected{% endif %}>Tutti</option>
+          </select>
+        </div>
+        <div class="mt-field">
+          <label for="id_q">Ricerca</label>
+          <input id="id_q" type="text" name="q" value="{{ q }}" placeholder="Codice, nome, descrizione">
+        </div>
+        <div class="mt-actions">
+          <button type="submit" class="btn btn-primary">Applica</button>
+          <a class="btn" href="{{ clear_filters_url }}">Reset</a>
+          <a class="btn btn-secondary" href="{{ create_url }}">Nuovo template</a>
+        </div>
+      </form>
+    </div>
+  </article>
+
+  <article class="mt-card">
+    <div class="mt-card-head">
+      <div>
+        <h2>Elenco template</h2>
+        <p>Il template descrive il tipo standard di intervento; la policy con soglia vive nelle regole manutentive.</p>
+      </div>
+    </div>
+    <div class="mt-card-body">
+      {% if template_rows %}
+        <div class="mt-table-wrap">
+          <table class="mt-table">
+            <thead>
+              <tr>
+                <th>Template</th>
+                <th>Categoria</th>
+                <th>Regole</th>
+                <th>Stato</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in template_rows %}
+                <tr>
+                  <td>
+                    <strong>{{ row.template.label }}</strong><br>
+                    <span class="as-note">{{ row.template.code }}</span>
+                    {% if row.template.description %}
+                      <div class="as-note" style="margin-top:4px;">{{ row.template.description }}</div>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if row.template.asset_category %}
+                      {{ row.template.asset_category.label }}
+                    {% else %}
+                      <span class="as-note">Generale</span>
+                    {% endif %}
+                  </td>
+                  <td><a href="{{ row.rules_url }}">{{ row.rule_count }} regole</a></td>
+                  <td>
+                    {% if row.template.is_active %}
+                      <span class="mt-pill ok">Attivo</span>
+                    {% else %}
+                      <span class="mt-pill muted">Disattivo</span>
+                    {% endif %}
+                  </td>
+                  <td><a href="{{ row.edit_url }}">Modifica</a></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="mt-empty">Nessun template trovato con i filtri correnti.</p>
+      {% endif %}
+    </div>
+  </article>
+</section>
+{% endblock %}

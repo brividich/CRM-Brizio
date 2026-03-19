@@ -12,6 +12,7 @@ from django.views.decorators.cache import never_cache
 from werkzeug.security import generate_password_hash
 
 from core.accounts.forms import LegacyAuthenticationForm, LegacyChangePasswordForm
+from core.branding import get_portal_branding
 from core.legacy_models import UtenteLegacy
 from core.legacy_utils import get_legacy_user, legacy_auth_enabled
 
@@ -28,13 +29,14 @@ class LegacyLoginView(LoginView):
         from django.conf import settings
         from core.models import LoginBanner, SiteConfig
 
+        portal_branding = get_portal_branding()
         login_config = SiteConfig.get_many(
             {
-                "login_titolo":      "Portale Applicativo",
-                "login_sottotitolo": "Example Organization",
+                "login_titolo":      portal_branding.portal_name,
+                "login_sottotitolo": portal_branding.portal_subtitle or "Area autenticata",
                 "login_sso_label":   "Accedi con credenziali Windows",
                 "login_sso_visibile": "1",
-                "login_logo_url":    "",
+                "login_logo_url":    portal_branding.brand_logo_full,
             }
         )
 

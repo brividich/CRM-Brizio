@@ -111,7 +111,7 @@ def ini_bool(section: str, option: str, default: bool = False) -> bool:
 SECRET_KEY = env("DJANGO_SECRET_KEY", "change-me-in-dev")
 DEBUG = env_bool("DJANGO_DEBUG", False)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", ["127.0.0.1", "localhost"])
-APP_VERSION = env("APP_VERSION", "0.7.3")
+APP_VERSION = env("APP_VERSION", "0.7.4")
 SETUP_WIZARD_REQUIRED = env_bool("SETUP_WIZARD_REQUIRED", True)
 
 # ── Branding istanza ──────────────────────────────────────────────────────────
@@ -255,6 +255,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "core.context_processors.legacy_nav",
                 "core.context_processors.app_meta",
+                "core.context_processors.ui_prefs_context",
             ],
         },
     },

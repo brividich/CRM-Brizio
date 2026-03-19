@@ -26,4 +26,6 @@ urlpatterns = [
     path("guide/", views.guide_list, name="hub_guide_list"),
     path("guide/serve/<str:filename>", views.guide_serve, name="hub_guide_serve"),
     path("guide/<slug:slug>/", views.guide_view, name="hub_guide_view"),
+    # Categorie moduli
+    path("categorie/", views.categorie, name="hub_categorie"),
 ]

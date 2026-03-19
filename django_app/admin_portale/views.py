@@ -24,6 +24,7 @@ from django.db.models import Q
 from django.http import HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import URLPattern, URLResolver, get_resolver, reverse
+from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_GET, require_POST
@@ -76,6 +77,8 @@ from .forms import BulkRoleForm, PulsanteForm, UtenteCreateForm, UtenteUpdateFor
 
 PERM_OPTIONAL_FIELDS = ("can_edit", "can_delete", "can_approve")
 logger = logging.getLogger(__name__)
+NAV_ICON_STORAGE_DIR = "navigation/icons"
+NAV_ICON_ALLOWED_EXTENSIONS = {".ico", ".png", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".avif"}
 
 # ---------------------------------------------------------------------------
 # CATALOGO MODULI — pulsanti standard per ogni modulo noto del portale.
@@ -449,6 +452,47 @@ def _card_image_public_url(value: str | None) -> str:
     if not media_url.endswith("/"):
         media_url += "/"
     return media_url + raw.lstrip("/")
+
+
+def _is_allowed_nav_icon_extension(ext: str) -> bool:
+    return str(ext or "").strip().lower() in NAV_ICON_ALLOWED_EXTENSIONS
+
+
+def _navigation_icon_library_items() -> list[dict[str, str]]:
+    try:
+        _, files = default_storage.listdir(NAV_ICON_STORAGE_DIR)
+    except Exception:
+        return []
+
+    items: list[dict[str, str]] = []
+    for filename in sorted(files, key=str.lower):
+        ext = Path(str(filename or "")).suffix.lower()
+        if not _is_allowed_nav_icon_extension(ext):
+            continue
+        stored_value = f"{NAV_ICON_STORAGE_DIR}/{str(filename).strip().lstrip('/')}".replace("\\", "/")
+        items.append(
+            {
+                "name": Path(filename).name,
+                "label": Path(filename).stem,
+                "value": stored_value,
+                "url": _card_image_public_url(stored_value),
+            }
+        )
+    return items
+
+
+def _save_navigation_icon_upload(upload) -> tuple[str, str]:
+    filename = str(getattr(upload, "name", "") or "icon").strip() or "icon"
+    base_name, ext = os.path.splitext(filename)
+    ext = ext.lower()
+    if not _is_allowed_nav_icon_extension(ext):
+        raise ValidationError("Formato file non valido: usa .ico, .png, .svg o un formato immagine supportato.")
+
+    safe_name = slugify(base_name) or "nav-icon"
+    unique_suffix = timezone.now().strftime("%Y%m%d%H%M%S%f")
+    target_path = f"{NAV_ICON_STORAGE_DIR}/{safe_name}-{unique_suffix}{ext}"
+    saved_path = default_storage.save(target_path, upload).replace("\\", "/")
+    return saved_path, _card_image_public_url(saved_path)
 
 
 def _normalize_media_storage_path(value: str | None) -> str:
@@ -908,6 +952,41 @@ def _ldap_save_service_account(service_user: str, service_password: str) -> tupl
     if not ok:
         return ok, message
     return True, f"Service account salvato: {service_user}. Riavvia il server per applicare."
+
+
+def _ldap_save_settings(
+    *,
+    enabled: bool,
+    server: str,
+    domain: str,
+    upn_suffix: str,
+    timeout: int,
+    base_dn: str,
+    user_filter: str,
+    group_allowlist: str,
+    sync_page_size: int,
+) -> tuple[bool, str]:
+    """Scrive la configurazione LDAP principale nella sezione [ACTIVE_DIRECTORY] di config.ini."""
+    normalized_timeout = max(1, int(timeout or 5))
+    normalized_page_size = max(100, min(int(sync_page_size or 500), 2000))
+
+    ok, message = _update_config_ini_section(
+        "ACTIVE_DIRECTORY",
+        {
+            "enabled": "true" if enabled else "false",
+            "server": server,
+            "domain": domain,
+            "upn_suffix": upn_suffix,
+            "timeout": str(normalized_timeout),
+            "base_dn": base_dn,
+            "user_filter": user_filter,
+            "group_allowlist": group_allowlist,
+            "sync_page_size": str(normalized_page_size),
+        },
+    )
+    if not ok:
+        return ok, message
+    return True, "Configurazione LDAP salvata. Riavvia il server per applicare."
 
 
 def _smtp_test_connect(
@@ -1542,11 +1621,22 @@ def ldap_diagnostica(request):
     bind_username = ""
 
     if request.method == "POST":
+        def _posted_str(key: str, fallback: str) -> str:
+            if key in request.POST:
+                return (request.POST.get(key) or "").strip()
+            return str(fallback or "").strip()
+
         action = (request.POST.get("action") or "").strip().lower()
-        server = (request.POST.get("server") or defaults["server"]).strip()
-        domain = (request.POST.get("domain") or defaults["domain"]).strip()
-        upn_suffix = (request.POST.get("upn_suffix") or defaults["upn_suffix"]).strip()
-        timeout = _int_or_none(request.POST.get("timeout")) or int(defaults["timeout"])
+        server = _posted_str("server", defaults["server"])
+        domain = _posted_str("domain", defaults["domain"])
+        upn_suffix = _posted_str("upn_suffix", defaults["upn_suffix"])
+        timeout = _int_or_none(request.POST.get("timeout")) if "timeout" in request.POST else None
+        timeout = timeout or int(defaults["timeout"])
+        base_dn = _posted_str("base_dn", defaults["base_dn"])
+        user_filter = _posted_str("user_filter", defaults["user_filter"])
+        group_allowlist = _posted_str("group_allowlist", defaults["group_allowlist"])
+        sync_page_size = _int_or_none(request.POST.get("sync_page_size")) if "sync_page_size" in request.POST else None
+        sync_page_size = sync_page_size or int(defaults["sync_page_size"])
         bind_username = (request.POST.get("bind_username") or "").strip()
         bind_password = (request.POST.get("bind_password") or "").strip()
         defaults.update(
@@ -1555,6 +1645,10 @@ def ldap_diagnostica(request):
                 "domain": domain,
                 "upn_suffix": upn_suffix,
                 "timeout": timeout,
+                "base_dn": base_dn,
+                "user_filter": user_filter,
+                "group_allowlist": group_allowlist,
+                "sync_page_size": sync_page_size,
             }
         )
         if action in ("save_service_account", "test_service_bind"):
@@ -1642,6 +1736,22 @@ def ldap_diagnostica(request):
                 )
                 result_smtp = {"ok": ok, "message": msg}
                 (messages.success if ok else messages.error)(request, msg)
+        elif action == "save_ldap_config":
+            enabled = _bool_from_any(request.POST.get("enabled"))
+            defaults["enabled"] = enabled
+            ok, msg = _ldap_save_settings(
+                enabled=enabled,
+                server=server,
+                domain=domain,
+                upn_suffix=upn_suffix,
+                timeout=timeout,
+                base_dn=base_dn,
+                user_filter=user_filter,
+                group_allowlist=group_allowlist,
+                sync_page_size=sync_page_size,
+            )
+            result_connect = {"ok": ok, "message": msg}
+            (messages.success if ok else messages.error)(request, msg)
         elif action == "test_connect":
             if not server:
                 result_connect = {"ok": False, "message": "Server LDAP non configurato. Compilare il campo 'Server LDAP' oppure impostare il valore in config.ini e riavviare il server."}
@@ -3923,6 +4033,10 @@ def _navigation_item_payload(item: NavigationItem, role_ids_map: dict[int, list[
     }
 
 
+def _normalize_navigation_icon(value) -> str:
+    return str(value or "").strip()[:500]
+
+
 def _unique_nav_code(base_code: str, used: set[str]) -> str:
     base = slugify(base_code or "")[:72] or "item"
     candidate = base
@@ -3984,6 +4098,7 @@ def navigation_builder(request):
             "ruoli": ruoli,
             "snapshots": snapshots,
             "redirects": redirects,
+            "icon_library": _navigation_icon_library_items(),
             "filters": {"q": q_filter, "section": section_filter},
             "state_preview_json": json.dumps(export_navigation_state(), ensure_ascii=False, indent=2),
         },
@@ -4013,6 +4128,7 @@ def api_navigation_item_create(request):
 
     section = str(payload.get("section") or "topbar").strip().lower() or "topbar"
     parent_code = str(payload.get("parent_code") or "").strip().lower()
+    icon = _normalize_navigation_icon(payload.get("icon"))
     order_value = _int_or_none(payload.get("order"))
     role_ids = _parse_role_ids(payload.get("role_ids") or payload.get("role_ids_csv"))
 
@@ -4029,6 +4145,7 @@ def api_navigation_item_create(request):
                 is_visible=_bool_from_any(payload.get("is_visible")) if "is_visible" in payload else True,
                 is_enabled=_bool_from_any(payload.get("is_enabled")) if "is_enabled" in payload else True,
                 open_in_new_tab=_bool_from_any(payload.get("open_in_new_tab")) if "open_in_new_tab" in payload else False,
+                icon=icon,
                 description=str(payload.get("description") or "").strip(),
                 created_by=request.user,
                 updated_by=request.user,
@@ -4069,6 +4186,7 @@ def api_navigation_item_update(request):
 
     section = str(payload.get("section") or "topbar").strip().lower() or "topbar"
     parent_code = str(payload.get("parent_code") or "").strip().lower()
+    icon = _normalize_navigation_icon(payload.get("icon"))
     order_value = _int_or_none(payload.get("order"))
     role_ids = _parse_role_ids(payload.get("role_ids") or payload.get("role_ids_csv"))
 
@@ -4086,6 +4204,7 @@ def api_navigation_item_update(request):
             item.open_in_new_tab = (
                 _bool_from_any(payload.get("open_in_new_tab")) if "open_in_new_tab" in payload else item.open_in_new_tab
             )
+            item.icon = icon
             item.description = str(payload.get("description") or "").strip()
             item.updated_by = request.user
             item.save()
@@ -4198,6 +4317,7 @@ def api_navigation_bootstrap_from_legacy(request):
             item.order = int(order_hint)
             item.is_visible = True
             item.is_enabled = True
+            item.icon = _normalize_navigation_icon(getattr(puls, "icona", ""))
             item.description = f"Importata da pulsanti.id={pid}"
             item.updated_by = request.user
             item.save()
@@ -4235,6 +4355,39 @@ def api_navigation_restore(request):
     except Exception as exc:
         return _json_error(f"Errore restore snapshot: {exc}", status=500)
     return JsonResponse({"ok": True, "restored_version": int(snapshot.version)})
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_navigation_icon_upload(request):
+    upload = request.FILES.get("icon") or request.FILES.get("image")
+    if upload is None:
+        return _json_error("File icona mancante.")
+
+    content_type = str(getattr(upload, "content_type", "") or "").strip().lower()
+    ext = Path(str(getattr(upload, "name", "") or "")).suffix.lower()
+    if content_type and not content_type.startswith("image/") and not _is_allowed_nav_icon_extension(ext):
+        return _json_error("Formato file non valido: serve una immagine.")
+
+    try:
+        saved_path, public_url = _save_navigation_icon_upload(upload)
+    except ValidationError as exc:
+        return _json_error("; ".join(exc.messages) or "Formato file non valido.")
+    except Exception as exc:
+        return _json_error(f"Errore salvataggio icona: {exc}")
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "icon": {
+                "name": Path(saved_path).name,
+                "label": Path(saved_path).stem,
+                "value": saved_path,
+                "url": public_url,
+            },
+        }
+    )
 
 
 @legacy_admin_required

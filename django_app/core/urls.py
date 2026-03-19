@@ -52,4 +52,7 @@ urlpatterns = [
         views.api_gestione_reparto_assegna,
         name="api_gestione_reparto_assegna",
     ),
+    path("preferenze/", views.ui_prefs_page, name="ui_prefs_page"),
+    path("preferenze/api/ui/", views.api_ui_prefs_save, name="ui_prefs_api_save"),
+    path("preferenze/api/sidebar/", views.sidebar_toggle_save, name="ui_sidebar_save"),
 ]

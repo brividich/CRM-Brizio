@@ -133,7 +133,27 @@
 /* Drag ghost */
 .dp-drag-ghost { opacity:.4; border:2px dashed #1d4ed8 !important; }
 
+/* Mansione inline edit */
+.dp-mansione-form { display:none; flex-direction:column; gap:8px; margin-top:8px; }
+.dp-mansione-form.open { display:flex; }
+
+/* Qualifiche */
+.dp-qual-list { display:flex; flex-direction:column; gap:8px; }
+.dp-qual-item { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; gap:12px; flex-wrap:wrap; }
+.dp-qual-name { font-size:13px; font-weight:700; color:#0f172a; }
+.dp-qual-cat { font-size:11px; color:#64748b; margin-top:1px; }
+.dp-qual-dates { font-size:12px; color:#64748b; display:flex; gap:12px; flex-wrap:wrap; }
+.dp-qual-scad-red { color:#b91c1c; font-weight:700; }
+.dp-qual-scad-orange { color:#9a3412; font-weight:700; }
+
+/* Form aggiungi qualifica */
+.dp-qual-form-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; align-items:end; }
+.dp-qual-field { display:flex; flex-direction:column; gap:3px; }
+.dp-qual-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+
 @media (max-width:600px) {
+  .dp-qual-form-grid { grid-template-columns:1fr; }
+}
   .dp-widget-grid { grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); }
   .dp-hero { flex-direction:column; align-items:flex-start; }
 }
@@ -196,7 +216,35 @@
         <div class="dp-info-item"><div class="dp-info-label">Cognome</div><div class="dp-info-value">{{ dip.cognome|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Matricola</div><div class="dp-info-value">{{ dip.matricola|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Reparto</div><div class="dp-info-value">{{ dip.reparto|default:"—" }}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Mansione</div><div class="dp-info-value">{{ dip.mansione|default:"—" }}</div></div>
+        <div class="dp-info-item">
+          <div class="dp-info-label">Mansione
+            {% if is_admin %}
+              <button type="button" onclick="toggleMansioneForm()" style="background:none;border:none;cursor:pointer;color:#1d4ed8;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia mansione">✏</button>
+            {% endif %}
+          </div>
+          <div class="dp-info-value">{{ dip.mansione|default:"—" }}</div>
+          {% if is_admin %}
+          <div class="dp-mansione-form" id="mansione-form">
+            <form method="post" action="{% url 'anagrafica:dipendente_mansione_set' legacy_id %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              {% csrf_token %}
+              <select name="mansione_nome" class="dp-select" style="min-width:180px;">
+                <option value="">— Nessuna mansione —</option>
+                {% for m in mansioni_catalogo %}
+                  <option value="{{ m.nome }}" {% if m.nome == dip.mansione %}selected{% endif %}>{{ m.nome }}</option>
+                {% endfor %}
+                {% if dip.mansione and dip.mansione not in mansioni_catalogo|join:"," %}
+                  <option value="{{ dip.mansione }}" selected>{{ dip.mansione }} (attuale)</option>
+                {% endif %}
+              </select>
+              <button type="submit" class="dp-btn dp-btn-primary dp-btn-xs">Salva</button>
+              <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="toggleMansioneForm()">Annulla</button>
+            </form>
+            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">
+              Non trovi la mansione? <a href="{% url 'anagrafica:mansioni_list' %}" style="color:#1d4ed8;">Gestisci il catalogo</a>.
+            </div>
+          </div>
+          {% endif %}
+        </div>
         <div class="dp-info-item"><div class="dp-info-label">Username</div><div class="dp-info-value">{{ dip.aliasusername|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Email account</div><div class="dp-info-value">{{ dip.email|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Email notifica</div><div class="dp-info-value">{% if dip.email_notifica %}<a href="mailto:{{ dip.email_notifica }}" style="color:#1d4ed8;">{{ dip.email_notifica }}</a>{% else %}—{% endif %}</div></div>
@@ -242,6 +290,105 @@
       {% elif is_admin and not ruoli_disponibili and not ruoli_assegnati %}
         <p style="font-size:13px;color:#94a3b8;margin-top:8px;">
           Nessun ruolo nel catalogo. <a href="{% url 'anagrafica:ruoli_operativi_list' %}" style="color:#1d4ed8;">Crea i ruoli operativi</a>.
+        </p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- QUALIFICHE PROFESSIONALI -->
+  <div class="dp-card">
+    <div class="dp-card-head">
+      <div class="dp-card-title">📜 Qualifiche professionali</div>
+      {% if is_admin %}
+        <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'anagrafica:qualifiche_list' %}">Gestisci catalogo</a>
+      {% endif %}
+    </div>
+    <div class="dp-card-body">
+      <div class="dp-qual-list">
+        {% for q in qualifiche_dip %}
+          <div class="dp-qual-item">
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <div class="dp-qual-name">{{ q.tipo.nome }}</div>
+                {% if q.tipo.categoria == "SICUREZZA" %}
+                  <span style="background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:700;">Sicurezza</span>
+                {% elif q.tipo.categoria == "PROFESSIONALE" %}
+                  <span style="background:#dbeafe;color:#1e40af;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:700;">Professionale</span>
+                {% elif q.tipo.categoria == "GESTIONALE" %}
+                  <span style="background:#ede9fe;color:#5b21b6;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:700;">Gestionale</span>
+                {% else %}
+                  <span style="background:#f1f5f9;color:#475569;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:700;">Altro</span>
+                {% endif %}
+                {% if q.data_scadenza %}
+                  {% if q.is_scaduta %}
+                    <span style="background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:700;">🔴 Scaduta</span>
+                  {% elif q.in_scadenza %}
+                    <span style="background:#ffedd5;color:#9a3412;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:700;">🟠 In scadenza</span>
+                  {% endif %}
+                {% endif %}
+              </div>
+              <div class="dp-qual-dates">
+                {% if q.data_conseguimento %}
+                  <span>Conseguita: <strong>{{ q.data_conseguimento|date:"d/m/Y" }}</strong></span>
+                {% endif %}
+                {% if q.data_scadenza %}
+                  <span class="{% if q.is_scaduta %}dp-qual-scad-red{% elif q.in_scadenza %}dp-qual-scad-orange{% endif %}">
+                    Scadenza: {{ q.data_scadenza|date:"d/m/Y" }}
+                  </span>
+                {% else %}
+                  <span style="color:#94a3b8;">Nessuna scadenza</span>
+                {% endif %}
+                {% if q.note %}<span>{{ q.note }}</span>{% endif %}
+              </div>
+            </div>
+            {% if is_admin %}
+              <form method="post" action="{% url 'anagrafica:dipendente_qualifica_delete' legacy_id q.id %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="dp-btn dp-btn-danger dp-btn-xs" onclick="return confirm('Rimuovere la qualifica {{ q.tipo.nome }}?')">🗑 Rimuovi</button>
+              </form>
+            {% endif %}
+          </div>
+        {% empty %}
+          <div style="font-size:13px;color:#94a3b8;padding:6px 0;">Nessuna qualifica registrata.</div>
+        {% endfor %}
+      </div>
+
+      {% if is_admin and tipi_qualifica %}
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid #f1f5f9;">
+        <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">+ Aggiungi qualifica</div>
+        <form method="post" action="{% url 'anagrafica:dipendente_qualifica_add' legacy_id %}">
+          {% csrf_token %}
+          <div class="dp-qual-form-grid">
+            <div class="dp-qual-field" style="grid-column:1/-1;">
+              <label class="dp-qual-label">Tipo qualifica *</label>
+              <select name="tipo_id" class="dp-select" required style="width:100%;">
+                <option value="">— Seleziona —</option>
+                {% for t in tipi_qualifica %}
+                  <option value="{{ t.id }}">{{ t.nome }}{% if t.durata_mesi %} ({{ t.durata_mesi }} mesi){% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="dp-qual-field">
+              <label class="dp-qual-label">Data conseguimento</label>
+              <input type="date" name="data_conseguimento" class="dp-select" style="width:100%;">
+            </div>
+            <div class="dp-qual-field">
+              <label class="dp-qual-label">Data scadenza (auto se durata impostata)</label>
+              <input type="date" name="data_scadenza" class="dp-select" style="width:100%;">
+            </div>
+            <div class="dp-qual-field">
+              <label class="dp-qual-label">Note</label>
+              <input type="text" name="note" class="dp-select" maxlength="255" placeholder="Note opzionali" style="width:100%;">
+            </div>
+          </div>
+          <div style="margin-top:10px;">
+            <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">+ Aggiungi qualifica</button>
+          </div>
+        </form>
+      </div>
+      {% elif is_admin and not tipi_qualifica %}
+        <p style="font-size:13px;color:#94a3b8;margin-top:10px;">
+          Nessun tipo di qualifica nel catalogo. <a href="{% url 'anagrafica:qualifiche_list' %}" style="color:#1d4ed8;">Crea le qualifiche</a>.
         </p>
       {% endif %}
     </div>
@@ -439,4 +586,11 @@ window.addEventListener('beforeunload', e => {
 });
 </script>
 {% endif %}
+
+<script>
+function toggleMansioneForm() {
+  const f = document.getElementById('mansione-form');
+  if (f) f.classList.toggle('open');
+}
+</script>
 {% endblock %}

@@ -56,6 +56,7 @@ urlpatterns = [
     path("api/navigation/bootstrap-legacy", views.api_navigation_bootstrap_from_legacy, name="api_navigation_bootstrap_from_legacy"),
     path("api/navigation/publish", views.api_navigation_publish, name="api_navigation_publish"),
     path("api/navigation/restore", views.api_navigation_restore, name="api_navigation_restore"),
+    path("api/navigation/icon/upload", views.api_navigation_icon_upload, name="api_navigation_icon_upload"),
     path("api/navigation/redirect/upsert", views.api_legacy_redirect_upsert, name="api_legacy_redirect_upsert"),
     path("api/navigation/redirect/delete", views.api_legacy_redirect_delete, name="api_legacy_redirect_delete"),
     path("anagrafica-config/", views.anagrafica_config, name="anagrafica_config"),

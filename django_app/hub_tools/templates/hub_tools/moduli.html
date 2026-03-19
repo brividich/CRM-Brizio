@@ -49,7 +49,10 @@ input:checked+.slider:before{transform:translateX(20px)}
       <div class="hub-title">🧩 Gestione Moduli</div>
       <div class="hub-subtitle">Attiva o disattiva i moduli visibili nell'interfaccia. Le tabelle rimangono sempre presenti nel database.</div>
     </div>
-    <a href="{% url 'admin_portale:index' %}" style="font-size:.84rem;color:#64748b;text-decoration:none">← Torna all'admin</a>
+    <div style="display:flex;gap:10px;align-items:center">
+      <a href="{% url 'hub_tools:hub_categorie' %}" style="font-size:.84rem;color:#1a6fc4;font-weight:600;text-decoration:none;padding:6px 14px;border:1.5px solid #1a6fc4;border-radius:7px">🏷️ Categorie topbar</a>
+      <a href="{% url 'admin_portale:index' %}" style="font-size:.84rem;color:#64748b;text-decoration:none">← Torna all'admin</a>
+    </div>
   </div>
 
   <!-- Redirect post-login -->

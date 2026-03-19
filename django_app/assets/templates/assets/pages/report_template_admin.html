@@ -29,7 +29,7 @@
   align-items: start;
 }
 .rta-head h2, .rta-head h3 { margin: 0; color: #0f172a; }
-.rta-head p { margin: 4px 0 0; color: #64748b; font-size: 13px; }
+.rta-head p { margin: 4px 0 0; color: #64748b; font-size: var(--fs-base); }
 .rta-body { padding: 18px; display: grid; gap: 14px; }
 .rta-form-grid {
   display: grid;
@@ -40,7 +40,7 @@
 .rta-form-grid .field { display: grid; gap: 6px; min-width: 0; }
 .rta-form-grid .field.span-2 { grid-column: span 2; }
 .rta-form-grid .field.span-4 { grid-column: 1 / -1; }
-.rta-form-grid label { font-size: 12px; font-weight: 700; color: #334155; }
+.rta-form-grid label { font-size: var(--fs-sm); font-weight: 700; color: #334155; }
 .rta-form-grid input,
 .rta-form-grid select,
 .rta-form-grid textarea {
@@ -55,10 +55,10 @@
   gap: 8px;
   min-height: 42px;
   color: #334155;
-  font-size: 13px;
+  font-size: var(--fs-base);
   font-weight: 600;
 }
-.rta-muted { color: #64748b; font-size: 12px; line-height: 1.5; }
+.rta-muted { color: #64748b; font-size: var(--fs-sm); line-height: 1.5; }
 .rta-grid { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .rta-template {
   border: 1px solid #e2e8f0;
@@ -74,13 +74,13 @@
   gap: 12px;
   align-items: start;
 }
-.rta-template-title { margin: 0; font-size: 15px; font-weight: 800; color: #0f172a; }
+.rta-template-title { margin: 0; font-size: var(--fs-title-sm); font-weight: 800; color: #0f172a; }
 .rta-chip {
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
   padding: 4px 8px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 800;
 }
 .rta-chip.active { background: #dcfce7; color: #166534; }

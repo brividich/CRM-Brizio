@@ -40,7 +40,6 @@
     <div class="card-body">
       <form method="post" class="admin-form-grid">
         {% csrf_token %}
-        <input type="hidden" name="action" value="test_connect">
         <div class="field">
           <label>Server LDAP</label>
           <input class="input" type="text" name="server" value="{{ ldap_cfg.server }}">
@@ -57,8 +56,28 @@
           <label>Timeout (s)</label>
           <input class="input" type="number" name="timeout" value="{{ ldap_cfg.timeout|default:5 }}">
         </div>
-        <div class="field field-actions">
-          <button class="btn" type="submit">Test Connessione LDAP</button>
+        <div class="field">
+          <label>Base DN</label>
+          <input class="input" type="text" name="base_dn" value="{{ ldap_cfg.base_dn|default:'' }}" placeholder="DC=DOMINIO,DC=LOCAL">
+        </div>
+        <div class="field">
+          <label>User filter</label>
+          <input class="input" type="text" name="user_filter" value="{{ ldap_cfg.user_filter|default:'' }}">
+        </div>
+        <div class="field">
+          <label>Group allowlist (CSV)</label>
+          <input class="input" type="text" name="group_allowlist" value="{{ ldap_cfg.group_allowlist|default:'' }}" placeholder="EMPLOYEES,MANAGERS,ADMINS">
+        </div>
+        <div class="field">
+          <label>Sync page size</label>
+          <input class="input" type="number" min="100" max="2000" name="sync_page_size" value="{{ ldap_cfg.sync_page_size|default:500 }}">
+        </div>
+        <div class="field field-checks">
+          <label class="checkline"><input type="checkbox" name="enabled" {% if ldap_cfg.enabled %}checked{% endif %}> LDAP abilitato</label>
+        </div>
+        <div class="field field-actions" style="gap:8px; display:flex; flex-wrap:wrap;">
+          <button class="btn btn-secondary" type="submit" name="action" value="test_connect">Test Connessione LDAP</button>
+          <button class="btn" type="submit" name="action" value="save_ldap_config">Salva config LDAP in config.ini</button>
         </div>
       </form>
       {% if result_connect %}
@@ -66,6 +85,9 @@
           {{ result_connect.message }}
         </div>
       {% endif %}
+      <div class="cell-muted" style="margin-top:10px;">
+        Nota: dopo il salvataggio su <code>config.ini</code> serve <strong>riavviare il server</strong> per far rileggere i settings Django.
+      </div>
       <div class="notice" style="margin-top:10px;">
         <strong>Import utenti LDAP:</strong>
         <div style="margin-top:6px;">

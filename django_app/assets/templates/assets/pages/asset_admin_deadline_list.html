@@ -1,0 +1,267 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Scadenze amministrative{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.dl-page { display:grid; gap:14px; }
+.dl-banner, .dl-card, .dl-kpi {
+  border:1px solid #dbe1ea;
+  border-radius:14px;
+  background:#fff;
+  box-shadow:0 6px 18px rgba(15, 23, 42, .04);
+}
+.dl-banner { padding:16px; background:linear-gradient(135deg, #f8fbff 0%, #ffffff 100%); }
+.dl-banner-title { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.05em; color:#1d4ed8; font-weight:800; }
+.dl-banner-text { margin-top:6px; color:#0f172a; font-size:var(--fs-title-lg); font-weight:800; }
+.dl-banner-note { margin-top:4px; color:#365b9d; font-size:var(--fs-base); }
+.dl-kpis { display:grid; gap:10px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
+.dl-kpi { padding:14px 16px; }
+.dl-kpi-label { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:700; }
+.dl-kpi-value { margin-top:8px; font-size:var(--fs-display-xl); line-height:1; font-weight:800; color:#0f172a; }
+.dl-card-head {
+  padding:14px 16px;
+  border-bottom:1px solid #e5e7eb;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.dl-card-head h2 { margin:0; font-size:var(--fs-heading); color:#0f172a; }
+.dl-card-head p { margin:4px 0 0; color:#64748b; font-size:var(--fs-base); }
+.dl-card-body { padding:16px; }
+.dl-filter { display:grid; gap:12px; grid-template-columns:repeat(5, minmax(0, 1fr)); align-items:end; }
+.dl-field label { display:block; margin-bottom:6px; color:#334155; font-size:var(--fs-base); font-weight:700; }
+.dl-field :is(input, select) {
+  width:100%;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:#fff;
+  color:#0f172a;
+  padding:10px 12px;
+  font:inherit;
+}
+.dl-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.dl-table-wrap { overflow:auto; }
+.dl-table { width:100%; border-collapse:collapse; }
+.dl-table th {
+  text-align:left;
+  padding:10px 8px;
+  border-bottom:1px solid #e5e7eb;
+  color:#64748b;
+  font-size:var(--fs-sm);
+  text-transform:uppercase;
+}
+.dl-table td {
+  padding:12px 8px;
+  border-bottom:1px solid #f1f5f9;
+  color:#0f172a;
+  font-size:var(--fs-base);
+  vertical-align:top;
+}
+.dl-pill {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  padding:4px 8px;
+  font-size:var(--fs-xs);
+  font-weight:800;
+}
+.dl-pill.ok { background:#dcfce7; color:#15803d; }
+.dl-pill.warn { background:#fef3c7; color:#a16207; }
+.dl-pill.danger { background:#fee2e2; color:#b91c1c; }
+.dl-pill.muted { background:#e2e8f0; color:#475569; }
+.dl-link-stack { display:grid; gap:6px; }
+.dl-empty { color:#64748b; font-size:var(--fs-base); }
+@media (max-width: 1200px) {
+  .dl-kpis,
+  .dl-filter { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .dl-kpis,
+  .dl-filter { grid-template-columns:1fr; }
+}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Scadenze amministrative{% endblock %}
+{% block assets_shell_subtitle %}
+<p>Scadenze amministrative o tecniche manuali, distinte dalle verifiche periodiche ricorrenti.</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+  {% if selected_asset %}
+    <a class="btn" href="{% url 'assets:asset_view' selected_asset.id %}">Torna all'asset</a>
+  {% endif %}
+  <a class="btn" href="{{ periodic_verification_url }}">Verifiche periodiche</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="dl-page">
+  {% if selected_asset %}
+    <article class="dl-banner">
+      <div class="dl-banner-title">Contesto asset</div>
+      <div class="dl-banner-text">
+        {{ selected_asset.asset_tag }} - {{ selected_asset.name }}
+        {% if selected_asset.reparto %} | {{ selected_asset.reparto }}{% endif %}
+      </div>
+      <div class="dl-banner-note">
+        {% if selected_component %}
+          Filtro attivo anche sul componente: {{ selected_component.name }}{% if selected_component.code %} ({{ selected_component.code }}){% endif %}.
+        {% else %}
+          Questa pagina non sostituisce le verifiche periodiche: qui gestisci scadenze manuali amministrative o tecniche.
+        {% endif %}
+      </div>
+    </article>
+  {% endif %}
+
+  <section class="dl-kpis">
+    <article class="dl-kpi">
+      <div class="dl-kpi-label">Scadenze visibili</div>
+      <div class="dl-kpi-value">{{ deadline_total }}</div>
+    </article>
+    <article class="dl-kpi">
+      <div class="dl-kpi-label">Scadute</div>
+      <div class="dl-kpi-value">{{ overdue_deadline_count }}</div>
+    </article>
+    <article class="dl-kpi">
+      <div class="dl-kpi-label">In scadenza</div>
+      <div class="dl-kpi-value">{{ warning_deadline_count }}</div>
+    </article>
+  </section>
+
+  <article class="dl-card">
+    <div class="dl-card-head">
+      <div>
+        <h2>Filtri</h2>
+        <p>Filtra per asset, componente, tipo e stato della scadenza.</p>
+      </div>
+    </div>
+    <div class="dl-card-body">
+      <form method="get" class="dl-filter">
+        <div class="dl-field">
+          <label for="id_asset">Asset</label>
+          <select id="id_asset" name="asset">
+            <option value="">Tutti gli asset</option>
+            {% for asset_option in asset_options %}
+              <option value="{{ asset_option.id }}" {% if selected_asset and selected_asset.id == asset_option.id %}selected{% endif %}>
+                {{ asset_option.asset_tag }} - {{ asset_option.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="dl-field">
+          <label for="id_component">Componente</label>
+          <select id="id_component" name="component">
+            <option value="">Tutti i componenti</option>
+            {% for component_option in component_options %}
+              <option value="{{ component_option.id }}" {% if selected_component and selected_component.id == component_option.id %}selected{% endif %}>
+                {% if component_option.code %}{{ component_option.code }} - {% endif %}{{ component_option.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="dl-field">
+          <label for="id_deadline_type">Tipo</label>
+          <select id="id_deadline_type" name="deadline_type">
+            <option value="">Tutti i tipi</option>
+            {% for code, label in deadline_type_choices %}
+              <option value="{{ code }}" {% if selected_deadline_type == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="dl-field">
+          <label for="id_status">Stato</label>
+          <select id="id_status" name="status">
+            <option value="all" {% if status_filter == "all" %}selected{% endif %}>Tutti</option>
+            <option value="overdue" {% if status_filter == "overdue" %}selected{% endif %}>Scadute</option>
+            <option value="warning" {% if status_filter == "warning" %}selected{% endif %}>In scadenza</option>
+            <option value="upcoming" {% if status_filter == "upcoming" %}selected{% endif %}>Programmate</option>
+            <option value="inactive" {% if status_filter == "inactive" %}selected{% endif %}>Disattive</option>
+          </select>
+        </div>
+        <div class="dl-field">
+          <label for="id_q">Ricerca</label>
+          <input id="id_q" type="text" name="q" value="{{ q }}" placeholder="Titolo, riferimento, asset, componente">
+        </div>
+        <div class="dl-actions" style="grid-column:1/-1;">
+          <button type="submit" class="btn btn-primary">Applica</button>
+          <a class="btn" href="{{ clear_filters_url }}">Reset</a>
+          <a class="btn btn-secondary" href="{{ create_url }}">Nuova scadenza</a>
+        </div>
+      </form>
+    </div>
+  </article>
+
+  <article class="dl-card">
+    <div class="dl-card-head">
+      <div>
+        <h2>Elenco scadenze</h2>
+        <p>Dati interrogabili a database, senza ricorrenze automatiche nella prima patch.</p>
+      </div>
+    </div>
+    <div class="dl-card-body">
+      {% if deadline_rows %}
+        <div class="dl-table-wrap">
+          <table class="dl-table">
+            <thead>
+              <tr>
+                <th>Scadenza</th>
+                <th>Tipo</th>
+                <th>Asset</th>
+                <th>Componente</th>
+                <th>Data</th>
+                <th>Stato</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in deadline_rows %}
+                <tr>
+                  <td>
+                    <strong>{{ row.deadline.title }}</strong><br>
+                    <span class="as-note">
+                      {% if row.deadline.reference_code %}{{ row.deadline.reference_code }}{% else %}Nessun riferimento{% endif %}
+                      {% if row.deadline.issuer %} | {{ row.deadline.issuer }}{% endif %}
+                    </span>
+                  </td>
+                  <td>{{ row.deadline.get_deadline_type_display }}</td>
+                  <td>
+                    <a href="{{ row.asset_url }}">{{ row.deadline.asset.asset_tag }}</a><br>
+                    <span class="as-note">{{ row.deadline.asset.name }}</span>
+                  </td>
+                  <td>
+                    {% if row.deadline.component %}
+                      <a href="{{ row.component_url }}?component={{ row.deadline.component_id }}">{{ row.deadline.component.name }}</a>
+                      {% if row.deadline.component.code %}<br><span class="as-note">{{ row.deadline.component.code }}</span>{% endif %}
+                    {% else %}
+                      -
+                    {% endif %}
+                  </td>
+                  <td>
+                    {{ row.deadline.due_date|date:"d/m/Y" }}<br>
+                    <span class="as-note">Preavviso {{ row.deadline.warning_days }} gg</span>
+                  </td>
+                  <td>
+                    <span class="dl-pill {{ row.state.badge_class }}">{{ row.state.label }}</span><br>
+                    <span class="as-note">{{ row.state.days_label }}</span>
+                  </td>
+                  <td>
+                    <div class="dl-link-stack">
+                      <a href="{{ row.edit_url }}">Modifica</a>
+                      <a href="{{ row.asset_url }}">Apri asset</a>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="dl-empty">Nessuna scadenza trovata con i filtri correnti.</p>
+      {% endif %}
+    </div>
+  </article>
+</section>
+{% endblock %}

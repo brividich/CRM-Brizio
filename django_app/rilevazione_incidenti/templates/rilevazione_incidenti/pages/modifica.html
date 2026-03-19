@@ -9,32 +9,32 @@
   background:linear-gradient(135deg,#064e3b 0%,#065f46 60%,#047857 100%);
   border-radius:16px; padding:24px 32px; color:#fff;
 }
-.sic-hero-title { font-size:22px; font-weight:900; }
-.sic-hero-sub { font-size:13px; opacity:.7; margin-top:3px; }
-.sic-breadcrumb { font-size:12px; opacity:.6; margin-bottom:6px; }
+.sic-hero-title { font-size: var(--fs-heading); font-weight:900; }
+.sic-hero-sub { font-size: var(--fs-base); opacity:.7; margin-top:3px; }
+.sic-breadcrumb { font-size: var(--fs-sm); opacity:.6; margin-bottom:6px; }
 .sic-breadcrumb a { color:#fff; text-decoration:none; }
 
 .sic-form-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:28px 32px; }
 .sic-section { margin-bottom:28px; }
 .sic-section:last-child { margin-bottom:0; }
 .sic-section-title {
-  font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase;
+  font-size: var(--fs-sm); font-weight:700; color:#64748b; text-transform:uppercase;
   letter-spacing:.06em; margin-bottom:16px; padding-bottom:8px; border-bottom:2px solid #f1f5f9;
 }
 .sic-section-num {
   display:inline-flex; width:22px; height:22px; border-radius:50%;
-  background:#065f46; color:#fff; font-size:11px; align-items:center;
+  background:#065f46; color:#fff; font-size: var(--fs-xs); align-items:center;
   justify-content:center; margin-right:8px;
 }
 .sic-section-rspp-num { background:#0369a1; }
 
 .sic-field { display:flex; flex-direction:column; gap:5px; margin-bottom:16px; }
-.sic-field label { font-size:13px; font-weight:700; color:#374151; }
+.sic-field label { font-size: var(--fs-base); font-weight:700; color:#374151; }
 .sic-field label .req { color:#dc2626; margin-left:2px; }
 .sic-field input[type=text], .sic-field input[type=datetime-local], .sic-field input[type=date],
 .sic-field select, .sic-field textarea {
   padding:9px 12px; border:1px solid #cbd5e1; border-radius:10px;
-  font-size:14px; outline:none; font-family:inherit; transition:border-color .15s;
+  font-size: var(--fs-md); outline:none; font-family:inherit; transition:border-color .15s;
 }
 .sic-field input:focus, .sic-field select:focus, .sic-field textarea:focus {
   border-color:#065f46; box-shadow:0 0 0 3px rgba(6,95,70,.08);
@@ -43,7 +43,7 @@
 .sic-field-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
 
 .sic-toggle-row { display:flex; align-items:center; gap:10px; padding:10px 14px; background:#f8fafc; border-radius:10px; margin-bottom:12px; }
-.sic-toggle-row label { font-size:13px; font-weight:600; color:#374151; cursor:pointer; flex:1; }
+.sic-toggle-row label { font-size: var(--fs-base); font-weight:600; color:#374151; cursor:pointer; flex:1; }
 .sic-toggle { position:relative; display:inline-block; width:44px; height:24px; flex-shrink:0; }
 .sic-toggle input { opacity:0; width:0; height:0; }
 .sic-toggle-slider { position:absolute; inset:0; background:#cbd5e1; border-radius:24px; transition:.3s; cursor:pointer; }
@@ -53,13 +53,13 @@
 .sic-toggle input:checked ~ .sic-toggle-slider.rspp { background:#0369a1; }
 
 .sic-form-actions { display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; padding-top:20px; border-top:1px solid #f1f5f9; margin-top:20px; }
-.sic-btn-save { padding:11px 28px; background:#065f46; color:#fff; border:none; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; }
+.sic-btn-save { padding:11px 28px; background:#065f46; color:#fff; border:none; border-radius:10px; font-size: var(--fs-md); font-weight:700; cursor:pointer; }
 .sic-btn-save:hover { background:#047857; }
-.sic-btn-back { padding:11px 22px; background:#f1f5f9; color:#475569; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; text-decoration:none; }
+.sic-btn-back { padding:11px 22px; background:#f1f5f9; color:#475569; border:none; border-radius:10px; font-size: var(--fs-md); font-weight:600; cursor:pointer; text-decoration:none; }
 
 .sic-rspp-box { background:#eff6ff; border:2px solid #bfdbfe; border-radius:14px; padding:20px; }
-.sic-tipo-pill { display:inline-block; padding:4px 14px; border-radius:20px; font-size:13px; font-weight:700; margin-bottom:16px; }
-.sic-error-box { background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:12px 16px; color:#991b1b; font-size:13px; margin-bottom:16px; }
+.sic-tipo-pill { display:inline-block; padding:4px 14px; border-radius:20px; font-size: var(--fs-base); font-weight:700; margin-bottom:16px; }
+.sic-error-box { background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:12px 16px; color:#991b1b; font-size: var(--fs-base); margin-bottom:16px; }
 .hidden { display:none !important; }
 </style>
 {% endblock %}

@@ -72,6 +72,30 @@ class UserDashboardLayout(models.Model):
         return f"DashLayout<user={self.legacy_user_id}>"
 
 
+class ModuleCategory(models.Model):
+    """Categoria per raggruppare moduli di navigazione con colore topbar dedicato."""
+
+    key = models.SlugField(max_length=40, unique=True)
+    label = models.CharField(max_length=80)
+    icon = models.CharField(
+        max_length=500, blank=True, default="",
+        help_text="Emoji, testo breve o URL immagine (.ico, .png, .svg) mostrato nella sidebar per la categoria.",
+    )
+    topbar_color = models.CharField(
+        max_length=20, default="#1e3a5f",
+        help_text="Colore esadecimale background topbar (es. #1e3a5f).",
+    )
+    order = models.IntegerField(default=100)
+
+    class Meta:
+        ordering = ["order", "label"]
+        verbose_name = "Categoria modulo"
+        verbose_name_plural = "Categorie moduli"
+
+    def __str__(self) -> str:
+        return f"{self.label} ({self.key})"
+
+
 class NavigationItem(models.Model):
     """Voce di navigazione gestita da Django (topbar o altre sezioni UI)."""
 
@@ -89,8 +113,8 @@ class NavigationItem(models.Model):
     is_enabled = models.BooleanField(default=True)
     open_in_new_tab = models.BooleanField(default=False)
     icon = models.CharField(
-        max_length=20, blank=True, default="",
-        help_text="Emoji o icona breve mostrata accanto alla label (es. 🏠, 📊).",
+        max_length=500, blank=True, default="",
+        help_text="Emoji, testo breve o URL immagine (.ico, .png, .svg) mostrato accanto alla label.",
     )
     group = models.CharField(
         max_length=80, blank=True, default="",
@@ -101,6 +125,13 @@ class NavigationItem(models.Model):
         help_text="View name Django separati da virgola per rilevamento stato attivo (es. admin_portale:utenti_list,admin_portale:utente_edit). Lascia vuoto per usare solo l'URL.",
     )
     description = models.CharField(max_length=500, blank=True, default="")
+    category = models.ForeignKey(
+        "ModuleCategory",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="nav_items",
+        help_text="Categoria del modulo (determina il colore topbar quando questa voce è attiva).",
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -473,3 +504,42 @@ class LoginBanner(models.Model):
 
     def __str__(self) -> str:
         return f"LoginBanner<{self.tipo}: {self.testo[:40]}>"
+
+
+class UserUiPreference(models.Model):
+    """Preferenze interfaccia per-utente: modalità navigazione, scala font, stato sidebar.
+
+    Separata dal modello Profile per non mescolare dati anagrafici con configurazione UI.
+    Record creato solo al primo salvataggio esplicito; fino ad allora si usano i default.
+    """
+
+    NAV_MODE_CHOICES = [("top", "Barra superiore"), ("side", "Barra laterale")]
+    FONT_SCALE_CHOICES = [
+        ("small", "Piccolo"),
+        ("normal", "Normale"),
+        ("large", "Grande"),
+        ("xl", "Molto grande"),
+    ]
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="ui_prefs",
+    )
+    nav_mode = models.CharField(max_length=4, choices=NAV_MODE_CHOICES, default="top")
+    font_scale = models.CharField(max_length=6, choices=FONT_SCALE_CHOICES, default="normal")
+    sidebar_collapsed = models.BooleanField(default=False)
+    sidebar_footer_actions = models.JSONField(
+        default=None,
+        null=True,
+        blank=True,
+        help_text="Ordine personalizzato delle azioni rapide nel footer della sidebar. Null = ordine predefinito.",
+    )
+
+    class Meta:
+        db_table = "core_useruipreference"
+        verbose_name = "Preferenza interfaccia"
+        verbose_name_plural = "Preferenze interfaccia"
+
+    def __str__(self) -> str:
+        return f"UserUiPreference(user={self.user_id}, nav={self.nav_mode}, scale={self.font_scale})"

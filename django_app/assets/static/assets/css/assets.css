@@ -18,13 +18,13 @@
 
 .assets-hero-main h1 {
   margin: 0;
-  font-size: 23px;
+  font-size: var(--fs-display-sm);
   letter-spacing: 0.2px;
 }
 
 .assets-hero-main p {
   margin: 6px 0 10px;
-  font-size: 13px;
+  font-size: var(--fs-base);
   color: rgba(255, 255, 255, 0.82);
 }
 
@@ -65,14 +65,14 @@
 }
 
 .assets-stat-label {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-light);
 }
 
 .assets-stat-value {
   display: block;
   margin-top: 4px;
-  font-size: 24px;
+  font-size: var(--fs-display-sm);
   line-height: 1;
 }
 
@@ -96,7 +96,7 @@
 
 .assets-card h3 {
   margin: 0 0 12px;
-  font-size: 15px;
+  font-size: var(--fs-title-sm);
 }
 
 .assets-filter-form {
@@ -173,7 +173,7 @@
   border-radius: 10px;
   padding: 10px 12px;
   background: #f8fafc;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 
 .assets-message-success {

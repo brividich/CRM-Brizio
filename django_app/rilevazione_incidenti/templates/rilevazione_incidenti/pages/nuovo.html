@@ -10,9 +10,9 @@
   background:linear-gradient(135deg,#064e3b 0%,#065f46 60%,#047857 100%);
   border-radius:16px; padding:24px 32px; color:#fff;
 }
-.sic-hero-title { font-size:22px; font-weight:900; letter-spacing:-.02em; }
-.sic-hero-sub { font-size:13px; opacity:.7; margin-top:3px; }
-.sic-breadcrumb { font-size:12px; opacity:.6; margin-bottom:6px; }
+.sic-hero-title { font-size: var(--fs-heading); font-weight:900; letter-spacing:-.02em; }
+.sic-hero-sub { font-size: var(--fs-base); opacity:.7; margin-top:3px; }
+.sic-breadcrumb { font-size: var(--fs-sm); opacity:.6; margin-bottom:6px; }
 .sic-breadcrumb a { color:#fff; text-decoration:none; }
 
 /* ---- Selezione tipo ---- */
@@ -31,16 +31,16 @@
 .sic-tipo-near-miss:hover { border-color:#ea580c; }
 .sic-tipo-accident:hover { border-color:#dc2626; }
 
-.sic-tipo-icon { font-size:52px; line-height:1; }
-.sic-tipo-label { font-size:17px; font-weight:800; color:#0f172a; }
-.sic-tipo-desc { font-size:12px; color:#64748b; line-height:1.5; }
+.sic-tipo-icon { font-size: var(--fs-display-3xl); line-height:1; }
+.sic-tipo-label { font-size: var(--fs-title-md); font-weight:800; color:#0f172a; }
+.sic-tipo-desc { font-size: var(--fs-sm); color:#64748b; line-height:1.5; }
 
 .sic-tipo-unsafe-condition .sic-tipo-badge-inline { background:#dcfce7; color:#166534; }
 .sic-tipo-unsafe-act .sic-tipo-badge-inline { background:#e0f2fe; color:#0c4a6e; }
 .sic-tipo-near-miss .sic-tipo-badge-inline { background:#fff7ed; color:#9a3412; }
 .sic-tipo-accident .sic-tipo-badge-inline { background:#fee2e2; color:#991b1b; }
 .sic-tipo-badge-inline {
-  padding:3px 12px; border-radius:20px; font-size:11px; font-weight:700;
+  padding:3px 12px; border-radius:20px; font-size: var(--fs-xs); font-weight:700;
 }
 
 /* ---- Form ---- */
@@ -51,18 +51,18 @@
 .sic-section { margin-bottom:28px; }
 .sic-section:last-child { margin-bottom:0; }
 .sic-section-title {
-  font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase;
+  font-size: var(--fs-sm); font-weight:700; color:#64748b; text-transform:uppercase;
   letter-spacing:.06em; margin-bottom:16px; padding-bottom:8px;
   border-bottom:2px solid #f1f5f9;
 }
 .sic-section-title .sic-section-num {
   display:inline-flex; width:22px; height:22px; border-radius:50%;
-  background:#065f46; color:#fff; font-size:11px; align-items:center;
+  background:#065f46; color:#fff; font-size: var(--fs-xs); align-items:center;
   justify-content:center; margin-right:8px;
 }
 
 .sic-field { display:flex; flex-direction:column; gap:5px; margin-bottom:16px; }
-.sic-field label { font-size:13px; font-weight:700; color:#374151; }
+.sic-field label { font-size: var(--fs-base); font-weight:700; color:#374151; }
 .sic-field label .req { color:#dc2626; margin-left:2px; }
 .sic-field input[type=text],
 .sic-field input[type=datetime-local],
@@ -70,7 +70,7 @@
 .sic-field select,
 .sic-field textarea {
   padding:9px 12px; border:1px solid #cbd5e1; border-radius:10px;
-  font-size:14px; transition:border-color .15s; outline:none;
+  font-size: var(--fs-md); transition:border-color .15s; outline:none;
   font-family:inherit;
 }
 .sic-field input:focus,
@@ -86,7 +86,7 @@
   display:flex; align-items:center; gap:10px; padding:10px 14px;
   background:#f8fafc; border-radius:10px; margin-bottom:12px;
 }
-.sic-toggle-row label { font-size:13px; font-weight:600; color:#374151; cursor:pointer; flex:1; }
+.sic-toggle-row label { font-size: var(--fs-base); font-weight:600; color:#374151; cursor:pointer; flex:1; }
 .sic-toggle {
   position:relative; display:inline-block; width:44px; height:24px;
   flex-shrink:0;
@@ -105,7 +105,7 @@
 
 .sic-tipo-pill {
   display:inline-block; padding:4px 14px; border-radius:20px;
-  font-size:13px; font-weight:700; margin-bottom:16px;
+  font-size: var(--fs-base); font-weight:700; margin-bottom:16px;
 }
 
 .sic-form-actions {
@@ -114,17 +114,17 @@
 }
 .sic-btn-save {
   padding:11px 28px; background:#065f46; color:#fff; border:none;
-  border-radius:10px; font-size:14px; font-weight:700; cursor:pointer;
+  border-radius:10px; font-size: var(--fs-md); font-weight:700; cursor:pointer;
 }
 .sic-btn-save:hover { background:#047857; }
 .sic-btn-back {
   padding:11px 22px; background:#f1f5f9; color:#475569; border:none;
-  border-radius:10px; font-size:14px; font-weight:600; cursor:pointer;
+  border-radius:10px; font-size: var(--fs-md); font-weight:600; cursor:pointer;
   text-decoration:none;
 }
 .sic-error-box {
   background:#fef2f2; border:1px solid #fecaca; border-radius:12px;
-  padding:12px 16px; color:#991b1b; font-size:13px; margin-bottom:16px;
+  padding:12px 16px; color:#991b1b; font-size: var(--fs-base); margin-bottom:16px;
 }
 
 .hidden { display:none !important; }
@@ -149,8 +149,8 @@
   <!-- ================================================================ -->
   <div class="sic-form-card">
     <div style="text-align:center;margin-bottom:28px;">
-      <div style="font-size:18px;font-weight:800;color:#0f172a;">Scegli il tipo di evento accaduto</div>
-      <div style="font-size:13px;color:#64748b;margin-top:4px;">La tipologia non sarà modificabile dopo il salvataggio</div>
+      <div style="font-weight:800;color:#0f172a;">Scegli il tipo di evento accaduto</div>
+      <div style="color:#64748b;margin-top:4px;">La tipologia non sarà modificabile dopo il salvataggio</div>
     </div>
     <div class="sic-tipo-grid">
       <a href="{% url 'rilevazione_incidenti:nuovo' %}?tipo=Unsafe+Condition" class="sic-tipo-card sic-tipo-unsafe-condition">
@@ -207,7 +207,7 @@
           <span class="sic-tipo-pill" style="background:#fee2e2;color:#991b1b;">Accident</span>
         {% endif %}
         <a href="{% url 'rilevazione_incidenti:nuovo' %}"
-           style="font-size:12px;color:#64748b;margin-left:10px;text-decoration:none;">
+           style="color:#64748b;margin-left:10px;text-decoration:none;">
           &#8592; cambia tipo
         </a>
       </div>

@@ -1,0 +1,15 @@
+{% if impersonation_active %}
+<div class="impersonation-banner">
+  <div class="impersonation-banner-copy">
+    Impersonazione attiva: stai operando come <strong>{{ impersonated_display }}</strong>
+    {% if impersonator_display %} per conto di <strong>{{ impersonator_display }}</strong>{% endif %}.
+  </div>
+  {% if impersonation_stop_url %}
+    <form method="post" action="{{ impersonation_stop_url }}" class="inline-form impersonation-banner-form">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <button type="submit" class="logout-a impersonation-banner-stop">Termina impersonazione</button>
+    </form>
+  {% endif %}
+</div>
+{% endif %}

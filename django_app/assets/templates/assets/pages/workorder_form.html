@@ -10,7 +10,7 @@
 {% block assets_shell_head %}
 <style>
 .wof-page { max-width: 1080px; display: grid; gap: 16px; }
-.wof-backlink { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #5f7290; text-decoration: none; font-weight: 600; }
+.wof-backlink { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-base); color: #5f7290; text-decoration: none; font-weight: 600; }
 .wof-backlink:hover { color: #1f64d8; }
 .wof-hero {
   display: grid;
@@ -33,13 +33,13 @@
   border-radius: 999px;
   background: #e8f1ff;
   color: #1e4fbf;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.wof-hero-main h2 { margin: 0; font-size: 28px; line-height: 1.05; color: #0f172a; }
-.wof-hero-main p { margin: 0; max-width: 62ch; color: #5f7290; font-size: 14px; line-height: 1.6; }
+.wof-hero-main h2 { margin: 0; font-size: var(--fs-display-lg); line-height: 1.05; color: #0f172a; }
+.wof-hero-main p { margin: 0; max-width: 62ch; color: #5f7290; font-size: var(--fs-md); line-height: 1.6; }
 .wof-chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .wof-chip {
   display: inline-flex;
@@ -49,7 +49,7 @@
   border: 1px solid #d6e2f0;
   background: rgba(255, 255, 255, 0.92);
   color: #274264;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 700;
 }
 .wof-side {
@@ -66,14 +66,14 @@
   background: rgba(255, 255, 255, 0.9);
 }
 .wof-side-card span {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #7d91af;
 }
-.wof-side-card strong { font-size: 18px; color: #0f172a; }
-.wof-side-card small { color: #64748b; font-size: 12px; line-height: 1.5; }
+.wof-side-card strong { font-size: var(--fs-xl); color: #0f172a; }
+.wof-side-card small { color: #64748b; font-size: var(--fs-sm); line-height: 1.5; }
 .wof-form {
   display: grid;
   gap: 0;
@@ -90,7 +90,7 @@
   border-radius: 14px;
   background: #fff4f4;
   color: #b91c1c;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .wof-form-body { display: grid; gap: 16px; padding: 18px; }
 .wof-section {
@@ -108,12 +108,12 @@
   align-items: start;
   flex-wrap: wrap;
 }
-.wof-section-head h3 { margin: 0; font-size: 17px; color: #0f172a; }
-.wof-section-head p { margin: 4px 0 0; color: #64748b; font-size: 13px; }
+.wof-section-head h3 { margin: 0; font-size: var(--fs-title-md); color: #0f172a; }
+.wof-section-head p { margin: 4px 0 0; color: #64748b; font-size: var(--fs-base); }
 .wof-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .wof-field { display: grid; gap: 6px; min-width: 0; }
 .wof-field--full { grid-column: 1 / -1; }
-.wof-field label { font-size: 13px; font-weight: 700; color: #223756; }
+.wof-field label { font-size: var(--fs-base); font-weight: 700; color: #223756; }
 .wof-field input,
 .wof-field select,
 .wof-field textarea {
@@ -127,14 +127,14 @@
 .wof-helper {
   min-height: 18px;
   color: #64748b;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   line-height: 1.5;
 }
 .wof-helper.is-highlight {
   color: #1d4ed8;
   font-weight: 600;
 }
-.wof-error { color: #b91c1c; font-size: 12px; }
+.wof-error { color: #b91c1c; font-size: var(--fs-sm); }
 .wof-upload {
   display: grid;
   gap: 10px;
@@ -160,12 +160,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: var(--fs-xl);
   flex: 0 0 auto;
 }
 .wof-upload-copy { display: grid; gap: 4px; }
-.wof-upload-copy strong { color: #0f172a; font-size: 14px; }
-.wof-upload-copy span { color: #64748b; font-size: 12px; line-height: 1.5; }
+.wof-upload-copy strong { color: #0f172a; font-size: var(--fs-md); }
+.wof-upload-copy span { color: #64748b; font-size: var(--fs-sm); line-height: 1.5; }
 .wof-upload-input {
   position: absolute;
   width: 1px;
@@ -185,7 +185,7 @@
   border-radius: 999px;
   background: #f1f5f9;
   color: #334155;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 700;
 }
 .wof-actions {
@@ -197,7 +197,7 @@
   border-top: 1px solid #e2e8f0;
   background: linear-gradient(180deg, rgba(248, 250, 252, 0.45) 0%, rgba(255, 255, 255, 0.95) 100%);
 }
-.wof-actions-copy { color: #64748b; font-size: 12px; }
+.wof-actions-copy { color: #64748b; font-size: var(--fs-sm); }
 .wof-actions-cta { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 
 @media (max-width: 900px) {
@@ -214,7 +214,7 @@
   .wof-form-body,
   .wof-actions { padding-left: 14px; padding-right: 14px; }
   .wof-section { padding: 14px; }
-  .wof-hero-main h2 { font-size: 24px; }
+  .wof-hero-main h2 { font-size: var(--fs-display-sm); }
 }
 </style>
 {% endblock %}

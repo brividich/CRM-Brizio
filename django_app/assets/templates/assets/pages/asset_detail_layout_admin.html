@@ -20,8 +20,8 @@
   background: linear-gradient(135deg, #ffffff 0%, #f7fbff 100%);
   box-shadow: 0 16px 42px rgba(15, 23, 42, 0.06);
 }
-.adl-hero h2 { margin: 0; font-size: 28px; color: #0f172a; }
-.adl-hero p { margin: 0; color: #64748b; font-size: 14px; line-height: 1.6; }
+.adl-hero h2 { margin: 0; font-size: var(--fs-display-lg); color: #0f172a; }
+.adl-hero p { margin: 0; color: #64748b; font-size: var(--fs-md); line-height: 1.6; }
 .adl-chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .adl-chip {
   display: inline-flex;
@@ -31,7 +31,7 @@
   border: 1px solid #d7e3f3;
   background: #fff;
   color: #244267;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 700;
 }
 .adl-preview {
@@ -42,8 +42,8 @@
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.9);
 }
-.adl-preview-title { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #7c8fab; }
-.adl-preview strong { font-size: 18px; color: #0f172a; }
+.adl-preview-title { font-size: var(--fs-xs); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #7c8fab; }
+.adl-preview strong { font-size: var(--fs-xl); color: #0f172a; }
 .adl-grid { display: grid; gap: 16px; }
 .adl-card {
   border: 1px solid #dbe3ef;
@@ -60,8 +60,8 @@
   padding: 16px 18px;
   border-bottom: 1px solid #e5edf5;
 }
-.adl-card-head h3 { margin: 0; font-size: 20px; color: #0f172a; }
-.adl-card-head p { margin: 4px 0 0; color: #64748b; font-size: 13px; }
+.adl-card-head h3 { margin: 0; font-size: var(--fs-title-lg); color: #0f172a; }
+.adl-card-head p { margin: 4px 0 0; color: #64748b; font-size: var(--fs-base); }
 .adl-card-body { padding: 18px; display: grid; gap: 14px; }
 .adl-layout-list,
 .adl-field-list { display: grid; gap: 12px; }
@@ -106,13 +106,13 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 700;
   color: #334155;
 }
 .adl-row-select input { width: 16px; height: 16px; }
-.adl-row-title { margin: 0; font-size: 16px; font-weight: 700; color: #0f172a; }
-.adl-row-sub { color: #64748b; font-size: 12px; }
+.adl-row-title { margin: 0; font-size: var(--fs-lg); font-weight: 700; color: #0f172a; }
+.adl-row-sub { color: #64748b; font-size: var(--fs-sm); }
 .adl-form-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -123,7 +123,7 @@
 .adl-form-grid .field.span-2 { grid-column: span 2; }
 .adl-form-grid .field.span-3 { grid-column: span 3; }
 .adl-form-grid .field.span-6 { grid-column: 1 / -1; }
-.adl-form-grid label { font-size: 12px; font-weight: 700; color: #334155; }
+.adl-form-grid label { font-size: var(--fs-sm); font-weight: 700; color: #334155; }
 .adl-form-grid input[type="text"],
 .adl-form-grid input[type="number"],
 .adl-form-grid select {
@@ -144,10 +144,10 @@
   gap: 6px;
   min-height: 42px;
   color: #334155;
-  font-size: 13px;
+  font-size: var(--fs-base);
   font-weight: 600;
 }
-.adl-muted { color: #64748b; font-size: 12px; line-height: 1.5; }
+.adl-muted { color: #64748b; font-size: var(--fs-sm); line-height: 1.5; }
 .adl-category { border-top: 1px solid #edf2f7; padding-top: 14px; }
 .adl-category:first-child { border-top: none; padding-top: 0; }
 
@@ -206,7 +206,7 @@
           {% csrf_token %}
           <input type="hidden" name="action" value="update_detail_section_layout_bulk">
           <div>
-            <strong style="display:block;color:#0f172a;font-size:15px;">Modifica massiva</strong>
+            <strong class="text-title-sm" style="display:block;color:#0f172a;">Modifica massiva</strong>
             <div class="adl-muted">Scegli un parametro, poi applicalo a tutti i riquadri oppure solo a quelli selezionati.</div>
           </div>
           <div class="adl-bulk-grid">
@@ -298,15 +298,99 @@
       </div>
       <div class="adl-card-body adl-field-list">
         <div class="adl-muted">Sorgenti utili: {% for item in detail_source_help %}<code>{{ item }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+        <form method="post" id="detail-field-bulk-form" class="adl-bulk-box">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="update_detail_field_bulk">
+          <div>
+            <strong class="text-title-sm" style="display:block;color:#0f172a;">Modifica massiva campi</strong>
+            <div class="adl-muted">Scegli un parametro, poi applicalo a tutti i campi oppure solo a quelli selezionati.</div>
+          </div>
+          <div class="adl-bulk-grid">
+            <div class="field">
+              <label for="adl-detail-bulk-field">Parametro</label>
+              <select name="bulk_field" id="adl-detail-bulk-field">
+                <option value="section">Sezione</option>
+                <option value="asset_scope">Ambito</option>
+                <option value="value_format">Formato</option>
+                <option value="card_size">Dimensione</option>
+                <option value="show_if_empty">Mostra se vuoto</option>
+                <option value="is_active">Attivo</option>
+              </select>
+            </div>
+            <div class="field adl-bulk-toggle is-active" data-detail-bulk-target="section">
+              <label for="adl-detail-bulk-section">Valore</label>
+              <select name="bulk_section" id="adl-detail-bulk-section">
+                {% for code, label in detail_section_choices %}
+                  <option value="{{ code }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="field adl-bulk-toggle" data-detail-bulk-target="asset_scope">
+              <label for="adl-detail-bulk-scope">Valore</label>
+              <select name="bulk_asset_scope" id="adl-detail-bulk-scope">
+                {% for code, label in detail_scope_choices %}
+                  <option value="{{ code }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="field adl-bulk-toggle" data-detail-bulk-target="value_format">
+              <label for="adl-detail-bulk-format">Valore</label>
+              <select name="bulk_value_format" id="adl-detail-bulk-format">
+                {% for code, label in detail_format_choices %}
+                  <option value="{{ code }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="field adl-bulk-toggle" data-detail-bulk-target="card_size">
+              <label for="adl-detail-bulk-card-size">Valore</label>
+              <select name="bulk_card_size" id="adl-detail-bulk-card-size">
+                {% for code, label in detail_card_size_choices %}
+                  <option value="{{ code }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="field adl-bulk-toggle" data-detail-bulk-target="show_if_empty">
+              <label for="adl-detail-bulk-show-empty">Valore</label>
+              <select name="bulk_show_if_empty" id="adl-detail-bulk-show-empty">
+                <option value="show">Si</option>
+                <option value="hide">No</option>
+              </select>
+            </div>
+            <div class="field adl-bulk-toggle" data-detail-bulk-target="is_active">
+              <label for="adl-detail-bulk-active">Valore</label>
+              <select name="bulk_is_active" id="adl-detail-bulk-active">
+                <option value="active">Si</option>
+                <option value="inactive">No</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="adl-detail-apply-scope">Ambito</label>
+              <select name="apply_scope" id="adl-detail-apply-scope">
+                <option value="selected">Solo selezionati</option>
+                <option value="all">Tutti i campi</option>
+              </select>
+            </div>
+            <div class="adl-form-actions" style="justify-content:flex-start;">
+              <button class="btn btn-secondary" type="button" id="adl-select-all-detail-fields">Seleziona tutti</button>
+              <button class="btn btn-primary" type="submit">Applica parametro</button>
+            </div>
+          </div>
+        </form>
         {% for detail_item in detail_fields %}
           <form method="post" class="adl-row">
             {% csrf_token %}
             <input type="hidden" name="action" value="update_detail_field">
             <input type="hidden" name="detail_field_id" value="{{ detail_item.id }}">
             <div class="adl-row-head">
-              <div>
-                <p class="adl-row-title">{{ detail_item.label }}</p>
-                <div class="adl-row-sub">{{ detail_item.get_asset_scope_display }}</div>
+              <div class="adl-row-head-main">
+                <label class="adl-row-select" title="Seleziona per modifica massiva">
+                  <input type="checkbox" name="selected_detail_field_ids" value="{{ detail_item.id }}" form="detail-field-bulk-form" data-detail-field-select>
+                  <span>Scegli</span>
+                </label>
+                <div>
+                  <p class="adl-row-title">{{ detail_item.label }}</p>
+                  <div class="adl-row-sub">{{ detail_item.get_asset_scope_display }}</div>
+                </div>
               </div>
             </div>
             <div class="adl-form-grid">
@@ -471,44 +555,64 @@
 </section>
 <script>
   (function () {
-    const bulkField = document.getElementById("adl-bulk-field");
-    const bulkPanels = Array.from(document.querySelectorAll("[data-bulk-target]"));
-    const selectAllBtn = document.getElementById("adl-select-all-layouts");
-    const scopeSelect = document.getElementById("adl-apply-scope");
-    const rowChecks = Array.from(document.querySelectorAll("[data-layout-select]"));
+    function initBulkControls(config) {
+      const bulkField = document.getElementById(config.fieldId);
+      const bulkPanels = Array.from(document.querySelectorAll(config.panelSelector));
+      const selectAllBtn = document.getElementById(config.selectAllBtnId);
+      const scopeSelect = document.getElementById(config.scopeId);
+      const rowChecks = Array.from(document.querySelectorAll(config.rowSelector));
 
-    function syncBulkPanels() {
-      const activeField = bulkField ? bulkField.value : "grid_size";
-      bulkPanels.forEach(function (panel) {
-        panel.classList.toggle("is-active", panel.getAttribute("data-bulk-target") === activeField);
-      });
+      function syncBulkPanels() {
+        const activeField = bulkField ? bulkField.value : "";
+        bulkPanels.forEach(function (panel) {
+          panel.classList.toggle("is-active", panel.getAttribute(config.targetAttribute) === activeField);
+        });
+      }
+
+      function setAllSelections(nextValue) {
+        rowChecks.forEach(function (checkbox) {
+          checkbox.checked = nextValue;
+        });
+      }
+
+      if (bulkField) {
+        bulkField.addEventListener("change", syncBulkPanels);
+        syncBulkPanels();
+      }
+
+      if (selectAllBtn) {
+        selectAllBtn.addEventListener("click", function () {
+          const shouldSelectAll = rowChecks.some(function (checkbox) { return !checkbox.checked; });
+          setAllSelections(shouldSelectAll);
+        });
+      }
+
+      if (scopeSelect) {
+        scopeSelect.addEventListener("change", function () {
+          if (scopeSelect.value === "all") {
+            setAllSelections(false);
+          }
+        });
+      }
     }
 
-    function setAllSelections(nextValue) {
-      rowChecks.forEach(function (checkbox) {
-        checkbox.checked = nextValue;
-      });
-    }
+    initBulkControls({
+      fieldId: "adl-bulk-field",
+      panelSelector: "[data-bulk-target]",
+      targetAttribute: "data-bulk-target",
+      selectAllBtnId: "adl-select-all-layouts",
+      scopeId: "adl-apply-scope",
+      rowSelector: "[data-layout-select]",
+    });
 
-    if (bulkField) {
-      bulkField.addEventListener("change", syncBulkPanels);
-      syncBulkPanels();
-    }
-
-    if (selectAllBtn) {
-      selectAllBtn.addEventListener("click", function () {
-        const shouldSelectAll = rowChecks.some(function (checkbox) { return !checkbox.checked; });
-        setAllSelections(shouldSelectAll);
-      });
-    }
-
-    if (scopeSelect) {
-      scopeSelect.addEventListener("change", function () {
-        if (scopeSelect.value === "all") {
-          setAllSelections(false);
-        }
-      });
-    }
+    initBulkControls({
+      fieldId: "adl-detail-bulk-field",
+      panelSelector: "[data-detail-bulk-target]",
+      targetAttribute: "data-detail-bulk-target",
+      selectAllBtnId: "adl-select-all-detail-fields",
+      scopeId: "adl-detail-apply-scope",
+      rowSelector: "[data-detail-field-select]",
+    });
   })();
 </script>
 {% endblock %}

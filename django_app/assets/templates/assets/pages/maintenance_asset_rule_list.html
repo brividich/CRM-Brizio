@@ -1,0 +1,169 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Regole manutenzione asset{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.mar-page { display:grid; gap:14px; }
+.mar-kpis { display:grid; gap:10px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
+.mar-kpi, .mar-card {
+  border:1px solid #dbe1ea;
+  border-radius:14px;
+  background:#fff;
+  box-shadow:0 6px 18px rgba(15, 23, 42, .04);
+}
+.mar-kpi { padding:14px 16px; }
+.mar-kpi-label { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:700; }
+.mar-kpi-value { margin-top:8px; font-size:var(--fs-display-xl); line-height:1; font-weight:800; color:#0f172a; }
+.mar-card-head {
+  padding:14px 16px;
+  border-bottom:1px solid #e5e7eb;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.mar-card-head h2 { margin:0; font-size:var(--fs-heading); color:#0f172a; }
+.mar-card-head p { margin:4px 0 0; color:#64748b; font-size:var(--fs-base); }
+.mar-card-body { padding:16px; }
+.mar-table-wrap { overflow:auto; }
+.mar-table { width:100%; border-collapse:collapse; }
+.mar-table th {
+  text-align:left;
+  padding:10px 8px;
+  border-bottom:1px solid #e5e7eb;
+  color:#64748b;
+  font-size:var(--fs-sm);
+  text-transform:uppercase;
+}
+.mar-table td {
+  padding:12px 8px;
+  border-bottom:1px solid #f1f5f9;
+  color:#0f172a;
+  font-size:var(--fs-base);
+  vertical-align:top;
+}
+.mar-pill {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  padding:4px 8px;
+  font-size:var(--fs-xs);
+  font-weight:800;
+}
+.mar-pill.ok { background:#dcfce7; color:#15803d; }
+.mar-pill.warn { background:#fef3c7; color:#92400e; }
+.mar-pill.muted { background:#e2e8f0; color:#475569; }
+.mar-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.mar-reset-form { display:inline-flex; }
+.mar-empty { color:#64748b; font-size:var(--fs-base); }
+@media (max-width: 980px) {
+  .mar-kpis { grid-template-columns:1fr; }
+}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Regole manutenzione asset{% endblock %}
+{% block assets_shell_subtitle %}
+<p>{{ asset.asset_tag }} - {{ asset.name }}</p>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="mar-page">
+  <header>
+    <a href="{{ asset_detail_url }}" class="as-backlink">&larr; Torna al dettaglio asset</a>
+  </header>
+
+  <section class="mar-kpis">
+    <article class="mar-kpi">
+      <div class="mar-kpi-label">Regole standard</div>
+      <div class="mar-kpi-value">{{ rule_total }}</div>
+    </article>
+    <article class="mar-kpi">
+      <div class="mar-kpi-label">Personalizzate</div>
+      <div class="mar-kpi-value">{{ overridden_rule_count }}</div>
+    </article>
+    <article class="mar-kpi">
+      <div class="mar-kpi-label">Disabilitate</div>
+      <div class="mar-kpi-value">{{ disabled_rule_count }}</div>
+    </article>
+  </section>
+
+  <article class="mar-card">
+    <div class="mar-card-head">
+      <div>
+        <h2>Policy effettiva</h2>
+        <p>Le regole partono dalla categoria dell'asset e vengono eventualmente modificate da un override differenziale.</p>
+      </div>
+    </div>
+    <div class="mar-card-body">
+      {% if not asset_has_category %}
+        <p class="mar-empty">L'asset non ha una categoria associata, quindi non puo ereditare regole manutentive standard.</p>
+      {% elif rule_rows %}
+        <div class="mar-table-wrap">
+          <table class="mar-table">
+            <thead>
+              <tr>
+                <th>Intervento</th>
+                <th>Soglia</th>
+                <th>Stato</th>
+                <th>Note</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in rule_rows %}
+                <tr>
+                  <td>
+                    <strong>{{ row.effective_intervention_template.label }}</strong><br>
+                    <span class="as-note">Base: {{ row.base_rule.intervention_template.label }}</span>
+                    {% if row.effective_intervention_template.id != row.base_rule.intervention_template.id %}
+                      <div class="as-note">Template effettivo personalizzato</div>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <strong>{{ row.effective_threshold_value }} {{ row.effective_threshold_label }}</strong><br>
+                    <span class="as-note">Base: {{ row.base_rule.threshold_value }} {{ row.base_rule.get_threshold_type_display }}</span>
+                  </td>
+                  <td>
+                    <span class="mar-pill {{ row.status_badge_class }}">{{ row.status_label }}</span>
+                    {% if row.is_redundant_override %}
+                      <div class="as-note" style="margin-top:6px;">Override presente ma senza differenze effettive.</div>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if row.effective_notes %}
+                      {{ row.effective_notes }}
+                    {% else %}
+                      <span class="as-note">Nessuna nota</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div class="mar-actions">
+                      {% if row.edit_url %}
+                        <a class="btn btn-secondary" href="{{ row.edit_url }}">Modifica</a>
+                        <form method="post" action="{{ row.reset_url }}" class="mar-reset-form">
+                          {% csrf_token %}
+                          <button type="submit" class="btn" onclick="return confirm('Ripristinare la regola ereditata per questo asset?');">
+                            Ripristina
+                          </button>
+                        </form>
+                      {% else %}
+                        <a class="btn btn-primary" href="{{ row.create_url }}">Personalizza</a>
+                      {% endif %}
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="mar-empty">Nessuna regola standard trovata per la categoria dell'asset.</p>
+      {% endif %}
+    </div>
+  </article>
+</section>
+{% endblock %}

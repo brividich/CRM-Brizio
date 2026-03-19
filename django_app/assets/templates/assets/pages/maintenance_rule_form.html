@@ -1,0 +1,59 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}{% if is_edit %}Modifica regola manutenzione{% else %}Nuova regola manutenzione{% endif %}{% endblock %}
+{% block assets_shell_title %}{% if is_edit %}Modifica regola manutenzione{% else %}Nuova regola manutenzione{% endif %}{% endblock %}
+{% block assets_shell_subtitle %}
+<p>Policy standard per categoria asset, basata su un template intervento e una soglia.</p>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section style="max-width:980px;display:grid;gap:14px;">
+  <header>
+    <a href="{{ back_url }}" class="as-backlink">&larr; Indietro</a>
+  </header>
+
+  <article style="border:1px solid #dbe1ea;border-radius:14px;background:#f8fbff;padding:14px 16px;">
+    <div style="font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.05em;color:#1d4ed8;font-weight:800;">Nota operativa</div>
+    <div class="as-note" style="margin-top:6px;color:#365b9d;">
+      Le soglie a giorni sono immediatamente utilizzabili; ore, km e cicli vengono modellati ora
+      per preparare gli step successivi senza introdurre ancora calcoli operativi completi.
+    </div>
+  </article>
+
+  <form method="post" style="display:grid;gap:12px;border:1px solid #dbe1ea;border-radius:14px;background:#fff;padding:16px;">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div style="padding:10px;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;border-radius:10px;">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    <div class="as-form-grid-3">
+      {% for field in form %}
+        <div style="{% if field.name == 'notes' %}grid-column:1/-1;{% endif %}">
+          {% if field.field.widget.input_type == 'checkbox' %}
+            <label style="display:flex;gap:8px;align-items:center;min-height:44px;">
+              {{ field }} <span>{{ field.label }}</span>
+            </label>
+          {% else %}
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+          {% endif %}
+          {% if field.help_text %}
+            <div class="as-help" style="margin-top:4px;">{{ field.help_text }}</div>
+          {% endif %}
+          {% if field.errors %}
+            <div class="as-error">{{ field.errors }}</div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;">
+      <a class="btn" href="{{ back_url }}">Annulla</a>
+      <button type="submit" class="btn btn-primary">Salva</button>
+    </div>
+  </form>
+</section>
+{% endblock %}
