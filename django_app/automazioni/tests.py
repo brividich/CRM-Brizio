@@ -3058,3 +3058,193 @@ class AutomationQueueCommandTests(SimpleTestCase):
 
         mock_process.assert_called_once_with(limit=50, source_code=None, dry_run=True)
         self.assertIn("candidate_rules=rule-a", stdout.getvalue())
+
+
+# ---------------------------------------------------------------------------
+# evaluate_condition — resilienza su eccezione interna
+# ---------------------------------------------------------------------------
+
+class EvaluateConditionResilienceTests(TestCase):
+    """
+    evaluate_condition deve restituire False (mai propagare) quando incontra
+    un errore interno, e deve emettere un log di warning per l'osservabilità.
+    """
+
+    def setUp(self):
+        self.rule = AutomationRule.objects.create(
+            code="rule-resilience",
+            name="Rule resilience",
+            source_code="assenze",
+            operation_type=AutomationRuleOperationType.INSERT,
+            trigger_scope=AutomationRuleTriggerScope.ALL_INSERTS,
+        )
+
+    def _condition(self, **overrides):
+        base = {
+            "rule": self.rule,
+            "order": 1,
+            "field_name": "moderation_status",
+            "operator": AutomationConditionOperator.EQUALS,
+            "expected_value": "2",
+            "value_type": AutomationConditionValueType.INT,
+        }
+        base.update(overrides)
+        return AutomationCondition(**base)
+
+    def test_returns_false_and_logs_warning_on_internal_exception(self):
+        """
+        Se _coerce_value o qualsiasi helper lancia, evaluate_condition
+        restituisce False e logga un warning (non propaga l'eccezione).
+        """
+        condition = self._condition()
+        # Forziamo un'eccezione interna sostituendo _coerce_value con un crash
+        with patch("automazioni.services._coerce_value", side_effect=RuntimeError("boom")):
+            with self.assertLogs("automazioni.services", level="WARNING") as log_ctx:
+                result = evaluate_condition(condition, {"moderation_status": 2})
+        self.assertFalse(result)
+        self.assertTrue(
+            any("evaluate_condition" in line and "moderation_status" in line for line in log_ctx.output),
+            msg="Il warning deve menzionare evaluate_condition e il field_name",
+        )
+
+    def test_returns_false_on_none_operator_without_crash(self):
+        """Operator None non deve propagare (None non matcha nessun ramo → return False finale)."""
+        condition = self._condition(operator=None)
+        result = evaluate_condition(condition, {"moderation_status": 2})
+        self.assertFalse(result)
+
+
+# ---------------------------------------------------------------------------
+# run_rule — logging su eccezione interna inattesa
+# ---------------------------------------------------------------------------
+
+class RunRuleExceptionLoggingTests(TestCase):
+    """
+    Se avviene un'eccezione inattesa durante run_rule (es. DB momentaneamente
+    non disponibile), il run_log deve essere salvato con status=ERROR e
+    l'eccezione deve essere loggata via logger.exception.
+    """
+
+    def setUp(self):
+        self.rule = AutomationRule.objects.create(
+            code="rule-logging-test",
+            name="Rule logging test",
+            source_code="assenze",
+            operation_type=AutomationRuleOperationType.UPDATE,
+            trigger_scope=AutomationRuleTriggerScope.ALL_UPDATES,
+            is_draft=False,
+        )
+
+    def _add_condition(self):
+        """Aggiunge una condizione alla regola in modo che evaluate_condition venga invocata."""
+        return AutomationCondition.objects.create(
+            rule=self.rule,
+            order=1,
+            field_name="moderation_status",
+            operator=AutomationConditionOperator.EQUALS,
+            expected_value="1",
+            value_type=AutomationConditionValueType.INT,
+        )
+
+    def test_run_rule_finally_saves_run_log_on_base_exception(self):
+        """
+        Se evaluate_condition lancia un BaseException (es. SystemExit), il blocco
+        finally di run_rule deve comunque salvare il run_log su DB prima di propagare.
+        """
+        self._add_condition()
+        # SystemExit non è catturata dall'except Exception → propaga, ma finally gira
+        with patch(
+            "automazioni.services.evaluate_condition",
+            side_effect=SystemExit("forza crash"),
+        ):
+            with self.assertRaises(SystemExit):
+                run_rule(
+                    self.rule,
+                    {"moderation_status": 1},
+                    old_payload={"moderation_status": 0},
+                    queue_event_id=999,
+                )
+
+        run_log = AutomationRunLog.objects.filter(rule=self.rule).first()
+        self.assertIsNotNone(run_log, "Il run_log deve essere salvato anche dopo un BaseException")
+        self.assertIsNotNone(run_log.finished_at)
+
+    def test_run_rule_logs_unexpected_exception(self):
+        """
+        Un'eccezione catturata dall'except Exception di run_rule deve essere loggata
+        via logger.exception e il run_log deve avere status=ERROR.
+        """
+        self._add_condition()
+        with patch(
+            "automazioni.services.evaluate_condition",
+            side_effect=Exception("eccezione inattesa"),
+        ):
+            with self.assertLogs("automazioni.services", level="ERROR") as log_ctx:
+                run_rule(
+                    self.rule,
+                    {"moderation_status": 1},
+                    old_payload={"moderation_status": 0},
+                    queue_event_id=42,
+                )
+
+        self.assertTrue(
+            any("run_rule" in line for line in log_ctx.output),
+            msg="logger.exception deve produrre un log ERROR con 'run_rule'",
+        )
+        run_log = AutomationRunLog.objects.filter(rule=self.rule).first()
+        self.assertEqual(run_log.status, AutomationRunLogStatus.ERROR)
+        self.assertIn("eccezione inattesa", run_log.error_trace)
+
+
+# ---------------------------------------------------------------------------
+# process_queue_event — candidate_rule_codes nella risposta
+# ---------------------------------------------------------------------------
+
+class ProcessQueueEventCandidateRulesTests(TestCase):
+    """
+    process_queue_event deve sempre restituire candidate_rule_codes
+    (non solo nel dry-run) per l'osservabilità via management command e log.
+    """
+
+    def setUp(self):
+        self.rule = AutomationRule.objects.create(
+            code="rule-candidate-test",
+            name="Rule candidate test",
+            source_code="assenze",
+            operation_type=AutomationRuleOperationType.UPDATE,
+            trigger_scope=AutomationRuleTriggerScope.ALL_UPDATES,
+            is_draft=False,
+        )
+
+    @patch("automazioni.services.mark_queue_done")
+    @patch("automazioni.services.run_rule")
+    def test_done_result_includes_candidate_rule_codes(self, mock_run_rule, mock_mark_done):
+        mock_run_rule.return_value = SimpleNamespace(status=AutomationRunLogStatus.SUCCESS)
+        result = process_queue_event(
+            {
+                "id": 100,
+                "source_code": "assenze",
+                "operation_type": "update",
+                "payload_json": '{"id": 1, "moderation_status": 2}',
+                "old_payload_json": '{"id": 1, "moderation_status": 1}',
+            }
+        )
+        self.assertEqual(result["status"], "done")
+        self.assertIn("candidate_rule_codes", result)
+        self.assertIn(self.rule.code, result["candidate_rule_codes"])
+
+    @patch("automazioni.services.mark_queue_error")
+    @patch("automazioni.services.run_rule", side_effect=Exception("boom"))
+    def test_error_result_includes_candidate_rule_codes(self, _mock_run_rule, _mock_mark_error):
+        result = process_queue_event(
+            {
+                "id": 101,
+                "source_code": "assenze",
+                "operation_type": "update",
+                "payload_json": '{"id": 1, "moderation_status": 2}',
+                "old_payload_json": '{"id": 1, "moderation_status": 1}',
+            }
+        )
+        self.assertEqual(result["status"], "error")
+        self.assertIn("candidate_rule_codes", result)
+        self.assertIn(self.rule.code, result["candidate_rule_codes"])

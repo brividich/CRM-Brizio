@@ -28,4 +28,9 @@ urlpatterns = [
     path("guide/<slug:slug>/", views.guide_view, name="hub_guide_view"),
     # Categorie moduli
     path("categorie/", views.categorie, name="hub_categorie"),
+    # Gestione Notifiche
+    path("notifiche/", views.notifiche_hub, name="hub_notifiche"),
+    path("notifiche/invia/", views.api_notifica_invia, name="hub_notifica_invia"),
+    path("notifiche/<int:notifica_id>/elimina/", views.api_notifica_elimina, name="hub_notifica_elimina"),
+    path("notifiche/bulk/", views.api_notifiche_bulk, name="hub_notifiche_bulk"),
 ]

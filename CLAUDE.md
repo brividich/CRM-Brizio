@@ -1,7 +1,7 @@
 # CLAUDE.md — Portale Novicrom
 
 Documento di contesto per AI coding assistant. Aggiornato continuamente con il progetto.
-Versione app corrente: **0.7.4**
+Versione app corrente: **0.8.2**
 
 ---
 
@@ -38,6 +38,7 @@ Versione app corrente: **0.7.4**
 | `rilevazione_incidenti` | Rilevazione incidenti / unsafe condition (CRUD via Graph API, SharePoint come fonte di verità) |
 | `hub_tools` | Hub strumenti interni: Module Manager + Database Manager |
 | `setup_wizard` | Wizard guidato prima configurazione (12 step) |
+| `dpi` | Gestione DPI (Dispositivi Protezione Individuale): richieste con card-picker immagini, approvazione, consegna, storico, KPI |
 
 ---
 
@@ -53,13 +54,13 @@ Versione app corrente: **0.7.4**
 - Modelli unmanaged: `core/legacy_models.py` — `Ruolo`, `UtenteLegacy`, `Pulsante`, `Permesso`, `AnagraficaDipendente`
 - Bypass totale per `is_legacy_admin()`: cerca `ruolo.nome == "admin"` (case-insensitive)
 - Bypass totale per `request.user.is_superuser`
-- **BUG:** `lru_cache` su `get_admin_role_ids()` non viene mai invalidata in-process
+- Cache ACL gestita da `core/legacy_cache.py` con chiavi versionare e `bump_legacy_cache_version()` (usa Django cache framework, non `lru_cache`)
 
 ### 2. Navigation Registry (visibilità menu, non sicurezza)
 
 - File: `core/navigation_registry.py`
 - Tabelle Django: `NavigationItem`, `NavigationRoleAccess`, `UserDashboardConfig`, `UserModuleVisibility`
-- **BUG:** nessun record in `NavigationRoleAccess` = visibile a tutti (fallback permissivo opt-out)
+- Deny-by-default: nessun record in `NavigationRoleAccess` = voce NON mostrata (riga 115-117 in `navigation_registry.py`)
 
 ### Path esenti da ACL (MIDDLEWARE_EXEMPT_PREFIXES)
 
@@ -209,6 +210,7 @@ Percorso: `/admin-portale/hub/` — richiede `is_legacy_admin()`.
 | `rilevazione_incidenti` | 2 | RilevazioneIncidente (cache locale da SharePoint), SicurezzaImpostazioni |
 | `rentri` | 1 | RegistroRifiuti |
 | `assenze` | 1 | CertificazionePresenza |
+| `dpi` | 5 | CategoriaDPI (con immagine, vita utile), DPIImpostazioni (singleton), RichiestaDPI (numero DPI-YYYY-NNNN, stati), ConsegnaDPI (1:1 con RichiestaDPI), RichiestaDPICommento |
 
 **Relazioni inter-app principali:**
 
@@ -266,6 +268,7 @@ Tutte le app sono incluse in `config/urls.py`. Prefissi notevoli:
 | `/diario-preposto/` | `diario_preposto` |
 | `/rilevazione-incidenti/` | `rilevazione_incidenti` |
 | `/notizie/` | `notizie` |
+| `/dpi/` | `dpi` |
 | `/admin/` | Django admin nativo |
 
 Le app `dashboard`, `assenze`, `anomalie`, `timbri`, `rentri`, `core`, `planimetria` usano prefisso vuoto `""` (i path sono definiti internamente al loro `urls.py`).
@@ -290,12 +293,22 @@ Le app `dashboard`, `assenze`, `anomalie`, `timbri`, `rentri`, `core`, `planimet
 
 ## Debito tecnico noto (non toccare senza discussione)
 
-1. `anomalie/views.py`: ~10 `except Exception: pass` silenziano eccezioni senza logging
-2. SQL raw inline in `core/context_processors.py` e alcune views
-3. Cache Graph primitiva (`Lock + dict`) — non sicura su multi-process (wsgi multi-worker)
-4. `asgi.py` punta a settings dev, `wsgi.py` a prod — non invertire per errore
-5. `planimetria/models.py` è vuoto (solo commento) — non aggiungere logica
-6. `module_registry.py`: solo `assets` registrato, gli altri moduli non sono brandizzabili
+1. SQL raw inline in `core/context_processors.py` e alcune views
+2. Cache Graph primitiva (`Lock + dict`) — non sicura su multi-process (wsgi multi-worker)
+3. `planimetria/models.py` è vuoto (solo commento) — non aggiungere logica
+4. `module_registry.py`: solo `assets` registrato, gli altri moduli non sono brandizzabili
+
+---
+
+## Cache in produzione (IIS multi-worker)
+
+Con 2+ worker IIS usare `DatabaseCache` (SQL Server) — condivisa tra processi:
+
+- Configurata automaticamente da `config/settings/prod.py`
+- **Setup una-tantum dopo ogni deploy su server vergine:** `python manage.py createcachetable`
+- Tabella: `django_cache` (override con env `DJANGO_CACHE_TABLE`)
+- `bump_legacy_cache_version()` usa `cache.incr()` atomico → invalidazione ACL immediata su tutti i worker
+- Dev usa `LocMemCache` (default Django) — nessuna configurazione aggiuntiva
 
 ---
 

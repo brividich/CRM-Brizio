@@ -4,7 +4,6 @@ from django.db import models
 class LegacyUnmanagedModel(models.Model):
     class Meta:
         abstract = True
-        managed = False
 
 
 class Ruolo(LegacyUnmanagedModel):
@@ -13,7 +12,7 @@ class Ruolo(LegacyUnmanagedModel):
 
     class Meta(LegacyUnmanagedModel.Meta):
         db_table = "ruoli"
-        app_label = "legacy_runtime"
+        app_label = "core"
 
     def __str__(self) -> str:
         return self.nome
@@ -32,7 +31,7 @@ class UtenteLegacy(LegacyUnmanagedModel):
 
     class Meta(LegacyUnmanagedModel.Meta):
         db_table = "utenti"
-        app_label = "legacy_runtime"
+        app_label = "core"
 
     def __str__(self) -> str:
         return self.email or self.nome or f"legacy:{self.id}"
@@ -61,7 +60,7 @@ class AnagraficaDipendente(LegacyUnmanagedModel):
 
     class Meta(LegacyUnmanagedModel.Meta):
         db_table = "anagrafica_dipendenti"
-        app_label = "legacy_runtime"
+        app_label = "core"
 
     def __str__(self) -> str:
         return f"{self.cognome} {self.nome}".strip() or self.aliasusername or f"anagrafica:{self.id}"
@@ -77,7 +76,7 @@ class Pulsante(LegacyUnmanagedModel):
 
     class Meta(LegacyUnmanagedModel.Meta):
         db_table = "pulsanti"
-        app_label = "legacy_runtime"
+        app_label = "core"
 
     @property
     def label(self) -> str:
@@ -97,7 +96,7 @@ class Permesso(LegacyUnmanagedModel):
 
     class Meta(LegacyUnmanagedModel.Meta):
         db_table = "permessi"
-        app_label = "legacy_runtime"
+        app_label = "core"
 
     @property
     def view_allowed(self) -> bool:

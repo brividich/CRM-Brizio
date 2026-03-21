@@ -75,6 +75,7 @@
   {% url 'hub_tools:hub_homepage_builder'     as hub_homepage_builder_url %}
   {% url 'hub_tools:hub_setup_wizard'         as hub_setup_wizard_url %}
   {% url 'hub_tools:hub_guide_list'           as hub_guide_list_url %}
+  {% url 'hub_tools:hub_notifiche'            as hub_notifiche_url %}
 
   {% include "admin_portale/components/page_header.html" with page_title="Pannello Amministrazione" page_subtitle="Gestione utenti, permessi, navigazione, automazioni e strumenti di sistema." %}
   {% include "admin_portale/components/flash_messages.html" %}
@@ -421,6 +422,15 @@
           <div>
             <div class="hub-mod-name">Guide e Manuali</div>
             <div class="hub-mod-sub">Documentazione tecnica, guide operative e strumenti di riferimento per la gestione del portale.</div>
+          </div>
+        </a>
+        {% endif %}
+        {% if hub_notifiche_url %}
+        <a class="hub-mod" href="{{ hub_notifiche_url }}">
+          <div class="hub-mod-icon">🔔</div>
+          <div>
+            <div class="hub-mod-name">Notifiche</div>
+            <div class="hub-mod-sub">Monitora, invia e gestisci le notifiche in-app degli utenti. Invio manuale per utente, reparto o tutti.</div>
           </div>
         </a>
         {% endif %}

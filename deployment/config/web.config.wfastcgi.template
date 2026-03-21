@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    web.config per Portale Novicrom — IIS + wfastcgi (ALTERNATIVA)
+    =========================================================================
+    ALTERNATIVA PIÙ SEMPLICE all'HttpPlatformHandler.
+    wfastcgi è deprecato (ultimo aggiornamento 2019) ma ancora funzionante.
+
+    PREREQUISITI:
+      1. Attiva CGI nel ruolo IIS:
+         Server Manager → Web Server → Application Development → CGI
+      2. Installa wfastcgi nel venv:
+         pip install wfastcgi
+      3. Registra wfastcgi con IIS (da CMD admin):
+         %%VENV_PATH%%\Scripts\wfastcgi-enable.exe
+         Copia il percorso stampato (es. C:\...\python.exe|C:\...\wfastcgi.py)
+
+    SEGNAPOSTO da sostituire manualmente:
+      %%VENV_PATH%%      = C:\PortaleNovicrom\test\venv
+      %%DJANGO_APP%%     = C:\PortaleNovicrom\test\current\django_app
+      %%LOGS_PATH%%      = C:\PortaleNovicrom\test\logs
+      %%SETTINGS_MOD%%   = config.settings.test (o prod)
+      %%PYTHON_FASTCGI%% = percorso stampato da wfastcgi-enable, es:
+                           C:\PortaleNovicrom\test\venv\Scripts\python.exe|C:\...\wfastcgi.py
+
+    LIMITAZIONI rispetto a HttpPlatformHandler:
+      - Nessun controllo sul processo Python (crash = 502)
+      - Restart richiede recycle app pool manuale
+      - Non supporta WebSocket
+      - Thread model limitato
+-->
+<configuration>
+  <appSettings>
+    <add key="WSGI_HANDLER" value="config.wsgi.application" />
+    <add key="WSGI_LOG"     value="%%LOGS_PATH%%\wfastcgi.log" />
+    <add key="DJANGO_SETTINGS_MODULE" value="%%SETTINGS_MOD%%" />
+    <add key="PYTHONPATH"   value="%%DJANGO_APP%%" />
+    <add key="PYTHONUNBUFFERED" value="1" />
+  </appSettings>
+
+  <system.webServer>
+    <handlers>
+      <!-- Escludi /static/ e /media/ dall'handler Python -->
+      <add name="StaticFiles"
+           path="static/*"
+           verb="GET,HEAD"
+           modules="StaticFileModule"
+           resourceType="File"
+           preCondition="" />
+      <add name="MediaFiles"
+           path="media/*"
+           verb="GET,HEAD"
+           modules="StaticFileModule"
+           resourceType="File"
+           preCondition="" />
+      <!-- Handler principale wfastcgi -->
+      <add name="Python FastCGI"
+           path="*"
+           verb="*"
+           modules="FastCgiModule"
+           scriptProcessor="%%PYTHON_FASTCGI%%"
+           resourceType="Unspecified"
+           requireAccess="Script" />
+    </handlers>
+
+    <httpProtocol>
+      <customHeaders>
+        <remove name="X-Powered-By" />
+        <add name="X-Content-Type-Options" value="nosniff" />
+        <add name="X-Frame-Options" value="SAMEORIGIN" />
+      </customHeaders>
+    </httpProtocol>
+  </system.webServer>
+
+  <location path="static">
+    <system.webServer>
+      <handlers>
+        <clear />
+        <add name="StaticFileHandler" path="*" verb="GET,HEAD"
+             modules="StaticFileModule,DefaultDocumentModule" resourceType="Either" />
+      </handlers>
+      <staticContent>
+        <clientCache cacheControlMode="UseMaxAge" cacheControlMaxAge="7.00:00:00" />
+      </staticContent>
+    </system.webServer>
+  </location>
+
+  <location path="media">
+    <system.webServer>
+      <handlers>
+        <clear />
+        <add name="MediaFileHandler" path="*" verb="GET,HEAD"
+             modules="StaticFileModule" resourceType="File" />
+      </handlers>
+    </system.webServer>
+  </location>
+</configuration>

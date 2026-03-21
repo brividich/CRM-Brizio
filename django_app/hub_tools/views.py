@@ -603,7 +603,7 @@ def api_reconfigure(request):
 # ── BrizioHUB — Configurazione aggiornata da Hub Setup Wizard ─────────────────
 INSTANCE_NAME={instance_name}
 DJANGO_SECRET_KEY={secret_key}
-APP_VERSION={s('app_version', current_env.get('APP_VERSION', '0.7.4'))}
+APP_VERSION={s('app_version', current_env.get('APP_VERSION', '0.8.2'))}
 DJANGO_DEBUG={current_env.get('DJANGO_DEBUG', '0')}
 DJANGO_ALLOWED_HOSTS={current_env.get('DJANGO_ALLOWED_HOSTS', '*')}
 SETUP_COMPLETED=1
@@ -829,3 +829,215 @@ def categorie(request):
         "nav_items": nav_items,
         "branding_values": branding_values,
     })
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Gestione Notifiche
+# ══════════════════════════════════════════════════════════════════════════════
+
+@_staff_required
+def notifiche_hub(request):
+    """Dashboard notifiche: lista, filtri, statistiche, invio manuale."""
+    from core.models import Notifica
+    from core.legacy_anagrafica import fetch_anagrafica_rows
+
+    # Filtri
+    f_tipo    = request.GET.get("tipo", "").strip()
+    f_letta   = request.GET.get("letta", "").strip()   # "si" | "no" | ""
+    f_user_id = request.GET.get("user_id", "").strip()
+    f_q       = request.GET.get("q", "").strip()
+
+    qs = Notifica.objects.all()
+    if f_tipo:
+        qs = qs.filter(tipo=f_tipo)
+    if f_letta == "si":
+        qs = qs.filter(letta=True)
+    elif f_letta == "no":
+        qs = qs.filter(letta=False)
+    if f_user_id and f_user_id.isdigit():
+        qs = qs.filter(legacy_user_id=int(f_user_id))
+    if f_q:
+        qs = qs.filter(messaggio__icontains=f_q)
+
+    qs = qs.order_by("-created_at")
+
+    from django.core.paginator import Paginator
+    paginator = Paginator(qs, 50)
+    page = paginator.get_page(request.GET.get("page"))
+
+    # Stats
+    totale     = Notifica.objects.count()
+    non_lette  = Notifica.objects.filter(letta=False).count()
+    lette      = totale - non_lette
+    popup_pend = Notifica.objects.filter(letta=False, popup_shown=False).count()
+
+    # Conteggio per tipo
+    from django.db.models import Count
+    tipo_label_map = dict(Notifica.TIPI)
+    per_tipo_raw = {
+        row["tipo"]: row["n"]
+        for row in Notifica.objects.values("tipo").annotate(n=Count("id")).order_by()
+    }
+    per_tipo_list = [
+        {"value": v, "label": tipo_label_map.get(v, v), "count": c}
+        for v, c in sorted(per_tipo_raw.items(), key=lambda x: -x[1])
+        if c > 0
+    ]
+
+    # Arricchisce ogni notifica con il nome utente
+    visible_ids = list({n.legacy_user_id for n in page.object_list})
+    user_names: dict[int, str] = {}
+    if visible_ids:
+        try:
+            rows = fetch_anagrafica_rows(ids=visible_ids)
+            for r in rows:
+                uid = int(r.get("id") or 0)
+                if uid:
+                    user_names[uid] = f"{r.get('cognome','')} {r.get('nome','')}".strip()
+        except Exception:
+            pass
+    for n in page.object_list:
+        n.user_nome = user_names.get(n.legacy_user_id, "")
+
+    # Lista dipendenti per form invio
+    try:
+        dipendenti = [
+            {"id": int(r.get("id") or 0), "nome": f"{r.get('cognome','')} {r.get('nome','')}".strip(), "reparto": r.get("reparto","") or ""}
+            for r in fetch_anagrafica_rows()
+            if int(r.get("id") or 0) > 0
+        ]
+        reparti = sorted({d["reparto"] for d in dipendenti if d["reparto"]})
+    except Exception:
+        dipendenti = []
+        reparti = []
+
+    return render(request, "hub_tools/notifiche.html", {
+        "page_obj":    page,
+        "user_names":  user_names,
+        "f_tipo":      f_tipo,
+        "f_letta":     f_letta,
+        "f_user_id":   f_user_id,
+        "f_q":         f_q,
+        "tipi":        Notifica.TIPI,
+        "totale":      totale,
+        "non_lette":   non_lette,
+        "lette":       lette,
+        "popup_pend":  popup_pend,
+        "per_tipo_list": per_tipo_list,
+        "dipendenti":  dipendenti,
+        "reparti":     reparti,
+    })
+
+
+@_staff_required
+@require_POST
+def api_notifica_invia(request):
+    """Invia notifica manuale a: singolo utente / reparto / tutti."""
+    from core.notifiche import invia_notifica
+    from core.legacy_anagrafica import fetch_anagrafica_rows
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({"ok": False, "error": "JSON non valido"}, status=400)
+
+    destinatario = (data.get("destinatario") or "").strip()  # "utente" | "reparto" | "tutti"
+    tipo         = (data.get("tipo") or "generico").strip()
+    messaggio    = (data.get("messaggio") or "").strip()
+    url_azione   = (data.get("url_azione") or "").strip()
+
+    if not messaggio:
+        return JsonResponse({"ok": False, "error": "Il messaggio è obbligatorio"}, status=400)
+
+    from core.models import Notifica
+    tipi_validi = {t[0] for t in Notifica.TIPI}
+    if tipo not in tipi_validi:
+        tipo = "generico"
+
+    # Raccoglie i legacy_user_id destinatari
+    target_ids: list[int] = []
+
+    if destinatario == "utente":
+        uid_str = str(data.get("user_id") or "").strip()
+        if not uid_str.isdigit():
+            return JsonResponse({"ok": False, "error": "user_id non valido"}, status=400)
+        target_ids = [int(uid_str)]
+
+    elif destinatario == "reparto":
+        reparto = (data.get("reparto") or "").strip()
+        if not reparto:
+            return JsonResponse({"ok": False, "error": "Reparto non specificato"}, status=400)
+        try:
+            rows = fetch_anagrafica_rows()
+            target_ids = [
+                int(r.get("id") or 0)
+                for r in rows
+                if str(r.get("reparto") or "").strip().casefold() == reparto.casefold()
+                and int(r.get("id") or 0) > 0
+            ]
+        except Exception as exc:
+            return JsonResponse({"ok": False, "error": str(exc)}, status=500)
+
+    elif destinatario == "tutti":
+        try:
+            rows = fetch_anagrafica_rows()
+            target_ids = [int(r.get("id") or 0) for r in rows if int(r.get("id") or 0) > 0]
+        except Exception as exc:
+            return JsonResponse({"ok": False, "error": str(exc)}, status=500)
+
+    else:
+        return JsonResponse({"ok": False, "error": "Destinatario non valido"}, status=400)
+
+    if not target_ids:
+        return JsonResponse({"ok": False, "error": "Nessun destinatario trovato"}, status=400)
+
+    count = 0
+    for uid in target_ids:
+        invia_notifica(
+            legacy_user_id=uid,
+            tipo=tipo,
+            messaggio=messaggio,
+            url_azione=url_azione,
+        )
+        count += 1
+
+    return JsonResponse({"ok": True, "count": count, "message": f"Notifica inviata a {count} destinatari."})
+
+
+@_staff_required
+@require_POST
+def api_notifica_elimina(request, notifica_id: int):
+    """Elimina una singola notifica."""
+    from core.models import Notifica
+    deleted, _ = Notifica.objects.filter(pk=notifica_id).delete()
+    return JsonResponse({"ok": bool(deleted)})
+
+
+@_staff_required
+@require_POST
+def api_notifiche_bulk(request):
+    """Azioni bulk: elimina_lette | elimina_utente | segna_lette_tutte."""
+    from core.models import Notifica
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({"ok": False, "error": "JSON non valido"}, status=400)
+
+    azione = (data.get("azione") or "").strip()
+
+    if azione == "elimina_lette":
+        deleted, _ = Notifica.objects.filter(letta=True).delete()
+        return JsonResponse({"ok": True, "count": deleted, "message": f"Eliminate {deleted} notifiche lette."})
+
+    elif azione == "elimina_utente":
+        uid_str = str(data.get("user_id") or "").strip()
+        if not uid_str.isdigit():
+            return JsonResponse({"ok": False, "error": "user_id non valido"}, status=400)
+        deleted, _ = Notifica.objects.filter(legacy_user_id=int(uid_str)).delete()
+        return JsonResponse({"ok": True, "count": deleted, "message": f"Eliminate {deleted} notifiche per l'utente."})
+
+    elif azione == "segna_lette_tutte":
+        updated = Notifica.objects.filter(letta=False).update(letta=True, popup_shown=True)
+        return JsonResponse({"ok": True, "count": updated, "message": f"Segnate come lette {updated} notifiche."})
+
+    return JsonResponse({"ok": False, "error": "Azione non riconosciuta"}, status=400)

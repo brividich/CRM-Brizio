@@ -25,6 +25,7 @@ from django.http import HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import URLPattern, URLResolver, get_resolver, reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_GET, require_POST
@@ -359,6 +360,24 @@ def _audit_safe(request, azione: str, modulo: str, dettaglio: dict | None = None
         log_action(request, azione, modulo, dettaglio or {})
     except Exception:
         pass
+
+
+def _safe_redirect_url(request, candidate: str | None, fallback: str) -> str:
+    """Restituisce candidate solo se è un URL locale sicuro, altrimenti fallback.
+
+    Protegge da open redirect: rifiuta URL assoluti verso domini esterni, URL
+    con schema javascript:/data: e qualsiasi valore che non passi il controllo
+    Django url_has_allowed_host_and_scheme.
+    """
+    if candidate:
+        candidate = str(candidate).strip()
+        if url_has_allowed_host_and_scheme(
+            url=candidate,
+            allowed_hosts={request.get_host()},
+            require_https=request.is_secure(),
+        ):
+            return candidate
+    return fallback
 
 
 def _normalize_category(value: str | None, default: str = "Generale") -> str:
@@ -1268,6 +1287,84 @@ def _module_perm_rows_for_role(ruolo_id: int) -> list[ModuloPermRow]:
 
 def _module_perm_rows_for_user(legacy_user_id: int) -> list[ModuloPermRow]:
     return _aggregate_to_module_rows(_full_perm_rows_for_user(legacy_user_id))
+
+
+def _build_gestione_accessi_data(ruolo_id: int) -> list[dict]:
+    """Dati per la pagina Gestione Accessi unificata.
+
+    Restituisce una lista ordinata per modulo, ciascuna con:
+      modulo, total_count, active_count, all_on, partial, pulsanti_rows
+    dove ogni riga pulsante ha: pulsante, can_view, can_edit, can_delete, can_approve.
+
+    Carica pulsanti e permessi con 2 query (no N+1).
+    """
+    try:
+        all_pulsanti = list(Pulsante.objects.all().order_by("modulo", "nome_visibile", "id"))
+    except DatabaseError:
+        return []
+
+    # Raggruppa per modulo
+    grouped: dict[str, list[Pulsante]] = {}
+    for p in all_pulsanti:
+        mod = (p.modulo or "").strip()
+        if not mod:
+            continue
+        grouped.setdefault(mod, []).append(p)
+
+    # Carica tutti i permessi per il ruolo in una query sola
+    try:
+        raw_perms = list(Permesso.objects.filter(ruolo_id=ruolo_id))
+    except DatabaseError:
+        raw_perms = []
+
+    # Indice (modulo_lower, azione_lower) → permesso più recente
+    perm_index: dict[tuple[str, str], Permesso] = {}
+    for p in raw_perms:
+        key = ((p.modulo or "").strip().lower(), (p.azione or "").strip().lower())
+        # In caso di duplicati usa l'id più alto (più recente)
+        if key not in perm_index or int(p.id) > int(perm_index[key].id):
+            perm_index[key] = p
+
+    optional_fields = [f for f in PERM_OPTIONAL_FIELDS if legacy_table_has_column("permessi", f)]
+
+    result: list[dict] = []
+    for modulo in sorted(grouped.keys(), key=str.lower):
+        pulsanti_list = grouped[modulo]
+        pulsanti_rows: list[dict] = []
+        active_count = 0
+
+        for pulsante in pulsanti_list:
+            azione = (pulsante.codice or "").strip()
+            if not azione:
+                continue
+            perm = perm_index.get((modulo.lower(), azione.lower()))
+            can_view = bool(getattr(perm, "can_view", 0)) or bool(getattr(perm, "consentito", 0)) if perm else False
+            can_edit = bool(getattr(perm, "can_edit", 0)) if perm and "can_edit" in optional_fields else False
+            can_delete = bool(getattr(perm, "can_delete", 0)) if perm and "can_delete" in optional_fields else False
+            can_approve = bool(getattr(perm, "can_approve", 0)) if perm and "can_approve" in optional_fields else False
+            if can_view:
+                active_count += 1
+            pulsanti_rows.append({
+                "pulsante": pulsante,
+                "azione": azione,
+                "can_view": can_view,
+                "can_edit": can_edit,
+                "can_delete": can_delete,
+                "can_approve": can_approve,
+            })
+
+        total = len(pulsanti_rows)
+        result.append({
+            "modulo": modulo,
+            "pulsanti_rows": pulsanti_rows,
+            "total_count": total,
+            "active_count": active_count,
+            "all_on": total > 0 and active_count == total,
+            "partial": 0 < active_count < total,
+            "optional_fields": optional_fields,
+        })
+
+    return result
 
 
 def _build_accessi_semplice_rows(selected_role_id: int | None) -> list[dict]:
@@ -2218,6 +2315,7 @@ def utente_edit(request, user_id: int):
 
 
 @legacy_admin_required
+@csrf_protect
 @require_POST
 def utente_create(request):
     form = UtenteCreateForm(request.POST)
@@ -2253,6 +2351,15 @@ def utente_create(request):
                 deve_cambiare_password=bool(data.get("deve_cambiare_password")),
             )
             _sync_legacy_user_to_anagrafica(utente)
+        _audit_safe(request, "utente_create", "admin_portale", {
+            "target_legacy_user_id": int(utente.id),
+            "nome": utente.nome,
+            "email": utente.email,
+            "ruolo_id": utente.ruolo_id,
+            "ruolo": utente.ruolo,
+            "attivo": bool(utente.attivo),
+            "ad_managed": bool(data.get("ad_managed")),
+        })
         messages.success(request, f"Utente creato (ID {utente.id}).")
     except DatabaseError as exc:
         messages.error(request, f"Errore creazione utente: {exc}")
@@ -2304,6 +2411,7 @@ def _delete_legacy_user_with_dependencies(utente: UtenteLegacy) -> dict[str, int
 
 
 @legacy_admin_required
+@csrf_protect
 @require_POST
 def utente_update(request, user_id: int):
     utente = get_object_or_404(UtenteLegacy, id=user_id)
@@ -2331,6 +2439,15 @@ def utente_update(request, user_id: int):
         with transaction.atomic():
             utente.save()
             _sync_legacy_user_to_anagrafica(utente)
+        _audit_safe(request, "utente_update", "admin_portale", {
+            "target_legacy_user_id": int(utente.id),
+            "nome": utente.nome,
+            "email": utente.email,
+            "ruolo_id": utente.ruolo_id,
+            "ruolo": utente.ruolo,
+            "attivo": bool(utente.attivo),
+            "deve_cambiare_password": bool(utente.deve_cambiare_password),
+        })
         messages.success(request, f"Utente #{utente.id} aggiornato.")
     except DatabaseError as exc:
         messages.error(request, f"Errore salvataggio utente: {exc}")
@@ -2341,6 +2458,7 @@ def utente_update(request, user_id: int):
 
 
 @legacy_admin_required
+@csrf_protect
 @require_POST
 def utenti_bulk_role(request):
     form = BulkRoleForm(request.POST)
@@ -2361,6 +2479,12 @@ def utenti_bulk_role(request):
     try:
         with transaction.atomic():
             UtenteLegacy.objects.filter(id__in=ids).update(ruolo_id=ruolo_id, ruolo=role_name)
+        _audit_safe(request, "utenti_bulk_role", "admin_portale", {
+            "target_user_ids": ids,
+            "ruolo_id": ruolo_id,
+            "ruolo": role_name,
+            "count": len(ids),
+        })
         messages.success(request, f"Ruolo aggiornato per {len(ids)} utenti.")
     except DatabaseError as exc:
         messages.error(request, f"Errore aggiornamento massivo: {exc}")
@@ -2369,6 +2493,7 @@ def utenti_bulk_role(request):
 
 
 @legacy_admin_required
+@csrf_protect
 @require_POST
 def utenti_bulk_action(request):
     ids_from_checkboxes = [_int_or_none(v) for v in request.POST.getlist("user_ids")]
@@ -2386,6 +2511,7 @@ def utenti_bulk_action(request):
                 for utente in updated_users:
                     utente.attivo = True
                     _sync_legacy_user_to_anagrafica(utente, force_active=True)
+                _audit_safe(request, "utenti_bulk_activate", "admin_portale", {"target_user_ids": ids, "count": len(ids)})
                 messages.success(request, f"Attivati {len(ids)} utenti.")
             elif mode == "deactivate":
                 updated_users = list(UtenteLegacy.objects.filter(id__in=ids))
@@ -2393,9 +2519,11 @@ def utenti_bulk_action(request):
                 for utente in updated_users:
                     utente.attivo = False
                     _sync_legacy_user_to_anagrafica(utente, force_active=False)
+                _audit_safe(request, "utenti_bulk_deactivate", "admin_portale", {"target_user_ids": ids, "count": len(ids)})
                 messages.success(request, f"Disattivati {len(ids)} utenti.")
             elif mode == "force_pwd":
                 UtenteLegacy.objects.filter(id__in=ids).update(deve_cambiare_password=True)
+                _audit_safe(request, "utenti_bulk_force_pwd", "admin_portale", {"target_user_ids": ids, "count": len(ids)})
                 messages.success(request, f"Forzato cambio password per {len(ids)} utenti.")
             else:
                 messages.error(request, "Azione bulk non valida.")
@@ -2408,6 +2536,7 @@ def utenti_bulk_action(request):
 
 
 @legacy_admin_required
+@csrf_protect
 @require_POST
 def utente_force_change_password(request, user_id: int):
     utente = get_object_or_404(UtenteLegacy, id=user_id)
@@ -2417,16 +2546,18 @@ def utente_force_change_password(request, user_id: int):
         messages.success(request, f"Forzato cambio password per utente #{utente.id}.")
     except DatabaseError as exc:
         messages.error(request, f"Errore aggiornamento utente: {exc}")
-    next_url = request.POST.get("next") or request.META.get("HTTP_REFERER") or redirect("admin_portale:utenti_list").url
+    _fallback = reverse("admin_portale:utenti_list")
+    next_url = _safe_redirect_url(request, request.POST.get("next") or request.META.get("HTTP_REFERER"), _fallback)
     return redirect(next_url)
 
 
 @legacy_admin_required
+@csrf_protect
 @require_POST
 def utente_impersonate(request, user_id: int):
     target_user = get_object_or_404(UtenteLegacy, id=user_id)
     admin_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
-    next_url = (request.POST.get("next") or "").strip() or reverse("dashboard_home")
+    next_url = _safe_redirect_url(request, (request.POST.get("next") or "").strip(), reverse("dashboard_home"))
 
     if getattr(request, "impersonation_active", False):
         messages.error(request, "Esci prima dall'impersonazione corrente.")
@@ -2462,6 +2593,7 @@ def utente_impersonate(request, user_id: int):
 
 
 @legacy_admin_required
+@csrf_protect
 @require_POST
 def utente_toggle_active(request, user_id: int):
     utente = get_object_or_404(UtenteLegacy, id=user_id)
@@ -2470,6 +2602,10 @@ def utente_toggle_active(request, user_id: int):
             utente.attivo = not bool(utente.attivo)
             utente.save(update_fields=["attivo"])
             _sync_legacy_user_to_anagrafica(utente, force_active=bool(utente.attivo))
+        _audit_safe(request, "utente_toggle_active", "admin_portale", {
+            "target_legacy_user_id": int(utente.id),
+            "attivo": bool(utente.attivo),
+        })
         messages.success(
             request,
             f"Utente #{utente.id} {'attivato' if utente.attivo else 'disattivato'}.",
@@ -2478,16 +2614,19 @@ def utente_toggle_active(request, user_id: int):
         messages.error(request, f"Errore aggiornamento utente: {exc}")
     except Exception as exc:
         messages.error(request, f"Errore sincronizzazione utente/anagrafica: {exc}")
-    next_url = request.POST.get("next") or request.META.get("HTTP_REFERER") or redirect("admin_portale:utenti_list").url
+    _fallback = reverse("admin_portale:utenti_list")
+    next_url = _safe_redirect_url(request, request.POST.get("next") or request.META.get("HTTP_REFERER"), _fallback)
     return redirect(next_url)
 
 
 @legacy_admin_required
+@csrf_protect
 @require_POST
 def utente_delete(request, user_id: int):
     utente = get_object_or_404(UtenteLegacy, id=user_id)
     current_legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
-    next_url = request.POST.get("next") or request.META.get("HTTP_REFERER") or redirect("admin_portale:utenti_list").url
+    _fallback = reverse("admin_portale:utenti_list")
+    next_url = _safe_redirect_url(request, request.POST.get("next") or request.META.get("HTTP_REFERER"), _fallback)
 
     if current_legacy_user and int(current_legacy_user.id) == int(utente.id):
         messages.error(request, "Non puoi eliminare l'utente con cui sei autenticato.")
@@ -2518,6 +2657,7 @@ def utente_delete(request, user_id: int):
 
 
 @legacy_admin_required
+@csrf_protect
 @require_POST
 def utente_quick_role(request, user_id: int):
     utente = get_object_or_404(UtenteLegacy, id=user_id)
@@ -2535,10 +2675,16 @@ def utente_quick_role(request, user_id: int):
         utente.ruolo_id = ruolo_id
         utente.ruolo = ruolo_name
         utente.save(update_fields=["ruolo_id", "ruolo"])
+        _audit_safe(request, "utente_quick_role", "admin_portale", {
+            "target_legacy_user_id": int(utente.id),
+            "ruolo_id": ruolo_id,
+            "ruolo": ruolo_name,
+        })
         messages.success(request, f"Ruolo aggiornato per utente #{utente.id}.")
     except DatabaseError as exc:
         messages.error(request, f"Errore aggiornamento ruolo utente: {exc}")
-    next_url = request.POST.get("next") or request.META.get("HTTP_REFERER") or redirect("admin_portale:utenti_list").url
+    _fallback = reverse("admin_portale:utenti_list")
+    next_url = _safe_redirect_url(request, request.POST.get("next") or request.META.get("HTTP_REFERER"), _fallback)
     return redirect(next_url)
 
 
@@ -2567,6 +2713,7 @@ def utente_permessi_effettivi(request, user_id: int):
 
 
 @legacy_admin_required
+@csrf_protect
 @require_POST
 def api_user_perm_override(request, user_id: int):
     """Imposta/rimuove un override permesso per-utente.
@@ -4525,11 +4672,21 @@ def api_permessi_bulk(request):
                     perm.save(update_fields=changed_fields)
                     affected += 1
                 _schedule_legacy_acl_cache_invalidation()
+                _audit_safe(request, "permessi_bulk_set_all", "admin_portale", {
+                    "ruolo_id": ruolo_id,
+                    "field": target_field or "(all)",
+                    "value": target_value,
+                    "affected": affected,
+                })
                 return JsonResponse({"ok": True, "affected": affected})
 
             if mode == "reset_role":
                 deleted, _ = Permesso.objects.filter(ruolo_id=ruolo_id).delete()
                 _schedule_legacy_acl_cache_invalidation()
+                _audit_safe(request, "permessi_bulk_reset_role", "admin_portale", {
+                    "ruolo_id": ruolo_id,
+                    "deleted": deleted,
+                })
                 return JsonResponse({"ok": True, "deleted": deleted})
 
             if mode == "copy_from_role":
@@ -4563,6 +4720,11 @@ def api_permessi_bulk(request):
                     dest.save(update_fields=list(dict.fromkeys(update_fields)))
                     copied += 1
                 _schedule_legacy_acl_cache_invalidation()
+                _audit_safe(request, "permessi_bulk_copy_from_role", "admin_portale", {
+                    "ruolo_id": ruolo_id,
+                    "source_role_id": source_role_id,
+                    "copied": copied,
+                })
                 return JsonResponse({"ok": True, "copied": copied})
 
             if not isinstance(updates, list):
@@ -5329,6 +5491,222 @@ def accessi_semplice(request):
 
 
 # ---------------------------------------------------------------------------
+# Gestione Accessi — pagina unificata (ruolo + moduli + pulsanti + flag)
+# ---------------------------------------------------------------------------
+
+@legacy_admin_required
+@csrf_protect
+def gestione_accessi(request):
+    """Pagina unificata: selezione ruolo → accordion per modulo → tabella pulsanti.
+
+    Sostituisce Accessi, Accessi Avanzati e Matrice Permessi in un'unica vista.
+    POST salva in batch tutti i flag can_view/can_edit/can_delete per il ruolo.
+    """
+    roles = _role_choices()
+    selected_role_id = _int_or_none(request.GET.get("ruolo_id") or request.POST.get("ruolo_id"))
+    if selected_role_id is None and roles:
+        selected_role_id = int(roles[0].id)
+
+    if request.method == "POST":
+        if selected_role_id is None:
+            messages.error(request, "Seleziona un ruolo prima di salvare.")
+            return redirect(reverse("admin_portale:gestione_accessi"))
+
+        # all_keys è una lista di "modulo::codice" per ogni pulsante renderizzato
+        all_keys = request.POST.getlist("all_keys")
+        if not all_keys:
+            messages.warning(request, "Nessun dato ricevuto.")
+            return redirect(f"{reverse('admin_portale:gestione_accessi')}?ruolo_id={selected_role_id}")
+
+        optional_fields = [f for f in PERM_OPTIONAL_FIELDS if legacy_table_has_column("permessi", f)]
+        try:
+            with transaction.atomic():
+                saved = 0
+                for key in all_keys:
+                    if "::" not in key:
+                        continue
+                    modulo, azione = key.split("::", 1)
+                    modulo = modulo.strip()
+                    azione = azione.strip()
+                    if not modulo or not azione:
+                        continue
+
+                    can_view = f"cv_{azione}" in request.POST
+                    can_edit = f"ce_{azione}" in request.POST if "can_edit" in optional_fields else False
+                    can_delete = f"cd_{azione}" in request.POST if "can_delete" in optional_fields else False
+                    can_approve = f"ca_{azione}" in request.POST if "can_approve" in optional_fields else False
+
+                    perm = _get_or_create_permesso(selected_role_id, modulo, azione)
+                    update_fields: list[str] = []
+
+                    def _chk(field: str, new_val: bool) -> None:
+                        nonlocal saved
+                        if int(getattr(perm, field, 0) or 0) != int(new_val):
+                            setattr(perm, field, 1 if new_val else 0)
+                            update_fields.append(field)
+
+                    _chk("can_view", can_view)
+                    if legacy_table_has_column("permessi", "consentito"):
+                        if int(getattr(perm, "consentito", 0) or 0) != int(can_view):
+                            perm.consentito = 1 if can_view else 0
+                            update_fields.append("consentito")
+                    if "can_edit" in optional_fields:
+                        _chk("can_edit", can_edit)
+                    if "can_delete" in optional_fields:
+                        _chk("can_delete", can_delete)
+                    if "can_approve" in optional_fields:
+                        _chk("can_approve", can_approve)
+
+                    if update_fields:
+                        perm.save(update_fields=list(dict.fromkeys(update_fields)))
+                        saved += 1
+
+                if saved:
+                    _schedule_legacy_acl_cache_invalidation()
+
+            messages.success(request, f"Salvato. {saved} permessi aggiornati.")
+        except DatabaseError as exc:
+            messages.error(request, f"Errore durante il salvataggio: {exc}")
+
+        return redirect(f"{reverse('admin_portale:gestione_accessi')}?ruolo_id={selected_role_id}")
+
+    # GET — costruisce i dati per il template
+    module_data: list[dict] = []
+    selected_role = None
+    total_active = 0
+    total_pulsanti = 0
+
+    if selected_role_id is not None:
+        selected_role = next((r for r in roles if int(r.id) == selected_role_id), None)
+        try:
+            module_data = _build_gestione_accessi_data(selected_role_id)
+            for mod in module_data:
+                total_active += mod["active_count"]
+                total_pulsanti += mod["total_count"]
+        except DatabaseError as exc:
+            messages.error(request, f"Errore lettura permessi: {exc}")
+
+    optional_fields = [f for f in PERM_OPTIONAL_FIELDS if legacy_table_has_column("permessi", f)]
+
+    return render(
+        request,
+        "admin_portale/pages/gestione_accessi.html",
+        {
+            "roles": roles,
+            "selected_role_id": selected_role_id,
+            "selected_role": selected_role,
+            "module_data": module_data,
+            "total_active": total_active,
+            "total_pulsanti": total_pulsanti,
+            "optional_fields": optional_fields,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Matrice Permessi — vista ruoli × pulsanti per modulo
+# ---------------------------------------------------------------------------
+
+@legacy_admin_required
+@csrf_protect
+def matrice_permessi(request):
+    """Matrice permessi: righe = pulsanti del modulo, colonne = tutti i ruoli.
+    Permette di abilitare/disabilitare can_view per ogni cella con un solo POST.
+    """
+    roles = _role_choices()
+    try:
+        modules = sorted(
+            {(p.modulo or "").strip() for p in Pulsante.objects.all() if (p.modulo or "").strip()},
+            key=str.lower,
+        )
+    except DatabaseError as exc:
+        messages.error(request, f"Errore lettura moduli: {exc}")
+        modules = []
+
+    selected_module = (request.GET.get("modulo") or request.POST.get("modulo") or "").strip()
+    if not selected_module and modules:
+        selected_module = modules[0]
+
+    if request.method == "POST":
+        if not selected_module:
+            messages.error(request, "Seleziona un modulo prima di salvare.")
+            return redirect(reverse("admin_portale:matrice_permessi"))
+
+        try:
+            pulsanti_modulo = list(
+                Pulsante.objects.filter(modulo__iexact=selected_module).order_by("codice")
+            )
+            with transaction.atomic():
+                saved = 0
+                for pulsante in pulsanti_modulo:
+                    azione = (pulsante.codice or "").strip()
+                    modulo = (pulsante.modulo or "").strip()
+                    if not azione or not modulo:
+                        continue
+                    for role in roles:
+                        field_name = f"perm_{int(role.id)}_{azione}"
+                        can_view = field_name in request.POST
+                        perm = _get_or_create_permesso(int(role.id), modulo, azione)
+                        new_val = 1 if can_view else 0
+                        if int(perm.can_view or 0) != new_val or int(perm.consentito or 0) != new_val:
+                            perm.can_view = new_val
+                            perm.consentito = new_val
+                            perm.save(update_fields=["can_view", "consentito"])
+                            saved += 1
+                if saved:
+                    _schedule_legacy_acl_cache_invalidation()
+            messages.success(request, f"Matrice salvata. {saved} permessi aggiornati.")
+        except DatabaseError as exc:
+            messages.error(request, f"Errore durante il salvataggio: {exc}")
+
+        return redirect(f"{reverse('admin_portale:matrice_permessi')}?modulo={selected_module}")
+
+    # Costruisce la matrice per il modulo selezionato.
+    # pulsante_rows = [{"pulsante": Pulsante, "cells": [{"role": Ruolo, "can_view": bool}]}]
+    pulsante_rows: list[dict] = []
+
+    if selected_module:
+        try:
+            pulsanti_modulo = list(
+                Pulsante.objects.filter(modulo__iexact=selected_module).order_by("codice")
+            )
+            # Carica tutti i permessi per il modulo in una query sola
+            perms = Permesso.objects.filter(modulo__iexact=selected_module)
+            perm_index: dict[tuple[str, int], bool] = {}
+            for p in perms:
+                key = ((p.azione or "").strip().lower(), int(p.ruolo_id or 0))
+                can = bool(p.can_view) or bool(p.consentito)
+                perm_index[key] = perm_index.get(key, False) or can
+
+            for pulsante in pulsanti_modulo:
+                azione = (pulsante.codice or "").strip()
+                if not azione:
+                    continue
+                cells = [
+                    {
+                        "role": role,
+                        "field_name": f"perm_{int(role.id)}_{azione}",
+                        "can_view": perm_index.get((azione.lower(), int(role.id)), False),
+                    }
+                    for role in roles
+                ]
+                pulsante_rows.append({"pulsante": pulsante, "cells": cells})
+        except DatabaseError as exc:
+            messages.error(request, f"Errore lettura matrice: {exc}")
+
+    return render(
+        request,
+        "admin_portale/pages/matrice_permessi.html",
+        {
+            "modules": modules,
+            "selected_module": selected_module,
+            "roles": roles,
+            "pulsante_rows": pulsante_rows,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
 # Wizard Configura Ruolo
 # ---------------------------------------------------------------------------
 
@@ -5377,8 +5755,32 @@ def wizard_ruolo(request):
         "perm_map_json": perm_map_json,
         "ruolo_id_presel": ruolo_id_presel,
         "api_bulk_url": reverse("admin_portale:api_permessi_bulk"),
-        "accessi_url": reverse("admin_portale:accessi_avanzati"),
+        "api_perm_ruolo_url": reverse("admin_portale:api_wizard_permessi_ruolo"),
+        "accessi_url": reverse("admin_portale:gestione_accessi"),
     })
+
+
+@legacy_admin_required
+@require_GET
+def api_wizard_permessi_ruolo(request):
+    """Ritorna la perm_map JSON per un ruolo (usato dal wizard AJAX)."""
+    ruolo_id = request.GET.get("ruolo_id", "")
+    if not ruolo_id:
+        return JsonResponse({"ok": False, "error": "ruolo_id required"}, status=400)
+    try:
+        rid = int(ruolo_id)
+        perm_map: dict[str, dict] = {}
+        for p in Permesso.objects.filter(ruolo_id=rid):
+            key = f"{p.modulo}__{p.azione}"
+            perm_map[key] = {
+                "can_view": int(p.can_view or 0),
+                "can_edit": int(p.can_edit or 0),
+                "can_delete": int(p.can_delete or 0),
+                "can_approve": int(p.can_approve or 0),
+            }
+        return JsonResponse({"ok": True, "perm_map": perm_map})
+    except (DatabaseError, ValueError) as exc:
+        return JsonResponse({"ok": False, "error": str(exc)}, status=500)
 
 
 # ---------------------------------------------------------------------------
@@ -5487,16 +5889,22 @@ def login_config(request):
 
 
 @legacy_admin_required
+@csrf_protect
 @require_POST
 def api_login_config_save(request):
+    changed = {}
     for chiave, descrizione, _ in _LOGIN_CONFIG_KEYS:
         if chiave in request.POST:
-            SiteConfig.set(chiave, request.POST[chiave].strip(), descrizione)
+            valore = request.POST[chiave].strip()
+            SiteConfig.set(chiave, valore, descrizione)
+            changed[chiave] = valore
+    _audit_safe(request, "login_config_save", "admin_portale", {"changed_keys": list(changed.keys())})
     messages.success(request, "Configurazione login salvata.")
     return redirect("admin_portale:login_config")
 
 
 @legacy_admin_required
+@csrf_protect
 @require_POST
 def api_login_logo_upload(request):
     upload = request.FILES.get("logo")
@@ -5519,6 +5927,7 @@ def api_login_logo_upload(request):
 
 
 @legacy_admin_required
+@csrf_protect
 @require_POST
 def api_login_logo_remove(request):
     current = SiteConfig.get("login_logo_url", "")
@@ -5536,6 +5945,7 @@ def api_login_logo_remove(request):
 
 
 @legacy_admin_required
+@csrf_protect
 @require_POST
 def api_login_banner_create(request):
     testo = (request.POST.get("testo") or "").strip()
@@ -5546,25 +5956,31 @@ def api_login_banner_create(request):
     if tipo not in dict(LoginBanner.TIPO_CHOICES):
         tipo = "info"
     ordine = int(request.POST.get("ordine") or 100)
-    LoginBanner.objects.create(testo=testo, tipo=tipo, ordine=ordine, is_active=True)
+    banner = LoginBanner.objects.create(testo=testo, tipo=tipo, ordine=ordine, is_active=True)
+    _audit_safe(request, "login_banner_create", "admin_portale", {"banner_id": int(banner.id), "tipo": tipo})
     messages.success(request, "Banner aggiunto.")
     return redirect("admin_portale:login_config")
 
 
 @legacy_admin_required
+@csrf_protect
 @require_POST
 def api_login_banner_toggle(request):
     payload = _json_payload(request)
     b = get_object_or_404(LoginBanner, id=_int_or_none(payload.get("id")))
     b.is_active = not b.is_active
     b.save(update_fields=["is_active"])
+    _audit_safe(request, "login_banner_toggle", "admin_portale", {"banner_id": int(b.id), "is_active": b.is_active})
     return JsonResponse({"ok": True, "is_active": b.is_active})
 
 
 @legacy_admin_required
+@csrf_protect
 @require_POST
 def api_login_banner_delete(request):
     payload = _json_payload(request)
     b = get_object_or_404(LoginBanner, id=_int_or_none(payload.get("id")))
+    banner_id = int(b.id)
     b.delete()
+    _audit_safe(request, "login_banner_delete", "admin_portale", {"banner_id": banner_id})
     return JsonResponse({"ok": True})

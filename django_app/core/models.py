@@ -222,6 +222,9 @@ class Notifica(models.Model):
         ("assenza_in_attesa", "Assenza in attesa di approvazione"),
         ("anomalia_segnalata", "Anomalia segnalata al cliente"),
         ("anomalia_chiusa", "Anomalia chiusa"),
+        ("dpi_approvata", "DPI approvata"),
+        ("dpi_rifiutata", "DPI rifiutata"),
+        ("dpi_consegnata", "DPI consegnata"),
         ("generico", "Generico"),
     ]
 
@@ -230,6 +233,7 @@ class Notifica(models.Model):
     messaggio = models.CharField(max_length=500)
     url_azione = models.CharField(max_length=255, blank=True, default="")
     letta = models.BooleanField(default=False)
+    popup_shown = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

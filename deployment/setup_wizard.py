@@ -1,0 +1,2214 @@
+"""
+Portale Novicrom — Setup Wizard
+Eseguire come Amministratore: python setup_wizard.py [--env dev|test|prod]
+Requisiti: Python 3.11+ (tkinter incluso).
+"""
+
+import ctypes, json, os, re, shutil, subprocess, sys, threading, zipfile
+from datetime import datetime
+from pathlib import Path
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
+
+# ─────────────────────────────────────────────────────────────
+# PALETTE & COSTANTI
+# ─────────────────────────────────────────────────────────────
+BRAND        = "#1a56db"
+BRAND_DARK   = "#1e429f"
+BRAND_HOVER  = "#2563eb"
+SIDEBAR_BG   = "#0f2a7a"
+SIDEBAR_W    = 210
+WIN_W, WIN_H = 900, 620
+
+GRAY50   = "#f9fafb"; GRAY100 = "#f3f4f6"; GRAY200 = "#e5e7eb"
+GRAY400  = "#9ca3af"; GRAY500 = "#6b7280"; GRAY600 = "#4b5563"
+GRAY700  = "#374151"; GRAY800 = "#1f2937"; GRAY900 = "#111827"
+
+GREEN    = "#16a34a"; GREEN_BG  = "#f0fdf4"; GREEN_BD  = "#86efac"
+YELLOW_BG= "#fffbeb"; YELLOW_BD = "#fcd34d"; YELLOW_TX = "#92400e"
+RED      = "#dc2626"; RED_BG    = "#fef2f2"
+BLUE_BG  = "#eff6ff"; BLUE_BD   = "#93c5fd"
+CODE_BG  = "#0d1117"; CODE_FG   = "#c9d1d9"
+
+SF  = "Segoe UI"
+FN  = (SF, 10)
+FNB = (SF, 10, "bold")
+FSM = (SF, 9)
+FMD = (SF, 12, "bold")
+FLG = (SF, 18, "bold")
+FMO = ("Consolas", 9)
+
+STEPS = ["Benvenuto","Pacchetto","Ambiente","Python",
+         "Database","Active Directory","Email","IIS / Web",
+         "Riepilogo","Installazione","Completato"]
+
+STEPS_RELEASE = ["Modalità", "Configurazione", "Esecuzione", "Completato"]
+
+
+# ─────────────────────────────────────────────────────────────
+# CONFIG
+# ─────────────────────────────────────────────────────────────
+class Config:
+    def __init__(self):
+        self.package_path = ""
+        self.environment  = "test"
+        self.base_dir     = r"C:\PortaleNovicrom"
+        self.python_path  = r"C:\Python311\python.exe"
+        self.db_host = ""; self.db_name = ""; self.db_user = ""
+        self.db_password = ""; self.db_trusted = False
+        self.ldap_uri = "ldap://DC01.cnovicrom.local"
+        self.ldap_bind_dn = ""; self.ldap_bind_pwd = ""
+        self.ldap_user_base = "OU=Users,DC=cnovicrom,DC=local"
+        self.ldap_domain = "cnovicrom.local"; self.ldap_skip = False
+        self.email_host = ""; self.email_port = "25"
+        self.email_user = ""; self.email_pwd = ""
+        self.email_tls = False; self.email_skip = False
+        self.iis_hostname = ""; self.iis_port = "8080"; self.iis_https = False
+        self.secret_key = ""; self.release_tag = ""
+
+    @property
+    def env_path(self): return Path(self.base_dir) / self.environment
+    @property
+    def app_pool_name(self): return f"PortaleNovicrom-{self.environment.upper()}"
+    @property
+    def site_name(self): return f"PortaleNovicrom-{self.environment.upper()}"
+
+    def generate_secret_key(self):
+        import secrets; self.secret_key = secrets.token_hex(50)
+
+    def to_env(self):
+        p = "https" if self.iis_https else "http"
+        h = self.iis_hostname or "localhost"
+        pt = f":{self.iis_port}" if self.iis_port not in ("80","443") else ""
+        ep = self.env_path
+        lines = [
+            f"# Generato da Setup Wizard — {datetime.now():%Y-%m-%d %H:%M}\n",
+            f"SECRET_KEY={self.secret_key}",
+            f"DEBUG=False",
+            f"ALLOWED_HOSTS={h},127.0.0.1",
+            f"APP_VERSION=0.8.2\n",
+            f"DB_ENGINE=mssql",
+            f"DB_NAME={self.db_name}",
+            f"DB_HOST={self.db_host}",
+            f"DB_PORT=1433",
+            ("DB_TRUSTED_CONNECTION=yes" if self.db_trusted
+             else f"DB_USER={self.db_user}\nDB_PASSWORD={self.db_password}"),
+            f"\nCSRF_TRUSTED_ORIGINS={p}://{h}{pt}",
+            f"SESSION_COOKIE_SECURE={'True' if self.iis_https else 'False'}",
+            f"CSRF_COOKIE_SECURE={'True' if self.iis_https else 'False'}",
+            f"\nSTATIC_ROOT={ep}\\static",
+            f"MEDIA_ROOT={ep}\\media",
+            f"LOG_DIR={ep}\\logs\n",
+        ]
+        if not self.ldap_skip:
+            lines += [
+                f"LDAP_SERVER_URI={self.ldap_uri}",
+                f"LDAP_BIND_DN={self.ldap_bind_dn}",
+                f"LDAP_BIND_PASSWORD={self.ldap_bind_pwd}",
+                f"LDAP_USER_SEARCH_BASE={self.ldap_user_base}",
+                f"LDAP_DOMAIN={self.ldap_domain}\n",
+            ]
+        if not self.email_skip and self.email_host:
+            lines += [
+                f"EMAIL_HOST={self.email_host}",
+                f"EMAIL_PORT={self.email_port}",
+                f"EMAIL_USE_TLS={'True' if self.email_tls else 'False'}",
+                f"EMAIL_HOST_USER={self.email_user}",
+                f"EMAIL_HOST_PASSWORD={self.email_pwd}\n",
+            ]
+        lines += [
+            f"GRAPH_TENANT_ID=\nGRAPH_CLIENT_ID=\nGRAPH_CLIENT_SECRET=\n",
+            f"DJANGO_CACHE_TABLE=django_cache{'_test' if self.environment=='test' else ''}",
+            f"SQL_LOG_ENABLED={'True' if self.environment=='test' else 'False'}",
+            f"ENVIRONMENT={self.environment}",
+        ]
+        return "\n".join(lines)
+
+
+# ─────────────────────────────────────────────────────────────
+# UTILITY
+# ─────────────────────────────────────────────────────────────
+def is_admin():
+    try: return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except: return False
+
+def run_as_admin():
+    ctypes.windll.shell32.ShellExecuteW(
+        None, "runas", sys.executable, " ".join(sys.argv), None, 1)
+
+def detect_python():
+    for p in [r"C:\Python311\python.exe", r"C:\Python312\python.exe",
+              r"C:\Python313\python.exe", r"C:\Python310\python.exe"]:
+        if Path(p).exists(): return p
+    w = shutil.which("python")
+    return w or r"C:\Python311\python.exe"
+
+def find_latest_zip(base_dir):
+    d = Path(base_dir) / "shared" / "packages"
+    if d.exists():
+        zips = sorted(d.glob("portale-novicrom-*.zip"), reverse=True)
+        if zips: return str(zips[0])
+    return ""
+
+
+# ─────────────────────────────────────────────────────────────
+# WIDGET BASE
+# ─────────────────────────────────────────────────────────────
+
+def Label(parent, text="", font=FN, fg=GRAY700, bg="white", **kw):
+    return tk.Label(parent, text=text, font=font, fg=fg, bg=bg, **kw)
+
+def frame(parent, bg="white", **kw):
+    return tk.Frame(parent, bg=bg, **kw)
+
+class ScrollableFrame(tk.Frame):
+    """Frame con scrollbar verticale opzionale."""
+    def __init__(self, parent, bg="white", **kw):
+        super().__init__(parent, bg=bg, **kw)
+        self.canvas = tk.Canvas(self, bg=bg, highlightthickness=0, bd=0)
+        self.sb = tk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.inner = tk.Frame(self.canvas, bg=bg)
+        self.inner.bind("<Configure>", lambda e: self.canvas.configure(
+            scrollregion=self.canvas.bbox("all")))
+        self._win = self.canvas.create_window((0,0), window=self.inner, anchor="nw")
+        self.canvas.configure(yscrollcommand=self.sb.set)
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.canvas.bind("<Configure>", self._on_canvas_resize)
+        self.bind_all("<MouseWheel>", self._on_scroll)
+
+    def _on_canvas_resize(self, e):
+        self.canvas.itemconfig(self._win, width=e.width)
+
+    def _on_scroll(self, e):
+        self.canvas.yview_scroll(-1*(e.delta//120), "units")
+
+    def show_scrollbar(self, show=True):
+        if show: self.sb.pack(side="right", fill="y")
+        else: self.sb.pack_forget()
+
+
+class FieldGroup(tk.Frame):
+    """Label + Entry con errore opzionale."""
+    def __init__(self, parent, label, var, show="", mono=False, **kw):
+        super().__init__(parent, bg="white", **kw)
+        self.var = var
+        lf = frame(self)
+        lf.pack(fill="x", pady=(0,2))
+        tk.Label(lf, text=label, font=(SF,9,"bold"), fg=GRAY600, bg="white").pack(side="left")
+        self._err = tk.Label(lf, text="", font=(SF,9), fg=RED, bg="white")
+        self._err.pack(side="left", padx=(8,0))
+        ent = tk.Entry(self, textvariable=var, show=show, relief="flat",
+                       font=FMO if mono else FN,
+                       bg=GRAY50, fg=GRAY800,
+                       insertbackground=BRAND,
+                       highlightthickness=1, highlightbackground=GRAY200,
+                       highlightcolor=BRAND)
+        ent.pack(fill="x", ipady=6, ipadx=8)
+
+    def err(self, msg=""): self._err.configure(text=msg)
+    def ok(self): self._err.configure(text="")
+
+
+class PrimaryButton(tk.Frame):
+    def __init__(self, parent, text, command, bg=BRAND, fg="white", **kw):
+        super().__init__(parent, bg=bg, cursor="hand2", **kw)
+        self._bg, self._hbg = bg, BRAND_HOVER if bg==BRAND else "#374151"
+        self._lbl = tk.Label(self, text=text, font=(SF,10,"bold"),
+                              fg=fg, bg=bg, padx=20, pady=8, cursor="hand2")
+        self._lbl.pack()
+        self._lbl.bind("<Button-1>", lambda e: command())
+        self.bind("<Button-1>",      lambda e: command())
+        self._lbl.bind("<Enter>", lambda e: (self.config(bg=self._hbg),
+                                              self._lbl.config(bg=self._hbg)))
+        self._lbl.bind("<Leave>", lambda e: (self.config(bg=self._bg),
+                                              self._lbl.config(bg=self._bg)))
+
+    def configure_text(self, t): self._lbl.configure(text=t)
+    def set_state(self, enabled):
+        st = "hand2" if enabled else "arrow"
+        col_bg = self._bg if enabled else GRAY200
+        col_fg = "white" if enabled else GRAY400
+        self._lbl.configure(bg=col_bg, fg=col_fg, cursor=st)
+        self.configure(bg=col_bg, cursor=st)
+
+
+class SecondaryButton(tk.Frame):
+    def __init__(self, parent, text, command, **kw):
+        super().__init__(parent, bg=GRAY100, cursor="hand2", **kw)
+        self._lbl = tk.Label(self, text=text, font=FN,
+                              fg=GRAY700, bg=GRAY100, padx=16, pady=8, cursor="hand2")
+        self._lbl.pack()
+        for w in (self, self._lbl):
+            w.bind("<Button-1>", lambda e: command())
+            w.bind("<Enter>", lambda e: (self.config(bg=GRAY200),
+                                          self._lbl.config(bg=GRAY200)))
+            w.bind("<Leave>", lambda e: (self.config(bg=GRAY100),
+                                          self._lbl.config(bg=GRAY100)))
+
+
+# ─────────────────────────────────────────────────────────────
+# SIDEBAR
+# ─────────────────────────────────────────────────────────────
+
+class Sidebar(tk.Frame):
+    def __init__(self, parent, steps=None, subtitle="Setup Wizard"):
+        super().__init__(parent, bg=SIDEBAR_BG, width=SIDEBAR_W)
+        self.pack_propagate(False)
+        self._current = 0
+        self._steps = steps if steps is not None else STEPS
+
+        # Logo
+        hdr = frame(self, bg=SIDEBAR_BG)
+        hdr.pack(fill="x", padx=22, pady=(28, 0))
+        tk.Label(hdr, text="⚙", font=(SF,26), bg=SIDEBAR_BG, fg="white").pack(anchor="w")
+        tk.Label(hdr, text="Portale\nNovicrom", font=(SF,14,"bold"),
+                 bg=SIDEBAR_BG, fg="white", justify="left").pack(anchor="w", pady=(4,2))
+        tk.Label(hdr, text=subtitle, font=(SF,9),
+                 bg=SIDEBAR_BG, fg="#60a5fa").pack(anchor="w")
+
+        frame(self, bg="#1e40af", height=1).pack(fill="x", padx=20, pady=18)
+
+        self._steps_frame = frame(self, bg=SIDEBAR_BG)
+        self._steps_frame.pack(fill="x")
+        self._render()
+
+    def _render(self):
+        for w in self._steps_frame.winfo_children(): w.destroy()
+        for i, name in enumerate(self._steps):
+            done    = i < self._current
+            active  = i == self._current
+            row = frame(self._steps_frame, bg=SIDEBAR_BG)
+            row.pack(fill="x", padx=14, pady=1)
+
+            if done:
+                dot_bg, dot_fg, name_fg = "#166534", "#86efac", "#93c5fd"
+                sym = "✓"
+            elif active:
+                dot_bg, dot_fg, name_fg = BRAND, "white", "white"
+                sym = str(i+1)
+            else:
+                dot_bg, dot_fg, name_fg = SIDEBAR_BG, "#334155", "#475569"
+                sym = "·"
+
+            # Highlight riga attiva
+            row_bg = "#1e3a8a" if active else SIDEBAR_BG
+            row.configure(bg=row_bg)
+
+            dot = tk.Label(row, text=sym, font=(SF,8,"bold"),
+                           bg=dot_bg if done or active else row_bg,
+                           fg=dot_fg, width=2, height=1,
+                           relief="flat", padx=2)
+            dot.pack(side="left", padx=(2,8), pady=3)
+            tk.Label(row, text=name, font=(SF, 9, "bold" if active else "normal"),
+                     bg=row_bg, fg=name_fg, anchor="w").pack(side="left")
+
+        # Footer
+        frame(self._steps_frame, bg=SIDEBAR_BG, height=24).pack()
+        tk.Label(self._steps_frame, text="v0.8.2", font=(SF,8),
+                 bg=SIDEBAR_BG, fg="#334155").pack(side="bottom", pady=10)
+
+    def set(self, idx):
+        self._current = idx
+        self._render()
+
+
+# ─────────────────────────────────────────────────────────────
+# BASE PAGE
+# ─────────────────────────────────────────────────────────────
+
+class Page(tk.Frame):
+    def __init__(self, parent, title, subtitle=""):
+        super().__init__(parent, bg="white")
+        # Header
+        hdr = frame(self)
+        hdr.pack(fill="x", padx=32, pady=(26,0))
+        tk.Label(hdr, text=title, font=(SF,18,"bold"), fg=GRAY900, bg="white").pack(anchor="w")
+        if subtitle:
+            tk.Label(hdr, text=subtitle, font=(SF,10), fg=GRAY500, bg="white").pack(anchor="w", pady=(2,0))
+        frame(self, bg=GRAY100, height=1).pack(fill="x", pady=(16,0))
+        # Body scrollabile
+        self.sf = ScrollableFrame(self)
+        self.sf.pack(fill="both", expand=True)
+        self.sf.show_scrollbar(False)
+        self.body = self.sf.inner
+
+    def pad(self): return frame(self.body, pady=4)
+    def on_enter(self): pass
+    def validate(self): return True
+    def on_leave(self): pass
+
+
+# ─────────────────────────────────────────────────────────────
+# CARD SELECTOR (senza radio button nativo)
+# ─────────────────────────────────────────────────────────────
+
+class CardSelector(tk.Frame):
+    """Gruppo di card selezionabili — nessun radio button nativo."""
+    def __init__(self, parent, options, initial=None, on_change=None, **kw):
+        super().__init__(parent, bg="white", **kw)
+        self._selected = initial or options[0][0]
+        self._on_change = on_change
+        self._cards = {}
+        for value, title, desc, colors in options:
+            bg, border, title_color = colors
+            c = self._make_card(value, title, desc, bg, border, title_color)
+            self._cards[value] = (c, bg, border)
+        self._refresh()
+
+    def _make_card(self, value, title, desc, bg, border, title_color):
+        outer = frame(self, bg="white")
+        outer.pack(fill="x", pady=4)
+        card = tk.Frame(outer, bg=bg, cursor="hand2",
+                        highlightthickness=2, highlightbackground=border)
+        card.pack(fill="x")
+
+        inner = frame(card, bg=bg)
+        inner.pack(fill="x", padx=16, pady=12)
+
+        top = frame(inner, bg=bg)
+        top.pack(fill="x")
+
+        # Check indicator
+        chk = tk.Label(top, text="", font=(SF,11,"bold"),
+                        bg=bg, fg="white", width=2)
+        chk.pack(side="right")
+
+        tk.Label(top, text=title, font=(SF,11,"bold"),
+                 bg=bg, fg=title_color).pack(side="left")
+        tk.Label(inner, text=desc, font=(SF,9),
+                 bg=bg, fg=GRAY500).pack(anchor="w", pady=(3,0))
+
+        # Bind click su tutto
+        for w in (card, inner, top, chk):
+            w.bind("<Button-1>", lambda e, v=value: self.select(v))
+        card._chk = chk
+        card._bg  = bg
+        card._value = value
+        return card
+
+    def _refresh(self):
+        for value, (card, bg, border) in self._cards.items():
+            if value == self._selected:
+                card.configure(highlightthickness=3, highlightbackground=border)
+                card._chk.configure(
+                    text="✓",
+                    bg=border,
+                    fg="white" if border not in (YELLOW_BD,) else GRAY800
+                )
+            else:
+                card.configure(highlightthickness=1, highlightbackground=GRAY200)
+                card._chk.configure(text="", bg=card._bg)
+
+    def select(self, value):
+        self._selected = value
+        self._refresh()
+        if self._on_change: self._on_change(value)
+
+    @property
+    def value(self): return self._selected
+
+
+# ─────────────────────────────────────────────────────────────
+# PAGINE
+# ─────────────────────────────────────────────────────────────
+
+class WelcomePage(Page):
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Benvenuto nel Setup Wizard",
+                         "Installazione guidata di Portale Novicrom su Windows Server + IIS")
+        self.cfg = cfg
+        b = self.body
+
+        frame(b, height=4).pack()
+
+        cards = [
+            ("📋 Cosa verrà fatto",
+             "Struttura directory · virtualenv Python · dipendenze pip\n"
+             "Django migrate · collectstatic · configurazione IIS"),
+            ("⏱  Tempo stimato",
+             "10–20 minuti in base alla velocità di rete"),
+            ("🔐 Prerequisiti",
+             "Eseguire come Amministratore · Python 3.11+\n"
+             "IIS + HttpPlatformHandler · ODBC Driver 17 for SQL Server"),
+        ]
+        for title, desc in cards:
+            c = frame(b, bg=GRAY50,
+                      highlightthickness=1, highlightbackground=GRAY200)
+            c.pack(fill="x", padx=32, pady=4)
+            tk.Label(c, text=title, font=(SF,10,"bold"),
+                     bg=GRAY50, fg=GRAY800).pack(anchor="w", padx=14, pady=(10,2))
+            tk.Label(c, text=desc, font=(SF,9),
+                     bg=GRAY50, fg=GRAY500, justify="left").pack(anchor="w", padx=14, pady=(0,10))
+
+        if not is_admin():
+            warn = frame(b, bg=YELLOW_BG,
+                         highlightthickness=1, highlightbackground=YELLOW_BD)
+            warn.pack(fill="x", padx=32, pady=(10,0))
+            tk.Label(warn, text="⚠   Stai eseguendo senza privilegi di Amministratore",
+                     font=(SF,9,"bold"), bg=YELLOW_BG, fg=YELLOW_TX).pack(anchor="w", padx=14, pady=(10,2))
+            tk.Label(warn, text="La configurazione IIS richiede diritti di Admin. "
+                                 "Usa i .bat nel menu per avviare come Admin.",
+                     font=FSM, bg=YELLOW_BG, fg=YELLOW_TX).pack(anchor="w", padx=14, pady=(0,10))
+
+
+class PackagePage(Page):
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Pacchetto Release",
+                         "File .zip creato da package-release.ps1 sul PC di sviluppo")
+        self.cfg = cfg
+        self._var = tk.StringVar()
+        b = self.body
+
+        frame(b, height=8).pack()
+        sec = frame(b)
+        sec.pack(fill="x", padx=32)
+
+        tk.Label(sec, text="File pacchetto (.zip)", font=(SF,9,"bold"),
+                 fg=GRAY600, bg="white").pack(anchor="w", pady=(0,4))
+
+        row = frame(sec)
+        row.pack(fill="x")
+        ent = tk.Entry(row, textvariable=self._var, font=FMO,
+                        relief="flat", bg=GRAY50, fg=GRAY800,
+                        highlightthickness=1, highlightbackground=GRAY200,
+                        highlightcolor=BRAND)
+        ent.pack(side="left", fill="x", expand=True, ipady=7, ipadx=8)
+        SecondaryButton(row, "  Sfoglia…  ", self._browse).pack(side="left", padx=(8,0))
+
+        self._err = tk.Label(sec, text="", font=FSM, fg=RED, bg="white")
+        self._err.pack(anchor="w", pady=(3,0))
+
+        self._info = frame(sec, bg=GREEN_BG,
+                            highlightthickness=1, highlightbackground=GREEN_BD)
+
+        self._info_lbl = tk.Label(self._info, text="", font=FSM,
+                                   bg=GREEN_BG, fg=GREEN)
+        self._info_lbl.pack(anchor="w", padx=12, pady=8)
+        self._var.trace_add("write", self._on_change)
+
+        frame(sec, height=12).pack()
+        tk.Label(sec, text="Lascia vuoto se il release è già estratto in releases\\",
+                 font=FSM, fg=GRAY400, bg="white").pack(anchor="w")
+
+    def on_enter(self):
+        if not self._var.get():
+            p = find_latest_zip(self.cfg.base_dir)
+            if p: self._var.set(p)
+
+    def _browse(self):
+        p = filedialog.askopenfilename(
+            title="Seleziona pacchetto release",
+            filetypes=[("Zip files","*.zip"),("All","*.*")])
+        if p: self._var.set(p)
+
+    def _on_change(self, *_):
+        val = self._var.get().strip()
+        self._err.configure(text="")
+        if val and Path(val).exists():
+            n = Path(val).name
+            m = re.search(r"v(\d+\.\d+[\.\d]*)", n)
+            ver = m.group(1) if m else "?"
+            sz  = round(Path(val).stat().st_size/1024/1024, 1)
+            self._info_lbl.configure(text=f"  ✓  {n}   ·   versione {ver}   ·   {sz} MB")
+            self._info.pack(fill="x", pady=(8,0))
+        else:
+            self._info.pack_forget()
+
+    def validate(self):
+        val = self._var.get().strip()
+        if val and not Path(val).exists():
+            self._err.configure(text="File non trovato")
+            return False
+        self.cfg.package_path = val
+        return True
+
+
+class EnvironmentPage(Page):
+    def __init__(self, parent, cfg, preselect=None):
+        super().__init__(parent, "Seleziona Ambiente",
+                         "In quale ambiente vuoi installare il portale?")
+        self.cfg = cfg
+        b = self.body
+        frame(b, height=6).pack()
+
+        options = [
+            ("dev",
+             "DEV — Sviluppo locale",
+             "PC sviluppatore · SQLite · Django dev server (porta 8000) · senza IIS",
+             (BLUE_BG, BLUE_BD, "#1d4ed8")),
+            ("test",
+             "TEST — Validazione interna",
+             "Windows Server · SQL Server TEST · IIS porta 8080",
+             (YELLOW_BG, YELLOW_BD, YELLOW_TX)),
+            ("prod",
+             "PROD — Produzione",
+             "Windows Server · SQL Server PROD · IIS porta 80 · utenti reali",
+             (GREEN_BG, GREEN_BD, "#166534")),
+        ]
+        self._sel = CardSelector(b, options, initial=preselect or "test",
+                                  on_change=self._on_env)
+        self._sel.pack(fill="x", padx=32)
+
+        frame(b, bg=GRAY100, height=1).pack(fill="x", padx=32, pady=14)
+
+        dirl = frame(b)
+        dirl.pack(fill="x", padx=32)
+        tk.Label(dirl, text="Directory base di installazione",
+                 font=(SF,9,"bold"), fg=GRAY600, bg="white").pack(anchor="w", pady=(0,4))
+        row = frame(dirl)
+        row.pack(fill="x")
+        self._base = tk.StringVar(value=r"C:\PortaleNovicrom")
+        ent = tk.Entry(row, textvariable=self._base, font=FMO,
+                        relief="flat", bg=GRAY50, fg=GRAY800,
+                        highlightthickness=1, highlightbackground=GRAY200,
+                        highlightcolor=BRAND)
+        ent.pack(side="left", fill="x", expand=True, ipady=7, ipadx=8)
+        SecondaryButton(row, "  Sfoglia  ",
+                         lambda: self._base.set(
+                             filedialog.askdirectory() or self._base.get())
+                         ).pack(side="left", padx=(8,0))
+
+        self._dev_note = frame(b, bg=BLUE_BG,
+                                highlightthickness=1, highlightbackground=BLUE_BD)
+        tk.Label(self._dev_note,
+                 text="ℹ   Ambiente DEV: configura solo .env + venv. IIS non viene toccato.\n"
+                       "    Usa:  python manage.py runserver --settings=config.settings.dev",
+                 font=FSM, bg=BLUE_BG, fg="#1d4ed8", justify="left"
+                 ).pack(anchor="w", padx=14, pady=10)
+        self._on_env(self._sel.value)
+
+    def _on_env(self, val):
+        if val == "dev":
+            self._dev_note.pack(fill="x", padx=32, pady=(8,0))
+        else:
+            self._dev_note.pack_forget()
+
+    def validate(self):
+        self.cfg.environment = self._sel.value
+        self.cfg.base_dir    = self._base.get().strip()
+        return bool(self.cfg.base_dir)
+
+
+class PythonPage(Page):
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Percorso Python",
+                         "Eseguibile Python 3.11+ per il virtualenv dell'applicazione")
+        self.cfg = cfg
+        self._var    = tk.StringVar()
+        self._status = tk.StringVar()
+        b = self.body
+        frame(b, height=8).pack()
+
+        sec = frame(b)
+        sec.pack(fill="x", padx=32)
+        tk.Label(sec, text="Percorso python.exe", font=(SF,9,"bold"),
+                 fg=GRAY600, bg="white").pack(anchor="w", pady=(0,4))
+
+        row = frame(sec)
+        row.pack(fill="x")
+        ent = tk.Entry(row, textvariable=self._var, font=FMO,
+                        relief="flat", bg=GRAY50, fg=GRAY800,
+                        highlightthickness=1, highlightbackground=GRAY200,
+                        highlightcolor=BRAND)
+        ent.pack(side="left", fill="x", expand=True, ipady=7, ipadx=8)
+        SecondaryButton(row, "  Sfoglia  ", self._browse).pack(side="left", padx=(4,0))
+        SecondaryButton(row, "  Verifica  ", self._check).pack(side="left", padx=(4,0))
+
+        self._res = tk.Label(sec, textvariable=self._status,
+                              font=FSM, fg=GRAY400, bg="white")
+        self._res.pack(anchor="w", pady=(5,0))
+
+        frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=14)
+        tk.Label(sec, text="Percorsi comuni:", font=(SF,9,"bold"),
+                 fg=GRAY600, bg="white").pack(anchor="w", pady=(0,6))
+
+        for p in [r"C:\Python311\python.exe", r"C:\Python312\python.exe",
+                   r"C:\Python313\python.exe"]:
+            exists = Path(p).exists()
+            row2 = frame(sec)
+            row2.pack(anchor="w", pady=1)
+            tk.Label(row2, text="●" if exists else "○",
+                     font=(SF,9), fg=GREEN if exists else GRAY400, bg="white").pack(side="left", padx=(0,8))
+            lbl = tk.Label(row2, text=p, font=FMO,
+                            fg=GRAY700 if exists else GRAY400, bg="white", cursor="hand2")
+            lbl.pack(side="left")
+            lbl.bind("<Button-1>", lambda e, v=p: self._var.set(v))
+
+    def on_enter(self):
+        if not self._var.get(): self._var.set(detect_python())
+
+    def _browse(self):
+        p = filedialog.askopenfilename(
+            title="Seleziona python.exe",
+            filetypes=[("Python","python.exe"),("All","*.*")])
+        if p: self._var.set(p)
+
+    def _check(self):
+        py = self._var.get().strip()
+        if not py or not Path(py).exists():
+            self._status.set("✗  File non trovato")
+            self._res.configure(fg=RED); return
+        try:
+            r = subprocess.run([py, "--version"], capture_output=True, text=True, timeout=5)
+            v = (r.stdout + r.stderr).strip()
+            self._status.set(f"✓  {v}")
+            self._res.configure(fg=GREEN)
+        except Exception as e:
+            self._status.set(f"✗  {e}"); self._res.configure(fg=RED)
+
+    def validate(self):
+        py = self._var.get().strip()
+        if not py: return False
+        self.cfg.python_path = py
+        return True
+
+
+class DatabasePage(Page):
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Database SQL Server",
+                         "Connessione al database SQL Server")
+        self.cfg = cfg
+        self._host    = tk.StringVar()
+        self._name    = tk.StringVar()
+        self._user    = tk.StringVar()
+        self._pwd     = tk.StringVar()
+        self._trusted = tk.BooleanVar(value=False)
+        b = self.body
+        frame(b, height=8).pack()
+        sec = frame(b)
+        sec.pack(fill="x", padx=32)
+
+        # 2 colonne
+        grid = frame(sec)
+        grid.pack(fill="x")
+        grid.columnconfigure(0, weight=1); grid.columnconfigure(1, weight=1)
+
+        def cell(row, col, lbl, var, show=""):
+            f = frame(grid)
+            f.grid(row=row, column=col, sticky="ew", padx=(0,12 if col==0 else 0), pady=4)
+            tk.Label(f, text=lbl, font=(SF,9,"bold"), fg=GRAY600, bg="white").pack(anchor="w", pady=(0,3))
+            e = tk.Entry(f, textvariable=var, show=show, font=FMO, relief="flat",
+                          bg=GRAY50, fg=GRAY800,
+                          highlightthickness=1, highlightbackground=GRAY200,
+                          highlightcolor=BRAND)
+            e.pack(fill="x", ipady=7, ipadx=8)
+
+        cell(0, 0, "Server\\Istanza (es: SQL01\\SQLEXPRESS)", self._host)
+        cell(0, 1, "Nome Database", self._name)
+        cell(1, 0, "Utente SQL", self._user)
+        cell(1, 1, "Password", self._pwd, show="*")
+
+        frame(sec, height=10).pack()
+        chk_row = frame(sec)
+        chk_row.pack(fill="x")
+        cb = tk.Checkbutton(chk_row, text="  Usa Windows Authentication (Trusted Connection)",
+                             variable=self._trusted, font=FN, bg="white", fg=GRAY700,
+                             activebackground="white", selectcolor="white",
+                             command=self._toggle)
+        cb.pack(side="left")
+        self._note = tk.Label(sec, text="", font=FSM, fg=GRAY500, bg="white")
+        self._note.pack(anchor="w", pady=(4,0))
+        self._err = tk.Label(sec, text="", font=FSM, fg=RED, bg="white")
+        self._err.pack(anchor="w")
+
+    def on_enter(self):
+        if not self._name.get():
+            self._name.set("PortaleNovicrom_TEST" if self.cfg.environment=="test" else "PortaleNovicrom")
+
+    def _toggle(self):
+        if self._trusted.get():
+            self._note.configure(
+                text="ℹ  L'account 'IIS AppPool\\PortaleNovicrom-ENV' deve avere accesso al DB SQL Server.")
+        else: self._note.configure(text="")
+
+    def validate(self):
+        self._err.configure(text="")
+        if not self._host.get().strip():
+            self._err.configure(text="Inserisci Server\\Istanza SQL Server"); return False
+        if not self._name.get().strip():
+            self._err.configure(text="Inserisci il nome del database"); return False
+        if not self._trusted.get() and not (self._user.get() and self._pwd.get()):
+            self._err.configure(text="Inserisci utente e password, oppure attiva Windows Auth"); return False
+        self.cfg.db_host = self._host.get().strip()
+        self.cfg.db_name = self._name.get().strip()
+        self.cfg.db_user = self._user.get().strip()
+        self.cfg.db_password = self._pwd.get().strip()
+        self.cfg.db_trusted  = self._trusted.get()
+        return True
+
+
+class LDAPPage(Page):
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Active Directory",
+                         "Autenticazione utenti tramite AD aziendale (opzionale)")
+        self.cfg = cfg
+        self._skip   = tk.BooleanVar(value=False)
+        self._uri    = tk.StringVar(value="ldap://DC01.cnovicrom.local")
+        self._dn     = tk.StringVar()
+        self._pwd    = tk.StringVar()
+        self._base   = tk.StringVar(value="OU=Users,DC=cnovicrom,DC=local")
+        self._domain = tk.StringVar(value="cnovicrom.local")
+        b = self.body
+        frame(b, height=8).pack()
+        sec = frame(b)
+        sec.pack(fill="x", padx=32)
+
+        # Skip toggle
+        skip_row = frame(sec, bg=YELLOW_BG,
+                          highlightthickness=1, highlightbackground=YELLOW_BD)
+        skip_row.pack(fill="x", pady=(0,14))
+        cb = tk.Checkbutton(skip_row, variable=self._skip, font=(SF,10,"bold"),
+                             text="  Salta — usa solo account Django locali (senza AD)",
+                             bg=YELLOW_BG, fg=YELLOW_TX, activebackground=YELLOW_BG,
+                             selectcolor=YELLOW_BG, command=self._toggle)
+        cb.pack(anchor="w", padx=12, pady=10)
+
+        self._form = frame(sec)
+        self._form.pack(fill="x")
+
+        def row(lbl, var, show=""):
+            f = frame(self._form)
+            f.pack(fill="x", pady=4)
+            tk.Label(f, text=lbl, font=(SF,9,"bold"), fg=GRAY600, bg="white").pack(anchor="w", pady=(0,3))
+            e = tk.Entry(f, textvariable=var, show=show, font=FMO, relief="flat",
+                          bg=GRAY50, fg=GRAY800,
+                          highlightthickness=1, highlightbackground=GRAY200,
+                          highlightcolor=BRAND)
+            e.pack(fill="x", ipady=7, ipadx=8)
+
+        row("URI LDAP", self._uri)
+        row("Bind DN (service account)", self._dn)
+        row("Bind Password", self._pwd, show="*")
+        row("User Search Base", self._base)
+        row("Dominio AD", self._domain)
+        self.sf.show_scrollbar(True)
+
+    def _toggle(self):
+        s = "disabled" if self._skip.get() else "normal"
+        for w in self._form.winfo_descendants():
+            try: w.configure(state=s)
+            except: pass
+
+    def validate(self):
+        self.cfg.ldap_skip = self._skip.get()
+        self.cfg.ldap_uri  = self._uri.get().strip()
+        self.cfg.ldap_bind_dn  = self._dn.get().strip()
+        self.cfg.ldap_bind_pwd = self._pwd.get().strip()
+        self.cfg.ldap_user_base= self._base.get().strip()
+        self.cfg.ldap_domain   = self._domain.get().strip()
+        return True
+
+
+class EmailPage(Page):
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Email / SMTP",
+                         "Configurazione server email per notifiche (opzionale)")
+        self.cfg = cfg
+        self._skip = tk.BooleanVar(value=False)
+        self._host = tk.StringVar()
+        self._port = tk.StringVar(value="25")
+        self._user = tk.StringVar()
+        self._pwd  = tk.StringVar()
+        self._tls  = tk.BooleanVar(value=False)
+        b = self.body
+        frame(b, height=8).pack()
+        sec = frame(b)
+        sec.pack(fill="x", padx=32)
+
+        cb = tk.Checkbutton(sec, variable=self._skip, font=FN,
+                             text="  Salta configurazione email per ora",
+                             bg="white", fg=GRAY600, activebackground="white",
+                             selectcolor="white", command=self._toggle)
+        cb.pack(anchor="w", pady=(0,12))
+
+        self._form = frame(sec)
+        self._form.pack(fill="x")
+        grid = self._form
+        grid.columnconfigure(0, weight=3); grid.columnconfigure(1, weight=1)
+
+        def gcell(row, col, lbl, var, show="", span=1):
+            f = frame(grid)
+            f.grid(row=row, column=col, columnspan=span, sticky="ew",
+                   padx=(0,8 if col==0 else 0), pady=4)
+            tk.Label(f, text=lbl, font=(SF,9,"bold"), fg=GRAY600, bg="white").pack(anchor="w", pady=(0,3))
+            e = tk.Entry(f, textvariable=var, show=show, font=FMO, relief="flat",
+                          bg=GRAY50, fg=GRAY800,
+                          highlightthickness=1, highlightbackground=GRAY200,
+                          highlightcolor=BRAND)
+            e.pack(fill="x", ipady=7, ipadx=8)
+
+        gcell(0, 0, "Server SMTP", self._host)
+        gcell(0, 1, "Porta", self._port)
+        gcell(1, 0, "Utente Email", self._user)
+        gcell(1, 1, "Password", self._pwd, show="*")
+        f2 = frame(grid)
+        f2.grid(row=2, column=0, columnspan=2, sticky="w", pady=(8,0))
+        tk.Checkbutton(f2, text="  Usa TLS", variable=self._tls,
+                        bg="white", fg=GRAY700, activebackground="white",
+                        selectcolor="white", font=FN).pack(anchor="w")
+
+    def _toggle(self):
+        s = "disabled" if self._skip.get() else "normal"
+        for w in self._form.winfo_descendants():
+            try: w.configure(state=s)
+            except: pass
+
+    def validate(self):
+        self.cfg.email_skip = self._skip.get()
+        self.cfg.email_host = self._host.get().strip()
+        self.cfg.email_port = self._port.get().strip() or "25"
+        self.cfg.email_user = self._user.get().strip()
+        self.cfg.email_pwd  = self._pwd.get().strip()
+        self.cfg.email_tls  = self._tls.get()
+        return True
+
+
+class IISPage(Page):
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Configurazione IIS",
+                         "Sito web e Application Pool per l'ambiente selezionato")
+        self.cfg = cfg
+        self._hostname = tk.StringVar()
+        self._port     = tk.StringVar(value="8080")
+        self._https    = tk.BooleanVar(value=False)
+        b = self.body
+        frame(b, height=8).pack()
+        sec = frame(b)
+        sec.pack(fill="x", padx=32)
+
+        tk.Label(sec, text="Hostname (DNS interno)", font=(SF,9,"bold"),
+                 fg=GRAY600, bg="white").pack(anchor="w", pady=(0,3))
+        tk.Label(sec, text="Lascia vuoto per rispondere su tutti gli IP del server",
+                 font=FSM, fg=GRAY400, bg="white").pack(anchor="w", pady=(0,4))
+        tk.Entry(sec, textvariable=self._hostname, font=FMO, relief="flat",
+                  bg=GRAY50, fg=GRAY800, highlightthickness=1,
+                  highlightbackground=GRAY200, highlightcolor=BRAND
+                  ).pack(fill="x", ipady=7, ipadx=8)
+
+        frame(sec, height=12).pack()
+        row = frame(sec)
+        row.pack(fill="x")
+
+        left = frame(row)
+        left.pack(side="left", fill="x", expand=True, padx=(0,16))
+        tk.Label(left, text="Porta HTTP", font=(SF,9,"bold"),
+                 fg=GRAY600, bg="white").pack(anchor="w", pady=(0,3))
+        tk.Entry(left, textvariable=self._port, font=FMO, width=8, relief="flat",
+                  bg=GRAY50, fg=GRAY800, highlightthickness=1,
+                  highlightbackground=GRAY200, highlightcolor=BRAND
+                  ).pack(fill="x", ipady=7, ipadx=8)
+
+        right = frame(row)
+        right.pack(side="left")
+        frame(right, height=26).pack()
+        tk.Checkbutton(right, text="  Abilita HTTPS / SSL", variable=self._https,
+                        font=FN, bg="white", fg=GRAY700, activebackground="white",
+                        selectcolor="white", command=self._on_https).pack(anchor="w")
+
+        self._https_note = tk.Label(sec, text="", font=FSM, fg=GRAY500, bg="white")
+        self._https_note.pack(anchor="w", pady=(4,0))
+
+        frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=14)
+
+        info = frame(sec, bg=BLUE_BG,
+                      highlightthickness=1, highlightbackground=BLUE_BD)
+        info.pack(fill="x")
+        tk.Label(info, text="Cosa viene creato in IIS:", font=(SF,9,"bold"),
+                 bg=BLUE_BG, fg="#1d4ed8").pack(anchor="w", padx=14, pady=(10,4))
+        for item in ["Application Pool (No Managed Code · Always Running)",
+                      "Sito IIS con physical path nella directory ambiente",
+                      "Virtual directory /static → ENV\\static\\",
+                      "Virtual directory /media  → ENV\\media\\",
+                      "web.config con HttpPlatformHandler + Waitress"]:
+            tk.Label(info, text=f"   ·  {item}", font=FSM,
+                     bg=BLUE_BG, fg="#1d4ed8").pack(anchor="w", padx=14)
+        frame(info, bg=BLUE_BG, height=10).pack()
+
+    def on_enter(self):
+        if self._port.get() in ("8080","80","443"):
+            self._port.set("8080" if self.cfg.environment=="test" else "80")
+        if not self._hostname.get():
+            self._hostname.set(
+                "portale-test.cnovicrom.local" if self.cfg.environment=="test"
+                else "portale.cnovicrom.local")
+
+    def _on_https(self):
+        if self._https.get():
+            self._port.set("443")
+            self._https_note.configure(
+                text="Importa il certificato SSL in IIS prima del primo accesso.")
+        else:
+            self._port.set("80" if self.cfg.environment=="prod" else "8080")
+            self._https_note.configure(text="")
+
+    def validate(self):
+        p = self._port.get().strip()
+        if not p.isdigit(): return False
+        self.cfg.iis_hostname = self._hostname.get().strip()
+        self.cfg.iis_port     = p
+        self.cfg.iis_https    = self._https.get()
+        return True
+
+
+class SummaryPage(Page):
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Riepilogo",
+                         "Verifica le impostazioni prima di avviare l'installazione")
+        self.cfg = cfg
+        self._txt = None
+        b = self.body
+        frame(b, height=6).pack()
+
+        wrap = frame(b, bg=CODE_BG)
+        wrap.pack(fill="both", expand=True, padx=32, pady=(0,0))
+        sb = tk.Scrollbar(wrap); sb.pack(side="right", fill="y")
+        self._txt = tk.Text(wrap, font=FMO, bg=CODE_BG, fg=CODE_FG,
+                             relief="flat", state="disabled",
+                             yscrollcommand=sb.set, padx=14, pady=10,
+                             spacing1=2, cursor="arrow")
+        self._txt.pack(fill="both", expand=True)
+        sb.config(command=self._txt.yview)
+        self._txt.tag_configure("h",  foreground="#58a6ff", font=("Consolas",9,"bold"))
+        self._txt.tag_configure("k",  foreground="#ffd700")
+        self._txt.tag_configure("v",  foreground="#7ee787")
+        self._txt.tag_configure("w",  foreground="#f85149")
+
+    def on_enter(self):
+        self.cfg.generate_secret_key()
+        t = self._txt
+        t.configure(state="normal"); t.delete("1.0","end")
+
+        def h(s): t.insert("end", f"\n  {s}\n", "h")
+        def kv(k, v, w=False):
+            t.insert("end", f"  {k:<24}", "k")
+            t.insert("end", f" {v}\n", "w" if w else "v")
+
+        h("── Ambiente ────────────────────────────────────")
+        kv("Ambiente",      self.cfg.environment.upper())
+        kv("Directory",     self.cfg.base_dir)
+        kv("App Pool",      self.cfg.app_pool_name)
+        url = ("https" if self.cfg.iis_https else "http") + \
+              f"://{self.cfg.iis_hostname or 'localhost'}:{self.cfg.iis_port}/"
+        kv("URL",           url)
+        h("── Python ──────────────────────────────────────")
+        kv("Eseguibile",    self.cfg.python_path)
+        kv("Virtualenv",    str(self.cfg.env_path / "venv"))
+        if self.cfg.package_path:
+            h("── Pacchetto ────────────────────────────────────")
+            kv("File",      Path(self.cfg.package_path).name)
+        h("── Database ────────────────────────────────────")
+        kv("Server",        self.cfg.db_host)
+        kv("Database",      self.cfg.db_name)
+        kv("Auth", "Windows (Trusted)" if self.cfg.db_trusted else self.cfg.db_user)
+        h("── Active Directory ────────────────────────────")
+        if self.cfg.ldap_skip: kv("LDAP", "Non configurato", True)
+        else: kv("URI", self.cfg.ldap_uri); kv("Bind DN", self.cfg.ldap_bind_dn)
+        h("── IIS ─────────────────────────────────────────")
+        kv("Hostname",      self.cfg.iis_hostname or "(tutti gli IP)")
+        kv("Porta",         self.cfg.iis_port)
+        kv("HTTPS",         "Sì" if self.cfg.iis_https else "No")
+        h("── Generato ────────────────────────────────────")
+        kv("SECRET_KEY",    self.cfg.secret_key[:24]+"…")
+        t.insert("end", "\n")
+        if not is_admin():
+            t.insert("end", "  ⚠  Non stai eseguendo come Amministratore!\n", "w")
+        t.configure(state="disabled")
+
+
+class InstallPage(Page):
+    def __init__(self, parent, cfg, on_done):
+        super().__init__(parent, "Installazione in corso",
+                         "Non chiudere la finestra durante il processo")
+        self.cfg = cfg; self._on_done = on_done; self._started = False
+        b = self.body
+        frame(b, height=8).pack()
+
+        # Step corrente
+        self._step_var = tk.StringVar(value="Inizializzazione…")
+        tk.Label(b, textvariable=self._step_var,
+                 font=(SF,10,"bold"), fg=BRAND, bg="white").pack(anchor="w", padx=32)
+
+        # Progress bar custom (canvas)
+        frame(b, height=6).pack()
+        self._pb_frame = frame(b, bg=GRAY100, height=8)
+        self._pb_frame.pack(fill="x", padx=32)
+        self._pb_fill = frame(self._pb_frame, bg=BRAND, height=8)
+        self._pb_fill.place(x=0, y=0, relheight=1, width=0)
+        self._pb_pct = tk.StringVar(value="0%")
+        tk.Label(b, textvariable=self._pb_pct, font=FSM,
+                 fg=GRAY400, bg="white").pack(anchor="e", padx=32, pady=(3,8))
+
+        # Log
+        wrap = frame(b, bg=CODE_BG)
+        wrap.pack(fill="both", expand=True, padx=32, pady=(0,4))
+        sb = tk.Scrollbar(wrap); sb.pack(side="right", fill="y")
+        self._log = tk.Text(wrap, font=FMO, bg=CODE_BG, fg=CODE_FG,
+                             relief="flat", state="disabled",
+                             yscrollcommand=sb.set, padx=12, pady=8, spacing1=1)
+        self._log.pack(fill="both", expand=True)
+        sb.config(command=self._log.yview)
+        self._log.tag_configure("ok",   foreground="#7ee787")
+        self._log.tag_configure("err",  foreground="#f85149")
+        self._log.tag_configure("warn", foreground="#fbbf24")
+        self._log.tag_configure("step", foreground="#58a6ff",
+                                 font=("Consolas",9,"bold"))
+        self._log.tag_configure("dim",  foreground="#484f58")
+
+    def on_enter(self):
+        if not self._started:
+            self._started = True
+            threading.Thread(target=self._run, daemon=True).start()
+
+    def _log_line(self, text, tag=""):
+        def _do():
+            self._log.configure(state="normal")
+            self._log.insert("end", text+"\n", tag)
+            self._log.see("end")
+            self._log.configure(state="disabled")
+        self._log.after(0, _do)
+
+    def _set_progress(self, pct, label=""):
+        def _do():
+            self._step_var.set(label or self._step_var.get())
+            self._pb_pct.set(f"{pct}%")
+            # Aggiorna larghezza barra proporzionalmente
+            self._pb_frame.update_idletasks()
+            w = self._pb_frame.winfo_width()
+            self._pb_fill.place(width=int(w * pct / 100))
+        self._log.after(0, _do)
+
+    def _cmd(self, cmd, cwd=None, env=None):
+        self._log_line(f"  $ {' '.join(str(c) for c in cmd)}", "dim")
+        try:
+            proc = subprocess.Popen(
+                cmd, cwd=str(cwd) if cwd else None,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, encoding="utf-8", errors="replace", env=env)
+            for line in proc.stdout:
+                line = line.rstrip()
+                if line:
+                    tag = "err" if any(x in line.lower()
+                                       for x in ("error","fatal","traceback")) else ""
+                    self._log_line(f"    {line}", tag)
+            proc.wait()
+            return proc.returncode == 0
+        except Exception as e:
+            self._log_line(f"  ERRORE: {e}", "err"); return False
+
+    def _run(self):
+        cfg = self.cfg
+        ep  = cfg.env_path
+        venv_py = ep / "venv" / "Scripts" / "python.exe"
+        tag = datetime.now().strftime("%Y%m%d_%H%M%S")
+        cfg.release_tag = tag
+        rel_dir   = ep / "releases" / tag
+        django_app = rel_dir / "django_app"
+        settings  = f"config.settings.{cfg.environment}"
+        N = 10; errors = []
+
+        def step(n, title, pct):
+            self._set_progress(pct, f"[{n}/{N}] {title}")
+            self._log_line(f"\n── {title} {'─'*(44-len(title))}", "step")
+
+        # 1. Directory
+        step(1, "Creazione struttura directory", 5)
+        for d in [ep/"releases", ep/"logs", ep/"config", ep/"static",
+                   ep/"media", ep/"run",
+                   Path(cfg.base_dir)/"shared"/"packages",
+                   Path(cfg.base_dir)/"shared"/"backups",
+                   Path(cfg.base_dir)/"shared"/"scripts"]:
+            try:
+                d.mkdir(parents=True, exist_ok=True)
+                self._log_line(f"  ✓ {d}", "ok")
+            except Exception as e:
+                self._log_line(f"  ✗ {d}: {e}", "err"); errors.append(str(e))
+
+        # 2. Copia script PS
+        step(2, "Copia script deployment", 12)
+        src = Path(__file__).parent / "scripts"
+        dst = Path(cfg.base_dir) / "shared" / "scripts"
+        if src.exists():
+            for f in src.glob("*.ps1"):
+                try: shutil.copy2(f, dst/f.name); self._log_line(f"  ✓ {f.name}", "ok")
+                except Exception as e: self._log_line(f"  Avviso: {e}", "warn")
+        else: self._log_line("  Scripts non trovati — skip", "warn")
+
+        # 3. Virtualenv
+        step(3, "Creazione virtualenv", 20)
+        if not venv_py.exists():
+            ok = self._cmd([cfg.python_path, "-m", "venv", str(ep/"venv")])
+            if ok: self._log_line("  ✓ Virtualenv creato", "ok")
+            else: errors.append("venv")
+        else: self._log_line("  ✓ Virtualenv esistente", "ok")
+        self._cmd([str(venv_py), "-m", "pip", "install", "--upgrade",
+                   "pip", "setuptools", "wheel"])
+        self._log_line("  ✓ pip aggiornato", "ok")
+
+        # 4. Estrazione
+        step(4, "Estrazione pacchetto release", 30)
+        if cfg.package_path and Path(cfg.package_path).exists():
+            try:
+                rel_dir.mkdir(parents=True, exist_ok=True)
+                with zipfile.ZipFile(cfg.package_path, "r") as zf:
+                    zf.extractall(rel_dir)
+                self._log_line(f"  ✓ Estratto in {rel_dir}", "ok")
+            except Exception as e:
+                self._log_line(f"  ✗ {e}", "err"); errors.append(str(e))
+        else:
+            existing = sorted((ep/"releases").iterdir(), reverse=True) \
+                       if (ep/"releases").exists() else []
+            candidates = [x for x in existing if x != rel_dir]
+            if candidates:
+                rel_dir = candidates[0]; django_app = rel_dir/"django_app"
+                self._log_line(f"  ✓ Release esistente: {rel_dir.name}", "ok")
+            else:
+                self._log_line("  ✗ Nessun pacchetto disponibile", "err")
+                errors.append("Nessun pacchetto")
+
+        # 5. .env
+        step(5, "Scrittura configurazione .env", 40)
+        env_content = cfg.to_env() if cfg.environment != "dev" else (
+            f"SECRET_KEY={cfg.secret_key}\nDEBUG=True\n"
+            f"ALLOWED_HOSTS=*\nAPP_VERSION=0.8.2\nENVIRONMENT=dev\n")
+        try:
+            (ep/"config"/".env").write_text(env_content, encoding="utf-8")
+            self._log_line(f"  ✓ .env → {ep/'config'/'.env'}", "ok")
+        except Exception as e:
+            errors.append(str(e)); self._log_line(f"  ✗ {e}", "err")
+        if django_app.exists():
+            try:
+                (django_app/".env").write_text(env_content, encoding="utf-8")
+                self._log_line(f"  ✓ .env copiato nel release", "ok")
+            except: pass
+
+        # 6. pip install
+        step(6, "Installazione dipendenze pip", 52)
+        req = django_app/"requirements.txt"
+        if req.exists():
+            ok = self._cmd([str(venv_py), "-m", "pip", "install", "-r", str(req)])
+            if ok: self._log_line("  ✓ Dipendenze installate", "ok")
+            else: errors.append("pip install"); self._log_line("  ✗ pip fallito", "err")
+        else: self._log_line("  requirements.txt non trovato — skip", "warn")
+
+        # 7. collectstatic
+        step(7, "collectstatic", 65)
+        env_vars = {**os.environ, "DJANGO_SETTINGS_MODULE": settings,
+                    "PYTHONPATH": str(django_app)}
+        if (django_app/"manage.py").exists() and cfg.environment != "dev":
+            ok = self._cmd([str(venv_py),"manage.py","collectstatic",
+                             "--noinput",f"--settings={settings}"],
+                            cwd=django_app, env=env_vars)
+            if ok: self._log_line("  ✓ collectstatic completato", "ok")
+            else:  self._log_line("  ✗ collectstatic fallito", "err")
+        else: self._log_line("  Skip (DEV o manage.py non trovato)", "warn")
+
+        # 8. migrate
+        step(8, "Django migrate", 75)
+        if (django_app/"manage.py").exists():
+            ok = self._cmd([str(venv_py),"manage.py","migrate",
+                             f"--settings={settings}","--noinput"],
+                            cwd=django_app, env=env_vars)
+            if ok: self._log_line("  ✓ migrate completato", "ok")
+            else:  self._log_line("  ✗ migrate fallito (verifica DB)", "err")
+            if cfg.environment != "dev":
+                self._cmd([str(venv_py),"manage.py","createcachetable",
+                            f"--settings={settings}"], cwd=django_app, env=env_vars)
+                self._log_line("  ✓ createcachetable completato", "ok")
+
+        # 9. Junction current
+        step(9, "Attivazione release", 85)
+        cur = ep/"current"
+        try:
+            if cur.exists() or cur.is_symlink():
+                subprocess.run(["cmd","/c",f"rmdir \"{cur}\""], capture_output=True)
+            subprocess.run(["cmd","/c",f"mklink /J \"{cur}\" \"{rel_dir}\""],
+                            capture_output=True, check=True)
+            self._log_line(f"  ✓ current → {rel_dir.name}", "ok")
+        except Exception as e:
+            self._log_line(f"  ✗ Junction: {e}", "err"); errors.append(str(e))
+
+        # 10. IIS
+        step(10, "Configurazione IIS", 93)
+        if cfg.environment == "dev":
+            self._log_line("  DEV — IIS non configurato.", "warn")
+            self._log_line(f"  Usa: python manage.py runserver --settings=config.settings.dev", "ok")
+        else:
+            self._write_webconfig(ep, cfg)
+            self._log_line("  ✓ web.config scritto", "ok")
+            self._configure_iis(cfg)
+
+        self._set_progress(100, "Installazione completata!")
+        self._log_line("\n" + "─"*50, "step")
+        if errors:
+            self._log_line(f"  Completato con {len(errors)} errori/avvisi:", "warn")
+            for e in errors: self._log_line(f"  · {e}", "warn")
+        else:
+            self._log_line("  Tutto completato senza errori!", "ok")
+        self._log_line("─"*50, "step")
+        self._log.after(800, self._on_done)
+
+    def _write_webconfig(self, ep, cfg):
+        venv = ep/"venv"; logs = ep/"logs"
+        app  = ep/"current"/"django_app"
+        settings = f"config.settings.{cfg.environment}"
+        xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <system.webServer>
+    <handlers>
+      <add name="httpPlatformHandler" path="*" verb="*"
+           modules="httpPlatformHandler" resourceType="Unspecified" requireAccess="Script" />
+    </handlers>
+    <httpPlatform processPath="{venv}\\Scripts\\python.exe"
+        arguments="-m waitress --port=%HTTP_PLATFORM_PORT% --threads=8 config.wsgi:application"
+        stdoutLogEnabled="true" stdoutLogFile="{logs}\\waitress_stdout.log"
+        startupTimeLimit="120" startupRetryCount="3" requestTimeout="00:04:00">
+      <environmentVariables>
+        <environmentVariable name="DJANGO_SETTINGS_MODULE" value="{settings}" />
+        <environmentVariable name="PYTHONPATH" value="{app}" />
+        <environmentVariable name="PYTHONUNBUFFERED" value="1" />
+      </environmentVariables>
+    </httpPlatform>
+  </system.webServer>
+  <location path="static">
+    <system.webServer>
+      <handlers><clear /><add name="SF" path="*" verb="GET,HEAD"
+          modules="StaticFileModule,DefaultDocumentModule" resourceType="Either" /></handlers>
+      <staticContent><clientCache cacheControlMode="UseMaxAge" cacheControlMaxAge="7.00:00:00"/></staticContent>
+    </system.webServer>
+  </location>
+  <location path="media">
+    <system.webServer>
+      <handlers><clear /><add name="MF" path="*" verb="GET,HEAD"
+          modules="StaticFileModule" resourceType="File" /></handlers>
+    </system.webServer>
+  </location>
+</configuration>"""
+        (ep/"web.config").write_text(xml, encoding="utf-8")
+
+    def _configure_iis(self, cfg):
+        ep = cfg.env_path
+        ps = f"""
+Import-Module WebAdministration -ErrorAction SilentlyContinue
+$p = "{cfg.app_pool_name}"; $s = "{cfg.site_name}"
+$r = "{ep}"; $port = {cfg.iis_port}; $hh = "{cfg.iis_hostname}"
+if (-not (Test-Path "IIS:\\AppPools\\$p")) {{ New-WebAppPool -Name $p | Out-Null }}
+Set-ItemProperty "IIS:\\AppPools\\$p" managedRuntimeVersion ""
+Set-ItemProperty "IIS:\\AppPools\\$p" startMode "AlwaysRunning"
+Set-ItemProperty "IIS:\\AppPools\\$p" "processModel.idleTimeout" ([TimeSpan]::Zero)
+if (-not (Test-Path "IIS:\\Sites\\$s")) {{
+    New-Website -Name $s -PhysicalPath $r -ApplicationPool $p -Port $port -HostHeader $hh -Force | Out-Null
+}} else {{
+    Set-ItemProperty "IIS:\\Sites\\$s" physicalPath $r
+    Set-ItemProperty "IIS:\\Sites\\$s" applicationPool $p
+}}
+foreach ($vd in @("static","media")) {{
+    $vpath = "$r\\$vd"
+    if (-not (Test-Path "IIS:\\Sites\\$s\\$vd")) {{
+        New-WebVirtualDirectory -Site $s -Name $vd -PhysicalPath $vpath | Out-Null
+    }}
+}}
+Start-Website -Name $s -ErrorAction SilentlyContinue
+Start-WebAppPool -Name $p -ErrorAction SilentlyContinue
+"""
+        try:
+            r = subprocess.run(
+                ["powershell","-ExecutionPolicy","Bypass","-Command", ps],
+                capture_output=True, text=True, encoding="utf-8", errors="replace")
+            if r.returncode == 0:
+                self._log_line("  ✓ IIS configurato", "ok")
+            else:
+                self._log_line(f"  ✗ IIS: {(r.stderr or r.stdout)[:300]}", "err")
+        except Exception as e:
+            self._log_line(f"  ✗ IIS: {e}", "err")
+
+
+class FinishPage(Page):
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Installazione Completata!", "")
+        self.cfg = cfg
+        b = self.body
+        frame(b, height=10).pack()
+
+        self._url_lbl = tk.Label(b, text="", font=(SF,15,"bold"),
+                                  fg=BRAND, bg="white", cursor="hand2")
+        self._url_lbl.pack(padx=32, anchor="w")
+        self._url_lbl.bind("<Button-1>", self._open_url)
+
+        frame(b, bg=GRAY100, height=1).pack(fill="x", padx=32, pady=16)
+
+        steps = [
+            ("1", "Apri il browser all'URL sopra — verifica la pagina di login"),
+            ("2", "Controlla i log in  ENV\\logs\\  per eventuali avvisi"),
+            ("3", "Aggiungi credenziali Graph API nel .env se usi SharePoint"),
+            ("4", "Primo accesso con le credenziali AD o il superuser Django"),
+        ]
+        for num, desc in steps:
+            row = frame(b)
+            row.pack(fill="x", padx=32, pady=3)
+            tk.Label(row, text=num, font=(SF,9,"bold"), bg=BRAND, fg="white",
+                     width=2, pady=4).pack(side="left", padx=(0,12))
+            tk.Label(row, text=desc, font=FN, fg=GRAY600, bg="white").pack(side="left")
+
+        frame(b, height=16).pack()
+        tk.Label(b, text="Portale Novicrom · Setup Wizard · Costruzioni Novicrom SRL",
+                 font=FSM, fg=GRAY400, bg="white").pack(padx=32, anchor="w")
+
+    def on_enter(self):
+        p = "https" if self.cfg.iis_https else "http"
+        h = self.cfg.iis_hostname or "localhost"
+        pt = f":{self.cfg.iis_port}" if self.cfg.iis_port not in ("80","443") else ""
+        self._url = f"{p}://{h}{pt}/"
+        self._url_lbl.configure(text=f"→  {self._url}")
+
+    def _open_url(self, _=None):
+        try: os.startfile(self._url)
+        except: pass
+
+
+# ─────────────────────────────────────────────────────────────
+# APP PRINCIPALE
+# ─────────────────────────────────────────────────────────────
+
+class WizardApp:
+    def __init__(self, preselect_env=None):
+        self.cfg = Config()
+        if preselect_env: self.cfg.environment = preselect_env
+        self._env  = preselect_env
+        self._idx  = 0
+
+        self.root = tk.Tk()
+        self.root.title("Portale Novicrom — Setup Wizard")
+        self.root.geometry(f"{WIN_W}x{WIN_H}")
+        self.root.resizable(False, False)
+        self.root.configure(bg="white")
+        # Centra
+        self.root.update_idletasks()
+        x = (self.root.winfo_screenwidth()  - WIN_W) // 2
+        y = (self.root.winfo_screenheight() - WIN_H) // 2 - 20
+        self.root.geometry(f"{WIN_W}x{WIN_H}+{x}+{y}")
+
+        self._build()
+        self._show(0)
+        self.root.mainloop()
+
+    def _build(self):
+        main = frame(self.root)
+        main.pack(fill="both", expand=True)
+
+        self.sidebar = Sidebar(main)
+        self.sidebar.pack(side="left", fill="y")
+
+        right = frame(main)
+        right.pack(side="left", fill="both", expand=True)
+
+        self.container = frame(right)
+        self.container.pack(fill="both", expand=True)
+
+        # Bottom bar
+        bar = frame(right, bg=GRAY50)
+        bar.configure(highlightthickness=1, highlightbackground=GRAY200)
+        bar.pack(fill="x", side="bottom")
+
+        left_bar = frame(bar, bg=GRAY50)
+        left_bar.pack(side="left", padx=20, pady=12)
+        self.btn_back   = SecondaryButton(left_bar, "◀  Indietro", self._back)
+        self.btn_back.pack(side="left")
+        self.btn_cancel = SecondaryButton(left_bar, "Annulla",     self._cancel)
+        self.btn_cancel.pack(side="left", padx=(8,0))
+
+        right_bar = frame(bar, bg=GRAY50)
+        right_bar.pack(side="right", padx=20, pady=12)
+        self.btn_next   = PrimaryButton(right_bar, "Avanti  ▶",   self._next)
+        self.btn_next.pack(side="right")
+        self.btn_finish = PrimaryButton(right_bar, "✓  Chiudi",
+                                         self.root.destroy, bg="#166534")
+        self.btn_finish.pack(side="right")
+
+        # Pagine
+        self.pages = [
+            WelcomePage(    self.container, self.cfg),
+            PackagePage(    self.container, self.cfg),
+            EnvironmentPage(self.container, self.cfg, preselect=self._env),
+            PythonPage(     self.container, self.cfg),
+            DatabasePage(   self.container, self.cfg),
+            LDAPPage(       self.container, self.cfg),
+            EmailPage(      self.container, self.cfg),
+            IISPage(        self.container, self.cfg),
+            SummaryPage(    self.container, self.cfg),
+            InstallPage(    self.container, self.cfg, self._on_done),
+            FinishPage(     self.container, self.cfg),
+        ]
+
+    def _show(self, idx):
+        for p in self.pages: p.place_forget()
+        page = self.pages[idx]
+        page.place(x=0, y=0, relwidth=1, relheight=1)
+        page.on_enter()
+        self.sidebar.set(idx)
+        self._idx = idx
+
+        last   = len(self.pages) - 1
+        install = last - 1
+
+        # Avanti / Indietro
+        self.btn_back._lbl.configure(state="normal" if idx > 0 else "disabled")
+
+        if idx == last:      # Pagina finale
+            self.btn_next.pack_forget()
+            self.btn_finish.pack(side="right")
+            self.btn_back._lbl.configure(state="disabled")
+            self.btn_cancel._lbl.configure(state="disabled")
+        elif idx == install: # Installazione
+            self.btn_next.pack_forget()
+            self.btn_finish.pack_forget()
+            self.btn_back._lbl.configure(state="disabled")
+            self.btn_cancel._lbl.configure(state="disabled")
+        else:
+            self.btn_finish.pack_forget()
+            self.btn_next.pack(side="right")
+            lbl = "▶  Installa" if idx == install - 1 else "Avanti  ▶"
+            self.btn_next.configure_text(lbl)
+            self.btn_back._lbl.configure(state="normal" if idx > 0 else "disabled")
+            self.btn_cancel._lbl.configure(state="normal")
+
+    def _next(self):
+        p = self.pages[self._idx]
+        if p.validate():
+            p.on_leave()
+            self._show(self._idx + 1)
+
+    def _back(self):
+        if self._idx > 0: self._show(self._idx - 1)
+
+    def _cancel(self):
+        if messagebox.askyesno("Annulla", "Uscire dal wizard?"): self.root.destroy()
+
+    def _on_done(self):
+        self._show(len(self.pages) - 1)
+
+
+# ─────────────────────────────────────────────────────────────
+# RELEASE MANAGER
+# ─────────────────────────────────────────────────────────────
+
+class ReleaseConfig:
+    def __init__(self):
+        self.mode         = "promote"       # "create" | "promote"
+        # Crea release (DEV)
+        self.source_dir   = r"C:\Dev\Portale Novicrom"
+        self.output_dir   = ""
+        # Promuovi release
+        self.package_path = ""
+        self.environment  = "test"
+        self.base_dir     = r"C:\PortaleNovicrom"
+
+    @property
+    def env_path(self): return Path(self.base_dir) / self.environment
+
+    @property
+    def app_pool_name(self): return f"PortaleNovicrom-{self.environment.upper()}"
+
+
+class ReleaseModeSelector(Page):
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Gestione Release",
+                         "Scegli l'operazione da eseguire")
+        self.cfg = cfg
+        b = self.body
+        frame(b, height=10).pack()
+
+        opts = [
+            ("promote",
+             "Promuovi Release  →  TEST / PROD",
+             "Prendi un .zip già testato e deployalo su un ambiente server",
+             (BLUE_BG, BLUE_BD, "#1d4ed8")),
+            ("create",
+             "Crea Release  ←  DEV",
+             "Pacchettizza il codice sorgente dal PC di sviluppo in un file .zip",
+             (GREEN_BG, GREEN_BD, "#166534")),
+        ]
+        self._sel = CardSelector(b, opts, initial="promote",
+                                  on_change=lambda v: setattr(cfg, "mode", v))
+        self._sel.pack(fill="x", padx=32)
+
+        frame(b, bg=GRAY100, height=1).pack(fill="x", padx=32, pady=14)
+
+        info = frame(b, bg=GRAY50, highlightthickness=1, highlightbackground=GRAY200)
+        info.pack(fill="x", padx=32)
+        tk.Label(info,
+                 text="Flusso tipico: Crea Release sul PC di sviluppo  →  copia .zip sul server  →  Promuovi Release sul server",
+                 font=FSM, bg=GRAY50, fg=GRAY500, wraplength=560, justify="left"
+                 ).pack(anchor="w", padx=14, pady=10)
+
+    def validate(self):
+        self.cfg.mode = self._sel.value
+        return True
+
+
+class ReleaseConfigCreate(Page):
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Crea Release",
+                         "Pacchettizza il codice sorgente in un file .zip pronto per il deploy")
+        self.cfg = cfg
+        self._src = tk.StringVar(value=r"C:\Dev\Portale Novicrom")
+        self._out = tk.StringVar()
+        b = self.body
+
+        frame(b, height=8).pack()
+        sec = frame(b)
+        sec.pack(fill="x", padx=32)
+
+        tk.Label(sec, text="Cartella sorgente (repo git)", font=(SF,9,"bold"),
+                 fg=GRAY600, bg="white").pack(anchor="w", pady=(0,4))
+        row = frame(sec)
+        row.pack(fill="x")
+        tk.Entry(row, textvariable=self._src, font=FMO,
+                 relief="flat", bg=GRAY50, fg=GRAY800,
+                 highlightthickness=1, highlightbackground=GRAY200,
+                 highlightcolor=BRAND).pack(side="left", fill="x", expand=True, ipady=7, ipadx=8)
+        SecondaryButton(row, "  Sfoglia  ",
+                        lambda: self._src.set(filedialog.askdirectory() or self._src.get())
+                        ).pack(side="left", padx=(8,0))
+
+        frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=12)
+
+        tk.Label(sec, text="Cartella output (dove salvare il .zip)", font=(SF,9,"bold"),
+                 fg=GRAY600, bg="white").pack(anchor="w", pady=(0,4))
+        row2 = frame(sec)
+        row2.pack(fill="x")
+        tk.Entry(row2, textvariable=self._out, font=FMO,
+                 relief="flat", bg=GRAY50, fg=GRAY800,
+                 highlightthickness=1, highlightbackground=GRAY200,
+                 highlightcolor=BRAND).pack(side="left", fill="x", expand=True, ipady=7, ipadx=8)
+        SecondaryButton(row2, "  Sfoglia  ",
+                        lambda: self._out.set(filedialog.askdirectory() or self._out.get())
+                        ).pack(side="left", padx=(8,0))
+
+        frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=12)
+
+        info = frame(sec, bg=GRAY50, highlightthickness=1, highlightbackground=GRAY200)
+        info.pack(fill="x")
+        tk.Label(info, text="File esclusi automaticamente:", font=(SF,9,"bold"),
+                 bg=GRAY50, fg=GRAY700).pack(anchor="w", padx=14, pady=(10,4))
+        tk.Label(info,
+                 text=".git  ·  .venv / venv  ·  .env  ·  __pycache__  ·  *.pyc  ·  "
+                      "db.sqlite3  ·  media/  ·  logs/  ·  staticfiles/  ·  releases/",
+                 font=FMO, bg=GRAY50, fg=GRAY500,
+                 wraplength=520, justify="left").pack(anchor="w", padx=14, pady=(0,10))
+
+    def on_enter(self):
+        if not self._out.get():
+            self._out.set(str(Path(r"C:\PortaleNovicrom") / "shared" / "packages"))
+
+    def validate(self):
+        src = self._src.get().strip()
+        if not Path(src).exists():
+            messagebox.showerror("Errore", "Cartella sorgente non trovata.")
+            return False
+        self.cfg.source_dir = src
+        self.cfg.output_dir = self._out.get().strip() or str(Path(src).parent)
+        return True
+
+
+class ReleaseConfigPromote(Page):
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Promuovi Release",
+                         "Seleziona il pacchetto .zip e l'ambiente destinazione")
+        self.cfg = cfg
+        self._pkg  = tk.StringVar()
+        self._base = tk.StringVar(value=r"C:\PortaleNovicrom")
+        b = self.body
+
+        frame(b, height=8).pack()
+        sec = frame(b)
+        sec.pack(fill="x", padx=32)
+
+        tk.Label(sec, text="File pacchetto .zip", font=(SF,9,"bold"),
+                 fg=GRAY600, bg="white").pack(anchor="w", pady=(0,4))
+        row = frame(sec)
+        row.pack(fill="x")
+        tk.Entry(row, textvariable=self._pkg, font=FMO,
+                 relief="flat", bg=GRAY50, fg=GRAY800,
+                 highlightthickness=1, highlightbackground=GRAY200,
+                 highlightcolor=BRAND).pack(side="left", fill="x", expand=True, ipady=7, ipadx=8)
+        SecondaryButton(row, "  Sfoglia  ", self._browse).pack(side="left", padx=(8,0))
+
+        self._pkg_info = tk.Label(sec, text="", font=FSM, fg=GREEN, bg="white")
+        self._pkg_info.pack(anchor="w", pady=(3,8))
+        self._pkg.trace_add("write", self._on_pkg)
+
+        frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=(4,12))
+        tk.Label(sec, text="Ambiente destinazione", font=(SF,9,"bold"),
+                 fg=GRAY600, bg="white").pack(anchor="w", pady=(0,6))
+
+        env_opts = [
+            ("test", "TEST",
+             "Windows Server · SQL Server TEST · IIS porta 8080",
+             (YELLOW_BG, YELLOW_BD, YELLOW_TX)),
+            ("prod", "PROD",
+             "Windows Server · SQL Server PROD · IIS porta 80 · utenti reali",
+             (GREEN_BG, GREEN_BD, "#166534")),
+        ]
+        self._env_sel = CardSelector(sec, env_opts, initial="test")
+        self._env_sel.pack(fill="x")
+
+        frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=12)
+        tk.Label(sec, text="Directory base server", font=(SF,9,"bold"),
+                 fg=GRAY600, bg="white").pack(anchor="w", pady=(0,4))
+        row2 = frame(sec)
+        row2.pack(fill="x")
+        tk.Entry(row2, textvariable=self._base, font=FMO,
+                 relief="flat", bg=GRAY50, fg=GRAY800,
+                 highlightthickness=1, highlightbackground=GRAY200,
+                 highlightcolor=BRAND).pack(side="left", fill="x", expand=True, ipady=7, ipadx=8)
+        SecondaryButton(row2, "  Sfoglia  ",
+                        lambda: self._base.set(filedialog.askdirectory() or self._base.get())
+                        ).pack(side="left", padx=(8,0))
+
+        self.sf.show_scrollbar(True)
+
+    def on_enter(self):
+        if not self._pkg.get():
+            z = find_latest_zip(self._base.get())
+            if z: self._pkg.set(z)
+
+    def _browse(self):
+        p = filedialog.askopenfilename(
+            title="Seleziona pacchetto release",
+            filetypes=[("Zip files", "*.zip"), ("All", "*.*")])
+        if p: self._pkg.set(p)
+
+    def _on_pkg(self, *_):
+        val = self._pkg.get().strip()
+        if val and Path(val).exists():
+            n = Path(val).name
+            m = re.search(r"v(\d+\.\d+[\.\d]*)", n)
+            ver = m.group(1) if m else "?"
+            sz  = round(Path(val).stat().st_size / 1024 / 1024, 1)
+            self._pkg_info.configure(text=f"  ✓  {n}   ·   v{ver}   ·   {sz} MB", fg=GREEN)
+        else:
+            self._pkg_info.configure(text="")
+
+    def validate(self):
+        pkg = self._pkg.get().strip()
+        if pkg and not Path(pkg).exists():
+            messagebox.showerror("Errore", "File non trovato.")
+            return False
+        self.cfg.package_path = pkg
+        self.cfg.environment  = self._env_sel.value
+        self.cfg.base_dir     = self._base.get().strip()
+        return bool(self.cfg.base_dir)
+
+
+class ReleaseRunPage(Page):
+    """Pagina di esecuzione con log per Crea / Promuovi release."""
+
+    def __init__(self, parent, cfg, on_done):
+        super().__init__(parent, "Esecuzione in corso",
+                         "Non chiudere la finestra durante il processo")
+        self.cfg = cfg; self._on_done = on_done; self._started = False
+        b = self.body
+        frame(b, height=8).pack()
+
+        self._step_var = tk.StringVar(value="Inizializzazione…")
+        tk.Label(b, textvariable=self._step_var,
+                 font=(SF,10,"bold"), fg=BRAND, bg="white").pack(anchor="w", padx=32)
+
+        frame(b, height=6).pack()
+        self._pb_frame = frame(b, bg=GRAY100, height=8)
+        self._pb_frame.pack(fill="x", padx=32)
+        self._pb_fill = frame(self._pb_frame, bg=BRAND, height=8)
+        self._pb_fill.place(x=0, y=0, relheight=1, width=0)
+        self._pb_pct = tk.StringVar(value="0%")
+        tk.Label(b, textvariable=self._pb_pct, font=FSM,
+                 fg=GRAY400, bg="white").pack(anchor="e", padx=32, pady=(3,8))
+
+        wrap = frame(b, bg=CODE_BG)
+        wrap.pack(fill="both", expand=True, padx=32, pady=(0,4))
+        sb = tk.Scrollbar(wrap); sb.pack(side="right", fill="y")
+        self._log = tk.Text(wrap, font=FMO, bg=CODE_BG, fg=CODE_FG,
+                             relief="flat", state="disabled",
+                             yscrollcommand=sb.set, padx=12, pady=8, spacing1=1)
+        self._log.pack(fill="both", expand=True)
+        sb.config(command=self._log.yview)
+        self._log.tag_configure("ok",   foreground="#7ee787")
+        self._log.tag_configure("err",  foreground="#f85149")
+        self._log.tag_configure("warn", foreground="#fbbf24")
+        self._log.tag_configure("step", foreground="#58a6ff",
+                                 font=("Consolas",9,"bold"))
+        self._log.tag_configure("dim",  foreground="#484f58")
+
+    def on_enter(self):
+        if not self._started:
+            self._started = True
+            threading.Thread(target=self._dispatch, daemon=True).start()
+
+    def _log_line(self, text, tag=""):
+        def _do():
+            self._log.configure(state="normal")
+            self._log.insert("end", text+"\n", tag)
+            self._log.see("end")
+            self._log.configure(state="disabled")
+        self._log.after(0, _do)
+
+    def _set_progress(self, pct, label=""):
+        def _do():
+            self._step_var.set(label or self._step_var.get())
+            self._pb_pct.set(f"{pct}%")
+            self._pb_frame.update_idletasks()
+            w = self._pb_frame.winfo_width()
+            self._pb_fill.place(width=int(w * pct / 100))
+        self._log.after(0, _do)
+
+    def _cmd(self, cmd, cwd=None, env=None):
+        self._log_line(f"  $ {' '.join(str(c) for c in cmd)}", "dim")
+        try:
+            proc = subprocess.Popen(
+                cmd, cwd=str(cwd) if cwd else None,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, encoding="utf-8", errors="replace", env=env)
+            for line in proc.stdout:
+                line = line.rstrip()
+                if line:
+                    tag = "err" if any(x in line.lower()
+                                       for x in ("error","fatal","traceback")) else ""
+                    self._log_line(f"    {line}", tag)
+            proc.wait()
+            return proc.returncode == 0
+        except Exception as e:
+            self._log_line(f"  ERRORE: {e}", "err"); return False
+
+    def _dispatch(self):
+        if self.cfg.mode == "create":
+            self._run_create()
+        else:
+            self._run_promote()
+
+    # ── Crea Release ─────────────────────────────────────────
+
+    def _run_create(self):
+        cfg = self.cfg
+        src     = Path(cfg.source_dir)
+        out_dir = Path(cfg.output_dir)
+
+        # Legge versione da settings/base.py
+        ver = "0.0.0"
+        base_py = src / "django_app" / "config" / "settings" / "base.py"
+        if base_py.exists():
+            try:
+                content = base_py.read_text(encoding="utf-8")
+                m = re.search(r'APP_VERSION\s*=\s*env\([^,]+,\s*["\']([^"\']+)["\']', content)
+                if m: ver = m.group(1)
+            except: pass
+
+        tag      = datetime.now().strftime("%Y%m%d_%H%M%S")
+        out_name = f"portale-novicrom-v{ver}-{tag}.zip"
+        out_path = out_dir / out_name
+
+        EXCLUDE_DIRS  = {".git", ".venv", "venv", "__pycache__", ".pytest_cache",
+                         "staticfiles", "node_modules", ".mypy_cache", ".ruff_cache",
+                         "htmlcov", "dist", "build", "releases", ".tmp_py",
+                         "media", "logs", "backup", "backups", "dump", "dumps"}
+        EXCLUDE_EXTS  = {".pyc", ".pyo", ".pyd", ".log", ".sqlite3", ".db",
+                         ".bak", ".tmp", ".temp", ".orig", ".dmp"}
+        EXCLUDE_FILES = {".env", "db.sqlite3", "DIPENDENTI.csv"}
+
+        N = 3; errors = []
+
+        def step(n, title, pct):
+            self._set_progress(pct, f"[{n}/{N}] {title}")
+            self._log_line(f"\n── {title} {'─'*(44-len(title))}", "step")
+
+        step(1, "Preparazione", 5)
+        try:
+            out_dir.mkdir(parents=True, exist_ok=True)
+            self._log_line(f"  Versione rilevata: v{ver}", "ok")
+            self._log_line(f"  Output: {out_path}", "ok")
+        except Exception as e:
+            errors.append(str(e)); self._log_line(f"  ✗ {e}", "err")
+
+        step(2, f"Creazione {out_name}", 15)
+        file_count = 0
+        try:
+            with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+                for root, dirs, files in os.walk(src):
+                    dirs[:] = [d for d in dirs
+                                if d not in EXCLUDE_DIRS and not d.startswith(".")]
+                    rel_root = Path(root).relative_to(src)
+                    for fname in files:
+                        if fname in EXCLUDE_FILES: continue
+                        if Path(fname).suffix in EXCLUDE_EXTS: continue
+                        if fname.startswith("~$"): continue
+                        zf.write(Path(root) / fname, rel_root / fname)
+                        file_count += 1
+                        if file_count % 100 == 0:
+                            self._set_progress(min(15 + int(file_count / 8), 90))
+            sz = round(out_path.stat().st_size / 1024 / 1024, 1)
+            self._log_line(f"  ✓ {file_count} file · {sz} MB", "ok")
+        except Exception as e:
+            errors.append(str(e)); self._log_line(f"  ✗ {e}", "err")
+
+        step(3, "Verifica integrità zip", 95)
+        try:
+            with zipfile.ZipFile(out_path, "r") as zf:
+                bad = zf.testzip()
+            if bad:
+                errors.append(f"zip corrotto: {bad}")
+                self._log_line(f"  ✗ File corrotto: {bad}", "err")
+            else:
+                self._log_line("  ✓ Zip integro", "ok")
+                self._log_line(f"  ✓ Salvato: {out_path}", "ok")
+                cfg.output_dir = str(out_path)   # riusa in DonePage
+        except Exception as e:
+            errors.append(str(e)); self._log_line(f"  ✗ {e}", "err")
+
+        self._set_progress(100, "Release creata!")
+        self._log_line("\n" + "─"*50, "step")
+        if errors:
+            self._log_line(f"  Completato con {len(errors)} errori:", "warn")
+            for e in errors: self._log_line(f"  · {e}", "warn")
+        else:
+            self._log_line(f"  {out_name} pronta per il deploy!", "ok")
+            self._log_line("  Copia il .zip in  shared\\packages\\  sul server e usa Promuovi Release.", "ok")
+        self._log_line("─"*50, "step")
+        self._log.after(800, self._on_done)
+
+    # ── Promuovi Release ─────────────────────────────────────
+
+    def _run_promote(self):
+        cfg = self.cfg
+        ep  = cfg.env_path
+
+        venv_py = ep / "venv" / "Scripts" / "python.exe"
+        if not venv_py.exists():
+            self._log_line(f"  ✗ Virtualenv non trovato: {venv_py}", "err")
+            self._log_line("  Esegui prima il Setup Wizard (prima installazione).", "warn")
+            self._set_progress(100, "Errore — venv mancante")
+            self._log.after(800, self._on_done)
+            return
+
+        tag        = datetime.now().strftime("%Y%m%d_%H%M%S")
+        rel_dir    = ep / "releases" / tag
+        django_app = rel_dir / "django_app"
+        settings   = f"config.settings.{cfg.environment}"
+        N = 7; errors = []
+
+        def step(n, title, pct):
+            self._set_progress(pct, f"[{n}/{N}] {title}")
+            self._log_line(f"\n── {title} {'─'*(44-len(title))}", "step")
+
+        # 1. Estrazione
+        step(1, "Estrazione pacchetto", 8)
+        if cfg.package_path and Path(cfg.package_path).exists():
+            try:
+                rel_dir.mkdir(parents=True, exist_ok=True)
+                with zipfile.ZipFile(cfg.package_path, "r") as zf:
+                    zf.extractall(rel_dir)
+                self._log_line(f"  ✓ Estratto in {rel_dir}", "ok")
+            except Exception as e:
+                errors.append(str(e)); self._log_line(f"  ✗ {e}", "err")
+        else:
+            self._log_line("  ✗ Nessun pacchetto specificato", "err")
+            errors.append("pacchetto mancante")
+
+        # 2. Copia .env
+        step(2, "Copia configurazione .env", 20)
+        env_src = ep / "config" / ".env"
+        if env_src.exists() and django_app.exists():
+            try:
+                shutil.copy2(env_src, django_app / ".env")
+                self._log_line(f"  ✓ .env copiato da {env_src}", "ok")
+            except Exception as e:
+                errors.append(str(e)); self._log_line(f"  ✗ {e}", "err")
+        elif not env_src.exists():
+            self._log_line(f"  ✗ .env non trovato: {env_src}", "err")
+            self._log_line("  Esegui prima il Setup Wizard per configurare l'ambiente.", "warn")
+            errors.append(".env mancante")
+
+        # 3. pip install
+        step(3, "Aggiornamento dipendenze pip", 32)
+        req = django_app / "requirements.txt"
+        if req.exists():
+            ok = self._cmd([str(venv_py), "-m", "pip", "install", "-r", str(req)])
+            if ok: self._log_line("  ✓ Dipendenze aggiornate", "ok")
+            else:  errors.append("pip install"); self._log_line("  ✗ pip fallito", "err")
+        else:
+            self._log_line("  requirements.txt non trovato — skip", "warn")
+
+        # 4. collectstatic
+        step(4, "collectstatic", 50)
+        env_vars = {**os.environ,
+                    "DJANGO_SETTINGS_MODULE": settings,
+                    "PYTHONPATH": str(django_app)}
+        if (django_app / "manage.py").exists():
+            ok = self._cmd([str(venv_py), "manage.py", "collectstatic",
+                             "--noinput", f"--settings={settings}"],
+                            cwd=django_app, env=env_vars)
+            if ok: self._log_line("  ✓ collectstatic completato", "ok")
+            else:  self._log_line("  ✗ collectstatic fallito", "err")
+
+        # 5. migrate
+        step(5, "Django migrate", 65)
+        if (django_app / "manage.py").exists():
+            ok = self._cmd([str(venv_py), "manage.py", "migrate",
+                             f"--settings={settings}", "--noinput"],
+                            cwd=django_app, env=env_vars)
+            if ok: self._log_line("  ✓ migrate completato", "ok")
+            else:  self._log_line("  ✗ migrate fallito (verifica DB)", "err")
+            self._cmd([str(venv_py), "manage.py", "createcachetable",
+                       f"--settings={settings}"], cwd=django_app, env=env_vars)
+            self._log_line("  ✓ createcachetable completato", "ok")
+
+        # 6. Attivazione junction
+        step(6, "Attivazione release", 80)
+        cur = ep / "current"
+        prev_file = ep / "run" / "previous_release.txt"
+        if cur.exists() or cur.is_symlink():
+            try:
+                prev_target = str(cur.resolve())
+                prev_file.parent.mkdir(parents=True, exist_ok=True)
+                prev_file.write_text(prev_target, encoding="utf-8")
+                self._log_line(f"  ✓ Release precedente salvata: {prev_target}", "ok")
+            except: pass
+        try:
+            if cur.exists() or cur.is_symlink():
+                subprocess.run(["cmd", "/c", f"rmdir \"{cur}\""], capture_output=True)
+            subprocess.run(["cmd", "/c", f"mklink /J \"{cur}\" \"{rel_dir}\""],
+                            capture_output=True, check=True)
+            self._log_line(f"  ✓ current → {rel_dir.name}", "ok")
+        except Exception as e:
+            errors.append(str(e)); self._log_line(f"  ✗ Junction: {e}", "err")
+
+        # 7. IIS recycle
+        step(7, "Riavvio App Pool IIS", 93)
+        site_name = f"PortaleNovicrom-{cfg.environment.upper()}"
+        ps = (f"Restart-WebAppPool -Name '{cfg.app_pool_name}' -ErrorAction SilentlyContinue; "
+              f"Start-Website -Name '{site_name}' -ErrorAction SilentlyContinue")
+        try:
+            r = subprocess.run(
+                ["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps],
+                capture_output=True, text=True, encoding="utf-8", errors="replace")
+            if r.returncode == 0:
+                self._log_line(f"  ✓ App Pool {cfg.app_pool_name} riciclato", "ok")
+            else:
+                self._log_line(f"  ✗ IIS: {(r.stderr or r.stdout)[:200]}", "err")
+        except Exception as e:
+            self._log_line(f"  ✗ IIS recycle: {e}", "err")
+
+        self._set_progress(100, "Deploy completato!")
+        self._log_line("\n" + "─"*50, "step")
+        if errors:
+            self._log_line(f"  Completato con {len(errors)} errori/avvisi:", "warn")
+            for e in errors: self._log_line(f"  · {e}", "warn")
+        else:
+            self._log_line(f"  Release {cfg.environment.upper()} attivata!", "ok")
+        self._log_line("─"*50, "step")
+        self._log.after(800, self._on_done)
+
+
+class ReleaseDonePage(Page):
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Operazione completata!", "")
+        self.cfg = cfg
+        b = self.body
+        frame(b, height=16).pack()
+
+        self._msg = tk.Label(b, text="", font=(SF,13,"bold"),
+                              fg=BRAND, bg="white", wraplength=560, justify="left")
+        self._msg.pack(padx=32, anchor="w")
+        frame(b, bg=GRAY100, height=1).pack(fill="x", padx=32, pady=16)
+        self._hints = frame(b)
+        self._hints.pack(fill="x", padx=32)
+        frame(b, height=16).pack()
+        tk.Label(b, text="Portale Novicrom · Gestione Release · Costruzioni Novicrom SRL",
+                 font=FSM, fg=GRAY400, bg="white").pack(padx=32, anchor="w")
+
+    def on_enter(self):
+        for w in self._hints.winfo_children(): w.destroy()
+        if self.cfg.mode == "create":
+            self._msg.configure(text=f"Release salvata in:\n{self.cfg.output_dir}")
+            hints = [
+                "Copia il .zip nella cartella  shared\\packages\\  del server TEST",
+                "Apri Gestione Release sul server → Promuovi Release → TEST",
+                "Dopo la validazione, ripeti → Promuovi Release → PROD (stesso .zip)",
+            ]
+        else:
+            self._msg.configure(text=f"Release deployata su {self.cfg.environment.upper()}!")
+            hints = [
+                "Verifica il portale nel browser",
+                "Controlla i log in  ENV\\logs\\  per eventuali avvisi",
+                "In caso di problemi: esegui  rollback-release.ps1  per ripristinare",
+            ]
+        for i, hint in enumerate(hints, 1):
+            row = frame(self._hints)
+            row.pack(fill="x", pady=3)
+            tk.Label(row, text=str(i), font=(SF,9,"bold"), bg=BRAND, fg="white",
+                     width=2, pady=4).pack(side="left", padx=(0,12))
+            tk.Label(row, text=hint, font=FN, fg=GRAY600, bg="white").pack(side="left")
+
+
+class ReleaseApp:
+    """App standalone per gestione release (Crea o Promuovi)."""
+
+    def __init__(self, initial_mode=None):
+        self.cfg  = ReleaseConfig()
+        self._idx = 0
+        if initial_mode:
+            self.cfg.mode = initial_mode
+
+        self.root = tk.Tk()
+        self.root.title("Portale Novicrom — Gestione Release")
+        self.root.geometry(f"{WIN_W}x{WIN_H}")
+        self.root.resizable(False, False)
+        self.root.configure(bg="white")
+        self.root.update_idletasks()
+        x = (self.root.winfo_screenwidth()  - WIN_W) // 2
+        y = (self.root.winfo_screenheight() - WIN_H) // 2 - 20
+        self.root.geometry(f"{WIN_W}x{WIN_H}+{x}+{y}")
+
+        self._build()
+        # Se la modalità è già preselezionata salta la schermata di scelta
+        self._show(1 if initial_mode else 0)
+        self.root.mainloop()
+
+    def _build(self):
+        main = frame(self.root)
+        main.pack(fill="both", expand=True)
+
+        self.sidebar = Sidebar(main, steps=STEPS_RELEASE, subtitle="Gestione Release")
+        self.sidebar.pack(side="left", fill="y")
+
+        right = frame(main)
+        right.pack(side="left", fill="both", expand=True)
+        self.container = frame(right)
+        self.container.pack(fill="both", expand=True)
+
+        bar = frame(right, bg=GRAY50)
+        bar.configure(highlightthickness=1, highlightbackground=GRAY200)
+        bar.pack(fill="x", side="bottom")
+
+        left_bar = frame(bar, bg=GRAY50)
+        left_bar.pack(side="left", padx=20, pady=12)
+        self.btn_back   = SecondaryButton(left_bar, "◀  Indietro", self._back)
+        self.btn_back.pack(side="left")
+        self.btn_cancel = SecondaryButton(left_bar, "Annulla", self._cancel)
+        self.btn_cancel.pack(side="left", padx=(8,0))
+
+        right_bar = frame(bar, bg=GRAY50)
+        right_bar.pack(side="right", padx=20, pady=12)
+        self.btn_next   = PrimaryButton(right_bar, "Avanti  ▶", self._next)
+        self.btn_next.pack(side="right")
+        self.btn_finish = PrimaryButton(right_bar, "✓  Chiudi",
+                                         self.root.destroy, bg="#166534")
+        self.btn_finish.pack(side="right")
+
+        self._p_mode    = ReleaseModeSelector(self.container, self.cfg)
+        self._p_create  = ReleaseConfigCreate(self.container, self.cfg)
+        self._p_promote = ReleaseConfigPromote(self.container, self.cfg)
+        self._p_run     = ReleaseRunPage(self.container, self.cfg, self._on_done)
+        self._p_done    = ReleaseDonePage(self.container, self.cfg)
+
+    def _config_page(self):
+        return self._p_create if self.cfg.mode == "create" else self._p_promote
+
+    def _all_pages(self):
+        return [self._p_mode, self._p_create, self._p_promote,
+                self._p_run, self._p_done]
+
+    def _show(self, idx):
+        for p in self._all_pages(): p.place_forget()
+
+        if idx == 0:
+            page = self._p_mode
+        elif idx == 1:
+            page = self._config_page()
+        elif idx == 2:
+            page = self._p_run
+        else:
+            page = self._p_done
+
+        page.place(x=0, y=0, relwidth=1, relheight=1)
+        page.on_enter()
+        self.sidebar.set(idx)
+        self._idx = idx
+
+        if idx == 3:            # Done
+            self.btn_next.pack_forget()
+            self.btn_finish.pack(side="right")
+            self.btn_back._lbl.configure(state="disabled")
+            self.btn_cancel._lbl.configure(state="disabled")
+        elif idx == 2:          # Run
+            self.btn_next.pack_forget()
+            self.btn_finish.pack_forget()
+            self.btn_back._lbl.configure(state="disabled")
+            self.btn_cancel._lbl.configure(state="disabled")
+        else:
+            self.btn_finish.pack_forget()
+            self.btn_next.pack(side="right")
+            self.btn_next.configure_text("▶  Esegui" if idx == 1 else "Avanti  ▶")
+            self.btn_back._lbl.configure(state="normal" if idx > 0 else "disabled")
+            self.btn_cancel._lbl.configure(state="normal")
+
+    def _next(self):
+        p = self._p_mode if self._idx == 0 else self._config_page()
+        if p.validate():
+            p.on_leave()
+            self._show(self._idx + 1)
+
+    def _back(self):
+        if self._idx > 0: self._show(self._idx - 1)
+
+    def _cancel(self):
+        if messagebox.askyesno("Annulla", "Uscire da Gestione Release?"): self.root.destroy()
+
+    def _on_done(self):
+        self._show(3)
+
+
+# ─────────────────────────────────────────────────────────────
+# ENTRY POINT
+# ─────────────────────────────────────────────────────────────
+
+def main():
+    preselect = None
+    mode      = None
+    args      = sys.argv[1:]
+    i = 0
+    while i < len(args):
+        if args[i] == "--env" and i+1 < len(args):
+            preselect = args[i+1].lower(); i += 2
+        elif args[i].startswith("--env="):
+            preselect = args[i].split("=",1)[1].lower(); i += 1
+        elif args[i] == "--mode" and i+1 < len(args):
+            mode = args[i+1].lower(); i += 2
+        elif args[i].startswith("--mode="):
+            mode = args[i].split("=",1)[1].lower(); i += 1
+        else:
+            i += 1
+
+    # Modalità Release Manager
+    if mode in ("release", "create", "promote"):
+        initial = mode if mode in ("create", "promote") else None
+        ReleaseApp(initial_mode=initial)
+        return
+
+    if preselect and preselect not in ("dev","test","prod"):
+        print(f"Ambiente non valido: {preselect}"); sys.exit(1)
+
+    needs_admin = preselect in (None, "test", "prod")
+    if needs_admin and not is_admin():
+        try:
+            r = tk.Tk(); r.withdraw()
+            ans = messagebox.askyesno(
+                "Privilegi insufficienti",
+                "Stai eseguendo senza diritti di Amministratore.\n"
+                "La configurazione IIS (TEST/PROD) richiede Admin.\n\n"
+                "Riavviare come Amministratore?")
+            r.destroy()
+            if ans: run_as_admin(); sys.exit(0)
+        except Exception: pass
+
+    WizardApp(preselect_env=preselect)
+
+if __name__ == "__main__":
+    main()

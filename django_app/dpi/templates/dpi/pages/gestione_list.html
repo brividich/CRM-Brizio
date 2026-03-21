@@ -1,0 +1,144 @@
+{% extends "core/base.html" %}
+
+{% block title %}Gestione DPI | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#dpi-root { display:flex; flex-direction:column; gap:20px; }
+.dpi-subnav { display:flex; gap:4px; flex-wrap:wrap; }
+.dpi-subnav-link { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; color:#475569; background:#f1f5f9; }
+.dpi-subnav-link:hover { background:#e2e8f0; }
+.dpi-subnav-link.active { background:#0369a1; color:#fff; }
+
+.dpi-hero { background:linear-gradient(135deg,#166534 0%,#15803d 60%,#16a34a 100%); border-radius:16px; padding:24px 28px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; color:#fff; }
+.dpi-hero-title { font-size:22px; font-weight:900; }
+.dpi-hero-sub { font-size:12px; opacity:.7; margin-top:2px; }
+
+.dpi-alert-inviate {
+  background:#fffbeb; border:1px solid #fde68a; border-radius:10px;
+  padding:12px 18px; font-size:13px; font-weight:600; color:#92400e;
+  display:flex; align-items:center; gap:8px;
+}
+
+.dpi-filters { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px 18px; display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
+.dpi-filters label { font-size:11px; font-weight:700; color:#64748b; display:flex; flex-direction:column; gap:4px; }
+.dpi-filters select, .dpi-filters input[type=text] { padding:6px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; background:#fff; min-width:130px; }
+.dpi-filter-btn { padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; background:#0369a1; color:#fff; border:none; cursor:pointer; }
+.dpi-filter-btn:hover { background:#075985; }
+.dpi-filter-reset { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; text-decoration:none; padding:8px 12px; border-radius:8px; font-size:12px; font-weight:600; }
+
+.dpi-table-wrap { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow-x:auto; }
+.dpi-table { width:100%; border-collapse:collapse; font-size:13px; }
+.dpi-table th { background:#f8fafc; padding:10px 14px; text-align:left; font-weight:700; color:#64748b; font-size:11px; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #e2e8f0; }
+.dpi-table td { padding:11px 14px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+.dpi-table tr:last-child td { border-bottom:none; }
+.dpi-table tr:hover td { background:#f8fafc; }
+.dpi-table a { color:#0369a1; font-weight:600; text-decoration:none; }
+
+.dpi-badge { display:inline-block; padding:3px 10px; border-radius:99px; font-size:11px; font-weight:700; }
+.dpi-badge-INVIATA { background:#dbeafe; color:#1e40af; }
+.dpi-badge-APPROVATA { background:#fef3c7; color:#92400e; }
+.dpi-badge-CONSEGNATA { background:#d1fae5; color:#065f46; }
+.dpi-badge-RIFIUTATA { background:#fee2e2; color:#991b1b; }
+.dpi-badge-ANNULLATA { background:#f1f5f9; color:#475569; }
+
+.dpi-cat-chip { display:inline-flex; align-items:center; gap:5px; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; padding:3px 8px; border-radius:99px; font-size:11px; font-weight:600; }
+.dpi-cat-chip img { width:16px; height:16px; object-fit:cover; border-radius:3px; }
+
+.dpi-empty { padding:40px; text-align:center; color:#94a3b8; font-size:14px; }
+
+.dpi-pagination { display:flex; gap:6px; align-items:center; justify-content:center; padding:8px; }
+.dpi-pagination a, .dpi-pagination span { padding:6px 12px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; }
+.dpi-pagination a { background:#f1f5f9; color:#475569; }
+.dpi-pagination a:hover { background:#e2e8f0; }
+.dpi-pagination .current { background:#0369a1; color:#fff; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="dpi-root">
+  {% include "dpi/components/subnav.html" with is_gestore=True %}
+
+  <div class="dpi-hero">
+    <div>
+      <div class="dpi-hero-title">Gestione DPI</div>
+      <div class="dpi-hero-sub">Approva, rifiuta e registra le consegne dei dispositivi di protezione</div>
+    </div>
+  </div>
+
+  {% if n_inviate > 0 %}
+  <div class="dpi-alert-inviate">
+    ⚠️ {{ n_inviate }} richiesta{% if n_inviate != 1 %}e{% endif %} in attesa di approvazione
+  </div>
+  {% endif %}
+
+  <form method="get" class="dpi-filters">
+    <label>Stato
+      <select name="stato">
+        <option value="">Tutti</option>
+        {% for val,lbl in stati %}<option value="{{ val }}"{% if filtro_stato == val %} selected{% endif %}>{{ lbl }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Categoria
+      <select name="categoria">
+        <option value="">Tutte</option>
+        {% for cat in categorie %}<option value="{{ cat.pk }}"{% if filtro_cat == cat.pk|stringformat:"s" %} selected{% endif %}>{{ cat.nome }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Richiedente
+      <input type="text" name="q" value="{{ filtro_q }}" placeholder="Nome...">
+    </label>
+    <button type="submit" class="dpi-filter-btn">Filtra</button>
+    {% if filtro_stato or filtro_cat or filtro_q %}
+    <a href="{% url 'dpi:gestione_list' %}" class="dpi-filter-reset">Reset</a>
+    {% endif %}
+  </form>
+
+  <div class="dpi-table-wrap">
+    {% if page_obj %}
+    <table class="dpi-table">
+      <thead>
+        <tr>
+          <th>Numero</th>
+          <th>DPI</th>
+          <th>Richiedente</th>
+          <th>Reparto</th>
+          <th>Qtà</th>
+          <th>Stato</th>
+          <th>Data</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in page_obj %}
+        <tr>
+          <td><a href="{% url 'dpi:gestione_detail' r.pk %}">{{ r.numero }}</a></td>
+          <td>
+            <span class="dpi-cat-chip">
+              {% if r.categoria.immagine %}<img src="{{ r.categoria.immagine.url }}" alt="">{% else %}{{ r.categoria.icona_emoji }}{% endif %}
+              {{ r.categoria.nome }}
+            </span>
+          </td>
+          <td>{{ r.richiedente_nome }}</td>
+          <td>{{ r.richiedente_reparto|default:"-" }}</td>
+          <td>{{ r.quantita }} {{ r.categoria.unita_misura }}</td>
+          <td><span class="dpi-badge dpi-badge-{{ r.stato }}">{{ r.label_stato }}</span></td>
+          <td style="white-space:nowrap; color:#64748b; font-size:12px;">{{ r.created_at|date:"d/m/Y" }}</td>
+          <td><a href="{% url 'dpi:gestione_detail' r.pk %}">Gestisci →</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if page_obj.has_other_pages %}
+    <div class="dpi-pagination">
+      {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}&stato={{ filtro_stato }}&categoria={{ filtro_cat }}&q={{ filtro_q }}">‹ Prec</a>{% endif %}
+      <span class="current">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}&stato={{ filtro_stato }}&categoria={{ filtro_cat }}&q={{ filtro_q }}">Succ ›</a>{% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="dpi-empty">Nessuna richiesta trovata con i filtri selezionati.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

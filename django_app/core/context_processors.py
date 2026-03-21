@@ -515,6 +515,13 @@ def legacy_nav(request):
             result["notifiche_count"] = Notifica.objects.filter(
                 legacy_user_id=int(legacy_user_id), letta=False
             ).count()
+            result["notifiche_popup"] = list(
+                Notifica.objects.filter(
+                    legacy_user_id=int(legacy_user_id),
+                    letta=False,
+                    popup_shown=False,
+                ).order_by("-created_at")[:5]
+            )
         except Exception:
             pass
 

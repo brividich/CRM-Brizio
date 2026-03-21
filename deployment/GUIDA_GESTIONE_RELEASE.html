@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guida Gestione Release — Portale Novicrom</title>
+<style>
+  :root {
+    --brand: #1a56db; --brand-dark: #1e429f; --sidebar-bg: #0f2a7a;
+    --green: #16a34a; --green-bg: #f0fdf4; --green-bd: #86efac;
+    --yellow-bg: #fffbeb; --yellow-bd: #fcd34d; --yellow-tx: #92400e;
+    --red: #dc2626; --red-bg: #fef2f2;
+    --blue-bg: #eff6ff; --blue-bd: #93c5fd;
+    --gray50: #f9fafb; --gray100: #f3f4f6; --gray200: #e5e7eb;
+    --gray400: #9ca3af; --gray500: #6b7280; --gray600: #4b5563;
+    --gray700: #374151; --gray800: #1f2937; --gray900: #111827;
+    --code-bg: #0d1117; --code-fg: #c9d1d9;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px; line-height: 1.6;
+    color: var(--gray800); background: #fff;
+    display: flex; min-height: 100vh;
+  }
+
+  /* ── Sidebar TOC ─────────────────────────────── */
+  nav {
+    width: 260px; min-width: 260px;
+    background: var(--sidebar-bg);
+    padding: 32px 0 24px;
+    position: sticky; top: 0; height: 100vh;
+    overflow-y: auto;
+  }
+  nav .logo { padding: 0 22px 20px; border-bottom: 1px solid #1e40af; }
+  nav .logo h1 { color: #fff; font-size: 18px; font-weight: 700; }
+  nav .logo p  { color: #60a5fa; font-size: 12px; margin-top: 2px; }
+  nav ul { list-style: none; padding: 16px 0; }
+  nav ul li a {
+    display: block; padding: 7px 22px;
+    color: #94a3b8; text-decoration: none; font-size: 13px;
+    transition: color .15s, background .15s;
+    border-left: 3px solid transparent;
+  }
+  nav ul li a:hover { color: #fff; background: rgba(255,255,255,.05); }
+  nav ul li.active a { color: #fff; border-left-color: var(--brand); background: rgba(30,66,159,.4); }
+  nav ul li.section { padding: 14px 22px 4px; color: #334155; font-size: 11px;
+    font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+  nav .version { padding: 16px 22px 0; color: #334155; font-size: 11px; }
+
+  /* ── Main content ────────────────────────────── */
+  main { flex: 1; max-width: 900px; padding: 48px 56px 80px; }
+
+  h1 { font-size: 28px; font-weight: 800; color: var(--gray900); margin-bottom: 6px; }
+  h2 { font-size: 20px; font-weight: 700; color: var(--gray900);
+       margin: 40px 0 14px; padding-bottom: 8px;
+       border-bottom: 2px solid var(--gray100); }
+  h3 { font-size: 15px; font-weight: 700; color: var(--gray800); margin: 24px 0 8px; }
+  p  { margin-bottom: 12px; color: var(--gray700); }
+  ul, ol { margin: 8px 0 14px 20px; }
+  li { margin-bottom: 5px; color: var(--gray700); }
+  strong { color: var(--gray900); }
+  a  { color: var(--brand); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .subtitle { font-size: 15px; color: var(--gray500); margin-bottom: 28px; }
+  .badge {
+    display: inline-block; padding: 2px 10px; border-radius: 12px;
+    font-size: 11px; font-weight: 700; margin-left: 8px; vertical-align: middle;
+  }
+  .badge-blue  { background: var(--blue-bg);   color: #1d4ed8; }
+  .badge-green { background: var(--green-bg);  color: var(--green); }
+  .badge-yellow{ background: var(--yellow-bg); color: var(--yellow-tx); }
+
+  /* callout boxes */
+  .callout {
+    border-radius: 6px; padding: 14px 18px; margin: 16px 0;
+    border-left: 4px solid; font-size: 13px;
+  }
+  .callout-info  { background: var(--blue-bg);   border-color: var(--blue-bd);   color: #1d4ed8; }
+  .callout-ok    { background: var(--green-bg);  border-color: var(--green-bd);  color: #166534; }
+  .callout-warn  { background: var(--yellow-bg); border-color: var(--yellow-bd); color: var(--yellow-tx); }
+  .callout-error { background: var(--red-bg);    border-color: #fca5a5;          color: var(--red); }
+  .callout strong { color: inherit; }
+
+  /* code */
+  pre, code { font-family: 'Consolas', 'Courier New', monospace; font-size: 12.5px; }
+  code { background: var(--gray100); color: #c0392b; padding: 1px 5px; border-radius: 3px; }
+  pre {
+    background: var(--code-bg); color: var(--code-fg);
+    padding: 18px 20px; border-radius: 6px;
+    overflow-x: auto; margin: 12px 0 18px;
+    line-height: 1.55;
+  }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  .kw  { color: #ff7b72; }
+  .str { color: #a5d6ff; }
+  .cmt { color: #8b949e; font-style: italic; }
+  .var { color: #ffa657; }
+  .ok  { color: #7ee787; }
+  .dim { color: #8b949e; }
+
+  /* tables */
+  table { width: 100%; border-collapse: collapse; margin: 14px 0 20px; font-size: 13px; }
+  th { background: var(--gray900); color: #fff; text-align: left;
+       padding: 9px 14px; font-weight: 600; }
+  td { padding: 8px 14px; border-bottom: 1px solid var(--gray100); }
+  tr:last-child td { border-bottom: none; }
+  tr:nth-child(even) td { background: var(--gray50); }
+
+  /* steps */
+  .steps { margin: 16px 0 24px; }
+  .step  { display: flex; gap: 16px; margin-bottom: 18px; align-items: flex-start; }
+  .step-num {
+    min-width: 32px; height: 32px; border-radius: 50%;
+    background: var(--brand); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 13px; flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .step-body h4 { font-size: 14px; font-weight: 700; color: var(--gray900); margin-bottom: 4px; }
+  .step-body p  { margin: 0; color: var(--gray600); font-size: 13px; }
+
+  /* flow diagram */
+  .flow {
+    display: flex; align-items: center; gap: 0;
+    margin: 20px 0 24px; flex-wrap: wrap;
+  }
+  .flow-box {
+    padding: 12px 18px; border-radius: 6px; font-size: 13px; font-weight: 600;
+    text-align: center; min-width: 120px;
+  }
+  .flow-arrow {
+    font-size: 22px; color: var(--gray400); padding: 0 6px; line-height: 1;
+  }
+  .flow-dev  { background: var(--blue-bg);   color: #1d4ed8;        border: 2px solid var(--blue-bd); }
+  .flow-zip  { background: var(--gray100);   color: var(--gray700); border: 2px solid var(--gray200); }
+  .flow-test { background: var(--yellow-bg); color: var(--yellow-tx);border: 2px solid var(--yellow-bd); }
+  .flow-prod { background: var(--green-bg);  color: #166534;        border: 2px solid var(--green-bd); }
+
+  /* screenshot mockup */
+  .screen-wrap {
+    border: 1px solid var(--gray200); border-radius: 8px;
+    overflow: hidden; margin: 18px 0 24px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.08);
+  }
+  .screen-bar {
+    background: var(--gray800); height: 30px;
+    display: flex; align-items: center; padding: 0 14px; gap: 7px;
+  }
+  .screen-bar .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .screen-bar .dot.r { background: #f87171; }
+  .screen-bar .dot.y { background: #fbbf24; }
+  .screen-bar .dot.g { background: #34d399; }
+  .screen-bar .title { color: #94a3b8; font-size: 11px; margin-left: 8px; }
+  .screen-body { display: flex; }
+  .screen-sidebar {
+    width: 200px; min-width: 200px; background: var(--sidebar-bg);
+    padding: 18px 14px;
+  }
+  .screen-sidebar .s-logo { color: #fff; font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .screen-sidebar .s-sub  { color: #60a5fa; font-size: 10px; margin-bottom: 14px; }
+  .screen-sidebar hr { border: none; border-top: 1px solid #1e40af; margin-bottom: 12px; }
+  .s-step { display: flex; align-items: center; gap: 8px; padding: 5px 8px;
+    border-radius: 4px; margin-bottom: 2px; }
+  .s-step.active { background: #1e3a8a; }
+  .s-dot { width: 20px; height: 20px; border-radius: 50%; display: flex;
+    align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; flex-shrink: 0; }
+  .s-dot.done   { background: #166534; color: #86efac; }
+  .s-dot.active { background: var(--brand); color: #fff; }
+  .s-dot.future { background: var(--sidebar-bg); color: #334155; border: 1px solid #334155; }
+  .s-label { font-size: 11px; color: #94a3b8; }
+  .s-label.active { color: #fff; font-weight: 700; }
+  .screen-content { flex: 1; background: #fff; padding: 22px 26px; }
+  .sc-title { font-size: 16px; font-weight: 700; color: var(--gray900); margin-bottom: 4px; }
+  .sc-sub   { font-size: 11px; color: var(--gray400); margin-bottom: 16px; }
+  .sc-sep   { height: 1px; background: var(--gray100); margin-bottom: 16px; }
+  .card-row { display: flex; gap: 10px; margin-bottom: 10px; }
+  .mock-card {
+    flex: 1; border-radius: 6px; padding: 12px 14px;
+    border: 2px solid var(--gray200);
+  }
+  .mock-card.sel { border-color: var(--blue-bd); border-width: 3px; }
+  .mock-card .mc-title { font-size: 12px; font-weight: 700; margin-bottom: 3px; }
+  .mock-card .mc-desc  { font-size: 10px; color: var(--gray400); }
+  .mock-card .mc-check { float: right; color: var(--brand); font-weight: 700; }
+  .mock-field { margin-bottom: 10px; }
+  .mock-label { font-size: 10px; font-weight: 700; color: var(--gray600); margin-bottom: 3px; }
+  .mock-input {
+    width: 100%; padding: 5px 8px; border: 1px solid var(--gray200);
+    border-radius: 4px; font-size: 11px; font-family: Consolas, monospace;
+    color: var(--gray700); background: var(--gray50);
+  }
+  .mock-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 0 0; border-top: 1px solid var(--gray100); margin-top: 12px;
+  }
+  .mock-btn {
+    padding: 6px 14px; border-radius: 4px; font-size: 11px; font-weight: 700;
+    cursor: pointer; border: none;
+  }
+  .mock-btn.primary  { background: var(--brand); color: #fff; }
+  .mock-btn.secondary{ background: var(--gray100); color: var(--gray700); }
+
+  /* checklist */
+  .checklist { list-style: none; margin: 10px 0 16px; padding: 0; }
+  .checklist li {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 6px 10px; border-radius: 4px; margin-bottom: 2px;
+    font-size: 13px;
+  }
+  .checklist li:nth-child(odd) { background: var(--gray50); }
+  .checklist li::before {
+    content: '☐'; font-size: 15px; color: var(--gray400);
+    line-height: 1.2; flex-shrink: 0;
+  }
+
+  /* print */
+  @media print {
+    nav { display: none; }
+    body { display: block; }
+    main { max-width: 100%; padding: 24px; }
+    .screen-wrap { break-inside: avoid; }
+    h2 { break-before: page; }
+    h2:first-of-type { break-before: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── SIDEBAR ─────────────────────────────────── -->
+<nav>
+  <div class="logo">
+    <h1>Portale Novicrom</h1>
+    <p>Gestione Release — Guida</p>
+  </div>
+  <ul>
+    <li class="section">Panoramica</li>
+    <li><a href="#intro">Cos'è il Release Manager</a></li>
+    <li><a href="#flusso">Flusso DEV → TEST → PROD</a></li>
+    <li><a href="#avvio">Come avviare</a></li>
+
+    <li class="section">Operazioni</li>
+    <li><a href="#crea">Crea Release (DEV)</a></li>
+    <li><a href="#promuovi">Promuovi Release</a></li>
+    <li><a href="#rollback">Rollback</a></li>
+
+    <li class="section">Riferimento</li>
+    <li><a href="#argomenti">Argomenti CLI</a></li>
+    <li><a href="#struttura">Struttura directory</a></li>
+    <li><a href="#prerequisiti">Prerequisiti</a></li>
+    <li><a href="#faq">FAQ</a></li>
+  </ul>
+  <div class="version">v0.8.3 · 2026-03-21</div>
+</nav>
+
+<!-- ── MAIN ───────────────────────────────────── -->
+<main>
+
+  <!-- INTESTAZIONE -->
+  <h1>Gestione Release — Guida completa</h1>
+  <p class="subtitle">
+    Portale Novicrom · Deployment su Windows Server + IIS · v0.8.3
+  </p>
+
+  <!-- 1. INTRO ─────────────────────────────────── -->
+  <h2 id="intro">1. Cos'è il Release Manager</h2>
+  <p>
+    Il <strong>Release Manager</strong> è una modalità del Setup Wizard che permette di gestire
+    il ciclo di vita di una release (pacchettizzazione e deploy) tramite una interfaccia grafica,
+    senza usare la riga di comando o ricordare i parametri degli script PowerShell.
+  </p>
+  <p>È composto da due operazioni distinte:</p>
+  <table>
+    <tr><th>Operazione</th><th>Dove eseguire</th><th>Cosa fa</th></tr>
+    <tr>
+      <td><strong>Crea Release</strong> <span class="badge badge-blue">DEV</span></td>
+      <td>PC di sviluppo</td>
+      <td>Crea un file <code>.zip</code> dal codice sorgente, pronto per il deploy</td>
+    </tr>
+    <tr>
+      <td><strong>Promuovi Release</strong> <span class="badge badge-yellow">TEST</span> <span class="badge badge-green">PROD</span></td>
+      <td>Server Windows</td>
+      <td>Deploya il <code>.zip</code> su un ambiente (estrae, pip, migrate, attiva junction, riavvia IIS)</td>
+    </tr>
+  </table>
+
+  <div class="callout callout-info">
+    <strong>Nota:</strong> Il Release Manager non sostituisce il Setup Wizard per la
+    <em>prima installazione</em> di un ambiente. Usa prima <code>avvia_wizard_TEST.bat</code>
+    o <code>avvia_wizard_PROD.bat</code> per configurare l'ambiente, poi usa il Release Manager
+    per le successive promozioni.
+  </div>
+
+  <!-- 2. FLUSSO ─────────────────────────────────── -->
+  <h2 id="flusso">2. Flusso DEV → TEST → PROD</h2>
+  <p>
+    La regola d'oro è: <strong>un solo artefatto</strong> viaggia da DEV fino a PROD senza essere
+    ricostruito. Il <code>.zip</code> che hai testato su TEST è lo stesso che vai in produzione.
+  </p>
+
+  <div class="flow">
+    <div class="flow-box flow-dev">
+      ⌨ PC Sviluppo<br>
+      <small>Crea Release</small>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box flow-zip">
+      📦 .zip<br>
+      <small>portale-novicrom-vX.Y.Z</small>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box flow-test">
+      🧪 Server TEST<br>
+      <small>Promuovi Release</small>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box flow-prod">
+      ✓ Server PROD<br>
+      <small>Stesso .zip</small>
+    </div>
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4>Crea Release dal PC di sviluppo</h4>
+        <p>Apri <code>avvia_gestore_release.bat</code> sul PC DEV → Crea Release →
+           scegli la cartella sorgente e la cartella output.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4>Copia il .zip sul server TEST</h4>
+        <p>Copia il file generato (es. <code>portale-novicrom-v0.8.3-20260321_143000.zip</code>)
+           nella cartella <code>C:\PortaleNovicrom\shared\packages\</code> sul server TEST
+           (via rete, OneDrive, chiavetta USB, SFTP — qualsiasi mezzo).</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4>Promuovi su TEST</h4>
+        <p>Sul server TEST apri <code>avvia_gestore_release.bat</code> → Promuovi Release →
+           seleziona il <code>.zip</code> copiato → ambiente TEST → Esegui.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4>Valida su TEST</h4>
+        <p>Verifica che il portale funzioni correttamente sull'ambiente TEST.
+           Controlla i log, testa i workflow critici, verifica le migrazioni.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <h4>Promuovi su PROD (stesso .zip)</h4>
+        <p>Sul server PROD (o copiando prima il <code>.zip</code> sulla cartella
+           <code>shared\packages\</code> PROD) apri il Release Manager → Promuovi Release →
+           seleziona lo <strong>stesso identico</strong> <code>.zip</code> → ambiente PROD → Esegui.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout callout-warn">
+    <strong>Non ripackaggiare mai per PROD.</strong> Usare il codice sorgente una seconda volta
+    introdurrebbe il rischio di differenze rispetto a quanto testato su TEST (modifiche locali non committate,
+    dipendenze diverse, variabili d'ambiente diverse al momento del packaging).
+  </div>
+
+  <!-- 3. AVVIO ─────────────────────────────────── -->
+  <h2 id="avvio">3. Come avviare il Release Manager</h2>
+
+  <h3>Metodo 1 — Doppio click sul file .bat (raccomandato)</h3>
+  <p>Nella cartella <code>deployment\</code> trovi il file:</p>
+  <table>
+    <tr><th>File</th><th>Dove usarlo</th><th>Note</th></tr>
+    <tr>
+      <td><code>avvia_gestore_release.bat</code></td>
+      <td>PC sviluppo + Server</td>
+      <td>Auto-elevazione admin. Apre la finestra di selezione modalità.</td>
+    </tr>
+  </table>
+
+  <h3>Metodo 2 — Riga di comando</h3>
+  <pre><code><span class="cmt"># Apre la schermata di selezione modalità</span>
+python deployment/setup_wizard.py --mode release
+
+<span class="cmt"># Apre direttamente su "Crea Release" (salta la selezione modalità)</span>
+python deployment/setup_wizard.py --mode create
+
+<span class="cmt"># Apre direttamente su "Promuovi Release"</span>
+python deployment/setup_wizard.py --mode promote</code></pre>
+
+  <div class="callout callout-warn">
+    <strong>Privilegi amministratore richiesti</strong> per la modalità Promuovi Release
+    (creazione NTFS junction + riavvio App Pool IIS). Il file <code>.bat</code> gestisce
+    automaticamente la rielevazione.
+  </div>
+
+  <!-- SCREENSHOT — Schermata modalità -->
+  <p>La schermata di avvio mostra due card selezionabili:</p>
+  <div class="screen-wrap">
+    <div class="screen-bar">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <span class="title">Portale Novicrom — Gestione Release</span>
+    </div>
+    <div class="screen-body">
+      <div class="screen-sidebar">
+        <div class="s-logo">⚙ Portale<br>Novicrom</div>
+        <div class="s-sub">Gestione Release</div>
+        <hr>
+        <div class="s-step active">
+          <div class="s-dot active">1</div>
+          <span class="s-label active">Modalità</span>
+        </div>
+        <div class="s-step">
+          <div class="s-dot future">·</div>
+          <span class="s-label">Configurazione</span>
+        </div>
+        <div class="s-step">
+          <div class="s-dot future">·</div>
+          <span class="s-label">Esecuzione</span>
+        </div>
+        <div class="s-step">
+          <div class="s-dot future">·</div>
+          <span class="s-label">Completato</span>
+        </div>
+      </div>
+      <div class="screen-content">
+        <div class="sc-title">Gestione Release</div>
+        <div class="sc-sub">Scegli l'operazione da eseguire</div>
+        <div class="sc-sep"></div>
+        <div class="card-row">
+          <div class="mock-card sel" style="background:#eff6ff; border-color:#93c5fd;">
+            <div class="mc-check" style="color:#1a56db">✓</div>
+            <div class="mc-title" style="color:#1d4ed8">Promuovi Release → TEST / PROD</div>
+            <div class="mc-desc">Prendi un .zip già testato e deployalo su un ambiente server</div>
+          </div>
+        </div>
+        <div class="card-row">
+          <div class="mock-card" style="background:#f0fdf4;">
+            <div class="mc-title" style="color:#166534">Crea Release ← DEV</div>
+            <div class="mc-desc">Pacchettizza il codice sorgente dal PC di sviluppo in un file .zip</div>
+          </div>
+        </div>
+        <div class="mock-bar">
+          <div><span class="mock-btn secondary">◀  Indietro</span></div>
+          <div><span class="mock-btn primary">Avanti  ▶</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. CREA RELEASE ───────────────────────────── -->
+  <h2 id="crea">4. Crea Release (dal PC di sviluppo)</h2>
+  <p>
+    Questa operazione legge il codice sorgente dalla cartella del repository e crea un file
+    <code>.zip</code> compresso, pronto per essere copiato sui server.
+  </p>
+
+  <h3>Cosa viene incluso nel .zip</h3>
+  <p>Tutti i file del repository ad eccezione delle seguenti categorie:</p>
+  <table>
+    <tr><th>Escluso</th><th>Motivo</th></tr>
+    <tr><td><code>.git/</code></td><td>Storia git non necessaria in produzione</td></tr>
+    <tr><td><code>.venv/</code> <code>venv/</code></td><td>Il venv viene ricreato sul server</td></tr>
+    <tr><td><code>.env</code></td><td>Credenziali — ogni ambiente ha il suo file</td></tr>
+    <tr><td><code>__pycache__/</code> <code>*.pyc</code></td><td>Cache compilata, non portabile</td></tr>
+    <tr><td><code>db.sqlite3</code></td><td>DB locale di sviluppo</td></tr>
+    <tr><td><code>media/</code></td><td>Upload utenti — rimangono sul server</td></tr>
+    <tr><td><code>logs/</code></td><td>Log locali</td></tr>
+    <tr><td><code>staticfiles/</code></td><td>Generati da <code>collectstatic</code> sul server</td></tr>
+    <tr><td><code>releases/</code></td><td>Release precedenti — non vanno zippate</td></tr>
+    <tr><td><code>DIPENDENTI.csv</code></td><td>Dati sensibili</td></tr>
+  </table>
+
+  <h3>Procedura passo-passo</h3>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4>Apri il Release Manager</h4>
+        <p>Esegui <code>avvia_gestore_release.bat</code> (o <code>python setup_wizard.py --mode create</code>).
+           Seleziona <strong>Crea Release ← DEV</strong> e clicca Avanti.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4>Configura sorgente e output</h4>
+        <p><strong>Cartella sorgente:</strong> la radice del repository (es. <code>C:\Dev\Portale Novicrom</code>).<br>
+           <strong>Cartella output:</strong> dove salvare il <code>.zip</code>. Default:
+           <code>C:\PortaleNovicrom\shared\packages\</code>.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4>Clicca Esegui</h4>
+        <p>Il wizard crea il file <code>portale-novicrom-vX.Y.Z-YYYYMMDD_HHmmss.zip</code>
+           e verifica la sua integrità. La versione viene letta automaticamente da
+           <code>django_app/config/settings/base.py</code>.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREENSHOT — Crea Release -->
+  <div class="screen-wrap">
+    <div class="screen-bar">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <span class="title">Portale Novicrom — Gestione Release</span>
+    </div>
+    <div class="screen-body">
+      <div class="screen-sidebar">
+        <div class="s-logo">⚙ Portale<br>Novicrom</div>
+        <div class="s-sub">Gestione Release</div>
+        <hr>
+        <div class="s-step">
+          <div class="s-dot done">✓</div>
+          <span class="s-label" style="color:#93c5fd">Modalità</span>
+        </div>
+        <div class="s-step active">
+          <div class="s-dot active">2</div>
+          <span class="s-label active">Configurazione</span>
+        </div>
+        <div class="s-step">
+          <div class="s-dot future">·</div>
+          <span class="s-label">Esecuzione</span>
+        </div>
+        <div class="s-step">
+          <div class="s-dot future">·</div>
+          <span class="s-label">Completato</span>
+        </div>
+      </div>
+      <div class="screen-content">
+        <div class="sc-title">Crea Release</div>
+        <div class="sc-sub">Pacchettizza il codice sorgente in un file .zip pronto per il deploy</div>
+        <div class="sc-sep"></div>
+        <div class="mock-field">
+          <div class="mock-label">CARTELLA SORGENTE (REPO GIT)</div>
+          <input class="mock-input" readonly value="C:\Dev\Portale Novicrom">
+        </div>
+        <div class="mock-field">
+          <div class="mock-label">CARTELLA OUTPUT (DOVE SALVARE IL .ZIP)</div>
+          <input class="mock-input" readonly value="C:\PortaleNovicrom\shared\packages">
+        </div>
+        <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:4px; padding:10px 14px; font-size:11px; color:#6b7280;">
+          <strong style="color:#374151">File esclusi automaticamente:</strong><br>
+          <code style="font-size:10px; background:transparent; color:#6b7280">
+            .git &nbsp;·&nbsp; .venv/venv &nbsp;·&nbsp; .env &nbsp;·&nbsp; __pycache__ &nbsp;·&nbsp;
+            *.pyc &nbsp;·&nbsp; db.sqlite3 &nbsp;·&nbsp; media/ &nbsp;·&nbsp; logs/ &nbsp;·&nbsp; staticfiles/ &nbsp;·&nbsp; releases/
+          </code>
+        </div>
+        <div class="mock-bar">
+          <div><span class="mock-btn secondary">◀  Indietro</span></div>
+          <div><span class="mock-btn primary">▶  Esegui</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Output della fase di esecuzione</h3>
+  <pre><code><span class="ok">── Preparazione ────────────────────────────────────</span>
+<span class="ok">  Versione rilevata: v0.8.3</span>
+<span class="ok">  Output: C:\PortaleNovicrom\shared\packages\portale-novicrom-v0.8.3-20260321_143022.zip</span>
+
+<span class="ok">── Creazione portale-novicrom-v0.8.3-20260321_143022.zip ──</span>
+<span class="ok">  ✓ 1247 file · 3.4 MB</span>
+
+<span class="ok">── Verifica integrità zip ──────────────────────────</span>
+<span class="ok">  ✓ Zip integro</span>
+<span class="ok">  ✓ Salvato: C:\PortaleNovicrom\shared\packages\portale-novicrom-v0.8.3-20260321_143022.zip</span>
+
+<span class="ok">──────────────────────────────────────────────────────</span>
+<span class="ok">  portale-novicrom-v0.8.3-20260321_143022.zip pronta per il deploy!</span>
+<span class="ok">  Copia il .zip in  shared\packages\  sul server e usa Promuovi Release.</span></code></pre>
+
+  <!-- 5. PROMUOVI RELEASE ────────────────────────── -->
+  <h2 id="promuovi">5. Promuovi Release (su TEST o PROD)</h2>
+  <p>
+    Questa operazione prende un file <code>.zip</code> già creato e lo deploya su un ambiente server,
+    eseguendo automaticamente tutte le operazioni di deploy: pip install, collectstatic, migrate,
+    attivazione junction, riavvio IIS.
+  </p>
+
+  <div class="callout callout-warn">
+    <strong>Prerequisito:</strong> l'ambiente deve essere già stato configurato con il
+    <strong>Setup Wizard</strong> (prima installazione). In particolare devono esistere:
+    il virtualenv in <code>ENV\venv\</code> e il file <code>ENV\config\.env</code> con le credenziali.
+  </div>
+
+  <h3>Pipeline automatica</h3>
+  <table>
+    <tr><th>#</th><th>Operazione</th><th>Dettaglio</th></tr>
+    <tr><td>1</td><td>Estrazione zip</td><td>Estrae in <code>releases\YYYYMMDD_HHmmss\</code></td></tr>
+    <tr><td>2</td><td>Copia .env</td><td>Copia <code>ENV\config\.env</code> nel release estratto</td></tr>
+    <tr><td>3</td><td>pip install</td><td>Aggiorna le dipendenze Python dal <code>requirements.txt</code></td></tr>
+    <tr><td>4</td><td>collectstatic</td><td>Raccoglie i file statici in <code>ENV\static\</code></td></tr>
+    <tr><td>5</td><td>Django migrate</td><td>Applica le nuove migrazioni al database</td></tr>
+    <tr><td>6</td><td>createcachetable</td><td>Crea/aggiorna la tabella cache Django</td></tr>
+    <tr><td>7</td><td>Attivazione junction</td><td>Salva release precedente, aggiorna junction <code>current\</code></td></tr>
+    <tr><td>8</td><td>Riavvio IIS</td><td>Ricicla l'App Pool e avvia il sito</td></tr>
+  </table>
+
+  <h3>Procedura passo-passo</h3>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4>Copia il .zip sul server</h4>
+        <p>Copia il file <code>.zip</code> creato dal DEV in
+           <code>C:\PortaleNovicrom\shared\packages\</code> sul server destinatario.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4>Apri il Release Manager come Amministratore</h4>
+        <p>Esegui <code>avvia_gestore_release.bat</code> — si auto-eleva automaticamente.
+           Seleziona <strong>Promuovi Release → TEST / PROD</strong>.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        <h4>Seleziona il pacchetto e l'ambiente</h4>
+        <p>Il wizard rileva automaticamente il <code>.zip</code> più recente in
+           <code>shared\packages\</code>. Seleziona TEST o PROD e verifica la
+           directory base server.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4>Clicca Esegui e attendi</h4>
+        <p>Il log mostra l'avanzamento in tempo reale. Non chiudere la finestra
+           durante il processo. In caso di errore le istruzioni di rollback sono
+           mostrate nella schermata finale.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREENSHOT — Promuovi -->
+  <div class="screen-wrap">
+    <div class="screen-bar">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <span class="title">Portale Novicrom — Gestione Release</span>
+    </div>
+    <div class="screen-body">
+      <div class="screen-sidebar">
+        <div class="s-logo">⚙ Portale<br>Novicrom</div>
+        <div class="s-sub">Gestione Release</div>
+        <hr>
+        <div class="s-step">
+          <div class="s-dot done">✓</div>
+          <span class="s-label" style="color:#93c5fd">Modalità</span>
+        </div>
+        <div class="s-step active">
+          <div class="s-dot active">2</div>
+          <span class="s-label active">Configurazione</span>
+        </div>
+        <div class="s-step">
+          <div class="s-dot future">·</div>
+          <span class="s-label">Esecuzione</span>
+        </div>
+        <div class="s-step">
+          <div class="s-dot future">·</div>
+          <span class="s-label">Completato</span>
+        </div>
+      </div>
+      <div class="screen-content">
+        <div class="sc-title">Promuovi Release</div>
+        <div class="sc-sub">Seleziona il pacchetto .zip e l'ambiente destinazione</div>
+        <div class="sc-sep"></div>
+        <div class="mock-field">
+          <div class="mock-label">FILE PACCHETTO .ZIP</div>
+          <input class="mock-input" readonly value="C:\PortaleNovicrom\shared\packages\portale-novicrom-v0.8.3-20260321_143022.zip">
+        </div>
+        <div style="font-size:10px; color:#16a34a; margin-bottom:10px;">
+          ✓ &nbsp;portale-novicrom-v0.8.3-20260321_143022.zip &nbsp;·&nbsp; v0.8.3 &nbsp;·&nbsp; 3.4 MB
+        </div>
+        <div class="card-row" style="margin-bottom:8px;">
+          <div class="mock-card sel" style="background:#fffbeb; border-color:#fcd34d; flex:1;">
+            <div class="mc-check" style="color:#1a56db">✓</div>
+            <div class="mc-title" style="color:#92400e">TEST</div>
+            <div class="mc-desc">Windows Server · SQL Server TEST · IIS porta 8080</div>
+          </div>
+          <div class="mock-card" style="background:#f0fdf4; flex:1;">
+            <div class="mc-title" style="color:#166534">PROD</div>
+            <div class="mc-desc">Windows Server · SQL Server PROD · IIS porta 80 · utenti reali</div>
+          </div>
+        </div>
+        <div class="mock-bar">
+          <div><span class="mock-btn secondary">◀  Indietro</span></div>
+          <div><span class="mock-btn primary">▶  Esegui</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Output della fase di esecuzione</h3>
+  <pre><code><span class="ok">── Estrazione pacchetto ─────────────────────────────</span>
+<span class="ok">  ✓ Estratto in C:\PortaleNovicrom\TEST\releases\20260321_143250</span>
+
+<span class="ok">── Copia configurazione .env ────────────────────────</span>
+<span class="ok">  ✓ .env copiato da C:\PortaleNovicrom\TEST\config\.env</span>
+
+<span class="ok">── Aggiornamento dipendenze pip ─────────────────────</span>
+<span class="dim">  $ C:\PortaleNovicrom\TEST\venv\Scripts\python.exe -m pip install -r requirements.txt</span>
+<span class="ok">  ✓ Dipendenze aggiornate</span>
+
+<span class="ok">── collectstatic ────────────────────────────────────</span>
+<span class="ok">  ✓ collectstatic completato</span>
+
+<span class="ok">── Django migrate ───────────────────────────────────</span>
+<span class="ok">  ✓ migrate completato</span>
+<span class="ok">  ✓ createcachetable completato</span>
+
+<span class="ok">── Attivazione release ──────────────────────────────</span>
+<span class="ok">  ✓ Release precedente salvata: C:\PortaleNovicrom\TEST\releases\20260318_091200</span>
+<span class="ok">  ✓ current → 20260321_143250</span>
+
+<span class="ok">── Riavvio App Pool IIS ─────────────────────────────</span>
+<span class="ok">  ✓ App Pool PortaleNovicrom-TEST riciclato</span>
+
+<span class="ok">──────────────────────────────────────────────────────</span>
+<span class="ok">  Release TEST attivata!</span></code></pre>
+
+  <!-- 6. ROLLBACK ──────────────────────────────────── -->
+  <h2 id="rollback">6. Rollback</h2>
+  <p>
+    Il Release Manager salva automaticamente la release precedente prima di ogni attivazione.
+    Se qualcosa va storto, puoi tornare alla versione precedente in due modi:
+  </p>
+
+  <h3>Metodo 1 — Script PowerShell (più veloce)</h3>
+  <pre><code><span class="cmt"># Rollback TEST (usa la release salvata in run\previous_release.txt)</span>
+<span class="kw">powershell</span> -ExecutionPolicy Bypass -File C:\PortaleNovicrom\shared\scripts\rollback-release.ps1 -Environment test
+
+<span class="cmt"># Rollback PROD</span>
+<span class="kw">powershell</span> -ExecutionPolicy Bypass -File C:\PortaleNovicrom\shared\scripts\rollback-release.ps1 -Environment prod</code></pre>
+
+  <h3>Metodo 2 — Manuale via junction</h3>
+  <pre><code><span class="cmt"># Leggi la release precedente</span>
+<span class="var">$prev</span> = Get-Content <span class="str">"C:\PortaleNovicrom\TEST\run\previous_release.txt"</span>
+
+<span class="cmt"># Aggiorna la junction</span>
+cmd /c <span class="str">"rmdir \"C:\PortaleNovicrom\TEST\current\""</span>
+cmd /c <span class="str">"mklink /J \"C:\PortaleNovicrom\TEST\current\" \"$prev\""</span>
+
+<span class="cmt"># Riavvia il pool</span>
+Restart-WebAppPool -Name <span class="str">"PortaleNovicrom-TEST"</span></code></pre>
+
+  <div class="callout callout-ok">
+    <strong>Rollback in &lt;30 secondi.</strong> La junction swap + recycle dell'App Pool è immediata.
+    Non c'è copia di file — punta semplicemente alla directory precedente.
+  </div>
+
+  <!-- 7. ARGOMENTI CLI ─────────────────────────────── -->
+  <h2 id="argomenti">7. Argomenti CLI</h2>
+  <table>
+    <tr><th>Argomento</th><th>Valori</th><th>Effetto</th></tr>
+    <tr>
+      <td><code>--mode release</code></td>
+      <td>—</td>
+      <td>Apre il Release Manager con schermata di selezione modalità</td>
+    </tr>
+    <tr>
+      <td><code>--mode create</code></td>
+      <td>—</td>
+      <td>Apre direttamente su "Crea Release" (salta la selezione)</td>
+    </tr>
+    <tr>
+      <td><code>--mode promote</code></td>
+      <td>—</td>
+      <td>Apre direttamente su "Promuovi Release"</td>
+    </tr>
+    <tr>
+      <td><code>--env</code></td>
+      <td><code>dev</code> <code>test</code> <code>prod</code></td>
+      <td>Preseleziona l'ambiente nel Setup Wizard (non nel Release Manager)</td>
+    </tr>
+  </table>
+
+  <!-- 8. STRUTTURA DIRECTORY ─────────────────────────── -->
+  <h2 id="struttura">8. Struttura directory server</h2>
+  <pre><code>C:\PortaleNovicrom\
+├── shared\
+│   ├── packages\          <span class="cmt"># Dove copiare i .zip da DEV</span>
+│   ├── backups\           <span class="cmt"># Backup ambiente (backup-environment.ps1)</span>
+│   └── scripts\           <span class="cmt"># Script PowerShell copiati dal wizard</span>
+│
+├── TEST\
+│   ├── config\
+│   │   └── .env           <span class="cmt"># Configurazione TEST (non versionata)</span>
+│   ├── venv\              <span class="cmt"># Virtualenv Python (riutilizzato tra release)</span>
+│   ├── releases\
+│   │   ├── 20260315_103000\   <span class="cmt"># Release precedenti</span>
+│   │   └── 20260321_143250\   <span class="cmt"># Release attuale</span>
+│   ├── current\           <span class="cmt"># Junction → releases\20260321_143250\</span>
+│   ├── static\            <span class="cmt"># collectstatic output</span>
+│   ├── media\             <span class="cmt"># Upload utenti</span>
+│   ├── logs\              <span class="cmt"># Log applicazione</span>
+│   ├── run\
+│   │   └── previous_release.txt  <span class="cmt"># Usato dal rollback</span>
+│   └── web.config
+│
+└── PROD\                  <span class="cmt"># Struttura identica a TEST</span>
+    └── ...</code></pre>
+
+  <div class="callout callout-info">
+    <strong>La junction <code>current\</code></strong> è il punto di montaggio che IIS usa come
+    physical path del sito. Aggiornando la junction si attiva istantaneamente una nuova release
+    senza copiare file.
+  </div>
+
+  <!-- 9. PREREQUISITI ──────────────────────────────── -->
+  <h2 id="prerequisiti">9. Prerequisiti</h2>
+
+  <h3>Per Crea Release (PC sviluppo)</h3>
+  <ul class="checklist">
+    <li>Python 3.11+ con tkinter (incluso nelle distribuzioni Windows standard)</li>
+    <li>Accesso in lettura alla cartella del repository</li>
+    <li>Accesso in scrittura alla cartella output</li>
+  </ul>
+
+  <h3>Per Promuovi Release (server)</h3>
+  <ul class="checklist">
+    <li>Python 3.11+ con tkinter</li>
+    <li>Eseguire come <strong>Amministratore</strong> (richiesto per junction NTFS e IIS)</li>
+    <li>IIS installato con HttpPlatformHandler</li>
+    <li>Ambiente già configurato con Setup Wizard (venv + .env esistenti)</li>
+    <li>ODBC Driver 17 o 18 for SQL Server</li>
+    <li>Il file <code>.zip</code> copiato in <code>shared\packages\</code></li>
+  </ul>
+
+  <!-- 10. FAQ ──────────────────────────────────────── -->
+  <h2 id="faq">10. FAQ</h2>
+
+  <h3>Il .zip viene rilevato automaticamente?</h3>
+  <p>
+    Sì. Il Release Manager cerca automaticamente il file <code>.zip</code> più recente
+    in <code>shared\packages\</code> e lo preseleziona. Puoi sempre scegliere un file
+    diverso con il pulsante Sfoglia.
+  </p>
+
+  <h3>Posso deployare la stessa release più volte?</h3>
+  <p>
+    Sì. Ogni esecuzione di "Promuovi Release" crea una nuova directory in
+    <code>releases\YYYYMMDD_HHmmss\</code> e aggiorna la junction. La release precedente
+    viene salvata per il rollback.
+  </p>
+
+  <h3>Cosa succede se migrate fallisce?</h3>
+  <p>
+    Il processo continua ma il log mostra l'errore in rosso. La junction viene comunque
+    aggiornata. Se il portale non funziona dopo il deploy, esegui il rollback con
+    <code>rollback-release.ps1</code>.
+  </p>
+  <div class="callout callout-warn">
+    <strong>Prima di ogni deploy su PROD</strong> esegui
+    <code>backup-environment.ps1 -Environment prod -IncludeDatabase</code>
+    per salvare una copia del database.
+  </div>
+
+  <h3>Come aggiorno il file .env dopo un deploy?</h3>
+  <p>
+    Modifica il file <code>C:\PortaleNovicrom\ENV\config\.env</code> e poi esegui una nuova
+    "Promuovi Release" con lo stesso <code>.zip</code> (o con uno nuovo). Il nuovo <code>.env</code>
+    verrà copiato nel release estratto al passaggio 2 della pipeline.
+  </p>
+
+  <h3>Posso usare il Release Manager senza avere usato il Setup Wizard?</h3>
+  <p>
+    No. Il Release Manager si aspetta che l'ambiente sia già configurato dal Setup Wizard:
+    il virtualenv <code>ENV\venv\</code> e il file <code>ENV\config\.env</code> devono esistere.
+    Se uno dei due manca, l'esecuzione si ferma con un messaggio di errore esplicativo.
+  </p>
+
+  <h3>Quante release vengono mantenute sul server?</h3>
+  <p>
+    Per default il Release Manager <em>non elimina</em> le vecchie release: le mantiene tutte
+    in <code>releases\</code>. Per la pulizia automatica usa lo script PowerShell
+    <code>remove-old-releases.ps1</code> (mantiene le ultime 5 per default).
+    Puoi anche eliminarle manualmente — l'importante è non eliminare la directory puntata dalla
+    junction <code>current\</code> e quella salvata in <code>run\previous_release.txt</code>.
+  </p>
+
+  <!-- FOOTER -->
+  <div style="margin-top:48px; padding-top:20px; border-top:1px solid var(--gray100);
+              font-size:12px; color:var(--gray400);">
+    Portale Novicrom · Gestione Release · Costruzioni Novicrom SRL ·
+    Versione documento 0.8.3 · 2026-03-21
+  </div>
+
+</main>
+
+<script>
+  // Evidenzia voce attiva nella sidebar in base allo scroll
+  const links = document.querySelectorAll('nav ul li a[href^="#"]');
+  const sections = [...links].map(l => document.querySelector(l.getAttribute('href'))).filter(Boolean);
+
+  function updateActive() {
+    let current = sections[0];
+    sections.forEach(s => { if (s.getBoundingClientRect().top <= 120) current = s; });
+    links.forEach(l => {
+      l.parentElement.classList.toggle(
+        'active', l.getAttribute('href') === '#' + current.id);
+    });
+  }
+  window.addEventListener('scroll', updateActive, {passive: true});
+  updateActive();
+</script>
+</body>
+</html>

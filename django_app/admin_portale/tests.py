@@ -12,6 +12,7 @@ from django.db import connection
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from admin_portale.forms import PulsanteForm, UtenteCreateForm
 from core.legacy_models import AnagraficaDipendente, UtenteLegacy
 from core.models import (
     AnagraficaRisposta,
@@ -650,3 +651,258 @@ class AdminPortaleNavigationIconTests(TestCase):
         payload = response.json()
         self.assertTrue(payload["icon"]["value"].startswith("navigation/icons/"))
         self.assertTrue(payload["icon"]["url"].startswith("/media/navigation/icons/"))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Security tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class AdminPortaleFormSecurityTests(TestCase):
+    """Testa la validazione di sicurezza nei form admin."""
+
+    def test_pulsante_url_blocks_javascript_scheme(self):
+        form = PulsanteForm({"codice": "test", "modulo": "test", "url": "javascript:alert(1)"})
+        self.assertFalse(form.is_valid())
+        self.assertIn("url", form.errors)
+
+    def test_pulsante_url_blocks_data_scheme(self):
+        form = PulsanteForm({"codice": "test", "modulo": "test", "url": "data:text/html,<h1>xss</h1>"})
+        self.assertFalse(form.is_valid())
+        self.assertIn("url", form.errors)
+
+    def test_pulsante_url_blocks_vbscript_scheme(self):
+        form = PulsanteForm({"codice": "test", "modulo": "test", "url": "VBScript:msgbox(1)"})
+        self.assertFalse(form.is_valid())
+        self.assertIn("url", form.errors)
+
+    def test_pulsante_url_allows_route_prefix(self):
+        form = PulsanteForm({"codice": "test", "modulo": "test", "url": "route:dashboard_home"})
+        self.assertTrue(form.is_valid())
+
+    def test_pulsante_url_allows_local_path(self):
+        form = PulsanteForm({"codice": "test", "modulo": "test", "url": "/assenze/"})
+        self.assertTrue(form.is_valid())
+
+    def test_pulsante_url_prepends_slash_to_bare_path(self):
+        form = PulsanteForm({"codice": "test", "modulo": "test", "url": "assenze"})
+        self.assertTrue(form.is_valid())
+        self.assertEqual(form.cleaned_data["url"], "/assenze")
+
+    def test_utente_create_form_rejects_short_password(self):
+        form = UtenteCreateForm({
+            "nome": "Mario Rossi",
+            "ad_managed": False,
+            "password_iniziale": "short",
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn("password_iniziale", form.errors)
+
+    def test_utente_create_form_accepts_long_enough_password(self):
+        form = UtenteCreateForm({
+            "nome": "Mario Rossi",
+            "ad_managed": False,
+            "password_iniziale": "sicurissima123",
+        })
+        self.assertTrue(form.is_valid())
+
+    def test_utente_create_form_ad_managed_skips_password_validation(self):
+        form = UtenteCreateForm({
+            "nome": "Mario Rossi",
+            "ad_managed": True,
+            "password_iniziale": "",
+        })
+        self.assertTrue(form.is_valid())
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AdminPortaleOpenRedirectTests(TestCase):
+    """Testa che i parametri next/HTTP_REFERER non permettano redirect verso domini esterni."""
+
+    def setUp(self):
+        _ensure_utenti_table()
+        _ensure_anagrafica_table()
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM anagrafica_dipendenti")
+            cursor.execute("DELETE FROM utenti")
+
+        self.admin_user = User.objects.create_superuser(
+            username="admin-redirect-sec",
+            email="admin.redirect@test.local",
+            password="pass12345",
+        )
+        self.admin_legacy = UtenteLegacy.objects.create(
+            nome="Admin Redirect",
+            email="admin.redirect@test.local",
+            password="*AD_MANAGED*",
+            ruolo="admin",
+            ruolo_id=1,
+            attivo=True,
+            deve_cambiare_password=False,
+        )
+        self.target_legacy = UtenteLegacy.objects.create(
+            nome="Target Utente",
+            email="target.redirect@test.local",
+            password="*AD_MANAGED*",
+            ruolo="utente",
+            ruolo_id=6,
+            attivo=True,
+            deve_cambiare_password=False,
+        )
+
+    def _do_post(self, url, data):
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin", return_value=True
+        ):
+            return self.client.post(url, data)
+
+    def test_toggle_active_rejects_external_next(self):
+        response = self._do_post(
+            reverse("admin_portale:utente_toggle_active", args=[self.target_legacy.id]),
+            {"next": "https://evil.example.com/steal"},
+        )
+        self.assertEqual(response.status_code, 302)
+        # deve redirect a utenti_list, NON a evil.example.com
+        self.assertNotIn("evil.example.com", response["Location"])
+
+    def test_toggle_active_accepts_local_next(self):
+        response = self._do_post(
+            reverse("admin_portale:utente_toggle_active", args=[self.target_legacy.id]),
+            {"next": reverse("admin_portale:utenti_list")},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin-portale/utenti/", response["Location"])
+
+    def test_force_change_password_rejects_external_next(self):
+        response = self._do_post(
+            reverse("admin_portale:utente_force_change_password", args=[self.target_legacy.id]),
+            {"next": "http://attacker.net/phishing"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertNotIn("attacker.net", response["Location"])
+
+    def test_quick_role_rejects_external_next(self):
+        response = self._do_post(
+            reverse("admin_portale:utente_quick_role", args=[self.target_legacy.id]),
+            {
+                f"quick_ruolo_id_{self.target_legacy.id}": "6",
+                "next": "//evil.com/path",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertNotIn("evil.com", response["Location"])
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AdminPortaleAuditLogTests(TestCase):
+    """Testa che le operazioni critiche vengano registrate nell'audit log."""
+
+    def setUp(self):
+        _ensure_utenti_table()
+        _ensure_anagrafica_table()
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM anagrafica_dipendenti")
+            cursor.execute("DELETE FROM utenti")
+
+        self.admin_user = User.objects.create_superuser(
+            username="admin-audit-sec",
+            email="admin.audit@test.local",
+            password="pass12345",
+        )
+        self.admin_legacy = UtenteLegacy.objects.create(
+            nome="Admin Audit",
+            email="admin.audit@test.local",
+            password="*AD_MANAGED*",
+            ruolo="admin",
+            ruolo_id=1,
+            attivo=True,
+            deve_cambiare_password=False,
+        )
+        self.target_legacy = UtenteLegacy.objects.create(
+            nome="Target Audit",
+            email="target.audit@test.local",
+            password="*AD_MANAGED*",
+            ruolo="utente",
+            ruolo_id=6,
+            attivo=True,
+            deve_cambiare_password=False,
+        )
+
+    def _do_post(self, url, data, content_type=None):
+        self.client.force_login(self.admin_user)
+        kwargs = {}
+        if content_type:
+            kwargs["content_type"] = content_type
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin", return_value=True
+        ):
+            if content_type:
+                return self.client.post(url, data, content_type=content_type)
+            return self.client.post(url, data)
+
+    def test_utente_toggle_active_is_audited(self):
+        from core.models import AuditLog
+
+        count_before = AuditLog.objects.filter(azione="utente_toggle_active").count()
+        self._do_post(
+            reverse("admin_portale:utente_toggle_active", args=[self.target_legacy.id]),
+            {"next": reverse("admin_portale:utenti_list")},
+        )
+        self.assertEqual(
+            AuditLog.objects.filter(azione="utente_toggle_active").count(),
+            count_before + 1,
+        )
+
+    def test_utenti_bulk_activate_is_audited(self):
+        from core.models import AuditLog
+
+        count_before = AuditLog.objects.filter(azione="utenti_bulk_activate").count()
+        self._do_post(
+            reverse("admin_portale:utenti_bulk_action"),
+            {"user_ids": [str(self.target_legacy.id)], "bulk_mode": "activate"},
+        )
+        self.assertEqual(
+            AuditLog.objects.filter(azione="utenti_bulk_activate").count(),
+            count_before + 1,
+        )
+
+    def test_utenti_bulk_deactivate_is_audited(self):
+        from core.models import AuditLog
+
+        count_before = AuditLog.objects.filter(azione="utenti_bulk_deactivate").count()
+        self._do_post(
+            reverse("admin_portale:utenti_bulk_action"),
+            {"user_ids": [str(self.target_legacy.id)], "bulk_mode": "deactivate"},
+        )
+        self.assertEqual(
+            AuditLog.objects.filter(azione="utenti_bulk_deactivate").count(),
+            count_before + 1,
+        )
+
+    def test_utenti_bulk_force_pwd_is_audited(self):
+        from core.models import AuditLog
+
+        count_before = AuditLog.objects.filter(azione="utenti_bulk_force_pwd").count()
+        self._do_post(
+            reverse("admin_portale:utenti_bulk_action"),
+            {"user_ids": [str(self.target_legacy.id)], "bulk_mode": "force_pwd"},
+        )
+        self.assertEqual(
+            AuditLog.objects.filter(azione="utenti_bulk_force_pwd").count(),
+            count_before + 1,
+        )
+
+    def test_utente_delete_is_audited(self):
+        from core.models import AuditLog
+
+        tid = self.target_legacy.id
+        count_before = AuditLog.objects.filter(azione="utente_delete").count()
+        self._do_post(
+            reverse("admin_portale:utente_delete", args=[tid]),
+            {"next": reverse("admin_portale:utenti_list")},
+        )
+        self.assertEqual(
+            AuditLog.objects.filter(azione="utente_delete").count(),
+            count_before + 1,
+        )

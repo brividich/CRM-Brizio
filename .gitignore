@@ -1,3 +1,7 @@
+# Deployment — cartelle generate sul server (non versionare)
+releases/
+deployment/releases/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -173,3 +177,9 @@ doc/AUDIT_TECNICO_2026-03-13.md
 doc/DATABASE_AUDIT.md
 doc/UPGRADE_V2_PULSANTI.md
 rentri.docx
+dpi_20260320170339.zip
+.gitignore
+deployment/MANUALE_DEPLOY_PORTALE_NOVICROM.html
+deployment/avvia_wizard_DEV.bat
+.gitignore
+deployment/avvia_wizard_TEST.bat

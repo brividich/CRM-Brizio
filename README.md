@@ -3,7 +3,7 @@
 
 ![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
 ![Django 5.2](https://img.shields.io/badge/Django-5.2-0C4B33?logo=django&logoColor=white)
-![Version 0.7.4](https://img.shields.io/badge/version-0.7.4-F97316)
+![Version 0.8.2](https://img.shields.io/badge/version-0.8.2-F97316)
 ![Database SQLite or SQL Server](https://img.shields.io/badge/DB-SQLite%20%7C%20SQL%20Server-1E3A5F)
 
 Repository pubblico del software **BrizioHUB**. Il nome istanza è configurabile per deployment
@@ -127,6 +127,14 @@ Check rapido del profilo produzione:
 ```powershell
 $env:DJANGO_SETTINGS_MODULE="config.settings.prod"
 python django_app\manage.py check
+```
+
+### Setup cache multi-worker (IIS con 2+ worker)
+
+Con più worker IIS la cache deve essere condivisa tra processi. Il profilo prod usa automaticamente `DatabaseCache` su SQL Server. Eseguire **una sola volta** dopo ogni deploy su server vergine:
+
+```powershell
+python django_app\manage.py createcachetable --settings=config.settings.prod
 ```
 
 ## Comandi utili

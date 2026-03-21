@@ -17,6 +17,7 @@
 {% url 'hub_tools:hub_homepage_builder'         as hub_homepage_builder_url %}
 {% url 'hub_tools:hub_setup_wizard'             as hub_setup_wizard_url %}
 {% url 'hub_tools:hub_guide_list'               as hub_guide_list_url %}
+{% url 'hub_tools:hub_notifiche'               as hub_notifiche_url %}
 <div class="subnav">
   <a class="sub-a{% if current == 'admin_portale:index' %} active{% endif %}"
      href="{% url 'admin_portale:index' %}">Home Admin</a>
@@ -25,12 +26,16 @@
   {# ── Utenti & Accessi #}
   <a class="sub-a{% if current == 'admin_portale:utenti_list' or current == 'admin_portale:utente_edit' or current == 'admin_portale:utente_permessi_effettivi' %} active{% endif %}"
      href="{% url 'admin_portale:utenti_list' %}">Utenti</a>
-  <a class="sub-a{% if current == 'admin_portale:accessi' or current == 'admin_portale:accessi_semplice' %} active{% endif %}"
-     href="{% url 'admin_portale:accessi' %}">Accessi</a>
+  <a class="sub-a{% if current == 'admin_portale:accessi' or current == 'admin_portale:gestione_accessi' %} active{% endif %}"
+     href="{% url 'admin_portale:gestione_accessi' %}">Gestione Accessi</a>
   <a class="sub-a{% if current == 'admin_portale:accessi_avanzati' or current == 'admin_portale:wizard_ruolo' %} active{% endif %}"
      href="{% url 'admin_portale:accessi_avanzati' %}">Accessi Avanzati</a>
   <a class="sub-a{% if current == 'admin_portale:permessi' %} active{% endif %}"
      href="{% url 'admin_portale:permessi' %}">Permessi</a>
+  <a class="sub-a{% if current == 'admin_portale:matrice_permessi' %} active{% endif %}"
+     href="{% url 'admin_portale:matrice_permessi' %}">Matrice</a>
+  <a class="sub-a{% if current == 'admin_portale:accessi_semplice' %} active{% endif %}"
+     href="{% url 'admin_portale:accessi_semplice' %}">Accessi Semplici</a>
   <div class="sub-sep"></div>
 
   {# ── Navigazione #}
@@ -107,6 +112,10 @@
       <a class="sub-a{% if current == 'hub_tools:hub_guide_list' or current == 'hub_tools:hub_guide_view' %} active{% endif %}"
          href="{{ hub_guide_list_url }}" style="color:#1a6fc4;font-weight:700;">📚 Guide</a>
     {% endif %}
+    {% if hub_notifiche_url %}
+      <a class="sub-a{% if current == 'hub_tools:hub_notifiche' or current == 'hub_tools:hub_notifica_invia' %} active{% endif %}"
+         href="{{ hub_notifiche_url }}" style="color:#1a6fc4;font-weight:700;">🔔 Notifiche</a>
+    {% endif %}
   {% endif %}
 </div>
 
@@ -119,7 +128,9 @@
     <strong>Scheda utente:</strong> modifica dati anagrafici, ruolo e stato attivo di un singolo utente. Salva e poi verifica i permessi effettivi.
   {% elif current == 'admin_portale:utente_permessi_effettivi' %}
     <strong>Permessi effettivi:</strong> vista di controllo per capire cosa eredita l'utente dal ruolo attuale (utile per debug accessi).
-  {% elif current == 'admin_portale:accessi' or current == 'admin_portale:accessi_semplice' %}
+  {% elif current == 'admin_portale:accessi' or current == 'admin_portale:gestione_accessi' %}
+    <strong>Gestione Accessi:</strong> pagina unificata per configurare tutti i permessi di un ruolo — accordion per modulo con <code>can_view</code>, <code>can_edit</code>, <code>can_delete</code> per ogni pulsante. Salva tutto in un click.
+  {% elif current == 'admin_portale:accessi_semplice' %}
     <strong>Accessi Semplici:</strong> gestione rapida per ruolo in una sola tabella (accesso modulo + pulsanti attivi), senza passaggi tecnici.
   {% elif current == 'admin_portale:accessi_avanzati' %}
     <strong>Accessi Avanzati:</strong> dashboard tecnica con indicatori ruoli, override e collegamenti agli strumenti ACL avanzati.
@@ -127,6 +138,8 @@
     <strong>Wizard Configura Ruolo:</strong> flusso guidato in 3 passi per impostare tutti i permessi di un ruolo. Le modifiche vengono salvate solo al passo 3.
   {% elif current == 'admin_portale:permessi' %}
     <strong>Permessi:</strong> matrice ACL per ruolo/modulo/azione. Abilita almeno <code>can_view</code> (o <code>consentito</code>) per rimuovere i 403.
+  {% elif current == 'admin_portale:matrice_permessi' %}
+    <strong>Matrice Permessi:</strong> scegli un modulo e gestisci <code>can_view</code> per tutti i ruoli in una tabella. Click sull'intestazione colonna per attivare/disattivare un ruolo intero.
   {% elif current == 'admin_portale:pulsanti' %}
     <strong>Pulsanti:</strong> configura menu, link e metadati UI (slot/sezione/ordine). I valori Slot/Sezione guidano topbar e organizzazione del portale.
   {% elif current == 'admin_portale:topbar_live' %}
@@ -175,6 +188,8 @@
     <strong>Setup Wizard:</strong> riconfigura il portale modificando database, LDAP, SMTP e altri parametri. I valori mostrati sono quelli attualmente in uso.
   {% elif current == 'hub_tools:hub_guide_list' or current == 'hub_tools:hub_guide_view' %}
     <strong>Guide e Manuali:</strong> documentazione tecnica e guide operative per la gestione del portale.
+  {% elif current == 'hub_tools:hub_notifiche' or current == 'hub_tools:hub_notifica_invia' %}
+    <strong>Notifiche:</strong> monitora, invia e gestisci le notifiche in-app degli utenti. Le notifiche compaiono come popup al successivo caricamento pagina.
   {% elif 'hub_tools:' in current %}
     <strong>Hub Tools:</strong> strumenti di sistema riservati allo staff — gestione moduli visibili e manutenzione database (backup, pulizia, ottimizzazione).
   {% else %}

@@ -510,6 +510,14 @@ STAT_WIDGETS = [
         "link_url": "",
         "link_label": "Vai ai timbri",
     },
+    {
+        "id": "dpi",
+        "title": "DPI richiesti",
+        "icon": "🦺",
+        "color": "#16a34a",
+        "link_url": "/dpi/gestione/",
+        "link_label": "Vai ai DPI",
+    },
 ]
 
 _WIDGET_DEFAULT_ORDER = [w["id"] for w in STAT_WIDGETS]
@@ -604,6 +612,13 @@ def _compute_widget_counts(dip: dict) -> dict[str, int]:
     except Exception:
         logger.exception("Errore conteggio timbri per dipendente %s", legacy_id)
 
+    # DPI richiesti
+    try:
+        from dpi.models import RichiestaDPI
+        counts["dpi"] = RichiestaDPI.objects.filter(richiedente_legacy_id=legacy_id).count() if legacy_id else 0
+    except Exception:
+        logger.exception("Errore conteggio DPI per dipendente %s", legacy_id)
+
     return counts
 
 
@@ -679,6 +694,7 @@ def dipendente_detail(request, legacy_id: int):
         "rilevazioni": _rilevazioni_base + _qs(q=_nome_completo),
         "assenze": "/assenze/",
         "timbri": _timbri_base,
+        "dpi": "/dpi/gestione/" + _qs(q=_nome_completo),
     }
 
     # Costruisce lista widget con dati
@@ -719,6 +735,20 @@ def dipendente_detail(request, legacy_id: int):
     )
     tipi_qualifica = list(TipoQualifica.objects.filter(is_active=True).order_by("categoria", "nome"))
 
+    # DPI dipendente
+    dpi_consegnati = []
+    dpi_richieste = []
+    try:
+        from dpi.models import RichiestaDPI
+        dpi_richieste = list(
+            RichiestaDPI.objects.filter(richiedente_legacy_id=legacy_id)
+            .select_related("categoria", "consegna")
+            .order_by("-created_at")[:20]
+        )
+        dpi_consegnati = [r for r in dpi_richieste if r.stato == "CONSEGNATA" and hasattr(r, "consegna")]
+    except Exception:
+        logger.exception("Errore caricamento DPI per dipendente %s", legacy_id)
+
     return render(request, "anagrafica/pages/dipendente_detail.html", {
         "dip": dip,
         "legacy_id": legacy_id,
@@ -734,6 +764,8 @@ def dipendente_detail(request, legacy_id: int):
         "tipi_qualifica": tipi_qualifica,
         "oggi": oggi,
         "oggi_plus60": oggi + timedelta(days=60),
+        "dpi_richieste": dpi_richieste,
+        "dpi_consegnati": dpi_consegnati,
     })
 
 

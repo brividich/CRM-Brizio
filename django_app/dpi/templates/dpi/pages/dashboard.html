@@ -1,0 +1,189 @@
+{% extends "core/base.html" %}
+
+{% block title %}DPI | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#dpi-root { display:flex; flex-direction:column; gap:20px; }
+
+.dpi-subnav { display:flex; gap:4px; flex-wrap:wrap; }
+.dpi-subnav-link {
+  padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600;
+  text-decoration:none; color:#475569; background:#f1f5f9; transition:all .15s;
+}
+.dpi-subnav-link:hover { background:#e2e8f0; color:#0f172a; }
+.dpi-subnav-link.active { background:#0369a1; color:#fff; }
+
+.dpi-hero {
+  background:linear-gradient(135deg,#166534 0%,#15803d 60%,#16a34a 100%);
+  border-radius:16px; padding:28px 32px;
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; color:#fff;
+}
+.dpi-hero-title { font-size:26px; font-weight:900; letter-spacing:-.03em; }
+.dpi-hero-sub { font-size:13px; opacity:.7; margin-top:3px; }
+.dpi-hero-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.dpi-hbtn {
+  display:inline-flex; align-items:center; gap:6px; padding:9px 18px;
+  border-radius:10px; font-size:13px; font-weight:700; text-decoration:none;
+  border:none; cursor:pointer; transition:all .15s;
+}
+.dpi-hbtn-white { background:#fff; color:#166534; }
+.dpi-hbtn-white:hover { background:#dcfce7; }
+.dpi-hbtn-outline { background:rgba(255,255,255,.15); color:#fff; border:1px solid rgba(255,255,255,.3); }
+.dpi-hbtn-outline:hover { background:rgba(255,255,255,.28); }
+
+.dpi-kpi-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; }
+.dpi-kpi {
+  background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 20px;
+  display:flex; flex-direction:column; gap:4px;
+}
+.dpi-kpi-val { font-size:32px; font-weight:900; line-height:1; color:#0f172a; }
+.dpi-kpi-lbl { font-size:11px; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
+.dpi-kpi-green .dpi-kpi-val { color:#15803d; }
+.dpi-kpi-blue .dpi-kpi-val { color:#0369a1; }
+.dpi-kpi-orange .dpi-kpi-val { color:#d97706; }
+.dpi-kpi-red .dpi-kpi-val { color:#dc2626; }
+.dpi-kpi-yellow .dpi-kpi-val { color:#b45309; }
+
+.dpi-section-title { font-size:15px; font-weight:700; color:#0f172a; margin-bottom:4px; }
+
+.dpi-table-wrap { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow-x:auto; }
+.dpi-table { width:100%; border-collapse:collapse; font-size:13px; }
+.dpi-table th { background:#f8fafc; padding:10px 14px; text-align:left; font-weight:700; color:#64748b; font-size:11px; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid #e2e8f0; }
+.dpi-table td { padding:11px 14px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+.dpi-table tr:last-child td { border-bottom:none; }
+.dpi-table tr:hover td { background:#f8fafc; }
+.dpi-table a { color:#0369a1; font-weight:600; text-decoration:none; }
+.dpi-table a:hover { text-decoration:underline; }
+
+.dpi-badge { display:inline-block; padding:3px 10px; border-radius:99px; font-size:11px; font-weight:700; }
+.dpi-badge-INVIATA { background:#dbeafe; color:#1e40af; }
+.dpi-badge-APPROVATA { background:#fef3c7; color:#92400e; }
+.dpi-badge-CONSEGNATA { background:#d1fae5; color:#065f46; }
+.dpi-badge-RIFIUTATA { background:#fee2e2; color:#991b1b; }
+.dpi-badge-ANNULLATA { background:#f1f5f9; color:#475569; }
+
+.dpi-cat-chip {
+  display:inline-flex; align-items:center; gap:6px;
+  background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0;
+  padding:3px 10px; border-radius:99px; font-size:12px; font-weight:600;
+}
+.dpi-cat-chip img { width:18px; height:18px; object-fit:cover; border-radius:3px; }
+
+.dpi-empty { padding:40px; text-align:center; color:#94a3b8; font-size:14px; }
+
+@media (max-width:700px) {
+  .dpi-hero { padding:20px; }
+  .dpi-hero-title { font-size:20px; }
+}
+@media (max-width:480px) {
+  .dpi-kpi-row { grid-template-columns:repeat(2,1fr); }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="dpi-root">
+  {% include "dpi/components/subnav.html" %}
+
+  <div class="dpi-hero">
+    <div>
+      <div class="dpi-hero-title">🦺 DPI — Dispositivi di Protezione Individuale</div>
+      <div class="dpi-hero-sub">Gestione richieste e distribuzione dispositivi di sicurezza</div>
+    </div>
+    <div class="dpi-hero-actions">
+      <a href="{% url 'dpi:nuova' %}" class="dpi-hbtn dpi-hbtn-white">+ Nuova richiesta</a>
+      {% if is_gestore %}
+      <a href="{% url 'dpi:gestione_list' %}" class="dpi-hbtn dpi-hbtn-outline">Gestione richieste</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div class="dpi-kpi-row">
+    <div class="dpi-kpi dpi-kpi-blue">
+      <div class="dpi-kpi-val">{{ n_inviate }}</div>
+      <div class="dpi-kpi-lbl">{% if is_gestore %}In attesa{% else %}Mie inviate{% endif %}</div>
+    </div>
+    <div class="dpi-kpi dpi-kpi-orange">
+      <div class="dpi-kpi-val">{{ n_approvate }}</div>
+      <div class="dpi-kpi-lbl">Approvate</div>
+    </div>
+    <div class="dpi-kpi dpi-kpi-green">
+      <div class="dpi-kpi-val">{{ n_consegnate }}</div>
+      <div class="dpi-kpi-lbl">Consegnate</div>
+    </div>
+    {% if is_gestore %}
+    <div class="dpi-kpi dpi-kpi-yellow">
+      <div class="dpi-kpi-val">{{ n_in_scadenza }}</div>
+      <div class="dpi-kpi-lbl">In scadenza (30 gg)</div>
+    </div>
+    <div class="dpi-kpi dpi-kpi-red">
+      <div class="dpi-kpi-val">{{ n_scadute }}</div>
+      <div class="dpi-kpi-lbl">Scadute</div>
+    </div>
+    {% endif %}
+    <div class="dpi-kpi">
+      <div class="dpi-kpi-val">{{ n_totale }}</div>
+      <div class="dpi-kpi-lbl">Totale</div>
+    </div>
+  </div>
+
+  <!-- Ultime richieste -->
+  <div>
+    <div class="dpi-section-title">Richieste recenti</div>
+    <div class="dpi-table-wrap">
+      {% if ultime %}
+      <table class="dpi-table">
+        <thead>
+          <tr>
+            <th>Numero</th>
+            <th>DPI</th>
+            {% if is_gestore %}<th>Richiedente</th><th>Reparto</th>{% endif %}
+            <th>Qtà</th>
+            <th>Stato</th>
+            <th>Data</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in ultime %}
+          <tr>
+            <td>
+              {% if is_gestore %}
+              <a href="{% url 'dpi:gestione_detail' r.pk %}">{{ r.numero }}</a>
+              {% else %}
+              <a href="{% url 'dpi:detail' r.pk %}">{{ r.numero }}</a>
+              {% endif %}
+            </td>
+            <td>
+              <span class="dpi-cat-chip">
+                {% if r.categoria.immagine %}<img src="{{ r.categoria.immagine.url }}" alt="">{% else %}{{ r.categoria.icona_emoji }}{% endif %}
+                {{ r.categoria.nome }}
+              </span>
+            </td>
+            {% if is_gestore %}<td>{{ r.richiedente_nome }}</td><td>{{ r.richiedente_reparto|default:"-" }}</td>{% endif %}
+            <td>{{ r.quantita }} {{ r.categoria.unita_misura }}</td>
+            <td><span class="dpi-badge dpi-badge-{{ r.stato }}">{{ r.label_stato }}</span></td>
+            <td style="white-space:nowrap; color:#64748b; font-size:12px;">{{ r.created_at|date:"d/m/Y" }}</td>
+            <td>
+              {% if is_gestore %}
+              <a href="{% url 'dpi:gestione_detail' r.pk %}" style="font-size:12px; color:#0369a1;">Gestisci</a>
+              {% else %}
+              <a href="{% url 'dpi:detail' r.pk %}" style="font-size:12px; color:#0369a1;">Dettaglio</a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="dpi-empty">
+        Nessuna richiesta ancora.
+        <br><a href="{% url 'dpi:nuova' %}" style="color:#15803d; font-weight:700;">Fai la prima richiesta DPI</a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,235 @@
+{% extends "core/base.html" %}
+
+{% block title %}Impostazioni DPI | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#dpi-root { display:flex; flex-direction:column; gap:20px; }
+.dpi-subnav { display:flex; gap:4px; flex-wrap:wrap; }
+.dpi-subnav-link { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; color:#475569; background:#f1f5f9; }
+.dpi-subnav-link:hover { background:#e2e8f0; }
+.dpi-subnav-link.active { background:#0369a1; color:#fff; }
+
+.dpi-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; }
+.dpi-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:24px 28px; }
+.dpi-card-title { font-size:16px; font-weight:800; color:#0f172a; margin-bottom:16px; }
+
+.dpi-field { margin-bottom:14px; }
+.dpi-field label { display:block; font-size:11px; font-weight:700; color:#374151; text-transform:uppercase; letter-spacing:.04em; margin-bottom:5px; }
+.dpi-field input[type=text], .dpi-field input[type=email], .dpi-field input[type=number], .dpi-field textarea, .dpi-field select {
+  width:100%; padding:8px 11px; border:1px solid #d1d5db; border-radius:9px; font-size:13px; background:#fff;
+}
+.dpi-field textarea { resize:vertical; min-height:80px; }
+.dpi-field input[type=checkbox] { width:auto; margin-right:6px; }
+
+.dpi-btn { padding:9px 22px; border-radius:9px; font-size:13px; font-weight:700; border:none; cursor:pointer; transition:all .15s; }
+.dpi-btn-green { background:#16a34a; color:#fff; }
+.dpi-btn-green:hover { background:#15803d; }
+.dpi-btn-blue { background:#0369a1; color:#fff; }
+.dpi-btn-blue:hover { background:#075985; }
+.dpi-btn-red { background:#fee2e2; color:#dc2626; border:1px solid #fecaca; }
+.dpi-btn-red:hover { background:#fecaca; }
+.dpi-btn-gray { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; }
+
+/* Griglia categorie */
+.dpi-cat-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px,1fr)); gap:12px; margin-bottom:16px; }
+.dpi-cat-item {
+  border:1px solid #e2e8f0; border-radius:12px; background:#fff;
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+  padding:14px 10px 10px; text-align:center; position:relative;
+}
+.dpi-cat-item.inactive { opacity:.5; }
+.dpi-cat-item-img { width:52px; height:52px; object-fit:contain; border-radius:8px; border:1px solid #e2e8f0; background:#f8fafc; padding:4px; }
+.dpi-cat-item-emoji { font-size:32px; }
+.dpi-cat-item-nome { font-size:13px; font-weight:700; color:#0f172a; }
+.dpi-cat-item-meta { font-size:11px; color:#64748b; }
+.dpi-cat-item-actions { display:flex; gap:6px; margin-top:4px; }
+.dpi-cat-item-actions a, .dpi-cat-item-actions button {
+  padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700;
+  text-decoration:none; border:none; cursor:pointer;
+}
+
+/* Modale categoria */
+.dpi-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9000; align-items:center; justify-content:center; }
+.dpi-modal-overlay.open { display:flex; }
+.dpi-modal { background:#fff; border-radius:16px; padding:28px 32px; width:min(520px, 95vw); max-height:90vh; overflow-y:auto; position:relative; }
+.dpi-modal-title { font-size:18px; font-weight:800; color:#0f172a; margin-bottom:20px; }
+.dpi-modal-close { position:absolute; top:14px; right:16px; font-size:20px; cursor:pointer; color:#64748b; background:none; border:none; }
+
+/* Immagine preview */
+.dpi-img-preview { width:80px; height:80px; object-fit:contain; border-radius:10px; border:1px solid #e2e8f0; display:none; margin-bottom:8px; }
+.dpi-img-preview.visible { display:block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="dpi-root">
+  {% include "dpi/components/subnav.html" with is_gestore=True %}
+
+  <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+    <div>
+      <div style="font-size:20px; font-weight:800; color:#0f172a;">Impostazioni DPI</div>
+      <div style="font-size:13px; color:#64748b; margin-top:2px;">Configura categorie e parametri del modulo</div>
+    </div>
+  </div>
+
+  <div class="dpi-grid-2">
+    <!-- Colonna sinistra: parametri generali -->
+    <div class="dpi-card">
+      <div class="dpi-card-title">Parametri generali</div>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_impostazioni">
+
+        <div class="dpi-field">
+          <label>Responsabile (nome)</label>
+          <input type="text" name="responsabile_nome" value="{{ impost.responsabile_nome }}">
+        </div>
+        <div class="dpi-field">
+          <label>Email responsabile</label>
+          <input type="email" name="responsabile_email" value="{{ impost.responsabile_email }}">
+        </div>
+        <div class="dpi-field">
+          <label>Note generali</label>
+          <textarea name="note_generali">{{ impost.note_generali }}</textarea>
+        </div>
+        <div class="dpi-field" style="display:flex; align-items:center;">
+          <input type="checkbox" name="notifica_nuova_richiesta" id="notif" value="1"{% if impost.notifica_nuova_richiesta %} checked{% endif %}>
+          <label for="notif" style="text-transform:none; font-size:13px; font-weight:600; margin:0; cursor:pointer;">Email al responsabile per ogni nuova richiesta</label>
+        </div>
+        <div class="dpi-field">
+          <label>Email notifiche aggiuntive (una per riga)</label>
+          <textarea name="notifica_email_extra" rows="3">{{ impost.notifica_email_extra }}</textarea>
+        </div>
+
+        <button type="submit" class="dpi-btn dpi-btn-green">Salva impostazioni</button>
+      </form>
+    </div>
+
+    <!-- Colonna destra: categorie DPI -->
+    <div class="dpi-card">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+        <div class="dpi-card-title" style="margin:0;">Categorie DPI</div>
+        <button class="dpi-btn dpi-btn-blue" onclick="openModal()">+ Nuova categoria</button>
+      </div>
+
+      {% if categorie %}
+      <div class="dpi-cat-grid">
+        {% for cat in categorie %}
+        <div class="dpi-cat-item{% if not cat.is_active %} inactive{% endif %}">
+          {% if cat.immagine %}
+          <img class="dpi-cat-item-img" src="{{ cat.immagine.url }}" alt="{{ cat.nome }}">
+          {% else %}
+          <div class="dpi-cat-item-emoji">{{ cat.icona_emoji }}</div>
+          {% endif %}
+          <div class="dpi-cat-item-nome">{{ cat.nome }}</div>
+          <div class="dpi-cat-item-meta">
+            {% if cat.vita_utile_giorni %}{{ cat.vita_utile_giorni }} gg{% else %}Vita n.d.{% endif %}
+            | {{ cat.unita_misura }}
+            {% if not cat.is_active %}<br><span style="color:#dc2626; font-size:10px; font-weight:700;">INATTIVA</span>{% endif %}
+          </div>
+          <div class="dpi-cat-item-actions">
+            <a href="{% url 'dpi:categoria_modifica' cat.pk %}"
+               style="background:#eff6ff; color:#1d4ed8;">Modifica</a>
+            <form method="post" action="{% url 'dpi:categoria_elimina' cat.pk %}" style="display:inline;" onsubmit="return confirm('Eliminare {{ cat.nome }}?')">
+              {% csrf_token %}
+              <button type="submit" style="background:#fee2e2; color:#dc2626;">Elimina</button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p style="color:#94a3b8; font-size:13px; text-align:center; padding:20px;">
+        Nessuna categoria configurata. Creane una per iniziare.
+      </p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Modale creazione/modifica categoria -->
+<div class="dpi-modal-overlay{% if cat_edit %} open{% endif %}" id="cat-modal">
+  <div class="dpi-modal">
+    <button class="dpi-modal-close" onclick="closeModal()">✕</button>
+    <div class="dpi-modal-title">{% if cat_edit %}Modifica{% else %}Nuova{% endif %} categoria DPI</div>
+
+    <form method="post"
+          action="{% if cat_edit %}{% url 'dpi:categoria_modifica' cat_edit.pk %}{% else %}{% url 'dpi:categoria_nuova' %}{% endif %}"
+          enctype="multipart/form-data">
+      {% csrf_token %}
+
+      <div class="dpi-field">
+        <label>Nome *</label>
+        <input type="text" name="nome" value="{{ cat_edit.nome|default:'' }}" required>
+      </div>
+      <div class="dpi-field">
+        <label>Descrizione</label>
+        <textarea name="descrizione" rows="2">{{ cat_edit.descrizione|default:'' }}</textarea>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="dpi-field">
+          <label>Icona emoji</label>
+          <input type="text" name="icona_emoji" value="{{ cat_edit.icona_emoji|default:'🦺' }}" maxlength="10">
+        </div>
+        <div class="dpi-field">
+          <label>Unita di misura</label>
+          <input type="text" name="unita_misura" value="{{ cat_edit.unita_misura|default:'pz' }}">
+        </div>
+        <div class="dpi-field">
+          <label>Vita utile (giorni)</label>
+          <input type="number" name="vita_utile_giorni" value="{{ cat_edit.vita_utile_giorni|default:'' }}" min="1">
+        </div>
+        <div class="dpi-field">
+          <label>Scorta minima</label>
+          <input type="number" name="scorta_minima" value="{{ cat_edit.scorta_minima|default:'0' }}" min="0">
+        </div>
+        <div class="dpi-field">
+          <label>Ordine visualizzazione</label>
+          <input type="number" name="order_index" value="{{ cat_edit.order_index|default:'0' }}" min="0">
+        </div>
+      </div>
+
+      <div class="dpi-field">
+        <label>Immagine</label>
+        {% if cat_edit.immagine %}
+        <img class="dpi-img-preview visible" id="img-preview" src="{{ cat_edit.immagine.url }}" alt="Anteprima">
+        {% else %}
+        <img class="dpi-img-preview" id="img-preview" src="" alt="Anteprima">
+        {% endif %}
+        <input type="file" name="immagine" accept="image/*" onchange="previewImg(this)">
+        <div style="font-size:11px; color:#94a3b8; margin-top:4px;">PNG/JPG consigliato. Verrà mostrata nella selezione DPI.</div>
+      </div>
+
+      <div class="dpi-field" style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" name="is_active" id="is-active" value="1"{% if cat_edit.is_active or not cat_edit %} checked{% endif %}>
+        <label for="is-active" style="text-transform:none; font-size:13px; font-weight:600; margin:0;">Categoria attiva</label>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:8px;">
+        <button type="submit" class="dpi-btn dpi-btn-green">Salva categoria</button>
+        <button type="button" class="dpi-btn dpi-btn-gray" onclick="closeModal()">Annulla</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openModal() {
+  document.getElementById('cat-modal').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('cat-modal').classList.remove('open');
+}
+function previewImg(input) {
+  const preview = document.getElementById('img-preview');
+  if (input.files && input.files[0]) {
+    preview.src = URL.createObjectURL(input.files[0]);
+    preview.classList.add('visible');
+  }
+}
+document.getElementById('cat-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+</script>
+{% endblock %}

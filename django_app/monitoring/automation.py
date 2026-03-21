@@ -182,12 +182,21 @@ def monitored_automation(
                         completion_message = str(result["monitoring_message"])
                     if result.get("monitoring_payload"):
                         ctx["execution"].payload_json = result["monitoring_payload"]
-                _complete_execution(
-                    ctx["execution"],
-                    status=AutomationExecution.Status.SUCCESS,
-                    message=completion_message,
-                    payload_json=ctx["execution"].payload_json,
-                )
+                # Wrap in try/except so a DB error during success persistence does NOT
+                # propagate into the context manager and trigger _mark_automation_failure,
+                # which would overwrite the already-computed success state.
+                try:
+                    _complete_execution(
+                        ctx["execution"],
+                        status=AutomationExecution.Status.SUCCESS,
+                        message=completion_message,
+                        payload_json=ctx["execution"].payload_json,
+                    )
+                except Exception:
+                    logger.exception(
+                        "monitored_automation: impossibile salvare il completion su DB per il job %s",
+                        job_code,
+                    )
                 return result
 
         return wrapper
@@ -275,7 +284,9 @@ def _mark_automation_failure(
 ) -> AutomationExecution:
     job = execution.job
     trace = get_exception_traceback(exc)
-    consecutive_failures = count_consecutive_failures(job) + 1
+    # Escludiamo l'esecuzione corrente (ancora in WARNING) dal conteggio,
+    # poi aggiungiamo 1 per questo run che stiamo per marcare come FAILED.
+    consecutive_failures = count_consecutive_failures(job, exclude_pk=execution.pk) + 1
     issue = None
     if consecutive_failures >= max(1, int(job.alert_after_consecutive_failures or 1)):
         issue = open_or_update_issue_from_automation_error(

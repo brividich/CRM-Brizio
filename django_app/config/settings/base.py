@@ -111,7 +111,7 @@ def ini_bool(section: str, option: str, default: bool = False) -> bool:
 SECRET_KEY = env("DJANGO_SECRET_KEY", "change-me-in-dev")
 DEBUG = env_bool("DJANGO_DEBUG", False)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", ["127.0.0.1", "localhost"])
-APP_VERSION = env("APP_VERSION", "0.7.4")
+APP_VERSION = env("APP_VERSION", "0.8.2")
 SETUP_WIZARD_REQUIRED = env_bool("SETUP_WIZARD_REQUIRED", True)
 
 # ── Branding istanza ──────────────────────────────────────────────────────────
@@ -134,6 +134,7 @@ def build_module_versions(default_version: str) -> dict[str, str]:
         "notizie": "APP_VERSION_NOTIZIE",
         "anagrafica": "APP_VERSION_ANAGRAFICA",
         "tickets":    "APP_VERSION_TICKETS",
+        "dpi":        "APP_VERSION_DPI",
     }
     versions: dict[str, str] = {}
     for code, env_key in module_env_keys.items():
@@ -236,6 +237,7 @@ INSTALLED_APPS = [
     "rentri.apps.RentriConfig",
     "diario_preposto.apps.DiarioPrepostoConfig",
     "rilevazione_incidenti.apps.RilevazioneIncidentiConfig",
+    "dpi.apps.DpiConfig",
     "django_extensions",
 ]
 

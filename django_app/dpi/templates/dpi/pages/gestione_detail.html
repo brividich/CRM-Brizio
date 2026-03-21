@@ -1,0 +1,256 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ richiesta.numero }} — Gestione DPI{% endblock %}
+
+{% block extra_head %}
+<style>
+#dpi-root { display:flex; flex-direction:column; gap:20px; }
+.dpi-subnav { display:flex; gap:4px; flex-wrap:wrap; }
+.dpi-subnav-link { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; color:#475569; background:#f1f5f9; }
+.dpi-subnav-link.active { background:#0369a1; color:#fff; }
+
+.dpi-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:24px 28px; }
+.dpi-grid-2 { display:grid; grid-template-columns:3fr 2fr; gap:20px; }
+
+.dpi-badge { display:inline-block; padding:4px 14px; border-radius:99px; font-size:13px; font-weight:700; }
+.dpi-badge-INVIATA { background:#dbeafe; color:#1e40af; }
+.dpi-badge-APPROVATA { background:#fef3c7; color:#92400e; }
+.dpi-badge-CONSEGNATA { background:#d1fae5; color:#065f46; }
+.dpi-badge-RIFIUTATA { background:#fee2e2; color:#991b1b; }
+.dpi-badge-ANNULLATA { background:#f1f5f9; color:#475569; }
+
+.dpi-dl dt { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px; }
+.dpi-dl dd { font-size:14px; color:#0f172a; margin:0 0 14px; }
+
+.dpi-cat-big { display:flex; align-items:center; gap:14px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:14px 18px; margin-bottom:16px; }
+.dpi-cat-big img { width:52px; height:52px; object-fit:contain; border-radius:8px; }
+.dpi-cat-big-emoji { font-size:36px; }
+.dpi-cat-big-nome { font-size:16px; font-weight:800; color:#166534; }
+
+/* Action panels */
+.dpi-action-panel { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; margin-bottom:12px; }
+.dpi-action-title { font-size:13px; font-weight:700; color:#374151; margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+
+.dpi-field label { display:block; font-size:11px; font-weight:700; color:#374151; text-transform:uppercase; letter-spacing:.03em; margin-bottom:4px; }
+.dpi-field input, .dpi-field textarea, .dpi-field select { width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:8px; font-size:13px; background:#fff; }
+.dpi-field { margin-bottom:10px; }
+.dpi-field input[type=checkbox] { width:auto; margin-right:6px; }
+
+.dpi-btn { padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; border:none; cursor:pointer; transition:all .15s; }
+.dpi-btn-green { background:#16a34a; color:#fff; }
+.dpi-btn-green:hover { background:#15803d; }
+.dpi-btn-blue { background:#0369a1; color:#fff; }
+.dpi-btn-blue:hover { background:#075985; }
+.dpi-btn-red { background:#dc2626; color:#fff; }
+.dpi-btn-red:hover { background:#b91c1c; }
+.dpi-btn-gray { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; }
+.dpi-btn-gray:hover { background:#e2e8f0; }
+
+/* Timeline commenti */
+.dpi-timeline { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:12px; }
+.dpi-timeline li { display:flex; gap:12px; align-items:flex-start; }
+.dpi-timeline-dot { width:10px; height:10px; border-radius:50%; background:#16a34a; margin-top:4px; flex-shrink:0; }
+.dpi-timeline-dot.interno { background:#f59e0b; }
+.dpi-timeline-body { font-size:13px; color:#374151; background:#f8fafc; border-radius:8px; padding:8px 12px; border:1px solid #e2e8f0; flex:1; }
+.dpi-timeline-meta { font-size:11px; color:#94a3b8; margin-top:4px; }
+.dpi-interno-badge { font-size:10px; background:#fef3c7; color:#92400e; padding:1px 6px; border-radius:4px; font-weight:700; margin-left:6px; }
+
+.dpi-consegna-box { background:#d1fae5; border:1px solid #6ee7b7; border-radius:12px; padding:14px 18px; }
+.dpi-consegna-box dt { font-size:11px; font-weight:700; color:#065f46; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px; }
+.dpi-consegna-box dd { font-size:13px; color:#065f46; margin:0 0 10px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="dpi-root">
+  {% include "dpi/components/subnav.html" with is_gestore=True %}
+
+  <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+    <a href="{% url 'dpi:gestione_list' %}" style="color:#64748b; font-size:13px; text-decoration:none;">← Torna alla lista</a>
+    <span style="color:#cbd5e1;">|</span>
+    <span style="font-size:15px; font-weight:700; color:#0f172a;">{{ richiesta.numero }}</span>
+    <span class="dpi-badge dpi-badge-{{ richiesta.stato }}">{{ richiesta.label_stato }}</span>
+  </div>
+
+  <div class="dpi-grid-2" style="align-items:start;">
+    <!-- Colonna sinistra -->
+    <div style="display:flex; flex-direction:column; gap:16px;">
+
+      <!-- Dettaglio richiesta -->
+      <div class="dpi-card">
+        <div style="font-size:15px; font-weight:700; color:#0f172a; margin-bottom:16px;">Dettaglio richiesta</div>
+
+        <div class="dpi-cat-big">
+          {% if richiesta.categoria.immagine %}
+          <img src="{{ richiesta.categoria.immagine.url }}" alt="{{ richiesta.categoria.nome }}">
+          {% else %}
+          <div class="dpi-cat-big-emoji">{{ richiesta.categoria.icona_emoji }}</div>
+          {% endif %}
+          <div>
+            <div class="dpi-cat-big-nome">{{ richiesta.categoria.nome }}</div>
+            {% if richiesta.categoria.vita_utile_giorni %}
+            <div style="font-size:12px; color:#4b7a5c;">Vita utile: {{ richiesta.categoria.vita_utile_giorni }} giorni</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <dl class="dpi-dl">
+          <dt>Richiedente</dt>
+          <dd>{{ richiesta.richiedente_nome }}{% if richiesta.richiedente_reparto %} — {{ richiesta.richiedente_reparto }}{% endif %}</dd>
+          {% if richiesta.richiedente_email %}
+          <dt>Email</dt>
+          <dd>{{ richiesta.richiedente_email }}</dd>
+          {% endif %}
+          <dt>Quantità</dt>
+          <dd>{{ richiesta.quantita }} {{ richiesta.categoria.unita_misura }}</dd>
+          {% if richiesta.motivazione %}
+          <dt>Motivazione</dt>
+          <dd>{{ richiesta.motivazione }}</dd>
+          {% endif %}
+          <dt>Data richiesta</dt>
+          <dd>{{ richiesta.created_at|date:"d/m/Y H:i" }}</dd>
+        </dl>
+      </div>
+
+      <!-- Consegna già registrata -->
+      {% if consegna %}
+      <div class="dpi-card">
+        <div style="font-size:15px; font-weight:700; color:#15803d; margin-bottom:12px;">Consegna registrata</div>
+        <dl class="dpi-consegna-box">
+          <dt>Data</dt><dd>{{ consegna.data_consegna|date:"d/m/Y" }}</dd>
+          {% if consegna.consegnato_da_nome %}<dt>Da</dt><dd>{{ consegna.consegnato_da_nome }}</dd>{% endif %}
+          {% if consegna.data_scadenza_stimata %}<dt>Scadenza</dt><dd>{{ consegna.data_scadenza_stimata|date:"d/m/Y" }}</dd>{% endif %}
+          <dt>Ricevuta firmata</dt><dd>{% if consegna.firmato_ricevuta %}Si{% else %}No{% endif %}</dd>
+          {% if consegna.note_consegna %}<dt>Note</dt><dd>{{ consegna.note_consegna }}</dd>{% endif %}
+        </dl>
+      </div>
+      {% endif %}
+
+      <!-- Azioni -->
+      {% if richiesta.stato == "INVIATA" or richiesta.stato == "APPROVATA" %}
+      <div class="dpi-card">
+        <div style="font-size:15px; font-weight:700; color:#0f172a; margin-bottom:16px;">Azioni</div>
+
+        {% if richiesta.stato == "INVIATA" %}
+        <!-- Approva -->
+        <div class="dpi-action-panel">
+          <div class="dpi-action-title">✅ Approva richiesta</div>
+          <form method="post" action="{% url 'dpi:approva' richiesta.pk %}">
+            {% csrf_token %}
+            <div class="dpi-field">
+              <label for="nota-approva">Nota (facoltativa)</label>
+              <input type="text" name="nota" id="nota-approva" placeholder="Es: Verificato in magazzino">
+            </div>
+            <button type="submit" class="dpi-btn dpi-btn-green">Approva</button>
+          </form>
+        </div>
+
+        <!-- Rifiuta -->
+        <div class="dpi-action-panel">
+          <div class="dpi-action-title">❌ Rifiuta richiesta</div>
+          <form method="post" action="{% url 'dpi:rifiuta' richiesta.pk %}">
+            {% csrf_token %}
+            <div class="dpi-field">
+              <label for="mot-rifiuto">Motivazione rifiuto</label>
+              <textarea name="motivazione" id="mot-rifiuto" rows="2" placeholder="Specifica il motivo..."></textarea>
+            </div>
+            <button type="submit" class="dpi-btn dpi-btn-red" onclick="return confirm('Rifiutare la richiesta?')">Rifiuta</button>
+          </form>
+        </div>
+        {% endif %}
+
+        <!-- Consegna -->
+        <div class="dpi-action-panel">
+          <div class="dpi-action-title">📦 Registra consegna</div>
+          <form method="post" action="{% url 'dpi:consegna' richiesta.pk %}">
+            {% csrf_token %}
+            <div class="dpi-field">
+              <label for="data-consegna">Data consegna *</label>
+              <input type="date" name="data_consegna" id="data-consegna" value="{{ oggi|date:'Y-m-d' }}" required>
+            </div>
+            {% if richiesta.categoria.vita_utile_giorni %}
+            <div class="dpi-field">
+              <label for="data-scadenza">Scadenza stimata (auto-calcolata, modifica se necessario)</label>
+              <input type="date" name="data_scadenza_stimata" id="data-scadenza">
+            </div>
+            {% endif %}
+            <div class="dpi-field">
+              <label for="note-consegna">Note consegna</label>
+              <input type="text" name="note_consegna" id="note-consegna" placeholder="Es: Taglia M, lotto 2024">
+            </div>
+            <div class="dpi-field" style="display:flex; align-items:center;">
+              <input type="checkbox" name="firmato_ricevuta" id="firmato" value="1">
+              <label for="firmato" style="text-transform:none; font-size:13px; font-weight:600; margin:0;">Ricevuta firmata dal dipendente</label>
+            </div>
+            <button type="submit" class="dpi-btn dpi-btn-blue">Registra consegna</button>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Colonna destra: commenti -->
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div class="dpi-card">
+        <div style="font-size:15px; font-weight:700; color:#0f172a; margin-bottom:16px;">Note e comunicazioni</div>
+
+        {% if commenti %}
+        <ul class="dpi-timeline" style="margin-bottom:16px;">
+          {% for c in commenti %}
+          <li>
+            <div class="dpi-timeline-dot{% if c.is_interno %} interno{% endif %}"></div>
+            <div>
+              <div class="dpi-timeline-body">
+                <strong>{{ c.autore_nome }}</strong>
+                {% if c.is_interno %}<span class="dpi-interno-badge">INTERNO</span>{% endif %}
+                <br>{{ c.testo }}
+              </div>
+              <div class="dpi-timeline-meta">{{ c.created_at|date:"d/m/Y H:i" }}</div>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+
+        <form method="post" action="{% url 'dpi:commento' richiesta.pk %}">
+          {% csrf_token %}
+          <div class="dpi-field">
+            <label for="testo-comm">Aggiungi nota</label>
+            <textarea name="testo" id="testo-comm" rows="3" placeholder="Scrivi una nota..."></textarea>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <button type="submit" class="dpi-btn dpi-btn-gray">Aggiungi nota</button>
+            <label style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#64748b; cursor:pointer;">
+              <input type="checkbox" name="is_interno" value="1">
+              Solo interna (non visibile al richiedente)
+            </label>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if richiesta.categoria.vita_utile_giorni %}
+<script>
+(function() {
+  const dataConsegnaInput = document.getElementById('data-consegna');
+  const dataScadenzaInput = document.getElementById('data-scadenza');
+  const vitaUtile = {{ richiesta.categoria.vita_utile_giorni }};
+
+  function aggiornaScadenza() {
+    const val = dataConsegnaInput.value;
+    if (!val || !dataScadenzaInput) return;
+    const d = new Date(val);
+    d.setDate(d.getDate() + vitaUtile);
+    dataScadenzaInput.value = d.toISOString().split('T')[0];
+  }
+
+  if (dataConsegnaInput) {
+    dataConsegnaInput.addEventListener('change', aggiornaScadenza);
+    aggiornaScadenza();
+  }
+})();
+</script>
+{% endif %}
+{% endblock %}

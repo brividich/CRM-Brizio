@@ -1,5 +1,126 @@
 ﻿# Changelog
 
+## 0.8.3 — 2026-03-21
+
+### Deployment — Gestione Release integrata nel wizard
+
+- **[feature] `ReleaseApp`**: nuova modalità "Gestione Release" integrata in `setup_wizard.py`, accessibile via `avvia_gestore_release.bat` o `python setup_wizard.py --mode release`.
+- **[feature] Crea Release** (`--mode create`): pacchettizza il codice sorgente dal PC di sviluppo in un `.zip` con esclusione automatica di `.git`, `venv`, `.env`, `__pycache__`, `db.sqlite3`, `media/`, `logs/`, `staticfiles/`, `releases/`. Legge automaticamente la versione da `settings/base.py`. Verifica integrità del `.zip` al termine.
+- **[feature] Promuovi Release** (`--mode promote`): deploya un `.zip` su TEST o PROD con pipeline completa: estrazione → copia `.env` da `ENV/config/` → pip install → collectstatic → migrate + createcachetable → attivazione junction `current` → riavvio App Pool IIS. Salva la release precedente in `run/previous_release.txt` per rollback rapido.
+- **[feature] `avvia_gestore_release.bat`**: launcher con auto-elevazione admin. Affianca i launcher esistenti (`avvia_wizard_DEV.bat`, `avvia_wizard_TEST.bat`, `avvia_wizard_PROD.bat`).
+- **[feature] `Sidebar` parametrizzata**: `Sidebar(parent, steps=None, subtitle="Setup Wizard")` — permette al Release Manager di mostrare `STEPS_RELEASE` con titolo "Gestione Release".
+- **[feature] Argomento `--mode`**: `setup_wizard.py` ora accetta `--mode release|create|promote` oltre al già esistente `--env dev|test|prod`.
+
+---
+
+## 0.8.2 — 2026-03-21
+
+### DPI — Gestione Dispositivi di Protezione Individuale
+
+- **[feature] App `dpi`**: nuovo modulo completo per la gestione dei DPI aziendali, in sostituzione dell'app PowerApps+SharePoint precedente.
+- **[feature] Modelli**: `CategoriaDPI` (immagine, emoji, vita utile, unità di misura, scorta minima), `DPIImpostazioni` (singleton), `RichiestaDPI` (numerazione `DPI-YYYY-NNNN`, stati INVIATA/APPROVATA/CONSEGNATA/RIFIUTATA/ANNULLATA), `ConsegnaDPI` (1:1, scadenza auto-calcolata), `RichiestaDPICommento` (timeline con flag interno).
+- **[feature] Card picker immagini**: la schermata "Nuova richiesta" presenta le categorie come griglia di card cliccabili con immagine o emoji.
+- **[feature] Gestione**: lista con filtri, dettaglio con workflow approvazione/rifiuto/consegna, commenti interni, calcolo automatico scadenza da `vita_utile_giorni`.
+- **[feature] Impostazioni admin**: gestione categorie con upload immagine e preview, parametri generali.
+- **[feature] Storico utente**: pagina personale con badge scaduto/in scadenza.
+- **[feature] KPI anagrafica**: widget DPI nel dettaglio dipendente con link a gestione filtrata.
+- **[feature] ACL bootstrap**: pulsanti `dpi_view`, `dpi_create`, `dpi_manage`, `dpi_impostazioni` registrati automaticamente all'avvio.
+- **[feature] Notifiche**: `invia_notifica()` chiamata automaticamente all'approvazione, rifiuto e consegna.
+
+### Notifiche — Hub Tools admin
+
+- **[feature] Modulo notifiche** (`/admin-portale/hub/notifiche/`): dashboard per monitorare, filtrare, inviare e gestire le notifiche in-app di tutti gli utenti.
+- **[feature] Invio manuale**: form con destinatario singolo / reparto / tutti, selezione tipo e URL azione opzionale.
+- **[feature] Azioni bulk**: segna tutte come lette, elimina lette, elimina per utente.
+- **[feature] Statistiche**: KPI totali/non lette/lette/popup in attesa + breakdown per tipo.
+- **[feature] Subnav admin**: aggiunta voce "🔔 Notifiche" nella sezione Hub Tools.
+
+## 0.8.1 — 2026-03-21
+
+### Fix — Cache condivisa multi-worker e hardening avvio produzione
+
+- **[fix] `DatabaseCache` in produzione**: `config/settings/prod.py` ora configura esplicitamente `django.core.cache.backends.db.DatabaseCache` come backend cache. Con 2+ worker IIS, `LocMemCache` (default Django) è per-processo e impedisce a `bump_legacy_cache_version()` di propagare l'invalidazione ACL agli altri worker. `DatabaseCache` usa SQL Server come store condiviso: `cache.incr()` è atomico e le invalidazioni si propagano immediatamente a tutti i worker. Setup una-tantum: `python manage.py createcachetable`. Tabella configurabile via env `DJANGO_CACHE_TABLE` (default `django_cache`).
+
+- **[fix] Guard `SECRET_KEY` al startup**: `config/settings/prod.py` ora solleva `ImproperlyConfigured` se `DJANGO_SECRET_KEY` non è impostata nel `.env` (rileva il valore di default `"change-me-in-dev"`). Il server non parte con una chiave pubblica nota, che invaliderebbe la protezione di sessioni e CSRF token.
+
+- **[fix] `asgi.py` puntava a settings dev**: `config/asgi.py` usava `config.settings.dev` come default. Corretto in `config.settings.prod`. In produzione WSGI questo file non è caricato (wsgi.py già puntava correttamente a prod), ma preveniva un deploy ASGI accidentale con `DEBUG=True`.
+
+- **[docs] CLAUDE.md — corretti bug documentati non più esistenti**: rimossi i riferimenti a due bug già risolti: (1) `lru_cache` su ACL non invalidata (sostituita da `legacy_cache.py` con chiavi versionare dal 0.7.x); (2) navigation registry permissivo senza record accesso (deny-by-default già implementato in `navigation_registry.py:115`). Aggiunta sezione `Cache in produzione` con istruzioni operative.
+
+---
+
+## 0.8.0 — 2026-03-20
+
+### Monitoring — Sistema interno di monitoraggio e incident reporting
+
+- **[feature] App `monitoring`**: nuova app Django che introduce un sistema completo di osservabilità interna, progettato per essere estendibile ma introdotto in modo conservativo senza alterare ACL, navigazione legacy o moduli esistenti.
+
+- **[feature] Modelli**: `Issue` (deduplicazione per fingerprint, cycle di vita `new → triage → in_progress → resolved/ignored`), `IssueOccurrence` (storico occorrenze con traceback e contesto request), `UserProblemReport` (segnalazioni manuali degli utenti), `AutomationJob` (registro job/background task), `AutomationExecution` (storico esecuzioni con status, durata, eccezioni).
+
+- **[feature] Deduplicazione issue**: fingerprint SHA-256 da `(source, category, exception_class, route_name, module_name, messaggio normalizzato)`. Stesso errore → incrementa contatore e aggiorna `last_seen_at` invece di creare duplicati. Severity escalation automatica se l'errore si ripete con gravità maggiore.
+
+- **[feature] `IssueCaptureMiddleware`**: intercetta eccezioni non gestite, risposte HTTP 500, 403 su route autenticate (configurabile) e richieste lente oltre soglia `MONITORING_SLOW_REQUEST_THRESHOLD_MS`. Non interrompe mai il flusso della request anche in caso di errore interno al monitoring.
+
+- **[feature] Pulsante "Segnala problema"**: bottone globale nel topnav (visibile a tutti gli utenti autenticati), apre modal Bootstrap minimale con textarea descrizione. Invio via AJAX con toast di conferma. Endpoint `POST /monitoring/report-problem/` salvato in `UserProblemReport` con correlazione opzionale a issue aperta sullo stesso modulo.
+
+- **[feature] Dashboard admin** (`/admin-portale/monitoring/`): widget issue aperti/critici/nuovi 24h, top moduli/URL problematici, job falliti/mancanti, ultime segnalazioni. Richiede `is_legacy_admin()`, sotto il prefisso già esente da ACL legacy.
+
+- **[feature] Lista e dettaglio issue**: filtri per status/severity/source/category/modulo/date, storico occorrenze, stacktrace, cambio stato, note interne, assegnazione responsabile.
+
+- **[feature] Monitor automazioni**: tabella job con ultima esecuzione, stato, fallimenti consecutivi, indicatori missing/delayed/failing. Dettaglio per job con storico run e issue collegate.
+
+- **[feature] `@monitored_automation` decorator**: wrappa qualsiasi job/background task, crea automaticamente `AutomationJob` (upsert) e `AutomationExecution`, registra successo/fallimento con traceback, apre issue dopo N fallimenti consecutivi configurabili. Sicuro contro doppia-chiusura: se il salvataggio del completion fallisce per DB error, non viene erroneamente marcato come FAILED.
+
+- **[feature] `automation_run_context`**: context manager usabile senza decorator per i job con flusso di completamento manuale (es. batch con stato intermedio).
+
+- **[feature] Management command `monitoring_healthcheck`**: controlla job critici non eseguiti entro `expected_max_interval_minutes`, job bloccati oltre `expected_max_duration_seconds`, issue critiche non prese in carico da oltre N minuti. Crea/aggiorna issue di tipo `system_watchdog`. Invocabile manualmente o tramite scheduler esterno.
+
+- **[feature] Management command `monitoring_digest`**: digest riepilogativo su stdout dello stato del monitoring (issue aperti per severity, job failing/missing/stuck).
+
+- **[feature] Alert email anti-rumore**: notifica email per issue critiche con rate-limit per fingerprint (cache Django, 1h default). Nessuna email duplicata ravvicinata.
+
+- **[technical] Test**: 27 test che coprono fingerprint/deduplication, creazione issue da errore web, UserProblemReport, decorator su successo/fallimento/reraise, no-double-close, detect_missed_jobs, detect_stuck_jobs, count_consecutive_failures.
+
+- **[technical] Fix `count_consecutive_failures`**: aggiunto parametro `exclude_pk` per escludere l'esecuzione corrente (ancora in stato `WARNING`) dal conteggio dei fallimenti consecutivi. Senza questa fix la soglia di alert non veniva mai raggiunta.
+
+- **[technical] Settings MONITORING_***: `MONITORING_ENABLED`, `MONITORING_CAPTURE_403`, `MONITORING_CAPTURE_404`, `MONITORING_SLOW_REQUEST_THRESHOLD_MS`, `MONITORING_NOTIFY_CRITICAL_BY_EMAIL`, `MONITORING_ALERT_RATE_LIMIT_SECONDS`, `MONITORING_WATCHDOG_CRITICAL_UNASSIGNED_MINUTES`.
+
+---
+
+## 0.7.6 — 2026-03-20
+
+### Core — Module Registry completo
+
+- **[feature] Module Registry esteso**: `core/module_registry.py` è ora il catalogo centrale di tutti i moduli applicativi. `MODULE_DEFINITIONS` passa da 1 (`assets`) a 17 voci, coprendo tutti i moduli navigabili (`dashboard`, `assenze`, `anomalie`, `assets`, `tasks`, `tickets`, `notizie`, `anagrafica`, `timbri`, `planimetria`, `automazioni`, `rentri`, `diario_preposto`, `rilevazione_incidenti`), i moduli admin (`admin_portale`, `hub_tools`) e il modulo di sistema (`monitoring`).
+
+- **[feature] Campo `audience` su `ModuleDefinition`**: ogni modulo dichiara il proprio pubblico — `"user"` (navigazione utente normale), `"admin"` (richiede `is_legacy_admin()`), `"system"` (infrastruttura, non in navigazione). Default `"user"`, backward-compatible.
+
+- **[feature] Helper `get_modules_by_audience()`**: nuova funzione in `core/module_registry.py` per filtrare moduli per audience. Predispone il registry per branding, navigation builder e dashboard coerenti per ruolo.
+
+- **[technical] Metadata standardizzati**: ogni voce del registry include `key`, `default_label`, `icon`, `order`, `route_name`, `route_namespace`, `permission_namespace`, `navigation_codes`, `audience` e label alternative per menu/dashboard. `order` usa range distinti: utente `10–85`, admin `200–210`, sistema `300+`.
+
+- **[technical] Test registry**: aggiunta classe `ModuleRegistryStructureTests` in `core/tests.py` con 18 test che verificano assenza di chiavi duplicate, coerenza dei metadata, coerenza `audience`, funzionamento label branded/fallback e correttezza dei filter per audience.
+
+---
+
+## 0.7.5 — 2026-03-20
+
+### Security — Hardening admin_portale
+
+- **[security] Open redirect fix**: i parametri `next` e `HTTP_REFERER` nelle view di gestione utenti (`utente_toggle_active`, `utente_delete`, `utente_quick_role`, `utente_force_change_password`, `utente_impersonate`) vengono ora validati con `url_has_allowed_host_and_scheme`. URL esterni o con schema non sicuro vengono ignorati e sostituiti dal fallback locale.
+
+- **[security] Audit log esteso**: aggiunte tracce audit per operazioni precedentemente non registrate: creazione utente, aggiornamento utente, cambio ruolo veloce, attivazione/disattivazione account, bulk activate/deactivate/force_password, operazioni bulk permessi (`set_all`, `reset_role`, `copy_from_role`), salvataggio configurazione login, gestione banner login.
+
+- **[security] `@csrf_protect` coerente**: aggiunto `@csrf_protect` esplicito a tutti i POST sensibili di gestione utenti e login config che ne erano privi (difesa in profondità rispetto al `CsrfViewMiddleware` globale).
+
+- **[security] Validazione URL pulsanti**: `PulsanteForm.clean_url()` blocca ora esplicitamente schemi pericolosi (`javascript:`, `data:`, `vbscript:`).
+
+- **[security] Lunghezza minima password**: `UtenteCreateForm` richiede almeno 8 caratteri per la password iniziale quando non AD-managed.
+
+- **[technical] Test di sicurezza**: aggiunte 3 classi test (`AdminPortaleFormSecurityTests`, `AdminPortaleOpenRedirectTests`, `AdminPortaleAuditLogTests`) con 18 test cases che coprono open redirect, validazione form e audit trail delle operazioni critiche.
+
+---
+
 ## 0.7.4 — 2026-03-18
 
 ### UX — Font scaling globale e sidebar personalizzabile

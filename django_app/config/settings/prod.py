@@ -1,6 +1,17 @@
-from .base import *  # noqa: F403,F401
-from .base import build_database_from_env, env_bool, env_list
+from django.core.exceptions import ImproperlyConfigured
 
+from .base import *  # noqa: F403,F401
+from .base import SECRET_KEY, build_database_from_env, env, env_bool, env_list
+
+# ── Guard chiave segreta ───────────────────────────────────────────────────────
+# Blocca l'avvio se SECRET_KEY non è stata impostata nel file .env.
+# "change-me-in-dev" è il valore di default dichiarato in base.py.
+if SECRET_KEY == "change-me-in-dev":
+    raise ImproperlyConfigured(
+        "DJANGO_SECRET_KEY non impostata. "
+        "Generare una chiave sicura (es. 'python -c \"from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())\"') "
+        "e aggiungerla al file .env come DJANGO_SECRET_KEY=..."
+    )
 
 DEBUG = env_bool("DJANGO_DEBUG", False)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", [])
@@ -13,6 +24,22 @@ CSRF_TRUSTED_ORIGINS = env_list(
     ["https://app.example.local"],
 )
 DATABASES = {"default": build_database_from_env("sqlserver")}
+
+# ── Cache condivisa tra worker ─────────────────────────────────────────────────
+# Con 2+ worker IIS, LocMemCache (default Django) è per-processo: bump_legacy_cache_version()
+# non si propaga agli altri worker. DatabaseCache usa SQL Server come backend condiviso,
+# rende cache.incr() atomico e garantisce invalidazione ACL immediata su tutti i worker.
+# Setup una-tantum: python manage.py createcachetable
+_CACHE_TABLE = env("DJANGO_CACHE_TABLE", "django_cache")
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": _CACHE_TABLE,
+        "OPTIONS": {
+            "MAX_ENTRIES": 5000,
+        },
+    }
+}
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 

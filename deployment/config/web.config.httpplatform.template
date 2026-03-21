@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    web.config per Portale Novicrom — IIS + HttpPlatformHandler + Waitress
+    =========================================================================
+    PREREQUISITI IIS:
+      - HttpPlatformHandler v1.2+ installato
+        (download: https://www.iis.net/downloads/microsoft/httpplatformhandler)
+      - URL Rewrite Module 2.1+ (per static/media routing)
+      - Modulo Static Content attivato nel ruolo IIS
+
+    SEGNAPOSTO sostituiti da configure-iis-site.ps1:
+      %%ENVIRONMENT%%   = test | prod
+      %%ENV_PATH%%      = C:\PortaleNovicrom\test  (o prod)
+      %%VENV_PATH%%     = C:\PortaleNovicrom\test\venv
+      %%LOGS_PATH%%     = C:\PortaleNovicrom\test\logs
+      %%SETTINGS_MOD%%  = config.settings.test  (o prod)
+      %%DJANGO_APP%%    = C:\PortaleNovicrom\test\current\django_app
+
+    POSIZIONE FILE:
+      Questo file va copiato in C:\PortaleNovicrom\%%ENVIRONMENT%%\web.config
+      (nella root del sito IIS, NON dentro django_app)
+
+    STATIC / MEDIA:
+      Serviti direttamente da IIS tramite le <location> in fondo al file.
+      Richiedono virtual directories IIS:
+        /static → %%ENV_PATH%%\static\
+        /media  → %%ENV_PATH%%\media\
+-->
+<configuration>
+  <system.webServer>
+
+    <!-- ================================================================
+         Handler principale: HttpPlatformHandler → Python → waitress → Django
+         ================================================================ -->
+    <handlers>
+      <add name="httpPlatformHandler"
+           path="*"
+           verb="*"
+           modules="httpPlatformHandler"
+           resourceType="Unspecified"
+           requireAccess="Script" />
+    </handlers>
+
+    <httpPlatform
+        processPath="%%VENV_PATH%%\Scripts\python.exe"
+        arguments="-m waitress
+                   --port=%%HTTP_PLATFORM_PORT%%
+                   --threads=8
+                   --backlog=128
+                   --channel-timeout=120
+                   --connection-limit=200
+                   config.wsgi:application"
+        stdoutLogEnabled="true"
+        stdoutLogFile="%%LOGS_PATH%%\waitress_stdout.log"
+        startupTimeLimit="120"
+        startupRetryCount="3"
+        requestTimeout="00:04:00"
+        processesPerApplication="1"
+        forwardWindowsAuthToken="false">
+
+      <environmentVariables>
+        <!-- Django settings module -->
+        <environmentVariable name="DJANGO_SETTINGS_MODULE" value="%%SETTINGS_MOD%%" />
+
+        <!-- PYTHONPATH: django_app come root per import -->
+        <environmentVariable name="PYTHONPATH" value="%%DJANGO_APP%%" />
+
+        <!-- Evita buffering output stdout (fondamentale per log leggibili) -->
+        <environmentVariable name="PYTHONUNBUFFERED" value="1" />
+
+        <!-- Segnala a Django che gira sotto IIS/proxy -->
+        <environmentVariable name="DJANGO_PROXY_ENABLED" value="1" />
+      </environmentVariables>
+    </httpPlatform>
+
+    <!-- ================================================================
+         Sicurezza: nasconde header IIS dal client
+         ================================================================ -->
+    <httpProtocol>
+      <customHeaders>
+        <remove name="X-Powered-By" />
+        <add name="X-Content-Type-Options" value="nosniff" />
+        <add name="X-Frame-Options" value="SAMEORIGIN" />
+      </customHeaders>
+    </httpProtocol>
+
+    <!-- ================================================================
+         Logging IIS (opzionale, aiuta debug)
+         ================================================================ -->
+    <httpErrors errorMode="Detailed" />
+
+    <!-- ================================================================
+         Compressione HTTP
+         ================================================================ -->
+    <urlCompression doStaticCompression="true" doDynamicCompression="false" />
+
+    <!-- ================================================================
+         Redirect www → non-www (opzionale — decommenta se necessario)
+         ================================================================
+    <rewrite>
+      <rules>
+        <rule name="NoWWW" stopProcessing="true">
+          <match url="(.*)" />
+          <conditions>
+            <add input="{HTTP_HOST}" pattern="^www\.(.+)$" />
+          </conditions>
+          <action type="Redirect" url="http://{C:1}/{R:0}" redirectType="Permanent" />
+        </rule>
+      </rules>
+    </rewrite>
+    -->
+
+  </system.webServer>
+
+  <!-- ====================================================================
+       /static/ — servito direttamente da IIS (virtual directory IIS)
+       ==================================================================== -->
+  <location path="static">
+    <system.webServer>
+      <handlers>
+        <clear />
+        <add name="StaticFileHandler"
+             path="*"
+             verb="GET,HEAD"
+             modules="StaticFileModule,DefaultDocumentModule"
+             resourceType="Either" />
+      </handlers>
+      <staticContent>
+        <!-- Cache browser 7 giorni per file statici -->
+        <clientCache cacheControlMode="UseMaxAge" cacheControlMaxAge="7.00:00:00" />
+      </staticContent>
+      <!-- Disabilita autenticazione IIS per /static/ (è pubblica) -->
+      <security>
+        <authentication>
+          <anonymousAuthentication enabled="true" />
+        </authentication>
+      </security>
+    </system.webServer>
+  </location>
+
+  <!-- ====================================================================
+       /media/ — servito direttamente da IIS (virtual directory IIS)
+       ==================================================================== -->
+  <location path="media">
+    <system.webServer>
+      <handlers>
+        <clear />
+        <add name="MediaFileHandler"
+             path="*"
+             verb="GET,HEAD"
+             modules="StaticFileModule"
+             resourceType="File" />
+      </handlers>
+      <staticContent>
+        <clientCache cacheControlMode="UseMaxAge" cacheControlMaxAge="1.00:00:00" />
+      </staticContent>
+      <security>
+        <authentication>
+          <anonymousAuthentication enabled="true" />
+        </authentication>
+      </security>
+    </system.webServer>
+  </location>
+
+</configuration>

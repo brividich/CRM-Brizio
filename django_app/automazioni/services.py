@@ -35,6 +35,15 @@ _PLACEHOLDER_PATTERN = re.compile(r"\{([^{}]+)\}")
 _TRUTHY_VALUES = {"1", "true", "yes", "on"}
 _FALSY_VALUES = {"0", "false", "no", "off"}
 _QUEUE_ERROR_MESSAGE_LIMIT = 1900
+MAX_QUEUE_EVENT_RETRY_COUNT = 5
+
+
+class QueueEventStatus:
+    """Costanti per il campo status della tabella automation_event_queue."""
+    PENDING = "pending"
+    PROCESSING = "processing"
+    DONE = "done"
+    ERROR = "error"
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +110,11 @@ def _resolve_legacy_user_email(legacy_user_id: Any) -> str:
 
         legacy_user = UtenteLegacy.objects.filter(id=resolved_id).only("email").order_by("id").first()
     except Exception:
+        logger.warning(
+            "_resolve_legacy_user_email: impossibile risolvere email per legacy_user_id=%s",
+            resolved_id,
+            exc_info=True,
+        )
         legacy_user = None
 
     return str(getattr(legacy_user, "email", "") or "").strip().lower()
@@ -136,6 +150,11 @@ ORDER BY id DESC
                 )
             row = cursor.fetchone()
     except Exception:
+        logger.warning(
+            "_resolve_caporeparto_email_from_lookup: impossibile risolvere email per sharepoint_item_id=%s",
+            resolved_id,
+            exc_info=True,
+        )
         row = None
 
     if not row or row[0] is None:
@@ -160,6 +179,11 @@ WHERE id = %s
             )
             row = cursor.fetchone()
     except Exception:
+        logger.warning(
+            "_fetch_assenza_runtime_details: impossibile recuperare dettagli per assenza_id=%s",
+            resolved_id,
+            exc_info=True,
+        )
         row = None
 
     if not row:
@@ -334,7 +358,7 @@ FROM dbo.automation_event_queue AS queue_rows
 INNER JOIN picked
     ON picked.id = queue_rows.id;
 """
-    params = ["pending", *source_filter_params, "processing"]
+    params = [QueueEventStatus.PENDING, *source_filter_params, QueueEventStatus.PROCESSING]
     with connection.cursor() as cursor:
         cursor.execute(sql, params)
         return _cursor_fetch_dicts(cursor)
@@ -367,7 +391,7 @@ AND (execute_after IS NULL OR execute_after <= GETUTCDATE())
 ORDER BY id ASC;
 """
     with connection.cursor() as cursor:
-        cursor.execute(sql, ["pending", *source_filter_params])
+        cursor.execute(sql, [QueueEventStatus.PENDING, *source_filter_params])
         return _cursor_fetch_dicts(cursor)
 
 
@@ -448,7 +472,7 @@ FROM dbo.automation_event_queue
 {where_sql}
 GROUP BY status;
 """
-    counts = {"pending": 0, "processing": 0, "done": 0, "error": 0}
+    counts = {QueueEventStatus.PENDING: 0, QueueEventStatus.PROCESSING: 0, QueueEventStatus.DONE: 0, QueueEventStatus.ERROR: 0}
     with connection.cursor() as cursor:
         cursor.execute(sql, params)
         for row in _cursor_fetch_dicts(cursor):
@@ -468,18 +492,29 @@ SET
     processed_at = NULL
 WHERE id = %s
   AND status = %s
+  AND retry_count < %s
 """,
-            ["pending", int(queue_id), "error"],
+            [QueueEventStatus.PENDING, int(queue_id), QueueEventStatus.ERROR, MAX_QUEUE_EVENT_RETRY_COUNT],
         )
         return bool(cursor.rowcount)
 
 
-def claim_queue_event_by_id(queue_id: int, *, allowed_statuses: tuple[str, ...] = ("pending", "error")) -> dict[str, Any] | None:
+def claim_queue_event_by_id(
+    queue_id: int,
+    *,
+    allowed_statuses: tuple[str, ...] = (QueueEventStatus.PENDING, QueueEventStatus.ERROR),
+    max_retry_count: int | None = None,
+) -> dict[str, Any] | None:
     normalized_statuses = tuple(str(status).strip() for status in allowed_statuses if str(status).strip())
     if not normalized_statuses:
         return None
 
     placeholders = ", ".join(["%s"] * len(normalized_statuses))
+    retry_filter_sql = ""
+    retry_filter_params: list[Any] = []
+    if max_retry_count is not None:
+        retry_filter_sql = "  AND retry_count < %s"
+        retry_filter_params = [int(max_retry_count)]
     sql = f"""
 UPDATE dbo.automation_event_queue
 SET
@@ -503,9 +538,10 @@ OUTPUT
     inserted.picked_at,
     inserted.processed_at
 WHERE id = %s
-  AND status IN ({placeholders});
+  AND status IN ({placeholders})
+{retry_filter_sql}
 """
-    params = ["processing", int(queue_id), *normalized_statuses]
+    params = [QueueEventStatus.PROCESSING, int(queue_id), *normalized_statuses, *retry_filter_params]
     with connection.cursor() as cursor:
         cursor.execute(sql, params)
         rows = _cursor_fetch_dicts(cursor)
@@ -523,7 +559,7 @@ SET
     error_message = NULL
 WHERE id = %s
 """,
-            ["done", int(queue_id)],
+            [QueueEventStatus.DONE, int(queue_id)],
         )
 
 
@@ -539,7 +575,7 @@ SET
     processed_at = SYSUTCDATETIME()
 WHERE id = %s
 """,
-            ["error", _normalize_queue_error_message(error_message), int(queue_id)],
+            [QueueEventStatus.ERROR, _normalize_queue_error_message(error_message), int(queue_id)],
         )
 
 
@@ -802,6 +838,12 @@ def evaluate_condition(condition: AutomationCondition, payload: Any, old_payload
 
         return False
     except Exception:
+        logger.warning(
+            "evaluate_condition: eccezione durante la valutazione di field=%s operator=%s — condizione considerata False",
+            getattr(condition, "field_name", "?"),
+            getattr(condition, "operator", "?"),
+            exc_info=True,
+        )
         return False
 
 
@@ -1011,7 +1053,7 @@ def process_queue_event(queue_event: dict[str, Any]) -> dict[str, Any]:
         old_payload = _enrich_payload_for_source(source_code, old_payload)
     except ValueError as exc:
         mark_queue_error(queue_id, exc)
-        return {"queue_id": queue_id, "status": "error", "rule_runs": 0, "message": str(exc)}
+        return {"queue_id": queue_id, "status": QueueEventStatus.ERROR, "rule_runs": 0, "message": str(exc)}
 
     event_context = {
         **queue_event,
@@ -1025,7 +1067,7 @@ def process_queue_event(queue_event: dict[str, Any]) -> dict[str, Any]:
     except Exception as exc:
         logger.exception("Errore matching regole per queue event %s", queue_id)
         mark_queue_error(queue_id, f"Errore matching regole: {exc}")
-        return {"queue_id": queue_id, "status": "error", "rule_runs": 0, "message": str(exc)}
+        return {"queue_id": queue_id, "status": QueueEventStatus.ERROR, "rule_runs": 0, "message": str(exc)}
 
     worker_errors: list[str] = []
     for rule in matching_rules:
@@ -1043,38 +1085,57 @@ def process_queue_event(queue_event: dict[str, Any]) -> dict[str, Any]:
             logger.exception("Errore run_rule per queue event %s e regola %s", queue_id, rule.code)
             worker_errors.append(f"{rule.code}: {exc}")
 
+    matched_rule_codes = [rule.code for rule in matching_rules]
+
     if worker_errors:
         mark_queue_error(queue_id, "; ".join(worker_errors))
         return {
             "queue_id": queue_id,
-            "status": "error",
+            "status": QueueEventStatus.ERROR,
             "rule_runs": len(matching_rules),
             "message": "; ".join(worker_errors),
+            "candidate_rule_codes": matched_rule_codes,
         }
 
     mark_queue_done(queue_id)
     return {
         "queue_id": queue_id,
-        "status": "done",
+        "status": QueueEventStatus.DONE,
         "rule_runs": len(matching_rules),
         "message": "" if matching_rules else "Nessuna regola candidata.",
+        "candidate_rule_codes": matched_rule_codes,
     }
 
 
 def process_single_queue_event_by_id(queue_id: int) -> dict[str, Any]:
-    queue_event = claim_queue_event_by_id(queue_id, allowed_statuses=("pending", "error"))
+    queue_event = claim_queue_event_by_id(
+        queue_id,
+        allowed_statuses=(QueueEventStatus.PENDING, QueueEventStatus.ERROR),
+        max_retry_count=MAX_QUEUE_EVENT_RETRY_COUNT,
+    )
     if queue_event is None:
         detail = get_queue_event_detail(queue_id)
         if detail is None:
             return {
                 "queue_id": int(queue_id),
-                "status": "error",
+                "status": QueueEventStatus.ERROR,
                 "rule_runs": 0,
                 "message": "Evento queue non trovato.",
             }
+        retry_count = int(detail.get("retry_count") or 0)
+        if retry_count >= MAX_QUEUE_EVENT_RETRY_COUNT:
+            return {
+                "queue_id": int(queue_id),
+                "status": QueueEventStatus.ERROR,
+                "rule_runs": 0,
+                "message": (
+                    f"Evento queue ha raggiunto il numero massimo di retry "
+                    f"({MAX_QUEUE_EVENT_RETRY_COUNT}). Stato attuale: {detail.get('status')}."
+                ),
+            }
         return {
             "queue_id": int(queue_id),
-            "status": "error",
+            "status": QueueEventStatus.ERROR,
             "rule_runs": 0,
             "message": f"Evento queue non processabile nello stato corrente: {detail.get('status')}.",
         }
@@ -1131,7 +1192,7 @@ def process_pending_queue_events(
                 summary["events"].append(
                     {
                         "queue_id": int(queue_event["id"]),
-                        "status": "error",
+                        "status": QueueEventStatus.ERROR,
                         "message": _normalize_queue_error_message(exc),
                     }
                 )
@@ -1151,16 +1212,16 @@ def process_pending_queue_events(
                 logger.exception("Errore durante mark_queue_error per queue event %s", queue_id)
             event_result = {
                 "queue_id": queue_id,
-                "status": "error",
+                "status": QueueEventStatus.ERROR,
                 "rule_runs": 0,
                 "message": _normalize_queue_error_message(exc),
             }
 
         summary["events"].append(event_result)
         summary["rule_runs"] += int(event_result.get("rule_runs") or 0)
-        if event_result.get("status") == "done":
+        if event_result.get("status") == QueueEventStatus.DONE:
             summary["done"] += 1
-        elif event_result.get("status") == "error":
+        elif event_result.get("status") == QueueEventStatus.ERROR:
             summary["error"] += 1
 
     return summary
@@ -1390,6 +1451,13 @@ def execute_action(
 
         raise NotImplementedError(f"Action type '{action.action_type}' non ancora implementato in fase 4B.")
     except Exception as exc:
+        logger.warning(
+            "execute_action: errore nel tipo=%s run_log=%s: %s",
+            getattr(action, "action_type", "?"),
+            getattr(run_log, "pk", None),
+            exc,
+            exc_info=True,
+        )
         error_trace = traceback.format_exc()
         result_message = str(exc) or "Errore durante esecuzione action."
         action_log = _create_action_log(
@@ -1461,6 +1529,11 @@ def run_rule(
                 run_log.status = AutomationRunLogStatus.TEST if is_test else AutomationRunLogStatus.SUCCESS
                 run_log.result_message = f"Regola eseguita con successo. Azioni elaborate: {action_count}."
     except Exception:
+        logger.exception(
+            "run_rule: errore inatteso durante l'esecuzione della regola=%s queue_event_id=%s",
+            getattr(rule, "code", "?"),
+            queue_event_id,
+        )
         run_log.status = AutomationRunLogStatus.ERROR
         run_log.result_message = "Errore inatteso durante l'esecuzione della regola."
         run_log.error_trace = traceback.format_exc()

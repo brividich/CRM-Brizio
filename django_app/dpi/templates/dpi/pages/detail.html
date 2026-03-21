@@ -1,0 +1,163 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ richiesta.numero }} | DPI{% endblock %}
+
+{% block extra_head %}
+<style>
+#dpi-root { display:flex; flex-direction:column; gap:20px; }
+.dpi-subnav { display:flex; gap:4px; flex-wrap:wrap; }
+.dpi-subnav-link { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; color:#475569; background:#f1f5f9; }
+.dpi-subnav-link.active { background:#0369a1; color:#fff; }
+
+.dpi-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:24px 28px; }
+.dpi-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+
+.dpi-badge { display:inline-block; padding:4px 14px; border-radius:99px; font-size:13px; font-weight:700; }
+.dpi-badge-INVIATA { background:#dbeafe; color:#1e40af; }
+.dpi-badge-APPROVATA { background:#fef3c7; color:#92400e; }
+.dpi-badge-CONSEGNATA { background:#d1fae5; color:#065f46; }
+.dpi-badge-RIFIUTATA { background:#fee2e2; color:#991b1b; }
+.dpi-badge-ANNULLATA { background:#f1f5f9; color:#475569; }
+
+.dpi-dl dt { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px; }
+.dpi-dl dd { font-size:14px; color:#0f172a; margin:0 0 16px; }
+
+.dpi-cat-big {
+  display:flex; align-items:center; gap:14px;
+  background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px;
+  padding:14px 18px; margin-bottom:8px;
+}
+.dpi-cat-big img { width:52px; height:52px; object-fit:contain; border-radius:8px; }
+.dpi-cat-big-emoji { font-size:36px; }
+.dpi-cat-big-nome { font-size:16px; font-weight:800; color:#166534; }
+.dpi-cat-big-desc { font-size:12px; color:#4b7a5c; }
+
+.dpi-timeline { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:10px; }
+.dpi-timeline li { display:flex; gap:12px; align-items:flex-start; }
+.dpi-timeline-dot { width:10px; height:10px; border-radius:50%; background:#16a34a; margin-top:4px; flex-shrink:0; }
+.dpi-timeline-body { font-size:13px; color:#374151; }
+.dpi-timeline-time { font-size:11px; color:#94a3b8; }
+
+.dpi-annulla-btn {
+  padding:8px 18px; border-radius:8px; background:#fee2e2; color:#991b1b;
+  border:1px solid #fecaca; font-size:13px; font-weight:700; cursor:pointer;
+}
+.dpi-annulla-btn:hover { background:#fecaca; }
+
+.dpi-note-box { background:#fffbeb; border:1px solid #fde68a; border-radius:10px; padding:12px 16px; font-size:13px; color:#92400e; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="dpi-root">
+  {% include "dpi/components/subnav.html" %}
+
+  <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+    <a href="{% url 'dpi:dashboard' %}" style="color:#64748b; font-size:13px; text-decoration:none;">← Torna alla dashboard</a>
+    <span style="color:#cbd5e1;">|</span>
+    <span style="font-size:15px; font-weight:700; color:#0f172a;">{{ richiesta.numero }}</span>
+    <span class="dpi-badge dpi-badge-{{ richiesta.stato }}">{{ richiesta.label_stato }}</span>
+  </div>
+
+  <div class="dpi-grid-2" style="align-items:start;">
+    <!-- Colonna sinistra: dettaglio richiesta -->
+    <div style="display:flex; flex-direction:column; gap:16px;">
+      <div class="dpi-card">
+        <div style="font-size:15px; font-weight:700; color:#0f172a; margin-bottom:16px;">Dettaglio richiesta</div>
+
+        <div class="dpi-cat-big">
+          {% if richiesta.categoria.immagine %}
+          <img src="{{ richiesta.categoria.immagine.url }}" alt="{{ richiesta.categoria.nome }}">
+          {% else %}
+          <div class="dpi-cat-big-emoji">{{ richiesta.categoria.icona_emoji }}</div>
+          {% endif %}
+          <div>
+            <div class="dpi-cat-big-nome">{{ richiesta.categoria.nome }}</div>
+            {% if richiesta.categoria.descrizione %}
+            <div class="dpi-cat-big-desc">{{ richiesta.categoria.descrizione }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <dl class="dpi-dl">
+          <dt>Quantità</dt>
+          <dd>{{ richiesta.quantita }} {{ richiesta.categoria.unita_misura }}</dd>
+          {% if richiesta.motivazione %}
+          <dt>Motivazione</dt>
+          <dd>{{ richiesta.motivazione }}</dd>
+          {% endif %}
+          <dt>Data richiesta</dt>
+          <dd>{{ richiesta.created_at|date:"d/m/Y H:i" }}</dd>
+        </dl>
+
+        {% if richiesta.note_gestione %}
+        <div class="dpi-note-box">
+          <strong>Note dal responsabile:</strong> {{ richiesta.note_gestione }}
+        </div>
+        {% endif %}
+
+        {% if richiesta.stato == "INVIATA" %}
+        <div style="margin-top:16px;">
+          <form method="post" action="{% url 'dpi:annulla' richiesta.pk %}" onsubmit="return confirm('Annullare la richiesta?')">
+            {% csrf_token %}
+            <button type="submit" class="dpi-annulla-btn">Annulla richiesta</button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Consegna (se consegnata) -->
+      {% if consegna %}
+      <div class="dpi-card">
+        <div style="font-size:15px; font-weight:700; color:#15803d; margin-bottom:16px;">Consegna effettuata</div>
+        <dl class="dpi-dl">
+          <dt>Data consegna</dt>
+          <dd>{{ consegna.data_consegna|date:"d/m/Y" }}</dd>
+          {% if consegna.consegnato_da_nome %}
+          <dt>Consegnato da</dt>
+          <dd>{{ consegna.consegnato_da_nome }}</dd>
+          {% endif %}
+          {% if consegna.data_scadenza_stimata %}
+          <dt>Scadenza stimata</dt>
+          <dd>
+            {{ consegna.data_scadenza_stimata|date:"d/m/Y" }}
+            {% if richiesta.is_scaduta %}
+            <span style="background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:700; margin-left:6px;">SCADUTO</span>
+            {% endif %}
+          </dd>
+          {% endif %}
+          <dt>Ricevuta firmata</dt>
+          <dd>{% if consegna.firmato_ricevuta %}Si{% else %}No{% endif %}</dd>
+          {% if consegna.note_consegna %}
+          <dt>Note</dt>
+          <dd>{{ consegna.note_consegna }}</dd>
+          {% endif %}
+        </dl>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Colonna destra: commenti -->
+    <div class="dpi-card">
+      <div style="font-size:15px; font-weight:700; color:#0f172a; margin-bottom:16px;">Comunicazioni</div>
+      {% if commenti %}
+      <ul class="dpi-timeline">
+        {% for c in commenti %}
+        <li>
+          <div class="dpi-timeline-dot"></div>
+          <div>
+            <div class="dpi-timeline-body">
+              <strong>{{ c.autore_nome }}</strong>: {{ c.testo }}
+            </div>
+            <div class="dpi-timeline-time">{{ c.created_at|date:"d/m/Y H:i" }}</div>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p style="color:#94a3b8; font-size:13px;">Nessuna comunicazione ancora.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

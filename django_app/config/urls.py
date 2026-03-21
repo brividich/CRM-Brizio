@@ -47,6 +47,7 @@ urlpatterns = [
     path("rilevazione-incidenti/", include(("rilevazione_incidenti.urls", "rilevazione_incidenti"), namespace="rilevazione_incidenti")),
     path("", include("rentri.urls")),
     path("", include(("planimetria.urls", "planimetria"), namespace="planimetria")),
+    path("dpi/", include(("dpi.urls", "dpi"), namespace="dpi")),
     path("", include("core.urls")),
     path("admin/", admin.site.urls),
 ]

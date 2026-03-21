@@ -663,6 +663,27 @@ def api_notifica_leggi(request, notifica_id: int):
     return JsonResponse({"ok": bool(updated)})
 
 
+@login_required
+@require_POST
+def api_notifiche_popup_ack(request):
+    """Marca come popup_shown=True le notifiche indicate (chiamata automatica dal toast JS)."""
+    from core.models import Notifica
+    legacy_user = get_legacy_user(request.user)
+    if not legacy_user:
+        return JsonResponse({"ok": False}, status=403)
+    try:
+        data = json.loads(request.body)
+        ids = [int(i) for i in (data.get("ids") or []) if str(i).lstrip("-").isdigit()]
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return JsonResponse({"ok": False, "error": "JSON non valido"}, status=400)
+    if ids:
+        Notifica.objects.filter(
+            id__in=ids,
+            legacy_user_id=legacy_user.id,
+        ).update(popup_shown=True)
+    return JsonResponse({"ok": True})
+
+
 _VALID_NAV_MODES = {"top", "side"}
 _VALID_FONT_SCALES = {"small", "normal", "large", "xl"}
 

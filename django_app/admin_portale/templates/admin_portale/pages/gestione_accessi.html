@@ -1,0 +1,474 @@
+{% extends "core/base.html" %}
+
+{% block title %}Gestione Accessi | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Role bar ────────────────────────────────────────────── */
+.role-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.role-bar select { min-width: 200px; }
+.role-stats {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.role-stat {
+  font-size: 12px;
+  color: var(--text-muted, #888);
+}
+.role-stat strong { color: var(--text, #1a202c); }
+
+/* ── Accordion modulo ────────────────────────────────────── */
+.mod-section {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+.mod-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  background: var(--bg, #fff);
+  user-select: none;
+  transition: background .12s;
+}
+.mod-header:hover { background: var(--bg-hover, #f8fafc); }
+.mod-header.is-open { border-bottom: 1px solid var(--border, #e5e7eb); }
+
+.mod-master-wrap { flex-shrink: 0; }
+.mod-master {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--accent, #3b82f6);
+}
+.mod-name {
+  font-weight: 600;
+  font-size: 14px;
+  flex: 1;
+  min-width: 0;
+}
+.mod-badge {
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+.badge-all  { background: #dcfce7; color: #166534; }
+.badge-part { background: #fef3c7; color: #92400e; }
+.badge-none { background: #f3f4f6; color: #6b7280; }
+.mod-chevron {
+  font-size: 12px;
+  color: var(--text-muted, #888);
+  transition: transform .2s;
+  flex-shrink: 0;
+}
+.mod-header.is-open .mod-chevron { transform: rotate(90deg); }
+
+/* ── Tabella pulsanti ────────────────────────────────────── */
+.mod-body { display: none; overflow-x: auto; }
+.mod-body.is-open { display: block; }
+
+.perm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.perm-table th {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-muted, #888);
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  text-align: center;
+  background: var(--bg-alt, #fafafa);
+  white-space: nowrap;
+}
+.perm-table th.col-label { text-align: left; min-width: 200px; }
+.perm-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border, #f0f0f0);
+  vertical-align: middle;
+}
+.perm-table tr:last-child td { border-bottom: none; }
+.perm-table tr:hover td { background: var(--bg-hover, #f8fafc); }
+
+.cell-label .lbl { font-weight: 500; }
+.cell-label .cod { font-family: monospace; font-size: 10px; color: var(--text-muted, #999); }
+.cell-label .url { font-family: monospace; font-size: 10px; color: #b0bec5; }
+.cell-flag { text-align: center; }
+.perm-cb {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent, #3b82f6);
+}
+.perm-cb.cb-edit   { accent-color: #f59e0b; }
+.perm-cb.cb-delete { accent-color: #ef4444; }
+.perm-cb.cb-approve{ accent-color: #8b5cf6; }
+
+/* ── Barra bulk per modulo ───────────────────────────────── */
+.mod-bulk {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 14px;
+  background: var(--bg-alt, #fafafa);
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  font-size: 11px;
+}
+.mod-bulk .count-lbl { color: var(--text-muted, #888); margin-left: auto; }
+
+/* ── Sticky save ─────────────────────────────────────────── */
+.sticky-save {
+  position: sticky;
+  bottom: 10px;
+  margin-top: 16px;
+  background: rgba(255,255,255,.96);
+  backdrop-filter: blur(4px);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.unsaved-badge {
+  display: none;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.unsaved-badge.visible { display: inline-block; }
+
+/* ── Expand all bar ──────────────────────────────────────── */
+.expand-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Gestione Accessi" page_subtitle="Ruolo → Moduli → Pulsanti. Tutto in una pagina. Master checkbox = abilita/disabilita intero modulo." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  {# ── Selettore ruolo ── #}
+  <div class="role-bar">
+    <form method="get" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <label for="ruolo-sel" style="font-weight:600;font-size:13px;">Ruolo:</label>
+      <select class="input" id="ruolo-sel" name="ruolo_id">
+        {% for role in roles %}
+          <option value="{{ role.id }}" {% if role.id == selected_role_id %}selected{% endif %}>
+            {{ role.nome }} (#{{ role.id }})
+          </option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-sm">Carica</button>
+    </form>
+    {% if selected_role %}
+    <div class="role-stats">
+      <span class="role-stat"><strong>{{ module_data|length }}</strong> moduli</span>
+      <span class="role-stat"><strong>{{ total_active }}</strong> / {{ total_pulsanti }} pulsanti con can_view</span>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if selected_role_id and module_data %}
+  <form method="post" id="accessi-form">
+    {% csrf_token %}
+    <input type="hidden" name="ruolo_id" value="{{ selected_role_id }}">
+
+    {# hidden: lista di tutti i pulsanti renderizzati (necessario per sapere quali sono OFF) #}
+    {% for mod in module_data %}
+      {% for row in mod.pulsanti_rows %}
+        <input type="hidden" name="all_keys" value="{{ mod.modulo }}::{{ row.azione }}">
+      {% endfor %}
+    {% endfor %}
+
+    {# ── Controlli globali ── #}
+    <div class="expand-bar">
+      <button type="button" class="btn btn-secondary btn-sm" id="btn-expand-all">Espandi tutti</button>
+      <button type="button" class="btn btn-secondary btn-sm" id="btn-collapse-all">Comprimi tutti</button>
+      <button type="button" class="btn btn-sm" id="btn-global-on">Tutti ON</button>
+      <button type="button" class="btn btn-secondary btn-sm" id="btn-global-off">Tutti OFF</button>
+    </div>
+
+    {# ── Accordion per modulo ── #}
+    {% for mod in module_data %}
+    <div class="mod-section" data-modulo="{{ mod.modulo }}">
+      <div class="mod-header" data-target="mod-body-{{ forloop.counter }}">
+        {# Master checkbox — JS gestisce toggle di tutti i can_view del modulo #}
+        <div class="mod-master-wrap" onclick="event.stopPropagation()">
+          <input type="checkbox"
+                 class="mod-master"
+                 data-modulo="{{ mod.modulo }}"
+                 {% if mod.all_on %}checked{% endif %}
+                 title="Abilita/disabilita can_view per tutti i pulsanti di {{ mod.modulo }}">
+        </div>
+
+        <span class="mod-name">{{ mod.modulo }}</span>
+
+        {% if mod.all_on %}
+          <span class="mod-badge badge-all">{{ mod.active_count }}/{{ mod.total_count }} ON</span>
+        {% elif mod.partial %}
+          <span class="mod-badge badge-part">{{ mod.active_count }}/{{ mod.total_count }} parziale</span>
+        {% else %}
+          <span class="mod-badge badge-none">0/{{ mod.total_count }} OFF</span>
+        {% endif %}
+
+        <span class="mod-chevron">▶</span>
+      </div>
+
+      <div class="mod-body" id="mod-body-{{ forloop.counter }}">
+        {# Bulk row dentro il body #}
+        <div class="mod-bulk">
+          <button type="button" class="btn btn-secondary btn-sm mod-view-on" data-modulo="{{ mod.modulo }}">can_view ON</button>
+          <button type="button" class="btn btn-secondary btn-sm mod-view-off" data-modulo="{{ mod.modulo }}">can_view OFF</button>
+          {% if "can_edit" in optional_fields %}
+          <button type="button" class="btn btn-secondary btn-sm mod-edit-on" data-modulo="{{ mod.modulo }}">can_edit ON</button>
+          {% endif %}
+          <span class="count-lbl">{{ mod.total_count }} pulsanti</span>
+        </div>
+
+        <table class="perm-table">
+          <thead>
+            <tr>
+              <th class="col-label">Pulsante</th>
+              <th>can_view</th>
+              {% if "can_edit" in optional_fields %}<th>can_edit</th>{% endif %}
+              {% if "can_delete" in optional_fields %}<th>can_delete</th>{% endif %}
+              {% if "can_approve" in optional_fields %}<th>can_approve</th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in mod.pulsanti_rows %}
+            <tr>
+              <td class="cell-label">
+                <div class="lbl">{{ row.pulsante.label }}</div>
+                <div class="cod">{{ row.azione }}</div>
+                <div class="url">{{ row.pulsante.url }}</div>
+              </td>
+              <td class="cell-flag">
+                <input type="checkbox"
+                       class="perm-cb cb-view"
+                       name="cv_{{ row.azione }}"
+                       data-modulo="{{ mod.modulo }}"
+                       {% if row.can_view %}checked{% endif %}>
+              </td>
+              {% if "can_edit" in optional_fields %}
+              <td class="cell-flag">
+                <input type="checkbox"
+                       class="perm-cb cb-edit"
+                       name="ce_{{ row.azione }}"
+                       data-modulo="{{ mod.modulo }}"
+                       {% if row.can_edit %}checked{% endif %}>
+              </td>
+              {% endif %}
+              {% if "can_delete" in optional_fields %}
+              <td class="cell-flag">
+                <input type="checkbox"
+                       class="perm-cb cb-delete"
+                       name="cd_{{ row.azione }}"
+                       data-modulo="{{ mod.modulo }}"
+                       {% if row.can_delete %}checked{% endif %}>
+              </td>
+              {% endif %}
+              {% if "can_approve" in optional_fields %}
+              <td class="cell-flag">
+                <input type="checkbox"
+                       class="perm-cb cb-approve"
+                       name="ca_{{ row.azione }}"
+                       data-modulo="{{ mod.modulo }}"
+                       {% if row.can_approve %}checked{% endif %}>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endfor %}
+
+    {# ── Sticky save ── #}
+    <div class="sticky-save">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span class="cell-muted" style="font-size:13px;">
+          Ruolo: <strong>{{ selected_role.nome }}</strong>
+        </span>
+        <span class="unsaved-badge" id="unsaved-badge">Modifiche non salvate</span>
+      </div>
+      <button type="submit" class="btn">Salva tutto</button>
+    </div>
+  </form>
+
+  {% elif selected_role_id %}
+    <div class="notice">Nessun pulsante trovato. Riavvia il server per eseguire i bootstrap ACL.</div>
+  {% endif %}
+
+<script>
+(function () {
+  "use strict";
+
+  var form = document.getElementById("accessi-form");
+  if (!form) return;
+
+  var unsavedBadge = document.getElementById("unsaved-badge");
+  function markUnsaved() {
+    if (unsavedBadge) unsavedBadge.classList.add("visible");
+  }
+  form.addEventListener("change", markUnsaved);
+
+  /* ── Accordion ─────────────────────────────────────────── */
+  function openBody(bodyId) {
+    var body = document.getElementById(bodyId);
+    var header = body ? body.previousElementSibling : null;
+    if (body) body.classList.add("is-open");
+    if (header) header.classList.add("is-open");
+  }
+  function closeBody(bodyId) {
+    var body = document.getElementById(bodyId);
+    var header = body ? body.previousElementSibling : null;
+    if (body) body.classList.remove("is-open");
+    if (header) header.classList.remove("is-open");
+  }
+  function toggleBody(bodyId) {
+    var body = document.getElementById(bodyId);
+    if (!body) return;
+    body.classList.contains("is-open") ? closeBody(bodyId) : openBody(bodyId);
+  }
+
+  document.querySelectorAll(".mod-header").forEach(function (header) {
+    header.addEventListener("click", function () {
+      toggleBody(header.dataset.target);
+    });
+  });
+
+  document.getElementById("btn-expand-all")?.addEventListener("click", function () {
+    document.querySelectorAll(".mod-body").forEach(function (b) {
+      b.classList.add("is-open");
+      if (b.previousElementSibling) b.previousElementSibling.classList.add("is-open");
+    });
+  });
+  document.getElementById("btn-collapse-all")?.addEventListener("click", function () {
+    document.querySelectorAll(".mod-body").forEach(function (b) {
+      b.classList.remove("is-open");
+      if (b.previousElementSibling) b.previousElementSibling.classList.remove("is-open");
+    });
+  });
+
+  /* ── Master checkbox modulo → toggling can_view nel modulo ── */
+  document.querySelectorAll(".mod-master").forEach(function (master) {
+    master.addEventListener("change", function () {
+      var modulo = master.dataset.modulo;
+      document.querySelectorAll(".cb-view[data-modulo='" + modulo + "']").forEach(function (cb) {
+        cb.checked = master.checked;
+      });
+      markUnsaved();
+    });
+  });
+
+  /* Aggiorna master quando cambiano i singoli can_view */
+  document.querySelectorAll(".cb-view").forEach(function (cb) {
+    cb.addEventListener("change", function () {
+      var modulo = cb.dataset.modulo;
+      var allBoxes = Array.from(document.querySelectorAll(".cb-view[data-modulo='" + modulo + "']"));
+      var master = document.querySelector(".mod-master[data-modulo='" + modulo + "']");
+      if (!master) return;
+      var checkedCount = allBoxes.filter(function (b) { return b.checked; }).length;
+      master.checked = checkedCount === allBoxes.length;
+      master.indeterminate = checkedCount > 0 && checkedCount < allBoxes.length;
+    });
+  });
+
+  /* Imposta stato indeterminate iniziale */
+  document.querySelectorAll(".mod-master").forEach(function (master) {
+    var modulo = master.dataset.modulo;
+    var allBoxes = Array.from(document.querySelectorAll(".cb-view[data-modulo='" + modulo + "']"));
+    var checkedCount = allBoxes.filter(function (b) { return b.checked; }).length;
+    if (checkedCount > 0 && checkedCount < allBoxes.length) {
+      master.checked = false;
+      master.indeterminate = true;
+    }
+  });
+
+  /* ── Bulk globali ── */
+  document.getElementById("btn-global-on")?.addEventListener("click", function () {
+    form.querySelectorAll(".cb-view").forEach(function (cb) { cb.checked = true; });
+    form.querySelectorAll(".mod-master").forEach(function (m) { m.checked = true; m.indeterminate = false; });
+    markUnsaved();
+  });
+  document.getElementById("btn-global-off")?.addEventListener("click", function () {
+    form.querySelectorAll(".perm-cb").forEach(function (cb) { cb.checked = false; });
+    form.querySelectorAll(".mod-master").forEach(function (m) { m.checked = false; m.indeterminate = false; });
+    markUnsaved();
+  });
+
+  /* ── Bulk per modulo (bottoni nel corpo) ── */
+  document.querySelectorAll(".mod-view-on").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var mod = btn.dataset.modulo;
+      document.querySelectorAll(".cb-view[data-modulo='" + mod + "']").forEach(function (cb) { cb.checked = true; });
+      var master = document.querySelector(".mod-master[data-modulo='" + mod + "']");
+      if (master) { master.checked = true; master.indeterminate = false; }
+      markUnsaved();
+    });
+  });
+  document.querySelectorAll(".mod-view-off").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var mod = btn.dataset.modulo;
+      document.querySelectorAll(".perm-cb[data-modulo='" + mod + "']").forEach(function (cb) { cb.checked = false; });
+      var master = document.querySelector(".mod-master[data-modulo='" + mod + "']");
+      if (master) { master.checked = false; master.indeterminate = false; }
+      markUnsaved();
+    });
+  });
+  document.querySelectorAll(".mod-edit-on").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var mod = btn.dataset.modulo;
+      document.querySelectorAll(".cb-edit[data-modulo='" + mod + "']").forEach(function (cb) { cb.checked = true; });
+      markUnsaved();
+    });
+  });
+
+  /* ── Auto-espandi moduli parzialmente abilitati (UX helper) ── */
+  document.querySelectorAll(".mod-section").forEach(function (section) {
+    var master = section.querySelector(".mod-master");
+    var body = section.querySelector(".mod-body");
+    var header = section.querySelector(".mod-header");
+    if (!master || !body) return;
+    /* apri solo i moduli parziali (badge giallo) */
+    if (master.indeterminate) {
+      body.classList.add("is-open");
+      if (header) header.classList.add("is-open");
+    }
+  });
+
+})();
+</script>
+{% endblock %}

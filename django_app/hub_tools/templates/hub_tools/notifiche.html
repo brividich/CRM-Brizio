@@ -1,0 +1,419 @@
+{% extends "core/base.html" %}
+{% block title %}Hub — Gestione Notifiche{% endblock %}
+
+{% block content %}
+<style>
+.hub-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.hub-title{font-size:1.4rem;font-weight:800;display:flex;align-items:center;gap:10px}
+.hub-subtitle{font-size:.84rem;color:#64748b;margin-top:2px}
+
+/* Stats */
+.hn-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:24px}
+.hn-stat{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;text-align:center}
+.hn-stat-num{font-size:28px;font-weight:800;color:#0f172a;line-height:1}
+.hn-stat-label{font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-top:4px}
+
+/* Layout */
+.hn-layout{display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start}
+@media(max-width:900px){.hn-layout{grid-template-columns:1fr}}
+
+/* Card */
+.hn-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden}
+.hn-card-head{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #f1f5f9}
+.hn-card-title{font-size:15px;font-weight:700;color:#1e293b}
+.hn-card-body{padding:18px 20px}
+
+/* Filtri */
+.hn-filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;align-items:flex-end}
+.hn-select,.hn-input{border:1px solid #e2e8f0;border-radius:8px;padding:7px 10px;font-size:13px;color:#0f172a;background:#f8fafc;outline:none}
+.hn-select:focus,.hn-input:focus{border-color:#1d4ed8;background:#fff}
+.hn-btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;text-decoration:none;transition:background .15s}
+.hn-btn-primary{background:#1d4ed8;color:#fff}
+.hn-btn-primary:hover{background:#1e40af}
+.hn-btn-ghost{background:#f1f5f9;color:#334155;border:1px solid #e2e8f0}
+.hn-btn-ghost:hover{background:#e2e8f0}
+.hn-btn-danger{background:#fee2e2;color:#b91c1c;border:1px solid #fecaca}
+.hn-btn-danger:hover{background:#fecaca}
+.hn-btn-sm{padding:4px 10px;font-size:12px;border-radius:6px}
+.hn-btn-xs{padding:3px 8px;font-size:11px;border-radius:5px}
+
+/* Tabella */
+.hn-table{width:100%;border-collapse:collapse;font-size:13px}
+.hn-table th{text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;border-bottom:1px solid #e2e8f0}
+.hn-table td{padding:9px 10px;border-bottom:1px solid #f8fafc;vertical-align:top}
+.hn-table tr:hover td{background:#fafafa}
+.hn-unread td{background:#eff6ff}
+.hn-unread:hover td{background:#dbeafe}
+
+/* Pill */
+.hn-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600}
+.hn-pill-blue{background:#dbeafe;color:#1e40af}
+.hn-pill-red{background:#fee2e2;color:#b91c1c}
+.hn-pill-green{background:#dcfce7;color:#166534}
+.hn-pill-yellow{background:#fef9c3;color:#854d0e}
+.hn-pill-gray{background:#f1f5f9;color:#475569}
+
+/* Form invio */
+.hn-form-group{display:flex;flex-direction:column;gap:4px;margin-bottom:14px}
+.hn-label{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em}
+.hn-textarea{border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;font-size:13px;resize:vertical;min-height:80px;outline:none;font-family:inherit}
+.hn-textarea:focus{border-color:#1d4ed8}
+.hn-dest-row{display:none}
+.hn-dest-row.active{display:flex;flex-direction:column;gap:4px}
+
+/* Bulk actions */
+.hn-bulk{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.hn-bulk-label{font-size:12px;font-weight:700;color:#92400e;white-space:nowrap}
+
+/* Paginazione */
+.hn-pagination{display:flex;align-items:center;gap:6px;margin-top:14px;flex-wrap:wrap}
+.hn-page-btn{padding:5px 10px;border-radius:7px;font-size:12px;font-weight:600;border:1px solid #e2e8f0;background:#fff;color:#334155;cursor:pointer;text-decoration:none}
+.hn-page-btn:hover{background:#f1f5f9}
+.hn-page-btn.active{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
+
+/* Per tipo breakdown */
+.hn-tipo-list{display:flex;flex-direction:column;gap:6px}
+.hn-tipo-row{display:flex;align-items:center;justify-content:space-between;font-size:12px}
+.hn-tipo-bar{height:4px;border-radius:2px;background:#dbeafe;margin-top:2px;transition:width .3s}
+</style>
+
+<div style="max-width:1300px;margin:0 auto;padding:24px 20px">
+
+  <!-- Header -->
+  <div class="hub-header">
+    <div>
+      <div class="hub-title">🔔 Gestione Notifiche</div>
+      <div class="hub-subtitle">Visualizza, invia e gestisci le notifiche in-app degli utenti.</div>
+    </div>
+    <a href="{% url 'hub_tools:hub_moduli' %}" class="hn-btn hn-btn-ghost">&larr; Hub</a>
+  </div>
+
+  <!-- Stats -->
+  <div class="hn-stats">
+    <div class="hn-stat">
+      <div class="hn-stat-num">{{ totale }}</div>
+      <div class="hn-stat-label">Totali</div>
+    </div>
+    <div class="hn-stat" style="border-color:#fde68a;">
+      <div class="hn-stat-num" style="color:#d97706;">{{ non_lette }}</div>
+      <div class="hn-stat-label">Non lette</div>
+    </div>
+    <div class="hn-stat" style="border-color:#bbf7d0;">
+      <div class="hn-stat-num" style="color:#16a34a;">{{ lette }}</div>
+      <div class="hn-stat-label">Lette</div>
+    </div>
+    <div class="hn-stat" style="border-color:#bfdbfe;">
+      <div class="hn-stat-num" style="color:#1d4ed8;">{{ popup_pend }}</div>
+      <div class="hn-stat-label">Popup in attesa</div>
+    </div>
+  </div>
+
+  <div class="hn-layout">
+
+    <!-- Colonna sinistra: lista -->
+    <div>
+
+      <!-- Bulk actions -->
+      <div class="hn-bulk">
+        <span class="hn-bulk-label">Azioni rapide:</span>
+        <button class="hn-btn hn-btn-ghost hn-btn-sm" onclick="bulkAction('segna_lette_tutte')">✓ Segna tutte come lette</button>
+        <button class="hn-btn hn-btn-danger hn-btn-sm" onclick="bulkAction('elimina_lette')">🗑 Elimina tutte le lette</button>
+        {% if f_user_id %}
+          <button class="hn-btn hn-btn-danger hn-btn-sm" onclick="bulkAction('elimina_utente', {{ f_user_id }})">🗑 Elimina tutte di questo utente</button>
+        {% endif %}
+      </div>
+
+      <!-- Filtri -->
+      <form method="get" class="hn-filters">
+        <input class="hn-input" name="q" value="{{ f_q }}" placeholder="Cerca nel messaggio…" style="min-width:200px;">
+        <select class="hn-select" name="tipo">
+          <option value="">Tutti i tipi</option>
+          {% for value, label in tipi %}
+            <option value="{{ value }}" {% if f_tipo == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <select class="hn-select" name="letta">
+          <option value="">Tutte</option>
+          <option value="no" {% if f_letta == "no" %}selected{% endif %}>Non lette</option>
+          <option value="si" {% if f_letta == "si" %}selected{% endif %}>Lette</option>
+        </select>
+        <select class="hn-select" name="user_id" style="min-width:180px;">
+          <option value="">Tutti gli utenti</option>
+          {% for d in dipendenti %}
+            <option value="{{ d.id }}" {% if f_user_id == d.id|stringformat:"s" %}selected{% endif %}>{{ d.nome }}{% if d.reparto %} ({{ d.reparto }}){% endif %}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="hn-btn hn-btn-primary">Filtra</button>
+        <a href="{% url 'hub_tools:hub_notifiche' %}" class="hn-btn hn-btn-ghost">Reset</a>
+      </form>
+
+      <!-- Tabella -->
+      <div class="hn-card">
+        <div class="hn-card-head">
+          <div class="hn-card-title">Notifiche ({{ page_obj.paginator.count }})</div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="hn-table">
+            <thead>
+              <tr>
+                <th>Utente</th>
+                <th>Tipo</th>
+                <th>Messaggio</th>
+                <th>Data</th>
+                <th>Stato</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for n in page_obj %}
+              <tr class="{% if not n.letta %}hn-unread{% endif %}" id="row-{{ n.id }}">
+                <td>
+                  <span style="font-weight:600;color:#1e293b;">
+                    {{ n.user_nome|default:n.legacy_user_id }}
+                  </span>
+                  <div style="font-size:11px;color:#94a3b8;">ID {{ n.legacy_user_id }}</div>
+                </td>
+                <td>
+                  {% if n.tipo == "dpi_approvata" or n.tipo == "assenza_approvata" %}
+                    <span class="hn-pill hn-pill-green">{{ n.get_tipo_display }}</span>
+                  {% elif n.tipo == "dpi_rifiutata" or n.tipo == "assenza_rifiutata" %}
+                    <span class="hn-pill hn-pill-red">{{ n.get_tipo_display }}</span>
+                  {% elif n.tipo == "dpi_consegnata" %}
+                    <span class="hn-pill hn-pill-green">{{ n.get_tipo_display }}</span>
+                  {% elif n.tipo == "assenza_in_attesa" %}
+                    <span class="hn-pill hn-pill-blue">{{ n.get_tipo_display }}</span>
+                  {% else %}
+                    <span class="hn-pill hn-pill-gray">{{ n.get_tipo_display }}</span>
+                  {% endif %}
+                </td>
+                <td style="max-width:280px;">
+                  <span style="color:#1e293b;">{{ n.messaggio }}</span>
+                  {% if n.url_azione %}
+                    <div><a href="{{ n.url_azione }}" style="font-size:11px;color:#1d4ed8;">{{ n.url_azione }}</a></div>
+                  {% endif %}
+                </td>
+                <td style="white-space:nowrap;color:#64748b;font-size:12px;">
+                  {{ n.created_at|date:"d/m/Y H:i" }}
+                </td>
+                <td>
+                  {% if n.letta %}
+                    <span class="hn-pill hn-pill-gray">Letta</span>
+                    {% if n.popup_shown %}<div style="font-size:10px;color:#94a3b8;margin-top:2px;">popup ✓</div>{% endif %}
+                  {% else %}
+                    <span class="hn-pill hn-pill-yellow">Non letta</span>
+                    {% if not n.popup_shown %}<div style="font-size:10px;color:#94a3b8;margin-top:2px;">popup in attesa</div>{% endif %}
+                  {% endif %}
+                </td>
+                <td>
+                  <button class="hn-btn hn-btn-danger hn-btn-xs" onclick="eliminaNotifica({{ n.id }})">🗑</button>
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="6" style="text-align:center;padding:30px;color:#94a3b8;">Nessuna notifica trovata.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {% if page_obj.has_other_pages %}
+        <div style="padding:12px 20px;border-top:1px solid #f1f5f9;">
+          <div class="hn-pagination">
+            {% if page_obj.has_previous %}
+              <a class="hn-page-btn" href="?page={{ page_obj.previous_page_number }}&tipo={{ f_tipo }}&letta={{ f_letta }}&user_id={{ f_user_id }}&q={{ f_q }}">&laquo;</a>
+            {% endif %}
+            {% for num in page_obj.paginator.page_range %}
+              {% if num == page_obj.number %}
+                <span class="hn-page-btn active">{{ num }}</span>
+              {% elif num >= page_obj.number|add:"-3" and num <= page_obj.number|add:"3" %}
+                <a class="hn-page-btn" href="?page={{ num }}&tipo={{ f_tipo }}&letta={{ f_letta }}&user_id={{ f_user_id }}&q={{ f_q }}">{{ num }}</a>
+              {% endif %}
+            {% endfor %}
+            {% if page_obj.has_next %}
+              <a class="hn-page-btn" href="?page={{ page_obj.next_page_number }}&tipo={{ f_tipo }}&letta={{ f_letta }}&user_id={{ f_user_id }}&q={{ f_q }}">&raquo;</a>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+
+      </div>
+    </div>
+
+    <!-- Colonna destra: form invio + breakdown -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+
+      <!-- Form invio notifica manuale -->
+      <div class="hn-card">
+        <div class="hn-card-head">
+          <div class="hn-card-title">📤 Invia notifica</div>
+        </div>
+        <div class="hn-card-body">
+
+          <div class="hn-form-group">
+            <label class="hn-label">Destinatario</label>
+            <select class="hn-select" id="f-dest" onchange="onDestChange(this.value)">
+              <option value="utente">Singolo utente</option>
+              <option value="reparto">Reparto</option>
+              <option value="tutti">Tutti gli utenti</option>
+            </select>
+          </div>
+
+          <div class="hn-dest-row active" id="row-utente">
+            <label class="hn-label">Utente</label>
+            <select class="hn-select" id="f-user-id" style="width:100%;">
+              <option value="">— Seleziona —</option>
+              {% for d in dipendenti %}
+                <option value="{{ d.id }}">{{ d.nome }}{% if d.reparto %} ({{ d.reparto }}){% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="hn-dest-row" id="row-reparto" style="margin-top:10px;">
+            <label class="hn-label">Reparto</label>
+            <select class="hn-select" id="f-reparto" style="width:100%;">
+              <option value="">— Seleziona —</option>
+              {% for r in reparti %}
+                <option value="{{ r }}">{{ r }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="hn-form-group" style="margin-top:14px;">
+            <label class="hn-label">Tipo</label>
+            <select class="hn-select" id="f-tipo-send">
+              {% for value, label in tipi %}
+                <option value="{{ value }}" {% if value == "generico" %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="hn-form-group">
+            <label class="hn-label">Messaggio *</label>
+            <textarea class="hn-textarea" id="f-messaggio" placeholder="Testo della notifica…"></textarea>
+          </div>
+
+          <div class="hn-form-group">
+            <label class="hn-label">URL azione (opzionale)</label>
+            <input class="hn-input" id="f-url" type="text" placeholder="/dpi/42/" style="width:100%;box-sizing:border-box;">
+          </div>
+
+          <button class="hn-btn hn-btn-primary" style="width:100%;" onclick="inviaNotifica()">📤 Invia</button>
+          <div id="send-result" style="margin-top:10px;font-size:12px;display:none;"></div>
+        </div>
+      </div>
+
+      <!-- Breakdown per tipo -->
+      {% if totale %}
+      <div class="hn-card">
+        <div class="hn-card-head">
+          <div class="hn-card-title">📊 Per tipo</div>
+        </div>
+        <div class="hn-card-body">
+          <div class="hn-tipo-list">
+            {% for item in per_tipo_list %}
+              <div>
+                <div class="hn-tipo-row">
+                  <span style="color:#334155;">{{ item.label }}</span>
+                  <strong>{{ item.count }}</strong>
+                </div>
+                <div class="hn-tipo-bar" style="width:{% widthratio item.count totale 100 %}%;"></div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+var CSRF = "{{ csrf_token }}";
+var INVIA_URL  = "{% url 'hub_tools:hub_notifica_invia' %}";
+var BULK_URL   = "{% url 'hub_tools:hub_notifiche_bulk' %}";
+var ELIM_BASE  = "{% url 'hub_tools:hub_notifica_elimina' notifica_id=0 %}".replace("/0/", "/");
+
+function onDestChange(val) {
+  document.getElementById('row-utente').classList.toggle('active', val === 'utente');
+  document.getElementById('row-reparto').classList.toggle('active', val === 'reparto');
+}
+
+function inviaNotifica() {
+  var dest     = document.getElementById('f-dest').value;
+  var msg      = document.getElementById('f-messaggio').value.trim();
+  var tipo     = document.getElementById('f-tipo-send').value;
+  var url      = document.getElementById('f-url').value.trim();
+  var resultEl = document.getElementById('send-result');
+
+  if (!msg) { showResult(resultEl, false, 'Il messaggio è obbligatorio.'); return; }
+
+  var body = { destinatario: dest, tipo: tipo, messaggio: msg, url_azione: url };
+  if (dest === 'utente') {
+    var uid = document.getElementById('f-user-id').value;
+    if (!uid) { showResult(resultEl, false, 'Seleziona un utente.'); return; }
+    body.user_id = uid;
+  } else if (dest === 'reparto') {
+    var rep = document.getElementById('f-reparto').value;
+    if (!rep) { showResult(resultEl, false, 'Seleziona un reparto.'); return; }
+    body.reparto = rep;
+  }
+
+  fetch(INVIA_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+    body: JSON.stringify(body)
+  }).then(r => r.json()).then(d => {
+    showResult(resultEl, d.ok, d.message || d.error || '');
+    if (d.ok) {
+      document.getElementById('f-messaggio').value = '';
+      document.getElementById('f-url').value = '';
+      setTimeout(() => location.reload(), 1200);
+    }
+  }).catch(() => showResult(resultEl, false, 'Errore di rete.'));
+}
+
+function eliminaNotifica(id) {
+  if (!confirm('Eliminare questa notifica?')) return;
+  fetch(ELIM_BASE + id + '/elimina/', {
+    method: 'POST',
+    headers: { 'X-CSRFToken': CSRF }
+  }).then(r => r.json()).then(d => {
+    if (d.ok) {
+      var row = document.getElementById('row-' + id);
+      if (row) { row.style.opacity = '0'; setTimeout(() => row.remove(), 200); }
+    }
+  });
+}
+
+function bulkAction(azione, userId) {
+  var msgs = {
+    'segna_lette_tutte': 'Segnare tutte le notifiche come lette?',
+    'elimina_lette':     'Eliminare tutte le notifiche già lette?',
+    'elimina_utente':    'Eliminare tutte le notifiche di questo utente?'
+  };
+  if (!confirm(msgs[azione] || 'Confermi?')) return;
+  var body = { azione: azione };
+  if (userId) body.user_id = userId;
+  fetch(BULK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+    body: JSON.stringify(body)
+  }).then(r => r.json()).then(d => {
+    if (d.ok) { alert(d.message); location.reload(); }
+    else alert('Errore: ' + (d.error || 'sconosciuto'));
+  });
+}
+
+function showResult(el, ok, msg) {
+  el.style.display = 'block';
+  el.style.background = ok ? '#dcfce7' : '#fee2e2';
+  el.style.color = ok ? '#166534' : '#b91c1c';
+  el.style.padding = '8px 12px';
+  el.style.borderRadius = '7px';
+  el.textContent = msg;
+}
+</script>
+{% endblock %}

@@ -27,6 +27,8 @@ class UtenteCreateForm(forms.Form):
         password_iniziale = (cleaned.get("password_iniziale") or "").strip()
         if not ad_managed and not password_iniziale:
             self.add_error("password_iniziale", "Password iniziale obbligatoria se non AD managed.")
+        elif not ad_managed and len(password_iniziale) < 8:
+            self.add_error("password_iniziale", "La password deve essere di almeno 8 caratteri.")
         return cleaned
 
 
@@ -70,6 +72,9 @@ class PulsanteForm(forms.Form):
         if not value:
             raise forms.ValidationError("URL obbligatorio.")
         lower = value.lower()
+        # Blocca schemi pericolosi che potrebbero eseguire codice nel browser
+        if lower.startswith(("javascript:", "data:", "vbscript:")):
+            raise forms.ValidationError("Schema URL non consentito.")
         if lower.startswith(("route:", "django:", "http://", "https://")):
             return value
         if not value.startswith("/"):

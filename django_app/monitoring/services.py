@@ -740,9 +740,17 @@ def notify_admins_for_critical_issue(issue: Issue, *, force: bool = False) -> bo
     return False
 
 
-def count_consecutive_failures(job: AutomationJob, *, limit: int = 10) -> int:
+def count_consecutive_failures(job: AutomationJob, *, limit: int = 10, exclude_pk: int | None = None) -> int:
+    """Conta le esecuzioni FAILED consecutive più recenti del job.
+
+    ``exclude_pk`` esclude l'esecuzione corrente (in stato intermedio)
+    dal conteggio, così la soglia viene calcolata sui run già completati.
+    """
     failures = 0
-    for execution in job.executions.order_by("-started_at", "-id")[:limit]:
+    qs = job.executions.order_by("-started_at", "-id")
+    if exclude_pk is not None:
+        qs = qs.exclude(pk=exclude_pk)
+    for execution in qs[:limit]:
         if execution.status != AutomationExecution.Status.FAILED:
             break
         failures += 1

@@ -3,14 +3,15 @@ from __future__ import annotations
 import logging
 
 from django.core.cache import cache
-from django.db import DatabaseError, connections, transaction
+from django.db import DatabaseError, transaction
 
+from core.acl_bootstrap_base import set_ui_meta, upsert_pulsante
 from core.legacy_cache import bump_legacy_cache_version
-from core.legacy_models import Permesso, Pulsante, Ruolo
+from core.legacy_models import Permesso, Ruolo
 
 logger = logging.getLogger(__name__)
 
-_BOOTSTRAP_CACHE_KEY = "timbri_runtime_bootstrap_v1"
+_BOOTSTRAP_CACHE_KEY = "timbri_runtime_bootstrap_v2"
 _BOOTSTRAP_TTL_SECONDS = 300
 
 _PULSANTI_DEFINITIONS = [
@@ -24,134 +25,18 @@ _PULSANTI_DEFINITIONS = [
 
 _VISIBLE_ROLE_NAMES = {"admin", "amministrazione", "caporeparto", "hr"}
 _EDIT_ROLE_NAMES = {"admin", "amministrazione"}
-_TOPBAR_ALLOWED_ROLE_NAMES = {"admin", "amministrazione", "caporeparto", "hr"}
 
 
-def _ensure_ui_meta_table() -> None:
-    try:
-        with connections["default"].cursor() as cursor:
-            vendor = connections["default"].vendor
-            if vendor == "sqlite":
-                cursor.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS ui_pulsanti_meta (
-                        pulsante_id INTEGER PRIMARY KEY,
-                        ui_slot TEXT NULL,
-                        ui_section TEXT NULL,
-                        ui_order INTEGER NULL,
-                        visible_topbar INTEGER NOT NULL DEFAULT 1,
-                        enabled INTEGER NOT NULL DEFAULT 1,
-                        updated_at TEXT NULL
-                    )
-                    """
-                )
-            else:
-                cursor.execute(
-                    """
-                    IF OBJECT_ID('ui_pulsanti_meta', 'U') IS NULL
-                    CREATE TABLE ui_pulsanti_meta (
-                        pulsante_id INT NOT NULL PRIMARY KEY,
-                        ui_slot NVARCHAR(50) NULL,
-                        ui_section NVARCHAR(100) NULL,
-                        ui_order INT NULL,
-                        visible_topbar BIT NOT NULL DEFAULT 1,
-                        enabled BIT NOT NULL DEFAULT 1,
-                        updated_at DATETIME2 NULL
-                    )
-                    """
-                )
-    except Exception:
-        return
-
-
-def _hide_pulsante(pulsante_id: int, section: str) -> None:
-    _ensure_ui_meta_table()
-    try:
-        with connections["default"].cursor() as cursor:
-            vendor = connections["default"].vendor
-            if vendor == "sqlite":
-                cursor.execute(
-                    """
-                    INSERT INTO ui_pulsanti_meta
-                        (pulsante_id, ui_slot, ui_section, ui_order, visible_topbar, enabled, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
-                    ON CONFLICT(pulsante_id) DO UPDATE SET
-                        ui_slot=excluded.ui_slot,
-                        ui_section=excluded.ui_section,
-                        visible_topbar=excluded.visible_topbar,
-                        enabled=excluded.enabled,
-                        updated_at=CURRENT_TIMESTAMP
-                    """,
-                    [pulsante_id, "hidden", section, None, 0, 1],
-                )
-            else:
-                cursor.execute(
-                    """
-                    MERGE ui_pulsanti_meta AS target
-                    USING (SELECT %s AS pulsante_id) AS src
-                    ON target.pulsante_id = src.pulsante_id
-                    WHEN MATCHED THEN UPDATE SET
-                        ui_slot=%s, ui_section=%s, visible_topbar=%s, enabled=%s,
-                        updated_at=SYSUTCDATETIME()
-                    WHEN NOT MATCHED THEN INSERT
-                        (pulsante_id, ui_slot, ui_section, ui_order, visible_topbar, enabled, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, SYSUTCDATETIME());
-                    """,
-                    [pulsante_id, "hidden", section, 0, 1, pulsante_id, "hidden", section, None, 0, 1],
-                )
-    except Exception:
-        return
-
-
-def _upsert_pulsante(modulo: str, codice: str, label: str, url: str) -> tuple[int | None, bool]:
-    changed = False
-    row = None
-    try:
-        row = Pulsante.objects.filter(url__iexact=url).order_by("-id").first()
-        if row is None:
-            row = Pulsante.objects.filter(modulo__iexact=modulo, codice__iexact=codice).order_by("-id").first()
-    except DatabaseError:
-        return None, False
-
-    if row is None:
-        try:
-            row = Pulsante.objects.create(
-                modulo=modulo,
-                codice=codice,
-                nome_visibile=label,
-                url=url,
-                icona="tag",
-            )
-            return int(row.id), True
-        except DatabaseError:
-            return None, False
-
-    updates = []
-    if (row.modulo or "").strip() != modulo:
-        row.modulo = modulo
-        updates.append("modulo")
-    if (row.codice or "").strip() != codice:
-        row.codice = codice
-        updates.append("codice")
-    if (row.nome_visibile or "").strip() != label:
-        row.nome_visibile = label
-        updates.append("nome_visibile")
-    if (row.url or "").strip() != url:
-        row.url = url
-        updates.append("url")
-    if not row.icona:
-        row.icona = "tag"
-        updates.append("icona")
-    if updates:
-        try:
-            row.save(update_fields=updates)
-            changed = True
-        except DatabaseError:
-            return None, False
-    return int(row.id), changed
-
-
-def _upsert_permesso(*, ruolo_id: int, modulo: str, azione: str, can_view: bool, can_edit: bool, can_delete: bool, can_approve: bool) -> bool:
+def _upsert_permesso(
+    *,
+    ruolo_id: int,
+    modulo: str,
+    azione: str,
+    can_view: bool,
+    can_edit: bool,
+    can_delete: bool,
+    can_approve: bool,
+) -> bool:
     row = (
         Permesso.objects.filter(ruolo_id=ruolo_id, modulo__iexact=modulo, azione__iexact=azione)
         .order_by("-id")
@@ -256,18 +141,20 @@ def bootstrap_timbri_runtime(force: bool = False) -> None:
         return
 
     changed = False
+    created_ids: list[tuple[int, bool]] = []
+
     try:
         with transaction.atomic():
-            created_ids: list[tuple[int, bool]] = []
             for item in _PULSANTI_DEFINITIONS:
-                pulsante_id, item_changed = _upsert_pulsante(
-                    modulo=item["modulo"],
-                    codice=item["codice"],
-                    label=item["label"],
-                    url=item["url"],
+                pid, item_changed = upsert_pulsante(
+                    item["modulo"],
+                    item["codice"],
+                    item["label"],
+                    item["url"],
+                    icona="tag",
                 )
-                if pulsante_id:
-                    created_ids.append((pulsante_id, bool(item["hide"])))
+                if pid:
+                    created_ids.append((pid, bool(item["hide"])))
                 changed = changed or item_changed
 
             role_map = {
@@ -278,37 +165,29 @@ def bootstrap_timbri_runtime(force: bool = False) -> None:
                 can_edit = role_name in _EDIT_ROLE_NAMES
                 for action in ["timbri_home", "timbri_view"]:
                     changed = _upsert_permesso(
-                        ruolo_id=role_id,
-                        modulo="timbri",
-                        azione=action,
-                        can_view=True,
-                        can_edit=can_edit,
-                        can_delete=False,
-                        can_approve=False,
+                        ruolo_id=role_id, modulo="timbri", azione=action,
+                        can_view=True, can_edit=can_edit, can_delete=False, can_approve=False,
                     ) or changed
                 for action in ["timbri_edit", "timbri_config", "timbri_import", "timbri_export"]:
                     changed = _upsert_permesso(
-                        ruolo_id=role_id,
-                        modulo="timbri",
-                        azione=action,
-                        can_view=can_edit,
-                        can_edit=can_edit,
-                        can_delete=False,
-                        can_approve=False,
+                        ruolo_id=role_id, modulo="timbri", azione=action,
+                        can_view=can_edit, can_edit=can_edit, can_delete=False, can_approve=False,
                     ) or changed
 
             changed = _bootstrap_navigation() or changed
+
     except Exception as exc:
         logger.debug("ACL bootstrap timbri skipped: %s", exc)
         return
 
-    for pulsante_id, hide in created_ids:
+    for pid, hide in created_ids:
         if hide:
-            _hide_pulsante(pulsante_id, "timbri_hidden")
+            set_ui_meta(pid, section="timbri_hidden", visible_topbar=False)
 
     if changed:
         try:
             bump_legacy_cache_version()
         except Exception:
             pass
+
     cache.set(_BOOTSTRAP_CACHE_KEY, True, timeout=_BOOTSTRAP_TTL_SECONDS)

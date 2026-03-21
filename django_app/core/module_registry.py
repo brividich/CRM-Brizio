@@ -29,6 +29,11 @@ class ModuleDefinition:
     dashboard_widget_ids: tuple[str, ...] = ()
     feature_flags: tuple[str, ...] = ()
     enabled_by_default: bool = True
+    # audience: chi può vedere/usare questo modulo
+    #   "user"   — utenti normali (default)
+    #   "admin"  — solo is_legacy_admin() (admin_portale, hub_tools)
+    #   "system" — infrastruttura non in navigazione (monitoring, setup_wizard)
+    audience: str = "user"
     default_short_label: str = ""
     default_menu_label: str = ""
     default_dashboard_label: str = ""
@@ -45,6 +50,49 @@ class ModuleBranding:
 
 
 MODULE_DEFINITIONS: dict[str, ModuleDefinition] = {
+    # -------------------------------------------------------------------------
+    # Core navigation modules — ordine rispecchia la topbar di default
+    # navigation_codes deve combaciare con NavigationItem.code in DB
+    # -------------------------------------------------------------------------
+    "dashboard": ModuleDefinition(
+        key="dashboard",
+        default_label="Dashboard",
+        icon="layout-dashboard",
+        order=10,
+        route_name="dashboard_home",
+        route_namespace="",
+        permission_namespace="dashboard",
+        navigation_codes=("dashboard",),
+        default_short_label="Home",
+        default_menu_label="Dashboard",
+        default_dashboard_label="Dashboard",
+    ),
+    "assenze": ModuleDefinition(
+        key="assenze",
+        default_label="Assenze",
+        icon="calendar-off",
+        order=20,
+        route_name="assenze_menu",
+        route_namespace="",
+        permission_namespace="assenze",
+        navigation_codes=("assenze",),
+        default_short_label="Assenze",
+        default_menu_label="Assenze",
+        default_dashboard_label="Assenze",
+    ),
+    "anomalie": ModuleDefinition(
+        key="anomalie",
+        default_label="Anomalie",
+        icon="alert-triangle",
+        order=25,
+        route_name="gestione_anomalie_page",
+        route_namespace="",
+        permission_namespace="anomalie",
+        navigation_codes=("anomalie",),
+        default_short_label="Anomalie",
+        default_menu_label="Anomalie",
+        default_dashboard_label="Anomalie",
+    ),
     "assets": ModuleDefinition(
         key="assets",
         default_label="Assets",
@@ -58,11 +106,200 @@ MODULE_DEFINITIONS: dict[str, ModuleDefinition] = {
         default_menu_label="Assets",
         default_dashboard_label="Assets",
     ),
+    "tasks": ModuleDefinition(
+        key="tasks",
+        default_label="Task",
+        icon="checklist",
+        order=40,
+        route_name="tasks:list",
+        route_namespace="tasks",
+        permission_namespace="tasks",
+        navigation_codes=("tasks",),
+        default_short_label="Task",
+        default_menu_label="Task",
+        default_dashboard_label="Task",
+    ),
+    "tickets": ModuleDefinition(
+        key="tickets",
+        default_label="Ticket",
+        icon="ticket",
+        order=45,
+        route_name="tickets:dashboard",
+        route_namespace="tickets",
+        permission_namespace="tickets",
+        navigation_codes=("tickets",),
+        default_short_label="Ticket",
+        default_menu_label="Ticket",
+        default_dashboard_label="Ticket",
+    ),
+    "notizie": ModuleDefinition(
+        key="notizie",
+        default_label="Notizie",
+        icon="news",
+        order=50,
+        route_name="notizie_lista",
+        route_namespace="",
+        permission_namespace="notizie",
+        navigation_codes=("notizie",),
+        default_short_label="Notizie",
+        default_menu_label="Notizie",
+        default_dashboard_label="Notizie",
+    ),
+    "anagrafica": ModuleDefinition(
+        key="anagrafica",
+        default_label="Anagrafica",
+        icon="users",
+        order=55,
+        route_name="anagrafica:index",
+        route_namespace="anagrafica",
+        permission_namespace="anagrafica",
+        navigation_codes=("anagrafica",),
+        default_short_label="Anagrafica",
+        default_menu_label="Anagrafica",
+        default_dashboard_label="Anagrafica",
+    ),
+    "timbri": ModuleDefinition(
+        key="timbri",
+        default_label="Timbri",
+        icon="clock",
+        order=60,
+        route_name="timbri:index",
+        route_namespace="timbri",
+        permission_namespace="timbri",
+        navigation_codes=("timbri",),
+        default_short_label="Timbri",
+        default_menu_label="Registro Timbri",
+        default_dashboard_label="Timbri",
+    ),
+    "planimetria": ModuleDefinition(
+        key="planimetria",
+        default_label="Planimetria",
+        icon="map",
+        order=65,
+        route_name="planimetria:mappa",
+        route_namespace="planimetria",
+        permission_namespace="planimetria",
+        navigation_codes=("planimetria",),
+        default_short_label="Planimetria",
+        default_menu_label="Planimetria Aziendale",
+        default_dashboard_label="Planimetria",
+    ),
+    "automazioni": ModuleDefinition(
+        key="automazioni",
+        default_label="Automazioni",
+        icon="settings-automation",
+        order=70,
+        route_name="automazioni:automazioni_rule_list",
+        route_namespace="automazioni",
+        permission_namespace="automazioni",
+        navigation_codes=("automazioni",),
+        default_short_label="Automazioni",
+        default_menu_label="Automazioni",
+        default_dashboard_label="Automazioni",
+    ),
+    "rentri": ModuleDefinition(
+        key="rentri",
+        default_label="RENTRI",
+        icon="recycle",
+        order=75,
+        route_name="rentri_menu",
+        route_namespace="",
+        permission_namespace="rentri",
+        navigation_codes=("rentri",),
+        default_short_label="RENTRI",
+        default_menu_label="RENTRI",
+        default_dashboard_label="RENTRI",
+    ),
+    # -------------------------------------------------------------------------
+    # Moduli sicurezza — TODO: verificare navigation_codes reali su DB prod
+    # -------------------------------------------------------------------------
+    "diario_preposto": ModuleDefinition(
+        key="diario_preposto",
+        default_label="Diario Preposto",
+        icon="clipboard-check",
+        order=80,
+        route_name="diario_preposto:lista",
+        route_namespace="diario_preposto",
+        permission_namespace="diario_preposto",
+        navigation_codes=("diario_preposto",),
+        default_short_label="Diario",
+        default_menu_label="Diario Preposto",
+        default_dashboard_label="Diario Preposto",
+    ),
+    "rilevazione_incidenti": ModuleDefinition(
+        key="rilevazione_incidenti",
+        default_label="Rilevazione Incidenti",
+        icon="shield-exclamation",
+        order=85,
+        route_name="rilevazione_incidenti:lista",
+        route_namespace="rilevazione_incidenti",
+        permission_namespace="rilevazione_incidenti",
+        navigation_codes=("rilevazione_incidenti",),
+        default_short_label="Incidenti",
+        default_menu_label="Rilevazione Incidenti",
+        default_dashboard_label="Incidenti",
+    ),
+    # -------------------------------------------------------------------------
+    # Moduli admin — richiede is_legacy_admin(), non visibili agli utenti normali
+    # -------------------------------------------------------------------------
+    "admin_portale": ModuleDefinition(
+        key="admin_portale",
+        default_label="Admin Portale",
+        icon="shield-cog",
+        order=200,
+        route_name="admin_portale:index",
+        route_namespace="admin_portale",
+        permission_namespace="admin_portale",
+        navigation_codes=("admin_portale",),
+        audience="admin",
+        enabled_by_default=False,
+        default_short_label="Admin",
+        default_menu_label="Admin Portale",
+        default_dashboard_label="Admin",
+    ),
+    "hub_tools": ModuleDefinition(
+        key="hub_tools",
+        default_label="BrizioHUB",
+        icon="tool",
+        order=210,
+        route_name="hub_tools:hub_moduli",
+        route_namespace="hub_tools",
+        permission_namespace="hub_tools",
+        navigation_codes=("hub_tools",),
+        audience="admin",
+        enabled_by_default=False,
+        default_short_label="HUB",
+        default_menu_label="BrizioHUB",
+        default_dashboard_label="HUB",
+    ),
+    # -------------------------------------------------------------------------
+    # Moduli di sistema — infrastruttura, non in navigazione utente/admin
+    # -------------------------------------------------------------------------
+    "monitoring": ModuleDefinition(
+        key="monitoring",
+        default_label="Monitoring",
+        icon="activity",
+        order=300,
+        route_name="monitoring:report_problem",
+        route_namespace="monitoring",
+        permission_namespace="monitoring",
+        navigation_codes=("monitoring",),
+        audience="system",
+        enabled_by_default=False,
+        default_short_label="Monitor",
+        default_menu_label="Monitoring",
+        default_dashboard_label="Monitoring",
+    ),
 }
 
 
 def get_registered_modules() -> dict[str, ModuleDefinition]:
     return dict(MODULE_DEFINITIONS)
+
+
+def get_modules_by_audience(audience: str) -> dict[str, ModuleDefinition]:
+    """Restituisce i moduli filtrati per audience ("user", "admin", "system")."""
+    return {k: v for k, v in MODULE_DEFINITIONS.items() if v.audience == audience}
 
 
 def get_module_definition(module_key: str) -> ModuleDefinition | None:
