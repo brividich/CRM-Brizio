@@ -1,0 +1,128 @@
+{% extends "core/base.html" %}
+
+{% block title %}Documenti Procedure | Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+#pr-root { display:flex; flex-direction:column; gap:20px; }
+.pr-subnav { display:flex; gap:4px; flex-wrap:wrap; }
+.pr-subnav-link { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; color:#475569; background:#f1f5f9; transition:all .15s; }
+.pr-subnav-link:hover { background:#e2e8f0; }
+.pr-subnav-link.active { background:#1d4ed8; color:#fff; }
+
+.pr-header-row { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.pr-page-title { font-size:20px; font-weight:900; color:#0f172a; }
+.pr-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 18px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; background:#1d4ed8; color:#fff; transition:all .15s; }
+.pr-btn:hover { background:#1e40af; }
+.pr-btn-sm { padding:5px 12px; font-size:12px; border-radius:7px; }
+.pr-btn-green { background:#15803d; }
+.pr-btn-green:hover { background:#166534; }
+.pr-btn-gray { background:#f1f5f9; color:#475569; }
+.pr-btn-gray:hover { background:#e2e8f0; color:#0f172a; }
+
+.pr-table-wrap { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow-x:auto; }
+.pr-table { width:100%; border-collapse:collapse; font-size:13px; }
+.pr-table th { background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:10px 14px; text-align:left; font-weight:700; color:#475569; }
+.pr-table td { padding:10px 14px; border-bottom:1px solid #f1f5f9; color:#0f172a; vertical-align:middle; }
+.pr-table tr:last-child td { border-bottom:none; }
+.pr-table tr:hover td { background:#f8fafc; }
+
+.pr-badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
+.pr-badge-mt { background:#dbeafe; color:#1d4ed8; }
+.pr-badge-mtsi { background:#f3e8ff; color:#7e22ce; }
+.pr-badge-altro { background:#f1f5f9; color:#475569; }
+.pr-badge-active { background:#dcfce7; color:#15803d; }
+.pr-badge-inactive { background:#fee2e2; color:#dc2626; }
+.pr-badge-current { background:#dcfce7; color:#15803d; }
+
+.pr-revisions { font-size:12px; color:#64748b; }
+.pr-empty { text-align:center; padding:40px; color:#64748b; font-size:14px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="pr-root">
+  {% include "procedure_refresh/components/subnav.html" with is_manager=True %}
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div style="padding:12px 16px;border-radius:10px;background:{% if 'error' in msg.tags %}#fee2e2{% else %}#dcfce7{% endif %};color:{% if 'error' in msg.tags %}#dc2626{% else %}#15803d{% endif %};font-size:13px;font-weight:600;">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="pr-header-row">
+    <div class="pr-page-title">Documenti procedura</div>
+    <a href="{% url 'procedure_refresh:document_create' %}" class="pr-btn">+ Nuovo documento</a>
+  </div>
+
+  <div class="pr-table-wrap">
+    {% if documents %}
+      <table class="pr-table">
+        <thead>
+          <tr>
+            <th>Codice</th>
+            <th>Titolo</th>
+            <th>Tipo</th>
+            <th>Categoria</th>
+            <th>Revisioni</th>
+            <th>Stato</th>
+            <th>Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for doc in documents %}
+            <tr>
+              <td><strong>{{ doc.code }}</strong></td>
+              <td>{{ doc.title }}</td>
+              <td>
+                {% if doc.document_type == 'MT' %}<span class="pr-badge pr-badge-mt">MT</span>
+                {% elif doc.document_type == 'MTSI' %}<span class="pr-badge pr-badge-mtsi">MTSI</span>
+                {% else %}<span class="pr-badge pr-badge-altro">{{ doc.document_type }}</span>
+                {% endif %}
+              </td>
+              <td>{{ doc.category|default:"—" }}</td>
+              <td>
+                {% with revs=doc.revisions.all %}
+                  {% if revs %}
+                    <span class="pr-revisions">{{ revs|length }} revisione{% if revs|length != 1 %}i{% endif %}</span>
+                    {% for rev in revs %}
+                      <br><span style="font-size:11px;color:#475569;">
+                        {{ rev.revision_code }}
+                        {% if rev.is_current %}<span class="pr-badge pr-badge-current" style="margin-left:4px;">corrente</span>{% endif %}
+                      </span>
+                    {% endfor %}
+                  {% else %}
+                    <span style="color:#94a3b8;font-size:12px;">Nessuna revisione</span>
+                  {% endif %}
+                {% endwith %}
+              </td>
+              <td>
+                {% if doc.is_active %}
+                  <span class="pr-badge pr-badge-active">Attivo</span>
+                {% else %}
+                  <span class="pr-badge pr-badge-inactive">Disattivato</span>
+                {% endif %}
+              </td>
+              <td>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                  <a href="{% url 'procedure_refresh:document_edit' pk=doc.pk %}" class="pr-btn pr-btn-sm pr-btn-gray">Modifica</a>
+                  <a href="{% url 'procedure_refresh:revision_create' doc_pk=doc.pk %}" class="pr-btn pr-btn-sm pr-btn-green">+ Rev.</a>
+                  {% if doc.is_active %}
+                    <form method="post" action="{% url 'procedure_refresh:document_delete' pk=doc.pk %}"
+                          onsubmit="return confirm('Disattivare il documento {{ doc.code }}?')">
+                      {% csrf_token %}
+                      <button type="submit" class="pr-btn pr-btn-sm" style="background:#fee2e2;color:#dc2626;">Disattiva</button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="pr-empty">Nessun documento. <a href="{% url 'procedure_refresh:document_create' %}">Creane uno</a>.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "core/base.html" %}
+
+{% block title %}{% if campaign %}Modifica campagna{% else %}Nuova campagna{% endif %} | Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+#pr-root { display:flex; flex-direction:column; gap:20px; max-width:600px; }
+.pr-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:24px; }
+.pr-card-title { font-size:17px; font-weight:800; color:#0f172a; margin-bottom:20px; }
+.pr-form-group { margin-bottom:16px; }
+.pr-form-group label { display:block; font-size:13px; font-weight:700; color:#374151; margin-bottom:5px; }
+.pr-form-group input, .pr-form-group textarea {
+  width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:8px; font-size:13px; color:#0f172a;
+}
+.pr-form-group input:focus, .pr-form-group textarea:focus {
+  outline:none; border-color:#1d4ed8; box-shadow:0 0 0 3px rgba(29,78,216,.1);
+}
+.pr-form-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.pr-btn-save { padding:10px 24px; background:#1d4ed8; color:#fff; border:none; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; }
+.pr-btn-cancel { padding:10px 18px; background:#f1f5f9; color:#475569; border:none; border-radius:10px; font-size:14px; font-weight:600; text-decoration:none; display:inline-block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="pr-root">
+  <a href="{% url 'procedure_refresh:campaign_list' %}" style="font-size:13px;color:#64748b;text-decoration:none;">← Torna alle campagne</a>
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div style="padding:12px 16px;border-radius:10px;background:#fee2e2;color:#dc2626;font-size:13px;font-weight:600;">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="pr-card">
+    <div class="pr-card-title">{% if campaign %}Modifica campagna{% else %}Nuova campagna{% endif %}</div>
+
+    <form method="post">
+      {% csrf_token %}
+
+      <div class="pr-form-group">
+        <label for="name">Nome campagna *</label>
+        <input type="text" id="name" name="name" value="{{ campaign.name|default:'' }}"
+               placeholder="es. Refresh procedure Q1 2026" maxlength="200" required>
+      </div>
+
+      <div class="pr-form-group">
+        <label for="description">Descrizione</label>
+        <textarea id="description" name="description" rows="3"
+                  placeholder="Obiettivo e contesto della campagna (facoltativo)">{{ campaign.description|default:'' }}</textarea>
+      </div>
+
+      <div class="pr-form-row">
+        <div class="pr-form-group">
+          <label for="start_date">Data inizio *</label>
+          <input type="date" id="start_date" name="start_date"
+                 value="{{ campaign.start_date|date:'Y-m-d'|default:'' }}" required>
+        </div>
+        <div class="pr-form-group">
+          <label for="due_date">Scadenza *</label>
+          <input type="date" id="due_date" name="due_date"
+                 value="{{ campaign.due_date|date:'Y-m-d'|default:'' }}" required>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:8px;">
+        <button type="submit" class="pr-btn-save">Salva campagna</button>
+        <a href="{% url 'procedure_refresh:campaign_list' %}" class="pr-btn-cancel">Annulla</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

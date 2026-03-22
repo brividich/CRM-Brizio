@@ -1,0 +1,274 @@
+{% extends "core/base.html" %}
+
+{% block title %}{% if document %}Modifica documento{% else %}Nuovo documento{% endif %} | Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+#pr-root { display:flex; flex-direction:column; gap:20px; max-width:700px; }
+.pr-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:24px; }
+.pr-card-title { font-size:17px; font-weight:800; color:#0f172a; margin-bottom:20px; }
+.pr-form-group { margin-bottom:16px; }
+.pr-form-group label { display:block; font-size:13px; font-weight:700; color:#374151; margin-bottom:5px; }
+.pr-form-group input, .pr-form-group select, .pr-form-group textarea {
+  width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:8px;
+  font-size:13px; color:#0f172a; background:#fff;
+}
+.pr-form-group input:focus, .pr-form-group select:focus, .pr-form-group textarea:focus {
+  outline:none; border-color:#1d4ed8; box-shadow:0 0 0 3px rgba(29,78,216,.1);
+}
+.pr-form-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.pr-check-row { display:flex; align-items:center; gap:8px; }
+.pr-check-row input[type=checkbox] { width:16px; height:16px; accent-color:#1d4ed8; }
+.pr-btn-row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.pr-btn-save { padding:10px 24px; background:#1d4ed8; color:#fff; border:none; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; }
+.pr-btn-save:hover { background:#1e40af; }
+.pr-btn-cancel { padding:10px 18px; background:#f1f5f9; color:#475569; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; text-decoration:none; display:inline-block; }
+.pr-btn-cancel:hover { background:#e2e8f0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="pr-root">
+  <a href="{% url 'procedure_refresh:document_list' %}" style="font-size:13px;color:#64748b;text-decoration:none;">← Torna ai documenti</a>
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div style="padding:12px 16px;border-radius:10px;background:#fee2e2;color:#dc2626;font-size:13px;font-weight:600;">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="pr-card">
+    <div class="pr-card-title">{% if document %}Modifica documento{% else %}Nuovo documento{% endif %}</div>
+
+    <form method="post">
+      {% csrf_token %}
+
+      <div class="pr-form-row">
+        <div class="pr-form-group">
+          <label for="code">Codice documento *</label>
+          <input type="text" id="code" name="code" value="{{ document.code|default:'' }}"
+                 placeholder="es. MT-001" maxlength="50" required>
+        </div>
+        <div class="pr-form-group">
+          <label for="document_type">Tipo *</label>
+          <select id="document_type" name="document_type" required>
+            <option value="MT" {% if document.document_type == 'MT' or not document %}selected{% endif %}>MT</option>
+            <option value="MTSI" {% if document.document_type == 'MTSI' %}selected{% endif %}>MTSI</option>
+            <option value="ALTRO" {% if document.document_type == 'ALTRO' %}selected{% endif %}>Altro</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="pr-form-group">
+        <label for="title">Titolo *</label>
+        <input type="text" id="title" name="title" value="{{ document.title|default:'' }}"
+               placeholder="Titolo completo del documento" maxlength="300" required>
+      </div>
+
+      <div class="pr-form-row">
+        <div class="pr-form-group">
+          <label for="category">Categoria</label>
+          <input type="text" id="category" name="category" value="{{ document.category|default:'' }}"
+                 placeholder="es. Sicurezza, Qualità…" maxlength="100">
+        </div>
+        <div class="pr-form-group">
+          <label for="owner_department">Reparto responsabile</label>
+          <input type="text" id="owner_department" name="owner_department"
+                 value="{{ document.owner_department|default:'' }}" maxlength="150">
+        </div>
+      </div>
+
+      <div class="pr-form-group">
+        <label for="description">Descrizione</label>
+        <textarea id="description" name="description" rows="3"
+                  placeholder="Descrizione breve del documento (facoltativa)">{{ document.description|default:'' }}</textarea>
+      </div>
+
+      <div class="pr-form-group">
+        <div class="pr-check-row">
+          <input type="checkbox" id="is_active" name="is_active" value="1"
+                 {% if not document or document.is_active %}checked{% endif %}>
+          <label for="is_active" style="font-weight:600;cursor:pointer;">Documento attivo</label>
+        </div>
+      </div>
+      <div class="pr-form-group">
+        <div class="pr-check-row">
+          <input type="checkbox" id="requires_acknowledgement" name="requires_acknowledgement" value="1"
+                 {% if not document or document.requires_acknowledgement %}checked{% endif %}>
+          <label for="requires_acknowledgement" style="font-weight:600;cursor:pointer;">Richiede presa visione obbligatoria</label>
+        </div>
+      </div>
+
+      <div class="pr-btn-row" style="margin-top:24px;">
+        <button type="submit" class="pr-btn-save">{% if document %}Salva documento{% else %}Crea documento{% endif %}</button>
+        <a href="{% url 'procedure_refresh:document_list' %}" class="pr-btn-cancel">Annulla</a>
+      </div>
+    </form>
+  </div>
+
+  {% if not document %}
+  <div class="pr-card" id="rev-card">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+      <div class="pr-check-row">
+        <input type="checkbox" id="toggle_revision" onchange="toggleRevCard(this.checked)" style="width:18px;height:18px;accent-color:#1d4ed8;">
+        <label for="toggle_revision" style="font-size:16px;font-weight:800;color:#0f172a;cursor:pointer;">
+          Aggiungi subito la prima revisione
+        </label>
+      </div>
+    </div>
+    <div id="rev-fields" style="display:none;">
+      <p style="font-size:13px;color:#64748b;margin-bottom:16px;">
+        Compila i campi qui sotto per creare documento e revisione in un solo passaggio.
+      </p>
+      <form method="post" id="rev-form">
+        {% csrf_token %}
+        <input type="hidden" name="with_revision" value="1">
+
+        {# copia i valori del form documento tramite JS al submit #}
+        <input type="hidden" name="code" id="rev_copy_code">
+        <input type="hidden" name="title" id="rev_copy_title">
+        <input type="hidden" name="document_type" id="rev_copy_dtype">
+        <input type="hidden" name="category" id="rev_copy_category">
+        <input type="hidden" name="owner_department" id="rev_copy_dept">
+        <input type="hidden" name="description" id="rev_copy_desc">
+        <input type="hidden" name="is_active" id="rev_copy_active" value="">
+        <input type="hidden" name="requires_acknowledgement" id="rev_copy_req" value="">
+
+        <div class="pr-form-row">
+          <div class="pr-form-group">
+            <label for="revision_code">Codice revisione *</label>
+            <input type="text" id="revision_code" name="revision_code" value="Rev.01" maxlength="50" placeholder="es. Rev.01">
+          </div>
+          <div class="pr-form-group">
+            <label for="file_name">Nome file *</label>
+            <input type="text" id="file_name" name="file_name" maxlength="300" placeholder="es. MT-001_Rev01.pdf">
+          </div>
+        </div>
+
+        <div class="pr-form-row">
+          <div class="pr-form-group">
+            <label for="revision_date">Data revisione *</label>
+            <input type="date" id="revision_date" name="revision_date">
+          </div>
+          <div class="pr-form-group">
+            <label for="effective_date">Data efficacia *</label>
+            <input type="date" id="effective_date" name="effective_date">
+          </div>
+        </div>
+
+        <div class="pr-form-group">
+          <label for="source_type_r">Sorgente documento *</label>
+          <select id="source_type_r" name="source_type" onchange="toggleSourceR(this.value)">
+            <option value="sharepoint">SharePoint</option>
+            <option value="fileserver">File server</option>
+          </select>
+        </div>
+
+        <div id="src-sp" class="pr-source-section">
+          <h4 style="font-size:13px;font-weight:700;color:#374151;margin:0 0 8px;">URL SharePoint</h4>
+          <div style="display:flex;gap:8px;align-items:flex-start;">
+            <input type="text" name="source_url" id="source_url"
+                   placeholder="https://costruzioninovicrom.sharepoint.com/sites/…" maxlength="2048"
+                   style="flex:1;padding:9px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;">
+            <button type="button" id="btn-autofill-doc" onclick="autoFillDoc()"
+                    style="padding:9px 14px;background:#0369a1;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+              ⚡ Auto-compila
+            </button>
+          </div>
+          <p style="font-size:12px;color:#64748b;margin-top:4px;">Incolla l'URL SharePoint e clicca Auto-compila per popolare i campi revisione automaticamente.</p>
+          <div id="autofill-doc-status" style="font-size:12px;display:none;margin-top:4px;"></div>
+        </div>
+
+        <div id="src-fs" class="pr-source-section" style="display:none;">
+          <h4 style="font-size:13px;font-weight:700;color:#374151;margin:0 0 8px;">Path file server</h4>
+          <input type="text" name="source_path" id="source_path"
+                 placeholder="\\server\share\procedure\MT-001.pdf" maxlength="1024"
+                 style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;">
+          <p style="font-size:12px;color:#64748b;margin-top:4px;">Percorso UNC o locale sul file server aziendale.</p>
+        </div>
+
+        <div class="pr-form-group" style="margin-top:16px;">
+          <label for="file_hash">Hash file (facoltativo)</label>
+          <input type="text" id="file_hash" name="file_hash" placeholder="SHA-256 o MD5" maxlength="128">
+        </div>
+
+        <div class="pr-btn-row" style="margin-top:20px;">
+          <button type="submit" class="pr-btn-save">Crea documento e revisione</button>
+          <a href="{% url 'procedure_refresh:document_list' %}" class="pr-btn-cancel">Annulla</a>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+function toggleRevCard(checked) {
+  document.getElementById('rev-fields').style.display = checked ? 'block' : 'none';
+}
+
+function toggleSourceR(val) {
+  document.getElementById('src-sp').style.display = val === 'sharepoint' ? 'block' : 'none';
+  document.getElementById('src-fs').style.display = val === 'fileserver' ? 'block' : 'none';
+}
+
+function autoFillDoc() {
+  var url = document.getElementById('source_url').value.trim();
+  if (!url) { alert('Incolla prima un URL SharePoint nel campo.'); return; }
+
+  var btn = document.getElementById('btn-autofill-doc');
+  var status = document.getElementById('autofill-doc-status');
+  btn.disabled = true;
+  btn.textContent = '⏳ Recupero…';
+  status.style.display = 'none';
+
+  fetch('{% url "procedure_refresh:api_parse_sharepoint_url" %}?url=' + encodeURIComponent(url))
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      btn.disabled = false;
+      btn.textContent = '⚡ Auto-compila';
+      if (!d.ok) {
+        status.style.cssText = 'font-size:12px;display:block;color:#dc2626;';
+        status.textContent = '✗ ' + d.error;
+        return;
+      }
+      function fill(id, val) { var el = document.getElementById(id); if (el && val && !el.value) el.value = val; }
+      function overwrite(id, val) { var el = document.getElementById(id); if (el && val) el.value = val; }
+      fill('revision_code', d.revision_code);
+      fill('file_name', d.file_name);
+      fill('file_hash', d.file_hash);
+      if (d.revision_date) overwrite('revision_date', d.revision_date);
+      if (d.effective_date) overwrite('effective_date', d.effective_date);
+
+      var lines = [];
+      if (d.file_name)      lines.push('📄 ' + d.file_name);
+      if (d.revision_code)  lines.push('🔖 ' + d.revision_code);
+      if (d.revision_date)  lines.push('📅 ' + d.revision_date);
+      if (d.author)         lines.push('👤 ' + d.author);
+      if (d.file_size_label) lines.push('💾 ' + d.file_size_label);
+
+      var src = d.graph_ok ? '(dati da Graph API ✓)' : '(dati da URL)';
+      status.style.cssText = 'font-size:12px;display:block;color:#15803d;line-height:1.7;';
+      status.innerHTML = '<strong>✓ Compilato</strong> <span style="color:#64748b;">' + src + '</span><br>' + lines.join(' &nbsp;·&nbsp; ');
+    })
+    .catch(function(e) {
+      btn.disabled = false;
+      btn.textContent = '⚡ Auto-compila';
+      status.style.cssText = 'font-size:12px;display:block;color:#dc2626;';
+      status.textContent = '✗ Errore: ' + e.message;
+    });
+}
+
+// Al submit del form revisione, copia i valori dal form documento
+document.getElementById('rev-form') && document.getElementById('rev-form').addEventListener('submit', function() {
+  document.getElementById('rev_copy_code').value  = document.getElementById('code').value.trim().toUpperCase();
+  document.getElementById('rev_copy_title').value = document.getElementById('title').value;
+  document.getElementById('rev_copy_dtype').value = document.getElementById('document_type').value;
+  document.getElementById('rev_copy_category').value = document.getElementById('category').value;
+  document.getElementById('rev_copy_dept').value  = document.getElementById('owner_department').value;
+  document.getElementById('rev_copy_desc').value  = document.getElementById('description').value;
+  document.getElementById('rev_copy_active').value = document.getElementById('is_active').checked ? '1' : '';
+  document.getElementById('rev_copy_req').value   = document.getElementById('requires_acknowledgement').checked ? '1' : '';
+});
+</script>
+{% endblock %}

@@ -48,6 +48,7 @@ urlpatterns = [
     path("", include("rentri.urls")),
     path("", include(("planimetria.urls", "planimetria"), namespace="planimetria")),
     path("dpi/", include(("dpi.urls", "dpi"), namespace="dpi")),
+    path("procedure-refresh/", include(("procedure_refresh.urls", "procedure_refresh"), namespace="procedure_refresh")),
     path("", include("core.urls")),
     path("admin/", admin.site.urls),
 ]

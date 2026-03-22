@@ -1,6 +1,9 @@
 # Deployment — cartelle generate sul server (non versionare)
 releases/
 deployment/releases/
+deployment/dist/
+deployment/build/
+deployment/__pycache__/
 
 # Python
 __pycache__/

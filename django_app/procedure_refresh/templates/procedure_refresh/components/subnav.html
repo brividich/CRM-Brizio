@@ -1,0 +1,25 @@
+{% load i18n %}
+<nav class="pr-subnav">
+  <a href="{% url 'procedure_refresh:my_assignments' %}"
+     class="pr-subnav-link{% if request.resolver_match.url_name == 'my_assignments' %} active{% endif %}">
+    Le mie letture
+  </a>
+  {% if is_manager %}
+    <a href="{% url 'procedure_refresh:admin_dashboard' %}"
+       class="pr-subnav-link{% if 'admin' in request.path and request.resolver_match.url_name == 'admin_dashboard' %} active{% endif %}">
+      Dashboard admin
+    </a>
+    <a href="{% url 'procedure_refresh:document_list' %}"
+       class="pr-subnav-link{% if 'documenti' in request.path %} active{% endif %}">
+      Documenti
+    </a>
+    <a href="{% url 'procedure_refresh:campaign_list' %}"
+       class="pr-subnav-link{% if 'campagne' in request.path %} active{% endif %}">
+      Campagne
+    </a>
+    <a href="{% url 'procedure_refresh:report_user' %}"
+       class="pr-subnav-link{% if 'report' in request.path %} active{% endif %}">
+      Report
+    </a>
+  {% endif %}
+</nav>

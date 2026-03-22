@@ -74,6 +74,20 @@ GUIDES = [
         "file": "schema-layout.html",
         "desc": "Schema visivo del layout del portale: dove si trova la Topnav, la Subnav e il Content, e da dove vengono i dati di ciascuno.",
     },
+    {
+        "slug": "gestione-permessi",
+        "title": "Gestione Permessi",
+        "icon": "🔑",
+        "file": "GUIDA_GESTIONE_PERMESSI.html",
+        "desc": "Guida operativa al sistema ACL: Gestione Accessi (accordion), Wizard Configura Ruolo (AJAX 3 passi) e Matrice Permessi.",
+    },
+    {
+        "slug": "db-documentazione",
+        "title": "Documentazione Database",
+        "icon": "🗄️",
+        "file": "db_documentazione.html",
+        "desc": "Schema completo del database: tutte le tabelle, chiavi primarie, foreign key e relazioni inter-app. Ricercabile e navigabile per app.",
+    },
 ]
 
 
@@ -111,6 +125,8 @@ MODULE_DEFS = [
     {"key": "automazioni",  "name": "Automazioni",           "icon": "🤖", "desc": "Designer visuale regole, trigger, azioni email e integrazioni", "core": False, "home_url": "/automazioni/"},
     {"key": "timbri",       "name": "Timbri & Presenze",     "icon": "🕐", "desc": "Timbrature digitali con integrazione SharePoint", "core": False, "home_url": "/timbri/"},
     {"key": "planimetria",  "name": "Planimetria",           "icon": "🗺️", "desc": "Mappe interattive stabilimento e posizionamento asset", "core": False, "home_url": "/planimetria/"},
+    {"key": "dpi",          "name": "Gestione DPI",          "icon": "🦺", "desc": "Dispositivi di Protezione Individuale: richieste, approvazione, consegna, storico", "core": False, "home_url": "/dpi/"},
+    {"key": "procedure_refresh", "name": "Presa Visione Procedure", "icon": "📄", "desc": "Presa visione MT/MTSI: anagrafica documenti, revisioni, campagne, tracking lettura, report audit", "core": False, "home_url": "/procedure-refresh/"},
 ]
 
 OPTIONAL_KEYS = [m["key"] for m in MODULE_DEFS if not m["core"]]
@@ -603,7 +619,7 @@ def api_reconfigure(request):
 # ── BrizioHUB — Configurazione aggiornata da Hub Setup Wizard ─────────────────
 INSTANCE_NAME={instance_name}
 DJANGO_SECRET_KEY={secret_key}
-APP_VERSION={s('app_version', current_env.get('APP_VERSION', '0.8.2'))}
+APP_VERSION={s('app_version', current_env.get('APP_VERSION', '0.8.5'))}
 DJANGO_DEBUG={current_env.get('DJANGO_DEBUG', '0')}
 DJANGO_ALLOWED_HOSTS={current_env.get('DJANGO_ALLOWED_HOSTS', '*')}
 SETUP_COMPLETED=1

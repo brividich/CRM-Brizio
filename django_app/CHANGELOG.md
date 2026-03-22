@@ -1,5 +1,45 @@
 ﻿# Changelog
 
+## 0.8.5 — 2026-03-22
+
+### Deployment — Wizard DEV funzionante + Disinstallazione completata
+
+- **[fix] Modalità DEV nel wizard**: `PackagePage` ora mostra un **folder picker per la cartella sorgente** (invece di chiedere un `.zip` inesistente) quando l'ambiente selezionato è DEV. Richiede che la cartella contenga `django_app/`.
+- **[fix] Ordine pagine**: `EnvironmentPage` spostata al passo 1 (prima di `PackagePage`) — così la pagina pacchetto conosce già l'ambiente e può adattare la UI.
+- **[fix] Skip IISPage in DEV**: la navigazione Avanti/Indietro salta automaticamente la pagina "Configurazione IIS" quando l'ambiente è DEV (IIS non è richiesto in sviluppo).
+- **[feature] Flusso installazione DEV separato**: `_run()` ora ha due branch distinti — DEV (7 step: sorgente, venv `.venv`, `.env`, pip, migrate, admin, istruzioni avvio) e TEST/PROD (11 step, invariato). Per DEV: venv in `repo/.venv`, `.env` in `repo/django_app/.env`, nessuna junction, nessun IIS.
+- **[fix] `--mode uninstall` in `main()`**: routing verso `UninstallApp()` già completato nella sessione precedente.
+- **[feature] `avvia_disinstalla.bat`**: launcher con auto-elevazione admin per la modalità disinstallazione (rimozione sito IIS + App Pool, IIS non toccato).
+- **[feature] Log installazione su file**: tutte le modalità (install, release, uninstall) scrivono un log `logs/install_YYYYMMDD_HHmmss.log` accanto all'exe/script, con flush per linea.
+- **[feature] Utente admin automatico**: step "Creazione utente amministratore" aggiunto a tutti i flussi — crea ruolo `admin` in `utenti`/`ruoli` legacy + Django superuser opzionale.
+
+- **[fix] `procedure_refresh` in `build_module_versions`**: aggiunto `"procedure_refresh": "APP_VERSION_PROCEDURE_REFRESH"` in `config/settings/base.py` — il modulo ora compare nel dizionario versioni come tutti gli altri.
+- **[fix] Test `procedure_refresh`**: test user creati con `is_superuser=True` per bypassare l'ACL middleware in ambiente di test (comportamento atteso, coerente con gli altri test del progetto).
+- **[build] `SetupWizard.exe` rigenerato**: `deployment/dist/SetupWizard.exe` ricompilato con PyInstaller dopo le modifiche al wizard di deployment v0.8.5.
+
+---
+
+## 0.8.4 — 2026-03-21
+
+### Procedure Refresh — Presa Visione MT/MTSI
+
+- **[feature] App `procedure_refresh`**: nuovo modulo per la gestione della presa visione obbligatoria delle procedure MT/MTSI a fini audit.
+- **[feature] Modelli**: `ProcedureDocument` (anagrafica documenti con tipo MT/MTSI/ALTRO), `ProcedureRevision` (revisioni con sorgente SharePoint o file server, un solo `is_current` per documento), `ProcedureCampaign` (campagne con stati draft/published/closed/archived), `ProcedureCampaignDocument` (collegamento campagna-revisione), `ProcedureAssignment` (assegnazione utente con tracking aperture, timestamp prima/ultima lettura, IP, user agent, contatore aperture), `ProcedureReadEvent` (log eventi opened/confirmed/reminder/reassigned/exported).
+- **[feature] Lato utente**: dashboard "Le mie letture" con filtro per stato, dettaglio assegnazione con apertura link documento (SharePoint URL o percorso file server), inserimento nota, conferma presa visione con flag e timestamp.
+- **[feature] Tracking automatico**: prima apertura, ultima apertura, contatore aperture, stato `assigned → opened` al primo accesso, stato `read_confirmed` alla conferma.
+- **[feature] Admin — Documenti**: CRUD documenti e revisioni. Validazione sorgente (URL obbligatorio per SharePoint, path per file server). Toggle revisione corrente con gestione automatica unicità.
+- **[feature] Admin — Campagne**: CRUD campagne con workflow bozza → pubblicata → chiusa. Aggiunta/rimozione documenti da campagna. Assegnazione massiva utenti con selezione revisione e scadenza. Annullamento assegnazioni singole.
+- **[feature] Report**: report per utente, per documento, per campagna con tabelle dettagliate.
+- **[feature] Export CSV**: streaming CSV assegnazioni complete (stato, date, note) e riepilogo campagne.
+- **[feature] ACL bootstrap**: pulsanti `pr_view`, `pr_admin`, `pr_documents`, `pr_campaigns`, `pr_report_*` registrati automaticamente. Voce "Presa Visione" nel menu topbar per tutti i ruoli.
+- **[feature] Module Manager**: `procedure_refresh` e `dpi` aggiunti a `MODULE_DEFS` in hub_tools e alla lista moduli del setup wizard.
+
+### Versione
+
+- Bump 0.8.2 → 0.8.4 (include le modifiche 0.8.3 deployment wizard precedentemente committate solo nel CHANGELOG).
+
+---
+
 ## 0.8.3 — 2026-03-21
 
 ### Deployment — Gestione Release integrata nel wizard

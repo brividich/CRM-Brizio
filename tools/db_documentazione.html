@@ -1,0 +1,1992 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BrizioHUB — Documentazione Database</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --bg2: #1a1d27;
+    --bg3: #22263a;
+    --border: #2e3350;
+    --text: #e2e8f0;
+    --muted: #7a8394;
+    --accent: #6366f1;
+    --pk: #f59e0b;
+    --fk: #34d399;
+    --field: #94a3b8;
+
+    --c-core:       #6366f1;
+    --c-assets:     #f97316;
+    --c-tasks:      #06b6d4;
+    --c-tickets:    #ec4899;
+    --c-automazioni:#a78bfa;
+    --c-anagrafica: #10b981;
+    --c-notizie:    #fbbf24;
+    --c-timbri:     #64748b;
+    --c-diario:     #ef4444;
+    --c-rilevazione:#f43f5e;
+    --c-dpi:        #8b5cf6;
+    --c-assenze:    #0ea5e9;
+    --c-rentri:     #84cc16;
+    --c-monitoring: #fb923c;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: linear-gradient(135deg, #1a1d27 0%, #0f1117 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 32px 40px 24px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(10px);
+  }
+  header h1 { font-size: 22px; font-weight: 700; color: #fff; }
+  header p  { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+  .header-row { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+
+  .stats { display: flex; gap: 24px; }
+  .stat  { text-align: center; }
+  .stat-n { font-size: 28px; font-weight: 700; color: var(--accent); }
+  .stat-l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+
+  /* ── SEARCH ── */
+  .search-bar {
+    padding: 12px 40px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 105px;
+    z-index: 99;
+  }
+  .search-bar input {
+    width: 100%;
+    max-width: 480px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 8px 14px;
+    font-size: 13px;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .search-bar input:focus { border-color: var(--accent); }
+
+  /* ── LAYOUT ── */
+  .container { display: flex; min-height: calc(100vh - 170px); }
+
+  /* ── SIDEBAR ── */
+  nav {
+    width: 220px;
+    min-width: 220px;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    position: sticky;
+    top: 170px;
+    height: calc(100vh - 170px);
+    overflow-y: auto;
+  }
+  nav ul { list-style: none; }
+  nav li a {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 20px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 13px;
+    transition: background .15s, color .15s;
+    border-left: 3px solid transparent;
+  }
+  nav li a:hover { background: var(--bg3); color: var(--text); }
+  nav li a.active { color: #fff; border-left-color: var(--accent); background: rgba(99,102,241,.1); }
+  .nav-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  nav .nav-group { padding: 14px 20px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: #444; }
+
+  /* ── MAIN ── */
+  main { flex: 1; padding: 32px 40px; max-width: 1200px; }
+
+  /* ── APP SECTION ── */
+  .app-section { margin-bottom: 56px; }
+  .app-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid;
+  }
+  .app-icon {
+    width: 36px; height: 36px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .app-title { font-size: 20px; font-weight: 700; }
+  .app-subtitle { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .app-badge {
+    margin-left: auto;
+    background: rgba(255,255,255,.07);
+    border-radius: 20px;
+    padding: 3px 12px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* ── MODEL CARD ── */
+  .model-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: 16px;
+  }
+  .model-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color .2s;
+  }
+  .model-card:hover { border-color: #3e4565; }
+  .model-card-header {
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+  }
+  .model-name { font-weight: 600; font-size: 14px; }
+  .model-table { font-size: 11px; color: var(--muted); font-family: monospace; margin-top: 2px; }
+  .model-toggle { color: var(--muted); font-size: 10px; transition: transform .2s; }
+  .model-card.collapsed .model-toggle { transform: rotate(-90deg); }
+  .model-card.collapsed .model-body { display: none; }
+
+  .model-body { padding: 0; }
+  table.fields {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+  }
+  table.fields th {
+    text-align: left;
+    padding: 6px 14px;
+    background: var(--bg3);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+  }
+  table.fields td {
+    padding: 6px 14px;
+    border-top: 1px solid rgba(46,51,80,.5);
+    vertical-align: top;
+  }
+  table.fields tr:hover td { background: rgba(255,255,255,.02); }
+
+  .badge-pk {
+    background: rgba(245,158,11,.15);
+    color: var(--pk);
+    border: 1px solid rgba(245,158,11,.3);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .5px;
+  }
+  .badge-fk {
+    background: rgba(52,211,153,.12);
+    color: var(--fk);
+    border: 1px solid rgba(52,211,153,.25);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 10px;
+    letter-spacing: .3px;
+  }
+  .badge-1to1 {
+    background: rgba(251,191,36,.1);
+    color: #fbbf24;
+    border: 1px solid rgba(251,191,36,.25);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 10px;
+  }
+  .badge-m2m {
+    background: rgba(167,139,250,.1);
+    color: #a78bfa;
+    border: 1px solid rgba(167,139,250,.25);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 10px;
+  }
+  .badge-null { color: var(--muted); font-size: 10px; }
+
+  .type-label { color: var(--muted); font-size: 11px; font-family: monospace; }
+  .field-note { color: #5d6785; font-size: 11px; font-style: italic; }
+
+  .rel-section {
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    background: rgba(0,0,0,.15);
+  }
+  .rel-section h4 { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: 6px; }
+  .rel-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .rel-chip {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--field);
+  }
+  .rel-chip span { color: var(--muted); }
+
+  /* ── LEGEND ── */
+  .legend {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+    padding: 14px 18px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 12px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 7px; }
+
+  /* ── HIDDEN ── */
+  .hidden { display: none !important; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: #2e3350; border-radius: 3px; }
+
+  /* ── TABS ── */
+  .tab-bar {
+    display: flex;
+    gap: 4px;
+    padding: 0 40px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 105px;
+    z-index: 98;
+  }
+  .tab-btn {
+    padding: 10px 20px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color .15s, border-color .15s;
+    margin-bottom: -1px;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: #fff; border-bottom-color: var(--accent); }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── GRAPH ── */
+  #graph-wrap {
+    padding: 32px 40px;
+  }
+  #graph-container {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+  }
+  #graph-svg {
+    display: block;
+    width: 100%;
+    cursor: grab;
+  }
+  #graph-svg:active { cursor: grabbing; }
+
+  .g-node rect {
+    stroke-width: 1.5;
+    rx: 8;
+  }
+  .g-node text { font-family: 'Segoe UI', sans-serif; fill: #fff; }
+  .g-node .node-title { font-size: 13px; font-weight: 700; }
+  .g-node .node-models { font-size: 10px; fill: rgba(255,255,255,.55); }
+  .g-node { cursor: pointer; }
+  .g-node:hover rect { filter: brightness(1.25); }
+
+  .g-edge { fill: none; stroke-width: 1.5; opacity: 0.6; }
+  .g-edge-label { font-size: 10px; fill: var(--muted); font-family: 'Segoe UI', sans-serif; }
+
+  #graph-tooltip {
+    position: absolute;
+    background: #0f1117;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .15s;
+    max-width: 260px;
+    z-index: 20;
+  }
+  #graph-tooltip.visible { opacity: 1; }
+  #graph-tooltip h4 { font-size: 13px; color: #fff; margin-bottom: 6px; }
+  #graph-tooltip ul { padding-left: 14px; color: var(--muted); line-height: 1.7; }
+
+  .graph-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 14px 0 0 0;
+  }
+  .graph-legend-item {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--muted);
+  }
+  .graph-legend-item span {
+    width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0;
+  }
+
+  /* graph controls */
+  .graph-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .graph-controls h2 { font-size: 16px; font-weight: 700; }
+  .graph-controls p { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .btn-reset {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .btn-reset:hover { border-color: var(--accent); color: #fff; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-row">
+    <div>
+      <h1>BrizioHUB — Documentazione Database</h1>
+      <p>Schema completo: tabelle, campi, chiavi primarie e relazioni &nbsp;·&nbsp; v0.8.2</p>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="stat-n">14</div><div class="stat-l">App</div></div>
+      <div class="stat"><div class="stat-n" id="total-models">108</div><div class="stat-l">Modelli</div></div>
+      <div class="stat"><div class="stat-n" id="total-fields">—</div><div class="stat-l">Campi</div></div>
+    </div>
+  </div>
+</header>
+
+<div class="search-bar" id="search-bar-wrap">
+  <input type="text" id="search" placeholder="🔍  Cerca tabella o campo…" oninput="filterAll(this.value)">
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('tabelle', this)">📋 Tabelle &amp; Campi</button>
+  <button class="tab-btn" onclick="switchTab('grafo', this)">🕸️ Grafo Relazioni</button>
+</div>
+
+<div class="tab-panel active" id="tab-tabelle">
+<div class="container">
+<nav id="sidenav">
+  <ul>
+    <li class="nav-group">Piattaforma</li>
+    <li><a href="#core"><span class="nav-dot" style="background:var(--c-core)"></span>core</a></li>
+    <li><a href="#dashboard"><span class="nav-dot" style="background:#475569"></span>dashboard</a></li>
+    <li class="nav-group">HR &amp; Workflow</li>
+    <li><a href="#assenze"><span class="nav-dot" style="background:var(--c-assenze)"></span>assenze</a></li>
+    <li><a href="#anagrafica"><span class="nav-dot" style="background:var(--c-anagrafica)"></span>anagrafica</a></li>
+    <li><a href="#timbri"><span class="nav-dot" style="background:var(--c-timbri)"></span>timbri</a></li>
+    <li><a href="#notizie"><span class="nav-dot" style="background:var(--c-notizie)"></span>notizie</a></li>
+    <li class="nav-group">Operations</li>
+    <li><a href="#assets"><span class="nav-dot" style="background:var(--c-assets)"></span>assets</a></li>
+    <li><a href="#tasks"><span class="nav-dot" style="background:var(--c-tasks)"></span>tasks</a></li>
+    <li><a href="#tickets"><span class="nav-dot" style="background:var(--c-tickets)"></span>tickets</a></li>
+    <li><a href="#dpi"><span class="nav-dot" style="background:var(--c-dpi)"></span>dpi</a></li>
+    <li class="nav-group">Sicurezza</li>
+    <li><a href="#diario_preposto"><span class="nav-dot" style="background:var(--c-diario)"></span>diario_preposto</a></li>
+    <li><a href="#rilevazione_incidenti"><span class="nav-dot" style="background:var(--c-rilevazione)"></span>rilevazione_incidenti</a></li>
+    <li class="nav-group">Automazioni</li>
+    <li><a href="#automazioni"><span class="nav-dot" style="background:var(--c-automazioni)"></span>automazioni</a></li>
+    <li><a href="#monitoring"><span class="nav-dot" style="background:var(--c-monitoring)"></span>monitoring</a></li>
+    <li class="nav-group">Altro</li>
+    <li><a href="#rentri"><span class="nav-dot" style="background:var(--c-rentri)"></span>rentri</a></li>
+  </ul>
+</nav>
+
+<main>
+
+<!-- LEGENDA -->
+<div class="legend">
+  <div class="legend-item"><span class="badge-pk">PK</span> Chiave primaria</div>
+  <div class="legend-item"><span class="badge-fk">FK</span> Foreign key</div>
+  <div class="legend-item"><span class="badge-1to1">1:1</span> OneToOne</div>
+  <div class="legend-item"><span class="badge-m2m">M:M</span> ManyToMany</div>
+  <div class="legend-item"><span class="badge-null">null?</span> Campo nullable</div>
+  <div class="legend-item" style="color:var(--muted);font-size:12px">Clicca sul nome del modello per espandere/comprimere</div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     APP: CORE
+══════════════════════════════════════════ -->
+<section class="app-section" id="core">
+<div class="app-header" style="border-color:var(--c-core)">
+  <div class="app-icon" style="background:rgba(99,102,241,.15);color:var(--c-core)">⚙️</div>
+  <div>
+    <div class="app-title" style="color:var(--c-core)">core</div>
+    <div class="app-subtitle">Piattaforma base: auth, ACL, navigazione, notifiche, configurazione, audit</div>
+  </div>
+  <span class="app-badge">22 modelli</span>
+</div>
+<div class="model-grid">
+
+<!-- Profile -->
+<div class="model-card" id="m-profile">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">Profile</div><div class="model-table">core_profile</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td><span class="badge-1to1">1:1</span> user</td><td class="type-label">User</td><td class="field-note">→ auth.User</td></tr>
+      <tr><td>avatar</td><td class="type-label">ImageField</td><td class="badge-null">null</td></tr>
+      <tr><td>bio</td><td class="type-label">TextField</td><td class="badge-null">blank</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- UserExtraInfo -->
+<div class="model-card" id="m-userextrainfo">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">UserExtraInfo</div><div class="model-table">core_userextrainfo</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td><span class="badge-1to1">1:1</span> user</td><td class="type-label">User</td><td class="field-note">→ auth.User</td></tr>
+      <tr><td>matricola</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td>reparto</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td>mansione</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td>telefono</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td>badge_rfid</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td>foto</td><td class="type-label">ImageField</td><td class="badge-null">null</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- UserUiPreference -->
+<div class="model-card" id="m-useruipreference">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">UserUiPreference</div><div class="model-table">core_useruipreference</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td><span class="badge-1to1">1:1</span> user</td><td class="type-label">User</td><td class="field-note">→ auth.User</td></tr>
+      <tr><td>font_scale</td><td class="type-label">CharField</td><td class="field-note">small/normal/large/xl</td></tr>
+      <tr><td>sidebar_compact</td><td class="type-label">BooleanField</td><td></td></tr>
+      <tr><td>footer_actions</td><td class="type-label">JSONField</td><td class="field-note">azioni rapide sidebar</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- Notifica -->
+<div class="model-card" id="m-notifica">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">Notifica</div><div class="model-table">core_notifica</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td><span class="badge-fk">FK</span> user</td><td class="type-label">User</td><td class="field-note">→ auth.User</td></tr>
+      <tr><td>titolo</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>messaggio</td><td class="type-label">TextField</td><td></td></tr>
+      <tr><td>tipo</td><td class="type-label">CharField</td><td class="field-note">info/success/warning/error</td></tr>
+      <tr><td>read</td><td class="type-label">BooleanField</td><td class="field-note">default False</td></tr>
+      <tr><td>popup_shown</td><td class="type-label">BooleanField</td><td class="field-note">default False — toast mostrato</td></tr>
+      <tr><td>created_at</td><td class="type-label">DateTimeField</td><td class="field-note">auto_now_add</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- AuditLog -->
+<div class="model-card" id="m-auditlog">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">AuditLog</div><div class="model-table">core_auditlog</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td><span class="badge-fk">FK</span> user</td><td class="type-label">User</td><td class="badge-null">null · SET_NULL</td></tr>
+      <tr><td>azione</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>modulo</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>dettaglio</td><td class="type-label">JSONField</td><td class="badge-null">null</td></tr>
+      <tr><td>ip</td><td class="type-label">GenericIPAddressField</td><td class="badge-null">null</td></tr>
+      <tr><td>timestamp</td><td class="type-label">DateTimeField</td><td class="field-note">auto_now_add</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- SiteConfig -->
+<div class="model-card" id="m-siteconfig">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">SiteConfig</div><div class="model-table">core_siteconfig</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td>key</td><td class="type-label">CharField</td><td class="field-note">unique — nome configurazione</td></tr>
+      <tr><td>value</td><td class="type-label">TextField</td><td></td></tr>
+      <tr><td>updated_at</td><td class="type-label">DateTimeField</td><td class="field-note">auto_now</td></tr>
+    </table>
+    <div class="rel-section">
+      <h4>Utilizzo</h4>
+      <p class="field-note">Accesso via <code>SiteConfig.get_many(defaults)</code> — usato da setup_wizard, hub_tools, context_processors</p>
+    </div>
+  </div>
+</div>
+
+<!-- NavigationItem -->
+<div class="model-card" id="m-navigationitem">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">NavigationItem</div><div class="model-table">core_navigationitem</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td>label</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>url</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>icon</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td><span class="badge-fk">FK</span> parent</td><td class="type-label">self</td><td class="badge-null">null — albero navigazione</td></tr>
+      <tr><td>order</td><td class="type-label">IntegerField</td><td></td></tr>
+      <tr><td>module_name</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td>is_active</td><td class="type-label">BooleanField</td><td></td></tr>
+      <tr><td>requires_auth</td><td class="type-label">BooleanField</td><td></td></tr>
+      <tr><td>permission_required</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- NavigationRoleAccess -->
+<div class="model-card" id="m-navigationroleaccess">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">NavigationRoleAccess</div><div class="model-table">core_navigationroleaccess</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td><span class="badge-fk">FK</span> navigation_item</td><td class="type-label">NavigationItem</td><td class="field-note">CASCADE</td></tr>
+      <tr><td>role_id</td><td class="type-label">IntegerField</td><td class="field-note">ID ruolo legacy</td></tr>
+      <tr><td>can_view</td><td class="type-label">BooleanField</td><td class="field-note">deny-by-default se assente</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- UserDashboardConfig -->
+<div class="model-card" id="m-userdashboardconfig">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">UserDashboardConfig</div><div class="model-table">core_userdashboardconfig</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td><span class="badge-1to1">1:1</span> user</td><td class="type-label">User</td><td></td></tr>
+      <tr><td>config</td><td class="type-label">JSONField</td><td class="field-note">layout widget dashboard</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- UserModuleVisibility -->
+<div class="model-card" id="m-usermodulevisibility">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">UserModuleVisibility</div><div class="model-table">core_usermodulevisibility</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td><span class="badge-fk">FK</span> user</td><td class="type-label">User</td><td></td></tr>
+      <tr><td>module_name</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>is_visible</td><td class="type-label">BooleanField</td><td></td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- RepartoCapoMapping -->
+<div class="model-card" id="m-repartocapomapping">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">RepartoCapoMapping</div><div class="model-table">core_repartocapomapping</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td>reparto</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>capo_reparto</td><td class="type-label">CharField</td><td></td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- LoginBanner -->
+<div class="model-card" id="m-loginbanner">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">LoginBanner</div><div class="model-table">core_loginbanner</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td>titolo</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>testo</td><td class="type-label">TextField</td><td></td></tr>
+      <tr><td>attivo</td><td class="type-label">BooleanField</td><td></td></tr>
+      <tr><td><span class="badge-fk">FK</span> creato_da</td><td class="type-label">User</td><td class="badge-null">null</td></tr>
+      <tr><td>created_at</td><td class="type-label">DateTimeField</td><td class="field-note">auto_now_add</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- Legacy models -->
+<div class="model-card" id="m-legacy">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">Modelli Legacy (5)</div><div class="model-table">utenti · ruoli · pulsanti · permessi · anagrafica_dipendenti</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Modello</th><th>Tabella SQL Server</th><th>Note</th></tr>
+      <tr><td>Ruolo</td><td class="type-label">ruoli</td><td class="field-note">id, nome — managed=True, migration faked</td></tr>
+      <tr><td>UtenteLegacy</td><td class="type-label">utenti</td><td class="field-note">id, username, password_hash, ruolo_id FK</td></tr>
+      <tr><td>AnagraficaDipendente</td><td class="type-label">anagrafica_dipendenti</td><td class="field-note">matricola PK, nome, cognome, reparto, …</td></tr>
+      <tr><td>Pulsante</td><td class="type-label">pulsanti</td><td class="field-note">id, nome, path, modulo, azione</td></tr>
+      <tr><td>Permesso</td><td class="type-label">permessi</td><td class="field-note">id, ruolo_id FK, pulsante_id FK, allowed</td></tr>
+    </table>
+    <div class="rel-section">
+      <h4>Nota</h4>
+      <p class="field-note">Tabelle preesistenti su SQL Server. Migration 0029 applicata con <code>--fake</code>. Usate dall'ACL engine in <code>core/acl.py</code>.</p>
+    </div>
+  </div>
+</div>
+
+</div><!-- /model-grid core -->
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     APP: ASSETS
+══════════════════════════════════════════ -->
+<section class="app-section" id="assets">
+<div class="app-header" style="border-color:var(--c-assets)">
+  <div class="app-icon" style="background:rgba(249,115,22,.15);color:var(--c-assets)">🔧</div>
+  <div>
+    <div class="app-title" style="color:var(--c-assets)">assets</div>
+    <div class="app-subtitle">Gestione asset aziendali, macchinari, work order, verifiche periodiche, planimetrie</div>
+  </div>
+  <span class="app-badge">25+ modelli</span>
+</div>
+<div class="model-grid">
+
+<!-- Asset -->
+<div class="model-card" id="m-asset">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">Asset</div><div class="model-table">assets_asset</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td>nome</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td><span class="badge-fk">FK</span> categoria</td><td class="type-label">AssetCategory</td><td class="badge-null">null</td></tr>
+      <tr><td>numero_serie</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td>matricola</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td>posizione</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td>stato</td><td class="type-label">CharField</td><td class="field-note">attivo/dismesso/manutenzione</td></tr>
+      <tr><td>data_acquisto</td><td class="type-label">DateField</td><td class="badge-null">null</td></tr>
+      <tr><td>valore</td><td class="type-label">DecimalField</td><td class="badge-null">null</td></tr>
+      <tr><td>immagine</td><td class="type-label">ImageField</td><td class="badge-null">null</td></tr>
+      <tr><td>qr_code</td><td class="type-label">ImageField</td><td class="badge-null">null — generato</td></tr>
+      <tr><td>note</td><td class="type-label">TextField</td><td class="badge-null">null</td></tr>
+    </table>
+    <div class="rel-section">
+      <h4>Relazioni in ingresso</h4>
+      <div class="rel-list">
+        <span class="rel-chip">AssetITDetails <span>1:1</span></span>
+        <span class="rel-chip">WorkOrder <span>FK</span></span>
+        <span class="rel-chip">PeriodicVerification <span>M:M</span></span>
+        <span class="rel-chip">AssetEndpoint <span>FK</span></span>
+        <span class="rel-chip">AssetDocument <span>FK</span></span>
+        <span class="rel-chip">PlantMarker <span>FK</span></span>
+        <span class="rel-chip">tickets.Ticket <span>FK</span></span>
+        <span class="rel-chip">anagrafica.FornitoreAsset <span>FK</span></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AssetCategory -->
+<div class="model-card" id="m-assetcategory">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">AssetCategory</div><div class="model-table">assets_assetcategory</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td>nome</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td><span class="badge-fk">FK</span> parent</td><td class="type-label">self</td><td class="badge-null">null — gerarchia</td></tr>
+      <tr><td>descrizione</td><td class="type-label">TextField</td><td class="badge-null">null</td></tr>
+      <tr><td>icona</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- AssetITDetails -->
+<div class="model-card" id="m-assetitdetails">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">AssetITDetails</div><div class="model-table">assets_assetitdetails</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td><span class="badge-1to1">1:1</span> asset</td><td class="type-label">Asset</td><td></td></tr>
+      <tr><td>indirizzo_ip</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td>mac_address</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td>hostname</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td>os</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td>ram</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td>cpu</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td>storage</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td>note_it</td><td class="type-label">TextField</td><td class="badge-null">null</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- WorkMachine -->
+<div class="model-card" id="m-workmachine">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">WorkMachine</div><div class="model-table">assets_workmachine</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td><span class="badge-fk">FK</span> asset</td><td class="type-label">Asset</td><td class="badge-null">null</td></tr>
+      <tr><td>nome</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>tipo</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>matricola</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td>anno_fabbricazione</td><td class="type-label">IntegerField</td><td class="badge-null">null</td></tr>
+      <tr><td>portata</td><td class="type-label">DecimalField</td><td class="badge-null">null</td></tr>
+      <tr><td>ore_lavoro</td><td class="type-label">IntegerField</td><td class="field-note">contatore ore</td></tr>
+      <tr><td>ultima_manutenzione</td><td class="type-label">DateField</td><td class="badge-null">null</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- WorkOrder -->
+<div class="model-card" id="m-workorder">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">WorkOrder</div><div class="model-table">assets_workorder</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td>titolo</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td><span class="badge-fk">FK</span> macchina</td><td class="type-label">WorkMachine</td><td class="badge-null">null</td></tr>
+      <tr><td><span class="badge-fk">FK</span> asset</td><td class="type-label">Asset</td><td class="badge-null">null</td></tr>
+      <tr><td>tipo</td><td class="type-label">CharField</td><td class="field-note">preventivo/correttivo/straordinario</td></tr>
+      <tr><td>priorita</td><td class="type-label">CharField</td><td class="field-note">bassa/media/alta/critica</td></tr>
+      <tr><td>stato</td><td class="type-label">CharField</td><td class="field-note">aperto/in_corso/chiuso</td></tr>
+      <tr><td><span class="badge-fk">FK</span> assegnato</td><td class="type-label">User</td><td class="badge-null">null</td></tr>
+      <tr><td><span class="badge-fk">FK</span> fornitore</td><td class="type-label">Fornitore</td><td class="badge-null">null</td></tr>
+      <tr><td>data_apertura</td><td class="type-label">DateTimeField</td><td></td></tr>
+      <tr><td>data_chiusura</td><td class="type-label">DateTimeField</td><td class="badge-null">null</td></tr>
+      <tr><td>costo</td><td class="type-label">DecimalField</td><td class="badge-null">null</td></tr>
+      <tr><td>note</td><td class="type-label">TextField</td><td class="badge-null">null</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- PeriodicVerification -->
+<div class="model-card" id="m-periodicverification">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">PeriodicVerification</div><div class="model-table">assets_periodicverification</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td>titolo</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>tipo</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td><span class="badge-m2m">M:M</span> asset</td><td class="type-label">Asset</td><td></td></tr>
+      <tr><td><span class="badge-fk">FK</span> work_machine</td><td class="type-label">WorkMachine</td><td class="badge-null">null</td></tr>
+      <tr><td><span class="badge-fk">FK</span> fornitore</td><td class="type-label">Fornitore</td><td class="badge-null">null</td></tr>
+      <tr><td>frequenza_giorni</td><td class="type-label">IntegerField</td><td></td></tr>
+      <tr><td>ultima_verifica</td><td class="type-label">DateField</td><td class="badge-null">null</td></tr>
+      <tr><td>prossima_verifica</td><td class="type-label">DateField</td><td class="badge-null">null — calcolata</td></tr>
+      <tr><td>stato</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>note</td><td class="type-label">TextField</td><td class="badge-null">null</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- PlantLayout -->
+<div class="model-card" id="m-plantlayout">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">PlantLayout / PlantArea / PlantMarker</div><div class="model-table">assets_plantlayout …</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Modello</th><th>Campi chiave</th><th>Relazioni</th></tr>
+      <tr><td>PlantLayout</td><td class="type-label">nome, immagine, scala, descrizione</td><td></td></tr>
+      <tr><td>PlantArea</td><td class="type-label">nome, colore, coordinate (JSON)</td><td class="field-note">FK → PlantLayout</td></tr>
+      <tr><td>PlantMarker</td><td class="type-label">label, tipo, coordinate (JSON)</td><td class="field-note">FK → PlantLayout, FK → Asset (null)</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- AssetDocument / AssetEndpoint / AssetLabelTemplate -->
+<div class="model-card" id="m-assetdocs">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">AssetDocument / Endpoint / Label</div><div class="model-table">assets_assetdocument …</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Modello</th><th>Campi chiave</th><th>Relazioni</th></tr>
+      <tr><td>AssetDocument</td><td class="type-label">tipo, file, scadenza, note</td><td class="field-note">FK → Asset, FK → User (caricato_da)</td></tr>
+      <tr><td>AssetEndpoint</td><td class="type-label">url, tipo, descrizione, attivo</td><td class="field-note">FK → Asset</td></tr>
+      <tr><td>AssetLabelTemplate</td><td class="type-label">nome, template_html</td><td></td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- WorkOrderAttachment / WorkOrderLog -->
+<div class="model-card" id="m-workorderattach">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">WorkOrderAttachment / WorkOrderLog</div><div class="model-table">assets_workorderattachment …</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Modello</th><th>Campi chiave</th><th>Relazioni</th></tr>
+      <tr><td>WorkOrderAttachment</td><td class="type-label">file, nome, created_at</td><td class="field-note">FK → WorkOrder, FK → User</td></tr>
+      <tr><td>WorkOrderLog</td><td class="type-label">testo, created_at</td><td class="field-note">FK → WorkOrder, FK → User</td></tr>
+    </table>
+  </div>
+</div>
+
+</div><!-- /model-grid assets -->
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     APP: TASKS
+══════════════════════════════════════════ -->
+<section class="app-section" id="tasks">
+<div class="app-header" style="border-color:var(--c-tasks)">
+  <div class="app-icon" style="background:rgba(6,182,212,.15);color:var(--c-tasks)">✅</div>
+  <div>
+    <div class="app-title" style="color:var(--c-tasks)">tasks</div>
+    <div class="app-subtitle">Gestione progetti e task interni</div>
+  </div>
+  <span class="app-badge">7 modelli</span>
+</div>
+<div class="model-grid">
+
+<div class="model-card" id="m-project">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">Project</div><div class="model-table">tasks_project</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td>nome</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>descrizione</td><td class="type-label">TextField</td><td class="badge-null">null</td></tr>
+      <tr><td><span class="badge-fk">FK</span> owner</td><td class="type-label">User</td><td></td></tr>
+      <tr><td>colore</td><td class="type-label">CharField</td><td class="field-note">hex color</td></tr>
+      <tr><td>created_at</td><td class="type-label">DateTimeField</td><td></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="model-card" id="m-task">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">Task</div><div class="model-table">tasks_task</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td><span class="badge-fk">FK</span> project</td><td class="type-label">Project</td><td></td></tr>
+      <tr><td>titolo</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>descrizione</td><td class="type-label">TextField</td><td class="badge-null">null</td></tr>
+      <tr><td><span class="badge-fk">FK</span> assegnato</td><td class="type-label">User</td><td class="badge-null">null</td></tr>
+      <tr><td>priorita</td><td class="type-label">CharField</td><td class="field-note">bassa/media/alta/critica</td></tr>
+      <tr><td>stato</td><td class="type-label">CharField</td><td class="field-note">todo/in_corso/review/done</td></tr>
+      <tr><td>scadenza</td><td class="type-label">DateField</td><td class="badge-null">null</td></tr>
+      <tr><td>created_at</td><td class="type-label">DateTimeField</td><td></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="model-card" id="m-subtask">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">SubTask / TaskComment / TaskAttachment</div><div class="model-table">tasks_subtask …</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Modello</th><th>Campi chiave</th><th>Relazioni</th></tr>
+      <tr><td>SubTask</td><td class="type-label">titolo, completato (bool)</td><td class="field-note">FK → Task</td></tr>
+      <tr><td>TaskComment</td><td class="type-label">testo, created_at</td><td class="field-note">FK → Task, FK → User</td></tr>
+      <tr><td>ProjectComment</td><td class="type-label">testo, created_at</td><td class="field-note">FK → Project, FK → User</td></tr>
+      <tr><td>TaskEvent</td><td class="type-label">tipo, descrizione, created_at</td><td class="field-note">FK → Task</td></tr>
+      <tr><td>TaskAttachment</td><td class="type-label">file, nome, created_at</td><td class="field-note">FK → Task, FK → User</td></tr>
+    </table>
+  </div>
+</div>
+
+</div>
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     APP: TICKETS
+══════════════════════════════════════════ -->
+<section class="app-section" id="tickets">
+<div class="app-header" style="border-color:var(--c-tickets)">
+  <div class="app-icon" style="background:rgba(236,72,153,.15);color:var(--c-tickets)">🎫</div>
+  <div>
+    <div class="app-title" style="color:var(--c-tickets)">tickets</div>
+    <div class="app-subtitle">Sistema ticket interni con collegamento ad asset e fornitori</div>
+  </div>
+  <span class="app-badge">4 modelli</span>
+</div>
+<div class="model-grid">
+
+<div class="model-card" id="m-ticket">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">Ticket</div><div class="model-table">tickets_ticket</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td>titolo</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>descrizione</td><td class="type-label">TextField</td><td></td></tr>
+      <tr><td>stato</td><td class="type-label">CharField</td><td class="field-note">aperto/in_lavorazione/risolto/chiuso</td></tr>
+      <tr><td>priorita</td><td class="type-label">CharField</td><td class="field-note">bassa/media/alta/critica</td></tr>
+      <tr><td>tipo</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td><span class="badge-fk">FK</span> aperto_da</td><td class="type-label">User</td><td></td></tr>
+      <tr><td><span class="badge-fk">FK</span> assegnato</td><td class="type-label">User</td><td class="badge-null">null</td></tr>
+      <tr><td><span class="badge-fk">FK</span> asset</td><td class="type-label">assets.Asset</td><td class="badge-null">null — import lazy</td></tr>
+      <tr><td><span class="badge-fk">FK</span> fornitore</td><td class="type-label">anagrafica.Fornitore</td><td class="badge-null">null — import lazy</td></tr>
+      <tr><td>created_at</td><td class="type-label">DateTimeField</td><td></td></tr>
+      <tr><td>updated_at</td><td class="type-label">DateTimeField</td><td></td></tr>
+      <tr><td>chiuso_at</td><td class="type-label">DateTimeField</td><td class="badge-null">null</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="model-card" id="m-ticketsub">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">TicketCommento / Allegato / Impostazioni</div><div class="model-table">tickets_ticketcommento …</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Modello</th><th>Campi chiave</th><th>Relazioni</th></tr>
+      <tr><td>TicketCommento</td><td class="type-label">testo, created_at</td><td class="field-note">FK → Ticket, FK → User</td></tr>
+      <tr><td>TicketAllegato</td><td class="type-label">file, nome, created_at</td><td class="field-note">FK → Ticket, FK → User</td></tr>
+      <tr><td>TicketImpostazioni</td><td class="type-label">configurazione (JSON)</td><td class="field-note">singleton</td></tr>
+    </table>
+  </div>
+</div>
+
+</div>
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     APP: AUTOMAZIONI
+══════════════════════════════════════════ -->
+<section class="app-section" id="automazioni">
+<div class="app-header" style="border-color:var(--c-automazioni)">
+  <div class="app-icon" style="background:rgba(167,139,250,.15);color:var(--c-automazioni)">⚡</div>
+  <div>
+    <div class="app-title" style="color:var(--c-automazioni)">automazioni</div>
+    <div class="app-subtitle">Designer visuale automazioni, regole, log di esecuzione</div>
+  </div>
+  <span class="app-badge">6 modelli</span>
+</div>
+<div class="model-grid">
+
+<div class="model-card" id="m-automationrule">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">AutomationRule</div><div class="model-table">automazioni_automationrule</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td>nome</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>descrizione</td><td class="type-label">TextField</td><td class="badge-null">null</td></tr>
+      <tr><td>trigger_type</td><td class="type-label">CharField</td><td class="field-note">event_queue / schedule / manual</td></tr>
+      <tr><td>is_active</td><td class="type-label">BooleanField</td><td></td></tr>
+      <tr><td>created_at</td><td class="type-label">DateTimeField</td><td></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="model-card" id="m-automationsub">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">Condition / Action / RunLog / ActionLog</div><div class="model-table">automazioni_*</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Modello</th><th>Campi chiave</th><th>Relazioni</th></tr>
+      <tr><td>AutomationCondition</td><td class="type-label">field, operator, value, order</td><td class="field-note">FK → AutomationRule</td></tr>
+      <tr><td>AutomationAction</td><td class="type-label">action_type, parametri (JSON), order</td><td class="field-note">FK → AutomationRule</td></tr>
+      <tr><td>AutomationRunLog</td><td class="type-label">esito, dettaglio, created_at</td><td class="field-note">FK → AutomationRule</td></tr>
+      <tr><td>AutomationActionLog</td><td class="type-label">esito, dettaglio</td><td class="field-note">FK → RunLog, FK → Action</td></tr>
+      <tr><td>DashboardMetricValue</td><td class="type-label">metric_name (unique), value, updated_at</td><td></td></tr>
+    </table>
+  </div>
+</div>
+
+</div>
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     APP: ANAGRAFICA
+══════════════════════════════════════════ -->
+<section class="app-section" id="anagrafica">
+<div class="app-header" style="border-color:var(--c-anagrafica)">
+  <div class="app-icon" style="background:rgba(16,185,129,.15);color:var(--c-anagrafica)">👥</div>
+  <div>
+    <div class="app-title" style="color:var(--c-anagrafica)">anagrafica</div>
+    <div class="app-subtitle">Fornitori, documenti, ordini, valutazioni, ruoli operativi dipendenti</div>
+  </div>
+  <span class="app-badge">12 modelli</span>
+</div>
+<div class="model-grid">
+
+<div class="model-card" id="m-fornitore">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">Fornitore</div><div class="model-table">anagrafica_fornitore</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td>ragione_sociale</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>piva</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td>cf</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td>telefono</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td>email</td><td class="type-label">EmailField</td><td class="badge-null">null</td></tr>
+      <tr><td>indirizzo</td><td class="type-label">TextField</td><td class="badge-null">null</td></tr>
+      <tr><td>note</td><td class="type-label">TextField</td><td class="badge-null">null</td></tr>
+      <tr><td>attivo</td><td class="type-label">BooleanField</td><td class="field-note">default True</td></tr>
+    </table>
+    <div class="rel-section">
+      <h4>Relazioni in ingresso</h4>
+      <div class="rel-list">
+        <span class="rel-chip">FornitoreDocumento <span>FK</span></span>
+        <span class="rel-chip">FornitoreOrdine <span>FK</span></span>
+        <span class="rel-chip">FornitoreValutazione <span>FK</span></span>
+        <span class="rel-chip">FornitoreAsset <span>FK</span></span>
+        <span class="rel-chip">assets.WorkOrder <span>FK</span></span>
+        <span class="rel-chip">assets.PeriodicVerification <span>FK</span></span>
+        <span class="rel-chip">tickets.Ticket <span>FK</span></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="model-card" id="m-fornitoredocs">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">FornitoreDocumento / Ordine / Valutazione / Asset</div><div class="model-table">anagrafica_fornitore*</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Modello</th><th>Campi chiave</th><th>Relazioni</th></tr>
+      <tr><td>FornitoreDocumento</td><td class="type-label">tipo, file, scadenza, note</td><td class="field-note">FK → Fornitore</td></tr>
+      <tr><td>FornitoreOrdine</td><td class="type-label">numero, data, importo, stato</td><td class="field-note">FK → Fornitore</td></tr>
+      <tr><td>FornitoreValutazione</td><td class="type-label">punteggio, note, data</td><td class="field-note">FK → Fornitore, FK → User</td></tr>
+      <tr><td>FornitoreAsset</td><td class="type-label">tipo_relazione, note</td><td class="field-note">FK → Fornitore, FK → assets.Asset</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="model-card" id="m-ruolooperativo">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">RuoloOperativo / DipendenteRuoloOperativo</div><div class="model-table">anagrafica_ruolooperativo …</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Modello</th><th>Campi chiave</th><th>Relazioni</th></tr>
+      <tr><td>RuoloOperativo</td><td class="type-label">nome, descrizione</td><td></td></tr>
+      <tr><td>DipendenteRuoloOperativo</td><td class="type-label">data_inizio, data_fine (null)</td><td class="field-note">FK → AnagraficaDipendente, FK → RuoloOperativo</td></tr>
+      <tr><td>Mansione</td><td class="type-label">nome, descrizione</td><td></td></tr>
+      <tr><td>TipoQualifica</td><td class="type-label">nome, descrizione</td><td></td></tr>
+      <tr><td>DipendenteQualifica</td><td class="type-label">data_conseguimento, scadenza, note</td><td class="field-note">FK → AnagraficaDipendente, FK → TipoQualifica</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="model-card" id="m-anagraficastat">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">DipendenteStatLayout / AnagraficaStatPermission</div><div class="model-table">anagrafica_dipendentestatlayout …</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Modello</th><th>Campi chiave</th><th>Relazioni</th></tr>
+      <tr><td>DipendenteStatLayout</td><td class="type-label">layout (JSON)</td><td class="field-note">FK → User (1:1)</td></tr>
+      <tr><td>AnagraficaStatPermission</td><td class="type-label">can_view_salaries (bool)</td><td class="field-note">FK → User (1:1)</td></tr>
+    </table>
+  </div>
+</div>
+
+</div>
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     APP: NOTIZIE
+══════════════════════════════════════════ -->
+<section class="app-section" id="notizie">
+<div class="app-header" style="border-color:var(--c-notizie)">
+  <div class="app-icon" style="background:rgba(251,191,36,.15);color:var(--c-notizie)">📰</div>
+  <div>
+    <div class="app-title" style="color:var(--c-notizie)">notizie</div>
+    <div class="app-subtitle">Bacheca notizie e comunicazioni aziendali</div>
+  </div>
+  <span class="app-badge">4 modelli</span>
+</div>
+<div class="model-grid">
+
+<div class="model-card" id="m-notizia">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">Notizia</div><div class="model-table">notizie_notizia</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td>titolo</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>contenuto</td><td class="type-label">RichTextField</td><td></td></tr>
+      <tr><td><span class="badge-fk">FK</span> autore</td><td class="type-label">User</td><td></td></tr>
+      <tr><td>pubblicata</td><td class="type-label">BooleanField</td><td></td></tr>
+      <tr><td>created_at</td><td class="type-label">DateTimeField</td><td></td></tr>
+      <tr><td>updated_at</td><td class="type-label">DateTimeField</td><td></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="model-card" id="m-notiziesub">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">NotiziaAudience / Allegato / Lettura</div><div class="model-table">notizie_notizia*</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Modello</th><th>Campi chiave</th><th>Relazioni</th></tr>
+      <tr><td>NotiziaAudience</td><td class="type-label">target_type, target_id</td><td class="field-note">FK → Notizia</td></tr>
+      <tr><td>NotiziaAllegato</td><td class="type-label">file, nome</td><td class="field-note">FK → Notizia</td></tr>
+      <tr><td>NotiziaLettura</td><td class="type-label">letto_at (DateTime)</td><td class="field-note">FK → Notizia, FK → User</td></tr>
+    </table>
+  </div>
+</div>
+
+</div>
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     APP: TIMBRI
+══════════════════════════════════════════ -->
+<section class="app-section" id="timbri">
+<div class="app-header" style="border-color:var(--c-timbri)">
+  <div class="app-icon" style="background:rgba(100,116,139,.15);color:var(--c-timbri)">🕐</div>
+  <div>
+    <div class="app-title" style="color:var(--c-timbri)">timbri</div>
+    <div class="app-subtitle">Report timbrature da DB legacy (sola lettura)</div>
+  </div>
+  <span class="app-badge">4 modelli</span>
+</div>
+<div class="model-grid">
+
+<div class="model-card" id="m-timbri">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">OperatoreTimbri / RegistroTimbro</div><div class="model-table">timbri_*</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Modello</th><th>Campi chiave</th><th>Relazioni</th></tr>
+      <tr><td>OperatoreTimbri</td><td class="type-label">matricola (PK), nome, reparto</td><td></td></tr>
+      <tr><td>RegistroTimbro</td><td class="type-label">data, ora_entrata, ora_uscita, tipo</td><td class="field-note">FK → OperatoreTimbri</td></tr>
+      <tr><td>RegistroTimbroImmagine</td><td class="type-label">immagine</td><td class="field-note">FK → RegistroTimbro</td></tr>
+      <tr><td>TimbriImportIssue</td><td class="type-label">file, riga, errore, created_at</td><td></td></tr>
+    </table>
+  </div>
+</div>
+
+</div>
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     APP: DPI
+══════════════════════════════════════════ -->
+<section class="app-section" id="dpi">
+<div class="app-header" style="border-color:var(--c-dpi)">
+  <div class="app-icon" style="background:rgba(139,92,246,.15);color:var(--c-dpi)">🦺</div>
+  <div>
+    <div class="app-title" style="color:var(--c-dpi)">dpi</div>
+    <div class="app-subtitle">Dispositivi di Protezione Individuale: richieste, approvazione, consegna</div>
+  </div>
+  <span class="app-badge">5 modelli</span>
+</div>
+<div class="model-grid">
+
+<div class="model-card" id="m-categoriadpi">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">CategoriaDPI</div><div class="model-table">dpi_categoriadpi</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td>nome</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>descrizione</td><td class="type-label">TextField</td><td class="badge-null">null</td></tr>
+      <tr><td>immagine</td><td class="type-label">ImageField</td><td class="badge-null">null — card-picker</td></tr>
+      <tr><td>vita_utile_giorni</td><td class="type-label">IntegerField</td><td class="badge-null">null</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="model-card" id="m-richiestandpi">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">RichiestaDPI</div><div class="model-table">dpi_richiestandpi</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td>numero</td><td class="type-label">CharField</td><td class="field-note">unique — DPI-YYYY-NNNN</td></tr>
+      <tr><td><span class="badge-fk">FK</span> richiedente</td><td class="type-label">User</td><td></td></tr>
+      <tr><td><span class="badge-fk">FK</span> categoria</td><td class="type-label">CategoriaDPI</td><td></td></tr>
+      <tr><td>stato</td><td class="type-label">CharField</td><td class="field-note">richiesto/approvato/consegnato/rifiutato</td></tr>
+      <tr><td>note</td><td class="type-label">TextField</td><td class="badge-null">null</td></tr>
+      <tr><td>created_at</td><td class="type-label">DateTimeField</td><td></td></tr>
+      <tr><td>updated_at</td><td class="type-label">DateTimeField</td><td></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="model-card" id="m-dpisub">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">ConsegnaDPI / Commento / Impostazioni</div><div class="model-table">dpi_*</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Modello</th><th>Campi chiave</th><th>Relazioni</th></tr>
+      <tr><td>ConsegnaDPI</td><td class="type-label">data_consegna, note</td><td class="field-note">1:1 → RichiestaDPI, FK → User (consegnato_da)</td></tr>
+      <tr><td>RichiestaDPICommento</td><td class="type-label">testo, created_at</td><td class="field-note">FK → RichiestaDPI, FK → User</td></tr>
+      <tr><td>DPIImpostazioni</td><td class="type-label">singleton config</td><td></td></tr>
+    </table>
+  </div>
+</div>
+
+</div>
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     APP: DIARIO PREPOSTO
+══════════════════════════════════════════ -->
+<section class="app-section" id="diario_preposto">
+<div class="app-header" style="border-color:var(--c-diario)">
+  <div class="app-icon" style="background:rgba(239,68,68,.15);color:var(--c-diario)">📋</div>
+  <div>
+    <div class="app-title" style="color:var(--c-diario)">diario_preposto</div>
+    <div class="app-subtitle">Diario del preposto sicurezza: segnalazioni e allegati</div>
+  </div>
+  <span class="app-badge">3 modelli</span>
+</div>
+<div class="model-grid">
+
+<div class="model-card" id="m-segnalazione">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">SegnalazionePreposto</div><div class="model-table">diario_preposto_segnalazionepreposto</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td><span class="badge-fk">FK</span> autore</td><td class="type-label">User</td><td></td></tr>
+      <tr><td>titolo</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>descrizione</td><td class="type-label">TextField</td><td></td></tr>
+      <tr><td>stato</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>priorita</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>area</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td>created_at</td><td class="type-label">DateTimeField</td><td></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="model-card" id="m-segnalazionesub">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">SegnalazioneAllegato / Impostazioni</div><div class="model-table">diario_preposto_*</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Modello</th><th>Campi chiave</th><th>Relazioni</th></tr>
+      <tr><td>SegnalazioneAllegato</td><td class="type-label">file, nome</td><td class="field-note">FK → SegnalazionePreposto</td></tr>
+      <tr><td>DiarioPrepostoImpostazioni</td><td class="type-label">singleton config (JSON)</td><td></td></tr>
+    </table>
+  </div>
+</div>
+
+</div>
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     APP: RILEVAZIONE INCIDENTI
+══════════════════════════════════════════ -->
+<section class="app-section" id="rilevazione_incidenti">
+<div class="app-header" style="border-color:var(--c-rilevazione)">
+  <div class="app-icon" style="background:rgba(244,63,94,.15);color:var(--c-rilevazione)">⚠️</div>
+  <div>
+    <div class="app-title" style="color:var(--c-rilevazione)">rilevazione_incidenti</div>
+    <div class="app-subtitle">Incidenti e unsafe condition — cache locale da SharePoint (fonte di verità)</div>
+  </div>
+  <span class="app-badge">2 modelli</span>
+</div>
+<div class="model-grid">
+
+<div class="model-card" id="m-rilevazioneincidente">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">RilevazioneIncidente</div><div class="model-table">rilevazione_incidenti_rilevazioneincidente</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td>sharepoint_id</td><td class="type-label">CharField</td><td class="field-note">unique — ID lista SharePoint</td></tr>
+      <tr><td>tipo</td><td class="type-label">CharField</td><td class="field-note">incidente/unsafe_condition</td></tr>
+      <tr><td>data</td><td class="type-label">DateField</td><td></td></tr>
+      <tr><td>descrizione</td><td class="type-label">TextField</td><td></td></tr>
+      <tr><td>stato</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>area</td><td class="type-label">CharField</td><td class="badge-null">null</td></tr>
+      <tr><td>created_at / updated_at</td><td class="type-label">DateTimeField</td><td></td></tr>
+    </table>
+    <div class="rel-section">
+      <h4>Nota fonte dati</h4>
+      <p class="field-note">Tabella cache locale. Le operazioni CRUD avvengono via Graph API su SharePoint. La tabella Django viene sincronizzata.</p>
+    </div>
+  </div>
+</div>
+
+<div class="model-card" id="m-sicurezzaimp">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">SicurezzaImpostazioni</div><div class="model-table">rilevazione_incidenti_sicurezzaimpostazioni</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td>config</td><td class="type-label">JSONField</td><td class="field-note">singleton — URL SharePoint, colonne</td></tr>
+    </table>
+  </div>
+</div>
+
+</div>
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     APP: MONITORING
+══════════════════════════════════════════ -->
+<section class="app-section" id="monitoring">
+<div class="app-header" style="border-color:var(--c-monitoring)">
+  <div class="app-icon" style="background:rgba(251,146,60,.15);color:var(--c-monitoring)">📊</div>
+  <div>
+    <div class="app-title" style="color:var(--c-monitoring)">monitoring</div>
+    <div class="app-subtitle">Monitoraggio issue applicative, job di automazione, metriche</div>
+  </div>
+  <span class="app-badge">5 modelli</span>
+</div>
+<div class="model-grid">
+
+<div class="model-card" id="m-issue">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">Issue / IssueOccurrence</div><div class="model-table">monitoring_issue …</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Modello</th><th>Campi chiave</th><th>Relazioni</th></tr>
+      <tr><td>Issue</td><td class="type-label">titolo, tipo, severita, stato, descrizione, created_at</td><td></td></tr>
+      <tr><td>IssueOccurrence</td><td class="type-label">data, contatore</td><td class="field-note">FK → Issue</td></tr>
+      <tr><td>AutomationJob</td><td class="type-label">nome, tipo, stato, ultima_esecuzione, prossima_esecuzione</td><td></td></tr>
+    </table>
+  </div>
+</div>
+
+</div>
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     APP: ASSENZE
+══════════════════════════════════════════ -->
+<section class="app-section" id="assenze">
+<div class="app-header" style="border-color:var(--c-assenze)">
+  <div class="app-icon" style="background:rgba(14,165,233,.15);color:var(--c-assenze)">📅</div>
+  <div>
+    <div class="app-title" style="color:var(--c-assenze)">assenze</div>
+    <div class="app-subtitle">Certificazioni presenze dipendenti con sync SharePoint</div>
+  </div>
+  <span class="app-badge">1 modello</span>
+</div>
+<div class="model-grid">
+
+<div class="model-card" id="m-certificazione">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">CertificazionePresenza</div><div class="model-table">assenze_certificazionepresenza</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td><span class="badge-fk">FK</span> dipendente</td><td class="type-label">AnagraficaDipendente</td><td class="field-note">→ core legacy</td></tr>
+      <tr><td>data_inizio</td><td class="type-label">DateField</td><td></td></tr>
+      <tr><td>data_fine</td><td class="type-label">DateField</td><td class="badge-null">null</td></tr>
+      <tr><td>tipo</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>note</td><td class="type-label">TextField</td><td class="badge-null">null</td></tr>
+      <tr><td>created_at</td><td class="type-label">DateTimeField</td><td></td></tr>
+    </table>
+  </div>
+</div>
+
+</div>
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     APP: RENTRI
+══════════════════════════════════════════ -->
+<section class="app-section" id="rentri">
+<div class="app-header" style="border-color:var(--c-rentri)">
+  <div class="app-icon" style="background:rgba(132,204,22,.15);color:var(--c-rentri)">♻️</div>
+  <div>
+    <div class="app-title" style="color:var(--c-rentri)">rentri</div>
+    <div class="app-subtitle">Tracciabilità rifiuti (normativa RENTRI)</div>
+  </div>
+  <span class="app-badge">1 modello</span>
+</div>
+<div class="model-grid">
+
+<div class="model-card" id="m-registrorifiuti">
+  <div class="model-card-header" onclick="toggleCard(this)">
+    <div><div class="model-name">RegistroRifiuti</div><div class="model-table">rentri_registrorifiuti</div></div>
+    <span class="model-toggle">▼</span>
+  </div>
+  <div class="model-body">
+    <table class="fields">
+      <tr><th>Campo</th><th>Tipo</th><th>Note</th></tr>
+      <tr><td><span class="badge-pk">PK</span> id</td><td class="type-label">AutoField</td><td></td></tr>
+      <tr><td>data</td><td class="type-label">DateField</td><td></td></tr>
+      <tr><td>tipo_rifiuto</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>codice_cer</td><td class="type-label">CharField</td><td class="field-note">catalogo europeo rifiuti</td></tr>
+      <tr><td>quantita</td><td class="type-label">DecimalField</td><td></td></tr>
+      <tr><td>unita</td><td class="type-label">CharField</td><td class="field-note">kg/lt/pz</td></tr>
+      <tr><td>produttore</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>destinatario</td><td class="type-label">CharField</td><td></td></tr>
+      <tr><td>note</td><td class="type-label">TextField</td><td class="badge-null">null</td></tr>
+    </table>
+  </div>
+</div>
+
+</div>
+</section>
+
+
+</main>
+</div><!-- /container -->
+</div><!-- /tab-tabelle -->
+
+<!-- ═══════════════════════════════════════════════════════
+     TAB: GRAFO RELAZIONI
+════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-grafo">
+<div id="graph-wrap">
+
+  <div class="graph-controls">
+    <div>
+      <h2>Grafo Relazioni Inter-App</h2>
+      <p>Connessioni FK tra le app. Passa il mouse su un nodo o una freccia per i dettagli. Trascina per spostarti, scroll per zoom.</p>
+    </div>
+    <button class="btn-reset" onclick="resetView()">⟳ Reset vista</button>
+  </div>
+
+  <div id="graph-container">
+    <svg id="graph-svg" viewBox="0 0 1160 720" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrow-fk"    markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#34d399"/></marker>
+        <marker id="arrow-1to1"  markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#fbbf24"/></marker>
+        <marker id="arrow-m2m"   markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#a78bfa"/></marker>
+        <filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+
+      <!-- ── EDGES (drawn first, behind nodes) ── -->
+      <g id="edges-layer"></g>
+      <!-- ── NODES ── -->
+      <g id="nodes-layer"></g>
+    </svg>
+    <div id="graph-tooltip"></div>
+  </div>
+
+  <div class="graph-legend">
+    <div class="graph-legend-item"><span style="background:#6366f1"></span>core</div>
+    <div class="graph-legend-item"><span style="background:#f97316"></span>assets</div>
+    <div class="graph-legend-item"><span style="background:#10b981"></span>anagrafica</div>
+    <div class="graph-legend-item"><span style="background:#ec4899"></span>tickets</div>
+    <div class="graph-legend-item"><span style="background:#06b6d4"></span>tasks</div>
+    <div class="graph-legend-item"><span style="background:#a78bfa"></span>automazioni</div>
+    <div class="graph-legend-item"><span style="background:#fbbf24"></span>notizie</div>
+    <div class="graph-legend-item"><span style="background:#64748b"></span>timbri</div>
+    <div class="graph-legend-item"><span style="background:#ef4444"></span>diario_preposto</div>
+    <div class="graph-legend-item"><span style="background:#f43f5e"></span>rilevazione_incidenti</div>
+    <div class="graph-legend-item"><span style="background:#8b5cf6"></span>dpi</div>
+    <div class="graph-legend-item"><span style="background:#0ea5e9"></span>assenze</div>
+    <div class="graph-legend-item"><span style="background:#84cc16"></span>rentri</div>
+    <div class="graph-legend-item"><span style="background:#fb923c"></span>monitoring</div>
+    <div class="graph-legend-item" style="margin-left:20px">
+      <svg width="30" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-fk-l)"/></svg> FK
+    </div>
+    <div class="graph-legend-item">
+      <svg width="30" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="4,3"/></svg> 1:1
+    </div>
+    <div class="graph-legend-item">
+      <svg width="30" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="#a78bfa" stroke-width="2" stroke-dasharray="6,3"/></svg> M:M
+    </div>
+  </div>
+
+</div>
+</div><!-- /tab-grafo -->
+
+<script>
+// ── Toggle card ──
+function toggleCard(header) {
+  header.parentElement.classList.toggle('collapsed');
+}
+
+// ── Search/filter ──
+function filterAll(q) {
+  q = q.toLowerCase().trim();
+  document.querySelectorAll('.model-card').forEach(card => {
+    if (!q) { card.classList.remove('hidden'); return; }
+    const text = card.textContent.toLowerCase();
+    card.classList.toggle('hidden', !text.includes(q));
+  });
+  // show/hide section headers based on visible cards
+  document.querySelectorAll('.app-section').forEach(sec => {
+    const visible = sec.querySelectorAll('.model-card:not(.hidden)').length;
+    sec.style.display = visible ? '' : 'none';
+  });
+}
+
+// ── Active nav link on scroll ──
+const sections = document.querySelectorAll('.app-section');
+const navLinks = document.querySelectorAll('nav a');
+
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const a = document.querySelector(`nav a[href="#${e.target.id}"]`);
+      if (a) a.classList.add('active');
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+
+sections.forEach(s => obs.observe(s));
+
+// ── Count fields for stat ──
+window.addEventListener('load', () => {
+  const n = document.querySelectorAll('table.fields tr:not(:first-child)').length;
+  document.getElementById('total-fields').textContent = n;
+  document.getElementById('total-models').textContent =
+    document.querySelectorAll('.model-card').length;
+  buildGraph();
+});
+
+// ── Tab switching ──
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  btn.classList.add('active');
+  const sb = document.getElementById('search-bar-wrap');
+  sb.style.display = id === 'tabelle' ? '' : 'none';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GRAPH ENGINE
+// ═══════════════════════════════════════════════════════════════════════════
+
+const GRAPH_NODES = [
+  // id, label, color, x, y, models[]
+  { id:'core',       label:'core',                color:'#6366f1', x:580, y:90,  models:['Profile','UserExtraInfo','Notifica','AuditLog','SiteConfig','NavigationItem','NavigationRoleAccess','LoginBanner','Ruolo','UtenteLegacy','AnagraficaDipendente','Pulsante','Permesso'] },
+  { id:'assets',     label:'assets',              color:'#f97316', x:580, y:290, models:['Asset','AssetCategory','AssetITDetails','WorkMachine','WorkOrder','PeriodicVerification','PlantLayout','PlantArea','PlantMarker','AssetDocument','AssetEndpoint'] },
+  { id:'anagrafica', label:'anagrafica',           color:'#10b981', x:280, y:290, models:['Fornitore','FornitoreDocumento','FornitoreOrdine','FornitoreValutazione','FornitoreAsset','RuoloOperativo','DipendenteRuoloOperativo','Mansione','TipoQualifica','DipendenteQualifica'] },
+  { id:'tickets',    label:'tickets',             color:'#ec4899', x:880, y:290, models:['Ticket','TicketCommento','TicketAllegato','TicketImpostazioni'] },
+  { id:'tasks',      label:'tasks',               color:'#06b6d4', x:200, y:460, models:['Project','Task','SubTask','TaskComment','TaskAttachment','TaskEvent'] },
+  { id:'automazioni',label:'automazioni',         color:'#a78bfa', x:580, y:460, models:['AutomationRule','AutomationCondition','AutomationAction','AutomationRunLog','AutomationActionLog','DashboardMetricValue'] },
+  { id:'notizie',    label:'notizie',             color:'#fbbf24', x:920, y:460, models:['Notizia','NotiziaAudience','NotiziaAllegato','NotiziaLettura'] },
+  { id:'timbri',     label:'timbri',              color:'#64748b', x:100, y:170, models:['OperatoreTimbri','RegistroTimbro','RegistroTimbroImmagine','TimbriImportIssue'] },
+  { id:'dpi',        label:'dpi',                 color:'#8b5cf6', x:400, y:460, models:['CategoriaDPI','RichiestaDPI','ConsegnaDPI','RichiestaDPICommento','DPIImpostazioni'] },
+  { id:'assenze',    label:'assenze',             color:'#0ea5e9', x:100, y:350, models:['CertificazionePresenza'] },
+  { id:'diario',     label:'diario_preposto',     color:'#ef4444', x:320, y:610, models:['SegnalazionePreposto','SegnalazioneAllegato','DiarioPrepostoImpostazioni'] },
+  { id:'rilevazione',label:'rilevazione_incidenti',color:'#f43f5e',x:600, y:610, models:['RilevazioneIncidente','SicurezzaImpostazioni'] },
+  { id:'rentri',     label:'rentri',              color:'#84cc16', x:840, y:610, models:['RegistroRifiuti'] },
+  { id:'monitoring', label:'monitoring',          color:'#fb923c', x:1060,y:170, models:['Issue','IssueOccurrence','AutomationJob'] },
+];
+
+const GRAPH_EDGES = [
+  // from, to, type (fk/1to1/m2m), label
+  { from:'assenze',     to:'core',       type:'fk',   label:'CertificazionePresenza\n→ AnagraficaDipendente' },
+  { from:'anagrafica',  to:'core',       type:'fk',   label:'DipendenteRuoloOperativo\n→ AnagraficaDipendente' },
+  { from:'tickets',     to:'assets',     type:'fk',   label:'Ticket → Asset' },
+  { from:'tickets',     to:'anagrafica', type:'fk',   label:'Ticket → Fornitore' },
+  { from:'assets',      to:'anagrafica', type:'fk',   label:'WorkOrder → Fornitore\nPeriodicVerification → Fornitore' },
+  { from:'anagrafica',  to:'assets',     type:'fk',   label:'FornitoreAsset → Asset' },
+  { from:'assets',      to:'core',       type:'fk',   label:'WorkOrder → User\nAssetDocument → User' },
+  { from:'tickets',     to:'core',       type:'fk',   label:'Ticket → User (aperto_da, assegnato)\nTicketCommento → User' },
+  { from:'tasks',       to:'core',       type:'fk',   label:'Project → User (owner)\nTask → User (assegnato)' },
+  { from:'notizie',     to:'core',       type:'fk',   label:'Notizia → User\nNotiziaLettura → User' },
+  { from:'dpi',         to:'core',       type:'fk',   label:'RichiestaDPI → User\nConsegnaDPI → User' },
+  { from:'diario',      to:'core',       type:'fk',   label:'SegnalazionePreposto → User' },
+  { from:'assets',      to:'assets',     type:'1to1',  label:'AssetITDetails → Asset (1:1)' },
+  { from:'dpi',         to:'dpi',        type:'1to1',  label:'ConsegnaDPI → RichiestaDPI (1:1)' },
+  { from:'assets',      to:'assets',     type:'m2m',   label:'PeriodicVerification ↔ Asset (M:M)' },
+];
+
+const NODE_W = 140, NODE_H = 74;
+
+function buildGraph() {
+  const svg = document.getElementById('graph-svg');
+  const eLayer = document.getElementById('edges-layer');
+  const nLayer = document.getElementById('nodes-layer');
+
+  // Draw edges
+  GRAPH_EDGES.forEach((edge, i) => {
+    if (edge.from === edge.to) return; // skip self-loops (draw separately below)
+    const src = GRAPH_NODES.find(n => n.id === edge.from);
+    const dst = GRAPH_NODES.find(n => n.id === edge.to);
+    if (!src || !dst) return;
+
+    const x1 = src.x + NODE_W/2, y1 = src.y + NODE_H/2;
+    const x2 = dst.x + NODE_W/2, y2 = dst.y + NODE_H/2;
+
+    // control points for bezier
+    const dx = x2 - x1, dy = y2 - y1;
+    const cx1 = x1 + dx * 0.4 - dy * 0.15;
+    const cy1 = y1 + dy * 0.4 + dx * 0.15;
+    const cx2 = x2 - dx * 0.4 + dy * 0.15;
+    const cy2 = y2 - dy * 0.4 - dx * 0.15;
+
+    const color = edge.type === 'fk' ? '#34d399' : edge.type === '1to1' ? '#fbbf24' : '#a78bfa';
+    const dash  = edge.type === '1to1' ? '5,3' : edge.type === 'm2m' ? '8,4' : '';
+    const markerId = 'arrow-' + edge.type;
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d', `M${x1},${y1} C${cx1},${cy1} ${cx2},${cy2} ${x2},${y2}`);
+    path.setAttribute('class','g-edge');
+    path.setAttribute('stroke', color);
+    if (dash) path.setAttribute('stroke-dasharray', dash);
+    path.setAttribute('marker-end', `url(#${markerId})`);
+    path.dataset.edgeLabel = edge.label;
+    path.addEventListener('mouseenter', e => showEdgeTip(e, edge));
+    path.addEventListener('mouseleave', hideTip);
+    eLayer.appendChild(path);
+
+    // midpoint label
+    const mx = (x1+x2)/2, my = (y1+y2)/2;
+    const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+    txt.setAttribute('x', mx); txt.setAttribute('y', my - 5);
+    txt.setAttribute('class','g-edge-label');
+    txt.setAttribute('text-anchor','middle');
+    const shortLabel = edge.label.split('\n')[0].split('→')[1]?.trim() || '';
+    txt.textContent = shortLabel.length > 20 ? '' : shortLabel;
+    eLayer.appendChild(txt);
+  });
+
+  // Self-loop edges (1:1 and M:M within same app — draw as arc)
+  GRAPH_EDGES.filter(e => e.from === e.to).forEach(edge => {
+    const src = GRAPH_NODES.find(n => n.id === edge.from);
+    if (!src) return;
+    const cx = src.x + NODE_W + 22, cy = src.y + NODE_H/2;
+    const color = edge.type === '1to1' ? '#fbbf24' : '#a78bfa';
+    const dash  = edge.type === '1to1' ? '5,3' : '8,4';
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d',`M${src.x+NODE_W},${src.y+NODE_H*0.35} C${cx+15},${src.y+NODE_H*0.2} ${cx+15},${src.y+NODE_H*0.8} ${src.x+NODE_W},${src.y+NODE_H*0.65}`);
+    path.setAttribute('class','g-edge');
+    path.setAttribute('stroke', color);
+    path.setAttribute('stroke-dasharray', dash);
+    path.setAttribute('marker-end', `url(#arrow-${edge.type})`);
+    path.dataset.edgeLabel = edge.label;
+    path.addEventListener('mouseenter', e => showEdgeTip(e, edge));
+    path.addEventListener('mouseleave', hideTip);
+    eLayer.appendChild(path);
+  });
+
+  // Draw nodes
+  GRAPH_NODES.forEach(node => {
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('class','g-node');
+    g.setAttribute('transform', `translate(${node.x},${node.y})`);
+    g.setAttribute('data-id', node.id);
+
+    const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('width', NODE_W);
+    rect.setAttribute('height', NODE_H);
+    rect.setAttribute('rx', 8);
+    rect.setAttribute('fill', hexToRgba(node.color, 0.18));
+    rect.setAttribute('stroke', node.color);
+    g.appendChild(rect);
+
+    const icon_bg = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    icon_bg.setAttribute('x', 0); icon_bg.setAttribute('y', 0);
+    icon_bg.setAttribute('width', NODE_W); icon_bg.setAttribute('height', 26);
+    icon_bg.setAttribute('rx', 8);
+    icon_bg.setAttribute('fill', hexToRgba(node.color, 0.45));
+    g.appendChild(icon_bg);
+
+    const title = document.createElementNS('http://www.w3.org/2000/svg','text');
+    title.setAttribute('x', NODE_W/2); title.setAttribute('y', 17);
+    title.setAttribute('text-anchor','middle');
+    title.setAttribute('class','node-title');
+    title.textContent = node.label;
+    g.appendChild(title);
+
+    const cnt = document.createElementNS('http://www.w3.org/2000/svg','text');
+    cnt.setAttribute('x', NODE_W/2); cnt.setAttribute('y', 42);
+    cnt.setAttribute('text-anchor','middle');
+    cnt.setAttribute('class','node-models');
+    cnt.textContent = node.models.slice(0,3).join(', ') + (node.models.length > 3 ? ` +${node.models.length-3}` : '');
+    g.appendChild(cnt);
+
+    const cnt2 = document.createElementNS('http://www.w3.org/2000/svg','text');
+    cnt2.setAttribute('x', NODE_W/2); cnt2.setAttribute('y', 56);
+    cnt2.setAttribute('text-anchor','middle');
+    cnt2.setAttribute('class','node-models');
+    const badge = `${node.models.length} modell${node.models.length === 1 ? 'o' : 'i'}`;
+    cnt2.textContent = badge;
+    cnt2.setAttribute('fill', node.color);
+    cnt2.setAttribute('font-size','9');
+    cnt2.setAttribute('opacity','0.8');
+    g.appendChild(cnt2);
+
+    g.addEventListener('mouseenter', e => showNodeTip(e, node));
+    g.addEventListener('mouseleave', hideTip);
+    g.addEventListener('click', () => jumpToApp(node.id));
+
+    nLayer.appendChild(g);
+  });
+
+  // Pan & zoom
+  initPanZoom(svg);
+}
+
+function hexToRgba(hex, a) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+const tooltip = document.getElementById('graph-tooltip');
+function showNodeTip(evt, node) {
+  const edges_out = GRAPH_EDGES.filter(e => e.from === node.id && e.from !== e.to);
+  const edges_in  = GRAPH_EDGES.filter(e => e.to === node.id && e.from !== e.to);
+  let html = `<h4 style="color:${node.color}">${node.label}</h4>`;
+  html += `<div style="color:var(--muted);font-size:11px;margin-bottom:6px">${node.models.length} modelli</div>`;
+  if (edges_out.length) {
+    html += `<div style="font-size:11px;color:var(--muted);margin-bottom:3px">Dipende da:</div><ul>`;
+    edges_out.forEach(e => { html += `<li>${e.to}</li>`; });
+    html += `</ul>`;
+  }
+  if (edges_in.length) {
+    html += `<div style="font-size:11px;color:var(--muted);margin-top:6px;margin-bottom:3px">Referenziato da:</div><ul>`;
+    edges_in.forEach(e => { html += `<li>${e.from}</li>`; });
+    html += `</ul>`;
+  }
+  html += `<div style="font-size:11px;color:var(--accent);margin-top:8px">Clicca per vedere tabelle →</div>`;
+  setTip(html, evt);
+}
+function showEdgeTip(evt, edge) {
+  const color = edge.type === 'fk' ? '#34d399' : edge.type === '1to1' ? '#fbbf24' : '#a78bfa';
+  const typeLabel = edge.type === 'fk' ? 'Foreign Key' : edge.type === '1to1' ? 'OneToOne' : 'ManyToMany';
+  let html = `<h4 style="color:${color}">${edge.from} → ${edge.to}</h4>`;
+  html += `<div style="font-size:11px;color:var(--muted);margin-bottom:6px">${typeLabel}</div>`;
+  edge.label.split('\n').forEach(l => { html += `<div style="font-size:12px">${l}</div>`; });
+  setTip(html, evt);
+}
+function setTip(html, evt) {
+  const wrap = document.getElementById('graph-container');
+  const rect = wrap.getBoundingClientRect();
+  const x = evt.clientX - rect.left + 12;
+  const y = evt.clientY - rect.top + 12;
+  tooltip.innerHTML = html;
+  tooltip.style.left = Math.min(x, rect.width - 270) + 'px';
+  tooltip.style.top  = y + 'px';
+  tooltip.classList.add('visible');
+}
+function hideTip() { tooltip.classList.remove('visible'); }
+
+function jumpToApp(appId) {
+  const map = { core:'core', assets:'assets', anagrafica:'anagrafica', tickets:'tickets',
+    tasks:'tasks', automazioni:'automazioni', notizie:'notizie', timbri:'timbri',
+    dpi:'dpi', assenze:'assenze', diario:'diario_preposto',
+    rilevazione:'rilevazione_incidenti', rentri:'rentri', monitoring:'monitoring' };
+  const sectionId = map[appId] || appId;
+  // switch to Tabelle tab then scroll
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-tabelle').classList.add('active');
+  document.querySelectorAll('.tab-btn')[0].classList.add('active');
+  document.getElementById('search-bar-wrap').style.display = '';
+  setTimeout(() => {
+    const el = document.getElementById(sectionId);
+    if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+  }, 80);
+}
+
+// ── Pan & Zoom ──
+function initPanZoom(svg) {
+  let vx=0, vy=0, vw=1160, vh=720;
+  let dragging=false, startX, startY, startVx, startVy;
+
+  function setVB() { svg.setAttribute('viewBox', `${vx} ${vy} ${vw} ${vh}`); }
+
+  svg.addEventListener('wheel', e => {
+    e.preventDefault();
+    const factor = e.deltaY > 0 ? 1.12 : 0.89;
+    const rect = svg.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) / rect.width  * vw + vx;
+    const my = (e.clientY - rect.top)  / rect.height * vh + vy;
+    vw *= factor; vh *= factor;
+    vx = mx - (e.clientX - rect.left) / rect.width  * vw;
+    vy = my - (e.clientY - rect.top)  / rect.height * vh;
+    setVB();
+  }, { passive: false });
+
+  svg.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    dragging = true; startX = e.clientX; startY = e.clientY;
+    startVx = vx; startVy = vy;
+  });
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const rect = svg.getBoundingClientRect();
+    vx = startVx - (e.clientX - startX) / rect.width  * vw;
+    vy = startVy - (e.clientY - startY) / rect.height * vh;
+    setVB();
+  });
+  window.addEventListener('mouseup', () => { dragging = false; });
+}
+
+function resetView() {
+  document.getElementById('graph-svg').setAttribute('viewBox','0 0 1160 720');
+}
+</script>
+</body>
+</html>

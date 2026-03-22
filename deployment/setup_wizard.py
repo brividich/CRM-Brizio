@@ -40,9 +40,10 @@ FMO = ("Consolas", 9)
 
 STEPS = ["Benvenuto","Pacchetto","Ambiente","Python",
          "Database","Active Directory","Email","IIS / Web",
-         "Riepilogo","Installazione","Completato"]
+         "Utente Admin","Riepilogo","Installazione","Completato"]
 
-STEPS_RELEASE = ["Modalità", "Configurazione", "Esecuzione", "Completato"]
+STEPS_RELEASE   = ["Modalità", "Configurazione", "Esecuzione", "Completato"]
+STEPS_UNINSTALL = ["Configurazione", "Conferma", "Disinstallazione", "Completato"]
 
 
 # ─────────────────────────────────────────────────────────────
@@ -65,6 +66,11 @@ class Config:
         self.email_tls = False; self.email_skip = False
         self.iis_hostname = ""; self.iis_port = "8080"; self.iis_https = False
         self.secret_key = ""; self.release_tag = ""
+        self.dev_source     = ""
+        self.admin_username = "admin"
+        self.admin_email    = ""
+        self.admin_password = ""
+        self.admin_django_superuser = True
 
     @property
     def env_path(self): return Path(self.base_dir) / self.environment
@@ -86,7 +92,7 @@ class Config:
             f"SECRET_KEY={self.secret_key}",
             f"DEBUG=False",
             f"ALLOWED_HOSTS={h},127.0.0.1",
-            f"APP_VERSION=0.8.2\n",
+            f"APP_VERSION=0.8.4\n",
             f"DB_ENGINE=mssql",
             f"DB_NAME={self.db_name}",
             f"DB_HOST={self.db_host}",
@@ -304,7 +310,7 @@ class Sidebar(tk.Frame):
 
         # Footer
         frame(self._steps_frame, bg=SIDEBAR_BG, height=24).pack()
-        tk.Label(self._steps_frame, text="v0.8.2", font=(SF,8),
+        tk.Label(self._steps_frame, text="v0.8.4", font=(SF,8),
                  bg=SIDEBAR_BG, fg="#334155").pack(side="bottom", pady=10)
 
     def set(self, idx):
@@ -453,73 +459,126 @@ class WelcomePage(Page):
 
 class PackagePage(Page):
     def __init__(self, parent, cfg):
-        super().__init__(parent, "Pacchetto Release",
-                         "File .zip creato da package-release.ps1 sul PC di sviluppo")
+        super().__init__(parent, "Pacchetto / Sorgente",
+                         "Seleziona il file .zip (TEST/PROD) o la cartella sorgente (DEV)")
         self.cfg = cfg
-        self._var = tk.StringVar()
+        self._zip_var = tk.StringVar()
+        self._dev_var = tk.StringVar()
         b = self.body
-
         frame(b, height=8).pack()
-        sec = frame(b)
-        sec.pack(fill="x", padx=32)
 
-        tk.Label(sec, text="File pacchetto (.zip)", font=(SF,9,"bold"),
+        # ── Sezione TEST/PROD (zip) ────────────────────────────
+        self._zip_sec = frame(b)
+        tk.Label(self._zip_sec, text="File pacchetto (.zip)", font=(SF,9,"bold"),
                  fg=GRAY600, bg="white").pack(anchor="w", pady=(0,4))
-
-        row = frame(sec)
+        row = frame(self._zip_sec)
         row.pack(fill="x")
-        ent = tk.Entry(row, textvariable=self._var, font=FMO,
-                        relief="flat", bg=GRAY50, fg=GRAY800,
-                        highlightthickness=1, highlightbackground=GRAY200,
-                        highlightcolor=BRAND)
-        ent.pack(side="left", fill="x", expand=True, ipady=7, ipadx=8)
-        SecondaryButton(row, "  Sfoglia…  ", self._browse).pack(side="left", padx=(8,0))
+        tk.Entry(row, textvariable=self._zip_var, font=FMO,
+                 relief="flat", bg=GRAY50, fg=GRAY800,
+                 highlightthickness=1, highlightbackground=GRAY200,
+                 highlightcolor=BRAND).pack(side="left", fill="x", expand=True, ipady=7, ipadx=8)
+        SecondaryButton(row, "  Sfoglia…  ", self._browse_zip).pack(side="left", padx=(8,0))
+        self._zip_err  = tk.Label(self._zip_sec, text="", font=FSM, fg=RED, bg="white")
+        self._zip_err.pack(anchor="w", pady=(3,0))
+        self._zip_info = frame(self._zip_sec, bg=GREEN_BG,
+                               highlightthickness=1, highlightbackground=GREEN_BD)
+        self._zip_info_lbl = tk.Label(self._zip_info, text="", font=FSM, bg=GREEN_BG, fg=GREEN)
+        self._zip_info_lbl.pack(anchor="w", padx=12, pady=8)
+        self._zip_var.trace_add("write", self._on_zip_change)
+        frame(self._zip_sec, height=12).pack()
+        tk.Label(self._zip_sec, text="Lascia vuoto se il release è già estratto in releases\\",
+                 font=FSM, fg=GRAY400, bg="white").pack(anchor="w")
 
-        self._err = tk.Label(sec, text="", font=FSM, fg=RED, bg="white")
-        self._err.pack(anchor="w", pady=(3,0))
-
-        self._info = frame(sec, bg=GREEN_BG,
-                            highlightthickness=1, highlightbackground=GREEN_BD)
-
-        self._info_lbl = tk.Label(self._info, text="", font=FSM,
-                                   bg=GREEN_BG, fg=GREEN)
-        self._info_lbl.pack(anchor="w", padx=12, pady=8)
-        self._var.trace_add("write", self._on_change)
-
-        frame(sec, height=12).pack()
-        tk.Label(sec, text="Lascia vuoto se il release è già estratto in releases\\",
+        # ── Sezione DEV (solo per modalità script, non exe) ───
+        # Quando si gira come .exe il sorgente è bundled → questa pagina è saltata
+        self._dev_sec = frame(b)
+        tk.Label(self._dev_sec,
+                 text="Cartella sorgente (radice del repository)",
+                 font=(SF,9,"bold"), fg=GRAY600, bg="white").pack(anchor="w", pady=(0,4))
+        row2 = frame(self._dev_sec)
+        row2.pack(fill="x")
+        tk.Entry(row2, textvariable=self._dev_var, font=FMO,
+                 relief="flat", bg=GRAY50, fg=GRAY800,
+                 highlightthickness=1, highlightbackground=GRAY200,
+                 highlightcolor=BRAND).pack(side="left", fill="x", expand=True, ipady=7, ipadx=8)
+        SecondaryButton(row2, "  Sfoglia…  ", self._browse_dev).pack(side="left", padx=(8,0))
+        self._dev_err  = tk.Label(self._dev_sec, text="", font=FSM, fg=RED, bg="white")
+        self._dev_err.pack(anchor="w", pady=(3,0))
+        self._dev_info = frame(self._dev_sec, bg=BLUE_BG,
+                               highlightthickness=1, highlightbackground=BLUE_BD)
+        self._dev_info_lbl = tk.Label(self._dev_info, text="", font=FSM,
+                                      bg=BLUE_BG, fg="#1d4ed8")
+        self._dev_info_lbl.pack(anchor="w", padx=12, pady=8)
+        self._dev_var.trace_add("write", self._on_dev_change)
+        frame(self._dev_sec, height=8).pack()
+        tk.Label(self._dev_sec,
+                 text="Deve contenere la cartella django_app\\",
                  font=FSM, fg=GRAY400, bg="white").pack(anchor="w")
 
     def on_enter(self):
-        if not self._var.get():
-            p = find_latest_zip(self.cfg.base_dir)
-            if p: self._var.set(p)
+        if self.cfg.environment == "dev":
+            self._zip_sec.pack_forget()
+            self._dev_sec.pack(fill="x", padx=32)
+            if not self._dev_var.get() and self.cfg.dev_source:
+                self._dev_var.set(self.cfg.dev_source)
+        else:
+            self._dev_sec.pack_forget()
+            self._zip_sec.pack(fill="x", padx=32)
+            if not self._zip_var.get():
+                p = find_latest_zip(self.cfg.base_dir)
+                if p: self._zip_var.set(p)
 
-    def _browse(self):
+    def _browse_zip(self):
         p = filedialog.askopenfilename(
             title="Seleziona pacchetto release",
             filetypes=[("Zip files","*.zip"),("All","*.*")])
-        if p: self._var.set(p)
+        if p: self._zip_var.set(p)
 
-    def _on_change(self, *_):
-        val = self._var.get().strip()
-        self._err.configure(text="")
+    def _browse_dev(self):
+        p = filedialog.askdirectory(title="Seleziona cartella sorgente del repository")
+        if p: self._dev_var.set(p)
+
+    def _on_zip_change(self, *_):
+        val = self._zip_var.get().strip()
+        self._zip_err.configure(text="")
         if val and Path(val).exists():
             n = Path(val).name
             m = re.search(r"v(\d+\.\d+[\.\d]*)", n)
             ver = m.group(1) if m else "?"
             sz  = round(Path(val).stat().st_size/1024/1024, 1)
-            self._info_lbl.configure(text=f"  ✓  {n}   ·   versione {ver}   ·   {sz} MB")
-            self._info.pack(fill="x", pady=(8,0))
+            self._zip_info_lbl.configure(text=f"  ✓  {n}   ·   versione {ver}   ·   {sz} MB")
+            self._zip_info.pack(fill="x", pady=(8,0))
         else:
-            self._info.pack_forget()
+            self._zip_info.pack_forget()
+
+    def _on_dev_change(self, *_):
+        val = self._dev_var.get().strip()
+        if val and (Path(val) / "django_app").exists():
+            self._dev_info_lbl.configure(
+                text=f"  ✓  django_app trovata in {Path(val).name}")
+            self._dev_info.pack(fill="x", pady=(8,0))
+        else:
+            self._dev_info.pack_forget()
 
     def validate(self):
-        val = self._var.get().strip()
-        if val and not Path(val).exists():
-            self._err.configure(text="File non trovato")
-            return False
-        self.cfg.package_path = val
+        if self.cfg.environment == "dev":
+            # Questa pagina è saltata quando si gira come .exe (sorgente bundled)
+            # Viene mostrata solo in modalità script per puntare al repo locale
+            val = self._dev_var.get().strip()
+            if not val:
+                self._dev_err.configure(text="Seleziona la cartella sorgente")
+                return False
+            if not (Path(val) / "django_app").exists():
+                self._dev_err.configure(
+                    text="Cartella django_app non trovata in questo percorso")
+                return False
+            self.cfg.dev_source = val
+        else:
+            val = self._zip_var.get().strip()
+            if val and not Path(val).exists():
+                self._zip_err.configure(text="File non trovato")
+                return False
+            self.cfg.package_path = val
         return True
 
 
@@ -950,6 +1009,74 @@ class IISPage(Page):
         return True
 
 
+class AdminPage(Page):
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Utente Amministratore",
+                         "Crea il primo account admin per accedere al portale")
+        self.cfg = cfg
+        self._user  = tk.StringVar(value="admin")
+        self._email = tk.StringVar()
+        self._pwd   = tk.StringVar()
+        self._pwd2  = tk.StringVar()
+        self._su    = tk.BooleanVar(value=True)
+        b = self.body
+
+        frame(b, height=8).pack()
+        sec = frame(b)
+        sec.pack(fill="x", padx=32)
+
+        FieldGroup(sec, "Nome utente (username)", self._user).pack(fill="x", pady=(0,10))
+        FieldGroup(sec, "Email", self._email).pack(fill="x", pady=(0,10))
+        self._fg_pwd  = FieldGroup(sec, "Password", self._pwd,  show="*")
+        self._fg_pwd.pack(fill="x", pady=(0,10))
+        self._fg_pwd2 = FieldGroup(sec, "Conferma password", self._pwd2, show="*")
+        self._fg_pwd2.pack(fill="x", pady=(0,10))
+
+        frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=(4,12))
+
+        chk_row = frame(sec)
+        chk_row.pack(fill="x")
+        tk.Checkbutton(chk_row, text="  Crea anche Django superuser  (accesso a /admin/)",
+                       variable=self._su,
+                       font=FN, bg="white", fg=GRAY700,
+                       activebackground="white", selectcolor="white").pack(anchor="w")
+
+        frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=12)
+
+        info = frame(sec, bg=BLUE_BG, highlightthickness=1, highlightbackground=BLUE_BD)
+        info.pack(fill="x")
+        tk.Label(info,
+                 text="Cosa viene creato durante l'installazione:",
+                 font=(SF,9,"bold"), bg=BLUE_BG, fg="#1d4ed8").pack(anchor="w", padx=14, pady=(10,4))
+        for item in [
+            "Ruolo 'admin' nella tabella legacy ruoli",
+            "Utente nella tabella legacy utenti con ruolo admin",
+            "Django superuser (se selezionato) per accesso a /admin/",
+        ]:
+            tk.Label(info, text=f"   ·  {item}", font=FSM,
+                     bg=BLUE_BG, fg="#1d4ed8").pack(anchor="w", padx=14)
+        frame(info, bg=BLUE_BG, height=10).pack()
+
+    def validate(self):
+        self._fg_pwd.ok(); self._fg_pwd2.ok()
+        u = self._user.get().strip()
+        p = self._pwd.get()
+        p2 = self._pwd2.get()
+        if not u:
+            return False
+        if len(p) < 6:
+            self._fg_pwd.err("minimo 6 caratteri")
+            return False
+        if p != p2:
+            self._fg_pwd2.err("le password non coincidono")
+            return False
+        self.cfg.admin_username          = u
+        self.cfg.admin_email             = self._email.get().strip()
+        self.cfg.admin_password          = p
+        self.cfg.admin_django_superuser  = self._su.get()
+        return True
+
+
 class SummaryPage(Page):
     def __init__(self, parent, cfg):
         super().__init__(parent, "Riepilogo",
@@ -1007,6 +1134,11 @@ class SummaryPage(Page):
         kv("Hostname",      self.cfg.iis_hostname or "(tutti gli IP)")
         kv("Porta",         self.cfg.iis_port)
         kv("HTTPS",         "Sì" if self.cfg.iis_https else "No")
+        h("── Utente Admin ────────────────────────────────")
+        kv("Username",      self.cfg.admin_username)
+        kv("Email",         self.cfg.admin_email or "(non impostata)")
+        kv("Password",      "●" * len(self.cfg.admin_password))
+        kv("Django superuser", "Sì" if self.cfg.admin_django_superuser else "No")
         h("── Generato ────────────────────────────────────")
         kv("SECRET_KEY",    self.cfg.secret_key[:24]+"…")
         t.insert("end", "\n")
@@ -1020,6 +1152,7 @@ class InstallPage(Page):
         super().__init__(parent, "Installazione in corso",
                          "Non chiudere la finestra durante il processo")
         self.cfg = cfg; self._on_done = on_done; self._started = False
+        self._log_file = None; self._log_path = None
         b = self.body
         frame(b, height=8).pack()
 
@@ -1057,9 +1190,37 @@ class InstallPage(Page):
     def on_enter(self):
         if not self._started:
             self._started = True
+            self._open_log_file()
             threading.Thread(target=self._run, daemon=True).start()
 
+    def _open_log_file(self):
+        try:
+            if getattr(sys, 'frozen', False):
+                base = Path(sys.executable).parent
+            else:
+                base = Path(__file__).parent
+            log_dir = base / "logs"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            self._log_path = log_dir / f"install_{ts}.log"
+            self._log_file = open(self._log_path, "w", encoding="utf-8")
+            self._log_file.write(f"Portale Novicrom — Setup Wizard\n")
+            self._log_file.write(f"Data: {datetime.now():%Y-%m-%d %H:%M:%S}\n")
+            self._log_file.write(f"Ambiente: {self.cfg.environment.upper()}\n")
+            self._log_file.write("=" * 60 + "\n\n")
+            self._log_file.flush()
+        except Exception as e:
+            self._log_file = None
+
     def _log_line(self, text, tag=""):
+        # Scrivi su file
+        if self._log_file:
+            try:
+                self._log_file.write(text + "\n")
+                self._log_file.flush()
+            except Exception:
+                pass
+        # Aggiorna GUI
         def _do():
             self._log.configure(state="normal")
             self._log.insert("end", text+"\n", tag)
@@ -1096,143 +1257,328 @@ class InstallPage(Page):
             self._log_line(f"  ERRORE: {e}", "err"); return False
 
     def _run(self):
-        cfg = self.cfg
-        ep  = cfg.env_path
-        venv_py = ep / "venv" / "Scripts" / "python.exe"
-        tag = datetime.now().strftime("%Y%m%d_%H%M%S")
-        cfg.release_tag = tag
-        rel_dir   = ep / "releases" / tag
-        django_app = rel_dir / "django_app"
-        settings  = f"config.settings.{cfg.environment}"
-        N = 10; errors = []
+        cfg      = self.cfg
+        is_dev   = (cfg.environment == "dev")
+        ep       = cfg.env_path
+        settings = f"config.settings.{cfg.environment}"
+        errors   = []
+
+        # ── Percorsi dipendenti dall'ambiente ─────────────────
+        if is_dev:
+            # DEV: sorgente bundled nell'exe oppure cartella locale (script)
+            if getattr(sys, "frozen", False):
+                # exe: sorgente in sys._MEIPASS/_bundled_src/django_app/
+                # verrà copiato in base_dir/dev/source/ durante lo step 1
+                dev_install_dir = Path(cfg.base_dir) / "dev" / "source"
+                dev_src         = dev_install_dir
+                django_app      = dev_install_dir / "django_app"
+            else:
+                # script: usa il repo locale già esistente
+                dev_src    = Path(cfg.dev_source)
+                django_app = dev_src / "django_app"
+            venv_dir = dev_src / ".venv"
+            venv_py  = venv_dir / "Scripts" / "python.exe"
+            N = 7   # Estrai/Verifica, Venv, .env, pip, migrate, Admin, Avvio
+        else:
+            tag = datetime.now().strftime("%Y%m%d_%H%M%S")
+            cfg.release_tag = tag
+            rel_dir    = ep / "releases" / tag
+            django_app = rel_dir / "django_app"
+            venv_dir   = ep / "venv"
+            venv_py    = venv_dir / "Scripts" / "python.exe"
+            N = 11
 
         def step(n, title, pct):
             self._set_progress(pct, f"[{n}/{N}] {title}")
             self._log_line(f"\n── {title} {'─'*(44-len(title))}", "step")
 
-        # 1. Directory
-        step(1, "Creazione struttura directory", 5)
-        for d in [ep/"releases", ep/"logs", ep/"config", ep/"static",
-                   ep/"media", ep/"run",
-                   Path(cfg.base_dir)/"shared"/"packages",
-                   Path(cfg.base_dir)/"shared"/"backups",
-                   Path(cfg.base_dir)/"shared"/"scripts"]:
-            try:
-                d.mkdir(parents=True, exist_ok=True)
-                self._log_line(f"  ✓ {d}", "ok")
-            except Exception as e:
-                self._log_line(f"  ✗ {d}: {e}", "err"); errors.append(str(e))
+        if is_dev:
+            # ═══════════════════════════════════════════════════
+            # FLUSSO DEV  (7 step)
+            # ═══════════════════════════════════════════════════
 
-        # 2. Copia script PS
-        step(2, "Copia script deployment", 12)
-        src = Path(__file__).parent / "scripts"
-        dst = Path(cfg.base_dir) / "shared" / "scripts"
-        if src.exists():
-            for f in src.glob("*.ps1"):
-                try: shutil.copy2(f, dst/f.name); self._log_line(f"  ✓ {f.name}", "ok")
-                except Exception as e: self._log_line(f"  Avviso: {e}", "warn")
-        else: self._log_line("  Scripts non trovati — skip", "warn")
-
-        # 3. Virtualenv
-        step(3, "Creazione virtualenv", 20)
-        if not venv_py.exists():
-            ok = self._cmd([cfg.python_path, "-m", "venv", str(ep/"venv")])
-            if ok: self._log_line("  ✓ Virtualenv creato", "ok")
-            else: errors.append("venv")
-        else: self._log_line("  ✓ Virtualenv esistente", "ok")
-        self._cmd([str(venv_py), "-m", "pip", "install", "--upgrade",
-                   "pip", "setuptools", "wheel"])
-        self._log_line("  ✓ pip aggiornato", "ok")
-
-        # 4. Estrazione
-        step(4, "Estrazione pacchetto release", 30)
-        if cfg.package_path and Path(cfg.package_path).exists():
-            try:
-                rel_dir.mkdir(parents=True, exist_ok=True)
-                with zipfile.ZipFile(cfg.package_path, "r") as zf:
-                    zf.extractall(rel_dir)
-                self._log_line(f"  ✓ Estratto in {rel_dir}", "ok")
-            except Exception as e:
-                self._log_line(f"  ✗ {e}", "err"); errors.append(str(e))
-        else:
-            existing = sorted((ep/"releases").iterdir(), reverse=True) \
-                       if (ep/"releases").exists() else []
-            candidates = [x for x in existing if x != rel_dir]
-            if candidates:
-                rel_dir = candidates[0]; django_app = rel_dir/"django_app"
-                self._log_line(f"  ✓ Release esistente: {rel_dir.name}", "ok")
+            # 1. Estrazione / verifica sorgente
+            if getattr(sys, "frozen", False):
+                step(1, "Estrazione sorgente (bundled)", 5)
+                bundled = Path(sys._MEIPASS) / "_bundled_src" / "django_app"
+                try:
+                    dev_install_dir.mkdir(parents=True, exist_ok=True)
+                    self._log_line(f"  Copia sorgente in {dev_install_dir} ...", "ok")
+                    shutil.copytree(str(bundled), str(django_app), dirs_exist_ok=True)
+                    self._log_line(f"  ✓ Sorgente estratto in {dev_install_dir}", "ok")
+                except Exception as e:
+                    self._log_line(f"  ✗ {e}", "err"); errors.append(str(e))
             else:
-                self._log_line("  ✗ Nessun pacchetto disponibile", "err")
-                errors.append("Nessun pacchetto")
+                step(1, "Verifica cartella sorgente", 5)
+                if not django_app.exists():
+                    self._log_line(f"  ✗ django_app non trovata in {dev_src}", "err")
+                    errors.append("sorgente mancante")
+                else:
+                    self._log_line(f"  ✓ Sorgente: {dev_src}", "ok")
+                    self._log_line(f"  ✓ django_app: {django_app}", "ok")
 
-        # 5. .env
-        step(5, "Scrittura configurazione .env", 40)
-        env_content = cfg.to_env() if cfg.environment != "dev" else (
-            f"SECRET_KEY={cfg.secret_key}\nDEBUG=True\n"
-            f"ALLOWED_HOSTS=*\nAPP_VERSION=0.8.2\nENVIRONMENT=dev\n")
-        try:
-            (ep/"config"/".env").write_text(env_content, encoding="utf-8")
-            self._log_line(f"  ✓ .env → {ep/'config'/'.env'}", "ok")
-        except Exception as e:
-            errors.append(str(e)); self._log_line(f"  ✗ {e}", "err")
-        if django_app.exists():
+            # 2. Virtualenv
+            step(2, "Creazione virtualenv (.venv)", 15)
+            if not venv_py.exists():
+                ok = self._cmd([cfg.python_path, "-m", "venv", str(venv_dir)])
+                if ok: self._log_line("  ✓ Virtualenv .venv creato", "ok")
+                else:  errors.append("venv")
+            else:
+                self._log_line("  ✓ Virtualenv .venv esistente", "ok")
+            self._cmd([str(venv_py), "-m", "pip", "install", "--upgrade",
+                       "pip", "setuptools", "wheel"])
+            self._log_line("  ✓ pip aggiornato", "ok")
+
+            # 3. .env
+            step(3, "Scrittura .env DEV", 30)
+            env_content = (
+                f"SECRET_KEY={cfg.secret_key}\n"
+                f"DEBUG=True\n"
+                f"ALLOWED_HOSTS=*\n"
+                f"APP_VERSION=0.8.4\n"
+                f"ENVIRONMENT=dev\n"
+            )
             try:
-                (django_app/".env").write_text(env_content, encoding="utf-8")
-                self._log_line(f"  ✓ .env copiato nel release", "ok")
-            except: pass
+                env_file = django_app / ".env"
+                env_file.write_text(env_content, encoding="utf-8")
+                self._log_line(f"  ✓ .env → {env_file}", "ok")
+            except Exception as e:
+                errors.append(str(e)); self._log_line(f"  ✗ {e}", "err")
 
-        # 6. pip install
-        step(6, "Installazione dipendenze pip", 52)
-        req = django_app/"requirements.txt"
-        if req.exists():
-            ok = self._cmd([str(venv_py), "-m", "pip", "install", "-r", str(req)])
-            if ok: self._log_line("  ✓ Dipendenze installate", "ok")
-            else: errors.append("pip install"); self._log_line("  ✗ pip fallito", "err")
-        else: self._log_line("  requirements.txt non trovato — skip", "warn")
+            # 4. pip install
+            step(4, "Installazione dipendenze pip", 45)
+            req = django_app / "requirements.txt"
+            if req.exists():
+                ok = self._cmd([str(venv_py), "-m", "pip", "install", "-r", str(req)])
+                if ok: self._log_line("  ✓ Dipendenze installate", "ok")
+                else:  errors.append("pip install"); self._log_line("  ✗ pip fallito", "err")
+            else:
+                self._log_line("  requirements.txt non trovato — skip", "warn")
 
-        # 7. collectstatic
-        step(7, "collectstatic", 65)
-        env_vars = {**os.environ, "DJANGO_SETTINGS_MODULE": settings,
-                    "PYTHONPATH": str(django_app)}
-        if (django_app/"manage.py").exists() and cfg.environment != "dev":
-            ok = self._cmd([str(venv_py),"manage.py","collectstatic",
-                             "--noinput",f"--settings={settings}"],
-                            cwd=django_app, env=env_vars)
-            if ok: self._log_line("  ✓ collectstatic completato", "ok")
-            else:  self._log_line("  ✗ collectstatic fallito", "err")
-        else: self._log_line("  Skip (DEV o manage.py non trovato)", "warn")
+            # 5. migrate
+            step(5, "Django migrate (SQLite dev)", 60)
+            env_vars = {**os.environ, "DJANGO_SETTINGS_MODULE": settings,
+                        "PYTHONPATH": str(django_app)}
+            if (django_app / "manage.py").exists():
+                ok = self._cmd([str(venv_py), "manage.py", "migrate",
+                                f"--settings={settings}", "--noinput"],
+                               cwd=django_app, env=env_vars)
+                if ok: self._log_line("  ✓ migrate completato", "ok")
+                else:  self._log_line("  ✗ migrate fallito", "err")
+            else:
+                self._log_line("  manage.py non trovato — skip", "warn")
 
-        # 8. migrate
-        step(8, "Django migrate", 75)
-        if (django_app/"manage.py").exists():
-            ok = self._cmd([str(venv_py),"manage.py","migrate",
-                             f"--settings={settings}","--noinput"],
-                            cwd=django_app, env=env_vars)
-            if ok: self._log_line("  ✓ migrate completato", "ok")
-            else:  self._log_line("  ✗ migrate fallito (verifica DB)", "err")
-            if cfg.environment != "dev":
-                self._cmd([str(venv_py),"manage.py","createcachetable",
-                            f"--settings={settings}"], cwd=django_app, env=env_vars)
-                self._log_line("  ✓ createcachetable completato", "ok")
+            # 6. Admin
+            step(6, "Creazione utente amministratore", 78)
+            if cfg.admin_username and cfg.admin_password and (django_app / "manage.py").exists():
+                admin_script = (
+                    "import django, os; "
+                    f"os.environ.setdefault('DJANGO_SETTINGS_MODULE', '{settings}'); "
+                    "django.setup(); "
+                    "from core.legacy_models import Ruolo, UtenteLegacy; "
+                    "from django.contrib.auth.hashers import make_password; "
+                    f"r, _ = Ruolo.objects.get_or_create(nome='admin'); "
+                    f"u, created = UtenteLegacy.objects.get_or_create("
+                    f"    nome={repr(cfg.admin_username)},"
+                    f"    defaults=dict("
+                    f"        email={repr(cfg.admin_email)},"
+                    f"        password=make_password({repr(cfg.admin_password)}),"
+                    f"        ruolo_id=r.id, attivo=True));"
+                    f"u.ruolo_id = r.id; u.attivo = True; u.save(); "
+                    "print('OK legacy admin:', u.nome, '— creato=' + str(created))"
+                )
+                ok = self._cmd([str(venv_py), "-c", admin_script],
+                               cwd=django_app, env=env_vars)
+                if ok: self._log_line("  ✓ Utente admin legacy creato", "ok")
+                else:  self._log_line("  ✗ Creazione utente legacy fallita (forse esiste già)", "warn")
+                if cfg.admin_django_superuser:
+                    su_env = {**env_vars, "DJANGO_SUPERUSER_PASSWORD": cfg.admin_password}
+                    ok2 = self._cmd(
+                        [str(venv_py), "manage.py", "createsuperuser",
+                         "--noinput",
+                         f"--username={cfg.admin_username}",
+                         f"--email={cfg.admin_email or 'admin@localhost'}",
+                         f"--settings={settings}"],
+                        cwd=django_app, env=su_env)
+                    if ok2: self._log_line("  ✓ Django superuser creato", "ok")
+                    else:   self._log_line("  ✗ Django superuser fallito (forse esiste già)", "warn")
+            else:
+                self._log_line("  Skip — nessun admin configurato", "warn")
 
-        # 9. Junction current
-        step(9, "Attivazione release", 85)
-        cur = ep/"current"
-        try:
-            if cur.exists() or cur.is_symlink():
-                subprocess.run(["cmd","/c",f"rmdir \"{cur}\""], capture_output=True)
-            subprocess.run(["cmd","/c",f"mklink /J \"{cur}\" \"{rel_dir}\""],
-                            capture_output=True, check=True)
-            self._log_line(f"  ✓ current → {rel_dir.name}", "ok")
-        except Exception as e:
-            self._log_line(f"  ✗ Junction: {e}", "err"); errors.append(str(e))
+            # 7. Istruzioni avvio
+            step(7, "Configurazione completata", 95)
+            self._log_line("  ✓ Ambiente DEV pronto!", "ok")
+            self._log_line(f"  Attiva il venv:", "ok")
+            self._log_line(f"    {venv_dir}\\Scripts\\Activate.ps1", "dim")
+            self._log_line(f"  Avvia il server:", "ok")
+            self._log_line(f"    python manage.py runserver --settings=config.settings.dev", "dim")
+            self._log_line(f"  (dalla cartella {django_app})", "dim")
 
-        # 10. IIS
-        step(10, "Configurazione IIS", 93)
-        if cfg.environment == "dev":
-            self._log_line("  DEV — IIS non configurato.", "warn")
-            self._log_line(f"  Usa: python manage.py runserver --settings=config.settings.dev", "ok")
         else:
+            # ═══════════════════════════════════════════════════
+            # FLUSSO TEST / PROD  (11 step)
+            # ═══════════════════════════════════════════════════
+
+            # 1. Directory
+            step(1, "Creazione struttura directory", 5)
+            for d in [ep/"releases", ep/"logs", ep/"config", ep/"static",
+                      ep/"media", ep/"run",
+                      Path(cfg.base_dir)/"shared"/"packages",
+                      Path(cfg.base_dir)/"shared"/"backups",
+                      Path(cfg.base_dir)/"shared"/"scripts"]:
+                try:
+                    d.mkdir(parents=True, exist_ok=True)
+                    self._log_line(f"  ✓ {d}", "ok")
+                except Exception as e:
+                    self._log_line(f"  ✗ {d}: {e}", "err"); errors.append(str(e))
+
+            # 2. Copia script PS
+            step(2, "Copia script deployment", 12)
+            src = Path(__file__).parent / "scripts"
+            dst = Path(cfg.base_dir) / "shared" / "scripts"
+            if src.exists():
+                for f in src.glob("*.ps1"):
+                    try: shutil.copy2(f, dst/f.name); self._log_line(f"  ✓ {f.name}", "ok")
+                    except Exception as e: self._log_line(f"  Avviso: {e}", "warn")
+            else: self._log_line("  Scripts non trovati — skip", "warn")
+
+            # 3. Virtualenv
+            step(3, "Creazione virtualenv", 20)
+            if not venv_py.exists():
+                ok = self._cmd([cfg.python_path, "-m", "venv", str(venv_dir)])
+                if ok: self._log_line("  ✓ Virtualenv creato", "ok")
+                else: errors.append("venv")
+            else: self._log_line("  ✓ Virtualenv esistente", "ok")
+            self._cmd([str(venv_py), "-m", "pip", "install", "--upgrade",
+                       "pip", "setuptools", "wheel"])
+            self._log_line("  ✓ pip aggiornato", "ok")
+
+            # 4. Estrazione
+            step(4, "Estrazione pacchetto release", 30)
+            if cfg.package_path and Path(cfg.package_path).exists():
+                try:
+                    rel_dir.mkdir(parents=True, exist_ok=True)
+                    with zipfile.ZipFile(cfg.package_path, "r") as zf:
+                        zf.extractall(rel_dir)
+                    self._log_line(f"  ✓ Estratto in {rel_dir}", "ok")
+                except Exception as e:
+                    self._log_line(f"  ✗ {e}", "err"); errors.append(str(e))
+            else:
+                existing = sorted((ep/"releases").iterdir(), reverse=True) \
+                           if (ep/"releases").exists() else []
+                candidates = [x for x in existing if x != rel_dir]
+                if candidates:
+                    rel_dir = candidates[0]; django_app = rel_dir/"django_app"
+                    self._log_line(f"  ✓ Release esistente: {rel_dir.name}", "ok")
+                else:
+                    self._log_line("  ✗ Nessun pacchetto disponibile", "err")
+                    errors.append("Nessun pacchetto")
+
+            # 5. .env
+            step(5, "Scrittura configurazione .env", 40)
+            env_content = cfg.to_env()
+            try:
+                (ep/"config"/".env").write_text(env_content, encoding="utf-8")
+                self._log_line(f"  ✓ .env → {ep/'config'/'.env'}", "ok")
+            except Exception as e:
+                errors.append(str(e)); self._log_line(f"  ✗ {e}", "err")
+            if django_app.exists():
+                try:
+                    (django_app/".env").write_text(env_content, encoding="utf-8")
+                    self._log_line(f"  ✓ .env copiato nel release", "ok")
+                except: pass
+
+            # 6. pip install
+            step(6, "Installazione dipendenze pip", 52)
+            req = django_app/"requirements.txt"
+            env_vars = {**os.environ, "DJANGO_SETTINGS_MODULE": settings,
+                        "PYTHONPATH": str(django_app)}
+            if req.exists():
+                ok = self._cmd([str(venv_py), "-m", "pip", "install", "-r", str(req)])
+                if ok: self._log_line("  ✓ Dipendenze installate", "ok")
+                else:  errors.append("pip install"); self._log_line("  ✗ pip fallito", "err")
+            else: self._log_line("  requirements.txt non trovato — skip", "warn")
+
+            # 7. collectstatic
+            step(7, "collectstatic", 65)
+            if django_app.exists() and (django_app/"manage.py").exists():
+                ok = self._cmd([str(venv_py),"manage.py","collectstatic",
+                                "--noinput",f"--settings={settings}"],
+                               cwd=django_app, env=env_vars)
+                if ok: self._log_line("  ✓ collectstatic completato", "ok")
+                else:  self._log_line("  ✗ collectstatic fallito", "err")
+            else: self._log_line("  manage.py non trovato — skip", "warn")
+
+            # 8. migrate
+            step(8, "Django migrate", 75)
+            if django_app.exists() and (django_app/"manage.py").exists():
+                ok = self._cmd([str(venv_py),"manage.py","migrate",
+                                f"--settings={settings}","--noinput"],
+                               cwd=django_app, env=env_vars)
+                if ok: self._log_line("  ✓ migrate completato", "ok")
+                else:  self._log_line("  ✗ migrate fallito (verifica DB)", "err")
+                self._cmd([str(venv_py),"manage.py","createcachetable",
+                           f"--settings={settings}"], cwd=django_app, env=env_vars)
+                self._log_line("  ✓ createcachetable completato", "ok")
+            else:
+                self._log_line("  Skip — django_app non trovato", "warn")
+
+            # 9. Admin
+            step(9, "Creazione utente amministratore", 80)
+            if cfg.admin_username and cfg.admin_password and django_app.exists():
+                admin_script = (
+                    "import django, os; "
+                    f"os.environ.setdefault('DJANGO_SETTINGS_MODULE', '{settings}'); "
+                    "django.setup(); "
+                    "from core.legacy_models import Ruolo, UtenteLegacy; "
+                    "from django.contrib.auth.hashers import make_password; "
+                    f"r, _ = Ruolo.objects.get_or_create(nome='admin'); "
+                    f"u, created = UtenteLegacy.objects.get_or_create("
+                    f"    nome={repr(cfg.admin_username)},"
+                    f"    defaults=dict("
+                    f"        email={repr(cfg.admin_email)},"
+                    f"        password=make_password({repr(cfg.admin_password)}),"
+                    f"        ruolo_id=r.id, attivo=True));"
+                    f"u.ruolo_id = r.id; u.attivo = True; u.save(); "
+                    "print('OK legacy admin:', u.nome, '— creato=' + str(created))"
+                )
+                ok = self._cmd([str(venv_py), "-c", admin_script],
+                               cwd=django_app, env=env_vars)
+                if ok: self._log_line("  ✓ Utente admin legacy creato", "ok")
+                else:  self._log_line("  ✗ Creazione utente legacy fallita", "err"); errors.append("admin legacy")
+                if cfg.admin_django_superuser:
+                    su_env = {**env_vars, "DJANGO_SUPERUSER_PASSWORD": cfg.admin_password}
+                    ok2 = self._cmd(
+                        [str(venv_py), "manage.py", "createsuperuser",
+                         "--noinput",
+                         f"--username={cfg.admin_username}",
+                         f"--email={cfg.admin_email or 'admin@localhost'}",
+                         f"--settings={settings}"],
+                        cwd=django_app, env=su_env)
+                    if ok2: self._log_line("  ✓ Django superuser creato", "ok")
+                    else:   self._log_line("  ✗ Django superuser fallito (forse esiste già)", "warn")
+            elif not django_app.exists():
+                self._log_line("  Skip — nessun package estratto", "warn")
+            else:
+                self._log_line("  Skip — nessun admin configurato", "warn")
+
+            # 10. Junction current
+            step(10, "Attivazione release", 87)
+            cur = ep/"current"
+            if not rel_dir.exists():
+                self._log_line("  Skip — nessuna release da attivare", "warn")
+            else:
+                try:
+                    if cur.exists() or cur.is_symlink():
+                        subprocess.run(["cmd","/c",f"rmdir \"{cur}\""], capture_output=True)
+                    subprocess.run(["cmd","/c",f"mklink /J \"{cur}\" \"{rel_dir}\""],
+                                   capture_output=True, check=True)
+                    self._log_line(f"  ✓ current → {rel_dir.name}", "ok")
+                except Exception as e:
+                    self._log_line(f"  ✗ Junction: {e}", "err"); errors.append(str(e))
+
+            # 11. IIS
+            step(11, "Configurazione IIS", 94)
             self._write_webconfig(ep, cfg)
             self._log_line("  ✓ web.config scritto", "ok")
             self._configure_iis(cfg)
@@ -1245,6 +1591,11 @@ class InstallPage(Page):
         else:
             self._log_line("  Tutto completato senza errori!", "ok")
         self._log_line("─"*50, "step")
+        if self._log_path:
+            self._log_line(f"  Log salvato in: {self._log_path}", "dim")
+        if self._log_file:
+            try: self._log_file.close()
+            except: pass
         self._log.after(800, self._on_done)
 
     def _write_webconfig(self, ep, cfg):
@@ -1369,10 +1720,25 @@ class FinishPage(Page):
 # APP PRINCIPALE
 # ─────────────────────────────────────────────────────────────
 
+def _detect_repo_root() -> str:
+    """Risale alla root del repository quando si gira come script (non exe).
+    Quando si gira come exe il sorgente è bundled in sys._MEIPASS → restituisce ''."""
+    if getattr(sys, "frozen", False):
+        return ""   # exe: sorgente bundled, verrà estratto in _run()
+    # script: deployment/setup_wizard.py → parent.parent = root repo
+    candidate = Path(__file__).parent.parent
+    if (candidate / "django_app").exists():
+        return str(candidate)
+    return ""
+
+
 class WizardApp:
     def __init__(self, preselect_env=None):
         self.cfg = Config()
         if preselect_env: self.cfg.environment = preselect_env
+        # Per DEV auto-rileva la cartella sorgente dal repo corrente
+        if self.cfg.environment == "dev":
+            self.cfg.dev_source = _detect_repo_root()
         self._env  = preselect_env
         self._idx  = 0
 
@@ -1421,22 +1787,26 @@ class WizardApp:
         self.btn_next   = PrimaryButton(right_bar, "Avanti  ▶",   self._next)
         self.btn_next.pack(side="right")
         self.btn_finish = PrimaryButton(right_bar, "✓  Chiudi",
-                                         self.root.destroy, bg="#166534")
+                                         self._close, bg="#166534")
         self.btn_finish.pack(side="right")
 
-        # Pagine
+        # Pagine (EnvironmentPage prima di PackagePage: la pagina pacchetto
+        # deve conoscere l'ambiente selezionato per mostrare zip o cartella)
         self.pages = [
-            WelcomePage(    self.container, self.cfg),
-            PackagePage(    self.container, self.cfg),
-            EnvironmentPage(self.container, self.cfg, preselect=self._env),
-            PythonPage(     self.container, self.cfg),
-            DatabasePage(   self.container, self.cfg),
-            LDAPPage(       self.container, self.cfg),
-            EmailPage(      self.container, self.cfg),
-            IISPage(        self.container, self.cfg),
-            SummaryPage(    self.container, self.cfg),
-            InstallPage(    self.container, self.cfg, self._on_done),
-            FinishPage(     self.container, self.cfg),
+            WelcomePage(    self.container, self.cfg),          # 0
+            EnvironmentPage(self.container, self.cfg,           # 1
+                             preselect=self._env),
+            PackagePage(    self.container, self.cfg),          # 2
+            PythonPage(     self.container, self.cfg),          # 3
+            DatabasePage(   self.container, self.cfg),          # 4
+            LDAPPage(       self.container, self.cfg),          # 5
+            EmailPage(      self.container, self.cfg),          # 6
+            IISPage(        self.container, self.cfg),          # 7 — saltata in DEV
+            AdminPage(      self.container, self.cfg),          # 8
+            SummaryPage(    self.container, self.cfg),          # 9
+            InstallPage(    self.container, self.cfg,           # 10
+                            self._on_done),
+            FinishPage(     self.container, self.cfg),          # 11
         ]
 
     def _show(self, idx):
@@ -1471,17 +1841,35 @@ class WizardApp:
             self.btn_back._lbl.configure(state="normal" if idx > 0 else "disabled")
             self.btn_cancel._lbl.configure(state="normal")
 
+    # Indici pagine da saltare in modalità DEV
+    _PACKAGE_PAGE_IDX = 2
+    _IIS_PAGE_IDX     = 7
+
+    def _skip_for_dev(self, target_idx: int, going_forward: bool = True) -> int:
+        """Salta PackagePage (2) e IISPage (7) quando l'ambiente è DEV."""
+        if self.cfg.environment != "dev":
+            return target_idx
+        skipped = {self._PACKAGE_PAGE_IDX, self._IIS_PAGE_IDX}
+        step = 1 if going_forward else -1
+        while target_idx in skipped:
+            target_idx += step
+        return target_idx
+
     def _next(self):
         p = self.pages[self._idx]
         if p.validate():
             p.on_leave()
-            self._show(self._idx + 1)
+            self._show(self._skip_for_dev(self._idx + 1, going_forward=True))
 
     def _back(self):
-        if self._idx > 0: self._show(self._idx - 1)
+        if self._idx > 0:
+            self._show(self._skip_for_dev(self._idx - 1, going_forward=False))
+
+    def _close(self):
+        self.root.after(0, self.root.destroy)
 
     def _cancel(self):
-        if messagebox.askyesno("Annulla", "Uscire dal wizard?"): self.root.destroy()
+        if messagebox.askyesno("Annulla", "Uscire dal wizard?"): self._close()
 
     def _on_done(self):
         self._show(len(self.pages) - 1)
@@ -1707,6 +2095,7 @@ class ReleaseRunPage(Page):
         super().__init__(parent, "Esecuzione in corso",
                          "Non chiudere la finestra durante il processo")
         self.cfg = cfg; self._on_done = on_done; self._started = False
+        self._log_file = None; self._log_path = None
         b = self.body
         frame(b, height=8).pack()
 
@@ -1741,9 +2130,37 @@ class ReleaseRunPage(Page):
     def on_enter(self):
         if not self._started:
             self._started = True
+            self._open_log_file()
             threading.Thread(target=self._dispatch, daemon=True).start()
 
+    def _open_log_file(self):
+        try:
+            if getattr(sys, 'frozen', False):
+                base = Path(sys.executable).parent
+            else:
+                base = Path(__file__).parent
+            log_dir = base / "logs"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            op = "create" if self.cfg.mode == "create" else "promote"
+            self._log_path = log_dir / f"release_{op}_{ts}.log"
+            self._log_file = open(self._log_path, "w", encoding="utf-8")
+            self._log_file.write(f"Portale Novicrom — Release Manager ({op})\n")
+            self._log_file.write(f"Data: {datetime.now():%Y-%m-%d %H:%M:%S}\n")
+            if self.cfg.mode == "promote":
+                self._log_file.write(f"Ambiente: {self.cfg.environment.upper()}\n")
+            self._log_file.write("=" * 60 + "\n\n")
+            self._log_file.flush()
+        except Exception:
+            self._log_file = None
+
     def _log_line(self, text, tag=""):
+        if self._log_file:
+            try:
+                self._log_file.write(text + "\n")
+                self._log_file.flush()
+            except Exception:
+                pass
         def _do():
             self._log.configure(state="normal")
             self._log.insert("end", text+"\n", tag)
@@ -1871,6 +2288,11 @@ class ReleaseRunPage(Page):
             self._log_line(f"  {out_name} pronta per il deploy!", "ok")
             self._log_line("  Copia il .zip in  shared\\packages\\  sul server e usa Promuovi Release.", "ok")
         self._log_line("─"*50, "step")
+        if self._log_path:
+            self._log_line(f"  Log salvato in: {self._log_path}", "dim")
+        if self._log_file:
+            try: self._log_file.close()
+            except: pass
         self._log.after(800, self._on_done)
 
     # ── Promuovi Release ─────────────────────────────────────
@@ -1884,6 +2306,11 @@ class ReleaseRunPage(Page):
             self._log_line(f"  ✗ Virtualenv non trovato: {venv_py}", "err")
             self._log_line("  Esegui prima il Setup Wizard (prima installazione).", "warn")
             self._set_progress(100, "Errore — venv mancante")
+            if self._log_path:
+                self._log_line(f"  Log salvato in: {self._log_path}", "dim")
+            if self._log_file:
+                try: self._log_file.close()
+                except: pass
             self._log.after(800, self._on_done)
             return
 
@@ -2003,6 +2430,11 @@ class ReleaseRunPage(Page):
         else:
             self._log_line(f"  Release {cfg.environment.upper()} attivata!", "ok")
         self._log_line("─"*50, "step")
+        if self._log_path:
+            self._log_line(f"  Log salvato in: {self._log_path}", "dim")
+        if self._log_file:
+            try: self._log_file.close()
+            except: pass
         self._log.after(800, self._on_done)
 
 
@@ -2099,7 +2531,7 @@ class ReleaseApp:
         self.btn_next   = PrimaryButton(right_bar, "Avanti  ▶", self._next)
         self.btn_next.pack(side="right")
         self.btn_finish = PrimaryButton(right_bar, "✓  Chiudi",
-                                         self.root.destroy, bg="#166534")
+                                         self._close, bg="#166534")
         self.btn_finish.pack(side="right")
 
         self._p_mode    = ReleaseModeSelector(self.container, self.cfg)
@@ -2158,16 +2590,546 @@ class ReleaseApp:
     def _back(self):
         if self._idx > 0: self._show(self._idx - 1)
 
+    def _close(self):
+        self.root.after(0, self.root.destroy)
+
     def _cancel(self):
-        if messagebox.askyesno("Annulla", "Uscire da Gestione Release?"): self.root.destroy()
+        if messagebox.askyesno("Annulla", "Uscire da Gestione Release?"): self._close()
 
     def _on_done(self):
         self._show(3)
 
 
 # ─────────────────────────────────────────────────────────────
+# UNINSTALL
+# ─────────────────────────────────────────────────────────────
+
+class UninstallConfigPage(Page):
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Disinstalla ambiente",
+                         "Rimuove il sito IIS e l'App Pool dell'ambiente selezionato")
+        self.cfg = cfg
+        self._base = tk.StringVar(value=r"C:\PortaleNovicrom")
+        self._delete_files = tk.BooleanVar(value=False)
+        b = self.body
+
+        frame(b, height=8).pack()
+        sec = frame(b)
+        sec.pack(fill="x", padx=32)
+
+        tk.Label(sec, text="Ambiente da disinstallare", font=(SF,9,"bold"),
+                 fg=GRAY600, bg="white").pack(anchor="w", pady=(0,8))
+
+        env_opts = [
+            ("test", "TEST",
+             "Rimuove PortaleNovicrom-TEST site e App Pool",
+             (YELLOW_BG, YELLOW_BD, YELLOW_TX)),
+            ("prod", "PROD",
+             "Rimuove PortaleNovicrom-PROD site e App Pool",
+             (GREEN_BG, GREEN_BD, "#166534")),
+        ]
+        self._env_sel = CardSelector(sec, env_opts, initial="test")
+        self._env_sel.pack(fill="x")
+
+        frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=12)
+
+        tk.Label(sec, text="Directory base server", font=(SF,9,"bold"),
+                 fg=GRAY600, bg="white").pack(anchor="w", pady=(0,4))
+        row = frame(sec)
+        row.pack(fill="x")
+        tk.Entry(row, textvariable=self._base, font=FMO,
+                 relief="flat", bg=GRAY50, fg=GRAY800,
+                 highlightthickness=1, highlightbackground=GRAY200,
+                 highlightcolor=BRAND).pack(side="left", fill="x", expand=True, ipady=7, ipadx=8)
+        SecondaryButton(row, "  Sfoglia  ",
+                        lambda: self._base.set(filedialog.askdirectory() or self._base.get())
+                        ).pack(side="left", padx=(8,0))
+
+        frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=12)
+
+        chk_row = frame(sec)
+        chk_row.pack(fill="x")
+        tk.Checkbutton(chk_row,
+                       text="  Elimina anche i file dell'ambiente  (releases, venv, static, media, logs)",
+                       variable=self._delete_files,
+                       font=FN, bg="white", fg=GRAY700,
+                       activebackground="white", selectcolor="white").pack(anchor="w")
+
+        warn = frame(sec, bg=YELLOW_BG, highlightthickness=1, highlightbackground=YELLOW_BD)
+        warn.pack(fill="x", pady=(12,0))
+        tk.Label(warn,
+                 text="⚠   L'eliminazione dei file è irreversibile. Il database non viene toccato.",
+                 font=FSM, bg=YELLOW_BG, fg=YELLOW_TX).pack(anchor="w", padx=14, pady=10)
+
+    def validate(self):
+        self.cfg.environment   = self._env_sel.value
+        self.cfg.base_dir      = self._base.get().strip()
+        self.cfg.delete_files  = self._delete_files.get()
+        return bool(self.cfg.base_dir)
+
+
+class UninstallConfirmPage(Page):
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Conferma disinstallazione", "")
+        self.cfg = cfg
+        b = self.body
+        frame(b, height=8).pack()
+        self._txt = tk.Text(b, font=FMO, bg=CODE_BG, fg=CODE_FG,
+                             relief="flat", state="disabled",
+                             padx=14, pady=10, spacing1=2, cursor="arrow")
+        self._txt.pack(fill="both", expand=True, padx=32)
+        self._txt.tag_configure("h",  foreground="#58a6ff", font=("Consolas",9,"bold"))
+        self._txt.tag_configure("v",  foreground="#f85149")
+        self._txt.tag_configure("ok", foreground="#7ee787")
+        self._txt.tag_configure("dim",foreground="#8b949e")
+
+    def on_enter(self):
+        cfg = self.cfg
+        ep  = Path(cfg.base_dir) / cfg.environment
+        t   = self._txt
+        t.configure(state="normal"); t.delete("1.0", "end")
+
+        def h(s): t.insert("end", f"\n  {s}\n", "h")
+        def rv(k, v): t.insert("end", f"  {k:<28}", "dim"); t.insert("end", f"{v}\n", "v")
+        def ok(s):    t.insert("end", f"  {s}\n", "ok")
+
+        h("── Verrà rimosso ───────────────────────────────")
+        rv("Sito IIS:",      f"PortaleNovicrom-{cfg.environment.upper()}")
+        rv("App Pool:",      f"PortaleNovicrom-{cfg.environment.upper()}")
+        if cfg.delete_files:
+            rv("Directory:", str(ep))
+
+        h("── NON verrà toccato ───────────────────────────")
+        ok("  Il database SQL Server")
+        ok("  IIS (gli altri siti continuano a funzionare)")
+        if not cfg.delete_files:
+            ok(f"  I file in {ep}")
+
+        t.insert("end", "\n")
+        t.configure(state="disabled")
+
+
+class UninstallRunPage(Page):
+    def __init__(self, parent, cfg, on_done):
+        super().__init__(parent, "Disinstallazione in corso", "")
+        self.cfg = cfg; self._on_done = on_done; self._started = False
+        self._log_file = None; self._log_path = None
+        b = self.body
+        frame(b, height=8).pack()
+
+        self._step_var = tk.StringVar(value="Inizializzazione…")
+        tk.Label(b, textvariable=self._step_var,
+                 font=(SF,10,"bold"), fg=BRAND, bg="white").pack(anchor="w", padx=32)
+
+        frame(b, height=6).pack()
+        self._pb_frame = frame(b, bg=GRAY100, height=8)
+        self._pb_frame.pack(fill="x", padx=32)
+        self._pb_fill = frame(self._pb_frame, bg=RED, height=8)
+        self._pb_fill.place(x=0, y=0, relheight=1, width=0)
+        self._pb_pct = tk.StringVar(value="0%")
+        tk.Label(b, textvariable=self._pb_pct, font=FSM,
+                 fg=GRAY400, bg="white").pack(anchor="e", padx=32, pady=(3,8))
+
+        wrap = frame(b, bg=CODE_BG)
+        wrap.pack(fill="both", expand=True, padx=32, pady=(0,4))
+        sb = tk.Scrollbar(wrap); sb.pack(side="right", fill="y")
+        self._log = tk.Text(wrap, font=FMO, bg=CODE_BG, fg=CODE_FG,
+                             relief="flat", state="disabled",
+                             yscrollcommand=sb.set, padx=12, pady=8, spacing1=1)
+        self._log.pack(fill="both", expand=True)
+        sb.config(command=self._log.yview)
+        self._log.tag_configure("ok",   foreground="#7ee787")
+        self._log.tag_configure("err",  foreground="#f85149")
+        self._log.tag_configure("warn", foreground="#fbbf24")
+        self._log.tag_configure("step", foreground="#58a6ff", font=("Consolas",9,"bold"))
+        self._log.tag_configure("dim",  foreground="#484f58")
+
+    def on_enter(self):
+        if not self._started:
+            self._started = True
+            self._open_log_file()
+            threading.Thread(target=self._run, daemon=True).start()
+
+    def _open_log_file(self):
+        try:
+            if getattr(sys, 'frozen', False):
+                base = Path(sys.executable).parent
+            else:
+                base = Path(__file__).parent
+            log_dir = base / "logs"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            self._log_path = log_dir / f"uninstall_{self.cfg.environment}_{ts}.log"
+            self._log_file = open(self._log_path, "w", encoding="utf-8")
+            self._log_file.write(f"Portale Novicrom — Disinstallazione\n")
+            self._log_file.write(f"Data: {datetime.now():%Y-%m-%d %H:%M:%S}\n")
+            self._log_file.write(f"Ambiente: {self.cfg.environment.upper()}\n")
+            self._log_file.write("=" * 60 + "\n\n")
+            self._log_file.flush()
+        except Exception:
+            self._log_file = None
+
+    def _log_line(self, text, tag=""):
+        if self._log_file:
+            try: self._log_file.write(text + "\n"); self._log_file.flush()
+            except: pass
+        def _do():
+            self._log.configure(state="normal")
+            self._log.insert("end", text+"\n", tag)
+            self._log.see("end"); self._log.configure(state="disabled")
+        self._log.after(0, _do)
+
+    def _set_progress(self, pct, label=""):
+        def _do():
+            self._step_var.set(label or self._step_var.get())
+            self._pb_pct.set(f"{pct}%")
+            self._pb_frame.update_idletasks()
+            w = self._pb_frame.winfo_width()
+            self._pb_fill.place(width=int(w * pct / 100))
+        self._log.after(0, _do)
+
+    def _run(self):
+        cfg  = self.cfg
+        env  = cfg.environment.upper()
+        site = f"PortaleNovicrom-{env}"
+        pool = f"PortaleNovicrom-{env}"
+        ep   = Path(cfg.base_dir) / cfg.environment
+        errors = []
+
+        def step(title, pct):
+            self._set_progress(pct, title)
+            self._log_line(f"\n── {title} {'─'*(44-len(title))}", "step")
+
+        # 1. Ferma e rimuovi sito IIS
+        step("Rimozione sito IIS", 20)
+        ps_site = f"""
+Import-Module WebAdministration -ErrorAction SilentlyContinue
+if (Test-Path 'IIS:\\Sites\\{site}') {{
+    Stop-Website  -Name '{site}' -ErrorAction SilentlyContinue
+    Remove-Website -Name '{site}'
+    Write-Host 'OK sito rimosso'
+}} else {{
+    Write-Host 'SKIP sito non trovato'
+}}
+"""
+        try:
+            r = subprocess.run(["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps_site],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace")
+            out = (r.stdout + r.stderr).strip()
+            if "OK" in out:
+                self._log_line(f"  ✓ Sito IIS {site} rimosso", "ok")
+            elif "SKIP" in out:
+                self._log_line(f"  — Sito IIS {site} non trovato (già rimosso?)", "warn")
+            else:
+                self._log_line(f"  ✗ {out[:200]}", "err"); errors.append("sito IIS")
+        except Exception as e:
+            self._log_line(f"  ✗ {e}", "err"); errors.append(str(e))
+
+        # 2. Ferma e rimuovi App Pool
+        step("Rimozione App Pool", 55)
+        ps_pool = f"""
+Import-Module WebAdministration -ErrorAction SilentlyContinue
+if (Test-Path 'IIS:\\AppPools\\{pool}') {{
+    Stop-WebAppPool    -Name '{pool}' -ErrorAction SilentlyContinue
+    Remove-WebAppPool  -Name '{pool}'
+    Write-Host 'OK pool rimosso'
+}} else {{
+    Write-Host 'SKIP pool non trovato'
+}}
+"""
+        try:
+            r = subprocess.run(["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps_pool],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace")
+            out = (r.stdout + r.stderr).strip()
+            if "OK" in out:
+                self._log_line(f"  ✓ App Pool {pool} rimosso", "ok")
+            elif "SKIP" in out:
+                self._log_line(f"  — App Pool {pool} non trovato (già rimosso?)", "warn")
+            else:
+                self._log_line(f"  ✗ {out[:200]}", "err"); errors.append("App Pool")
+        except Exception as e:
+            self._log_line(f"  ✗ {e}", "err"); errors.append(str(e))
+
+        # 3. Elimina file (opzionale)
+        if getattr(cfg, 'delete_files', False):
+            step("Eliminazione file ambiente", 78)
+            if ep.exists():
+                try:
+                    # Rimuovi prima la junction current (rmdir /s fallisce sulle junction)
+                    cur = ep / "current"
+                    if cur.exists() or cur.is_symlink():
+                        subprocess.run(["cmd", "/c", f"rmdir \"{cur}\""],
+                                       capture_output=True)
+                        self._log_line("  ✓ Junction current rimossa", "ok")
+                    shutil.rmtree(ep)
+                    self._log_line(f"  ✓ Directory {ep} eliminata", "ok")
+                except Exception as e:
+                    self._log_line(f"  ✗ {e}", "err"); errors.append(str(e))
+            else:
+                self._log_line(f"  — Directory {ep} non trovata", "warn")
+        else:
+            self._log_line("\n  File lasciati intatti.", "dim")
+
+        self._set_progress(100, "Disinstallazione completata")
+        self._log_line("\n" + "─"*50, "step")
+        if errors:
+            self._log_line(f"  Completato con {len(errors)} errori:", "warn")
+            for e in errors: self._log_line(f"  · {e}", "warn")
+        else:
+            self._log_line(f"  Ambiente {env} rimosso da IIS.", "ok")
+            self._log_line("  IIS e gli altri siti non sono stati toccati.", "ok")
+        self._log_line("─"*50, "step")
+        if self._log_path:
+            self._log_line(f"  Log salvato in: {self._log_path}", "dim")
+        if self._log_file:
+            try: self._log_file.close()
+            except: pass
+        self._log.after(800, self._on_done)
+
+
+class UninstallDonePage(Page):
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Disinstallazione completata", "")
+        self.cfg = cfg
+        b = self.body
+        frame(b, height=16).pack()
+        self._msg = tk.Label(b, text="", font=(SF,13,"bold"),
+                              fg=GRAY700, bg="white", wraplength=560, justify="left")
+        self._msg.pack(padx=32, anchor="w")
+        frame(b, bg=GRAY100, height=1).pack(fill="x", padx=32, pady=16)
+        self._hints = frame(b)
+        self._hints.pack(fill="x", padx=32)
+        frame(b, height=16).pack()
+        tk.Label(b, text="Portale Novicrom · Costruzioni Novicrom SRL",
+                 font=FSM, fg=GRAY400, bg="white").pack(padx=32, anchor="w")
+
+    def on_enter(self):
+        for w in self._hints.winfo_children(): w.destroy()
+        env = self.cfg.environment.upper()
+        self._msg.configure(text=f"Ambiente {env} rimosso da IIS.")
+        hints = [
+            f"Il sito PortaleNovicrom-{env} e l'App Pool sono stati eliminati",
+            "IIS è ancora attivo — gli altri siti non sono stati toccati",
+            "Il database SQL Server non è stato modificato",
+        ]
+        for i, hint in enumerate(hints, 1):
+            row = frame(self._hints)
+            row.pack(fill="x", pady=3)
+            tk.Label(row, text=str(i), font=(SF,9,"bold"), bg=GRAY700, fg="white",
+                     width=2, pady=4).pack(side="left", padx=(0,12))
+            tk.Label(row, text=hint, font=FN, fg=GRAY600, bg="white").pack(side="left")
+
+
+class UninstallApp:
+    def __init__(self, initial_env=None):
+        self.cfg  = Config()
+        self._idx = 0
+        if initial_env:
+            self.cfg.environment = initial_env
+        self.cfg.delete_files = False
+
+        self.root = tk.Tk()
+        self.root.title("Portale Novicrom — Disinstalla")
+        self.root.geometry(f"{WIN_W}x{WIN_H}")
+        self.root.resizable(False, False)
+        self.root.configure(bg="white")
+        self.root.update_idletasks()
+        x = (self.root.winfo_screenwidth()  - WIN_W) // 2
+        y = (self.root.winfo_screenheight() - WIN_H) // 2 - 20
+        self.root.geometry(f"{WIN_W}x{WIN_H}+{x}+{y}")
+        self._build()
+        self._show(0)
+        self.root.mainloop()
+
+    def _build(self):
+        main = frame(self.root)
+        main.pack(fill="both", expand=True)
+        self.sidebar = Sidebar(main, steps=STEPS_UNINSTALL, subtitle="Disinstalla")
+        self.sidebar.pack(side="left", fill="y")
+
+        right = frame(main)
+        right.pack(side="left", fill="both", expand=True)
+        self.container = frame(right)
+        self.container.pack(fill="both", expand=True)
+
+        bar = frame(right, bg=GRAY50)
+        bar.configure(highlightthickness=1, highlightbackground=GRAY200)
+        bar.pack(fill="x", side="bottom")
+
+        left_bar = frame(bar, bg=GRAY50)
+        left_bar.pack(side="left", padx=20, pady=12)
+        self.btn_back   = SecondaryButton(left_bar, "◀  Indietro", self._back)
+        self.btn_back.pack(side="left")
+        self.btn_cancel = SecondaryButton(left_bar, "Annulla", self._cancel)
+        self.btn_cancel.pack(side="left", padx=(8,0))
+
+        right_bar = frame(bar, bg=GRAY50)
+        right_bar.pack(side="right", padx=20, pady=12)
+        self.btn_next   = PrimaryButton(right_bar, "Avanti  ▶", self._next,
+                                         bg=RED)
+        self.btn_next.pack(side="right")
+        self.btn_finish = PrimaryButton(right_bar, "✓  Chiudi",
+                                         self._close, bg=GRAY700)
+        self.btn_finish.pack(side="right")
+
+        self._p_config  = UninstallConfigPage(self.container, self.cfg)
+        self._p_confirm = UninstallConfirmPage(self.container, self.cfg)
+        self._p_run     = UninstallRunPage(self.container, self.cfg, self._on_done)
+        self._p_done    = UninstallDonePage(self.container, self.cfg)
+        self._pages     = [self._p_config, self._p_confirm, self._p_run, self._p_done]
+
+    def _show(self, idx):
+        for p in self._pages: p.place_forget()
+        self._pages[idx].place(x=0, y=0, relwidth=1, relheight=1)
+        self._pages[idx].on_enter()
+        self.sidebar.set(idx)
+        self._idx = idx
+
+        if idx == 3:        # Done
+            self.btn_next.pack_forget()
+            self.btn_finish.pack(side="right")
+            self.btn_back._lbl.configure(state="disabled")
+            self.btn_cancel._lbl.configure(state="disabled")
+        elif idx == 2:      # Run
+            self.btn_next.pack_forget()
+            self.btn_finish.pack_forget()
+            self.btn_back._lbl.configure(state="disabled")
+            self.btn_cancel._lbl.configure(state="disabled")
+        else:
+            self.btn_finish.pack_forget()
+            self.btn_next.pack(side="right")
+            lbl = "⚠  Disinstalla" if idx == 1 else "Avanti  ▶"
+            self.btn_next.configure_text(lbl)
+            self.btn_back._lbl.configure(state="normal" if idx > 0 else "disabled")
+            self.btn_cancel._lbl.configure(state="normal")
+
+    def _next(self):
+        if self._pages[self._idx].validate():
+            self._pages[self._idx].on_leave()
+            self._show(self._idx + 1)
+
+    def _back(self):
+        if self._idx > 0: self._show(self._idx - 1)
+
+    def _close(self):
+        self.root.after(0, self.root.destroy)
+
+    def _cancel(self):
+        if messagebox.askyesno("Annulla", "Uscire?"): self._close()
+
+    def _on_done(self): self._show(3)
+
+
+# ─────────────────────────────────────────────────────────────
+# LAUNCHER — schermata di avvio con selezione modalità
+# ─────────────────────────────────────────────────────────────
+
+class LauncherApp:
+    """Finestra di avvio: l'utente sceglie cosa fare prima di entrare nel wizard."""
+
+    def __init__(self):
+        self._choice = None
+
+        root = tk.Tk()
+        root.title("Portale Novicrom — Setup")
+        root.configure(bg="white")
+        root.resizable(False, False)
+
+        W, H = 640, 500
+        sw = root.winfo_screenwidth(); sh = root.winfo_screenheight()
+        root.geometry(f"{W}x{H}+{(sw-W)//2}+{(sh-H)//2}")
+
+        # Header
+        hdr = frame(root, bg=BRAND, height=64)
+        hdr.pack(fill="x"); hdr.pack_propagate(False)
+        tk.Label(hdr, text="Portale Novicrom", font=(SF, 15, "bold"),
+                 bg=BRAND, fg="white").pack(side="left", padx=24, pady=16)
+        tk.Label(hdr, text="Setup Wizard", font=(SF, 10),
+                 bg=BRAND, fg="#bfdbfe").pack(side="left")
+
+        # Titolo
+        frame(root, height=24, bg="white").pack()
+        tk.Label(root, text="Cosa vuoi fare?",
+                 font=(SF, 13, "bold"), fg=GRAY700, bg="white").pack()
+        tk.Label(root, text="Scegli una delle opzioni qui sotto",
+                 font=FSM, fg=GRAY400, bg="white").pack(pady=(4, 20))
+
+        # Card options
+        cards_data = [
+            ("install",
+             "Installa nuovo ambiente",
+             "Configura e installa il portale su questo server (primo avvio o nuovo ambiente)",
+             BLUE_BG, BLUE_BD, "#1d4ed8"),
+            ("release",
+             "Gestione Release",
+             "Crea un pacchetto .zip da DEV o promuovi una release su TEST / PROD",
+             GREEN_BG, GREEN_BD, "#166534"),
+            ("uninstall",
+             "Disinstalla ambiente",
+             "Rimuove il sito IIS e l'App Pool di un ambiente (TEST o PROD)",
+             "#fff1f2", "#fecdd3", "#be123c"),
+        ]
+
+        container = frame(root, bg="white")
+        container.pack(fill="x", padx=32)
+
+        for value, title, desc, bg, bd, fg in cards_data:
+            card = frame(container, bg=bg,
+                         highlightthickness=1, highlightbackground=bd)
+            card.pack(fill="x", pady=6)
+            card.configure(cursor="hand2")
+
+            inner = frame(card, bg=bg)
+            inner.pack(fill="x", padx=16, pady=12)
+            inner.configure(cursor="hand2")
+
+            tk.Label(inner, text=title, font=(SF, 10, "bold"),
+                     bg=bg, fg=fg, cursor="hand2").pack(anchor="w")
+            tk.Label(inner, text=desc, font=FSM,
+                     bg=bg, fg=GRAY600, wraplength=520,
+                     justify="left", cursor="hand2").pack(anchor="w", pady=(2, 0))
+
+            def _pick(v=value, r=root):
+                self._choice = v
+                r.after(0, r.destroy)
+
+            def _bind_all(parent, fn):
+                parent.bind("<Button-1>", lambda e, f=fn: f())
+                for child in parent.winfo_children():
+                    _bind_all(child, fn)
+
+            _bind_all(card, _pick)
+
+        frame(root, height=10, bg="white").pack()
+
+        # Footer
+        ftr = frame(root, bg=GRAY50, highlightthickness=1, highlightbackground=GRAY100)
+        ftr.pack(fill="x", side="bottom")
+        tk.Label(ftr, text="Portale Novicrom · Costruzioni Novicrom SRL",
+                 font=FSM, fg=GRAY400, bg=GRAY50).pack(pady=10)
+
+        root.mainloop()
+
+    def choice(self):
+        return self._choice
+
+
+# ─────────────────────────────────────────────────────────────
 # ENTRY POINT
 # ─────────────────────────────────────────────────────────────
+
+def _ensure_admin(msg: str) -> None:
+    """Se non admin, chiede se riavviare elevato. Esce se risponde sì."""
+    if is_admin():
+        return
+    try:
+        r = tk.Tk(); r.withdraw()
+        ans = messagebox.askyesno("Privilegi insufficienti", msg + "\n\nRiavviare come Amministratore?")
+        r.destroy()
+        if ans: run_as_admin(); sys.exit(0)
+    except Exception:
+        pass
+
 
 def main():
     preselect = None
@@ -2186,29 +3148,38 @@ def main():
         else:
             i += 1
 
-    # Modalità Release Manager
+    # ── Modalità forzata da riga di comando ──────────────────
+    if mode == "uninstall":
+        _ensure_admin("La disinstallazione richiede diritti di Amministratore.")
+        UninstallApp(); return
+
     if mode in ("release", "create", "promote"):
-        initial = mode if mode in ("create", "promote") else None
-        ReleaseApp(initial_mode=initial)
-        return
+        ReleaseApp(initial_mode=mode if mode in ("create","promote") else None); return
 
-    if preselect and preselect not in ("dev","test","prod"):
-        print(f"Ambiente non valido: {preselect}"); sys.exit(1)
+    if mode == "install" or preselect:
+        if preselect and preselect not in ("dev","test","prod"):
+            print(f"Ambiente non valido: {preselect}"); sys.exit(1)
+        if preselect in (None, "test", "prod"):
+            _ensure_admin("La configurazione IIS (TEST/PROD) richiede diritti di Amministratore.")
+        WizardApp(preselect_env=preselect); return
 
-    needs_admin = preselect in (None, "test", "prod")
-    if needs_admin and not is_admin():
-        try:
-            r = tk.Tk(); r.withdraw()
-            ans = messagebox.askyesno(
-                "Privilegi insufficienti",
-                "Stai eseguendo senza diritti di Amministratore.\n"
-                "La configurazione IIS (TEST/PROD) richiede Admin.\n\n"
-                "Riavviare come Amministratore?")
-            r.destroy()
-            if ans: run_as_admin(); sys.exit(0)
-        except Exception: pass
+    # ── Nessun argomento → mostra launcher ───────────────────
+    launcher = LauncherApp()
+    choice = launcher.choice()
 
-    WizardApp(preselect_env=preselect)
+    if choice is None:
+        return  # utente ha chiuso la finestra
+
+    if choice == "install":
+        _ensure_admin("La configurazione IIS (TEST/PROD) richiede diritti di Amministratore.")
+        WizardApp()
+
+    elif choice == "release":
+        ReleaseApp()
+
+    elif choice == "uninstall":
+        _ensure_admin("La disinstallazione richiede diritti di Amministratore.")
+        UninstallApp()
 
 if __name__ == "__main__":
     main()

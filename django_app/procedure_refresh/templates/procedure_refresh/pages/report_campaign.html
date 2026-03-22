@@ -1,0 +1,142 @@
+{% extends "core/base.html" %}
+
+{% block title %}Report per campagna | Presa Visione{% endblock %}
+
+{% block extra_head %}
+<style>
+#pr-root { display:flex; flex-direction:column; gap:20px; }
+.pr-subnav { display:flex; gap:4px; flex-wrap:wrap; }
+.pr-subnav-link { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; color:#475569; background:#f1f5f9; }
+.pr-subnav-link:hover { background:#e2e8f0; }
+.pr-subnav-link.active { background:#1d4ed8; color:#fff; }
+.pr-report-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.pr-page-title { font-size:20px; font-weight:900; color:#0f172a; }
+.pr-report-tabs { display:flex; gap:6px; flex-wrap:wrap; }
+.pr-tab { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; color:#475569; background:#f1f5f9; }
+.pr-tab:hover { background:#e2e8f0; }
+.pr-tab.active { background:#1d4ed8; color:#fff; }
+.pr-filter-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 20px; }
+.pr-filter-row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+.pr-filter-row select { padding:8px 12px; border:1px solid #d1d5db; border-radius:8px; font-size:13px; min-width:220px; }
+.pr-filter-btn { padding:8px 18px; background:#1d4ed8; color:#fff; border:none; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; }
+.pr-kpi-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; }
+.pr-kpi { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; }
+.pr-kpi-val { font-size:28px; font-weight:900; color:#0f172a; line-height:1; }
+.pr-kpi-lbl { font-size:11px; color:#64748b; font-weight:600; text-transform:uppercase; margin-top:4px; }
+.pr-kpi-green .pr-kpi-val { color:#15803d; }
+.pr-kpi-orange .pr-kpi-val { color:#d97706; }
+.pr-table-wrap { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow-x:auto; }
+.pr-table { width:100%; border-collapse:collapse; font-size:13px; }
+.pr-table th { background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:10px 14px; text-align:left; font-weight:700; color:#475569; }
+.pr-table td { padding:10px 14px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+.pr-table tr:last-child td { border-bottom:none; }
+.pr-table tr:hover td { background:#f8fafc; }
+.pr-badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
+.pr-badge-assigned { background:#dbeafe; color:#1d4ed8; }
+.pr-badge-opened { background:#fef3c7; color:#b45309; }
+.pr-badge-confirmed { background:#dcfce7; color:#15803d; }
+.pr-badge-overdue { background:#fee2e2; color:#dc2626; }
+.pr-badge-cancelled { background:#f1f5f9; color:#64748b; }
+.pr-empty { text-align:center; padding:40px; color:#64748b; font-size:14px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="pr-root">
+  {% include "procedure_refresh/components/subnav.html" with is_manager=True %}
+
+  <div class="pr-report-header">
+    <div class="pr-page-title">Report presa visione</div>
+    <div class="pr-report-tabs">
+      <a href="{% url 'procedure_refresh:report_user' %}" class="pr-tab">Per utente</a>
+      <a href="{% url 'procedure_refresh:report_document' %}" class="pr-tab">Per documento</a>
+      <a href="{% url 'procedure_refresh:report_campaign' %}" class="pr-tab active">Per campagna</a>
+    </div>
+  </div>
+
+  <div class="pr-filter-card">
+    <form method="get" class="pr-filter-row">
+      <select name="camp_id">
+        <option value="">— Seleziona campagna —</option>
+        {% for camp in campaigns %}
+          <option value="{{ camp.pk }}" {% if selected_camp and selected_camp.pk == camp.pk %}selected{% endif %}>
+            {{ camp.name }} ({{ camp.get_status_display }})
+          </option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="pr-filter-btn">Visualizza</button>
+      {% if selected_camp %}
+        <a href="{% url 'procedure_refresh:export_csv' %}?type=assignments"
+           style="padding:8px 14px;background:#f1f5f9;color:#475569;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
+          ⬇ Export CSV
+        </a>
+        <a href="{% url 'procedure_refresh:campaign_detail' pk=selected_camp.pk %}"
+           style="padding:8px 14px;background:#dbeafe;color:#1d4ed8;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
+          Gestisci campagna
+        </a>
+      {% endif %}
+    </form>
+  </div>
+
+  {% if selected_camp %}
+    {% with n_total=assignments|length %}
+      {% if n_total %}
+        <div class="pr-kpi-row">
+          <div class="pr-kpi">
+            <div class="pr-kpi-val">{{ n_total }}</div>
+            <div class="pr-kpi-lbl">Assegnazioni</div>
+          </div>
+          <div class="pr-kpi pr-kpi-green">
+            <div class="pr-kpi-val">{% for a in assignments %}{% if a.status == 'read_confirmed' %}{% cycle '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' '' as cnt %}{% endif %}{% endfor %}{{ assignments|dictsort:"status"|length }}</div>
+            <div class="pr-kpi-lbl">Da contare via server</div>
+          </div>
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div class="pr-table-wrap">
+      {% if assignments %}
+        <table class="pr-table">
+          <thead>
+            <tr>
+              <th>Utente</th>
+              <th>Documento</th>
+              <th>Rev.</th>
+              <th>Stato</th>
+              <th>Scadenza</th>
+              <th>Prima apertura</th>
+              <th>Confermato il</th>
+              <th>Nota utente</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in assignments %}
+              <tr>
+                <td>
+                  <strong>{{ a.user.get_full_name|default:a.user.username }}</strong><br>
+                  <span style="font-size:11px;color:#64748b;">{{ a.user.email }}</span>
+                </td>
+                <td>{{ a.revision.document.code }}<br><span style="font-size:11px;color:#64748b;">{{ a.revision.document.document_type }}</span></td>
+                <td>{{ a.revision.revision_code }}</td>
+                <td>
+                  {% if a.status == 'assigned' %}<span class="pr-badge pr-badge-assigned">Assegnata</span>
+                  {% elif a.status == 'opened' %}<span class="pr-badge pr-badge-opened">Aperta</span>
+                  {% elif a.status == 'read_confirmed' %}<span class="pr-badge pr-badge-confirmed">✓ Confermata</span>
+                  {% elif a.status == 'overdue' %}<span class="pr-badge pr-badge-overdue">Scaduta</span>
+                  {% else %}<span class="pr-badge pr-badge-cancelled">{{ a.get_status_display }}</span>{% endif %}
+                </td>
+                <td>{{ a.due_date|date:"d/m/Y"|default:"—" }}</td>
+                <td>{{ a.first_opened_at|date:"d/m/Y H:i"|default:"—" }}</td>
+                <td>{{ a.read_confirmed_at|date:"d/m/Y H:i"|default:"—" }}</td>
+                <td style="max-width:160px;color:#64748b;font-size:12px;">{{ a.user_note|default:"—"|truncatechars:50 }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div class="pr-empty">Nessuna assegnazione per questa campagna.</div>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Guida Gestione Permessi - Portale Novicrom</title>
+  <style>
+    :root {
+      --bg: #f3f7fc;
+      --card: #ffffff;
+      --ink: #12263b;
+      --muted: #53697f;
+      --brand: #123d65;
+      --brand2: #1f629a;
+      --line: #d9e4ef;
+      --accent: #f2a43a;
+      --ok: #1d7e4f;
+      --warn: #bf8619;
+      --rose: #b4234c;
+      --blue: #1e4da3;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Calibri", sans-serif;
+      color: var(--ink);
+      background: radial-gradient(1200px 500px at 10% -10%, #dbe9f8 0, var(--bg) 60%);
+      line-height: 1.5;
+    }
+    .wrap { max-width: 1060px; margin: 0 auto; padding: 22px; }
+
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(120deg, var(--brand), var(--brand2));
+      color: #fff;
+      border-radius: 16px;
+      padding: 28px 30px;
+      box-shadow: 0 12px 28px rgba(13,43,71,.22);
+    }
+    .hero .kicker {
+      display: inline-block;
+      font-size: 12px;
+      border: 1px solid rgba(255,255,255,.25);
+      border-radius: 999px;
+      padding: 4px 12px;
+      margin-bottom: 10px;
+      background: rgba(255,255,255,.12);
+      letter-spacing: .2px;
+    }
+    .hero h1 { margin: 4px 0 6px; font-size: 32px; font-weight: 800; }
+    .hero .sub { margin: 0; font-size: 15px; opacity: .92; }
+    .hero .meta { margin-top: 12px; font-size: 12px; opacity: .8; }
+
+    /* ── Sezioni ── */
+    .section {
+      margin-top: 14px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 3px 12px rgba(12,40,68,.05);
+      padding: 20px 22px;
+    }
+    h2 {
+      margin: 0 0 14px;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--brand);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h2 .icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: var(--brand2); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; flex-shrink: 0;
+    }
+    h3 { margin: 18px 0 8px; font-size: 15px; font-weight: 700; color: var(--brand2); }
+    p  { margin: 0 0 10px; font-size: 14px; }
+    ul, ol { margin: 0 0 10px; padding-left: 22px; font-size: 14px; }
+    li { margin-bottom: 4px; }
+    code {
+      font-family: "Consolas", "Cascadia Code", monospace;
+      background: #edf3fb;
+      border: 1px solid #c8d8ed;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 12px;
+      color: var(--blue);
+    }
+
+    /* ── Steps ── */
+    .steps { display: flex; flex-direction: column; gap: 10px; margin: 10px 0; }
+    .step {
+      display: flex; gap: 14px; align-items: flex-start;
+      background: #f6faff; border: 1px solid var(--line);
+      border-radius: 10px; padding: 12px 16px;
+    }
+    .step-num {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--brand2); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 13px; flex-shrink: 0;
+    }
+    .step-body { font-size: 14px; }
+    .step-body strong { display: block; margin-bottom: 2px; }
+
+    /* ── Tabella ── */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 10px 0; }
+    thead tr { background: var(--brand); color: #fff; }
+    thead th { padding: 9px 12px; font-weight: 600; text-align: left; }
+    tbody tr:nth-child(even) { background: #f4f8fd; }
+    tbody td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    tbody tr:last-child td { border-bottom: none; }
+
+    /* ── Badge / call-out ── */
+    .badge {
+      display: inline-block; padding: 2px 10px; border-radius: 999px;
+      font-size: 12px; font-weight: 600;
+    }
+    .badge-ok   { background: #dcfce7; color: #166534; }
+    .badge-warn { background: #fef9c3; color: #854d0e; }
+    .badge-off  { background: #f1f5f9; color: #64748b; }
+    .badge-blue { background: #dbeafe; color: #1e40af; }
+
+    .callout {
+      border-left: 4px solid var(--accent);
+      background: #fffbf0;
+      border-radius: 0 8px 8px 0;
+      padding: 10px 14px;
+      font-size: 13px;
+      margin: 12px 0;
+    }
+    .callout.info { border-color: var(--brand2); background: #eff6ff; }
+    .callout strong { display: block; margin-bottom: 3px; }
+
+    /* ── Griglia pagine ── */
+    .page-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin: 10px 0; }
+    .page-card {
+      border: 1px solid var(--line); border-radius: 10px;
+      padding: 14px 16px; background: #f6faff;
+    }
+    .page-card h4 { margin: 0 0 6px; font-size: 14px; color: var(--brand2); }
+    .page-card p  { margin: 0; font-size: 13px; color: var(--muted); }
+    .page-card .url { font-family: monospace; font-size: 11px; color: #94a3b8; display: block; margin-top: 6px; }
+
+    /* ── Print ── */
+    @media print {
+      body { background: #fff; }
+      .wrap { padding: 0; }
+      .hero { box-shadow: none; }
+      .section { box-shadow: none; page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="kicker">Portale Novicrom — Documentazione</div>
+    <h1>Gestione Permessi</h1>
+    <p class="sub">Guida operativa completa: Gestione Accessi, Wizard Ruolo e Matrice Permessi.</p>
+    <div class="meta">Versione app: 0.8.2 &nbsp;·&nbsp; Aggiornato: marzo 2026 &nbsp;·&nbsp; Area: Admin Portale → Gestione Accessi</div>
+  </div>
+
+  <!-- Panoramica -->
+  <div class="section">
+    <h2><span class="icon">🗺</span> Panoramica del sistema</h2>
+    <p>
+      Il portale usa un motore ACL (Access Control List) basato su <strong>ruoli</strong> e <strong>pulsanti</strong>.
+      Ogni sezione del portale corrisponde a uno o più <em>pulsanti</em> registrati nel database legacy;
+      ogni ruolo può avere un record <em>Permesso</em> per ogni pulsante con quattro flag indipendenti.
+    </p>
+
+    <div class="page-grid">
+      <div class="page-card">
+        <h4>🎛 Gestione Accessi</h4>
+        <p>Pagina unificata: per un ruolo configura tutti i moduli e tutti i flag in un'unica schermata ad accordion.</p>
+        <span class="url">/admin-portale/gestione-accessi/</span>
+      </div>
+      <div class="page-card">
+        <h4>🪄 Wizard Configura Ruolo</h4>
+        <p>Flusso guidato in 3 passi con caricamento AJAX, badge live e riepilogo modifiche prima del salvataggio.</p>
+        <span class="url">/admin-portale/wizard-ruolo/</span>
+      </div>
+      <div class="page-card">
+        <h4>🔢 Matrice Permessi</h4>
+        <p>Vista trasversale: scegli un modulo e vedi tutti i ruoli in colonna. Utile per confrontare chi può fare cosa.</p>
+        <span class="url">/admin-portale/matrice-permessi/</span>
+      </div>
+    </div>
+
+    <div class="callout info">
+      <strong>Dove si trovano</strong>
+      Tutte e tre le pagine sono accessibili dalla barra di navigazione Admin Portale:
+      <code>Admin Portale → Gestione Accessi / Wizard / Matrice</code>
+    </div>
+  </div>
+
+  <!-- I 4 flag -->
+  <div class="section">
+    <h2><span class="icon">🔑</span> I quattro flag di permesso</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Flag</th>
+          <th>Etichetta UI</th>
+          <th>Significato operativo</th>
+          <th>Minimo necessario</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>can_view</code></td>
+          <td><span class="badge badge-blue">Visibile</span></td>
+          <td>L'utente può accedere alla sezione senza ricevere errore 403. È il flag fondamentale.</td>
+          <td><strong>Sì</strong> — senza questo tutti gli altri sono irrilevanti</td>
+        </tr>
+        <tr>
+          <td><code>can_edit</code></td>
+          <td><span class="badge badge-warn">Modifica</span></td>
+          <td>Può creare o modificare record nella sezione. Dipende dall'implementazione di ogni modulo.</td>
+          <td>No — opzionale</td>
+        </tr>
+        <tr>
+          <td><code>can_delete</code></td>
+          <td><span class="badge badge-warn">Elimina</span></td>
+          <td>Può cancellare record o voci. Dipende dall'implementazione di ogni modulo.</td>
+          <td>No — opzionale</td>
+        </tr>
+        <tr>
+          <td><code>can_approve</code></td>
+          <td><span class="badge badge-ok">Approva</span></td>
+          <td>Può approvare o validare richieste (es. DPI, assenze). Dipende dall'implementazione di ogni modulo.</td>
+          <td>No — opzionale</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="callout">
+      <strong>Regola d'oro</strong>
+      Attivare solo <strong>Visibile</strong> è sufficiente per rimuovere il 403 e far accedere l'utente alla sezione.
+      Gli altri tre flag vengono letti dal codice delle singole app che li supportano.
+    </div>
+  </div>
+
+  <!-- Gestione Accessi -->
+  <div class="section">
+    <h2><span class="icon">🎛</span> Pagina: Gestione Accessi</h2>
+    <p>La pagina principale per la gestione quotidiana dei permessi. Mostra tutti i moduli del portale
+       organizzati in accordion, con i pulsanti di ogni modulo e i relativi flag.</p>
+
+    <h3>Come si usa</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong>Seleziona il ruolo</strong>
+          Dal selettore in cima scegli il ruolo da configurare. La pagina mostra subito la situazione attuale.
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong>Espandi i moduli che vuoi modificare</strong>
+          Ogni accordion mostra il nome del modulo, un badge di stato
+          (<span class="badge badge-ok">tutto ON</span> /
+           <span class="badge badge-warn">parziale</span> /
+           <span class="badge badge-off">tutto OFF</span>)
+          e il numero di pulsanti attivi.
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <strong>Modifica i flag</strong>
+          Usa il checkbox <strong>master</strong> nell'intestazione del modulo per accendere/spegnere tutto il modulo,
+          oppure le singole colonne (Visibile / Modifica / Elimina / Approva) per ogni pulsante.
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <strong>Salva</strong>
+          Tasto <strong>Salva permessi</strong> in fondo alla pagina. Le modifiche sono attive immediatamente.
+        </div>
+      </div>
+    </div>
+
+    <h3>Tasti rapidi globali</h3>
+    <table>
+      <thead><tr><th>Tasto</th><th>Effetto</th></tr></thead>
+      <tbody>
+        <tr><td><code>Espandi tutti</code></td><td>Apre tutti gli accordion contemporaneamente</td></tr>
+        <tr><td><code>Comprimi tutti</code></td><td>Chiude tutti gli accordion</td></tr>
+        <tr><td><code>Tutti ON</code></td><td>Attiva <em>can_view</em> su ogni pulsante di ogni modulo</td></tr>
+        <tr><td><code>Tutti OFF</code></td><td>Disattiva <em>can_view</em> su tutto</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Wizard -->
+  <div class="section">
+    <h2><span class="icon">🪄</span> Pagina: Wizard Configura Ruolo</h2>
+    <p>Flusso guidato in 3 passi. Ideale per configurare un ruolo da zero o per una revisione completa
+       dei permessi con riepilogo finale prima di salvare.</p>
+
+    <h3>Passo 1 — Scegli il ruolo</h3>
+    <p>
+      Clicca il nome del ruolo. Il wizard carica i permessi in background tramite AJAX
+      (nessun reload della pagina) e avanza automaticamente al passo 2.
+      Durante il caricamento appare uno spinner inline sul ruolo selezionato.
+    </p>
+
+    <h3>Passo 2 — Configura i permessi</h3>
+    <p>I moduli sono mostrati come card. Ogni card ha:</p>
+    <ul>
+      <li><strong>Badge contatore</strong> aggiornato in tempo reale (es. <code>3/5</code>) — verde se tutti ON, giallo se parziale, grigio se tutti OFF</li>
+      <li><strong>Intestazione cliccabile</strong> per collassare/espandere la card</li>
+      <li><strong>Tutto ON / Tutto OFF</strong> per il modulo intero</li>
+      <li><strong>Toggle visibile</strong> (principale) + checkbox modifica/elimina/approva per ogni pulsante</li>
+      <li><strong>Tutto</strong> per ogni riga — seleziona/deseleziona tutti i flag della riga in un click</li>
+    </ul>
+    <p>In cima all'area: un <strong>campo di ricerca</strong> per filtrare i moduli per nome, e un <strong>contatore globale</strong> <code>X / Y visibili</code> aggiornato a ogni toggle.</p>
+
+    <h3>Passo 3 — Riepilogo e salva</h3>
+    <p>
+      Mostra solo le modifiche rispetto allo stato iniziale, raggruppate per modulo,
+      con etichette leggibili (Visibile / Modifica / Elimina / Approva) e badge
+      <span class="badge badge-ok">ON</span> /
+      <span class="badge" style="background:#fee2e2;color:#991b1b;">OFF</span>
+      per ogni campo cambiato.
+      Se non ci sono modifiche, viene mostrato un messaggio esplicito.
+    </p>
+    <p>Dopo il salvataggio il wizard torna automaticamente a <strong>Gestione Accessi</strong> con il ruolo già selezionato.</p>
+  </div>
+
+  <!-- Matrice -->
+  <div class="section">
+    <h2><span class="icon">🔢</span> Pagina: Matrice Permessi</h2>
+    <p>Vista trasversale per un singolo modulo: righe = pulsanti, colonne = ruoli.
+       Utile per capire in un colpo d'occhio chi ha accesso a cosa, o per allineare più ruoli sullo stesso modulo.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong>Seleziona il modulo</strong>
+          Dal dropdown scegli il modulo e clicca <code>Carica</code>.
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong>Modifica le celle</strong>
+          Ogni spunta corrisponde a <code>can_view = 1</code> per quella combinazione pulsante + ruolo.
+          Clicca l'intestazione di colonna (nome ruolo) per attivare/disattivare tutta la colonna in un click.
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <strong>Salva</strong>
+          Tasto <strong>Salva Matrice</strong> in fondo. Le celle non spuntate impostano <code>can_view = 0</code>.
+        </div>
+      </div>
+    </div>
+
+    <h3>Azioni di massa</h3>
+    <table>
+      <thead><tr><th>Azione</th><th>Effetto</th></tr></thead>
+      <tbody>
+        <tr><td><code>Tutti ON</code></td><td>Spunta tutte le celle della tabella</td></tr>
+        <tr><td><code>Tutti OFF</code></td><td>Deseleziona tutte le celle</td></tr>
+        <tr><td>Click su <em>nome ruolo</em> (bottone o intestazione)</td><td>Toggle di tutta la colonna quel ruolo</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Nota</strong>
+      La matrice gestisce solo <code>can_view</code>. Per modificare gli altri flag usa
+      <strong>Gestione Accessi</strong> o il <strong>Wizard</strong>.
+    </div>
+  </div>
+
+  <!-- Effetti in tempo reale -->
+  <div class="section">
+    <h2><span class="icon">⚡</span> Quando le modifiche hanno effetto</h2>
+    <p>
+      Le modifiche ai permessi sono <strong>immediate</strong>: al salvataggio il sistema invalida automaticamente
+      la cache ACL su tutti i worker del server. Non serve riavviare il server, fare logout/login o
+      svuotare cache manualmente.
+    </p>
+    <p>
+      Il cambio è attivo alla <strong>prima richiesta HTTP successiva</strong> dell'utente interessato.
+    </p>
+  </div>
+
+  <!-- Casi d'uso -->
+  <div class="section">
+    <h2><span class="icon">📋</span> Casi d'uso comuni</h2>
+
+    <h3>Nuovo dipendente — configurare un ruolo esistente</h3>
+    <ol>
+      <li>Admin Portale → <strong>Utenti</strong> → cerca l'utente → assegna il ruolo corretto</li>
+      <li>Nessuna altra azione necessaria — il nuovo utente eredita i permessi del ruolo</li>
+      <li>Se servono permessi diversi dal ruolo standard, usare <strong>Gestione Accessi</strong> per creare un ruolo dedicato</li>
+    </ol>
+
+    <h3>Nuovo ruolo da configurare da zero</h3>
+    <ol>
+      <li>Creare il ruolo nella tabella legacy (via Admin Portale → Permessi, o direttamente su DB)</li>
+      <li>Andare su <strong>Wizard Configura Ruolo</strong> → selezionare il nuovo ruolo</li>
+      <li>Passo 2: attivare i moduli necessari con Tutto ON per modulo, poi raffinare i flag</li>
+      <li>Passo 3: verificare il riepilogo e salvare</li>
+    </ol>
+
+    <h3>Verificare chi può accedere a un modulo</h3>
+    <ol>
+      <li>Andare su <strong>Matrice Permessi</strong></li>
+      <li>Selezionare il modulo dal dropdown</li>
+      <li>Leggere la colonna di ogni ruolo — spunta verde = accesso attivo</li>
+    </ol>
+
+    <h3>Togliere accesso a un intero modulo per un ruolo</h3>
+    <ol>
+      <li>Andare su <strong>Gestione Accessi</strong> → selezionare il ruolo</li>
+      <li>Trovare il modulo (usare il campo ricerca se necessario)</li>
+      <li>Cliccare il checkbox master nell'intestazione del modulo → diventa grigio (tutti OFF)</li>
+      <li>Salvare</li>
+    </ol>
+  </div>
+
+  <!-- Footer -->
+  <div style="text-align:center;padding:24px 0 10px;font-size:12px;color:var(--muted);">
+    Portale Novicrom — Documentazione interna &nbsp;·&nbsp; v0.8.2 &nbsp;·&nbsp; marzo 2026
+  </div>
+
+</div>
+</body>
+</html>

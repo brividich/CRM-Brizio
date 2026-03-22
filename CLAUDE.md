@@ -1,7 +1,7 @@
 # CLAUDE.md — Portale Novicrom
 
 Documento di contesto per AI coding assistant. Aggiornato continuamente con il progetto.
-Versione app corrente: **0.8.2**
+Versione app corrente: **0.8.5**
 
 ---
 
@@ -39,6 +39,7 @@ Versione app corrente: **0.8.2**
 | `hub_tools` | Hub strumenti interni: Module Manager + Database Manager |
 | `setup_wizard` | Wizard guidato prima configurazione (12 step) |
 | `dpi` | Gestione DPI (Dispositivi Protezione Individuale): richieste con card-picker immagini, approvazione, consegna, storico, KPI |
+| `procedure_refresh` | Presa visione procedure MT/MTSI: anagrafica documenti, revisioni con sorgente SharePoint/file server, campagne, assegnazioni, tracking aperture/conferme, report, export CSV |
 
 ---
 
@@ -50,8 +51,8 @@ Versione app corrente: **0.8.2**
 
 - File: `core/acl.py`, `core/middleware.py`
 - Pipeline: `path → _match_pulsante() → modulo+azione → perm_map per ruolo_id → 403/pass`
-- Tabelle SQL Server legacy (non managed Django): `utenti`, `ruoli`, `pulsanti`, `permessi`
-- Modelli unmanaged: `core/legacy_models.py` — `Ruolo`, `UtenteLegacy`, `Pulsante`, `Permesso`, `AnagraficaDipendente`
+- Tabelle SQL Server legacy: `utenti`, `ruoli`, `pulsanti`, `permessi`, `anagrafica_dipendenti`
+- Modelli in `core/legacy_models.py` — `Ruolo`, `UtenteLegacy`, `Pulsante`, `Permesso`, `AnagraficaDipendente` — ora `managed=True` (app_label="core"), migration `0029_legacy_managed` applicata con `--fake` (tabelle preesistenti su SQL Server)
 - Bypass totale per `is_legacy_admin()`: cerca `ruolo.nome == "admin"` (case-insensitive)
 - Bypass totale per `request.user.is_superuser`
 - Cache ACL gestita da `core/legacy_cache.py` con chiavi versionare e `bump_legacy_cache_version()` (usa Django cache framework, non `lru_cache`)
@@ -113,6 +114,19 @@ Pattern: `AppConfig.ready()` → chiama `bootstrap_*_acl_endpoints()` → upsert
 
 ---
 
+## Aggiornamenti obbligatori dopo ogni modifica
+
+**REGOLA: dopo ogni modifica al codice (nuova funzionalità, bugfix, refactor significativo) aggiornare SEMPRE e AUTOMATICAMENTE questi file, senza aspettare istruzioni esplicite:**
+
+1. **`CLAUDE.md`** — aggiornare la sezione pertinente (nuova app, nuovo modello, nuovo pattern, nuova regola)
+2. **`CHANGELOG.md`** — aggiungere o aggiornare la voce nella sezione della versione corrente
+3. **`README.md`** — aggiornare se la modifica cambia funzionalità visibili, URL, setup o dipendenze
+4. **Versione** — se la modifica è rilevante per l'utente finale, applicare la checklist "Bump di versione" qui sotto
+
+Questo aggiornamento è parte integrante di ogni task, non un'attività opzionale.
+
+---
+
 ## Bump di versione — checklist obbligatoria
 
 Ad ogni bump di versione (es. 0.7.3 → 0.7.4) aggiornare **tutti** questi punti, senza eccezioni:
@@ -125,6 +139,37 @@ Ad ogni bump di versione (es. 0.7.3 → 0.7.4) aggiornare **tutti** questi punti
 6. `CHANGELOG.md` — aggiungere sezione `## X.Y.Z - YYYY-MM-DD`
 
 Il file `.env` ha **la precedenza** su tutti i default nel codice: se non viene aggiornato, la UI mostrerà sempre il valore vecchio indipendentemente dagli altri file.
+
+---
+
+## Setup Wizard — regola obbligatoria
+
+**Dopo ogni modifica a `deployment/setup_wizard.py` rigenerare SEMPRE il file `SetupWizard.exe`.**
+
+Comando da eseguire (dalla root del repo, in bash):
+
+```bash
+cd "c:/Dev/Portale Novicrom/deployment" && python -m PyInstaller SetupWizard.spec --noconfirm
+```
+
+Output atteso finale: `Build complete! The results are available in: .../deployment/dist`
+
+Il file `.exe` è l'unico artefatto distribuito agli utenti finali — se non viene rigenerato, le modifiche al wizard non raggiungono chi non ha Python installato.
+
+- Spec file: `deployment/SetupWizard.spec`
+- Output: `deployment/dist/SetupWizard.exe` (escluso da git via `.gitignore`)
+- Dimensione attesa: ≈56 MB (include sorgente Django bundled per installazione DEV self-contained)
+
+**Trigger obbligatori — rigenerare l'exe dopo qualsiasi modifica a:**
+
+| File / cartella | Motivo |
+| --- | --- |
+| `deployment/setup_wizard.py` | Il wizard stesso è compilato nell'exe |
+| `django_app/` (qualsiasi file) | Il sorgente Django è bundled nell'exe per DEV self-contained |
+| `deployment/scripts/*.ps1` | Script PowerShell inclusi in `datas` dello spec |
+| `deployment/config/*.template` | Template inclusi in `datas` dello spec |
+| `deployment/SetupWizard.spec` | Cambia la struttura del bundle |
+| Bump di versione | Il numero versione nel wizard deve corrispondere |
 
 ---
 
@@ -198,7 +243,7 @@ Percorso: `/admin-portale/hub/` — richiede `is_legacy_admin()`.
 | App | Modelli | Note |
 | --- | --- | --- |
 | `core` | 22 | Profile, NavigationItem, NavigationRoleAccess, AuditLog, SiteConfig, Notifica, UserExtraInfo, Checklist*, AnagraficaVoce/Risposta, Dashboard configs, RepartoCapoMapping, OptioneConfig, LoginBanner, LegacyRedirect, NavigationSnapshot |
-| `legacy` (unmanaged) | 5 | Ruolo, UtenteLegacy, AnagraficaDipendente, Pulsante, Permesso — tabelle SQL Server preesistenti, `managed=False` |
+| `core` (legacy, ex-unmanaged) | +5 | Ruolo, UtenteLegacy, AnagraficaDipendente, Pulsante, Permesso — ora `managed=True` sotto `core`, migration 0029 faked |
 | `assets` | 25 | Asset, AssetCategory, AssetITDetails, WorkMachine, WorkOrder, WorkOrderAttachment/Log, PeriodicVerification, AssetEndpoint, PlantLayout/Area/Marker, AssetDocument, AssetLabelTemplate + modelli config UI |
 | `tasks` | 7 | Project, Task, SubTask, TaskComment, ProjectComment, TaskEvent, TaskAttachment |
 | `automazioni` | 6 | AutomationRule, AutomationCondition, AutomationAction, AutomationRunLog, AutomationActionLog, DashboardMetricValue |
@@ -211,6 +256,7 @@ Percorso: `/admin-portale/hub/` — richiede `is_legacy_admin()`.
 | `rentri` | 1 | RegistroRifiuti |
 | `assenze` | 1 | CertificazionePresenza |
 | `dpi` | 5 | CategoriaDPI (con immagine, vita utile), DPIImpostazioni (singleton), RichiestaDPI (numero DPI-YYYY-NNNN, stati), ConsegnaDPI (1:1 con RichiestaDPI), RichiestaDPICommento |
+| `procedure_refresh` | 6 | ProcedureDocument (code univoco, tipo MT/MTSI/ALTRO), ProcedureRevision (sorgente sharepoint/fileserver, unicità is_current per documento, validazione URL/path), ProcedureCampaign (stati draft/published/closed/archived), ProcedureCampaignDocument (FK campagna+revisione, unique_together), ProcedureAssignment (FK utente Django, stati assigned→opened→read_confirmed/overdue/cancelled, tracking aperture: open_count, first_opened_at, last_opened_at, IP, user_agent), ProcedureReadEvent (log eventi opened/confirmed/reminder_sent/reassigned/exported) |
 
 **Relazioni inter-app principali:**
 
@@ -225,7 +271,7 @@ Percorso: `/admin-portale/hub/` — richiede `is_legacy_admin()`.
 
 Questi componenti esistono solo sul server di produzione:
 
-- Tabelle legacy SQL Server: `utenti`, `ruoli`, `pulsanti`, `permessi`, `anagrafica_dipendenti` — DDL non nel repo, nessuna migration Django
+- Tabelle legacy SQL Server: `utenti`, `ruoli`, `pulsanti`, `permessi`, `anagrafica_dipendenti` — DDL non nel repo, migration Django `0029_legacy_managed` presente ma applicata con `--fake` (tabelle preesistenti)
 - Trigger SQL Server per assenze (`sql/`): `trg_assenze_automation_after_insert`, `trg_assenze_automation_after_update`
 - Tabella `automation_event_queue` (`sql/automation_event_queue.sql`)
 - SharePoint/Graph data (credenziali `GRAPH_*` nel `.env`)
@@ -269,6 +315,7 @@ Tutte le app sono incluse in `config/urls.py`. Prefissi notevoli:
 | `/rilevazione-incidenti/` | `rilevazione_incidenti` |
 | `/notizie/` | `notizie` |
 | `/dpi/` | `dpi` |
+| `/procedure-refresh/` | `procedure_refresh` |
 | `/admin/` | Django admin nativo |
 
 Le app `dashboard`, `assenze`, `anomalie`, `timbri`, `rentri`, `core`, `planimetria` usano prefisso vuoto `""` (i path sono definiti internamente al loro `urls.py`).

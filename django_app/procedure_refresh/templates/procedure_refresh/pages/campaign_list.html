@@ -1,0 +1,96 @@
+{% extends "core/base.html" %}
+
+{% block title %}Campagne Presa Visione | Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+#pr-root { display:flex; flex-direction:column; gap:20px; }
+.pr-subnav { display:flex; gap:4px; flex-wrap:wrap; }
+.pr-subnav-link { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; color:#475569; background:#f1f5f9; }
+.pr-subnav-link:hover { background:#e2e8f0; }
+.pr-subnav-link.active { background:#1d4ed8; color:#fff; }
+
+.pr-header-row { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.pr-page-title { font-size:20px; font-weight:900; color:#0f172a; }
+.pr-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 18px; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; background:#1d4ed8; color:#fff; }
+.pr-btn:hover { background:#1e40af; }
+.pr-btn-sm { padding:5px 12px; font-size:12px; border-radius:7px; }
+.pr-btn-gray { background:#f1f5f9; color:#475569; }
+.pr-btn-gray:hover { background:#e2e8f0; color:#0f172a; }
+
+.pr-table-wrap { background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow-x:auto; }
+.pr-table { width:100%; border-collapse:collapse; font-size:13px; }
+.pr-table th { background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:10px 14px; text-align:left; font-weight:700; color:#475569; }
+.pr-table td { padding:10px 14px; border-bottom:1px solid #f1f5f9; color:#0f172a; vertical-align:middle; }
+.pr-table tr:last-child td { border-bottom:none; }
+.pr-table tr:hover td { background:#f8fafc; }
+
+.pr-badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
+.pr-badge-draft { background:#f1f5f9; color:#475569; }
+.pr-badge-published { background:#dbeafe; color:#1d4ed8; }
+.pr-badge-closed { background:#dcfce7; color:#15803d; }
+.pr-badge-archived { background:#e2e8f0; color:#64748b; }
+.pr-empty { text-align:center; padding:40px; color:#64748b; font-size:14px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="pr-root">
+  {% include "procedure_refresh/components/subnav.html" with is_manager=True %}
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div style="padding:12px 16px;border-radius:10px;background:{% if 'error' in msg.tags %}#fee2e2{% else %}#dcfce7{% endif %};color:{% if 'error' in msg.tags %}#dc2626{% else %}#15803d{% endif %};font-size:13px;font-weight:600;">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="pr-header-row">
+    <div class="pr-page-title">Campagne refresh</div>
+    <a href="{% url 'procedure_refresh:campaign_create' %}" class="pr-btn">+ Nuova campagna</a>
+  </div>
+
+  <div class="pr-table-wrap">
+    {% if campaigns %}
+      <table class="pr-table">
+        <thead>
+          <tr>
+            <th>Nome campagna</th>
+            <th>Stato</th>
+            <th>Inizio</th>
+            <th>Scadenza</th>
+            <th>Creata da</th>
+            <th>Pubblicata il</th>
+            <th>Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for camp in campaigns %}
+            <tr>
+              <td><strong>{{ camp.name }}</strong></td>
+              <td>
+                {% if camp.status == 'draft' %}<span class="pr-badge pr-badge-draft">Bozza</span>
+                {% elif camp.status == 'published' %}<span class="pr-badge pr-badge-published">Pubblicata</span>
+                {% elif camp.status == 'closed' %}<span class="pr-badge pr-badge-closed">Chiusa</span>
+                {% else %}<span class="pr-badge pr-badge-archived">{{ camp.get_status_display }}</span>
+                {% endif %}
+              </td>
+              <td>{{ camp.start_date|date:"d/m/Y" }}</td>
+              <td>{{ camp.due_date|date:"d/m/Y" }}</td>
+              <td>{{ camp.created_by.get_full_name|default:camp.created_by.username|default:"—" }}</td>
+              <td>{{ camp.published_at|date:"d/m/Y"|default:"—" }}</td>
+              <td>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                  <a href="{% url 'procedure_refresh:campaign_detail' pk=camp.pk %}" class="pr-btn pr-btn-sm">Gestisci</a>
+                  <a href="{% url 'procedure_refresh:campaign_edit' pk=camp.pk %}" class="pr-btn pr-btn-sm pr-btn-gray">Modifica</a>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="pr-empty">Nessuna campagna. <a href="{% url 'procedure_refresh:campaign_create' %}">Creane una</a>.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

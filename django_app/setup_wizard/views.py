@@ -245,7 +245,7 @@ def api_save(request):
 # ── BrizioHUB — Configurazione generata dal Setup Wizard ──────────────────────
 INSTANCE_NAME={instance_name}
 DJANGO_SECRET_KEY={secret_key}
-APP_VERSION={s('app_version', '0.8.2')}
+APP_VERSION={s('app_version', '0.8.5')}
 DJANGO_DEBUG={b('debug')}
 DJANGO_ALLOWED_HOSTS={s('allowed_hosts')}
 SETUP_COMPLETED=1
@@ -502,6 +502,7 @@ def api_set_modules(request):
     all_optional = [
         "assenze", "anomalie", "assets", "tasks", "tickets",
         "notizie", "anagrafica", "automazioni", "timbri", "planimetria",
+        "dpi", "procedure_refresh",
     ]
 
     try:

@@ -1,0 +1,202 @@
+{% extends "core/base.html" %}
+
+{% block title %}{% if revision %}Modifica revisione{% else %}Nuova revisione{% endif %} — {{ document.code }} | Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+#pr-root { display:flex; flex-direction:column; gap:20px; max-width:700px; }
+.pr-doc-info { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; font-size:13px; color:#475569; }
+.pr-doc-info strong { color:#0f172a; }
+.pr-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:24px; }
+.pr-card-title { font-size:17px; font-weight:800; color:#0f172a; margin-bottom:20px; }
+.pr-form-group { margin-bottom:16px; }
+.pr-form-group label { display:block; font-size:13px; font-weight:700; color:#374151; margin-bottom:5px; }
+.pr-form-group input, .pr-form-group select, .pr-form-group textarea {
+  width:100%; padding:9px 12px; border:1px solid #d1d5db; border-radius:8px; font-size:13px; color:#0f172a; background:#fff;
+}
+.pr-form-group input:focus, .pr-form-group select:focus {
+  outline:none; border-color:#1d4ed8; box-shadow:0 0 0 3px rgba(29,78,216,.1);
+}
+.pr-form-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.pr-source-section { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:16px; }
+.pr-source-section h4 { font-size:13px; font-weight:700; color:#374151; margin:0 0 12px; }
+.pr-check-row { display:flex; align-items:center; gap:8px; }
+.pr-check-row input[type=checkbox] { width:16px; height:16px; accent-color:#1d4ed8; }
+.pr-btn-row { display:flex; gap:10px; flex-wrap:wrap; margin-top:24px; }
+.pr-btn-save { padding:10px 24px; background:#1d4ed8; color:#fff; border:none; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; }
+.pr-btn-cancel { padding:10px 18px; background:#f1f5f9; color:#475569; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; text-decoration:none; display:inline-block; }
+.pr-help { font-size:12px; color:#64748b; margin-top:4px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="pr-root">
+  <a href="{% url 'procedure_refresh:document_list' %}" style="font-size:13px;color:#64748b;text-decoration:none;">← Torna ai documenti</a>
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div style="padding:12px 16px;border-radius:10px;background:#fee2e2;color:#dc2626;font-size:13px;font-weight:600;">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="pr-doc-info">
+    Documento: <strong>{{ document.code }}</strong> — {{ document.title }}
+    <span style="margin-left:8px;background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">{{ document.document_type }}</span>
+  </div>
+
+  <div class="pr-card">
+    <div class="pr-card-title">{% if revision %}Modifica revisione{% else %}Nuova revisione{% endif %}</div>
+
+    <form method="post">
+      {% csrf_token %}
+
+      <div class="pr-form-row">
+        <div class="pr-form-group">
+          <label for="revision_code">Codice revisione *</label>
+          <input type="text" id="revision_code" name="revision_code"
+                 value="{{ revision.revision_code|default:'' }}" placeholder="es. Rev.01" maxlength="50" required>
+        </div>
+        <div class="pr-form-group">
+          <label for="file_name">Nome file *</label>
+          <input type="text" id="file_name" name="file_name"
+                 value="{{ revision.file_name|default:'' }}" placeholder="es. MT-001_Rev01.pdf" maxlength="300" required>
+        </div>
+      </div>
+
+      <div class="pr-form-row">
+        <div class="pr-form-group">
+          <label for="revision_date">Data revisione *</label>
+          <input type="date" id="revision_date" name="revision_date"
+                 value="{{ revision.revision_date|date:'Y-m-d'|default:'' }}" required>
+        </div>
+        <div class="pr-form-group">
+          <label for="effective_date">Data efficacia *</label>
+          <input type="date" id="effective_date" name="effective_date"
+                 value="{{ revision.effective_date|date:'Y-m-d'|default:'' }}" required>
+        </div>
+      </div>
+
+      <div class="pr-form-group">
+        <label for="source_type">Sorgente documento *</label>
+        <select id="source_type" name="source_type" onchange="toggleSource(this.value)">
+          <option value="sharepoint" {% if not revision or revision.source_type == 'sharepoint' %}selected{% endif %}>SharePoint</option>
+          <option value="fileserver" {% if revision.source_type == 'fileserver' %}selected{% endif %}>File server</option>
+        </select>
+      </div>
+
+      <div id="source-sharepoint" class="pr-source-section">
+        <h4>URL SharePoint</h4>
+        <div class="pr-form-group" style="margin:0;">
+          <div style="display:flex;gap:8px;align-items:flex-start;">
+            <input type="text" id="source_url" name="source_url"
+                   value="{{ revision.source_url|default:'' }}"
+                   placeholder="https://costruzioninovicrom.sharepoint.com/sites/…" maxlength="2048"
+                   style="flex:1;">
+            <button type="button" id="btn-autofill" onclick="autoFillFromUrl()"
+                    style="padding:9px 14px;background:#0369a1;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+              ⚡ Auto-compila
+            </button>
+          </div>
+          <div class="pr-help">Incolla l'URL SharePoint e clicca Auto-compila per popolare i campi automaticamente.</div>
+          <div id="autofill-status" style="margin-top:6px;font-size:12px;display:none;"></div>
+        </div>
+      </div>
+
+      <div id="source-fileserver" class="pr-source-section" style="display:none;">
+        <h4>Path file server</h4>
+        <div class="pr-form-group" style="margin:0;">
+          <input type="text" id="source_path" name="source_path"
+                 value="{{ revision.source_path|default:'' }}"
+                 placeholder="\\server\share\procedure\MT-001.pdf" maxlength="1024">
+          <div class="pr-help">Percorso UNC o locale del file sul file server aziendale.</div>
+        </div>
+      </div>
+
+      <div class="pr-form-group" style="margin-top:16px;">
+        <label for="file_hash">Hash file (facoltativo)</label>
+        <input type="text" id="file_hash" name="file_hash"
+               value="{{ revision.file_hash|default:'' }}" placeholder="SHA-256 o MD5" maxlength="128">
+      </div>
+
+      <div class="pr-form-group">
+        <div class="pr-check-row">
+          <input type="checkbox" id="is_current" name="is_current" value="1"
+                 {% if not revision or revision.is_current %}checked{% endif %}>
+          <label for="is_current" style="font-weight:600;cursor:pointer;">
+            Imposta come revisione corrente
+            <span style="font-weight:400;color:#64748b;">(sostituisce la revisione corrente precedente)</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="pr-btn-row">
+        <button type="submit" class="pr-btn-save">Salva revisione</button>
+        <a href="{% url 'procedure_refresh:document_list' %}" class="pr-btn-cancel">Annulla</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function toggleSource(val) {
+  document.getElementById('source-sharepoint').style.display = val === 'sharepoint' ? 'block' : 'none';
+  document.getElementById('source-fileserver').style.display = val === 'fileserver' ? 'block' : 'none';
+}
+toggleSource('{{ revision.source_type|default:"sharepoint" }}');
+
+function autoFillFromUrl() {
+  var url = document.getElementById('source_url').value.trim();
+  if (!url) { alert('Incolla prima un URL SharePoint nel campo.'); return; }
+
+  var btn = document.getElementById('btn-autofill');
+  var status = document.getElementById('autofill-status');
+  btn.disabled = true;
+  btn.textContent = '⏳ Recupero…';
+  status.style.display = 'none';
+
+  fetch('{% url "procedure_refresh:api_parse_sharepoint_url" %}?url=' + encodeURIComponent(url))
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      btn.disabled = false;
+      btn.textContent = '⚡ Auto-compila';
+      if (!d.ok) {
+        status.style.cssText = 'margin-top:6px;font-size:12px;display:block;color:#dc2626;';
+        status.textContent = '✗ ' + d.error;
+        return;
+      }
+      // Popola i campi solo se vuoti (non sovrascrive dati già inseriti)
+      function fill(id, val) {
+        var el = document.getElementById(id);
+        if (el && val && !el.value) el.value = val;
+      }
+      function overwrite(id, val) {
+        var el = document.getElementById(id);
+        if (el && val) el.value = val;
+      }
+      fill('revision_code', d.revision_code);
+      fill('file_name', d.file_name);
+      fill('file_hash', d.file_hash);
+      if (d.revision_date) overwrite('revision_date', d.revision_date);
+      if (d.effective_date) overwrite('effective_date', d.effective_date);
+
+      var lines = [];
+      if (d.file_name)      lines.push('📄 ' + d.file_name);
+      if (d.revision_code)  lines.push('🔖 ' + d.revision_code);
+      if (d.revision_date)  lines.push('📅 ' + d.revision_date);
+      if (d.author)         lines.push('👤 ' + d.author);
+      if (d.file_size_label) lines.push('💾 ' + d.file_size_label);
+      if (d.file_hash)      lines.push('🔑 ' + d.file_hash.substring(0, 16) + '…');
+
+      var src = d.graph_ok ? '(dati da Graph API ✓)' : '(dati da URL — credenziali Graph non configurate)';
+      status.style.cssText = 'margin-top:6px;font-size:12px;display:block;color:#15803d;line-height:1.7;';
+      status.innerHTML = '<strong>✓ Compilato automaticamente</strong> <span style="color:#64748b;">' + src + '</span><br>' + lines.join(' &nbsp;·&nbsp; ');
+    })
+    .catch(function(e) {
+      btn.disabled = false;
+      btn.textContent = '⚡ Auto-compila';
+      status.style.cssText = 'margin-top:6px;font-size:12px;display:block;color:#dc2626;';
+      status.textContent = '✗ Errore di rete: ' + e.message;
+    });
+}
+</script>
+{% endblock %}
