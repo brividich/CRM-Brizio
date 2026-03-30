@@ -97,31 +97,35 @@ if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
 New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 
 # ---------------------------------------------------------------------------
-# Pattern di esclusione
+# Pattern di esclusione — separati per tipo (directory vs file)
 # ---------------------------------------------------------------------------
-$excludePaths = @(
-    ".git",
-    ".venv",
-    "venv",
-    "node_modules",
-    "__pycache__",
-    "*.pyc",
-    "*.pyo",
-    ".env",          # NON includere .env — va gestito separatamente sul server
-    "config.ini",    # idem
+# DIRECTORY da escludere (passate a robocopy con /XD)
+$excludeDirs = @(
+    ".git",           # repository git
+    ".venv",          # virtual environment Python
+    "venv",           # virtual environment alternativo
+    "node_modules",   # dipendenze JS
+    "__pycache__",    # cache Python
+    "logs",           # log applicazione
+    "media",          # media locale
+    "dist",           # build output
+    "build",          # build output
+    "htmlcov",        # coverage HTML
+    "releases",       # pacchetti release
+    ".mypy_cache",    # cache mypy
+    ".pytest_cache",  # cache pytest
+    "*.egg-info"      # metadata pacchetti Python (directory)
+)
+
+# FILE da escludere (passati a robocopy con /XF)
+$excludeFiles = @(
+    ".env",           # NON includere .env — va gestito separatamente sul server
+    "config.ini",     # idem
     "db.sqlite3",
     "*.sqlite3",
-    "logs",
-    "media",         # non copiare media locale
-    "dist",
-    "build",
-    "*.egg-info",
-    ".mypy_cache",
-    ".pytest_cache",
-    "htmlcov",
-    "releases",
-    "deployment\scripts\_lib.ps1",   # non serve nella release
-    "DIPENDENTI.csv",                # file sensibile
+    "*.pyc",
+    "*.pyo",
+    "DIPENDENTI.csv", # file sensibile
     "*.exe",
     "*.db"
 )
@@ -131,10 +135,8 @@ $excludePaths = @(
 # ---------------------------------------------------------------------------
 Write-Log "Copia file sorgenti in temp dir..." "STEP"
 
-$excludeRobocopy = $excludePaths | Where-Object { $_ -notmatch "\*" -and $_ -notmatch "\." }
-$excludeFiles    = $excludePaths | Where-Object { $_ -match "\." -or $_ -match "\*" }
-
-# Robocopy copia tutto tranne le directory escluse
+# Robocopy copia tutto tranne le directory/file esclusi
+# /R:0 /W:0 = nessun retry (evita hang su file bloccati)
 $robocopyArgs = @(
     $SourcePath,
     $tempDir,
@@ -142,9 +144,11 @@ $robocopyArgs = @(
     "/NFL",         # no file list
     "/NDL",         # no dir list
     "/NJH",         # no job header
-    "/NJS"          # no job summary
+    "/NJS",         # no job summary
+    "/R:0",         # nessun retry
+    "/W:0"          # nessun attesa tra retry
 )
-foreach ($ex in $excludeRobocopy) {
+foreach ($ex in $excludeDirs) {
     $robocopyArgs += "/XD"
     $robocopyArgs += $ex
 }

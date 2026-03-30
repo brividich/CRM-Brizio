@@ -22,7 +22,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from .models import RegistroRifiuti
+from django.contrib import messages
+
+from core.audit import log_action
+from core.legacy_utils import get_legacy_user, is_legacy_admin
+
+from .models import RegistroRifiuti, RentriImpostazioni
 
 # ── Helpers Graph / SharePoint ────────────────────────────────────────────────
 
@@ -1041,3 +1046,27 @@ def api_sync_pull(request):
             created += 1
 
     return JsonResponse({"ok": True, "created": created, "updated": updated, "total": len(items)})
+
+
+@login_required
+def impostazioni(request):
+    """Impostazioni modulo Rentri — solo admin legacy."""
+    legacy_user = get_legacy_user(request.user)
+    if not (legacy_user and is_legacy_admin(legacy_user)):
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden()
+
+    cfg = RentriImpostazioni.get_singleton()
+
+    if request.method == "POST":
+        cfg.codice_iscrizione_rentri = request.POST.get("codice_iscrizione_rentri", "").strip()
+        cfg.ragione_sociale = request.POST.get("ragione_sociale", "").strip()
+        cfg.responsabile_nome = request.POST.get("responsabile_nome", "").strip()
+        cfg.responsabile_email = request.POST.get("responsabile_email", "").strip()
+        cfg.note_generali = request.POST.get("note_generali", "").strip()
+        cfg.save()
+        log_action(request, "modifica", "rentri", "Aggiornate impostazioni Rentri")
+        messages.success(request, "Impostazioni salvate.")
+        return redirect("rentri_impostazioni")
+
+    return render(request, "rentri/impostazioni.html", {"cfg": cfg})

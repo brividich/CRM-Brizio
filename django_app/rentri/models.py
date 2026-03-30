@@ -47,3 +47,38 @@ class RegistroRifiuti(models.Model):
             count = RegistroRifiuti.objects.filter(data__year=year).count()
             self.id_registrazione = f"{year}/{count + 1:03d}"
         super().save(*args, **kwargs)
+
+
+class RentriImpostazioni(models.Model):
+    """Singleton: impostazioni del modulo Rentri (tracciabilità rifiuti)."""
+
+    codice_iscrizione_rentri = models.CharField(
+        max_length=50, blank=True, default="",
+        verbose_name="Codice iscrizione RENTRI",
+        help_text="Codice rilasciato dal sistema RENTRI all'atto dell'iscrizione.",
+    )
+    ragione_sociale = models.CharField(
+        max_length=200, blank=True, default="",
+        verbose_name="Ragione sociale",
+    )
+    responsabile_nome = models.CharField(
+        max_length=200, blank=True, default="",
+        verbose_name="Responsabile",
+    )
+    responsabile_email = models.EmailField(
+        blank=True, default="",
+        verbose_name="Email responsabile",
+    )
+    note_generali = models.TextField(blank=True, default="", verbose_name="Note operative")
+
+    class Meta:
+        verbose_name = "Impostazioni Rentri"
+        verbose_name_plural = "Impostazioni Rentri"
+
+    def __str__(self) -> str:
+        return "Impostazioni Rentri"
+
+    @classmethod
+    def get_singleton(cls) -> "RentriImpostazioni":
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj

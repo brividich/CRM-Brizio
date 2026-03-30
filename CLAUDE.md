@@ -1,7 +1,7 @@
 # CLAUDE.md — Portale Novicrom
 
 Documento di contesto per AI coding assistant. Aggiornato continuamente con il progetto.
-Versione app corrente: **0.8.5**
+Versione app corrente: **0.8.5** (2026-03-28)
 
 ---
 
@@ -62,6 +62,18 @@ Versione app corrente: **0.8.5**
 - File: `core/navigation_registry.py`
 - Tabelle Django: `NavigationItem`, `NavigationRoleAccess`, `UserDashboardConfig`, `UserModuleVisibility`
 - Deny-by-default: nessun record in `NavigationRoleAccess` = voce NON mostrata (riga 115-117 in `navigation_registry.py`)
+
+#### Sezioni `NavigationItem.section`
+
+| Valore | Dove viene renderizzata | ACL |
+| --- | --- | --- |
+| `topbar` | Barra di navigazione principale (in cima) | `NavigationRoleAccess` (deny-by-default) |
+| `subnav` | Barra secondaria per modulo (filtrata per `parent_code`) | `NavigationRoleAccess` (deny-by-default) |
+| `sidebar` | Menu laterale (modalità sidebar) | `NavigationRoleAccess` (deny-by-default) |
+| `page` | Dentro una pagina specifica | `NavigationRoleAccess` (deny-by-default) |
+| `admin_subnav` | Barra interna dell'admin portale (`/admin-portale/`) | **Nessuna ACL** — area già gated da `@legacy_admin_required` |
+
+**`admin_subnav` — regola critica:** NON hardcodare mai voci in `admin_subnav.html`. Gestire sempre tramite `NavigationItem` con `section="admin_subnav"` via Navigation Builder o migration. Migration seed: `core/migrations/0031_admin_subnav_seed.py` (27 voci con gruppi, descrizioni e active_patterns). Il context processor inietta `admin_subnav_items` solo per utenti `is_legacy_admin()`.
 
 ### Path esenti da ACL (MIDDLEWARE_EXEMPT_PREFIXES)
 
@@ -159,6 +171,80 @@ Il file `.exe` è l'unico artefatto distribuito agli utenti finali — se non vi
 - Spec file: `deployment/SetupWizard.spec`
 - Output: `deployment/dist/SetupWizard.exe` (escluso da git via `.gitignore`)
 - Dimensione attesa: ≈56 MB (include sorgente Django bundled per installazione DEV self-contained)
+
+### Discovery SQL Server (DatabasePage)
+
+- **3 strategie in background thread** (non blocca UI):
+  1. `pyodbc.sqlservers()` — UDP broadcast SQL Browser (porta 1434)
+  2. TCP scan porta 1433 su hostname comuni (localhost, macchina, varianti SQLEXPRESS, AD)
+  3. UDP SSRP broadcast manuale per istanze su subnet diverse
+- Pulsante "📋 Lista DB": si connette al server e popola Combobox con database utente (prova ODBC 18→17→generico)
+- `self._discover_btn` e `self._list_db_btn` si disabilitano durante la ricerca
+
+### Meccanismo auto-close (FinishPage / ReleaseDonePage / UninstallDonePage)
+
+- Countdown gestito internamente da ogni pagina "Done" via `_start_countdown(n)` (aggiornato ogni secondo)
+- Costruttore accetta `on_close=None` callback — passare sempre `self._close` dalla App parent
+- `_close()` in WizardApp/ReleaseApp/UninstallApp chiama `root.destroy()` direttamente (non via `after`)
+
+### Server Dashboard
+
+Accessibile da: launcher (card "Gestisci server"), FinishPage (pulsante), CLI `--mode=dashboard`.
+
+- Mostra stato IIS Site + App Pool per `TEST` e `PROD` con tab switcher
+- Auto-refresh ogni 5 secondi via PowerShell `Get-Website` / `Get-WebAppPool`
+- Pulsanti: Avvia, Ferma, Riavvia, Ricicla Pool, Apri Browser
+- Log viewer: ultimi 40 righe di `ENV\logs\waitress_stdout.log`
+- **Cleaner**: elimina release vecchie mantenendo ultime 3 + quella attiva (`current`)
+- `ServerDashboard(parent=None)` → standalone (`tk.Tk`); `parent=widget` → `tk.Toplevel`
+
+### HttpPlatformHandlerPage (step 8)
+
+- Verifica presenza `httpPlatformHandler` via `Get-WebGlobalModule` PowerShell
+- Badge verde se installato, giallo se mancante
+- Pulsante "Scarica" apre `iis.net/downloads/microsoft/httpplatformhandler`
+- `validate()` non bloccante — avvisa con dialog ma permette di continuare
+- Saltata in DEV (aggiunta a `_skip_for_dev` con `_HPH_PAGE_IDX = 8`)
+
+### Settings module mapping
+
+Solo `config/settings/dev.py` e `config/settings/prod.py` esistono. Il wizard usa `_django_settings(environment)` per mappare:
+- `dev` → `config.settings.dev` (SQLite)
+- `test` → `config.settings.prod` (SQL Server)
+- `prod` → `config.settings.prod` (SQL Server)
+
+La funzione `_django_settings()` è definita a livello modulo in `setup_wizard.py`.
+
+### Variabili .env generate dal wizard
+
+I nomi delle variabili nel `.env` devono corrispondere ESATTAMENTE a quelli letti da `base.py`/`prod.py`:
+
+| Variabile .env | Letta da | Note |
+| --- | --- | --- |
+| `DJANGO_SECRET_KEY` | `base.py` | NON `SECRET_KEY` |
+| `DJANGO_DEBUG` | `base.py`/`prod.py` | NON `DEBUG` |
+| `DJANGO_ALLOWED_HOSTS` | `prod.py` | NON `ALLOWED_HOSTS` |
+| `DJANGO_CSRF_TRUSTED_ORIGINS` | `prod.py` | NON `CSRF_TRUSTED_ORIGINS` |
+| `DJANGO_LOG_DIR` | `base.py` | NON `LOG_DIR` |
+| `DB_ENGINE`, `DB_NAME`, `DB_HOST`, `DB_USER`, `DB_PASSWORD` | `base.py` | OK — nomi corretti |
+| `STATIC_ROOT`, `MEDIA_ROOT` | `base.py` | Ora leggono da env con fallback |
+
+### Junction NTFS (\_create\_junction)
+
+- Funzione module-level `_create_junction(link_path, target_path)` usata da `InstallPage` e `ReleaseRunPage`
+- Strategia rimozione: `rmdir /Q` → `shutil.rmtree` → `rd /s /q`
+- Errore chiaro se il path è ancora in uso
+
+### HttpPlatformHandler check
+
+- `_check_httpplatformhandler()` verifica la presenza del modulo IIS via `Get-WebGlobalModule`
+- Se mancante: tenta installazione via WebPI CLI, altrimenti mostra istruzioni manuali
+- Senza questo modulo, IIS restituisce errore 500.19 (0x8007000d)
+
+### Crash-safety _run()
+
+- `InstallPage`, `ReleaseRunPage`, `UninstallRunPage` hanno wrapper `_run()` → `_run_impl()` in try/except
+- Se eccezione non gestita: logga traceback + chiama `_on_done` per mostrare comunque la pagina Done
 
 **Trigger obbligatori — rigenerare l'exe dopo qualsiasi modifica a:**
 

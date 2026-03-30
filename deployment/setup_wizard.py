@@ -4,11 +4,22 @@ Eseguire come Amministratore: python setup_wizard.py [--env dev|test|prod]
 Requisiti: Python 3.11+ (tkinter incluso).
 """
 
-import ctypes, json, os, re, shutil, subprocess, sys, threading, zipfile
+import ctypes, json, os, re, shutil, socket, subprocess, sys, threading
+import traceback, zipfile
 from datetime import datetime
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+
+try:
+    import winreg
+except ImportError:
+    winreg = None   # non-Windows: discovery Registry disabilitata
+
+try:
+    import pyodbc as _pyodbc_module
+except ImportError:
+    _pyodbc_module = None   # sarà disponibile nell'exe (hidden import)
 
 # ─────────────────────────────────────────────────────────────
 # PALETTE & COSTANTI
@@ -40,10 +51,49 @@ FMO = ("Consolas", 9)
 
 STEPS = ["Benvenuto","Pacchetto","Ambiente","Python",
          "Database","Active Directory","Email","IIS / Web",
-         "Utente Admin","Riepilogo","Installazione","Completato"]
+         "Prerequisiti IIS","Utente Admin","Riepilogo","Installazione","Completato"]
 
 STEPS_RELEASE   = ["Modalità", "Configurazione", "Esecuzione", "Completato"]
 STEPS_UNINSTALL = ["Configurazione", "Conferma", "Disinstallazione", "Completato"]
+
+# Mappa ambiente → settings module Django.
+# Solo dev.py e prod.py esistono; test usa prod (stesse impostazioni SQL Server).
+_SETTINGS_MAP = {"dev": "dev", "test": "prod", "prod": "prod"}
+
+def _django_settings(environment: str) -> str:
+    return f"config.settings.{_SETTINGS_MAP.get(environment, 'prod')}"
+
+
+def _create_junction(link_path, target_path):
+    """Crea una junction NTFS. Rimuove junction/directory preesistente."""
+    link = Path(link_path)
+    target = Path(target_path)
+    if link.exists() or link.is_symlink():
+        # Prima prova rmdir (rimuove junction senza cancellare il contenuto target)
+        subprocess.run(f'cmd /c rmdir /Q "{link}"',
+                       capture_output=True, text=True,
+                       creationflags=subprocess.CREATE_NO_WINDOW)
+        # Se rmdir fallisce (es. directory reale, non junction), usa shutil
+        if link.exists():
+            try:
+                shutil.rmtree(str(link))
+            except Exception:
+                subprocess.run(f'cmd /c rd /s /q "{link}"',
+                               capture_output=True,
+                               creationflags=subprocess.CREATE_NO_WINDOW)
+    if link.exists():
+        raise RuntimeError(f"Impossibile rimuovere {link} — potrebbe essere in uso")
+    # Usa _winapi.CreateJunction (API nativa Python, niente quoting cmd)
+    try:
+        import _winapi
+        _winapi.CreateJunction(str(target), str(link))
+    except (ImportError, OSError):
+        # Fallback: cmd /c mklink (stringa, non lista — evita doppio quoting)
+        r = subprocess.run(f'cmd /c mklink /J "{link}" "{target}"',
+                           capture_output=True, text=True,
+                           creationflags=subprocess.CREATE_NO_WINDOW)
+        if r.returncode != 0:
+            raise RuntimeError(f"mklink /J fallito: {(r.stderr or r.stdout).strip()}")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -89,22 +139,25 @@ class Config:
         ep = self.env_path
         lines = [
             f"# Generato da Setup Wizard — {datetime.now():%Y-%m-%d %H:%M}\n",
-            f"SECRET_KEY={self.secret_key}",
-            f"DEBUG=False",
-            f"ALLOWED_HOSTS={h},127.0.0.1",
-            f"APP_VERSION=0.8.4\n",
-            f"DB_ENGINE=mssql",
+            f"DJANGO_SECRET_KEY={self.secret_key}",
+            f"DJANGO_DEBUG=False",
+            f"DJANGO_ALLOWED_HOSTS={h},127.0.0.1",
+            f"APP_VERSION=0.8.5\n",
+            f"DB_ENGINE=sqlserver",
             f"DB_NAME={self.db_name}",
             f"DB_HOST={self.db_host}",
             f"DB_PORT=1433",
+            f"DB_TRUST_CERT=True",
             ("DB_TRUSTED_CONNECTION=yes" if self.db_trusted
              else f"DB_USER={self.db_user}\nDB_PASSWORD={self.db_password}"),
-            f"\nCSRF_TRUSTED_ORIGINS={p}://{h}{pt}",
+            f"\nDJANGO_CSRF_TRUSTED_ORIGINS={p}://{h}{pt}",
+            f"SECURE_SSL_REDIRECT={'True' if self.iis_https else 'False'}",
             f"SESSION_COOKIE_SECURE={'True' if self.iis_https else 'False'}",
             f"CSRF_COOKIE_SECURE={'True' if self.iis_https else 'False'}",
             f"\nSTATIC_ROOT={ep}\\static",
             f"MEDIA_ROOT={ep}\\media",
-            f"LOG_DIR={ep}\\logs\n",
+            f"DJANGO_LOG_DIR={ep}\\logs",
+            f"SETUP_COMPLETED=1\n",
         ]
         if not self.ldap_skip:
             lines += [
@@ -241,15 +294,37 @@ class PrimaryButton(tk.Frame):
 class SecondaryButton(tk.Frame):
     def __init__(self, parent, text, command, **kw):
         super().__init__(parent, bg=GRAY100, cursor="hand2", **kw)
+        self._command = command
+        self._enabled = True
         self._lbl = tk.Label(self, text=text, font=FN,
                               fg=GRAY700, bg=GRAY100, padx=16, pady=8, cursor="hand2")
         self._lbl.pack()
         for w in (self, self._lbl):
-            w.bind("<Button-1>", lambda e: command())
-            w.bind("<Enter>", lambda e: (self.config(bg=GRAY200),
-                                          self._lbl.config(bg=GRAY200)))
-            w.bind("<Leave>", lambda e: (self.config(bg=GRAY100),
-                                          self._lbl.config(bg=GRAY100)))
+            w.bind("<Button-1>", self._on_click)
+            w.bind("<Enter>", self._on_enter)
+            w.bind("<Leave>", self._on_leave)
+
+    def _on_click(self, _=None):
+        if self._enabled:
+            self._command()
+
+    def _on_enter(self, _=None):
+        if self._enabled:
+            self.config(bg=GRAY200); self._lbl.config(bg=GRAY200)
+
+    def _on_leave(self, _=None):
+        bg = GRAY100 if self._enabled else GRAY50
+        self.config(bg=bg); self._lbl.config(bg=bg)
+
+    def set_enabled(self, enabled: bool):
+        self._enabled = enabled
+        if enabled:
+            self._lbl.configure(fg=GRAY700, cursor="hand2")
+            self.configure(cursor="hand2", bg=GRAY100)
+            self._lbl.configure(bg=GRAY100)
+        else:
+            self._lbl.configure(fg=GRAY400, cursor="arrow", bg=GRAY50)
+            self.configure(cursor="arrow", bg=GRAY50)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -310,7 +385,7 @@ class Sidebar(tk.Frame):
 
         # Footer
         frame(self._steps_frame, bg=SIDEBAR_BG, height=24).pack()
-        tk.Label(self._steps_frame, text="v0.8.4", font=(SF,8),
+        tk.Label(self._steps_frame, text="v0.8.5", font=(SF,8),
                  bg=SIDEBAR_BG, fg="#334155").pack(side="bottom", pady=10)
 
     def set(self, idx):
@@ -708,7 +783,8 @@ class PythonPage(Page):
             self._status.set("✗  File non trovato")
             self._res.configure(fg=RED); return
         try:
-            r = subprocess.run([py, "--version"], capture_output=True, text=True, timeout=5)
+            r = subprocess.run([py, "--version"], capture_output=True, text=True, timeout=5,
+                               creationflags=subprocess.CREATE_NO_WINDOW)
             v = (r.stdout + r.stderr).strip()
             self._status.set(f"✓  {v}")
             self._res.configure(fg=GREEN)
@@ -727,6 +803,7 @@ class DatabasePage(Page):
         super().__init__(parent, "Database SQL Server",
                          "Connessione al database SQL Server")
         self.cfg = cfg
+        self.root = parent.winfo_toplevel()  # ← FIX: get root window
         self._host    = tk.StringVar()
         self._name    = tk.StringVar()
         self._user    = tk.StringVar()
@@ -737,9 +814,32 @@ class DatabasePage(Page):
         sec = frame(b)
         sec.pack(fill="x", padx=32)
 
-        # 2 colonne
+        # Row: Server discovery
+        disc_row = frame(sec)
+        disc_row.pack(fill="x", pady=(0,12))
+        tk.Label(disc_row, text="Server\\Istanza (es: SQL01\\SQLEXPRESS)", 
+                 font=(SF,9,"bold"), fg=GRAY600, bg="white").pack(anchor="w", pady=(0,3))
+        
+        host_control = frame(disc_row)
+        host_control.pack(fill="x")
+        
+        # Combobox per server
+        from tkinter import ttk
+        self._host_combo = ttk.Combobox(host_control, textvariable=self._host, 
+                                         font=FMO, state="normal", width=40)
+        self._host_combo.pack(side="left", fill="x", expand=1, ipady=7, ipadx=8)
+        
+        # Pulsante scopri
+        self._discover_btn = tk.Button(host_control, text="🔍 Scopri server",
+                                       command=self._discover_servers,
+                                       font=(SF,9,"bold"), bg=BRAND, fg="white",
+                                       relief="flat", padx=16, pady=7,
+                                       cursor="hand2", activebackground=BRAND_HOVER)
+        self._discover_btn.pack(side="left", padx=(8,0))
+
+        # 2 colonne per altri campi
         grid = frame(sec)
-        grid.pack(fill="x")
+        grid.pack(fill="x", pady=(12,0))
         grid.columnconfigure(0, weight=1); grid.columnconfigure(1, weight=1)
 
         def cell(row, col, lbl, var, show=""):
@@ -752,10 +852,25 @@ class DatabasePage(Page):
                           highlightcolor=BRAND)
             e.pack(fill="x", ipady=7, ipadx=8)
 
-        cell(0, 0, "Server\\Istanza (es: SQL01\\SQLEXPRESS)", self._host)
-        cell(0, 1, "Nome Database", self._name)
-        cell(1, 0, "Utente SQL", self._user)
-        cell(1, 1, "Password", self._pwd, show="*")
+        # Nome Database: Combobox + pulsante "Lista DB"
+        db_frame = frame(grid)
+        db_frame.grid(row=0, column=0, sticky="ew", padx=(0,12), pady=4)
+        tk.Label(db_frame, text="Nome Database", font=(SF,9,"bold"),
+                 fg=GRAY600, bg="white").pack(anchor="w", pady=(0,3))
+        db_row = frame(db_frame)
+        db_row.pack(fill="x")
+        self._name_combo = ttk.Combobox(db_row, textvariable=self._name,
+                                        font=FMO, state="normal")
+        self._name_combo.pack(side="left", fill="x", expand=True, ipady=7, ipadx=8)
+        self._list_db_btn = tk.Button(db_row, text="📋 Lista DB",
+                                      command=self._list_databases,
+                                      font=(SF,8), bg=GRAY100, fg=GRAY700,
+                                      relief="flat", padx=8, pady=7,
+                                      cursor="hand2")
+        self._list_db_btn.pack(side="left", padx=(4,0))
+
+        cell(0, 1, "Utente SQL", self._user)
+        cell(1, 0, "Password", self._pwd, show="*")
 
         frame(sec, height=10).pack()
         chk_row = frame(sec)
@@ -770,9 +885,255 @@ class DatabasePage(Page):
         self._err = tk.Label(sec, text="", font=FSM, fg=RED, bg="white")
         self._err.pack(anchor="w")
 
+    def _discover_servers(self):
+        """Avvia la discovery SQL Server in background (multi-strategia)."""
+        self._err.configure(text="")
+        self._note.configure(text="🔍 Ricerca server SQL Server in corso…")
+        self._discover_btn.configure(state="disabled", text="🔍 Ricerca…")
+        threading.Thread(target=self._discover_worker, daemon=True).start()
+
+    def _discover_worker(self):
+        """Worker thread: scopre server SQL Server con 5 strategie."""
+        import socket
+        found = set()
+
+        # ── Strategia 1: Windows Registry (istanze locali) ───────
+        # Più affidabile per trovare SQL Server installati sulla macchina
+        try:
+            import winreg
+            key = winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL")
+            i = 0
+            local_hostname = socket.gethostname()
+            while True:
+                try:
+                    instance_name, _, _ = winreg.EnumValue(key, i)
+                    if instance_name.upper() == "MSSQLSERVER":
+                        found.add(local_hostname)
+                    else:
+                        found.add(f"{local_hostname}\\{instance_name}")
+                    i += 1
+                except OSError:
+                    break
+            winreg.CloseKey(key)
+        except Exception:
+            pass
+
+        # ── Strategia 2: Windows Services (servizi MSSQL in esecuzione) ─
+        try:
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-Command",
+                 "Get-Service | Where-Object {$_.Name -like 'MSSQL*' -and $_.Status -eq 'Running'} "
+                 "| ForEach-Object { $_.Name }"],
+                capture_output=True, text=True, timeout=8, encoding="utf-8", errors="replace",
+                creationflags=subprocess.CREATE_NO_WINDOW)
+            local_hostname = socket.gethostname()
+            for line in result.stdout.strip().splitlines():
+                svc = line.strip()
+                if not svc:
+                    continue
+                if svc.upper() == "MSSQLSERVER":
+                    found.add(local_hostname)
+                elif svc.upper().startswith("MSSQL$"):
+                    instance = svc.split("$", 1)[1]
+                    found.add(f"{local_hostname}\\{instance}")
+        except Exception:
+            pass
+
+        # ── Strategia 3: pyodbc.sqlservers() ─────────────────────
+        # UDP broadcast su porta 1434 (SQL Server Browser service)
+        try:
+            if _pyodbc_module is None:
+                raise ImportError("pyodbc non disponibile")
+            for s in _pyodbc_module.sqlservers():
+                if s: found.add(s)
+        except Exception:
+            pass
+
+        # ── Strategia 4: scansione TCP host comuni su porta 1433 ─
+        local_hostname = ""
+        try: local_hostname = socket.gethostname()
+        except: pass
+
+        candidate_hosts = [
+            "localhost", "127.0.0.1",
+            local_hostname,
+            "SQLSERVER", "SQL01", "SQL",
+        ]
+        # Aggiungi varianti con dominio AD
+        try:
+            fqdn = socket.getfqdn()
+            domain_parts = fqdn.split(".")
+            if len(domain_parts) > 1:
+                domain = ".".join(domain_parts[1:])
+                for prefix in ("SQL01", "SQLSERVER", "DC01", "SQL"):
+                    candidate_hosts.append(f"{prefix}.{domain}")
+        except Exception:
+            pass
+
+        def _tcp_reachable(host, port=1433, timeout=1.5):
+            clean = host.split("\\")[0]
+            try:
+                with socket.create_connection((clean, port), timeout=timeout):
+                    return True
+            except Exception:
+                return False
+
+        seen_bases = set()
+        for h in candidate_hosts:
+            base = h.split("\\")[0].strip()
+            if not base or base in seen_bases:
+                continue
+            seen_bases.add(base)
+            if _tcp_reachable(base):
+                found.add(base)
+
+        # ── Strategia 5: pyodbc connessione di test per verifica ──
+        # Tenta connessione rapida con ciascun driver ODBC per validare le entry trovate
+        # (rimuove false positive da TCP scan)
+        if not found:
+            # Se nessuna strategia ha trovato nulla, prova connessione diretta
+            try:
+                if _pyodbc_module is None:
+                    raise ImportError("pyodbc non disponibile")
+                drivers = [d for d in _pyodbc_module.drivers()
+                           if "SQL Server" in d]
+                if drivers:
+                    for drv in drivers[:1]:
+                        for h in [local_hostname, "localhost", "(local)"]:
+                            try:
+                                cs = f"DRIVER={{{drv}}};SERVER={h};Trusted_Connection=yes;Connection Timeout=3"
+                                conn = _pyodbc_module.connect(cs, autocommit=True, timeout=3)
+                                # Se la connessione riesce, il server è raggiungibile
+                                cur = conn.cursor()
+                                cur.execute("SELECT @@SERVERNAME")
+                                name = cur.fetchone()[0]
+                                conn.close()
+                                if name:
+                                    found.add(name)
+                                break
+                            except Exception:
+                                continue
+            except Exception:
+                pass
+
+        # ── Aggiorna UI sul thread principale ────────────────────
+        servers = sorted(found, key=lambda x: (x.lower() != "localhost", x.lower()))
+
+        def _ui_update():
+            try:
+                self._discover_btn.configure(state="normal", text="🔍 Scopri server")
+                if servers:
+                    self._host_combo['values'] = servers
+                    if not self._host.get():
+                        self._host.set(servers[0])
+                    self._note.configure(
+                        text=f"✓ Trovati {len(servers)} server/istanz{'e' if len(servers)!=1 else 'a'} — seleziona o digita manualmente")
+                else:
+                    self._note.configure(
+                        text="⚠ Nessun server trovato in automatico — inserisci manualmente Server\\Istanza")
+            except Exception:
+                pass
+        self._note.after(0, _ui_update)
+
+    def _list_databases(self):
+        """Recupera la lista dei database dal server selezionato."""
+        host = self._host.get().strip()
+        if not host:
+            self._err.configure(text="Seleziona prima un server SQL Server"); return
+        self._err.configure(text="")
+        self._note.configure(text="🔍 Connessione al server per lista database…")
+        self._list_db_btn.configure(state="disabled")
+        threading.Thread(target=self._list_databases_worker, daemon=True).start()
+
+    def _list_databases_worker(self):
+        """Worker thread: enumera i database user del server."""
+        host = self._host.get().strip()
+        user = self._user.get().strip()
+        pwd  = self._pwd.get().strip()
+        trusted = self._trusted.get()
+
+        # Prova driver 18 poi 17 poi generico
+        drivers = ["ODBC Driver 18 for SQL Server",
+                   "ODBC Driver 17 for SQL Server",
+                   "SQL Server"]
+        # Filtra solo driver effettivamente installati
+        if _pyodbc_module:
+            available = _pyodbc_module.drivers()
+            drivers = [d for d in drivers if d in available] or drivers
+        result_dbs = []
+        last_err   = ""
+        for drv in drivers:
+            try:
+                if _pyodbc_module is None:
+                    last_err = "pyodbc non disponibile — installare pyodbc"
+                    break
+                if trusted:
+                    cs = (f"DRIVER={{{drv}}};SERVER={host};"
+                          f"Trusted_Connection=yes;Connection Timeout=5;TrustServerCertificate=yes")
+                else:
+                    if not user:
+                        last_err = "Inserisci utente SQL o attiva Windows Auth"
+                        continue
+                    cs = (f"DRIVER={{{drv}}};SERVER={host};"
+                          f"UID={user};PWD={pwd};Connection Timeout=5;TrustServerCertificate=yes")
+                conn = _pyodbc_module.connect(cs, autocommit=True)
+                cur  = conn.cursor()
+                cur.execute(
+                    "SELECT name FROM sys.databases "
+                    "WHERE name NOT IN ('master','tempdb','model','msdb') "
+                    "  AND state_desc='ONLINE' ORDER BY name")
+                result_dbs = [r[0] for r in cur.fetchall()]
+                conn.close()
+                last_err = ""
+                break
+            except Exception as e:
+                last_err = str(e)
+
+        def _ui():
+            try:
+                self._list_db_btn.configure(state="normal")
+                if result_dbs:
+                    self._name_combo['values'] = result_dbs
+                    if not self._name.get() or self._name.get() not in result_dbs:
+                        # Auto-seleziona il DB con il nome più probabile
+                        env = self.cfg.environment
+                        preferred = [d for d in result_dbs
+                                     if "portale" in d.lower() or "novicrom" in d.lower()]
+                        self._name.set(preferred[0] if preferred else result_dbs[0])
+                    self._note.configure(
+                        text=f"✓ {len(result_dbs)} database disponibili — seleziona dalla lista")
+                elif last_err:
+                    self._note.configure(text=f"⚠ Errore connessione: {last_err[:70]}")
+                else:
+                    self._note.configure(text="⚠ Nessun database trovato (verifica permessi)")
+            except Exception:
+                pass
+        self._note.after(0, _ui)
+
     def on_enter(self):
         if not self._name.get():
-            self._name.set("PortaleNovicrom_TEST" if self.cfg.environment=="test" else "PortaleNovicrom")
+            db_name = "PortaleNovicrom"
+            if self.cfg.environment == "test":
+                db_name += "_TEST"
+            elif self.cfg.environment == "prod":
+                db_name += "_PROD"
+            elif self.cfg.environment == "dev":
+                db_name += "_DEV"
+            self._name.set(db_name)
+        # Mostra ODBC driver disponibili come nota informativa
+        if _pyodbc_module:
+            try:
+                odbc_drivers = [d for d in _pyodbc_module.drivers() if "SQL Server" in d]
+                if odbc_drivers:
+                    self._note.configure(text=f"ℹ  Driver ODBC: {', '.join(odbc_drivers)}")
+                else:
+                    self._note.configure(text="⚠  Nessun driver ODBC per SQL Server — installare 'ODBC Driver 17 for SQL Server'")
+            except Exception:
+                pass
+        # Avvia la discovery automaticamente
+        self._discover_servers()
 
     def _toggle(self):
         if self._trusted.get():
@@ -1006,6 +1367,122 @@ class IISPage(Page):
         self.cfg.iis_hostname = self._hostname.get().strip()
         self.cfg.iis_port     = p
         self.cfg.iis_https    = self._https.get()
+        return True
+
+
+class HttpPlatformHandlerPage(Page):
+    """Step 8 — verifica presenza HttpPlatformHandler in IIS."""
+
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Prerequisiti IIS",
+                         "HttpPlatformHandler — modulo IIS richiesto per eseguire app Python")
+        self.cfg = cfg
+        self._installed = False
+        b = self.body
+        frame(b, height=14).pack()
+
+        # ── Status card ──────────────────────────────────────────────
+        self._card = frame(b, bg=GRAY50, highlightthickness=1, highlightbackground=GRAY200)
+        self._card.pack(fill="x", padx=32)
+        hrow = frame(self._card, bg=GRAY50)
+        hrow.pack(fill="x", padx=18, pady=(14, 4))
+        self._icon_lbl = tk.Label(hrow, text="", font=(SF, 18), bg=GRAY50, width=3)
+        self._icon_lbl.pack(side="left")
+        vrgt = frame(hrow, bg=GRAY50)
+        vrgt.pack(side="left", fill="x", expand=True)
+        self._title_lbl = tk.Label(vrgt, text="", font=FNB, bg=GRAY50, fg=GRAY800,
+                                    anchor="w", justify="left")
+        self._title_lbl.pack(fill="x")
+        self._sub_lbl   = tk.Label(vrgt, text="", font=FSM, bg=GRAY50, fg=GRAY500,
+                                    anchor="w", justify="left", wraplength=480)
+        self._sub_lbl.pack(fill="x")
+        frame(self._card, bg=GRAY50, height=14).pack()
+
+        # ── Buttons ─────────────────────────────────────────────────
+        frame(b, height=12).pack()
+        btn_row = frame(b)
+        btn_row.pack(padx=32, anchor="w")
+        self._check_btn = SecondaryButton(btn_row, "🔄  Verifica di nuovo", self._check)
+        self._check_btn.pack(side="left")
+        self._dl_btn = PrimaryButton(btn_row, "⬇  Scarica HttpPlatformHandler", self._open_download)
+        self._dl_btn.pack(side="left", padx=(12, 0))
+
+        # ── Info box ─────────────────────────────────────────────────
+        frame(b, height=14).pack()
+        info = frame(b, bg=BLUE_BG, highlightthickness=1, highlightbackground=BLUE_BD)
+        info.pack(fill="x", padx=32)
+        tk.Label(info, text="Cos'è HttpPlatformHandler?", font=(SF, 9, "bold"),
+                 bg=BLUE_BG, fg="#1d4ed8").pack(anchor="w", padx=14, pady=(10, 4))
+        tk.Label(info,
+                 text="Modulo IIS di Microsoft che avvia processi non-.NET (Python, Node.js…)\n"
+                      "e fa da proxy verso la porta assegnata. Richiesto da web.config.\n"
+                      "Senza di esso IIS restituisce errore 500.19.",
+                 font=FSM, bg=BLUE_BG, fg="#1d4ed8", justify="left").pack(anchor="w", padx=14, pady=(0, 10))
+
+    def on_enter(self):
+        self._check()
+
+    def _check(self):
+        self._set_state("check")
+        self.after(150, self._do_check)
+
+    def _do_check(self):
+        self._installed = self._is_installed()
+        self._set_state("ok" if self._installed else "warn")
+
+    def _set_state(self, state):
+        states = {
+            "check": (GRAY50, GRAY200, "🔍", "Verifica in corso…", "", GRAY700, GRAY500),
+            "ok":    (GREEN_BG, GREEN_BD, "✅", "HttpPlatformHandler installato",
+                      "Puoi procedere con l'installazione.", GREEN, "#166534"),
+            "warn":  (YELLOW_BG, YELLOW_BD, "⚠", "HttpPlatformHandler NON trovato",
+                      "Scarica e installa il modulo, poi clicca 'Verifica di nuovo'.",
+                      YELLOW_TX, YELLOW_TX),
+        }
+        bg, bd, icon, title, sub, title_fg, sub_fg = states[state]
+        self._card.configure(bg=bg, highlightbackground=bd)
+        for w in (self._icon_lbl, self._title_lbl, self._sub_lbl):
+            w.configure(bg=bg)
+        for child in self._card.winfo_children():
+            try: child.configure(bg=bg)
+            except: pass
+        self._icon_lbl.configure(text=icon)
+        self._title_lbl.configure(text=title, fg=title_fg)
+        self._sub_lbl.configure(text=sub, fg=sub_fg)
+        if state == "ok":
+            self._dl_btn.pack_forget()
+        else:
+            self._dl_btn.pack(side="left", padx=(12, 0))
+
+    @staticmethod
+    def _is_installed() -> bool:
+        try:
+            ps = ("try { $m = Get-WebGlobalModule -Name 'httpPlatformHandler' "
+                  "-ErrorAction SilentlyContinue; "
+                  "if ($m) { Write-Output 'INSTALLED' } else { Write-Output 'MISSING' } "
+                  "} catch { Write-Output 'MISSING' }")
+            r = subprocess.run(
+                ["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps],
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15,
+                creationflags=subprocess.CREATE_NO_WINDOW)
+            return "INSTALLED" in (r.stdout or "")
+        except Exception:
+            return False
+
+    def _open_download(self):
+        try:
+            os.startfile("https://www.iis.net/downloads/microsoft/httpplatformhandler")
+        except Exception:
+            pass
+
+    def validate(self):
+        # Non bloccante: l'utente può continuare anche senza — verrà avvisato più tardi
+        if not self._installed:
+            return messagebox.askyesno(
+                "HttpPlatformHandler mancante",
+                "HttpPlatformHandler non risulta installato.\n\n"
+                "IIS restituirà errore 500.19 finché non viene installato.\n\n"
+                "Continuare comunque?")
         return True
 
 
@@ -1244,7 +1721,8 @@ class InstallPage(Page):
             proc = subprocess.Popen(
                 cmd, cwd=str(cwd) if cwd else None,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, encoding="utf-8", errors="replace", env=env)
+                text=True, encoding="utf-8", errors="replace", env=env,
+                creationflags=subprocess.CREATE_NO_WINDOW)
             for line in proc.stdout:
                 line = line.rstrip()
                 if line:
@@ -1256,11 +1734,51 @@ class InstallPage(Page):
         except Exception as e:
             self._log_line(f"  ERRORE: {e}", "err"); return False
 
+    def _pip_install_with_retry(self, venv_py, req_file):
+        """pip install con retry per gestire errori di compilazione (es. pyodbc su Python 3.14).
+        
+        Pre-processing: sostituisci pyodbc==5.2.0 → pyodbc>=5.2.0 per permettere wheel precompilate su Python 3.14+.
+        """
+        # Leggi il requirements.txt e sostituisci pyodbc==5.2.0 → pyodbc>=5.2.0
+        try:
+            content = req_file.read_text(encoding="utf-8")
+            if "pyodbc==5.2.0" in content:
+                self._log_line("  → Adattamento pyodbc==5.2.0 → pyodbc>=5.2.0 (Python 3.14 compat)", "dim")
+                content = content.replace("pyodbc==5.2.0", "pyodbc>=5.2.0")
+                req_file.write_text(content, encoding="utf-8")
+        except Exception as e:
+            self._log_line(f"  ⚠ Errore durante la modifica requirements.txt: {e}", "warn")
+        
+        ok = self._cmd([str(venv_py), "-m", "pip", "install", "-r", str(req_file)])
+        if ok:
+            return True
+        # Se fallisce, tenta con --only-binary :all: per forzare wheel precompilate
+        self._log_line("  ⚠ Tentando con --only-binary :all: (solo wheel precompilate)...", "warn")
+        ok = self._cmd([str(venv_py), "-m", "pip", "install", "-r", str(req_file), "--only-binary", ":all:"])
+        if ok:
+            return True
+        # Se fallisce ancora, suggerisci Visual C++ Build Tools
+        self._log_line("  ⚠ Su Windows con Python 3.12+, pyodbc richiede Microsoft Visual C++ 14.0 Build Tools:", "warn")
+        self._log_line("    https://visualstudio.microsoft.com/visual-cpp-build-tools/", "warn")
+        return False
+
     def _run(self):
+        """Wrapper crash-safe: garantisce che _on_done sia sempre chiamato."""
+        try:
+            self._run_impl()
+        except Exception as e:
+            self._log_line(f"\n✗ Errore critico imprevisto: {e}", "err")
+            self._log_line(traceback.format_exc(), "err")
+            if self._log_file:
+                try: self._log_file.close()
+                except: pass
+            self._log.after(800, self._on_done)
+
+    def _run_impl(self):
         cfg      = self.cfg
         is_dev   = (cfg.environment == "dev")
         ep       = cfg.env_path
-        settings = f"config.settings.{cfg.environment}"
+        settings = _django_settings(cfg.environment)
         errors   = []
 
         # ── Percorsi dipendenti dall'ambiente ─────────────────
@@ -1332,10 +1850,10 @@ class InstallPage(Page):
             # 3. .env
             step(3, "Scrittura .env DEV", 30)
             env_content = (
-                f"SECRET_KEY={cfg.secret_key}\n"
+                f"DJANGO_SECRET_KEY={cfg.secret_key}\n"
                 f"DEBUG=True\n"
                 f"ALLOWED_HOSTS=*\n"
-                f"APP_VERSION=0.8.4\n"
+                f"APP_VERSION=0.8.5\n"
                 f"ENVIRONMENT=dev\n"
             )
             try:
@@ -1349,7 +1867,7 @@ class InstallPage(Page):
             step(4, "Installazione dipendenze pip", 45)
             req = django_app / "requirements.txt"
             if req.exists():
-                ok = self._cmd([str(venv_py), "-m", "pip", "install", "-r", str(req)])
+                ok = self._pip_install_with_retry(venv_py, req)
                 if ok: self._log_line("  ✓ Dipendenze installate", "ok")
                 else:  errors.append("pip install"); self._log_line("  ✗ pip fallito", "err")
             else:
@@ -1376,13 +1894,13 @@ class InstallPage(Page):
                     f"os.environ.setdefault('DJANGO_SETTINGS_MODULE', '{settings}'); "
                     "django.setup(); "
                     "from core.legacy_models import Ruolo, UtenteLegacy; "
-                    "from django.contrib.auth.hashers import make_password; "
+                    "from werkzeug.security import generate_password_hash; "
                     f"r, _ = Ruolo.objects.get_or_create(nome='admin'); "
                     f"u, created = UtenteLegacy.objects.get_or_create("
                     f"    nome={repr(cfg.admin_username)},"
                     f"    defaults=dict("
                     f"        email={repr(cfg.admin_email)},"
-                    f"        password=make_password({repr(cfg.admin_password)}),"
+                    f"        password=generate_password_hash({repr(cfg.admin_password)}),"
                     f"        ruolo_id=r.id, attivo=True));"
                     f"u.ruolo_id = r.id; u.attivo = True; u.save(); "
                     "print('OK legacy admin:', u.nome, '— creato=' + str(created))"
@@ -1434,7 +1952,11 @@ class InstallPage(Page):
 
             # 2. Copia script PS
             step(2, "Copia script deployment", 12)
-            src = Path(__file__).parent / "scripts"
+            # In eseguibile frozen usa sys._MEIPASS, altrimenti la cartella dello script
+            if getattr(sys, "frozen", False):
+                src = Path(sys._MEIPASS) / "scripts"
+            else:
+                src = Path(__file__).parent / "scripts"
             dst = Path(cfg.base_dir) / "shared" / "scripts"
             if src.exists():
                 for f in src.glob("*.ps1"):
@@ -1492,12 +2014,18 @@ class InstallPage(Page):
             step(6, "Installazione dipendenze pip", 52)
             req = django_app/"requirements.txt"
             env_vars = {**os.environ, "DJANGO_SETTINGS_MODULE": settings,
-                        "PYTHONPATH": str(django_app)}
+                        "PYTHONPATH": str(django_app),
+                        "STATIC_ROOT": str(ep / "static"),
+                        "MEDIA_ROOT":  str(ep / "media")}
             if req.exists():
-                ok = self._cmd([str(venv_py), "-m", "pip", "install", "-r", str(req)])
+                ok = self._pip_install_with_retry(venv_py, req)
                 if ok: self._log_line("  ✓ Dipendenze installate", "ok")
                 else:  errors.append("pip install"); self._log_line("  ✗ pip fallito", "err")
             else: self._log_line("  requirements.txt non trovato — skip", "warn")
+            # Installa waitress (WSGI server per IIS) — potrebbe non essere in requirements.txt
+            self._log_line("  → Verifica waitress (WSGI server per IIS)…", "dim")
+            self._cmd([str(venv_py), "-m", "pip", "install", "waitress", "--quiet"])
+            self._log_line("  ✓ waitress disponibile", "ok")
 
             # 7. collectstatic
             step(7, "collectstatic", 65)
@@ -1511,15 +2039,20 @@ class InstallPage(Page):
 
             # 8. migrate
             step(8, "Django migrate", 75)
+            if cfg.db_trusted or cfg.db_user:
+                self._create_sql_database(cfg)
+            if cfg.db_trusted:
+                self._configure_sql_login(cfg)
             if django_app.exists() and (django_app/"manage.py").exists():
                 ok = self._cmd([str(venv_py),"manage.py","migrate",
                                 f"--settings={settings}","--noinput"],
                                cwd=django_app, env=env_vars)
                 if ok: self._log_line("  ✓ migrate completato", "ok")
                 else:  self._log_line("  ✗ migrate fallito (verifica DB)", "err")
-                self._cmd([str(venv_py),"manage.py","createcachetable",
-                           f"--settings={settings}"], cwd=django_app, env=env_vars)
-                self._log_line("  ✓ createcachetable completato", "ok")
+                ok_cc = self._cmd([str(venv_py),"manage.py","createcachetable",
+                                   f"--settings={settings}"], cwd=django_app, env=env_vars)
+                if ok_cc: self._log_line("  ✓ createcachetable completato", "ok")
+                else:     self._log_line("  ✗ createcachetable fallito", "warn")
             else:
                 self._log_line("  Skip — django_app non trovato", "warn")
 
@@ -1531,13 +2064,13 @@ class InstallPage(Page):
                     f"os.environ.setdefault('DJANGO_SETTINGS_MODULE', '{settings}'); "
                     "django.setup(); "
                     "from core.legacy_models import Ruolo, UtenteLegacy; "
-                    "from django.contrib.auth.hashers import make_password; "
+                    "from werkzeug.security import generate_password_hash; "
                     f"r, _ = Ruolo.objects.get_or_create(nome='admin'); "
                     f"u, created = UtenteLegacy.objects.get_or_create("
                     f"    nome={repr(cfg.admin_username)},"
                     f"    defaults=dict("
                     f"        email={repr(cfg.admin_email)},"
-                    f"        password=make_password({repr(cfg.admin_password)}),"
+                    f"        password=generate_password_hash({repr(cfg.admin_password)}),"
                     f"        ruolo_id=r.id, attivo=True));"
                     f"u.ruolo_id = r.id; u.attivo = True; u.save(); "
                     "print('OK legacy admin:', u.nome, '— creato=' + str(created))"
@@ -1569,16 +2102,14 @@ class InstallPage(Page):
                 self._log_line("  Skip — nessuna release da attivare", "warn")
             else:
                 try:
-                    if cur.exists() or cur.is_symlink():
-                        subprocess.run(["cmd","/c",f"rmdir \"{cur}\""], capture_output=True)
-                    subprocess.run(["cmd","/c",f"mklink /J \"{cur}\" \"{rel_dir}\""],
-                                   capture_output=True, check=True)
+                    _create_junction(cur, rel_dir)
                     self._log_line(f"  ✓ current → {rel_dir.name}", "ok")
                 except Exception as e:
                     self._log_line(f"  ✗ Junction: {e}", "err"); errors.append(str(e))
 
             # 11. IIS
             step(11, "Configurazione IIS", 94)
+            self._check_httpplatformhandler()
             self._write_webconfig(ep, cfg)
             self._log_line("  ✓ web.config scritto", "ok")
             self._configure_iis(cfg)
@@ -1598,10 +2129,56 @@ class InstallPage(Page):
             except: pass
         self._log.after(800, self._on_done)
 
+
+    def _check_httpplatformhandler(self):
+        """Verifica e installa HttpPlatformHandler IIS se mancante."""
+        ps_check = (
+            "try {"
+            "  $m = Get-WebGlobalModule -Name 'httpPlatformHandler' -ErrorAction SilentlyContinue; "
+            "  if ($m) { Write-Output 'INSTALLED' } else { Write-Output 'MISSING' }"
+            "} catch { Write-Output 'MISSING' }"
+        )
+        try:
+            r = subprocess.run(
+                ["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps_check],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=15, creationflags=subprocess.CREATE_NO_WINDOW)
+            status = (r.stdout or "").strip()
+        except Exception:
+            status = "UNKNOWN"
+
+        if status == "INSTALLED":
+            self._log_line("  ✓ HttpPlatformHandler IIS presente", "ok")
+            return
+
+        self._log_line("  ⚠ HttpPlatformHandler non trovato — tentativo installazione…", "warn")
+        # Prova WebPI (Web Platform Installer) CLI
+        webpicmd = r"C:\Program Files\Microsoft\Web Platform Installer\WebpiCmd-x64.exe"
+        if Path(webpicmd).exists():
+            try:
+                r = subprocess.run(
+                    [webpicmd, "/Install", "/Products:HttpPlatformHandler",
+                     "/AcceptEula", "/SuppressReboot"],
+                    capture_output=True, text=True, timeout=120,
+                    creationflags=subprocess.CREATE_NO_WINDOW)
+                if r.returncode == 0:
+                    self._log_line("  ✓ HttpPlatformHandler installato via WebPI", "ok")
+                    return
+            except Exception:
+                pass
+
+        # Istruzioni manuali
+        self._log_line(
+            "  ⚠ Installare manualmente HttpPlatformHandler:\n"
+            "    1. Aprire IIS Manager → Get New Web Platform Components\n"
+            "    2. Cercare 'HttpPlatformHandler' e installare\n"
+            "    oppure: scaricare da https://www.iis.net/downloads/microsoft/httpplatformhandler\n"
+            "    Senza questo modulo, IIS mostrerà errore 500.19", "warn")
+
     def _write_webconfig(self, ep, cfg):
         venv = ep/"venv"; logs = ep/"logs"
         app  = ep/"current"/"django_app"
-        settings = f"config.settings.{cfg.environment}"
+        settings = _django_settings(cfg.environment)
         xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <configuration>
   <system.webServer>
@@ -1636,16 +2213,107 @@ class InstallPage(Page):
 </configuration>"""
         (ep/"web.config").write_text(xml, encoding="utf-8")
 
+    def _find_sqlcmd(self):
+        for candidate in [
+            r"C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\180\Tools\Binn\SQLCMD.EXE",
+            r"C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\SQLCMD.EXE",
+            r"C:\Program Files\Microsoft SQL Server\160\Tools\Binn\SQLCMD.EXE",
+            r"C:\Program Files\Microsoft SQL Server\150\Tools\Binn\SQLCMD.EXE",
+            r"C:\Program Files\Microsoft SQL Server\140\Tools\Binn\SQLCMD.EXE",
+            r"C:\Program Files\Microsoft SQL Server\130\Tools\Binn\SQLCMD.EXE",
+            r"C:\Program Files\Microsoft SQL Server\120\Tools\Binn\SQLCMD.EXE",
+            r"C:\Program Files\Microsoft SQL Server\110\Tools\Binn\SQLCMD.EXE",
+        ]:
+            if Path(candidate).exists():
+                return candidate
+        return "sqlcmd"  # fallback al PATH
+
+    def _sqlcmd_auth_args(self, cfg):
+        """Restituisce gli argomenti di autenticazione per sqlcmd."""
+        if cfg.db_trusted:
+            return ["-E"]
+        return ["-U", cfg.db_user, "-P", cfg.db_password]
+
+    def _create_sql_database(self, cfg):
+        """Crea il database SQL Server se non esiste già."""
+        server = cfg.db_host or "localhost"
+        db     = cfg.db_name
+        sql = (
+            f"IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE name = N'{db}') "
+            f"BEGIN CREATE DATABASE [{db}] END"
+        )
+        sqlcmd = self._find_sqlcmd()
+        auth   = self._sqlcmd_auth_args(cfg)
+        try:
+            r = subprocess.run(
+                [sqlcmd, "-S", server] + auth + ["-Q", sql],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=30, creationflags=subprocess.CREATE_NO_WINDOW)
+            out = (r.stdout + r.stderr).strip()
+            if r.returncode == 0:
+                self._log_line(f"  ✓ Database [{db}] pronto", "ok")
+            else:
+                self._log_line(f"  ✗ Creazione DB: {out[:300]}", "err")
+        except FileNotFoundError:
+            self._log_line(
+                f"  ⚠ sqlcmd non trovato — creare manualmente il database:\n"
+                f"    CREATE DATABASE [{db}];", "warn")
+        except Exception as e:
+            self._log_line(f"  ⚠ Creazione DB: {e}", "warn")
+
+    def _configure_sql_login(self, cfg):
+        """Crea il login NT AUTHORITY\\SYSTEM su SQL Server (necessario quando
+        il pool IIS gira come LocalSystem con Windows Integrated Auth)."""
+        server = cfg.db_host or "localhost"
+        db     = cfg.db_name
+        sql = (
+            f"IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'NT AUTHORITY\\SYSTEM') "
+            f"BEGIN CREATE LOGIN [NT AUTHORITY\\SYSTEM] FROM WINDOWS END; "
+            f"USE [{db}]; "
+            f"IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'NT AUTHORITY\\SYSTEM') "
+            f"BEGIN CREATE USER [NT AUTHORITY\\SYSTEM] FOR LOGIN [NT AUTHORITY\\SYSTEM] END; "
+            f"ALTER ROLE db_owner ADD MEMBER [NT AUTHORITY\\SYSTEM];"
+        )
+        sqlcmd = self._find_sqlcmd()
+        try:
+            r = subprocess.run(
+                [sqlcmd, "-S", server, "-E", "-Q", sql],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=30, creationflags=subprocess.CREATE_NO_WINDOW)
+            out = (r.stdout + r.stderr).strip()
+            if r.returncode == 0:
+                self._log_line("  ✓ Login [NT AUTHORITY\\SYSTEM] configurato su SQL Server", "ok")
+            else:
+                self._log_line(f"  ⚠ sqlcmd (login NT AUTHORITY\\SYSTEM): {out[:300]}", "warn")
+                self._log_line(
+                    "  → Eseguire manualmente in SSMS:\n"
+                    f"    USE [master]; CREATE LOGIN [NT AUTHORITY\\SYSTEM] FROM WINDOWS;\n"
+                    f"    USE [{db}]; CREATE USER [NT AUTHORITY\\SYSTEM] FOR LOGIN [NT AUTHORITY\\SYSTEM];\n"
+                    f"    ALTER ROLE db_owner ADD MEMBER [NT AUTHORITY\\SYSTEM];", "warn")
+        except FileNotFoundError:
+            self._log_line(
+                "  ⚠ sqlcmd non trovato — configurare manualmente NT AUTHORITY\\SYSTEM su SQL Server:\n"
+                f"    USE [master]; CREATE LOGIN [NT AUTHORITY\\SYSTEM] FROM WINDOWS;\n"
+                f"    USE [{db}]; CREATE USER [NT AUTHORITY\\SYSTEM] FOR LOGIN [NT AUTHORITY\\SYSTEM];\n"
+                f"    ALTER ROLE db_owner ADD MEMBER [NT AUTHORITY\\SYSTEM];", "warn")
+        except Exception as e:
+            self._log_line(f"  ⚠ Impossibile configurare login SQL: {e}", "warn")
+
     def _configure_iis(self, cfg):
         ep = cfg.env_path
         ps = f"""
 Import-Module WebAdministration -ErrorAction SilentlyContinue
+# Sblocca <handlers> a livello server (fix errore 0x80070021 / 500.19)
+$appcmd = "$env:windir\system32\inetsrv\appcmd.exe"
+if (Test-Path $appcmd) {{ & $appcmd unlock config -section:system.webServer/handlers | Out-Null }}
 $p = "{cfg.app_pool_name}"; $s = "{cfg.site_name}"
 $r = "{ep}"; $port = {cfg.iis_port}; $hh = "{cfg.iis_hostname}"
 if (-not (Test-Path "IIS:\\AppPools\\$p")) {{ New-WebAppPool -Name $p | Out-Null }}
 Set-ItemProperty "IIS:\\AppPools\\$p" managedRuntimeVersion ""
 Set-ItemProperty "IIS:\\AppPools\\$p" startMode "AlwaysRunning"
 Set-ItemProperty "IIS:\\AppPools\\$p" "processModel.idleTimeout" ([TimeSpan]::Zero)
+# Identità LocalSystem: necessario per accedere al venv e ai file Django senza errori 502.3
+Set-ItemProperty "IIS:\\AppPools\\$p" "processModel.identityType" 0
 if (-not (Test-Path "IIS:\\Sites\\$s")) {{
     New-Website -Name $s -PhysicalPath $r -ApplicationPool $p -Port $port -HostHeader $hh -Force | Out-Null
 }} else {{
@@ -1664,7 +2332,8 @@ Start-WebAppPool -Name $p -ErrorAction SilentlyContinue
         try:
             r = subprocess.run(
                 ["powershell","-ExecutionPolicy","Bypass","-Command", ps],
-                capture_output=True, text=True, encoding="utf-8", errors="replace")
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                creationflags=subprocess.CREATE_NO_WINDOW)
             if r.returncode == 0:
                 self._log_line("  ✓ IIS configurato", "ok")
             else:
@@ -1674,9 +2343,10 @@ Start-WebAppPool -Name $p -ErrorAction SilentlyContinue
 
 
 class FinishPage(Page):
-    def __init__(self, parent, cfg):
+    def __init__(self, parent, cfg, on_close=None):
         super().__init__(parent, "Installazione Completata!", "")
         self.cfg = cfg
+        self._on_close = on_close
         b = self.body
         frame(b, height=10).pack()
 
@@ -1700,9 +2370,20 @@ class FinishPage(Page):
                      width=2, pady=4).pack(side="left", padx=(0,12))
             tk.Label(row, text=desc, font=FN, fg=GRAY600, bg="white").pack(side="left")
 
-        frame(b, height=16).pack()
+        frame(b, height=12).pack()
+        # ── Dashboard button ─────────────────────────────────────
+        dbtn_row = frame(b)
+        dbtn_row.pack(padx=32, anchor="w")
+        PrimaryButton(dbtn_row, "📊  Gestisci server (Dashboard)",
+                      self._open_dashboard, bg=BRAND_DARK).pack(side="left")
+        SecondaryButton(dbtn_row, "🌐  Apri nel browser",
+                        self._open_url).pack(side="left", padx=(10, 0))
+
+        frame(b, height=10).pack()
+        self._countdown_lbl = tk.Label(b, text="", font=FSM, fg=GRAY400, bg="white")
+        self._countdown_lbl.pack(padx=32, anchor="w")
         tk.Label(b, text="Portale Novicrom · Setup Wizard · Costruzioni Novicrom SRL",
-                 font=FSM, fg=GRAY400, bg="white").pack(padx=32, anchor="w")
+                 font=FSM, fg=GRAY400, bg="white").pack(padx=32, anchor="w", pady=(8,0))
 
     def on_enter(self):
         p = "https" if self.cfg.iis_https else "http"
@@ -1710,6 +2391,21 @@ class FinishPage(Page):
         pt = f":{self.cfg.iis_port}" if self.cfg.iis_port not in ("80","443") else ""
         self._url = f"{p}://{h}{pt}/"
         self._url_lbl.configure(text=f"→  {self._url}")
+        self._start_countdown(15)
+
+    def _open_dashboard(self):
+        ServerDashboard(parent=self.winfo_toplevel())
+
+    def _start_countdown(self, n):
+        if n <= 0:
+            self._countdown_lbl.configure(text="Chiusura in corso…")
+            if self._on_close:
+                try: self._on_close()
+                except: pass
+            return
+        self._countdown_lbl.configure(
+            text=f"La finestra si chiuderà automaticamente tra {n} second{'o' if n==1 else 'i'}…")
+        self.after(1000, lambda: self._start_countdown(n - 1))
 
     def _open_url(self, _=None):
         try: os.startfile(self._url)
@@ -1747,6 +2443,7 @@ class WizardApp:
         self.root.geometry(f"{WIN_W}x{WIN_H}")
         self.root.resizable(False, False)
         self.root.configure(bg="white")
+        self.root.protocol("WM_DELETE_WINDOW", self._close)
         # Centra
         self.root.update_idletasks()
         x = (self.root.winfo_screenwidth()  - WIN_W) // 2
@@ -1793,20 +2490,21 @@ class WizardApp:
         # Pagine (EnvironmentPage prima di PackagePage: la pagina pacchetto
         # deve conoscere l'ambiente selezionato per mostrare zip o cartella)
         self.pages = [
-            WelcomePage(    self.container, self.cfg),          # 0
-            EnvironmentPage(self.container, self.cfg,           # 1
-                             preselect=self._env),
-            PackagePage(    self.container, self.cfg),          # 2
-            PythonPage(     self.container, self.cfg),          # 3
-            DatabasePage(   self.container, self.cfg),          # 4
-            LDAPPage(       self.container, self.cfg),          # 5
-            EmailPage(      self.container, self.cfg),          # 6
-            IISPage(        self.container, self.cfg),          # 7 — saltata in DEV
-            AdminPage(      self.container, self.cfg),          # 8
-            SummaryPage(    self.container, self.cfg),          # 9
-            InstallPage(    self.container, self.cfg,           # 10
-                            self._on_done),
-            FinishPage(     self.container, self.cfg),          # 11
+            WelcomePage(               self.container, self.cfg),          # 0
+            EnvironmentPage(           self.container, self.cfg,           # 1
+                                        preselect=self._env),
+            PackagePage(               self.container, self.cfg),          # 2 — skip DEV
+            PythonPage(                self.container, self.cfg),          # 3
+            DatabasePage(              self.container, self.cfg),          # 4
+            LDAPPage(                  self.container, self.cfg),          # 5
+            EmailPage(                 self.container, self.cfg),          # 6
+            IISPage(                   self.container, self.cfg),          # 7 — skip DEV
+            HttpPlatformHandlerPage(   self.container, self.cfg),          # 8 — skip DEV
+            AdminPage(                 self.container, self.cfg),          # 9
+            SummaryPage(               self.container, self.cfg),          # 10
+            InstallPage(               self.container, self.cfg,           # 11
+                                        self._on_done),
+            FinishPage(                self.container, self.cfg, self._close),  # 12
         ]
 
     def _show(self, idx):
@@ -1821,35 +2519,36 @@ class WizardApp:
         install = last - 1
 
         # Avanti / Indietro
-        self.btn_back._lbl.configure(state="normal" if idx > 0 else "disabled")
+        self.btn_back.set_enabled(idx > 0)
 
         if idx == last:      # Pagina finale
             self.btn_next.pack_forget()
             self.btn_finish.pack(side="right")
-            self.btn_back._lbl.configure(state="disabled")
-            self.btn_cancel._lbl.configure(state="disabled")
+            self.btn_back.set_enabled(False)
+            self.btn_cancel.set_enabled(False)
         elif idx == install: # Installazione
             self.btn_next.pack_forget()
             self.btn_finish.pack_forget()
-            self.btn_back._lbl.configure(state="disabled")
-            self.btn_cancel._lbl.configure(state="disabled")
+            self.btn_back.set_enabled(False)
+            self.btn_cancel.set_enabled(False)
         else:
             self.btn_finish.pack_forget()
             self.btn_next.pack(side="right")
             lbl = "▶  Installa" if idx == install - 1 else "Avanti  ▶"
             self.btn_next.configure_text(lbl)
-            self.btn_back._lbl.configure(state="normal" if idx > 0 else "disabled")
-            self.btn_cancel._lbl.configure(state="normal")
+            self.btn_back.set_enabled(idx > 0)
+            self.btn_cancel.set_enabled(True)
 
     # Indici pagine da saltare in modalità DEV
     _PACKAGE_PAGE_IDX = 2
     _IIS_PAGE_IDX     = 7
+    _HPH_PAGE_IDX     = 8   # HttpPlatformHandlerPage — non ha senso in DEV (no IIS)
 
     def _skip_for_dev(self, target_idx: int, going_forward: bool = True) -> int:
-        """Salta PackagePage (2) e IISPage (7) quando l'ambiente è DEV."""
+        """Salta PackagePage (2), IISPage (7) e HttpPlatformHandlerPage (8) in DEV."""
         if self.cfg.environment != "dev":
             return target_idx
-        skipped = {self._PACKAGE_PAGE_IDX, self._IIS_PAGE_IDX}
+        skipped = {self._PACKAGE_PAGE_IDX, self._IIS_PAGE_IDX, self._HPH_PAGE_IDX}
         step = 1 if going_forward else -1
         while target_idx in skipped:
             target_idx += step
@@ -1866,13 +2565,18 @@ class WizardApp:
             self._show(self._skip_for_dev(self._idx - 1, going_forward=False))
 
     def _close(self):
-        self.root.after(0, self.root.destroy)
+        try: self.root.quit()
+        except: pass
+        try: self.root.destroy()
+        except: pass
+        os._exit(0)
 
     def _cancel(self):
         if messagebox.askyesno("Annulla", "Uscire dal wizard?"): self._close()
 
     def _on_done(self):
         self._show(len(self.pages) - 1)
+        # Il countdown e la chiusura automatica sono gestiti da FinishPage._start_countdown()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -2183,7 +2887,8 @@ class ReleaseRunPage(Page):
             proc = subprocess.Popen(
                 cmd, cwd=str(cwd) if cwd else None,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, encoding="utf-8", errors="replace", env=env)
+                text=True, encoding="utf-8", errors="replace", env=env,
+                creationflags=subprocess.CREATE_NO_WINDOW)
             for line in proc.stdout:
                 line = line.rstrip()
                 if line:
@@ -2196,10 +2901,19 @@ class ReleaseRunPage(Page):
             self._log_line(f"  ERRORE: {e}", "err"); return False
 
     def _dispatch(self):
-        if self.cfg.mode == "create":
-            self._run_create()
-        else:
-            self._run_promote()
+        """Wrapper crash-safe: garantisce che _on_done sia sempre chiamato."""
+        try:
+            if self.cfg.mode == "create":
+                self._run_create()
+            else:
+                self._run_promote()
+        except Exception as e:
+            self._log_line(f"\n✗ Errore critico imprevisto: {e}", "err")
+            self._log_line(traceback.format_exc(), "err")
+            if self._log_file:
+                try: self._log_file.close()
+                except: pass
+            self._log.after(800, self._on_done)
 
     # ── Crea Release ─────────────────────────────────────────
 
@@ -2317,7 +3031,7 @@ class ReleaseRunPage(Page):
         tag        = datetime.now().strftime("%Y%m%d_%H%M%S")
         rel_dir    = ep / "releases" / tag
         django_app = rel_dir / "django_app"
-        settings   = f"config.settings.{cfg.environment}"
+        settings   = _django_settings(cfg.environment)
         N = 7; errors = []
 
         def step(n, title, pct):
@@ -2356,7 +3070,7 @@ class ReleaseRunPage(Page):
         step(3, "Aggiornamento dipendenze pip", 32)
         req = django_app / "requirements.txt"
         if req.exists():
-            ok = self._cmd([str(venv_py), "-m", "pip", "install", "-r", str(req)])
+            ok = self._pip_install_with_retry(venv_py, req)
             if ok: self._log_line("  ✓ Dipendenze aggiornate", "ok")
             else:  errors.append("pip install"); self._log_line("  ✗ pip fallito", "err")
         else:
@@ -2382,9 +3096,10 @@ class ReleaseRunPage(Page):
                             cwd=django_app, env=env_vars)
             if ok: self._log_line("  ✓ migrate completato", "ok")
             else:  self._log_line("  ✗ migrate fallito (verifica DB)", "err")
-            self._cmd([str(venv_py), "manage.py", "createcachetable",
-                       f"--settings={settings}"], cwd=django_app, env=env_vars)
-            self._log_line("  ✓ createcachetable completato", "ok")
+            ok_cc = self._cmd([str(venv_py), "manage.py", "createcachetable",
+                               f"--settings={settings}"], cwd=django_app, env=env_vars)
+            if ok_cc: self._log_line("  ✓ createcachetable completato", "ok")
+            else:     self._log_line("  ✗ createcachetable fallito", "warn")
 
         # 6. Attivazione junction
         step(6, "Attivazione release", 80)
@@ -2398,10 +3113,7 @@ class ReleaseRunPage(Page):
                 self._log_line(f"  ✓ Release precedente salvata: {prev_target}", "ok")
             except: pass
         try:
-            if cur.exists() or cur.is_symlink():
-                subprocess.run(["cmd", "/c", f"rmdir \"{cur}\""], capture_output=True)
-            subprocess.run(["cmd", "/c", f"mklink /J \"{cur}\" \"{rel_dir}\""],
-                            capture_output=True, check=True)
+            _create_junction(cur, rel_dir)
             self._log_line(f"  ✓ current → {rel_dir.name}", "ok")
         except Exception as e:
             errors.append(str(e)); self._log_line(f"  ✗ Junction: {e}", "err")
@@ -2414,7 +3126,8 @@ class ReleaseRunPage(Page):
         try:
             r = subprocess.run(
                 ["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps],
-                capture_output=True, text=True, encoding="utf-8", errors="replace")
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                creationflags=subprocess.CREATE_NO_WINDOW)
             if r.returncode == 0:
                 self._log_line(f"  ✓ App Pool {cfg.app_pool_name} riciclato", "ok")
             else:
@@ -2439,9 +3152,10 @@ class ReleaseRunPage(Page):
 
 
 class ReleaseDonePage(Page):
-    def __init__(self, parent, cfg):
+    def __init__(self, parent, cfg, on_close=None):
         super().__init__(parent, "Operazione completata!", "")
         self.cfg = cfg
+        self._on_close = on_close
         b = self.body
         frame(b, height=16).pack()
 
@@ -2452,8 +3166,10 @@ class ReleaseDonePage(Page):
         self._hints = frame(b)
         self._hints.pack(fill="x", padx=32)
         frame(b, height=16).pack()
+        self._countdown_lbl = tk.Label(b, text="", font=FSM, fg=GRAY400, bg="white")
+        self._countdown_lbl.pack(padx=32, anchor="w")
         tk.Label(b, text="Portale Novicrom · Gestione Release · Costruzioni Novicrom SRL",
-                 font=FSM, fg=GRAY400, bg="white").pack(padx=32, anchor="w")
+                 font=FSM, fg=GRAY400, bg="white").pack(padx=32, anchor="w", pady=(4,0))
 
     def on_enter(self):
         for w in self._hints.winfo_children(): w.destroy()
@@ -2477,6 +3193,18 @@ class ReleaseDonePage(Page):
             tk.Label(row, text=str(i), font=(SF,9,"bold"), bg=BRAND, fg="white",
                      width=2, pady=4).pack(side="left", padx=(0,12))
             tk.Label(row, text=hint, font=FN, fg=GRAY600, bg="white").pack(side="left")
+        self._start_countdown(20)
+
+    def _start_countdown(self, n):
+        if n <= 0:
+            self._countdown_lbl.configure(text="Chiusura in corso…")
+            if self._on_close:
+                try: self._on_close()
+                except: pass
+            return
+        self._countdown_lbl.configure(
+            text=f"La finestra si chiuderà automaticamente tra {n} second{'o' if n==1 else 'i'}…")
+        self.after(1000, lambda: self._start_countdown(n - 1))
 
 
 class ReleaseApp:
@@ -2493,6 +3221,7 @@ class ReleaseApp:
         self.root.geometry(f"{WIN_W}x{WIN_H}")
         self.root.resizable(False, False)
         self.root.configure(bg="white")
+        self.root.protocol("WM_DELETE_WINDOW", self._close)
         self.root.update_idletasks()
         x = (self.root.winfo_screenwidth()  - WIN_W) // 2
         y = (self.root.winfo_screenheight() - WIN_H) // 2 - 20
@@ -2538,7 +3267,7 @@ class ReleaseApp:
         self._p_create  = ReleaseConfigCreate(self.container, self.cfg)
         self._p_promote = ReleaseConfigPromote(self.container, self.cfg)
         self._p_run     = ReleaseRunPage(self.container, self.cfg, self._on_done)
-        self._p_done    = ReleaseDonePage(self.container, self.cfg)
+        self._p_done    = ReleaseDonePage(self.container, self.cfg, self._close)
 
     def _config_page(self):
         return self._p_create if self.cfg.mode == "create" else self._p_promote
@@ -2567,19 +3296,19 @@ class ReleaseApp:
         if idx == 3:            # Done
             self.btn_next.pack_forget()
             self.btn_finish.pack(side="right")
-            self.btn_back._lbl.configure(state="disabled")
-            self.btn_cancel._lbl.configure(state="disabled")
+            self.btn_back.set_enabled(False)
+            self.btn_cancel.set_enabled(False)
         elif idx == 2:          # Run
             self.btn_next.pack_forget()
             self.btn_finish.pack_forget()
-            self.btn_back._lbl.configure(state="disabled")
-            self.btn_cancel._lbl.configure(state="disabled")
+            self.btn_back.set_enabled(False)
+            self.btn_cancel.set_enabled(False)
         else:
             self.btn_finish.pack_forget()
             self.btn_next.pack(side="right")
             self.btn_next.configure_text("▶  Esegui" if idx == 1 else "Avanti  ▶")
-            self.btn_back._lbl.configure(state="normal" if idx > 0 else "disabled")
-            self.btn_cancel._lbl.configure(state="normal")
+            self.btn_back.set_enabled(idx > 0)
+            self.btn_cancel.set_enabled(True)
 
     def _next(self):
         p = self._p_mode if self._idx == 0 else self._config_page()
@@ -2591,13 +3320,18 @@ class ReleaseApp:
         if self._idx > 0: self._show(self._idx - 1)
 
     def _close(self):
-        self.root.after(0, self.root.destroy)
+        try: self.root.quit()
+        except: pass
+        try: self.root.destroy()
+        except: pass
+        os._exit(0)
 
     def _cancel(self):
         if messagebox.askyesno("Annulla", "Uscire da Gestione Release?"): self._close()
 
     def _on_done(self):
         self._show(3)
+        # Il countdown e la chiusura automatica sono gestiti da ReleaseDonePage._start_countdown()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -2789,6 +3523,18 @@ class UninstallRunPage(Page):
         self._log.after(0, _do)
 
     def _run(self):
+        """Wrapper crash-safe: garantisce che _on_done sia sempre chiamato."""
+        try:
+            self._run_impl()
+        except Exception as e:
+            self._log_line(f"\n✗ Errore critico imprevisto: {e}", "err")
+            self._log_line(traceback.format_exc(), "err")
+            if self._log_file:
+                try: self._log_file.close()
+                except: pass
+            self._log.after(800, self._on_done)
+
+    def _run_impl(self):
         cfg  = self.cfg
         env  = cfg.environment.upper()
         site = f"PortaleNovicrom-{env}"
@@ -2814,7 +3560,8 @@ if (Test-Path 'IIS:\\Sites\\{site}') {{
 """
         try:
             r = subprocess.run(["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps_site],
-                               capture_output=True, text=True, encoding="utf-8", errors="replace")
+                               capture_output=True, text=True, encoding="utf-8", errors="replace",
+                               creationflags=subprocess.CREATE_NO_WINDOW)
             out = (r.stdout + r.stderr).strip()
             if "OK" in out:
                 self._log_line(f"  ✓ Sito IIS {site} rimosso", "ok")
@@ -2839,7 +3586,8 @@ if (Test-Path 'IIS:\\AppPools\\{pool}') {{
 """
         try:
             r = subprocess.run(["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps_pool],
-                               capture_output=True, text=True, encoding="utf-8", errors="replace")
+                               capture_output=True, text=True, encoding="utf-8", errors="replace",
+                               creationflags=subprocess.CREATE_NO_WINDOW)
             out = (r.stdout + r.stderr).strip()
             if "OK" in out:
                 self._log_line(f"  ✓ App Pool {pool} rimosso", "ok")
@@ -2859,7 +3607,8 @@ if (Test-Path 'IIS:\\AppPools\\{pool}') {{
                     cur = ep / "current"
                     if cur.exists() or cur.is_symlink():
                         subprocess.run(["cmd", "/c", f"rmdir \"{cur}\""],
-                                       capture_output=True)
+                                       capture_output=True,
+                                       creationflags=subprocess.CREATE_NO_WINDOW)
                         self._log_line("  ✓ Junction current rimossa", "ok")
                     shutil.rmtree(ep)
                     self._log_line(f"  ✓ Directory {ep} eliminata", "ok")
@@ -2888,9 +3637,10 @@ if (Test-Path 'IIS:\\AppPools\\{pool}') {{
 
 
 class UninstallDonePage(Page):
-    def __init__(self, parent, cfg):
+    def __init__(self, parent, cfg, on_close=None):
         super().__init__(parent, "Disinstallazione completata", "")
         self.cfg = cfg
+        self._on_close = on_close
         b = self.body
         frame(b, height=16).pack()
         self._msg = tk.Label(b, text="", font=(SF,13,"bold"),
@@ -2900,8 +3650,10 @@ class UninstallDonePage(Page):
         self._hints = frame(b)
         self._hints.pack(fill="x", padx=32)
         frame(b, height=16).pack()
+        self._countdown_lbl = tk.Label(b, text="", font=FSM, fg=GRAY400, bg="white")
+        self._countdown_lbl.pack(padx=32, anchor="w")
         tk.Label(b, text="Portale Novicrom · Costruzioni Novicrom SRL",
-                 font=FSM, fg=GRAY400, bg="white").pack(padx=32, anchor="w")
+                 font=FSM, fg=GRAY400, bg="white").pack(padx=32, anchor="w", pady=(4,0))
 
     def on_enter(self):
         for w in self._hints.winfo_children(): w.destroy()
@@ -2918,6 +3670,18 @@ class UninstallDonePage(Page):
             tk.Label(row, text=str(i), font=(SF,9,"bold"), bg=GRAY700, fg="white",
                      width=2, pady=4).pack(side="left", padx=(0,12))
             tk.Label(row, text=hint, font=FN, fg=GRAY600, bg="white").pack(side="left")
+        self._start_countdown(15)
+
+    def _start_countdown(self, n):
+        if n <= 0:
+            self._countdown_lbl.configure(text="Chiusura in corso…")
+            if self._on_close:
+                try: self._on_close()
+                except: pass
+            return
+        self._countdown_lbl.configure(
+            text=f"La finestra si chiuderà automaticamente tra {n} second{'o' if n==1 else 'i'}…")
+        self.after(1000, lambda: self._start_countdown(n - 1))
 
 
 class UninstallApp:
@@ -2933,6 +3697,7 @@ class UninstallApp:
         self.root.geometry(f"{WIN_W}x{WIN_H}")
         self.root.resizable(False, False)
         self.root.configure(bg="white")
+        self.root.protocol("WM_DELETE_WINDOW", self._close)
         self.root.update_idletasks()
         x = (self.root.winfo_screenwidth()  - WIN_W) // 2
         y = (self.root.winfo_screenheight() - WIN_H) // 2 - 20
@@ -2975,7 +3740,7 @@ class UninstallApp:
         self._p_config  = UninstallConfigPage(self.container, self.cfg)
         self._p_confirm = UninstallConfirmPage(self.container, self.cfg)
         self._p_run     = UninstallRunPage(self.container, self.cfg, self._on_done)
-        self._p_done    = UninstallDonePage(self.container, self.cfg)
+        self._p_done    = UninstallDonePage(self.container, self.cfg, self._close)
         self._pages     = [self._p_config, self._p_confirm, self._p_run, self._p_done]
 
     def _show(self, idx):
@@ -2988,20 +3753,20 @@ class UninstallApp:
         if idx == 3:        # Done
             self.btn_next.pack_forget()
             self.btn_finish.pack(side="right")
-            self.btn_back._lbl.configure(state="disabled")
-            self.btn_cancel._lbl.configure(state="disabled")
+            self.btn_back.set_enabled(False)
+            self.btn_cancel.set_enabled(False)
         elif idx == 2:      # Run
             self.btn_next.pack_forget()
             self.btn_finish.pack_forget()
-            self.btn_back._lbl.configure(state="disabled")
-            self.btn_cancel._lbl.configure(state="disabled")
+            self.btn_back.set_enabled(False)
+            self.btn_cancel.set_enabled(False)
         else:
             self.btn_finish.pack_forget()
             self.btn_next.pack(side="right")
             lbl = "⚠  Disinstalla" if idx == 1 else "Avanti  ▶"
             self.btn_next.configure_text(lbl)
-            self.btn_back._lbl.configure(state="normal" if idx > 0 else "disabled")
-            self.btn_cancel._lbl.configure(state="normal")
+            self.btn_back.set_enabled(idx > 0)
+            self.btn_cancel.set_enabled(True)
 
     def _next(self):
         if self._pages[self._idx].validate():
@@ -3012,12 +3777,303 @@ class UninstallApp:
         if self._idx > 0: self._show(self._idx - 1)
 
     def _close(self):
-        self.root.after(0, self.root.destroy)
+        try: self.root.quit()
+        except: pass
+        try: self.root.destroy()
+        except: pass
+        os._exit(0)
 
     def _cancel(self):
         if messagebox.askyesno("Annulla", "Uscire?"): self._close()
 
-    def _on_done(self): self._show(3)
+    def _on_done(self):
+        self._show(3)
+        # Il countdown e la chiusura automatica sono gestiti da UninstallDonePage._start_countdown()
+
+
+# ─────────────────────────────────────────────────────────────
+# SERVER DASHBOARD — pannello di controllo offline
+# ─────────────────────────────────────────────────────────────
+
+class ServerDashboard:
+    """Dashboard offline per gestire i siti IIS di Portale Novicrom.
+
+    Può essere aperto standalone (parent=None, crea tk.Tk) oppure
+    come finestra sopra il wizard (parent=Toplevel, crea tk.Toplevel).
+    """
+
+    BASE_DIR  = r"C:\PortaleNovicrom"
+    ENVS      = ["test", "prod"]
+    REFRESH_MS = 5000   # auto-refresh ogni 5 secondi
+
+    def __init__(self, parent=None):
+        self._standalone = (parent is None)
+        if self._standalone:
+            self.root = tk.Tk()
+        else:
+            self.root = tk.Toplevel(parent)
+        self.root.title("Portale Novicrom — Server Dashboard")
+        self.root.configure(bg="white")
+        self.root.resizable(False, False)
+
+        W, H = 700, 580
+        sw = self.root.winfo_screenwidth()
+        sh = self.root.winfo_screenheight()
+        self.root.geometry(f"{W}x{H}+{(sw-W)//2}+{(sh-H)//2 - 20}")
+
+        self._selected_env = tk.StringVar(value="test")
+        self._status_data: dict = {}
+        self._after_id = None
+
+        self._build()
+        self._refresh()
+        if self._standalone:
+            self.root.mainloop()
+
+    def _build(self):
+        # ── Header ───────────────────────────────────────────────
+        hdr = frame(self.root, bg=BRAND_DARK, height=56)
+        hdr.pack(fill="x"); hdr.pack_propagate(False)
+        tk.Label(hdr, text="Portale Novicrom", font=(SF, 13, "bold"),
+                 bg=BRAND_DARK, fg="white").pack(side="left", padx=20, pady=14)
+        tk.Label(hdr, text="Server Dashboard", font=(SF, 9),
+                 bg=BRAND_DARK, fg="#bfdbfe").pack(side="left")
+
+        # ── Env tabs ─────────────────────────────────────────────
+        tab_row = frame(self.root, bg=GRAY50,
+                        highlightthickness=1, highlightbackground=GRAY200)
+        tab_row.pack(fill="x")
+        self._tab_btns = {}
+        for env in self.ENVS:
+            btn = tk.Label(tab_row, text=env.upper(), font=(SF, 9, "bold"),
+                           bg=GRAY50, fg=GRAY600, cursor="hand2",
+                           padx=18, pady=8)
+            btn.pack(side="left")
+            btn.bind("<Button-1>", lambda e, v=env: self._select_env(v))
+            self._tab_btns[env] = btn
+
+        # ── Main area ────────────────────────────────────────────
+        main = frame(self.root, bg="white")
+        main.pack(fill="both", expand=True, padx=24, pady=16)
+
+        # Status panel
+        status_frame = frame(main, bg=GRAY50,
+                              highlightthickness=1, highlightbackground=GRAY200)
+        status_frame.pack(fill="x")
+        tk.Label(status_frame, text="Stato servizi", font=(SF, 9, "bold"),
+                 bg=GRAY50, fg=GRAY600).pack(anchor="w", padx=14, pady=(10, 6))
+
+        grid = frame(status_frame, bg=GRAY50)
+        grid.pack(fill="x", padx=14, pady=(0, 10))
+        for col, lbl in enumerate(["Componente", "Stato", "URL / Note"]):
+            tk.Label(grid, text=lbl, font=(SF, 8, "bold"), fg=GRAY400,
+                     bg=GRAY50, width=18 if col == 0 else 12,
+                     anchor="w").grid(row=0, column=col, sticky="w")
+        self._rows: list[tuple] = []
+        for r_idx, (comp, _) in enumerate([("Sito IIS", ""), ("App Pool", ""), ("URL", "")], 1):
+            lbl_comp = tk.Label(grid, text=comp, font=FSM, fg=GRAY700, bg=GRAY50,
+                                width=18, anchor="w")
+            lbl_comp.grid(row=r_idx, column=0, sticky="w", pady=2)
+            lbl_val  = tk.Label(grid, text="—", font=FSM, fg=GRAY500, bg=GRAY50,
+                                width=12, anchor="w")
+            lbl_val.grid(row=r_idx, column=1, sticky="w")
+            lbl_note = tk.Label(grid, text="", font=FSM, fg=BRAND, bg=GRAY50,
+                                cursor="hand2", anchor="w")
+            lbl_note.grid(row=r_idx, column=2, sticky="w")
+            self._rows.append((lbl_comp, lbl_val, lbl_note))
+
+        # ── Control buttons ──────────────────────────────────────
+        frame(main, height=14).pack()
+        ctrl = frame(main, bg="white")
+        ctrl.pack(fill="x")
+        tk.Label(ctrl, text="Controlli", font=(SF, 9, "bold"),
+                 fg=GRAY600, bg="white").pack(anchor="w", pady=(0, 8))
+        btn_row = frame(ctrl, bg="white")
+        btn_row.pack(anchor="w")
+
+        self._btn_start   = PrimaryButton(btn_row, "▶  Avvia",    lambda: self._iis_action("start"),   bg=GREEN)
+        self._btn_stop    = PrimaryButton(btn_row, "■  Ferma",    lambda: self._iis_action("stop"),    bg=RED)
+        self._btn_restart = PrimaryButton(btn_row, "↺  Riavvia",  lambda: self._iis_action("restart"))
+        self._btn_recycle = SecondaryButton(btn_row, "♻  Ricicla Pool", lambda: self._iis_action("recycle"))
+        self._btn_browser = SecondaryButton(btn_row, "🌐  Apri browser", self._open_browser)
+        for b in (self._btn_start, self._btn_stop, self._btn_restart,
+                  self._btn_recycle, self._btn_browser):
+            b.pack(side="left", padx=(0, 8))
+
+        # ── Log viewer ──────────────────────────────────────────
+        frame(main, height=14).pack()
+        tk.Label(main, text="Log recente (waitress)", font=(SF, 9, "bold"),
+                 fg=GRAY600, bg="white").pack(anchor="w")
+        frame(main, height=4).pack()
+        log_frame = frame(main, bg=CODE_BG,
+                          highlightthickness=1, highlightbackground=GRAY700)
+        log_frame.pack(fill="both", expand=True)
+        self._log_txt = tk.Text(log_frame, bg=CODE_BG, fg=CODE_FG,
+                                 font=FMO, relief="flat", state="disabled",
+                                 wrap="none", height=10)
+        sb = tk.Scrollbar(log_frame, command=self._log_txt.yview)
+        self._log_txt.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        self._log_txt.pack(fill="both", expand=True, padx=8, pady=6)
+
+        # ── Footer ──────────────────────────────────────────────
+        ftr = frame(self.root, bg=GRAY50,
+                    highlightthickness=1, highlightbackground=GRAY100)
+        ftr.pack(fill="x", side="bottom")
+        self._refresh_lbl = tk.Label(ftr, text="", font=FSM, fg=GRAY400, bg=GRAY50)
+        self._refresh_lbl.pack(side="left", padx=14, pady=6)
+        SecondaryButton(ftr, "🗑  Pulisci release vecchie", self._clean_old_releases).pack(side="right", padx=(0, 8), pady=4)
+        SecondaryButton(ftr, "🔄  Aggiorna ora", self._refresh).pack(side="right", padx=14, pady=4)
+
+        self._select_env(self._selected_env.get())
+
+    def _select_env(self, env):
+        self._selected_env.set(env)
+        for e, btn in self._tab_btns.items():
+            btn.configure(bg=BRAND if e == env else GRAY50,
+                          fg="white" if e == env else GRAY600)
+        if self._after_id:
+            self.root.after_cancel(self._after_id)
+        self._refresh()
+
+    def _refresh(self):
+        env = self._selected_env.get()
+        threading.Thread(target=self._fetch_status, args=(env,), daemon=True).start()
+
+    def _fetch_status(self, env):
+        site_name = f"PortaleNovicrom-{env.upper()}"
+        pool_name = f"PortaleNovicrom-{env.upper()}"
+        ep = Path(self.BASE_DIR) / env
+
+        ps = f"""
+Import-Module WebAdministration -ErrorAction SilentlyContinue
+$site = Get-Website -Name '{site_name}' -ErrorAction SilentlyContinue
+$pool = Get-WebAppPool -Name '{pool_name}' -ErrorAction SilentlyContinue
+$sState = if ($site) {{ $site.State }} else {{ 'NotFound' }}
+$pState = if ($pool) {{ $pool.State }} else {{ 'NotFound' }}
+$port   = if ($site) {{ ($site.Bindings.Collection | Select-Object -First 1).bindingInformation.Split(':')[1] }} else {{ '' }}
+Write-Output "$sState|$pState|$port"
+"""
+        try:
+            r = subprocess.run(
+                ["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps],
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10,
+                creationflags=subprocess.CREATE_NO_WINDOW)
+            parts = (r.stdout or "").strip().split("|")
+            site_state = parts[0] if len(parts) > 0 else "Unknown"
+            pool_state = parts[1] if len(parts) > 1 else "Unknown"
+            port       = parts[2].strip() if len(parts) > 2 else ""
+        except Exception:
+            site_state = pool_state = "Error"
+            port = ""
+
+        # Log tail
+        log_path = ep / "logs" / "waitress_stdout.log"
+        log_lines = ""
+        try:
+            if log_path.exists():
+                with open(log_path, encoding="utf-8", errors="replace") as f:
+                    all_lines = f.readlines()
+                    log_lines = "".join(all_lines[-40:])
+        except Exception:
+            log_lines = ""
+
+        url = f"http://localhost:{port}/" if port else f"http://localhost/"
+        self.root.after(0, lambda: self._update_ui(site_state, pool_state, url, log_lines))
+
+    def _update_ui(self, site_state, pool_state, url, log_lines):
+        state_map = {
+            "Started": ("▶ Avviato", GREEN),
+            "Stopped": ("■ Fermato", RED),
+            "NotFound": ("✗ Non trovato", GRAY400),
+            "Starting": ("… Avvio", YELLOW_TX),
+            "Stopping": ("… Arresto", YELLOW_TX),
+        }
+        s_text, s_fg = state_map.get(site_state, (site_state, GRAY500))
+        p_text, p_fg = state_map.get(pool_state, (pool_state, GRAY500))
+
+        self._rows[0][1].configure(text=s_text, fg=s_fg)
+        self._rows[1][1].configure(text=p_text, fg=p_fg)
+        self._rows[2][1].configure(text="")
+        self._rows[2][2].configure(text=url, fg=BRAND, cursor="hand2")
+        self._rows[2][2].bind("<Button-1>", lambda e: self._open_browser())
+        self._url = url
+
+        self._log_txt.configure(state="normal")
+        self._log_txt.delete("1.0", "end")
+        self._log_txt.insert("end", log_lines or "(nessun log disponibile)")
+        self._log_txt.see("end")
+        self._log_txt.configure(state="disabled")
+
+        now = datetime.now().strftime("%H:%M:%S")
+        self._refresh_lbl.configure(text=f"Aggiornato alle {now}")
+        self._after_id = self.root.after(self.REFRESH_MS, self._refresh)
+
+    def _iis_action(self, action):
+        env = self._selected_env.get()
+        site = f"PortaleNovicrom-{env.upper()}"
+        pool = f"PortaleNovicrom-{env.upper()}"
+        ps_map = {
+            "start":   f"Import-Module WebAdministration; Start-Website '{site}'; Start-WebAppPool '{pool}'",
+            "stop":    f"Import-Module WebAdministration; Stop-Website '{site}'; Stop-WebAppPool '{pool}'",
+            "restart": f"Import-Module WebAdministration; Stop-Website '{site}' -ErrorAction SilentlyContinue; "
+                       f"Stop-WebAppPool '{pool}' -ErrorAction SilentlyContinue; "
+                       f"Start-WebAppPool '{pool}'; Start-Website '{site}'",
+            "recycle": f"Import-Module WebAdministration; Restart-WebAppPool '{pool}'",
+        }
+        ps = ps_map.get(action, "")
+        if not ps:
+            return
+        def _run():
+            try:
+                subprocess.run(
+                    ["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps],
+                    capture_output=True, timeout=30,
+                    creationflags=subprocess.CREATE_NO_WINDOW)
+            except Exception:
+                pass
+            self.root.after(1500, self._refresh)
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _clean_old_releases(self):
+        """Elimina release vecchie mantenendo solo le ultime 3 + quella attiva."""
+        env = self._selected_env.get()
+        rel_dir = Path(self.BASE_DIR) / env / "releases"
+        cur_link = Path(self.BASE_DIR) / env / "current"
+        if not rel_dir.exists():
+            messagebox.showinfo("Cleaner", "Nessuna cartella releases trovata.")
+            return
+        # Rileva target della junction corrente
+        try:
+            active = str(cur_link.resolve()) if (cur_link.exists() or cur_link.is_symlink()) else ""
+        except Exception:
+            active = ""
+        releases = sorted(rel_dir.iterdir(), key=lambda p: p.name)
+        to_keep = 3
+        to_delete = [r for r in releases if str(r) != active][:-to_keep] if len(releases) > to_keep else []
+        if not to_delete:
+            messagebox.showinfo("Cleaner", "Nulla da eliminare — sono presenti ≤ 3 release.")
+            return
+        names = "\n".join(r.name for r in to_delete)
+        if not messagebox.askyesno("Cleaner",
+                f"Eliminare {len(to_delete)} release vecchie?\n\n{names}"):
+            return
+        errors = []
+        for r in to_delete:
+            try:
+                shutil.rmtree(str(r))
+            except Exception as e:
+                errors.append(f"{r.name}: {e}")
+        if errors:
+            messagebox.showwarning("Cleaner", "Alcuni errori:\n" + "\n".join(errors))
+        else:
+            messagebox.showinfo("Cleaner", f"✓ Eliminate {len(to_delete)} release vecchie.")
+
+    def _open_browser(self):
+        try:
+            os.startfile(getattr(self, "_url", "http://localhost/"))
+        except Exception:
+            pass
 
 
 # ─────────────────────────────────────────────────────────────
@@ -3057,15 +4113,19 @@ class LauncherApp:
         # Card options
         cards_data = [
             ("install",
-             "Installa nuovo ambiente",
+             "🔧  Installa nuovo ambiente",
              "Configura e installa il portale su questo server (primo avvio o nuovo ambiente)",
              BLUE_BG, BLUE_BD, "#1d4ed8"),
+            ("dashboard",
+             "📊  Gestisci server",
+             "Avvia, ferma, riavvia i siti IIS · stato in tempo reale · log · apri nel browser",
+             "#f0fdf4", "#86efac", "#166534"),
             ("release",
-             "Gestione Release",
+             "📦  Gestione Release",
              "Crea un pacchetto .zip da DEV o promuovi una release su TEST / PROD",
              GREEN_BG, GREEN_BD, "#166534"),
             ("uninstall",
-             "Disinstalla ambiente",
+             "🗑  Disinstalla ambiente",
              "Rimuove il sito IIS e l'App Pool di un ambiente (TEST o PROD)",
              "#fff1f2", "#fecdd3", "#be123c"),
         ]
@@ -3156,6 +4216,9 @@ def main():
     if mode in ("release", "create", "promote"):
         ReleaseApp(initial_mode=mode if mode in ("create","promote") else None); return
 
+    if mode == "dashboard":
+        ServerDashboard(); return
+
     if mode == "install" or preselect:
         if preselect and preselect not in ("dev","test","prod"):
             print(f"Ambiente non valido: {preselect}"); sys.exit(1)
@@ -3173,6 +4236,9 @@ def main():
     if choice == "install":
         _ensure_admin("La configurazione IIS (TEST/PROD) richiede diritti di Amministratore.")
         WizardApp()
+
+    elif choice == "dashboard":
+        ServerDashboard()
 
     elif choice == "release":
         ReleaseApp()

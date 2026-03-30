@@ -97,4 +97,6 @@ urlpatterns = [
     path("matrice-permessi/", views.matrice_permessi, name="matrice_permessi"),
     path("wizard-ruolo/", views.wizard_ruolo, name="wizard_ruolo"),
     path("guestportal-sso/", views.guestportal_sso, name="guestportal_sso"),
+    path("crea-release/", views.crea_release, name="crea_release"),
+    path("crea-release/download/", views.download_release_package, name="download_release_package"),
 ]

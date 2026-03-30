@@ -4,53 +4,237 @@
 
 {% block extra_head %}
 <style>
-  /* ── versioning ───────────────────────────────────────────── */
-  .admin-version-shell { display:grid; gap:16px; }
-  .admin-version-hero {
-    border:1px solid #dbe1ea; border-radius:16px; padding:18px;
-    background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%); color:#e2e8f0;
-  }
-  .admin-version-kicker { font-size:12px; text-transform:uppercase; letter-spacing:.08em; opacity:.8; }
-  .admin-version-number { margin-top:6px; font-size:34px; font-weight:800; letter-spacing:-.03em; }
-  .admin-version-date   { margin-top:4px; font-size:13px; color:#cbd5e1; }
-  .admin-version-grid   { display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
-  .admin-version-item   { border:1px solid #dbe1ea; border-radius:12px; padding:12px 14px; background:#f8fafc; }
-  .admin-version-label  { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; }
-  .admin-version-value  { margin-top:4px; font-size:20px; font-weight:800; color:#0f172a; }
-  .admin-version-meta   { margin-top:3px; font-size:12px; color:#64748b; }
-  .admin-release-list   { margin:0; padding-left:18px; color:#334155; display:grid; gap:8px; }
-  .admin-release-meta   { color:#64748b; font-size:13px; }
-  .admin-version-note   { color:#64748b; font-size:12px; }
+/* ── Hero ──────────────────────────────────────────────────── */
+.ap-hero {
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 60%, #1a3a5c 100%);
+  border-radius: 16px;
+  padding: 28px 28px 22px;
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+}
+.ap-hero::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 80% 50%, rgba(99,179,237,.12) 0%, transparent 60%);
+  pointer-events: none;
+}
+.ap-hero-top {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+  margin-bottom: 20px;
+}
+.ap-hero-title {
+  font-size: 22px; font-weight: 800; color: #f8fafc; line-height: 1.2;
+}
+.ap-hero-sub {
+  font-size: 13px; color: #94a3b8; margin-top: 5px;
+}
+.ap-hero-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.15);
+  border-radius: 20px; padding: 5px 14px; font-size: 12px;
+  font-weight: 700; color: #93c5fd; white-space: nowrap; flex-shrink: 0;
+}
+.ap-hero-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+}
+.ap-hero-stat {
+  background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1);
+  border-radius: 12px; padding: 12px 16px;
+  display: flex; align-items: center; gap: 12px;
+}
+.ap-hero-stat-icon {
+  width: 38px; height: 38px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+}
+.ap-hero-stat-icon.blue   { background: rgba(96,165,250,.2); }
+.ap-hero-stat-icon.yellow { background: rgba(250,204,21,.2); }
+.ap-hero-stat-icon.green  { background: rgba(74,222,128,.2); }
+.ap-hero-stat-icon.red    { background: rgba(248,113,113,.2); }
+.ap-hero-stat-num { font-size: 24px; font-weight: 800; color: #f8fafc; line-height: 1; }
+.ap-hero-stat-lbl { font-size: 11px; color: #94a3b8; margin-top: 3px; font-weight: 500; }
 
-  /* ── section label ────────────────────────────────────────── */
-  .admin-section-label {
-    font-size:11px; font-weight:700; text-transform:uppercase;
-    letter-spacing:.08em; color:#94a3b8; margin:0 0 10px;
-    padding-bottom:6px; border-bottom:1px solid #e8edf5;
-  }
+/* ── Quick nav ─────────────────────────────────────────────── */
+.ap-quicknav {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.ap-qn-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 13px; border-radius: 20px; font-size: 12px; font-weight: 600;
+  text-decoration: none; border: 1.5px solid var(--border);
+  background: var(--surface); color: var(--text-mid);
+  transition: all .15s; white-space: nowrap;
+}
+.ap-qn-pill:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
 
-  /* ── hub card ─────────────────────────────────────────────── */
-  .card-hub {
-    border:2px solid #1a6fc4; border-radius:12px; overflow:hidden;
-  }
-  .card-hub .card-head {
-    background:linear-gradient(90deg,#1a3a5c 0%,#1e4976 100%);
-    color:#e2e8f0;
-  }
-  .card-hub .card-title { color:#e2e8f0; }
-  .card-hub .card-subtitle { font-size:.78rem; color:#94a3b8; margin-top:2px; }
-  .hub-mod {
-    display:flex; align-items:center; gap:16px;
-    padding:16px 18px; text-decoration:none; color:inherit;
-    border-radius:10px; border:1.5px solid #d1d9e6;
-    background:#fff; transition:border-color .15s, box-shadow .15s;
-    flex:1; min-width:220px;
-  }
-  .hub-mod:hover { border-color:#1a6fc4; box-shadow:0 3px 12px rgba(26,111,196,.12); }
-  .hub-mod-icon { font-size:2rem; line-height:1; flex-shrink:0; }
-  .hub-mod-name { font-weight:700; font-size:.95rem; color:#0f172a; }
-  .hub-mod-sub  { font-size:.78rem; color:#64748b; margin-top:2px; line-height:1.4; }
-  .hub-mods-row { display:flex; flex-wrap:wrap; gap:14px; }
+/* ── Sections ──────────────────────────────────────────────── */
+.ap-section {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  margin-bottom: 14px;
+  border-top: 3px solid var(--section-color, var(--border));
+  overflow: hidden;
+}
+.ap-section-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--section-bg, #f8fafc);
+}
+.ap-section-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; flex-shrink: 0;
+  background: var(--section-icon-bg, var(--border));
+}
+.ap-section-title { font-size: 14px; font-weight: 700; color: var(--text); }
+.ap-section-count {
+  margin-left: auto; font-size: 11px; font-weight: 700;
+  color: var(--section-color, var(--text-light));
+  background: var(--section-icon-bg, var(--border));
+  padding: 2px 9px; border-radius: 10px;
+}
+
+/* ── Section color themes ──────────────────────────────────── */
+.ap-section.blue   { --section-color:#2563eb; --section-bg:#eff6ff; --section-icon-bg:#dbeafe; }
+.ap-section.teal   { --section-color:#0d9488; --section-bg:#f0fdfa; --section-icon-bg:#ccfbf1; }
+.ap-section.purple { --section-color:#7c3aed; --section-bg:#f5f3ff; --section-icon-bg:#ede9fe; }
+.ap-section.orange { --section-color:#ea580c; --section-bg:#fff7ed; --section-icon-bg:#fed7aa; }
+.ap-section.emerald{ --section-color:#059669; --section-bg:#ecfdf5; --section-icon-bg:#d1fae5; }
+.ap-section.slate  { --section-color:#475569; --section-bg:#f8fafc; --section-icon-bg:#e2e8f0; }
+.ap-section.indigo { --section-color:#4f46e5; --section-bg:#eef2ff; --section-icon-bg:#e0e7ff; }
+.ap-section.rose   { --section-color:#e11d48; --section-bg:#fff1f2; --section-icon-bg:#ffe4e6; }
+.ap-section.dark   { --section-color:#1e3a5f; --section-bg:#f0f4f8; --section-icon-bg:#dde6f0; }
+
+/* ── Mod grid override ─────────────────────────────────────── */
+.ap-section .modules-grid {
+  grid-template-columns: repeat(3, 1fr);
+  padding: 14px;
+  gap: 10px;
+}
+@media (max-width: 900px) {
+  .ap-section .modules-grid { grid-template-columns: 1fr 1fr; }
+  .ap-hero-stats { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 600px) {
+  .ap-section .modules-grid { grid-template-columns: 1fr; }
+  .ap-hero-stats { grid-template-columns: 1fr 1fr; }
+}
+
+.ap-section .mod {
+  background: #fff;
+}
+.ap-section.blue   .mod:hover { border-color:#2563eb; background:#eff6ff; box-shadow:0 2px 8px rgba(37,99,235,.1); }
+.ap-section.teal   .mod:hover { border-color:#0d9488; background:#f0fdfa; box-shadow:0 2px 8px rgba(13,148,136,.1); }
+.ap-section.purple .mod:hover { border-color:#7c3aed; background:#f5f3ff; box-shadow:0 2px 8px rgba(124,58,237,.1); }
+.ap-section.orange .mod:hover { border-color:#ea580c; background:#fff7ed; box-shadow:0 2px 8px rgba(234,88,12,.1); }
+.ap-section.emerald.mod:hover,
+.ap-section.emerald .mod:hover { border-color:#059669; background:#ecfdf5; box-shadow:0 2px 8px rgba(5,150,105,.1); }
+.ap-section.slate  .mod:hover { border-color:#475569; background:#f8fafc; box-shadow:0 2px 8px rgba(71,85,105,.1); }
+.ap-section.indigo .mod:hover { border-color:#4f46e5; background:#eef2ff; box-shadow:0 2px 8px rgba(79,70,229,.1); }
+.ap-section.rose   .mod:hover { border-color:#e11d48; background:#fff1f2; box-shadow:0 2px 8px rgba(225,29,72,.1); }
+.ap-section.dark   .mod:hover { border-color:#1e3a5f; background:#f0f4f8; box-shadow:0 2px 8px rgba(30,58,95,.1); }
+
+/* ── Hub section override ──────────────────────────────────── */
+.ap-section.hub-section {
+  --section-color: #1a6fc4;
+  border-top-color: #1a6fc4;
+}
+.ap-section.hub-section .ap-section-head {
+  background: linear-gradient(90deg,#1a3a5c 0%,#1e4976 100%);
+}
+.ap-section.hub-section .ap-section-title,
+.ap-section.hub-section .ap-section-icon { color: #e2e8f0; }
+.ap-hub-badge {
+  margin-left: auto; font-size: 11px; font-weight: 700; color: #60a5fa;
+  background: rgba(96,165,250,.15); border: 1px solid rgba(96,165,250,.3);
+  padding: 3px 12px; border-radius: 20px; letter-spacing: .04em;
+}
+.hub-mods-row { display: flex; flex-wrap: wrap; gap: 12px; padding: 14px; }
+.hub-mod {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px; text-decoration: none; color: inherit;
+  border-radius: 10px; border: 1.5px solid #d1d9e6;
+  background: #fff; transition: border-color .15s, box-shadow .15s;
+  flex: 1; min-width: 200px;
+}
+.hub-mod:hover { border-color: #1a6fc4; box-shadow: 0 3px 12px rgba(26,111,196,.12); }
+.hub-mod-icon { font-size: 2rem; line-height: 1; flex-shrink: 0; }
+.hub-mod-name { font-weight: 700; font-size: .93rem; color: #0f172a; }
+.hub-mod-sub  { font-size: .75rem; color: #64748b; margin-top: 2px; line-height: 1.4; }
+
+/* ── Module panels grid ────────────────────────────────────── */
+.ap-modules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  padding: 14px;
+}
+.ap-mod-card {
+  border: 1.5px solid var(--border);
+  border-radius: 11px;
+  background: #fff;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  transition: border-color .15s, box-shadow .15s;
+}
+.ap-mod-card:hover { border-color: #4f46e5; box-shadow: 0 3px 12px rgba(79,70,229,.1); }
+.ap-mod-card-head {
+  display: flex; align-items: center; gap: 9px;
+  padding: 11px 13px 10px;
+  border-bottom: 1px solid var(--border);
+  background: #f8fafc;
+}
+.ap-mod-card-icon {
+  width: 30px; height: 30px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; flex-shrink: 0;
+  background: #e0e7ff;
+}
+.ap-mod-card-name { font-size: 12px; font-weight: 700; color: var(--text); line-height: 1.3; }
+.ap-mod-card-links {
+  display: flex; flex-wrap: wrap; gap: 5px;
+  padding: 9px 11px;
+}
+.ap-mod-link {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600;
+  padding: 4px 9px; border-radius: 6px;
+  text-decoration: none; border: 1px solid;
+  transition: background .12s, color .12s;
+  white-space: nowrap;
+}
+.ap-mod-link.gestione { color: #1d4ed8; border-color: #bfdbfe; background: #eff6ff; }
+.ap-mod-link.gestione:hover { background: #dbeafe; border-color: #93c5fd; }
+.ap-mod-link.impostazioni { color: #059669; border-color: #a7f3d0; background: #ecfdf5; }
+.ap-mod-link.impostazioni:hover { background: #d1fae5; border-color: #6ee7b7; }
+.ap-mod-link.admin { color: #7c3aed; border-color: #ddd6fe; background: #f5f3ff; }
+.ap-mod-link.admin:hover { background: #ede9fe; border-color: #c4b5fd; }
+.ap-mod-link.report { color: #d97706; border-color: #fde68a; background: #fffbeb; }
+.ap-mod-link.report:hover { background: #fef3c7; border-color: #fcd34d; }
+.ap-mod-link.django { color: #64748b; border-color: #e2e8f0; background: #f8fafc; }
+.ap-mod-link.django:hover { background: #f1f5f9; border-color: #cbd5e1; }
+
+/* ── Versioning ────────────────────────────────────────────── */
+.ap-version-shell { display: grid; gap: 16px; padding: 14px; }
+.ap-version-hero {
+  border-radius: 12px; padding: 18px;
+  background: linear-gradient(135deg,#0f172a 0%,#1e293b 100%); color: #e2e8f0;
+}
+.ap-version-kicker { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; opacity: .7; }
+.ap-version-number { margin-top: 5px; font-size: 34px; font-weight: 800; letter-spacing: -.03em; }
+.ap-version-date   { margin-top: 4px; font-size: 12px; color: #cbd5e1; }
+.ap-version-grid   { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.ap-version-item   { border: 1px solid var(--border); border-radius: 10px; padding: 11px 13px; background: #f8fafc; }
+.ap-version-label  { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #64748b; }
+.ap-version-value  { margin-top: 3px; font-size: 19px; font-weight: 800; color: #0f172a; }
+.ap-version-meta   { margin-top: 2px; font-size: 11px; color: #64748b; }
+.ap-release-list   { margin: 0; padding-left: 18px; color: #334155; display: grid; gap: 7px; }
+.ap-release-meta   { color: #64748b; font-size: 12px; }
+.ap-version-note   { color: #64748b; font-size: 12px; }
 </style>
 {% endblock %}
 
@@ -59,9 +243,9 @@
 {% endblock %}
 
 {% block content %}
-  {% url 'admin_portale:schema_dati'          as schema_dati_url %}
-  {% url 'admin_portale:acl_diagnostica'      as acl_diag_url %}
-  {% url 'admin_portale:ldap_diagnostica'     as ldap_diag_url %}
+  {% url 'admin_portale:schema_dati'              as schema_dati_url %}
+  {% url 'admin_portale:acl_diagnostica'          as acl_diag_url %}
+  {% url 'admin_portale:ldap_diagnostica'         as ldap_diag_url %}
   {% url 'admin_portale:automazioni_rule_list'    as automazioni_rule_url %}
   {% url 'admin_portale:automazioni_sorgenti'     as automazioni_sorgenti_url %}
   {% url 'admin_portale:automazioni_contenuti'    as automazioni_contenuti_url %}
@@ -70,422 +254,681 @@
   {% url 'monitoring_admin:dashboard'             as monitoring_dashboard_url %}
   {% url 'monitoring_admin:issue_list'            as monitoring_issue_list_url %}
   {% url 'monitoring_admin:automation_list'       as monitoring_automation_list_url %}
-  {% url 'hub_tools:hub_moduli'               as hub_moduli_url %}
-  {% url 'hub_tools:hub_database'             as hub_database_url %}
-  {% url 'hub_tools:hub_homepage_builder'     as hub_homepage_builder_url %}
-  {% url 'hub_tools:hub_setup_wizard'         as hub_setup_wizard_url %}
-  {% url 'hub_tools:hub_guide_list'           as hub_guide_list_url %}
-  {% url 'hub_tools:hub_notifiche'            as hub_notifiche_url %}
+  {% url 'hub_tools:hub_moduli'                   as hub_moduli_url %}
+  {% url 'hub_tools:hub_database'                 as hub_database_url %}
+  {% url 'hub_tools:hub_homepage_builder'         as hub_homepage_builder_url %}
+  {% url 'hub_tools:hub_setup_wizard'             as hub_setup_wizard_url %}
+  {% url 'hub_tools:hub_guide_list'               as hub_guide_list_url %}
+  {% url 'hub_tools:hub_notifiche'                as hub_notifiche_url %}
 
-  {% include "admin_portale/components/page_header.html" with page_title="Pannello Amministrazione" page_subtitle="Gestione utenti, permessi, navigazione, automazioni e strumenti di sistema." %}
   {% include "admin_portale/components/flash_messages.html" %}
 
-  <!-- ── Statistiche ────────────────────────────────────────── -->
-  <div class="stats">
-    <div class="stat">
-      <div class="stat-icon-wrap blue">👤</div>
+  <!-- ── Hero ────────────────────────────────────────────────── -->
+  <div class="ap-hero">
+    <div class="ap-hero-top">
       <div>
-        <div class="stat-num">{{ stats.utenti_attivi }}</div>
-        <div class="stat-lbl">Utenti attivi</div>
+        <div class="ap-hero-title">Pannello Amministrazione</div>
+        <div class="ap-hero-sub">Gestione utenti, permessi, navigazione, automazioni e strumenti di sistema</div>
       </div>
+      {% if app_version %}
+        <div class="ap-hero-badge">📦 v{{ app_version }}</div>
+      {% endif %}
     </div>
-    <div class="stat">
-      <div class="stat-icon-wrap yellow">🛡️</div>
-      <div>
-        <div class="stat-num">{{ stats.ruoli }}</div>
-        <div class="stat-lbl">Ruoli</div>
+    <div class="ap-hero-stats">
+      <div class="ap-hero-stat">
+        <div class="ap-hero-stat-icon blue">👤</div>
+        <div>
+          <div class="ap-hero-stat-num">{{ stats.utenti_attivi }}</div>
+          <div class="ap-hero-stat-lbl">Utenti attivi</div>
+        </div>
       </div>
-    </div>
-    <div class="stat">
-      <div class="stat-icon-wrap green">🧭</div>
-      <div>
-        <div class="stat-num">{{ stats.pulsanti }}</div>
-        <div class="stat-lbl">Pulsanti</div>
+      <div class="ap-hero-stat">
+        <div class="ap-hero-stat-icon yellow">🛡️</div>
+        <div>
+          <div class="ap-hero-stat-num">{{ stats.ruoli }}</div>
+          <div class="ap-hero-stat-lbl">Ruoli</div>
+        </div>
       </div>
-    </div>
-    <div class="stat">
-      <div class="stat-icon-wrap red">🔐</div>
-      <div>
-        <div class="stat-num">{{ stats.permessi }}</div>
-        <div class="stat-lbl">Record permessi</div>
+      <div class="ap-hero-stat">
+        <div class="ap-hero-stat-icon green">🧭</div>
+        <div>
+          <div class="ap-hero-stat-num">{{ stats.pulsanti }}</div>
+          <div class="ap-hero-stat-lbl">Pulsanti</div>
+        </div>
+      </div>
+      <div class="ap-hero-stat">
+        <div class="ap-hero-stat-icon red">🔐</div>
+        <div>
+          <div class="ap-hero-stat-num">{{ stats.permessi }}</div>
+          <div class="ap-hero-stat-lbl">Permessi</div>
+        </div>
       </div>
     </div>
   </div>
 
+  <!-- ── Quick nav ───────────────────────────────────────────── -->
+  <div class="ap-quicknav">
+    <a class="ap-qn-pill" href="#utenti">👤 Utenti</a>
+    <a class="ap-qn-pill" href="#navigazione">🧭 Navigazione</a>
+    {% if automazioni_rule_url %}<a class="ap-qn-pill" href="#automazioni">🤖 Automazioni</a>{% endif %}
+    <a class="ap-qn-pill" href="#monitoraggio">📊 Monitoraggio</a>
+    <a class="ap-qn-pill" href="#configurazione">⚙️ Configurazione</a>
+    <a class="ap-qn-pill" href="#sistema">🔧 Sistema</a>
+    {% if hub_moduli_url or hub_database_url %}<a class="ap-qn-pill" href="#hub">🛠️ Hub Tools</a>{% endif %}
+    <a class="ap-qn-pill" href="#pannelli-moduli">🧩 Pannelli Moduli</a>
+    <a class="ap-qn-pill" href="#deploy">🚀 Deploy</a>
+    <a class="ap-qn-pill" href="#versioning">📦 Versioning</a>
+  </div>
+
   <!-- ── 1. Utenti & Accessi ────────────────────────────────── -->
-  <div class="card">
-    <div class="card-head">
-      <div class="card-title">👤 Utenti &amp; Accessi</div>
+  <div class="ap-section blue" id="utenti">
+    <div class="ap-section-head">
+      <div class="ap-section-icon">👤</div>
+      <div class="ap-section-title">Utenti &amp; Accessi</div>
+      <span class="ap-section-count">5 strumenti</span>
     </div>
-    <div class="card-body">
-      <div class="modules-grid">
-        <a class="mod" href="{% url 'admin_portale:utenti_list' %}">
-          <div class="mod-icon">👤</div>
-          <div>
-            <div class="mod-name">Gestione Utenti</div>
-            <div class="mod-sub">Ricerca, filtri, modifica singola e massiva ruoli</div>
-          </div>
-        </a>
-        <a class="mod" href="{% url 'admin_portale:accessi' %}">
-          <div class="mod-icon">🛡️</div>
-          <div>
-            <div class="mod-name">Accessi Semplici</div>
-            <div class="mod-sub">Gestione rapida ruoli — accesso modulo + pulsanti attivi</div>
-          </div>
-        </a>
-        <a class="mod" href="{% url 'admin_portale:accessi_avanzati' %}">
-          <div class="mod-icon">📊</div>
-          <div>
-            <div class="mod-name">Accessi Avanzati</div>
-            <div class="mod-sub">Dashboard tecnica: indicatori ruoli, override, link ACL avanzati</div>
-          </div>
-        </a>
-        <a class="mod" href="{% url 'admin_portale:permessi' %}">
-          <div class="mod-icon">🔐</div>
-          <div>
-            <div class="mod-name">Permessi ACL</div>
-            <div class="mod-sub">Matrice can_view / can_edit / can_delete / can_approve per ruolo</div>
-          </div>
-        </a>
-        <a class="mod" href="{% url 'admin_portale:wizard_ruolo' %}">
-          <div class="mod-icon">🧙</div>
-          <div>
-            <div class="mod-name">Wizard Configura Ruolo</div>
-            <div class="mod-sub">Flusso guidato 3-step per impostare tutti i permessi di un ruolo</div>
-          </div>
-        </a>
-      </div>
+    <div class="modules-grid">
+      <a class="mod" href="{% url 'admin_portale:utenti_list' %}">
+        <div class="mod-icon">👤</div>
+        <div>
+          <div class="mod-name">Gestione Utenti</div>
+          <div class="mod-sub">Ricerca, filtri, modifica singola e massiva ruoli</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:accessi' %}">
+        <div class="mod-icon">🛡️</div>
+        <div>
+          <div class="mod-name">Accessi Semplici</div>
+          <div class="mod-sub">Gestione rapida ruoli — accesso modulo + pulsanti attivi</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:accessi_avanzati' %}">
+        <div class="mod-icon">📊</div>
+        <div>
+          <div class="mod-name">Accessi Avanzati</div>
+          <div class="mod-sub">Dashboard tecnica: indicatori ruoli, override, link ACL avanzati</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:permessi' %}">
+        <div class="mod-icon">🔐</div>
+        <div>
+          <div class="mod-name">Permessi ACL</div>
+          <div class="mod-sub">Matrice can_view / can_edit / can_delete / can_approve per ruolo</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:wizard_ruolo' %}">
+        <div class="mod-icon">🧙</div>
+        <div>
+          <div class="mod-name">Wizard Configura Ruolo</div>
+          <div class="mod-sub">Flusso guidato 3-step per impostare tutti i permessi di un ruolo</div>
+        </div>
+      </a>
     </div>
   </div>
 
   <!-- ── 2. Navigazione & Menu ──────────────────────────────── -->
-  <div class="card">
-    <div class="card-head">
-      <div class="card-title">🧭 Navigazione &amp; Menu</div>
+  <div class="ap-section teal" id="navigazione">
+    <div class="ap-section-head">
+      <div class="ap-section-icon">🧭</div>
+      <div class="ap-section-title">Navigazione &amp; Menu</div>
+      <span class="ap-section-count">4 strumenti</span>
     </div>
-    <div class="card-body">
-      <div class="modules-grid">
-        <a class="mod" href="{% url 'admin_portale:pulsanti' %}">
-          <div class="mod-icon">🧭</div>
-          <div>
-            <div class="mod-name">Gestione Pulsanti</div>
-            <div class="mod-sub">Menu dinamico, URL legacy, slot/sezione e ordine</div>
-          </div>
-        </a>
-        <a class="mod" href="{% url 'admin_portale:topbar_live' %}">
-          <div class="mod-icon">NAV</div>
-          <div>
-            <div class="mod-name">Topbar Live</div>
-            <div class="mod-sub">Editor rapido barra navigazione con salvataggio immediato</div>
-          </div>
-        </a>
-        <a class="mod" href="{% url 'admin_portale:navigation_builder' %}">
-          <div class="mod-icon">CFG</div>
-          <div>
-            <div class="mod-name">Navigation Builder</div>
-            <div class="mod-sub">Sorgente unica menu/ruoli con publish snapshot e rollback</div>
-          </div>
-        </a>
-      </div>
+    <div class="modules-grid">
+      <a class="mod" href="{% url 'admin_portale:pulsanti' %}">
+        <div class="mod-icon">🧭</div>
+        <div>
+          <div class="mod-name">Gestione Pulsanti</div>
+          <div class="mod-sub">Menu dinamico, URL legacy, slot/sezione e ordine</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:topbar_live' %}">
+        <div class="mod-icon">↔️</div>
+        <div>
+          <div class="mod-name">Topbar Live</div>
+          <div class="mod-sub">Editor rapido barra navigazione con salvataggio immediato</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:navigation_builder' %}">
+        <div class="mod-icon">🗺️</div>
+        <div>
+          <div class="mod-name">Navigation Builder</div>
+          <div class="mod-sub">Sorgente unica menu/ruoli con publish snapshot e rollback</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:navigation_builder' %}?section=admin_subnav">
+        <div class="mod-icon">🗂️</div>
+        <div>
+          <div class="mod-name">Admin Subnav</div>
+          <div class="mod-sub">Aggiungi, rinomina, riordina e descrivi le voci della barra in questa pagina</div>
+        </div>
+      </a>
     </div>
   </div>
 
   <!-- ── 3. Automazioni ─────────────────────────────────────── -->
   {% if automazioni_rule_url %}
-  <div class="card">
-    <div class="card-head">
-      <div class="card-title">🤖 Automazioni</div>
+  <div class="ap-section purple" id="automazioni">
+    <div class="ap-section-head">
+      <div class="ap-section-icon">🤖</div>
+      <div class="ap-section-title">Automazioni</div>
+      <span class="ap-section-count">5 strumenti</span>
     </div>
-    <div class="card-body">
-      <div class="modules-grid">
-        <a class="mod" href="{{ automazioni_rule_url }}">
-          <div class="mod-icon">AUTO</div>
-          <div>
-            <div class="mod-name">Regole Automazioni</div>
-            <div class="mod-sub">Builder trigger, condizioni AND, azioni sequenziali e test manuale</div>
-          </div>
-        </a>
-        {% if automazioni_queue_url %}
-        <a class="mod" href="{{ automazioni_queue_url }}">
-          <div class="mod-icon">Q</div>
-          <div>
-            <div class="mod-name">Queue Automazioni</div>
-            <div class="mod-sub">Monitoraggio eventi pendenti, errori, reset e retry controllato</div>
-          </div>
-        </a>
-        {% endif %}
-        {% if automazioni_run_log_url %}
-        <a class="mod" href="{{ automazioni_run_log_url }}">
-          <div class="mod-icon">LOG</div>
-          <div>
-            <div class="mod-name">Run Log Automazioni</div>
-            <div class="mod-sub">Debug esecuzioni regole, payload e action log collegati</div>
-          </div>
-        </a>
-        {% endif %}
-        {% if automazioni_sorgenti_url %}
-        <a class="mod" href="{{ automazioni_sorgenti_url }}">
-          <div class="mod-icon">SRC</div>
-          <div>
-            <div class="mod-name">Sorgenti Dati</div>
-            <div class="mod-sub">Catalogo sorgenti esposte al wizard: tabelle, PK, campi disponibili</div>
-          </div>
-        </a>
-        {% endif %}
-        {% if automazioni_contenuti_url %}
-        <a class="mod" href="{{ automazioni_contenuti_url }}">
-          <div class="mod-icon">MAP</div>
-          <div>
-            <div class="mod-name">Contenuti &amp; Mapping</div>
-            <div class="mod-sub">Matrice campi per trigger, condizioni, template e mapping azioni</div>
-          </div>
-        </a>
-        {% endif %}
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  <div class="card">
-    <div class="card-head">
-      <div class="card-title">Monitoraggio interno</div>
-    </div>
-    <div class="card-body">
-      <div class="modules-grid">
-        <a class="mod" href="{{ monitoring_dashboard_url }}">
-          <div class="mod-icon">MON</div>
-          <div>
-            <div class="mod-name">Monitor errori</div>
-            <div class="mod-sub">Dashboard issue, trend recenti, segnalazioni utente e criticita aperte.</div>
-          </div>
-        </a>
-        <a class="mod" href="{{ monitoring_automation_list_url }}">
-          <div class="mod-icon">JOB</div>
-          <div>
-            <div class="mod-name">Monitor automazioni</div>
-            <div class="mod-sub">Stato dei job interni, fallimenti consecutivi, missing e run history.</div>
-          </div>
-        </a>
-        <a class="mod" href="{{ monitoring_issue_list_url }}">
-          <div class="mod-icon">INC</div>
-          <div>
-            <div class="mod-name">Lista issue</div>
-            <div class="mod-sub">Vista operativa per filtro, triage, assegnazione e dettaglio tecnico.</div>
-          </div>
-        </a>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── 4. Configurazione ──────────────────────────────────── -->
-  <div class="card">
-    <div class="card-head">
-      <div class="card-title">⚙️ Configurazione</div>
-    </div>
-    <div class="card-body">
-      <div class="modules-grid">
-        <a class="mod" href="{% url 'admin_portale:anagrafica_config' %}">
-          <div class="mod-icon">👥</div>
-          <div>
-            <div class="mod-name">Anagrafica Config</div>
-            <div class="mod-sub">Reparti, capireparto, macchine e campi extra profilo dipendente</div>
-          </div>
-        </a>
-        <a class="mod" href="{% url 'admin_portale:login_config' %}">
-          <div class="mod-icon">🎨</div>
-          <div>
-            <div class="mod-name">Config Pagina Login</div>
-            <div class="mod-sub">Titolo, sottotitolo, avviso, logo e pulsante SSO della pagina accesso</div>
-          </div>
-        </a>
-        <a class="mod" href="{% url 'admin_portale:checklist_index' %}">
-          <div class="mod-icon">✅</div>
-          <div>
-            <div class="mod-name">Checklist Onboarding</div>
-            <div class="mod-sub">Voci check-in / check-out e monitoraggio stato per dipendente</div>
-          </div>
-        </a>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── 5. Sistema & Diagnostica ──────────────────────────── -->
-  <div class="card">
-    <div class="card-head">
-      <div class="card-title">🔧 Sistema &amp; Diagnostica</div>
-    </div>
-    <div class="card-body">
-      <div class="modules-grid">
-        <a class="mod" href="{% url 'admin_portale:audit_log' %}">
-          <div class="mod-icon">📋</div>
-          <div>
-            <div class="mod-name">Audit Log</div>
-            <div class="mod-sub">Traccia azioni utenti: data/ora, modulo, IP e dettaglio collassabile</div>
-          </div>
-        </a>
-        <a class="mod" href="{% url 'admin_portale:health_check' %}">
-          <div class="mod-icon">💚</div>
-          <div>
-            <div class="mod-name">Health Check</div>
-            <div class="mod-sub">Stato componenti di sistema — DB, cache, servizi esterni</div>
-          </div>
-        </a>
-        {% if schema_dati_url %}
-        <a class="mod" href="{{ schema_dati_url }}">
-          <div class="mod-icon">DB</div>
-          <div>
-            <div class="mod-name">Schema Dati Admin</div>
-            <div class="mod-sub">Mappa tabelle legacy/Django, responsabilità e relazioni</div>
-          </div>
-        </a>
-        {% endif %}
-        {% if acl_diag_url %}
-        <a class="mod" href="{{ acl_diag_url }}">
-          <div class="mod-icon">ACL</div>
-          <div>
-            <div class="mod-name">Diagnostica ACL</div>
-            <div class="mod-sub">Debug path → pulsante matchato → record permessi applicati</div>
-          </div>
-        </a>
-        {% endif %}
-        {% if ldap_diag_url %}
-        <a class="mod" href="{{ ldap_diag_url }}">
-          <div class="mod-icon">SRV</div>
-          <div>
-            <div class="mod-name">Config SRV</div>
-            <div class="mod-sub">LDAP / Active Directory + SMTP — pannello unico con test integrato</div>
-          </div>
-        </a>
-        {% endif %}
-        <a class="mod" href="{% url 'admin_portale:guestportal_sso' %}">
-          <div class="mod-icon">🌐</div>
-          <div>
-            <div class="mod-name">GuestPortal SSO</div>
-            <div class="mod-sub">Accedi al pannello WiFi guest con credenziali AD</div>
-          </div>
-        </a>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── 6. Hub Tools ───────────────────────────────────────── -->
-  {% if hub_moduli_url or hub_database_url or hub_homepage_builder_url or hub_setup_wizard_url or hub_guide_list_url %}
-  <div class="card card-hub">
-    <div class="card-head" style="display:flex;align-items:center;justify-content:space-between;">
-      <div>
-        <div class="card-title">🛠️ Hub Tools</div>
-        <div class="card-subtitle">Strumenti di sistema riservati allo staff — moduli, database, builder e documentazione</div>
-      </div>
-      <span style="font-size:.72rem;font-weight:700;color:#60a5fa;background:rgba(96,165,250,.15);padding:3px 12px;border-radius:20px;letter-spacing:.04em;">STAFF ONLY</span>
-    </div>
-    <div class="card-body">
-      <div class="hub-mods-row">
-        {% if hub_moduli_url %}
-        <a class="hub-mod" href="{{ hub_moduli_url }}">
-          <div class="hub-mod-icon">🧩</div>
-          <div>
-            <div class="hub-mod-name">Gestione Moduli</div>
-            <div class="hub-mod-sub">Attiva o disattiva i moduli opzionali del portale senza riavviare il server. I dati rimangono intatti.</div>
-          </div>
-        </a>
-        {% endif %}
-        {% if hub_database_url %}
-        <a class="hub-mod" href="{{ hub_database_url }}">
-          <div class="hub-mod-icon">🗄️</div>
-          <div>
-            <div class="hub-mod-name">Gestione Database</div>
-            <div class="hub-mod-sub">Statistiche tabelle, backup, pulizia sessioni/log, ottimizzazione e ripristino.</div>
-          </div>
-        </a>
-        {% endif %}
-        {% if hub_homepage_builder_url %}
-        <a class="hub-mod" href="{{ hub_homepage_builder_url }}">
-          <div class="hub-mod-icon">🏠</div>
-          <div>
-            <div class="hub-mod-name">Homepage Builder</div>
-            <div class="hub-mod-sub">Editor visuale per configurare le sezioni della homepage e generare il template Django.</div>
-          </div>
-        </a>
-        {% endif %}
-        {% if hub_setup_wizard_url %}
-        <a class="hub-mod" href="{{ hub_setup_wizard_url }}">
-          <div class="hub-mod-icon">⚙️</div>
-          <div>
-            <div class="hub-mod-name">Setup Wizard</div>
-            <div class="hub-mod-sub">Riconfigura il portale: database, LDAP, SMTP, moduli e altri parametri con valori attuali precompilati.</div>
-          </div>
-        </a>
-        {% endif %}
-        {% if hub_guide_list_url %}
-        <a class="hub-mod" href="{{ hub_guide_list_url }}">
-          <div class="hub-mod-icon">📚</div>
-          <div>
-            <div class="hub-mod-name">Guide e Manuali</div>
-            <div class="hub-mod-sub">Documentazione tecnica, guide operative e strumenti di riferimento per la gestione del portale.</div>
-          </div>
-        </a>
-        {% endif %}
-        {% if hub_notifiche_url %}
-        <a class="hub-mod" href="{{ hub_notifiche_url }}">
-          <div class="hub-mod-icon">🔔</div>
-          <div>
-            <div class="hub-mod-name">Notifiche</div>
-            <div class="hub-mod-sub">Monitora, invia e gestisci le notifiche in-app degli utenti. Invio manuale per utente, reparto o tutti.</div>
-          </div>
-        </a>
-        {% endif %}
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- ── Versioning ─────────────────────────────────────────── -->
-  <div class="card" id="versioning-card">
-    <div class="card-head">
-      <div class="card-title">📦 Versioning e Release Notes</div>
-    </div>
-    <div class="card-body">
-      <div class="admin-version-shell">
-        <div class="admin-version-hero">
-          <div class="admin-version-kicker">Versione portale</div>
-          <div class="admin-version-number">{{ app_version }}</div>
-          {% if current_release.date %}
-            <div class="admin-version-date">Release corrente {{ current_release.date }}</div>
-          {% endif %}
-        </div>
-
+    <div class="modules-grid">
+      <a class="mod" href="{{ automazioni_rule_url }}">
+        <div class="mod-icon">⚡</div>
         <div>
-          <div class="card-title" style="font-size:16px;margin-bottom:10px;">Versioni moduli</div>
-          <div class="admin-version-grid">
-            {% for module in module_versions %}
-              <div class="admin-version-item">
-                <div class="admin-version-label">{{ module.label }}</div>
-                <div class="admin-version-value">{{ module.version }}</div>
-                <div class="admin-version-meta">
-                  {% if module.is_overridden %}Override modulo attivo{% else %}Allineato alla release portale{% endif %}
-                </div>
-              </div>
-            {% endfor %}
-          </div>
+          <div class="mod-name">Regole Automazioni</div>
+          <div class="mod-sub">Builder trigger, condizioni AND, azioni sequenziali e test manuale</div>
         </div>
+      </a>
+      {% if automazioni_queue_url %}
+      <a class="mod" href="{{ automazioni_queue_url }}">
+        <div class="mod-icon">📬</div>
+        <div>
+          <div class="mod-name">Queue Automazioni</div>
+          <div class="mod-sub">Monitoraggio eventi pendenti, errori, reset e retry controllato</div>
+        </div>
+      </a>
+      {% endif %}
+      {% if automazioni_run_log_url %}
+      <a class="mod" href="{{ automazioni_run_log_url }}">
+        <div class="mod-icon">📋</div>
+        <div>
+          <div class="mod-name">Run Log Automazioni</div>
+          <div class="mod-sub">Debug esecuzioni regole, payload e action log collegati</div>
+        </div>
+      </a>
+      {% endif %}
+      {% if automazioni_sorgenti_url %}
+      <a class="mod" href="{{ automazioni_sorgenti_url }}">
+        <div class="mod-icon">🗃️</div>
+        <div>
+          <div class="mod-name">Sorgenti Dati</div>
+          <div class="mod-sub">Catalogo sorgenti esposte al wizard: tabelle, PK, campi disponibili</div>
+        </div>
+      </a>
+      {% endif %}
+      {% if automazioni_contenuti_url %}
+      <a class="mod" href="{{ automazioni_contenuti_url }}">
+        <div class="mod-icon">🗺️</div>
+        <div>
+          <div class="mod-name">Contenuti &amp; Mapping</div>
+          <div class="mod-sub">Matrice campi per trigger, condizioni, template e mapping azioni</div>
+        </div>
+      </a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
 
-        {% if release_notes_preview %}
-          <div>
-            <div class="card-title" style="font-size:16px;margin-bottom:4px;">Ultima release</div>
-            <div class="admin-release-meta">{{ current_release.version }}{% if current_release.date %} | {{ current_release.date }}{% endif %}</div>
-            <ul class="admin-release-list" style="margin-top:10px;">
-              {% for item in release_notes_preview %}
-                <li>{{ item }}</li>
-              {% endfor %}
-            </ul>
-          </div>
+  <!-- ── 4. Monitoraggio ────────────────────────────────────── -->
+  <div class="ap-section orange" id="monitoraggio">
+    <div class="ap-section-head">
+      <div class="ap-section-icon">📊</div>
+      <div class="ap-section-title">Monitoraggio interno</div>
+      <span class="ap-section-count">3 strumenti</span>
+    </div>
+    <div class="modules-grid">
+      <a class="mod" href="{{ monitoring_dashboard_url }}">
+        <div class="mod-icon">🖥️</div>
+        <div>
+          <div class="mod-name">Monitor errori</div>
+          <div class="mod-sub">Dashboard issue, trend recenti, segnalazioni utente e criticità aperte</div>
+        </div>
+      </a>
+      <a class="mod" href="{{ monitoring_automation_list_url }}">
+        <div class="mod-icon">⚙️</div>
+        <div>
+          <div class="mod-name">Monitor automazioni</div>
+          <div class="mod-sub">Stato dei job interni, fallimenti consecutivi, missing e run history</div>
+        </div>
+      </a>
+      <a class="mod" href="{{ monitoring_issue_list_url }}">
+        <div class="mod-icon">🚨</div>
+        <div>
+          <div class="mod-name">Lista issue</div>
+          <div class="mod-sub">Vista operativa per filtro, triage, assegnazione e dettaglio tecnico</div>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <!-- ── 5. Configurazione ──────────────────────────────────── -->
+  <div class="ap-section emerald" id="configurazione">
+    <div class="ap-section-head">
+      <div class="ap-section-icon">⚙️</div>
+      <div class="ap-section-title">Configurazione</div>
+      <span class="ap-section-count">3 strumenti</span>
+    </div>
+    <div class="modules-grid">
+      <a class="mod" href="{% url 'admin_portale:anagrafica_config' %}">
+        <div class="mod-icon">👥</div>
+        <div>
+          <div class="mod-name">Anagrafica Config</div>
+          <div class="mod-sub">Reparti, capireparto, macchine e campi extra profilo dipendente</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:login_config' %}">
+        <div class="mod-icon">🎨</div>
+        <div>
+          <div class="mod-name">Config Pagina Login</div>
+          <div class="mod-sub">Titolo, sottotitolo, avviso, logo e pulsante SSO della pagina accesso</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:checklist_index' %}">
+        <div class="mod-icon">✅</div>
+        <div>
+          <div class="mod-name">Checklist Onboarding</div>
+          <div class="mod-sub">Voci check-in / check-out e monitoraggio stato per dipendente</div>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <!-- ── 6. Sistema & Diagnostica ──────────────────────────── -->
+  <div class="ap-section slate" id="sistema">
+    <div class="ap-section-head">
+      <div class="ap-section-icon">🔧</div>
+      <div class="ap-section-title">Sistema &amp; Diagnostica</div>
+      <span class="ap-section-count">6 strumenti</span>
+    </div>
+    <div class="modules-grid">
+      <a class="mod" href="{% url 'admin_portale:audit_log' %}">
+        <div class="mod-icon">📋</div>
+        <div>
+          <div class="mod-name">Audit Log</div>
+          <div class="mod-sub">Traccia azioni utenti: data/ora, modulo, IP e dettaglio collassabile</div>
+        </div>
+      </a>
+      <a class="mod" href="{% url 'admin_portale:health_check' %}">
+        <div class="mod-icon">💚</div>
+        <div>
+          <div class="mod-name">Health Check</div>
+          <div class="mod-sub">Stato componenti di sistema — DB, cache, servizi esterni</div>
+        </div>
+      </a>
+      {% if schema_dati_url %}
+      <a class="mod" href="{{ schema_dati_url }}">
+        <div class="mod-icon">🗄️</div>
+        <div>
+          <div class="mod-name">Schema Dati Admin</div>
+          <div class="mod-sub">Mappa tabelle legacy/Django, responsabilità e relazioni</div>
+        </div>
+      </a>
+      {% endif %}
+      {% if acl_diag_url %}
+      <a class="mod" href="{{ acl_diag_url }}">
+        <div class="mod-icon">🔍</div>
+        <div>
+          <div class="mod-name">Diagnostica ACL</div>
+          <div class="mod-sub">Debug path → pulsante matchato → record permessi applicati</div>
+        </div>
+      </a>
+      {% endif %}
+      {% if ldap_diag_url %}
+      <a class="mod" href="{{ ldap_diag_url }}">
+        <div class="mod-icon">🔌</div>
+        <div>
+          <div class="mod-name">Config SRV</div>
+          <div class="mod-sub">LDAP / Active Directory + SMTP — pannello unico con test integrato</div>
+        </div>
+      </a>
+      {% endif %}
+      <a class="mod" href="{% url 'admin_portale:guestportal_sso' %}">
+        <div class="mod-icon">🌐</div>
+        <div>
+          <div class="mod-name">GuestPortal SSO</div>
+          <div class="mod-sub">Accedi al pannello WiFi guest con credenziali AD</div>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <!-- ── 7. Hub Tools ───────────────────────────────────────── -->
+  {% if hub_moduli_url or hub_database_url or hub_homepage_builder_url or hub_setup_wizard_url or hub_guide_list_url %}
+  <div class="ap-section hub-section" id="hub">
+    <div class="ap-section-head">
+      <div class="ap-section-icon" style="background:rgba(255,255,255,.12);">🛠️</div>
+      <div class="ap-section-title" style="color:#e2e8f0;">Hub Tools</div>
+      <span class="ap-hub-badge">STAFF ONLY</span>
+    </div>
+    <div class="hub-mods-row">
+      {% if hub_moduli_url %}
+      <a class="hub-mod" href="{{ hub_moduli_url }}">
+        <div class="hub-mod-icon">🧩</div>
+        <div>
+          <div class="hub-mod-name">Gestione Moduli</div>
+          <div class="hub-mod-sub">Attiva o disattiva i moduli opzionali del portale senza riavviare il server.</div>
+        </div>
+      </a>
+      {% endif %}
+      {% if hub_database_url %}
+      <a class="hub-mod" href="{{ hub_database_url }}">
+        <div class="hub-mod-icon">🗄️</div>
+        <div>
+          <div class="hub-mod-name">Gestione Database</div>
+          <div class="hub-mod-sub">Statistiche tabelle, backup, pulizia sessioni/log, ottimizzazione e ripristino.</div>
+        </div>
+      </a>
+      {% endif %}
+      {% if hub_homepage_builder_url %}
+      <a class="hub-mod" href="{{ hub_homepage_builder_url }}">
+        <div class="hub-mod-icon">🏠</div>
+        <div>
+          <div class="hub-mod-name">Homepage Builder</div>
+          <div class="hub-mod-sub">Editor visuale per configurare le sezioni della homepage per ruolo.</div>
+        </div>
+      </a>
+      {% endif %}
+      {% if hub_setup_wizard_url %}
+      <a class="hub-mod" href="{{ hub_setup_wizard_url }}">
+        <div class="hub-mod-icon">⚙️</div>
+        <div>
+          <div class="hub-mod-name">Setup Wizard</div>
+          <div class="hub-mod-sub">Riconfigura il portale: database, LDAP, SMTP, moduli con valori precompilati.</div>
+        </div>
+      </a>
+      {% endif %}
+      {% if hub_guide_list_url %}
+      <a class="hub-mod" href="{{ hub_guide_list_url }}">
+        <div class="hub-mod-icon">📚</div>
+        <div>
+          <div class="hub-mod-name">Guide e Manuali</div>
+          <div class="hub-mod-sub">Documentazione tecnica, guide operative e strumenti di riferimento.</div>
+        </div>
+      </a>
+      {% endif %}
+      {% if hub_notifiche_url %}
+      <a class="hub-mod" href="{{ hub_notifiche_url }}">
+        <div class="hub-mod-icon">🔔</div>
+        <div>
+          <div class="hub-mod-name">Notifiche</div>
+          <div class="hub-mod-sub">Monitora, invia e gestisci le notifiche in-app degli utenti.</div>
+        </div>
+      </a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ── Pannelli Moduli ────────────────────────────────────── -->
+  {% url 'procedure_refresh:admin_dashboard' as pr_admin_url %}
+  {% url 'procedure_refresh:campaign_list'   as pr_campaign_url %}
+  {% url 'procedure_refresh:document_list'   as pr_doc_url %}
+  {% url 'dpi:gestione_list'  as dpi_gestione_url %}
+  {% url 'dpi:impostazioni'   as dpi_impostazioni_url %}
+  {% url 'assets:gestione_admin'        as assets_gestione_url %}
+  {% url 'assets:report_template_admin' as assets_report_url %}
+  {% url 'tasks:gestione_admin'   as tasks_gestione_url %}
+  {% url 'tasks:impostazioni'     as tasks_impostazioni_url %}
+  {% url 'tickets:gestione_list'  as tickets_gestione_url %}
+  {% url 'tickets:impostazioni'   as tickets_impostazioni_url %}
+  {% url 'anagrafica:dipendenti_list' as anagrafica_url %}
+  {% url 'anagrafica:fornitori_list'  as fornitori_url %}
+  {% url 'timbri:configurazione'      as timbri_config_url %}
+  {% url 'rilevazione_incidenti:impostazioni' as rilevazione_impostazioni_url %}
+  {% url 'diario_preposto:impostazioni' as diario_impostazioni_url %}
+  {% url 'rentri_impostazioni' as rentri_impostazioni_url %}
+
+  <div class="ap-section indigo" id="pannelli-moduli">
+    <div class="ap-section-head">
+      <div class="ap-section-icon">🧩</div>
+      <div class="ap-section-title">Pannelli Moduli</div>
+      <span class="ap-section-count">Accesso diretto a gestione e impostazioni di ogni app</span>
+    </div>
+    <div class="ap-modules-grid">
+
+      <!-- Procedure Refresh -->
+      {% if pr_admin_url %}
+      <div class="ap-mod-card">
+        <div class="ap-mod-card-head">
+          <div class="ap-mod-card-icon">📄</div>
+          <div class="ap-mod-card-name">Procedure Refresh</div>
+        </div>
+        <div class="ap-mod-card-links">
+          <a href="{{ pr_admin_url }}" class="ap-mod-link admin">Admin</a>
+          {% if pr_doc_url %}<a href="{{ pr_doc_url }}" class="ap-mod-link gestione">Documenti</a>{% endif %}
+          {% if pr_campaign_url %}<a href="{{ pr_campaign_url }}" class="ap-mod-link gestione">Campagne</a>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- DPI -->
+      {% if dpi_gestione_url or dpi_impostazioni_url %}
+      <div class="ap-mod-card">
+        <div class="ap-mod-card-head">
+          <div class="ap-mod-card-icon">🦺</div>
+          <div class="ap-mod-card-name">DPI</div>
+        </div>
+        <div class="ap-mod-card-links">
+          {% if dpi_gestione_url %}<a href="{{ dpi_gestione_url }}" class="ap-mod-link gestione">Gestione</a>{% endif %}
+          {% if dpi_impostazioni_url %}<a href="{{ dpi_impostazioni_url }}" class="ap-mod-link impostazioni">Impostazioni</a>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Asset -->
+      {% if assets_gestione_url %}
+      <div class="ap-mod-card">
+        <div class="ap-mod-card-head">
+          <div class="ap-mod-card-icon">🏗️</div>
+          <div class="ap-mod-card-name">Asset</div>
+        </div>
+        <div class="ap-mod-card-links">
+          <a href="{{ assets_gestione_url }}" class="ap-mod-link gestione">Gestione</a>
+          {% if assets_report_url %}<a href="{{ assets_report_url }}" class="ap-mod-link report">Report</a>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Task -->
+      {% if tasks_gestione_url %}
+      <div class="ap-mod-card">
+        <div class="ap-mod-card-head">
+          <div class="ap-mod-card-icon">✅</div>
+          <div class="ap-mod-card-name">Task</div>
+        </div>
+        <div class="ap-mod-card-links">
+          <a href="{{ tasks_gestione_url }}" class="ap-mod-link gestione">Gestione</a>
+          {% if tasks_impostazioni_url %}<a href="{{ tasks_impostazioni_url }}" class="ap-mod-link impostazioni">Impostazioni</a>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Tickets -->
+      {% if tickets_gestione_url %}
+      <div class="ap-mod-card">
+        <div class="ap-mod-card-head">
+          <div class="ap-mod-card-icon">🎫</div>
+          <div class="ap-mod-card-name">Tickets</div>
+        </div>
+        <div class="ap-mod-card-links">
+          <a href="{{ tickets_gestione_url }}" class="ap-mod-link gestione">Gestione</a>
+          {% if tickets_impostazioni_url %}<a href="{{ tickets_impostazioni_url }}" class="ap-mod-link impostazioni">Impostazioni</a>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Notizie -->
+      <div class="ap-mod-card">
+        <div class="ap-mod-card-head">
+          <div class="ap-mod-card-icon">📢</div>
+          <div class="ap-mod-card-name">Notizie</div>
+        </div>
+        <div class="ap-mod-card-links">
+          <a href="/notizie/dashboard/" class="ap-mod-link gestione">Dashboard</a>
+          <a href="/notizie/gestione/" class="ap-mod-link admin">Gestione</a>
+        </div>
+      </div>
+
+      <!-- Assenze -->
+      <div class="ap-mod-card">
+        <div class="ap-mod-card-head">
+          <div class="ap-mod-card-icon">📅</div>
+          <div class="ap-mod-card-name">Assenze</div>
+        </div>
+        <div class="ap-mod-card-links">
+          <a href="/assenze/gestione-admin/" class="ap-mod-link admin">Gestione Admin</a>
+          <a href="/assenze/gestione_assenze" class="ap-mod-link gestione">Gestione</a>
+        </div>
+      </div>
+
+      <!-- Anomalie -->
+      <div class="ap-mod-card">
+        <div class="ap-mod-card-head">
+          <div class="ap-mod-card-icon">⚠️</div>
+          <div class="ap-mod-card-name">Anomalie</div>
+        </div>
+        <div class="ap-mod-card-links">
+          <a href="/gestione-anomalie/configurazione" class="ap-mod-link impostazioni">Impostazioni</a>
+          <a href="/gestione-anomalie/statistiche" class="ap-mod-link report">Statistiche</a>
+        </div>
+      </div>
+
+      <!-- Timbri -->
+      {% if timbri_config_url %}
+      <div class="ap-mod-card">
+        <div class="ap-mod-card-head">
+          <div class="ap-mod-card-icon">🕐</div>
+          <div class="ap-mod-card-name">Timbri</div>
+        </div>
+        <div class="ap-mod-card-links">
+          <a href="{{ timbri_config_url }}" class="ap-mod-link impostazioni">Configurazione</a>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Rilevazione Incidenti -->
+      {% if rilevazione_impostazioni_url %}
+      <div class="ap-mod-card">
+        <div class="ap-mod-card-head">
+          <div class="ap-mod-card-icon">🚑</div>
+          <div class="ap-mod-card-name">Rilevazione Incidenti</div>
+        </div>
+        <div class="ap-mod-card-links">
+          <a href="{{ rilevazione_impostazioni_url }}" class="ap-mod-link impostazioni">Impostazioni</a>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Anagrafica -->
+      {% if anagrafica_url %}
+      <div class="ap-mod-card">
+        <div class="ap-mod-card-head">
+          <div class="ap-mod-card-icon">👥</div>
+          <div class="ap-mod-card-name">Anagrafica</div>
+        </div>
+        <div class="ap-mod-card-links">
+          <a href="{{ anagrafica_url }}" class="ap-mod-link gestione">Dipendenti</a>
+          {% if fornitori_url %}<a href="{{ fornitori_url }}" class="ap-mod-link gestione">Fornitori</a>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Rentri -->
+      <div class="ap-mod-card">
+        <div class="ap-mod-card-head">
+          <div class="ap-mod-card-icon">♻️</div>
+          <div class="ap-mod-card-name">Rentri</div>
+        </div>
+        <div class="ap-mod-card-links">
+          <a href="/rentri/" class="ap-mod-link gestione">Registro Rifiuti</a>
+          {% if rentri_impostazioni_url %}<a href="{{ rentri_impostazioni_url }}" class="ap-mod-link impostazioni">Impostazioni</a>{% endif %}
+        </div>
+      </div>
+
+      <!-- Diario Preposto -->
+      <div class="ap-mod-card">
+        <div class="ap-mod-card-head">
+          <div class="ap-mod-card-icon">📒</div>
+          <div class="ap-mod-card-name">Diario Preposto</div>
+        </div>
+        <div class="ap-mod-card-links">
+          <a href="/diario-preposto/" class="ap-mod-link gestione">Diario</a>
+          {% if diario_impostazioni_url %}<a href="{{ diario_impostazioni_url }}" class="ap-mod-link impostazioni">Impostazioni</a>{% endif %}
+        </div>
+      </div>
+
+      <!-- Django Admin -->
+      <div class="ap-mod-card">
+        <div class="ap-mod-card-head">
+          <div class="ap-mod-card-icon" style="background:#fef3c7;">🐍</div>
+          <div class="ap-mod-card-name">Django Admin</div>
+        </div>
+        <div class="ap-mod-card-links">
+          <a href="/admin/" class="ap-mod-link django">Admin nativo</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── 8. Deploy & Release ────────────────────────────────── -->
+  <div class="ap-section rose" id="deploy">
+    <div class="ap-section-head">
+      <div class="ap-section-icon">🚀</div>
+      <div class="ap-section-title">Deploy &amp; Release</div>
+      <span class="ap-section-count">1 strumento</span>
+    </div>
+    <div class="modules-grid">
+      <a class="mod" href="{% url 'admin_portale:crea_release' %}">
+        <div class="mod-icon">📦</div>
+        <div>
+          <div class="mod-name">Crea Pacchetto Release</div>
+          <div class="mod-sub">Genera il file .zip da distribuire su TEST o PROD via script PowerShell</div>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <!-- ── 9. Versioning ──────────────────────────────────────── -->
+  <div class="ap-section dark" id="versioning">
+    <div class="ap-section-head">
+      <div class="ap-section-icon">📦</div>
+      <div class="ap-section-title">Versioning &amp; Release Notes</div>
+    </div>
+    <div class="ap-version-shell">
+      <div class="ap-version-hero">
+        <div class="ap-version-kicker">Versione portale</div>
+        <div class="ap-version-number">{{ app_version }}</div>
+        {% if current_release.date %}
+          <div class="ap-version-date">Release corrente {{ current_release.date }}</div>
         {% endif %}
+      </div>
 
-        <div class="admin-version-note">
-          Per gestire versioni separate puoi usare gli override per modulo in configurazione:
-          <code>APP_VERSION_ASSETS</code>, <code>APP_VERSION_TASKS</code>, <code>APP_VERSION_ADMIN_PORTALE</code>, ecc.
+      {% if module_versions %}
+      <div>
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;">Versioni moduli</div>
+        <div class="ap-version-grid">
+          {% for module in module_versions %}
+            <div class="ap-version-item">
+              <div class="ap-version-label">{{ module.label }}</div>
+              <div class="ap-version-value">{{ module.version }}</div>
+              <div class="ap-version-meta">
+                {% if module.is_overridden %}Override attivo{% else %}Allineato alla release{% endif %}
+              </div>
+            </div>
+          {% endfor %}
         </div>
+      </div>
+      {% endif %}
+
+      {% if release_notes_preview %}
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;">Ultima release</div>
+          <div class="ap-release-meta">{{ current_release.version }}{% if current_release.date %} | {{ current_release.date }}{% endif %}</div>
+          <ul class="ap-release-list" style="margin-top:10px;">
+            {% for item in release_notes_preview %}
+              <li>{{ item }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+
+      <div class="ap-version-note">
+        Override per modulo: <code>APP_VERSION_ASSETS</code>, <code>APP_VERSION_TASKS</code>, <code>APP_VERSION_ADMIN_PORTALE</code>, ecc.
       </div>
     </div>
   </div>
+
 {% endblock %}

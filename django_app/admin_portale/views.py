@@ -295,6 +295,174 @@ MODULE_CATALOG: dict[str, dict] = {
             },
         ],
     },
+    "anagrafica": {
+        "label": "Anagrafica",
+        "icon": "users",
+        "buttons": [
+            {
+                "codice": "view_anagrafica_dipendenti",
+                "nome_visibile": "Dipendenti",
+                "url": "route:anagrafica:dipendenti_list",
+                "icona": "users",
+                "ui_slot": "topbar",
+                "ui_section": "anagrafica",
+                "visible_topbar": True,
+                "enabled": True,
+            },
+            {
+                "codice": "view_anagrafica_fornitori",
+                "nome_visibile": "Fornitori",
+                "url": "route:anagrafica:fornitori_list",
+                "icona": "briefcase",
+                "ui_slot": "topbar",
+                "ui_section": "anagrafica",
+                "visible_topbar": True,
+                "enabled": True,
+            },
+        ],
+    },
+    "timbri": {
+        "label": "Timbrature",
+        "icon": "clock",
+        "buttons": [
+            {
+                "codice": "view_timbri",
+                "nome_visibile": "Timbrature",
+                "url": "route:timbri:index",
+                "icona": "clock",
+                "ui_slot": "topbar",
+                "ui_section": "timbri",
+                "visible_topbar": True,
+                "enabled": True,
+            },
+        ],
+    },
+    "tickets": {
+        "label": "Tickets",
+        "icon": "ticket",
+        "buttons": [
+            {
+                "codice": "view_tickets",
+                "nome_visibile": "I miei ticket",
+                "url": "route:tickets:dashboard",
+                "icona": "ticket",
+                "ui_slot": "topbar",
+                "ui_section": "tickets",
+                "visible_topbar": True,
+                "enabled": True,
+            },
+            {
+                "codice": "gestione_tickets",
+                "nome_visibile": "Gestione Ticket",
+                "url": "route:tickets:gestione_list",
+                "icona": "settings",
+                "ui_slot": "topbar",
+                "ui_section": "tickets",
+                "visible_topbar": False,
+                "enabled": True,
+            },
+        ],
+    },
+    "rentri": {
+        "label": "RENTRI",
+        "icon": "recycle",
+        "buttons": [
+            {
+                "codice": "view_rentri",
+                "nome_visibile": "RENTRI",
+                "url": "route:rentri_menu",
+                "icona": "recycle",
+                "ui_slot": "topbar",
+                "ui_section": "rentri",
+                "visible_topbar": True,
+                "enabled": True,
+            },
+        ],
+    },
+    "diario_preposto": {
+        "label": "Diario Preposto",
+        "icon": "book",
+        "buttons": [
+            {
+                "codice": "view_diario_preposto",
+                "nome_visibile": "Diario Preposto",
+                "url": "route:diario_preposto:lista",
+                "icona": "book",
+                "ui_slot": "topbar",
+                "ui_section": "diario_preposto",
+                "visible_topbar": True,
+                "enabled": True,
+            },
+        ],
+    },
+    "rilevazione_incidenti": {
+        "label": "Rilevazione Incidenti",
+        "icon": "alert-triangle",
+        "buttons": [
+            {
+                "codice": "view_rilevazione_incidenti",
+                "nome_visibile": "Rilevazione Incidenti",
+                "url": "route:rilevazione_incidenti:lista",
+                "icona": "alert-triangle",
+                "ui_slot": "topbar",
+                "ui_section": "rilevazione_incidenti",
+                "visible_topbar": True,
+                "enabled": True,
+            },
+        ],
+    },
+    "dpi": {
+        "label": "DPI",
+        "icon": "shield",
+        "buttons": [
+            {
+                "codice": "view_dpi",
+                "nome_visibile": "DPI",
+                "url": "route:dpi:dashboard",
+                "icona": "shield",
+                "ui_slot": "topbar",
+                "ui_section": "dpi",
+                "visible_topbar": True,
+                "enabled": True,
+            },
+            {
+                "codice": "gestione_dpi",
+                "nome_visibile": "Gestione DPI",
+                "url": "route:dpi:gestione_list",
+                "icona": "settings",
+                "ui_slot": "topbar",
+                "ui_section": "dpi",
+                "visible_topbar": False,
+                "enabled": True,
+            },
+        ],
+    },
+    "procedure_refresh": {
+        "label": "Procedure",
+        "icon": "file-text",
+        "buttons": [
+            {
+                "codice": "view_procedure_refresh",
+                "nome_visibile": "Le mie procedure",
+                "url": "route:procedure_refresh:my_assignments",
+                "icona": "file-text",
+                "ui_slot": "topbar",
+                "ui_section": "procedure_refresh",
+                "visible_topbar": True,
+                "enabled": True,
+            },
+            {
+                "codice": "admin_procedure_refresh",
+                "nome_visibile": "Gestione Procedure",
+                "url": "route:procedure_refresh:admin_dashboard",
+                "icona": "settings",
+                "ui_slot": "topbar",
+                "ui_section": "procedure_refresh",
+                "visible_topbar": False,
+                "enabled": True,
+            },
+        ],
+    },
 }
 
 
@@ -4201,7 +4369,7 @@ def _unique_nav_code(base_code: str, used: set[str]) -> str:
 def navigation_builder(request):
     q_filter = (request.GET.get("q") or "").strip()
     section_filter = (request.GET.get("section") or "topbar").strip().lower()
-    if section_filter not in {"topbar", "subnav", "sidebar", "page", "all"}:
+    if section_filter not in {"topbar", "subnav", "sidebar", "page", "admin_subnav", "all"}:
         section_filter = "topbar"
 
     items_qs = NavigationItem.objects.all().order_by("section", "order", "label", "id")
@@ -5984,3 +6152,92 @@ def api_login_banner_delete(request):
     b.delete()
     _audit_safe(request, "login_banner_delete", "admin_portale", {"banner_id": banner_id})
     return JsonResponse({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# CREA RELEASE PACKAGE
+# ---------------------------------------------------------------------------
+
+@legacy_admin_required
+def crea_release(request):
+    import subprocess
+    from django.http import FileResponse, Http404
+
+    repo_root = Path(settings.BASE_DIR).parent
+    script_path = repo_root / "deployment" / "scripts" / "package-release.ps1"
+
+    # Directory pacchetti: shared/packages se esiste, altrimenti releases/ nella repo
+    shared_packages = Path("C:/PortaleNovicrom/shared/packages")
+    releases_dir = repo_root / "releases"
+
+    def _list_packages():
+        pkgs = []
+        for pkg_dir in [shared_packages, releases_dir]:
+            if pkg_dir.exists():
+                for f in sorted(pkg_dir.glob("portale-novicrom-*.zip"), reverse=True)[:10]:
+                    pkgs.append({
+                        "name": f.name,
+                        "path": str(f),
+                        "size_mb": round(f.stat().st_size / (1024 * 1024), 1),
+                    })
+        return pkgs
+
+    result = None
+    if request.method == "POST":
+        if not script_path.exists():
+            result = {"ok": False, "error": f"Script non trovato: {script_path}"}
+        else:
+            try:
+                proc = subprocess.run(
+                    ["powershell.exe", "-ExecutionPolicy", "Bypass", "-File", str(script_path)],
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
+                    cwd=str(script_path.parent),
+                )
+                stdout = proc.stdout.strip()
+                stderr = proc.stderr.strip()
+                ok = proc.returncode == 0
+                zip_path = None
+                for line in reversed(stdout.splitlines()):
+                    line = line.strip()
+                    if line.endswith(".zip") and Path(line).exists():
+                        zip_path = line
+                        break
+                result = {
+                    "ok": ok,
+                    "stdout": stdout,
+                    "stderr": stderr,
+                    "zip_path": zip_path,
+                    "zip_name": Path(zip_path).name if zip_path else None,
+                    "zip_size_mb": round(Path(zip_path).stat().st_size / (1024 * 1024), 1) if zip_path else None,
+                }
+                if ok and zip_path:
+                    _audit_safe(request, "crea_release", "admin_portale", {"zip": zip_path})
+            except subprocess.TimeoutExpired:
+                result = {"ok": False, "error": "Timeout: lo script ha impiegato troppo tempo (>5 min)"}
+            except Exception as exc:
+                result = {"ok": False, "error": str(exc)}
+
+    return render(request, "admin_portale/pages/crea_release.html", {
+        "packages": _list_packages(),
+        "result": result,
+        "script_path": str(script_path),
+        "script_exists": script_path.exists(),
+        "app_version": getattr(settings, "APP_VERSION", ""),
+    })
+
+
+@legacy_admin_required
+@require_GET
+def download_release_package(request):
+    from django.http import FileResponse, Http404
+
+    pkg_path = request.GET.get("path", "").strip()
+    if not pkg_path:
+        raise Http404
+    f = Path(pkg_path)
+    # Sicurezza: accetta solo zip con il prefisso atteso
+    if not f.exists() or not f.suffix == ".zip" or not f.name.startswith("portale-novicrom-"):
+        raise Http404
+    return FileResponse(open(f, "rb"), as_attachment=True, filename=f.name)

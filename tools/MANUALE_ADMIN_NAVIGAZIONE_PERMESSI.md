@@ -1,6 +1,6 @@
 # Manuale Amministratore — Navigazione, Pulsanti e Permessi
 
-> Portale Novicrom · Aggiornato: marzo 2026
+> Portale Novicrom · Aggiornato: marzo 2026 (v0.8.5)
 > Percorso admin: **Admin Portale** (voce nel menu principale)
 
 ---
@@ -26,7 +26,7 @@ Il portale usa **due sistemi di navigazione** paralleli:
 | Sistema | Dove si gestisce | Scopo |
 |---------|-----------------|-------|
 | **Pulsanti** (legacy) | Topbar Live / Gestione Pulsanti | Tabella storica del portale originale. Ancora usata per la topbar e per il sistema ACL (permessi). |
-| **Navigation Builder** (nuovo) | Navigation Builder | Nuovo sistema Django per topbar, subnav, sidebar e link di pagina. Può importare i pulsanti legacy. |
+| **Navigation Builder** (nuovo) | Navigation Builder | Nuovo sistema Django per topbar, subnav, sidebar, link di pagina e **barra interna admin**. Può importare i pulsanti legacy. |
 
 > **Regola pratica:** per aggiungere voci al menu usa il **Navigation Builder**. Per modificare i permessi ACL usa **Gestione Permessi** (che si basa sempre sui Pulsanti legacy).
 
@@ -124,8 +124,9 @@ Gestione centralizzata del menu senza modificare codice. Supporta topbar, subnav
 |-------|-------------|
 | `Codice` | Slug univoco. Se vuoto, viene generato dalla label. |
 | `Label` | Testo visualizzato nel menu *(obbligatorio)* |
-| `Sezione` | Dove appare: `topbar`, `subnav`, `sidebar`, `page` |
+| `Sezione` | Dove appare: `topbar`, `subnav`, `sidebar`, `page`, `admin_subnav` |
 | `Gruppo subnav` | Solo per sezione `subnav` — codice del gruppo di appartenenza (es. `assenze`, `dashboard`, `anagrafica`). La subnav appare quando l'utente è nella sezione corrispondente. |
+| `Gruppo` | Per sezione `admin_subnav` — nome del gruppo visivo (es. `accessi`, `navigazione`, `sistema`). Determina i separatori orizzontali nella barra admin. |
 | `Ordine` | Numero d'ordine (basso = prima). Si può anche riordinare trascinando. |
 | `Route name` | Route Django interna *(consigliato per link interni)*. Si seleziona dall'elenco autocomplete. |
 | `URL path` | URL diretto o link esterno — usarlo solo se non c'è una route disponibile. |
@@ -140,7 +141,8 @@ Gestione centralizzata del menu senza modificare codice. Supporta topbar, subnav
 2. Il campo `Codice` è opzionale (viene autogenerato)
 3. Per link interni: usa **Route name** (l'elenco autocomplete mostra tutte le route disponibili)
 4. Per `Sezione = subnav`: inserire il **Gruppo subnav** (es. `assenze`) — indica a quale sezione del portale appartiene la subnav
-5. Premi **Crea voce**
+5. Per `Sezione = admin_subnav`: la voce comparirà nella barra interna dell'admin portale. Inserire il **Gruppo** (es. `accessi`, `navigazione`, `sistema`, `hub`) per il separatore visivo. Non serve configurare i **Ruoli abilitati** — la barra admin è visibile solo agli amministratori di sistema.
+6. Premi **Crea voce**
 
 ### Modificare le voci esistenti
 
@@ -412,7 +414,63 @@ Mostra tutti i cambiamenti da applicare. Premi **Salva configurazione ruolo** pe
 | `tickets` | Modulo Tickets |
 | `rentri` | Modulo RENTRI |
 | `timbri` | Modulo Timbri |
+| `dpi` | Modulo DPI |
+| `procedure_refresh` | Modulo Presa Visione Procedure |
+| `diario_preposto` | Modulo Diario Preposto |
+| `rilevazione_incidenti` | Modulo Rilevazione Incidenti |
+| `automazioni` | Modulo Automazioni |
 
 ---
 
-*Fine manuale — Portale Novicrom Admin*
+## 10. Categorie Navigazione — colori topbar
+
+**Admin Portale → Hub Tools → Categorie** (`/admin-portale/hub/categorie/`)
+
+### Descrizione categorie
+
+Le categorie permettono di raggruppare le voci della topbar per area funzionale e assegnare un colore identificativo. Quando l'utente naviga in un modulo appartenente a una categoria, il background della topbar assume il colore della categoria.
+
+### Gestione categorie
+
+- Crea una categoria: inserisci nome, key slug e colore hex nel form in cima alla pagina
+- Modifica il colore: usa il color picker sulla riga esistente, si salva automaticamente
+- Ordine: modifica il campo `Ordine` e premi Salva — categorie con ordine più basso appaiono prima
+- Elimina: pulsante Elimina sulla riga (le voci assegnate tornano senza categoria)
+
+### Assegnare una voce a una categoria
+
+Dalla stessa pagina, ogni voce topbar ha un dropdown "Categoria" — seleziona la categoria e si salva immediatamente. La modifica è visibile a tutti gli utenti al prossimo caricamento pagina.
+
+### Comportamento nel menu
+
+Le voci con la stessa categoria vengono raggruppate sotto un pulsante `[NOME CATEGORIA ▾]` con menu a tendina. Le voci senza categoria restano link diretti nella topbar.
+
+> Prima di eliminare una categoria usata da molte voci, pubblica uno snapshot nel Navigation Builder come backup.
+
+---
+
+## 11. Monitoring — dashboard issue applicative
+
+**Admin Portale → Monitoring** (`/admin-portale/monitoring/`) — richiede profilo admin.
+
+### Funzionalità monitoring
+
+Il sistema di monitoring registra automaticamente errori, eccezioni non gestite e risposte anomale del portale. Come amministratore puoi:
+
+- Vedere tutte le issue aperte, filtrate per severità, modulo, stato e data
+- Cambiare lo stato di un'issue (`new → triage → in_progress → resolved/ignored`)
+- Leggere il traceback completo e il contesto della request che ha causato l'errore
+- Vedere le ultime segnalazioni manuali degli utenti (pulsante "Segnala problema" nel topnav)
+- Monitorare i job automatici: stato, fallimenti consecutivi, job missing o in ritardo
+
+### Deduplicazione issue
+
+Lo stesso errore che si ripete non genera issue duplicate — incrementa il contatore occorrenze e aggiorna il timestamp `last_seen_at`. Un'issue con molte occorrenze è più urgente di una con poche.
+
+### Alert email
+
+Le issue con severity `critical` inviano un'email di notifica (con rate-limit: massimo 1 per ora per tipologia di errore). Configurabile via impostazioni `MONITORING_*` nel `.env`.
+
+---
+
+Fine manuale — Portale Novicrom Admin (v0.8.5)

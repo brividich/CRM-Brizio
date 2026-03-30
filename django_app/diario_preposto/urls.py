@@ -13,4 +13,5 @@ urlpatterns = [
     path("<int:pk>/export-pdf/", views.export_pdf, name="export_pdf"),
     path("api/allegato/upload/", views.api_allegato_upload, name="api_allegato_upload"),
     path("api/allegato/delete/", views.api_allegato_delete, name="api_allegato_delete"),
+    path("impostazioni/", views.impostazioni, name="impostazioni"),
 ]

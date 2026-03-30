@@ -23,6 +23,7 @@ urlpatterns = [
     path("tasks/projects/<int:project_id>/info-json/", views.project_info_json, name="project_info_json"),
     path("tasks/projects/<int:project_id>/comments/add/", views.add_project_comment, name="add_project_comment"),
     path("tasks/gestione/", views.gestione_admin, name="gestione_admin"),
+    path("tasks/impostazioni/", views.impostazioni, name="impostazioni"),
     path("tasks/new/", views.task_create, name="create"),
     path("tasks/<int:task_id>/", views.task_detail, name="detail"),
     path("tasks/<int:task_id>/edit/", views.task_edit, name="edit"),

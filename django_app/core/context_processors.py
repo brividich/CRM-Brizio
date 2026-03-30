@@ -19,7 +19,7 @@ from core.legacy_cache import (
     normalize_legacy_path,
 )
 from core.module_registry import resolve_module_label
-from core.navigation_registry import get_subnav_nodes, get_topbar_nodes
+from core.navigation_registry import get_admin_subnav_nodes, get_subnav_nodes, get_topbar_nodes
 from core.versioning import get_changelog_entries, get_current_release, get_module_versions
 
 NAV_REGISTRY_ACL_GATES: dict[str, str] = {
@@ -426,6 +426,22 @@ def _detect_subnav_parent_code(request) -> str:
         return "dashboard"
 
 
+def _load_admin_subnav_items(request, legacy_user) -> list:
+    """Carica le voci della subnav interna all'admin portale (section='admin_subnav')."""
+    if not _navigation_registry_enabled():
+        return []
+    is_admin = bool(getattr(request.user, "is_superuser", False))
+    if legacy_user:
+        is_admin = bool(is_admin or is_legacy_admin(legacy_user))
+    if not is_admin:
+        return []
+    try:
+        current_view_name = getattr(request.resolver_match, "view_name", "") or ""
+        return get_admin_subnav_nodes(current_view_name=current_view_name)
+    except Exception:
+        return []
+
+
 def _load_subnav_items(request, legacy_user) -> list:
     """Carica le voci subnav per la sezione corrente dal Navigation Registry."""
     if not _navigation_registry_enabled():
@@ -475,6 +491,7 @@ def legacy_nav(request):
         "car_pending_count": 0,
         "notifiche_count": 0,
         "subnav_items": [],
+        "admin_subnav_items": [],
         "topbar_color": "",
         "impersonation_active": False,
         "impersonator_display": "",
@@ -541,6 +558,7 @@ def legacy_nav(request):
                 "",
             )
             result["subnav_items"] = _load_subnav_items(request, legacy_user)
+            result["admin_subnav_items"] = _load_admin_subnav_items(request, legacy_user)
             return result
 
     if not legacy_auth_enabled() or not legacy_user or not legacy_user.ruolo_id:
@@ -594,6 +612,7 @@ def legacy_nav(request):
     except DatabaseError:
         pass
 
+    result["admin_subnav_items"] = _load_admin_subnav_items(request, legacy_user)
     return result
 
 

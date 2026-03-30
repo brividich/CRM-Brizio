@@ -289,6 +289,7 @@
             <select class="input" name="section" id="create-section">
               <option value="topbar">Topbar — barra in alto</option>
               <option value="subnav">Subnav — barra secondaria</option>
+              <option value="admin_subnav">Admin Subnav — barra interna admin portale</option>
               <option value="sidebar">Sidebar — menu laterale</option>
               <option value="page">Page — dentro una pagina</option>
             </select>
@@ -410,6 +411,7 @@
             <select class="input" id="section" name="section">
               <option value="topbar" {% if filters.section == "topbar" %}selected{% endif %}>Topbar</option>
               <option value="subnav" {% if filters.section == "subnav" %}selected{% endif %}>Subnav</option>
+              <option value="admin_subnav" {% if filters.section == "admin_subnav" %}selected{% endif %}>Admin Subnav</option>
               <option value="sidebar" {% if filters.section == "sidebar" %}selected{% endif %}>Sidebar</option>
               <option value="page" {% if filters.section == "page" %}selected{% endif %}>Page</option>
               <option value="all" {% if filters.section == "all" %}selected{% endif %}>Tutte le sezioni</option>
@@ -454,6 +456,7 @@
                     <select class="input input-sm" data-name="section" title="Sezione">
                       <option value="topbar" {% if row.section == "topbar" %}selected{% endif %}>topbar</option>
                       <option value="subnav" {% if row.section == "subnav" %}selected{% endif %}>subnav</option>
+                      <option value="admin_subnav" {% if row.section == "admin_subnav" %}selected{% endif %}>admin_subnav</option>
                       <option value="sidebar" {% if row.section == "sidebar" %}selected{% endif %}>sidebar</option>
                       <option value="page" {% if row.section == "page" %}selected{% endif %}>page</option>
                     </select>

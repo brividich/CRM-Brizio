@@ -479,3 +479,31 @@ def api_allegato_delete(request):
         pass
     allegato.delete()
     return JsonResponse({"ok": True})
+
+
+@login_required
+def impostazioni(request):
+    """Impostazioni modulo Diario Preposto — solo admin legacy."""
+    legacy_user = get_legacy_user(request.user)
+    if not (legacy_user and is_legacy_admin(legacy_user)):
+        return render(request, "core/pages/forbidden.html", status=403)
+
+    cfg = DiarioPrepostoImpostazioni.objects.filter(pk=1).first()
+    if cfg is None:
+        cfg = DiarioPrepostoImpostazioni.objects.create(pk=1, acl_scrittura=[])
+
+    if request.method == "POST":
+        raw = request.POST.get("acl_scrittura", "").strip()
+        entries = [e.strip() for e in raw.replace(",", "\n").splitlines() if e.strip()]
+        cfg.acl_scrittura = entries
+        cfg.save()
+        from core.audit import log_action
+        log_action(request, "modifica", "diario_preposto", "Aggiornate impostazioni Diario Preposto")
+        messages.success(request, "Impostazioni salvate.")
+        return redirect("diario_preposto:impostazioni")
+
+    acl_text = "\n".join(cfg.acl_scrittura) if cfg.acl_scrittura else ""
+    return render(request, "diario_preposto/pages/impostazioni.html", {
+        "cfg": cfg,
+        "acl_text": acl_text,
+    })

@@ -30,6 +30,7 @@ class NavigationNode:
     icon: str = ""
     group: str = ""
     active_patterns: str = ""
+    description: str = ""
     category_color: str = ""
     category_key: str = ""
     category_label: str = ""
@@ -252,6 +253,63 @@ def publish_navigation_snapshot(*, created_by=None, note: str = "") -> Navigatio
     )
     transaction.on_commit(bump_navigation_registry_version)
     return snap
+
+
+def get_admin_subnav_nodes(current_view_name: str) -> list[NavigationNode]:
+    """Voci della subnav interna all'admin portale (section='admin_subnav').
+
+    Non applica ACL: l'intera area è già gated da @legacy_admin_required.
+    Cache versioned identica alle altre sezioni; invalidata da bump_navigation_registry_version().
+    """
+    cache_key = _versioned_key("nav_registry:admin_subnav")
+    compiled = cache.get(cache_key)
+    if compiled is None:
+        qs = NavigationItem.objects.filter(
+            section="admin_subnav", is_visible=True, is_enabled=True
+        ).order_by("order", "id")
+        compiled = []
+        for item in qs:
+            href, coming = _resolve_item_href(item)
+            compiled.append(
+                {
+                    "code": item.code,
+                    "label": item.label,
+                    "href": href,
+                    "order": _safe_int(item.order, 100),
+                    "coming": coming,
+                    "route_name": item.route_name or "",
+                    "url_path": item.url_path or "",
+                    "icon": item.icon or "",
+                    "group": item.group or "",
+                    "active_patterns": item.active_patterns or "",
+                    "description": item.description or "",
+                }
+            )
+        cache.set(cache_key, compiled, timeout=_NAV_CACHE_TTL)
+
+    nodes: list[NavigationNode] = []
+    for row in compiled:
+        patterns = [p.strip() for p in row.get("active_patterns", "").split(",") if p.strip()]
+        if not patterns and row.get("route_name"):
+            patterns = [row["route_name"]]
+        active = bool(current_view_name and current_view_name in patterns)
+        nodes.append(
+            NavigationNode(
+                label=row["label"],
+                href=row["href"],
+                active=active,
+                order_hint=_safe_int(row["order"], 100),
+                coming=bool(row["coming"]),
+                legacy_url=row.get("route_name") or row.get("url_path") or "",
+                modulo="admin_subnav",
+                codice=row["code"],
+                icon=row.get("icon", ""),
+                group=row.get("group", ""),
+                active_patterns=row.get("active_patterns", ""),
+                description=row.get("description", ""),
+            )
+        )
+    return nodes
 
 
 def restore_navigation_snapshot(snapshot: NavigationSnapshot) -> None:

@@ -680,6 +680,7 @@
     {% endif %}
     {% if tasks_shell_active == 'admin' or tasks_shell_can_admin %}
       <a class="ts-tab {% if tasks_shell_active == 'admin' %}active{% endif %}" href="{% url 'tasks:gestione_admin' %}">Gestione</a>
+      <a class="ts-tab {% if tasks_shell_active == 'impostazioni' %}active{% endif %}" href="{% url 'tasks:impostazioni' %}">Impostazioni</a>
     {% endif %}
     {% block tasks_shell_tabs_extra %}{% endblock %}
   </nav>

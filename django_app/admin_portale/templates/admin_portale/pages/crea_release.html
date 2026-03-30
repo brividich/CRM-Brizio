@@ -1,0 +1,209 @@
+{% extends "core/base.html" %}
+
+{% block title %}Crea Pacchetto Release | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .release-hero {
+    border:1px solid #dbe1ea; border-radius:16px; padding:20px 24px;
+    background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%); color:#e2e8f0;
+    display:flex; align-items:center; gap:20px; margin-bottom:20px;
+  }
+  .release-hero-icon { font-size:2.5rem; flex-shrink:0; }
+  .release-hero-title { font-size:22px; font-weight:800; }
+  .release-hero-sub { font-size:13px; color:#94a3b8; margin-top:4px; }
+  .release-version-badge {
+    margin-left:auto; background:rgba(96,165,250,.15); color:#60a5fa;
+    border:1px solid rgba(96,165,250,.3); border-radius:20px;
+    padding:5px 16px; font-size:13px; font-weight:700; white-space:nowrap;
+  }
+
+  .release-result {
+    border-radius:12px; padding:16px 20px; margin-bottom:20px;
+    border:1.5px solid;
+  }
+  .release-result.ok  { border-color:#22c55e; background:#f0fdf4; }
+  .release-result.err { border-color:#ef4444; background:#fef2f2; }
+  .release-result-title { font-weight:700; font-size:15px; margin-bottom:8px; }
+  .release-result.ok  .release-result-title { color:#16a34a; }
+  .release-result.err .release-result-title { color:#dc2626; }
+
+  .release-output {
+    background:#1e293b; color:#e2e8f0; border-radius:8px;
+    padding:12px 14px; font-family:monospace; font-size:12px;
+    white-space:pre-wrap; max-height:320px; overflow-y:auto;
+    margin-top:10px;
+  }
+
+  .pkg-list { display:grid; gap:10px; }
+  .pkg-item {
+    display:flex; align-items:center; gap:12px;
+    border:1px solid #dbe1ea; border-radius:10px; padding:12px 16px;
+    background:#f8fafc;
+  }
+  .pkg-item-icon { font-size:1.6rem; flex-shrink:0; }
+  .pkg-item-name { font-weight:600; font-size:.92rem; color:#0f172a; word-break:break-all; }
+  .pkg-item-meta { font-size:12px; color:#64748b; margin-top:2px; }
+  .pkg-item-actions { margin-left:auto; flex-shrink:0; }
+
+  .btn-create {
+    display:inline-flex; align-items:center; gap:8px;
+    background:#1a6fc4; color:#fff; border:none; border-radius:8px;
+    padding:10px 22px; font-size:14px; font-weight:700; cursor:pointer;
+    transition:background .15s;
+  }
+  .btn-create:hover { background:#1558a0; }
+  .btn-create:disabled { background:#94a3b8; cursor:not-allowed; }
+
+  .script-info {
+    font-size:12px; color:#64748b; background:#f1f5f9; border-radius:8px;
+    padding:8px 12px; margin-top:8px; font-family:monospace; word-break:break-all;
+  }
+  .script-missing { color:#dc2626; background:#fef2f2; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Crea Pacchetto Release" page_subtitle="Genera il file .zip da distribuire agli ambienti di test e produzione." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <!-- Hero -->
+  <div class="release-hero">
+    <div class="release-hero-icon">📦</div>
+    <div>
+      <div class="release-hero-title">Package Release</div>
+      <div class="release-hero-sub">
+        Esegue <code>deployment/scripts/package-release.ps1</code> e crea
+        <code>portale-novicrom-v{{ app_version }}-&lt;timestamp&gt;.zip</code>
+        pronto per il deploy su TEST o PROD.
+      </div>
+    </div>
+    {% if app_version %}
+      <div class="release-version-badge">v{{ app_version }}</div>
+    {% endif %}
+  </div>
+
+  <!-- Risultato operazione -->
+  {% if result %}
+    {% if result.ok %}
+      <div class="release-result ok">
+        <div class="release-result-title">Pacchetto creato con successo!</div>
+        {% if result.zip_name %}
+          <div style="margin-bottom:6px;">
+            <strong>{{ result.zip_name }}</strong>
+            {% if result.zip_size_mb %}<span style="color:#64748b;font-size:13px;"> — {{ result.zip_size_mb }} MB</span>{% endif %}
+          </div>
+          <div style="font-size:12px;color:#64748b;margin-bottom:10px;font-family:monospace;">{{ result.zip_path }}</div>
+          <a href="{% url 'admin_portale:download_release_package' %}?path={{ result.zip_path|urlencode }}"
+             class="btn-create" style="font-size:13px;padding:8px 16px;text-decoration:none;">
+            ⬇ Scarica ZIP
+          </a>
+        {% endif %}
+        {% if result.stdout %}
+          <details style="margin-top:12px;">
+            <summary style="cursor:pointer;font-size:12px;color:#64748b;">Output script</summary>
+            <div class="release-output">{{ result.stdout }}</div>
+          </details>
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="release-result err">
+        <div class="release-result-title">Errore durante la creazione del pacchetto</div>
+        {% if result.error %}<div style="font-size:13px;">{{ result.error }}</div>{% endif %}
+        {% if result.stderr %}<div class="release-output">{{ result.stderr }}</div>{% endif %}
+        {% if result.stdout %}
+          <details style="margin-top:8px;">
+            <summary style="cursor:pointer;font-size:12px;color:#64748b;">Output completo</summary>
+            <div class="release-output">{{ result.stdout }}</div>
+          </details>
+        {% endif %}
+      </div>
+    {% endif %}
+  {% endif %}
+
+  <!-- Form creazione -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-head">
+      <div class="card-title">Crea nuovo pacchetto</div>
+    </div>
+    <div class="card-body">
+      {% if script_exists %}
+        <p style="margin:0 0 12px;color:#334155;font-size:14px;">
+          Lo script eseguirà <strong>robocopy</strong> per copiare i sorgenti in una directory temporanea,
+          escluderà <code>.git</code>, <code>.venv</code>, <code>.env</code>, log, media e file compilati,
+          poi comprimerà tutto in un file <code>.zip</code>.
+        </p>
+        <form method="post" onsubmit="onCreateSubmit(this)">
+          {% csrf_token %}
+          <button type="submit" class="btn-create" id="btn-create">
+            <span id="btn-create-icon">📦</span>
+            <span id="btn-create-label">Crea pacchetto release</span>
+          </button>
+          <div style="margin-top:8px;font-size:12px;color:#94a3b8;">
+            L'operazione può richiedere 1-3 minuti. Non chiudere la pagina.
+          </div>
+        </form>
+        <div class="script-info">Script: {{ script_path }}</div>
+      {% else %}
+        <div style="color:#dc2626;font-size:14px;">
+          Lo script PowerShell non è stato trovato al percorso atteso:
+        </div>
+        <div class="script-info script-missing">{{ script_path }}</div>
+        <div style="font-size:13px;color:#64748b;margin-top:8px;">
+          Verifica che la cartella <code>deployment/scripts/</code> sia presente nella root del repository.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Pacchetti esistenti -->
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Pacchetti disponibili</div>
+    </div>
+    <div class="card-body">
+      {% if packages %}
+        <div class="pkg-list">
+          {% for pkg in packages %}
+            <div class="pkg-item">
+              <div class="pkg-item-icon">🗜️</div>
+              <div>
+                <div class="pkg-item-name">{{ pkg.name }}</div>
+                <div class="pkg-item-meta">{{ pkg.size_mb }} MB &mdash; {{ pkg.path }}</div>
+              </div>
+              <div class="pkg-item-actions">
+                <a href="{% url 'admin_portale:download_release_package' %}?path={{ pkg.path|urlencode }}"
+                   class="btn-create" style="font-size:12px;padding:7px 14px;text-decoration:none;">
+                  ⬇ Scarica
+                </a>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p style="color:#64748b;margin:0;">
+          Nessun pacchetto trovato in <code>C:\PortaleNovicrom\shared\packages\</code>
+          né in <code>releases\</code> nella root del repository.<br>
+          Crea il primo pacchetto con il pulsante sopra.
+        </p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function onCreateSubmit(form) {
+  var btn = document.getElementById('btn-create');
+  var icon = document.getElementById('btn-create-icon');
+  var label = document.getElementById('btn-create-label');
+  btn.disabled = true;
+  icon.textContent = '⏳';
+  label.textContent = 'Creazione in corso…';
+}
+</script>
+{% endblock %}

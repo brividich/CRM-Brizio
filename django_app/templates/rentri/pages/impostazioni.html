@@ -1,0 +1,66 @@
+{% extends "core/base.html" %}
+
+{% block title %}Impostazioni RENTRI{% endblock %}
+
+{% block subnav %}{% include "rentri/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "admin_portale/components/flash_messages.html" %}
+
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-head">
+    <div class="card-title">⚙️ Impostazioni RENTRI</div>
+  </div>
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+
+      <div style="display:grid;gap:14px;">
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group">
+            <label class="form-label">Codice iscrizione RENTRI</label>
+            <input type="text" name="codice_iscrizione_rentri" class="input"
+                   value="{{ cfg.codice_iscrizione_rentri }}"
+                   placeholder="es. IT-XXXXXXXX">
+            <small class="text-muted">Codice rilasciato dal sistema RENTRI all'iscrizione.</small>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Ragione sociale</label>
+            <input type="text" name="ragione_sociale" class="input"
+                   value="{{ cfg.ragione_sociale }}"
+                   placeholder="es. Costruzioni Novicrom S.r.l.">
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group">
+            <label class="form-label">Responsabile</label>
+            <input type="text" name="responsabile_nome" class="input"
+                   value="{{ cfg.responsabile_nome }}"
+                   placeholder="Nome e cognome">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email responsabile</label>
+            <input type="email" name="responsabile_email" class="input"
+                   value="{{ cfg.responsabile_email }}"
+                   placeholder="es. responsabile@azienda.it">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Note operative</label>
+          <textarea name="note_generali" class="input" rows="4"
+                    placeholder="Note interne, istruzioni operative, riferimenti normativi...">{{ cfg.note_generali }}</textarea>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:10px;">
+          <a href="{% url 'rentri_menu' %}" class="btn btn-secondary">Annulla</a>
+          <button type="submit" class="btn btn-primary">Salva impostazioni</button>
+        </div>
+
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

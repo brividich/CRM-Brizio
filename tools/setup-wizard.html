@@ -126,7 +126,7 @@
 <div class="header">
   <div>
     <div class="header-logo">Portale Novicrom</div>
-    <div class="header-sub">Wizard configurazione ambiente di produzione</div>
+    <div class="header-sub">Configurazione avanzata — parametri Django (Graph, SMTP, AD, Cache)</div>
   </div>
 </div>
 
@@ -577,17 +577,18 @@
 
       <div class="alert alert-warn" style="margin-top:20px">
         <strong>Posizionamento file:</strong><br>
-        • <code>.env</code> → <code>django_app/.env</code> sul server<br>
+        • <code>.env</code> → <code>django_app/.env</code> (es. <code>C:\PortaleNovicrom\test\releases\...\django_app\.env</code>)<br>
         • <code>config.ini</code> → cartella radice del progetto<br>
         • Non committare mai questi file nel repository Git!
       </div>
 
       <div class="alert alert-info" style="margin-top:12px">
-        <strong>Passi successivi:</strong><br>
-        1. Applicare gli script SQL in <code>sql/</code> sul database SQL Server<br>
-        2. <code>python manage.py migrate --settings=config.settings.prod</code><br>
-        3. <code>python manage.py collectstatic --settings=config.settings.prod</code><br>
-        4. Riavviare il server WSGI (gunicorn / IIS + wfastcgi)
+        <strong>Nota:</strong> Database, migrate, collectstatic e IIS sono gestiti automaticamente da <strong>SetupWizard.exe</strong>.<br>
+        Questo wizard genera solo le variabili avanzate (<em>Graph, SMTP, AD, Cache</em>) da aggiungere al <code>.env</code> già creato dal wizard di installazione.<br><br>
+        <strong>Aggiornamento .env esistente:</strong><br>
+        1. Apri <code>django_app\.env</code> sul server<br>
+        2. Copia le variabili generate sopra in fondo al file<br>
+        3. Riavvia il sito IIS: <code>iisreset</code> oppure ricicla l'App Pool da IIS Manager
       </div>
 
       <div class="nav-btns">

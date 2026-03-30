@@ -608,9 +608,6 @@ def ticket_dashboard(request):
     is_gestore  = _can_manage_tickets(request)
 
     qs = Ticket.objects.select_related("asset")
-    if not is_admin and not is_gestore:
-        # Utente normale: vede solo i propri ticket
-        qs = qs.filter(richiedente_legacy_user_id=legacy_id) if legacy_id else qs.filter(richiedente_nome=name)
 
     # Filtri GET
     tipo_f   = request.GET.get("tipo", "").strip().upper()

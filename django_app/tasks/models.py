@@ -269,3 +269,35 @@ class TaskAttachment(models.Model):
             raise ValidationError("Allegato non valido: devi associarlo a task o progetto.")
         if has_task and has_project:
             raise ValidationError("Allegato non valido: scegli task o progetto, non entrambi.")
+
+
+class TaskImpostazioni(models.Model):
+    """Singleton: impostazioni globali del modulo Task."""
+
+    responsabile_email = models.EmailField(
+        blank=True, default="",
+        verbose_name="Email notifiche",
+        help_text="Indirizzo email per notifiche di sistema (scadenze, assegnazioni).",
+    )
+    notifiche_scadenza_attive = models.BooleanField(
+        default=False,
+        verbose_name="Notifiche scadenza attive",
+        help_text="Invia email di promemoria X giorni prima della scadenza di un task.",
+    )
+    giorni_preavviso = models.PositiveSmallIntegerField(
+        default=3,
+        verbose_name="Giorni preavviso scadenza",
+    )
+    note_generali = models.TextField(blank=True, default="", verbose_name="Note generali")
+
+    class Meta:
+        verbose_name = "Impostazioni Task"
+        verbose_name_plural = "Impostazioni Task"
+
+    def __str__(self) -> str:
+        return "Impostazioni Task"
+
+    @classmethod
+    def get_singleton(cls) -> "TaskImpostazioni":
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj

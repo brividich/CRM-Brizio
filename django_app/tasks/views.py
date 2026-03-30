@@ -44,6 +44,7 @@ from .models import (
     TaskComment,
     TaskEvent,
     TaskEventType,
+    TaskImpostazioni,
     TaskPriority,
     TaskStatus,
 )
@@ -1788,3 +1789,25 @@ def gestione_admin(request):
             "audit_entries": audit_entries,
         },
     )
+
+
+@legacy_admin_required
+def impostazioni(request):
+    """Impostazioni globali del modulo Task."""
+    cfg = TaskImpostazioni.get_singleton()
+
+    if request.method == "POST":
+        cfg.responsabile_email = request.POST.get("responsabile_email", "").strip()
+        cfg.notifiche_scadenza_attive = bool(request.POST.get("notifiche_scadenza_attive"))
+        cfg.giorni_preavviso = max(1, int(request.POST.get("giorni_preavviso") or 3))
+        cfg.note_generali = request.POST.get("note_generali", "").strip()
+        cfg.save()
+        log_action(request, "modifica", "tasks", "Aggiornate impostazioni Task")
+        messages.success(request, "Impostazioni salvate.")
+        return redirect("tasks:impostazioni")
+
+    return render(request, "tasks/impostazioni.html", {
+        "cfg": cfg,
+        "tasks_shell_active": "impostazioni",
+        "tasks_shell_can_admin": True,
+    })

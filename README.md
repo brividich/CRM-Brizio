@@ -1,9 +1,9 @@
 
 <h1 align="center">BoluHUB</h1>
 
-![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
+![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![Django 5.2](https://img.shields.io/badge/Django-5.2-0C4B33?logo=django&logoColor=white)
-![Version 0.8.5](https://img.shields.io/badge/version-0.8.2-F97316)
+![Version 0.8.5](https://img.shields.io/badge/version-0.8.5-F97316)
 ![Database SQLite or SQL Server](https://img.shields.io/badge/DB-SQLite%20%7C%20SQL%20Server-1E3A5F)
 
 Repository pubblico del software **BrizioHUB**. Il nome istanza è configurabile per deployment
@@ -34,11 +34,13 @@ Le preferenze vengono salvate lato server e riapplicate automaticamente al login
 
 | Area | Descrizione |
 | --- | --- |
-| Dashboard e UX | home modulare, viste per ruolo, scorciatoie operative, navigazione dinamica, font scaling globale e sidebar personalizzabile |
+| Dashboard e UX | home modulare, viste per ruolo, scorciatoie operative, navigazione dinamica, font scaling globale e sidebar personalizzabile con categorie colorate |
 | Workflow | assenze, anomalie, tickets, timbri, notizie e richieste interne |
 | Operations | inventory asset, work order, macchine di lavoro, planimetrie e verifiche periodiche |
+| Sicurezza e compliance | DPI (richieste/approvazione/consegna), diario preposto, rilevazione incidenti, presa visione procedure MT/MTSI, tracciabilita rifiuti RENTRI |
 | Governance | gestione utenti, ACL legacy, pulsanti UI, audit, diagnostica LDAP e configurazione accessi |
 | Automazioni | designer visuale, sorgenti, queue processor, test regole e import package |
+| Osservabilita | monitoring interno, issue tracking, alert email, segnalazioni utente, monitor automazioni |
 | Compatibilita legacy | route storiche, tabelle unmanaged e fallback di navigazione/permessi |
 
 ## Preview
@@ -53,7 +55,7 @@ Anteprime visuali GitHub-friendly dei flussi principali del portale.
 
 | Area | Tecnologia |
 | --- | --- |
-| Runtime | Python 3.12+ |
+| Runtime | Python 3.11+ |
 | Framework | Django 5.2.11 |
 | Database dev | SQLite |
 | Database full environment | SQL Server via `mssql-django` e `pyodbc` |
@@ -68,10 +70,11 @@ Dipendenze principali: `django_app/requirements.txt`
 | --- | --- |
 | Core platform | `core`, `dashboard` |
 | HR e workflow | `assenze`, `anomalie`, `tickets`, `timbri`, `notizie` |
-| Sicurezza | `diario_preposto`, `rilevazione_incidenti` |
+| Sicurezza e compliance | `diario_preposto`, `rilevazione_incidenti`, `dpi`, `procedure_refresh`, `rentri` |
 | Operations | `assets`, `tasks`, `planimetria` |
 | Backoffice | `admin_portale`, `anagrafica` |
 | Automation | `automazioni` |
+| Infrastruttura | `hub_tools`, `setup_wizard`, `monitoring` |
 
 ## Quick start
 
@@ -110,10 +113,13 @@ python django_app\manage.py runserver
 
 Endpoint tipici in locale:
 
-- `http://127.0.0.1:8000/`
-- `http://127.0.0.1:8000/assets/`
-- `http://127.0.0.1:8000/admin-portale/`
-- `http://127.0.0.1:8000/tickets/`
+- `http://127.0.0.1:8000/` — dashboard
+- `http://127.0.0.1:8000/assets/` — gestione asset
+- `http://127.0.0.1:8000/admin-portale/` — pannello admin
+- `http://127.0.0.1:8000/tickets/` — ticket interni
+- `http://127.0.0.1:8000/dpi/` — dispositivi protezione individuale
+- `http://127.0.0.1:8000/procedure-refresh/` — presa visione procedure
+- `http://127.0.0.1:8000/admin-portale/hub/` — hub strumenti interni
 
 ## Configurazione ambienti
 
@@ -136,6 +142,8 @@ Con più worker IIS la cache deve essere condivisa tra processi. Il profilo prod
 ```powershell
 python django_app\manage.py createcachetable --settings=config.settings.prod
 ```
+
+> Il `SetupWizard.exe` esegue `createcachetable` automaticamente durante l'installazione.
 
 ## Comandi utili
 
@@ -163,12 +171,20 @@ repo-root/
 `-- config.ini.example
 ```
 
+## Deployment su Windows Server + IIS
+
+Il metodo raccomandato è **`SetupWizard.exe`** (`deployment/dist/`), che automatizza:
+creazione directory, venv, `.env`, database SQL Server, migrate, collectstatic, createcachetable,
+utente admin e configurazione IIS completa.
+
+Prerequisiti: IIS + HttpPlatformHandler, SQL Server, ODBC Driver 17/18, sqlcmd, Python 3.11+.
+
+Per il flusso manuale e il troubleshooting: [deployment/README_DEPLOY_IIS_WINDOWS.md](deployment/README_DEPLOY_IIS_WINDOWS.md)
+
 ## Documentazione collegata
 
-- [Indice documentazione tecnica](doc/README.md)
-- [Struttura attuale del portale](doc/STRUTTURA_ATTUALE_PORTALE.md)
-- [Guida moduli applicativi](doc/GUIDA_MODULI_PROGRAMMA.html)
-- [Guida automazioni designer](doc/GUIDA_AUTOMAZIONI_DESIGNER.html)
+- [Guida deployment IIS (manuale + troubleshooting)](deployment/README_DEPLOY_IIS_WINDOWS.md)
+- [Manuale amministratore — navigazione e permessi](tools/MANUALE_ADMIN_NAVIGAZIONE_PERMESSI.md)
 - [Note del modulo assets](django_app/assets/README.md)
 
 ## Nota sul repository pubblico

@@ -15,4 +15,5 @@ urlpatterns = [
     path("rentri/<int:pk>/modifica/", views.modifica, name="rentri_modifica"),
     path("rentri/<int:pk>/elimina/", views.elimina, name="rentri_elimina"),
     path("rentri/api/sync/pull", views.api_sync_pull, name="rentri_api_sync_pull"),
+    path("rentri/impostazioni/", views.impostazioni, name="rentri_impostazioni"),
 ]

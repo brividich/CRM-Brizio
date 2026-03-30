@@ -319,7 +319,7 @@ def build_sqlserver_database() -> dict:
 
 def build_database_from_env(default_engine: str = "sqlite") -> dict:
     engine = env("DB_ENGINE", default_engine).strip().lower()
-    if engine == "sqlserver":
+    if engine in ("sqlserver", "mssql"):
         return build_sqlserver_database()
     return build_sqlite_database()
 
@@ -341,9 +341,9 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_ROOT = Path(env("STATIC_ROOT", str(BASE_DIR / "staticfiles")))
 
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_ROOT = Path(env("MEDIA_ROOT", str(BASE_DIR / "media")))
 MEDIA_URL = "/media/"
 
 # Immagini timbri/firme: cartella privata, MAI servita dal web server.

@@ -1,6 +1,6 @@
 Django==5.2.11
 mssql-django==1.6
-pyodbc==5.2.0
+pyodbc>=5.2.0
 Werkzeug==3.0.3
 ldap3==2.9.1
 msal==1.29.0

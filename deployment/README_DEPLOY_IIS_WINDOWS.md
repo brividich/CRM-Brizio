@@ -1,6 +1,7 @@
 # Deployment Guide — Portale Novicrom su Windows Server + IIS
 
-> Versione guida: 1.0 — Stack: Django 5.2, Python 3.11+, SQL Server, IIS + HttpPlatformHandler + Waitress
+> Versione guida: 2.0 — Stack: Django 5.2, Python 3.11+, SQL Server, IIS + HttpPlatformHandler + Waitress
+> **Metodo raccomandato:** usa `SetupWizard.exe` per automatizzare tutto il processo (sezione 0).
 
 ---
 
@@ -17,6 +18,62 @@
 9. [Troubleshooting](#9-troubleshooting)
 10. [Soluzione consigliata vs alternativa](#10-soluzione-consigliata-vs-alternativa)
 11. [Errori da evitare con IIS + Django](#11-errori-da-evitare-con-iis--django)
+
+---
+
+## 0. Installazione automatica con SetupWizard.exe (raccomandato)
+
+Il metodo più semplice e affidabile è usare **`deployment/dist/SetupWizard.exe`**, che automatizza
+l'intero processo senza richiedere competenze tecniche.
+
+### Cosa fa il wizard automaticamente
+
+| Step | Operazione |
+|------|-----------|
+| 1 | Crea la struttura directory (`C:\PortaleNovicrom\ENV\`) |
+| 2 | Crea il virtualenv Python |
+| 3 | Estrae il pacchetto release |
+| 4 | Scrive il file `.env` con tutte le variabili corrette |
+| 5 | `pip install -r requirements.txt` + waitress |
+| 6 | `collectstatic` → copia in `ENV\static\` |
+| 7 | Crea il database SQL Server (se non esiste) |
+| 8 | Crea il login `NT AUTHORITY\SYSTEM` su SQL Server (solo Windows Auth) |
+| 9 | `migrate` → crea tutte le tabelle Django |
+| 10 | `createcachetable` → crea la tabella cache condivisa |
+| 11 | Crea l'utente admin legacy (con password werkzeug) |
+| 12 | Crea la junction `current` → release |
+| 13 | Sblocca la sezione `<handlers>` IIS (fix 500.19) |
+| 14 | Configura App Pool (LocalSystem, Always Running) |
+| 15 | Crea il sito IIS con virtual directory `/static` e `/media` |
+
+### Prerequisiti prima di eseguire il wizard
+
+- Windows Server con IIS installato e attivo
+- **HttpPlatformHandler v1.2** installato in IIS
+- SQL Server raggiungibile sulla rete (il DB non deve esistere — il wizard lo crea)
+- **ODBC Driver 17 o 18 for SQL Server** installato
+- **sqlcmd** disponibile (incluso con SQL Server o SSMS)
+- Python 3.11+ installato nel PATH
+
+### Avvio
+
+```
+SetupWizard.exe
+```
+
+Seleziona **Nuova installazione**, scegli l'ambiente (TEST o PROD), compila i dati
+(percorso, SQL Server, porta IIS, credenziali admin) e premi **Installa**.
+Il wizard mostra il log in tempo reale e richiede solo un click finale.
+
+### Note importanti
+
+- Il wizard scrive `DB_ENGINE=sqlserver` nel `.env` (non `mssql`)
+- `STATIC_ROOT` e `MEDIA_ROOT` vengono passati esplicitamente a `collectstatic`
+- La password dell'utente admin viene hashata con **werkzeug** (`generate_password_hash`),
+  formato compatibile con `SQLServerLegacyBackend`
+- `SETUP_COMPLETED=1` viene scritto nel `.env` per evitare il redirect al wizard Django interno
+- Il login `NT AUTHORITY\SYSTEM` viene creato con ruolo `db_owner` sul database target
+  perché l'App Pool gira come LocalSystem
 
 ---
 
@@ -592,6 +649,101 @@ Get-WebAppPoolState -Name "PortaleNovicrom-PROD"
 Start-WebAppPool -Name "PortaleNovicrom-PROD"
 ```
 
+### Login failed for user 'NT AUTHORITY\SYSTEM' (18456)
+
+L'App Pool gira come LocalSystem ma `NT AUTHORITY\SYSTEM` non ha un login su SQL Server.
+
+```sql
+USE [master];
+IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'NT AUTHORITY\SYSTEM')
+    CREATE LOGIN [NT AUTHORITY\SYSTEM] FROM WINDOWS;
+
+USE [PortaleNovicrom_TEST];  -- sostituisci con il tuo DB
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'NT AUTHORITY\SYSTEM')
+    CREATE USER [NT AUTHORITY\SYSTEM] FOR LOGIN [NT AUTHORITY\SYSTEM];
+ALTER ROLE db_owner ADD MEMBER [NT AUTHORITY\SYSTEM];
+```
+
+Il wizard esegue questo automaticamente se `sqlcmd` è disponibile.
+
+### Django usa SQLite invece di SQL Server
+
+Sintomo: nel log appare `Engine: sqlite` o il path del DB è `\django_app\db.sqlite3`.
+
+Causa: `DB_ENGINE=mssql` nel `.env` non viene riconosciuto (il valore corretto è `sqlserver`).
+
+Fix:
+```powershell
+(Get-Content .env) -replace 'DB_ENGINE=mssql','DB_ENGINE=sqlserver' | Set-Content .env
+```
+
+Il wizard aggiornato scrive già `DB_ENGINE=sqlserver`.
+
+### "No migrations to apply" con DB vuoto
+
+Causa: Django trova `django_migrations` con righe ma le tabelle non esistono (installazione precedente fallita a metà).
+
+Fix: ricrea il database da zero e rilancia migrate:
+```sql
+USE [master]; DROP DATABASE [NomeDB]; CREATE DATABASE [NomeDB];
+```
+```powershell
+python manage.py migrate --settings=config.settings.prod
+```
+
+### collectstatic copia in `staticfiles/` invece di `ENV\static\`
+
+Causa: `STATIC_ROOT` già impostata nell'ambiente di sistema sovrascrive il `.env`
+(che usa `setdefault` e non sovrascrive variabili già presenti).
+
+Fix manuale:
+```powershell
+$env:STATIC_ROOT = "C:\PortaleNovicrom\test\static"
+python manage.py collectstatic --noinput --settings=config.settings.prod
+```
+
+Il wizard aggiornato passa `STATIC_ROOT` esplicitamente come variabile d'ambiente.
+
+### "Invalid hash method 'pbkdf2_sha256'" al login
+
+Causa: la password dell'utente legacy è stata creata con Django `make_password` ma il backend
+`SQLServerLegacyBackend` usa werkzeug `check_password_hash` (formato incompatibile).
+
+Fix: ricrea la password con werkzeug:
+```powershell
+python -c "
+import os, django
+os.environ['DJANGO_SETTINGS_MODULE'] = 'config.settings.prod'
+django.setup()
+from core.legacy_models import UtenteLegacy
+from werkzeug.security import generate_password_hash
+u = UtenteLegacy.objects.get(nome='admin')
+u.password = generate_password_hash('NUOVA_PASSWORD')
+u.save()
+print('OK')
+"
+```
+
+### 500.19 — sezione handlers bloccata (0x80070021)
+
+La sezione `<handlers>` in IIS è bloccata a livello server e non può essere sovrascritta dal `web.config` del sito.
+
+```cmd
+%windir%\system32\inetsrv\appcmd.exe unlock config -section:system.webServer/handlers
+```
+
+Il wizard esegue questo automaticamente durante la configurazione IIS.
+
+### Invalid object name 'django_cache_test'
+
+La tabella cache non è stata creata. In produzione con IIS multi-worker, Django usa `DatabaseCache`.
+
+```powershell
+python manage.py createcachetable --settings=config.settings.prod
+```
+
+Il wizard lo esegue automaticamente dopo migrate.
+
 ### Errore connessione SQL Server
 
 1. Verifica che ODBC Driver sia installato: `odbcad32.exe`
@@ -733,10 +885,14 @@ Una migration distruttiva (drop column, drop table) non è reversibile automatic
 Il file `.env` NON deve mai essere committato. Solo `.env.test.example` e `.env.prod.example`
 (senza credenziali reali) vanno nel repo. Verifica `.gitignore`.
 
-### app pool con identità sbagliata (LocalSystem)
+### app pool con identità sbagliata
 
-Non usare LocalSystem come identità dell'app pool — ha accesso di rete come computer account,
-è un rischio di sicurezza. Usa `ApplicationPoolIdentity` (default) o un service account AD dedicato.
+Il wizard imposta **LocalSystem** come identità dell'App Pool. Questo garantisce:
+- Accesso completo al venv e ai file Django senza configurare permessi NTFS
+- Connessione a SQL Server via Windows Integrated Auth come `NT AUTHORITY\SYSTEM`
+
+> In ambienti ad alta sicurezza, sostituire con un service account AD dedicato
+> e configurare manualmente i permessi NTFS e il login SQL Server.
 
 ### ALLOWED_HOSTS vuoto o con wildcard `*`
 

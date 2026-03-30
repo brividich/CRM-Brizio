@@ -71,6 +71,11 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
     }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
     .module {
       border: 1px solid var(--line);
       border-radius: 12px;
@@ -87,9 +92,12 @@
       margin-right: 6px;
       margin-bottom: 6px;
     }
-    .t-core { background: #e7f1fd; color: #1d4f82; }
-    .t-biz { background: #e9f8ef; color: var(--ok); }
-    .t-admin { background: #fff6e8; color: var(--warn); }
+    .t-core    { background: #e7f1fd; color: #1d4f82; }
+    .t-biz     { background: #e9f8ef; color: var(--ok); }
+    .t-admin   { background: #fff6e8; color: var(--warn); }
+    .t-sec     { background: #fdecea; color: #9b2226; }
+    .t-infra   { background: #f0eafd; color: #5a2d8a; }
+    .t-ops     { background: #e8f4ff; color: #1565c0; }
 
     .flow {
       border: 1px dashed #b9cde2;
@@ -134,7 +142,7 @@
       font-size: 12px;
     }
     @media (max-width: 980px) {
-      .grid { grid-template-columns: 1fr; }
+      .grid, .grid-3 { grid-template-columns: 1fr; }
       h1 { font-size: 29px; }
     }
   </style>
@@ -143,145 +151,429 @@
   <div class="wrap">
     <header class="hero">
       <div class="kicker">GUIDA FUNZIONALE</div>
-      <h1>Portale Applicativo: Moduli e Idea del Programma</h1>
-      <p class="sub">Documento descrittivo per capire a colpo d'occhio come è organizzato il sistema, cosa fa ogni modulo e come collaborano tra loro.</p>
-      <p class="meta">Snapshot: 2026-03-01 | Versione software: 0.4.0-dev</p>
+      <h1>Portale Applicativo: Moduli e Funzionalità</h1>
+      <p class="sub">Documento descrittivo per capire come è organizzato il sistema, cosa fa ogni modulo e come collaborano tra loro.</p>
+      <p class="meta">Aggiornato: 2026-03-27 &nbsp;|&nbsp; Versione software: 0.8.5</p>
     </header>
 
+    <!-- ─── 1. IDEA DEL PROGRAMMA ─── -->
     <section class="section">
       <h2>1. Idea Del Programma</h2>
-      <p>Il portale applicativo è una piattaforma interna per gestire processi operativi aziendali (assenze, anomalie, amministrazione utenti/permessi), con controllo accessi per ruolo e integrazione graduale da sistema legacy a architettura Django moderna.</p>
-      <p>Obiettivo principale: <strong>centralizzare operatività e governance</strong>, riducendo attività manuali, errori di navigazione e dipendenza da modifiche codice per cambi organizzativi ricorrenti.</p>
+      <p>Il portale applicativo è una piattaforma interna per gestire processi operativi aziendali, costruita su Django 5.2 e organizzata in moduli indipendenti. Ogni modulo copre un dominio funzionale specifico (assenze, asset, sicurezza, ecc.) e si integra con il sistema di autenticazione e permessi centralizzato.</p>
+      <p>Obiettivo principale: <strong>centralizzare operatività e governance</strong>, riducendo attività manuali, errori e dipendenza da modifiche al codice per cambi organizzativi ricorrenti.</p>
+      <p>I moduli condividono:</p>
+      <ul>
+        <li>Un unico sistema ACL basato su ruoli legacy (tabella <code>ruoli</code> + <code>permessi</code>)</li>
+        <li>La topbar dinamica con categorie colorate configurabili senza codice</li>
+        <li>Il sistema di notifiche in-app</li>
+        <li>L'audit trail centralizzato per ogni operazione CRUD rilevante</li>
+        <li>Il monitoring interno per il tracciamento di errori e anomalie applicative</li>
+      </ul>
     </section>
 
+    <!-- ─── 2. MODULI CORE E INFRASTRUTTURA ─── -->
     <section class="section">
-      <h2>2. Moduli Principali</h2>
+      <h2>2. Moduli Core e Infrastruttura</h2>
       <div class="grid">
         <article class="module">
           <span class="tag t-core">CORE</span>
           <h3>core</h3>
           <p><strong>Ruolo:</strong> fondazione tecnica del portale.</p>
           <ul>
-            <li>Login/logout e collegamento utente Django <-> utente legacy.</li>
-            <li>Middleware sicurezza: timeout sessione e controllo ACL.</li>
-            <li>Topbar globale e gestione compatibilità URL legacy.</li>
+            <li>Login/logout e collegamento utente Django ↔ utente legacy SQL Server</li>
+            <li>3 backend auth in cascata: SQLServerLegacy → LDAP/AD → ModelBackend</li>
+            <li>Middleware stack: timeout sessione, impersonation admin, ACL legacy, issue capture</li>
+            <li>Navigation Registry: topbar dinamica con categorie colorate, subnav, sidebar</li>
+            <li>Notifiche in-app per tutti i moduli</li>
+            <li>Audit trail centralizzato (<code>AuditLog</code>)</li>
+            <li>ACL cache versionata con invalidazione condivisa tra worker IIS</li>
+            <li>Compatibility layer Flask (62 route storiche)</li>
           </ul>
         </article>
         <article class="module">
-          <span class="tag t-biz">BUSINESS</span>
+          <span class="tag t-core">CORE</span>
           <h3>dashboard</h3>
           <p><strong>Ruolo:</strong> punto di ingresso utente.</p>
           <ul>
-            <li>Panoramica moduli disponibili in base ai permessi.</li>
-            <li>Vista richieste e stato sintetico attività.</li>
-            <li>Navigazione trasversale verso assenze/anomalie/admin.</li>
-          </ul>
-        </article>
-        <article class="module">
-          <span class="tag t-biz">BUSINESS</span>
-          <h3>assenze</h3>
-          <p><strong>Ruolo:</strong> gestione ciclo assenze.</p>
-          <ul>
-            <li>Inserimento richieste, gestione e calendario eventi.</li>
-            <li>API per aggiornamenti e sincronizzazione dati.</li>
-            <li>Regole autorizzative differenziate per ruolo.</li>
-          </ul>
-        </article>
-        <article class="module">
-          <span class="tag t-biz">BUSINESS</span>
-          <h3>anomalie</h3>
-          <p><strong>Ruolo:</strong> gestione anomalie operative.</p>
-          <ul>
-            <li>Pagina gestione anomalie (UI moderna + compatibilità legacy).</li>
-            <li>API dati ordini/anomalie e sincronizzazione esterna.</li>
-            <li>Supporto percorsi legacy reindirizzati in sicurezza.</li>
+            <li>Home page con widget configurabili per ruolo</li>
+            <li>Panoramica rapida moduli disponibili in base ai permessi</li>
+            <li>Preferenze UI per utente: font scaling globale (<code>small/normal/large/xl</code>), sidebar personalizzabile con azioni rapide aggiungibili/riordinabili</li>
+            <li>Navigazione trasversale verso tutti i moduli attivi</li>
           </ul>
         </article>
         <article class="module">
           <span class="tag t-admin">GOVERNANCE</span>
           <h3>admin_portale</h3>
-          <p><strong>Ruolo:</strong> controllo amministrativo e configurazione.</p>
+          <p><strong>Ruolo:</strong> pannello amministrativo completo.</p>
           <ul>
-            <li>Gestione utenti, ruoli, permessi e pulsanti.</li>
-            <li>Topbar Live e Navigation Builder no-code.</li>
-            <li>Snapshot/rollback e diagnostica ACL/LDAP.</li>
+            <li>Gestione utenti, ruoli, permessi (per ruolo e override per singolo utente)</li>
+            <li>Topbar Live: editor rapido ordine e visibilità voci menu</li>
+            <li>Navigation Builder: creazione/modifica voci no-code con snapshot e rollback</li>
+            <li>Wizard nuovo pulsante e wizard configura ruolo</li>
+            <li>Diagnostica LDAP/AD e impersonation utenti</li>
+            <li>Dashboard monitoring e lista issue applicative</li>
           </ul>
         </article>
         <article class="module">
-          <span class="tag t-admin">GOVERNANCE</span>
-          <h3>Navigation Registry v2</h3>
-          <p><strong>Ruolo:</strong> sorgente unica menu.</p>
+          <span class="tag t-infra">INFRASTRUTTURA</span>
+          <h3>hub_tools</h3>
+          <p><strong>Ruolo:</strong> hub strumenti interni per amministratori.</p>
           <ul>
-            <li>Definisce voci menu, abilitazioni ruolo e versioni pubblicate.</li>
-            <li>Permette modifiche senza deploy codice.</li>
-            <li>Fallback automatico alla logica legacy per continuità operativa.</li>
+            <li><strong>Module Manager</strong> (<code>/hub/moduli/</code>): abilita/disabilita moduli senza riavviare il server</li>
+            <li><strong>Database Manager</strong> (<code>/hub/database/</code>): statistiche, backup, pulizia, ottimizzazione, ripristino (SQLite e SQL Server)</li>
+            <li><strong>Schema DB</strong> (<code>/hub/database/schema/</code>): mappa visuale infografica di tutti i modelli Django</li>
+            <li><strong>Categorie navigazione</strong> (<code>/hub/categorie/</code>): assegna colori e raggruppamenti alla topbar</li>
+            <li><strong>Homepage Builder</strong> (<code>/hub/homepage-builder/</code>): layout home page per ruolo</li>
+            <li><strong>Notifiche</strong> (<code>/hub/notifiche/</code>): dashboard notifiche, invio manuale, azioni bulk</li>
+            <li><strong>Guide</strong> (<code>/hub/guide/</code>): manuali e guide operative</li>
+          </ul>
+        </article>
+        <article class="module">
+          <span class="tag t-infra">INFRASTRUTTURA</span>
+          <h3>setup_wizard</h3>
+          <p><strong>Ruolo:</strong> wizard guidato prima configurazione (12 step).</p>
+          <ul>
+            <li>Configurazione DB (SQLite dev / SQL Server prod/test)</li>
+            <li>Configurazione LDAP/AD, SharePoint/Graph, SMTP</li>
+            <li>Selezione moduli opzionali con toggle</li>
+            <li>Creazione utente admin con strength meter password</li>
+            <li>Esecuzione migrazioni e attivazione moduli in tempo reale</li>
+            <li>Rieseguibile da <code>/admin-portale/hub/setup-wizard/</code></li>
+          </ul>
+        </article>
+        <article class="module">
+          <span class="tag t-infra">INFRASTRUTTURA</span>
+          <h3>monitoring</h3>
+          <p><strong>Ruolo:</strong> osservabilità interna del portale.</p>
+          <ul>
+            <li>Tracciamento issue con deduplicazione per fingerprint SHA-256</li>
+            <li>Ciclo di vita issue: <code>new → triage → in_progress → resolved/ignored</code></li>
+            <li>Cattura automatica eccezioni non gestite, risposte 500/403, richieste lente</li>
+            <li>Pulsante "Segnala problema" nel topnav per tutti gli utenti</li>
+            <li>Monitor automazioni: stato job, fallimenti consecutivi, missing/delayed/failing</li>
+            <li>Alert email anti-rumore con rate-limit per fingerprint (1h)</li>
+            <li>Management commands: <code>monitoring_healthcheck</code>, <code>monitoring_digest</code></li>
+            <li>Decorator <code>@monitored_automation</code> per job automatici</li>
           </ul>
         </article>
       </div>
     </section>
 
+    <!-- ─── 3. MODULI HR E WORKFLOW ─── -->
     <section class="section">
-      <h2>3. Come Scorre Una Richiesta (semplificato)</h2>
-      <div class="flow">Utente apre pagina
--> verifica sessione (timeout)
--> verifica ACL per percorso richiesto
--> costruzione menu topbar (Registry v2 oppure fallback legacy)
--> esecuzione view modulo (dashboard / assenze / anomalie / admin)
--> rendering pagina</div>
-      <div class="note">
-        Questo flusso garantisce che ogni pagina sia visibile solo a chi ha i permessi corretti e che il menu resti coerente con il profilo utente.
+      <h2>3. Moduli HR e Workflow</h2>
+      <div class="grid">
+        <article class="module">
+          <span class="tag t-biz">BUSINESS</span>
+          <h3>assenze</h3>
+          <p><strong>Ruolo:</strong> gestione ciclo assenze dipendenti.</p>
+          <ul>
+            <li>Inserimento richieste di assenza con tipi configurabili</li>
+            <li>Calendario condiviso con vista per reparto/ruolo</li>
+            <li>Workflow di approvazione differenziato per ruolo</li>
+            <li>Certificazioni presenza</li>
+            <li>Sincronizzazione con SharePoint (Microsoft Graph)</li>
+            <li>Trigger SQL Server per alimentare la coda automazioni</li>
+          </ul>
+        </article>
+        <article class="module">
+          <span class="tag t-biz">BUSINESS</span>
+          <h3>anomalie</h3>
+          <p><strong>Ruolo:</strong> segnalazione e gestione anomalie produzione.</p>
+          <ul>
+            <li>Form segnalazione con categorie e priorità</li>
+            <li>Lista gestione con filtri avanzati</li>
+            <li>API dati integrazione esterna (ordini/anomalie)</li>
+            <li>Percorsi legacy reindirizzati in sicurezza</li>
+          </ul>
+        </article>
+        <article class="module">
+          <span class="tag t-biz">BUSINESS</span>
+          <h3>tickets</h3>
+          <p><strong>Ruolo:</strong> sistema ticket interni.</p>
+          <ul>
+            <li>Creazione ticket con categoria, priorità, assegnatario</li>
+            <li>Allegati e commenti con timeline</li>
+            <li>Collegamento a asset aziendali e fornitori</li>
+            <li>Configurazione impostazioni (categorie, SLA, responsabili)</li>
+          </ul>
+        </article>
+        <article class="module">
+          <span class="tag t-biz">BUSINESS</span>
+          <h3>notizie</h3>
+          <p><strong>Ruolo:</strong> bacheca notizie e comunicazioni interne.</p>
+          <ul>
+            <li>Pubblicazione notizie con audience selettiva (reparti/ruoli)</li>
+            <li>Allegati alle notizie</li>
+            <li>Tracciamento letture per utente</li>
+            <li>Visibilità differenziata per ruolo</li>
+          </ul>
+        </article>
+        <article class="module">
+          <span class="tag t-biz">BUSINESS</span>
+          <h3>timbri</h3>
+          <p><strong>Ruolo:</strong> report timbrature dipendenti.</p>
+          <ul>
+            <li>Lettura dati in sola lettura dal DB legacy SQL Server</li>
+            <li>Report giornaliero e mensile per dipendente</li>
+            <li>Filtri per reparto e data</li>
+            <li>Gestione anomalie di importazione</li>
+          </ul>
+        </article>
+        <article class="module">
+          <span class="tag t-biz">BUSINESS</span>
+          <h3>tasks</h3>
+          <p><strong>Ruolo:</strong> task management interno.</p>
+          <ul>
+            <li>Progetti con task e subtask gerarchici</li>
+            <li>Assegnazione a utenti, scadenze, priorità</li>
+            <li>Commenti e allegati su task e progetto</li>
+            <li>Event log per storico modifiche</li>
+          </ul>
+        </article>
       </div>
     </section>
 
+    <!-- ─── 4. MODULI OPERATIONS ─── -->
     <section class="section">
-      <h2>4. Strati Dati (idea chiave)</h2>
+      <h2>4. Moduli Operations e Asset</h2>
+      <div class="grid">
+        <article class="module">
+          <span class="tag t-ops">OPERATIONS</span>
+          <h3>assets</h3>
+          <p><strong>Ruolo:</strong> gestione completa degli asset aziendali.</p>
+          <ul>
+            <li>Inventario asset con categorie, dettagli IT, ubicazione</li>
+            <li>Work Order: ordini di lavoro con log, allegati, stati</li>
+            <li>Macchine di lavoro (<code>WorkMachine</code>)</li>
+            <li>Verifiche periodiche con scadenzario (collegate a fornitori)</li>
+            <li>Planimetrie interattive con aree e marker clickabili</li>
+            <li>Documenti associati agli asset</li>
+            <li>Etichette personalizzabili con template di stampa</li>
+            <li>Endpoint REST per integrazione esterna (<code>AssetEndpoint</code>)</li>
+          </ul>
+        </article>
+        <article class="module">
+          <span class="tag t-ops">OPERATIONS</span>
+          <h3>anagrafica</h3>
+          <p><strong>Ruolo:</strong> anagrafica dipendenti e fornitori.</p>
+          <ul>
+            <li>Profilo dipendente con integrazione AD e DB legacy</li>
+            <li>Ruoli operativi e mansioni (<code>RuoloOperativo</code>)</li>
+            <li>Widget statistiche dipendente (KPI assenze, DPI, tickets, verifiche)</li>
+            <li>Gestione fornitori: documenti, ordini, valutazioni, asset associati</li>
+            <li>Layout statistiche configurabile per ruolo</li>
+          </ul>
+        </article>
+        <article class="module">
+          <span class="tag t-ops">OPERATIONS</span>
+          <h3>automazioni</h3>
+          <p><strong>Ruolo:</strong> designer visuale automazioni business.</p>
+          <ul>
+            <li>Costruzione regole con condizioni, azioni e sorgenti dati</li>
+            <li>Trigger via SQL Server (<code>automation_event_queue</code>)</li>
+            <li>Processor: <code>python manage.py process_automation_queue</code></li>
+            <li>Log esecuzioni per regola e per azione</li>
+            <li>Test regole in sandbox prima dell'attivazione</li>
+            <li>Import/export package di regole</li>
+          </ul>
+        </article>
+        <article class="module">
+          <span class="tag t-ops">OPERATIONS</span>
+          <h3>rentri</h3>
+          <p><strong>Ruolo:</strong> tracciabilità rifiuti (normativa RENTRI).</p>
+          <ul>
+            <li>Registro rifiuti con codici EER, produttori, destinatari</li>
+            <li>Conformità alla normativa italiana di tracciabilità rifiuti</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <!-- ─── 5. MODULI SICUREZZA E COMPLIANCE ─── -->
+    <section class="section">
+      <h2>5. Moduli Sicurezza e Compliance</h2>
+      <div class="grid">
+        <article class="module">
+          <span class="tag t-sec">SICUREZZA</span>
+          <h3>dpi</h3>
+          <p><strong>Ruolo:</strong> gestione Dispositivi di Protezione Individuale.</p>
+          <ul>
+            <li>Categorie DPI con immagine, emoji, vita utile e scorta minima</li>
+            <li>Nuova richiesta con card picker visuale per categoria</li>
+            <li>Workflow: INVIATA → APPROVATA/RIFIUTATA → CONSEGNATA</li>
+            <li>Consegna con scadenza auto-calcolata da vita utile</li>
+            <li>Timeline commenti interni per ogni richiesta</li>
+            <li>Storico personale con badge "scaduto/in scadenza"</li>
+            <li>KPI DPI nel dettaglio dipendente (anagrafica)</li>
+            <li>Numerazione automatica: <code>DPI-YYYY-NNNN</code></li>
+            <li>Notifiche automatiche ad approvazione, rifiuto e consegna</li>
+          </ul>
+        </article>
+        <article class="module">
+          <span class="tag t-sec">SICUREZZA</span>
+          <h3>procedure_refresh</h3>
+          <p><strong>Ruolo:</strong> presa visione obbligatoria procedure MT/MTSI.</p>
+          <ul>
+            <li>Anagrafica documenti (codice univoco, tipo MT/MTSI/ALTRO)</li>
+            <li>Revisioni con sorgente SharePoint (URL) o file server (path), unicità revisione corrente per documento</li>
+            <li>Campagne con stati: bozza → pubblicata → chiusa → archiviata</li>
+            <li>Assegnazione massiva utenti con scadenza e revisione selezionata</li>
+            <li>Tracking completo: prima apertura, ultima apertura, contatore letture, IP, user agent</li>
+            <li>Stati assegnazione: <code>assigned → opened → read_confirmed / overdue / cancelled</code></li>
+            <li>Report per utente, per documento e per campagna</li>
+            <li>Export CSV streaming assegnazioni e riepilogo campagne</li>
+          </ul>
+        </article>
+        <article class="module">
+          <span class="tag t-sec">SICUREZZA</span>
+          <h3>diario_preposto</h3>
+          <p><strong>Ruolo:</strong> diario del preposto sicurezza.</p>
+          <ul>
+            <li>Registrazione segnalazioni di sicurezza con allegati</li>
+            <li>Configurazione impostazioni modulo</li>
+            <li>Visibilità per ruolo preposto</li>
+          </ul>
+        </article>
+        <article class="module">
+          <span class="tag t-sec">SICUREZZA</span>
+          <h3>rilevazione_incidenti</h3>
+          <p><strong>Ruolo:</strong> rilevazione incidenti e unsafe condition.</p>
+          <ul>
+            <li>SharePoint come fonte di verità (Microsoft Graph API)</li>
+            <li>Cache locale su DB Django per performance</li>
+            <li>CRUD sincronizzato con lista SharePoint</li>
+            <li>Configurazione connessione via impostazioni modulo</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <!-- ─── 6. FLUSSO DI UNA RICHIESTA ─── -->
+    <section class="section">
+      <h2>6. Come Scorre Una Richiesta</h2>
+      <div class="flow">Utente apre pagina
+  → SessionIdleTimeoutMiddleware — verifica timeout inattività sessione
+  → ImpersonationMiddleware — sostituisce request.user se admin sta impersonando
+  → ACLMiddleware — login obbligatorio + verifica permesso per il path richiesto
+      (bypass totale per is_legacy_admin() e is_superuser)
+  → IssueCaptureMiddleware — cattura eccezioni non gestite e risposte lente
+  → context_processors — costruisce topbar_groups, subnav_items, notifiche, preferenze UI
+  → view del modulo (dashboard / assenze / assets / dpi / ...)
+  → rendering template con SSR puro Django</div>
+      <div class="note">
+        Ogni pagina è visibile solo a chi ha i permessi corretti. Il menu è coerente con il profilo utente e riflette i moduli attivi in <code>SiteConfig</code>.
+      </div>
+    </section>
+
+    <!-- ─── 7. STRATI DATI ─── -->
+    <section class="section">
+      <h2>7. Strati Dati</h2>
       <table>
         <thead>
-          <tr>
-            <th>Strato</th>
-            <th>Cosa contiene</th>
-            <th>Perché esiste</th>
-          </tr>
+          <tr><th>Strato</th><th>Cosa contiene</th><th>Perché esiste</th></tr>
         </thead>
         <tbody>
           <tr>
-            <td>Legacy SQL</td>
-            <td>utenti, ruoli, permessi, pulsanti</td>
-            <td>continuità con storico aziendale</td>
+            <td><strong>Legacy SQL Server</strong></td>
+            <td><code>utenti</code>, <code>ruoli</code>, <code>permessi</code>, <code>pulsanti</code>, <code>anagrafica_dipendenti</code></td>
+            <td>Continuità con storico aziendale. Modelli ora <code>managed=True</code> in Django (migration faked).</td>
           </tr>
           <tr>
-            <td>Django Managed</td>
-            <td>profili, override, dashboard config</td>
-            <td>governance moderna e controllo fine</td>
+            <td><strong>Django managed</strong></td>
+            <td>Profile, NavigationItem, AuditLog, SiteConfig, Notifica, ModuleCategory, Asset, DPI, ProcedureAssignment, Issue, ...</td>
+            <td>Governance moderna, nuove funzionalità, audit, monitoring, compliance.</td>
           </tr>
           <tr>
-            <td>Navigation v2</td>
-            <td>menu, accessi ruolo, snapshot, redirect</td>
-            <td>modifiche no-code e rollback veloce</td>
+            <td><strong>SiteConfig</strong></td>
+            <td>Key-value runtime: moduli attivi, titolo sito, tema login, redirect post-login</td>
+            <td>Configurazione a runtime senza toccare codice o riavviare il server.</td>
+          </tr>
+          <tr>
+            <td><strong>Navigation Registry</strong></td>
+            <td>Voci menu, accessi per ruolo, categorie colori, snapshot, redirect legacy</td>
+            <td>Modifiche no-code, rollback veloce, segregazione per ruolo.</td>
+          </tr>
+          <tr>
+            <td><strong>SharePoint / Graph</strong></td>
+            <td>Documenti procedure, incidenti/unsafe condition, assenze (sync)</td>
+            <td>Fonte di verità esterna per documenti ufficiali e segnalazioni.</td>
           </tr>
         </tbody>
       </table>
     </section>
 
+    <!-- ─── 8. COSA SI GESTISCE SENZA CODICE ─── -->
     <section class="section">
-      <h2>5. Cosa Si Può Gestire Senza Codice</h2>
-      <ol>
-        <li>Ordinamento e visibilità topbar.</li>
-        <li>Creazione/modifica voci di navigazione.</li>
-        <li>Abilitazioni voci per ruolo.</li>
-        <li>Publish configurazione e rollback snapshot.</li>
-        <li>Redirect da URL legacy a nuova destinazione.</li>
-      </ol>
-      <p>Area di gestione: <code>/admin-portale/navigation-builder/</code> e <code>/admin-portale/topbar-live/</code>.</p>
+      <h2>8. Cosa Si Gestisce Senza Toccare Il Codice</h2>
+      <div class="grid">
+        <div>
+          <h3>Navigazione e UI</h3>
+          <ol>
+            <li>Ordinamento e visibilità voci topbar</li>
+            <li>Creazione/modifica voci di navigazione (topbar, subnav, sidebar)</li>
+            <li>Abilitazione voci per ruolo specifico</li>
+            <li>Publish configurazione menu e rollback snapshot</li>
+            <li>Redirect da vecchi URL legacy a nuove destinazioni</li>
+            <li>Colore e raggruppamento categorie topbar</li>
+            <li>Layout home page per ruolo (Homepage Builder)</li>
+          </ol>
+        </div>
+        <div>
+          <h3>Moduli e Accessi</h3>
+          <ol>
+            <li>Abilita/disabilita moduli senza riavviare il server (Module Manager)</li>
+            <li>Configura permessi per ruolo (griglia moduli/pulsanti)</li>
+            <li>Override permessi per singolo utente</li>
+            <li>Copia configurazione permessi da un ruolo a un altro</li>
+            <li>Crea nuovi pulsanti ACL con wizard guidato</li>
+            <li>Impersonazione utente per test (solo admin)</li>
+          </ol>
+        </div>
+      </div>
+      <p style="margin-top:12px">Aree di gestione: <code>/admin-portale/navigation-builder/</code> &nbsp;·&nbsp; <code>/admin-portale/topbar-live/</code> &nbsp;·&nbsp; <code>/admin-portale/permessi/</code> &nbsp;·&nbsp; <code>/admin-portale/hub/</code></p>
     </section>
 
+    <!-- ─── 9. INTEGRAZIONI ESTERNE ─── -->
     <section class="section">
-      <h2>6. Visione Del Programma In Una Frase</h2>
-      <p><strong>Una piattaforma operativa aziendale modulare, con sicurezza per ruolo, processi business (assenze/anomalie) e governance amministrativa no-code per evolvere il sistema in modo controllato.</strong></p>
+      <h2>9. Integrazioni Esterne</h2>
+      <table>
+        <thead>
+          <tr><th>Sistema</th><th>Moduli che la usano</th><th>Cosa fa</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Microsoft Graph / SharePoint</strong></td>
+            <td>assenze, rilevazione_incidenti, procedure_refresh</td>
+            <td>Sync assenze, CRUD incidenti su lista SharePoint, lettura documenti procedure</td>
+          </tr>
+          <tr>
+            <td><strong>LDAP / Active Directory</strong></td>
+            <td>core (auth backend)</td>
+            <td>Autenticazione utenti aziendali, sincronizzazione profili, diagnostica</td>
+          </tr>
+          <tr>
+            <td><strong>SMTP</strong></td>
+            <td>monitoring, dpi, procedure_refresh</td>
+            <td>Alert issue critiche, notifiche approvazione/rifiuto DPI, reminder scadenze procedure</td>
+          </tr>
+          <tr>
+            <td><strong>SQL Server legacy</strong></td>
+            <td>core, assenze, automazioni, timbri</td>
+            <td>Tabelle utenti/permessi, trigger automazioni, lettura timbrature</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ─── 10. VISIONE IN UNA FRASE ─── -->
+    <section class="section">
+      <h2>10. Visione Del Programma In Una Frase</h2>
+      <p><strong>Una piattaforma operativa aziendale modulare con 20 moduli attivi, sicurezza ACL per ruolo, processi HR/operations/compliance e governance amministrativa no-code — progettata per evolvere senza deploy a ogni cambio organizzativo.</strong></p>
     </section>
 
     <div class="footer">
-      Documento descrittivo moduli | Portale Applicativo
+      Guida Moduli Applicativi v0.8.5 &nbsp;·&nbsp; Portale Applicativo &nbsp;·&nbsp; Aggiornato 2026-03-27
     </div>
   </div>
 </body>
