@@ -346,6 +346,14 @@ STATIC_ROOT = Path(env("STATIC_ROOT", str(BASE_DIR / "staticfiles")))
 MEDIA_ROOT = Path(env("MEDIA_ROOT", str(BASE_DIR / "media")))
 MEDIA_URL = "/media/"
 
+# ── Backup automatico ────────────────────────────────────────────────────────
+# BACKUP_DIR: directory radice dove vengono salvati i backup automatici.
+# In produzione il wizard imposta: C:\PortaleNovicrom\shared\backups\<env>
+# In dev il default è accanto a django_app/ → ../backups
+BACKUP_DIR = Path(env("BACKUP_DIR", str(BASE_DIR.parent / "backups")))
+# BACKUP_RETENTION: quanti backup mantenere (i più vecchi vengono eliminati)
+BACKUP_RETENTION = int(env("BACKUP_RETENTION", "10") or "10")
+
 # Immagini timbri/firme: cartella privata, MAI servita dal web server.
 # Il web server (IIS/nginx) non deve avere accesso a questa directory.
 TIMBRI_PRIVATE_ROOT = BASE_DIR / "media_private"

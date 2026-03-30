@@ -1997,7 +1997,7 @@ class InstallPage(Page):
 
     def _run_prod(self, cfg, ep, settings, errors):
         """Installa/aggiorna l'ambiente TEST o PROD (SQL Server, IIS)."""
-        N = 11
+        N = 12
         tag = datetime.now().strftime("%Y%m%d_%H%M%S")
         cfg.release_tag = tag
         rel_dir    = ep / "releases" / tag
@@ -2069,7 +2069,21 @@ class InstallPage(Page):
 
         # 5. .env
         step(5, "Scrittura configurazione .env", 40)
+        backup_dir_path = Path(cfg.base_dir) / "shared" / "backups" / cfg.environment
         env_content = cfg.to_env()
+        # Aggiunge variabili backup solo se mancanti come chiavi .env reali.
+        env_keys = {
+            line.split("=", 1)[0].strip()
+            for line in env_content.splitlines()
+            if line.strip() and not line.strip().startswith("#") and "=" in line
+        }
+        backup_lines = []
+        if "BACKUP_DIR" not in env_keys:
+            backup_lines.append(f"BACKUP_DIR={backup_dir_path}")
+        if "BACKUP_RETENTION" not in env_keys:
+            backup_lines.append("BACKUP_RETENTION=10")
+        if backup_lines:
+            env_content += f"\n# Backup automatico\n{'\n'.join(backup_lines)}\n"
         try:
             (ep/"config"/".env").write_text(env_content, encoding="utf-8")
             self._log_line(f"  ✓ .env → {ep/'config'/'.env'}", "ok")
@@ -2154,7 +2168,64 @@ class InstallPage(Page):
         self._log_line("  ✓ web.config scritto", "ok")
         self._configure_iis(cfg)
 
+        # 12. Backup automatico schedulato
+        step(12, "Pianificazione backup automatico", 98)
+        backup_dir_path = Path(cfg.base_dir) / "shared" / "backups" / cfg.environment
+        self._setup_scheduled_backup(cfg, ep, venv_py, settings, backup_dir_path)
+
     # ── Helper condiviso tra DEV e PROD ──────────────────────────────────────
+
+    def _setup_scheduled_backup(self, cfg, ep, venv_py, settings_module, backup_dir):
+        """Registra un Windows Scheduled Task per il backup giornaliero alle 02:00."""
+        env_upper = cfg.environment.upper()
+        task_name = f"PortaleNovicrom-Backup-{env_upper}"
+        # Il task usa sempre current/ per puntare sempre alla release attiva
+        django_app_path = ep / "current" / "django_app"
+        task_name_ps = _ps_escape(task_name)
+        py = _ps_escape(str(venv_py))
+        wd = _ps_escape(str(django_app_path))
+        bak = _ps_escape(str(backup_dir))
+        ps = f"""
+$taskName = "{task_name_ps}"
+$pyExe    = "{py}"
+$workDir  = "{wd}"
+$cmdArgs  = "manage.py backup_portale --settings={settings_module}"
+$backupDir = "{bak}"
+
+# Crea directory backup se non esiste
+if (-not (Test-Path $backupDir)) {{ New-Item -ItemType Directory -Path $backupDir -Force | Out-Null }}
+
+$action   = New-ScheduledTaskAction -Execute $pyExe -Argument $cmdArgs -WorkingDirectory $workDir
+$trigger  = New-ScheduledTaskTrigger -Daily -At '02:00'
+$settings = New-ScheduledTaskSettingsSet `
+    -StartWhenAvailable `
+    -ExecutionTimeLimit (New-TimeSpan -Hours 2) `
+    -MultipleInstances IgnoreNew
+
+Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger `
+    -Settings $settings -RunLevel Highest -Force | Out-Null
+Write-Host "OK $taskName"
+"""
+        try:
+            r = subprocess.run(
+                ["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=30, creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            if r.returncode == 0 and "OK" in r.stdout:
+                self._log_line(f"  ✓ Task '{task_name}' — backup giornaliero alle 02:00", "ok")
+                self._log_line(f"  ✓ Salva in: {backup_dir}", "ok")
+            else:
+                out = (r.stderr or r.stdout)[:300].strip()
+                self._log_line(f"  ⚠ Task Scheduler: {out}", "warn")
+                self._log_line(
+                    f"  → Per pianificarlo manualmente:\n"
+                    f"    schtasks /create /tn \"{task_name}\" /tr "
+                    f"\"cmd /c cd /d \\\"{django_app_path}\\\" && \\\"{venv_py}\\\" manage.py backup_portale --settings={settings_module}\" "
+                    f"/sc DAILY /st 02:00 /rl HIGHEST /f",
+                    "warn")
+        except Exception as e:
+            self._log_line(f"  ⚠ Task Scheduler: {e}", "warn")
 
     def _create_legacy_admin(self, cfg, venv_py, django_app, env_vars, settings):
         """Crea l'utente admin legacy (e opzionalmente il Django superuser)."""
@@ -3596,6 +3667,10 @@ class UninstallRunPage(Page):
             self._set_progress(pct, title)
             self._log_line(f"\n── {title} {'─'*(44-len(title))}", "step")
 
+        # 0. Backup pre-disinstallazione (non bloccante)
+        step("Backup pre-disinstallazione", 5)
+        self._run_pre_uninstall_backup(cfg, ep)
+
         # 1. Ferma e rimuovi sito IIS
         step("Rimozione sito IIS", 20)
         ps_site = f"""
@@ -3684,6 +3759,40 @@ if (Test-Path 'IIS:\\AppPools\\{pool}') {{
             try: self._log_file.close()
             except: pass
         self._log.after(800, self._on_done)
+
+    def _run_pre_uninstall_backup(self, cfg, ep):
+        """Esegue backup-environment.ps1 prima di rimuovere l'ambiente (non bloccante)."""
+        scripts_dir = Path(cfg.base_dir) / "shared" / "scripts"
+        script      = scripts_dir / "backup-environment.ps1"
+
+        if not script.exists():
+            self._log_line("  ⚠ backup-environment.ps1 non trovato — backup saltato", "warn")
+            self._log_line(f"    (atteso in: {scripts_dir})", "dim")
+            return
+
+        self._log_line(f"  → Eseguendo {script.name} per {cfg.environment.upper()}…", "dim")
+        try:
+            r = subprocess.run(
+                ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(script),
+                 "-Environment", cfg.environment],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=180, creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            out = (r.stdout + r.stderr).strip()
+            if r.returncode == 0:
+                self._log_line("  ✓ Backup pre-disinstallazione completato", "ok")
+                # Mostra la directory di destinazione dall'output dello script
+                for line in out.splitlines():
+                    if "Destinazione" in line or "completato" in line.lower():
+                        self._log_line(f"    {line.strip()}", "dim")
+            else:
+                self._log_line(f"  ⚠ Backup completato con avvisi (continuo)", "warn")
+                if out:
+                    self._log_line(f"    {out[:300]}", "dim")
+        except subprocess.TimeoutExpired:
+            self._log_line("  ⚠ Backup timeout (>3 min) — continuo con la disinstallazione", "warn")
+        except Exception as e:
+            self._log_line(f"  ⚠ Backup fallito: {e} — continuo", "warn")
 
 
 class UninstallDonePage(Page):

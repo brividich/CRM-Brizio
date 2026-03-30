@@ -16,7 +16,6 @@ from urllib.parse import parse_qs, quote, urlsplit
 from uuid import uuid4
 
 import requests
-from anagrafica.models import Fornitore
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -47,7 +46,6 @@ from core.graph_utils import acquire_graph_token, is_placeholder_value
 from core.legacy_models import AnagraficaDipendente, UtenteLegacy
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.models import AuditLog, UserDashboardLayout, UserExtraInfo
-from tickets.models import Ticket, TicketImpostazioni, TipoTicket
 from .forms import (
     AssistanceContractForm,
     AssetAdministrativeDeadlineForm,
@@ -6604,6 +6602,7 @@ def _build_asset_detail_section_cards(
 
 
 def _can_manage_ticket_type_for_asset_view(request: HttpRequest, ticket_type: str) -> bool:
+    from tickets.models import TicketImpostazioni
     if not request.user.is_authenticated:
         return False
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
@@ -6875,6 +6874,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "assistance_contract",
         ).all()[:10]
     )
+    from tickets.models import TipoTicket
     manageable_ticket_types = {
         ticket_type
         for ticket_type in (TipoTicket.IT, TipoTicket.MAN)
@@ -8686,6 +8686,7 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def assistance_contract_list(request: HttpRequest) -> HttpResponse:
+    from anagrafica.models import Fornitore
     today = timezone.localdate()
     can_manage_contracts = _is_assets_admin(request)
     selected_asset_id = _as_int(request.POST.get("asset_id") or request.GET.get("asset"), default=0)

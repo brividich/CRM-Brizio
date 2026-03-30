@@ -14,6 +14,7 @@ Tutte le views richiedono utente staff (is_staff=True).
 import json
 import os
 import shutil
+import socket
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -26,9 +27,33 @@ from django.views.decorators.http import require_GET, require_POST
 from admin_portale.decorators import legacy_admin_required as _staff_required
 
 _APP_DIR = Path(__file__).resolve().parent.parent  # django_app/
-_BACKUP_DIR = _APP_DIR.parent / "backup" / "db"
 _TOOLS_DIR = _APP_DIR.parent / "tools"
 _ENV_PATH = _APP_DIR / ".env"
+
+# _BACKUP_DIR: usa BACKUP_DIR da settings (impostato dal wizard in produzione),
+# con fallback legacy per ambienti non ancora aggiornati.
+def _get_backup_dir() -> Path:
+    try:
+        from django.conf import settings as _s
+        d = getattr(_s, "BACKUP_DIR", None)
+        if d:
+            return Path(d)
+    except Exception:
+        pass
+    return _APP_DIR.parent / "backup" / "db"
+
+_BACKUP_DIR = _get_backup_dir()
+
+
+def _is_local_sql_host(host: str) -> bool:
+    h = (host or "").strip().lower()
+    if h in {"", ".", "(local)", "localhost", "127.0.0.1", "::1"}:
+        return True
+    local_aliases = {
+        socket.gethostname().strip().lower(),
+        socket.getfqdn().strip().lower(),
+    }
+    return h in local_aliases
 
 # ── Catalogo Guide e Manuali ──────────────────────────────────────────────────
 GUIDES = [
@@ -339,9 +364,16 @@ def api_db_backup(request):
 
             from django.conf import settings
             db_name = settings.DATABASES["default"].get("NAME", "")
+            db_host = settings.DATABASES["default"].get("HOST", "")
             if not backup_path:
-                # Prova a costruire un path sul server SQL
-                backup_path = f"C:\\SQLBackups\\{db_name}_{ts}.bak"
+                if _is_local_sql_host(db_host):
+                    # SQL Server locale: salva il .bak nella cartella backup del portale.
+                    bak_dir = _BACKUP_DIR / "sqlserver"
+                    bak_dir.mkdir(parents=True, exist_ok=True)
+                    backup_path = str(bak_dir / f"{db_name}_{ts}.bak")
+                else:
+                    # SQL Server remoto: percorso lato server SQL (non file system web server).
+                    backup_path = f"C:\\SQLBackups\\{db_name}_{ts}.bak"
 
             from django.db import connection
             with connection.cursor() as cur:

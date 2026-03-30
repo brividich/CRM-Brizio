@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone as dt_timezone
-from django.db import models
+from django.db import IntegrityError, models, transaction
 
 
 # ---------------------------------------------------------------------------
@@ -134,12 +134,21 @@ class Ticket(models.Model):
         verbose_name_plural = "Ticket"
 
     def save(self, *args, **kwargs):
-        if not self.numero_ticket:
-            self.numero_ticket = _next_ticket_number(self.tipo)
         # Regola sicurezza: incide_sicurezza → URGENTE locked
         if self.incide_sicurezza:
             self.priorita = PrioritaTicket.URGENTE
-        super().save(*args, **kwargs)
+        if self.numero_ticket:
+            return super().save(*args, **kwargs)
+        max_attempts = 5
+        for attempt in range(max_attempts):
+            self.numero_ticket = _next_ticket_number(self.tipo)
+            try:
+                with transaction.atomic():
+                    return super().save(*args, **kwargs)
+            except IntegrityError:
+                self.numero_ticket = ""
+                if not self._state.adding or attempt == max_attempts - 1:
+                    raise
 
     def __str__(self):
         return f"[{self.numero_ticket}] {self.titolo}"

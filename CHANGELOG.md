@@ -5,6 +5,17 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ---
 
+## 0.8.5 - 2026-03-30
+
+### Fixed
+- **[SICUREZZA] tickets - validazione file upload** (`tickets/views.py`): `api_allegato()` ora rifiuta file con estensione non consentita e file superiori a 20 MB. Whitelist: `.pdf`, `.jpg/.jpeg/.png/.gif/.bmp`, `.doc/.docx`, `.xls/.xlsx`, `.odt/.ods`, `.txt`, `.csv`, `.msg/.eml`, `.zip`, `.7z`.
+- **[ARCHITETTURA] assets - import circolari** (`assets/views.py`): rimossi gli import a livello di modulo di `anagrafica.Fornitore` e `tickets.Ticket/TicketImpostazioni/TipoTicket`. Gli import sono ora locali nelle funzioni `assistance_contract_list`, `_can_manage_ticket_type_for_asset_view` e `asset_detail`, allineati al pattern CLAUDE.md.
+- **[CONCORRENZA] dpi - race condition numeri sequenziali** (`dpi/models.py`): `RichiestaDPI.save()` ora usa `transaction.atomic()` con retry (max 5 tentativi) su `IntegrityError`, prevenendo duplicati in contesti multi-worker IIS.
+- **[CONCORRENZA] tickets - race condition numeri sequenziali** (`tickets/models.py`): `Ticket.save()` ora usa `transaction.atomic()` con retry (max 5 tentativi) su `IntegrityError`.
+- **[ROBUSTEZZA] backup_portale - retention sicura** (`core/management/commands/backup_portale.py`): la pulizia backup elimina solo directory con naming timestamp `YYYYMMDD_HHMMSS`, evitando cancellazioni accidentali di cartelle tecniche (es. `sqlserver/`).
+- **[ROBUSTEZZA] setup_wizard - merge chiavi .env backup** (`deployment/setup_wizard.py`): `BACKUP_DIR` e `BACKUP_RETENTION` vengono aggiunte solo se chiavi realmente assenti, evitando falsi positivi da match testuale.
+- **[ROBUSTEZZA] hub_tools - backup SQL locale/remoto** (`hub_tools/views.py`): fallback backup differenziato per host SQL locale (`BACKUP_DIR/sqlserver`) o remoto (`C:\\SQLBackups\\...`), evitando path non raggiungibili lato SQL Server.
+
 ## 0.8.5 - 2026-03-28
 
 ### Added

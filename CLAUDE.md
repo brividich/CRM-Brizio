@@ -228,6 +228,17 @@ I nomi delle variabili nel `.env` devono corrispondere ESATTAMENTE a quelli lett
 | `DJANGO_LOG_DIR` | `base.py` | NON `LOG_DIR` |
 | `DB_ENGINE`, `DB_NAME`, `DB_HOST`, `DB_USER`, `DB_PASSWORD` | `base.py` | OK — nomi corretti |
 | `STATIC_ROOT`, `MEDIA_ROOT` | `base.py` | Ora leggono da env con fallback |
+| `BACKUP_DIR`, `BACKUP_RETENTION` | `base.py` + `core/management/commands/backup_portale.py` | Backup automatico e retention |
+
+### Backup automatico (wizard + command)
+
+- Command: `python manage.py backup_portale [--include-media] [--retention N]`
+- Path default: `BACKUP_DIR` (fallback `BASE_DIR/../backups`)
+- Retention default: `BACKUP_RETENTION=10`
+- `backup_portale` elimina solo cartelle timestamp `YYYYMMDD_HHMMSS` (non tocca sottocartelle tecniche come `sqlserver/`)
+- Wizard `InstallPage._run_prod`:
+  - aggiunge `BACKUP_DIR` e `BACKUP_RETENTION` al `.env` solo se le chiavi sono assenti
+  - registra task scheduler `PortaleNovicrom-Backup-<ENV>` alle 02:00
 
 ### Junction NTFS (\_create\_junction)
 

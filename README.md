@@ -145,6 +145,13 @@ python django_app\manage.py createcachetable --settings=config.settings.prod
 
 > Il `SetupWizard.exe` esegue `createcachetable` automaticamente durante l'installazione.
 
+### Backup automatico
+
+- Command: `python django_app\manage.py backup_portale`
+- Opzioni: `--include-media`, `--retention N`
+- Config via `.env`: `BACKUP_DIR` (path root), `BACKUP_RETENTION` (numero backup da mantenere)
+- Cleanup retention: vengono rimosse solo cartelle backup con formato timestamp `YYYYMMDD_HHMMSS`
+
 ## Comandi utili
 
 ```powershell

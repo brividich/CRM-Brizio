@@ -1143,6 +1143,18 @@ def api_allegato(request):
     if not f:
         return _json_err("Nessun file")
 
+    _ALLOWED_EXTS = {
+        ".pdf", ".jpg", ".jpeg", ".png", ".gif", ".bmp",
+        ".doc", ".docx", ".xls", ".xlsx", ".odt", ".ods",
+        ".txt", ".csv", ".msg", ".eml", ".zip", ".7z",
+    }
+    _MAX_SIZE = 20 * 1024 * 1024  # 20 MB
+    ext = os.path.splitext(f.name)[1].lower()
+    if ext not in _ALLOWED_EXTS:
+        return _json_err(f"Tipo file non consentito ({ext or 'nessuna estensione'})")
+    if f.size > _MAX_SIZE:
+        return _json_err("File troppo grande (massimo 20 MB)")
+
     allegato = TicketAllegato.objects.create(
         ticket=ticket,
         file=f,

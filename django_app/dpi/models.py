@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone as dt_timezone
 
 from django.conf import settings
-from django.db import models
+from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 
 
@@ -144,9 +144,18 @@ class RichiestaDPI(models.Model):
         verbose_name_plural = "Richieste DPI"
 
     def save(self, *args, **kwargs):
-        if not self.numero:
+        if self.numero:
+            return super().save(*args, **kwargs)
+        max_attempts = 5
+        for attempt in range(max_attempts):
             self.numero = _next_numero_dpi()
-        super().save(*args, **kwargs)
+            try:
+                with transaction.atomic():
+                    return super().save(*args, **kwargs)
+            except IntegrityError:
+                self.numero = ""
+                if not self._state.adding or attempt == max_attempts - 1:
+                    raise
 
     def __str__(self) -> str:
         return f"[{self.numero}] {self.richiedente_nome} — {self.categoria}"
