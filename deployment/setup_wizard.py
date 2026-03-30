@@ -64,17 +64,53 @@ def _django_settings(environment: str) -> str:
     return f"config.settings.{_SETTINGS_MAP.get(environment, 'prod')}"
 
 
+def _ps_escape(value: str) -> str:
+    """Escapa un valore per l'interpolazione in una stringa PowerShell double-quoted.
+    Gestisce: apici doppi, backtick, dollaro."""
+    return str(value).replace('`', '``').replace('"', '`"').replace('$', '`$')
+
+
+def _sql_bracket_escape(name: str) -> str:
+    """Escapa un nome SQL Server per la notazione bracket: ] → ]]."""
+    return name.replace("]", "]]")
+
+
+def _sql_string_escape(name: str) -> str:
+    """Escapa un nome SQL Server per le stringhe N'...' : ' → ''."""
+    return name.replace("'", "''")
+
+
+def _validate_sql_identifier(name: str) -> str:
+    """Valida che il nome non contenga caratteri SQL pericolosi.
+    Permette: lettere, cifre, underscore, trattino, spazio.
+    Solleva ValueError se il nome non è valido."""
+    if not name or not re.match(r'^[\w\s\-]+$', name):
+        raise ValueError(
+            f"Nome database non valido: {name!r} — "
+            f"usa solo lettere, cifre, trattini e underscore"
+        )
+    return name
+
+
 def _create_junction(link_path, target_path):
-    """Crea una junction NTFS. Rimuove junction/directory preesistente."""
+    """Crea una junction NTFS. Rimuove junction preesistente.
+    Solleva RuntimeError se il path è una directory reale (non junction)."""
     link = Path(link_path)
     target = Path(target_path)
     if link.exists() or link.is_symlink():
-        # Prima prova rmdir (rimuove junction senza cancellare il contenuto target)
+        # Verifica che sia una junction/symlink, NON una directory reale.
+        # os.path.islink() restituisce True per junction e symlink su Windows (Python 3.8+).
+        if link.is_dir() and not os.path.islink(str(link)):
+            raise RuntimeError(
+                f"{link} è una directory reale (non una junction NTFS) — "
+                f"rimuoverla manualmente prima di procedere"
+            )
+        # rmdir rimuove junction senza toccare il contenuto target
         subprocess.run(f'cmd /c rmdir /Q "{link}"',
                        capture_output=True, text=True,
                        creationflags=subprocess.CREATE_NO_WINDOW)
-        # Se rmdir fallisce (es. directory reale, non junction), usa shutil
-        if link.exists():
+        # Se rmdir fallisce ed è ancora una junction broken, prova shutil come ultimo resort
+        if link.exists() and os.path.islink(str(link)):
             try:
                 shutil.rmtree(str(link))
             except Exception:
@@ -417,6 +453,39 @@ class Page(tk.Frame):
     def on_enter(self): pass
     def validate(self): return True
     def on_leave(self): pass
+
+
+# ─────────────────────────────────────────────────────────────
+# HELPER — barra pulsanti inferiore (usata da WizardApp, ReleaseApp, UninstallApp)
+# ─────────────────────────────────────────────────────────────
+
+def _build_bottom_bar(parent, on_back, on_cancel, on_next, on_close,
+                       next_bg=None, finish_bg="#166534"):
+    """Crea la barra pulsanti inferiore comune a tutte le App.
+
+    Restituisce (btn_back, btn_cancel, btn_next, btn_finish).
+    I pulsanti sono creati ma visibilità/stato vengono gestiti dalla App via _show().
+    """
+    bar = frame(parent, bg=GRAY50)
+    bar.configure(highlightthickness=1, highlightbackground=GRAY200)
+    bar.pack(fill="x", side="bottom")
+
+    left_bar = frame(bar, bg=GRAY50)
+    left_bar.pack(side="left", padx=20, pady=12)
+    btn_back   = SecondaryButton(left_bar, "◀  Indietro", on_back)
+    btn_back.pack(side="left")
+    btn_cancel = SecondaryButton(left_bar, "Annulla", on_cancel)
+    btn_cancel.pack(side="left", padx=(8, 0))
+
+    right_bar = frame(bar, bg=GRAY50)
+    right_bar.pack(side="right", padx=20, pady=12)
+    kw_next   = {"bg": next_bg} if next_bg else {}
+    btn_next   = PrimaryButton(right_bar, "Avanti  ▶", on_next, **kw_next)
+    btn_next.pack(side="right")
+    btn_finish = PrimaryButton(right_bar, "✓  Chiudi", on_close, bg=finish_bg)
+    btn_finish.pack(side="right")
+
+    return btn_back, btn_cancel, btn_next, btn_finish
 
 
 # ─────────────────────────────────────────────────────────────
@@ -890,6 +959,7 @@ class DatabasePage(Page):
         self._err.configure(text="")
         self._note.configure(text="🔍 Ricerca server SQL Server in corso…")
         self._discover_btn.configure(state="disabled", text="🔍 Ricerca…")
+        self._discover_active = True
         threading.Thread(target=self._discover_worker, daemon=True).start()
 
     def _discover_worker(self):
@@ -1022,6 +1092,9 @@ class DatabasePage(Page):
         servers = sorted(found, key=lambda x: (x.lower() != "localhost", x.lower()))
 
         def _ui_update():
+            # Salta l'aggiornamento se la pagina non è più attiva (race condition)
+            if not getattr(self, '_discover_active', False):
+                return
             try:
                 self._discover_btn.configure(state="normal", text="🔍 Scopri server")
                 if servers:
@@ -1092,13 +1165,15 @@ class DatabasePage(Page):
                 last_err = str(e)
 
         def _ui():
+            # Salta l'aggiornamento se la pagina non è più attiva (race condition)
+            if not getattr(self, '_discover_active', False):
+                return
             try:
                 self._list_db_btn.configure(state="normal")
                 if result_dbs:
                     self._name_combo['values'] = result_dbs
                     if not self._name.get() or self._name.get() not in result_dbs:
                         # Auto-seleziona il DB con il nome più probabile
-                        env = self.cfg.environment
                         preferred = [d for d in result_dbs
                                      if "portale" in d.lower() or "novicrom" in d.lower()]
                         self._name.set(preferred[0] if preferred else result_dbs[0])
@@ -1134,6 +1209,10 @@ class DatabasePage(Page):
                 pass
         # Avvia la discovery automaticamente
         self._discover_servers()
+
+    def on_leave(self):
+        """Disattiva il flag di aggiornamento UI per i thread di background."""
+        self._discover_active = False
 
     def _toggle(self):
         if self._trusted.get():
@@ -1363,7 +1442,8 @@ class IISPage(Page):
 
     def validate(self):
         p = self._port.get().strip()
-        if not p.isdigit(): return False
+        if not p.isdigit() or not (1 <= int(p) <= 65535):
+            return False
         self.cfg.iis_hostname = self._hostname.get().strip()
         self.cfg.iis_port     = p
         self.cfg.iis_https    = self._https.get()
@@ -1680,13 +1760,18 @@ class InstallPage(Page):
             log_dir.mkdir(parents=True, exist_ok=True)
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             self._log_path = log_dir / f"install_{ts}.log"
-            self._log_file = open(self._log_path, "w", encoding="utf-8")
-            self._log_file.write(f"Portale Novicrom — Setup Wizard\n")
-            self._log_file.write(f"Data: {datetime.now():%Y-%m-%d %H:%M:%S}\n")
-            self._log_file.write(f"Ambiente: {self.cfg.environment.upper()}\n")
-            self._log_file.write("=" * 60 + "\n\n")
-            self._log_file.flush()
-        except Exception as e:
+            f = open(self._log_path, "w", encoding="utf-8")
+            try:
+                f.write(f"Portale Novicrom — Setup Wizard\n")
+                f.write(f"Data: {datetime.now():%Y-%m-%d %H:%M:%S}\n")
+                f.write(f"Ambiente: {self.cfg.environment.upper()}\n")
+                f.write("=" * 60 + "\n\n")
+                f.flush()
+            except Exception:
+                f.close()
+                raise
+            self._log_file = f
+        except Exception:
             self._log_file = None
 
     def _log_line(self, text, tag=""):
@@ -1775,344 +1860,16 @@ class InstallPage(Page):
             self._log.after(800, self._on_done)
 
     def _run_impl(self):
+        """Orchestratore: delega il flusso a _run_dev() o _run_prod() in base all'ambiente."""
         cfg      = self.cfg
-        is_dev   = (cfg.environment == "dev")
         ep       = cfg.env_path
         settings = _django_settings(cfg.environment)
         errors   = []
 
-        # ── Percorsi dipendenti dall'ambiente ─────────────────
-        if is_dev:
-            # DEV: sorgente bundled nell'exe oppure cartella locale (script)
-            if getattr(sys, "frozen", False):
-                # exe: sorgente in sys._MEIPASS/_bundled_src/django_app/
-                # verrà copiato in base_dir/dev/source/ durante lo step 1
-                dev_install_dir = Path(cfg.base_dir) / "dev" / "source"
-                dev_src         = dev_install_dir
-                django_app      = dev_install_dir / "django_app"
-            else:
-                # script: usa il repo locale già esistente
-                dev_src    = Path(cfg.dev_source)
-                django_app = dev_src / "django_app"
-            venv_dir = dev_src / ".venv"
-            venv_py  = venv_dir / "Scripts" / "python.exe"
-            N = 7   # Estrai/Verifica, Venv, .env, pip, migrate, Admin, Avvio
+        if cfg.environment == "dev":
+            self._run_dev(cfg, ep, settings, errors)
         else:
-            tag = datetime.now().strftime("%Y%m%d_%H%M%S")
-            cfg.release_tag = tag
-            rel_dir    = ep / "releases" / tag
-            django_app = rel_dir / "django_app"
-            venv_dir   = ep / "venv"
-            venv_py    = venv_dir / "Scripts" / "python.exe"
-            N = 11
-
-        def step(n, title, pct):
-            self._set_progress(pct, f"[{n}/{N}] {title}")
-            self._log_line(f"\n── {title} {'─'*(44-len(title))}", "step")
-
-        if is_dev:
-            # ═══════════════════════════════════════════════════
-            # FLUSSO DEV  (7 step)
-            # ═══════════════════════════════════════════════════
-
-            # 1. Estrazione / verifica sorgente
-            if getattr(sys, "frozen", False):
-                step(1, "Estrazione sorgente (bundled)", 5)
-                bundled = Path(sys._MEIPASS) / "_bundled_src" / "django_app"
-                try:
-                    dev_install_dir.mkdir(parents=True, exist_ok=True)
-                    self._log_line(f"  Copia sorgente in {dev_install_dir} ...", "ok")
-                    shutil.copytree(str(bundled), str(django_app), dirs_exist_ok=True)
-                    self._log_line(f"  ✓ Sorgente estratto in {dev_install_dir}", "ok")
-                except Exception as e:
-                    self._log_line(f"  ✗ {e}", "err"); errors.append(str(e))
-            else:
-                step(1, "Verifica cartella sorgente", 5)
-                if not django_app.exists():
-                    self._log_line(f"  ✗ django_app non trovata in {dev_src}", "err")
-                    errors.append("sorgente mancante")
-                else:
-                    self._log_line(f"  ✓ Sorgente: {dev_src}", "ok")
-                    self._log_line(f"  ✓ django_app: {django_app}", "ok")
-
-            # 2. Virtualenv
-            step(2, "Creazione virtualenv (.venv)", 15)
-            if not venv_py.exists():
-                ok = self._cmd([cfg.python_path, "-m", "venv", str(venv_dir)])
-                if ok: self._log_line("  ✓ Virtualenv .venv creato", "ok")
-                else:  errors.append("venv")
-            else:
-                self._log_line("  ✓ Virtualenv .venv esistente", "ok")
-            self._cmd([str(venv_py), "-m", "pip", "install", "--upgrade",
-                       "pip", "setuptools", "wheel"])
-            self._log_line("  ✓ pip aggiornato", "ok")
-
-            # 3. .env
-            step(3, "Scrittura .env DEV", 30)
-            env_content = (
-                f"DJANGO_SECRET_KEY={cfg.secret_key}\n"
-                f"DEBUG=True\n"
-                f"ALLOWED_HOSTS=*\n"
-                f"APP_VERSION=0.8.5\n"
-                f"ENVIRONMENT=dev\n"
-            )
-            try:
-                env_file = django_app / ".env"
-                env_file.write_text(env_content, encoding="utf-8")
-                self._log_line(f"  ✓ .env → {env_file}", "ok")
-            except Exception as e:
-                errors.append(str(e)); self._log_line(f"  ✗ {e}", "err")
-
-            # 4. pip install
-            step(4, "Installazione dipendenze pip", 45)
-            req = django_app / "requirements.txt"
-            if req.exists():
-                ok = self._pip_install_with_retry(venv_py, req)
-                if ok: self._log_line("  ✓ Dipendenze installate", "ok")
-                else:  errors.append("pip install"); self._log_line("  ✗ pip fallito", "err")
-            else:
-                self._log_line("  requirements.txt non trovato — skip", "warn")
-
-            # 5. migrate
-            step(5, "Django migrate (SQLite dev)", 60)
-            env_vars = {**os.environ, "DJANGO_SETTINGS_MODULE": settings,
-                        "PYTHONPATH": str(django_app)}
-            if (django_app / "manage.py").exists():
-                ok = self._cmd([str(venv_py), "manage.py", "migrate",
-                                f"--settings={settings}", "--noinput"],
-                               cwd=django_app, env=env_vars)
-                if ok: self._log_line("  ✓ migrate completato", "ok")
-                else:  self._log_line("  ✗ migrate fallito", "err")
-            else:
-                self._log_line("  manage.py non trovato — skip", "warn")
-
-            # 6. Admin
-            step(6, "Creazione utente amministratore", 78)
-            if cfg.admin_username and cfg.admin_password and (django_app / "manage.py").exists():
-                admin_script = (
-                    "import django, os; "
-                    f"os.environ.setdefault('DJANGO_SETTINGS_MODULE', '{settings}'); "
-                    "django.setup(); "
-                    "from core.legacy_models import Ruolo, UtenteLegacy; "
-                    "from werkzeug.security import generate_password_hash; "
-                    f"r, _ = Ruolo.objects.get_or_create(nome='admin'); "
-                    f"u, created = UtenteLegacy.objects.get_or_create("
-                    f"    nome={repr(cfg.admin_username)},"
-                    f"    defaults=dict("
-                    f"        email={repr(cfg.admin_email)},"
-                    f"        password=generate_password_hash({repr(cfg.admin_password)}),"
-                    f"        ruolo_id=r.id, attivo=True));"
-                    f"u.ruolo_id = r.id; u.attivo = True; u.save(); "
-                    "print('OK legacy admin:', u.nome, '— creato=' + str(created))"
-                )
-                ok = self._cmd([str(venv_py), "-c", admin_script],
-                               cwd=django_app, env=env_vars)
-                if ok: self._log_line("  ✓ Utente admin legacy creato", "ok")
-                else:  self._log_line("  ✗ Creazione utente legacy fallita (forse esiste già)", "warn")
-                if cfg.admin_django_superuser:
-                    su_env = {**env_vars, "DJANGO_SUPERUSER_PASSWORD": cfg.admin_password}
-                    ok2 = self._cmd(
-                        [str(venv_py), "manage.py", "createsuperuser",
-                         "--noinput",
-                         f"--username={cfg.admin_username}",
-                         f"--email={cfg.admin_email or 'admin@localhost'}",
-                         f"--settings={settings}"],
-                        cwd=django_app, env=su_env)
-                    if ok2: self._log_line("  ✓ Django superuser creato", "ok")
-                    else:   self._log_line("  ✗ Django superuser fallito (forse esiste già)", "warn")
-            else:
-                self._log_line("  Skip — nessun admin configurato", "warn")
-
-            # 7. Istruzioni avvio
-            step(7, "Configurazione completata", 95)
-            self._log_line("  ✓ Ambiente DEV pronto!", "ok")
-            self._log_line(f"  Attiva il venv:", "ok")
-            self._log_line(f"    {venv_dir}\\Scripts\\Activate.ps1", "dim")
-            self._log_line(f"  Avvia il server:", "ok")
-            self._log_line(f"    python manage.py runserver --settings=config.settings.dev", "dim")
-            self._log_line(f"  (dalla cartella {django_app})", "dim")
-
-        else:
-            # ═══════════════════════════════════════════════════
-            # FLUSSO TEST / PROD  (11 step)
-            # ═══════════════════════════════════════════════════
-
-            # 1. Directory
-            step(1, "Creazione struttura directory", 5)
-            for d in [ep/"releases", ep/"logs", ep/"config", ep/"static",
-                      ep/"media", ep/"run",
-                      Path(cfg.base_dir)/"shared"/"packages",
-                      Path(cfg.base_dir)/"shared"/"backups",
-                      Path(cfg.base_dir)/"shared"/"scripts"]:
-                try:
-                    d.mkdir(parents=True, exist_ok=True)
-                    self._log_line(f"  ✓ {d}", "ok")
-                except Exception as e:
-                    self._log_line(f"  ✗ {d}: {e}", "err"); errors.append(str(e))
-
-            # 2. Copia script PS
-            step(2, "Copia script deployment", 12)
-            # In eseguibile frozen usa sys._MEIPASS, altrimenti la cartella dello script
-            if getattr(sys, "frozen", False):
-                src = Path(sys._MEIPASS) / "scripts"
-            else:
-                src = Path(__file__).parent / "scripts"
-            dst = Path(cfg.base_dir) / "shared" / "scripts"
-            if src.exists():
-                for f in src.glob("*.ps1"):
-                    try: shutil.copy2(f, dst/f.name); self._log_line(f"  ✓ {f.name}", "ok")
-                    except Exception as e: self._log_line(f"  Avviso: {e}", "warn")
-            else: self._log_line("  Scripts non trovati — skip", "warn")
-
-            # 3. Virtualenv
-            step(3, "Creazione virtualenv", 20)
-            if not venv_py.exists():
-                ok = self._cmd([cfg.python_path, "-m", "venv", str(venv_dir)])
-                if ok: self._log_line("  ✓ Virtualenv creato", "ok")
-                else: errors.append("venv")
-            else: self._log_line("  ✓ Virtualenv esistente", "ok")
-            self._cmd([str(venv_py), "-m", "pip", "install", "--upgrade",
-                       "pip", "setuptools", "wheel"])
-            self._log_line("  ✓ pip aggiornato", "ok")
-
-            # 4. Estrazione
-            step(4, "Estrazione pacchetto release", 30)
-            if cfg.package_path and Path(cfg.package_path).exists():
-                try:
-                    rel_dir.mkdir(parents=True, exist_ok=True)
-                    with zipfile.ZipFile(cfg.package_path, "r") as zf:
-                        zf.extractall(rel_dir)
-                    self._log_line(f"  ✓ Estratto in {rel_dir}", "ok")
-                except Exception as e:
-                    self._log_line(f"  ✗ {e}", "err"); errors.append(str(e))
-            else:
-                existing = sorted((ep/"releases").iterdir(), reverse=True) \
-                           if (ep/"releases").exists() else []
-                candidates = [x for x in existing if x != rel_dir]
-                if candidates:
-                    rel_dir = candidates[0]; django_app = rel_dir/"django_app"
-                    self._log_line(f"  ✓ Release esistente: {rel_dir.name}", "ok")
-                else:
-                    self._log_line("  ✗ Nessun pacchetto disponibile", "err")
-                    errors.append("Nessun pacchetto")
-
-            # 5. .env
-            step(5, "Scrittura configurazione .env", 40)
-            env_content = cfg.to_env()
-            try:
-                (ep/"config"/".env").write_text(env_content, encoding="utf-8")
-                self._log_line(f"  ✓ .env → {ep/'config'/'.env'}", "ok")
-            except Exception as e:
-                errors.append(str(e)); self._log_line(f"  ✗ {e}", "err")
-            if django_app.exists():
-                try:
-                    (django_app/".env").write_text(env_content, encoding="utf-8")
-                    self._log_line(f"  ✓ .env copiato nel release", "ok")
-                except: pass
-
-            # 6. pip install
-            step(6, "Installazione dipendenze pip", 52)
-            req = django_app/"requirements.txt"
-            env_vars = {**os.environ, "DJANGO_SETTINGS_MODULE": settings,
-                        "PYTHONPATH": str(django_app),
-                        "STATIC_ROOT": str(ep / "static"),
-                        "MEDIA_ROOT":  str(ep / "media")}
-            if req.exists():
-                ok = self._pip_install_with_retry(venv_py, req)
-                if ok: self._log_line("  ✓ Dipendenze installate", "ok")
-                else:  errors.append("pip install"); self._log_line("  ✗ pip fallito", "err")
-            else: self._log_line("  requirements.txt non trovato — skip", "warn")
-            # Installa waitress (WSGI server per IIS) — potrebbe non essere in requirements.txt
-            self._log_line("  → Verifica waitress (WSGI server per IIS)…", "dim")
-            self._cmd([str(venv_py), "-m", "pip", "install", "waitress", "--quiet"])
-            self._log_line("  ✓ waitress disponibile", "ok")
-
-            # 7. collectstatic
-            step(7, "collectstatic", 65)
-            if django_app.exists() and (django_app/"manage.py").exists():
-                ok = self._cmd([str(venv_py),"manage.py","collectstatic",
-                                "--noinput",f"--settings={settings}"],
-                               cwd=django_app, env=env_vars)
-                if ok: self._log_line("  ✓ collectstatic completato", "ok")
-                else:  self._log_line("  ✗ collectstatic fallito", "err")
-            else: self._log_line("  manage.py non trovato — skip", "warn")
-
-            # 8. migrate
-            step(8, "Django migrate", 75)
-            if cfg.db_trusted or cfg.db_user:
-                self._create_sql_database(cfg)
-            if cfg.db_trusted:
-                self._configure_sql_login(cfg)
-            if django_app.exists() and (django_app/"manage.py").exists():
-                ok = self._cmd([str(venv_py),"manage.py","migrate",
-                                f"--settings={settings}","--noinput"],
-                               cwd=django_app, env=env_vars)
-                if ok: self._log_line("  ✓ migrate completato", "ok")
-                else:  self._log_line("  ✗ migrate fallito (verifica DB)", "err")
-                ok_cc = self._cmd([str(venv_py),"manage.py","createcachetable",
-                                   f"--settings={settings}"], cwd=django_app, env=env_vars)
-                if ok_cc: self._log_line("  ✓ createcachetable completato", "ok")
-                else:     self._log_line("  ✗ createcachetable fallito", "warn")
-            else:
-                self._log_line("  Skip — django_app non trovato", "warn")
-
-            # 9. Admin
-            step(9, "Creazione utente amministratore", 80)
-            if cfg.admin_username and cfg.admin_password and django_app.exists():
-                admin_script = (
-                    "import django, os; "
-                    f"os.environ.setdefault('DJANGO_SETTINGS_MODULE', '{settings}'); "
-                    "django.setup(); "
-                    "from core.legacy_models import Ruolo, UtenteLegacy; "
-                    "from werkzeug.security import generate_password_hash; "
-                    f"r, _ = Ruolo.objects.get_or_create(nome='admin'); "
-                    f"u, created = UtenteLegacy.objects.get_or_create("
-                    f"    nome={repr(cfg.admin_username)},"
-                    f"    defaults=dict("
-                    f"        email={repr(cfg.admin_email)},"
-                    f"        password=generate_password_hash({repr(cfg.admin_password)}),"
-                    f"        ruolo_id=r.id, attivo=True));"
-                    f"u.ruolo_id = r.id; u.attivo = True; u.save(); "
-                    "print('OK legacy admin:', u.nome, '— creato=' + str(created))"
-                )
-                ok = self._cmd([str(venv_py), "-c", admin_script],
-                               cwd=django_app, env=env_vars)
-                if ok: self._log_line("  ✓ Utente admin legacy creato", "ok")
-                else:  self._log_line("  ✗ Creazione utente legacy fallita", "err"); errors.append("admin legacy")
-                if cfg.admin_django_superuser:
-                    su_env = {**env_vars, "DJANGO_SUPERUSER_PASSWORD": cfg.admin_password}
-                    ok2 = self._cmd(
-                        [str(venv_py), "manage.py", "createsuperuser",
-                         "--noinput",
-                         f"--username={cfg.admin_username}",
-                         f"--email={cfg.admin_email or 'admin@localhost'}",
-                         f"--settings={settings}"],
-                        cwd=django_app, env=su_env)
-                    if ok2: self._log_line("  ✓ Django superuser creato", "ok")
-                    else:   self._log_line("  ✗ Django superuser fallito (forse esiste già)", "warn")
-            elif not django_app.exists():
-                self._log_line("  Skip — nessun package estratto", "warn")
-            else:
-                self._log_line("  Skip — nessun admin configurato", "warn")
-
-            # 10. Junction current
-            step(10, "Attivazione release", 87)
-            cur = ep/"current"
-            if not rel_dir.exists():
-                self._log_line("  Skip — nessuna release da attivare", "warn")
-            else:
-                try:
-                    _create_junction(cur, rel_dir)
-                    self._log_line(f"  ✓ current → {rel_dir.name}", "ok")
-                except Exception as e:
-                    self._log_line(f"  ✗ Junction: {e}", "err"); errors.append(str(e))
-
-            # 11. IIS
-            step(11, "Configurazione IIS", 94)
-            self._check_httpplatformhandler()
-            self._write_webconfig(ep, cfg)
-            self._log_line("  ✓ web.config scritto", "ok")
-            self._configure_iis(cfg)
+            self._run_prod(cfg, ep, settings, errors)
 
         self._set_progress(100, "Installazione completata!")
         self._log_line("\n" + "─"*50, "step")
@@ -2128,6 +1885,309 @@ class InstallPage(Page):
             try: self._log_file.close()
             except: pass
         self._log.after(800, self._on_done)
+
+    # ── Flusso DEV (7 step) ──────────────────────────────────────────────────
+
+    def _run_dev(self, cfg, ep, settings, errors):
+        """Installa/aggiorna l'ambiente di sviluppo (SQLite, nessun IIS)."""
+        N = 7   # Estrai/Verifica, Venv, .env, pip, migrate, Admin, Avvio
+
+        if getattr(sys, "frozen", False):
+            dev_install_dir = Path(cfg.base_dir) / "dev" / "source"
+            dev_src         = dev_install_dir
+            django_app      = dev_install_dir / "django_app"
+        else:
+            dev_src    = Path(cfg.dev_source)
+            django_app = dev_src / "django_app"
+        venv_dir = dev_src / ".venv"
+        venv_py  = venv_dir / "Scripts" / "python.exe"
+
+        def step(n, title, pct):
+            self._set_progress(pct, f"[{n}/{N}] {title}")
+            self._log_line(f"\n── {title} {'─'*(44-len(title))}", "step")
+
+        # 1. Estrazione / verifica sorgente
+        if getattr(sys, "frozen", False):
+            step(1, "Estrazione sorgente (bundled)", 5)
+            bundled = Path(sys._MEIPASS) / "_bundled_src" / "django_app"
+            try:
+                dev_install_dir.mkdir(parents=True, exist_ok=True)
+                self._log_line(f"  Copia sorgente in {dev_install_dir} ...", "ok")
+                shutil.copytree(str(bundled), str(django_app), dirs_exist_ok=True)
+                self._log_line(f"  ✓ Sorgente estratto in {dev_install_dir}", "ok")
+            except Exception as e:
+                self._log_line(f"  ✗ {e}", "err"); errors.append(str(e))
+        else:
+            step(1, "Verifica cartella sorgente", 5)
+            if not django_app.exists():
+                self._log_line(f"  ✗ django_app non trovata in {dev_src}", "err")
+                errors.append("sorgente mancante")
+            else:
+                self._log_line(f"  ✓ Sorgente: {dev_src}", "ok")
+                self._log_line(f"  ✓ django_app: {django_app}", "ok")
+
+        # 2. Virtualenv
+        step(2, "Creazione virtualenv (.venv)", 15)
+        if not venv_py.exists():
+            ok = self._cmd([cfg.python_path, "-m", "venv", str(venv_dir)])
+            if ok: self._log_line("  ✓ Virtualenv .venv creato", "ok")
+            else:  errors.append("venv")
+        else:
+            self._log_line("  ✓ Virtualenv .venv esistente", "ok")
+        self._cmd([str(venv_py), "-m", "pip", "install", "--upgrade",
+                   "pip", "setuptools", "wheel"])
+        self._log_line("  ✓ pip aggiornato", "ok")
+
+        # 3. .env
+        step(3, "Scrittura .env DEV", 30)
+        env_content = (
+            f"DJANGO_SECRET_KEY={cfg.secret_key}\n"
+            f"DEBUG=True\n"
+            f"ALLOWED_HOSTS=*\n"
+            f"APP_VERSION=0.8.5\n"
+            f"ENVIRONMENT=dev\n"
+        )
+        try:
+            env_file = django_app / ".env"
+            env_file.write_text(env_content, encoding="utf-8")
+            self._log_line(f"  ✓ .env → {env_file}", "ok")
+        except Exception as e:
+            errors.append(str(e)); self._log_line(f"  ✗ {e}", "err")
+
+        # 4. pip install
+        step(4, "Installazione dipendenze pip", 45)
+        req = django_app / "requirements.txt"
+        if req.exists():
+            ok = self._pip_install_with_retry(venv_py, req)
+            if ok: self._log_line("  ✓ Dipendenze installate", "ok")
+            else:  errors.append("pip install"); self._log_line("  ✗ pip fallito", "err")
+        else:
+            self._log_line("  requirements.txt non trovato — skip", "warn")
+
+        # 5. migrate
+        step(5, "Django migrate (SQLite dev)", 60)
+        env_vars = {**os.environ, "DJANGO_SETTINGS_MODULE": settings,
+                    "PYTHONPATH": str(django_app)}
+        if (django_app / "manage.py").exists():
+            ok = self._cmd([str(venv_py), "manage.py", "migrate",
+                            f"--settings={settings}", "--noinput"],
+                           cwd=django_app, env=env_vars)
+            if ok: self._log_line("  ✓ migrate completato", "ok")
+            else:  self._log_line("  ✗ migrate fallito", "err")
+        else:
+            self._log_line("  manage.py non trovato — skip", "warn")
+
+        # 6. Admin
+        step(6, "Creazione utente amministratore", 78)
+        if cfg.admin_username and cfg.admin_password and (django_app / "manage.py").exists():
+            self._create_legacy_admin(cfg, venv_py, django_app, env_vars, settings)
+        else:
+            self._log_line("  Skip — nessun admin configurato", "warn")
+
+        # 7. Istruzioni avvio
+        step(7, "Configurazione completata", 95)
+        self._log_line("  ✓ Ambiente DEV pronto!", "ok")
+        self._log_line(f"  Attiva il venv:", "ok")
+        self._log_line(f"    {venv_dir}\\Scripts\\Activate.ps1", "dim")
+        self._log_line(f"  Avvia il server:", "ok")
+        self._log_line(f"    python manage.py runserver --settings=config.settings.dev", "dim")
+        self._log_line(f"  (dalla cartella {django_app})", "dim")
+
+    # ── Flusso TEST / PROD (11 step) ─────────────────────────────────────────
+
+    def _run_prod(self, cfg, ep, settings, errors):
+        """Installa/aggiorna l'ambiente TEST o PROD (SQL Server, IIS)."""
+        N = 11
+        tag = datetime.now().strftime("%Y%m%d_%H%M%S")
+        cfg.release_tag = tag
+        rel_dir    = ep / "releases" / tag
+        django_app = rel_dir / "django_app"
+        venv_dir   = ep / "venv"
+        venv_py    = venv_dir / "Scripts" / "python.exe"
+
+        def step(n, title, pct):
+            self._set_progress(pct, f"[{n}/{N}] {title}")
+            self._log_line(f"\n── {title} {'─'*(44-len(title))}", "step")
+
+        # 1. Directory
+        step(1, "Creazione struttura directory", 5)
+        for d in [ep/"releases", ep/"logs", ep/"config", ep/"static",
+                  ep/"media", ep/"run",
+                  Path(cfg.base_dir)/"shared"/"packages",
+                  Path(cfg.base_dir)/"shared"/"backups",
+                  Path(cfg.base_dir)/"shared"/"scripts"]:
+            try:
+                d.mkdir(parents=True, exist_ok=True)
+                self._log_line(f"  ✓ {d}", "ok")
+            except Exception as e:
+                self._log_line(f"  ✗ {d}: {e}", "err"); errors.append(str(e))
+
+        # 2. Copia script PS
+        step(2, "Copia script deployment", 12)
+        if getattr(sys, "frozen", False):
+            src = Path(sys._MEIPASS) / "scripts"
+        else:
+            src = Path(__file__).parent / "scripts"
+        dst = Path(cfg.base_dir) / "shared" / "scripts"
+        if src.exists():
+            for f in src.glob("*.ps1"):
+                try: shutil.copy2(f, dst/f.name); self._log_line(f"  ✓ {f.name}", "ok")
+                except Exception as e: self._log_line(f"  Avviso: {e}", "warn")
+        else: self._log_line("  Scripts non trovati — skip", "warn")
+
+        # 3. Virtualenv
+        step(3, "Creazione virtualenv", 20)
+        if not venv_py.exists():
+            ok = self._cmd([cfg.python_path, "-m", "venv", str(venv_dir)])
+            if ok: self._log_line("  ✓ Virtualenv creato", "ok")
+            else: errors.append("venv")
+        else: self._log_line("  ✓ Virtualenv esistente", "ok")
+        self._cmd([str(venv_py), "-m", "pip", "install", "--upgrade",
+                   "pip", "setuptools", "wheel"])
+        self._log_line("  ✓ pip aggiornato", "ok")
+
+        # 4. Estrazione
+        step(4, "Estrazione pacchetto release", 30)
+        if cfg.package_path and Path(cfg.package_path).exists():
+            try:
+                rel_dir.mkdir(parents=True, exist_ok=True)
+                with zipfile.ZipFile(cfg.package_path, "r") as zf:
+                    zf.extractall(rel_dir)
+                self._log_line(f"  ✓ Estratto in {rel_dir}", "ok")
+            except Exception as e:
+                self._log_line(f"  ✗ {e}", "err"); errors.append(str(e))
+        else:
+            existing = sorted((ep/"releases").iterdir(), reverse=True) \
+                       if (ep/"releases").exists() else []
+            candidates = [x for x in existing if x != rel_dir]
+            if candidates:
+                rel_dir = candidates[0]; django_app = rel_dir/"django_app"
+                self._log_line(f"  ✓ Release esistente: {rel_dir.name}", "ok")
+            else:
+                self._log_line("  ✗ Nessun pacchetto disponibile", "err")
+                errors.append("Nessun pacchetto")
+
+        # 5. .env
+        step(5, "Scrittura configurazione .env", 40)
+        env_content = cfg.to_env()
+        try:
+            (ep/"config"/".env").write_text(env_content, encoding="utf-8")
+            self._log_line(f"  ✓ .env → {ep/'config'/'.env'}", "ok")
+        except Exception as e:
+            errors.append(str(e)); self._log_line(f"  ✗ {e}", "err")
+        if django_app.exists():
+            try:
+                (django_app/".env").write_text(env_content, encoding="utf-8")
+                self._log_line(f"  ✓ .env copiato nel release", "ok")
+            except: pass
+
+        # 6. pip install
+        step(6, "Installazione dipendenze pip", 52)
+        req = django_app/"requirements.txt"
+        env_vars = {**os.environ, "DJANGO_SETTINGS_MODULE": settings,
+                    "PYTHONPATH": str(django_app),
+                    "STATIC_ROOT": str(ep / "static"),
+                    "MEDIA_ROOT":  str(ep / "media")}
+        if req.exists():
+            ok = self._pip_install_with_retry(venv_py, req)
+            if ok: self._log_line("  ✓ Dipendenze installate", "ok")
+            else:  errors.append("pip install"); self._log_line("  ✗ pip fallito", "err")
+        else: self._log_line("  requirements.txt non trovato — skip", "warn")
+        self._log_line("  → Verifica waitress (WSGI server per IIS)…", "dim")
+        self._cmd([str(venv_py), "-m", "pip", "install", "waitress", "--quiet"])
+        self._log_line("  ✓ waitress disponibile", "ok")
+
+        # 7. collectstatic
+        step(7, "collectstatic", 65)
+        if django_app.exists() and (django_app/"manage.py").exists():
+            ok = self._cmd([str(venv_py),"manage.py","collectstatic",
+                            "--noinput",f"--settings={settings}"],
+                           cwd=django_app, env=env_vars)
+            if ok: self._log_line("  ✓ collectstatic completato", "ok")
+            else:  self._log_line("  ✗ collectstatic fallito", "err")
+        else: self._log_line("  manage.py non trovato — skip", "warn")
+
+        # 8. migrate
+        step(8, "Django migrate", 75)
+        if cfg.db_trusted or cfg.db_user:
+            self._create_sql_database(cfg)
+        if cfg.db_trusted:
+            self._configure_sql_login(cfg)
+        if django_app.exists() and (django_app/"manage.py").exists():
+            ok = self._cmd([str(venv_py),"manage.py","migrate",
+                            f"--settings={settings}","--noinput"],
+                           cwd=django_app, env=env_vars)
+            if ok: self._log_line("  ✓ migrate completato", "ok")
+            else:  self._log_line("  ✗ migrate fallito (verifica DB)", "err")
+            ok_cc = self._cmd([str(venv_py),"manage.py","createcachetable",
+                               f"--settings={settings}"], cwd=django_app, env=env_vars)
+            if ok_cc: self._log_line("  ✓ createcachetable completato", "ok")
+            else:     self._log_line("  ✗ createcachetable fallito", "warn")
+        else:
+            self._log_line("  Skip — django_app non trovato", "warn")
+
+        # 9. Admin
+        step(9, "Creazione utente amministratore", 80)
+        if cfg.admin_username and cfg.admin_password and django_app.exists():
+            self._create_legacy_admin(cfg, venv_py, django_app, env_vars, settings)
+        elif not django_app.exists():
+            self._log_line("  Skip — nessun package estratto", "warn")
+        else:
+            self._log_line("  Skip — nessun admin configurato", "warn")
+
+        # 10. Junction current
+        step(10, "Attivazione release", 87)
+        cur = ep/"current"
+        if not rel_dir.exists():
+            self._log_line("  Skip — nessuna release da attivare", "warn")
+        else:
+            try:
+                _create_junction(cur, rel_dir)
+                self._log_line(f"  ✓ current → {rel_dir.name}", "ok")
+            except Exception as e:
+                self._log_line(f"  ✗ Junction: {e}", "err"); errors.append(str(e))
+
+        # 11. IIS
+        step(11, "Configurazione IIS", 94)
+        self._check_httpplatformhandler()
+        self._write_webconfig(ep, cfg)
+        self._log_line("  ✓ web.config scritto", "ok")
+        self._configure_iis(cfg)
+
+    # ── Helper condiviso tra DEV e PROD ──────────────────────────────────────
+
+    def _create_legacy_admin(self, cfg, venv_py, django_app, env_vars, settings):
+        """Crea l'utente admin legacy (e opzionalmente il Django superuser)."""
+        admin_script = (
+            "import django, os; "
+            f"os.environ.setdefault('DJANGO_SETTINGS_MODULE', '{settings}'); "
+            "django.setup(); "
+            "from core.legacy_models import Ruolo, UtenteLegacy; "
+            "from werkzeug.security import generate_password_hash; "
+            f"r, _ = Ruolo.objects.get_or_create(nome='admin'); "
+            f"u, created = UtenteLegacy.objects.get_or_create("
+            f"    nome={repr(cfg.admin_username)},"
+            f"    defaults=dict("
+            f"        email={repr(cfg.admin_email)},"
+            f"        password=generate_password_hash({repr(cfg.admin_password)}),"
+            f"        ruolo_id=r.id, attivo=True));"
+            f"u.ruolo_id = r.id; u.attivo = True; u.save(); "
+            "print('OK legacy admin:', u.nome, '— creato=' + str(created))"
+        )
+        ok = self._cmd([str(venv_py), "-c", admin_script], cwd=django_app, env=env_vars)
+        if ok: self._log_line("  ✓ Utente admin legacy creato", "ok")
+        else:  self._log_line("  ✗ Creazione utente legacy fallita (forse esiste già)", "warn")
+        if cfg.admin_django_superuser:
+            su_env = {**env_vars, "DJANGO_SUPERUSER_PASSWORD": cfg.admin_password}
+            ok2 = self._cmd(
+                [str(venv_py), "manage.py", "createsuperuser",
+                 "--noinput",
+                 f"--username={cfg.admin_username}",
+                 f"--email={cfg.admin_email or 'admin@localhost'}",
+                 f"--settings={settings}"],
+                cwd=django_app, env=su_env)
+            if ok2: self._log_line("  ✓ Django superuser creato", "ok")
+            else:   self._log_line("  ✗ Django superuser fallito (forse esiste già)", "warn")
 
 
     def _check_httpplatformhandler(self):
@@ -2237,10 +2297,16 @@ class InstallPage(Page):
     def _create_sql_database(self, cfg):
         """Crea il database SQL Server se non esiste già."""
         server = cfg.db_host or "localhost"
-        db     = cfg.db_name
+        try:
+            db = _validate_sql_identifier(cfg.db_name)
+        except ValueError as e:
+            self._log_line(f"  ✗ {e}", "err")
+            return
+        db_bracket = _sql_bracket_escape(db)
+        db_quoted  = _sql_string_escape(db)
         sql = (
-            f"IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE name = N'{db}') "
-            f"BEGIN CREATE DATABASE [{db}] END"
+            f"IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE name = N'{db_quoted}') "
+            f"BEGIN CREATE DATABASE [{db_bracket}] END"
         )
         sqlcmd = self._find_sqlcmd()
         auth   = self._sqlcmd_auth_args(cfg)
@@ -2265,11 +2331,16 @@ class InstallPage(Page):
         """Crea il login NT AUTHORITY\\SYSTEM su SQL Server (necessario quando
         il pool IIS gira come LocalSystem con Windows Integrated Auth)."""
         server = cfg.db_host or "localhost"
-        db     = cfg.db_name
+        try:
+            db = _validate_sql_identifier(cfg.db_name)
+        except ValueError as e:
+            self._log_line(f"  ✗ {e}", "err")
+            return
+        db_bracket = _sql_bracket_escape(db)
         sql = (
             f"IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'NT AUTHORITY\\SYSTEM') "
             f"BEGIN CREATE LOGIN [NT AUTHORITY\\SYSTEM] FROM WINDOWS END; "
-            f"USE [{db}]; "
+            f"USE [{db_bracket}]; "
             f"IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'NT AUTHORITY\\SYSTEM') "
             f"BEGIN CREATE USER [NT AUTHORITY\\SYSTEM] FOR LOGIN [NT AUTHORITY\\SYSTEM] END; "
             f"ALTER ROLE db_owner ADD MEMBER [NT AUTHORITY\\SYSTEM];"
@@ -2288,13 +2359,13 @@ class InstallPage(Page):
                 self._log_line(
                     "  → Eseguire manualmente in SSMS:\n"
                     f"    USE [master]; CREATE LOGIN [NT AUTHORITY\\SYSTEM] FROM WINDOWS;\n"
-                    f"    USE [{db}]; CREATE USER [NT AUTHORITY\\SYSTEM] FOR LOGIN [NT AUTHORITY\\SYSTEM];\n"
+                    f"    USE [{db_bracket}]; CREATE USER [NT AUTHORITY\\SYSTEM] FOR LOGIN [NT AUTHORITY\\SYSTEM];\n"
                     f"    ALTER ROLE db_owner ADD MEMBER [NT AUTHORITY\\SYSTEM];", "warn")
         except FileNotFoundError:
             self._log_line(
                 "  ⚠ sqlcmd non trovato — configurare manualmente NT AUTHORITY\\SYSTEM su SQL Server:\n"
                 f"    USE [master]; CREATE LOGIN [NT AUTHORITY\\SYSTEM] FROM WINDOWS;\n"
-                f"    USE [{db}]; CREATE USER [NT AUTHORITY\\SYSTEM] FOR LOGIN [NT AUTHORITY\\SYSTEM];\n"
+                f"    USE [{db_bracket}]; CREATE USER [NT AUTHORITY\\SYSTEM] FOR LOGIN [NT AUTHORITY\\SYSTEM];\n"
                 f"    ALTER ROLE db_owner ADD MEMBER [NT AUTHORITY\\SYSTEM];", "warn")
         except Exception as e:
             self._log_line(f"  ⚠ Impossibile configurare login SQL: {e}", "warn")
@@ -2304,10 +2375,10 @@ class InstallPage(Page):
         ps = f"""
 Import-Module WebAdministration -ErrorAction SilentlyContinue
 # Sblocca <handlers> a livello server (fix errore 0x80070021 / 500.19)
-$appcmd = "$env:windir\system32\inetsrv\appcmd.exe"
+$appcmd = "$env:windir\\system32\\inetsrv\\appcmd.exe"
 if (Test-Path $appcmd) {{ & $appcmd unlock config -section:system.webServer/handlers | Out-Null }}
-$p = "{cfg.app_pool_name}"; $s = "{cfg.site_name}"
-$r = "{ep}"; $port = {cfg.iis_port}; $hh = "{cfg.iis_hostname}"
+$p = "{_ps_escape(cfg.app_pool_name)}"; $s = "{_ps_escape(cfg.site_name)}"
+$r = "{_ps_escape(str(ep))}"; $port = {cfg.iis_port}; $hh = "{_ps_escape(cfg.iis_hostname)}"
 if (-not (Test-Path "IIS:\\AppPools\\$p")) {{ New-WebAppPool -Name $p | Out-Null }}
 Set-ItemProperty "IIS:\\AppPools\\$p" managedRuntimeVersion ""
 Set-ItemProperty "IIS:\\AppPools\\$p" startMode "AlwaysRunning"
@@ -2468,24 +2539,9 @@ class WizardApp:
         self.container.pack(fill="both", expand=True)
 
         # Bottom bar
-        bar = frame(right, bg=GRAY50)
-        bar.configure(highlightthickness=1, highlightbackground=GRAY200)
-        bar.pack(fill="x", side="bottom")
-
-        left_bar = frame(bar, bg=GRAY50)
-        left_bar.pack(side="left", padx=20, pady=12)
-        self.btn_back   = SecondaryButton(left_bar, "◀  Indietro", self._back)
-        self.btn_back.pack(side="left")
-        self.btn_cancel = SecondaryButton(left_bar, "Annulla",     self._cancel)
-        self.btn_cancel.pack(side="left", padx=(8,0))
-
-        right_bar = frame(bar, bg=GRAY50)
-        right_bar.pack(side="right", padx=20, pady=12)
-        self.btn_next   = PrimaryButton(right_bar, "Avanti  ▶",   self._next)
-        self.btn_next.pack(side="right")
-        self.btn_finish = PrimaryButton(right_bar, "✓  Chiudi",
-                                         self._close, bg="#166534")
-        self.btn_finish.pack(side="right")
+        (self.btn_back, self.btn_cancel,
+         self.btn_next, self.btn_finish) = _build_bottom_bar(
+            right, self._back, self._cancel, self._next, self._close)
 
         # Pagine (EnvironmentPage prima di PackagePage: la pagina pacchetto
         # deve conoscere l'ambiente selezionato per mostrare zip o cartella)
@@ -3244,24 +3300,9 @@ class ReleaseApp:
         self.container = frame(right)
         self.container.pack(fill="both", expand=True)
 
-        bar = frame(right, bg=GRAY50)
-        bar.configure(highlightthickness=1, highlightbackground=GRAY200)
-        bar.pack(fill="x", side="bottom")
-
-        left_bar = frame(bar, bg=GRAY50)
-        left_bar.pack(side="left", padx=20, pady=12)
-        self.btn_back   = SecondaryButton(left_bar, "◀  Indietro", self._back)
-        self.btn_back.pack(side="left")
-        self.btn_cancel = SecondaryButton(left_bar, "Annulla", self._cancel)
-        self.btn_cancel.pack(side="left", padx=(8,0))
-
-        right_bar = frame(bar, bg=GRAY50)
-        right_bar.pack(side="right", padx=20, pady=12)
-        self.btn_next   = PrimaryButton(right_bar, "Avanti  ▶", self._next)
-        self.btn_next.pack(side="right")
-        self.btn_finish = PrimaryButton(right_bar, "✓  Chiudi",
-                                         self._close, bg="#166534")
-        self.btn_finish.pack(side="right")
+        (self.btn_back, self.btn_cancel,
+         self.btn_next, self.btn_finish) = _build_bottom_bar(
+            right, self._back, self._cancel, self._next, self._close)
 
         self._p_mode    = ReleaseModeSelector(self.container, self.cfg)
         self._p_create  = ReleaseConfigCreate(self.container, self.cfg)
@@ -3439,6 +3480,10 @@ class UninstallConfirmPage(Page):
         if not cfg.delete_files:
             ok(f"  I file in {ep}")
 
+        h("── Consiglio ────────────────────────────────────")
+        t.insert("end", "  Esegui un backup del database SQL Server prima di procedere\n", "dim")
+        t.insert("end", "  se prevedi di reinstallare o migrare l'installazione.\n", "dim")
+
         t.insert("end", "\n")
         t.configure(state="disabled")
 
@@ -3494,12 +3539,17 @@ class UninstallRunPage(Page):
             log_dir.mkdir(parents=True, exist_ok=True)
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             self._log_path = log_dir / f"uninstall_{self.cfg.environment}_{ts}.log"
-            self._log_file = open(self._log_path, "w", encoding="utf-8")
-            self._log_file.write(f"Portale Novicrom — Disinstallazione\n")
-            self._log_file.write(f"Data: {datetime.now():%Y-%m-%d %H:%M:%S}\n")
-            self._log_file.write(f"Ambiente: {self.cfg.environment.upper()}\n")
-            self._log_file.write("=" * 60 + "\n\n")
-            self._log_file.flush()
+            f = open(self._log_path, "w", encoding="utf-8")
+            try:
+                f.write(f"Portale Novicrom — Disinstallazione\n")
+                f.write(f"Data: {datetime.now():%Y-%m-%d %H:%M:%S}\n")
+                f.write(f"Ambiente: {self.cfg.environment.upper()}\n")
+                f.write("=" * 60 + "\n\n")
+                f.flush()
+            except Exception:
+                f.close()
+                raise
+            self._log_file = f
         except Exception:
             self._log_file = None
 
@@ -3717,25 +3767,10 @@ class UninstallApp:
         self.container = frame(right)
         self.container.pack(fill="both", expand=True)
 
-        bar = frame(right, bg=GRAY50)
-        bar.configure(highlightthickness=1, highlightbackground=GRAY200)
-        bar.pack(fill="x", side="bottom")
-
-        left_bar = frame(bar, bg=GRAY50)
-        left_bar.pack(side="left", padx=20, pady=12)
-        self.btn_back   = SecondaryButton(left_bar, "◀  Indietro", self._back)
-        self.btn_back.pack(side="left")
-        self.btn_cancel = SecondaryButton(left_bar, "Annulla", self._cancel)
-        self.btn_cancel.pack(side="left", padx=(8,0))
-
-        right_bar = frame(bar, bg=GRAY50)
-        right_bar.pack(side="right", padx=20, pady=12)
-        self.btn_next   = PrimaryButton(right_bar, "Avanti  ▶", self._next,
-                                         bg=RED)
-        self.btn_next.pack(side="right")
-        self.btn_finish = PrimaryButton(right_bar, "✓  Chiudi",
-                                         self._close, bg=GRAY700)
-        self.btn_finish.pack(side="right")
+        (self.btn_back, self.btn_cancel,
+         self.btn_next, self.btn_finish) = _build_bottom_bar(
+            right, self._back, self._cancel, self._next, self._close,
+            next_bg=RED, finish_bg=GRAY700)
 
         self._p_config  = UninstallConfigPage(self.container, self.cfg)
         self._p_confirm = UninstallConfirmPage(self.container, self.cfg)
