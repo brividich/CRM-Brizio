@@ -351,7 +351,7 @@
     <span class="topbar-sub">Portale Novicrom</span>
   </div>
   <div class="topbar-right">
-    <span class="topbar-badge">8 bug potenziali</span>
+    <span class="topbar-badge">5 bug aperti · 3 risolti</span>
     <span class="topbar-badge-ok">2026-03-13</span>
     <span class="topbar-badge-ok" style="background:rgba(34,197,94,.15);color:#22c55e;">ACL v2 attivo (v0.8.6)</span>
   </div>
@@ -602,19 +602,13 @@
       </div>
 
       <div class="inc-grid">
-        <div class="inc-card">
+        <div class="inc-card" style="border-left:3px solid #22c55e;opacity:.75;">
           <div class="inc-header">
-            <span class="inc-id">INC-A</span>
-            <span class="inc-title">Visibilità menu ≠ accesso reale alla route</span>
+            <span class="inc-id" style="background:rgba(34,197,94,.15);color:#22c55e;">INC-A</span>
+            <span class="inc-title">✅ RISOLTO — Visibilità menu ≠ accesso reale alla route</span>
           </div>
           <div class="inc-desc">
-            <code>NavigationRoleAccess</code> con regola "nessun record = visibile a tutti" crea un <strong>fallback permissivo</strong>.<br><br>
-            Se una voce del Navigation Registry non ha record <code>NavigationRoleAccess</code>:
-            <ul style="margin-top:8px;">
-              <li>Il menu la mostra a tutti ✓</li>
-              <li>Ma il middleware ACL la gata via <code>check_permesso()</code> → un utente senza il pulsante corrispondente prende <span class="badge badge-red">403</span></li>
-            </ul>
-            <br><strong>Risultato:</strong> L'utente vede la voce nel menu ma cliccandola ottiene 403. I due sistemi non si parlano.
+            <strong>Risolto in v0.8.6</strong> — Navigation Registry ora usa deny-by-default: voci senza <code>NavigationRoleAccess</code> non vengono mostrate (<code>if not item_access: continue</code> in <code>navigation_registry.py</code>). Il layer canonico v2 collega esplicitamente route e permission code eliminando la dipendenza dal match implicito pulsante/path.
           </div>
         </div>
 
@@ -638,14 +632,13 @@
           </div>
         </div>
 
-        <div class="inc-card">
+        <div class="inc-card" style="border-left:3px solid #22c55e;opacity:.75;">
           <div class="inc-header">
-            <span class="inc-id">INC-D</span>
-            <span class="inc-title">Navigation Registry e ACL legacy non sincronizzati</span>
+            <span class="inc-id" style="background:rgba(34,197,94,.15);color:#22c55e;">INC-D</span>
+            <span class="inc-title">✅ RISOLTO (layer canonico) — Navigation Registry e ACL legacy non sincronizzati</span>
           </div>
           <div class="inc-desc">
-            Una voce <code>NavigationItem</code> può avere <code>is_visible=True</code> e <code>is_enabled=True</code>, ma se il <code>Pulsante</code> legacy corrispondente non esiste nella tabella <code>pulsanti</code>, <code>check_permesso()</code> non riesce a matchare il path → <span class="badge badge-red">403</span>.<br><br>
-            Non c'è nessun link esplicito tra <code>NavigationItem.route_name</code> e il pulsante legacy usato dall'ACL engine.
+            <strong>Risolto in v0.8.6 per le route migrate al canonico</strong> — <code>RoutePermissionBinding</code> collega esplicitamente <code>route_name</code> a un permission code, eliminando la dipendenza dal match implicito pulsante/path. Per le route ancora in legacy fallback la situazione è invariata — usare <code>/admin-portale/acl-route-coverage/</code> per identificarle.
           </div>
         </div>
 
@@ -790,56 +783,47 @@ ACLMiddleware                                     core/middleware.py ~38
         <div class="section-icon icon-red">🐛</div>
         <div>
           <div class="section-title">6. Bug potenziali</div>
-          <div class="section-sub">8 problemi identificati — alcuni con impatto diretto sulla sicurezza</div>
+          <div class="section-sub">8 problemi identificati — 3 risolti in v0.8.6, 5 aperti (legacy o by-design)</div>
         </div>
       </div>
 
       <div class="bug-grid">
 
-        <div class="bug-card">
+        <div class="bug-card" style="border-left-color:#22c55e;opacity:.75;">
           <div class="bug-card-header">
-            <span class="bug-id">BUG-1</span>
-            <span class="bug-title">Utente vede menu ma prende 403</span>
-          </div>
-          <div class="bug-desc">Navigation Registry fallback permissivo + ACL via pulsanti legacy disgiunti.<br>
-          <strong>Scenario:</strong> Voce <code>NavigationItem</code> senza <code>NavigationRoleAccess</code> → mostrata a tutti → click → <code>check_permesso()</code> fallisce perché pulsante legacy mancante → <span class="badge badge-red">403</span>.</div>
-          <div class="bug-meta">
-            <span class="bug-meta-label">File:</span>
-            <span class="badge badge-blue">core/navigation_registry.py</span>
-            <span class="badge badge-blue">core/acl.py</span>
-          </div>
-        </div>
-
-        <div class="bug-card">
-          <div class="bug-card-header">
-            <span class="bug-id">BUG-2</span>
-            <span class="bug-title">Cache admin roles non invalida mai in-process ⚠️</span>
+            <span class="bug-id" style="background:rgba(34,197,94,.15);color:#22c55e;">BUG-1</span>
+            <span class="bug-title">✅ RISOLTO — Utente vede menu ma prende 403</span>
           </div>
           <div class="bug-desc">
-            <pre style="margin:8px 0;border-radius:6px;"># core/legacy_utils.py ~273
-@lru_cache(maxsize=1)
-def get_admin_role_ids() -> set[int]:
-    return {int(r.id) for r in Ruolo.objects.filter(nome__iexact="admin")}</pre>
-            <code>bump_legacy_cache_version()</code> invalida Redis ma <strong>non</strong> questa cache Python in-process. Se si promuove un ruolo ad admin mentre il server è running → cambio non visibile fino al restart.
-          </div>
-          <div class="bug-meta">
-            <span class="bug-meta-label">File:</span>
-            <span class="badge badge-red">core/legacy_utils.py ~273</span>
+            <strong>Risolto in v0.8.6</strong> — <code>core/navigation_registry.py</code> implementa ora deny-by-default: voci senza <code>NavigationRoleAccess</code> vengono saltate e non mostrate (<code>if not item_access: continue</code>). Il problema del menu permissivo non esiste più.
           </div>
         </div>
 
-        <div class="bug-card warn">
+        <div class="bug-card" style="border-left-color:#22c55e;opacity:.75;">
           <div class="bug-card-header">
-            <span class="bug-id">BUG-3</span>
-            <span class="bug-title">Fallback permissivo nel Navigation Registry</span>
+            <span class="bug-id" style="background:rgba(34,197,94,.15);color:#22c55e;">BUG-2</span>
+            <span class="bug-title">✅ RISOLTO — Cache admin roles non invalidabile in-process</span>
           </div>
-          <div class="bug-desc">Voci senza <code>NavigationRoleAccess</code> → visibili a tutti.<br>
-          Aggiungere una nuova voce al registry senza configurare i permessi la espone a tutti gli utenti immediatamente.<br><br>
-          <strong>Regola attuale:</strong> opt-out (devi esplicitamente nasconderla)<br>
-          <strong>Regola corretta:</strong> opt-in (devi esplicitamente darle visibilità)</div>
-          <div class="bug-meta">
-            <span class="bug-meta-label">File:</span>
-            <span class="badge badge-yellow">core/navigation_registry.py</span>
+          <div class="bug-desc">
+            <strong>Risolto in v0.8.6</strong> — <code>get_admin_role_ids()</code> usa ora Django cache (TTL 120s, stessa finestra ACL) invece di <code>@lru_cache</code> Python in-process. <code>bump_legacy_cache_version()</code> ora chiama esplicitamente <code>cache.delete(_ADMIN_ROLE_IDS_CACHE_KEY)</code> prima di incrementare la versione → la promozione a ruolo admin è visibile entro 120s senza restart.
+            <pre style="margin:8px 0;border-radius:6px;"># core/legacy_utils.py — dopo fix
+def get_admin_role_ids() -> set[int]:
+    cached = cache.get(_ADMIN_ROLE_IDS_CACHE_KEY)
+    if cached is not None:
+        return cached
+    ids = {int(r.id) for r in Ruolo.objects.filter(nome__iexact="admin")}
+    cache.set(_ADMIN_ROLE_IDS_CACHE_KEY, ids, timeout=120)
+    return ids</pre>
+          </div>
+        </div>
+
+        <div class="bug-card" style="border-left-color:#22c55e;opacity:.75;">
+          <div class="bug-card-header">
+            <span class="bug-id" style="background:rgba(34,197,94,.15);color:#22c55e;">BUG-3</span>
+            <span class="bug-title">✅ RISOLTO — Fallback permissivo nel Navigation Registry</span>
+          </div>
+          <div class="bug-desc">
+            <strong>Risolto in v0.8.6</strong> — stessa fix di BUG-1. Il registry ora usa deny-by-default: <code>if not item_access: continue</code>. Aggiungere una voce senza configurare <code>NavigationRoleAccess</code> la rende invisibile (non visibile a tutti).
           </div>
         </div>
 
@@ -849,7 +833,9 @@ def get_admin_role_ids() -> set[int]:
             <span class="bug-title">UserPermissionOverride.can_view=None semantica implicita</span>
           </div>
           <div class="bug-desc"><code>None</code> = usa ruolo. <code>False</code> = nega sempre. Distinzione implicita nel codice, nessuna validazione a livello form/admin.<br>
-          Un admin che setta <code>can_view=None</code> pensando di "revocare" l'override non fa nulla.</div>
+          Un admin che setta <code>can_view=None</code> pensando di "revocare" l'override non fa nulla.<br><br>
+          <strong>Stato:</strong> aperto nel layer legacy. Il layer canonico v2 usa <code>enabled</code> booleano esplicito senza ambiguità.
+          </div>
           <div class="bug-meta">
             <span class="bug-meta-label">File:</span>
             <span class="badge badge-yellow">core/models.py ~15</span>
@@ -862,7 +848,9 @@ def get_admin_role_ids() -> set[int]:
             <span class="bug-id">BUG-5</span>
             <span class="bug-title">API_ACL_GATE_PATHS richiede aggiornamento manuale</span>
           </div>
-          <div class="bug-desc">Ogni nuova API protetta con gate alternativo va aggiunta hardcoded nel middleware. Facile dimenticarsi.</div>
+          <div class="bug-desc">Ogni nuova API protetta con gate alternativo va aggiunta hardcoded nel middleware. Facile dimenticarsi.<br><br>
+          <strong>Stato:</strong> parzialmente mitigato — le nuove API possono usare <code>path_pattern</code> nel layer canonico v2. Il gate legacy <code>/api/anomalie/</code> non va toccato per compatibilità.
+          </div>
           <div class="bug-meta">
             <span class="bug-meta-label">File:</span>
             <span class="badge badge-yellow">core/middleware.py ~13</span>
@@ -874,7 +862,9 @@ def get_admin_role_ids() -> set[int]:
             <span class="bug-id">BUG-6</span>
             <span class="bug-title">UserDashboardConfig.visible=False non è sicurezza</span>
           </div>
-          <div class="bug-desc">Nasconde il pulsante ma non blocca la route. Non è un bug di sicurezza (il middleware blocca comunque), ma crea <strong>falsa sensazione di controllo accessi</strong>. Può portare sviluppatori futuri a fidarsi della visibilità template come controllo sicurezza.</div>
+          <div class="bug-desc">Nasconde il pulsante ma non blocca la route. Non è un bug di sicurezza (il middleware blocca comunque), ma crea <strong>falsa sensazione di controllo accessi</strong>.<br><br>
+          <strong>Stato:</strong> by-design, documentato. Non modificare senza discussione.
+          </div>
         </div>
 
         <div class="bug-card warn">
@@ -882,7 +872,9 @@ def get_admin_role_ids() -> set[int]:
             <span class="bug-id">BUG-7</span>
             <span class="bug-title">Due fonti di navigazione possono divergere</span>
           </div>
-          <div class="bug-desc">Se <code>_navigation_registry_enabled()</code> è True → usa registry. Se False → usa fallback legacy. Se le due fonti hanno dati diversi → l'utente vede menu diverso a seconda del flag, potenzialmente rivelando/nascondendo voci in modo inatteso.</div>
+          <div class="bug-desc">Se <code>_navigation_registry_enabled()</code> è True → usa registry. Se False → usa fallback legacy. Dati diversi tra le due fonti → menu inatteso.<br><br>
+          <strong>Stato:</strong> aperto strutturale. Richiede deprecazione del fallback legacy — big-bang fuori scope per ora.
+          </div>
         </div>
 
         <div class="bug-card">
@@ -893,8 +885,8 @@ def get_admin_role_ids() -> set[int]:
           <div class="bug-desc">
             <pre style="margin:8px 0;border-radius:6px;"># core/legacy_models.py ~103
 view_allowed = bool(can_view) or bool(consentito)</pre>
-            Il campo <code>consentito</code> è residuo legacy. Se <code>consentito=1</code> e <code>can_view=0</code>, l'accesso viene comunque concesso.<br>
-            Un admin che setta <code>can_view=0</code> pensando di bloccare l'accesso può essere sorpreso.
+            Se <code>consentito=1</code> e <code>can_view=0</code>, l'accesso viene comunque concesso. Un admin che setta <code>can_view=0</code> può essere sorpreso.<br><br>
+            <strong>Stato:</strong> aperto nel layer legacy. Non modificabile senza rischio di bloccare utenti con dati legacy inconsistenti su produzione. Documentato in CLAUDE.md come debito tecnico noto.
           </div>
           <div class="bug-meta">
             <span class="bug-meta-label">File:</span>

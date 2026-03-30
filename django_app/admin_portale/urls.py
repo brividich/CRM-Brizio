@@ -36,6 +36,7 @@ urlpatterns = [
     path("acl/", views.acl_diagnostica, name="acl_diagnostica_legacy"),
     path("mappa-permessi-navigazione/", views.mappa_permessi_navigazione, name="mappa_permessi_navigazione"),
     path("ldap/", views.ldap_diagnostica, name="ldap_diagnostica"),
+    path("api/acl-v2/role-grant-toggle", api.api_acl_v2_role_grant_toggle, name="api_acl_v2_role_grant_toggle"),
     path("api/permessi/toggle", api.api_permessi_toggle, name="api_permessi_toggle"),
     path("api/permessi/bulk", api.api_permessi_bulk, name="api_permessi_bulk"),
     path("api/permessi/modulo-set", views.api_permessi_modulo_set, name="api_permessi_modulo_set"),

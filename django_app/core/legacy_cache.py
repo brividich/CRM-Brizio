@@ -46,6 +46,9 @@ def get_legacy_cache_version() -> int:
 
 
 def bump_legacy_cache_version() -> int:
+    # Invalida anche la cache degli ID ruoli admin (chiave fissa, non versioned)
+    from core.legacy_utils import _ADMIN_ROLE_IDS_CACHE_KEY
+    cache.delete(_ADMIN_ROLE_IDS_CACHE_KEY)
     try:
         return int(cache.incr(LEGACY_CACHE_VERSION_KEY))
     except Exception:

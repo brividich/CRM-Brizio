@@ -7,6 +7,7 @@ from typing import Iterable
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.db import DatabaseError, IntegrityError, connections, transaction
 
 from core.legacy_models import Ruolo, UtenteLegacy
@@ -270,12 +271,26 @@ def legacy_table_has_column(table_name: str, column_name: str) -> bool:
     return column_name.lower() in legacy_table_columns(table_name)
 
 
-@lru_cache(maxsize=1)
+_ADMIN_ROLE_IDS_CACHE_KEY = "legacy_acl:admin_role_ids"
+_ADMIN_ROLE_IDS_TTL = 120  # secondi — stessa finestra dell'ACL cache
+
+
 def get_admin_role_ids() -> set[int]:
+    """Restituisce gli ID dei ruoli con nome 'admin'.
+
+    Usa Django cache (invalidabile via bump_legacy_cache_version) invece di
+    lru_cache Python in-process, che non veniva mai resettata a runtime.
+    TTL 120s allineato all'ACL cache TTL.
+    """
+    cached = cache.get(_ADMIN_ROLE_IDS_CACHE_KEY)
+    if cached is not None:
+        return cached
     try:
-        return {int(r.id) for r in Ruolo.objects.filter(nome__iexact="admin")}
+        ids = {int(r.id) for r in Ruolo.objects.filter(nome__iexact="admin")}
     except DatabaseError:
-        return set()
+        ids = set()
+    cache.set(_ADMIN_ROLE_IDS_CACHE_KEY, ids, timeout=_ADMIN_ROLE_IDS_TTL)
+    return ids
 
 
 def is_legacy_admin(legacy_user: UtenteLegacy | None) -> bool:

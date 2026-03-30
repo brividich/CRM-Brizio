@@ -67,6 +67,7 @@ Strumenti operativi:
 - `/admin-portale/acl-canonico/` per gestire permission code, binding e grant
 - `/admin-portale/acl-route-coverage/` per classificare tutte le route (`CANONICAL_BOUND`, `LEGACY_FALLBACK`, `UNBOUND`, `COMING_SOON_EXCLUDED`, `REDIRECT_ONLY`)
 - `/admin-portale/acl-diagnostica/` per capire perché un accesso è consentito/negato
+- `/admin-portale/mappa-permessi-navigazione/` per il workflow visuale route/menu con toggle live grant canonici + permessi legacy (con filtro ruolo)
 - comando `python django_app/manage.py bootstrap_acl_v2` per supportare migrazione incrementale
 - comando `python django_app/manage.py seed_acl_uat --reset` per caricare un pacchetto UAT ripetibile (ruoli, utenti, binding, grant, override, fallback legacy, report scenari)
 
@@ -135,10 +136,11 @@ Endpoint tipici in locale:
 - `http://127.0.0.1:8000/` â€” dashboard
 - `http://127.0.0.1:8000/assets/` â€” gestione asset
 - `http://127.0.0.1:8000/admin-portale/` â€” pannello admin
+- `http://127.0.0.1:8000/admin-portale/navigation-builder/` - builder navigazione con vista visuale drag&drop orizzontale (scroll laterale) + editor tabellare completo, con toggle modalita avanzata per slot `Sidebar Dedicated`
 - `http://127.0.0.1:8000/admin-portale/acl-canonico/` - gestione permission code / binding / grant
 - `http://127.0.0.1:8000/admin-portale/acl-route-coverage/` - report copertura route ACL con filtri e export CSV
 - `http://127.0.0.1:8000/admin-portale/acl-diagnostica/` - diagnostica ACL (utente/ruolo/path/route)
-- `http://127.0.0.1:8000/admin-portale/mappa-permessi-navigazione/` - mappa route/menu/ruoli/override/redirect con drill-down workflow per riga e toggle live permessi legacy (con ruolo filtro attivo)
+- `http://127.0.0.1:8000/admin-portale/mappa-permessi-navigazione/` - mappa route/menu/ruoli/override/redirect con drill-down workflow per riga e toggle live grant canonici v2 + permessi legacy (con ruolo filtro attivo)
 - `http://127.0.0.1:8000/tickets/` â€” ticket interni
 - `http://127.0.0.1:8000/dpi/` â€” dispositivi protezione individuale
 - `http://127.0.0.1:8000/procedure-refresh/` â€” presa visione procedure

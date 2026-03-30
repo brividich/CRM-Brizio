@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import re
 import socket
 import tempfile
 from dataclasses import dataclass
@@ -32,7 +33,7 @@ from django.views.decorators.http import require_GET, require_POST
 from werkzeug.security import generate_password_hash
 
 from core.acl import diagnose_permesso_for_context
-from core.acl_v2 import diagnose_acl_access
+from core.acl_v2 import diagnose_acl_access, normalize_binding_path_pattern, normalize_permission_code, validate_permission_code
 from core.audit import log_action
 from core.caporeparto_utils import (
     format_caporeparto_label,
@@ -68,7 +69,10 @@ from core.models import (
     NavigationSnapshot,
     Notifica,
     OptioneConfig,
+    PermissionDefinition,
     Profile,
+    RolePermissionGrant,
+    RoutePermissionBinding,
     SiteConfig,
     UserDashboardConfig,
     UserDashboardLayout,
@@ -2429,6 +2433,21 @@ def _build_override_counts_by_permission_key() -> dict[tuple[str, str], dict[str
     return result
 
 
+def _canonical_binding_matches_path(binding: RoutePermissionBinding, path_norm: str) -> bool:
+    strategy = (binding.match_strategy or RoutePermissionBinding.MATCH_EXACT).lower()
+    if strategy == RoutePermissionBinding.MATCH_REGEX:
+        try:
+            return re.search(binding.path_pattern or "", path_norm) is not None
+        except re.error:
+            return False
+    pattern = normalize_binding_path_pattern(binding.path_pattern, for_regex=False)
+    if not pattern:
+        return False
+    if strategy == RoutePermissionBinding.MATCH_PREFIX:
+        return path_norm == pattern or path_norm.startswith(pattern + "/")
+    return path_norm == pattern
+
+
 def _build_permission_navigation_map_rows(
     *,
     q_filter: str,
@@ -2440,8 +2459,44 @@ def _build_permission_navigation_map_rows(
     q_norm = str(q_filter or "").strip().lower()
     allowed_roles_map = _build_allowed_roles_by_permission_key()
     override_map = _build_override_counts_by_permission_key()
+    canonical_route_map: dict[str, list[RoutePermissionBinding]] = {}
+    canonical_path_bindings: list[RoutePermissionBinding] = []
+    canonical_grants_by_code: dict[str, dict] = {}
     registry_enabled = bool(getattr(settings, "NAVIGATION_REGISTRY_ENABLED", True))
     fallback_enabled = bool(getattr(settings, "NAVIGATION_LEGACY_FALLBACK_ENABLED", False))
+
+    try:
+        canonical_bindings = list(
+            RoutePermissionBinding.objects.filter(is_active=True)
+            .select_related("permission")
+            .order_by("priority", "id")
+        )
+    except Exception:
+        canonical_bindings = []
+    for binding in canonical_bindings:
+        route_name_norm = str(binding.route_name or "").strip().lower()
+        if route_name_norm:
+            canonical_route_map.setdefault(route_name_norm, []).append(binding)
+        if str(binding.path_pattern or "").strip():
+            canonical_path_bindings.append(binding)
+
+    if selected_role_id is not None:
+        try:
+            grants = list(
+                RolePermissionGrant.objects.filter(legacy_role_id=int(selected_role_id)).values(
+                    "id", "permission_id", "enabled"
+                )
+            )
+        except Exception:
+            grants = []
+        for grant_row in grants:
+            permission_code = str(grant_row.get("permission_id") or "").strip()
+            if not permission_code:
+                continue
+            canonical_grants_by_code[permission_code] = {
+                "id": int(grant_row.get("id") or 0),
+                "enabled": bool(grant_row.get("enabled")),
+            }
 
     def ensure_row(path_norm: str) -> dict:
         key = f"path:{path_norm}"
@@ -2463,6 +2518,7 @@ def _build_permission_navigation_map_rows(
                 "legacy_buttons": [],
                 "registry_items": [],
                 "applied_override_keys": set(),
+                "canonical_permissions": {},
             }
             rows_by_key[key] = row
         return row
@@ -2622,6 +2678,97 @@ def _build_permission_navigation_map_rows(
                 continue
 
         route_names = sorted([v for v in row["route_names"] if v])
+        matched_bindings: dict[int, dict] = {}
+        for route_name in route_names:
+            for binding in canonical_route_map.get(route_name.lower(), []):
+                slot = matched_bindings.setdefault(
+                    int(binding.id),
+                    {"binding": binding, "matched_by": set()},
+                )
+                slot["matched_by"].add("route_name")
+        for binding in canonical_path_bindings:
+            if not _canonical_binding_matches_path(binding, row["path"]):
+                continue
+            slot = matched_bindings.setdefault(
+                int(binding.id),
+                {"binding": binding, "matched_by": set()},
+            )
+            slot["matched_by"].add("path_pattern")
+
+        canonical_permissions_map: dict[str, dict] = {}
+        for payload in matched_bindings.values():
+            binding = payload["binding"]
+            permission_code = str(binding.permission_id or "").strip()
+            if not permission_code:
+                continue
+            permission_label = ""
+            permission_module = ""
+            permission_active = True
+            try:
+                permission_label = str(binding.permission.label or "").strip()
+                permission_module = str(binding.permission.module or "").strip()
+                permission_active = bool(binding.permission.is_active)
+            except Exception:
+                permission_label = ""
+                permission_module = ""
+                permission_active = True
+
+            row_entry = canonical_permissions_map.setdefault(
+                permission_code,
+                {
+                    "permission_code": permission_code,
+                    "permission_label": permission_label,
+                    "permission_module": permission_module,
+                    "permission_active": permission_active,
+                    "bindings": [],
+                },
+            )
+            matched_by = sorted([value for value in payload["matched_by"] if value])
+            row_entry["bindings"].append(
+                {
+                    "id": int(binding.id),
+                    "route_name": str(binding.route_name or "").strip(),
+                    "path_pattern": str(binding.path_pattern or "").strip(),
+                    "match_strategy": str(binding.match_strategy or "").strip(),
+                    "source_app": str(binding.source_app or "").strip(),
+                    "priority": int(binding.priority or 0),
+                    "matched_by": matched_by,
+                }
+            )
+
+        canonical_permissions = sorted(
+            canonical_permissions_map.values(),
+            key=lambda item: str(item.get("permission_code") or "").lower(),
+        )
+        canonical_missing_grants = 0
+        canonical_denied_grants = 0
+        canonical_enabled_grants = 0
+        for canonical_row in canonical_permissions:
+            permission_code = str(canonical_row.get("permission_code") or "").strip()
+            grant_info = canonical_grants_by_code.get(permission_code)
+            grant_exists = grant_info is not None
+            grant_enabled = bool(grant_info.get("enabled")) if grant_info else False
+            canonical_row["selected_role_grant_exists"] = bool(grant_exists) if selected_role_id is not None else None
+            canonical_row["selected_role_grant_enabled"] = bool(grant_enabled) if selected_role_id is not None else None
+            canonical_row["selected_role_grant_id"] = int(grant_info.get("id") or 0) if grant_info else None
+            canonical_row["bindings"] = sorted(
+                canonical_row["bindings"],
+                key=lambda item: (
+                    int(item.get("priority") or 0),
+                    str(item.get("route_name") or "").lower(),
+                    str(item.get("path_pattern") or "").lower(),
+                    int(item.get("id") or 0),
+                ),
+            )
+            if selected_role_id is None:
+                continue
+            if grant_info is None:
+                canonical_missing_grants += 1
+            elif grant_enabled:
+                canonical_enabled_grants += 1
+            else:
+                canonical_denied_grants += 1
+
         menu_labels = sorted([v for v in row["menu_labels"] if v])
         role_labels = _role_ids_to_labels(role_ids, role_name_map)
         search_blob = " ".join(
@@ -2632,6 +2779,12 @@ def _build_permission_navigation_map_rows(
                 " ".join(role_labels),
                 " ".join(sorted(source_flags)),
                 " ".join(sorted(row["registry_sections"])),
+                " ".join(
+                    [str(item.get("permission_code") or "") for item in canonical_permissions]
+                ),
+                " ".join(
+                    [str(item.get("permission_label") or "") for item in canonical_permissions]
+                ),
             ]
         ).lower()
         if q_norm and q_norm not in search_blob:
@@ -2655,6 +2808,11 @@ def _build_permission_navigation_map_rows(
                 "is_fallback": is_fallback,
                 "legacy_buttons_count": len(row["legacy_buttons"]),
                 "registry_items_count": len(row["registry_items"]),
+                "canonical_permissions_count": len(canonical_permissions),
+                "canonical_permissions": canonical_permissions,
+                "canonical_selected_role_missing_grants": int(canonical_missing_grants),
+                "canonical_selected_role_denied_grants": int(canonical_denied_grants),
+                "canonical_selected_role_enabled_grants": int(canonical_enabled_grants),
                 "legacy_buttons": legacy_buttons,
                 "registry_items": sorted(
                     row["registry_items"],
@@ -2835,6 +2993,7 @@ def mappa_permessi_navigazione(request):
     )
     summary = {
         "rows_total": len(rows),
+        "rows_canonical": sum(1 for row in rows if row["canonical_permissions_count"] > 0),
         "rows_registry": sum(1 for row in rows if "REGISTRY" in row["source_flags"]),
         "rows_legacy": sum(1 for row in rows if "LEGACY" in row["source_flags"]),
         "rows_override": sum(1 for row in rows if "OVERRIDE" in row["badges"]),
@@ -2859,6 +3018,7 @@ def mappa_permessi_navigazione(request):
             "selected_role_id": selected_role_id,
             "selected_role_label": selected_role_label,
             "api_permessi_toggle_url": reverse("admin_portale:api_permessi_toggle"),
+            "api_acl_v2_role_grant_toggle_url": reverse("admin_portale:api_acl_v2_role_grant_toggle"),
         },
     )
 
@@ -5108,32 +5268,34 @@ def _unique_nav_code(base_code: str, used: set[str]) -> str:
 @require_GET
 def navigation_builder(request):
     q_filter = (request.GET.get("q") or "").strip()
-    section_filter = (request.GET.get("section") or "topbar").strip().lower()
+    section_filter = (request.GET.get("section") or "all").strip().lower()
+    advanced_mode = _bool_from_any(request.GET.get("advanced"))
     if section_filter not in {"topbar", "subnav", "sidebar", "page", "admin_subnav", "all"}:
-        section_filter = "topbar"
+        section_filter = "all"
 
-    items_qs = NavigationItem.objects.all().order_by("section", "order", "label", "id")
-    if section_filter != "all":
-        items_qs = items_qs.filter(section=section_filter)
-    items = list(items_qs)
-
+    items_all = list(NavigationItem.objects.all().order_by("section", "order", "label", "id"))
     if q_filter:
         q_lower = q_filter.lower()
-        items = [
+        items_all = [
             item
-            for item in items
+            for item in items_all
             if q_lower in (item.code or "").lower()
             or q_lower in (item.label or "").lower()
             or q_lower in (item.route_name or "").lower()
             or q_lower in (item.url_path or "").lower()
             or q_lower in (item.section or "").lower()
         ]
+    if section_filter == "all":
+        items = list(items_all)
+    else:
+        items = [item for item in items_all if str(item.section or "").strip().lower() == section_filter]
 
-    access_rows = NavigationRoleAccess.objects.filter(item_id__in=[int(i.id) for i in items]).order_by("legacy_role_id")
+    access_rows = NavigationRoleAccess.objects.filter(item_id__in=[int(i.id) for i in items_all]).order_by("legacy_role_id")
     role_ids_map: dict[int, list[int]] = {}
     for row in access_rows:
         role_ids_map.setdefault(int(row.item_id), []).append(int(row.legacy_role_id))
 
+    item_rows_all = [_navigation_item_payload(item, role_ids_map) for item in items_all]
     item_rows = [_navigation_item_payload(item, role_ids_map) for item in items]
 
     try:
@@ -5143,6 +5305,28 @@ def navigation_builder(request):
 
     snapshots = list(NavigationSnapshot.objects.all().order_by("-version", "-id")[:20])
     redirects = list(LegacyRedirect.objects.all().order_by("legacy_path", "id")[:200])
+    visual_lane_defs = [
+        ("topbar", "Main Nav (Topbar/Sidebar)", "Navigazione principale: in UI side viene resa nella sidebar."),
+        ("subnav", "Subnav", "Secondo livello contestuale per modulo"),
+        ("admin_subnav", "Admin Subnav", "Menu interno admin portale"),
+        ("sidebar", "Sidebar Dedicated", "Slot dedicato menu laterale (se usato esplicitamente)."),
+        ("page", "Page", "Azioni locali dentro una pagina"),
+    ]
+    visual_rows_by_section: dict[str, list[dict]] = {key: [] for key, _label, _hint in visual_lane_defs}
+    for row in item_rows_all:
+        section_key = str(row.get("section") or "").strip().lower()
+        if section_key not in visual_rows_by_section:
+            continue
+        visual_rows_by_section[section_key].append(row)
+    visual_sections = [
+        {
+            "key": key,
+            "label": label,
+            "hint": hint,
+            "items": visual_rows_by_section.get(key, []),
+        }
+        for key, label, hint in visual_lane_defs
+    ]
 
     return render(
         request,
@@ -5154,8 +5338,10 @@ def navigation_builder(request):
             "snapshots": snapshots,
             "redirects": redirects,
             "icon_library": _navigation_icon_library_items(),
-            "filters": {"q": q_filter, "section": section_filter},
+            "filters": {"q": q_filter, "section": section_filter, "advanced": "1" if advanced_mode else "0"},
             "state_preview_json": json.dumps(export_navigation_state(), ensure_ascii=False, indent=2),
+            "visual_sections": visual_sections,
+            "advanced_mode": bool(advanced_mode),
         },
     )
 
@@ -5290,8 +5476,38 @@ def api_navigation_item_delete(request):
 @csrf_protect
 @require_POST
 def api_navigation_reorder(request):
-    """Aggiorna il campo `order` di una lista di voci in base all'ordine ricevuto."""
+    """Aggiorna ordine (e opzionalmente sezione) delle voci di navigazione."""
     payload = _post_or_json_payload(request)
+    section_orders = payload.get("section_orders")
+    if isinstance(section_orders, dict):
+        allowed_sections = {"topbar", "subnav", "admin_subnav", "sidebar", "page"}
+        cleaned: dict[str, list[int]] = {}
+        seen_item_ids: set[int] = set()
+        for section_key, raw_ids in section_orders.items():
+            section = str(section_key or "").strip().lower()
+            if section not in allowed_sections:
+                return _json_error(f"Sezione non valida: {section_key}")
+            if not isinstance(raw_ids, list):
+                return _json_error(f"section_orders[{section}] deve essere una lista di ID interi.")
+            try:
+                item_ids = [int(value) for value in raw_ids]
+            except (TypeError, ValueError):
+                return _json_error(f"section_orders[{section}] contiene valori non interi.")
+            for item_id in item_ids:
+                if item_id in seen_item_ids:
+                    return _json_error(f"ID duplicato nel drag&drop visuale: {item_id}")
+                seen_item_ids.add(item_id)
+            cleaned[section] = item_ids
+        with transaction.atomic():
+            for section, item_ids in cleaned.items():
+                for idx, item_id in enumerate(item_ids):
+                    NavigationItem.objects.filter(id=item_id).update(
+                        section=section,
+                        order=(idx + 1) * 10,
+                    )
+        transaction.on_commit(bump_navigation_registry_version)
+        return JsonResponse({"ok": True, "mode": "section_orders", "updated": len(seen_item_ids)})
+
     ordered_ids = payload.get("ordered_ids")
     if not isinstance(ordered_ids, list):
         return _json_error("ordered_ids deve essere una lista di ID interi.")
@@ -5541,6 +5757,44 @@ def api_permessi_toggle(request):
         return _json_error(str(exc))
 
     return JsonResponse({"ok": True})
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_acl_v2_role_grant_toggle(request):
+    payload = _json_payload(request)
+    role_id = _int_or_none(payload.get("ruolo_id") or payload.get("role_id"))
+    permission_code = normalize_permission_code(str(payload.get("permission_code") or ""))
+    is_valid_code, validation_error = validate_permission_code(permission_code)
+    if role_id is None or not is_valid_code:
+        return _json_error(validation_error or "Payload incompleto.")
+    value = _bool_from_any(payload.get("value"))
+
+    permission = PermissionDefinition.objects.filter(code=permission_code).first()
+    if permission is None:
+        return _json_error(f"Permission code non trovato: {permission_code}.", status=404)
+
+    try:
+        with transaction.atomic():
+            grant, created = RolePermissionGrant.objects.update_or_create(
+                legacy_role_id=int(role_id),
+                permission_id=permission.code,
+                defaults={"enabled": bool(value)},
+            )
+    except DatabaseError as exc:
+        return _json_error(f"Errore DB: {exc}")
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "created": bool(created),
+            "role_id": int(grant.legacy_role_id),
+            "permission_code": grant.permission_id,
+            "enabled": bool(grant.enabled),
+            "grant_id": int(grant.id),
+        }
+    )
 
 
 @legacy_admin_required

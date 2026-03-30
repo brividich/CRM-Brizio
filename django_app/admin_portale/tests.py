@@ -740,6 +740,163 @@ class AdminPortaleNavigationIconTests(TestCase):
         self.assertTrue(payload["icon"]["url"].startswith("/media/navigation/icons/"))
 
 
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AdminPortaleNavigationBuilderVisualTests(TestCase):
+    def setUp(self):
+        _ensure_utenti_table()
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM utenti")
+
+        self.admin_user = User.objects.create_superuser(
+            username="admin-portale-nav-visual",
+            email="admin.nav.visual@test.local",
+            password="pass12345",
+        )
+        self.admin_legacy = UtenteLegacy.objects.create(
+            nome="Admin Navigation Visual",
+            email="admin.nav.visual@test.local",
+            password="*AD_MANAGED*",
+            ruolo="admin",
+            ruolo_id=1,
+            attivo=True,
+            deve_cambiare_password=False,
+        )
+
+        self.item_topbar_1 = NavigationItem.objects.create(
+            code="nav-topbar-1",
+            label="Topbar One",
+            section="topbar",
+            route_name="dashboard_home",
+            order=10,
+            is_visible=True,
+            is_enabled=True,
+        )
+        self.item_topbar_2 = NavigationItem.objects.create(
+            code="nav-topbar-2",
+            label="Topbar Two",
+            section="topbar",
+            route_name="dashboard_home",
+            order=20,
+            is_visible=True,
+            is_enabled=True,
+        )
+        self.item_sidebar = NavigationItem.objects.create(
+            code="nav-sidebar-1",
+            label="Sidebar One",
+            section="sidebar",
+            route_name="dashboard_home",
+            order=10,
+            is_visible=True,
+            is_enabled=True,
+        )
+        self.item_subnav = NavigationItem.objects.create(
+            code="nav-subnav-1",
+            label="Subnav One",
+            section="subnav",
+            parent_code="dashboard",
+            route_name="dashboard_home",
+            order=10,
+            is_visible=True,
+            is_enabled=True,
+        )
+        NavigationRoleAccess.objects.create(item=self.item_topbar_1, legacy_role_id=2, can_view=True)
+
+    def _as_admin_get(self, url, params=None):
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            return self.client.get(url, params or {})
+
+    def _as_admin_post_json(self, url, payload):
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            return self.client.post(
+                url,
+                data=json.dumps(payload),
+                content_type="application/json",
+            )
+
+    def test_navigation_builder_renders_visual_board(self):
+        response = self._as_admin_get(
+            reverse("admin_portale:navigation_builder"),
+            {"section": "all"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Visual Builder (drag & drop)", html=False)
+        self.assertContains(response, 'class="visual-lane"', html=False)
+        self.assertContains(response, 'data-section="topbar"', html=False)
+        self.assertContains(response, 'data-section="sidebar"', html=False)
+        self.assertContains(response, "Apri riga", html=False)
+
+        visual_sections = response.context["visual_sections"]
+        by_key = {row["key"]: row for row in visual_sections}
+        self.assertIn("topbar", by_key)
+        self.assertIn("sidebar", by_key)
+        self.assertTrue(any(item["id"] == self.item_topbar_1.id for item in by_key["topbar"]["items"]))
+        self.assertFalse(bool(response.context["advanced_mode"]))
+
+    def test_navigation_builder_advanced_mode_can_be_enabled_via_query_param(self):
+        response = self._as_admin_get(
+            reverse("admin_portale:navigation_builder"),
+            {"section": "all", "advanced": "1"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(bool(response.context["advanced_mode"]))
+        self.assertContains(response, 'data-advanced="1"', html=False)
+        self.assertContains(response, "Passa a modalità standard", html=False)
+
+    def test_api_navigation_reorder_supports_section_orders_payload(self):
+        response = self._as_admin_post_json(
+            reverse("admin_portale:api_navigation_reorder"),
+            {
+                "section_orders": {
+                    "topbar": [self.item_topbar_2.id],
+                    "sidebar": [self.item_topbar_1.id, self.item_sidebar.id],
+                    "subnav": [self.item_subnav.id],
+                    "admin_subnav": [],
+                    "page": [],
+                }
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["mode"], "section_orders")
+
+        self.item_topbar_1.refresh_from_db()
+        self.item_topbar_2.refresh_from_db()
+        self.item_sidebar.refresh_from_db()
+        self.item_subnav.refresh_from_db()
+
+        self.assertEqual(self.item_topbar_2.section, "topbar")
+        self.assertEqual(self.item_topbar_2.order, 10)
+        self.assertEqual(self.item_topbar_1.section, "sidebar")
+        self.assertEqual(self.item_topbar_1.order, 10)
+        self.assertEqual(self.item_sidebar.section, "sidebar")
+        self.assertEqual(self.item_sidebar.order, 20)
+        self.assertEqual(self.item_subnav.section, "subnav")
+        self.assertEqual(self.item_subnav.order, 10)
+
+    def test_api_navigation_reorder_keeps_ordered_ids_backward_compatible(self):
+        response = self._as_admin_post_json(
+            reverse("admin_portale:api_navigation_reorder"),
+            {"ordered_ids": [self.item_topbar_2.id, self.item_topbar_1.id]},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+
+        self.item_topbar_1.refresh_from_db()
+        self.item_topbar_2.refresh_from_db()
+        self.assertEqual(self.item_topbar_2.order, 10)
+        self.assertEqual(self.item_topbar_1.order, 20)
+
+
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Security tests
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -976,6 +1133,25 @@ class AdminPortalePermissionNavigationMapTests(TestCase):
             target_url_path="/assenze/",
             is_enabled=True,
         )
+        PermissionDefinition.objects.create(
+            code="assets.work_orders.manage",
+            label="Gestione Work Orders",
+            module="assets",
+            is_active=True,
+        )
+        RoutePermissionBinding.objects.create(
+            route_name="",
+            path_pattern="/assenze",
+            match_strategy=RoutePermissionBinding.MATCH_EXACT,
+            permission_id="assets.work_orders.manage",
+            source_app="assets",
+            is_active=True,
+        )
+        RolePermissionGrant.objects.create(
+            legacy_role_id=2,
+            permission_id="assets.work_orders.manage",
+            enabled=True,
+        )
         bump_legacy_cache_version()
 
     def test_map_page_shows_badges_for_registry_legacy_override_and_redirect(self):
@@ -1010,8 +1186,10 @@ class AdminPortalePermissionNavigationMapTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Workflow Decisionale", html=False)
-        self.assertContains(response, "Modifica Live (Legacy)", html=False)
+        self.assertContains(response, "Modifica Live (Canonico + Legacy)", html=False)
+        self.assertContains(response, "Canonico v2 (prioritario)", html=False)
         self.assertContains(response, "api/permessi/toggle", html=False)
+        self.assertContains(response, "api/acl-v2/role-grant-toggle", html=False)
 
         rows = response.context["rows"]
         target_row = next((row for row in rows if row["path"] == "/assenze"), None)
@@ -1020,6 +1198,10 @@ class AdminPortalePermissionNavigationMapTests(TestCase):
         self.assertTrue(target_row["selected_role_visible"])
         self.assertTrue(target_row["legacy_buttons"])
         self.assertTrue(target_row["legacy_buttons"][0]["selected_role_allowed"])
+        self.assertTrue(target_row["canonical_permissions"])
+        self.assertEqual(target_row["canonical_permissions"][0]["permission_code"], "assets.work_orders.manage")
+        self.assertTrue(target_row["canonical_permissions"][0]["selected_role_grant_exists"])
+        self.assertTrue(target_row["canonical_permissions"][0]["selected_role_grant_enabled"])
 
     def test_map_page_keeps_legacy_rows_for_disabled_role_to_allow_live_enable(self):
         Ruolo.objects.create(id=3, nome="qa")
@@ -1041,6 +1223,69 @@ class AdminPortalePermissionNavigationMapTests(TestCase):
         self.assertFalse(target_row["selected_role_visible"])
         self.assertTrue(target_row["legacy_buttons"])
         self.assertFalse(bool(target_row["legacy_buttons"][0]["selected_role_allowed"]))
+
+    def test_api_acl_v2_role_grant_toggle_updates_existing_grant(self):
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.post(
+                reverse("admin_portale:api_acl_v2_role_grant_toggle"),
+                data=json.dumps(
+                    {
+                        "ruolo_id": 2,
+                        "permission_code": "assets.work_orders.manage",
+                        "value": False,
+                    }
+                ),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["permission_code"], "assets.work_orders.manage")
+        self.assertFalse(payload["enabled"])
+        self.assertTrue(
+            RolePermissionGrant.objects.filter(
+                legacy_role_id=2,
+                permission_id="assets.work_orders.manage",
+                enabled=False,
+            ).exists()
+        )
+
+    def test_api_acl_v2_role_grant_toggle_creates_missing_grant(self):
+        Ruolo.objects.create(id=3, nome="qa")
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.post(
+                reverse("admin_portale:api_acl_v2_role_grant_toggle"),
+                data=json.dumps(
+                    {
+                        "ruolo_id": 3,
+                        "permission_code": "assets.work_orders.manage",
+                        "value": True,
+                    }
+                ),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["created"])
+        self.assertTrue(payload["enabled"])
+        self.assertTrue(
+            RolePermissionGrant.objects.filter(
+                legacy_role_id=3,
+                permission_id="assets.work_orders.manage",
+                enabled=True,
+            ).exists()
+        )
 
 class AdminPortaleFormSecurityTests(TestCase):
     """Testa la validazione di sicurezza nei form admin."""

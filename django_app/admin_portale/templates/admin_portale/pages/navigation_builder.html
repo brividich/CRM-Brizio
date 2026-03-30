@@ -62,6 +62,158 @@
       min-height: 20px;
     }
     .nav-builder .text-danger { color: #dc2626; }
+    .nav-builder .visual-board {
+      display: flex;
+      gap: 12px;
+      align-items: stretch;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding-bottom: 4px;
+      scroll-snap-type: x proximity;
+    }
+    .nav-builder .visual-lane {
+      border: 1px solid var(--border, #dde1ec);
+      border-radius: 12px;
+      background: #f8fafc;
+      min-height: 140px;
+      min-width: 280px;
+      width: 280px;
+      flex: 0 0 280px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      scroll-snap-align: start;
+    }
+    .nav-builder .visual-lane-head {
+      padding: 10px 10px 8px;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .nav-builder .visual-lane-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #0f172a;
+      text-transform: uppercase;
+      letter-spacing: .03em;
+      margin: 0;
+    }
+    .nav-builder .visual-lane-hint {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 2px;
+      line-height: 1.35;
+    }
+    .nav-builder .visual-lane-count {
+      display: inline-flex;
+      padding: 1px 8px;
+      border-radius: 999px;
+      border: 1px solid #d5deea;
+      background: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      color: #334155;
+      white-space: nowrap;
+    }
+    .nav-builder .visual-lane-body {
+      padding: 10px;
+      display: grid;
+      gap: 8px;
+      align-content: start;
+      min-height: 72px;
+    }
+    .nav-builder .visual-lane-empty {
+      border: 1px dashed #cbd5e1;
+      border-radius: 10px;
+      background: #fff;
+      color: #94a3b8;
+      font-size: 11px;
+      padding: 10px;
+      text-align: center;
+    }
+    .nav-builder .visual-card {
+      border: 1px solid #dbe2ee;
+      border-radius: 10px;
+      background: #fff;
+      padding: 8px;
+      display: grid;
+      gap: 6px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+    }
+    .nav-builder .visual-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .nav-builder .visual-card-label {
+      margin: 0;
+      font-size: 12px;
+      color: #0f172a;
+      line-height: 1.3;
+      font-weight: 700;
+      word-break: break-word;
+    }
+    .nav-builder .visual-card-handle {
+      cursor: grab;
+      user-select: none;
+      color: #64748b;
+      font-size: 13px;
+      line-height: 1;
+      padding: 2px 4px;
+    }
+    .nav-builder .visual-card-handle:active { cursor: grabbing; }
+    .nav-builder .visual-card-meta {
+      font-size: 11px;
+      color: #475569;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+    .nav-builder .visual-card-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .nav-builder .visual-badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      border: 1px solid #d4dce8;
+      background: #f8fafc;
+      color: #334155;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .02em;
+      padding: 2px 7px;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .nav-builder .visual-badge.ok {
+      border-color: #a7f3d0;
+      background: #ecfdf5;
+      color: #166534;
+    }
+    .nav-builder .visual-badge.off {
+      border-color: #fecaca;
+      background: #fef2f2;
+      color: #991b1b;
+    }
+    .nav-builder .visual-card-actions {
+      display: flex;
+      justify-content: flex-end;
+    }
+    .nav-builder .visual-highlight {
+      animation: navRowHighlight 1.2s ease;
+    }
+    .nav-builder .admin-table tr.visual-highlight td {
+      background: #fff7d1 !important;
+      box-shadow: inset 0 1px 0 #f4d972, inset 0 -1px 0 #f4d972;
+    }
+    @keyframes navRowHighlight {
+      0% { background: #fef3c7; }
+      100% { background: transparent; }
+    }
     .nav-builder .nav-icon-picker {
       display: grid;
       gap: 8px;
@@ -220,9 +372,20 @@
 {% endblock %}
 
 {% block content %}
-  <div class="nav-builder">
+  <div class="nav-builder" data-advanced="{% if advanced_mode %}1{% else %}0{% endif %}">
     {% include "admin_portale/components/page_header.html" with page_title="Navigation Builder" page_subtitle="Gestione centralizzata menu, ruoli e redirect legacy senza modificare codice. Le modifiche sono immediate; pubblica uno snapshot per salvarle definitivamente." %}
     {% include "admin_portale/components/flash_messages.html" %}
+
+    <div class="card">
+      <div class="card-body" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div class="field-help" style="margin:0;">
+          Modalità standard: mostra solo sezioni operative più comuni. Modalità avanzata: abilita anche <code>Sidebar Dedicated</code>.
+        </div>
+        <button class="btn btn-secondary" type="button" id="nav-advanced-toggle" aria-pressed="{% if advanced_mode %}true{% else %}false{% endif %}">
+          {% if advanced_mode %}Passa a modalità standard{% else %}Attiva modalità avanzata{% endif %}
+        </button>
+      </div>
+    </div>
 
     <form id="nav-builder-csrf">{% csrf_token %}</form>
     <div id="nav-icon-config" data-static-prefix="{% get_static_prefix %}" data-media-prefix="{% get_media_prefix %}" hidden></div>
@@ -287,10 +450,10 @@
           <div class="field">
             <label>Sezione</label>
             <select class="input" name="section" id="create-section">
-              <option value="topbar">Topbar — barra in alto</option>
+              <option value="topbar">Main Nav (Topbar/Sidebar)</option>
               <option value="subnav">Subnav — barra secondaria</option>
               <option value="admin_subnav">Admin Subnav — barra interna admin portale</option>
-              <option value="sidebar">Sidebar — menu laterale</option>
+              <option value="sidebar" data-advanced-only-option {% if not advanced_mode %}hidden{% endif %}>Sidebar Dedicated — menu laterale dedicato</option>
               <option value="page">Page — dentro una pagina</option>
             </select>
             <div class="field-help">Posizione della voce nell'interfaccia.</div>
@@ -384,6 +547,76 @@
       </div>
     </div>
 
+    {# ─── VISTA VISUALE DRAG&DROP ─── #}
+    <div class="card">
+      {% include "admin_portale/components/card_head.html" with card_title="Visual Builder (drag & drop)" card_subtitle="Vista semplificata per sezione: trascina le card tra colonne o riordinale. La tabella sotto resta disponibile per la modifica completa." %}
+      <div class="card-body">
+        <div class="notice" style="margin-bottom:12px;">
+          Suggerimento rapido: sposta le card qui per struttura e ordine; usa “Apri riga” per modificare i dettagli avanzati.
+        </div>
+        <div class="field-help" style="margin-bottom:10px;">
+          Nota: la colonna <strong>Main Nav (Topbar/Sidebar)</strong> alimenta la navigazione principale.
+          Se l'utente usa layout laterale (`nav_mode=side`), quelle voci appaiono nella sidebar.
+        </div>
+        <div class="visual-board" id="nav-visual-board">
+          {% for lane in visual_sections %}
+            <section class="visual-lane{% if lane.key == 'sidebar' %} is-advanced-lane{% endif %}" data-section="{{ lane.key }}" {% if lane.key == 'sidebar' and not advanced_mode %}data-advanced-only hidden{% endif %}>
+              <div class="visual-lane-head">
+                <div>
+                  <p class="visual-lane-title">{{ lane.label }}</p>
+                  <div class="visual-lane-hint">{{ lane.hint }}</div>
+                </div>
+                <span class="visual-lane-count" data-lane-count>{{ lane.items|length }}</span>
+              </div>
+              <div class="visual-lane-body js-nav-lane" data-section="{{ lane.key }}">
+                {% for row in lane.items %}
+                  <article
+                    class="visual-card"
+                    data-id="{{ row.id }}"
+                    data-code="{{ row.code }}"
+                    data-label="{{ row.label }}"
+                    data-section="{{ row.section }}"
+                  >
+                    <div class="visual-card-head">
+                      <h5 class="visual-card-label">{{ row.label }}</h5>
+                      <span class="visual-card-handle" title="Trascina">⠿</span>
+                    </div>
+                    <div class="visual-card-meta">
+                      <div><code>{{ row.code }}</code></div>
+                      {% if row.route_name %}
+                        <div>route: <code>{{ row.route_name }}</code></div>
+                      {% elif row.url_path %}
+                        <div>path: <code>{{ row.url_path }}</code></div>
+                      {% endif %}
+                      {% if row.section == "subnav" and row.parent_code %}
+                        <div>gruppo: <code>{{ row.parent_code }}</code></div>
+                      {% endif %}
+                    </div>
+                    <div class="visual-card-badges">
+                      <span class="visual-badge {% if row.is_visible %}ok{% else %}off{% endif %}">
+                        {% if row.is_visible %}Visible{% else %}Hidden{% endif %}
+                      </span>
+                      <span class="visual-badge {% if row.is_enabled %}ok{% else %}off{% endif %}">
+                        {% if row.is_enabled %}Enabled{% else %}Disabled{% endif %}
+                      </span>
+                      <span class="visual-badge">
+                        {% if row.role_ids %}Ruoli {{ row.role_ids|length }}{% else %}Ruoli: tutti{% endif %}
+                      </span>
+                    </div>
+                    <div class="visual-card-actions">
+                      <button class="btn btn-secondary btn-sm nav-focus-row" type="button" data-id="{{ row.id }}">Apri riga</button>
+                    </div>
+                  </article>
+                {% empty %}
+                  <div class="visual-lane-empty">Nessuna voce in questa sezione.</div>
+                {% endfor %}
+              </div>
+            </section>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
     {# ─── VOCI NAVIGAZIONE (tabella con modifica inline) ─── #}
     <div class="card">
       <div class="card-head">
@@ -409,10 +642,10 @@
           <div class="field">
             <label for="section">Sezione</label>
             <select class="input" id="section" name="section">
-              <option value="topbar" {% if filters.section == "topbar" %}selected{% endif %}>Topbar</option>
+              <option value="topbar" {% if filters.section == "topbar" %}selected{% endif %}>Main Nav (Topbar/Sidebar)</option>
               <option value="subnav" {% if filters.section == "subnav" %}selected{% endif %}>Subnav</option>
               <option value="admin_subnav" {% if filters.section == "admin_subnav" %}selected{% endif %}>Admin Subnav</option>
-              <option value="sidebar" {% if filters.section == "sidebar" %}selected{% endif %}>Sidebar</option>
+              <option value="sidebar" data-advanced-only-option {% if not advanced_mode %}hidden{% endif %} {% if filters.section == "sidebar" %}selected{% endif %}>Sidebar Dedicated</option>
               <option value="page" {% if filters.section == "page" %}selected{% endif %}>Page</option>
               <option value="all" {% if filters.section == "all" %}selected{% endif %}>Tutte le sezioni</option>
             </select>
@@ -454,10 +687,10 @@
                   <td><input class="input input-sm" type="text" data-name="label" value="{{ row.label }}" title="Label menu"></td>
                   <td>
                     <select class="input input-sm" data-name="section" title="Sezione">
-                      <option value="topbar" {% if row.section == "topbar" %}selected{% endif %}>topbar</option>
+                      <option value="topbar" {% if row.section == "topbar" %}selected{% endif %}>main_nav</option>
                       <option value="subnav" {% if row.section == "subnav" %}selected{% endif %}>subnav</option>
                       <option value="admin_subnav" {% if row.section == "admin_subnav" %}selected{% endif %}>admin_subnav</option>
-                      <option value="sidebar" {% if row.section == "sidebar" %}selected{% endif %}>sidebar</option>
+                      <option value="sidebar" data-advanced-only-option {% if not advanced_mode %}hidden{% endif %} {% if row.section == "sidebar" %}selected{% endif %}>sidebar_dedicated</option>
                       <option value="page" {% if row.section == "page" %}selected{% endif %}>page</option>
                     </select>
                   </td>
@@ -673,6 +906,9 @@
       const csrf = document.querySelector("#nav-builder-csrf input[name='csrfmiddlewaretoken']")?.value || "";
       const statusEl = document.getElementById("nav-builder-status");
       const itemsTable = document.getElementById("nav-items-table");
+      const visualBoard = document.getElementById("nav-visual-board");
+      const navBuilderRoot = document.querySelector(".nav-builder");
+      const advancedToggleBtn = document.getElementById("nav-advanced-toggle");
       const redirectTable = document.getElementById("legacy-redirect-table");
       const iconConfig = document.getElementById("nav-icon-config");
       const iconModal = document.getElementById("nav-icon-modal");
@@ -841,6 +1077,86 @@
         statusEl.classList.toggle("text-danger", !!isError);
       }
 
+      function getAdvancedMode() {
+        return !!(navBuilderRoot && navBuilderRoot.dataset.advanced === "1");
+      }
+
+      function setAdvancedToggleLabel(enabled) {
+        if (!advancedToggleBtn) return;
+        advancedToggleBtn.textContent = enabled ? "Passa a modalità standard" : "Attiva modalità avanzata";
+        advancedToggleBtn.setAttribute("aria-pressed", enabled ? "true" : "false");
+      }
+
+      function applyAdvancedMode(enabled) {
+        if (navBuilderRoot) {
+          navBuilderRoot.dataset.advanced = enabled ? "1" : "0";
+        }
+        document.querySelectorAll("[data-advanced-only]").forEach(function (el) {
+          el.hidden = !enabled;
+        });
+        document.querySelectorAll("option[data-advanced-only-option]").forEach(function (opt) {
+          opt.hidden = !enabled;
+        });
+        setAdvancedToggleLabel(enabled);
+        updateVisualLaneCounters();
+        document.querySelectorAll(".js-nav-lane").forEach(function (laneEl) {
+          updateVisualLaneEmptyState(laneEl);
+        });
+      }
+
+      function updateVisualLaneCounters() {
+        document.querySelectorAll(".visual-lane").forEach(function (laneEl) {
+          const countEl = laneEl.querySelector("[data-lane-count]");
+          if (!countEl) return;
+          const count = laneEl.querySelectorAll(".visual-card").length;
+          countEl.textContent = String(count);
+        });
+      }
+
+      function updateVisualLaneEmptyState(laneEl) {
+        if (!laneEl) return;
+        const hasCards = laneEl.querySelectorAll(".visual-card").length > 0;
+        let emptyEl = laneEl.querySelector(".visual-lane-empty");
+        if (!hasCards && !emptyEl) {
+          emptyEl = document.createElement("div");
+          emptyEl.className = "visual-lane-empty";
+          emptyEl.textContent = "Nessuna voce in questa sezione.";
+          laneEl.appendChild(emptyEl);
+        }
+        if (hasCards && emptyEl) {
+          emptyEl.remove();
+        }
+      }
+
+      function collectVisualSectionOrders() {
+        const sectionOrders = {};
+        document.querySelectorAll(".js-nav-lane").forEach(function (laneEl) {
+          const section = String(laneEl.dataset.section || "").trim();
+          if (!section) return;
+          const ids = Array.from(laneEl.querySelectorAll(".visual-card"))
+            .map(function (cardEl) { return parseInt(cardEl.dataset.id || "0", 10); })
+            .filter(Boolean);
+          sectionOrders[section] = ids;
+        });
+        return sectionOrders;
+      }
+
+      function syncTableWithVisualBoard(sectionOrders) {
+        if (!itemsTable || !sectionOrders || typeof sectionOrders !== "object") return;
+        Object.entries(sectionOrders).forEach(function (entry) {
+          const section = entry[0];
+          const ids = Array.isArray(entry[1]) ? entry[1] : [];
+          ids.forEach(function (id, idx) {
+            const row = itemsTable.querySelector('tr[data-id="' + id + '"]');
+            if (!row) return;
+            const sectionSelect = row.querySelector("select[data-name='section']");
+            if (sectionSelect) sectionSelect.value = section;
+            const orderInput = row.querySelector("input[data-name='order']");
+            if (orderInput) orderInput.value = (idx + 1) * 10;
+          });
+        });
+      }
+
       // Restituisce il valore corretto per qualsiasi tipo di campo, incluso select[multiple].
       function getFieldValue(el) {
         if (el.type === "checkbox") return !!el.checked;
@@ -865,6 +1181,61 @@
           payload[el.getAttribute("data-name")] = getFieldValue(el);
         });
         return payload;
+      }
+
+      function clearFocusRowParamFromUrl() {
+        try {
+          const url = new URL(window.location.href);
+          if (!url.searchParams.has("focus_id")) return;
+          url.searchParams.delete("focus_id");
+          window.history.replaceState({}, "", url.toString());
+        } catch (_err) {
+          // no-op
+        }
+      }
+
+      function focusFirstEditableField(row) {
+        if (!row) return;
+        const field = row.querySelector("input:not([type='hidden']), select, textarea");
+        if (!field || typeof field.focus !== "function") return;
+        try {
+          field.focus({ preventScroll: true });
+        } catch (_err) {
+          field.focus();
+        }
+      }
+
+      function focusTableRowById(rowId, opts) {
+        if (!rowId || !itemsTable) return false;
+        const row = itemsTable.querySelector('tr[data-id="' + rowId + '"]');
+        if (!row) return false;
+        row.classList.remove("visual-highlight");
+        // Trigger reflow to restart animation on repeated clicks.
+        void row.offsetWidth;
+        row.classList.add("visual-highlight");
+        row.scrollIntoView({ behavior: "smooth", block: "center" });
+        window.setTimeout(function () {
+          focusFirstEditableField(row);
+        }, 180);
+        if (opts?.announce !== false) {
+          setStatus("Riga #" + rowId + " pronta per modifica.", false);
+        }
+        if (opts?.clearFocusParam) {
+          clearFocusRowParamFromUrl();
+        }
+        return true;
+      }
+
+      function reloadWithRowFocus(rowId) {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.set("section", "all");
+          url.searchParams.delete("q");
+          url.searchParams.set("focus_id", String(rowId));
+          window.location.assign(url.toString());
+        } catch (_err) {
+          window.location.reload();
+        }
       }
 
       async function postJson(url, payload) {
@@ -905,6 +1276,16 @@
       document.querySelectorAll("[data-nav-icon-picker]").forEach(function (picker) {
         updateIconPreview(picker);
       });
+      try {
+        const initialFocusId = parseInt(new URL(window.location.href).searchParams.get("focus_id") || "0", 10);
+        if (initialFocusId) {
+          window.setTimeout(function () {
+            focusTableRowById(initialFocusId, { announce: true, clearFocusParam: true });
+          }, 220);
+        }
+      } catch (_err) {
+        // no-op
+      }
 
       document.addEventListener("input", function (ev) {
         const target = ev.target;
@@ -921,6 +1302,32 @@
       document.addEventListener("click", function (ev) {
         const target = ev.target;
         if (!(target instanceof HTMLElement)) return;
+
+        const focusBtn = target.closest(".nav-focus-row");
+        if (focusBtn) {
+          const rowId = parseInt(focusBtn.getAttribute("data-id") || "0", 10);
+          if (rowId && itemsTable) {
+            const focused = focusTableRowById(rowId, { announce: true, clearFocusParam: false });
+            if (!focused) {
+              let shouldReload = false;
+              try {
+                const url = new URL(window.location.href);
+                const currentSection = String(url.searchParams.get("section") || "all").trim().toLowerCase();
+                const hasQ = !!String(url.searchParams.get("q") || "").trim();
+                shouldReload = currentSection !== "all" || hasQ;
+              } catch (_err) {
+                shouldReload = true;
+              }
+              if (shouldReload) {
+                setStatus("Riga fuori filtro corrente: ricarico su vista completa...", false);
+                reloadWithRowFocus(rowId);
+              } else {
+                setStatus("Riga non trovata nella tabella.", true);
+              }
+            }
+          }
+          return;
+        }
 
         const openBtn = target.closest("[data-open-icon-library]");
         if (openBtn) {
@@ -1085,6 +1492,44 @@
       createSection?.addEventListener("change", toggleParentField);
       toggleParentField();
 
+      updateVisualLaneCounters();
+      document.querySelectorAll(".js-nav-lane").forEach(function (laneEl) {
+        updateVisualLaneEmptyState(laneEl);
+      });
+      applyAdvancedMode(getAdvancedMode());
+
+      advancedToggleBtn?.addEventListener("click", function () {
+        const next = !getAdvancedMode();
+        applyAdvancedMode(next);
+      });
+
+      // ── Drag-and-drop visual board (riordino per sezione + spostamento tra sezioni) ──
+      if (visualBoard && window.Sortable) {
+        document.querySelectorAll(".js-nav-lane").forEach(function (laneEl) {
+          window.Sortable.create(laneEl, {
+            group: "nav-builder-visual-lanes",
+            handle: ".visual-card-handle",
+            animation: 160,
+            ghostClass: "sortable-ghost",
+            onEnd: async function () {
+              const sectionOrders = collectVisualSectionOrders();
+              try {
+                await postJson(urls.reorder, { section_orders: sectionOrders });
+                syncTableWithVisualBoard(sectionOrders);
+                updateVisualLaneCounters();
+                document.querySelectorAll(".js-nav-lane").forEach(function (el) {
+                  updateVisualLaneEmptyState(el);
+                });
+                setStatus("Layout visuale aggiornato.", false);
+              } catch (err) {
+                setStatus("Errore drag&drop visuale: " + err.message, true);
+                window.location.reload();
+              }
+            }
+          });
+        });
+      }
+
       // ── Drag-and-drop riordino righe (SortableJS) ──
       const sortableBody = document.getElementById("nav-sortable-body");
       if (sortableBody && window.Sortable) {
@@ -1103,6 +1548,11 @@
                 const orderInput = row.querySelector("input[data-name='order']");
                 if (orderInput) orderInput.value = (idx + 1) * 10;
               });
+              if (visualBoard) {
+                setStatus("Ordine tabella aggiornato. Sincronizzo vista visuale...", false);
+                window.location.reload();
+                return;
+              }
               setStatus("Ordine aggiornato.", false);
             } catch (err) {
               setStatus("Errore riordino: " + err.message, true);
