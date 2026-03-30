@@ -225,6 +225,10 @@ class AutomationRunLog(models.Model):
 
     class Meta:
         ordering = ["-started_at", "-id"]
+        indexes = [
+            models.Index(fields=["rule", "status"], name="automrunlog_rule_status_idx"),
+            models.Index(fields=["source_code", "operation_type"], name="automrunlog_src_optype_idx"),
+        ]
 
     def __str__(self) -> str:
         target = self.rule.code if self.rule_id else self.source_code
@@ -247,6 +251,9 @@ class AutomationActionLog(models.Model):
 
     class Meta:
         ordering = ["created_at", "id"]
+        indexes = [
+            models.Index(fields=["run_log", "status"], name="automactionlog_run_status_idx"),
+        ]
 
     def __str__(self) -> str:
         return f"ActionLog<{self.run_log_id}:{self.status}:{self.id or 'new'}>"

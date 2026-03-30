@@ -137,6 +137,14 @@ class DiarioPrepostoImpostazioni(models.Model):
     class Meta:
         verbose_name = "Impostazioni Diario Preposto"
         verbose_name_plural = "Impostazioni Diario Preposto"
+        constraints = [
+            models.CheckConstraint(check=models.Q(pk=1), name="diarioprepostoimpostazioni_singleton"),
+        ]
 
     def __str__(self) -> str:
         return "Impostazioni Diario Preposto"
+
+    @classmethod
+    def get_singleton(cls) -> "DiarioPrepostoImpostazioni":
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj

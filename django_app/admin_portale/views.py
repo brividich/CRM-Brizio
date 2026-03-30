@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import logging
@@ -23,7 +23,7 @@ from django.db import DatabaseError, connections, transaction
 from django.db.models import Q
 from django.http import HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import URLPattern, URLResolver, get_resolver, reverse
+from django.urls import URLPattern, URLResolver, Resolver404, get_resolver, resolve, reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.text import slugify
@@ -31,7 +31,8 @@ from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_GET, require_POST
 from werkzeug.security import generate_password_hash
 
-from core.acl import diagnose_permesso
+from core.acl import diagnose_permesso_for_context
+from core.acl_v2 import diagnose_acl_access
 from core.audit import log_action
 from core.caporeparto_utils import (
     format_caporeparto_label,
@@ -40,7 +41,11 @@ from core.caporeparto_utils import (
 )
 from core.impersonation import start_impersonation
 from core.legacy_anagrafica import ensure_anagrafica_schema, sync_anagrafica_from_legacy_user
-from core.legacy_cache import bump_legacy_cache_version
+from core.legacy_cache import (
+    bump_legacy_cache_version,
+    get_cached_pulsanti_catalog,
+    normalize_legacy_path,
+)
 from core.legacy_models import AnagraficaDipendente, Permesso, Pulsante, Ruolo, UtenteLegacy
 from core.navigation_registry import (
     bump_navigation_registry_version,
@@ -82,8 +87,8 @@ NAV_ICON_STORAGE_DIR = "navigation/icons"
 NAV_ICON_ALLOWED_EXTENSIONS = {".ico", ".png", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".avif"}
 
 # ---------------------------------------------------------------------------
-# CATALOGO MODULI — pulsanti standard per ogni modulo noto del portale.
-# Aggiungere qui nuovi moduli: la pagina pulsanti proporrà automaticamente
+# CATALOGO MODULI â€” pulsanti standard per ogni modulo noto del portale.
+# Aggiungere qui nuovi moduli: la pagina pulsanti proporrÃ  automaticamente
 # i pulsanti mancanti con un click per crearli tutti + inizializzare i permessi.
 # ---------------------------------------------------------------------------
 MODULE_CATALOG: dict[str, dict] = {
@@ -468,7 +473,7 @@ MODULE_CATALOG: dict[str, dict] = {
 
 def _proposed_from_catalog(existing_codici: set[str]) -> list[dict]:
     """Confronta MODULE_CATALOG con i pulsanti nel DB; restituisce moduli con pulsanti mancanti.
-    Usa existing_codici (set di codici globali) perché la UNIQUE KEY DB è su codice, non su (modulo, codice).
+    Usa existing_codici (set di codici globali) perchÃ© la UNIQUE KEY DB Ã¨ su codice, non su (modulo, codice).
     """
     proposed = []
     for module_key, module_def in MODULE_CATALOG.items():
@@ -531,7 +536,7 @@ def _audit_safe(request, azione: str, modulo: str, dettaglio: dict | None = None
 
 
 def _safe_redirect_url(request, candidate: str | None, fallback: str) -> str:
-    """Restituisce candidate solo se è un URL locale sicuro, altrimenti fallback.
+    """Restituisce candidate solo se Ã¨ un URL locale sicuro, altrimenti fallback.
 
     Protegge da open redirect: rifiuta URL assoluti verso domini esterni, URL
     con schema javascript:/data: e qualsiasi valore che non passi il controllo
@@ -1485,11 +1490,11 @@ def _build_gestione_accessi_data(ruolo_id: int) -> list[dict]:
     except DatabaseError:
         raw_perms = []
 
-    # Indice (modulo_lower, azione_lower) → permesso più recente
+    # Indice (modulo_lower, azione_lower) â†’ permesso piÃ¹ recente
     perm_index: dict[tuple[str, str], Permesso] = {}
     for p in raw_perms:
         key = ((p.modulo or "").strip().lower(), (p.azione or "").strip().lower())
-        # In caso di duplicati usa l'id più alto (più recente)
+        # In caso di duplicati usa l'id piÃ¹ alto (piÃ¹ recente)
         if key not in perm_index or int(p.id) > int(perm_index[key].id):
             perm_index[key] = p
 
@@ -1647,7 +1652,7 @@ def _apply_accessi_semplice_changes(
 
 
 def _full_perm_rows_for_user(legacy_user_id: int) -> list[PermRow]:
-    """PermRow per-pulsante per un utente con override UserPermissionOverride già applicati."""
+    """PermRow per-pulsante per un utente con override UserPermissionOverride giÃ  applicati."""
     utente = UtenteLegacy.objects.filter(id=legacy_user_id).first()
     if not utente:
         return []
@@ -1851,7 +1856,7 @@ def schema_dati(request):
                 "layer": "DB Django",
                 "used_for": "Collegamento tra utente Django e utente legacy (legacy_user_id, ruolo snapshot).",
                 "managed_from": "Automatico (login/sync)",
-                "notes": "È il ponte tra autenticazione Django e tabelle legacy.",
+                "notes": "Ãˆ il ponte tra autenticazione Django e tabelle legacy.",
                 "count": profile_count,
             },
             {
@@ -2085,15 +2090,610 @@ def ldap_diagnostica(request):
     )
 
 
+def _normalize_acl_diag_path(raw_path: str) -> str:
+    raw = str(raw_path or "").strip()
+    if not raw:
+        return "/"
+    if not raw.startswith("/"):
+        raw = "/" + raw
+    return raw
+
+
+def _safe_reverse_route(route_name: str) -> tuple[str, str]:
+    route = str(route_name or "").strip()
+    if not route:
+        return "", ""
+    try:
+        return reverse(route), ""
+    except Exception as exc:
+        return "", str(exc)
+
+
+def _resolve_view_name_for_path(path_value: str) -> str:
+    try:
+        match = resolve(path_value)
+        return str(getattr(match, "view_name", "") or "").strip()
+    except Resolver404:
+        return ""
+    except Exception:
+        return ""
+
+
+def _navigation_item_target_payload(item: NavigationItem) -> dict:
+    route_name = str(item.route_name or "").strip()
+    url_path = str(item.url_path or "").strip()
+    href = ""
+    reverse_error = ""
+    coming = False
+    if route_name:
+        href, reverse_error = _safe_reverse_route(route_name)
+        if reverse_error:
+            coming = True
+            href = reverse("coming_admin")
+    elif url_path:
+        href = url_path
+    else:
+        coming = True
+        href = reverse("coming_admin")
+    if route_name == "coming_admin":
+        coming = True
+    is_external = str(href).lower().startswith(("http://", "https://"))
+    normalized_path = normalize_legacy_path(href) if href and not is_external else ""
+    return {
+        "href": href,
+        "normalized_path": normalized_path,
+        "route_name": route_name,
+        "reverse_error": reverse_error,
+        "coming": coming,
+        "is_external": is_external,
+    }
+
+
+def _role_ids_to_labels(role_ids: list[int], role_name_map: dict[int, str]) -> list[str]:
+    labels: list[str] = []
+    for role_id in role_ids:
+        rid = int(role_id)
+        role_name = role_name_map.get(rid, "?") or "?"
+        labels.append(f"{rid} - {role_name}")
+    return labels
+
+
+def _collect_registry_matches_for_path(
+    *,
+    path_norm: str,
+    route_name: str,
+    role_name_map: dict[int, str],
+) -> list[dict]:
+    try:
+        items = list(NavigationItem.objects.all().order_by("section", "order", "label", "id"))
+    except DatabaseError:
+        return []
+    if not items:
+        return []
+
+    item_ids = [int(item.id) for item in items]
+    access_rows = list(
+        NavigationRoleAccess.objects.filter(item_id__in=item_ids, can_view=True)
+        .order_by("item_id", "legacy_role_id")
+    )
+    access_map: dict[int, list[int]] = {}
+    for row in access_rows:
+        access_map.setdefault(int(row.item_id), []).append(int(row.legacy_role_id))
+
+    matched_rows: list[dict] = []
+    for item in items:
+        target = _navigation_item_target_payload(item)
+        item_route_name = str(item.route_name or "").strip()
+        item_url_path = str(item.url_path or "").strip()
+        item_url_norm = normalize_legacy_path(item_url_path) if item_url_path and item_url_path.startswith("/") else ""
+
+        is_match = False
+        if route_name and route_name == item_route_name:
+            is_match = True
+        if path_norm and target["normalized_path"] == path_norm:
+            is_match = True
+        if path_norm and item_url_norm and item_url_norm == path_norm:
+            is_match = True
+        if not is_match:
+            continue
+
+        role_ids = sorted(set(access_map.get(int(item.id), [])))
+        matched_rows.append(
+            {
+                "id": int(item.id),
+                "code": item.code,
+                "label": item.label,
+                "section": item.section,
+                "group": item.group or "",
+                "route_name": item.route_name or "",
+                "url_path": item.url_path or "",
+                "target_href": target["href"],
+                "target_path": target["normalized_path"],
+                "coming": bool(target["coming"]),
+                "reverse_error": target["reverse_error"],
+                "role_ids": role_ids,
+                "role_labels": _role_ids_to_labels(role_ids, role_name_map),
+                "is_visible": bool(item.is_visible),
+                "is_enabled": bool(item.is_enabled),
+            }
+        )
+    return matched_rows
+
+
+def _collect_legacy_redirect_matches(*, path_norm: str, route_name: str) -> dict:
+    try:
+        rows = list(LegacyRedirect.objects.filter(is_enabled=True).order_by("legacy_path", "id"))
+    except Exception:
+        return {"inbound": [], "outbound": []}
+
+    inbound: list[dict] = []
+    outbound: list[dict] = []
+    for row in rows:
+        legacy_norm = normalize_legacy_path(str(row.legacy_path or "/"))
+        target_route_name = str(row.target_route_name or "").strip()
+        target_url_path = str(row.target_url_path or "").strip()
+        target_route_path = ""
+        reverse_error = ""
+        target_route_norm = ""
+        if target_route_name:
+            target_route_path, reverse_error = _safe_reverse_route(target_route_name)
+            if target_route_path:
+                target_route_norm = normalize_legacy_path(target_route_path)
+        target_url_norm = normalize_legacy_path(target_url_path) if target_url_path.startswith("/") else ""
+        target_norm = target_route_norm or target_url_norm
+        payload = {
+            "id": int(row.id),
+            "legacy_path": legacy_norm,
+            "target_route_name": target_route_name,
+            "target_route_path": target_route_path,
+            "target_url_path": target_url_path,
+            "target_path_normalized": target_norm,
+            "reverse_error": reverse_error,
+            "note": row.note or "",
+        }
+        if legacy_norm == path_norm:
+            inbound.append(payload)
+        if (route_name and target_route_name == route_name) or (target_norm and target_norm == path_norm):
+            outbound.append(payload)
+
+    return {"inbound": inbound, "outbound": outbound}
+
+
+def _acl_diag_badges(*, diag: dict, registry_matches: list[dict], redirect_matches: dict) -> list[str]:
+    badges: list[str] = []
+    canonical_result = diag.get("canonical_result") or {}
+    canonical_payload = canonical_result.get("canonical") or {}
+    final_source = str(diag.get("final_decision_source") or canonical_result.get("decision_source") or "").strip()
+    if canonical_payload.get("binding_found"):
+        badges.append("CANONICAL_BINDING")
+    if final_source == "canonical":
+        badges.append("CANONICAL_DECISION")
+    if final_source == "legacy_fallback":
+        badges.append("LEGACY_FALLBACK")
+    if final_source == "legacy_admin_bypass":
+        badges.append("LEGACY_ADMIN_BYPASS")
+    if final_source == "superuser_bypass":
+        badges.append("SUPERUSER_BYPASS")
+    if registry_matches:
+        badges.append("REGISTRY")
+    if diag.get("pulsante"):
+        badges.append("LEGACY")
+    override = diag.get("override") or {}
+    if override.get("can_view") is not None:
+        badges.append("OVERRIDE")
+    if diag.get("admin_bypass"):
+        badges.append("ADMIN BYPASS")
+    inbound = (redirect_matches.get("inbound") or [])
+    outbound = (redirect_matches.get("outbound") or [])
+    if inbound or outbound:
+        badges.append("REDIRECT")
+    if any(bool(row.get("coming")) for row in registry_matches):
+        badges.append("COMING")
+    registry_enabled = bool(getattr(settings, "NAVIGATION_REGISTRY_ENABLED", True))
+    fallback_enabled = bool(getattr(settings, "NAVIGATION_LEGACY_FALLBACK_ENABLED", False))
+    if registry_enabled and fallback_enabled and not registry_matches and diag.get("pulsante"):
+        badges.append("FALLBACK REGISTRY->LEGACY")
+    return badges
+
+
+def _acl_human_summary(diag: dict) -> dict:
+    canonical_result = diag.get("canonical_result") or {}
+    canonical_payload = canonical_result.get("canonical") or {}
+    final_allowed = bool(diag.get("final_allowed", canonical_result.get("allowed", False)))
+    final_source = str(diag.get("final_decision_source") or canonical_result.get("decision_source") or "").strip()
+    permission_code = str((canonical_payload.get("binding") or {}).get("permission_code") or "")
+    effective_level = str(canonical_payload.get("effective_level") or "")
+    role_name = str((diag.get("role") or {}).get("nome") or "ruolo")
+
+    if final_source == "superuser_bypass":
+        return {
+            "title": "Accesso consentito: bypass superuser Django.",
+            "detail": "La route non e stata valutata da binding/grant perche l'utente e superuser.",
+            "tone": "allow",
+        }
+    if final_source == "legacy_admin_bypass":
+        return {
+            "title": "Accesso consentito: bypass admin legacy.",
+            "detail": "Il resolver ha riconosciuto l'utente come admin legacy.",
+            "tone": "allow",
+        }
+    if final_source == "canonical":
+        if final_allowed:
+            if effective_level == "user_override":
+                return {
+                    "title": f"Accesso consentito: override utente canonico su '{permission_code}'.",
+                    "detail": "La route e bindata al permission code e l'override utente ha precedenza sul grant ruolo.",
+                    "tone": "allow",
+                }
+            return {
+                "title": f"Accesso consentito: il ruolo '{role_name}' ha grant su '{permission_code}'.",
+                "detail": "Decisione canonica route -> permission_code -> grant ruolo.",
+                "tone": "allow",
+            }
+        if effective_level == "user_override":
+            return {
+                "title": f"Accesso negato: override utente canonico nega '{permission_code}'.",
+                "detail": "L'override utente ha precedenza sul grant ruolo.",
+                "tone": "deny",
+            }
+        role_grant = canonical_payload.get("role_grant") or {}
+        if role_grant.get("exists") is False:
+            return {
+                "title": f"Accesso negato: route bindata a '{permission_code}' ma grant ruolo assente.",
+                "detail": "Il fallback legacy non viene usato perche il binding canonico esiste.",
+                "tone": "deny",
+            }
+        return {
+            "title": f"Accesso negato: route bindata a '{permission_code}' e grant ruolo non abilitato.",
+            "detail": "Decisione canonica prioritaria rispetto al legacy.",
+            "tone": "deny",
+        }
+    if final_source == "legacy_fallback":
+        if final_allowed:
+            return {
+                "title": "Accesso consentito dal fallback legacy.",
+                "detail": "Manca un binding canonico per questa route/path; la decisione arriva dalla catena legacy.",
+                "tone": "allow",
+            }
+        return {
+            "title": "Accesso negato dal fallback legacy.",
+            "detail": "Manca un binding canonico e il controllo legacy ha negato l'accesso.",
+            "tone": "deny",
+        }
+    if final_allowed:
+        return {
+            "title": "Accesso consentito.",
+            "detail": str(diag.get("final_reason") or canonical_result.get("reason") or ""),
+            "tone": "allow",
+        }
+    return {
+        "title": "Accesso negato.",
+        "detail": str(diag.get("final_reason") or canonical_result.get("reason") or ""),
+        "tone": "deny",
+    }
+
+
+def _permission_row_is_allowed(can_view, consentito) -> bool:
+    return bool(can_view) or bool(consentito)
+
+
+def _build_allowed_roles_by_permission_key() -> dict[tuple[str, str], set[int]]:
+    result: dict[tuple[str, str], set[int]] = {}
+    try:
+        rows = list(
+            Permesso.objects.all().values(
+                "ruolo_id",
+                "modulo",
+                "azione",
+                "can_view",
+                "consentito",
+            )
+        )
+    except Exception:
+        return result
+    for row in rows:
+        if not _permission_row_is_allowed(row.get("can_view"), row.get("consentito")):
+            continue
+        modulo = str(row.get("modulo") or "").strip().lower()
+        azione = str(row.get("azione") or "").strip().lower()
+        ruolo_id = _int_or_none(row.get("ruolo_id"))
+        if not modulo or not azione or ruolo_id is None:
+            continue
+        result.setdefault((modulo, azione), set()).add(int(ruolo_id))
+    return result
+
+
+def _build_override_counts_by_permission_key() -> dict[tuple[str, str], dict[str, int]]:
+    result: dict[tuple[str, str], dict[str, int]] = {}
+    try:
+        rows = list(
+            UserPermissionOverride.objects.exclude(can_view__isnull=True).values(
+                "modulo",
+                "azione",
+                "can_view",
+            )
+        )
+    except Exception:
+        return result
+    for row in rows:
+        modulo = str(row.get("modulo") or "").strip().lower()
+        azione = str(row.get("azione") or "").strip().lower()
+        if not modulo or not azione:
+            continue
+        key = (modulo, azione)
+        bucket = result.setdefault(key, {"allow": 0, "deny": 0})
+        if bool(row.get("can_view")):
+            bucket["allow"] += 1
+        else:
+            bucket["deny"] += 1
+    return result
+
+
+def _build_permission_navigation_map_rows(
+    *,
+    q_filter: str,
+    source_filter: str,
+    selected_role_id: int | None,
+    role_name_map: dict[int, str],
+) -> list[dict]:
+    rows_by_key: dict[str, dict] = {}
+    q_norm = str(q_filter or "").strip().lower()
+    allowed_roles_map = _build_allowed_roles_by_permission_key()
+    override_map = _build_override_counts_by_permission_key()
+    registry_enabled = bool(getattr(settings, "NAVIGATION_REGISTRY_ENABLED", True))
+    fallback_enabled = bool(getattr(settings, "NAVIGATION_LEGACY_FALLBACK_ENABLED", False))
+
+    def ensure_row(path_norm: str) -> dict:
+        key = f"path:{path_norm}"
+        row = rows_by_key.get(key)
+        if row is None:
+            row = {
+                "path": path_norm,
+                "route_names": set(),
+                "menu_labels": set(),
+                "registry_sections": set(),
+                "registry_role_ids": set(),
+                "legacy_role_ids": set(),
+                "source_flags": set(),
+                "redirect_paths": set(),
+                "override_allow": 0,
+                "override_deny": 0,
+                "coming": False,
+                "admin_bypass": False,
+                "legacy_buttons": [],
+                "registry_items": [],
+                "applied_override_keys": set(),
+            }
+            rows_by_key[key] = row
+        return row
+
+    for route in _route_catalog():
+        path = str(route.get("path") or "").strip()
+        if not path:
+            continue
+        path_norm = normalize_legacy_path(path)
+        row = ensure_row(path_norm)
+        route_name = str(route.get("route_name") or "").strip()
+        if route_name:
+            row["route_names"].add(route_name)
+
+    try:
+        registry_items = list(NavigationItem.objects.all().order_by("section", "order", "label", "id"))
+    except Exception:
+        registry_items = []
+    access_map: dict[int, set[int]] = {}
+    if registry_items:
+        access_rows = list(
+            NavigationRoleAccess.objects.filter(
+                item_id__in=[int(item.id) for item in registry_items],
+                can_view=True,
+            ).order_by("item_id", "legacy_role_id")
+        )
+        for row in access_rows:
+            access_map.setdefault(int(row.item_id), set()).add(int(row.legacy_role_id))
+
+    for item in registry_items:
+        target = _navigation_item_target_payload(item)
+        path_norm = str(target.get("normalized_path") or "").strip()
+        if not path_norm:
+            continue
+        row = ensure_row(path_norm)
+        row["source_flags"].add("REGISTRY")
+        row["menu_labels"].add(str(item.label or item.code or path_norm))
+        row["registry_sections"].add(str(item.section or ""))
+        if target.get("coming"):
+            row["coming"] = True
+        if item.route_name:
+            row["route_names"].add(str(item.route_name).strip())
+        role_ids = access_map.get(int(item.id), set())
+        row["registry_role_ids"].update(role_ids)
+        row["registry_items"].append(
+            {
+                "id": int(item.id),
+                "code": item.code,
+                "label": item.label,
+                "section": item.section,
+                "route_name": item.route_name or "",
+                "url_path": item.url_path or "",
+                "role_ids": sorted(role_ids),
+            }
+        )
+
+    for pulsante in get_cached_pulsanti_catalog():
+        path_norm = str(pulsante.get("url_normalized") or "").strip()
+        if not path_norm:
+            continue
+        row = ensure_row(path_norm)
+        row["source_flags"].add("LEGACY")
+        row["menu_labels"].add(str(pulsante.get("label") or pulsante.get("codice") or path_norm))
+        row["admin_bypass"] = True
+        modulo_norm = str(pulsante.get("modulo_norm") or "").strip().lower()
+        codice_norm = str(pulsante.get("codice_norm") or "").strip().lower()
+        perm_key = (modulo_norm, codice_norm)
+        row["legacy_role_ids"].update(allowed_roles_map.get(perm_key, set()))
+        if perm_key in override_map and perm_key not in row["applied_override_keys"]:
+            row["applied_override_keys"].add(perm_key)
+            row["override_allow"] += int(override_map[perm_key]["allow"])
+            row["override_deny"] += int(override_map[perm_key]["deny"])
+        row["legacy_buttons"].append(
+            {
+                "id": int(pulsante["id"]),
+                "modulo": pulsante.get("modulo") or "",
+                "azione": pulsante.get("codice") or "",
+                "label": pulsante.get("label") or "",
+            }
+        )
+
+    try:
+        redirects = list(LegacyRedirect.objects.filter(is_enabled=True).order_by("legacy_path", "id"))
+    except Exception:
+        redirects = []
+    for redirect_row in redirects:
+        target_route_name = str(redirect_row.target_route_name or "").strip()
+        target_url_path = str(redirect_row.target_url_path or "").strip()
+        target_path = ""
+        if target_route_name:
+            target_path, _err = _safe_reverse_route(target_route_name)
+        if not target_path and target_url_path.startswith("/"):
+            target_path = target_url_path
+        if not target_path:
+            continue
+        target_norm = normalize_legacy_path(target_path)
+        row = ensure_row(target_norm)
+        row["source_flags"].add("REDIRECT")
+        row["redirect_paths"].add(normalize_legacy_path(str(redirect_row.legacy_path or "/")))
+        if target_route_name:
+            row["route_names"].add(target_route_name)
+
+    rows: list[dict] = []
+    for row in rows_by_key.values():
+        source_flags = set(row["source_flags"])
+        role_ids = sorted(set(row["registry_role_ids"]) | set(row["legacy_role_ids"]))
+        selected_role_visible = selected_role_id is None or selected_role_id in role_ids
+
+        has_override = bool(row["override_allow"] or row["override_deny"])
+        is_fallback = bool(registry_enabled and fallback_enabled and "LEGACY" in source_flags and "REGISTRY" not in source_flags)
+        badges: list[str] = []
+        if "REGISTRY" in source_flags:
+            badges.append("REGISTRY")
+        if "LEGACY" in source_flags:
+            badges.append("LEGACY")
+        if has_override:
+            badges.append("OVERRIDE")
+        if row["admin_bypass"]:
+            badges.append("ADMIN BYPASS")
+        if row["redirect_paths"]:
+            badges.append("REDIRECT")
+        if row["coming"]:
+            badges.append("COMING")
+        if is_fallback:
+            badges.append("FALLBACK")
+
+        if source_filter == "registry" and "REGISTRY" not in source_flags:
+            continue
+        if source_filter == "legacy" and "LEGACY" not in source_flags:
+            continue
+        if source_filter == "redirect" and not row["redirect_paths"]:
+            continue
+        if source_filter == "override" and not has_override:
+            continue
+        if source_filter == "fallback" and not is_fallback:
+            continue
+
+        legacy_buttons = sorted(
+            row["legacy_buttons"],
+            key=lambda item: (
+                str(item.get("modulo") or "").lower(),
+                str(item.get("azione") or "").lower(),
+                int(item.get("id") or 0),
+            ),
+        )
+        for button in legacy_buttons:
+            modulo_norm = str(button.get("modulo") or "").strip().lower()
+            azione_norm = str(button.get("azione") or "").strip().lower()
+            allowed_roles = sorted(allowed_roles_map.get((modulo_norm, azione_norm), set()))
+            button["allowed_role_ids"] = allowed_roles
+            button["selected_role_allowed"] = (
+                bool(selected_role_id in allowed_roles) if selected_role_id is not None else None
+            )
+
+        if selected_role_id is not None and not selected_role_visible:
+            if not legacy_buttons:
+                continue
+
+        route_names = sorted([v for v in row["route_names"] if v])
+        menu_labels = sorted([v for v in row["menu_labels"] if v])
+        role_labels = _role_ids_to_labels(role_ids, role_name_map)
+        search_blob = " ".join(
+            [
+                row["path"],
+                " ".join(route_names),
+                " ".join(menu_labels),
+                " ".join(role_labels),
+                " ".join(sorted(source_flags)),
+                " ".join(sorted(row["registry_sections"])),
+            ]
+        ).lower()
+        if q_norm and q_norm not in search_blob:
+            continue
+
+        rows.append(
+            {
+                "path": row["path"],
+                "route_names": route_names,
+                "menu_labels": menu_labels,
+                "source_flags": sorted(source_flags),
+                "source_label": " + ".join(sorted(source_flags)) if source_flags else "-",
+                "registry_sections": sorted([s for s in row["registry_sections"] if s]),
+                "role_ids": role_ids,
+                "role_labels": role_labels,
+                "selected_role_visible": bool(selected_role_visible),
+                "override_allow": int(row["override_allow"]),
+                "override_deny": int(row["override_deny"]),
+                "redirect_paths": sorted(row["redirect_paths"]),
+                "badges": badges,
+                "is_fallback": is_fallback,
+                "legacy_buttons_count": len(row["legacy_buttons"]),
+                "registry_items_count": len(row["registry_items"]),
+                "legacy_buttons": legacy_buttons,
+                "registry_items": sorted(
+                    row["registry_items"],
+                    key=lambda item: (
+                        str(item.get("section") or "").lower(),
+                        str(item.get("label") or "").lower(),
+                        int(item.get("id") or 0),
+                    ),
+                ),
+            }
+        )
+
+    rows.sort(key=lambda r: (r["path"], ", ".join(r["route_names"])))
+    return rows
+
+
 @legacy_admin_required
 def acl_diagnostica(request):
-    requested_user_id = _int_or_none(request.POST.get("legacy_user_id") if request.method == "POST" else request.GET.get("legacy_user_id"))
-    path_value = (
-        (request.POST.get("path") if request.method == "POST" else request.GET.get("path"))
-        or ""
-    ).strip()
-    if not path_value:
-        path_value = "/assenze/"
+    source = request.POST if request.method == "POST" else request.GET
+    requested_user_id = _int_or_none(source.get("legacy_user_id"))
+    requested_role_id = _int_or_none(source.get("legacy_role_id"))
+    path_input = str(source.get("path") or "").strip()
+    route_name_input = str(source.get("route_name") or "").strip()
+
+    selected_route_path = ""
+    route_reverse_error = ""
+    if route_name_input:
+        selected_route_path, route_reverse_error = _safe_reverse_route(route_name_input)
+        if not path_input and selected_route_path:
+            path_input = selected_route_path
+    if route_name_input and route_reverse_error:
+        messages.warning(request, f"Route '{route_name_input}' non risolvibile: {route_reverse_error}")
+
+    if not path_input:
+        path_input = "/assenze/"
+    path_value = _normalize_acl_diag_path(path_input)
+    resolved_route_name = _resolve_view_name_for_path(path_value)
+    effective_route_name = route_name_input or resolved_route_name
+    path_normalized = normalize_legacy_path(path_value)
 
     current_legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     target_legacy_user = current_legacy_user
@@ -2106,9 +2706,94 @@ def acl_diagnostica(request):
             messages.error(request, f"Errore lettura utente legacy: {exc}")
             target_legacy_user = None
 
-    diag = diagnose_permesso(target_legacy_user, path_value)
+    role_choices = _role_choices()
+    role_name_map = {int(role.id): str(role.nome or "") for role in role_choices}
+    valid_role_ids = set(role_name_map.keys())
+    if requested_role_id is not None and requested_role_id not in valid_role_ids:
+        messages.warning(request, f"Ruolo legacy ID {requested_role_id} non trovato: ignorato.")
+        requested_role_id = None
+
+    legacy_diag = diagnose_permesso_for_context(
+        legacy_user=target_legacy_user,
+        path=path_value,
+        forced_role_id=requested_role_id,
+    )
+
+    canonical_legacy_user = target_legacy_user
+    if requested_role_id is not None:
+        role_name = role_name_map.get(int(requested_role_id), "")
+        if target_legacy_user is not None:
+            canonical_legacy_user = UtenteLegacy(
+                id=target_legacy_user.id,
+                nome=target_legacy_user.nome,
+                email=target_legacy_user.email,
+                password=target_legacy_user.password,
+                ruolo=role_name or target_legacy_user.ruolo,
+                attivo=target_legacy_user.attivo,
+                deve_cambiare_password=target_legacy_user.deve_cambiare_password,
+                ruolo_id=requested_role_id,
+            )
+        else:
+            canonical_legacy_user = UtenteLegacy(
+                id=-1,
+                nome=f"Simulazione ruolo #{requested_role_id}",
+                email="",
+                password="",
+                ruolo=role_name or "",
+                attivo=True,
+                deve_cambiare_password=False,
+                ruolo_id=requested_role_id,
+            )
+
+    canonical_diag = diagnose_acl_access(
+        path=path_value,
+        legacy_user=canonical_legacy_user,
+        # In diagnostica admin mostriamo la decisione ACL "reale" del target legacy
+        # senza bypass automatico del superuser che sta consultando la pagina.
+        django_user=None,
+    )
+    diag = dict(legacy_diag)
+    diag["legacy_result"] = legacy_diag
+    diag["canonical_result"] = canonical_diag
+    diag["final_allowed"] = bool(canonical_diag.get("allowed", False))
+    diag["final_reason"] = str(canonical_diag.get("reason") or legacy_diag.get("reason") or "")
+    diag["final_decision_source"] = str(canonical_diag.get("decision_source") or legacy_diag.get("decision_source") or "")
+    diag["route_name_canonical"] = str(canonical_diag.get("route_name") or "")
+    diag["path_normalized"] = str(canonical_diag.get("path_normalized") or legacy_diag.get("path_normalized") or "")
+    diag["trace"] = list(canonical_diag.get("trace") or [])
+
     if requested_user_id is not None and not target_legacy_user:
         diag["reason"] = diag.get("reason") or "Utente legacy richiesto non disponibile."
+
+    registry_matches = _collect_registry_matches_for_path(
+        path_norm=path_normalized,
+        route_name=effective_route_name,
+        role_name_map=role_name_map,
+    )
+    redirect_matches = _collect_legacy_redirect_matches(
+        path_norm=path_normalized,
+        route_name=effective_route_name,
+    )
+    diag["route_resolution"] = {
+        "selected_route_name": route_name_input,
+        "selected_route_path": selected_route_path,
+        "resolved_route_name": resolved_route_name,
+        "path_normalized": path_normalized,
+    }
+    diag["registry_matches"] = registry_matches
+    diag["redirect_matches"] = redirect_matches
+    diag["badges"] = _acl_diag_badges(
+        diag=diag,
+        registry_matches=registry_matches,
+        redirect_matches=redirect_matches,
+    )
+    diag["human_summary"] = _acl_human_summary(diag)
+    diag["navigation_summary"] = {
+        "registry_match_count": len(registry_matches),
+        "redirect_inbound_count": len(redirect_matches.get("inbound") or []),
+        "redirect_outbound_count": len(redirect_matches.get("outbound") or []),
+        "legacy_acl_match": bool(legacy_diag.get("pulsante")),
+    }
 
     return render(
         request,
@@ -2116,9 +2801,64 @@ def acl_diagnostica(request):
         {
             "diag": diag,
             "path_value": path_value,
+            "route_name_value": route_name_input,
             "requested_user_id": requested_user_id if requested_user_id is not None else "",
+            "requested_role_id": requested_role_id if requested_role_id is not None else "",
             "current_legacy_user": current_legacy_user,
             "target_legacy_user": target_legacy_user,
+            "route_catalog": _route_catalog(),
+            "role_choices": role_choices,
+        },
+    )
+
+
+@legacy_admin_required
+@require_GET
+def mappa_permessi_navigazione(request):
+    q_filter = str(request.GET.get("q") or "").strip()
+    source_filter = str(request.GET.get("source") or "all").strip().lower()
+    if source_filter not in {"all", "registry", "legacy", "redirect", "override", "fallback"}:
+        source_filter = "all"
+
+    selected_role_id = _int_or_none(request.GET.get("legacy_role_id"))
+    role_choices = _role_choices()
+    role_name_map = {int(role.id): str(role.nome or "") for role in role_choices}
+    if selected_role_id is not None and selected_role_id not in set(role_name_map.keys()):
+        messages.warning(request, f"Ruolo legacy ID {selected_role_id} non trovato: filtro ignorato.")
+        selected_role_id = None
+
+    rows = _build_permission_navigation_map_rows(
+        q_filter=q_filter,
+        source_filter=source_filter,
+        selected_role_id=selected_role_id,
+        role_name_map=role_name_map,
+    )
+    summary = {
+        "rows_total": len(rows),
+        "rows_registry": sum(1 for row in rows if "REGISTRY" in row["source_flags"]),
+        "rows_legacy": sum(1 for row in rows if "LEGACY" in row["source_flags"]),
+        "rows_override": sum(1 for row in rows if "OVERRIDE" in row["badges"]),
+        "rows_redirect": sum(1 for row in rows if "REDIRECT" in row["badges"]),
+    }
+    selected_role_label = ""
+    if selected_role_id is not None:
+        selected_role_label = role_name_map.get(int(selected_role_id), "")
+
+    return render(
+        request,
+        "admin_portale/pages/mappa_permessi_navigazione.html",
+        {
+            "rows": rows,
+            "summary": summary,
+            "filters": {
+                "q": q_filter,
+                "source": source_filter,
+                "legacy_role_id": selected_role_id if selected_role_id is not None else "",
+            },
+            "role_choices": role_choices,
+            "selected_role_id": selected_role_id,
+            "selected_role_label": selected_role_label,
+            "api_permessi_toggle_url": reverse("admin_portale:api_permessi_toggle"),
         },
     )
 
@@ -2334,7 +3074,7 @@ def utente_edit(request, user_id: int):
     except Exception:
         pass
 
-    # Dashboard: tutti i pulsanti del ruolo + visibilità per-utente (pulsante + modulo)
+    # Dashboard: tutti i pulsanti del ruolo + visibilitÃ  per-utente (pulsante + modulo)
     dash_by_module: list[dict] = []
     module_vis_map: dict[str, bool] = {}
     try:
@@ -2910,7 +3650,7 @@ def api_user_perm_override(request, user_id: int):
         setattr(ov, field, bool_value)
         ov.save(update_fields=[field])
 
-        # Se tutti i campi sono None → elimina il record
+        # Se tutti i campi sono None â†’ elimina il record
         ov.refresh_from_db()
         if ov.all_null():
             ov.delete()
@@ -2935,7 +3675,7 @@ def api_user_perm_override(request, user_id: int):
 @legacy_admin_required
 @require_POST
 def api_user_dashboard_toggle(request, user_id: int):
-    """Imposta visibilità pulsante dashboard per-utente.
+    """Imposta visibilitÃ  pulsante dashboard per-utente.
     Payload: {pulsante_id, visible}  (visible: bool)
     """
     utente = get_object_or_404(UtenteLegacy, id=user_id)
@@ -2949,7 +3689,7 @@ def api_user_dashboard_toggle(request, user_id: int):
     bool_visible = bool(visible)
     try:
         if bool_visible:
-            # visible=True → rimuovi il record (default è visibile)
+            # visible=True â†’ rimuovi il record (default Ã¨ visibile)
             UserDashboardConfig.objects.filter(
                 legacy_user_id=utente.id, pulsante_id=pulsante_id
             ).delete()
@@ -2967,7 +3707,7 @@ def api_user_dashboard_toggle(request, user_id: int):
 @legacy_admin_required
 @require_POST
 def api_user_module_toggle(request, user_id: int):
-    """Imposta visibilità di un intero modulo dashboard per-utente.
+    """Imposta visibilitÃ  di un intero modulo dashboard per-utente.
     Payload: {modulo, visible}  (visible: bool)
     """
     utente = get_object_or_404(UtenteLegacy, id=user_id)
@@ -2981,7 +3721,7 @@ def api_user_module_toggle(request, user_id: int):
     bool_visible = bool(visible)
     try:
         if bool_visible:
-            # visible=True → rimuovi il record (default è visibile)
+            # visible=True â†’ rimuovi il record (default Ã¨ visibile)
             UserModuleVisibility.objects.filter(
                 legacy_user_id=utente.id, modulo=modulo
             ).delete()
@@ -2996,9 +3736,9 @@ def api_user_module_toggle(request, user_id: int):
         return JsonResponse({"ok": False, "error": str(exc)}, status=500)
 
 
-# ══════════════════════════════════════════════
-# CHECKLIST — Onboarding / Offboarding
-# ══════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# CHECKLIST â€” Onboarding / Offboarding
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 def _checklist_last_per_user(tipo: str, user_ids: list[int]) -> dict[int, "ChecklistEsecuzione"]:
     """Ritorna l'ultima esecuzione del tipo dato, una per user_id. 2 query totali per entrambi i tipi."""
@@ -3056,7 +3796,7 @@ def checklist_utente(request, user_id: int):
         .order_by("-data_esecuzione")[:50]
     )
     return render(request, "admin_portale/pages/checklist_utente.html", {
-        "page_title": f"Checklist — {utente.nome}",
+        "page_title": f"Checklist â€” {utente.nome}",
         "utente_obj": utente,
         "voci_checkin":  voci_checkin,
         "voci_checkout": voci_checkout,
@@ -3317,7 +4057,7 @@ def api_user_extra_info(request, user_id: int):
     new_caporeparto = (payload.get("caporeparto") or "").strip()[:200]
 
     # Auto-assegna caporeparto da mapping se il reparto cambia e il caporeparto
-    # non è stato impostato esplicitamente nel payload.
+    # non Ã¨ stato impostato esplicitamente nel payload.
     if new_reparto and not new_caporeparto:
         from core.models import RepartoCapoMapping
         mapping = RepartoCapoMapping.objects.filter(
@@ -3361,7 +4101,7 @@ def api_user_extra_info(request, user_id: int):
         return JsonResponse({"ok": False, "error": "Errore interno del server."}, status=500)
 
 
-# ── Anagrafica config ─────────────────────────────────────────────────────────
+# â”€â”€ Anagrafica config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @legacy_admin_required
 @require_POST
@@ -3475,11 +4215,11 @@ def anagrafica_config(request):
     for v in anagrafica_voci:
         v.scelte_json = json.dumps(v.scelte)
 
-    # Mappings reparto → caporeparto
+    # Mappings reparto â†’ caporeparto
     reparto_capo_mappings = list(
         RepartoCapoMapping.objects.filter(is_active=True).order_by("reparto", "id")
     )
-    # Per ogni reparto configurato, marca se ha già un mapping
+    # Per ogni reparto configurato, marca se ha giÃ  un mapping
     for mapping in reparto_capo_mappings:
         mapping.caporeparto_label = format_caporeparto_label(mapping.caporeparto)
     reparti_con_mapping = {m.reparto for m in reparto_capo_mappings}
@@ -3582,7 +4322,7 @@ def api_opzione_create(request):
         valore = str(normalized["value"] or "").strip()[:200]
         duplicate = OptioneConfig.objects.filter(tipo__iexact="caporeparto", legacy_user_id=legacy_user_id).first()
         if duplicate:
-            return JsonResponse({"ok": False, "error": "Questo utente è già configurato come caporeparto."}, status=400)
+            return JsonResponse({"ok": False, "error": "Questo utente Ã¨ giÃ  configurato come caporeparto."}, status=400)
     o = OptioneConfig.objects.create(
         tipo=tipo,
         valore=valore,
@@ -3611,7 +4351,7 @@ def api_opzione_update(request):
         legacy_user_id = int(normalized["legacy_user_id"])
         duplicate = OptioneConfig.objects.filter(tipo__iexact="caporeparto", legacy_user_id=legacy_user_id).exclude(id=o.id).first()
         if duplicate:
-            return JsonResponse({"ok": False, "error": "Questo utente è già configurato come caporeparto."}, status=400)
+            return JsonResponse({"ok": False, "error": "Questo utente Ã¨ giÃ  configurato come caporeparto."}, status=400)
         o.legacy_user_id = legacy_user_id
         o.valore = str(normalized["value"] or "").strip()[:200]
     else:
@@ -3646,10 +4386,10 @@ def api_opzione_delete(request):
 @legacy_admin_required
 @require_POST
 def api_reparto_capo_set(request):
-    """Upsert mapping reparto → caporeparto.
+    """Upsert mapping reparto â†’ caporeparto.
 
     Payload JSON: { reparto: str, caporeparto: str }
-    Se caporeparto è vuoto, elimina il mapping esistente per quel reparto.
+    Se caporeparto Ã¨ vuoto, elimina il mapping esistente per quel reparto.
     """
     from core.models import RepartoCapoMapping
     payload = _json_payload(request)
@@ -3677,7 +4417,7 @@ def api_reparto_capo_set(request):
 @legacy_admin_required
 @require_POST
 def api_reparto_capo_delete(request):
-    """Elimina un mapping reparto → caporeparto per ID."""
+    """Elimina un mapping reparto â†’ caporeparto per ID."""
     from core.models import RepartoCapoMapping
     payload = _json_payload(request)
     pk = _int_or_none(payload.get("id"))
@@ -3691,7 +4431,7 @@ def api_reparto_capo_delete(request):
 @legacy_admin_required
 @require_POST
 def api_reparto_capo_sync(request):
-    """Propaga il mapping reparto → caporeparto a tutti gli utenti di quel reparto.
+    """Propaga il mapping reparto â†’ caporeparto a tutti gli utenti di quel reparto.
 
     Payload JSON: { reparto: str }
     Aggiorna UserExtraInfo.caporeparto per tutti gli utenti con quel reparto,
@@ -5082,7 +5822,7 @@ def api_pulsanti_delete(request):
 
 
 # ---------------------------------------------------------------------------
-# CATALOGO MODULI — crea tutti i pulsanti di un modulo + auto-permessi
+# CATALOGO MODULI â€” crea tutti i pulsanti di un modulo + auto-permessi
 # ---------------------------------------------------------------------------
 
 
@@ -5101,7 +5841,7 @@ def api_modulo_crea_da_catalog(request):
 
     module_def = MODULE_CATALOG[modulo_key]
     try:
-        # Controlla per codice globalmente: la UNIQUE KEY DB è su 'codice' (non su modulo+codice)
+        # Controlla per codice globalmente: la UNIQUE KEY DB Ã¨ su 'codice' (non su modulo+codice)
         existing_codici = {
             (p.codice or "").strip().lower()
             for p in Pulsante.objects.all()
@@ -5139,7 +5879,7 @@ def api_modulo_crea_da_catalog(request):
 
 
 # ---------------------------------------------------------------------------
-# WIZARD PULSANTE — creazione guidata pulsante + UI meta + permessi in un passo
+# WIZARD PULSANTE â€” creazione guidata pulsante + UI meta + permessi in un passo
 # ---------------------------------------------------------------------------
 
 def _wizard_context() -> dict:
@@ -5212,16 +5952,16 @@ def api_wizard_pulsante_submit(request):
     icona = str(p_data.get("icona") or "").strip() or None
 
     if not codice:
-        return _json_error("Il campo 'codice' è obbligatorio.")
+        return _json_error("Il campo 'codice' Ã¨ obbligatorio.")
     if len(codice) > 100:
-        return _json_error("'codice' non può superare 100 caratteri.")
+        return _json_error("'codice' non puÃ² superare 100 caratteri.")
     if not modulo:
-        return _json_error("Il campo 'modulo' (sezione) è obbligatorio.")
+        return _json_error("Il campo 'modulo' (sezione) Ã¨ obbligatorio.")
     if len(modulo) > 100:
-        return _json_error("'modulo' non può superare 100 caratteri.")
+        return _json_error("'modulo' non puÃ² superare 100 caratteri.")
     if not url_val:
-        return _json_error("Il campo 'url' è obbligatorio.")
-    # Normalizza: se non è route:, django:, http:, https: → prefissa con /
+        return _json_error("Il campo 'url' Ã¨ obbligatorio.")
+    # Normalizza: se non Ã¨ route:, django:, http:, https: â†’ prefissa con /
     if not (url_val.startswith(("route:", "django:", "http://", "https://", "/"))):
         url_val = "/" + url_val
 
@@ -5303,7 +6043,7 @@ def api_wizard_pulsante_submit(request):
 
 
 # ---------------------------------------------------------------------------
-# PERMESSI — toggle modulo intero per ruolo o per utente
+# PERMESSI â€” toggle modulo intero per ruolo o per utente
 # ---------------------------------------------------------------------------
 
 @legacy_admin_required
@@ -5377,7 +6117,7 @@ def api_user_modulo_perm_set(request, user_id: int):
 
 
 # ---------------------------------------------------------------------------
-# DASHBOARD — toggle visibilità modulo (enabled in ui_pulsanti_meta)
+# DASHBOARD â€” toggle visibilitÃ  modulo (enabled in ui_pulsanti_meta)
 # ---------------------------------------------------------------------------
 
 def _set_pulsante_meta_enabled(pulsante_id: int, enabled: bool) -> None:
@@ -5414,7 +6154,7 @@ def _set_pulsante_meta_enabled(pulsante_id: int, enabled: bool) -> None:
 @csrf_protect
 @require_POST
 def api_pulsanti_set_enabled(request):
-    """POST {pulsante_id, enabled} — imposta solo il flag enabled nel meta UI."""
+    """POST {pulsante_id, enabled} â€” imposta solo il flag enabled nel meta UI."""
     payload = _post_or_json_payload(request)
     pid = _int_or_none(payload.get("pulsante_id") or payload.get("id"))
     enabled = _bool_from_any(payload.get("enabled"))
@@ -5431,9 +6171,9 @@ def api_pulsanti_set_enabled(request):
     return JsonResponse({"ok": True, "pulsante_id": pid, "enabled": enabled})
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Audit log
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @legacy_admin_required
 def audit_log_view(request):
@@ -5468,9 +6208,9 @@ def audit_log_view(request):
     })
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Health check admin
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @legacy_admin_required
 def admin_health_check(request):
@@ -5488,7 +6228,7 @@ def admin_health_check(request):
     except Exception as exc:
         checks.append({"nome": "DB Django (SQLite)", "ok": False, "dettaglio": str(exc)})
 
-    # 2. DB Legacy (SQL Server) — alias "default" in prod, stessa conn in dev
+    # 2. DB Legacy (SQL Server) â€” alias "default" in prod, stessa conn in dev
     try:
         with all_connections["default"].cursor() as cur:
             cur.execute("SELECT COUNT(*) FROM utenti")
@@ -5659,13 +6399,13 @@ def accessi_semplice(request):
 
 
 # ---------------------------------------------------------------------------
-# Gestione Accessi — pagina unificata (ruolo + moduli + pulsanti + flag)
+# Gestione Accessi â€” pagina unificata (ruolo + moduli + pulsanti + flag)
 # ---------------------------------------------------------------------------
 
 @legacy_admin_required
 @csrf_protect
 def gestione_accessi(request):
-    """Pagina unificata: selezione ruolo → accordion per modulo → tabella pulsanti.
+    """Pagina unificata: selezione ruolo â†’ accordion per modulo â†’ tabella pulsanti.
 
     Sostituisce Accessi, Accessi Avanzati e Matrice Permessi in un'unica vista.
     POST salva in batch tutti i flag can_view/can_edit/can_delete per il ruolo.
@@ -5680,7 +6420,7 @@ def gestione_accessi(request):
             messages.error(request, "Seleziona un ruolo prima di salvare.")
             return redirect(reverse("admin_portale:gestione_accessi"))
 
-        # all_keys è una lista di "modulo::codice" per ogni pulsante renderizzato
+        # all_keys Ã¨ una lista di "modulo::codice" per ogni pulsante renderizzato
         all_keys = request.POST.getlist("all_keys")
         if not all_keys:
             messages.warning(request, "Nessun dato ricevuto.")
@@ -5738,7 +6478,7 @@ def gestione_accessi(request):
 
         return redirect(f"{reverse('admin_portale:gestione_accessi')}?ruolo_id={selected_role_id}")
 
-    # GET — costruisce i dati per il template
+    # GET â€” costruisce i dati per il template
     module_data: list[dict] = []
     selected_role = None
     total_active = 0
@@ -5772,7 +6512,7 @@ def gestione_accessi(request):
 
 
 # ---------------------------------------------------------------------------
-# Matrice Permessi — vista ruoli × pulsanti per modulo
+# Matrice Permessi â€” vista ruoli Ã— pulsanti per modulo
 # ---------------------------------------------------------------------------
 
 @legacy_admin_required
@@ -5978,9 +6718,9 @@ def _read_guestportal_config() -> dict:
 def _build_guestportal_username(request, fmt: str) -> str:
     """
     Costruisce il valore username da passare al GuestPortal in base al formato:
-    - 'upn'   → alias@example.local  (usa request.legacy_user.email se disponibile)
-    - 'alias' → solo alias             (request.user.username)
-    - 'ntlm'  → DOMINIO\\alias
+    - 'upn'   â†’ alias@example.local  (usa request.legacy_user.email se disponibile)
+    - 'alias' â†’ solo alias             (request.user.username)
+    - 'ntlm'  â†’ DOMINIO\\alias
     """
     alias = request.user.username or ""
     legacy_user = getattr(request, "legacy_user", None)
@@ -6012,7 +6752,7 @@ def guestportal_sso(request):
             "URL GuestPortal non configurato. Aggiungi la sezione [GUESTPORTAL] in config.ini."
         )
     username = _build_guestportal_username(request, cfg["username_format"])
-    # La password è salvata in sessione al login (LegacyLoginView.form_valid).
+    # La password Ã¨ salvata in sessione al login (LegacyLoginView.form_valid).
     # Se disponibile il template fa auto-submit; altrimenti mostra il campo manuale.
     password = request.session.get("_sso_relay_pwd", "")
     return render(request, "admin_portale/pages/guestportal_sso.html", {
@@ -6087,7 +6827,7 @@ def api_login_logo_upload(request):
     save_path = os.path.join(_LOGO_UPLOAD_DIR, filename)
     # Salva sovrascrivendo un eventuale logo precedente
     saved = default_storage.save(save_path, upload)
-    # Normalizza path → URL relativa (sempre forward slash)
+    # Normalizza path â†’ URL relativa (sempre forward slash)
     url = settings.MEDIA_URL + saved.replace("\\", "/")
     SiteConfig.set("login_logo_url", url, "URL logo pagina login (caricato da admin)")
     messages.success(request, "Logo aggiornato.")
@@ -6118,7 +6858,7 @@ def api_login_logo_remove(request):
 def api_login_banner_create(request):
     testo = (request.POST.get("testo") or "").strip()
     if not testo:
-        messages.error(request, "Il testo del banner non può essere vuoto.")
+        messages.error(request, "Il testo del banner non puÃ² essere vuoto.")
         return redirect("admin_portale:login_config")
     tipo = request.POST.get("tipo") or "info"
     if tipo not in dict(LoginBanner.TIPO_CHOICES):
@@ -6241,3 +6981,4 @@ def download_release_package(request):
     if not f.exists() or not f.suffix == ".zip" or not f.name.startswith("portale-novicrom-"):
         raise Http404
     return FileResponse(open(f, "rb"), as_attachment=True, filename=f.name)
+

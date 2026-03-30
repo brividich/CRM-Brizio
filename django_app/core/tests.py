@@ -19,6 +19,7 @@ from django.template import Context, Template
 from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
+from core.acl import check_permesso, diagnose_permesso_for_context
 from core.audit import log_action
 from core.csrf_cookie_middleware import EnsureCSRFCookieMiddleware
 from core.impersonation import IMPERSONATION_SESSION_KEY
@@ -28,12 +29,12 @@ from core.context_processors import (
     legacy_nav,
     normalize_sidebar_footer_actions,
 )
-from core.legacy_models import Pulsante, UtenteLegacy
+from core.legacy_models import Permesso, Pulsante, Ruolo, UtenteLegacy
 from core.logging_handlers import SafeTimedRotatingFileHandler
-from core.middleware import AdaptiveSecureCookieMiddleware
+from core.middleware import ACLMiddleware, AdaptiveSecureCookieMiddleware
 from core.legacy_cache import bump_legacy_cache_version
 from core.legacy_utils import sync_django_user_from_legacy
-from core.models import AuditLog, Profile
+from core.models import AuditLog, LegacyRedirect, Profile, UserPermissionOverride
 from core.session_middleware import SessionIdleTimeoutMiddleware
 from core.module_registry import (
     MODULE_DEFINITIONS,
@@ -210,6 +211,216 @@ def _clear_legacy_navigation_tables() -> None:
                 cursor.execute(f"DELETE FROM {table_name}")
             except Exception:
                 continue
+
+
+@override_settings(LEGACY_AUTH_ENABLED=True, SECURE_SSL_REDIRECT=False)
+class ACLLegacyDecisionTests(TestCase):
+    def setUp(self):
+        super().setUp()
+        _ensure_legacy_acl_tables()
+        _clear_legacy_acl_tables()
+        _ensure_legacy_navigation_tables()
+        _clear_legacy_navigation_tables()
+        cache.clear()
+        self.factory = RequestFactory()
+
+        Ruolo.objects.create(id=1, nome="admin")
+        Ruolo.objects.create(id=2, nome="operatore")
+        Ruolo.objects.create(id=3, nome="ospite")
+
+        self.pulsante_assenze = Pulsante.objects.create(
+            codice="gestione_assenze",
+            nome_visibile="Gestione Assenze",
+            icona="calendar",
+            modulo="assenze",
+            url="/assenze/",
+        )
+        self.pulsante_dashboard = Pulsante.objects.create(
+            codice="view_dashboard",
+            nome_visibile="Dashboard",
+            icona="dashboard",
+            modulo="dashboard",
+            url="/dashboard",
+        )
+
+        Permesso.objects.create(
+            ruolo_id=2,
+            modulo="assenze",
+            azione="gestione_assenze",
+            consentito=1,
+            can_view=1,
+        )
+        Permesso.objects.create(
+            ruolo_id=3,
+            modulo="assenze",
+            azione="gestione_assenze",
+            consentito=0,
+            can_view=0,
+        )
+        Permesso.objects.create(
+            ruolo_id=2,
+            modulo="dashboard",
+            azione="view_dashboard",
+            consentito=1,
+            can_view=1,
+        )
+
+        self.legacy_role_ok = UtenteLegacy.objects.create(
+            nome="Utente Permesso",
+            email="permesso@example.local",
+            password="x",
+            ruolo="operatore",
+            attivo=True,
+            deve_cambiare_password=False,
+            ruolo_id=2,
+        )
+        self.legacy_role_denied = UtenteLegacy.objects.create(
+            nome="Utente Negato",
+            email="negato@example.local",
+            password="x",
+            ruolo="ospite",
+            attivo=True,
+            deve_cambiare_password=False,
+            ruolo_id=3,
+        )
+        self.legacy_admin = UtenteLegacy.objects.create(
+            nome="Admin Legacy",
+            email="admin@example.local",
+            password="x",
+            ruolo="admin",
+            attivo=True,
+            deve_cambiare_password=False,
+            ruolo_id=1,
+        )
+        bump_legacy_cache_version()
+
+    def test_access_granted_for_matching_role(self):
+        self.assertTrue(check_permesso(self.legacy_role_ok, "/assenze/"))
+
+    def test_access_denied_for_wrong_role(self):
+        self.assertFalse(check_permesso(self.legacy_role_denied, "/assenze/"))
+
+    def test_user_override_precedence_over_role_permission(self):
+        UserPermissionOverride.objects.create(
+            legacy_user_id=self.legacy_role_ok.id,
+            modulo="assenze",
+            azione="gestione_assenze",
+            can_view=False,
+        )
+        self.assertFalse(check_permesso(self.legacy_role_ok, "/assenze/"))
+
+    def test_admin_bypass_allows_access_even_without_button_match(self):
+        self.assertTrue(check_permesso(self.legacy_admin, "/percorso/senza/match"))
+
+    def test_route_without_button_match_returns_denied_diagnostic(self):
+        diag = diagnose_permesso_for_context(
+            legacy_user=self.legacy_role_ok,
+            path="/percorso/non-mappato/",
+            forced_role_id=None,
+        )
+        self.assertFalse(diag["allowed"])
+        self.assertEqual(diag["reason_code"], "no_pulsante_match")
+
+    def test_dashboard_and_dashboard_home_acl_equivalence(self):
+        self.assertEqual(reverse("dashboard"), reverse("dashboard_home"))
+        self.assertTrue(check_permesso(self.legacy_role_ok, "/dashboard"))
+        self.assertTrue(check_permesso(self.legacy_role_ok, "/"))
+
+    def test_acl_middleware_logs_warning_for_protected_path_without_button_match(self):
+        request = self.factory.get("/route-non-mappata/")
+        _attach_session(request)
+        request.user = SimpleNamespace(is_authenticated=True, is_superuser=False, id=777)
+        middleware = ACLMiddleware(lambda req: HttpResponse("ok"))
+        fake_decision = {
+            "allowed": False,
+            "decision_source": "legacy_fallback",
+            "path_normalized": "/route-non-mappata",
+            "route_name": "",
+            "legacy_user": {"id": self.legacy_role_ok.id},
+            "reason": "Nessun match legacy",
+            "legacy_fallback": {"reason_code": "no_pulsante_match"},
+        }
+
+        with patch("core.middleware.get_legacy_user", return_value=self.legacy_role_ok), patch(
+            "core.middleware.resolve_acl_access",
+            return_value=fake_decision,
+        ):
+            with self.assertLogs("core.middleware", level="WARNING") as logs:
+                response = middleware(request)
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(any("senza binding canonico e senza pulsante legacy matchato" in line for line in logs.output))
+
+
+@override_settings(
+    LEGACY_AUTH_ENABLED=True,
+    NAVIGATION_REGISTRY_ENABLED=True,
+    NAVIGATION_LEGACY_FALLBACK_ENABLED=True,
+    SECURE_SSL_REDIRECT=False,
+)
+class NavigationFallbackAndLegacyRedirectTests(TestCase):
+    def setUp(self):
+        super().setUp()
+        _ensure_legacy_acl_tables()
+        _clear_legacy_acl_tables()
+        _ensure_legacy_navigation_tables()
+        _clear_legacy_navigation_tables()
+        cache.clear()
+        self.factory = RequestFactory()
+
+        Ruolo.objects.create(id=1, nome="utente")
+        self.legacy_user = UtenteLegacy.objects.create(
+            nome="Mario Fallback",
+            email="mario.fallback@example.local",
+            password="x",
+            ruolo="utente",
+            attivo=True,
+            deve_cambiare_password=False,
+            ruolo_id=1,
+        )
+        Pulsante.objects.create(
+            codice="view_tasks",
+            nome_visibile="Tasks",
+            icona="check",
+            modulo="tasks",
+            url="/tasks/",
+        )
+        Permesso.objects.create(
+            ruolo_id=1,
+            modulo="tasks",
+            azione="view_tasks",
+            consentito=1,
+            can_view=1,
+        )
+        bump_legacy_cache_version()
+
+    def test_navigation_registry_falls_back_to_legacy_when_registry_empty(self):
+        request = self.factory.get("/tasks/")
+        request.user = get_user_model().objects.create_user(
+            username="fallback-nav-user",
+            password="pass12345",
+        )
+        request.legacy_user = self.legacy_user
+        _attach_session(request)
+
+        context = legacy_nav(request)
+
+        self.assertTrue(context["nav_items"])
+        self.assertTrue(any(item.legacy_url == "/tasks" for item in context["nav_items"]))
+
+    def test_legacy_redirect_row_in_db_is_applied_on_dispatch(self):
+        user = get_user_model().objects.create_user(username="legacy-redirect-user", password="pass12345")
+        self.client.force_login(user)
+        LegacyRedirect.objects.create(
+            legacy_path="/admin/legacy-report",
+            target_route_name="dashboard_home",
+            is_enabled=True,
+        )
+
+        response = self.client.get("/admin/legacy-report")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers.get("Location"), reverse("dashboard_home"))
 
 
 class DashboardRoutingTests(TestCase):

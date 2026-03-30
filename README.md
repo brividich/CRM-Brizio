@@ -1,12 +1,12 @@
-
+﻿
 <h1 align="center">BoluHUB</h1>
 
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![Django 5.2](https://img.shields.io/badge/Django-5.2-0C4B33?logo=django&logoColor=white)
-![Version 0.8.5](https://img.shields.io/badge/version-0.8.5-F97316)
+![Version 0.8.6](https://img.shields.io/badge/version-0.8.6-F97316)
 ![Database SQLite or SQL Server](https://img.shields.io/badge/DB-SQLite%20%7C%20SQL%20Server-1E3A5F)
 
-Repository pubblico del software **BrizioHUB**. Il nome istanza è configurabile per deployment
+Repository pubblico del software **BrizioHUB**. Il nome istanza Ã¨ configurabile per deployment
 (es. "Portale Novicrom") tramite il wizard di configurazione al primo avvio.
 
 ![Preview dashboard BrizioHUB](.github/assets/dashboard-preview.svg)
@@ -38,7 +38,7 @@ Le preferenze vengono salvate lato server e riapplicate automaticamente al login
 | Workflow | assenze, anomalie, tickets, timbri, notizie e richieste interne |
 | Operations | inventory asset, work order, macchine di lavoro, planimetrie e verifiche periodiche |
 | Sicurezza e compliance | DPI (richieste/approvazione/consegna), diario preposto, rilevazione incidenti, presa visione procedure MT/MTSI, tracciabilita rifiuti RENTRI |
-| Governance | gestione utenti, ACL legacy, pulsanti UI, audit, diagnostica LDAP e configurazione accessi |
+| Governance | gestione utenti, ACL canonico v2 + fallback legacy, pulsanti UI, audit, diagnostica LDAP, diagnostica ACL e mappa permessi/navigazione |
 | Automazioni | designer visuale, sorgenti, queue processor, test regole e import package |
 | Osservabilita | monitoring interno, issue tracking, alert email, segnalazioni utente, monitor automazioni |
 | Compatibilita legacy | route storiche, tabelle unmanaged e fallback di navigazione/permessi |
@@ -51,6 +51,25 @@ Anteprime visuali GitHub-friendly dei flussi principali del portale.
 | --- | --- |
 | ![Preview modulo assets e officina](.github/assets/assets-preview.svg) | ![Preview designer automazioni](.github/assets/automation-preview.svg) |
 
+## ACL canonico v2 (permission-code based)
+
+Il portale supporta un layer ACL canonico progressivo che convive con il legacy:
+
+- `PermissionDefinition`: catalogo permessi leggibili (`code`, `label`, `module`, `description`)
+- `RoutePermissionBinding`: mappa route/path -> `permission_code`
+- `RolePermissionGrant`: grant ruolo legacy -> `permission_code`
+- `UserPermissionGrant`: override per-utente sullo stesso `permission_code`
+- resolver unificato in `core/acl_v2.py` integrato in middleware
+- fallback legacy (`pulsanti` + `permessi`) usato solo se il binding canonico manca
+
+Strumenti operativi:
+
+- `/admin-portale/acl-canonico/` per gestire permission code, binding e grant
+- `/admin-portale/acl-route-coverage/` per classificare tutte le route (`CANONICAL_BOUND`, `LEGACY_FALLBACK`, `UNBOUND`, `COMING_SOON_EXCLUDED`, `REDIRECT_ONLY`)
+- `/admin-portale/acl-diagnostica/` per capire perché un accesso è consentito/negato
+- comando `python django_app/manage.py bootstrap_acl_v2` per supportare migrazione incrementale
+- comando `python django_app/manage.py seed_acl_uat --reset` per caricare un pacchetto UAT ripetibile (ruoli, utenti, binding, grant, override, fallback legacy, report scenari)
+
 ## Stack tecnico
 
 | Area | Tecnologia |
@@ -59,7 +78,7 @@ Anteprime visuali GitHub-friendly dei flussi principali del portale.
 | Framework | Django 5.2.11 |
 | Database dev | SQLite |
 | Database full environment | SQL Server via `mssql-django` e `pyodbc` |
-| Auth | Django auth, ACL legacy, LDAP opzionale |
+| Auth | Django auth, ACL canonico v2 con fallback legacy, LDAP opzionale |
 | Integrazioni opzionali | Microsoft Graph / SharePoint, SMTP, Active Directory |
 
 Dipendenze principali: `django_app/requirements.txt`
@@ -113,13 +132,17 @@ python django_app\manage.py runserver
 
 Endpoint tipici in locale:
 
-- `http://127.0.0.1:8000/` — dashboard
-- `http://127.0.0.1:8000/assets/` — gestione asset
-- `http://127.0.0.1:8000/admin-portale/` — pannello admin
-- `http://127.0.0.1:8000/tickets/` — ticket interni
-- `http://127.0.0.1:8000/dpi/` — dispositivi protezione individuale
-- `http://127.0.0.1:8000/procedure-refresh/` — presa visione procedure
-- `http://127.0.0.1:8000/admin-portale/hub/` — hub strumenti interni
+- `http://127.0.0.1:8000/` â€” dashboard
+- `http://127.0.0.1:8000/assets/` â€” gestione asset
+- `http://127.0.0.1:8000/admin-portale/` â€” pannello admin
+- `http://127.0.0.1:8000/admin-portale/acl-canonico/` - gestione permission code / binding / grant
+- `http://127.0.0.1:8000/admin-portale/acl-route-coverage/` - report copertura route ACL con filtri e export CSV
+- `http://127.0.0.1:8000/admin-portale/acl-diagnostica/` - diagnostica ACL (utente/ruolo/path/route)
+- `http://127.0.0.1:8000/admin-portale/mappa-permessi-navigazione/` - mappa route/menu/ruoli/override/redirect con drill-down workflow per riga e toggle live permessi legacy (con ruolo filtro attivo)
+- `http://127.0.0.1:8000/tickets/` â€” ticket interni
+- `http://127.0.0.1:8000/dpi/` â€” dispositivi protezione individuale
+- `http://127.0.0.1:8000/procedure-refresh/` â€” presa visione procedure
+- `http://127.0.0.1:8000/admin-portale/hub/` â€” hub strumenti interni
 
 ## Configurazione ambienti
 
@@ -137,7 +160,7 @@ python django_app\manage.py check
 
 ### Setup cache multi-worker (IIS con 2+ worker)
 
-Con più worker IIS la cache deve essere condivisa tra processi. Il profilo prod usa automaticamente `DatabaseCache` su SQL Server. Eseguire **una sola volta** dopo ogni deploy su server vergine:
+Con piÃ¹ worker IIS la cache deve essere condivisa tra processi. Il profilo prod usa automaticamente `DatabaseCache` su SQL Server. Eseguire **una sola volta** dopo ogni deploy su server vergine:
 
 ```powershell
 python django_app\manage.py createcachetable --settings=config.settings.prod
@@ -157,6 +180,8 @@ python django_app\manage.py createcachetable --settings=config.settings.prod
 ```powershell
 python django_app\manage.py test
 python django_app\manage.py process_automation_queue
+python django_app\manage.py bootstrap_acl_v2
+python django_app\manage.py seed_acl_uat --reset
 python django_app\manage.py show_urls
 ```
 
@@ -180,7 +205,7 @@ repo-root/
 
 ## Deployment su Windows Server + IIS
 
-Il metodo raccomandato è **`SetupWizard.exe`** (`deployment/dist/`), che automatizza:
+Il metodo raccomandato Ã¨ **`SetupWizard.exe`** (`deployment/dist/`), che automatizza:
 creazione directory, venv, `.env`, database SQL Server, migrate, collectstatic, createcachetable,
 utente admin e configurazione IIS completa.
 
@@ -191,7 +216,13 @@ Per il flusso manuale e il troubleshooting: [deployment/README_DEPLOY_IIS_WINDOW
 ## Documentazione collegata
 
 - [Guida deployment IIS (manuale + troubleshooting)](deployment/README_DEPLOY_IIS_WINDOWS.md)
-- [Manuale amministratore — navigazione e permessi](tools/MANUALE_ADMIN_NAVIGAZIONE_PERMESSI.md)
+- [Manuale amministratore â€” navigazione e permessi](tools/MANUALE_ADMIN_NAVIGAZIONE_PERMESSI.md)
+- [Guida ACL v2 (permission-code based)](doc/ACL_V2_PERMISSION_GUIDE.md)
+- [Guida rapida admin ACL v2](doc/ACL_V2_ADMIN_QUICK_GUIDE.md)
+- [Convenzione permission code ACL v2](doc/ACL_V2_PERMISSION_CODE_CONVENTION.md)
+- [Checklist UAT ACL v2](doc/ACL_V2_UAT_CHECKLIST.md)
+- [Guida seed UAT ACL v2](doc/ACL_V2_UAT_SEED_GUIDE.md)
+- [Matrice scenari UAT ACL v2](doc/ACL_V2_UAT_SCENARIOS.md)
 - [Note del modulo assets](django_app/assets/README.md)
 
 ## Nota sul repository pubblico
@@ -201,3 +232,4 @@ Questo repository e stato ripulito per una pubblicazione sicura:
 - credenziali reali e configurazioni sensibili non sono incluse
 - i file `.example` rappresentano solo template o placeholder
 - la documentazione mantenuta nel repository e limitata a cio che serve per orientarsi nel codice
+

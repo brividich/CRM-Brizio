@@ -1,0 +1,583 @@
+{% extends "core/base.html" %}
+
+{% block title %}Mappa Permessi e Navigazione | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .map-badges { display:flex; flex-wrap:wrap; gap:6px; }
+  .map-badge {
+    display:inline-flex;
+    align-items:center;
+    padding:2px 8px;
+    border-radius:999px;
+    border:1px solid #dbe3ef;
+    background:#f8fafc;
+    font-size:10px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.03em;
+    color:#334155;
+    white-space:nowrap;
+  }
+  .map-summary {
+    display:grid;
+    gap:10px;
+    grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+  }
+  .map-summary .mini {
+    border:1px solid var(--border,#d6dbe5);
+    border-radius:10px;
+    padding:10px 12px;
+    background:#f8fafc;
+  }
+  .map-summary .mini .n { font-size:20px; font-weight:800; color:#0f172a; line-height:1.1; }
+  .map-summary .mini .l { font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-top:4px; }
+  .map-route-list,
+  .map-label-list,
+  .map-role-list,
+  .map-redirect-list {
+    margin:0;
+    padding-left:16px;
+    font-size:12px;
+    color:#334155;
+  }
+  .map-route-list li,
+  .map-label-list li,
+  .map-role-list li,
+  .map-redirect-list li {
+    margin-bottom:4px;
+  }
+  .map-cell-muted { color:#64748b; font-size:12px; }
+  .map-row-summary { cursor:pointer; transition:background .18s ease; }
+  .map-row-summary:hover { background:#f8fafc; }
+  .map-row-summary.is-open { background:#eef4ff; }
+  .map-expand-pill {
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    margin-left:8px;
+    padding:2px 8px;
+    border-radius:999px;
+    border:1px solid #dbe3ef;
+    background:#fff;
+    font-size:10px;
+    font-weight:700;
+    color:#1e3a8a;
+    text-transform:uppercase;
+    letter-spacing:.03em;
+  }
+  .map-expand-pill .arrow {
+    display:inline-block;
+    transition:transform .2s ease;
+    font-size:10px;
+  }
+  .map-row-summary.is-open .map-expand-pill .arrow { transform:rotate(90deg); }
+  .map-detail-row > td { background:#f8fbff; border-top:0; padding:0 !important; }
+  .map-detail-wrap {
+    padding:14px;
+    border-top:1px dashed #d5dfef;
+    display:grid;
+    grid-template-columns:1.2fr 1fr;
+    gap:14px;
+  }
+  .map-detail-card {
+    border:1px solid #dbe3ef;
+    border-radius:12px;
+    background:#fff;
+    padding:12px;
+  }
+  .map-detail-title {
+    font-size:12px;
+    font-weight:800;
+    color:#0f172a;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    margin-bottom:10px;
+  }
+  .map-workflow {
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(145px, 1fr));
+    gap:10px;
+  }
+  .map-step {
+    border:1px solid #d9e5f8;
+    border-radius:10px;
+    padding:10px;
+    background:linear-gradient(180deg, #f9fbff, #f1f6ff);
+    position:relative;
+  }
+  .map-step::after {
+    content:"";
+    position:absolute;
+    right:-7px;
+    top:50%;
+    width:14px;
+    height:2px;
+    background:#c5d8fb;
+    transform:translateY(-50%);
+  }
+  .map-step:last-child::after { display:none; }
+  .map-step h5 { margin:0 0 6px; font-size:12px; color:#0f172a; }
+  .map-step p { margin:0; font-size:11px; color:#475569; line-height:1.35; }
+  .map-step .state {
+    display:inline-flex;
+    margin-top:8px;
+    padding:2px 8px;
+    border-radius:999px;
+    font-size:10px;
+    font-weight:700;
+    border:1px solid #dbe3ef;
+    color:#334155;
+    background:#f8fafc;
+  }
+  .map-step .state.ok { border-color:#a7f3d0; background:#ecfdf5; color:#166534; }
+  .map-step .state.warn { border-color:#fde68a; background:#fffbeb; color:#92400e; }
+  .map-step .state.off { border-color:#fecaca; background:#fef2f2; color:#991b1b; }
+  .map-live-grid { display:grid; gap:8px; }
+  .map-live-item {
+    border:1px solid #e1e8f5;
+    border-radius:10px;
+    padding:9px;
+    background:#fbfdff;
+  }
+  .map-live-item h6 {
+    margin:0 0 5px;
+    font-size:12px;
+    color:#0f172a;
+  }
+  .map-live-item .meta {
+    font-size:11px;
+    color:#64748b;
+    margin-bottom:8px;
+  }
+  .map-live-actions {
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+    align-items:center;
+  }
+  .map-live-actions .btn-xs {
+    border:1px solid #dbe3ef;
+    border-radius:8px;
+    background:#fff;
+    color:#0f172a;
+    font-size:11px;
+    font-weight:700;
+    padding:4px 8px;
+    cursor:pointer;
+  }
+  .map-live-actions .btn-xs:hover { background:#eff6ff; }
+  .map-live-actions .btn-xs.is-on {
+    border-color:#16a34a;
+    background:#dcfce7;
+    color:#166534;
+  }
+  .map-live-actions .btn-xs.is-off {
+    border-color:#dc2626;
+    background:#fee2e2;
+    color:#991b1b;
+  }
+  .map-live-status {
+    display:inline-flex;
+    padding:2px 8px;
+    border-radius:999px;
+    border:1px solid #dbe3ef;
+    font-size:10px;
+    font-weight:700;
+    color:#334155;
+    background:#f8fafc;
+  }
+  .map-live-status.busy {
+    border-color:#bfdbfe;
+    background:#eff6ff;
+    color:#1d4ed8;
+  }
+  .map-live-status.ok {
+    border-color:#a7f3d0;
+    background:#ecfdf5;
+    color:#166534;
+  }
+  .map-live-status.err {
+    border-color:#fecaca;
+    background:#fef2f2;
+    color:#991b1b;
+  }
+  .map-hint {
+    margin-top:8px;
+    font-size:11px;
+    color:#64748b;
+  }
+  @media (max-width: 1100px) {
+    .map-detail-wrap { grid-template-columns:1fr; }
+    .map-workflow { grid-template-columns:1fr; }
+    .map-step::after { display:none; }
+  }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Mappa Permessi e Navigazione" page_subtitle="Vista unica route/menu/ruoli/override/redirect per capire subito cosa vede ogni ruolo e da quale sorgente arriva la voce." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <div class="card">
+    {% include "admin_portale/components/card_head.html" with card_title="Filtri" card_subtitle="Restringi la mappa per ruolo legacy, sorgente o testo libero (path, route, menu, ruolo)." %}
+    <div class="card-body">
+      <form method="get" class="admin-form-grid">
+        <div class="field field-wide">
+          <label>Cerca</label>
+          <input class="input" type="text" name="q" value="{{ filters.q }}" placeholder="/assenze, admin_portale:permessi, tasks, ruolo 2...">
+        </div>
+        <div class="field">
+          <label>Sorgente</label>
+          <select class="input" name="source">
+            <option value="all"{% if filters.source == 'all' %} selected{% endif %}>Tutte</option>
+            <option value="registry"{% if filters.source == 'registry' %} selected{% endif %}>Solo REGISTRY</option>
+            <option value="legacy"{% if filters.source == 'legacy' %} selected{% endif %}>Solo LEGACY</option>
+            <option value="redirect"{% if filters.source == 'redirect' %} selected{% endif %}>Solo REDIRECT</option>
+            <option value="override"{% if filters.source == 'override' %} selected{% endif %}>Solo OVERRIDE</option>
+            <option value="fallback"{% if filters.source == 'fallback' %} selected{% endif %}>Solo FALLBACK</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Ruolo legacy</label>
+          <select class="input" name="legacy_role_id">
+            <option value="">-- Tutti i ruoli --</option>
+            {% for role in role_choices %}
+              <option value="{{ role.id }}"{% if role.id == filters.legacy_role_id %} selected{% endif %}>{{ role.id }} - {{ role.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field field-actions">
+          <button class="btn" type="submit">Applica filtri</button>
+          <a class="btn btn-secondary" href="{% url 'admin_portale:mappa_permessi_navigazione' %}">Reset</a>
+          <a class="btn btn-secondary" href="{% url 'admin_portale:acl_diagnostica' %}">Apri diagnostica ACL</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    {% include "admin_portale/components/card_head.html" with card_title="Riepilogo" %}
+    <div class="card-body">
+      {% if selected_role_id %}
+        <div class="notice" style="margin-bottom:12px;">
+          Modalità live attiva per ruolo selezionato: <strong>{{ selected_role_id }} - {{ selected_role_label|default:"N/D" }}</strong>.
+          Clicca una riga per aprire il workflow e i toggle rapidi legacy.
+        </div>
+      {% else %}
+        <div class="notice" style="margin-bottom:12px;">
+          Suggerimento: seleziona un ruolo legacy nei filtri per abilitare la modifica live dei permessi legacy dalla mappa.
+        </div>
+      {% endif %}
+      <div class="map-summary">
+        <div class="mini"><div class="n">{{ summary.rows_total }}</div><div class="l">Righe Mappa</div></div>
+        <div class="mini"><div class="n">{{ summary.rows_registry }}</div><div class="l">Con REGISTRY</div></div>
+        <div class="mini"><div class="n">{{ summary.rows_legacy }}</div><div class="l">Con LEGACY</div></div>
+        <div class="mini"><div class="n">{{ summary.rows_override }}</div><div class="l">Con OVERRIDE</div></div>
+        <div class="mini"><div class="n">{{ summary.rows_redirect }}</div><div class="l">Con REDIRECT</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Mappa Route / Permessi / Navigazione</div>
+      <div class="cell-muted">Legenda badge: REGISTRY, LEGACY, OVERRIDE, ADMIN BYPASS, REDIRECT, COMING, FALLBACK</div>
+    </div>
+    <div class="card-body" style="padding:0;">
+      {% if rows %}
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th style="min-width:170px;">Path / Pagina</th>
+                <th style="min-width:170px;">Route Django</th>
+                <th style="min-width:170px;">Voce Menu</th>
+                <th style="min-width:140px;">Sorgente</th>
+                <th style="min-width:220px;">Ruoli Abilitati</th>
+                <th style="min-width:130px;">Override Utente</th>
+                <th style="min-width:180px;">Redirect Legacy</th>
+                <th style="min-width:180px;">Badge</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in rows %}
+                <tr class="map-row-summary" data-map-row="{{ forloop.counter }}">
+                  <td>
+                    <code>{{ row.path }}</code>
+                    <span class="map-expand-pill"><span class="arrow">▶</span> Workflow</span>
+                  </td>
+                  <td>
+                    {% if row.route_names %}
+                      <ul class="map-route-list">
+                        {% for route_name in row.route_names %}<li><code>{{ route_name }}</code></li>{% endfor %}
+                      </ul>
+                    {% else %}
+                      <span class="map-cell-muted">Nessuna route Django esplicita</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if row.menu_labels %}
+                      <ul class="map-label-list">
+                        {% for label in row.menu_labels %}<li>{{ label }}</li>{% endfor %}
+                      </ul>
+                    {% else %}
+                      <span class="map-cell-muted">Nessuna voce menu</span>
+                    {% endif %}
+                    <div class="map-cell-muted">
+                      registry: {{ row.registry_items_count }} - legacy: {{ row.legacy_buttons_count }}
+                    </div>
+                  </td>
+                  <td>
+                    <div class="map-badges">
+                      {% if row.source_flags %}
+                        {% for source in row.source_flags %}<span class="map-badge">{{ source }}</span>{% endfor %}
+                      {% else %}
+                        <span class="map-cell-muted">-</span>
+                      {% endif %}
+                    </div>
+                  </td>
+                  <td>
+                    {% if row.role_labels %}
+                      <ul class="map-role-list">
+                        {% for role_label in row.role_labels %}<li>{{ role_label }}</li>{% endfor %}
+                      </ul>
+                    {% else %}
+                      <span class="map-cell-muted">Nessun ruolo abilitato</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if row.override_allow or row.override_deny %}
+                      <div>Allow: <strong>{{ row.override_allow }}</strong></div>
+                      <div>Deny: <strong>{{ row.override_deny }}</strong></div>
+                    {% else %}
+                      <span class="map-cell-muted">Nessun override</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if row.redirect_paths %}
+                      <ul class="map-redirect-list">
+                        {% for redir in row.redirect_paths %}<li><code>{{ redir }}</code></li>{% endfor %}
+                      </ul>
+                    {% else %}
+                      <span class="map-cell-muted">Nessun redirect</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div class="map-badges">
+                      {% for badge in row.badges %}<span class="map-badge">{{ badge }}</span>{% empty %}<span class="map-cell-muted">-</span>{% endfor %}
+                    </div>
+                  </td>
+                </tr>
+                <tr class="map-detail-row" data-map-detail="{{ forloop.counter }}" hidden>
+                  <td colspan="8">
+                    <div class="map-detail-wrap">
+                      <section class="map-detail-card">
+                        <div class="map-detail-title">Workflow Decisionale</div>
+                        <div class="map-workflow">
+                          <article class="map-step">
+                            <h5>1. Route</h5>
+                            <p>{{ row.path }}</p>
+                            <span class="state ok">RISOLTA</span>
+                          </article>
+                          <article class="map-step">
+                            <h5>2. Sorgente</h5>
+                            <p>{{ row.source_label }}</p>
+                            <span class="state {% if 'REGISTRY' in row.source_flags %}ok{% elif 'LEGACY' in row.source_flags %}warn{% else %}off{% endif %}">
+                              {% if 'REGISTRY' in row.source_flags %}CANONICA{% elif 'LEGACY' in row.source_flags %}LEGACY{% else %}ASSENTE{% endif %}
+                            </span>
+                          </article>
+                          <article class="map-step">
+                            <h5>3. Ruoli</h5>
+                            <p>{% if row.role_labels %}{{ row.role_labels|join:", " }}{% else %}Nessun ruolo abilitato{% endif %}</p>
+                            <span class="state {% if row.selected_role_visible %}ok{% elif selected_role_id %}off{% else %}warn{% endif %}">
+                              {% if selected_role_id %}
+                                {% if row.selected_role_visible %}RUOLO FILTRO: ATTIVO{% else %}RUOLO FILTRO: NON ATTIVO{% endif %}
+                              {% else %}
+                                NESSUN RUOLO FILTRO
+                              {% endif %}
+                            </span>
+                          </article>
+                          <article class="map-step">
+                            <h5>4. Override</h5>
+                            <p>Allow: {{ row.override_allow }} / Deny: {{ row.override_deny }}</p>
+                            <span class="state {% if row.override_allow or row.override_deny %}warn{% else %}ok{% endif %}">
+                              {% if row.override_allow or row.override_deny %}PRESENTE{% else %}ASSENTE{% endif %}
+                            </span>
+                          </article>
+                          <article class="map-step">
+                            <h5>5. Redirect / Fallback</h5>
+                            <p>{% if row.redirect_paths %}Redirect: {{ row.redirect_paths|join:", " }}{% else %}Nessun redirect{% endif %}</p>
+                            <span class="state {% if row.is_fallback or row.redirect_paths %}warn{% else %}ok{% endif %}">
+                              {% if row.is_fallback %}FALLBACK{% elif row.redirect_paths %}REDIRECT{% else %}DIRETTO{% endif %}
+                            </span>
+                          </article>
+                        </div>
+                        <div class="map-hint">
+                          Per diagnosi completa ALLOW/DENY usa
+                          <a href="{% url 'admin_portale:acl_diagnostica' %}?path={{ row.path|urlencode }}">ACL Diagnostica</a>.
+                        </div>
+                      </section>
+
+                      <section class="map-detail-card">
+                        <div class="map-detail-title">Modifica Live (Legacy)</div>
+                        {% if selected_role_id and row.legacy_buttons %}
+                          <div class="map-live-grid">
+                            {% for button in row.legacy_buttons %}
+                              <article class="map-live-item" data-live-item="{{ row.path|slugify }}-{{ button.id }}">
+                                <h6>{{ button.label|default:button.azione }}</h6>
+                                <div class="meta">
+                                  modulo: <code>{{ button.modulo }}</code> · azione: <code>{{ button.azione }}</code>
+                                </div>
+                                <div class="map-live-actions">
+                                  <button
+                                    type="button"
+                                    class="btn-xs live-perm-btn {% if button.selected_role_allowed %}is-on{% endif %}"
+                                    data-api-url="{{ api_permessi_toggle_url }}"
+                                    data-role-id="{{ selected_role_id }}"
+                                    data-modulo="{{ button.modulo }}"
+                                    data-azione="{{ button.azione }}"
+                                    data-value="1"
+                                  >
+                                    Consenti
+                                  </button>
+                                  <button
+                                    type="button"
+                                    class="btn-xs live-perm-btn {% if button.selected_role_allowed == False %}is-off{% endif %}"
+                                    data-api-url="{{ api_permessi_toggle_url }}"
+                                    data-role-id="{{ selected_role_id }}"
+                                    data-modulo="{{ button.modulo }}"
+                                    data-azione="{{ button.azione }}"
+                                    data-value="0"
+                                  >
+                                    Nega
+                                  </button>
+                                  <span class="map-live-status js-live-status">
+                                    {% if button.selected_role_allowed %}ATTIVO{% else %}NEGATO{% endif %}
+                                  </span>
+                                </div>
+                              </article>
+                            {% endfor %}
+                          </div>
+                          <div class="map-hint">
+                            Le modifiche aggiornano i permessi legacy in tempo reale per il ruolo selezionato.
+                          </div>
+                        {% elif selected_role_id and not row.legacy_buttons %}
+                          <div class="map-cell-muted">Nessun pulsante legacy collegato a questa route.</div>
+                        {% else %}
+                          <div class="map-cell-muted">
+                            Seleziona un ruolo legacy nel filtro per attivare i toggle live.
+                          </div>
+                        {% endif %}
+
+                        <div class="map-hint">
+                          Modifiche canoniche consigliate: <a href="{% url 'admin_portale:acl_canonico' %}?tab=bindings">ACL Canonico</a>
+                        </div>
+                      </section>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="notice">Nessun risultato con i filtri correnti.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(";").shift();
+        return "";
+      }
+
+      document.querySelectorAll(".map-row-summary").forEach((rowEl) => {
+        rowEl.addEventListener("click", function (event) {
+          if (event.target.closest("a, button, input, select, textarea")) return;
+          const rowId = rowEl.getAttribute("data-map-row");
+          const detailEl = document.querySelector(`.map-detail-row[data-map-detail="${rowId}"]`);
+          if (!detailEl) return;
+          const open = !detailEl.hasAttribute("hidden");
+          detailEl.toggleAttribute("hidden", open);
+          rowEl.classList.toggle("is-open", !open);
+        });
+      });
+
+      async function toggleLegacyPermission(button, desiredValue) {
+        const statusEl = button.closest(".map-live-actions")?.querySelector(".js-live-status");
+        const payload = {
+          ruolo_id: Number(button.dataset.roleId),
+          modulo: String(button.dataset.modulo || ""),
+          azione: String(button.dataset.azione || ""),
+          field: "can_view",
+          value: Boolean(desiredValue),
+        };
+        if (!payload.ruolo_id || !payload.modulo || !payload.azione) return;
+
+        if (statusEl) {
+          statusEl.textContent = "SALVATAGGIO...";
+          statusEl.classList.remove("ok", "err");
+          statusEl.classList.add("busy");
+        }
+
+        try {
+          const response = await fetch(button.dataset.apiUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": getCookie("csrftoken"),
+            },
+            body: JSON.stringify(payload),
+          });
+          const data = await response.json();
+          if (!response.ok || !data.ok) {
+            throw new Error(data.error || "Errore aggiornamento permesso.");
+          }
+          const actions = button.closest(".map-live-actions");
+          if (actions) {
+            actions.querySelectorAll(".live-perm-btn").forEach((btnEl) => {
+              btnEl.classList.remove("is-on", "is-off");
+            });
+            const allowBtn = actions.querySelector('.live-perm-btn[data-value="1"]');
+            const denyBtn = actions.querySelector('.live-perm-btn[data-value="0"]');
+            if (desiredValue) {
+              allowBtn?.classList.add("is-on");
+            } else {
+              denyBtn?.classList.add("is-off");
+            }
+          }
+          if (statusEl) {
+            statusEl.textContent = desiredValue ? "ATTIVO" : "NEGATO";
+            statusEl.classList.remove("busy", "err");
+            statusEl.classList.add("ok");
+          }
+        } catch (error) {
+          if (statusEl) {
+            statusEl.textContent = "ERRORE";
+            statusEl.classList.remove("busy", "ok");
+            statusEl.classList.add("err");
+          }
+          window.alert(error.message || "Errore salvataggio permesso.");
+        }
+      }
+
+      document.querySelectorAll(".live-perm-btn").forEach((button) => {
+        button.addEventListener("click", function (event) {
+          event.preventDefault();
+          event.stopPropagation();
+          const desiredValue = button.dataset.value === "1";
+          toggleLegacyPermission(button, desiredValue);
+        });
+      });
+    })();
+  </script>
+{% endblock %}

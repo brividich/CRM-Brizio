@@ -1,4 +1,8 @@
+import re
+
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
 from django.db import DatabaseError, models
 
 
@@ -31,6 +35,143 @@ class UserPermissionOverride(models.Model):
     def all_null(self) -> bool:
         return all(v is None for v in [self.can_view, self.can_edit, self.can_delete, self.can_approve])
 
+
+PERMISSION_CODE_VALIDATOR = RegexValidator(
+    regex=r"^[a-z0-9]+(?:[._:-][a-z0-9]+)*$",
+    message="Usa solo lettere minuscole, numeri e separatori . _ : - (es. assenze.view).",
+)
+PERMISSION_CODE_CANONICAL_RE = re.compile(
+    r"^[a-z0-9]+(?:_[a-z0-9]+)*(?:\.[a-z0-9]+(?:_[a-z0-9]+)*){2,}$"
+)
+PERMISSION_CODE_CONVENTION_HINT = (
+    "Usa la convenzione modulo.risorsa.azione "
+    "(es. admin_portale.users.view, assets.work_orders.manage)."
+)
+
+
+class PermissionDefinition(models.Model):
+    """Catalogo canonico dei permessi applicativi."""
+
+    code = models.CharField(max_length=120, unique=True, validators=[PERMISSION_CODE_VALIDATOR], db_index=True)
+    label = models.CharField(max_length=160)
+    module = models.CharField(max_length=80, db_index=True)
+    description = models.CharField(max_length=500, blank=True, default="")
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["module", "code"]
+        verbose_name = "Permission Definition"
+        verbose_name_plural = "Permission Definitions"
+
+    def __str__(self) -> str:
+        return f"{self.code} ({self.label})"
+
+    def clean(self):
+        super().clean()
+        self.code = str(self.code or "").strip().lower()
+        self.module = str(self.module or "").strip().lower()
+        if self.code and not PERMISSION_CODE_CANONICAL_RE.match(self.code):
+            raise ValidationError({"code": PERMISSION_CODE_CONVENTION_HINT})
+
+
+class RolePermissionGrant(models.Model):
+    """Grant canonico ruolo -> permission_code."""
+
+    legacy_role_id = models.IntegerField(db_index=True)
+    permission = models.ForeignKey(
+        PermissionDefinition,
+        to_field="code",
+        db_column="permission_code",
+        on_delete=models.CASCADE,
+        related_name="role_grants",
+    )
+    enabled = models.BooleanField(default=False)
+    note = models.CharField(max_length=255, blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("legacy_role_id", "permission")]
+        ordering = ["legacy_role_id", "permission_id"]
+        verbose_name = "Role Permission Grant"
+        verbose_name_plural = "Role Permission Grants"
+
+    def __str__(self) -> str:
+        return f"RoleGrant<role={self.legacy_role_id} code={self.permission_id} enabled={self.enabled}>"
+
+
+class UserPermissionGrant(models.Model):
+    """Override canonico per-utente su permission_code."""
+
+    legacy_user_id = models.IntegerField(db_index=True)
+    permission = models.ForeignKey(
+        PermissionDefinition,
+        to_field="code",
+        db_column="permission_code",
+        on_delete=models.CASCADE,
+        related_name="user_grants",
+    )
+    enabled = models.BooleanField(default=True)
+    note = models.CharField(max_length=255, blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("legacy_user_id", "permission")]
+        ordering = ["legacy_user_id", "permission_id"]
+        verbose_name = "User Permission Grant"
+        verbose_name_plural = "User Permission Grants"
+
+    def __str__(self) -> str:
+        return f"UserGrant<user={self.legacy_user_id} code={self.permission_id} enabled={self.enabled}>"
+
+
+class RoutePermissionBinding(models.Model):
+    """Mappa route/path applicative al permesso canonico richiesto."""
+
+    MATCH_EXACT = "exact"
+    MATCH_PREFIX = "prefix"
+    MATCH_REGEX = "regex"
+    MATCH_CHOICES = [
+        (MATCH_EXACT, "Exact"),
+        (MATCH_PREFIX, "Prefix"),
+        (MATCH_REGEX, "Regex"),
+    ]
+
+    route_name = models.CharField(max_length=160, blank=True, default="", db_index=True)
+    path_pattern = models.CharField(max_length=500, blank=True, default="", db_index=True)
+    match_strategy = models.CharField(max_length=12, choices=MATCH_CHOICES, default=MATCH_EXACT, db_index=True)
+    permission = models.ForeignKey(
+        PermissionDefinition,
+        to_field="code",
+        db_column="permission_code",
+        on_delete=models.CASCADE,
+        related_name="route_bindings",
+    )
+    source_app = models.CharField(max_length=80, blank=True, default="")
+    note = models.CharField(max_length=255, blank=True, default="")
+    priority = models.PositiveIntegerField(default=100, db_index=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("route_name", "path_pattern")]
+        ordering = ["priority", "route_name", "path_pattern", "id"]
+        verbose_name = "Route Permission Binding"
+        verbose_name_plural = "Route Permission Bindings"
+
+    def __str__(self) -> str:
+        target = self.route_name or self.path_pattern or "<?>"
+        return f"RouteBinding<{target} -> {self.permission_id}>"
+
+    def clean(self):
+        route_name = (self.route_name or "").strip()
+        path_pattern = (self.path_pattern or "").strip()
+        if not route_name and not path_pattern:
+            raise ValidationError("Specifica almeno route_name o path_pattern.")
+        if path_pattern and not path_pattern.startswith("/") and self.match_strategy != self.MATCH_REGEX:
+            raise ValidationError("path_pattern deve iniziare con '/'.")
 
 class UserDashboardConfig(models.Model):
     """Visibilità pulsanti dashboard per-utente (override rispetto al ruolo)."""

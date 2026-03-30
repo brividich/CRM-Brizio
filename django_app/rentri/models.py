@@ -74,6 +74,9 @@ class RentriImpostazioni(models.Model):
     class Meta:
         verbose_name = "Impostazioni Rentri"
         verbose_name_plural = "Impostazioni Rentri"
+        constraints = [
+            models.CheckConstraint(check=models.Q(pk=1), name="rentriimpostazioni_singleton"),
+        ]
 
     def __str__(self) -> str:
         return "Impostazioni Rentri"

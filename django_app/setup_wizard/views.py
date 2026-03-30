@@ -18,6 +18,7 @@ from pathlib import Path
 
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_GET, require_POST
+from config.app_version import build_module_version_env_block, load_app_version
 
 # Percorsi assoluti calcolati relativamente a questo file
 # setup_wizard/views.py → django_app/ → progetto root
@@ -238,6 +239,8 @@ def api_save(request):
         secret_key = "".join(secrets.choice(alphabet) for _ in range(50))
 
     instance_name = s("instance_name", "BrizioHUB")
+    app_version = s("app_version", load_app_version())
+    module_version_lines = build_module_version_env_block(app_version)
     ldap_enabled_ini = "true" if data.get("ldap_enabled") else "false"
 
     # ── Costruisce .env ───────────────────────────────────────────────────────
@@ -245,7 +248,8 @@ def api_save(request):
 # ── BrizioHUB — Configurazione generata dal Setup Wizard ──────────────────────
 INSTANCE_NAME={instance_name}
 DJANGO_SECRET_KEY={secret_key}
-APP_VERSION={s('app_version', '0.8.5')}
+APP_VERSION={app_version}
+{module_version_lines}
 DJANGO_DEBUG={b('debug')}
 DJANGO_ALLOWED_HOSTS={s('allowed_hosts')}
 SETUP_COMPLETED=1

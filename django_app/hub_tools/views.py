@@ -25,6 +25,7 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from admin_portale.decorators import legacy_admin_required as _staff_required
+from config.app_version import build_module_version_env_block, load_app_version
 
 _APP_DIR = Path(__file__).resolve().parent.parent  # django_app/
 _TOOLS_DIR = _APP_DIR.parent / "tools"
@@ -645,13 +646,16 @@ def api_reconfigure(request):
         secret_key = "".join(_secrets.choice(alphabet) for _ in range(50))
 
     instance_name = s("instance_name", current_env.get("INSTANCE_NAME", "BrizioHUB"))
+    app_version = s("app_version", current_env.get("APP_VERSION", load_app_version()))
+    module_version_lines = build_module_version_env_block(app_version)
     ldap_enabled_ini = "true" if data.get("ldap_enabled") else "false"
 
     env_lines = f"""\
 # ── BrizioHUB — Configurazione aggiornata da Hub Setup Wizard ─────────────────
 INSTANCE_NAME={instance_name}
 DJANGO_SECRET_KEY={secret_key}
-APP_VERSION={s('app_version', current_env.get('APP_VERSION', '0.8.5'))}
+APP_VERSION={app_version}
+{module_version_lines}
 DJANGO_DEBUG={current_env.get('DJANGO_DEBUG', '0')}
 DJANGO_ALLOWED_HOSTS={current_env.get('DJANGO_ALLOWED_HOSTS', '*')}
 SETUP_COMPLETED=1

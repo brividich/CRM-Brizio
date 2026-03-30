@@ -1,0 +1,167 @@
+{% extends "core/base.html" %}
+
+{% block title %}ACL Route Coverage | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .cov-grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); }
+  .cov-mini { border:1px solid var(--border,#d6dbe5); border-radius:10px; padding:10px 12px; background:#f8fafc; }
+  .cov-mini .n { font-size:22px; font-weight:800; color:#0f172a; line-height:1; }
+  .cov-mini .l { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; margin-top:6px; }
+  .cov-badges { display:flex; flex-wrap:wrap; gap:6px; }
+  .cov-badge {
+    display:inline-flex;
+    align-items:center;
+    padding:2px 8px;
+    border-radius:999px;
+    border:1px solid #dbe3ef;
+    background:#f8fafc;
+    font-size:10px;
+    font-weight:700;
+    letter-spacing:.03em;
+    text-transform:uppercase;
+    color:#334155;
+  }
+  .cov-badge.warn { border-color:#fbbf24; background:#fffbeb; color:#92400e; }
+  .cov-badge.danger { border-color:#fca5a5; background:#fef2f2; color:#991b1b; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="ACL Route Coverage" page_subtitle="Classificazione route: CANONICAL_BOUND, LEGACY_FALLBACK, UNBOUND, COMING_SOON_EXCLUDED, REDIRECT_ONLY." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <div class="card">
+    {% include "admin_portale/components/card_head.html" with card_title="Filtri Report" card_subtitle="Monitora i gap prima UAT e esporta CSV per condivisione con tester." %}
+    <div class="card-body">
+      <form method="get" class="admin-form-grid">
+        <div class="field field-wide">
+          <label>Ricerca</label>
+          <input class="input" type="text" name="q" value="{{ filters.q }}" placeholder="route, path, permission, warning...">
+        </div>
+        <div class="field">
+          <label>Status</label>
+          <select class="input" name="status">
+            <option value="ALL" {% if filters.status == 'ALL' %}selected{% endif %}>ALL</option>
+            {% for status in status_choices %}
+              <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>App / modulo</label>
+          <select class="input" name="app">
+            <option value="">-- tutti --</option>
+            {% for app in app_choices %}
+              <option value="{{ app }}" {% if filters.app == app %}selected{% endif %}>{{ app }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Solo warning</label>
+          <select class="input" name="only_warnings">
+            <option value="0" {% if not filters.only_warnings %}selected{% endif %}>No</option>
+            <option value="1" {% if filters.only_warnings %}selected{% endif %}>Si</option>
+          </select>
+        </div>
+        <div class="field field-actions">
+          <button class="btn" type="submit">Applica</button>
+          <a class="btn btn-secondary" href="{% url 'admin_portale:acl_route_coverage' %}">Reset</a>
+          <a class="btn btn-secondary" href="?status={{ filters.status }}&app={{ filters.app }}&q={{ filters.q }}&only_warnings={% if filters.only_warnings %}1{% else %}0{% endif %}&export=csv">Export CSV</a>
+          <a class="btn btn-secondary" href="{% url 'admin_portale:acl_canonico' %}">Torna ACL canonico</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    {% include "admin_portale/components/card_head.html" with card_title="Riepilogo Totale" %}
+    <div class="card-body">
+      <div class="cov-grid">
+        <div class="cov-mini"><div class="n">{{ summary.total }}</div><div class="l">Route totali</div></div>
+        <div class="cov-mini"><div class="n">{{ summary.canonical_bound }}</div><div class="l">Canonical Bound</div></div>
+        <div class="cov-mini"><div class="n">{{ summary.legacy_fallback }}</div><div class="l">Legacy Fallback</div></div>
+        <div class="cov-mini"><div class="n">{{ summary.unbound }}</div><div class="l">Unbound</div></div>
+        <div class="cov-mini"><div class="n">{{ summary.coming_or_excluded }}</div><div class="l">Coming/Excluded</div></div>
+        <div class="cov-mini"><div class="n">{{ summary.redirect_only }}</div><div class="l">Redirect Only</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    {% include "admin_portale/components/card_head.html" with card_title="Riepilogo Filtrato" %}
+    <div class="card-body">
+      <div class="cov-grid">
+        <div class="cov-mini"><div class="n">{{ filtered_summary.total }}</div><div class="l">Righe filtro</div></div>
+        <div class="cov-mini"><div class="n">{{ filtered_summary.canonical_bound }}</div><div class="l">Canonical</div></div>
+        <div class="cov-mini"><div class="n">{{ filtered_summary.legacy_fallback }}</div><div class="l">Legacy fallback</div></div>
+        <div class="cov-mini"><div class="n">{{ filtered_summary.unbound }}</div><div class="l">Unbound</div></div>
+        <div class="cov-mini"><div class="n">{{ filtered_summary.redirect_only }}</div><div class="l">Redirect only</div></div>
+        <div class="cov-mini"><div class="n">{{ filtered_summary.warnings }}</div><div class="l">Con warning</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Dettaglio Route</div>
+      <div class="cell-muted">Warning principali: BINDING_WITHOUT_ENABLED_ROLE_GRANT, AMBIGUOUS_CANONICAL_BINDING, DUPLICATE_ROUTE_PATH</div>
+    </div>
+    <div class="card-body" style="padding:0;">
+      {% if rows %}
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Route</th>
+                <th>Path</th>
+                <th>App</th>
+                <th>Status</th>
+                <th>Permission canonici</th>
+                <th>Binding #</th>
+                <th>Legacy</th>
+                <th>Redirect</th>
+                <th>Warning</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in rows %}
+                <tr>
+                  <td><code>{{ row.route_name }}</code></td>
+                  <td><code>{{ row.path_normalized }}</code></td>
+                  <td>{{ row.app_label }}</td>
+                  <td><span class="cov-badge {% if row.status == 'UNBOUND' %}danger{% elif row.status != 'CANONICAL_BOUND' %}warn{% endif %}">{{ row.status }}</span></td>
+                  <td>
+                    {% if row.canonical_permissions %}
+                      {% for code in row.canonical_permissions %}<div><code>{{ code }}</code></div>{% endfor %}
+                    {% else %}
+                      <span class="cell-muted">-</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ row.canonical_binding_count }}</td>
+                  <td>{% if row.has_legacy %}Si{% else %}No{% endif %}</td>
+                  <td>{% if row.has_redirect %}Si{% else %}No{% endif %}</td>
+                  <td>
+                    <div class="cov-badges">
+                      {% for warning in row.warnings %}
+                        <span class="cov-badge {% if warning == 'BINDING_WITHOUT_ENABLED_ROLE_GRANT' or warning == 'AMBIGUOUS_CANONICAL_BINDING' %}danger{% else %}warn{% endif %}">{{ warning }}</span>
+                      {% empty %}
+                        <span class="cov-badge">OK</span>
+                      {% endfor %}
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="notice">Nessuna route con i filtri correnti.</div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

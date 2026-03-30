@@ -62,6 +62,9 @@ class DPIImpostazioni(models.Model):
     class Meta:
         verbose_name = "Impostazioni DPI"
         verbose_name_plural = "Impostazioni DPI"
+        constraints = [
+            models.CheckConstraint(check=models.Q(pk=1), name="dpiimpostazioni_singleton"),
+        ]
 
     def __str__(self) -> str:
         return "Impostazioni DPI"

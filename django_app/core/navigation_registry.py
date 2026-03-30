@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from urllib.parse import urlsplit
 
 from django.core.cache import cache
@@ -15,6 +16,8 @@ from core.models import NavigationItem, NavigationRoleAccess, NavigationSnapshot
 NAV_REGISTRY_VERSION_KEY = "nav_registry_version"
 _DEFAULT_VERSION = 1
 _NAV_CACHE_TTL = 300
+_NAV_LOG_ONCE_TTL_SECONDS = 300
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -70,6 +73,16 @@ def _versioned_key(base: str) -> str:
     return f"{base}:v{get_navigation_registry_version()}"
 
 
+def _log_nav_warning_once(cache_key: str, message: str, **extra) -> None:
+    throttle_key = f"navigation_registry:warning:{cache_key}"
+    try:
+        if not cache.add(throttle_key, 1, timeout=_NAV_LOG_ONCE_TTL_SECONDS):
+            return
+    except Exception:
+        pass
+    logger.warning(message, extra=extra)
+
+
 def _path_variants(path: str) -> set[str]:
     norm = normalize_legacy_path(path)
     variants = {norm}
@@ -86,10 +99,23 @@ def _resolve_item_href(item: NavigationItem) -> tuple[str, bool]:
         try:
             return reverse(route_name), False
         except NoReverseMatch:
+            _log_nav_warning_once(
+                cache_key=f"invalid-route:{item.code}:{route_name}",
+                message="NavigationItem non risolvibile su route_name: fallback a coming_admin.",
+                item_id=int(item.id),
+                item_code=item.code,
+                route_name=route_name,
+            )
             return reverse("coming_admin"), True
     url_path = (item.url_path or "").strip()
     if url_path:
         return url_path, False
+    _log_nav_warning_once(
+        cache_key=f"missing-target:{item.code}",
+        message="NavigationItem privo di route_name/url_path: fallback a coming_admin.",
+        item_id=int(item.id),
+        item_code=item.code,
+    )
     return reverse("coming_admin"), True
 
 

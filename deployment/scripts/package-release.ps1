@@ -4,7 +4,8 @@
     Da eseguire sul PC di sviluppo prima di ogni deploy.
 
 .DESCRIPTION
-    - Legge la versione da config/settings/base.py (APP_VERSION)
+    - Legge la versione dal file VERSION (single source of truth)
+    - Fallback legacy: config/app_version.py, poi config/settings/base.py
     - Crea uno zip con timestamp: portale-novicrom-vX.Y.Z-YYYYMMDD_HHmmss.zip
     - Esclude file non necessari per la produzione
     - Salva lo zip in shared\packages\ (se esiste) o nella directory corrente
@@ -16,12 +17,12 @@
     Directory dove salvare lo zip. Default: C:\PortaleNovicrom\shared\packages\ o .\releases\
 
 .PARAMETER VersionOverride
-    Forza una versione specifica invece di leggerla dal codice (es. "0.8.3")
+    Forza una versione specifica invece di leggerla dal codice (es. "0.8.6")
 
 .EXAMPLE
     .\package-release.ps1
     .\package-release.ps1 -OutputDir "D:\Releases"
-    .\package-release.ps1 -VersionOverride "0.8.3"
+    .\package-release.ps1 -VersionOverride "0.8.6"
 #>
 
 param(
@@ -62,9 +63,31 @@ if (-not $OutputDir) {
 Write-Log "Output dir: $OutputDir" "INFO"
 
 # ---------------------------------------------------------------------------
-# Legge versione da settings/base.py
+# Legge versione (single source of truth: VERSION)
 # ---------------------------------------------------------------------------
 $version = $VersionOverride
+if (-not $version) {
+    $versionFile = "$SourcePath\VERSION"
+    if (Test-Path $versionFile) {
+        try {
+            $firstLine = (Get-Content -Path $versionFile -Encoding UTF8 | Select-Object -First 1)
+            if ($firstLine) {
+                $version = $firstLine.Trim()
+            }
+        } catch {
+            Write-Log "Impossibile leggere VERSION ($($_.Exception.Message))." "WARN"
+        }
+    }
+}
+if (-not $version) {
+    $appVersionFile = "$SourcePath\django_app\config\app_version.py"
+    if (Test-Path $appVersionFile) {
+        $match = Select-String -Path $appVersionFile -Pattern 'DEFAULT_APP_VERSION\s*=\s*"([^"]+)"' | Select-Object -First 1
+        if ($match) {
+            $version = $match.Matches[0].Groups[1].Value
+        }
+    }
+}
 if (-not $version) {
     $settingsFile = "$SourcePath\django_app\config\settings\base.py"
     if (Test-Path $settingsFile) {
@@ -74,7 +97,10 @@ if (-not $version) {
         }
     }
 }
-if (-not $version) { $version = "unknown" }
+if (-not $version) {
+    $version = "unknown"
+    Write-Log "Versione non rilevata automaticamente: uso fallback 'unknown'." "WARN"
+}
 Write-Log "Versione: $version" "INFO"
 
 # ---------------------------------------------------------------------------
@@ -92,7 +118,12 @@ Write-LogSeparator
 # ---------------------------------------------------------------------------
 # Directory temporanea per raccogliere i file
 # ---------------------------------------------------------------------------
-$tempDir = "$env:TEMP\portale-novicrom-pkg-$timestamp"
+$tempRoot = if ($env:LOCALAPPDATA) {
+    Join-Path $env:LOCALAPPDATA "Temp"
+} else {
+    [System.IO.Path]::GetTempPath().TrimEnd('\')
+}
+$tempDir = Join-Path $tempRoot "portale-novicrom-pkg-$timestamp"
 if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
 New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 
@@ -186,7 +217,13 @@ Write-Log "Zip creato." "SUCCESS"
 # ---------------------------------------------------------------------------
 # Pulizia temp
 # ---------------------------------------------------------------------------
-Remove-Item $tempDir -Recurse -Force
+if (Test-Path -LiteralPath $tempDir) {
+    try {
+        Remove-Item -LiteralPath $tempDir -Recurse -Force -ErrorAction Stop
+    } catch {
+        Write-Log "Pulizia temp non completata: $($_.Exception.Message)" "WARN"
+    }
+}
 
 # ---------------------------------------------------------------------------
 # Riepilogo

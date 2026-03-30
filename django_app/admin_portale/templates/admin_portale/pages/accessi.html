@@ -56,21 +56,21 @@
 
   <div class="stats">
     <div class="stat">
-      <div class="stat-icon-wrap yellow">🛡️</div>
+      <div class="stat-icon-wrap yellow">ðŸ›¡ï¸</div>
       <div>
         <div class="stat-num">{{ ruoli_info|length }}</div>
         <div class="stat-lbl">Ruoli configurati</div>
       </div>
     </div>
     <div class="stat">
-      <div class="stat-icon-wrap blue">🧭</div>
+      <div class="stat-icon-wrap blue">ðŸ§­</div>
       <div>
         <div class="stat-num">{{ pulsanti_count }}</div>
         <div class="stat-lbl">Pulsanti registrati</div>
       </div>
     </div>
     <div class="stat">
-      <div class="stat-icon-wrap red">↩️</div>
+      <div class="stat-icon-wrap red">â†©ï¸</div>
       <div>
         <div class="stat-num">{{ override_count }}</div>
         <div class="stat-lbl">Override utenti</div>
@@ -129,7 +129,7 @@
                     </a>
                     <a class="btn btn-sm"
                        href="{% url 'admin_portale:wizard_ruolo' %}?ruolo_id={{ info.ruolo.id }}">
-                      Wizard ▶
+                      Wizard â–¶
                     </a>
                   </div>
                 </td>
@@ -162,7 +162,7 @@
           <thead>
             <tr>
               <th>Utente</th>
-              <th>Modulo › Azione</th>
+              <th>Modulo â€º Azione</th>
               <th>can_view</th>
               <th>can_edit</th>
               <th>can_delete</th>
@@ -177,7 +177,7 @@
                   <strong>{{ ov.nome_utente }}</strong>
                   <span style="font-size:11px;color:var(--text-muted,#999);"> #{{ ov.legacy_user_id }}</span>
                 </td>
-                <td><span class="ov-path">{{ ov.modulo }} › {{ ov.azione }}</span></td>
+                <td><span class="ov-path">{{ ov.modulo }} â€º {{ ov.azione }}</span></td>
                 <td>
                   {% if ov.can_view is None %}<span class="chip-null">ruolo</span>
                   {% elif ov.can_view %}<span class="chip-on">ON</span>
@@ -199,7 +199,7 @@
                   {% else %}<span class="chip-off">OFF</span>{% endif %}
                 </td>
                 <td style="text-align:right;">
-                  <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:utente_edit' ov.legacy_user_id %}">Scheda →</a>
+                  <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:utente_edit' ov.legacy_user_id %}">Scheda â†’</a>
                 </td>
               </tr>
             {% endfor %}
@@ -225,24 +225,31 @@
           </div>
         </a>
         <a class="mod" href="{% url 'admin_portale:permessi' %}">
-          <div class="mod-icon">🔐</div>
+          <div class="mod-icon">ðŸ”</div>
           <div>
             <div class="mod-name">Matrice Permessi</div>
             <div class="mod-sub">Toggle granulare per ruolo o singolo utente</div>
           </div>
         </a>
         <a class="mod" href="{% url 'admin_portale:wizard_ruolo' %}">
-          <div class="mod-icon">🧙</div>
+          <div class="mod-icon">ðŸ§™</div>
           <div>
             <div class="mod-name">Wizard Configura Ruolo</div>
             <div class="mod-sub">Flusso guidato step-by-step per configurare un ruolo</div>
           </div>
         </a>
         <a class="mod" href="{% url 'admin_portale:pulsanti' %}">
-          <div class="mod-icon">🧭</div>
+          <div class="mod-icon">ðŸ§­</div>
           <div>
             <div class="mod-name">Gestione Pulsanti</div>
             <div class="mod-sub">Aggiungi, modifica o disabilita pulsanti del menu</div>
+          </div>
+        </a>
+        <a class="mod" href="{% url 'admin_portale:acl_canonico' %}">
+          <div class="mod-icon">V2</div>
+          <div>
+            <div class="mod-name">ACL Canonico</div>
+            <div class="mod-sub">Permission code, binding route/path e grant ruolo nel nuovo layer</div>
           </div>
         </a>
         {% url 'admin_portale:acl_diagnostica' as acl_url %}
@@ -251,11 +258,28 @@
           <div class="mod-icon">ACL</div>
           <div>
             <div class="mod-name">Diagnostica ACL</div>
-            <div class="mod-sub">Testa un path per capire perché un utente riceve 403</div>
+            <div class="mod-sub">Testa un path per capire perchÃ© un utente riceve 403</div>
           </div>
         </a>
         {% endif %}
+        <a class="mod" href="{% url 'admin_portale:mappa_permessi_navigazione' %}">
+          <div class="mod-icon">MAP</div>
+          <div>
+            <div class="mod-name">Mappa Permessi/Navigazione</div>
+            <div class="mod-sub">Vista unica route, menu, ruoli, override e redirect legacy</div>
+          </div>
+        </a>
+        <a class="mod" href="{% url 'admin_portale:acl_route_coverage' %}">
+          <div class="mod-icon">RPT</div>
+          <div>
+            <div class="mod-name">ACL Route Coverage</div>
+            <div class="mod-sub">Classifica ogni route in canonical, legacy fallback, unbound o redirect only</div>
+          </div>
+        </a>
       </div>
     </div>
   </div>
 {% endblock %}
+
+
+

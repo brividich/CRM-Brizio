@@ -293,6 +293,9 @@ class TaskImpostazioni(models.Model):
     class Meta:
         verbose_name = "Impostazioni Task"
         verbose_name_plural = "Impostazioni Task"
+        constraints = [
+            models.CheckConstraint(check=models.Q(pk=1), name="taskimpostazioni_singleton"),
+        ]
 
     def __str__(self) -> str:
         return "Impostazioni Task"

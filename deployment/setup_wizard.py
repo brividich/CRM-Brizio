@@ -60,6 +60,86 @@ STEPS_UNINSTALL = ["Configurazione", "Conferma", "Disinstallazione", "Completato
 # Solo dev.py e prod.py esistono; test usa prod (stesse impostazioni SQL Server).
 _SETTINGS_MAP = {"dev": "dev", "test": "prod", "prod": "prod"}
 
+_DEFAULT_APP_VERSION = "0.8.6"
+_VERSION_FILE = Path(__file__).resolve().parents[1] / "VERSION"
+_MODULE_VERSION_ENV_KEYS = (
+    "APP_VERSION_CORE",
+    "APP_VERSION_DASHBOARD",
+    "APP_VERSION_ASSENZE",
+    "APP_VERSION_ANOMALIE",
+    "APP_VERSION_ASSETS",
+    "APP_VERSION_TASKS",
+    "APP_VERSION_ADMIN_PORTALE",
+    "APP_VERSION_NOTIZIE",
+    "APP_VERSION_ANAGRAFICA",
+    "APP_VERSION_TICKETS",
+    "APP_VERSION_DPI",
+    "APP_VERSION_PROCEDURE_REFRESH",
+)
+
+
+def _load_app_version(default: str = _DEFAULT_APP_VERSION) -> str:
+    try:
+        first_line = _VERSION_FILE.read_text(encoding="utf-8").splitlines()[0]
+    except Exception:
+        return default
+    parsed = str(first_line or "").strip()
+    return parsed or default
+
+
+APP_VERSION = _load_app_version()
+
+
+def _module_version_lines(version: str) -> list[str]:
+    resolved = str(version or APP_VERSION).strip() or APP_VERSION
+    return [f"{env_key}={resolved}" for env_key in _MODULE_VERSION_ENV_KEYS]
+
+
+def _read_release_version(source_root: Path, default: str = APP_VERSION) -> str:
+    """
+    Resolve release version for packaging.
+
+    Order:
+    1) VERSION file in source root (single source of truth)
+    2) django_app/config/app_version.py -> DEFAULT_APP_VERSION
+    3) legacy fallback: parse APP_VERSION default from settings/base.py
+    """
+    version_file = source_root / "VERSION"
+    try:
+        if version_file.exists():
+            value = version_file.read_text(encoding="utf-8").splitlines()[0].strip()
+            if value:
+                return value
+    except Exception:
+        pass
+
+    app_version_py = source_root / "django_app" / "config" / "app_version.py"
+    try:
+        if app_version_py.exists():
+            content = app_version_py.read_text(encoding="utf-8")
+            match = re.search(r'DEFAULT_APP_VERSION\s*=\s*["\']([^"\']+)["\']', content)
+            if match:
+                value = match.group(1).strip()
+                if value:
+                    return value
+    except Exception:
+        pass
+
+    settings_base = source_root / "django_app" / "config" / "settings" / "base.py"
+    try:
+        if settings_base.exists():
+            content = settings_base.read_text(encoding="utf-8")
+            match = re.search(r'APP_VERSION\s*=\s*env\([^,]+,\s*["\']([^"\']+)["\']', content)
+            if match:
+                value = match.group(1).strip()
+                if value:
+                    return value
+    except Exception:
+        pass
+
+    return default
+
+
 def _django_settings(environment: str) -> str:
     return f"config.settings.{_SETTINGS_MAP.get(environment, 'prod')}"
 
@@ -178,7 +258,9 @@ class Config:
             f"DJANGO_SECRET_KEY={self.secret_key}",
             f"DJANGO_DEBUG=False",
             f"DJANGO_ALLOWED_HOSTS={h},127.0.0.1",
-            f"APP_VERSION=0.8.5\n",
+            f"APP_VERSION={APP_VERSION}",
+            *_module_version_lines(APP_VERSION),
+            "",
             f"DB_ENGINE=sqlserver",
             f"DB_NAME={self.db_name}",
             f"DB_HOST={self.db_host}",
@@ -421,7 +503,7 @@ class Sidebar(tk.Frame):
 
         # Footer
         frame(self._steps_frame, bg=SIDEBAR_BG, height=24).pack()
-        tk.Label(self._steps_frame, text="v0.8.5", font=(SF,8),
+        tk.Label(self._steps_frame, text=f"v{APP_VERSION}", font=(SF,8),
                  bg=SIDEBAR_BG, fg="#334155").pack(side="bottom", pady=10)
 
     def set(self, idx):
@@ -1940,11 +2022,13 @@ class InstallPage(Page):
 
         # 3. .env
         step(3, "Scrittura .env DEV", 30)
+        module_versions_block = "\n".join(_module_version_lines(APP_VERSION))
         env_content = (
             f"DJANGO_SECRET_KEY={cfg.secret_key}\n"
             f"DEBUG=True\n"
             f"ALLOWED_HOSTS=*\n"
-            f"APP_VERSION=0.8.5\n"
+            f"APP_VERSION={APP_VERSION}\n"
+            f"{module_versions_block}\n"
             f"ENVIRONMENT=dev\n"
         )
         try:
@@ -1974,6 +2058,11 @@ class InstallPage(Page):
                            cwd=django_app, env=env_vars)
             if ok: self._log_line("  ✓ migrate completato", "ok")
             else:  self._log_line("  ✗ migrate fallito", "err")
+            ok_acl = self._cmd([str(venv_py), "manage.py", "bootstrap_acl_v2",
+                                "--import-legacy", "--apply",
+                                f"--settings={settings}"], cwd=django_app, env=env_vars)
+            if ok_acl: self._log_line("  ✓ ACL v2 bootstrap completato", "ok")
+            else:      self._log_line("  ✗ ACL v2 bootstrap fallito (non bloccante)", "warn")
         else:
             self._log_line("  manage.py non trovato — skip", "warn")
 
@@ -2137,6 +2226,11 @@ class InstallPage(Page):
                                f"--settings={settings}"], cwd=django_app, env=env_vars)
             if ok_cc: self._log_line("  ✓ createcachetable completato", "ok")
             else:     self._log_line("  ✗ createcachetable fallito", "warn")
+            ok_acl = self._cmd([str(venv_py),"manage.py","bootstrap_acl_v2",
+                                "--import-legacy","--apply",
+                                f"--settings={settings}"], cwd=django_app, env=env_vars)
+            if ok_acl: self._log_line("  ✓ ACL v2 bootstrap completato", "ok")
+            else:      self._log_line("  ✗ ACL v2 bootstrap fallito (non bloccante)", "warn")
         else:
             self._log_line("  Skip — django_app non trovato", "warn")
 
@@ -3049,15 +3143,8 @@ class ReleaseRunPage(Page):
         src     = Path(cfg.source_dir)
         out_dir = Path(cfg.output_dir)
 
-        # Legge versione da settings/base.py
-        ver = "0.0.0"
-        base_py = src / "django_app" / "config" / "settings" / "base.py"
-        if base_py.exists():
-            try:
-                content = base_py.read_text(encoding="utf-8")
-                m = re.search(r'APP_VERSION\s*=\s*env\([^,]+,\s*["\']([^"\']+)["\']', content)
-                if m: ver = m.group(1)
-            except: pass
+        # Versioning centralizzato: VERSION -> app_version.py -> fallback legacy
+        ver = _read_release_version(src, APP_VERSION)
 
         tag      = datetime.now().strftime("%Y%m%d_%H%M%S")
         out_name = f"portale-novicrom-v{ver}-{tag}.zip"
@@ -3227,6 +3314,11 @@ class ReleaseRunPage(Page):
                                f"--settings={settings}"], cwd=django_app, env=env_vars)
             if ok_cc: self._log_line("  ✓ createcachetable completato", "ok")
             else:     self._log_line("  ✗ createcachetable fallito", "warn")
+            ok_acl = self._cmd([str(venv_py), "manage.py", "bootstrap_acl_v2",
+                                "--import-legacy", "--apply",
+                                f"--settings={settings}"], cwd=django_app, env=env_vars)
+            if ok_acl: self._log_line("  ✓ ACL v2 bootstrap completato", "ok")
+            else:      self._log_line("  ✗ ACL v2 bootstrap fallito (non bloccante)", "warn")
 
         # 6. Attivazione junction
         step(6, "Attivazione release", 80)

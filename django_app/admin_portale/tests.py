@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import configparser
 import json
@@ -13,19 +13,27 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from admin_portale.forms import PulsanteForm, UtenteCreateForm
-from core.legacy_models import AnagraficaDipendente, UtenteLegacy
+from core.legacy_cache import bump_legacy_cache_version
+from core.legacy_models import AnagraficaDipendente, Permesso, Pulsante, Ruolo, UtenteLegacy
 from core.models import (
     AnagraficaRisposta,
     AnagraficaVoce,
     ChecklistEsecuzione,
     EmployeeBoardConfig,
+    LegacyRedirect,
+    NavigationItem,
+    NavigationRoleAccess,
     Notifica,
     OptioneConfig,
+    PermissionDefinition,
     Profile,
+    RolePermissionGrant,
+    RoutePermissionBinding,
     UserDashboardConfig,
     UserDashboardLayout,
     UserExtraInfo,
     UserModuleVisibility,
+    UserPermissionGrant,
     UserPermissionOverride,
 )
 
@@ -133,7 +141,86 @@ def _ensure_anagrafica_table() -> None:
                     utente_id INT NULL
                 )
                 """
+                )
+
+
+def _ensure_pulsanti_table() -> None:
+    vendor = connection.vendor
+    with connection.cursor() as cursor:
+        if vendor == "sqlite":
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS pulsanti (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    codice VARCHAR(100) NOT NULL,
+                    nome_visibile VARCHAR(200) NULL,
+                    icona VARCHAR(20) NULL,
+                    modulo VARCHAR(100) NOT NULL,
+                    url VARCHAR(500) NOT NULL
+                )
+                """
             )
+        else:
+            cursor.execute(
+                """
+                IF OBJECT_ID('pulsanti', 'U') IS NULL
+                CREATE TABLE pulsanti (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    codice NVARCHAR(100) NOT NULL,
+                    nome_visibile NVARCHAR(200) NULL,
+                    icona NVARCHAR(20) NULL,
+                    modulo NVARCHAR(100) NOT NULL,
+                    url NVARCHAR(500) NOT NULL
+                )
+                """
+            )
+
+
+def _ensure_permessi_table() -> None:
+    vendor = connection.vendor
+    with connection.cursor() as cursor:
+        if vendor == "sqlite":
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS permessi (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    modulo VARCHAR(100) NOT NULL,
+                    azione VARCHAR(100) NOT NULL,
+                    ruolo_id INTEGER NOT NULL,
+                    consentito INTEGER NULL,
+                    can_view INTEGER NULL,
+                    can_edit INTEGER NULL,
+                    can_delete INTEGER NULL,
+                    can_approve INTEGER NULL
+                )
+                """
+            )
+        else:
+            cursor.execute(
+                """
+                IF OBJECT_ID('permessi', 'U') IS NULL
+                CREATE TABLE permessi (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    modulo NVARCHAR(100) NOT NULL,
+                    azione NVARCHAR(100) NOT NULL,
+                    ruolo_id INT NOT NULL,
+                    consentito INT NULL,
+                    can_view INT NULL,
+                    can_edit INT NULL,
+                    can_delete INT NULL,
+                    can_approve INT NULL
+                )
+                """
+            )
+
+
+def _clear_acl_navigation_seed_tables() -> None:
+    with connection.cursor() as cursor:
+        for table_name in ("permessi", "pulsanti", "ruoli", "utenti"):
+            try:
+                cursor.execute(f"DELETE FROM {table_name}")
+            except Exception:
+                continue
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -653,10 +740,307 @@ class AdminPortaleNavigationIconTests(TestCase):
         self.assertTrue(payload["icon"]["url"].startswith("/media/navigation/icons/"))
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Security tests
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+
+
+@override_settings(
+    LEGACY_AUTH_ENABLED=False,
+    SECURE_SSL_REDIRECT=False,
+    NAVIGATION_REGISTRY_ENABLED=True,
+    NAVIGATION_LEGACY_FALLBACK_ENABLED=True,
+)
+class AdminPortaleAclDiagnosticViewTests(TestCase):
+    def setUp(self):
+        _ensure_utenti_table()
+        _ensure_ruoli_table()
+        _ensure_pulsanti_table()
+        _ensure_permessi_table()
+        _clear_acl_navigation_seed_tables()
+
+        self.admin_user = User.objects.create_superuser(
+            username="admin-portale-acl-diagnostic",
+            email="admin.acl.diagnostic@test.local",
+            password="pass12345",
+        )
+        self.admin_legacy = UtenteLegacy.objects.create(
+            nome="Admin ACL",
+            email="admin.acl.diagnostic@test.local",
+            password="*AD_MANAGED*",
+            ruolo="admin",
+            ruolo_id=1,
+            attivo=True,
+            deve_cambiare_password=False,
+        )
+        self.target_legacy = UtenteLegacy.objects.create(
+            nome="Utente ACL",
+            email="utente.acl@test.local",
+            password="*AD_MANAGED*",
+            ruolo="operatore",
+            ruolo_id=2,
+            attivo=True,
+            deve_cambiare_password=False,
+        )
+
+        Ruolo.objects.create(id=1, nome="admin")
+        Ruolo.objects.create(id=2, nome="operatore")
+        Ruolo.objects.create(id=3, nome="ospite")
+        Pulsante.objects.create(
+            codice="gestione_assenze",
+            nome_visibile="Gestione Assenze",
+            icona="calendar",
+            modulo="assenze",
+            url="/assenze/",
+        )
+        Permesso.objects.create(
+            ruolo_id=2,
+            modulo="assenze",
+            azione="gestione_assenze",
+            can_view=0,
+            consentito=0,
+        )
+        UserPermissionOverride.objects.create(
+            legacy_user_id=self.target_legacy.id,
+            modulo="assenze",
+            azione="gestione_assenze",
+            can_view=True,
+        )
+        nav_item = NavigationItem.objects.create(
+            code="assenze-diag",
+            label="Assenze",
+            section="topbar",
+            route_name="coming_assenze",
+            order=10,
+            is_visible=True,
+            is_enabled=True,
+        )
+        NavigationRoleAccess.objects.create(item=nav_item, legacy_role_id=2, can_view=True)
+        LegacyRedirect.objects.create(
+            legacy_path="/admin/vecchie-assenze",
+            target_url_path="/assenze/",
+            is_enabled=True,
+        )
+        bump_legacy_cache_version()
+
+    def _post_diag(self, data: dict):
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            return self.client.post(reverse("admin_portale:acl_diagnostica"), data)
+
+    def test_acl_diagnostica_returns_structured_reason_and_context(self):
+        response = self._post_diag(
+            {
+                "path": "/assenze/",
+                "legacy_user_id": str(self.target_legacy.id),
+            }
+        )
+
+        self.assertEqual(response.status_code, 200)
+        diag = response.context["diag"]
+        self.assertTrue(diag["allowed"])
+        self.assertEqual(diag["reason_code"], "user_override_allow")
+        self.assertEqual(diag["decision_source"], "user_override")
+        self.assertEqual(diag["pulsante"]["modulo"], "assenze")
+        self.assertTrue(diag["registry_matches"])
+        self.assertTrue(diag["redirect_matches"]["outbound"])
+        self.assertIn("OVERRIDE", diag["badges"])
+        self.assertIn("LEGACY", diag["badges"])
+        self.assertIn("legacy", diag["human_summary"]["title"].lower())
+        self.assertEqual(diag["final_decision_source"], "legacy_fallback")
+
+    def test_acl_diagnostica_allows_role_simulation(self):
+        response = self._post_diag(
+            {
+                "path": "/assenze/",
+                "legacy_user_id": str(self.target_legacy.id),
+                "legacy_role_id": "3",
+            }
+        )
+
+        self.assertEqual(response.status_code, 200)
+        diag = response.context["diag"]
+        self.assertEqual(diag["forced_role_id"], 3)
+        self.assertEqual(diag["effective_role_id"], 3)
+
+    def test_acl_diagnostica_human_summary_is_canonical_when_binding_exists(self):
+        PermissionDefinition.objects.create(
+            code="assenze.dashboard.view",
+            label="Assenze dashboard",
+            module="assenze",
+            is_active=True,
+        )
+        RoutePermissionBinding.objects.create(
+            route_name="",
+            path_pattern="/assenze",
+            match_strategy=RoutePermissionBinding.MATCH_PREFIX,
+            permission_id="assenze.dashboard.view",
+            source_app="assenze",
+            is_active=True,
+        )
+        RolePermissionGrant.objects.create(
+            legacy_role_id=2,
+            permission_id="assenze.dashboard.view",
+            enabled=False,
+        )
+
+        response = self._post_diag(
+            {
+                "path": "/assenze/",
+                "legacy_user_id": str(self.target_legacy.id),
+            }
+        )
+
+        self.assertEqual(response.status_code, 200)
+        diag = response.context["diag"]
+        self.assertEqual(diag["final_decision_source"], "canonical")
+        self.assertIn("route bindata", diag["human_summary"]["title"].lower())
+
+
+@override_settings(
+    LEGACY_AUTH_ENABLED=False,
+    SECURE_SSL_REDIRECT=False,
+    NAVIGATION_REGISTRY_ENABLED=True,
+    NAVIGATION_LEGACY_FALLBACK_ENABLED=True,
+)
+class AdminPortalePermissionNavigationMapTests(TestCase):
+    def setUp(self):
+        _ensure_utenti_table()
+        _ensure_ruoli_table()
+        _ensure_pulsanti_table()
+        _ensure_permessi_table()
+        _clear_acl_navigation_seed_tables()
+
+        self.admin_user = User.objects.create_superuser(
+            username="admin-portale-map",
+            email="admin.map@test.local",
+            password="pass12345",
+        )
+        self.admin_legacy = UtenteLegacy.objects.create(
+            nome="Admin Map",
+            email="admin.map@test.local",
+            password="*AD_MANAGED*",
+            ruolo="admin",
+            ruolo_id=1,
+            attivo=True,
+            deve_cambiare_password=False,
+        )
+        self.target_legacy = UtenteLegacy.objects.create(
+            nome="Target Map",
+            email="target.map@test.local",
+            password="*AD_MANAGED*",
+            ruolo="operatore",
+            ruolo_id=2,
+            attivo=True,
+            deve_cambiare_password=False,
+        )
+
+        Ruolo.objects.create(id=1, nome="admin")
+        Ruolo.objects.create(id=2, nome="operatore")
+        Pulsante.objects.create(
+            codice="gestione_assenze",
+            nome_visibile="Gestione Assenze",
+            icona="calendar",
+            modulo="assenze",
+            url="/assenze/",
+        )
+        Permesso.objects.create(
+            ruolo_id=2,
+            modulo="assenze",
+            azione="gestione_assenze",
+            can_view=1,
+            consentito=1,
+        )
+        UserPermissionOverride.objects.create(
+            legacy_user_id=self.target_legacy.id,
+            modulo="assenze",
+            azione="gestione_assenze",
+            can_view=False,
+        )
+        nav_item = NavigationItem.objects.create(
+            code="assenze-map",
+            label="Assenze",
+            section="topbar",
+            route_name="coming_assenze",
+            order=20,
+            is_visible=True,
+            is_enabled=True,
+        )
+        NavigationRoleAccess.objects.create(item=nav_item, legacy_role_id=2, can_view=True)
+        LegacyRedirect.objects.create(
+            legacy_path="/admin/old-assenze",
+            target_url_path="/assenze/",
+            is_enabled=True,
+        )
+        bump_legacy_cache_version()
+
+    def test_map_page_shows_badges_for_registry_legacy_override_and_redirect(self):
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.get(reverse("admin_portale:mappa_permessi_navigazione"))
+
+        self.assertEqual(response.status_code, 200)
+        rows = response.context["rows"]
+        target_row = next((row for row in rows if row["path"] == "/assenze"), None)
+        self.assertIsNotNone(target_row)
+        assert target_row is not None
+        self.assertIn("REGISTRY", target_row["badges"])
+        self.assertIn("LEGACY", target_row["badges"])
+        self.assertIn("OVERRIDE", target_row["badges"])
+        self.assertIn("ADMIN BYPASS", target_row["badges"])
+        self.assertIn("REDIRECT", target_row["badges"])
+
+    def test_map_page_exposes_workflow_detail_and_live_toggle_with_role_filter(self):
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.get(
+                reverse("admin_portale:mappa_permessi_navigazione"),
+                {"legacy_role_id": "2"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Workflow Decisionale", html=False)
+        self.assertContains(response, "Modifica Live (Legacy)", html=False)
+        self.assertContains(response, "api/permessi/toggle", html=False)
+
+        rows = response.context["rows"]
+        target_row = next((row for row in rows if row["path"] == "/assenze"), None)
+        self.assertIsNotNone(target_row)
+        assert target_row is not None
+        self.assertTrue(target_row["selected_role_visible"])
+        self.assertTrue(target_row["legacy_buttons"])
+        self.assertTrue(target_row["legacy_buttons"][0]["selected_role_allowed"])
+
+    def test_map_page_keeps_legacy_rows_for_disabled_role_to_allow_live_enable(self):
+        Ruolo.objects.create(id=3, nome="qa")
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.get(
+                reverse("admin_portale:mappa_permessi_navigazione"),
+                {"legacy_role_id": "3"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        rows = response.context["rows"]
+        target_row = next((row for row in rows if row["path"] == "/assenze"), None)
+        self.assertIsNotNone(target_row)
+        assert target_row is not None
+        self.assertFalse(target_row["selected_role_visible"])
+        self.assertTrue(target_row["legacy_buttons"])
+        self.assertFalse(bool(target_row["legacy_buttons"][0]["selected_role_allowed"]))
 
 class AdminPortaleFormSecurityTests(TestCase):
     """Testa la validazione di sicurezza nei form admin."""
@@ -906,3 +1290,289 @@ class AdminPortaleAuditLogTests(TestCase):
             AuditLog.objects.filter(azione="utente_delete").count(),
             count_before + 1,
         )
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AdminPortaleAclCanonicoTests(TestCase):
+    def setUp(self):
+        _ensure_ruoli_table()
+        _ensure_utenti_table()
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM utenti")
+            cursor.execute("DELETE FROM ruoli")
+            cursor.execute("INSERT INTO ruoli (id, nome) VALUES (1, 'admin')")
+            cursor.execute("INSERT INTO ruoli (id, nome) VALUES (6, 'utente')")
+
+        self.admin_user = User.objects.create_superuser(
+            username="admin-acl-canonico",
+            email="admin.acl.canonico@test.local",
+            password="pass12345",
+        )
+        self.admin_legacy = UtenteLegacy.objects.create(
+            nome="Admin ACL Canonico",
+            email="admin.acl.canonico@test.local",
+            password="*AD_MANAGED*",
+            ruolo="admin",
+            ruolo_id=1,
+            attivo=True,
+            deve_cambiare_password=False,
+        )
+        self.url = reverse("admin_portale:acl_canonico")
+
+    def test_can_create_permission_definition_from_acl_canonico_page(self):
+        self.client.force_login(self.admin_user)
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.post(
+                self.url,
+                {
+                    "action": "permission_upsert",
+                    "code": "core.profilo.view",
+                    "label": "Profilo",
+                    "module": "core",
+                    "description": "Permesso test",
+                    "is_active": "1",
+                },
+                follow=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(PermissionDefinition.objects.filter(code="core.profilo.view").exists())
+
+    def test_can_save_role_grants_and_user_override(self):
+        PermissionDefinition.objects.create(
+            code="core.profilo.view",
+            label="Profilo",
+            module="core",
+            is_active=True,
+        )
+        self.client.force_login(self.admin_user)
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            grant_response = self.client.post(
+                self.url,
+                {
+                    "action": "role_grants_save",
+                    "role_id": "6",
+                    "grants": ["core.profilo.view"],
+                },
+                follow=True,
+            )
+            override_response = self.client.post(
+                self.url,
+                {
+                    "action": "user_override_upsert",
+                    "legacy_user_id": "999",
+                    "permission_code": "core.profilo.view",
+                    "enabled": "0",
+                    "note": "Test deny",
+                },
+                follow=True,
+            )
+
+        self.assertEqual(grant_response.status_code, 200)
+        self.assertEqual(override_response.status_code, 200)
+        self.assertTrue(
+            RolePermissionGrant.objects.filter(legacy_role_id=6, permission_id="core.profilo.view", enabled=True).exists()
+        )
+        self.assertTrue(
+            UserPermissionGrant.objects.filter(legacy_user_id=999, permission_id="core.profilo.view", enabled=False).exists()
+        )
+
+    def test_can_create_binding_from_acl_canonico_page(self):
+        PermissionDefinition.objects.create(
+            code="core.profilo.view",
+            label="Profilo",
+            module="core",
+            is_active=True,
+        )
+        self.client.force_login(self.admin_user)
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.post(
+                self.url,
+                {
+                    "action": "binding_upsert",
+                    "permission_code": "core.profilo.view",
+                    "route_name": "profilo",
+                    "path_pattern": "",
+                    "match_strategy": "exact",
+                    "source_app": "core",
+                    "priority": "100",
+                    "is_active": "1",
+                },
+                follow=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        binding = RoutePermissionBinding.objects.get(route_name="profilo", path_pattern="")
+        self.assertEqual(binding.permission_id, "core.profilo.view")
+
+    def test_rejects_invalid_permission_code_format(self):
+        self.client.force_login(self.admin_user)
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.post(
+                self.url,
+                {
+                    "action": "permission_upsert",
+                    "code": "INVALID-CODE",
+                    "label": "Test",
+                    "module": "core",
+                    "is_active": "1",
+                },
+                follow=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(PermissionDefinition.objects.filter(code__icontains="invalid-code").exists())
+        self.assertContains(response, "Formato richiesto", html=False)
+
+    def test_shows_warning_for_binding_without_any_enabled_role_grant(self):
+        PermissionDefinition.objects.create(
+            code="core.diagnostica.view",
+            label="Diagnostica",
+            module="core",
+            is_active=True,
+        )
+        RoutePermissionBinding.objects.create(
+            route_name="admin_portale:acl_diagnostica",
+            path_pattern="",
+            match_strategy=RoutePermissionBinding.MATCH_EXACT,
+            permission_id="core.diagnostica.view",
+            source_app="admin_portale",
+            is_active=True,
+        )
+        self.client.force_login(self.admin_user)
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.get(self.url, {"tab": "bindings", "role_id": "6"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "NO ROLE GRANT", html=False)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AdminPortaleAclRouteCoverageTests(TestCase):
+    def setUp(self):
+        _ensure_ruoli_table()
+        _ensure_utenti_table()
+        _ensure_pulsanti_table()
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM utenti")
+            cursor.execute("DELETE FROM ruoli")
+            cursor.execute("DELETE FROM pulsanti")
+            cursor.execute("INSERT INTO ruoli (id, nome) VALUES (1, 'admin')")
+            cursor.execute("INSERT INTO ruoli (id, nome) VALUES (6, 'utente')")
+
+        self.admin_user = User.objects.create_superuser(
+            username="admin-acl-route-coverage",
+            email="admin.acl.route.coverage@test.local",
+            password="pass12345",
+        )
+        self.admin_legacy = UtenteLegacy.objects.create(
+            nome="Admin ACL Coverage",
+            email="admin.acl.route.coverage@test.local",
+            password="*AD_MANAGED*",
+            ruolo="admin",
+            ruolo_id=1,
+            attivo=True,
+            deve_cambiare_password=False,
+        )
+        PermissionDefinition.objects.create(
+            code="admin_portale.acl_diagnostica.view",
+            label="ACL diagnostica",
+            module="admin_portale",
+            is_active=True,
+        )
+        RoutePermissionBinding.objects.create(
+            route_name="admin_portale:acl_diagnostica",
+            path_pattern="",
+            match_strategy=RoutePermissionBinding.MATCH_EXACT,
+            permission_id="admin_portale.acl_diagnostica.view",
+            source_app="admin_portale",
+            is_active=True,
+        )
+        Pulsante.objects.create(
+            codice="legacy_map",
+            nome_visibile="Mappa legacy",
+            icona="map",
+            modulo="admin_portale",
+            url="route:admin_portale:mappa_permessi_navigazione",
+        )
+        LegacyRedirect.objects.create(
+            legacy_path="/legacy/schema-dati",
+            target_route_name="admin_portale:schema_dati",
+            is_enabled=True,
+        )
+        self.url = reverse("admin_portale:acl_route_coverage")
+
+    def test_route_coverage_page_classifies_canonical_legacy_and_redirect(self):
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        rows = response.context["rows"]
+        by_route = {row["route_name"]: row for row in rows}
+        self.assertEqual(by_route["admin_portale:acl_diagnostica"]["status"], "CANONICAL_BOUND")
+        self.assertEqual(by_route["admin_portale:mappa_permessi_navigazione"]["status"], "LEGACY_FALLBACK")
+        self.assertEqual(by_route["admin_portale:schema_dati"]["status"], "REDIRECT_ONLY")
+
+    def test_route_coverage_supports_csv_export(self):
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.get(self.url, {"export": "csv", "status": "ALL"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/csv")
+        self.assertIn("attachment; filename=\"acl_route_coverage.csv\"", response["Content-Disposition"])
+
+    def test_route_coverage_flags_ambiguous_canonical_bindings(self):
+        PermissionDefinition.objects.create(
+            code="admin_portale.acl.prefix.view",
+            label="ACL prefix",
+            module="admin_portale",
+            is_active=True,
+        )
+        RoutePermissionBinding.objects.create(
+            route_name="",
+            path_pattern="/admin-portale/acl-diagnostica",
+            match_strategy=RoutePermissionBinding.MATCH_PREFIX,
+            permission_id="admin_portale.acl.prefix.view",
+            source_app="admin_portale",
+            is_active=True,
+        )
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.get(self.url, {"q": "admin_portale:acl_diagnostica"})
+
+        self.assertEqual(response.status_code, 200)
+        rows = response.context["rows"]
+        row = next(item for item in rows if item["route_name"] == "admin_portale:acl_diagnostica")
+        self.assertIn("AMBIGUOUS_CANONICAL_BINDING", row["warnings"])
+

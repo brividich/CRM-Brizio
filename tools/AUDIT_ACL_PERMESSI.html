@@ -353,7 +353,22 @@
   <div class="topbar-right">
     <span class="topbar-badge">8 bug potenziali</span>
     <span class="topbar-badge-ok">2026-03-13</span>
+    <span class="topbar-badge-ok" style="background:rgba(34,197,94,.15);color:#22c55e;">ACL v2 attivo (v0.8.6)</span>
   </div>
+</div>
+
+<!-- ── BANNER ACL V2 ──────────────────────────────────────────── -->
+<div style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:10px;padding:16px 20px;margin:16px;font-size:13px;line-height:1.6;">
+  <strong style="color:#22c55e;">✅ Aggiornamento v0.8.6 — ACL Canonico v2 attivo</strong><br>
+  A partire da v0.8.6 il portale dispone di un <strong>layer ACL canonico v2</strong> (<code>core/acl_v2.py</code>) che affianca e parzialmente risolve alcune delle incoerenze documentate in questo audit:<br><br>
+  <ul style="margin:4px 0 0 18px;padding:0;">
+    <li><strong>Navigation Registry e ACL legacy non sincronizzati</strong> → il layer v2 introduce <code>RoutePermissionBinding</code> che collega esplicitamente route e permission code, eliminando la dipendenza dal match implicito pulsante/path.</li>
+    <li><strong>Assenza di source of truth centralizzata</strong> → <code>PermissionDefinition</code> + <code>RolePermissionGrant</code> + <code>UserPermissionGrant</code> costituiscono il nuovo registro canonico gestito tramite <code>/admin-portale/acl-canonico/</code>.</li>
+    <li><strong>Nessuna visibilità sulla copertura ACL</strong> → <code>/admin-portale/acl-route-coverage/</code> mostra lo stato di ogni route (<code>CANONICAL_BOUND</code> / <code>LEGACY_FALLBACK</code> / <code>UNBOUND</code>) con export CSV.</li>
+    <li><strong>Diagnostica opaca</strong> → <code>/admin-portale/acl-diagnostica/</code> espone la decisione finale con <code>decision_source</code>, trace completo e blocco canonical + legacy_fallback.</li>
+  </ul>
+  <br>
+  I problemi <strong>hardcoded</strong> (elementi hardcoded in <code>acl.py</code>, <code>middleware.py</code>, <code>context_processors.py</code>) rimangono nel layer legacy e non sono risolti dal layer v2 — continuano ad applicarsi per le route non ancora migrate al canonico.
 </div>
 
 <!-- ── LAYOUT ──────────────────────────────────────────────── -->

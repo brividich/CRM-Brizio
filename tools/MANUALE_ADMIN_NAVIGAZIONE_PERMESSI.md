@@ -1,6 +1,6 @@
 # Manuale Amministratore — Navigazione, Pulsanti e Permessi
 
-> Portale Novicrom · Aggiornato: marzo 2026 (v0.8.5)
+> Portale Novicrom · Aggiornato: marzo 2026 (v0.8.6)
 > Percorso admin: **Admin Portale** (voce nel menu principale)
 
 ---
@@ -16,6 +16,12 @@
 7. [Wizard: configura ruolo](#7-wizard-configura-ruolo)
 8. [Flusso consigliato per operazioni comuni](#8-flusso-consigliato-per-operazioni-comuni)
 9. [Riferimento campi](#9-riferimento-campi)
+10. [Categorie Navigazione — colori topbar](#10-categorie-navigazione--colori-topbar)
+11. [Monitoring — dashboard issue applicative](#11-monitoring--dashboard-issue-applicative)
+12. [ACL Canonico v2 — il nuovo layer permessi](#12-acl-canonico-v2--il-nuovo-layer-permessi)
+13. [Diagnostica ACL unificata](#13-diagnostica-acl-unificata)
+14. [Route Coverage Report](#14-route-coverage-report)
+15. [Mappa Permessi / Navigazione](#15-mappa-permessi--navigazione)
 
 ---
 
@@ -473,4 +479,160 @@ Le issue con severity `critical` inviano un'email di notifica (con rate-limit: m
 
 ---
 
-Fine manuale — Portale Novicrom Admin (v0.8.5)
+---
+
+## 12. ACL Canonico v2 — il nuovo layer permessi
+
+**Admin Portale → ACL Canonico** (`/admin-portale/acl-canonico/`)
+
+Il layer ACL Canonico v2 è il nuovo sistema di controllo accessi basato su **permission code** espliciti, indipendente dal sistema legacy (pulsanti/modulo/azione). Convive con il sistema legacy, che rimane attivo come fallback per le route non ancora migrate.
+
+### Ordine di risoluzione accessi (v0.8.6+)
+
+```text
+1. is_superuser        → accesso garantito sempre
+2. is_legacy_admin()   → accesso garantito alle aree admin
+3. RoutePermissionBinding → cerca binding canonico per route o path pattern
+   ↓ trovato?
+   4. RolePermissionGrant  → il ruolo dell'utente ha il grant per quel permission code?
+   5. UserPermissionGrant  → override esplicito per l'utente (priorità sul ruolo)
+   ↓ binding canonico assente?
+   6. Fallback ACL legacy  → pipeline storica (pulsanti → modulo/azione → ruolo)
+```
+
+### Concetti chiave ACL v2
+
+| Concetto | Descrizione |
+| --- | --- |
+| **Permission code** | Identificatore stringa nel formato `modulo.risorsa.azione` (es. `dpi.richieste.view`). Non deve contenere spazi. |
+| **RoutePermissionBinding** | Associa una route Django (`route_name`) o un path pattern (`path_pattern`) a un permission code. |
+| **RolePermissionGrant** | Assegna un permission code a un ruolo legacy. Toggle `enabled = ON` = accesso concesso. |
+| **UserPermissionGrant** | Override personale utente su un permission code. Ha priorità sul grant ruolo. |
+
+### Operazioni sull'ACL Canonico
+
+#### Creare un permission code
+
+1. Sezione **Permission Definitions** → form in cima
+2. `Code`: formato `modulo.risorsa.azione` (es. `rentri.registro.view`)
+3. `Label`: descrizione leggibile (es. "Visualizza registro rifiuti")
+4. Salva
+
+#### Associare una route a un permission code (binding)
+
+1. Sezione **Route/Path Bindings** → form
+2. Scegli il `Permission code` dal dropdown
+3. `Route name`: nome route Django (es. `rentri:lista`) — oppure
+4. `Path pattern`: prefisso URL (es. `/rentri/`) per coprire tutte le sotto-URL
+5. Salva — da questo momento la route è coperta dal layer canonico
+
+#### Concedere accesso a un ruolo
+
+1. Sezione **Role Grants** → form
+2. Seleziona `Permission code` e `Ruolo`
+3. Toggle `Enabled = ON`
+4. Salva
+
+#### Override per singolo utente
+
+1. Sezione **User Overrides** → form
+2. Seleziona `Permission code` e `Utente`
+3. Toggle `Enabled`:
+
+   - **ON** = accesso concesso, anche se il ruolo non ha il grant
+   - **OFF** = accesso negato, anche se il ruolo ha il grant
+
+4. Salva
+
+### Avvertenze operative ACL v2
+
+- Un binding canonico **disattiva automaticamente il fallback legacy** per quella route. Se rimuovi un binding senza avere il grant ruolo corretto, gli utenti riceveranno 403.
+- Per fare rollback: elimina il binding → il sistema torna al fallback legacy automaticamente.
+- Usa la pagina **Route Coverage** (sezione 14) per verificare lo stato di ogni route prima e dopo le modifiche.
+
+---
+
+## 13. Diagnostica ACL unificata
+
+**Admin Portale → Diagnostica ACL** (`/admin-portale/acl-diagnostica/`) — alias: `/admin-portale/acl/`
+
+Verifica in tempo reale perché un utente ha o non ha accesso a una specifica URL/route. Mostra la **decisione finale** del resolver v2 con l'intera catena di ragionamento.
+
+### Utilizzo della diagnostica
+
+1. Seleziona un **utente** dal dropdown (o inserisci username)
+2. Inserisci il **path** da verificare (es. `/rentri/`) o il **nome route**
+3. Premi **Analizza**
+
+### Campi del risultato diagnostica
+
+| Campo | Significato |
+| --- | --- |
+| **Decisione** | `ALLOW` o `DENY` — il risultato finale |
+| **decision_source** | `canonical` (layer v2), `legacy_fallback`, `admin_bypass`, `superuser_bypass` |
+| **Binding canonico** | Se esiste un binding per la route: permission code, route/path abbinati |
+| **Grant ruolo** | Se il ruolo dell'utente ha il grant per quel permission code |
+| **Override utente** | Se esiste un override personale (ha priorità sul ruolo) |
+| **Legacy fallback** | Dettaglio pipeline legacy: pulsante trovato, modulo/azione, permesso ruolo |
+| **Trace** | Sequenza completa dei passaggi di risoluzione |
+
+### Badge colorati diagnostica
+
+- `CANONICAL` — decisione presa dal layer v2
+- `LEGACY` — decisione presa dal fallback legacy
+- `ADMIN BYPASS` — utente è `is_legacy_admin()`, bypass automatico
+- `OVERRIDE` — override utente attivo (priorità assoluta)
+- `REDIRECT` — la route è un redirect legacy, non richiede permesso specifico
+
+---
+
+## 14. Route Coverage Report
+
+**Admin Portale → Route Coverage** (`/admin-portale/acl-route-coverage/`)
+
+Mappa lo stato ACL di **tutte le route Django** del portale. Identifica route non protette, route coperte solo dal legacy, e route già migrate al layer canonico.
+
+### Stati del coverage
+
+| Stato | Colore | Significato |
+| --- | --- | --- |
+| `CANONICAL_BOUND` | Verde | Route con binding canonico v2 attivo |
+| `LEGACY_FALLBACK` | Giallo | Route coperta solo dall'ACL legacy (pulsante) |
+| `UNBOUND` | Rosso | Route senza nessuna protezione ACL configurata |
+| `COMING_SOON_EXCLUDED` | Grigio | Route esclusa intenzionalmente (coming soon) |
+| `REDIRECT_ONLY` | Grigio chiaro | Route che fa solo redirect, nessun controllo necessario |
+
+### Utilizzo del coverage report
+
+- **Filtra per stato** per vedere solo le route da migrare (`UNBOUND`, `LEGACY_FALLBACK`)
+- **Esporta CSV** per condividere il report o fare analisi offline
+- **Prima di ogni rilascio**: verifica che le nuove route siano almeno `LEGACY_FALLBACK` (non `UNBOUND`)
+
+---
+
+## 15. Mappa Permessi / Navigazione
+
+**Admin Portale → Mappa Permessi/Nav** (`/admin-portale/mappa-permessi-navigazione/`)
+
+Vista unificata che correla ogni route/pagina con il permission code canonico, i ruoli abilitati, gli override utente, le voci di navigazione (Registry o legacy) e i redirect legacy.
+
+### Casi d'uso della mappa
+
+Usa questa pagina per:
+
+- Verificare che una route visibile nel menu sia effettivamente accessibile ai ruoli corretti
+- Trovare discrepanze tra navigazione e protezione ACL (voce visibile ma route 403 o viceversa)
+- Avere una fotografia completa del sistema permessi prima di un rilascio
+
+### Filtri della mappa
+
+| Filtro | Descrizione |
+| --- | --- |
+| Ricerca | Cerca per route name, path o permission code |
+| Sorgente | `REGISTRY` (Navigation Builder) o `LEGACY` (pulsanti) |
+| Stato ACL | `CANONICAL`, `LEGACY`, `UNBOUND` |
+| Ruolo | Mostra solo le route accessibili a quel ruolo |
+
+---
+
+Fine manuale — Portale Novicrom Admin (v0.8.6)

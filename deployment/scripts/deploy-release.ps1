@@ -33,8 +33,8 @@
     Salta collectstatic. Utile se i file statici non sono cambiati.
 
 .EXAMPLE
-    .\deploy-release.ps1 -Environment test  -PackagePath "C:\PortaleNovicrom\shared\packages\portale-novicrom-v0.8.2-20260321_143000.zip"
-    .\deploy-release.ps1 -Environment prod  -PackagePath "C:\...\portale-novicrom-v0.8.2-20260321_143000.zip" -AutoActivate
+    .\deploy-release.ps1 -Environment test  -PackagePath "C:\PortaleNovicrom\shared\packages\portale-novicrom-vX.Y.Z-20260321_143000.zip"
+    .\deploy-release.ps1 -Environment prod  -PackagePath "C:\...\portale-novicrom-vX.Y.Z-20260321_143000.zip" -AutoActivate
     .\deploy-release.ps1 -Environment test  -PackagePath "..." -SkipMigrate -SkipCollectStatic
 #>
 

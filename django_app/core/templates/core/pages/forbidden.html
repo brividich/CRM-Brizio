@@ -2,6 +2,24 @@
 
 {% block title %}403 | Portale Applicativo{% endblock %}
 
+{% block extra_head %}
+<style>
+  .acl-chip {
+    display:inline-flex;
+    align-items:center;
+    padding:2px 8px;
+    border-radius:999px;
+    border:1px solid #dbe3ef;
+    background:#f8fafc;
+    font-size:11px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.03em;
+    color:#334155;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
   <div class="page-header">
     <div class="page-h">Accesso negato</div>
@@ -10,16 +28,25 @@
 
   <div class="card">
     <div class="card-head">
-      <div class="card-title">🚫 Permessi mancanti</div>
+      <div class="card-title">Permessi mancanti</div>
     </div>
     <div class="card-body">
       <div class="activity-item">
         <div class="act-dot"></div>
         <div>
-          <div class="act-text">Il controllo ACL legacy (`pulsanti` + `permessi`) ha negato l'accesso.</div>
+          <div class="act-text">Il resolver ACL ha negato l'accesso.</div>
           <div class="act-time">HTTP 403</div>
         </div>
       </div>
+      {% if acl_decision %}
+        <div class="activity-item">
+          <div class="act-dot blue"></div>
+          <div>
+            <div class="act-text">Origine decisione: <span class="acl-chip">{{ acl_decision.decision_source|default:"deny" }}</span></div>
+            <div class="act-time">{{ acl_decision.reason|default:"Motivo non disponibile." }}</div>
+          </div>
+        </div>
+      {% endif %}
       <div class="activity-item">
         <div class="act-dot blue"></div>
         <div>

@@ -1,15 +1,33 @@
 from __future__ import annotations
 
+import logging
+
+from django.core.cache import cache
 from django.db import DatabaseError
 
-from core.legacy_models import Permesso, UtenteLegacy
+from core.legacy_models import Permesso, Ruolo, UtenteLegacy
 from core.legacy_cache import (
     get_cached_acl_pulsanti,
     get_cached_perm_map,
     normalize_legacy_path,
     normalize_legacy_button_url,
 )
-from core.legacy_utils import is_legacy_admin
+from core.legacy_utils import get_admin_role_ids, is_legacy_admin
+
+
+logger = logging.getLogger(__name__)
+_ACL_LOG_ONCE_TTL_SECONDS = 300
+
+_ACL_REASON_NO_LEGACY_USER = "no_legacy_user"
+_ACL_REASON_ADMIN_BYPASS = "admin_bypass"
+_ACL_REASON_NO_ROLE = "no_role_id"
+_ACL_REASON_NO_BUTTON = "no_pulsante_match"
+_ACL_REASON_OVERRIDE_ALLOW = "user_override_allow"
+_ACL_REASON_OVERRIDE_DENY = "user_override_deny"
+_ACL_REASON_PERM_MISSING = "missing_permission_record"
+_ACL_REASON_PERM_ALLOW = "role_permission_allow"
+_ACL_REASON_PERM_DENY = "role_permission_deny"
+_ACL_REASON_DB_ERROR = "db_error"
 
 
 def _get_user_override(legacy_user_id: int, modulo: str, azione: str):
@@ -27,6 +45,43 @@ def _get_user_override(legacy_user_id: int, modulo: str, azione: str):
 
 def normalize_acl_path(path: str) -> str:
     return normalize_legacy_path(path)
+
+
+def _safe_int(value) -> int | None:
+    try:
+        if value in (None, ""):
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _resolve_role_name(role_id: int | None) -> str:
+    rid = _safe_int(role_id)
+    if rid is None:
+        return ""
+    try:
+        role = Ruolo.objects.filter(id=rid).only("nome").first()
+    except DatabaseError:
+        return ""
+    return str(getattr(role, "nome", "") or "").strip()
+
+
+def _is_admin_role_id(role_id: int | None) -> bool:
+    rid = _safe_int(role_id)
+    if rid is None:
+        return False
+    return int(rid) in get_admin_role_ids()
+
+
+def _log_once_warning(cache_key: str, message: str, **extra) -> None:
+    key = f"acl:log:warning:{cache_key}"
+    try:
+        if not cache.add(key, 1, timeout=_ACL_LOG_ONCE_TTL_SECONDS):
+            return
+    except Exception:
+        pass
+    logger.warning(message, extra=extra)
 
 
 def _path_variants(path_norm: str) -> set[str]:
@@ -68,6 +123,14 @@ def _match_pulsante(path_norm: str):
     return candidates[0]
 
 
+def _perm_allowed(perm: Permesso | None) -> bool:
+    if not perm:
+        return False
+    can_view = getattr(perm, "can_view", None)
+    consentito = getattr(perm, "consentito", None)
+    return bool(can_view) or bool(consentito)
+
+
 def check_permesso(legacy_user: UtenteLegacy | None, path: str) -> bool:
     if not legacy_user:
         return False
@@ -81,6 +144,12 @@ def check_permesso(legacy_user: UtenteLegacy | None, path: str) -> bool:
     try:
         pulsante = _match_pulsante(path_norm)
         if not pulsante:
+            _log_once_warning(
+                cache_key=f"no-pulsante:{path_norm}",
+                message="ACL: nessun pulsante matchato per un path protetto.",
+                path=path_norm,
+                legacy_user_id=_safe_int(getattr(legacy_user, "id", None)),
+            )
             return False
         modulo = (pulsante.get("modulo") or "").strip()
         azione = (pulsante.get("codice") or "").strip()
@@ -98,50 +167,108 @@ def check_permesso(legacy_user: UtenteLegacy | None, path: str) -> bool:
 
 
 def diagnose_permesso(legacy_user: UtenteLegacy | None, path: str) -> dict:
+    return diagnose_permesso_for_context(legacy_user=legacy_user, path=path, forced_role_id=None)
+
+
+def diagnose_permesso_for_context(
+    *,
+    legacy_user: UtenteLegacy | None,
+    path: str,
+    forced_role_id: int | None = None,
+) -> dict:
     path_input = path or "/"
     path_norm = normalize_acl_path(path_input)
+    variants = sorted(_path_variants(path_norm))
+    forced_role_int = _safe_int(forced_role_id)
     result = {
         "path_input": path_input,
         "path_normalized": path_norm,
+        "path_variants": variants,
         "legacy_user": None,
+        "role": None,
+        "forced_role_id": forced_role_int,
+        "effective_role_id": None,
         "is_legacy_admin": False,
+        "admin_bypass": False,
         "allowed": False,
+        "reason_code": "",
+        "decision_source": "",
         "reason": "",
         "pulsante": None,
+        "matched_variant": "",
         "permesso": None,
         "override": None,
         "db_error": "",
+        "legacy_involvement": {
+            "engine": "legacy_acl",
+            "forced_role_simulation": bool(forced_role_int is not None),
+        },
     }
 
-    if not legacy_user:
+    if legacy_user:
+        user_role_id = _safe_int(getattr(legacy_user, "ruolo_id", None))
+        result["legacy_user"] = {
+            "id": int(legacy_user.id),
+            "nome": (legacy_user.nome or "").strip(),
+            "email": (legacy_user.email or "").strip(),
+            "ruolo": (legacy_user.ruolo or "").strip(),
+            "ruolo_id": user_role_id,
+            "attivo": bool(legacy_user.attivo),
+        }
+
+    effective_role_id = forced_role_int
+    if effective_role_id is None and legacy_user:
+        effective_role_id = _safe_int(getattr(legacy_user, "ruolo_id", None))
+    result["effective_role_id"] = effective_role_id
+    if effective_role_id is not None:
+        result["role"] = {
+            "id": int(effective_role_id),
+            "nome": _resolve_role_name(effective_role_id),
+            "is_admin_role": _is_admin_role_id(effective_role_id),
+        }
+
+    user_is_admin = bool(legacy_user and is_legacy_admin(legacy_user))
+    role_is_admin = bool(effective_role_id is not None and _is_admin_role_id(effective_role_id))
+    if user_is_admin or role_is_admin:
+        result["is_legacy_admin"] = user_is_admin
+        result["admin_bypass"] = True
+        result["allowed"] = True
+        result["decision_source"] = "admin_bypass"
+        result["reason_code"] = _ACL_REASON_ADMIN_BYPASS
+        result["reason"] = (
+            "Utente riconosciuto come admin legacy: bypass ACL consentito."
+            if user_is_admin
+            else "Ruolo selezionato riconosciuto come admin: bypass ACL simulato."
+        )
+        return result
+
+    if not legacy_user and effective_role_id is None:
+        result["decision_source"] = "input"
+        result["reason_code"] = _ACL_REASON_NO_LEGACY_USER
         result["reason"] = "Nessun utente legacy associato all'utente Django autenticato."
         return result
 
-    result["legacy_user"] = {
-        "id": int(legacy_user.id),
-        "nome": (legacy_user.nome or "").strip(),
-        "email": (legacy_user.email or "").strip(),
-        "ruolo": (legacy_user.ruolo or "").strip(),
-        "ruolo_id": legacy_user.ruolo_id,
-        "attivo": bool(legacy_user.attivo),
-    }
-
-    if is_legacy_admin(legacy_user):
-        result["is_legacy_admin"] = True
-        result["allowed"] = True
-        result["reason"] = "Utente riconosciuto come admin legacy: bypass ACL consentito."
-        return result
-
-    ruolo_id = legacy_user.ruolo_id
+    ruolo_id = effective_role_id
     if not ruolo_id:
+        result["decision_source"] = "input"
+        result["reason_code"] = _ACL_REASON_NO_ROLE
         result["reason"] = "Utente senza ruolo_id legacy: ACL nega l'accesso."
         return result
 
     try:
         pulsante = _match_pulsante(path_norm)
         if not pulsante:
+            result["decision_source"] = "button_match"
+            result["reason_code"] = _ACL_REASON_NO_BUTTON
             result["reason"] = "Nessun pulsante legacy trovato che corrisponde al path richiesto."
             return result
+
+        matched_variant = ""
+        url_norm = (pulsante.get("url_normalized") or "").strip()
+        for variant in variants:
+            if variant == url_norm or variant.startswith(url_norm + "/"):
+                matched_variant = variant
+                break
 
         result["pulsante"] = {
             "id": int(pulsante["id"]),
@@ -151,27 +278,33 @@ def diagnose_permesso(legacy_user: UtenteLegacy | None, path: str) -> dict:
             "url": (pulsante.get("url") or "").strip(),
             "url_normalized": normalize_legacy_button_url(pulsante.get("url") or "/"),
         }
+        result["matched_variant"] = matched_variant
 
         modulo_str = (pulsante.get("modulo") or "").strip()
         azione_str = (pulsante.get("codice") or "").strip()
 
         # Check override per-utente
-        override = _get_user_override(int(legacy_user.id), modulo_str, azione_str)
-        if override is not None:
-            result["override"] = {
-                "can_view": override.can_view,
-                "can_edit": override.can_edit,
-                "can_delete": override.can_delete,
-                "can_approve": override.can_approve,
-            }
-            if override.can_view is not None:
-                result["allowed"] = override.can_view
-                result["reason"] = (
-                    "Override per-utente attivo: accesso consentito."
-                    if override.can_view
-                    else "Override per-utente attivo: accesso negato."
-                )
-                return result
+        if legacy_user:
+            override = _get_user_override(int(legacy_user.id), modulo_str, azione_str)
+            if override is not None:
+                result["override"] = {
+                    "can_view": override.can_view,
+                    "can_edit": override.can_edit,
+                    "can_delete": override.can_delete,
+                    "can_approve": override.can_approve,
+                }
+                if override.can_view is not None:
+                    result["allowed"] = bool(override.can_view)
+                    result["decision_source"] = "user_override"
+                    result["reason_code"] = (
+                        _ACL_REASON_OVERRIDE_ALLOW if override.can_view else _ACL_REASON_OVERRIDE_DENY
+                    )
+                    result["reason"] = (
+                        "Override per-utente attivo: accesso consentito."
+                        if override.can_view
+                        else "Override per-utente attivo: accesso negato."
+                    )
+                    return result
 
         perm = (
             Permesso.objects.filter(
@@ -183,12 +316,14 @@ def diagnose_permesso(legacy_user: UtenteLegacy | None, path: str) -> dict:
             .first()
         )
         if not perm:
+            result["decision_source"] = "role_permission"
+            result["reason_code"] = _ACL_REASON_PERM_MISSING
             result["reason"] = "Nessun record in tabella permessi per ruolo/modulo/azione del pulsante matchato."
             return result
 
         can_view = getattr(perm, "can_view", None)
         consentito = getattr(perm, "consentito", None)
-        allowed = bool(can_view) or (can_view is None and bool(consentito)) or bool(consentito)
+        allowed = _perm_allowed(perm)
         result["permesso"] = {
             "id": int(perm.id),
             "ruolo_id": perm.ruolo_id,
@@ -201,6 +336,8 @@ def diagnose_permesso(legacy_user: UtenteLegacy | None, path: str) -> dict:
             "can_approve": getattr(perm, "can_approve", None),
         }
         result["allowed"] = allowed
+        result["decision_source"] = "role_permission"
+        result["reason_code"] = _ACL_REASON_PERM_ALLOW if allowed else _ACL_REASON_PERM_DENY
         result["reason"] = (
             "Permesso consentito (can_view/consentito attivo)."
             if allowed
@@ -209,6 +346,8 @@ def diagnose_permesso(legacy_user: UtenteLegacy | None, path: str) -> dict:
         return result
     except DatabaseError as exc:
         result["db_error"] = str(exc)
+        result["decision_source"] = "database"
+        result["reason_code"] = _ACL_REASON_DB_ERROR
         result["reason"] = "Errore database durante la verifica ACL."
         return result
 

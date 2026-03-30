@@ -131,6 +131,14 @@ class SicurezzaImpostazioni(models.Model):
     class Meta:
         verbose_name = "Impostazioni Sicurezza"
         verbose_name_plural = "Impostazioni Sicurezza"
+        constraints = [
+            models.CheckConstraint(check=models.Q(pk=1), name="sicurezzaimpostazioni_singleton"),
+        ]
 
     def __str__(self) -> str:
         return "Impostazioni Sicurezza"
+
+    @classmethod
+    def get_singleton(cls) -> "SicurezzaImpostazioni":
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj

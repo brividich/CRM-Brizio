@@ -1,18 +1,33 @@
 from __future__ import annotations
 
+import logging
 from urllib.parse import urlencode
 
 from django.conf import settings
+from django.core.cache import cache
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
 from core.impersonation import is_impersonation_stop_path, resolve_impersonation_context
-from core.acl import check_permesso
+from core.acl_v2 import resolve_acl_access
 from core.legacy_utils import get_legacy_user, legacy_auth_enabled
 
 API_ACL_GATE_PATHS = {
     "/api/anomalie/": "/gestione-anomalie",
 }
+_ACL_MIDDLEWARE_LOG_TTL_SECONDS = 300
+logger = logging.getLogger(__name__)
+
+
+def _log_acl_once(level: str, cache_key: str, message: str, **extra) -> None:
+    throttle_key = f"acl_middleware:log:{level}:{cache_key}"
+    try:
+        if not cache.add(throttle_key, 1, timeout=_ACL_MIDDLEWARE_LOG_TTL_SECONDS):
+            return
+    except Exception:
+        pass
+    log_fn = getattr(logger, level, logger.info)
+    log_fn(message, extra=extra)
 
 
 class AdaptiveSecureCookieMiddleware:
@@ -61,16 +76,57 @@ class ACLMiddleware:
 
         legacy_user = get_legacy_user(request.user)
         request.legacy_user = legacy_user
-        for prefix, gate_path in API_ACL_GATE_PATHS.items():
-            if path.startswith(prefix) and legacy_user and check_permesso(legacy_user, gate_path):
-                return self.get_response(request)
-        if legacy_user and check_permesso(legacy_user, path):
+        request.acl_decision = None
+
+        gate_target = path
+        for prefix, mapped_path in API_ACL_GATE_PATHS.items():
+            if path.startswith(prefix):
+                gate_target = mapped_path
+                break
+
+        decision = resolve_acl_access(
+            path=gate_target,
+            legacy_user=legacy_user,
+            django_user=request.user,
+            request=request,
+            include_legacy_diagnostic=True,
+        )
+        request.acl_decision = decision
+        if bool(decision.get("allowed", False)):
             return self.get_response(request)
+
+        legacy_diag = decision.get("legacy_fallback") or {}
+        reason_code = str(legacy_diag.get("reason_code") or "").strip().lower()
+        if decision.get("decision_source") == "legacy_fallback" and reason_code == "no_pulsante_match":
+            _log_acl_once(
+                level="warning",
+                cache_key=f"no_pulsante:{decision.get('path_normalized')}",
+                message="ACL deny: path protetto senza binding canonico e senza pulsante legacy matchato.",
+                path=decision.get("path_normalized"),
+                route_name=decision.get("route_name"),
+                user_id=getattr(getattr(request, "user", None), "id", None),
+                legacy_user_id=(decision.get("legacy_user") or {}).get("id"),
+                decision_source=decision.get("decision_source"),
+                decision_reason=decision.get("reason"),
+            )
+        elif decision.get("decision_source") == "legacy_fallback" and reason_code == "db_error":
+            _log_acl_once(
+                level="warning",
+                cache_key=f"db_error:{decision.get('path_normalized')}",
+                message="ACL deny: errore DB durante fallback legacy ACL.",
+                path=decision.get("path_normalized"),
+                route_name=decision.get("route_name"),
+                user_id=getattr(getattr(request, "user", None), "id", None),
+                legacy_user_id=(decision.get("legacy_user") or {}).get("id"),
+                db_error=legacy_diag.get("db_error"),
+                decision_source=decision.get("decision_source"),
+                decision_reason=decision.get("reason"),
+            )
 
         return render(
             request,
             "core/pages/forbidden.html",
-            {"page_title": "Accesso negato"},
+            {"page_title": "Accesso negato", "acl_decision": decision},
             status=403,
         )
 

@@ -338,6 +338,11 @@
       <div class="sb-group-label">Guide operative</div>
       <a href="#flussi" class="sb-link"><span class="sb-icon">▶️</span> Flussi comuni</a>
       <a href="#riferimento" class="sb-link"><span class="sb-icon">📋</span> Riferimento campi</a>
+      <div class="sb-group">ACL v2 — Nuovo (v0.8.6)</div>
+      <a href="#acl-canonico-v2" class="sb-link"><span class="sb-icon">🔐</span> ACL Canonico v2</a>
+      <a href="#diagnostica-acl" class="sb-link"><span class="sb-icon">🔍</span> Diagnostica ACL</a>
+      <a href="#route-coverage" class="sb-link"><span class="sb-icon">📊</span> Route Coverage</a>
+      <a href="#mappa-permessi" class="sb-link"><span class="sb-icon">🗺️</span> Mappa Permessi/Nav</a>
     </div>
   </nav>
 
@@ -354,7 +359,7 @@
       </p>
       <div class="hero-meta">
         <div class="hero-meta-item"><div class="hero-meta-dot"></div> Percorso: Admin Portale (menu principale)</div>
-        <div class="hero-meta-item"><div class="hero-meta-dot" style="background:var(--green)"></div> Versione portale: 0.7.x</div>
+        <div class="hero-meta-item"><div class="hero-meta-dot" style="background:var(--green)"></div> Versione portale: 0.8.6</div>
         <div class="hero-meta-item"><div class="hero-meta-dot" style="background:var(--yellow)"></div> Marzo 2026</div>
       </div>
     </div>
@@ -899,8 +904,164 @@
       </div>
     </section>
 
+    <!-- 12. ACL CANONICO V2 -->
+    <section class="section" id="acl-canonico-v2">
+      <div class="section-header">
+        <div class="section-icon icon-purple">🔐</div>
+        <div>
+          <div class="section-title">12. ACL Canonico v2 — il nuovo layer permessi</div>
+          <div class="section-sub">Nuovo in v0.8.6 · <code>/admin-portale/acl-canonico/</code></div>
+        </div>
+      </div>
+
+      <p>Il layer ACL Canonico v2 è il nuovo sistema di controllo accessi basato su <strong>permission code</strong> espliciti nel formato <code>modulo.risorsa.azione</code>. Convive con il sistema legacy (pulsanti) che rimane attivo come fallback per le route non ancora migrate.</p>
+
+      <h3>Ordine di risoluzione accessi</h3>
+      <div class="diagram">1. is_superuser         → accesso garantito sempre
+2. is_legacy_admin()    → accesso garantito alle aree admin
+3. RoutePermissionBinding → cerca binding canonico per route o path pattern
+   ↓ trovato?
+   4. RolePermissionGrant  → il ruolo dell'utente ha il grant?
+   5. UserPermissionGrant  → override esplicito per l'utente (priorità sul ruolo)
+   ↓ binding canonico assente?
+   6. Fallback ACL legacy  → pipeline storica (pulsanti → modulo/azione → ruolo)</div>
+
+      <h3>Concetti chiave</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Concetto</th><th>Descrizione</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Permission code</strong></td><td>Stringa <code>modulo.risorsa.azione</code> (es. <code>dpi.richieste.view</code>). Non deve contenere spazi.</td></tr>
+            <tr><td><strong>RoutePermissionBinding</strong></td><td>Associa una route Django o un path pattern a un permission code.</td></tr>
+            <tr><td><strong>RolePermissionGrant</strong></td><td>Assegna un permission code a un ruolo. Toggle <code>enabled = ON</code> = accesso concesso.</td></tr>
+            <tr><td><strong>UserPermissionGrant</strong></td><td>Override personale utente. Ha priorità assoluta sul grant ruolo.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Operazioni principali</h3>
+      <div class="cols-2">
+        <div class="flow-card">
+          <div class="flow-card-title">➕ Creare un permission code</div>
+          <ol style="font-size:13px;padding-left:18px;margin:0;">
+            <li>Sezione <strong>Permission Definitions</strong> → form in cima</li>
+            <li><code>Code</code>: formato <code>modulo.risorsa.azione</code></li>
+            <li><code>Label</code>: descrizione leggibile</li>
+            <li>Salva</li>
+          </ol>
+        </div>
+        <div class="flow-card">
+          <div class="flow-card-title">🔗 Associare una route (binding)</div>
+          <ol style="font-size:13px;padding-left:18px;margin:0;">
+            <li>Sezione <strong>Route/Path Bindings</strong> → form</li>
+            <li>Scegli <code>Permission code</code></li>
+            <li><code>Route name</code> o <code>Path pattern</code></li>
+            <li>Salva — la route è ora coperta dal layer canonico</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="callout warn">
+        <span class="callout-icon">⚠️</span>
+        <div>Un binding canonico <strong>disattiva il fallback legacy</strong> per quella route. Se rimuovi un binding senza grant ruolo corretto, gli utenti riceveranno 403. Per rollback: elimina il binding → il sistema torna al fallback legacy automaticamente.</div>
+      </div>
+    </section>
+
+    <!-- 13. DIAGNOSTICA ACL -->
+    <section class="section" id="diagnostica-acl">
+      <div class="section-header">
+        <div class="section-icon icon-blue">🔍</div>
+        <div>
+          <div class="section-title">13. Diagnostica ACL unificata</div>
+          <div class="section-sub">Nuovo in v0.8.6 · <code>/admin-portale/acl-diagnostica/</code></div>
+        </div>
+      </div>
+
+      <p>Verifica in tempo reale perché un utente ha o non ha accesso a una specifica URL/route. Mostra la <strong>decisione finale</strong> del resolver v2 con l'intera catena di ragionamento (canonical + legacy).</p>
+
+      <h3>Come usarla</h3>
+      <ol>
+        <li>Seleziona un <strong>utente</strong> dal dropdown</li>
+        <li>Inserisci il <strong>path</strong> (es. <code>/rentri/</code>) o il <strong>nome route</strong></li>
+        <li>Premi <strong>Analizza</strong></li>
+      </ol>
+
+      <h3>Campi del risultato</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Campo</th><th>Significato</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Decisione</strong></td><td><code>ALLOW</code> o <code>DENY</code> — risultato finale</td></tr>
+            <tr><td><strong>decision_source</strong></td><td><code>canonical</code>, <code>legacy_fallback</code>, <code>admin_bypass</code>, <code>superuser_bypass</code></td></tr>
+            <tr><td><strong>Binding canonico</strong></td><td>Permission code e route/path abbinati (se presenti)</td></tr>
+            <tr><td><strong>Grant ruolo</strong></td><td>Il ruolo dell'utente ha il grant per quel permission code?</td></tr>
+            <tr><td><strong>Override utente</strong></td><td>Override personale attivo (ha priorità sul ruolo)</td></tr>
+            <tr><td><strong>Legacy fallback</strong></td><td>Pulsante trovato, modulo/azione, permesso ruolo nel sistema legacy</td></tr>
+            <tr><td><strong>Trace</strong></td><td>Sequenza completa dei passaggi di risoluzione</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top:10px;">Badge: <span class="badge badge-blue">CANONICAL</span> <span class="badge badge-yellow">LEGACY</span> <span class="badge badge-green">ADMIN BYPASS</span> <span class="badge badge-purple">OVERRIDE</span> <span class="badge badge-orange">REDIRECT</span></p>
+    </section>
+
+    <!-- 14. ROUTE COVERAGE -->
+    <section class="section" id="route-coverage">
+      <div class="section-header">
+        <div class="section-icon icon-green">📊</div>
+        <div>
+          <div class="section-title">14. Route Coverage Report</div>
+          <div class="section-sub">Nuovo in v0.8.6 · <code>/admin-portale/acl-route-coverage/</code></div>
+        </div>
+      </div>
+
+      <p>Mappa lo stato ACL di <strong>tutte le route Django</strong> del portale. Identifica route non protette, coperte solo dal legacy, o già migrate al layer canonico. Export CSV disponibile.</p>
+
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Stato</th><th>Colore</th><th>Significato</th></tr></thead>
+          <tbody>
+            <tr><td><code>CANONICAL_BOUND</code></td><td><span class="badge badge-green">Verde</span></td><td>Route con binding canonico v2 attivo</td></tr>
+            <tr><td><code>LEGACY_FALLBACK</code></td><td><span class="badge badge-yellow">Giallo</span></td><td>Route coperta solo dall'ACL legacy (pulsante)</td></tr>
+            <tr><td><code>UNBOUND</code></td><td><span class="badge badge-red">Rosso</span></td><td>Route senza nessuna protezione ACL configurata</td></tr>
+            <tr><td><code>COMING_SOON_EXCLUDED</code></td><td><span class="badge badge-orange">Grigio</span></td><td>Route esclusa intenzionalmente (coming soon)</td></tr>
+            <tr><td><code>REDIRECT_ONLY</code></td><td>—</td><td>Route che fa solo redirect, nessun controllo necessario</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout info">
+        <span class="callout-icon">💡</span>
+        <div><strong>Prima di ogni rilascio:</strong> verifica che le nuove route siano almeno <code>LEGACY_FALLBACK</code> (non <code>UNBOUND</code>). Usa il filtro per stato e l'export CSV per analisi offline.</div>
+      </div>
+    </section>
+
+    <!-- 15. MAPPA PERMESSI/NAV -->
+    <section class="section" id="mappa-permessi">
+      <div class="section-header">
+        <div class="section-icon icon-yellow">🗺️</div>
+        <div>
+          <div class="section-title">15. Mappa Permessi / Navigazione</div>
+          <div class="section-sub">Nuovo in v0.8.6 · <code>/admin-portale/mappa-permessi-navigazione/</code></div>
+        </div>
+      </div>
+
+      <p>Vista unificata che correla ogni route/pagina con il permission code canonico, i ruoli abilitati, gli override utente, le voci di navigazione (Registry o legacy) e i redirect legacy. Utile per trovare discrepanze tra menu visibile e protezione ACL effettiva.</p>
+
+      <h3>Filtri disponibili</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Filtro</th><th>Descrizione</th></tr></thead>
+          <tbody>
+            <tr><td>Ricerca</td><td>Route name, path o permission code</td></tr>
+            <tr><td>Sorgente</td><td><code>REGISTRY</code> (Navigation Builder) o <code>LEGACY</code> (pulsanti)</td></tr>
+            <tr><td>Stato ACL</td><td><code>CANONICAL</code>, <code>LEGACY</code>, <code>UNBOUND</code></td></tr>
+            <tr><td>Ruolo</td><td>Mostra solo le route accessibili a quel ruolo</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
     <div style="margin-top:40px; padding-top:24px; border-top:1px solid var(--border); font-size:12px; color:var(--text-faint);">
-      Portale Novicrom — Manuale Admin · Aggiornato marzo 2026
+      Portale Novicrom — Manuale Admin · Aggiornato marzo 2026 (v0.8.6)
     </div>
 
   </main>

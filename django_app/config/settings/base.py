@@ -5,6 +5,12 @@ import socket
 import tempfile
 from pathlib import Path
 
+from config.app_version import (
+    DEFAULT_APP_VERSION,
+    MODULE_ENV_KEYS_BY_CODE,
+    load_app_version,
+)
+
 # mssql-django 1.6 non riconosce ancora SQL Server major version 17.
 # Trattiamo v17 come compatibile con il profilo 2022 per evitare blocchi in startup.
 try:
@@ -111,7 +117,7 @@ def ini_bool(section: str, option: str, default: bool = False) -> bool:
 SECRET_KEY = env("DJANGO_SECRET_KEY", "change-me-in-dev")
 DEBUG = env_bool("DJANGO_DEBUG", False)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", ["127.0.0.1", "localhost"])
-APP_VERSION = env("APP_VERSION", "0.8.5")
+APP_VERSION = env("APP_VERSION", load_app_version(DEFAULT_APP_VERSION))
 SETUP_WIZARD_REQUIRED = env_bool("SETUP_WIZARD_REQUIRED", True)
 
 # ── Branding istanza ──────────────────────────────────────────────────────────
@@ -123,22 +129,8 @@ BRANDING_FAVICON = env("BRANDING_FAVICON", "")  # percorso relativo a STATICFILE
 
 
 def build_module_versions(default_version: str) -> dict[str, str]:
-    module_env_keys = {
-        "core": "APP_VERSION_CORE",
-        "dashboard": "APP_VERSION_DASHBOARD",
-        "assenze": "APP_VERSION_ASSENZE",
-        "anomalie": "APP_VERSION_ANOMALIE",
-        "assets": "APP_VERSION_ASSETS",
-        "tasks": "APP_VERSION_TASKS",
-        "admin_portale": "APP_VERSION_ADMIN_PORTALE",
-        "notizie": "APP_VERSION_NOTIZIE",
-        "anagrafica": "APP_VERSION_ANAGRAFICA",
-        "tickets":    "APP_VERSION_TICKETS",
-        "dpi":                "APP_VERSION_DPI",
-        "procedure_refresh":  "APP_VERSION_PROCEDURE_REFRESH",
-    }
     versions: dict[str, str] = {}
-    for code, env_key in module_env_keys.items():
+    for code, env_key in MODULE_ENV_KEYS_BY_CODE.items():
         versions[code] = env(env_key, default_version).strip() or default_version
     return versions
 

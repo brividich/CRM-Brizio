@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from urllib.parse import urlsplit
 
 from django.conf import settings
+from django.core.cache import cache
 from django.db import DatabaseError, connections
 from django.urls import NoReverseMatch, reverse
 
@@ -25,6 +27,8 @@ from core.versioning import get_changelog_entries, get_current_release, get_modu
 NAV_REGISTRY_ACL_GATES: dict[str, str] = {
     "tasks": "/tasks/",
 }
+_NAV_LOG_ONCE_TTL_SECONDS = 300
+logger = logging.getLogger(__name__)
 
 # ── UI Preferences helpers ──────────────────────────────────────────────────
 _UI_PREFS_SESSION_KEY = "_ui_prefs_v2"
@@ -65,6 +69,17 @@ _SIDEBAR_FOOTER_ACTION_KEYS = {
     item["key"] for item in _SIDEBAR_FOOTER_ACTION_CATALOG if not item["key"].startswith("user_panel_")
 }
 _SIDEBAR_FOOTER_DEFAULT_ORDER = ("notifications",)
+
+
+def _log_nav_once(level: str, cache_key: str, message: str, **extra) -> None:
+    throttle_key = f"context_nav:{level}:{cache_key}"
+    try:
+        if not cache.add(throttle_key, 1, timeout=_NAV_LOG_ONCE_TTL_SECONDS):
+            return
+    except Exception:
+        pass
+    log_fn = getattr(logger, level, logger.info)
+    log_fn(message, extra=extra)
 
 
 def get_sidebar_footer_catalog() -> list[dict[str, str]]:
@@ -270,6 +285,15 @@ def _resolve_nav_href_from_pulsante(pulsante: dict) -> tuple[str, bool]:
                 try:
                     return reverse(route_name), False
                 except NoReverseMatch:
+                    _log_nav_once(
+                        level="warning",
+                        cache_key=f"legacy-pulsante-route-missing:{pulsante.get('id')}:{route_name}",
+                        message="Legacy pulsante con route non risolvibile: fallback mappa legacy.",
+                        pulsante_id=pulsante.get("id"),
+                        modulo=pulsante.get("modulo"),
+                        codice=pulsante.get("codice"),
+                        route_name=route_name,
+                    )
                     break
     if lower.startswith(("http://", "https://")):
         return raw_url, False
@@ -549,6 +573,15 @@ def legacy_nav(request):
             registry_items = []
         has_registry_items = bool(registry_items)
         if has_registry_items or not _navigation_legacy_fallback_enabled():
+            if not has_registry_items:
+                _log_nav_once(
+                    level="warning",
+                    cache_key=f"registry-empty-no-fallback:{_normalize_path(request.path)}",
+                    message="Navigation Registry attivo ma vuoto e fallback legacy disabilitato.",
+                    path=_normalize_path(request.path),
+                    legacy_user_id=getattr(legacy_user, "id", None),
+                    ruolo_id=getattr(legacy_user, "ruolo_id", None),
+                )
             registry_items = _ensure_dashboard_nav(registry_items, current_variants)
             registry_items.sort(key=lambda x: ((x.order_hint if x.order_hint is not None else 999999), x.label.lower()))
             result["nav_items"] = registry_items
@@ -560,6 +593,14 @@ def legacy_nav(request):
             result["subnav_items"] = _load_subnav_items(request, legacy_user)
             result["admin_subnav_items"] = _load_admin_subnav_items(request, legacy_user)
             return result
+        _log_nav_once(
+            level="info",
+            cache_key=f"registry-to-legacy:{_normalize_path(request.path)}:{getattr(legacy_user, 'ruolo_id', None)}",
+            message="Navigation fallback attivo: nessuna voce registry, uso menu legacy.",
+            path=_normalize_path(request.path),
+            legacy_user_id=getattr(legacy_user, "id", None),
+            ruolo_id=getattr(legacy_user, "ruolo_id", None),
+        )
 
     if not legacy_auth_enabled() or not legacy_user or not legacy_user.ruolo_id:
         return result

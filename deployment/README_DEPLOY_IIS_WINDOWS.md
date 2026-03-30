@@ -383,7 +383,7 @@ A. Sviluppo locale
 
 B. Crea pacchetto release
    .\scripts\package-release.ps1
-   → portale-novicrom-v0.8.2-20260321_143000.zip
+   → portale-novicrom-vX.Y.Z-20260321_143000.zip
 
 C. Copia zip sul server ──────────► C:\PortaleNovicrom\shared\packages\
 
@@ -416,14 +416,14 @@ G. Promozione PROD ──────────────►  .\backup-envir
 ```powershell
 cd "C:\Dev\Portale Novicrom\deployment\scripts"
 .\package-release.ps1
-# Output: C:\PortaleNovicrom\shared\packages\portale-novicrom-v0.8.2-20260321_143000.zip
+# Output: C:\PortaleNovicrom\shared\packages\portale-novicrom-vX.Y.Z-20260321_143000.zip
 ```
 
 #### C. Copia sul server
 
 ```powershell
 # Via share di rete (se disponibile):
-Copy-Item "portale-novicrom-v0.8.2-20260321_143000.zip" `
+Copy-Item "portale-novicrom-vX.Y.Z-20260321_143000.zip" `
           "\\SERVER\PortaleNovicrom\shared\packages\"
 
 # Oppure via USB / altri metodi
@@ -433,7 +433,7 @@ Copy-Item "portale-novicrom-v0.8.2-20260321_143000.zip" `
 
 ```powershell
 cd C:\PortaleNovicrom\shared\scripts
-$pkg = "C:\PortaleNovicrom\shared\packages\portale-novicrom-v0.8.2-20260321_143000.zip"
+$pkg = "C:\PortaleNovicrom\shared\packages\portale-novicrom-vX.Y.Z-20260321_143000.zip"
 .\deploy-release.ps1 -Environment test -PackagePath $pkg -AutoActivate
 ```
 
@@ -450,7 +450,7 @@ $pkg = "C:\PortaleNovicrom\shared\packages\portale-novicrom-v0.8.2-20260321_1430
 .\backup-environment.ps1 -Environment prod -IncludeDatabase
 
 # 2. Deploy (non attiva ancora)
-$pkg = "C:\PortaleNovicrom\shared\packages\portale-novicrom-v0.8.2-20260321_143000.zip"
+$pkg = "C:\PortaleNovicrom\shared\packages\portale-novicrom-vX.Y.Z-20260321_143000.zip"
 .\deploy-release.ps1 -Environment prod -PackagePath $pkg
 
 # 3. Attiva (richiede conferma)
@@ -902,3 +902,4 @@ In produzione specifica sempre gli hostname esatti. `ALLOWED_HOSTS=*` è accetta
 
 Dopo ogni deploy aggiorna tutti i file indicati nella sezione "Bump di versione" di CLAUDE.md.
 Il file `.env` ha la precedenza — se non aggiorni APP_VERSION lì, l'UI mostra la versione vecchia.
+

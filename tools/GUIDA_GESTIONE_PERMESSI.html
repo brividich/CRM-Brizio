@@ -161,7 +161,7 @@
     <div class="kicker">Portale Novicrom — Documentazione</div>
     <h1>Gestione Permessi</h1>
     <p class="sub">Guida operativa completa: Gestione Accessi, Wizard Ruolo e Matrice Permessi.</p>
-    <div class="meta">Versione app: 0.8.2 &nbsp;·&nbsp; Aggiornato: marzo 2026 &nbsp;·&nbsp; Area: Admin Portale → Gestione Accessi</div>
+    <div class="meta">Versione app: 0.8.6 &nbsp;·&nbsp; Aggiornato: marzo 2026 &nbsp;·&nbsp; Area: Admin Portale → Gestione Accessi</div>
   </div>
 
   <!-- Panoramica -->
@@ -431,9 +431,46 @@
     </ol>
   </div>
 
+  <!-- ACL v2 -->
+  <div class="section">
+    <h2><span class="icon">🔐</span> ACL Canonico v2 — nuovo in v0.8.6</h2>
+    <p>
+      A partire dalla versione 0.8.6 il portale affianca al sistema legacy (pulsanti/modulo/azione) un
+      <strong>layer canonico v2</strong> basato su permission code espliciti nel formato
+      <code>modulo.risorsa.azione</code>. I due sistemi coesistono: il layer canonico ha la precedenza
+      dove configurato, il legacy rimane attivo come fallback per le route non ancora migrate.
+    </p>
+    <p>Le pagine di gestione del layer canonico si trovano tutte in <strong>Admin Portale</strong>:</p>
+    <div class="page-grid">
+      <div class="page-card">
+        <h4>🔐 ACL Canonico</h4>
+        <p>Crea permission code, associa route/path (binding), concedi accesso per ruolo, gestisci override utente.</p>
+        <span class="url">/admin-portale/acl-canonico/</span>
+      </div>
+      <div class="page-card">
+        <h4>🔍 Diagnostica ACL</h4>
+        <p>Verifica in tempo reale perché un utente ha o non ha accesso a una URL. Mostra decisione, sorgente e trace completo.</p>
+        <span class="url">/admin-portale/acl-diagnostica/</span>
+      </div>
+      <div class="page-card">
+        <h4>📊 Route Coverage</h4>
+        <p>Mappa lo stato ACL di tutte le route Django: <code>CANONICAL_BOUND</code>, <code>LEGACY_FALLBACK</code>, <code>UNBOUND</code>. Export CSV disponibile.</p>
+        <span class="url">/admin-portale/acl-route-coverage/</span>
+      </div>
+      <div class="page-card">
+        <h4>🗺️ Mappa Permessi/Nav</h4>
+        <p>Vista unica che correla route, permission code, ruoli abilitati, override utente e voci di navigazione.</p>
+        <span class="url">/admin-portale/mappa-permessi-navigazione/</span>
+      </div>
+    </div>
+    <div class="callout info">
+      <strong>Compatibilità</strong> — il sistema legacy (Gestione Accessi, Wizard Ruolo, Matrice Permessi) continua a funzionare invariato. Il layer canonico v2 si aggiunge senza sostituire. Per le route senza binding canonico, il sistema usa automaticamente il fallback legacy.
+    </div>
+  </div>
+
   <!-- Footer -->
   <div style="text-align:center;padding:24px 0 10px;font-size:12px;color:var(--muted);">
-    Portale Novicrom — Documentazione interna &nbsp;·&nbsp; v0.8.2 &nbsp;·&nbsp; marzo 2026
+    Portale Novicrom — Documentazione interna &nbsp;·&nbsp; v0.8.6 &nbsp;·&nbsp; marzo 2026
   </div>
 
 </div>

@@ -1,0 +1,495 @@
+{% extends "core/base.html" %}
+
+{% block title %}ACL Canonico | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .acl-grid { display:grid; gap:14px; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); }
+  .acl-stat { border:1px solid var(--border,#d6dbe5); border-radius:12px; padding:12px; background:#f8fafc; }
+  .acl-stat .n { font-size:24px; font-weight:800; color:#0f172a; line-height:1; }
+  .acl-stat .l { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; margin-top:6px; }
+  .acl-notice { border:1px solid #fbbf24; background:#fffbeb; color:#92400e; padding:10px 12px; border-radius:10px; font-size:13px; margin-bottom:10px; }
+  .acl-notice.critical { border-color:#fca5a5; background:#fef2f2; color:#991b1b; }
+  .acl-badges { display:flex; flex-wrap:wrap; gap:6px; }
+  .acl-badge {
+    display:inline-flex;
+    align-items:center;
+    padding:2px 8px;
+    border-radius:999px;
+    font-size:10px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.03em;
+    border:1px solid #d1d5db;
+    background:#f8fafc;
+    color:#334155;
+  }
+  .acl-badge.warn { border-color:#fbbf24; background:#fffbeb; color:#92400e; }
+  .acl-badge.danger { border-color:#fca5a5; background:#fef2f2; color:#991b1b; }
+  .acl-step { margin:0 0 8px 0; font-size:13px; color:#334155; }
+  .acl-tabs { display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 14px 0; }
+  .acl-tab { padding:6px 10px; border-radius:999px; border:1px solid #dbe3ef; background:#fff; color:#334155; text-decoration:none; font-size:12px; font-weight:700; }
+  .acl-tab.active { background:#dbeafe; border-color:#93c5fd; color:#1e3a8a; }
+  .acl-mini { font-size:12px; color:#64748b; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="ACL Canonico (Permission-Code Based)" page_subtitle="Flusso operativo: 1) PermissionDefinition -> 2) Route Binding -> 3) Role Grant -> 4) User Override. Il legacy rimane solo fallback quando manca binding canonico." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Stato Governance ACL</div>
+      <div class="cell-muted">Metriche per capire subito completezza e rischi pre-UAT.</div>
+    </div>
+    <div class="card-body">
+      <div class="acl-grid">
+        <div class="acl-stat"><div class="n">{{ summary.permissions_total }}</div><div class="l">Permission code</div></div>
+        <div class="acl-stat"><div class="n">{{ summary.permissions_active }}</div><div class="l">Permission attivi</div></div>
+        <div class="acl-stat"><div class="n">{{ summary.permissions_unassigned }}</div><div class="l">Code senza ruoli</div></div>
+        <div class="acl-stat"><div class="n">{{ summary.bindings_total }}</div><div class="l">Binding canonici</div></div>
+        <div class="acl-stat"><div class="n">{{ summary.bindings_missing_grant }}</div><div class="l">Binding senza grant</div></div>
+        <div class="acl-stat"><div class="n">{{ summary.overrides_total }}</div><div class="l">Override utente</div></div>
+        <div class="acl-stat"><div class="n">{{ summary.legacy_only_routes }}</div><div class="l">Route solo legacy</div></div>
+        <div class="acl-stat"><div class="n">{{ summary.unbound_routes }}</div><div class="l">Route non coperte</div></div>
+      </div>
+
+      {% if summary.legacy_only_routes %}
+        <div class="acl-notice" style="margin-top:12px;">
+          <strong>Attenzione:</strong> {{ summary.legacy_only_routes }} route dipendono ancora dal fallback legacy.
+          <a href="{% url 'admin_portale:acl_route_coverage' %}?status=LEGACY_FALLBACK">Apri report route</a>
+        </div>
+      {% endif %}
+      {% if summary.unbound_routes %}
+        <div class="acl-notice critical">
+          <strong>Rischio UAT:</strong> {{ summary.unbound_routes }} route risultano senza copertura chiara.
+          <a href="{% url 'admin_portale:acl_route_coverage' %}?status=UNBOUND">Vedi route UNBOUND</a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    {% include "admin_portale/components/card_head.html" with card_title="Filtri e Contesto" card_subtitle="Ricerca unica su permission code, binding route/path e override. Seleziona anche il ruolo per valutare i grant reali." %}
+    <div class="card-body">
+      <form method="get" class="admin-form-grid">
+        <div class="field field-wide">
+          <label>Ricerca</label>
+          <input class="input" type="text" name="q" value="{{ filters.q }}" placeholder="permission code, route, path, source app, note...">
+        </div>
+        <div class="field">
+          <label>Modulo</label>
+          <select class="input" name="module">
+            <option value="">-- tutti --</option>
+            {% for module in module_choices %}
+              <option value="{{ module }}" {% if module == filters.module %}selected{% endif %}>{{ module }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Stato permission</label>
+          <select class="input" name="permission_state">
+            <option value="all" {% if filters.permission_state == 'all' %}selected{% endif %}>Tutti</option>
+            <option value="active" {% if filters.permission_state == 'active' %}selected{% endif %}>Solo attivi</option>
+            <option value="inactive" {% if filters.permission_state == 'inactive' %}selected{% endif %}>Solo inattivi</option>
+            <option value="unassigned" {% if filters.permission_state == 'unassigned' %}selected{% endif %}>Senza ruoli</option>
+            <option value="no_binding" {% if filters.permission_state == 'no_binding' %}selected{% endif %}>Senza binding</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Stato binding</label>
+          <select class="input" name="binding_state">
+            <option value="all" {% if filters.binding_state == 'all' %}selected{% endif %}>Tutti</option>
+            <option value="active" {% if filters.binding_state == 'active' %}selected{% endif %}>Solo attivi</option>
+            <option value="inactive" {% if filters.binding_state == 'inactive' %}selected{% endif %}>Solo inattivi</option>
+            <option value="missing_grant" {% if filters.binding_state == 'missing_grant' %}selected{% endif %}>Senza grant ruolo</option>
+            <option value="selected_role_missing" {% if filters.binding_state == 'selected_role_missing' %}selected{% endif %}>Ruolo selezionato senza grant</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Ruolo (analisi grant)</label>
+          <select class="input" name="role_id">
+            {% for role in roles %}
+              <option value="{{ role.id }}" {% if role.id == selected_role_id %}selected{% endif %}>#{{ role.id }} - {{ role.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field field-actions">
+          <button class="btn" type="submit">Applica filtri</button>
+          <a class="btn btn-secondary" href="{% url 'admin_portale:acl_canonico' %}">Reset</a>
+          <a class="btn btn-secondary" href="{% url 'admin_portale:acl_route_coverage' %}">Report route</a>
+          <a class="btn btn-secondary" href="{% url 'admin_portale:acl_diagnostica' %}">Diagnostica ACL</a>
+        </div>
+      </form>
+      <div class="acl-mini" style="margin-top:8px;">Convenzione permission code: {{ permission_code_format_hint }}</div>
+    </div>
+  </div>
+
+  <div class="acl-tabs">
+    <a class="acl-tab {% if active_tab == 'permissions' %}active{% endif %}" href="?tab=permissions&role_id={{ selected_role_id }}">1. PermissionDefinition</a>
+    <a class="acl-tab {% if active_tab == 'bindings' %}active{% endif %}" href="?tab=bindings&role_id={{ selected_role_id }}">2. Route Binding</a>
+    <a class="acl-tab {% if active_tab == 'grants' %}active{% endif %}" href="?tab=grants&role_id={{ selected_role_id }}">3. Role Grant</a>
+    <a class="acl-tab {% if active_tab == 'overrides' %}active{% endif %}" href="?tab=overrides&role_id={{ selected_role_id }}">4. User Override</a>
+  </div>
+
+  {% if active_tab == 'permissions' %}
+    <div class="card" id="step-permissions">
+      {% include "admin_portale/components/card_head.html" with card_title="Step 1 - Permission Definitions" card_subtitle="Catalogo canonico. Ogni code dovrebbe avere naming stabile, almeno un binding e almeno un grant ruolo." %}
+      <div class="card-body">
+        <p class="acl-step">Definisci prima il permission code canonico, poi collegalo alle route. Evita codici dipendenti dall'URL quando possibile.</p>
+        <form method="post" class="admin-form-grid">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="permission_upsert">
+          <input type="hidden" name="tab" value="permissions">
+          <div class="field">
+            <label>Code</label>
+            <input class="input" type="text" name="code" placeholder="es. admin_portale.users.view" required>
+          </div>
+          <div class="field">
+            <label>Label</label>
+            <input class="input" type="text" name="label" placeholder="Visualizza utenti admin" required>
+          </div>
+          <div class="field">
+            <label>Modulo</label>
+            <input class="input" type="text" name="module" placeholder="admin_portale" required>
+          </div>
+          <div class="field">
+            <label>Attivo</label>
+            <select class="input" name="is_active">
+              <option value="1" selected>Si</option>
+              <option value="0">No</option>
+            </select>
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>Description</label>
+            <input class="input" type="text" name="description" placeholder="Descrizione operativa per colleghi e tester">
+          </div>
+          <div class="field field-actions">
+            <button class="btn" type="submit">Salva permission code</button>
+          </div>
+        </form>
+
+        <div class="table-wrap" style="margin-top:16px;">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Label</th>
+                <th>Modulo</th>
+                <th>Stato</th>
+                <th>Binding</th>
+                <th>Ruoli enabled</th>
+                <th>Warning</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in permission_rows %}
+                <tr>
+                  <td><code>{{ row.permission.code }}</code></td>
+                  <td>{{ row.permission.label }}</td>
+                  <td>{{ row.permission.module }}</td>
+                  <td>
+                    {% if row.permission.is_active %}<span class="acl-badge">ACTIVE</span>{% else %}<span class="acl-badge warn">INACTIVE</span>{% endif %}
+                  </td>
+                  <td>{{ row.bindings_count }}</td>
+                  <td>{{ row.enabled_roles_count }} / {{ row.grants_total_count }}</td>
+                  <td>
+                    <div class="acl-badges">
+                      {% if row.warning_unassigned %}<span class="acl-badge danger">NO ROLE GRANT</span>{% endif %}
+                      {% if row.warning_missing_binding %}<span class="acl-badge warn">NO BINDING</span>{% endif %}
+                      {% if not row.warning_unassigned and not row.warning_missing_binding %}<span class="acl-badge">OK</span>{% endif %}
+                    </div>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="7" class="cell-muted">Nessun permission code con i filtri correnti.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if active_tab == 'bindings' %}
+    <div class="card" id="step-bindings">
+      {% include "admin_portale/components/card_head.html" with card_title="Step 2 - Route Permission Bindings" card_subtitle="Quando esiste binding canonico, la decisione primaria e canonica: il legacy passa in fallback." %}
+      <div class="card-body">
+        <p class="acl-step">Crea binding per route_name o path_pattern. Se vedi warning "NO ROLE GRANT" il binding non e ancora effettivamente governato da ruoli.</p>
+        <form method="post" class="admin-form-grid">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="binding_upsert">
+          <input type="hidden" name="tab" value="bindings">
+          <div class="field">
+            <label>Permission code</label>
+            <select class="input" name="permission_code" required>
+              <option value="">-- seleziona --</option>
+              {% for permission in permissions %}
+                <option value="{{ permission.code }}">{{ permission.code }} - {{ permission.label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Route name (opzionale)</label>
+            <input class="input" type="text" name="route_name" list="route-catalog" placeholder="es. admin_portale:utenti_list">
+            <datalist id="route-catalog">
+              {% for route in route_catalog %}
+                <option value="{{ route.view_name }}">{{ route.view_name }} ({{ route.route }})</option>
+              {% endfor %}
+            </datalist>
+          </div>
+          <div class="field">
+            <label>Path pattern (opzionale)</label>
+            <input class="input" type="text" name="path_pattern" placeholder="es. /utenti">
+          </div>
+          <div class="field">
+            <label>Match strategy</label>
+            <select class="input" name="match_strategy">
+              <option value="exact">exact</option>
+              <option value="prefix">prefix</option>
+              <option value="regex">regex</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Source app</label>
+            <input class="input" type="text" name="source_app" placeholder="es. admin_portale">
+          </div>
+          <div class="field">
+            <label>Priority</label>
+            <input class="input" type="number" name="priority" value="100" min="0">
+          </div>
+          <div class="field">
+            <label>Attivo</label>
+            <select class="input" name="is_active">
+              <option value="1" selected>Si</option>
+              <option value="0">No</option>
+            </select>
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>Note</label>
+            <input class="input" type="text" name="note" placeholder="Contesto migrazione o motivo del binding">
+          </div>
+          <div class="field field-actions">
+            <button class="btn" type="submit">Crea binding</button>
+          </div>
+        </form>
+
+        <div class="table-wrap" style="margin-top:16px;">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Route/Path</th>
+                <th>Match</th>
+                <th>Permission</th>
+                <th>Source</th>
+                <th>Stato</th>
+                <th>Warning</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in bindings %}
+                <tr>
+                  <td>{{ row.binding.id }}</td>
+                  <td>
+                    <div><code>{{ row.binding.route_name|default:'-' }}</code></div>
+                    <div><code>{{ row.binding.path_pattern|default:'-' }}</code></div>
+                  </td>
+                  <td><code>{{ row.binding.match_strategy }}</code></td>
+                  <td><code>{{ row.binding.permission_id }}</code></td>
+                  <td>{{ row.binding.source_app|default:'-' }}</td>
+                  <td>{% if row.binding.is_active %}<span class="acl-badge">ACTIVE</span>{% else %}<span class="acl-badge warn">INACTIVE</span>{% endif %}</td>
+                  <td>
+                    <div class="acl-badges">
+                      {% if row.warning_missing_any_grant %}<span class="acl-badge danger">NO ROLE GRANT</span>{% endif %}
+                      {% if row.warning_missing_selected_role_grant %}<span class="acl-badge warn">ROLE {{ selected_role_id }} NO GRANT</span>{% endif %}
+                      {% if not row.warning_missing_any_grant and not row.warning_missing_selected_role_grant %}<span class="acl-badge">OK</span>{% endif %}
+                    </div>
+                  </td>
+                  <td>
+                    <form method="post" style="margin:0;">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="binding_delete">
+                      <input type="hidden" name="tab" value="bindings">
+                      <input type="hidden" name="binding_id" value="{{ row.binding.id }}">
+                      <button type="submit" class="btn btn-secondary btn-sm">Elimina</button>
+                    </form>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="8" class="cell-muted">Nessun binding con i filtri correnti.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if active_tab == 'grants' %}
+    <div class="card" id="step-grants">
+      {% include "admin_portale/components/card_head.html" with card_title="Step 3 - Role Permission Grants" card_subtitle="Assegna i permission code al ruolo selezionato. Un binding senza grant resta non operativo." %}
+      <div class="card-body">
+        <p class="acl-step">Ruolo attivo in analisi: <strong>{% if selected_role_id %}#{{ selected_role_id }}{% else %}-{% endif %}</strong></p>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="role_grants_save">
+          <input type="hidden" name="tab" value="grants">
+          <input type="hidden" name="role_id" value="{{ selected_role_id|default:'' }}">
+          <div class="table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th style="width:110px;">Enabled</th>
+                  <th>Permission code</th>
+                  <th>Label</th>
+                  <th>Modulo</th>
+                  <th>Indicatori</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in permission_rows %}
+                  <tr>
+                    <td><input type="checkbox" name="grants" value="{{ row.permission.code }}" {% if row.granted %}checked{% endif %}></td>
+                    <td><code>{{ row.permission.code }}</code></td>
+                    <td>{{ row.permission.label }}</td>
+                    <td>{{ row.permission.module }}</td>
+                    <td>
+                      <div class="acl-badges">
+                        {% if row.warning_unassigned %}<span class="acl-badge danger">UNASSIGNED</span>{% endif %}
+                        {% if row.warning_missing_binding %}<span class="acl-badge warn">NO BINDING</span>{% endif %}
+                        {% if not row.warning_unassigned and not row.warning_missing_binding %}<span class="acl-badge">OK</span>{% endif %}
+                      </div>
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="5" class="cell-muted">Nessun permission code disponibile.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div style="margin-top:12px;">
+            <button class="btn" type="submit">Salva grant ruolo</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if active_tab == 'overrides' %}
+    <div class="card" id="step-overrides">
+      {% include "admin_portale/components/card_head.html" with card_title="Step 4 - User Permission Override" card_subtitle="Override canonico mirato su legacy_user_id. Usalo solo per eccezioni documentate." %}
+      <div class="card-body">
+        <form method="post" class="admin-form-grid">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="user_override_upsert">
+          <input type="hidden" name="tab" value="overrides">
+          <div class="field">
+            <label>Legacy User ID</label>
+            <input class="input" type="number" name="legacy_user_id" min="1" required>
+          </div>
+          <div class="field">
+            <label>Permission code</label>
+            <select class="input" name="permission_code" required>
+              <option value="">-- seleziona --</option>
+              {% for permission in permissions %}
+                <option value="{{ permission.code }}">{{ permission.code }} - {{ permission.label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Enabled</label>
+            <select class="input" name="enabled">
+              <option value="1">True (consenti)</option>
+              <option value="0">False (nega)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Note</label>
+            <input class="input" type="text" name="note" placeholder="Motivazione override">
+          </div>
+          <div class="field field-actions">
+            <button class="btn" type="submit">Salva override</button>
+          </div>
+        </form>
+
+        <div class="table-wrap" style="margin-top:16px;">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Legacy User</th>
+                <th>Permission</th>
+                <th>Enabled</th>
+                <th>Note</th>
+                <th>Aggiornato</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for override in user_overrides %}
+                <tr>
+                  <td>{{ override.id }}</td>
+                  <td>{{ override.legacy_user_id }}</td>
+                  <td><code>{{ override.permission_id }}</code></td>
+                  <td>{% if override.enabled %}<span class="acl-badge">ALLOW</span>{% else %}<span class="acl-badge warn">DENY</span>{% endif %}</td>
+                  <td>{{ override.note|default:'-' }}</td>
+                  <td>{{ override.updated_at|date:"d/m/Y H:i" }}</td>
+                  <td>
+                    <form method="post" style="margin:0;">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="user_override_delete">
+                      <input type="hidden" name="tab" value="overrides">
+                      <input type="hidden" name="override_id" value="{{ override.id }}">
+                      <button type="submit" class="btn btn-secondary btn-sm">Elimina</button>
+                    </form>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="7" class="cell-muted">Nessun override canonico registrato.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="card">
+    {% include "admin_portale/components/card_head.html" with card_title="Route Da Migrare (campione)" card_subtitle="Warning rapidi: route ancora legacy-only o senza copertura." %}
+    <div class="card-body">
+      <div class="admin-form-grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));">
+        <div>
+          <h4 style="margin:0 0 8px 0;">Legacy Fallback</h4>
+          {% if legacy_only_routes_sample %}
+            <ul>
+              {% for row in legacy_only_routes_sample %}
+                <li><code>{{ row.route_name }}</code> <span class="acl-mini">({{ row.path_normalized }})</span></li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <div class="cell-muted">Nessuna route legacy-only nel campione.</div>
+          {% endif %}
+        </div>
+        <div>
+          <h4 style="margin:0 0 8px 0;">Unbound</h4>
+          {% if unbound_routes_sample %}
+            <ul>
+              {% for row in unbound_routes_sample %}
+                <li><code>{{ row.route_name }}</code> <span class="acl-mini">({{ row.path_normalized }})</span></li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <div class="cell-muted">Nessuna route unbound nel campione.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
