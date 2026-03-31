@@ -62,27 +62,41 @@
       min-height: 20px;
     }
     .nav-builder .text-danger { color: #dc2626; }
-    .nav-builder .visual-board {
+    .nav-builder .visual-board { width: 100%; }
+    .nav-builder .visual-section-tabs {
       display: flex;
-      gap: 12px;
-      align-items: stretch;
-      overflow-x: auto;
-      overflow-y: hidden;
-      padding-bottom: 4px;
-      scroll-snap-type: x proximity;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .nav-builder .visual-section-tab {
+      padding: 5px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border, #dde1ec);
+      background: #f8fafc;
+      font-size: 12px;
+      font-weight: 600;
+      color: #334155;
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s;
+      white-space: nowrap;
+    }
+    .nav-builder .visual-section-tab:hover { background: #e2e8f0; }
+    .nav-builder .visual-section-tab.active {
+      background: #3b82f6;
+      border-color: #2563eb;
+      color: #fff;
     }
     .nav-builder .visual-lane {
       border: 1px solid var(--border, #dde1ec);
       border-radius: 12px;
       background: #f8fafc;
       min-height: 140px;
-      min-width: 280px;
-      width: 280px;
-      flex: 0 0 280px;
+      width: 100%;
       display: grid;
       grid-template-rows: auto 1fr;
-      scroll-snap-align: start;
     }
+    .nav-builder .visual-lane[hidden] { display: none !important; }
     .nav-builder .visual-lane-head {
       padding: 10px 10px 8px;
       border-bottom: 1px solid #e2e8f0;
@@ -118,10 +132,14 @@
     }
     .nav-builder .visual-lane-body {
       padding: 10px;
-      display: grid;
-      gap: 8px;
-      align-content: start;
+      display: flex;
+      flex-direction: row;
+      gap: 10px;
+      align-items: flex-start;
+      overflow-x: auto;
+      overflow-y: hidden;
       min-height: 72px;
+      scroll-snap-type: x proximity;
     }
     .nav-builder .visual-lane-empty {
       border: 1px dashed #cbd5e1;
@@ -140,6 +158,10 @@
       display: grid;
       gap: 6px;
       box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+      min-width: 210px;
+      width: 210px;
+      flex: 0 0 210px;
+      scroll-snap-align: start;
     }
     .nav-builder .visual-card-head {
       display: flex;
@@ -201,7 +223,8 @@
     }
     .nav-builder .visual-card-actions {
       display: flex;
-      justify-content: flex-end;
+      gap: 4px;
+      flex-wrap: wrap;
     }
     .nav-builder .visual-highlight {
       animation: navRowHighlight 1.2s ease;
@@ -547,20 +570,28 @@
       </div>
     </div>
 
-    {# ─── VISTA VISUALE DRAG&DROP ─── #}
+    {# ─── VISTA VISUALE PER SEZIONE ─── #}
     <div class="card">
-      {% include "admin_portale/components/card_head.html" with card_title="Visual Builder (drag & drop)" card_subtitle="Vista semplificata per sezione: trascina le card tra colonne o riordinale. La tabella sotto resta disponibile per la modifica completa." %}
+      {% include "admin_portale/components/card_head.html" with card_title="Visual Builder" card_subtitle="Seleziona una sezione per vedere le card in orizzontale. Trascina per riordinare; usa i pulsanti per aprire, clonare o rimuovere una voce." %}
       <div class="card-body">
-        <div class="notice" style="margin-bottom:12px;">
-          Suggerimento rapido: sposta le card qui per struttura e ordine; usa “Apri riga” per modificare i dettagli avanzati.
-        </div>
-        <div class="field-help" style="margin-bottom:10px;">
-          Nota: la colonna <strong>Main Nav (Topbar/Sidebar)</strong> alimenta la navigazione principale.
-          Se l'utente usa layout laterale (`nav_mode=side`), quelle voci appaiono nella sidebar.
+        <div class="visual-section-tabs" id="nav-section-tabs">
+          {% for lane in visual_sections %}
+            <button
+              class="visual-section-tab{% if forloop.first %} active{% endif %}{% if lane.key == 'sidebar' %} is-advanced-lane{% endif %}"
+              type="button"
+              data-section="{{ lane.key }}"
+              {% if lane.key == 'sidebar' and not advanced_mode %}data-advanced-only hidden{% endif %}
+            >{{ lane.label }} <span class="visual-lane-count" data-tab-count="{{ lane.key }}">({{ lane.items|length }})</span></button>
+          {% endfor %}
         </div>
         <div class="visual-board" id="nav-visual-board">
           {% for lane in visual_sections %}
-            <section class="visual-lane{% if lane.key == 'sidebar' %} is-advanced-lane{% endif %}" data-section="{{ lane.key }}" {% if lane.key == 'sidebar' and not advanced_mode %}data-advanced-only hidden{% endif %}>
+            <section
+              class="visual-lane{% if lane.key == 'sidebar' %} is-advanced-lane{% endif %}"
+              data-section="{{ lane.key }}"
+              {% if not forloop.first %}hidden{% endif %}
+              {% if lane.key == 'sidebar' and not advanced_mode %}data-advanced-only{% endif %}
+            >
               <div class="visual-lane-head">
                 <div>
                   <p class="visual-lane-title">{{ lane.label }}</p>
@@ -576,10 +607,17 @@
                     data-code="{{ row.code }}"
                     data-label="{{ row.label }}"
                     data-section="{{ row.section }}"
+                    data-route-name="{{ row.route_name|default:'' }}"
+                    data-url-path="{{ row.url_path|default:'' }}"
+                    data-parent-code="{{ row.parent_code|default:'' }}"
+                    data-is-visible="{{ row.is_visible|yesno:'1,0' }}"
+                    data-is-enabled="{{ row.is_enabled|yesno:'1,0' }}"
+                    data-icon="{{ row.icon|default:'' }}"
+                    data-role-ids-csv="{{ row.role_ids_csv|default:'' }}"
                   >
                     <div class="visual-card-head">
                       <h5 class="visual-card-label">{{ row.label }}</h5>
-                      <span class="visual-card-handle" title="Trascina">⠿</span>
+                      <span class="visual-card-handle" title="Trascina per riordinare">⠿</span>
                     </div>
                     <div class="visual-card-meta">
                       <div><code>{{ row.code }}</code></div>
@@ -604,7 +642,9 @@
                       </span>
                     </div>
                     <div class="visual-card-actions">
-                      <button class="btn btn-secondary btn-sm nav-focus-row" type="button" data-id="{{ row.id }}">Apri riga</button>
+                      <button class="btn btn-secondary btn-sm nav-focus-row" type="button" data-id="{{ row.id }}" title="Apri in tabella">Apri</button>
+                      <button class="btn btn-secondary btn-sm nav-clone-card" type="button" data-id="{{ row.id }}" title="Clona questa voce">Clona</button>
+                      <button class="btn btn-danger btn-sm nav-delete-card" type="button" data-id="{{ row.id }}" title="Rimuovi questa voce">Rimuovi</button>
                     </div>
                   </article>
                 {% empty %}
@@ -909,6 +949,7 @@
       const visualBoard = document.getElementById("nav-visual-board");
       const navBuilderRoot = document.querySelector(".nav-builder");
       const advancedToggleBtn = document.getElementById("nav-advanced-toggle");
+      const sectionTabsEl = document.getElementById("nav-section-tabs");
       const redirectTable = document.getElementById("legacy-redirect-table");
       const iconConfig = document.getElementById("nav-icon-config");
       const iconModal = document.getElementById("nav-icon-modal");
@@ -1098,6 +1139,14 @@
           opt.hidden = !enabled;
         });
         setAdvancedToggleLabel(enabled);
+        // Se sidebar era la tab attiva e ora viene nascosta, torna al primo tab visibile
+        if (!enabled) {
+          const activeTab = sectionTabsEl?.querySelector(".visual-section-tab.active");
+          if (activeTab?.hidden || activeTab?.dataset.advanced === "only" || activeTab?.hasAttribute("data-advanced-only")) {
+            const firstVisible = sectionTabsEl?.querySelector(".visual-section-tab:not([hidden])");
+            if (firstVisible) activateVisualTab(firstVisible.dataset.section);
+          }
+        }
         updateVisualLaneCounters();
         document.querySelectorAll(".js-nav-lane").forEach(function (laneEl) {
           updateVisualLaneEmptyState(laneEl);
@@ -1303,6 +1352,21 @@
         const target = ev.target;
         if (!(target instanceof HTMLElement)) return;
 
+        const deleteCardBtn = target.closest(".nav-delete-card");
+        if (deleteCardBtn) {
+          const cardEl = deleteCardBtn.closest(".visual-card");
+          const id = parseInt(deleteCardBtn.dataset.id || "0", 10);
+          if (id && cardEl) await deleteVisualCard(id, cardEl);
+          return;
+        }
+
+        const cloneCardBtn = target.closest(".nav-clone-card");
+        if (cloneCardBtn) {
+          const cardEl = cloneCardBtn.closest(".visual-card");
+          if (cardEl) await cloneVisualCard(cardEl);
+          return;
+        }
+
         const focusBtn = target.closest(".nav-focus-row");
         if (focusBtn) {
           const rowId = parseInt(focusBtn.getAttribute("data-id") || "0", 10);
@@ -1503,26 +1567,93 @@
         applyAdvancedMode(next);
       });
 
-      // ── Drag-and-drop visual board (riordino per sezione + spostamento tra sezioni) ──
+      // ── Visual Builder: cambio sezione attiva (tab) ──
+      function activateVisualTab(section) {
+        if (!sectionTabsEl || !visualBoard) return;
+        sectionTabsEl.querySelectorAll(".visual-section-tab").forEach(function (btn) {
+          btn.classList.toggle("active", btn.dataset.section === section);
+        });
+        visualBoard.querySelectorAll(".visual-lane").forEach(function (laneEl) {
+          laneEl.hidden = laneEl.dataset.section !== section;
+        });
+      }
+      sectionTabsEl?.addEventListener("click", function (ev) {
+        const btn = ev.target.closest(".visual-section-tab");
+        if (!btn || btn.hidden) return;
+        activateVisualTab(btn.dataset.section);
+      });
+
+      // ── Clona/Rimuovi card dalla vista visuale ──
+      async function deleteVisualCard(id, cardEl) {
+        if (!confirm("Rimuovere definitivamente questa voce di navigazione?")) return;
+        try {
+          await postJson(urls.del, { id: id });
+          const laneEl = cardEl.closest(".js-nav-lane");
+          cardEl.remove();
+          if (laneEl) {
+            updateVisualLaneEmptyState(laneEl);
+            updateVisualLaneCounters();
+            // Aggiorna contatore tab
+            const section = String(laneEl.dataset.section || "");
+            const tabCount = sectionTabsEl?.querySelector('[data-tab-count="' + section + '"]');
+            if (tabCount) tabCount.textContent = "(" + laneEl.querySelectorAll(".visual-card").length + ")";
+          }
+          // Rimuovi anche la riga dalla tabella se presente
+          itemsTable?.querySelector('tr[data-id="' + id + '"]')?.remove();
+          setStatus("Voce rimossa.", false);
+        } catch (err) {
+          setStatus("Errore rimozione: " + err.message, true);
+        }
+      }
+
+      async function cloneVisualCard(cardEl) {
+        const d = cardEl.dataset;
+        const baseCode = String(d.code || "item");
+        const label = String(d.label || "Copia");
+        const payload = {
+          code: baseCode + "-copia",
+          label: label + " (copia)",
+          section: String(d.section || "topbar"),
+          parent_code: String(d.parentCode || ""),
+          route_name: String(d.routeName || ""),
+          url_path: String(d.urlPath || ""),
+          is_visible: d.isVisible === "1" ? "1" : "0",
+          is_enabled: d.isEnabled === "1" ? "1" : "0",
+          icon: String(d.icon || ""),
+          role_ids_csv: String(d.roleIdsCsv || ""),
+        };
+        try {
+          await postJson(urls.create, payload);
+          setStatus("Voce clonata. Ricarico la pagina.", false);
+          window.location.reload();
+        } catch (err) {
+          setStatus("Errore clonazione: " + err.message, true);
+        }
+      }
+
+      // ── Drag-and-drop visual board (riordino dentro la sezione attiva) ──
       if (visualBoard && window.Sortable) {
         document.querySelectorAll(".js-nav-lane").forEach(function (laneEl) {
           window.Sortable.create(laneEl, {
-            group: "nav-builder-visual-lanes",
             handle: ".visual-card-handle",
             animation: 160,
             ghostClass: "sortable-ghost",
             onEnd: async function () {
-              const sectionOrders = collectVisualSectionOrders();
+              const section = String(laneEl.dataset.section || "").trim();
+              if (!section) return;
+              const ids = Array.from(laneEl.querySelectorAll(".visual-card"))
+                .map(function (c) { return parseInt(c.dataset.id || "0", 10); })
+                .filter(Boolean);
               try {
-                await postJson(urls.reorder, { section_orders: sectionOrders });
-                syncTableWithVisualBoard(sectionOrders);
-                updateVisualLaneCounters();
-                document.querySelectorAll(".js-nav-lane").forEach(function (el) {
-                  updateVisualLaneEmptyState(el);
+                await postJson(urls.reorder, { section_orders: { [section]: ids } });
+                ids.forEach(function (id, idx) {
+                  const row = itemsTable?.querySelector('tr[data-id="' + id + '"]');
+                  const orderInput = row?.querySelector("input[data-name='order']");
+                  if (orderInput) orderInput.value = (idx + 1) * 10;
                 });
-                setStatus("Layout visuale aggiornato.", false);
+                setStatus("Ordine aggiornato.", false);
               } catch (err) {
-                setStatus("Errore drag&drop visuale: " + err.message, true);
+                setStatus("Errore riordino visuale: " + err.message, true);
                 window.location.reload();
               }
             }
