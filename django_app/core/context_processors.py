@@ -362,7 +362,18 @@ def _load_registry_nav_items(request, legacy_user) -> list[NavItem]:
         except Exception:
             role_id = None
 
-    nodes = get_topbar_nodes(current_path=request.path, role_id=role_id, is_admin=is_admin)
+    legacy_user_id_for_override = None
+    if legacy_user and getattr(legacy_user, "id", None):
+        try:
+            legacy_user_id_for_override = int(legacy_user.id)
+        except Exception:
+            pass
+    nodes = get_topbar_nodes(
+        current_path=request.path,
+        role_id=role_id,
+        is_admin=is_admin,
+        legacy_user_id=legacy_user_id_for_override,
+    )
     filtered_nodes = []
     for node in nodes:
         gate_path = NAV_REGISTRY_ACL_GATES.get((node.codice or "").strip().lower())
@@ -479,9 +490,20 @@ def _load_subnav_items(request, legacy_user) -> list:
             role_id = int(legacy_user.ruolo_id)
         except Exception:
             role_id = None
+    legacy_user_id_sub: int | None = None
+    if legacy_user and getattr(legacy_user, "id", None):
+        try:
+            legacy_user_id_sub = int(legacy_user.id)
+        except Exception:
+            pass
     parent_code = _detect_subnav_parent_code(request)
     try:
-        nodes = get_subnav_nodes(parent_code=parent_code, role_id=role_id, is_admin=is_admin)
+        nodes = get_subnav_nodes(
+            parent_code=parent_code,
+            role_id=role_id,
+            is_admin=is_admin,
+            legacy_user_id=legacy_user_id_sub,
+        )
     except Exception:
         return []
     if not nodes:
@@ -676,6 +698,7 @@ def app_meta(_request):
     current_release = get_current_release()
     return {
         "portal_branding": get_portal_branding(),
+        "instance_name": str(getattr(settings, "INSTANCE_NAME", "") or "").strip(),
         "app_version": str(getattr(settings, "APP_VERSION", "") or "").strip(),
         "module_versions": get_module_versions(),
         "current_release": current_release,

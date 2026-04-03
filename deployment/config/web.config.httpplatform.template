@@ -162,4 +162,17 @@
     </system.webServer>
   </location>
 
+  <location path="media/tickets">
+    <system.webServer>
+      <security>
+        <!-- Gli allegati ticket devono passare sempre dalla view Django autenticata. -->
+        <requestFiltering>
+          <denyUrlSequences>
+            <add sequence="." />
+          </denyUrlSequences>
+        </requestFiltering>
+      </security>
+    </system.webServer>
+  </location>
+
 </configuration>

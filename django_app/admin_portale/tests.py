@@ -4,6 +4,7 @@ import configparser
 import json
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import ANY, MagicMock, patch
 
 from django.contrib.auth import get_user_model
@@ -827,11 +828,11 @@ class AdminPortaleNavigationBuilderVisualTests(TestCase):
             {"section": "all"},
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Visual Builder (drag & drop)", html=False)
+        self.assertContains(response, "Visual Builder", html=False)
         self.assertContains(response, 'class="visual-lane"', html=False)
         self.assertContains(response, 'data-section="topbar"', html=False)
         self.assertContains(response, 'data-section="sidebar"', html=False)
-        self.assertContains(response, "Apri riga", html=False)
+        self.assertContains(response, "Apri in tabella", html=False)
 
         visual_sections = response.context["visual_sections"]
         by_key = {row["key"]: row for row in visual_sections}
@@ -839,6 +840,17 @@ class AdminPortaleNavigationBuilderVisualTests(TestCase):
         self.assertIn("sidebar", by_key)
         self.assertTrue(any(item["id"] == self.item_topbar_1.id for item in by_key["topbar"]["items"]))
         self.assertFalse(bool(response.context["advanced_mode"]))
+
+    def test_navigation_builder_binds_visual_card_actions_with_async_click_handler(self):
+        response = self._as_admin_get(
+            reverse("admin_portale:navigation_builder"),
+            {"section": "all"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'document.addEventListener("click", async function (ev) {', html=False)
+        self.assertContains(response, 'const deleteCardBtn = target.closest(".nav-delete-card");', html=False)
+        self.assertContains(response, 'const cloneCardBtn = target.closest(".nav-clone-card");', html=False)
+        self.assertContains(response, 'const focusBtn = target.closest(".nav-focus-row");', html=False)
 
     def test_navigation_builder_advanced_mode_can_be_enabled_via_query_param(self):
         response = self._as_admin_get(
@@ -1820,4 +1832,39 @@ class AdminPortaleAclRouteCoverageTests(TestCase):
         rows = response.context["rows"]
         row = next(item for item in rows if item["route_name"] == "admin_portale:acl_diagnostica")
         self.assertIn("AMBIGUOUS_CANONICAL_BINDING", row["warnings"])
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class GuestPortalSsoHardeningTests(TestCase):
+    def setUp(self):
+        super().setUp()
+        self.admin_user = User.objects.create_superuser(
+            username="guestportal-admin",
+            email="guestportal-admin@example.com",
+            password="secret123",
+        )
+        self.admin_legacy = SimpleNamespace(id=1, ruolo="admin", ruolo_id=1)
+
+    def test_guestportal_view_is_manual_only_and_does_not_expose_password_context(self):
+        self.client.force_login(self.admin_user)
+        with (
+            patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy),
+            patch("admin_portale.decorators.is_legacy_admin", return_value=True),
+            patch(
+                "admin_portale.views._read_guestportal_config",
+                return_value={
+                    "url": "https://guest.example/login",
+                    "field_username": "username",
+                    "field_password": "password",
+                    "username_format": "alias",
+                },
+            ),
+            patch("admin_portale.views._build_guestportal_username", return_value="guest.user"),
+        ):
+            response = self.client.get(reverse("admin_portale:guestportal_sso"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("gp_password", response.context)
+        self.assertNotIn("gp_autosubmit", response.context)
+        self.assertNotContains(response, "gp-auto-form")
 

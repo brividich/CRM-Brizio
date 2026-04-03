@@ -31,6 +31,64 @@
   .acl-tab { padding:6px 10px; border-radius:999px; border:1px solid #dbe3ef; background:#fff; color:#334155; text-decoration:none; font-size:12px; font-weight:700; }
   .acl-tab.active { background:#dbeafe; border-color:#93c5fd; color:#1e3a8a; }
   .acl-mini { font-size:12px; color:#64748b; }
+  /* Override toggle buttons (Step 4) */
+  .ov-toggle {
+    display:inline-flex; align-items:center; justify-content:center;
+    padding:3px 10px; border-radius:999px; border:1px solid #e2e8f0;
+    background:#f8fafc; color:#94a3b8; font-size:11px; font-weight:600;
+    cursor:pointer; transition:background .12s,color .12s,border-color .12s;
+    white-space:nowrap; min-width:72px;
+  }
+  .ov-toggle:hover { opacity:.85; }
+  /* Card grid (Step 3 e Step 4) */
+  .acl-toggle-switch { position:relative; display:inline-block; width:44px; height:24px; flex-shrink:0; }
+  .acl-toggle-switch input { opacity:0; width:0; height:0; }
+  .acl-toggle-slider {
+    position:absolute; cursor:pointer; inset:0;
+    background:var(--border,#ccc); border-radius:24px; transition:background .2s;
+  }
+  .acl-toggle-slider::before {
+    content:""; position:absolute;
+    height:18px; width:18px; left:3px; bottom:3px;
+    background:#fff; border-radius:50%; transition:transform .2s;
+  }
+  .acl-toggle-switch input:checked + .acl-toggle-slider { background:var(--accent,#3b82f6); }
+  .acl-toggle-switch input:indeterminate + .acl-toggle-slider { background:#f59e0b; }
+  .acl-toggle-switch input:checked + .acl-toggle-slider::before { transform:translateX(20px); }
+  .acl-toggle-switch input:indeterminate + .acl-toggle-slider::before { transform:translateX(10px); }
+  .acl-toggle-switch input:disabled + .acl-toggle-slider { opacity:.5; cursor:default; }
+  /* Stato saving */
+  .acl-perm-row.saving { opacity:.45; pointer-events:none; }
+  /* Card moduli */
+  .acl-mod-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; }
+  .acl-mod-card { border:1px solid var(--border,#eee); border-radius:10px; overflow:hidden; display:flex; flex-direction:column; }
+  .acl-mod-head {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 14px; background:var(--bg-card,#fafafa);
+    border-bottom:1px solid var(--border,#eee); gap:8px; flex-shrink:0;
+  }
+  .acl-mod-head-left { display:flex; align-items:center; gap:10px; min-width:0; }
+  .acl-mod-icon {
+    width:32px; height:32px; border-radius:7px;
+    background:var(--accent-light,#eff6ff); color:var(--accent,#3b82f6);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:13px; flex-shrink:0;
+  }
+  .acl-mod-name { font-weight:600; font-size:13px; }
+  .acl-mod-count { font-size:11px; color:var(--text-muted,#888); margin-top:1px; }
+  .acl-perm-row {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:7px 14px; border-bottom:1px solid var(--border,#f0f0f0);
+    gap:8px; transition:background .1s;
+  }
+  .acl-perm-row:last-child { border-bottom:none; }
+  .acl-perm-row:hover { background:var(--bg-hover,#f9fafb); }
+  .acl-perm-label { font-size:12px; color:var(--text,#333); flex:1; min-width:0; }
+  .acl-perm-code { font-size:10px; color:var(--text-muted,#999); font-family:monospace; display:block; }
+  .acl-partial-badge { font-size:10px; background:#fef3c7; color:#92400e; border-radius:4px; padding:1px 5px; margin-right:6px; }
+  #acl-grants-status,#acl-ov-status { font-size:12px; min-height:16px; padding:4px 0; display:inline-block; }
+  .ov-module-btn { padding:3px 10px; border-radius:999px; border:1px solid #e2e8f0; background:#f8fafc; color:#94a3b8; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap; }
+  @media(max-width:640px){ .acl-mod-cards { grid-template-columns:1fr; } }
 </style>
 {% endblock %}
 
@@ -135,6 +193,7 @@
     <a class="acl-tab {% if active_tab == 'bindings' %}active{% endif %}" href="?tab=bindings&role_id={{ selected_role_id }}">2. Route Binding</a>
     <a class="acl-tab {% if active_tab == 'grants' %}active{% endif %}" href="?tab=grants&role_id={{ selected_role_id }}">3. Role Grant</a>
     <a class="acl-tab {% if active_tab == 'overrides' %}active{% endif %}" href="?tab=overrides&role_id={{ selected_role_id }}">4. User Override</a>
+    <a class="acl-tab {% if active_tab == 'nav-overrides' %}active{% endif %}" href="?tab=nav-overrides&role_id={{ selected_role_id }}">5. Nav Override</a>
   </div>
 
   {% if active_tab == 'permissions' %}
@@ -334,131 +393,654 @@
 
   {% if active_tab == 'grants' %}
     <div class="card" id="step-grants">
-      {% include "admin_portale/components/card_head.html" with card_title="Step 3 - Role Permission Grants" card_subtitle="Assegna i permission code al ruolo selezionato. Un binding senza grant resta non operativo." %}
+      {% include "admin_portale/components/card_head.html" with card_title="Step 3 - Role Permission Grants" card_subtitle="Ogni toggle abilita o revoca il permission code per il ruolo selezionato. Le modifiche si salvano automaticamente." %}
       <div class="card-body">
-        <p class="acl-step">Ruolo attivo in analisi: <strong>{% if selected_role_id %}#{{ selected_role_id }}{% else %}-{% endif %}</strong></p>
-        <form method="post">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="role_grants_save">
-          <input type="hidden" name="tab" value="grants">
-          <input type="hidden" name="role_id" value="{{ selected_role_id|default:'' }}">
-          <div class="table-wrap">
-            <table class="admin-table">
-              <thead>
-                <tr>
-                  <th style="width:110px;">Enabled</th>
-                  <th>Permission code</th>
-                  <th>Label</th>
-                  <th>Modulo</th>
-                  <th>Indicatori</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for row in permission_rows %}
-                  <tr>
-                    <td><input type="checkbox" name="grants" value="{{ row.permission.code }}" {% if row.granted %}checked{% endif %}></td>
-                    <td><code>{{ row.permission.code }}</code></td>
-                    <td>{{ row.permission.label }}</td>
-                    <td>{{ row.permission.module }}</td>
-                    <td>
-                      <div class="acl-badges">
-                        {% if row.warning_unassigned %}<span class="acl-badge danger">UNASSIGNED</span>{% endif %}
-                        {% if row.warning_missing_binding %}<span class="acl-badge warn">NO BINDING</span>{% endif %}
-                        {% if not row.warning_unassigned and not row.warning_missing_binding %}<span class="acl-badge">OK</span>{% endif %}
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+          <p class="acl-step" style="margin:0;">Ruolo attivo: <strong>{% if selected_role_id %}#{{ selected_role_id }}{% else %}—{% endif %}</strong></p>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button type="button" class="btn btn-secondary btn-sm" id="grants-enable-all">Abilita tutto</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="grants-disable-all">Disabilita tutto</button>
+          </div>
+        </div>
+        <div id="acl-grants-status"></div>
+
+        {% if permission_rows_by_module %}
+          <div class="acl-mod-cards" id="grants-card-grid">
+            {% for grp in permission_rows_by_module %}
+              <div class="acl-mod-card" data-module="{{ grp.module }}">
+                <div class="acl-mod-head">
+                  <div class="acl-mod-head-left">
+                    <div class="acl-mod-icon">{{ grp.module|slice:":1"|upper }}</div>
+                    <div>
+                      <div class="acl-mod-name">{{ grp.module }}</div>
+                      <div class="acl-mod-count">{{ grp.total_count }} permission{{ grp.total_count|pluralize:"e,i" }}</div>
+                    </div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                    {% if grp.partial %}<span class="acl-partial-badge">parziale</span>{% endif %}
+                    <label class="acl-toggle-switch" onclick="event.stopPropagation()">
+                      <input type="checkbox"
+                             class="grants-module-toggle"
+                             data-module="{{ grp.module }}"
+                             {% if grp.all_granted %}checked{% endif %}>
+                      <span class="acl-toggle-slider"></span>
+                    </label>
+                  </div>
+                </div>
+                <div>
+                  {% for row in grp.rows %}
+                    <div class="acl-perm-row" data-code="{{ row.permission.code }}" data-module="{{ row.permission.module }}">
+                      <div class="acl-perm-label">
+                        {{ row.permission.label }}
+                        <span class="acl-perm-code">{{ row.permission.code }}</span>
                       </div>
-                    </td>
-                  </tr>
-                {% empty %}
-                  <tr><td colspan="5" class="cell-muted">Nessun permission code disponibile.</td></tr>
-                {% endfor %}
-              </tbody>
-            </table>
+                      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                        {% if row.warning_missing_binding %}<span class="acl-badge warn" style="font-size:9px;">NO BIND</span>{% endif %}
+                        <label class="acl-toggle-switch" onclick="event.stopPropagation()">
+                          <input type="checkbox"
+                                 class="grants-perm-toggle"
+                                 data-code="{{ row.permission.code }}"
+                                 data-module="{{ row.permission.module }}"
+                                 {% if row.granted %}checked{% endif %}>
+                          <span class="acl-toggle-slider"></span>
+                        </label>
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            {% endfor %}
           </div>
-          <div style="margin-top:12px;">
-            <button class="btn" type="submit">Salva grant ruolo</button>
-          </div>
-        </form>
+        {% else %}
+          <div class="cell-muted">Nessun permission code disponibile. Crea prima le PermissionDefinition nel tab 1.</div>
+        {% endif %}
+
+        <script>
+        (function(){
+          var ROLE_ID  = {{ selected_role_id|default:"null" }};
+          var CSRF     = document.querySelector("[name=csrfmiddlewaretoken]") ? document.querySelector("[name=csrfmiddlewaretoken]").value : "";
+          var TOGGLE_URL  = "{% url 'admin_portale:api_acl_v2_role_grant_toggle' %}";
+          var MODULE_URL  = "{% url 'admin_portale:api_acl_v2_role_module_set' %}";
+          var statusEl = document.getElementById("acl-grants-status");
+
+          function setStatus(msg, ok){
+            if(!statusEl) return;
+            statusEl.textContent = msg;
+            statusEl.style.color = ok ? "#16a34a" : "#dc2626";
+            clearTimeout(statusEl._t);
+            statusEl._t = setTimeout(function(){ statusEl.textContent=""; }, 3000);
+          }
+
+          function getCsrf(){
+            var inp = document.querySelector("input[name=csrfmiddlewaretoken]");
+            return inp ? inp.value : CSRF;
+          }
+
+          async function postJson(url, payload){
+            var resp = await fetch(url, {
+              method:"POST",
+              headers:{"Content-Type":"application/json","X-CSRFToken":getCsrf()},
+              body:JSON.stringify(payload)
+            });
+            return resp.json();
+          }
+
+          function recalcModuleToggle(module){
+            var card = document.querySelector('.acl-mod-card[data-module="'+module+'"]');
+            if(!card) return;
+            var all = Array.from(card.querySelectorAll(".grants-perm-toggle"));
+            var allOn = all.length > 0 && all.every(function(t){ return t.checked; });
+            var anyOn = all.some(function(t){ return t.checked; });
+            var mCb = card.querySelector(".grants-module-toggle");
+            if(!mCb) return;
+            mCb.indeterminate = anyOn && !allOn;
+            mCb.checked = allOn;
+          }
+
+          // Init indeterminate
+          document.querySelectorAll(".acl-mod-card[data-module]").forEach(function(card){
+            var mod = card.dataset.module;
+            recalcModuleToggle(mod);
+          });
+
+          // Toggle singolo permesso
+          document.addEventListener("change", async function(e){
+            var cb = e.target.closest(".grants-perm-toggle");
+            if(!cb || ROLE_ID === null) return;
+            var row = cb.closest(".acl-perm-row");
+            if(row) row.classList.add("saving");
+            try {
+              var data = await postJson(TOGGLE_URL, {
+                role_id: ROLE_ID,
+                permission_code: cb.dataset.code,
+                value: cb.checked
+              });
+              if(data.ok){
+                setStatus("Salvato: "+cb.dataset.code, true);
+                recalcModuleToggle(cb.dataset.module);
+              } else {
+                setStatus("Errore: "+(data.error||"sconosciuto"), false);
+                cb.checked = !cb.checked;
+              }
+            } catch(err){
+              setStatus("Errore di rete.", false);
+              cb.checked = !cb.checked;
+            }
+            if(row) row.classList.remove("saving");
+          });
+
+          // Toggle modulo intero
+          document.addEventListener("change", async function(e){
+            var mCb = e.target.closest(".grants-module-toggle");
+            if(!mCb || ROLE_ID === null) return;
+            var module = mCb.dataset.module;
+            var card = mCb.closest(".acl-mod-card");
+            if(card) card.querySelectorAll(".acl-perm-row").forEach(function(r){ r.classList.add("saving"); });
+            try {
+              var data = await postJson(MODULE_URL, { role_id: ROLE_ID, module: module, value: mCb.checked });
+              if(data.ok){
+                setStatus("Modulo "+module+(mCb.checked?" abilitato":" disabilitato"), true);
+                if(card) card.querySelectorAll(".grants-perm-toggle").forEach(function(t){ t.checked=mCb.checked; });
+                recalcModuleToggle(module);
+              } else {
+                setStatus("Errore: "+(data.error||"sconosciuto"), false);
+                recalcModuleToggle(module);
+              }
+            } catch(err){
+              setStatus("Errore di rete.", false);
+            }
+            if(card) card.querySelectorAll(".acl-perm-row").forEach(function(r){ r.classList.remove("saving"); });
+          });
+
+          // Abilita/disabilita tutto
+          document.getElementById("grants-enable-all")&&document.getElementById("grants-enable-all").addEventListener("click", async function(){
+            if(ROLE_ID===null || !confirm("Abilitare TUTTI i permission code per il ruolo #"+ROLE_ID+"?")) return;
+            var codes = Array.from(document.querySelectorAll(".grants-perm-toggle"));
+            for(var i=0;i<codes.length;i++){
+              await postJson(TOGGLE_URL, {role_id:ROLE_ID, permission_code:codes[i].dataset.code, value:true});
+              codes[i].checked = true;
+            }
+            document.querySelectorAll(".grants-module-toggle").forEach(function(m){ m.checked=true; m.indeterminate=false; });
+            setStatus("Tutti i permessi abilitati.", true);
+          });
+          document.getElementById("grants-disable-all")&&document.getElementById("grants-disable-all").addEventListener("click", async function(){
+            if(ROLE_ID===null || !confirm("Disabilitare TUTTI i permission code per il ruolo #"+ROLE_ID+"?")) return;
+            var codes = Array.from(document.querySelectorAll(".grants-perm-toggle"));
+            for(var i=0;i<codes.length;i++){
+              await postJson(TOGGLE_URL, {role_id:ROLE_ID, permission_code:codes[i].dataset.code, value:false});
+              codes[i].checked = false;
+            }
+            document.querySelectorAll(".grants-module-toggle").forEach(function(m){ m.checked=false; m.indeterminate=false; });
+            setStatus("Tutti i permessi disabilitati.", true);
+          });
+        })();
+        </script>
       </div>
     </div>
   {% endif %}
 
   {% if active_tab == 'overrides' %}
     <div class="card" id="step-overrides">
-      {% include "admin_portale/components/card_head.html" with card_title="Step 4 - User Permission Override" card_subtitle="Override canonico mirato su legacy_user_id. Usalo solo per eccezioni documentate." %}
+      {% include "admin_portale/components/card_head.html" with card_title="Step 4 - User Permission Override" card_subtitle="Seleziona un utente per impostare override canonici personalizzati. Clicca un toggle per ciclare: eredita ruolo → forza ALLOW → forza DENY." %}
       <div class="card-body">
-        <form method="post" class="admin-form-grid">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="user_override_upsert">
+
+        {# ── Selettore utente ── #}
+        <form method="get" class="admin-form-grid" style="margin-bottom:0;">
           <input type="hidden" name="tab" value="overrides">
-          <div class="field">
-            <label>Legacy User ID</label>
-            <input class="input" type="number" name="legacy_user_id" min="1" required>
-          </div>
-          <div class="field">
-            <label>Permission code</label>
-            <select class="input" name="permission_code" required>
-              <option value="">-- seleziona --</option>
-              {% for permission in permissions %}
-                <option value="{{ permission.code }}">{{ permission.code }} - {{ permission.label }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="field">
-            <label>Enabled</label>
-            <select class="input" name="enabled">
-              <option value="1">True (consenti)</option>
-              <option value="0">False (nega)</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Note</label>
-            <input class="input" type="text" name="note" placeholder="Motivazione override">
-          </div>
-          <div class="field field-actions">
-            <button class="btn" type="submit">Salva override</button>
+          {% if selected_role_id %}<input type="hidden" name="role_id" value="{{ selected_role_id }}">{% endif %}
+          <div class="field" style="min-width:320px;flex:1;">
+            <label>Cerca utente per nome / cognome</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input id="ov-user-search" class="input" type="text" placeholder="Es: Rossi, Mario..." autocomplete="off" style="flex:1;">
+              <select id="ov-user-select" class="input" name="selected_user_id" style="flex:1.2;display:none;">
+                <option value="">-- seleziona --</option>
+                {% for u in all_legacy_users %}
+                  <option value="{{ u.id }}" {% if u.id == selected_user_id %}selected{% endif %}>{{ u.display }}</option>
+                {% endfor %}
+              </select>
+              <button class="btn" type="submit">Seleziona</button>
+            </div>
+            <div id="ov-user-dropdown" style="position:relative;"></div>
           </div>
         </form>
 
-        <div class="table-wrap" style="margin-top:16px;">
-          <table class="admin-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Legacy User</th>
-                <th>Permission</th>
-                <th>Enabled</th>
-                <th>Note</th>
-                <th>Aggiornato</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for override in user_overrides %}
-                <tr>
-                  <td>{{ override.id }}</td>
-                  <td>{{ override.legacy_user_id }}</td>
-                  <td><code>{{ override.permission_id }}</code></td>
-                  <td>{% if override.enabled %}<span class="acl-badge">ALLOW</span>{% else %}<span class="acl-badge warn">DENY</span>{% endif %}</td>
-                  <td>{{ override.note|default:'-' }}</td>
-                  <td>{{ override.updated_at|date:"d/m/Y H:i" }}</td>
-                  <td>
-                    <form method="post" style="margin:0;">
-                      {% csrf_token %}
-                      <input type="hidden" name="action" value="user_override_delete">
-                      <input type="hidden" name="tab" value="overrides">
-                      <input type="hidden" name="override_id" value="{{ override.id }}">
-                      <button type="submit" class="btn btn-secondary btn-sm">Elimina</button>
-                    </form>
-                  </td>
-                </tr>
-              {% empty %}
-                <tr><td colspan="7" class="cell-muted">Nessun override canonico registrato.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+        {# ── Griglia toggle quando utente selezionato ── #}
+        {% if selected_user and user_override_rows %}
+          {# Raggruppa le righe per modulo lato template #}
+          <div style="margin-top:14px;padding:10px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;font-size:13px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <span>Override per <strong>{{ selected_user_label }}</strong>{% if selected_user.ruolo_id %} (ruolo #{{ selected_user.ruolo_id }}){% endif %}</span>
+            <span style="color:#64748b;font-size:11px;">
+              <span style="display:inline-block;width:11px;height:11px;background:#dcfce7;border:1px solid #86efac;border-radius:2px;vertical-align:middle;"></span> eredita &nbsp;
+              <span style="display:inline-block;width:11px;height:11px;background:#3b82f6;border:1px solid #2563eb;border-radius:2px;vertical-align:middle;"></span> forza ALLOW &nbsp;
+              <span style="display:inline-block;width:11px;height:11px;background:#fee2e2;border:1px solid #fca5a5;border-radius:2px;vertical-align:middle;"></span> forza DENY
+            </span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin:10px 0 6px;">
+            <button type="button" class="btn btn-secondary btn-sm" id="ov-reset-btn">Azzera tutti gli override</button>
+            <div id="acl-ov-status"></div>
+          </div>
+
+          {# Card grid moduli — override utente (3 stati AJAX) #}
+          {% regroup user_override_rows by permission.module as ov_by_module %}
+          <div class="acl-mod-cards" id="ov-card-grid">
+            {% for grp in ov_by_module %}
+              <div class="acl-mod-card" data-module="{{ grp.grouper }}">
+                <div class="acl-mod-head">
+                  <div class="acl-mod-head-left">
+                    <div class="acl-mod-icon">{{ grp.grouper|slice:":1"|upper }}</div>
+                    <div>
+                      <div class="acl-mod-name">{{ grp.grouper }}</div>
+                      <div class="acl-mod-count">{{ grp.list|length }} permess{{ grp.list|length|pluralize:"o,i" }}</div>
+                    </div>
+                  </div>
+                  {# toggle modulo: 3-stati, clicca per ciclare ALLOW → DENY → eredita #}
+                  <button type="button" class="ov-module-btn"
+                    data-module="{{ grp.grouper }}"
+                    title="Clicca per impostare lo stato di tutti i permessi del modulo">
+                    ···
+                  </button>
+                </div>
+                <div>
+                  {% for row in grp.list %}
+                    <div class="acl-perm-row" data-code="{{ row.permission.code }}" data-module="{{ row.permission.module }}">
+                      <div class="acl-perm-label">
+                        {{ row.permission.label }}
+                        <span class="acl-perm-code">{{ row.permission.code }}</span>
+                      </div>
+                      <button type="button"
+                        class="ov-toggle"
+                        data-code="{{ row.permission.code }}"
+                        data-state="{{ row.state }}"
+                        data-role="{{ row.role_allowed|yesno:'1,0,' }}"
+                        title="Clicca: eredita → ALLOW → DENY → eredita">
+                        {% if row.state == 'ov-on' %}ALLOW
+                        {% elif row.state == 'ov-off' %}DENY
+                        {% elif row.state == 'role-on' %}eredita ✓
+                        {% else %}eredita —
+                        {% endif %}
+                      </button>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+
+          {# Form nascosto solo per "Azzera tutto" #}
+          <form method="post" id="ov-clear-form" style="display:none;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="user_overrides_clear">
+            <input type="hidden" name="tab" value="overrides">
+            <input type="hidden" name="legacy_user_id" value="{{ selected_user.id }}">
+            {% if selected_role_id %}<input type="hidden" name="role_id" value="{{ selected_role_id }}">{% endif %}
+            {% if selected_user_id %}<input type="hidden" name="selected_user_id" value="{{ selected_user_id }}">{% endif %}
+          </form>
+
+        {% elif selected_user_id and not selected_user %}
+          <div class="acl-notice critical" style="margin-top:12px;">Utente #{{ selected_user_id }} non trovato.</div>
+        {% elif not selected_user %}
+          <div style="margin-top:14px;color:#64748b;font-size:13px;">Cerca e seleziona un utente per visualizzare e modificare i suoi override canonici.</div>
+        {% endif %}
+
       </div>
     </div>
+
+    <script>
+    (function(){
+      var SEARCH_URL  = "{% url 'admin_portale:api_acl_v2_legacy_user_search' %}";
+      var TOGGLE_URL  = {% if selected_user %}"{% url 'admin_portale:api_acl_v2_user_grant_toggle' selected_user.id %}"{% else %}null{% endif %};
+      var MOD_URL     = {% if selected_user %}"{% url 'admin_portale:api_acl_v2_user_module_set' selected_user.id %}"{% else %}null{% endif %};
+      var statusEl    = document.getElementById("acl-ov-status");
+
+      // ── Autocomplete ricerca utente ──────────────────────────────────────────
+      var searchInput  = document.getElementById("ov-user-search");
+      var selectEl     = document.getElementById("ov-user-select");
+      var dropdownWrap = document.getElementById("ov-user-dropdown");
+
+      {% if selected_user %}
+        searchInput.value = "{{ selected_user_label|escapejs }} — {{ selected_user.email|default:''|escapejs }}";
+        selectEl.style.display = "block";
+        searchInput.style.display = "none";
+      {% endif %}
+
+      var debounceTimer;
+      searchInput.addEventListener("input", function(){
+        clearTimeout(debounceTimer);
+        var q = this.value.trim();
+        if(q.length < 2){ dropdownWrap.innerHTML=""; return; }
+        debounceTimer = setTimeout(function(){
+          fetch(SEARCH_URL + "?q=" + encodeURIComponent(q))
+            .then(function(r){ return r.json(); })
+            .then(function(data){
+              if(!data.results||!data.results.length){
+                dropdownWrap.innerHTML='<div style="position:absolute;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:13px;color:#64748b;z-index:99;">Nessun utente trovato.</div>';
+                return;
+              }
+              var html='<div style="position:absolute;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:99;max-height:260px;overflow-y:auto;">';
+              data.results.forEach(function(u){
+                html+='<div class="ov-suggest" data-id="'+u.id+'" data-label="'+u.display.replace(/"/g,'&quot;')+'" style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f1f5f9;"><strong>'+u.display+'</strong></div>';
+              });
+              dropdownWrap.innerHTML=html+'</div>';
+              dropdownWrap.querySelectorAll(".ov-suggest").forEach(function(el){
+                el.addEventListener("mouseenter",function(){ this.style.background="#f0f9ff"; });
+                el.addEventListener("mouseleave",function(){ this.style.background=""; });
+                el.addEventListener("click",function(){
+                  var id=this.dataset.id, label=this.dataset.label;
+                  searchInput.value=label; dropdownWrap.innerHTML="";
+                  var existing=searchInput.closest("form").querySelector('input[name=selected_user_id]');
+                  if(!existing){ var hid=document.createElement("input"); hid.type="hidden"; hid.name="selected_user_id"; hid.value=id; searchInput.closest("form").appendChild(hid); }
+                  else existing.value=id;
+                  searchInput.closest("form").submit();
+                });
+              });
+            });
+        }, 280);
+      });
+      document.addEventListener("click",function(e){ if(!dropdownWrap.contains(e.target)&&e.target!==searchInput) dropdownWrap.innerHTML=""; });
+
+      // ── AJAX helper ─────────────────────────────────────────────────────────
+      function getCsrf(){ var inp=document.querySelector("input[name=csrfmiddlewaretoken]"); return inp?inp.value:""; }
+      async function postJson(url,payload){
+        var r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":getCsrf()},body:JSON.stringify(payload)});
+        return r.json();
+      }
+      function setStatus(msg,ok){
+        if(!statusEl) return;
+        statusEl.textContent=msg; statusEl.style.color=ok?"#16a34a":"#dc2626";
+        clearTimeout(statusEl._t); statusEl._t=setTimeout(function(){ statusEl.textContent=""; },3000);
+      }
+
+      // ── Toggle 3-stati (eredita → ALLOW → DENY → eredita) AJAX ─────────────
+      function applyToggleStyle(btn, uiState){
+        btn.dataset.uistate = uiState;
+        var roleVal = btn.dataset.role;
+        btn.textContent = uiState==="ov-on"?"ALLOW" : uiState==="ov-off"?"DENY" : (roleVal==="1"?"eredita ✓":"eredita —");
+        btn.style.cssText="";
+        if(uiState==="ov-on"){ btn.style.background="#3b82f6"; btn.style.color="#fff"; btn.style.borderColor="#2563eb"; btn.style.fontWeight="700"; }
+        else if(uiState==="ov-off"){ btn.style.background="#fee2e2"; btn.style.color="#dc2626"; btn.style.borderColor="#fca5a5"; btn.style.fontWeight="700"; }
+        else if(roleVal==="1"){ btn.style.background="#dcfce7"; btn.style.color="#16a34a"; btn.style.borderColor="#86efac"; }
+        else { btn.style.background="#f8fafc"; btn.style.color="#94a3b8"; btn.style.borderColor="#e2e8f0"; }
+      }
+
+      function initOvToggle(btn){
+        var raw=btn.dataset.state;
+        var uiState=(raw==="ov-on"||raw==="ov-off")?raw:"inherit";
+        applyToggleStyle(btn, uiState);
+        btn.addEventListener("click", async function(){
+          if(!TOGGLE_URL) return;
+          var cur=this.dataset.uistate;
+          var next=cur==="inherit"?"ov-on":cur==="ov-on"?"ov-off":"inherit";
+          var stateMap={"inherit":"inherit","ov-on":"allow","ov-off":"deny"};
+          var row=this.closest(".acl-perm-row"); if(row) row.classList.add("saving");
+          this.disabled=true;
+          try{
+            var data=await postJson(TOGGLE_URL,{permission_code:this.dataset.code,state:stateMap[next]});
+            if(data.ok){ applyToggleStyle(this,next); setStatus("Salvato: "+this.dataset.code,true); }
+            else{ setStatus("Errore: "+(data.error||"?"),false); }
+          }catch(e){ setStatus("Errore di rete.",false); }
+          this.disabled=false; if(row) row.classList.remove("saving");
+          updateModuleBtn(this.closest(".acl-mod-card"));
+        });
+      }
+
+      document.querySelectorAll(".ov-toggle").forEach(initOvToggle);
+
+      // Aggiorna il pulsante modulo in base allo stato dei figli
+      function updateModuleBtn(card){
+        if(!card) return;
+        var btn=card.querySelector(".ov-module-btn"); if(!btn) return;
+        var toggles=Array.from(card.querySelectorAll(".ov-toggle"));
+        var allAllow=toggles.every(function(t){ return t.dataset.uistate==="ov-on"; });
+        var allDeny=toggles.every(function(t){ return t.dataset.uistate==="ov-off"; });
+        var anyOv=toggles.some(function(t){ return t.dataset.uistate!=="inherit"; });
+        if(allAllow){ btn.textContent="ALLOW"; btn.style.background="#3b82f6"; btn.style.color="#fff"; btn.style.borderColor="#2563eb"; }
+        else if(allDeny){ btn.textContent="DENY"; btn.style.background="#fee2e2"; btn.style.color="#dc2626"; btn.style.borderColor="#fca5a5"; }
+        else if(anyOv){ btn.textContent="parziale"; btn.style.background="#fef3c7"; btn.style.color="#92400e"; btn.style.borderColor="#fcd34d"; }
+        else { btn.textContent="eredita"; btn.style.background="#f8fafc"; btn.style.color="#94a3b8"; btn.style.borderColor="#e2e8f0"; }
+      }
+
+      // Stile modulo button
+      document.querySelectorAll(".ov-module-btn").forEach(function(btn){
+        Object.assign(btn.style,{padding:"3px 10px",borderRadius:"999px",border:"1px solid #e2e8f0",background:"#f8fafc",color:"#94a3b8",fontSize:"11px",fontWeight:"600",cursor:"pointer",whiteSpace:"nowrap"});
+        updateModuleBtn(btn.closest(".acl-mod-card"));
+        // Ciclo modulo: se tutti inherit → forza all ALLOW; se tutti ALLOW → forza all DENY; altrimenti → rimuovi tutti
+        btn.addEventListener("click", async function(){
+          if(!MOD_URL) return;
+          var card=this.closest(".acl-mod-card");
+          var toggles=Array.from(card.querySelectorAll(".ov-toggle"));
+          var allAllow=toggles.every(function(t){ return t.dataset.uistate==="ov-on"; });
+          var nextState=allAllow?"deny":"ov-on"===toggles[0]?.dataset.uistate?"deny":"allow";
+          // Se tutti ALLOW prossimo DENY; altrimenti imposta ALLOW; se tutto DENY → inherit
+          var allDeny=toggles.every(function(t){ return t.dataset.uistate==="ov-off"; });
+          var state=allAllow?"deny":allDeny?"inherit":"allow";
+          card.querySelectorAll(".acl-perm-row").forEach(function(r){ r.classList.add("saving"); });
+          try{
+            var data=await postJson(MOD_URL,{module:this.dataset.module,state:state});
+            if(data.ok){
+              var uiMap={"allow":"ov-on","deny":"ov-off","inherit":"inherit"};
+              toggles.forEach(function(t){ applyToggleStyle(t,uiMap[state]); });
+              setStatus("Modulo "+this.dataset.module+": "+state,true);
+              updateModuleBtn(card);
+            } else { setStatus("Errore: "+(data.error||"?"),false); }
+          }catch(e){ setStatus("Errore di rete.",false); }
+          card.querySelectorAll(".acl-perm-row").forEach(function(r){ r.classList.remove("saving"); });
+        });
+      });
+
+      // ── Azzera tutti (form POST) ─────────────────────────────────────────────
+      var resetBtn=document.getElementById("ov-reset-btn");
+      if(resetBtn) resetBtn.addEventListener("click",function(){
+        if(!confirm("Rimuovere tutti gli override per questo utente?")) return;
+        document.getElementById("ov-clear-form").submit();
+      });
+    })();
+    </script>
+  {% endif %}
+
+  {% if active_tab == 'nav-overrides' %}
+    <div class="card" id="step-nav-overrides">
+      {% include "admin_portale/components/card_head.html" with card_title="Step 5 - Override Navigazione Utente" card_subtitle="Override di visibilità menu per singolo utente, indipendente dal ruolo. Clicca per ciclare: eredita ruolo → forza MOSTRA → forza NASCONDI." %}
+      <div class="card-body">
+
+        {# ── Selettore utente ── #}
+        <form method="get" class="admin-form-grid" style="margin-bottom:0;" id="nav-ov-user-form">
+          <input type="hidden" name="tab" value="nav-overrides">
+          {% if selected_role_id %}<input type="hidden" name="role_id" value="{{ selected_role_id }}">{% endif %}
+          <div class="field" style="min-width:320px;flex:1;">
+            <label>Cerca utente per nome / cognome</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input id="nav-ov-search" class="input" type="text" placeholder="Es: Rossi, Mario..." autocomplete="off" style="flex:1;">
+              <select id="nav-ov-select" class="input" name="nav_ov_user_id" style="flex:1.2;display:none;">
+                <option value="">-- seleziona --</option>
+                {% for u in all_legacy_users %}
+                  <option value="{{ u.id }}" {% if u.id == nav_ov_user_id %}selected{% endif %}>{{ u.display }}</option>
+                {% endfor %}
+              </select>
+              <button class="btn" type="submit">Seleziona</button>
+            </div>
+            <div id="nav-ov-dropdown" style="position:relative;"></div>
+          </div>
+        </form>
+
+        {# ── Griglia toggle quando utente selezionato ── #}
+        {% if nav_ov_user and nav_ov_rows %}
+          <div style="margin-top:14px;padding:10px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;font-size:13px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <span>Override navigazione per <strong>{{ nav_ov_user_label }}</strong>{% if nav_ov_user.ruolo_id %} (ruolo #{{ nav_ov_user.ruolo_id }}){% endif %}</span>
+            <span style="color:#64748b;font-size:11px;">
+              <span style="display:inline-block;width:11px;height:11px;background:#dcfce7;border:1px solid #86efac;border-radius:2px;vertical-align:middle;"></span> eredita &nbsp;
+              <span style="display:inline-block;width:11px;height:11px;background:#3b82f6;border:1px solid #2563eb;border-radius:2px;vertical-align:middle;"></span> forza MOSTRA &nbsp;
+              <span style="display:inline-block;width:11px;height:11px;background:#fee2e2;border:1px solid #fca5a5;border-radius:2px;vertical-align:middle;"></span> forza NASCONDI
+            </span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin:10px 0 6px;">
+            <button type="button" class="btn btn-secondary btn-sm" id="nav-ov-reset-btn">Azzera tutti gli override</button>
+            <div id="acl-nav-ov-status"></div>
+          </div>
+
+          {# Sezioni navigazione #}
+          {% for section_key, rows in nav_ov_by_section.items %}
+            {% if rows %}
+              <h4 style="margin:16px 0 8px;font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">{{ section_key }}</h4>
+              <div class="acl-mod-cards">
+                {% regroup rows by item_section as nav_ov_sections %}
+                {# raggruppa per prefisso label — usiamo group semplice piatto a righe #}
+                <div class="acl-mod-card" style="grid-column:1/-1;">
+                  {% for row in rows %}
+                    <div class="acl-perm-row" data-nav-item-id="{{ row.item_id }}">
+                      <div class="acl-perm-label">
+                        {% if row.item_icon %}<span style="margin-right:4px;">{{ row.item_icon }}</span>{% endif %}
+                        {{ row.item_label }}
+                        <span class="acl-perm-code">{{ row.item_code }}</span>
+                      </div>
+                      <button type="button"
+                        class="nav-ov-toggle"
+                        data-item-id="{{ row.item_id }}"
+                        data-state="{{ row.state }}"
+                        data-role="{{ row.role_allowed|yesno:'1,0,' }}"
+                        title="Clicca: eredita → MOSTRA → NASCONDI → eredita">
+                        {% if row.state == 'ov-show' %}MOSTRA
+                        {% elif row.state == 'ov-hide' %}NASCONDI
+                        {% elif row.state == 'role-show' %}eredita ✓
+                        {% else %}eredita —
+                        {% endif %}
+                      </button>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            {% endif %}
+          {% endfor %}
+
+          {# Form nascosto solo per "Azzera tutto" #}
+          <form method="post" id="nav-ov-clear-form" style="display:none;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="nav_overrides_clear">
+            <input type="hidden" name="tab" value="nav-overrides">
+            <input type="hidden" name="legacy_user_id" value="{{ nav_ov_user.id }}">
+            {% if selected_role_id %}<input type="hidden" name="role_id" value="{{ selected_role_id }}">{% endif %}
+            {% if nav_ov_user_id %}<input type="hidden" name="nav_ov_user_id" value="{{ nav_ov_user_id }}">{% endif %}
+          </form>
+
+        {% elif nav_ov_user_id and not nav_ov_user %}
+          <div class="acl-notice critical" style="margin-top:12px;">Utente #{{ nav_ov_user_id }} non trovato.</div>
+        {% elif not nav_ov_user %}
+          <div style="margin-top:14px;color:#64748b;font-size:13px;">Cerca e seleziona un utente per visualizzare e modificare gli override di visibilità del menu.</div>
+        {% endif %}
+
+      </div>
+    </div>
+
+    <script>
+    (function(){
+      var NAV_OV_TOGGLE_URL = {% if nav_ov_user %}"{% url 'admin_portale:api_nav_user_override_toggle' nav_ov_user.id %}"{% else %}null{% endif %};
+      var statusEl = document.getElementById("acl-nav-ov-status");
+
+      // ── Autocomplete ricerca utente ──────────────────────────────────────────
+      var SEARCH_URL2 = "{% url 'admin_portale:api_acl_v2_legacy_user_search' %}";
+      var searchInput2 = document.getElementById("nav-ov-search");
+      var selectEl2 = document.getElementById("nav-ov-select");
+      var dropdownWrap2 = document.getElementById("nav-ov-dropdown");
+
+      {% if nav_ov_user %}
+        searchInput2.value = "{{ nav_ov_user_label|escapejs }} — {{ nav_ov_user.email|default:''|escapejs }}";
+        selectEl2.style.display = "block";
+        searchInput2.style.display = "none";
+      {% endif %}
+
+      var debounce2;
+      searchInput2.addEventListener("input", function(){
+        clearTimeout(debounce2);
+        var q = this.value.trim();
+        if(q.length < 2){ dropdownWrap2.innerHTML=""; return; }
+        debounce2 = setTimeout(function(){
+          fetch(SEARCH_URL2 + "?q=" + encodeURIComponent(q))
+            .then(function(r){ return r.json(); })
+            .then(function(data){
+              if(!data.results||!data.results.length){
+                dropdownWrap2.innerHTML='<div style="position:absolute;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:13px;color:#64748b;z-index:99;">Nessun utente trovato.</div>';
+                return;
+              }
+              var html='<div style="position:absolute;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:99;max-height:260px;overflow-y:auto;">';
+              data.results.forEach(function(u){
+                html+='<div class="nav-ov-suggest" data-id="'+u.id+'" data-label="'+u.display.replace(/"/g,'&quot;')+'" style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f1f5f9;"><strong>'+u.display+'</strong></div>';
+              });
+              dropdownWrap2.innerHTML=html+'</div>';
+              dropdownWrap2.querySelectorAll(".nav-ov-suggest").forEach(function(el){
+                el.addEventListener("mouseenter",function(){ this.style.background="#f0f9ff"; });
+                el.addEventListener("mouseleave",function(){ this.style.background=""; });
+                el.addEventListener("click",function(){
+                  var id=this.dataset.id, label=this.dataset.label;
+                  searchInput2.value=label; dropdownWrap2.innerHTML="";
+                  var existing=searchInput2.closest("form").querySelector('input[name=nav_ov_user_id]');
+                  if(!existing){ var hid=document.createElement("input"); hid.type="hidden"; hid.name="nav_ov_user_id"; hid.value=id; searchInput2.closest("form").appendChild(hid); }
+                  else existing.value=id;
+                  searchInput2.closest("form").submit();
+                });
+              });
+            });
+        }, 280);
+      });
+      document.addEventListener("click",function(e){ if(!dropdownWrap2.contains(e.target)&&e.target!==searchInput2) dropdownWrap2.innerHTML=""; });
+
+      // ── AJAX helper ─────────────────────────────────────────────────────────
+      function getCsrf(){ var inp=document.querySelector("input[name=csrfmiddlewaretoken]"); return inp?inp.value:""; }
+      async function postJson(url,payload){
+        var r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":getCsrf()},body:JSON.stringify(payload)});
+        return r.json();
+      }
+      function setStatus(msg,ok){
+        if(!statusEl) return;
+        statusEl.textContent=msg; statusEl.style.color=ok?"#16a34a":"#dc2626";
+        clearTimeout(statusEl._t); statusEl._t=setTimeout(function(){ statusEl.textContent=""; },3000);
+      }
+
+      // ── Toggle 3-stati: eredita → MOSTRA → NASCONDI → eredita ───────────────
+      function applyNavOvStyle(btn, uiState){
+        btn.dataset.uistate = uiState;
+        var roleVal = btn.dataset.role;
+        btn.textContent = uiState==="ov-show"?"MOSTRA" : uiState==="ov-hide"?"NASCONDI" : (roleVal==="1"?"eredita ✓":"eredita —");
+        btn.style.cssText="";
+        if(uiState==="ov-show"){ btn.style.background="#3b82f6"; btn.style.color="#fff"; btn.style.borderColor="#2563eb"; btn.style.fontWeight="700"; }
+        else if(uiState==="ov-hide"){ btn.style.background="#fee2e2"; btn.style.color="#dc2626"; btn.style.borderColor="#fca5a5"; btn.style.fontWeight="700"; }
+        else if(roleVal==="1"){ btn.style.background="#dcfce7"; btn.style.color="#16a34a"; btn.style.borderColor="#86efac"; }
+        else { btn.style.background="#f8fafc"; btn.style.color="#94a3b8"; btn.style.borderColor="#e2e8f0"; }
+        // applica stile base pulsante
+        btn.style.padding = btn.style.padding || "3px 10px";
+        btn.style.borderRadius = btn.style.borderRadius || "999px";
+        btn.style.border = btn.style.border || "1px solid #e2e8f0";
+        btn.style.fontSize = btn.style.fontSize || "12px";
+        btn.style.cursor = "pointer";
+        btn.style.whiteSpace = "nowrap";
+      }
+
+      document.querySelectorAll(".nav-ov-toggle").forEach(function(btn){
+        var raw = btn.dataset.state;
+        var uiState = (raw==="ov-show"||raw==="ov-hide") ? raw : "inherit";
+        applyNavOvStyle(btn, uiState);
+        btn.addEventListener("click", async function(){
+          if(!NAV_OV_TOGGLE_URL) return;
+          var cur = this.dataset.uistate;
+          var next = cur==="inherit"?"ov-show" : cur==="ov-show"?"ov-hide" : "inherit";
+          var stateMap = {"inherit":"inherit","ov-show":"show","ov-hide":"hide"};
+          var row = this.closest(".acl-perm-row"); if(row) row.classList.add("saving");
+          this.disabled = true;
+          try{
+            var data = await postJson(NAV_OV_TOGGLE_URL, {item_id: parseInt(this.dataset.itemId), state: stateMap[next]});
+            if(data.ok){ applyNavOvStyle(this, next); setStatus("Salvato: "+this.dataset.itemId, true); }
+            else{ setStatus("Errore: "+(data.error||"?"), false); }
+          }catch(e){ setStatus("Errore di rete.", false); }
+          this.disabled=false; if(row) row.classList.remove("saving");
+        });
+      });
+
+      // ── Azzera tutti (form POST) ─────────────────────────────────────────────
+      var resetBtn = document.getElementById("nav-ov-reset-btn");
+      if(resetBtn) resetBtn.addEventListener("click", function(){
+        if(!confirm("Rimuovere tutti gli override navigazione per questo utente?")) return;
+        document.getElementById("nav-ov-clear-form").submit();
+      });
+    })();
+    </script>
   {% endif %}
 
   <div class="card">

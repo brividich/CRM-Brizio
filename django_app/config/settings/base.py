@@ -211,6 +211,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "axes",
     "setup_wizard.apps.SetupWizardConfig",
     "hub_tools.apps.HubToolsConfig",
     "core.apps.CoreConfig",
@@ -243,6 +244,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "core.csrf_cookie_middleware.EnsureCSRFCookieMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "axes.middleware.AxesMiddleware",
     "core.middleware.ImpersonationMiddleware",
     "monitoring.middleware.IssueCaptureMiddleware",
     "core.session_middleware.SessionIdleTimeoutMiddleware",
@@ -349,6 +351,8 @@ BACKUP_RETENTION = int(env("BACKUP_RETENTION", "10") or "10")
 # Immagini timbri/firme: cartella privata, MAI servita dal web server.
 # Il web server (IIS/nginx) non deve avere accesso a questa directory.
 TIMBRI_PRIVATE_ROOT = BASE_DIR / "media_private"
+# Allegati ticket: storage privato con fallback compatibile sui file legacy in MEDIA_ROOT.
+TICKETS_PRIVATE_ROOT = Path(env("TICKETS_PRIVATE_ROOT", str(BASE_DIR / "media_private")))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -380,10 +384,16 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
 )
 
 AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesStandaloneBackend",
     "core.accounts.backends.SQLServerLegacyBackend",
     "core.accounts.backends.LDAPBackend",
     "django.contrib.auth.backends.ModelBackend",
 ]
+
+AXES_FAILURE_LIMIT = 5
+AXES_COOLOFF_TIME = 1
+AXES_RESET_ON_SUCCESS = True
+AXES_LOCKOUT_TEMPLATE = "core/pages/lockout.html"
 
 
 _default_log_dir = Path(tempfile.gettempdir()) / "briziohub_logs"

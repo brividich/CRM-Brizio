@@ -25,6 +25,7 @@ SEED_MARKER = "[UAT_SEED]"
 SEED_PASSWORD_DEFAULT = "UatNovicrom!2026"
 SEED_LEGACY_BUTTON_CODE = "uat_acl_nav_map"
 SEED_LEGACY_BUTTON_MODULE = "admin_portale"
+SEED_LEGACY_BUTTON_URL = "/uat/legacy-fallback-map"
 SEED_LEGACY_REDIRECT_PATH = "/legacy/schema-dati"
 
 STATUS_CANONICAL_BOUND = "CANONICAL_BOUND"
@@ -185,6 +186,18 @@ PERMISSION_SEEDS: tuple[PermissionSeed, ...] = (
         description="Gestione operativa work order.",
     ),
     PermissionSeed(
+        code="anagrafica.dipendenti.view",
+        label="Elenco dipendenti",
+        module="anagrafica",
+        description="Esempio canonicale aggiuntivo per rotta anagrafica.",
+    ),
+    PermissionSeed(
+        code="tickets.dashboard.view",
+        label="Dashboard ticket",
+        module="tickets",
+        description="Esempio canonicale aggiuntivo per dashboard ticket.",
+    ),
+    PermissionSeed(
         code="admin_portale.acl.view",
         label="Diagnostica ACL",
         module="admin_portale",
@@ -258,6 +271,22 @@ BINDING_SEEDS: tuple[BindingSeed, ...] = (
         note="Diagnostica ACL",
     ),
     BindingSeed(
+        route_name="anagrafica:dipendenti_list",
+        path_pattern="",
+        match_strategy=RoutePermissionBinding.MATCH_EXACT,
+        permission_code="anagrafica.dipendenti.view",
+        source_app="anagrafica",
+        note="Esempio canonicale anagrafica",
+    ),
+    BindingSeed(
+        route_name="tickets:dashboard",
+        path_pattern="",
+        match_strategy=RoutePermissionBinding.MATCH_EXACT,
+        permission_code="tickets.dashboard.view",
+        source_app="tickets",
+        note="Esempio canonicale tickets",
+    ),
+    BindingSeed(
         route_name="admin_portale:acl_canonico",
         path_pattern="",
         match_strategy=RoutePermissionBinding.MATCH_EXACT,
@@ -295,6 +324,8 @@ ROLE_GRANT_SEEDS: tuple[RoleGrantSeed, ...] = (
     RoleGrantSeed(701, "core.profile.view", True, "Ruolo base"),
     RoleGrantSeed(701, "assets.asset.view", True, "Ruolo base"),
     RoleGrantSeed(701, "assets.work_orders.manage", False, "Ruolo base"),
+    RoleGrantSeed(701, "anagrafica.dipendenti.view", False, "Ruolo base"),
+    RoleGrantSeed(701, "tickets.dashboard.view", False, "Ruolo base"),
     RoleGrantSeed(701, "admin_portale.acl.view", False, "Ruolo base"),
     RoleGrantSeed(701, "admin_portale.permissions.manage", False, "Ruolo base"),
     RoleGrantSeed(701, "admin_portale.route_coverage.view", False, "Ruolo base"),
@@ -302,6 +333,8 @@ ROLE_GRANT_SEEDS: tuple[RoleGrantSeed, ...] = (
     RoleGrantSeed(702, "core.profile.view", True, "Responsabile"),
     RoleGrantSeed(702, "assets.asset.view", True, "Responsabile"),
     RoleGrantSeed(702, "assets.work_orders.manage", True, "Responsabile"),
+    RoleGrantSeed(702, "anagrafica.dipendenti.view", True, "Responsabile"),
+    RoleGrantSeed(702, "tickets.dashboard.view", True, "Responsabile"),
     RoleGrantSeed(702, "admin_portale.acl.view", True, "Responsabile"),
     RoleGrantSeed(702, "admin_portale.permissions.manage", False, "Responsabile"),
     RoleGrantSeed(702, "admin_portale.route_coverage.view", True, "Responsabile"),
@@ -309,6 +342,8 @@ ROLE_GRANT_SEEDS: tuple[RoleGrantSeed, ...] = (
     RoleGrantSeed(703, "core.profile.view", True, "Amministratore portale"),
     RoleGrantSeed(703, "assets.asset.view", True, "Amministratore portale"),
     RoleGrantSeed(703, "assets.work_orders.manage", True, "Amministratore portale"),
+    RoleGrantSeed(703, "anagrafica.dipendenti.view", True, "Amministratore portale"),
+    RoleGrantSeed(703, "tickets.dashboard.view", True, "Amministratore portale"),
     RoleGrantSeed(703, "admin_portale.acl.view", True, "Amministratore portale"),
     RoleGrantSeed(703, "admin_portale.permissions.manage", True, "Amministratore portale"),
     RoleGrantSeed(703, "admin_portale.route_coverage.view", True, "Amministratore portale"),
@@ -381,10 +416,10 @@ ROUTE_SAMPLE_DEFINITIONS: tuple[RouteSample, ...] = (
     ),
     RouteSample(
         key="R07",
-        route_name="admin_portale:mappa_permessi_navigazione",
-        path="/admin-portale/mappa-permessi-navigazione/",
+        route_name="uat:legacy_fallback_probe",
+        path=SEED_LEGACY_BUTTON_URL,
         expected_status=STATUS_LEGACY_FALLBACK,
-        note="Copertura solo legacy (pulsanti/permessi).",
+        note="Path sintetico coperto solo da fallback legacy seed.",
     ),
     RouteSample(
         key="R08",
@@ -402,10 +437,10 @@ ROUTE_SAMPLE_DEFINITIONS: tuple[RouteSample, ...] = (
     ),
     RouteSample(
         key="R10",
-        route_name="admin_portale:guestportal_sso",
-        path="/admin-portale/guestportal-sso/",
+        route_name="uat:unbound_probe",
+        path="/uat/unbound-probe/",
         expected_status=STATUS_UNBOUND,
-        note="Nessun binding canonico e nessuna copertura legacy seed.",
+        note="Path sintetico senza binding canonico e senza copertura legacy.",
     ),
     RouteSample(
         key="R11",
@@ -498,7 +533,7 @@ SCENARIO_SEEDS: tuple[ScenarioSeed, ...] = (
         scenario_id="S08",
         user_key="uat.base1",
         role_name="utente_base",
-        path="/admin-portale/mappa-permessi-navigazione/",
+        path=SEED_LEGACY_BUTTON_URL,
         expected_permission_code="legacy.admin_portale.uat_acl_nav_map",
         expected_source="legacy_fallback",
         expected_allowed=False,
@@ -509,7 +544,7 @@ SCENARIO_SEEDS: tuple[ScenarioSeed, ...] = (
         scenario_id="S09",
         user_key="uat.resp1",
         role_name="responsabile_operativo",
-        path="/admin-portale/mappa-permessi-navigazione/",
+        path=SEED_LEGACY_BUTTON_URL,
         expected_permission_code="legacy.admin_portale.uat_acl_nav_map",
         expected_source="legacy_fallback",
         expected_allowed=True,
@@ -531,7 +566,7 @@ SCENARIO_SEEDS: tuple[ScenarioSeed, ...] = (
         scenario_id="S11",
         user_key="uat.base1",
         role_name="utente_base",
-        path="/admin-portale/guestportal-sso/",
+        path="/uat/unbound-probe/",
         expected_permission_code="",
         expected_source="legacy_fallback",
         expected_allowed=False,
@@ -1060,22 +1095,22 @@ class Command(BaseCommand):
         if button is None:
             Pulsante.objects.create(
                 codice=SEED_LEGACY_BUTTON_CODE,
-                nome_visibile="UAT Mappa Permessi Navigazione",
+                nome_visibile="UAT Legacy Fallback Probe",
                 icona="shield",
                 modulo=SEED_LEGACY_BUTTON_MODULE,
-                url="route:admin_portale:mappa_permessi_navigazione",
+                url=SEED_LEGACY_BUTTON_URL,
             )
             self._stats["legacy_buttons_created"] += 1
         else:
             changed = False
-            if (button.nome_visibile or "") != "UAT Mappa Permessi Navigazione":
-                button.nome_visibile = "UAT Mappa Permessi Navigazione"
+            if (button.nome_visibile or "") != "UAT Legacy Fallback Probe":
+                button.nome_visibile = "UAT Legacy Fallback Probe"
                 changed = True
             if (button.icona or "") != "shield":
                 button.icona = "shield"
                 changed = True
-            if (button.url or "") != "route:admin_portale:mappa_permessi_navigazione":
-                button.url = "route:admin_portale:mappa_permessi_navigazione"
+            if (button.url or "") != SEED_LEGACY_BUTTON_URL:
+                button.url = SEED_LEGACY_BUTTON_URL
                 changed = True
             if changed:
                 button.save(update_fields=["nome_visibile", "icona", "url"])

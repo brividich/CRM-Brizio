@@ -219,6 +219,7 @@ class Config:
     def __init__(self):
         self.package_path = ""
         self.environment  = "test"
+        self.acl_seed_uat = True
         self.base_dir     = r"C:\PortaleNovicrom"
         self.python_path  = r"C:\Python311\python.exe"
         self.db_host = ""; self.db_name = ""; self.db_user = ""
@@ -853,6 +854,35 @@ class EnvironmentPage(Page):
                              filedialog.askdirectory() or self._base.get())
                          ).pack(side="left", padx=(8,0))
 
+        self._seed_uat = tk.BooleanVar(value=bool(getattr(self.cfg, "acl_seed_uat", True)))
+        self._acl_seed_box = frame(
+            b,
+            bg=YELLOW_BG,
+            highlightthickness=1,
+            highlightbackground=YELLOW_BD,
+        )
+        tk.Checkbutton(
+            self._acl_seed_box,
+            text="  Esegui seed UAT ACL automatico dopo bootstrap (solo TEST)",
+            variable=self._seed_uat,
+            font=(SF, 9, "bold"),
+            bg=YELLOW_BG,
+            fg=YELLOW_TX,
+            activebackground=YELLOW_BG,
+            activeforeground=YELLOW_TX,
+            selectcolor=YELLOW_BG,
+            anchor="w",
+            justify="left",
+        ).pack(anchor="w", padx=12, pady=(8, 2))
+        tk.Label(
+            self._acl_seed_box,
+            text="Crea utenti/ruoli/scenari UAT seed. Consigliato in TEST, da tenere disattivo in PROD.",
+            font=FSM,
+            bg=YELLOW_BG,
+            fg=YELLOW_TX,
+            justify="left",
+        ).pack(anchor="w", padx=14, pady=(0, 8))
+
         self._dev_note = frame(b, bg=BLUE_BG,
                                 highlightthickness=1, highlightbackground=BLUE_BD)
         tk.Label(self._dev_note,
@@ -863,6 +893,10 @@ class EnvironmentPage(Page):
         self._on_env(self._sel.value)
 
     def _on_env(self, val):
+        if val == "test":
+            self._acl_seed_box.pack(fill="x", padx=32, pady=(8,0))
+        else:
+            self._acl_seed_box.pack_forget()
         if val == "dev":
             self._dev_note.pack(fill="x", padx=32, pady=(8,0))
         else:
@@ -870,6 +904,7 @@ class EnvironmentPage(Page):
 
     def validate(self):
         self.cfg.environment = self._sel.value
+        self.cfg.acl_seed_uat = bool(self._seed_uat.get() and self._sel.value == "test")
         self.cfg.base_dir    = self._base.get().strip()
         return bool(self.cfg.base_dir)
 
@@ -1751,6 +1786,8 @@ class SummaryPage(Page):
 
         h("── Ambiente ────────────────────────────────────")
         kv("Ambiente",      self.cfg.environment.upper())
+        if self.cfg.environment == "test":
+            kv("Seed ACL UAT", "Sì" if bool(getattr(self.cfg, "acl_seed_uat", False)) else "No")
         kv("Directory",     self.cfg.base_dir)
         kv("App Pool",      self.cfg.app_pool_name)
         url = ("https" if self.cfg.iis_https else "http") + \
@@ -1929,6 +1966,87 @@ class InstallPage(Page):
         self._log_line("    https://visualstudio.microsoft.com/visual-cpp-build-tools/", "warn")
         return False
 
+    def _run_acl_bootstrap_workflow(
+        self,
+        *,
+        venv_py,
+        django_app,
+        env_vars,
+        settings,
+        include_legacy_import=True,
+        run_uat_seed=False,
+    ):
+        """
+        Esegue il workflow ACL v2 completo:
+        1) audit dry-run pre
+        2) apply bootstrap
+        3) audit dry-run post
+        4) seed UAT opzionale (solo TEST)
+
+        Tutte le operazioni sono non bloccanti: in caso di errore loggano warning.
+        """
+        self._log_line("  -> ACL v2 audit pre-migrazione (--dry-run)", "dim")
+        ok_pre = self._cmd(
+            [
+                str(venv_py),
+                "manage.py",
+                "bootstrap_acl_v2",
+                "--dry-run",
+                f"--settings={settings}",
+            ],
+            cwd=django_app,
+            env=env_vars,
+        )
+        if ok_pre:
+            self._log_line("  ✓ ACL v2 dry-run pre completato", "ok")
+        else:
+            self._log_line("  ✗ ACL v2 dry-run pre fallito (non bloccante)", "warn")
+
+        apply_cmd = [str(venv_py), "manage.py", "bootstrap_acl_v2"]
+        if include_legacy_import:
+            apply_cmd.append("--import-legacy")
+        apply_cmd.extend(["--apply", f"--settings={settings}"])
+        ok_apply = self._cmd(apply_cmd, cwd=django_app, env=env_vars)
+        if ok_apply:
+            self._log_line("  ✓ ACL v2 bootstrap apply completato", "ok")
+        else:
+            self._log_line("  ✗ ACL v2 bootstrap apply fallito (non bloccante)", "warn")
+
+        self._log_line("  -> ACL v2 audit post-migrazione (--dry-run)", "dim")
+        ok_post = self._cmd(
+            [
+                str(venv_py),
+                "manage.py",
+                "bootstrap_acl_v2",
+                "--dry-run",
+                f"--settings={settings}",
+            ],
+            cwd=django_app,
+            env=env_vars,
+        )
+        if ok_post:
+            self._log_line("  ✓ ACL v2 dry-run post completato", "ok")
+        else:
+            self._log_line("  ✗ ACL v2 dry-run post fallito (non bloccante)", "warn")
+
+        if run_uat_seed:
+            self._log_line("  -> Seed ACL v2 UAT (--reset) [solo TEST]", "dim")
+            ok_seed = self._cmd(
+                [
+                    str(venv_py),
+                    "manage.py",
+                    "seed_acl_uat",
+                    "--reset",
+                    f"--settings={settings}",
+                ],
+                cwd=django_app,
+                env=env_vars,
+            )
+            if ok_seed:
+                self._log_line("  ✓ Seed ACL v2 UAT completato", "ok")
+            else:
+                self._log_line("  ✗ Seed ACL v2 UAT fallito (non bloccante)", "warn")
+
     def _run(self):
         """Wrapper crash-safe: garantisce che _on_done sia sempre chiamato."""
         try:
@@ -2058,11 +2176,14 @@ class InstallPage(Page):
                            cwd=django_app, env=env_vars)
             if ok: self._log_line("  ✓ migrate completato", "ok")
             else:  self._log_line("  ✗ migrate fallito", "err")
-            ok_acl = self._cmd([str(venv_py), "manage.py", "bootstrap_acl_v2",
-                                "--import-legacy", "--apply",
-                                f"--settings={settings}"], cwd=django_app, env=env_vars)
-            if ok_acl: self._log_line("  ✓ ACL v2 bootstrap completato", "ok")
-            else:      self._log_line("  ✗ ACL v2 bootstrap fallito (non bloccante)", "warn")
+            self._run_acl_bootstrap_workflow(
+                venv_py=venv_py,
+                django_app=django_app,
+                env_vars=env_vars,
+                settings=settings,
+                include_legacy_import=True,
+                run_uat_seed=bool(getattr(cfg, "acl_seed_uat", True) and cfg.environment == "test"),
+            )
         else:
             self._log_line("  manage.py non trovato — skip", "warn")
 
@@ -2226,11 +2347,14 @@ class InstallPage(Page):
                                f"--settings={settings}"], cwd=django_app, env=env_vars)
             if ok_cc: self._log_line("  ✓ createcachetable completato", "ok")
             else:     self._log_line("  ✗ createcachetable fallito", "warn")
-            ok_acl = self._cmd([str(venv_py),"manage.py","bootstrap_acl_v2",
-                                "--import-legacy","--apply",
-                                f"--settings={settings}"], cwd=django_app, env=env_vars)
-            if ok_acl: self._log_line("  ✓ ACL v2 bootstrap completato", "ok")
-            else:      self._log_line("  ✗ ACL v2 bootstrap fallito (non bloccante)", "warn")
+            self._run_acl_bootstrap_workflow(
+                venv_py=venv_py,
+                django_app=django_app,
+                env_vars=env_vars,
+                settings=settings,
+                include_legacy_import=True,
+                run_uat_seed=bool(getattr(cfg, "acl_seed_uat", True) and cfg.environment == "test"),
+            )
         else:
             self._log_line("  Skip — django_app non trovato", "warn")
 
@@ -2813,6 +2937,7 @@ class ReleaseConfig:
         # Promuovi release
         self.package_path = ""
         self.environment  = "test"
+        self.acl_seed_uat = True
         self.base_dir     = r"C:\PortaleNovicrom"
 
     @property
@@ -2962,8 +3087,37 @@ class ReleaseConfigPromote(Page):
              "Windows Server · SQL Server PROD · IIS porta 80 · utenti reali",
              (GREEN_BG, GREEN_BD, "#166534")),
         ]
-        self._env_sel = CardSelector(sec, env_opts, initial="test")
+        self._seed_uat = tk.BooleanVar(value=bool(getattr(self.cfg, "acl_seed_uat", True)))
+        self._env_sel = CardSelector(sec, env_opts, initial="test", on_change=self._on_env_change)
         self._env_sel.pack(fill="x")
+        self._acl_seed_box = frame(
+            sec,
+            bg=YELLOW_BG,
+            highlightthickness=1,
+            highlightbackground=YELLOW_BD,
+        )
+        tk.Checkbutton(
+            self._acl_seed_box,
+            text="  Esegui seed UAT ACL dopo il bootstrap (solo TEST)",
+            variable=self._seed_uat,
+            font=(SF, 9, "bold"),
+            bg=YELLOW_BG,
+            fg=YELLOW_TX,
+            activebackground=YELLOW_BG,
+            activeforeground=YELLOW_TX,
+            selectcolor=YELLOW_BG,
+            anchor="w",
+            justify="left",
+        ).pack(anchor="w", padx=12, pady=(8, 2))
+        tk.Label(
+            self._acl_seed_box,
+            text="Opzione utile in ambiente di test interno; in produzione va lasciata disattiva.",
+            font=FSM,
+            bg=YELLOW_BG,
+            fg=YELLOW_TX,
+            justify="left",
+        ).pack(anchor="w", padx=14, pady=(0, 8))
+        self._on_env_change(self._env_sel.value)
 
         frame(sec, bg=GRAY100, height=1).pack(fill="x", pady=12)
         tk.Label(sec, text="Directory base server", font=(SF,9,"bold"),
@@ -2984,6 +3138,13 @@ class ReleaseConfigPromote(Page):
         if not self._pkg.get():
             z = find_latest_zip(self._base.get())
             if z: self._pkg.set(z)
+        self._on_env_change(self._env_sel.value)
+
+    def _on_env_change(self, value):
+        if value == "test":
+            self._acl_seed_box.pack(fill="x", pady=(10, 0))
+        else:
+            self._acl_seed_box.pack_forget()
 
     def _browse(self):
         p = filedialog.askopenfilename(
@@ -3009,6 +3170,7 @@ class ReleaseConfigPromote(Page):
             return False
         self.cfg.package_path = pkg
         self.cfg.environment  = self._env_sel.value
+        self.cfg.acl_seed_uat = bool(self._seed_uat.get() and self._env_sel.value == "test")
         self.cfg.base_dir     = self._base.get().strip()
         return bool(self.cfg.base_dir)
 
@@ -3314,11 +3476,14 @@ class ReleaseRunPage(Page):
                                f"--settings={settings}"], cwd=django_app, env=env_vars)
             if ok_cc: self._log_line("  ✓ createcachetable completato", "ok")
             else:     self._log_line("  ✗ createcachetable fallito", "warn")
-            ok_acl = self._cmd([str(venv_py), "manage.py", "bootstrap_acl_v2",
-                                "--import-legacy", "--apply",
-                                f"--settings={settings}"], cwd=django_app, env=env_vars)
-            if ok_acl: self._log_line("  ✓ ACL v2 bootstrap completato", "ok")
-            else:      self._log_line("  ✗ ACL v2 bootstrap fallito (non bloccante)", "warn")
+            self._run_acl_bootstrap_workflow(
+                venv_py=venv_py,
+                django_app=django_app,
+                env_vars=env_vars,
+                settings=settings,
+                include_legacy_import=True,
+                run_uat_seed=bool(getattr(cfg, "acl_seed_uat", True) and cfg.environment == "test"),
+            )
 
         # 6. Attivazione junction
         step(6, "Attivazione release", 80)

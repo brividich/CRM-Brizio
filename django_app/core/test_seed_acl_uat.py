@@ -13,6 +13,7 @@ from core.management.commands.seed_acl_uat import (
     PERMISSION_SEEDS,
     ROLE_GRANT_SEEDS,
     ROLE_SEEDS,
+    SEED_LEGACY_BUTTON_URL,
     SEED_MARKER,
     USER_OVERRIDE_SEEDS,
     USER_SEEDS,
@@ -151,7 +152,7 @@ class SeedAclUatCommandTests(TestCase):
         legacy_allow = decision(
             "uat.resp1",
             "uat.resp1@novicrom.local",
-            "/admin-portale/mappa-permessi-navigazione/",
+            SEED_LEGACY_BUTTON_URL,
         )
         self.assertTrue(legacy_allow["allowed"])
         self.assertEqual(legacy_allow["decision_source"], "legacy_fallback")
@@ -159,7 +160,7 @@ class SeedAclUatCommandTests(TestCase):
         legacy_deny = decision(
             "uat.base1",
             "uat.base1@novicrom.local",
-            "/admin-portale/mappa-permessi-navigazione/",
+            SEED_LEGACY_BUTTON_URL,
         )
         self.assertFalse(legacy_deny["allowed"])
         self.assertEqual(legacy_deny["decision_source"], "legacy_fallback")

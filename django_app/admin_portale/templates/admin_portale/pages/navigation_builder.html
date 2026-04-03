@@ -911,6 +911,184 @@
       </div>
     </div>
 
+    {# ─── OVERRIDE NAVIGAZIONE PER UTENTE ─── #}
+    <div class="card" id="nav-user-override-card">
+      {% include "admin_portale/components/card_head.html" with card_title="Override Navigazione Utente" card_subtitle="Imposta override di visibilità menu per singolo utente, indipendente dal ruolo. Clicca un toggle per ciclare: eredita → MOSTRA → NASCONDI." %}
+      <div class="card-body">
+
+        <form method="get" class="admin-form-grid" style="margin-bottom:0;" id="nav-ov-user-form-nb">
+          <input type="hidden" name="q" value="{{ filters.q }}">
+          <input type="hidden" name="section" value="{{ filters.section }}">
+          <input type="hidden" name="advanced" value="{{ filters.advanced }}">
+          <div class="field" style="min-width:320px;flex:1;">
+            <label>Cerca utente per nome / cognome</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input id="nb-nav-ov-search" class="input" type="text" placeholder="Es: Rossi, Mario..." autocomplete="off" style="flex:1;">
+              <select id="nb-nav-ov-select" class="input" name="nav_override_user_id" style="flex:1.2;display:none;">
+                <option value="">-- seleziona --</option>
+              </select>
+              <button class="btn" type="submit">Seleziona</button>
+            </div>
+            <div id="nb-nav-ov-dropdown" style="position:relative;"></div>
+          </div>
+        </form>
+
+        {% if nav_override_user and nav_override_rows %}
+          <div style="margin-top:14px;padding:10px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;font-size:13px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <span>Override navigazione per <strong>{{ nav_override_user_label }}</strong>{% if nav_override_user.ruolo_id %} (ruolo #{{ nav_override_user.ruolo_id }}){% endif %}</span>
+            <span style="color:#64748b;font-size:11px;">
+              <span style="display:inline-block;width:11px;height:11px;background:#dcfce7;border:1px solid #86efac;border-radius:2px;vertical-align:middle;"></span> eredita &nbsp;
+              <span style="display:inline-block;width:11px;height:11px;background:#3b82f6;border:1px solid #2563eb;border-radius:2px;vertical-align:middle;"></span> MOSTRA &nbsp;
+              <span style="display:inline-block;width:11px;height:11px;background:#fee2e2;border:1px solid #fca5a5;border-radius:2px;vertical-align:middle;"></span> NASCONDI
+            </span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin:10px 0 6px;">
+            <button type="button" class="btn btn-secondary btn-sm" id="nb-nav-ov-reset">Azzera tutti gli override</button>
+            <div id="nb-nav-ov-status"></div>
+          </div>
+
+          {% for section_key, rows in nav_override_by_section.items %}
+            {% if rows %}
+              <h4 style="margin:16px 0 8px;font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">{{ section_key }}</h4>
+              <div class="acl-mod-card" style="margin-bottom:8px;">
+                {% for row in rows %}
+                  <div class="acl-perm-row" data-nav-item-id="{{ row.item_id }}">
+                    <div class="acl-perm-label">
+                      {% if row.item_icon %}<span style="margin-right:4px;">{{ row.item_icon }}</span>{% endif %}
+                      {{ row.item_label }}
+                      <span class="acl-perm-code">{{ row.item_code }}</span>
+                    </div>
+                    <button type="button"
+                      class="nb-nav-ov-toggle ov-toggle"
+                      data-item-id="{{ row.item_id }}"
+                      data-state="{{ row.state }}"
+                      data-role="{{ row.role_allowed|yesno:'1,0,' }}"
+                      title="Clicca: eredita → MOSTRA → NASCONDI → eredita">
+                      {% if row.state == 'ov-show' %}MOSTRA
+                      {% elif row.state == 'ov-hide' %}NASCONDI
+                      {% elif row.state == 'role-show' %}eredita ✓
+                      {% else %}eredita —
+                      {% endif %}
+                    </button>
+                  </div>
+                {% endfor %}
+              </div>
+            {% endif %}
+          {% endfor %}
+
+          <form method="post" id="nb-nav-ov-clear-form" style="display:none;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="">
+            <input type="hidden" name="legacy_user_id" value="{{ nav_override_user.id }}">
+          </form>
+
+        {% elif nav_override_user_id and not nav_override_user %}
+          <div class="acl-notice critical" style="margin-top:12px;">Utente #{{ nav_override_user_id }} non trovato.</div>
+        {% elif not nav_override_user %}
+          <div style="margin-top:14px;color:#64748b;font-size:13px;">Cerca e seleziona un utente per visualizzare e modificare gli override di visibilità del menu.</div>
+        {% endif %}
+
+        <script>
+        (function(){
+          var TOGGLE_URL_NB = {% if nav_override_user %}"{% url 'admin_portale:api_nav_user_override_toggle' nav_override_user.id %}"{% else %}null{% endif %};
+          var CLEAR_URL_NB  = {% if nav_override_user %}"{% url 'admin_portale:api_nav_user_override_clear' nav_override_user.id %}"{% else %}null{% endif %};
+          var statusEl2 = document.getElementById("nb-nav-ov-status");
+          var NB_SEARCH_URL = "{% url 'admin_portale:api_acl_v2_legacy_user_search' %}";
+
+          // autocomplete
+          var si = document.getElementById("nb-nav-ov-search");
+          var dd = document.getElementById("nb-nav-ov-dropdown");
+          var sel = document.getElementById("nb-nav-ov-select");
+          {% if nav_override_user %}
+            si.value = "{{ nav_override_user_label|escapejs }} — {{ nav_override_user.email|default:''|escapejs }}";
+            sel.style.display = "block";
+            si.style.display = "none";
+          {% endif %}
+          var dbt;
+          si.addEventListener("input", function(){
+            clearTimeout(dbt);
+            var q = this.value.trim();
+            if(q.length < 2){ dd.innerHTML=""; return; }
+            dbt = setTimeout(function(){
+              fetch(NB_SEARCH_URL + "?q=" + encodeURIComponent(q))
+                .then(function(r){ return r.json(); })
+                .then(function(data){
+                  if(!data.results||!data.results.length){ dd.innerHTML='<div style="position:absolute;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:13px;color:#64748b;z-index:99;">Nessun utente trovato.</div>'; return; }
+                  var html='<div style="position:absolute;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:99;max-height:220px;overflow-y:auto;">';
+                  data.results.forEach(function(u){ html+='<div class="nb-ov-sug" data-id="'+u.id+'" data-label="'+u.display.replace(/"/g,'&quot;')+'" style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f1f5f9;">'+u.display+'</div>'; });
+                  dd.innerHTML=html+'</div>';
+                  dd.querySelectorAll(".nb-ov-sug").forEach(function(el){
+                    el.addEventListener("mouseenter",function(){ this.style.background="#f0f9ff"; });
+                    el.addEventListener("mouseleave",function(){ this.style.background=""; });
+                    el.addEventListener("click",function(){
+                      si.value=this.dataset.label; dd.innerHTML="";
+                      var frm = si.closest("form");
+                      var hid = frm.querySelector('input[name=nav_override_user_id]') || document.createElement("input");
+                      hid.type="hidden"; hid.name="nav_override_user_id"; hid.value=this.dataset.id; frm.appendChild(hid);
+                      frm.submit();
+                    });
+                  });
+                });
+            }, 280);
+          });
+          document.addEventListener("click",function(e){ if(!dd.contains(e.target)&&e.target!==si) dd.innerHTML=""; });
+
+          // AJAX
+          function getCsrf(){ var inp=document.querySelector("#nav-builder-csrf input[name='csrfmiddlewaretoken']"); return inp?inp.value:""; }
+          async function postJson2(url,payload){
+            var r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":getCsrf()},body:JSON.stringify(payload)});
+            return r.json();
+          }
+          function setStatus2(msg,ok){
+            if(!statusEl2) return;
+            statusEl2.textContent=msg; statusEl2.style.color=ok?"#16a34a":"#dc2626";
+            clearTimeout(statusEl2._t); statusEl2._t=setTimeout(function(){ statusEl2.textContent=""; },3000);
+          }
+
+          function applyNavStyle(btn, uiState){
+            btn.dataset.uistate = uiState;
+            var rv = btn.dataset.role;
+            btn.textContent = uiState==="ov-show"?"MOSTRA" : uiState==="ov-hide"?"NASCONDI" : (rv==="1"?"eredita ✓":"eredita —");
+            btn.style.cssText="";
+            if(uiState==="ov-show"){ btn.style.background="#3b82f6"; btn.style.color="#fff"; btn.style.borderColor="#2563eb"; btn.style.fontWeight="700"; }
+            else if(uiState==="ov-hide"){ btn.style.background="#fee2e2"; btn.style.color="#dc2626"; btn.style.borderColor="#fca5a5"; btn.style.fontWeight="700"; }
+            else if(rv==="1"){ btn.style.background="#dcfce7"; btn.style.color="#16a34a"; btn.style.borderColor="#86efac"; }
+            else { btn.style.background="#f8fafc"; btn.style.color="#94a3b8"; btn.style.borderColor="#e2e8f0"; }
+            btn.style.padding="3px 10px"; btn.style.borderRadius="999px"; btn.style.border=btn.style.border||"1px solid #e2e8f0";
+            btn.style.fontSize="12px"; btn.style.cursor="pointer"; btn.style.whiteSpace="nowrap";
+          }
+
+          document.querySelectorAll(".nb-nav-ov-toggle").forEach(function(btn){
+            var raw=btn.dataset.state;
+            applyNavStyle(btn,(raw==="ov-show"||raw==="ov-hide")?raw:"inherit");
+            btn.addEventListener("click", async function(){
+              if(!TOGGLE_URL_NB) return;
+              var cur=this.dataset.uistate;
+              var next=cur==="inherit"?"ov-show":cur==="ov-show"?"ov-hide":"inherit";
+              var sm={"inherit":"inherit","ov-show":"show","ov-hide":"hide"};
+              this.disabled=true;
+              try{
+                var d=await postJson2(TOGGLE_URL_NB,{item_id:parseInt(this.dataset.itemId),state:sm[next]});
+                if(d.ok){ applyNavStyle(this,next); setStatus2("Salvato",true); }
+                else setStatus2("Errore: "+(d.error||"?"),false);
+              }catch(e){ setStatus2("Errore di rete",false); }
+              this.disabled=false;
+            });
+          });
+
+          var resetBtn2=document.getElementById("nb-nav-ov-reset");
+          if(resetBtn2) resetBtn2.addEventListener("click",function(){
+            if(!confirm("Rimuovere tutti gli override navigazione per questo utente?")) return;
+            postJson2(CLEAR_URL_NB,{}).then(function(d){
+              if(d.ok){ setStatus2("Override azzerati ("+d.deleted+" record).",true); location.reload(); }
+              else setStatus2("Errore: "+(d.error||"?"),false);
+            }).catch(function(){ setStatus2("Errore di rete.",false); });
+          });
+        })();
+        </script>
+      </div>
+    </div>
+
     {# ─── STATE PREVIEW (JSON) ─── #}
     <div class="card">
       {% include "admin_portale/components/card_head.html" with card_title="State Preview (JSON)" card_subtitle="Anteprima della configurazione corrente esportabile. Questo è esattamente ciò che viene salvato in uno snapshot." %}
@@ -1348,7 +1526,7 @@
         }
       });
 
-      document.addEventListener("click", function (ev) {
+      document.addEventListener("click", async function (ev) {
         const target = ev.target;
         if (!(target instanceof HTMLElement)) return;
 

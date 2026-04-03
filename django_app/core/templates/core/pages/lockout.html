@@ -1,0 +1,65 @@
+{% extends "core/base.html" %}
+
+{% block title %}Accesso Temporaneamente Bloccato{% endblock %}
+{% block body_class %}login-page fs-{{ ui_prefs.font_scale|default:'normal' }}{% endblock %}
+{% block layout_sidebar %}{% endblock %}
+{% block layout_header %}{% endblock %}
+{% block subnav %}{% endblock %}
+
+{% block extra_head %}
+<style>
+  body { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-mid) 60%, #1a4a7a 100%); min-height: 100vh; }
+  .main-wrap { min-height: 100vh; }
+  .content { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px 16px; }
+  .lockout-wrap { width: 100%; max-width: 460px; }
+  .lockout-card {
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, .25);
+    overflow: hidden;
+  }
+  .lockout-body { padding: 30px; display: grid; gap: 14px; }
+  .lockout-title { margin: 0; font-size: 22px; font-weight: 800; color: var(--text); }
+  .lockout-copy { margin: 0; color: var(--text-mid); line-height: 1.55; }
+  .lockout-note {
+    margin: 0;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    color: #9a3412;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .lockout-login-link {
+    display: inline-block;
+    margin-top: 8px;
+    color: #94a3b8;
+    text-decoration: none;
+    border-bottom: 1px dashed #cbd5e1;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="lockout-wrap">
+  <section class="lockout-card">
+    <div class="lockout-body">
+      <h1 class="lockout-title">Troppi tentativi di accesso</h1>
+      <p class="lockout-copy">
+        Per motivi di sicurezza il login e temporaneamente bloccato.
+        La durata del blocco e di <strong>1 ora</strong>.
+      </p>
+      <p class="lockout-note">
+        Se hai bisogno di assistenza, contatta il referente IT:
+        <strong>{{ instance_name|default:"IT" }}</strong>.
+      </p>
+      <a href="{% url 'login' %}" class="lockout-login-link" aria-disabled="true" tabindex="-1">
+        Link login disabilitato durante il lockout
+      </a>
+    </div>
+  </section>
+</div>
+{% endblock %}

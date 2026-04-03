@@ -78,6 +78,7 @@ from core.models import (
     UserDashboardLayout,
     UserExtraInfo,
     UserModuleVisibility,
+    UserPermissionGrant,
     UserPermissionOverride,
 )
 
@@ -5305,6 +5306,74 @@ def navigation_builder(request):
 
     snapshots = list(NavigationSnapshot.objects.all().order_by("-version", "-id")[:20])
     redirects = list(LegacyRedirect.objects.all().order_by("legacy_path", "id")[:200])
+
+    # Override navigazione utente
+    from core.models import UserNavigationOverride
+    nav_override_user_id = _int_or_none(request.GET.get("nav_override_user_id"))
+    nav_override_user = None
+    nav_override_user_label = ""
+    nav_override_rows: list[dict] = []
+    nav_items_for_override: list[dict] = []
+    if nav_override_user_id:
+        try:
+            nav_override_user = UtenteLegacy.objects.get(id=nav_override_user_id)
+        except UtenteLegacy.DoesNotExist:
+            nav_override_user_id = None
+        if nav_override_user:
+            try:
+                ana = AnagraficaDipendente.objects.filter(utente_id=nav_override_user_id).first()
+                cognome = str(getattr(ana, "cognome", "") or "").strip()
+                nome = str(getattr(nav_override_user, "nome", "") or "").strip()
+                nav_override_user_label = f"{cognome} {nome}".strip() or nome or nav_override_user.email or str(nav_override_user_id)
+            except Exception:
+                nav_override_user_label = str(getattr(nav_override_user, "nome", "") or nav_override_user_id)
+            user_grants = {
+                int(ov.item_id): bool(ov.enabled)
+                for ov in UserNavigationOverride.objects.filter(legacy_user_id=nav_override_user_id)
+            }
+            role_id_for_nav = None
+            if getattr(nav_override_user, "ruolo_id", None):
+                try:
+                    role_id_for_nav = int(nav_override_user.ruolo_id)
+                except Exception:
+                    pass
+            role_access_items: set[int] = set()
+            if role_id_for_nav is not None:
+                for row in NavigationRoleAccess.objects.filter(legacy_role_id=role_id_for_nav, can_view=True):
+                    role_access_items.add(int(row.item_id))
+            nav_visible_items = list(NavigationItem.objects.filter(
+                is_visible=True, is_enabled=True,
+                section__in=["topbar", "subnav", "sidebar", "page"],
+            ).order_by("section", "order", "label"))
+            for ni in nav_visible_items:
+                iid = int(ni.id)
+                role_allowed = iid in role_access_items
+                override = user_grants.get(iid)  # None / True / False
+                if override is True:
+                    state = "ov-show"
+                elif override is False:
+                    state = "ov-hide"
+                elif role_allowed:
+                    state = "role-show"
+                else:
+                    state = "role-hide"
+                nav_override_rows.append({
+                    "item_id": iid,
+                    "item_code": ni.code,
+                    "item_label": ni.label,
+                    "item_section": ni.section,
+                    "item_icon": ni.icon or "",
+                    "role_allowed": role_allowed,
+                    "override": override,
+                    "state": state,
+                })
+            # Raggruppamento per section
+            nav_sections_order = ["topbar", "subnav", "sidebar", "page"]
+            nav_override_by_section: dict[str, list] = {s: [] for s in nav_sections_order}
+            for row in nav_override_rows:
+                s = row["item_section"]
+                if s in nav_override_by_section:
+                    nav_override_by_section[s].append(row)
     visual_lane_defs = [
         ("topbar", "Main Nav (Topbar/Sidebar)", "Navigazione principale: in UI side viene resa nella sidebar."),
         ("subnav", "Subnav", "Secondo livello contestuale per modulo"),
@@ -5342,6 +5411,12 @@ def navigation_builder(request):
             "state_preview_json": json.dumps(export_navigation_state(), ensure_ascii=False, indent=2),
             "visual_sections": visual_sections,
             "advanced_mode": bool(advanced_mode),
+            # Override navigazione per-utente
+            "nav_override_user_id": nav_override_user_id,
+            "nav_override_user": nav_override_user,
+            "nav_override_user_label": nav_override_user_label,
+            "nav_override_rows": nav_override_rows,
+            "nav_override_by_section": nav_override_by_section if nav_override_user_id else {},
         },
     )
 
@@ -5715,6 +5790,46 @@ def api_legacy_redirect_delete(request):
     return JsonResponse({"ok": True})
 
 
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_nav_user_override_toggle(request, legacy_user_id: int):
+    """Imposta o rimuove un UserNavigationOverride per un utente e una voce di navigazione.
+
+    Body JSON: { "item_id": <int>, "state": "show" | "hide" | "inherit" }
+    """
+    from core.models import UserNavigationOverride
+    payload = _post_or_json_payload(request)
+    item_id = _int_or_none(payload.get("item_id"))
+    state = str(payload.get("state") or "").strip().lower()
+    if not item_id or state not in {"show", "hide", "inherit"}:
+        return _json_error("Payload incompleto o stato non valido.")
+    item = get_object_or_404(NavigationItem, pk=item_id)
+    if state == "inherit":
+        UserNavigationOverride.objects.filter(legacy_user_id=legacy_user_id, item=item).delete()
+        bump_navigation_registry_version()
+        return JsonResponse({"ok": True, "state": "inherit"})
+    enabled = state == "show"
+    UserNavigationOverride.objects.update_or_create(
+        legacy_user_id=legacy_user_id,
+        item=item,
+        defaults={"enabled": enabled},
+    )
+    bump_navigation_registry_version()
+    return JsonResponse({"ok": True, "state": state})
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_nav_user_override_clear(request, legacy_user_id: int):
+    """Azzera tutti gli override navigazione per un utente."""
+    from core.models import UserNavigationOverride
+    deleted, _ = UserNavigationOverride.objects.filter(legacy_user_id=legacy_user_id).delete()
+    bump_navigation_registry_version()
+    return JsonResponse({"ok": True, "deleted": deleted})
+
+
 def _json_error(message: str, status: int = 400):
     return JsonResponse({"ok": False, "error": message}, status=status)
 
@@ -5795,6 +5910,96 @@ def api_acl_v2_role_grant_toggle(request):
             "grant_id": int(grant.id),
         }
     )
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_acl_v2_role_module_set(request):
+    """POST {role_id, module, value}  — abilita/disabilita tutti i permessi di un modulo per un ruolo."""
+    payload = _json_payload(request)
+    role_id = _int_or_none(payload.get("role_id") or payload.get("ruolo_id"))
+    module = str(payload.get("module") or "").strip().lower()
+    value = _bool_from_any(payload.get("value"))
+    if role_id is None or not module:
+        return _json_error("Parametri non validi.")
+    permissions = list(PermissionDefinition.objects.filter(is_active=True, module__iexact=module))
+    if not permissions:
+        return _json_error(f"Nessun permesso trovato per modulo '{module}'.", status=404)
+    try:
+        with transaction.atomic():
+            for perm in permissions:
+                RolePermissionGrant.objects.update_or_create(
+                    legacy_role_id=int(role_id),
+                    permission_id=perm.code,
+                    defaults={"enabled": value},
+                )
+    except DatabaseError as exc:
+        return _json_error(f"Errore DB: {exc}", status=500)
+    return JsonResponse({"ok": True, "affected": len(permissions), "module": module, "value": value})
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_acl_v2_user_grant_toggle(request, user_id: int):
+    """POST {permission_code, state}  state: 'allow'|'deny'|'inherit'"""
+    utente = get_object_or_404(UtenteLegacy, id=user_id)
+    payload = _json_payload(request)
+    permission_code = normalize_permission_code(str(payload.get("permission_code") or ""))
+    state = str(payload.get("state") or "inherit").strip().lower()
+    is_valid, err = validate_permission_code(permission_code)
+    if not is_valid:
+        return _json_error(err or "Permission code non valido.")
+    if state not in {"allow", "deny", "inherit"}:
+        return _json_error("State non valido. Valori: allow, deny, inherit.")
+    if not PermissionDefinition.objects.filter(code=permission_code).exists():
+        return _json_error(f"Permission code non trovato: {permission_code}.", status=404)
+    try:
+        with transaction.atomic():
+            if state == "inherit":
+                UserPermissionGrant.objects.filter(legacy_user_id=user_id, permission_id=permission_code).delete()
+            else:
+                UserPermissionGrant.objects.update_or_create(
+                    legacy_user_id=user_id,
+                    permission_id=permission_code,
+                    defaults={"enabled": state == "allow"},
+                )
+    except DatabaseError as exc:
+        return _json_error(f"Errore DB: {exc}", status=500)
+    return JsonResponse({"ok": True, "state": state, "permission_code": permission_code, "user_id": user_id})
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_acl_v2_user_module_set(request, user_id: int):
+    """POST {module, state}  state: 'allow'|'deny'|'inherit'"""
+    utente = get_object_or_404(UtenteLegacy, id=user_id)
+    payload = _json_payload(request)
+    module = str(payload.get("module") or "").strip().lower()
+    state = str(payload.get("state") or "inherit").strip().lower()
+    if not module:
+        return _json_error("Modulo non valido.")
+    if state not in {"allow", "deny", "inherit"}:
+        return _json_error("State non valido. Valori: allow, deny, inherit.")
+    permissions = list(PermissionDefinition.objects.filter(is_active=True, module__iexact=module))
+    if not permissions:
+        return _json_error(f"Nessun permesso trovato per modulo '{module}'.", status=404)
+    try:
+        with transaction.atomic():
+            for perm in permissions:
+                if state == "inherit":
+                    UserPermissionGrant.objects.filter(legacy_user_id=user_id, permission_id=perm.code).delete()
+                else:
+                    UserPermissionGrant.objects.update_or_create(
+                        legacy_user_id=user_id,
+                        permission_id=perm.code,
+                        defaults={"enabled": state == "allow"},
+                    )
+    except DatabaseError as exc:
+        return _json_error(f"Errore DB: {exc}", status=500)
+    return JsonResponse({"ok": True, "state": state, "module": module, "user_id": user_id})
 
 
 @legacy_admin_required
@@ -7006,17 +7211,12 @@ def guestportal_sso(request):
             "URL GuestPortal non configurato. Aggiungi la sezione [GUESTPORTAL] in config.ini."
         )
     username = _build_guestportal_username(request, cfg["username_format"])
-    # La password Ã¨ salvata in sessione al login (LegacyLoginView.form_valid).
-    # Se disponibile il template fa auto-submit; altrimenti mostra il campo manuale.
-    password = request.session.get("_sso_relay_pwd", "")
     return render(request, "admin_portale/pages/guestportal_sso.html", {
         "page_title": "Accesso GuestPortal",
         "gp_url": cfg["url"],
         "gp_field_username": cfg["field_username"],
         "gp_field_password": cfg["field_password"],
         "gp_username": username,
-        "gp_password": password,
-        "gp_autosubmit": bool(password),
     })
 
 

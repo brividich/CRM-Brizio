@@ -10,7 +10,7 @@ from django.urls import NoReverseMatch, reverse
 
 from core.legacy_cache import normalize_legacy_path
 from core.module_registry import navigation_code_label_map
-from core.models import NavigationItem, NavigationRoleAccess, NavigationSnapshot
+from core.models import NavigationItem, NavigationRoleAccess, NavigationSnapshot, UserNavigationOverride
 
 
 NAV_REGISTRY_VERSION_KEY = "nav_registry_version"
@@ -174,11 +174,86 @@ def _compiled_items_for_role(*, role_id: int | None, is_admin: bool, section: st
     return compiled
 
 
-def get_subnav_nodes(*, parent_code: str, role_id: int | None, is_admin: bool) -> list[NavigationNode]:
+def _apply_user_nav_overrides(
+    compiled: list[dict],
+    legacy_user_id: int,
+    section: str,
+    is_admin: bool,
+) -> list[dict]:
+    """Applica gli override per-utente alla lista di voci compilate per ruolo.
+
+    - enabled=False: rimuove la voce anche se il ruolo la vedrebbe.
+    - enabled=True:  aggiunge la voce anche se il ruolo non la vedrebbe
+                     (solo se la voce esiste e is_visible/is_enabled nel DB).
+    Non usa la cache (gli override sono rari e la tabella è piccola).
+    """
+    try:
+        overrides = list(
+            UserNavigationOverride.objects.filter(legacy_user_id=legacy_user_id)
+            .select_related("item")
+        )
+    except Exception:
+        return compiled
+
+    if not overrides:
+        return compiled
+
+    override_map: dict[int, bool] = {int(ov.item_id): bool(ov.enabled) for ov in overrides}
+    existing_ids = {int(row["id"]) for row in compiled}
+
+    # Rimuovi voci con override negativo
+    result = [row for row in compiled if override_map.get(int(row["id"]), True)]
+
+    # Aggiungi voci con override positivo non già presenti
+    for ov in overrides:
+        if not ov.enabled:
+            continue
+        item = ov.item
+        if int(item.id) in existing_ids:
+            continue
+        if not item.is_visible or not item.is_enabled:
+            continue
+        if item.section != section:
+            continue
+        href, coming = _resolve_item_href(item)
+        result.append(
+            {
+                "id": int(item.id),
+                "code": item.code,
+                "label": item.label,
+                "href": href,
+                "order": _safe_int(item.order, 100),
+                "coming": coming,
+                "route_name": item.route_name or "",
+                "url_path": item.url_path or "",
+                "parent_code": item.parent_code or "",
+                "icon": item.icon or "",
+                "group": item.group or "",
+                "active_patterns": item.active_patterns or "",
+                "category_color": (item.category.topbar_color if item.category_id and item.category else ""),
+                "category_key": (item.category.key if item.category_id and item.category else ""),
+                "category_label": (item.category.label if item.category_id and item.category else ""),
+                "category_icon": (item.category.icon if item.category_id and item.category else ""),
+                "category_order": (item.category.order if item.category_id and item.category else 0),
+            }
+        )
+
+    return result
+
+
+def get_subnav_nodes(
+    *,
+    parent_code: str,
+    role_id: int | None,
+    is_admin: bool,
+    legacy_user_id: int | None = None,
+) -> list[NavigationNode]:
     """Restituisce le voci subnav per la sezione corrente (parent_code)."""
     if not parent_code:
         return []
     compiled = _compiled_items_for_role(role_id=role_id, is_admin=is_admin, section="subnav")
+    if legacy_user_id is not None and not is_admin:
+        compiled = _apply_user_nav_overrides(compiled, legacy_user_id, "subnav", is_admin)
     nodes: list[NavigationNode] = []
     for row in compiled:
         if row.get("parent_code", "") != parent_code:
@@ -202,8 +277,16 @@ def get_subnav_nodes(*, parent_code: str, role_id: int | None, is_admin: bool) -
     return nodes
 
 
-def get_topbar_nodes(*, current_path: str, role_id: int | None, is_admin: bool) -> list[NavigationNode]:
+def get_topbar_nodes(
+    *,
+    current_path: str,
+    role_id: int | None,
+    is_admin: bool,
+    legacy_user_id: int | None = None,
+) -> list[NavigationNode]:
     compiled = _compiled_items_for_role(role_id=role_id, is_admin=is_admin, section="topbar")
+    if legacy_user_id is not None and not is_admin:
+        compiled = _apply_user_nav_overrides(compiled, legacy_user_id, "topbar", is_admin)
     current_variants = _path_variants(current_path)
     nodes: list[NavigationNode] = []
     for row in compiled:

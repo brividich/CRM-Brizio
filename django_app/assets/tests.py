@@ -25,6 +25,7 @@ from PIL import Image
 from anagrafica.models import Fornitore, FornitoreDocumento
 from core.legacy_models import Pulsante
 from core.models import UserDashboardLayout
+from core.upload_mime import UploadMimeValidationError
 from tickets.models import PrioritaTicket, StatoTicket, Ticket, TipoTicket
 
 from . import views as asset_views
@@ -749,45 +750,46 @@ class AssetsRoutingTests(TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             manual_file = SimpleUploadedFile("manuale.pdf", b"%PDF-1.4 test", content_type="application/pdf")
             with override_settings(MEDIA_ROOT=Path(tmpdir)):
-                response = self.client.post(
-                    reverse("assets:work_machine_create"),
-                    {
-                        "name": "Centro di lavoro 5 assi",
-                        "reparto": "CN5",
-                        "manufacturer": "DMG Mori",
-                        "model": "DMC 85",
-                        "serial_number": "DMG-550",
-                        "status": Asset.STATUS_IN_USE,
-                        "sharepoint_folder_url": "https://contoso.sharepoint.com/sites/example/Shared%20Documents/CN5/ML-TEST",
-                        "sharepoint_folder_path": "Macchine/CN5/ML-TEST",
-                        "assignment_to": "Officina",
-                        "assignment_reparto": "CN5",
-                        "assignment_location": "Corsia A",
-                        "notes": "Inserimento manuale",
-                        "x_mm": "850",
-                        "y_mm": "700",
-                        "z_mm": "500",
-                        "diameter_mm": "120",
-                        "spindle_mm": "180",
-                        "year": "2022",
-                        "tmc": "48",
-                        "tcr_enabled": "on",
-                        "pressure_bar": "6.5",
-                        "cnc_controlled": "on",
-                        "five_axes": "on",
-                        "accuracy_from": "0.010",
-                        "next_maintenance_date": "2026-03-30",
-                        "maintenance_reminder_days": "15",
-                        "documents_specs_payload": json.dumps(
-                            [{"name": "Scheda tecnica", "url": "/docs/spec.pdf", "date": "06/03/2026", "size": "PDF"}]
-                        ),
-                        "documents_manuals_payload": json.dumps(
-                            [{"name": "Manuale operatore", "url": "/docs/manuale.pdf", "date": "06/03/2026", "size": "v1"}]
-                        ),
-                        "documents_interventions_payload": json.dumps([]),
-                        "upload_manuals_files": manual_file,
-                    },
-                )
+                with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+                    response = self.client.post(
+                        reverse("assets:work_machine_create"),
+                        {
+                            "name": "Centro di lavoro 5 assi",
+                            "reparto": "CN5",
+                            "manufacturer": "DMG Mori",
+                            "model": "DMC 85",
+                            "serial_number": "DMG-550",
+                            "status": Asset.STATUS_IN_USE,
+                            "sharepoint_folder_url": "https://contoso.sharepoint.com/sites/example/Shared%20Documents/CN5/ML-TEST",
+                            "sharepoint_folder_path": "Macchine/CN5/ML-TEST",
+                            "assignment_to": "Officina",
+                            "assignment_reparto": "CN5",
+                            "assignment_location": "Corsia A",
+                            "notes": "Inserimento manuale",
+                            "x_mm": "850",
+                            "y_mm": "700",
+                            "z_mm": "500",
+                            "diameter_mm": "120",
+                            "spindle_mm": "180",
+                            "year": "2022",
+                            "tmc": "48",
+                            "tcr_enabled": "on",
+                            "pressure_bar": "6.5",
+                            "cnc_controlled": "on",
+                            "five_axes": "on",
+                            "accuracy_from": "0.010",
+                            "next_maintenance_date": "2026-03-30",
+                            "maintenance_reminder_days": "15",
+                            "documents_specs_payload": json.dumps(
+                                [{"name": "Scheda tecnica", "url": "/docs/spec.pdf", "date": "06/03/2026", "size": "PDF"}]
+                            ),
+                            "documents_manuals_payload": json.dumps(
+                                [{"name": "Manuale operatore", "url": "/docs/manuale.pdf", "date": "06/03/2026", "size": "v1"}]
+                            ),
+                            "documents_interventions_payload": json.dumps([]),
+                            "upload_manuals_files": manual_file,
+                        },
+                    )
                 self.assertEqual(response.status_code, 302)
                 asset = Asset.objects.get(name="Centro di lavoro 5 assi")
                 self.assertEqual(asset.asset_type, Asset.TYPE_WORK_MACHINE)
@@ -2337,27 +2339,76 @@ class WorkOrderFlowTests(TestCase):
 
         upload = SimpleUploadedFile("report.pdf", b"%PDF-1.4 test", content_type="application/pdf")
         with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
-            response = self.client.post(
-                reverse("assets:wo_create", args=[self.asset.id]),
-                {
-                    "periodic_verification": str(verification.id),
-                    "supplier": "",
-                    "kind": WorkOrder.KIND_PREVENTIVE,
-                    "status": WorkOrder.STATUS_OPEN,
-                    "title": "Intervento programmato",
-                    "description": "Controllo periodico",
-                    "resolution": "",
-                    "downtime_minutes": "0",
-                    "cost_eur": "",
-                    "attachments": upload,
-                },
-            )
+            with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
+                response = self.client.post(
+                    reverse("assets:wo_create", args=[self.asset.id]),
+                    {
+                        "periodic_verification": str(verification.id),
+                        "supplier": "",
+                        "kind": WorkOrder.KIND_PREVENTIVE,
+                        "status": WorkOrder.STATUS_OPEN,
+                        "title": "Intervento programmato",
+                        "description": "Controllo periodico",
+                        "resolution": "",
+                        "downtime_minutes": "0",
+                        "cost_eur": "",
+                        "attachments": upload,
+                    },
+                )
 
         self.assertEqual(response.status_code, 302)
         workorder = WorkOrder.objects.get()
         self.assertEqual(workorder.periodic_verification, verification)
         self.assertEqual(workorder.supplier, supplier)
         self.assertEqual(WorkOrderAttachment.objects.filter(work_order=workorder).count(), 1)
+
+    def test_workorder_attachment_rejects_spoofed_mime(self):
+        self.client.force_login(self.user)
+        upload = SimpleUploadedFile("report.pdf", b"MZ...", content_type="application/pdf")
+        with patch(
+            "assets.views.validate_extension_and_mime",
+            side_effect=UploadMimeValidationError("report.pdf: tipo MIME non consentito (application/x-msdownload)."),
+        ):
+            response = self.client.post(
+                reverse("assets:wo_create", args=[self.asset.id]),
+                {
+                    "periodic_verification": "",
+                    "supplier": "",
+                    "kind": WorkOrder.KIND_CORRECTIVE,
+                    "status": WorkOrder.STATUS_OPEN,
+                    "title": "Intervento con allegato non valido",
+                    "description": "Verifica MIME",
+                    "attachments": upload,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "tipo MIME non consentito")
+        self.assertEqual(WorkOrder.objects.count(), 0)
+
+    def test_workorder_attachment_fails_closed_when_mime_engine_missing(self):
+        self.client.force_login(self.user)
+        upload = SimpleUploadedFile("report.pdf", b"%PDF-1.4 test", content_type="application/pdf")
+        with patch(
+            "assets.views.validate_extension_and_mime",
+            side_effect=UploadMimeValidationError("Validazione MIME non disponibile sul server. Upload bloccato."),
+        ):
+            response = self.client.post(
+                reverse("assets:wo_create", args=[self.asset.id]),
+                {
+                    "periodic_verification": "",
+                    "supplier": "",
+                    "kind": WorkOrder.KIND_CORRECTIVE,
+                    "status": WorkOrder.STATUS_OPEN,
+                    "title": "Intervento con validazione bloccata",
+                    "description": "Fail closed",
+                    "attachments": upload,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Validazione MIME non disponibile")
+        self.assertEqual(WorkOrder.objects.count(), 0)
 
     def test_non_programmed_workorder_allows_manual_supplier(self):
         supplier = Fornitore.objects.create(

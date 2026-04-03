@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone as dt_timezone
 from django.db import IntegrityError, models, transaction
 
+from .storage import PrivateTicketStorage
 
 # ---------------------------------------------------------------------------
 # Costanti condivise
@@ -16,9 +17,23 @@ class TipoTicket(models.TextChoices):
 class StatoTicket(models.TextChoices):
     APERTA      = "APERTA",      "Aperta"
     IN_CARICO   = "IN_CARICO",   "In carico"
+    IN_ATTESA   = "IN_ATTESA",   "In attesa"
     RISOLTO     = "RISOLTO",     "Risolto"
     CHIUSO      = "CHIUSO",      "Chiuso"
     ANNULLATO   = "ANNULLATO",   "Annullato"
+
+
+class TipoFermo(models.TextChoices):
+    NESSUNO = "NESSUNO", "Nessun fermo"
+    PARZIALE = "PARZIALE", "Fermo parziale"
+    TOTALE   = "TOTALE",   "Fermo totale"
+
+
+class EsitoIntervento(models.TextChoices):
+    IN_CORSO          = "IN_CORSO",          "In corso"
+    COMPLETATO        = "COMPLETATO",        "Completato"
+    SOSPESO           = "SOSPESO",           "Sospeso"
+    RICHIEDE_RICAMBI  = "RICHIEDE_RICAMBI",  "Richiede ricambi"
 
 
 class PrioritaTicket(models.TextChoices):
@@ -45,6 +60,72 @@ CATEGORIE_MAN = [
     ("GENERICA",   "Generica"),
     ("ALTRO_MAN",  "Altro Manutenzione"),
 ]
+
+
+# ---------------------------------------------------------------------------
+# Categorie ticket dinamiche
+# ---------------------------------------------------------------------------
+
+class CategoriaTicket(models.Model):
+    """Categorie configurabili per i ticket IT e MAN, gestite dall'admin assets."""
+
+    tipo      = models.CharField(max_length=5, choices=TipoTicket.choices, db_index=True)
+    codice    = models.CharField(max_length=30, unique=True)
+    etichetta = models.CharField(max_length=100)
+    ordine    = models.PositiveIntegerField(default=0)
+    attivo    = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["tipo", "ordine", "etichetta"]
+        verbose_name = "Categoria ticket"
+        verbose_name_plural = "Categorie ticket"
+
+    def __str__(self) -> str:
+        return f"[{self.tipo}] {self.etichetta}"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        _invalidate_categoria_label_cache()
+
+    def delete(self, *args, **kwargs):
+        result = super().delete(*args, **kwargs)
+        _invalidate_categoria_label_cache()
+        return result
+
+
+_CATEGORIA_LABEL_CACHE_KEY = "ticket_categoria_label_map"
+_CATEGORIA_LABEL_CACHE_TTL = 300  # 5 minuti
+
+
+def _get_categoria_label_map() -> dict[str, str]:
+    """Dizionario codice→etichetta per tutte le categorie, con cache Django (5 min).
+    Una sola query DB per miss di cache; 0 query per tutti i ticket successivi."""
+    from django.core.cache import cache
+    cached = cache.get(_CATEGORIA_LABEL_CACHE_KEY)
+    if cached is not None:
+        return cached
+    db_map = dict(CategoriaTicket.objects.values_list("codice", "etichetta"))
+    result: dict[str, str] = {**dict(CATEGORIE_IT + CATEGORIE_MAN), **db_map}
+    cache.set(_CATEGORIA_LABEL_CACHE_KEY, result, _CATEGORIA_LABEL_CACHE_TTL)
+    return result
+
+
+def _invalidate_categoria_label_cache() -> None:
+    from django.core.cache import cache
+    cache.delete(_CATEGORIA_LABEL_CACHE_KEY)
+
+
+def get_categorie(tipo: str) -> list[tuple[str, str]]:
+    """Restituisce le categorie attive per il tipo indicato (IT o MAN).
+    Se la tabella è vuota per quel tipo, usa il fallback hardcoded."""
+    qs = list(
+        CategoriaTicket.objects.filter(tipo=tipo, attivo=True)
+        .order_by("ordine", "etichetta")
+        .values_list("codice", "etichetta")
+    )
+    if qs:
+        return qs
+    return CATEGORIE_IT if tipo == TipoTicket.IT else CATEGORIE_MAN
 
 
 def _next_ticket_number(tipo: str, year: int | None = None) -> str:
@@ -124,6 +205,36 @@ class Ticket(models.Model):
     # SharePoint
     sharepoint_item_id = models.CharField(max_length=100, blank=True)
 
+    # ── Campi analitici per KPI ──────────────────────────────────────────────
+    componente          = models.CharField(max_length=200, blank=True,
+                            help_text="Componente/sotto-sistema interessato (es. Mandrino, Inverter, PLC)")
+    causa_radice        = models.CharField(max_length=500, blank=True,
+                            help_text="Causa radice identificata a chiusura")
+    tipo_fermo          = models.CharField(
+                            max_length=10,
+                            choices=TipoFermo.choices,
+                            default=TipoFermo.NESSUNO,
+                            help_text="Tipo di fermo produzione causato dal guasto")
+    ore_fermo_macchina  = models.DecimalField(
+                            max_digits=7, decimal_places=2,
+                            null=True, blank=True,
+                            help_text="Ore di fermo macchina totali")
+    data_presa_in_carico = models.DateTimeField(null=True, blank=True,
+                            help_text="Timestamp automatico del primo passaggio IN_CARICO")
+    data_primo_intervento = models.DateTimeField(null=True, blank=True,
+                            help_text="Timestamp del primo TicketIntervento registrato")
+    risolto_da_nome     = models.CharField(max_length=200, blank=True,
+                            help_text="Tecnico/manutentore che ha risolto il ticket")
+    ricorrente          = models.BooleanField(default=False,
+                            help_text="Il problema si è già verificato in passato")
+    ticket_origine      = models.ForeignKey(
+                            "self",
+                            null=True, blank=True,
+                            on_delete=models.SET_NULL,
+                            related_name="ticket_ricorrenti",
+                            help_text="Ticket precedente da cui deriva (se ricorrente)")
+    # ────────────────────────────────────────────────────────────────────────
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     closed_at  = models.DateTimeField(null=True, blank=True)
@@ -174,13 +285,16 @@ class Ticket(models.Model):
         return self.stato in (StatoTicket.CHIUSO, StatoTicket.ANNULLATO)
 
     @property
+    def label_tipo_fermo(self) -> str:
+        return dict(TipoFermo.choices).get(self.tipo_fermo, self.tipo_fermo)
+
+    @property
     def categorie_disponibili(self) -> list:
-        return CATEGORIE_IT if self.tipo == TipoTicket.IT else CATEGORIE_MAN
+        return get_categorie(self.tipo)
 
     @property
     def label_categoria(self) -> str:
-        tutte = dict(CATEGORIE_IT + CATEGORIE_MAN)
-        return tutte.get(self.categoria, self.categoria)
+        return _get_categoria_label_map().get(self.categoria, self.categoria)
 
 
 # ---------------------------------------------------------------------------
@@ -210,7 +324,7 @@ class TicketCommento(models.Model):
 
 class TicketAllegato(models.Model):
     ticket         = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="allegati")
-    file           = models.FileField(upload_to="tickets/allegati/%Y/%m/")
+    file           = models.FileField(upload_to="tickets/allegati/%Y/%m/", storage=PrivateTicketStorage)
     nome_originale = models.CharField(max_length=255)
     tipo_mime      = models.CharField(max_length=100, blank=True)
     uploaded_at    = models.DateTimeField(auto_now_add=True)
@@ -251,3 +365,83 @@ class TicketImpostazioni(models.Model):
     def get_or_create_for(cls, tipo: str) -> "TicketImpostazioni":
         obj, _ = cls.objects.get_or_create(tipo=tipo)
         return obj
+
+
+# ---------------------------------------------------------------------------
+# Log cambio stato (storia transizioni)
+# ---------------------------------------------------------------------------
+
+class TicketStatoLog(models.Model):
+    ticket       = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="stato_log")
+    da_stato     = models.CharField(max_length=15, blank=True)
+    a_stato      = models.CharField(max_length=15)
+    utente_nome  = models.CharField(max_length=200)
+    utente_email = models.CharField(max_length=200, blank=True)
+    nota         = models.TextField(blank=True)
+    created_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        verbose_name = "Log stato ticket"
+        verbose_name_plural = "Log stati ticket"
+
+    def __str__(self):
+        return f"{self.ticket.numero_ticket}: {self.da_stato}→{self.a_stato}"
+
+    @property
+    def label_da(self) -> str:
+        return dict(StatoTicket.choices).get(self.da_stato, self.da_stato) if self.da_stato else "—"
+
+    @property
+    def label_a(self) -> str:
+        return dict(StatoTicket.choices).get(self.a_stato, self.a_stato)
+
+
+# ---------------------------------------------------------------------------
+# Sessioni di intervento (per KPI tempi / manutentori)
+# ---------------------------------------------------------------------------
+
+class TicketIntervento(models.Model):
+    ticket                = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="interventi")
+    tecnico_nome          = models.CharField(max_length=200)
+    tecnico_email         = models.CharField(max_length=200, blank=True)
+    data_inizio           = models.DateTimeField()
+    data_fine             = models.DateTimeField(null=True, blank=True)
+    ore_lavorate          = models.DecimalField(
+                              max_digits=6, decimal_places=2,
+                              null=True, blank=True,
+                              help_text="Ore effettive di lavoro (calcolate o manuali)")
+    descrizione_lavoro    = models.TextField(blank=True, help_text="Cosa è stato fatto")
+    componente_interessato = models.CharField(max_length=200, blank=True,
+                              help_text="Componente lavorato in questa sessione")
+    azioni_svolte         = models.TextField(blank=True,
+                              help_text="Elenco azioni/procedure eseguite")
+    esito                 = models.CharField(
+                              max_length=20,
+                              choices=EsitoIntervento.choices,
+                              default=EsitoIntervento.IN_CORSO)
+    note                  = models.TextField(blank=True)
+    created_at            = models.DateTimeField(auto_now_add=True)
+    updated_at            = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["data_inizio"]
+        verbose_name = "Intervento ticket"
+        verbose_name_plural = "Interventi ticket"
+
+    def __str__(self):
+        return f"Intervento #{self.pk} su {self.ticket.numero_ticket} ({self.tecnico_nome})"
+
+    @property
+    def label_esito(self) -> str:
+        return dict(EsitoIntervento.choices).get(self.esito, self.esito)
+
+    @property
+    def durata_ore(self):
+        """Ore calcolate da inizio/fine se ore_lavorate non è impostato."""
+        if self.ore_lavorate is not None:
+            return float(self.ore_lavorate)
+        if self.data_fine and self.data_inizio:
+            delta = self.data_fine - self.data_inizio
+            return round(delta.total_seconds() / 3600, 2)
+        return None

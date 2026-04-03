@@ -51,6 +51,18 @@
   border: 1px solid rgba(255,255,255,.3);
 }
 .gv-btn-outline:hover { background: rgba(255,255,255,.22); color: #fff; }
+.gv-badges { display:flex; flex-wrap:wrap; gap:6px; }
+.gv-badge {
+  display:inline-flex;
+  align-items:center;
+  padding:4px 9px;
+  border-radius:999px;
+  background:#f8fafc;
+  border:1px solid #dbe4f0;
+  color:#475569;
+  font-size:.72rem;
+  font-weight:700;
+}
 .gv-iframe-wrap {
   flex: 1;
   border: 1px solid #d1d9e6;
@@ -75,10 +87,16 @@
       <span style="color:#d1d9e6">/</span>
       <span style="font-size:.84rem;font-weight:600;color:#1e2333">{{ guide.title }}</span>
     </div>
-    <a href="{% url 'hub_tools:hub_guide_serve' guide.file %}" target="_blank"
+    <a href="{% url 'hub_tools:hub_guide_serve' guide.slug %}" target="_blank"
        style="font-size:.82rem;color:#1a6fc4;text-decoration:none;display:inline-flex;align-items:center;gap:4px">
       ↗ Apri in nuova scheda
     </a>
+  </div>
+
+  <div class="gv-badges" style="margin-bottom:12px">
+    <span class="gv-badge">{{ guide.format }}</span>
+    <span class="gv-badge">{{ guide.source_label }}</span>
+    <span class="gv-badge">{{ guide.relative_path }}</span>
   </div>
 
   <div class="gv-wrap">
@@ -88,7 +106,7 @@
         <span class="gv-title">{{ guide.title }}</span>
       </div>
       <div class="gv-topbar-actions">
-        <a href="{% url 'hub_tools:hub_guide_serve' guide.file %}" target="_blank" class="gv-btn gv-btn-outline">
+        <a href="{% url 'hub_tools:hub_guide_serve' guide.slug %}" target="_blank" class="gv-btn gv-btn-outline">
           ↗ Nuova scheda
         </a>
         <a href="{% url 'hub_tools:hub_guide_list' %}" class="gv-btn gv-btn-outline">
@@ -98,7 +116,7 @@
     </div>
     <div class="gv-iframe-wrap">
       <iframe
-        src="{% url 'hub_tools:hub_guide_serve' guide.file %}"
+        src="{% url 'hub_tools:hub_guide_serve' guide.slug %}"
         title="{{ guide.title }}"
         allowfullscreen
       ></iframe>

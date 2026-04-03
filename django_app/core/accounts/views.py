@@ -12,9 +12,10 @@ from django.views.decorators.cache import never_cache
 from werkzeug.security import generate_password_hash
 
 from core.accounts.forms import LegacyAuthenticationForm, LegacyChangePasswordForm
+from core.accounts.redirects import get_safe_redirect_target
 from core.branding import get_portal_branding
 from core.legacy_models import UtenteLegacy
-from core.legacy_utils import get_legacy_user, legacy_auth_enabled
+from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_auth_enabled
 
 
 @method_decorator(ensure_csrf_cookie, name="dispatch")
@@ -58,21 +59,20 @@ class LegacyLoginView(LoginView):
         return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
-        # Salva la password in sessione per il relay SSO (es. GuestPortal).
-        # Viene cancellata automaticamente al logout insieme all'intera sessione.
-        raw_password = form.cleaned_data.get("password", "")
         response = super().form_valid(form)  # crea la sessione autenticata
-        if raw_password:
-            self.request.session["_sso_relay_pwd"] = raw_password
         legacy_user = get_legacy_user(self.request.user)
         if legacy_auth_enabled() and legacy_user and bool(legacy_user.deve_cambiare_password):
             return redirect("cambia_password")
         return response
 
     def get_success_url(self):
-        next_url = self.get_redirect_url()
-        if next_url:
-            return next_url
+        raw_next = (
+            self.request.POST.get(self.redirect_field_name)
+            or self.request.GET.get(self.redirect_field_name)
+            or ""
+        ).strip()
+        if raw_next:
+            return get_safe_redirect_target(self.request, raw_next) or reverse("dashboard_home")
         try:
             # Gli amministratori vanno sempre alla dashboard, indipendentemente dal redirect configurato
             if not self.request.user.is_superuser:

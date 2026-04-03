@@ -100,6 +100,7 @@
     <a href="?tab=riepilogo" class="ga-tab {% if tab == 'riepilogo' %}active{% endif %}">Riepilogo</a>
     <a href="?tab=config" class="ga-tab {% if tab == 'config' %}active{% endif %}">Configurazione</a>
     <a href="?tab=record" class="ga-tab {% if tab == 'record' %}active{% endif %}">Record</a>
+    <a href="?tab=ticket" class="ga-tab {% if tab == 'ticket' %}active{% endif %}">Categorie Ticket</a>
     <a href="?tab=log" class="ga-tab {% if tab == 'log' %}active{% endif %}">Log attivit&agrave;</a>
   </div>
 
@@ -306,6 +307,16 @@
           <span class="chip-soft blue">Configurato</span>
           <strong>{{ sidebar_buttons|length }}</strong>
           <span class="muted-note">voci personalizzate attive o gestibili da questa schermata.</span>
+          <form method="post" style="margin:0;" onsubmit="return confirm('Tutte le voci sidebar personalizzate verranno eliminate e sostituite con i valori predefiniti aggiornati. Continuare?')">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="reset_sidebar_buttons">
+            <button type="submit" class="btn btn-sm" style="background:#fef2f2;color:#b91c1c;border-color:#fecaca;">Reimposta predefiniti</button>
+          </form>
+          <form method="post" style="margin:0;" onsubmit="return confirm('Vuoi rimuovere tutte le voci personalizzate e usare il menu predefinito di sistema?')">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="clear_sidebar_buttons">
+            <button type="submit" class="btn btn-sm" style="background:#fff7ed;color:#c2410c;border-color:#fed7aa;">Svuota (usa predefinito)</button>
+          </form>
         </div>
       {% else %}
         <div class="inline-actions">
@@ -733,6 +744,151 @@
         {% if wo_page.has_next %}<a href="?tab=record&q_wo={{ q_wo }}&wo_page={{ wo_page.next_page_number }}">Succ &#8594;</a>{% endif %}
       </div>
       {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# ========== TAB CATEGORIE TICKET ========== #}
+  {% if tab == 'ticket' %}
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-head">
+      <h3 class="card-title">Categorie Ticket IT</h3>
+      <span class="chip-soft blue">{{ categorie_ticket|length }} totali</span>
+    </div>
+    <div class="card-body">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Codice</th>
+            <th>Etichetta</th>
+            <th>Ordine</th>
+            <th>Stato</th>
+            <th>Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cat in categorie_ticket %}{% if cat.tipo == "IT" %}
+          <tr>
+            <td><code style="font-size:var(--fs-sm);">{{ cat.codice }}</code></td>
+            <td>{{ cat.etichetta }}</td>
+            <td>{{ cat.ordine }}</td>
+            <td>
+              {% if cat.attivo %}
+                <span class="chip-soft green">Attiva</span>
+              {% else %}
+                <span class="chip-soft slate">Disattiva</span>
+              {% endif %}
+            </td>
+            <td>
+              <form method="post" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="toggle_categoria_ticket">
+                <input type="hidden" name="cat_id" value="{{ cat.pk }}">
+                <button type="submit" class="btn btn-sm" style="background:#f1f5f9;border-color:#cbd5e1;color:#475569;">
+                  {% if cat.attivo %}Disattiva{% else %}Attiva{% endif %}
+                </button>
+              </form>
+              <form method="post" style="display:inline;" onsubmit="return confirm('Eliminare la categoria \'{{ cat.etichetta }}\'?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete_categoria_ticket">
+                <input type="hidden" name="cat_id" value="{{ cat.pk }}">
+                <button type="submit" class="btn btn-sm btn-danger">Elimina</button>
+              </form>
+            </td>
+          </tr>
+          {% endif %}{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-head">
+      <h3 class="card-title">Categorie Ticket Manutenzione</h3>
+    </div>
+    <div class="card-body">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Codice</th>
+            <th>Etichetta</th>
+            <th>Ordine</th>
+            <th>Stato</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cat in categorie_ticket %}{% if cat.tipo == "MAN" %}
+          <tr>
+            <td><code style="font-size:var(--fs-sm);">{{ cat.codice }}</code></td>
+            <td>{{ cat.etichetta }}</td>
+            <td>{{ cat.ordine }}</td>
+            <td>
+              {% if cat.attivo %}
+                <span class="chip-soft green">Attiva</span>
+              {% else %}
+                <span class="chip-soft slate">Disattiva</span>
+              {% endif %}
+            </td>
+            <td>
+              <form method="post" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="toggle_categoria_ticket">
+                <input type="hidden" name="cat_id" value="{{ cat.pk }}">
+                <button type="submit" class="btn btn-sm" style="background:#f1f5f9;border-color:#cbd5e1;color:#475569;">
+                  {% if cat.attivo %}Disattiva{% else %}Attiva{% endif %}
+                </button>
+              </form>
+              <form method="post" style="display:inline;" onsubmit="return confirm('Eliminare la categoria \'{{ cat.etichetta }}\'?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete_categoria_ticket">
+                <input type="hidden" name="cat_id" value="{{ cat.pk }}">
+                <button type="submit" class="btn btn-sm btn-danger">Elimina</button>
+              </form>
+            </td>
+          </tr>
+          {% endif %}{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3 class="card-title">Aggiungi categoria</h3></div>
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_categoria_ticket">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Tipo ticket</label>
+            <select name="cat_tipo" required>
+              {% for val, label in ticket_tipo_choices %}
+                <option value="{{ val }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Codice (univoco, es. CHIAMATA)</label>
+            <input type="text" name="cat_codice" maxlength="30" required placeholder="es. CHIAMATA" style="width:180px;">
+          </div>
+          <div class="form-group">
+            <label>Etichetta visibile</label>
+            <input type="text" name="cat_etichetta" maxlength="100" required placeholder="es. Intervento a chiamata" style="width:240px;">
+          </div>
+          <div class="form-group">
+            <label>Ordine</label>
+            <input type="number" name="cat_ordine" value="50" min="0" style="width:80px;">
+          </div>
+          <div class="form-group" style="justify-content:flex-end;">
+            <button type="submit" class="btn btn-primary">+ Aggiungi</button>
+          </div>
+        </div>
+        <p class="muted-note" style="margin-top:8px;">
+          Il codice viene convertito automaticamente in maiuscolo senza spazi. Non &egrave; modificabile dopo la creazione.<br>
+          <strong>Elimina</strong> rimuove la categoria solo se non usata da ticket esistenti &mdash; usa <strong>Disattiva</strong> per nasconderla dal form senza perdere lo storico.
+        </p>
+      </form>
     </div>
   </div>
   {% endif %}

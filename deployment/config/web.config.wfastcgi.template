@@ -93,4 +93,16 @@
       </handlers>
     </system.webServer>
   </location>
+
+  <location path="media/tickets">
+    <system.webServer>
+      <security>
+        <requestFiltering>
+          <denyUrlSequences>
+            <add sequence="." />
+          </denyUrlSequences>
+        </requestFiltering>
+      </security>
+    </system.webServer>
+  </location>
 </configuration>

@@ -337,6 +337,33 @@ class NavigationSnapshot(models.Model):
         return f"NavSnapshot<v{self.version}>"
 
 
+class UserNavigationOverride(models.Model):
+    """Override visibilità navigazione per-utente, indipendente dal ruolo.
+
+    enabled=True  → forza MOSTRA (anche se il ruolo non lo vede)
+    enabled=False → forza NASCONDI (anche se il ruolo lo vede)
+    Nessun record → eredita dalla configurazione di ruolo.
+    """
+
+    legacy_user_id = models.IntegerField(db_index=True)
+    item = models.ForeignKey(
+        NavigationItem,
+        on_delete=models.CASCADE,
+        related_name="user_overrides",
+    )
+    enabled = models.BooleanField()
+    note = models.CharField(max_length=255, blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("legacy_user_id", "item")]
+        ordering = ["legacy_user_id", "item__section", "item__order"]
+
+    def __str__(self) -> str:
+        state = "SHOW" if self.enabled else "HIDE"
+        return f"NavOverride<user={self.legacy_user_id} item={self.item_id} {state}>"
+
+
 class LegacyRedirect(models.Model):
     """Mappa redirect configurabile da URL legacy a route/path Django."""
 

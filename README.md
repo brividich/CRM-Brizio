@@ -3,7 +3,7 @@
 
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![Django 5.2](https://img.shields.io/badge/Django-5.2-0C4B33?logo=django&logoColor=white)
-![Version 0.8.6](https://img.shields.io/badge/version-0.8.6-F97316)
+![Version 0.8.8](https://img.shields.io/badge/version-0.8.8-F97316)
 ![Database SQLite or SQL Server](https://img.shields.io/badge/DB-SQLite%20%7C%20SQL%20Server-1E3A5F)
 
 Repository pubblico del software **BrizioHUB**. Il nome istanza Ã¨ configurabile per deployment
@@ -43,6 +43,8 @@ Le preferenze vengono salvate lato server e riapplicate automaticamente al login
 | Osservabilita | monitoring interno, issue tracking, alert email, segnalazioni utente, monitor automazioni |
 | Compatibilita legacy | route storiche, tabelle unmanaged e fallback di navigazione/permessi |
 
+Nel modulo `assenze` il valore canonico per le richieste flessibili e `Flessibilità`. Se il database SQL Server proviene da una versione legacy che usa ancora `Infortunio`, riallinealo con `python django_app/manage.py allinea_tipo_assenza_flessibilita --settings=config.settings.dev`. `Certifica presenza` resta gestita come tipo applicativo dedicato ma viene persistita come `Altro` con metadato interno per compatibilita.
+
 ## Preview
 
 Anteprime visuali GitHub-friendly dei flussi principali del portale.
@@ -68,8 +70,18 @@ Strumenti operativi:
 - `/admin-portale/acl-route-coverage/` per classificare tutte le route (`CANONICAL_BOUND`, `LEGACY_FALLBACK`, `UNBOUND`, `COMING_SOON_EXCLUDED`, `REDIRECT_ONLY`)
 - `/admin-portale/acl-diagnostica/` per capire perché un accesso è consentito/negato
 - `/admin-portale/mappa-permessi-navigazione/` per il workflow visuale route/menu con toggle live grant canonici + permessi legacy (con filtro ruolo)
+- `/admin-portale/navigation-builder/` per gestire la navigazione con tab per sezione e card operative `Apri`, `Clona`, `Rimuovi` direttamente dalla vista visuale
 - comando `python django_app/manage.py bootstrap_acl_v2` per supportare migrazione incrementale
+  - `--dry-run` per audit senza scritture
+  - `--apps assets,automazioni` per migrare una app alla volta
+  - `--apply` per creare/aggiornare binding canonici attivi su route `LEGACY_FALLBACK/UNBOUND`
 - comando `python django_app/manage.py seed_acl_uat --reset` per caricare un pacchetto UAT ripetibile (ruoli, utenti, binding, grant, override, fallback legacy, report scenari)
+
+In installazione tramite `SetupWizard.exe` (ambienti `test`/`prod`), dopo `migrate` il wizard esegue automaticamente il workflow ACL v2:
+- audit pre `bootstrap_acl_v2 --dry-run`
+- migrazione `bootstrap_acl_v2 --import-legacy --apply`
+- audit post `bootstrap_acl_v2 --dry-run`
+- in ambiente `test`: seed UAT opzionale (`seed_acl_uat --reset`) tramite checkbox wizard `Esegui seed UAT ACL`
 
 ## Stack tecnico
 
@@ -213,9 +225,24 @@ utente admin e configurazione IIS completa.
 
 Prerequisiti: IIS + HttpPlatformHandler, SQL Server, ODBC Driver 17/18, sqlcmd, Python 3.11+.
 
+Nota sicurezza deployment: gli allegati ticket non devono essere serviti direttamente da `/media/tickets/`.
+I nuovi upload usano storage privato e il download passa da una view Django autenticata; il template IIS incluso nel repo blocca l'accesso diretto alla cartella pubblica legacy.
+
 Per il flusso manuale e il troubleshooting: [deployment/README_DEPLOY_IIS_WINDOWS.md](deployment/README_DEPLOY_IIS_WINDOWS.md)
 
+### Post-deploy (obbligatorio)
+
+Se il deploy viene eseguito manualmente (senza `SetupWizard.exe`), eseguire sempre:
+
+```powershell
+python django_app\manage.py migrate
+```
+
+Nel flusso standard e upgrade di `SetupWizard.exe`, `migrate` viene eseguito automaticamente.
+
 ## Documentazione collegata
+
+La raccolta interna in `/admin-portale/hub/guide/` indicizza automaticamente questi documenti e le altre guide supportate presenti in `tools/`, `doc/`, `deployment/` e `django_app/assets/README.md`. Nella vista singola documento i pulsanti principali sono compatti per lasciare piu spazio al contenuto.
 
 - [Guida deployment IIS (manuale + troubleshooting)](deployment/README_DEPLOY_IIS_WINDOWS.md)
 - [Manuale amministratore â€” navigazione e permessi](tools/MANUALE_ADMIN_NAVIGAZIONE_PERMESSI.md)

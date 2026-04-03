@@ -18,7 +18,7 @@ from django.db import connections, transaction
 from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 from core.acl import user_can_modulo_action
 from core.caporeparto_utils import resolve_caporeparto_legacy_user
@@ -56,7 +56,8 @@ _DEFAULT_COLORS = {
 _COLOR_KEYS = set(_DEFAULT_COLORS.keys())
 
 _TIPI_UI = {"Ferie", "Permesso", "Malattia", "Flessibilità", "Certifica presenza", "Altro"}
-_TIPI_STORAGE = {"Ferie", "Permesso", "Malattia", "Flessibilità", "Certifica presenza", "Altro"}
+_TIPI_STORAGE = {"Ferie", "Permesso", "Malattia", "Flessibilità", "Altro"}
+_CERTIFICA_PRESENZA_MARKER = "[CERTIFICA_PRESENZA]"
 _CONSENSI = {"In attesa", "Approvato", "Rifiutato", "Bozza", "Programmato"}
 _MOD_TO_CONSENSO = {"0": "Approvato", "1": "Rifiutato", "2": "In attesa", "3": "Bozza", "4": "Programmato"}
 _CONSENSO_TO_MOD = {"Approvato": 0, "Rifiutato": 1, "In attesa": 2, "Bozza": 3, "Programmato": 4}
@@ -69,6 +70,16 @@ def _json_error(msg: str, status: int = 400) -> JsonResponse:
 
 def _db_vendor() -> str:
     return str(connections["default"].vendor or "").lower()
+
+
+def _quote_identifier(name: str) -> str:
+    return connections["default"].ops.quote_name(str(name))
+
+
+def _quoted_columns(columns: list[str], *, alias: str | None = None) -> str:
+    if alias:
+        return ", ".join(f"{alias}.{_quote_identifier(col)}" for col in columns)
+    return ", ".join(_quote_identifier(col) for col in columns)
 
 
 def _repo_root() -> Path:
@@ -297,15 +308,40 @@ def _norm_tipo(value) -> str:
     return "Altro"
 
 
+def _has_certifica_presenza_marker(motivazione) -> bool:
+    return str(motivazione or "").strip().startswith(_CERTIFICA_PRESENZA_MARKER)
+
+
+def _strip_tipo_metadata_from_motivazione(motivazione) -> str:
+    text = str(motivazione or "").strip()
+    if not _has_certifica_presenza_marker(text):
+        return text
+    stripped = text[len(_CERTIFICA_PRESENZA_MARKER):].lstrip()
+    return stripped.lstrip("-:| ").strip()
+
+
+def _motivazione_for_storage(tipo, motivazione) -> str:
+    clean = _strip_tipo_metadata_from_motivazione(motivazione)
+    if _norm_tipo(tipo) == "Certifica presenza":
+        return f"{_CERTIFICA_PRESENZA_MARKER} {clean}".strip()
+    return clean
+
+
+def _tipo_for_display(value, motivazione="") -> str:
+    if _has_certifica_presenza_marker(motivazione):
+        return "Certifica presenza"
+    return _norm_tipo(value)
+
+
 def _tipo_for_storage(value) -> str:
     tipo_ui = _norm_tipo(value)
     if tipo_ui == "Certifica presenza":
-        return "Certifica presenza"
+        return "Altro"
     return tipo_ui if tipo_ui in _TIPI_STORAGE else "Altro"
 
 
-def _tipo_for_graph(value) -> str:
-    tipo_ui = _norm_tipo(value)
+def _tipo_for_graph(value, motivazione="") -> str:
+    tipo_ui = _tipo_for_display(value, motivazione)
     if tipo_ui == "Flessibilità":
         return "Flessibilità"
     if tipo_ui == "Certifica presenza":
@@ -394,7 +430,7 @@ def _certificazione_presenza_dipendenti_attivi() -> list[str]:
 
     rows = _fetch_all_dict(
         f"""
-        SELECT {', '.join(select_cols)}
+        SELECT {_quoted_columns(select_cols)}
         FROM anagrafica_dipendenti
         WHERE {' AND '.join(where_parts)}
         ORDER BY cognome, nome
@@ -472,7 +508,7 @@ def _resolve_request_display_name(
     order_sql = " ORDER BY id DESC" if "id" in cols else ""
     rows = _fetch_all_dict(
         f"""
-        SELECT {', '.join(select_cols)}
+        SELECT {_quoted_columns(select_cols)}
         FROM anagrafica_dipendenti
         WHERE ({' OR '.join(clauses)}){order_sql}
         """,
@@ -648,7 +684,7 @@ def _capo_assignment_diagnostics(
         return {"table_exists": True, "where_sql": where_sql, "params": params, "matched": [], "match_count": 0}
 
     rows = _fetch_all_dict(
-        f"SELECT {', '.join(f'cr.{c}' for c in select_cols)} FROM capi_reparto cr WHERE {where_sql} ORDER BY cr.title, cr.id",
+        f"SELECT {_quoted_columns(select_cols, alias='cr')} FROM capi_reparto cr WHERE {where_sql} ORDER BY cr.title, cr.id",
         params,
     )
     return {
@@ -687,7 +723,7 @@ def _owned_capo_ids_for_legacy_user(
     if "sharepoint_item_id" in cols:
         select_cols.append("sharepoint_item_id")
     rows = _fetch_all_dict(
-        f"SELECT {', '.join(select_cols)} FROM capi_reparto c WHERE {where_sql}",
+        f"SELECT {_quoted_columns(select_cols)} FROM capi_reparto c WHERE {where_sql}",
         where_params,
     )
     for row in rows:
@@ -949,7 +985,7 @@ def _resolve_capo_option_value_from_ids(
         select_cols.append("title")
     if not select_cols:
         return ""
-    base_sql = f"SELECT {', '.join(select_cols)} FROM capi_reparto WHERE sharepoint_item_id = %s"
+    base_sql = f"SELECT {_quoted_columns(select_cols)} FROM capi_reparto WHERE sharepoint_item_id = %s"
     sql = _select_limited(base_sql, "ORDER BY id DESC", 1)
     rows = _fetch_all_dict(sql, [int(lookup_id)])
     if not rows:
@@ -982,15 +1018,17 @@ def _fetch_first_row_from_cursor(cursor):
 
 def _insert_row_and_return_id(cursor, table: str, cols: list[str], values: list[object]) -> int | None:
     placeholders = ", ".join(["%s"] * len(cols))
+    quoted_table = _quote_identifier(table)
+    quoted_cols = _quoted_columns(cols)
     vendor = _db_vendor()
     if vendor == "sqlite":
-        cursor.execute(f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders})", values)
+        cursor.execute(f"INSERT INTO {quoted_table} ({quoted_cols}) VALUES ({placeholders})", values)
         return int(cursor.lastrowid) if cursor.lastrowid else None
     if vendor in {"microsoft", "mssql", "sql_server"}:
         cursor.execute(
             (
                 "DECLARE @inserted_ids TABLE (id int); "
-                f"INSERT INTO {table} ({', '.join(cols)}) "
+                f"INSERT INTO {quoted_table} ({quoted_cols}) "
                 f"OUTPUT INSERTED.id INTO @inserted_ids VALUES ({placeholders}); "
                 "SELECT TOP 1 id FROM @inserted_ids;"
             ),
@@ -1000,7 +1038,7 @@ def _insert_row_and_return_id(cursor, table: str, cols: list[str], values: list[
         if row_inserted and row_inserted[0] is not None:
             return int(row_inserted[0])
         return None
-    cursor.execute(f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders})", values)
+    cursor.execute(f"INSERT INTO {quoted_table} ({quoted_cols}) VALUES ({placeholders})", values)
     if getattr(cursor, "lastrowid", None):
         return int(cursor.lastrowid)
     cursor.execute("SELECT CAST(SCOPE_IDENTITY() AS int)")
@@ -1032,11 +1070,12 @@ def _find_inserted_assenza_id(row: dict) -> int | None:
     for field in match_fields:
         if field not in row:
             continue
+        quoted_field = _quote_identifier(field)
         value = row.get(field)
         if value is None:
-            clauses.append(f"{field} IS NULL")
+            clauses.append(f"{quoted_field} IS NULL")
         else:
-            clauses.append(f"{field} = %s")
+            clauses.append(f"{quoted_field} = %s")
             params.append(value)
     if not clauses:
         return None
@@ -1066,7 +1105,7 @@ def _update_assenza(item_id: int, updates: dict) -> bool:
     row = _prepare_row_data(updates)
     if not row:
         return False
-    sets = ", ".join([f"{k} = %s" for k in row.keys()])
+    sets = ", ".join(f"{_quote_identifier(k)} = %s" for k in row.keys())
     with connections["default"].cursor() as cursor:
         cursor.execute(f"UPDATE assenze SET {sets} WHERE id = %s", [*list(row.values()), int(item_id)])
         return bool(cursor.rowcount)
@@ -1103,18 +1142,18 @@ def _get_assenza(item_id: int) -> dict | None:
     selected = [col for col in wanted if col in cols]
     if "id" not in selected:
         return None
-    rows = _fetch_all_dict(f"SELECT {', '.join(selected)} FROM assenze WHERE id = %s", [int(item_id)])
+    rows = _fetch_all_dict(f"SELECT {_quoted_columns(selected)} FROM assenze WHERE id = %s", [int(item_id)])
     return rows[0] if rows else None
 
 
 def _sp_fields_from_row(row: dict) -> dict:
-    tipo = _tipo_for_graph(row.get("tipo_assenza"))
+    tipo = _tipo_for_graph(row.get("tipo_assenza"), row.get("motivazione_richiesta"))
     consenso = _norm_consenso(row.get("consenso"))
     fields = {
         "CopiaNome": str(row.get("copia_nome") or ""),
         "emailesterna": str(row.get("email_esterna") or ""),
         "Tipoassenza": tipo,
-        "Motivazionerichiesta": str(row.get("motivazione_richiesta") or ""),
+        "Motivazionerichiesta": _strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta")),
         "Salta_x0020_approvazione": bool(_as_bool(row.get("salta_approvazione"))),
         "Consenso": consenso,
     }
@@ -1236,16 +1275,17 @@ def _sp_item_to_local(item: dict) -> tuple[str, dict]:
     elif mod_status is None:
         mod_status = _CONSENSO_TO_MOD.get(consenso, 2)
 
+    raw_tipo = fields.get("Tipoassenza")
     data = {
         "sharepoint_item_id": sp_id,
         "nome_lookup_id": _as_int(fields.get("NomeLookupId")),
         "copia_nome": str(fields.get("CopiaNome") or "").strip(),
         "email_esterna": str(fields.get("emailesterna") or "").strip().lower(),
-        "tipo_assenza": _tipo_for_storage(fields.get("Tipoassenza")),
+        "tipo_assenza": _tipo_for_storage(raw_tipo),
         "capo_reparto_lookup_id": _as_int(fields.get("C_x002e_RepartoLookupId")),
         "data_inizio": _parse_sp_dt(fields.get("Data_x0020_inizio")),
         "data_fine": _parse_sp_dt(fields.get("Datafine")),
-        "motivazione_richiesta": str(fields.get("Motivazionerichiesta") or "").strip(),
+        "motivazione_richiesta": _motivazione_for_storage(raw_tipo, fields.get("Motivazionerichiesta")),
         "salta_approvazione": bool(_as_bool(fields.get("Salta_x0020_approvazione"))),
         "consenso": consenso,
         "moderation_status": mod_status,
@@ -1480,7 +1520,7 @@ def _sync_pull_from_sharepoint(limit_rows: int | None = None) -> dict:
                     updates = dict(data)
                     updates.pop("sharepoint_item_id", None)
                     if updates:
-                        sets = ", ".join([f"{k} = %s" for k in updates.keys()])
+                        sets = ", ".join(f"{_quote_identifier(k)} = %s" for k in updates.keys())
                         cursor.execute(f"UPDATE assenze SET {sets} WHERE id = %s", [*list(updates.values()), row_id])
                     updated += 1
 
@@ -1810,7 +1850,7 @@ def _load_events(
 
     events: list[dict] = []
     for row in rows:
-        tipo = _norm_tipo(row.get("tipo_assenza"))
+        tipo = _tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta"))
         moderation_status = _as_int(row.get("moderation_status"))
         moderation_label = _moderation_label(moderation_status)
         consenso = moderation_label if moderation_label != "N/D" else _norm_consenso(row.get("consenso"))
@@ -1825,7 +1865,7 @@ def _load_events(
                     "tipo": tipo,
                     "consenso": consenso,
                     "moderation_status": moderation_status,
-                    "motivazione": str(row.get("motivazione_richiesta") or ""),
+                    "motivazione": _strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta")),
                     "certificato_medico": str(row.get("certificato_medico") or ""),
                     "capo": str(row.get("capo") or ""),
                 },
@@ -1875,8 +1915,8 @@ def _load_personal(name: str, email: str, limit: int = 20) -> list[dict]:
         out.append(
             {
                 "id": row.get("id"),
-                "tipo": _norm_tipo(row.get("tipo_assenza")),
-                "tipo_raw": _tipo_for_storage(row.get("tipo_assenza")),
+                "tipo": _tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta")),
+                "tipo_raw": _tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta")),
                 "consenso": stato_value,
                 "stato": stato_value,
                 "inizio_label": _dt_label(dt_inizio),
@@ -1885,7 +1925,7 @@ def _load_personal(name: str, email: str, limit: int = 20) -> list[dict]:
                 "fine": _dt_label(dt_fine),
                 "inizio_iso": _to_isoz(dt_inizio) or "",
                 "fine_iso": _to_isoz(dt_fine) or "",
-                "motivazione": str(row.get("motivazione_richiesta") or ""),
+                "motivazione": _strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta")),
                 "certificato_medico": str(row.get("certificato_medico") or ""),
                 "note_gestione": str(row.get("note_gestione") or ""),
                 "moderation_status": moderation_status,
@@ -1990,11 +2030,11 @@ def _load_pending_for_manager(
             {
                 "id": row.get("id"),
                 "dipendente": str(row.get("dipendente") or "N/D"),
-                "tipo": _norm_tipo(row.get("tipo_assenza")),
+                "tipo": _tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta")),
                 "consenso": stato_value,
                 "inizio_label": _dt_label(row.get("data_inizio")),
                 "fine_label": _dt_label(row.get("data_fine")),
-                "motivo": str(row.get("motivazione_richiesta") or ""),
+                "motivo": _strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta")),
                 "certificato_medico": str(row.get("certificato_medico") or ""),
                 "moderation_status": moderation_status,
             }
@@ -2049,11 +2089,11 @@ def _load_gestite_for_manager(
             {
                 "id": row.get("id"),
                 "dipendente": str(row.get("dipendente") or "N/D"),
-                "tipo": _norm_tipo(row.get("tipo_assenza")),
+                "tipo": _tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta")),
                 "consenso": moderation_label,
                 "inizio_label": _dt_label(row.get("data_inizio")),
                 "fine_label": _dt_label(row.get("data_fine")),
-                "motivo": str(row.get("motivazione_richiesta") or ""),
+                "motivo": _strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta")),
                 "certificato_medico": str(row.get("certificato_medico") or ""),
                 "moderation_status": moderation_status,
                 "note_gestione": str(row.get("note_gestione") or ""),
@@ -2090,6 +2130,7 @@ def _load_assenze_car_periodo(
             a.id,
             a.copia_nome AS dipendente,
             a.tipo_assenza,
+            a.motivazione_richiesta,
             a.data_inizio,
             a.data_fine,
             a.consenso,
@@ -2112,7 +2153,7 @@ def _load_assenze_car_periodo(
             {
                 "id": row.get("id"),
                 "dipendente": str(row.get("dipendente") or "N/D"),
-                "tipo": _norm_tipo(row.get("tipo_assenza")),
+                "tipo": _tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta")),
                 "consenso": moderation_label,
                 "inizio_label": _dt_label(row.get("data_inizio")),
                 "fine_label": _dt_label(row.get("data_fine")),
@@ -2148,11 +2189,11 @@ def _load_all_pending(limit: int = 100) -> list[dict]:
             {
                 "id": row.get("id"),
                 "dipendente": str(row.get("dipendente") or "N/D"),
-                "tipo": _norm_tipo(row.get("tipo_assenza")),
+                "tipo": _tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta")),
                 "consenso": moderation_label,
                 "inizio_label": _dt_label(row.get("data_inizio")),
                 "fine_label": _dt_label(row.get("data_fine")),
-                "motivo": str(row.get("motivazione_richiesta") or ""),
+                "motivo": _strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta")),
                 "certificato_medico": str(row.get("certificato_medico") or ""),
                 "moderation_status": row.get("moderation_status"),
             }
@@ -2188,11 +2229,11 @@ def _load_all_gestite(limit: int = 50) -> list[dict]:
             {
                 "id": row.get("id"),
                 "dipendente": str(row.get("dipendente") or "N/D"),
-                "tipo": _norm_tipo(row.get("tipo_assenza")),
+                "tipo": _tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta")),
                 "consenso": moderation_label,
                 "inizio_label": _dt_label(row.get("data_inizio")),
                 "fine_label": _dt_label(row.get("data_fine")),
-                "motivo": str(row.get("motivazione_richiesta") or ""),
+                "motivo": _strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta")),
                 "certificato_medico": str(row.get("certificato_medico") or ""),
                 "moderation_status": row.get("moderation_status"),
                 "note_gestione": str(row.get("note_gestione") or ""),
@@ -2210,6 +2251,7 @@ def _load_all_assenze_periodo(date_start: datetime, date_end: datetime, limit: i
             a.id,
             a.copia_nome AS dipendente,
             a.tipo_assenza,
+            a.motivazione_richiesta,
             a.data_inizio,
             a.data_fine,
             a.consenso,
@@ -2230,7 +2272,7 @@ def _load_all_assenze_periodo(date_start: datetime, date_end: datetime, limit: i
             {
                 "id": row.get("id"),
                 "dipendente": str(row.get("dipendente") or "N/D"),
-                "tipo": _norm_tipo(row.get("tipo_assenza")),
+                "tipo": _tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta")),
                 "consenso": moderation_label,
                 "inizio_label": _dt_label(row.get("data_inizio")),
                 "fine_label": _dt_label(row.get("data_fine")),
@@ -2374,7 +2416,7 @@ def _load_legacy_capi_options() -> list[dict]:
         select_cols.append(email_col)
     if sp_col:
         select_cols.append(sp_col)
-    sql = f"SELECT {', '.join(select_cols)} FROM capi_reparto ORDER BY title"
+    sql = f"SELECT {_quoted_columns(select_cols)} FROM capi_reparto ORDER BY title"
     rows = _fetch_all_dict(sql)
 
     out: list[dict] = []
@@ -2473,7 +2515,7 @@ def _find_reparto_for_user(name: str, email: str, username: str) -> str:
             params.append(username)
         if clauses:
             sql = f"""
-                SELECT {', '.join(select_cols)}
+                SELECT {_quoted_columns(select_cols)}
                 FROM anagrafica_dipendenti
                 WHERE ({' OR '.join(clauses)})
                 ORDER BY id DESC
@@ -2487,7 +2529,7 @@ def _find_reparto_for_user(name: str, email: str, username: str) -> str:
     if not target_name:
         return ""
     base_sql = f"""
-        SELECT {', '.join(select_cols)}
+        SELECT {_quoted_columns(select_cols)}
         FROM anagrafica_dipendenti
         WHERE {_blank_expr('reparto')} IS NOT NULL
     """
@@ -2625,9 +2667,11 @@ def _load_motivazioni_local(limit: int = 30) -> list[str]:
     sql = _select_limited(base_sql, "ORDER BY motivazione_richiesta ASC", limit)
     rows = _fetch_all_dict(sql)
     out: list[str] = []
+    seen: set[str] = set()
     for row in rows:
-        txt = str(row.get("motivazione_richiesta") or "").strip()
-        if txt:
+        txt = _strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta"))
+        if txt and txt not in seen:
+            seen.add(txt)
             out.append(txt)
     return out
 
@@ -2644,8 +2688,8 @@ def _prefill_from_copy(copy_from: str, capi: list[dict]) -> dict | None:
             capo_local_id = _as_int(row.get("capo_reparto_id"))
             capo_lookup = _as_int(row.get("capo_reparto_lookup_id"))
             return {
-                "tipo": _norm_tipo(row.get("tipo_assenza")),
-                "motivazione": str(row.get("motivazione_richiesta") or "").strip(),
+                "tipo": _tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta")),
+                "motivazione": _strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta")),
                 "capo_email": _resolve_capo_option_value_from_ids(local_id=capo_local_id, lookup_id=capo_lookup, capi=capi),
                 "salta_approvazione": bool(_as_bool(row.get("salta_approvazione"))),
             }
@@ -2656,8 +2700,8 @@ def _prefill_from_copy(copy_from: str, capi: list[dict]) -> dict | None:
     fields = sp_item.get("fields") or {}
     capo_lookup = _as_int(fields.get("C_x002e_RepartoLookupId"))
     return {
-        "tipo": _norm_tipo(fields.get("Tipoassenza")),
-        "motivazione": str(fields.get("Motivazionerichiesta") or "").strip(),
+        "tipo": _tipo_for_display(fields.get("Tipoassenza"), fields.get("Motivazionerichiesta")),
+        "motivazione": _strip_tipo_metadata_from_motivazione(fields.get("Motivazionerichiesta")),
         "capo_email": _resolve_capo_email_from_lookup(capo_lookup, capi),
         "salta_approvazione": bool(_as_bool(fields.get("Salta_x0020_approvazione"))),
     }
@@ -3170,7 +3214,12 @@ def api_evento_update(request, item_id: int | None = None):
     if not _can_manage_record(request, current, require_delete=False):
         return _json_error("Permessi insufficienti: puoi modificare solo record assegnati a te come capo reparto.", status=403)
 
-    tipo = _tipo_for_storage((payload.get("tipo") if payload else None) or request.POST.get("tipo") or current.get("tipo_assenza"))
+    requested_tipo = (
+        (payload.get("tipo") if payload else None)
+        or request.POST.get("tipo")
+        or _tipo_for_display(current.get("tipo_assenza"), current.get("motivazione_richiesta"))
+    )
+    tipo = _tipo_for_storage(requested_tipo)
     if perms.get("can_update_any"):
         consenso = _norm_consenso((payload.get("consenso") if payload else None) or request.POST.get("consenso") or current.get("consenso"))
         moderation_status = _CONSENSO_TO_MOD.get(consenso, 2)
@@ -3184,7 +3233,7 @@ def api_evento_update(request, item_id: int | None = None):
     motivazione = (payload.get("motivazione") if payload else None)
     if motivazione is None:
         motivazione = request.POST.get("motivazione", current.get("motivazione_richiesta") or "")
-    motivazione = str(motivazione or "").strip()
+    motivazione = _motivazione_for_storage(requested_tipo, motivazione)
     certificato_medico = payload.get("certificato_medico") if payload and "certificato_medico" in payload else None
     if certificato_medico is None:
         certificato_medico = request.POST.get("certificato_medico", current.get("certificato_medico") or "")
@@ -3295,13 +3344,18 @@ def api_mia_assenza_update(request, item_id: int):
         return _json_error("La richiesta non è più modificabile (non è in stato 'In attesa').", status=400)
 
     payload = _request_json(request)
-    tipo = _tipo_for_storage((payload.get("tipo") if payload else None) or request.POST.get("tipo") or current.get("tipo_assenza"))
+    requested_tipo = (
+        (payload.get("tipo") if payload else None)
+        or request.POST.get("tipo")
+        or _tipo_for_display(current.get("tipo_assenza"), current.get("motivazione_richiesta"))
+    )
+    tipo = _tipo_for_storage(requested_tipo)
     inizio_raw = (payload.get("inizio") if payload else None) or request.POST.get("inizio")
     fine_raw = (payload.get("fine") if payload else None) or request.POST.get("fine")
     motivazione = (payload.get("motivazione") if payload else None)
     if motivazione is None:
         motivazione = request.POST.get("motivazione", current.get("motivazione_richiesta") or "")
-    motivazione = str(motivazione or "").strip()
+    motivazione = _motivazione_for_storage(requested_tipo, motivazione)
     certificato_medico = payload.get("certificato_medico") if payload and "certificato_medico" in payload else None
     if certificato_medico is None:
         certificato_medico = request.POST.get("certificato_medico", current.get("certificato_medico") or "")
@@ -3342,7 +3396,6 @@ def api_mia_assenza_update(request, item_id: int):
     return JsonResponse({"ok": True, "item_id": item_id, "warning": warn_msg, "sync": sync_result})
 
 
-@csrf_exempt
 @login_required
 @require_http_methods(["POST"])
 def invio_placeholder(request):
@@ -3355,8 +3408,9 @@ def invio_placeholder(request):
     if not _table_exists("assenze"):
         return _render_richiesta(request, error="Tabella locale 'assenze' non disponibile.")
 
-    tipo = _tipo_for_storage(request.POST.get("tipoassenza"))
-    motivazione = str(request.POST.get("motivazione") or "").strip()
+    requested_tipo = request.POST.get("tipoassenza")
+    tipo = _tipo_for_storage(requested_tipo)
+    motivazione = _motivazione_for_storage(requested_tipo, request.POST.get("motivazione"))
     certificato_medico = _certificato_medico_for_tipo(tipo, request.POST.get("certificato_medico"))
     date_start = str(request.POST.get("date_start") or "").strip()
     date_end = str(request.POST.get("date_end") or "").strip()
@@ -3543,6 +3597,21 @@ def export_assenze_car_csv(request):
             manager_name=manager_name,
             manager_email=manager_email,
         )
+    log_action(
+        request,
+        "export_csv",
+        "assenze",
+        {
+            "rows": len(rows_data),
+            "filters": {
+                "scope": "all" if perms.get("can_update_any") else "owned_manager",
+                "legacy_user_id": legacy_user_id,
+                "manager_name": manager_name,
+                "manager_email": manager_email,
+                "limit": 5000,
+            },
+        },
+    )
 
     headers = ["Dipendente", "Tipo", "Inizio", "Fine", "Stato", "Certificato medico", "Note"]
 
@@ -3568,6 +3637,20 @@ def export_gestione_assenze_csv(request):
     nome = getattr(legacy_user, "nome", "") or ""
     email = getattr(legacy_user, "email", "") or ""
     rows_data = _load_personal(nome, email, limit=5000)
+    log_action(
+        request,
+        "export_csv",
+        "assenze",
+        {
+            "rows": len(rows_data),
+            "filters": {
+                "scope": "personal",
+                "nome": nome,
+                "email": email,
+                "limit": 5000,
+            },
+        },
+    )
 
     headers = ["Tipo", "Inizio", "Fine", "Stato", "Motivazione", "Certificato medico", "Note"]
 
@@ -3613,13 +3696,13 @@ def gestione_admin(request):
         stats["rifiutate"] = _count_sql("COALESCE(moderation_status, 2) = 1")
 
         tipo_sql = _select_limited(
-            "SELECT tipo_assenza, COUNT(*) AS n FROM assenze GROUP BY tipo_assenza",
+            "SELECT tipo_assenza, motivazione_richiesta, COUNT(*) AS n FROM assenze GROUP BY tipo_assenza, motivazione_richiesta",
             "ORDER BY n DESC",
             30,
         )
         by_tipo_counts: dict[str, int] = {}
         for row in _fetch_all_dict(tipo_sql):
-            tipo_label = _norm_tipo(row.get("tipo_assenza"))
+            tipo_label = _tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta"))
             by_tipo_counts[tipo_label] = by_tipo_counts.get(tipo_label, 0) + int(row.get("n") or 0)
         by_tipo = [
             {"tipo_assenza": tipo, "n": count}
@@ -3651,12 +3734,12 @@ def gestione_admin(request):
             assenze.append({
                 "id": row.get("id"),
                 "dipendente": str(row.get("dipendente") or "N/D"),
-                "tipo": _norm_tipo(row.get("tipo_assenza")),
+                "tipo": _tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta")),
                 "stato_label": mod_label,
                 "moderation_status": row.get("moderation_status"),
                 "inizio_label": _dt_label(row.get("data_inizio")),
                 "fine_label": _dt_label(row.get("data_fine")),
-                "motivo": str(row.get("motivazione_richiesta") or ""),
+                "motivo": _strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta")),
             })
 
     # --- Log ---
@@ -3833,11 +3916,14 @@ def certificazione_presenza(request):
                                 "nome_lookup_id":     None,
                                 "copia_nome":         nome,
                                 "email_esterna":      inserito_da,
-                                "tipo_assenza":       "Certifica presenza",
+                                "tipo_assenza":       _tipo_for_storage("Certifica presenza"),
                                 "capo_reparto_lookup_id": None,
                                 "data_inizio":        dt_start,
                                 "data_fine":          dt_end,
-                                "motivazione_richiesta": note or "Certifica presenza — inserimento diretto",
+                                "motivazione_richiesta": _motivazione_for_storage(
+                                    "Certifica presenza",
+                                    note or "Certifica presenza — inserimento diretto",
+                                ),
                                 "salta_approvazione": True,
                                 "consenso":           "Approvato",
                                 "moderation_status":  0,

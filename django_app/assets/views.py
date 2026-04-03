@@ -46,6 +46,7 @@ from core.graph_utils import acquire_graph_token, is_placeholder_value
 from core.legacy_models import AnagraficaDipendente, UtenteLegacy
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.models import AuditLog, UserDashboardLayout, UserExtraInfo
+from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 from .forms import (
     AssistanceContractForm,
     AssetAdministrativeDeadlineForm,
@@ -130,6 +131,20 @@ ASSET_DOCUMENT_ALLOWED_EXTENSIONS = {
     ".png",
     ".webp",
 }
+ASSET_DOCUMENT_ALLOWED_MIMES = {
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel.sheet.macroenabled.12",
+    "text/csv",
+    "application/csv",
+    "text/plain",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+}
 ASSET_DOCUMENT_MAX_BYTES = 20 * 1024 * 1024
 ASSET_DOCUMENT_UPLOAD_FIELDS = {
     AssetDocument.CATEGORY_SPECIFICHE: "upload_specs_files",
@@ -211,6 +226,8 @@ SIDEBAR_ACTIONS = {
     "create_sidebar_button",
     "update_sidebar_button",
     "delete_sidebar_button",
+    "reset_sidebar_buttons",
+    "clear_sidebar_buttons",
 }
 
 UI_LABEL_TRANSLATIONS = {
@@ -2387,13 +2404,16 @@ def _validate_asset_document_uploads(request: HttpRequest) -> tuple[dict[str, li
             filename = getattr(upload, "name", "") or ""
             if not filename:
                 continue
-            ext = Path(filename).suffix.lower()
-            if ext not in ASSET_DOCUMENT_ALLOWED_EXTENSIONS:
-                errors.append(f"File non consentito: {filename}")
-                continue
-            size = int(getattr(upload, "size", 0) or 0)
-            if size > ASSET_DOCUMENT_MAX_BYTES:
-                errors.append(f"File troppo grande: {filename} (max 20 MB)")
+            try:
+                validate_extension_and_mime(
+                    upload,
+                    allowed_extensions=ASSET_DOCUMENT_ALLOWED_EXTENSIONS,
+                    allowed_mimes=ASSET_DOCUMENT_ALLOWED_MIMES,
+                    max_bytes=ASSET_DOCUMENT_MAX_BYTES,
+                    label=filename,
+                )
+            except UploadMimeValidationError as exc:
+                errors.append(str(exc))
                 continue
             valid_files.append(upload)
         uploads[category] = valid_files
@@ -2453,6 +2473,91 @@ def _periodic_verification_state(verification: PeriodicVerification, today=None)
     if delta_days <= 30:
         return {"status": "warning", "label": f"In scadenza ({delta_days} gg)", "date": next_date}
     return {"status": "ok", "label": f"Pianificata tra {delta_days} gg", "date": next_date}
+
+
+def _compute_ticket_kpi_for_asset(asset: Asset) -> dict:
+    """Calcola KPI ticket per il singolo asset.
+
+    Restituisce un dizionario pronto per il template. Non genera N+1:
+    carica tutti i ticket dell'asset in una query e tutti gli interventi
+    in una seconda query, poi elabora in Python.
+    """
+    from tickets.models import StatoTicket, TicketIntervento
+
+    tickets_qs = list(
+        asset.tickets
+        .only(
+            "pk", "stato", "tipo", "categoria", "componente", "causa_radice",
+            "tipo_fermo", "ore_fermo_macchina",
+            "created_at", "closed_at", "data_presa_in_carico",
+            "risolto_da_nome",
+        )
+    )
+    if not tickets_qs:
+        return {"has_tickets": False}
+
+    stati_aperti = {StatoTicket.APERTA, StatoTicket.IN_CARICO, StatoTicket.IN_ATTESA}
+    stati_chiusi = {StatoTicket.RISOLTO, StatoTicket.CHIUSO}
+
+    totale = len(tickets_qs)
+    aperti = sum(1 for t in tickets_qs if t.stato in stati_aperti)
+    chiusi = sum(1 for t in tickets_qs if t.stato in stati_chiusi)
+
+    # MTTR — media ore dalla creazione alla chiusura per ticket risolti/chiusi con closed_at
+    durate_risoluzione = []
+    for t in tickets_qs:
+        if t.stato in stati_chiusi and t.closed_at and t.created_at:
+            delta_h = (t.closed_at - t.created_at).total_seconds() / 3600
+            durate_risoluzione.append(delta_h)
+    mttr_ore = round(sum(durate_risoluzione) / len(durate_risoluzione), 1) if durate_risoluzione else None
+
+    # Ore fermo macchina totali
+    ore_fermo_totali = sum(
+        float(t.ore_fermo_macchina)
+        for t in tickets_qs
+        if t.ore_fermo_macchina is not None
+    )
+
+    # Top 3 componenti per frequenza
+    from collections import Counter
+    componenti_counter = Counter(
+        t.componente for t in tickets_qs if t.componente
+    )
+    top_componenti = componenti_counter.most_common(3)
+
+    # Top 3 cause radice per frequenza
+    cause_counter = Counter(
+        t.causa_radice for t in tickets_qs if t.causa_radice
+    )
+    top_cause = cause_counter.most_common(3)
+
+    # Interventi — ore per tecnico
+    ticket_ids = [t.pk for t in tickets_qs]
+    interventi_qs = list(
+        TicketIntervento.objects
+        .filter(ticket_id__in=ticket_ids)
+        .only("tecnico_nome", "ore_lavorate", "data_inizio", "data_fine")
+    )
+    ore_per_tecnico: dict[str, float] = {}
+    for interv in interventi_qs:
+        ore = interv.durata_ore
+        if ore:
+            ore_per_tecnico[interv.tecnico_nome] = ore_per_tecnico.get(interv.tecnico_nome, 0.0) + ore
+    top_tecnici = sorted(ore_per_tecnico.items(), key=lambda x: -x[1])[:3]
+    ore_intervento_totali = round(sum(ore_per_tecnico.values()), 2)
+
+    return {
+        "has_tickets": True,
+        "totale": totale,
+        "aperti": aperti,
+        "chiusi": chiusi,
+        "mttr_ore": mttr_ore,
+        "ore_fermo_totali": round(ore_fermo_totali, 2) if ore_fermo_totali else 0,
+        "ore_intervento_totali": ore_intervento_totali,
+        "top_componenti": top_componenti,
+        "top_cause": top_cause,
+        "top_tecnici": top_tecnici,
+    }
 
 
 def _build_asset_primary_kpis(
@@ -3799,17 +3904,35 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Template manutenzione",
+            "label": "Manutenzione",
             "url": maintenance_templates,
             "is_subitem": False,
+            "active": current_route in {
+                "maintenance_template_list", "maintenance_template_create", "maintenance_template_edit",
+                "maintenance_rule_list", "maintenance_rule_create", "maintenance_rule_edit",
+                "reports",
+            },
+        },
+        {
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Template manutenzione",
+            "url": maintenance_templates,
+            "is_subitem": True,
             "active": current_route in {"maintenance_template_list", "maintenance_template_create", "maintenance_template_edit"},
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Regole manutenzione",
             "url": maintenance_rules,
-            "is_subitem": False,
+            "is_subitem": True,
             "active": current_route in {"maintenance_rule_list", "maintenance_rule_create", "maintenance_rule_edit"},
+        },
+        {
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Report manutenzione",
+            "url": reports,
+            "is_subitem": True,
+            "active": current_route == "reports",
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
@@ -3859,13 +3982,6 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
             "url": assistance_contracts,
             "is_subitem": False,
             "active": current_route == "assistance_contract_list",
-        },
-        {
-            "section": AssetSidebarButton.SECTION_ANALYTICS,
-            "label": "Report manutenzione",
-            "url": reports,
-            "is_subitem": False,
-            "active": current_route == "reports",
         },
         {
             "section": AssetSidebarButton.SECTION_ANALYTICS,
@@ -3942,7 +4058,7 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "active_match": "/assets/work-machines/",
             "is_subitem": False,
             "parent_code": "",
-            "sort_order": 56,
+            "sort_order": 60,
             "is_visible": True,
         },
         {
@@ -3953,7 +4069,7 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "active_match": "/assets/work-machines/dashboard/",
             "is_subitem": True,
             "parent_code": "work_machines",
-            "sort_order": 57,
+            "sort_order": 61,
             "is_visible": True,
         },
         {
@@ -3964,7 +4080,7 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "active_match": "/assets/verifiche-periodiche/",
             "is_subitem": True,
             "parent_code": "work_machines",
-            "sort_order": 58,
+            "sort_order": 62,
             "is_visible": True,
         },
         {
@@ -3990,14 +4106,25 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "is_visible": True,
         },
         {
+            "code": "manutenzione_hub",
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Manutenzione",
+            "target_url": "django:assets:maintenance_template_list",
+            "active_match": "/assets/manutenzione/",
+            "is_subitem": False,
+            "parent_code": "",
+            "sort_order": 54,
+            "is_visible": True,
+        },
+        {
             "code": "maintenance_templates",
             "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Template manutenzione",
             "target_url": "django:assets:maintenance_template_list",
             "active_match": "/assets/manutenzione/templates/",
-            "is_subitem": False,
-            "parent_code": "",
-            "sort_order": 54,
+            "is_subitem": True,
+            "parent_code": "manutenzione_hub",
+            "sort_order": 55,
             "is_visible": True,
         },
         {
@@ -4006,9 +4133,9 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "label": "Regole manutenzione",
             "target_url": "django:assets:maintenance_rule_list",
             "active_match": "/assets/manutenzione/regole/",
-            "is_subitem": False,
-            "parent_code": "",
-            "sort_order": 55,
+            "is_subitem": True,
+            "parent_code": "manutenzione_hub",
+            "sort_order": 56,
             "is_visible": True,
         },
         {
@@ -4057,13 +4184,13 @@ def _default_sidebar_seed_rows() -> list[dict]:
         },
         {
             "code": "lifecycle_tracking",
-            "section": AssetSidebarButton.SECTION_ANALYTICS,
+            "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Report manutenzione",
             "target_url": "django:assets:reports",
             "active_match": "/assets/reports/",
-            "is_subitem": False,
-            "parent_code": "",
-            "sort_order": 70,
+            "is_subitem": True,
+            "parent_code": "manutenzione_hub",
+            "sort_order": 57,
             "is_visible": True,
         },
         {
@@ -4409,6 +4536,44 @@ def _handle_sidebar_button_request(request: HttpRequest) -> tuple[bool, str]:
         label = button.label
         button.delete()
         return True, f"Voce menu \"{label}\" eliminata."
+
+    if action == "reset_sidebar_buttons":
+        deleted, _ = AssetSidebarButton.objects.all().delete()
+        payload = _default_sidebar_seed_rows()
+        created = 0
+        created_by_code: dict[str, AssetSidebarButton] = {}
+        for row in payload:
+            button, _ = AssetSidebarButton.objects.get_or_create(
+                code=row["code"],
+                defaults={
+                    "section": row["section"],
+                    "label": row["label"],
+                    "target_url": row["target_url"],
+                    "active_match": row["active_match"],
+                    "is_subitem": row["is_subitem"],
+                    "sort_order": row["sort_order"],
+                    "is_visible": row["is_visible"],
+                },
+            )
+            created_by_code[row["code"]] = button
+            created += 1
+        for row in payload:
+            parent_code = _clean_string(row.get("parent_code"))
+            if not parent_code:
+                continue
+            btn = created_by_code.get(row["code"])
+            parent = created_by_code.get(parent_code)
+            if btn is None or parent is None or btn.parent_id == parent.id:
+                continue
+            btn.parent = parent
+            btn.is_subitem = True
+            btn.section = parent.section
+            btn.save(update_fields=["parent", "is_subitem", "section", "updated_at"])
+        return True, f"Menu sidebar reimpostato ai valori predefiniti ({created} voci, {deleted} eliminate)."
+
+    if action == "clear_sidebar_buttons":
+        deleted, _ = AssetSidebarButton.objects.all().delete()
+        return True, f"Menu sidebar svuotato ({deleted} voci eliminate). Il portale usa ora il menu predefinito aggiornato."
 
     return False, "Azione menu non valida."
 
@@ -6543,7 +6708,7 @@ def _build_asset_detail_section_cards(
         AssetDetailSectionLayout.SECTION_TICKETS: {
             "code": AssetDetailSectionLayout.SECTION_TICKETS,
             "title": detail_tickets_title,
-            "render": bool(ticket_rows),
+            "render": True,
         },
         AssetDetailSectionLayout.SECTION_PROFILE: {
             "code": AssetDetailSectionLayout.SECTION_PROFILE,
@@ -6887,12 +7052,14 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "titolo": ticket.titolo,
             "stato_label": ticket.label_stato,
             "priorita_label": ticket.label_priorita,
+            "componente": ticket.componente,
             "created_at": ticket.created_at,
             "closed_at": ticket.closed_at,
             "detail_url": _asset_ticket_detail_url(request, ticket, manageable_ticket_types),
         }
         for ticket in asset.tickets.all()
     ]
+    ticket_kpi = _compute_ticket_kpi_for_asset(asset)
     doc_category_labels, documents_by_category = _build_asset_documents_by_category(asset)
     periodic_verification_rows = [
         {"verification": verification, "state": _periodic_verification_state(verification, today=today)}
@@ -7039,6 +7206,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "maintenance_rows": maintenance_rows,
             "detail_maintenance_title": detail_maintenance_title,
             "ticket_rows": ticket_rows,
+            "ticket_kpi": ticket_kpi,
             "detail_tickets_title": detail_tickets_title,
             "work_machine": work_machine,
             "collection_url": collection_url,
@@ -9657,13 +9825,16 @@ def _validate_workorder_attachment_uploads(request: HttpRequest) -> tuple[list, 
     errors: list[str] = []
     for upload in request.FILES.getlist("attachments"):
         file_name = Path(getattr(upload, "name", "") or "").name
-        ext = Path(file_name).suffix.lower()
-        size = int(getattr(upload, "size", 0) or 0)
-        if ext not in ASSET_DOCUMENT_ALLOWED_EXTENSIONS:
-            errors.append(f"{file_name}: formato non consentito.")
-            continue
-        if size > ASSET_DOCUMENT_MAX_BYTES:
-            errors.append(f"{file_name}: supera il limite di 20 MB.")
+        try:
+            validate_extension_and_mime(
+                upload,
+                allowed_extensions=ASSET_DOCUMENT_ALLOWED_EXTENSIONS,
+                allowed_mimes=ASSET_DOCUMENT_ALLOWED_MIMES,
+                max_bytes=ASSET_DOCUMENT_MAX_BYTES,
+                label=file_name or "Allegato",
+            )
+        except UploadMimeValidationError as exc:
+            errors.append(str(exc))
             continue
         uploads.append(upload)
     return uploads, errors
@@ -10530,10 +10701,63 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
                 messages.error(request, text)
             return config_redirect
 
-    # --- Record ---
+        if action in ("add_categoria_ticket", "toggle_categoria_ticket", "delete_categoria_ticket"):
+            from tickets.models import CategoriaTicket, Ticket as _Ticket, TipoTicket
+            ticket_redirect = redirect(f"{reverse('assets:gestione_admin')}?tab=ticket")
+
+            if action == "add_categoria_ticket":
+                tipo = request.POST.get("cat_tipo", "").strip()
+                codice = request.POST.get("cat_codice", "").strip().upper().replace(" ", "_")[:30]
+                etichetta = request.POST.get("cat_etichetta", "").strip()[:100]
+                ordine = _as_int(request.POST.get("cat_ordine"), default=0)
+                if tipo in (TipoTicket.IT, TipoTicket.MAN) and codice and etichetta:
+                    _, created = CategoriaTicket.objects.get_or_create(
+                        codice=codice,
+                        defaults={"tipo": tipo, "etichetta": etichetta, "ordine": ordine, "attivo": True},
+                    )
+                    if created:
+                        log_action(request, "add_categoria_ticket", "tickets", {"tipo": tipo, "codice": codice})
+                        messages.success(request, f"Categoria '{etichetta}' aggiunta.")
+                    else:
+                        messages.warning(request, f"Codice '{codice}' già esistente.")
+                else:
+                    messages.error(request, "Dati mancanti o non validi.")
+
+            elif action == "toggle_categoria_ticket":
+                cat_id = _as_int(request.POST.get("cat_id"))
+                if cat_id:
+                    cat = CategoriaTicket.objects.filter(pk=cat_id).first()
+                    if cat:
+                        cat.attivo = not cat.attivo
+                        cat.save(update_fields=["attivo"])
+                        log_action(request, "toggle_categoria_ticket", "tickets", {"id": cat_id, "attivo": cat.attivo})
+
+            elif action == "delete_categoria_ticket":
+                cat_id = _as_int(request.POST.get("cat_id"))
+                if cat_id:
+                    cat = CategoriaTicket.objects.filter(pk=cat_id).first()
+                    if cat:
+                        in_use = _Ticket.objects.filter(categoria=cat.codice).exists()
+                        if in_use:
+                            messages.error(request, f"Impossibile eliminare '{cat.etichetta}': è usata da ticket esistenti. Disattivala.")
+                        else:
+                            cat.delete()
+                            log_action(request, "delete_categoria_ticket", "tickets", {"id": cat_id})
+                            messages.success(request, "Categoria eliminata.")
+
+            return ticket_redirect
+
+    # --- Record / tab ---
     q_asset = request.GET.get("q_asset", "").strip()
     q_wo = request.GET.get("q_wo", "").strip()
     tab = request.GET.get("tab", "riepilogo")
+
+    # --- Categorie ticket (solo tab ticket) ---
+    from tickets.models import CategoriaTicket as _CategoriaTicket, TipoTicket as _TipoTicket
+    categorie_ticket = (
+        list(_CategoriaTicket.objects.order_by("tipo", "ordine", "etichetta"))
+        if tab == "ticket" else []
+    )
 
     assets_qs = Asset.objects.order_by("name")
     if q_asset:
@@ -10587,6 +10811,8 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
             "sidebar_target_suggestions": sidebar_target_suggestions,
             "sidebar_active_match_suggestions": sidebar_active_match_suggestions,
             "sharepoint_admin_config": _sharepoint_admin_config(),
+            "categorie_ticket": categorie_ticket,
+            "ticket_tipo_choices": _TipoTicket.choices,
             **_assets_shell_context(request),
         },
     )

@@ -26,6 +26,18 @@
 .guide-icon { font-size:2.2rem; line-height:1; }
 .guide-title { font-size:.98rem; font-weight:700; color:#1e2333; }
 .guide-desc { font-size:.8rem; color:#64748b; line-height:1.5; flex:1; }
+.guide-meta { display:flex; flex-wrap:wrap; gap:6px; }
+.guide-badge {
+  display:inline-flex;
+  align-items:center;
+  padding:3px 8px;
+  border-radius:999px;
+  background:#f8fafc;
+  border:1px solid #dbe4f0;
+  color:#475569;
+  font-size:.72rem;
+  font-weight:600;
+}
 .guide-link {
   display:inline-flex;
   align-items:center;
@@ -52,6 +64,7 @@
     <div>
       <div style="font-size:1.3rem;font-weight:800;display:flex;align-items:center;gap:9px">📚 Guide e Manuali</div>
       <div style="font-size:.84rem;color:#64748b;margin-top:2px">Documentazione tecnica, guide operative e strumenti di configurazione del portale</div>
+      <div style="font-size:.78rem;color:#94a3b8;margin-top:6px">{{ guide_count }} documenti indicizzati automaticamente dal progetto</div>
     </div>
     <a href="{% url 'admin_portale:index' %}" style="font-size:.84rem;color:#64748b;text-decoration:none">← Torna all'admin</a>
   </div>
@@ -66,6 +79,10 @@
       <div class="guide-icon">{{ guide.icon }}</div>
       <div>
         <div class="guide-title">{{ guide.title }}</div>
+        <div class="guide-meta" style="margin-top:8px">
+          <span class="guide-badge">{{ guide.format }}</span>
+          <span class="guide-badge">{{ guide.source_label }}</span>
+        </div>
         <div class="guide-desc" style="margin-top:6px">{{ guide.desc }}</div>
       </div>
       <div class="guide-link">Apri guida →</div>

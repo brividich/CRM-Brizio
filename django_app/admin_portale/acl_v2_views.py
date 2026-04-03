@@ -8,10 +8,10 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import DatabaseError, transaction
 from django.db.models import Q
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import URLPattern, URLResolver, get_resolver, reverse
-from django.views.decorators.http import require_GET, require_http_methods
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from admin_portale.decorators import legacy_admin_required
 from core.acl_v2 import (
@@ -21,12 +21,15 @@ from core.acl_v2 import (
     permission_code_naming_warning,
     validate_permission_code,
 )
-from core.legacy_models import Pulsante, Ruolo
+from core.legacy_models import AnagraficaDipendente, Pulsante, Ruolo, UtenteLegacy
 from core.models import (
     LegacyRedirect,
+    NavigationItem,
+    NavigationRoleAccess,
     PermissionDefinition,
     RolePermissionGrant,
     RoutePermissionBinding,
+    UserNavigationOverride,
     UserPermissionGrant,
 )
 
@@ -70,17 +73,44 @@ def _selected_role_id(request, roles: list[dict]) -> int | None:
     return int(roles[0]["id"]) if roles else None
 
 
-def _redirect_to_acl_canonico(role_id: int | None, *, tab: str = ""):
+def _redirect_to_acl_canonico(role_id: int | None, *, tab: str = "", selected_user_id: int | None = None):
     base = reverse("admin_portale:acl_canonico")
     params: dict[str, str] = {}
     if role_id is not None:
         params["role_id"] = str(role_id)
     if tab:
         params["tab"] = tab
+    if selected_user_id is not None:
+        params["selected_user_id"] = str(selected_user_id)
     if not params:
         return redirect(base)
     query = "&".join([f"{key}={value}" for key, value in params.items()])
     return redirect(f"{base}?{query}")
+
+
+def _build_user_override_rows(
+    permissions: list,
+    role_grants: dict[str, bool],
+    user_grants: dict[str, bool],
+) -> list[dict]:
+    """Costruisce righe per la griglia override utente (stile flag-toggle 4 stati)."""
+    rows = []
+    for perm in permissions:
+        role_allowed = role_grants.get(perm.code)  # True/False/None
+        override = user_grants.get(perm.code)       # True/False/None (None = no override)
+        if override is None:
+            state = "role-on" if role_allowed else "role-off"
+        elif override:
+            state = "ov-on"
+        else:
+            state = "ov-off"
+        rows.append({
+            "permission": perm,
+            "role_allowed": role_allowed,
+            "override": override,
+            "state": state,
+        })
+    return rows
 
 
 def _route_catalog() -> list[dict]:
@@ -383,6 +413,29 @@ def _permission_grant_stats() -> tuple[dict[str, int], dict[str, int]]:
     return dict(enabled_counts), dict(total_counts)
 
 
+def _group_permission_rows_by_module(permission_rows: list) -> list[dict]:
+    """Raggruppa permission_rows per modulo, calcola stato aggregato per la card header."""
+    grouped: dict[str, list] = defaultdict(list)
+    for row in permission_rows:
+        module = row["permission"].module or "—"
+        grouped[module].append(row)
+    result = []
+    for module, rows in sorted(grouped.items()):
+        granted_count = sum(1 for r in rows if r["granted"])
+        all_granted = granted_count == len(rows)
+        any_granted = granted_count > 0
+        result.append({
+            "module": module,
+            "rows": rows,
+            "granted_count": granted_count,
+            "total_count": len(rows),
+            "all_granted": all_granted,
+            "partial": any_granted and not all_granted,
+            "any_granted": any_granted,
+        })
+    return result
+
+
 @legacy_admin_required
 @require_http_methods(["GET", "POST"])
 def acl_canonico(request):
@@ -579,6 +632,62 @@ def acl_canonico(request):
                 messages.warning(request, f"Override #{override_id} non trovato.")
             return _redirect_to_acl_canonico(selected_role_id, tab=tab)
 
+        if action == "user_overrides_bulk_save":
+            legacy_user_id = _int_or_none(request.POST.get("legacy_user_id"))
+            note = str(request.POST.get("note") or "").strip()
+            if legacy_user_id is None:
+                messages.error(request, "Utente non valido.")
+                return _redirect_to_acl_canonico(selected_role_id, tab=tab, selected_user_id=None)
+            allow_codes = set(request.POST.getlist("ov_allow"))
+            deny_codes = set(request.POST.getlist("ov_deny"))
+            all_permissions = list(PermissionDefinition.objects.filter(is_active=True))
+            changed = 0
+            with transaction.atomic():
+                for perm in all_permissions:
+                    if perm.code in allow_codes:
+                        _, created = UserPermissionGrant.objects.update_or_create(
+                            legacy_user_id=legacy_user_id,
+                            permission_id=perm.code,
+                            defaults={"enabled": True, "note": note},
+                        )
+                        changed += 1
+                    elif perm.code in deny_codes:
+                        _, created = UserPermissionGrant.objects.update_or_create(
+                            legacy_user_id=legacy_user_id,
+                            permission_id=perm.code,
+                            defaults={"enabled": False, "note": note},
+                        )
+                        changed += 1
+                    else:
+                        deleted_count, _ = UserPermissionGrant.objects.filter(
+                            legacy_user_id=legacy_user_id,
+                            permission_id=perm.code,
+                        ).delete()
+                        if deleted_count:
+                            changed += 1
+            messages.success(request, f"Override utente aggiornati: {changed} permessi modificati.")
+            return _redirect_to_acl_canonico(selected_role_id, tab=tab, selected_user_id=legacy_user_id)
+
+        if action == "user_overrides_clear":
+            legacy_user_id = _int_or_none(request.POST.get("legacy_user_id"))
+            if legacy_user_id is None:
+                messages.error(request, "Utente non valido.")
+                return _redirect_to_acl_canonico(selected_role_id, tab=tab)
+            deleted, _ = UserPermissionGrant.objects.filter(legacy_user_id=legacy_user_id).delete()
+            messages.success(request, f"Rimossi tutti gli override per utente #{legacy_user_id} ({deleted} record).")
+            return _redirect_to_acl_canonico(selected_role_id, tab=tab, selected_user_id=legacy_user_id)
+
+        if action == "nav_overrides_clear":
+            legacy_user_id = _int_or_none(request.POST.get("legacy_user_id"))
+            if legacy_user_id is None:
+                messages.error(request, "Utente non valido.")
+                return _redirect_to_acl_canonico(selected_role_id, tab="nav-overrides")
+            from core.navigation_registry import bump_navigation_registry_version
+            deleted, _ = UserNavigationOverride.objects.filter(legacy_user_id=legacy_user_id).delete()
+            bump_navigation_registry_version()
+            messages.success(request, f"Rimossi tutti gli override navigazione per utente #{legacy_user_id} ({deleted} record).")
+            return _redirect_to_acl_canonico(selected_role_id, tab="nav-overrides", selected_user_id=legacy_user_id)
+
         messages.warning(request, "Azione non riconosciuta.")
         return _redirect_to_acl_canonico(selected_role_id, tab=tab)
 
@@ -587,7 +696,7 @@ def acl_canonico(request):
     permission_state = str(request.GET.get("permission_state") or "all").strip().lower()
     binding_state = str(request.GET.get("binding_state") or "all").strip().lower()
     active_tab = str(request.GET.get("tab") or "permissions").strip().lower()
-    if active_tab not in {"permissions", "bindings", "grants", "overrides"}:
+    if active_tab not in {"permissions", "bindings", "grants", "overrides", "nav-overrides"}:
         active_tab = "permissions"
 
     permission_qs = PermissionDefinition.objects.all().order_by("module", "code")
@@ -669,6 +778,123 @@ def acl_canonico(request):
             continue
         bindings.append(row)
 
+    # ── Override tab: utente selezionato e griglia toggle ──────────────────────
+    selected_user_id = _int_or_none(request.GET.get("selected_user_id"))
+    selected_user = None
+    selected_user_label = ""
+    user_override_rows: list[dict] = []
+    all_legacy_users: list = []
+    try:
+        all_legacy_users = list(
+            UtenteLegacy.objects.filter(attivo=True).order_by("nome", "id").values("id", "nome", "email", "ruolo_id")
+        )
+        # Arricchisci con cognome da anagrafica
+        anag_map = {
+            a.utente_id: a
+            for a in AnagraficaDipendente.objects.filter(utente_id__in=[u["id"] for u in all_legacy_users]).only(
+                "utente_id", "cognome", "nome"
+            )
+        }
+        for u in all_legacy_users:
+            anag = anag_map.get(u["id"])
+            if anag and anag.cognome:
+                u["display"] = f"{anag.cognome} {anag.nome or ''}".strip() + f" — {u['email'] or ''}"
+            else:
+                u["display"] = f"{u['nome']} — {u['email'] or ''}"
+    except DatabaseError:
+        all_legacy_users = []
+
+    if selected_user_id is not None:
+        try:
+            selected_user = UtenteLegacy.objects.filter(id=selected_user_id).first()
+        except DatabaseError:
+            selected_user = None
+        if selected_user is not None:
+            # display label
+            try:
+                anag = AnagraficaDipendente.objects.filter(utente_id=selected_user_id).first()
+                if anag and anag.cognome:
+                    selected_user_label = f"{anag.cognome} {anag.nome or ''}".strip()
+                else:
+                    selected_user_label = selected_user.nome or selected_user.email or f"#{selected_user_id}"
+            except DatabaseError:
+                selected_user_label = selected_user.nome or f"#{selected_user_id}"
+            # Carica role grants per il ruolo dell'utente
+            user_role_grants = _permissions_for_role(selected_user.ruolo_id) if selected_user.ruolo_id else {}
+            # Carica override canonici per l'utente
+            user_grants_qs = UserPermissionGrant.objects.filter(legacy_user_id=selected_user_id).values_list(
+                "permission_id", "enabled"
+            )
+            user_grants_map: dict[str, bool] = {str(code): bool(enabled) for code, enabled in user_grants_qs}
+            # Costruisce righe per tutti i permessi attivi
+            all_active_perms = list(PermissionDefinition.objects.filter(is_active=True).order_by("module", "code"))
+            user_override_rows = _build_user_override_rows(all_active_perms, user_role_grants, user_grants_map)
+
+    # ── Nav Override tab: visibilità navigazione per-utente ────────────────────
+    nav_ov_user_id = _int_or_none(request.GET.get("nav_ov_user_id"))
+    nav_ov_user = None
+    nav_ov_user_label = ""
+    nav_ov_rows: list[dict] = []
+    nav_ov_by_section: dict[str, list] = {}
+    if nav_ov_user_id is not None:
+        try:
+            nav_ov_user = UtenteLegacy.objects.filter(id=nav_ov_user_id).first()
+        except DatabaseError:
+            nav_ov_user = None
+        if nav_ov_user is not None:
+            try:
+                anag = AnagraficaDipendente.objects.filter(utente_id=nav_ov_user_id).first()
+                if anag and anag.cognome:
+                    nav_ov_user_label = f"{anag.cognome} {anag.nome or ''}".strip()
+                else:
+                    nav_ov_user_label = nav_ov_user.nome or nav_ov_user.email or f"#{nav_ov_user_id}"
+            except DatabaseError:
+                nav_ov_user_label = nav_ov_user.nome or f"#{nav_ov_user_id}"
+            user_nav_grants = {
+                int(ov.item_id): bool(ov.enabled)
+                for ov in UserNavigationOverride.objects.filter(legacy_user_id=nav_ov_user_id)
+            }
+            role_id_for_nav_ov = None
+            if getattr(nav_ov_user, "ruolo_id", None):
+                try:
+                    role_id_for_nav_ov = int(nav_ov_user.ruolo_id)
+                except Exception:
+                    pass
+            role_nav_items: set[int] = set()
+            if role_id_for_nav_ov is not None:
+                for row in NavigationRoleAccess.objects.filter(legacy_role_id=role_id_for_nav_ov, can_view=True):
+                    role_nav_items.add(int(row.item_id))
+            nav_sections_order = ["topbar", "subnav", "sidebar", "page"]
+            nav_ov_by_section = {s: [] for s in nav_sections_order}
+            for ni in NavigationItem.objects.filter(
+                is_visible=True, is_enabled=True, section__in=nav_sections_order
+            ).order_by("section", "order", "label"):
+                iid = int(ni.id)
+                role_allowed = iid in role_nav_items
+                override = user_nav_grants.get(iid)
+                if override is True:
+                    state = "ov-show"
+                elif override is False:
+                    state = "ov-hide"
+                elif role_allowed:
+                    state = "role-show"
+                else:
+                    state = "role-hide"
+                row_data = {
+                    "item_id": iid,
+                    "item_code": ni.code,
+                    "item_label": ni.label,
+                    "item_section": ni.section,
+                    "item_icon": ni.icon or "",
+                    "role_allowed": role_allowed,
+                    "override": override,
+                    "state": state,
+                }
+                nav_ov_rows.append(row_data)
+                s = ni.section
+                if s in nav_ov_by_section:
+                    nav_ov_by_section[s].append(row_data)
+
     user_override_qs = UserPermissionGrant.objects.select_related("permission").all().order_by("-updated_at", "-id")
     if q_filter:
         user_override_qs = user_override_qs.filter(
@@ -676,6 +902,8 @@ def acl_canonico(request):
             | Q(note__icontains=q_filter)
             | Q(legacy_user_id__icontains=q_filter)
         )
+    if selected_user_id is not None and active_tab == "overrides":
+        user_override_qs = user_override_qs.filter(legacy_user_id=selected_user_id)
     user_overrides = list(user_override_qs[:150])
 
     coverage_rows, coverage_summary = _collect_route_coverage_rows()
@@ -719,6 +947,20 @@ def acl_canonico(request):
         "coverage_summary": coverage_summary,
         "legacy_only_routes_sample": legacy_only_routes,
         "unbound_routes_sample": unbound_routes,
+        # Override tab — utente selezionato
+        "all_legacy_users": all_legacy_users,
+        "selected_user_id": selected_user_id,
+        "selected_user": selected_user,
+        "selected_user_label": selected_user_label,
+        "user_override_rows": user_override_rows,
+        # Step 3: permission rows raggruppati per modulo (per card grid)
+        "permission_rows_by_module": _group_permission_rows_by_module(permission_rows),
+        # Step 5: nav override per-utente
+        "nav_ov_user_id": nav_ov_user_id,
+        "nav_ov_user": nav_ov_user,
+        "nav_ov_user_label": nav_ov_user_label,
+        "nav_ov_rows": nav_ov_rows,
+        "nav_ov_by_section": nav_ov_by_section,
     }
     return render(request, "admin_portale/pages/acl_canonico.html", context)
 
@@ -806,3 +1048,42 @@ def acl_route_coverage(request):
             "app_choices": app_choices,
         },
     )
+
+
+@legacy_admin_required
+@require_GET
+def api_acl_legacy_user_search(request):
+    """JSON: cerca utenti legacy per nome/cognome/email. ?q=rossi → {results: [{id, display, email, ruolo_id}]}"""
+    q = str(request.GET.get("q") or "").strip()
+    if len(q) < 2:
+        return JsonResponse({"results": []})
+    try:
+        qs = list(
+            UtenteLegacy.objects.filter(
+                Q(nome__icontains=q) | Q(email__icontains=q)
+            ).order_by("nome", "id")[:30]
+        )
+        user_ids = [u.id for u in qs]
+        anag_map = {
+            a.utente_id: a
+            for a in AnagraficaDipendente.objects.filter(utente_id__in=user_ids).only(
+                "utente_id", "cognome", "nome"
+            )
+        }
+        results = []
+        for u in qs:
+            anag = anag_map.get(u.id)
+            if anag and anag.cognome:
+                nome_display = f"{anag.cognome} {anag.nome or ''}".strip()
+            else:
+                nome_display = u.nome or ""
+            results.append({
+                "id": u.id,
+                "display": f"{nome_display} — {u.email or ''}".strip(" —"),
+                "email": u.email or "",
+                "ruolo_id": u.ruolo_id,
+            })
+    except DatabaseError as exc:
+        return JsonResponse({"results": [], "error": str(exc)})
+    return JsonResponse({"results": results})
+

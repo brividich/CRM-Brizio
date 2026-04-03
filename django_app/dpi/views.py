@@ -14,6 +14,7 @@ from django.views.decorators.http import require_POST
 
 from core.audit import log_action
 from core.legacy_utils import is_legacy_admin
+from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
 from .models import (
     CategoriaDPI,
@@ -25,6 +26,18 @@ from .models import (
 )
 
 logger = logging.getLogger(__name__)
+
+DPI_CATEGORY_ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
+DPI_CATEGORY_ALLOWED_IMAGE_MIMES = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "image/bmp",
+    "image/x-ms-bmp",
+}
+# Guard di copertura policy MIME su tutti i FileField/ImageField del modulo DPI.
+DPI_MIME_POLICY_FIELDS = {"CategoriaDPI.immagine"}
 
 
 # ---------------------------------------------------------------------------
@@ -539,19 +552,31 @@ def categoria_edit(request, pk: int | None = None):
             "is_active": bool(request.POST.get("is_active")),
             "order_index": int(request.POST.get("order_index") or 0),
         }
+        uploaded_image = request.FILES.get("immagine")
+        if uploaded_image is not None:
+            try:
+                validate_extension_and_mime(
+                    uploaded_image,
+                    allowed_extensions=DPI_CATEGORY_ALLOWED_IMAGE_EXTENSIONS,
+                    allowed_mimes=DPI_CATEGORY_ALLOWED_IMAGE_MIMES,
+                    label=uploaded_image.name or "Immagine categoria",
+                )
+            except UploadMimeValidationError as exc:
+                messages.error(request, str(exc))
+                return redirect("dpi:impostazioni")
 
         if cat:
             for k, v in data.items():
                 setattr(cat, k, v)
-            if "immagine" in request.FILES:
-                cat.immagine = request.FILES["immagine"]
+            if uploaded_image is not None:
+                cat.immagine = uploaded_image
             cat.save()
             log_action(request, "modifica", "dpi", f"Modificata categoria DPI: {cat.nome}")
             messages.success(request, f"Categoria '{cat.nome}' aggiornata.")
         else:
             cat = CategoriaDPI(**data)
-            if "immagine" in request.FILES:
-                cat.immagine = request.FILES["immagine"]
+            if uploaded_image is not None:
+                cat.immagine = uploaded_image
             cat.save()
             log_action(request, "crea", "dpi", f"Creata categoria DPI: {cat.nome}")
             messages.success(request, f"Categoria '{cat.nome}' creata.")

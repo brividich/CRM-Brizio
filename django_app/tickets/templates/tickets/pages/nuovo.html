@@ -376,6 +376,11 @@
 
 <script>
 const ASSETS = {{ assets_list|safe }};
+{% if initial_asset %}
+const INITIAL_ASSET = { id: {{ initial_asset.pk }}, name: "{{ initial_asset.name|escapejs }} [{{ initial_asset.asset_tag|escapejs }}]" };
+{% else %}
+const INITIAL_ASSET = null;
+{% endif %}
 
 const sicNo = document.getElementById('sic-no');
 const sicSi = document.getElementById('sic-si');
@@ -496,6 +501,14 @@ document.querySelectorAll('.tkt-my-asset-chip').forEach(chip => {
 const assetSearch = document.getElementById('asset-search');
 const assetHidden = document.getElementById('asset-id-hidden');
 const assetRes = document.getElementById('asset-results');
+
+// Pre-selezione asset da ?asset=<id> (link dalla scheda asset)
+if (INITIAL_ASSET && assetHidden && !assetHidden.value) {
+  assetHidden.value = String(INITIAL_ASSET.id);
+  _setAssetLabel(INITIAL_ASSET.name);
+  showCatalogoMode();
+  if (assetSearch) assetSearch.value = INITIAL_ASSET.name;
+}
 
 function normalizeSearchValue(value) {
   return (value || "")

@@ -146,7 +146,7 @@
         <div class="tkt-allegato-item">
           <span>📎</span>
           <span class="tkt-allegato-name">{{ a.nome_originale }}</span>
-          <a href="{{ a.file.url }}" target="_blank" class="tkt-allegato-link">Scarica</a>
+          <a href="{% url 'tickets:download_allegato' a.pk %}" class="tkt-allegato-link">Scarica</a>
         </div>
         {% endfor %}
       </div>

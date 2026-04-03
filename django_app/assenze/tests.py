@@ -1,8 +1,11 @@
+from io import StringIO
 from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
 
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.http import HttpResponse
-from django.test import SimpleTestCase, TestCase, override_settings
+from django.test import Client, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from .views import (
@@ -15,11 +18,15 @@ from .views import (
     _insert_assenza,
     _insert_row_and_return_id,
     _load_capi_options,
+    _motivazione_for_storage,
     _norm_tipo,
     _owned_capo_ids_for_legacy_user,
     _reconcile_pending_item_ids_with_sharepoint,
     _resolve_request_display_name,
+    _sp_fields_from_row,
     _sp_item_to_local,
+    _strip_tipo_metadata_from_motivazione,
+    _tipo_for_display,
     _tipo_for_storage,
 )
 
@@ -118,16 +125,21 @@ class AssenzeSqlServerInsertTests(SimpleTestCase):
         cursor.description = [("id",)]
         cursor.fetchone.return_value = (51,)
         cursor.nextset.return_value = False
+        conn = MagicMock()
+        conn.ops.quote_name.side_effect = lambda column: column
 
         with patch("assenze.views._db_vendor", return_value="microsoft"), patch(
             "assenze.views.connections",
-            {"default": MagicMock()},
+            {"default": conn},
         ):
             result = _insert_row_and_return_id(cursor, "assenze", ["title", "consenso"], ["Richiesta", "In attesa"])
 
         self.assertEqual(result, 51)
         first_sql, first_params = cursor.execute.call_args_list[0].args
-        self.assertIn("INSERT INTO assenze (title, consenso)", first_sql)
+        self.assertIn("INSERT INTO", first_sql)
+        self.assertIn("assenze", first_sql)
+        self.assertIn("title", first_sql)
+        self.assertIn("consenso", first_sql)
         self.assertIn("OUTPUT INSERTED.id INTO @inserted_ids", first_sql)
         self.assertEqual(first_params, ["Richiesta", "In attesa"])
         self.assertEqual(len(cursor.execute.call_args_list), 1)
@@ -139,6 +151,7 @@ class AssenzeSqlServerInsertTests(SimpleTestCase):
         cursor_manager.__enter__.return_value = cursor
         connection = MagicMock()
         connection.cursor.return_value = cursor_manager
+        connection.ops.quote_name.side_effect = lambda column: column
 
         with patch("assenze.views._db_vendor", return_value="sql_server"), patch(
             "assenze.views._prepare_row_data",
@@ -176,6 +189,7 @@ class AssenzeSqlServerInsertTests(SimpleTestCase):
         cursor_manager.__enter__.return_value = cursor
         connection = MagicMock()
         connection.cursor.return_value = cursor_manager
+        connection.ops.quote_name.side_effect = lambda column: column
 
         with patch("assenze.views.connections", {"default": connection}), patch(
             "assenze.views._select_limited",
@@ -193,17 +207,44 @@ class AssenzeSqlServerInsertTests(SimpleTestCase):
 
         self.assertEqual(result, 203)
         sql, params = cursor.execute.call_args.args
-        self.assertIn("sharepoint_item_id IS NULL", sql)
-        self.assertIn("copia_nome = %s", sql)
+        self.assertIn("sharepoint_item_id", sql)
+        self.assertIn("IS NULL", sql)
+        self.assertIn("copia_nome", sql)
         self.assertEqual(params, ["Mario Rossi", "mario@example.com", "Permesso", 2])
 
 
 class AssenzeTipoMappingTests(SimpleTestCase):
-    def test_storage_keeps_flessibilita_as_canonical_value(self):
-        self.assertEqual(_tipo_for_storage("Flessibilità"), "Flessibilità")
+    def test_storage_maps_flessibilita_to_canonical_value(self):
+        self.assertEqual(_tipo_for_storage("Flessibilita"), "Flessibilità")
 
     def test_legacy_infortunio_is_still_rendered_as_flessibilita(self):
         self.assertEqual(_norm_tipo("Infortunio"), "Flessibilità")
+
+    def test_storage_maps_certifica_presenza_to_altro_with_marker(self):
+        self.assertEqual(_tipo_for_storage("Certifica presenza"), "Altro")
+        self.assertEqual(
+            _motivazione_for_storage("Certifica presenza", "Turno mattina"),
+            "[CERTIFICA_PRESENZA] Turno mattina",
+        )
+
+    def test_display_recovers_certifica_presenza_from_marker(self):
+        self.assertEqual(_tipo_for_display("Altro", "[CERTIFICA_PRESENZA] Turno mattina"), "Certifica presenza")
+        self.assertEqual(_strip_tipo_metadata_from_motivazione("[CERTIFICA_PRESENZA] Turno mattina"), "Turno mattina")
+
+    def test_graph_payload_restores_certifica_presenza_from_local_marker(self):
+        fields = _sp_fields_from_row(
+            {
+                "copia_nome": "Mario Rossi",
+                "email_esterna": "mario@example.com",
+                "tipo_assenza": "Altro",
+                "motivazione_richiesta": "[CERTIFICA_PRESENZA] Turno mattina",
+                "salta_approvazione": True,
+                "consenso": "Approvato",
+            }
+        )
+
+        self.assertEqual(fields["Tipoassenza"], "Certifica presenza")
+        self.assertEqual(fields["Motivazionerichiesta"], "Turno mattina")
 
 
 class SharePointSyncDiagnosticsTests(SimpleTestCase):
@@ -432,7 +473,7 @@ class AssenzeSubmitTokenTests(TestCase):
     @patch("assenze.views._table_exists", return_value=True)
     @patch("assenze.views._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
     @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
-    def test_invio_accepts_valid_submit_token_without_csrf_cookie(
+    def test_invio_enforces_csrf_and_accepts_full_form_flow(
         self,
         _mock_perms,
         _mock_identity,
@@ -445,12 +486,35 @@ class AssenzeSubmitTokenTests(TestCase):
         _mock_graph_configured,
         _mock_render,
     ):
-        self.client.force_login(self.user)
-        session = self.client.session
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.user)
+
+        get_response = csrf_client.get(reverse("assenze_richiesta"))
+        self.assertEqual(get_response.status_code, 200)
+        session = csrf_client.session
         request = type("Req", (), {"user": self.user, "session": session})()
         submit_token = _build_submit_token(request, "assenze_invio")
+        csrf_token = get_response.cookies["csrftoken"].value
 
-        response = self.client.post(
+        response_ok = csrf_client.post(
+            reverse("assenze_invio"),
+            {
+                "submit_token": submit_token,
+                "csrfmiddlewaretoken": csrf_token,
+                "tipoassenza": "Permesso",
+                "motivazione": "Motivo",
+                "date_start": "2026-03-10",
+                "date_end": "2026-03-10",
+                "time_start": "08:00",
+                "time_end": "12:00",
+                "caporeparto": "",
+            },
+        )
+
+        self.assertEqual(response_ok.status_code, 200)
+        mock_insert.assert_called_once()
+
+        response_missing_csrf = csrf_client.post(
             reverse("assenze_invio"),
             {
                 "submit_token": submit_token,
@@ -463,9 +527,7 @@ class AssenzeSubmitTokenTests(TestCase):
                 "caporeparto": "",
             },
         )
-
-        self.assertEqual(response.status_code, 200)
-        mock_insert.assert_called_once()
+        self.assertEqual(response_missing_csrf.status_code, 403)
 
     @patch("assenze.views._render_richiesta", return_value=HttpResponse("ok"))
     @patch("assenze.views._graph_configured", return_value=False)
@@ -531,6 +593,109 @@ class AssenzeSubmitTokenTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AssenzeLegacyTipoSubmitMappingTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="assenze-submit-mapping-user", password="pass12345")
+        self.client.force_login(self.user)
+
+    @patch("assenze.views._render_richiesta", return_value=HttpResponse("ok"))
+    @patch("assenze.views._graph_configured", return_value=False)
+    @patch("assenze.views._insert_assenza", return_value=1)
+    @patch("assenze.views._resolve_capo_local_id", return_value=None)
+    @patch("assenze.views._resolve_capo_lookup_id", return_value=None)
+    @patch("assenze.views._resolve_nome_lookup_id", return_value=77)
+    @patch("assenze.views._validate_business_rules", return_value=(None, ""))
+    @patch("assenze.views._table_exists", return_value=True)
+    @patch("assenze.views._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
+    @patch("assenze.views._resolve_request_display_name", return_value="Mario Rossi")
+    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+    def test_invio_persists_flessibilita_as_canonical_value(
+        self,
+        _mock_perms,
+        _mock_display_name,
+        _mock_identity,
+        _mock_table_exists,
+        _mock_validate_rules,
+        _mock_resolve_nome,
+        _mock_resolve_capo_lookup,
+        _mock_resolve_capo_local,
+        mock_insert,
+        _mock_graph_configured,
+        _mock_render,
+    ):
+        session = self.client.session
+        request = type("Req", (), {"user": self.user, "session": session})()
+        submit_token = _build_submit_token(request, "assenze_invio")
+
+        response = self.client.post(
+            reverse("assenze_invio"),
+            {
+                "submit_token": submit_token,
+                "tipoassenza": "Flessibilita",
+                "motivazione": "Recupero ore",
+                "date_start": "2026-03-12",
+                "date_end": "2026-03-12",
+                "time_start": "08:00",
+                "time_end": "17:00",
+                "caporeparto": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = mock_insert.call_args.args[0]
+        self.assertEqual(payload["tipo_assenza"], "Flessibilità")
+        self.assertEqual(payload["motivazione_richiesta"], "Recupero ore")
+
+    @patch("assenze.views._render_richiesta", return_value=HttpResponse("ok"))
+    @patch("assenze.views._graph_configured", return_value=False)
+    @patch("assenze.views._insert_assenza", return_value=1)
+    @patch("assenze.views._resolve_capo_local_id", return_value=None)
+    @patch("assenze.views._resolve_capo_lookup_id", return_value=None)
+    @patch("assenze.views._resolve_nome_lookup_id", return_value=77)
+    @patch("assenze.views._validate_business_rules", return_value=(None, ""))
+    @patch("assenze.views._table_exists", return_value=True)
+    @patch("assenze.views._legacy_identity", return_value=("Mario Rossi", "mario@example.com", 77))
+    @patch("assenze.views._resolve_request_display_name", return_value="Mario Rossi")
+    @patch("assenze.views._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
+    def test_invio_marks_certifica_presenza_without_violating_legacy_check(
+        self,
+        _mock_perms,
+        _mock_display_name,
+        _mock_identity,
+        _mock_table_exists,
+        _mock_validate_rules,
+        _mock_resolve_nome,
+        _mock_resolve_capo_lookup,
+        _mock_resolve_capo_local,
+        mock_insert,
+        _mock_graph_configured,
+        _mock_render,
+    ):
+        session = self.client.session
+        request = type("Req", (), {"user": self.user, "session": session})()
+        submit_token = _build_submit_token(request, "assenze_invio")
+
+        response = self.client.post(
+            reverse("assenze_invio"),
+            {
+                "submit_token": submit_token,
+                "tipoassenza": "Certifica presenza",
+                "motivazione": "Turno mattina",
+                "date_start": "2026-03-12",
+                "date_end": "2026-03-12",
+                "time_start": "06:00",
+                "time_end": "14:00",
+                "caporeparto": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = mock_insert.call_args.args[0]
+        self.assertEqual(payload["tipo_assenza"], "Altro")
+        self.assertEqual(payload["motivazione_richiesta"], "[CERTIFICA_PRESENZA] Turno mattina")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -745,3 +910,129 @@ class MiaAssenzaUpdateTests(TestCase):
         updates = mock_update.call_args.args[1]
         self.assertEqual(updates["tipo_assenza"], "Malattia")
         self.assertEqual(updates["certificato_medico"], "CERT-777")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AssenzeCsvExportAuditTests(TestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = get_user_model().objects.create_user(
+            username="assenze-export-user",
+            password="pass12345",
+        )
+        self.client.force_login(self.user)
+
+    @patch("assenze.views.log_action")
+    @patch("assenze.views._load_gestite_for_manager", return_value=[])
+    @patch(
+        "assenze.views._load_pending_for_manager",
+        return_value=[
+            {
+                "dipendente": "Mario Rossi",
+                "tipo": "Permesso",
+                "inizio_label": "10/03/2026 08:00",
+                "fine_label": "10/03/2026 12:00",
+                "consenso": "In attesa",
+                "certificato_medico": "",
+                "note_gestione": "",
+            }
+        ],
+    )
+    @patch("assenze.views._assenze_permissions", return_value={"can_update_owned": True, "can_update_any": False})
+    @patch("assenze.views.get_legacy_user", return_value=SimpleNamespace(id=77, nome="Mario CAR", email="car@example.com"))
+    def test_car_export_logs_audit_with_rows_and_filters(
+        self,
+        _mock_legacy_user,
+        _mock_perms,
+        _mock_pending,
+        _mock_gestite,
+        mock_log_action,
+    ):
+        response = self.client.get(reverse("assenze_car_export_csv"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(mock_log_action.call_count, 1)
+        action_args = mock_log_action.call_args.args
+        self.assertEqual(action_args[1], "export_csv")
+        self.assertEqual(action_args[2], "assenze")
+        self.assertEqual(action_args[3]["rows"], 1)
+        self.assertEqual(action_args[3]["filters"]["scope"], "owned_manager")
+        self.assertEqual(action_args[3]["filters"]["legacy_user_id"], 77)
+
+    @patch("assenze.views.log_action")
+    @patch(
+        "assenze.views._load_personal",
+        return_value=[
+            {
+                "tipo": "Permesso",
+                "inizio": "10/03/2026 08:00",
+                "fine": "10/03/2026 12:00",
+                "stato": "In attesa",
+                "motivazione": "Motivo",
+                "certificato_medico": "",
+                "note_gestione": "",
+            }
+        ],
+    )
+    @patch("assenze.views.get_legacy_user", return_value=SimpleNamespace(nome="Mario Rossi", email="mario@example.com"))
+    def test_personal_export_logs_audit_with_rows_and_filters(
+        self,
+        _mock_legacy_user,
+        _mock_load_personal,
+        mock_log_action,
+    ):
+        response = self.client.get(reverse("assenze_export_csv"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(mock_log_action.call_count, 1)
+        action_args = mock_log_action.call_args.args
+        self.assertEqual(action_args[1], "export_csv")
+        self.assertEqual(action_args[2], "assenze")
+        self.assertEqual(action_args[3]["rows"], 1)
+        self.assertEqual(action_args[3]["filters"]["scope"], "personal")
+        self.assertEqual(action_args[3]["filters"]["email"], "mario@example.com")
+
+
+class AssenzeAllineaTipoFlessibilitaCommandTests(SimpleTestCase):
+    @patch("assenze.management.commands.allinea_tipo_assenza_flessibilita.connections")
+    def test_dry_run_reports_counts_without_altering_constraint(self, mock_connections):
+        cursor = MagicMock()
+        cursor.fetchone.side_effect = [("dbo",), (4,), (1,)]
+        cursor_manager = MagicMock()
+        cursor_manager.__enter__.return_value = cursor
+        connection = MagicMock()
+        connection.vendor = "microsoft"
+        connection.cursor.return_value = cursor_manager
+        mock_connections.__getitem__.return_value = connection
+
+        stdout = StringIO()
+        call_command("allinea_tipo_assenza_flessibilita", "--dry-run", stdout=stdout)
+
+        output = stdout.getvalue()
+        self.assertIn("record 'Infortunio': 4", output)
+        self.assertIn("Dry-run: nessuna modifica applicata", output)
+        executed_sql = "\n".join(call.args[0] for call in cursor.execute.call_args_list)
+        self.assertNotIn("DROP CONSTRAINT", executed_sql)
+        self.assertEqual(cursor.execute.call_count, 3)
+
+    @patch("assenze.management.commands.allinea_tipo_assenza_flessibilita.connections")
+    def test_command_rebuilds_check_constraint_with_flessibilita(self, mock_connections):
+        cursor = MagicMock()
+        cursor.fetchone.side_effect = [("dbo",), (2,), (0,)]
+        cursor_manager = MagicMock()
+        cursor_manager.__enter__.return_value = cursor
+        connection = MagicMock()
+        connection.vendor = "microsoft"
+        connection.cursor.return_value = cursor_manager
+        mock_connections.__getitem__.return_value = connection
+
+        stdout = StringIO()
+        call_command("allinea_tipo_assenza_flessibilita", stdout=stdout)
+
+        executed_sql = "\n".join(call.args[0] for call in cursor.execute.call_args_list)
+        self.assertIn("DROP CONSTRAINT [CK_assenze_tipo]", executed_sql)
+        self.assertIn("SET [tipo_assenza] = N'Flessibilità'", executed_sql)
+        self.assertIn("WHERE [tipo_assenza] = N'Infortunio'", executed_sql)
+        self.assertIn("([tipo_assenza]=N'Flessibilità')", executed_sql)
+        self.assertNotIn("([tipo_assenza]=N'Infortunio')", executed_sql)
+        self.assertIn("riallineato", stdout.getvalue())

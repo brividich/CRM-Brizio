@@ -4,8 +4,9 @@ import json
 import logging
 import tempfile
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+from cachetools import TTLCache
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.messages.storage.fallback import FallbackStorage
@@ -22,6 +23,7 @@ from django.urls import reverse
 from core.acl import check_permesso, diagnose_permesso_for_context
 from core.audit import log_action
 from core.csrf_cookie_middleware import EnsureCSRFCookieMiddleware
+from core.accounts import windows_sso as windows_sso_module
 from core.impersonation import IMPERSONATION_SESSION_KEY
 from core.context_processors import (
     get_default_sidebar_footer_actions,
@@ -33,7 +35,7 @@ from core.legacy_models import Permesso, Pulsante, Ruolo, UtenteLegacy
 from core.logging_handlers import SafeTimedRotatingFileHandler
 from core.middleware import ACLMiddleware, AdaptiveSecureCookieMiddleware
 from core.legacy_cache import bump_legacy_cache_version
-from core.legacy_utils import sync_django_user_from_legacy
+from core.legacy_utils import ALLOWED_LEGACY_TABLES, legacy_table_columns, sync_django_user_from_legacy
 from core.models import AuditLog, LegacyRedirect, Profile, UserPermissionOverride
 from core.session_middleware import SessionIdleTimeoutMiddleware
 from core.module_registry import (
@@ -714,6 +716,150 @@ class LoginViewHardeningTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Portale Novicrom")
         self.assertContains(response, "Area autenticata")
+
+    @override_settings(LEGACY_AUTH_ENABLED=False)
+    def test_login_rejects_external_next_and_falls_back_to_dashboard(self):
+        user = get_user_model().objects.create_user(
+            username="login-hardening-user",
+            password="pass12345",
+            email="login-hardening@example.com",
+        )
+
+        response = self.client.post(
+            f"{reverse('login')}?next=https://evil.example/phishing",
+            {"username": user.username, "password": "pass12345"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers.get("Location"), reverse("dashboard_home"))
+
+    @override_settings(LEGACY_AUTH_ENABLED=False)
+    def test_login_preserves_safe_relative_next(self):
+        user = get_user_model().objects.create_user(
+            username="login-safe-next-user",
+            password="pass12345",
+            email="login-safe-next@example.com",
+        )
+
+        response = self.client.post(
+            f"{reverse('login')}?next={reverse('tickets:dashboard')}",
+            {"username": user.username, "password": "pass12345"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers.get("Location"), reverse("tickets:dashboard"))
+
+    @override_settings(LEGACY_AUTH_ENABLED=False)
+    def test_login_does_not_store_plaintext_password_in_session(self):
+        user = get_user_model().objects.create_user(
+            username="login-session-hardening-user",
+            password="pass12345",
+            email="login-session-hardening@example.com",
+        )
+
+        response = self.client.post(
+            reverse("login"),
+            {"username": user.username, "password": "pass12345"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertNotIn("_sso_relay_pwd", self.client.session)
+
+
+@override_settings(
+    LEGACY_AUTH_ENABLED=False,
+    AXES_FAILURE_LIMIT=2,
+    AXES_COOLOFF_TIME=1,
+    AXES_RESET_ON_SUCCESS=True,
+    AXES_LOCKOUT_TEMPLATE="core/pages/lockout.html",
+    INSTANCE_NAME="Helpdesk Novicrom",
+)
+class AxesLockoutTemplateTests(TestCase):
+    def test_lockout_renders_custom_template_with_expected_copy(self):
+        user = get_user_model().objects.create_user(
+            username="axes-lockout-user",
+            password="pass12345",
+            email="axes-lockout@example.com",
+        )
+
+        login_url = reverse("login")
+        self.client.post(login_url, {"username": user.username, "password": "wrong-1"})
+        self.client.post(login_url, {"username": user.username, "password": "wrong-2"})
+        locked_response = self.client.post(login_url, {"username": user.username, "password": "pass12345"})
+
+        self.assertIn(locked_response.status_code, {403, 429})
+        body = locked_response.content.decode("utf-8", errors="ignore")
+        self.assertIn("1 ora", body)
+        self.assertIn("Helpdesk Novicrom", body)
+        self.assertIn("Link login disabilitato durante il lockout", body)
+
+
+class WindowsSSORedirectHardeningTests(TestCase):
+    @override_settings(LDAP_ENABLED=True, ALLOWED_HOSTS=["testserver", "localhost", "127.0.0.1"])
+    def test_windows_sso_rejects_external_next_and_falls_back_to_dashboard(self):
+        user = get_user_model().objects.create_user(
+            username="windows-sso-user",
+            password="pass12345",
+            email="windows-sso@example.com",
+        )
+        ctx = SimpleNamespace(complete=True, client_principal="CNOVICROM\\windows-sso-user")
+        ctx.step = lambda _token: None
+        fake_spnego = SimpleNamespace(server=lambda protocol="negotiate": ctx)
+
+        with (
+            patch.dict("sys.modules", {"spnego": fake_spnego}),
+            patch("core.accounts.windows_sso.provision_legacy_user", return_value=SimpleNamespace(id=1)),
+            patch("core.accounts.windows_sso.sync_django_user_from_legacy", return_value=user),
+        ):
+            response = self.client.get(
+                f"{reverse('windows_sso')}?next=https://evil.example/phishing",
+                HTTP_AUTHORIZATION="Negotiate dGVzdA==",
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers.get("Location"), reverse("dashboard_home"))
+
+
+class WindowsSSOMemoryHardeningTests(SimpleTestCase):
+    def test_spnego_contexts_cache_is_ttl_bounded(self):
+        cache_obj = windows_sso_module._SPNEGO_CONTEXTS
+        self.assertIsInstance(cache_obj, TTLCache)
+        self.assertEqual(cache_obj.maxsize, 500)
+        self.assertEqual(int(cache_obj.ttl), 60)
+
+
+class LegacyTableColumnsHardeningTests(SimpleTestCase):
+    def setUp(self):
+        super().setUp()
+        legacy_table_columns.cache_clear()
+
+    def tearDown(self):
+        legacy_table_columns.cache_clear()
+        super().tearDown()
+
+    def test_sqlite_disallows_non_whitelisted_table_without_executing_pragma(self):
+        conn = MagicMock()
+        conn.vendor = "sqlite"
+
+        with patch("core.legacy_utils.connections", {"default": conn}):
+            columns = legacy_table_columns('assenze";DROP TABLE utenti;--')
+
+        self.assertEqual(columns, set())
+        conn.cursor.assert_not_called()
+
+    def test_sqlite_whitelisted_table_executes_pragma_and_returns_columns(self):
+        cursor = MagicMock()
+        cursor.fetchall.return_value = [(0, "id"), (1, "copia_nome")]
+        conn = MagicMock()
+        conn.vendor = "sqlite"
+        conn.cursor.return_value.__enter__.return_value = cursor
+
+        with patch("core.legacy_utils.connections", {"default": conn}):
+            columns = legacy_table_columns("assenze")
+
+        self.assertIn("assenze", ALLOWED_LEGACY_TABLES)
+        self.assertEqual(columns, {"id", "copia_nome"})
+        cursor.execute.assert_called_once_with('PRAGMA table_info("assenze")')
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

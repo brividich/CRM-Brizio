@@ -153,7 +153,7 @@
       <div class="kicker">GUIDA FUNZIONALE</div>
       <h1>Portale Applicativo: Moduli e Funzionalità</h1>
       <p class="sub">Documento descrittivo per capire come è organizzato il sistema, cosa fa ogni modulo e come collaborano tra loro.</p>
-      <p class="meta">Aggiornato: 2026-03-27 &nbsp;|&nbsp; Versione software: 0.8.5</p>
+      <p class="meta">Aggiornato: 2026-04-02 &nbsp;|&nbsp; Versione software: 0.8.8</p>
     </header>
 
     <!-- ─── 1. IDEA DEL PROGRAMMA ─── -->
@@ -290,12 +290,18 @@
         <article class="module">
           <span class="tag t-biz">BUSINESS</span>
           <h3>tickets</h3>
-          <p><strong>Ruolo:</strong> sistema ticket interni.</p>
+          <p><strong>Ruolo:</strong> sistema ticket interni IT e Manutenzione con tracciabilità tempi e KPI.</p>
           <ul>
-            <li>Creazione ticket con categoria, priorità, assegnatario</li>
-            <li>Allegati e commenti con timeline</li>
+            <li>Creazione ticket IT / MAN con categoria dinamica, priorità, assegnatario</li>
+            <li>Allegati privati e commenti con timeline</li>
             <li>Collegamento a asset aziendali e fornitori</li>
-            <li>Configurazione impostazioni (categorie, SLA, responsabili)</li>
+            <li>Stato <strong>IN_ATTESA</strong> (bloccato per ricambi/info) oltre ai classici APERTA / IN_CARICO / RISOLTO / CHIUSO / ANNULLATO</li>
+            <li>Categorie dinamiche (IT/MAN) gestibili da admin asset</li>
+            <li><strong>Apertura rapida dalla scheda asset</strong>: pulsanti "+ Ticket IT", "+ Ticket MAN" e "+ Intervento esterno" con asset già precompilato</li>
+            <li><strong>Sessioni di intervento</strong>: ogni sessione tecnico registra ore, componente, azioni svolte, esito</li>
+            <li><strong>Dati analitici</strong>: componente, causa radice, tipo fermo, ore fermo macchina, tecnico risolutore</li>
+            <li>Log strutturato di ogni cambio stato con utente e timestamp</li>
+            <li><strong>KPI per asset</strong>: MTTR, ore fermo, ore intervento, top componenti/cause/tecnici visibili nella scheda asset</li>
           </ul>
         </article>
         <article class="module">
@@ -573,7 +579,7 @@
     </section>
 
     <div class="footer">
-      Guida Moduli Applicativi v0.8.5 &nbsp;·&nbsp; Portale Applicativo &nbsp;·&nbsp; Aggiornato 2026-03-27
+      Guida Moduli Applicativi v0.8.8 &nbsp;·&nbsp; Portale Applicativo &nbsp;·&nbsp; Aggiornato 2026-04-02
     </div>
   </div>
 </body>

@@ -106,7 +106,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <div class="page-header">
   <h1>🗄️ DB Schema — Portale Novicrom</h1>
-  <p>Mappa completa di modelli Django, campi e relazioni. Versione app <strong>0.7.3</strong></p>
+  <p>Mappa completa di modelli Django, campi e relazioni. Versione app <strong>0.8.8</strong></p>
   <div class="stats-bar">
     <div class="stat-pill"><span>App</span>13</div>
     <div class="stat-pill"><span>Modelli Django</span>~104</div>
@@ -129,7 +129,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <a class="nav-item" href="#assets" style="color:#7c3aed;border-left-color:#7c3aed"><span class="nav-dot" style="background:#7c3aed"></span>assets<span class="nav-count">25</span></a>
   <a class="nav-item" href="#tasks" style="color:#0891b2;border-left-color:#0891b2"><span class="nav-dot" style="background:#0891b2"></span>tasks<span class="nav-count">7</span></a>
   <a class="nav-item" href="#automazioni" style="color:#d97706;border-left-color:#d97706"><span class="nav-dot" style="background:#d97706"></span>automazioni<span class="nav-count">6</span></a>
-  <a class="nav-item" href="#tickets" style="color:#dc2626;border-left-color:#dc2626"><span class="nav-dot" style="background:#dc2626"></span>tickets<span class="nav-count">4</span></a>
+  <a class="nav-item" href="#tickets" style="color:#dc2626;border-left-color:#dc2626"><span class="nav-dot" style="background:#dc2626"></span>tickets<span class="nav-count">7</span></a>
   <a class="nav-item" href="#notizie" style="color:#16a34a;border-left-color:#16a34a"><span class="nav-dot" style="background:#16a34a"></span>notizie<span class="nav-count">4</span></a>
   <a class="nav-item" href="#anagrafica" style="color:#be185d;border-left-color:#be185d"><span class="nav-dot" style="background:#be185d"></span>anagrafica<span class="nav-count">9</span></a>
   <a class="nav-item" href="#timbri" style="color:#0f766e;border-left-color:#0f766e"><span class="nav-dot" style="background:#0f766e"></span>timbri<span class="nav-count">4</span></a>
@@ -752,15 +752,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div class="field-list">
           <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ assets.Asset 🔸</span></div>
           <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ anagrafica.Fornitore 🔸</span></div>
+          <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ self (ticket_origine) 🔸</span></div>
           <div class="field-row"><span class="field-name">numero_ticket 🔒</span><span class="field-type">Char(30)</span></div>
-          <div class="field-row"><span class="field-name">tipo 📌, stato 📌</span><span class="field-type">Char choices</span></div>
+          <div class="field-row"><span class="field-name">tipo 📌, stato 📌</span><span class="field-type">Char choices (incl. IN_ATTESA)</span></div>
           <div class="field-row"><span class="field-name">titolo, descrizione</span><span class="field-type">Char(300)/Text</span></div>
-          <div class="field-row"><span class="field-name">categoria, priorita</span><span class="field-type">Char/choices</span></div>
-          <div class="field-row"><span class="field-name">incide_sicurezza</span><span class="field-type">Bool</span></div>
+          <div class="field-row"><span class="field-name">categoria, priorita, incide_sicurezza</span><span class="field-type">Char/Bool</span></div>
           <div class="field-row"><span class="field-name">richiedente_nome/email/legacy_user_id</span><span class="field-type">Char/Int</span></div>
           <div class="field-row"><span class="field-name">assegnato_a, assegnato_email</span><span class="field-type">Char(200)</span></div>
-          <div class="field-row"><span class="field-name">sharepoint_item_id</span><span class="field-type">Char(100)</span></div>
-          <div class="field-row"><span class="field-name">closed_at</span><span class="field-type">DateTime 🔸</span></div>
+          <div class="field-row"><span class="field-name">sharepoint_item_id, closed_at 🔸</span><span class="field-type">Char/DateTime</span></div>
+          <div class="field-row" style="margin-top:4px;font-size:10px;color:#dc2626;font-weight:700;text-transform:uppercase;">Campi analitici KPI</div>
+          <div class="field-row"><span class="field-name">componente, causa_radice</span><span class="field-type">Char(200/500)</span></div>
+          <div class="field-row"><span class="field-name">tipo_fermo 📌</span><span class="field-type">Char choices</span></div>
+          <div class="field-row"><span class="field-name">ore_fermo_macchina</span><span class="field-type">Decimal(7,2) 🔸</span></div>
+          <div class="field-row"><span class="field-name">data_presa_in_carico, data_primo_intervento</span><span class="field-type">DateTime 🔸 auto</span></div>
+          <div class="field-row"><span class="field-name">risolto_da_nome, ricorrente</span><span class="field-type">Char/Bool auto</span></div>
         </div>
       </div>
 
@@ -788,8 +793,38 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div class="field-list">
           <div class="field-row"><span class="field-name">tipo 🔒</span><span class="field-type">Char(5) choices</span></div>
           <div class="field-row"><span class="field-name">sharepoint_list_id</span><span class="field-type">Char(100)</span></div>
-          <div class="field-row"><span class="field-name">team_gestori</span><span class="field-type">JSON</span></div>
-          <div class="field-row"><span class="field-name">acl_apertura, acl_gestione</span><span class="field-type">JSON</span></div>
+          <div class="field-row"><span class="field-name">team_gestori, acl_apertura, acl_gestione</span><span class="field-type">JSON</span></div>
+        </div>
+      </div>
+
+      <div class="model-card bg-tickets">
+        <div class="model-card-header"><div><div class="model-name c-tickets">CategoriaTicket</div></div></div>
+        <div class="field-list">
+          <div class="field-row"><span class="field-name">tipo 📌, codice 🔒</span><span class="field-type">Char choices/Char(30)</span></div>
+          <div class="field-row"><span class="field-name">etichetta, ordine, attivo</span><span class="field-type">Char/Int/Bool</span></div>
+        </div>
+      </div>
+
+      <div class="model-card bg-tickets">
+        <div class="model-card-header"><div><div class="model-name c-tickets">TicketStatoLog</div></div></div>
+        <div class="field-list">
+          <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ Ticket</span></div>
+          <div class="field-row"><span class="field-name">da_stato, a_stato</span><span class="field-type">Char(15)</span></div>
+          <div class="field-row"><span class="field-name">utente_nome, utente_email</span><span class="field-type">Char(200)</span></div>
+          <div class="field-row"><span class="field-name">nota</span><span class="field-type">Text</span></div>
+        </div>
+      </div>
+
+      <div class="model-card bg-tickets">
+        <div class="model-card-header"><div><div class="model-name c-tickets">TicketIntervento</div></div></div>
+        <div class="field-list">
+          <div class="field-row"><span class="rel-badge rel-fk">FK</span><span class="rel-target">→ Ticket</span></div>
+          <div class="field-row"><span class="field-name">tecnico_nome, tecnico_email</span><span class="field-type">Char(200)</span></div>
+          <div class="field-row"><span class="field-name">data_inizio, data_fine 🔸</span><span class="field-type">DateTime</span></div>
+          <div class="field-row"><span class="field-name">ore_lavorate 🔸</span><span class="field-type">Decimal(6,2)</span></div>
+          <div class="field-row"><span class="field-name">componente_interessato</span><span class="field-type">Char(200)</span></div>
+          <div class="field-row"><span class="field-name">descrizione_lavoro, azioni_svolte, note</span><span class="field-type">Text</span></div>
+          <div class="field-row"><span class="field-name">esito 📌</span><span class="field-type">Char choices</span></div>
         </div>
       </div>
 

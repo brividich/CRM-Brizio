@@ -15,6 +15,20 @@ from core.models import Profile
 
 logger = logging.getLogger(__name__)
 _USERNAME_ALLOWED_RE = re.compile(r"[^\w.@+-]+")
+ALLOWED_LEGACY_TABLES = frozenset(
+    {
+        "anagrafica_dipendenti",
+        "anomalie",
+        "assenze",
+        "capi_reparto",
+        "dipendenti",
+        "ordini_produzione",
+        "permessi",
+        "pulsanti",
+        "ruoli",
+        "utenti",
+    }
+)
 
 
 def legacy_auth_enabled() -> bool:
@@ -248,11 +262,14 @@ def get_legacy_user(django_user):
 
 @lru_cache(maxsize=32)
 def legacy_table_columns(table_name: str) -> set[str]:
+    normalized_table = str(table_name or "").strip().lower()
+    if normalized_table not in ALLOWED_LEGACY_TABLES:
+        return set()
     try:
         with connections["default"].cursor() as cursor:
             vendor = connections["default"].vendor
             if vendor == "sqlite":
-                cursor.execute(f"PRAGMA table_info({table_name})")
+                cursor.execute(f'PRAGMA table_info("{normalized_table}")')
                 return {str(row[1]).lower() for row in cursor.fetchall()}
             cursor.execute(
                 """
@@ -260,7 +277,7 @@ def legacy_table_columns(table_name: str) -> set[str]:
                 FROM INFORMATION_SCHEMA.COLUMNS
                 WHERE TABLE_NAME = %s
                 """,
-                [table_name],
+                [normalized_table],
             )
             return {str(row[0]).lower() for row in cursor.fetchall()}
     except Exception:

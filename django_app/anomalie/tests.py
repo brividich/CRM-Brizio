@@ -3,7 +3,7 @@ import json
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory, TestCase, override_settings
@@ -406,3 +406,96 @@ class AnomalieReportTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["Content-Disposition"], 'attachment; filename="report_default_op.html"')
         self.assertIn("Report Documento OP", response.content.decode("utf-8"))
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AnomalieCsvExportAuditTests(TestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = get_user_model().objects.create_user(username="anom-export-user", password="pass12345")
+        self.client.force_login(self.user)
+
+    @staticmethod
+    def _export_columns() -> set[str]:
+        return {
+            "id",
+            "ex_op_nominativo",
+            "seriale",
+            "descrizione",
+            "note_capocommessa",
+            "numero_rdc",
+            "avanzamento",
+            "created_datetime",
+            "modified_datetime",
+            "sharepoint_item_id",
+            "chiudere",
+        }
+
+    @patch("anomalie.views.log_action")
+    @patch("anomalie.views.legacy_table_columns")
+    @patch("anomalie.views._has_table", return_value=True)
+    def test_export_csv_logs_audit_with_rows_and_filters(
+        self,
+        _mock_has_table,
+        mock_legacy_columns,
+        mock_log_action,
+    ):
+        mock_legacy_columns.return_value = self._export_columns()
+        cursor = MagicMock()
+        cursor.fetchall.return_value = [
+            (1, "OP/2026/123", "SN-001", "Difetto", "Nota", "RDC-1", "In attesa", "2026-03-10", "2026-03-11", "501")
+        ]
+        conn = MagicMock()
+        conn.cursor.return_value.__enter__.return_value = cursor
+        conn.ops.quote_name.side_effect = lambda column: column
+
+        with patch("anomalie.views.connections", {"default": conn}):
+            response = self.client.get(reverse("anomalie_export_csv"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(mock_log_action.call_count, 1)
+        action_args = mock_log_action.call_args.args
+        self.assertEqual(action_args[1], "export_csv")
+        self.assertEqual(action_args[2], "anomalie")
+        self.assertEqual(action_args[3]["rows"], 1)
+        self.assertEqual(action_args[3]["filters"]["mode"], "all")
+
+    @patch("anomalie.views.log_action")
+    @patch("anomalie.views.legacy_table_columns")
+    @patch("anomalie.views._has_table", return_value=True)
+    def test_export_csv_filtrato_logs_audit_with_rows_and_filters(
+        self,
+        _mock_has_table,
+        mock_legacy_columns,
+        mock_log_action,
+    ):
+        mock_legacy_columns.return_value = self._export_columns()
+        cursor = MagicMock()
+        cursor.fetchall.return_value = [
+            (1, "OP/2026/123", "SN-001", "Difetto", "Nota", "RDC-1", "In attesa", 0, "2026-03-10", "2026-03-11")
+        ]
+        conn = MagicMock()
+        conn.cursor.return_value.__enter__.return_value = cursor
+        conn.ops.quote_name.side_effect = lambda column: column
+
+        with patch("anomalie.views.connections", {"default": conn}):
+            response = self.client.get(
+                reverse("anomalie_export_csv_filtrato"),
+                {
+                    "da": "2026-03-01",
+                    "a": "2026-03-31",
+                    "avanzamento": "In attesa",
+                    "capocommessa": "Simone Danesi",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(mock_log_action.call_count, 1)
+        action_args = mock_log_action.call_args.args
+        self.assertEqual(action_args[1], "export_csv")
+        self.assertEqual(action_args[2], "anomalie")
+        self.assertEqual(action_args[3]["rows"], 1)
+        self.assertEqual(action_args[3]["filters"]["da"], "2026-03-01")
+        self.assertEqual(action_args[3]["filters"]["a"], "2026-03-31")
+        self.assertEqual(action_args[3]["filters"]["avanzamento"], "In attesa")
+        self.assertEqual(action_args[3]["filters"]["capocommessa"], "Simone Danesi")

@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import mimetypes
 import os
 from io import BytesIO
 from datetime import datetime, timezone as dt_timezone
@@ -11,8 +12,9 @@ from functools import wraps
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q, Case, When, Value, IntegerField
 from django.contrib.auth.views import redirect_to_login
-from django.http import HttpResponse, JsonResponse
+from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils.timezone import now as tz_now
 from django.views.decorators.http import require_POST
 from reportlab.lib.colors import HexColor, white, black
@@ -24,18 +26,53 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_LEFT
 
 from core.legacy_utils import get_legacy_user, is_legacy_admin
+from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
 from .models import (
     CATEGORIE_IT,
     CATEGORIE_MAN,
+    CategoriaTicket,
+    EsitoIntervento,
     PrioritaTicket,
     StatoTicket,
     Ticket,
     TicketAllegato,
     TicketCommento,
     TicketImpostazioni,
+    TicketIntervento,
+    TicketStatoLog,
+    TipoFermo,
     TipoTicket,
+    get_categorie,
 )
+
+TICKET_ALLOWED_UPLOAD_EXTENSIONS = {
+    ".pdf", ".jpg", ".jpeg", ".png", ".gif", ".bmp",
+    ".doc", ".docx", ".xls", ".xlsx", ".odt", ".ods",
+    ".txt", ".csv", ".msg", ".eml", ".zip", ".7z",
+}
+TICKET_ALLOWED_UPLOAD_MIMES = {
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/bmp",
+    "image/x-ms-bmp",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.oasis.opendocument.text",
+    "application/vnd.oasis.opendocument.spreadsheet",
+    "text/plain",
+    "text/csv",
+    "application/csv",
+    "application/vnd.ms-outlook",
+    "message/rfc822",
+    "application/zip",
+    "application/x-zip-compressed",
+    "application/x-7z-compressed",
+}
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -50,6 +87,94 @@ def _legacy_identity(request) -> tuple[str, str, int | None]:
     name  = request.user.get_full_name() or request.user.get_username()
     email = (request.user.email or "").strip().lower()
     return name, email, None
+
+
+def _build_ticket_activity_feed(ticket: Ticket) -> list[dict[str, object]]:
+    """Costruisce una timeline operativa unificata per il dettaglio ticket."""
+    feed: list[dict[str, object]] = []
+    fallback_dt = datetime.min.replace(tzinfo=dt_timezone.utc)
+
+    opened_meta = [ticket.label_tipo, ticket.label_categoria, ticket.label_priorita]
+    if ticket.incide_sicurezza:
+        opened_meta.append("Sicurezza")
+
+    feed.append({
+        "kind": "opened",
+        "created_at": ticket.created_at,
+        "actor": ticket.richiedente_nome or "Sistema",
+        "title": "Ticket aperto",
+        "summary": " | ".join(part for part in opened_meta if part),
+        "body": "",
+        "meta": "",
+        "badge": "Apertura",
+        "is_internal": False,
+        "sort_at": ticket.created_at or fallback_dt,
+    })
+
+    for commento in ticket.commenti.all():
+        feed.append({
+            "kind": "comment",
+            "created_at": commento.created_at,
+            "actor": commento.autore_nome or "Utente",
+            "title": "Nota interna" if commento.is_interno else "Commento",
+            "summary": "",
+            "body": commento.testo or "",
+            "meta": "",
+            "badge": "Interna" if commento.is_interno else "Commento",
+            "is_internal": bool(commento.is_interno),
+            "sort_at": commento.created_at or fallback_dt,
+        })
+
+    for log in ticket.stato_log.all():
+        summary = f"{log.label_da} -> {log.label_a}" if log.da_stato else log.label_a
+        feed.append({
+            "kind": "state",
+            "created_at": log.created_at,
+            "actor": log.utente_nome or "Utente",
+            "title": "Stato aggiornato",
+            "summary": summary,
+            "body": log.nota or "",
+            "meta": "",
+            "badge": log.label_a,
+            "is_internal": False,
+            "sort_at": log.created_at or fallback_dt,
+        })
+
+    for intervento in ticket.interventi.all():
+        detail_lines: list[str] = []
+        if intervento.componente_interessato:
+            detail_lines.append(f"Componente: {intervento.componente_interessato}")
+        if intervento.descrizione_lavoro:
+            detail_lines.append(f"Lavoro: {intervento.descrizione_lavoro}")
+        if intervento.azioni_svolte:
+            detail_lines.append(f"Azioni: {intervento.azioni_svolte}")
+
+        meta_parts = []
+        if intervento.data_inizio:
+            window = intervento.data_inizio.strftime("%d/%m/%Y %H:%M")
+            if intervento.data_fine:
+                window = f"{window} -> {intervento.data_fine.strftime('%d/%m/%Y %H:%M')}"
+            meta_parts.append(window)
+        if intervento.durata_ore is not None:
+            meta_parts.append(f"{intervento.durata_ore:g}h")
+
+        feed.append({
+            "kind": "intervento",
+            "created_at": intervento.data_inizio or intervento.created_at,
+            "actor": intervento.tecnico_nome or "Tecnico",
+            "title": "Intervento registrato",
+            "summary": intervento.label_esito,
+            "body": "\n".join(detail_lines),
+            "meta": " | ".join(meta_parts),
+            "badge": intervento.label_esito,
+            "is_internal": False,
+            "sort_at": intervento.data_inizio or intervento.created_at or fallback_dt,
+        })
+
+    feed.sort(key=lambda item: item.get("sort_at") or fallback_dt, reverse=True)
+    for item in feed:
+        item.pop("sort_at", None)
+    return feed
 
 
 def _can_open_tickets(request, tipo: str) -> bool:
@@ -230,8 +355,8 @@ def _ticket_form_context(tipo: str = "", error: str = "", form_data=None,
     return {
         "error": error,
         "tipo": tipo,
-        "categorie_it": CATEGORIE_IT,
-        "categorie_man": CATEGORIE_MAN,
+        "categorie_it": get_categorie(TipoTicket.IT),
+        "categorie_man": get_categorie(TipoTicket.MAN),
         "assets_list": _get_assets_for_select(),
         "priorita_list": PrioritaTicket.choices,
         "tipi": TipoTicket.choices,
@@ -663,13 +788,27 @@ def ticket_nuovo(request):
     if tipo and not _can_open_tickets(request, tipo):
         return render(request, "core/pages/forbidden.html", status=403)
 
+    # Asset pre-selezionato via ?asset=<id> (proveniente dalla scheda asset)
+    initial_asset_id = request.GET.get("asset", "").strip()
+    initial_asset = None
+    if initial_asset_id:
+        try:
+            from assets.models import Asset as AssetModel
+            initial_asset = AssetModel.objects.filter(pk=int(initial_asset_id)).only(
+                "pk", "name", "asset_tag"
+            ).first()
+        except (ValueError, TypeError):
+            pass
+
     name, email, legacy_id = _legacy_identity(request)
     reparto = _get_user_reparto(legacy_id)
 
     def _ctx(tipo_eff=None, **kwargs):
         t = tipo_eff or tipo
         my, lbl = _get_my_assets(legacy_id, name, reparto, t)
-        return _ticket_form_context(tipo=t, my_assets_list=my, my_assets_label=lbl, **kwargs)
+        ctx = _ticket_form_context(tipo=t, my_assets_list=my, my_assets_label=lbl, **kwargs)
+        ctx["initial_asset"] = initial_asset
+        return ctx
 
     if request.method == "POST":
         tipo_post = (request.POST.get("tipo") or "").strip().upper()
@@ -775,6 +914,24 @@ def ticket_detail(request, pk: int):
         "is_richiedente":is_richiedente,
     }
     return render(request, "tickets/pages/detail.html", ctx)
+
+
+@login_required
+def ticket_download_allegato(request, allegato_id: int):
+    allegato = get_object_or_404(TicketAllegato.objects.select_related("ticket"), pk=allegato_id)
+    access = _ticket_access_flags(request, allegato.ticket)
+    if not (access["is_richiedente"] or access["is_gestore"] or access["is_admin"]):
+        return render(request, "core/pages/forbidden.html", status=403)
+    storage = allegato.file.storage
+    if not allegato.file or not allegato.file.name or not storage.exists(allegato.file.name):
+        return HttpResponse("Allegato non trovato.", status=404)
+    content_type = allegato.tipo_mime or mimetypes.guess_type(allegato.nome_originale)[0] or "application/octet-stream"
+    return FileResponse(
+        storage.open(allegato.file.name, "rb"),
+        as_attachment=True,
+        filename=allegato.nome_originale,
+        content_type=content_type,
+    )
 
 
 @login_required
@@ -927,8 +1084,8 @@ def ticket_gestione_list(request):
         "filtro_data_a":   data_a_f,
         "filtro_sicurezza": sicurezza_f,
         "filtro_ordine":   ordine_f,
-        "categorie_it":    CATEGORIE_IT,
-        "categorie_man":   CATEGORIE_MAN,
+        "categorie_it":    get_categorie(TipoTicket.IT),
+        "categorie_man":   get_categorie(TipoTicket.MAN),
         # KPI globali
         "n_aperte":    Ticket.objects.filter(stato=StatoTicket.APERTA).count(),
         "n_in_carico": Ticket.objects.filter(stato=StatoTicket.IN_CARICO).count(),
@@ -951,14 +1108,18 @@ def ticket_gestione_detail(request, pk: int):
 
     cfg         = TicketImpostazioni.get_or_create_for(ticket.tipo)
     fornitori   = _get_fornitori_for_select()
+    commenti    = ticket.commenti.all()
+    allegati    = ticket.allegati.all()
+    interventi  = ticket.interventi.all()
+    stato_log   = ticket.stato_log.all()
 
     reparto          = _get_user_reparto(legacy_id)
     my_assets, my_assets_label = _get_my_assets(legacy_id, name, reparto, ticket.tipo)
 
     ctx = {
         "ticket":           ticket,
-        "commenti":         ticket.commenti.all(),
-        "allegati":         ticket.allegati.all(),
+        "commenti":         commenti,
+        "allegati":         allegati,
         "cfg":              cfg,
         "stati":            StatoTicket.choices,
         "fornitori":        fornitori,
@@ -968,6 +1129,12 @@ def ticket_gestione_detail(request, pk: int):
         "assets_list":      _get_assets_for_select(),
         "my_assets_list":   my_assets,
         "my_assets_label":  my_assets_label,
+        # Analytics
+        "interventi":       interventi,
+        "stato_log":        stato_log,
+        "activity_feed":    _build_ticket_activity_feed(ticket),
+        "tipo_fermo_choices": TipoFermo.choices,
+        "esito_intervento_choices": EsitoIntervento.choices,
     }
     return render(request, "tickets/pages/gestione_detail.html", ctx)
 
@@ -989,8 +1156,8 @@ def ticket_impostazioni(request):
         "cfg_it":  cfg_it,
         "cfg_man": cfg_man,
         "tipi":    TipoTicket.choices,
-        "categorie_it":  CATEGORIE_IT,
-        "categorie_man": CATEGORIE_MAN,
+        "categorie_it":  get_categorie(TipoTicket.IT),
+        "categorie_man": get_categorie(TipoTicket.MAN),
     }
     return render(request, "tickets/pages/impostazioni.html", ctx)
 
@@ -1143,30 +1310,29 @@ def api_allegato(request):
     if not f:
         return _json_err("Nessun file")
 
-    _ALLOWED_EXTS = {
-        ".pdf", ".jpg", ".jpeg", ".png", ".gif", ".bmp",
-        ".doc", ".docx", ".xls", ".xlsx", ".odt", ".ods",
-        ".txt", ".csv", ".msg", ".eml", ".zip", ".7z",
-    }
     _MAX_SIZE = 20 * 1024 * 1024  # 20 MB
-    ext = os.path.splitext(f.name)[1].lower()
-    if ext not in _ALLOWED_EXTS:
-        return _json_err(f"Tipo file non consentito ({ext or 'nessuna estensione'})")
-    if f.size > _MAX_SIZE:
-        return _json_err("File troppo grande (massimo 20 MB)")
+    try:
+        detected_mime = validate_extension_and_mime(
+            f,
+            allowed_extensions=TICKET_ALLOWED_UPLOAD_EXTENSIONS,
+            allowed_mimes=TICKET_ALLOWED_UPLOAD_MIMES,
+            max_bytes=_MAX_SIZE,
+        )
+    except UploadMimeValidationError as exc:
+        return _json_err(str(exc))
 
     allegato = TicketAllegato.objects.create(
         ticket=ticket,
         file=f,
         nome_originale=f.name[:255],
-        tipo_mime=(f.content_type or "")[:100],
+        tipo_mime=detected_mime[:100],
         uploaded_by_nome=name,
     )
     return JsonResponse({
         "ok": True,
         "allegato_id": allegato.pk,
         "nome": allegato.nome_originale,
-        "url":  allegato.file.url,
+        "url":  reverse("tickets:download_allegato", args=[allegato.pk]),
     })
 
 
@@ -1191,16 +1357,38 @@ def api_stato(request):
     ticket = get_object_or_404(Ticket, pk=ticket_id)
     vecchio = ticket.stato
     ticket.stato = nuovo_stato
+    now = tz_now()
 
     if nuovo_stato in (StatoTicket.CHIUSO, StatoTicket.ANNULLATO, StatoTicket.RISOLTO):
         if not ticket.closed_at:
-            ticket.closed_at = tz_now()
+            ticket.closed_at = now
     else:
         ticket.closed_at = None
 
-    ticket.save(update_fields=["stato", "closed_at", "updated_at"])
-
+    # Analytics: registra data_presa_in_carico al primo passaggio IN_CARICO
+    update_fields = ["stato", "closed_at", "updated_at"]
     name, email, _ = _legacy_identity(request)
+
+    if nuovo_stato == StatoTicket.IN_CARICO and not ticket.data_presa_in_carico:
+        ticket.data_presa_in_carico = now
+        update_fields.append("data_presa_in_carico")
+
+    # Analytics: chi ha risolto
+    if nuovo_stato == StatoTicket.RISOLTO and not ticket.risolto_da_nome:
+        ticket.risolto_da_nome = name
+        update_fields.append("risolto_da_nome")
+
+    ticket.save(update_fields=update_fields)
+
+    # Log strutturato cambio stato
+    TicketStatoLog.objects.create(
+        ticket=ticket,
+        da_stato=vecchio,
+        a_stato=nuovo_stato,
+        utente_nome=name,
+        utente_email=email,
+        nota=nota,
+    )
 
     # Commento automatico cambio stato
     label_stato = dict(StatoTicket.choices).get(nuovo_stato, nuovo_stato)
@@ -1810,3 +1998,207 @@ def api_bulk(request):
         return _json_err(f"Azione non riconosciuta: {azione}")
 
     return JsonResponse({"ok": True, "aggiornati": aggiornati})
+
+
+# ---------------------------------------------------------------------------
+# API: aggiornamento campi analitici ticket
+# ---------------------------------------------------------------------------
+
+@require_POST
+@_tickets_gestione_required
+def api_ticket_analytics(request):
+    """Salva i campi analitici (componente, causa_radice, tipo_fermo, ore_fermo,
+    ricorrente, ticket_origine) sul ticket indicato."""
+    try:
+        payload   = json.loads(request.body)
+        ticket_id = int(payload.get("ticket_id") or 0)
+    except (json.JSONDecodeError, ValueError):
+        return _json_err("Dati non validi")
+
+    ticket = get_object_or_404(Ticket, pk=ticket_id)
+    update_fields = ["updated_at"]
+
+    if "componente" in payload:
+        ticket.componente = (payload["componente"] or "").strip()[:200]
+        update_fields.append("componente")
+    if "causa_radice" in payload:
+        ticket.causa_radice = (payload["causa_radice"] or "").strip()[:500]
+        update_fields.append("causa_radice")
+    if "tipo_fermo" in payload:
+        valore = (payload["tipo_fermo"] or "").strip().upper()
+        if valore not in dict(TipoFermo.choices):
+            return _json_err("tipo_fermo non valido")
+        ticket.tipo_fermo = valore
+        update_fields.append("tipo_fermo")
+    if "ore_fermo_macchina" in payload:
+        try:
+            ore = payload["ore_fermo_macchina"]
+            ticket.ore_fermo_macchina = float(ore) if ore not in (None, "") else None
+        except (TypeError, ValueError):
+            return _json_err("ore_fermo_macchina non valido")
+        update_fields.append("ore_fermo_macchina")
+    if "ricorrente" in payload:
+        ticket.ricorrente = bool(payload["ricorrente"])
+        update_fields.append("ricorrente")
+    if "ticket_origine_id" in payload:
+        orig_id = payload["ticket_origine_id"]
+        if orig_id:
+            try:
+                orig_id = int(orig_id)
+                if orig_id == ticket.pk:
+                    return _json_err("Il ticket origine non può essere se stesso")
+                if not Ticket.objects.filter(pk=orig_id).exists():
+                    return _json_err("Ticket origine non trovato")
+                ticket.ticket_origine_id = orig_id
+            except (TypeError, ValueError):
+                return _json_err("ticket_origine_id non valido")
+        else:
+            ticket.ticket_origine_id = None
+        update_fields.append("ticket_origine_id")
+
+    ticket.save(update_fields=update_fields)
+    return JsonResponse({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# API: CRUD interventi (sessioni di lavoro)
+# ---------------------------------------------------------------------------
+
+@_tickets_gestione_required
+def api_intervento(request):
+    if request.method == "POST":
+        return _api_intervento_create(request)
+    if request.method == "PATCH":
+        return _api_intervento_update(request)
+    if request.method == "DELETE":
+        return _api_intervento_delete(request)
+    return _json_err("Metodo non supportato", status=405)
+
+
+def _api_intervento_create(request):
+    try:
+        payload   = json.loads(request.body)
+        ticket_id = int(payload.get("ticket_id") or 0)
+    except (json.JSONDecodeError, ValueError):
+        return _json_err("Dati non validi")
+
+    ticket = get_object_or_404(Ticket, pk=ticket_id)
+    name, email, _ = _legacy_identity(request)
+
+    try:
+        data_inizio = datetime.fromisoformat(payload["data_inizio"])
+    except (KeyError, ValueError, TypeError):
+        return _json_err("data_inizio non valida (formato ISO 8601)")
+
+    data_fine = None
+    if payload.get("data_fine"):
+        try:
+            data_fine = datetime.fromisoformat(payload["data_fine"])
+        except (ValueError, TypeError):
+            return _json_err("data_fine non valida (formato ISO 8601)")
+
+    ore_lavorate = None
+    if payload.get("ore_lavorate") not in (None, ""):
+        try:
+            ore_lavorate = float(payload["ore_lavorate"])
+            if ore_lavorate < 0:
+                return _json_err("ore_lavorate non può essere negativo")
+        except (TypeError, ValueError):
+            return _json_err("ore_lavorate non valido")
+
+    esito = (payload.get("esito") or EsitoIntervento.IN_CORSO).strip().upper()
+    if esito not in dict(EsitoIntervento.choices):
+        return _json_err("esito non valido")
+
+    tecnico_nome  = (payload.get("tecnico_nome") or name).strip()[:200]
+    tecnico_email = (payload.get("tecnico_email") or email).strip()[:200]
+
+    interv = TicketIntervento.objects.create(
+        ticket=ticket,
+        tecnico_nome=tecnico_nome,
+        tecnico_email=tecnico_email,
+        data_inizio=data_inizio,
+        data_fine=data_fine,
+        ore_lavorate=ore_lavorate,
+        descrizione_lavoro=(payload.get("descrizione_lavoro") or "").strip(),
+        componente_interessato=(payload.get("componente_interessato") or "").strip()[:200],
+        azioni_svolte=(payload.get("azioni_svolte") or "").strip(),
+        esito=esito,
+        note=(payload.get("note") or "").strip(),
+    )
+
+    # Aggiorna data_primo_intervento sul ticket se è il primo
+    if not ticket.data_primo_intervento:
+        ticket.data_primo_intervento = interv.created_at
+        ticket.save(update_fields=["data_primo_intervento", "updated_at"])
+
+    return JsonResponse({
+        "ok": True,
+        "id": interv.pk,
+        "tecnico_nome": interv.tecnico_nome,
+        "data_inizio": interv.data_inizio.strftime("%d/%m/%Y %H:%M"),
+        "esito": interv.esito,
+        "label_esito": interv.label_esito,
+        "durata_ore": interv.durata_ore,
+    })
+
+
+def _api_intervento_update(request):
+    try:
+        payload      = json.loads(request.body)
+        intervento_id = int(payload.get("id") or 0)
+    except (json.JSONDecodeError, ValueError):
+        return _json_err("Dati non validi")
+
+    interv = get_object_or_404(TicketIntervento, pk=intervento_id)
+    update_fields = ["updated_at"]
+
+    if "data_fine" in payload:
+        if payload["data_fine"]:
+            try:
+                interv.data_fine = datetime.fromisoformat(payload["data_fine"])
+                update_fields.append("data_fine")
+            except (ValueError, TypeError):
+                return _json_err("data_fine non valida")
+        else:
+            interv.data_fine = None
+            update_fields.append("data_fine")
+
+    if "ore_lavorate" in payload:
+        ore = payload["ore_lavorate"]
+        interv.ore_lavorate = float(ore) if ore not in (None, "") else None
+        update_fields.append("ore_lavorate")
+
+    if "esito" in payload:
+        esito = (payload["esito"] or "").strip().upper()
+        if esito not in dict(EsitoIntervento.choices):
+            return _json_err("esito non valido")
+        interv.esito = esito
+        update_fields.append("esito")
+
+    for campo in ("descrizione_lavoro", "componente_interessato", "azioni_svolte", "note"):
+        if campo in payload:
+            setattr(interv, campo, (payload[campo] or "").strip())
+            update_fields.append(campo)
+
+    interv.save(update_fields=update_fields)
+    return JsonResponse({"ok": True, "durata_ore": interv.durata_ore, "label_esito": interv.label_esito})
+
+
+def _api_intervento_delete(request):
+    try:
+        payload      = json.loads(request.body)
+        intervento_id = int(payload.get("id") or 0)
+    except (json.JSONDecodeError, ValueError):
+        return _json_err("Dati non validi")
+
+    interv = get_object_or_404(TicketIntervento, pk=intervento_id)
+    ticket = interv.ticket
+    interv.delete()
+
+    # Ricalcola data_primo_intervento
+    primo = ticket.interventi.order_by("data_inizio").first()
+    ticket.data_primo_intervento = primo.created_at if primo else None
+    ticket.save(update_fields=["data_primo_intervento", "updated_at"])
+
+    return JsonResponse({"ok": True})

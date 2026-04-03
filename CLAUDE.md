@@ -1,7 +1,7 @@
 ﻿# CLAUDE.md â€” Portale Novicrom
 
 Documento di contesto per AI coding assistant. Aggiornato continuamente con il progetto.
-Versione app corrente: **0.8.6** (2026-03-30)
+Versione app corrente: **0.8.8** (2026-04-02)
 
 ---
 
@@ -10,9 +10,17 @@ Versione app corrente: **0.8.6** (2026-03-30)
 - **Backend:** Django 5.2, Python 3.11+
 - **Database prod:** SQL Server (mssql-django 1.6, pyodbc 5.2)
 - **Database dev:** SQLite (solo per sviluppo Django-only, senza tabelle legacy)
-- **Auth:** 3 backend in cascata â€” `SQLServerLegacyBackend` â†’ `LDAPBackend` (AD `cnovicrom.local`) â†’ `ModelBackend`
+- **Auth:** 4 backend in cascata â€” `AxesStandaloneBackend` â†’ `SQLServerLegacyBackend` â†’ `LDAPBackend` (AD `cnovicrom.local`) â†’ `ModelBackend`
 - **Frontend:** SSR puro con Django templates, nessun framework JS, CSS custom
 - **Integrazioni:** Microsoft Graph/SharePoint (MSAL), LDAP/AD, SMTP
+
+Hardening sicurezza 0.8.7:
+- login rate limiting con `django-axes` (5 tentativi, lockout 1 ora, template custom `core/pages/lockout.html`)
+- upload hardening extension+MIME reale tramite `core/upload_mime.py` (fail-closed se libmagic non disponibile)
+- rimozione relay password AD in sessione (`_sso_relay_pwd` non usato)
+- `legacy_table_columns()` protetto da whitelist `ALLOWED_LEGACY_TABLES` (niente `PRAGMA` su nomi tabella non ammessi)
+- `_SPNEGO_CONTEXTS` bounded con `TTLCache(maxsize=500, ttl=60)` per evitare crescita memoria in handshake SSO interrotti
+- export CSV `assenze`/`anomalie` tracciati in AuditLog con `log_action(..., "export_csv", ...)`
 
 ---
 
@@ -75,8 +83,9 @@ Versione app corrente: **0.8.6** (2026-03-30)
 ### 3. Navigation Registry (visibilita menu, non sicurezza)
 
 - File: `core/navigation_registry.py`
-- Tabelle Django: `NavigationItem`, `NavigationRoleAccess`, `UserDashboardConfig`, `UserModuleVisibility`
+- Tabelle Django: `NavigationItem`, `NavigationRoleAccess`, `UserNavigationOverride`, `UserDashboardConfig`, `UserModuleVisibility`
 - Deny-by-default: nessun record in `NavigationRoleAccess` = voce NON mostrata (riga 115-117 in `navigation_registry.py`)
+- **Override per-utente navigazione** (`UserNavigationOverride`): dopo il filtro di ruolo, `_apply_user_nav_overrides()` applica override positivi (forza mostra) e negativi (forza nascondi) per singolo utente legacy. Non usa la cache; gli admin non sono soggetti agli override. Funziona su `topbar` e `subnav`. Gestito da "Step 5 – Nav Override" in `/admin-portale/acl-canonico/` e da "Override Navigazione Utente" in `/admin-portale/navigation-builder/`.
 
 #### Sezioni `NavigationItem.section`
 
@@ -90,11 +99,11 @@ Versione app corrente: **0.8.6** (2026-03-30)
 
 **`admin_subnav` — regola critica:** NON hardcodare mai voci in `admin_subnav.html`. Gestire sempre tramite `NavigationItem` con `section="admin_subnav"` via Navigation Builder o migration. Migration seed: `core/migrations/0031_admin_subnav_seed.py` + `0032_admin_subnav_acl_nav_map.py` (voce aggiuntiva mappa permessi/navigazione). Il context processor inietta `admin_subnav_items` solo per utenti `is_legacy_admin()`.
 
-Navigation Builder (`/admin-portale/navigation-builder/`): oltre alla tabella inline include una **vista visuale drag&drop orizzontale** (scroll laterale) a colonne per sezione (`topbar`, `subnav`, `admin_subnav`, `sidebar`, `page`) con card trascinabili, spostamento cross-sezione e sincronizzazione immediata su `NavigationItem.section` + `NavigationItem.order` tramite `api_navigation_reorder`. Nota semantica: `topbar` rappresenta la navigazione principale e in `nav_mode=side` viene renderizzata nella sidebar. Nel builder `sidebar` e trattata come opzione avanzata (`Sidebar Dedicated`) e viene nascosta in modalita standard.
+Navigation Builder (`/admin-portale/navigation-builder/`): oltre alla tabella inline include una **vista visuale drag&drop orizzontale** (scroll laterale) a colonne per sezione (`topbar`, `subnav`, `admin_subnav`, `sidebar`, `page`) con card trascinabili, spostamento cross-sezione e sincronizzazione immediata su `NavigationItem.section` + `NavigationItem.order` tramite `api_navigation_reorder`. Ogni card supporta azioni rapide `Apri`, `Clona`, `Rimuovi`; il listener globale dei click nel template deve restare `async` perché invoca fetch asincrone. Nota semantica: `topbar` rappresenta la navigazione principale e in `nav_mode=side` viene renderizzata nella sidebar. Nel builder `sidebar` e trattata come opzione avanzata (`Sidebar Dedicated`) e viene nascosta in modalita standard.
 
 ### Strumenti diagnostica/gestione ACL (admin)
 
-- `/admin-portale/acl-canonico/`: gestione operativa del layer v2 (permission code, route/path binding, grant ruolo, override utente).
+- `/admin-portale/acl-canonico/`: gestione operativa del layer v2 (permission code, route/path binding, grant ruolo, override utente, override navigazione utente). Tab: 1. PermissionDefinition, 2. Route Binding, 3. Role Grant, 4. User Override, **5. Nav Override** (nuovo).
 - `/admin-portale/acl-route-coverage/`: report route dedicato con stati `CANONICAL_BOUND`, `LEGACY_FALLBACK`, `UNBOUND`, `COMING_SOON_EXCLUDED`, `REDIRECT_ONLY` e export CSV.
 - `/admin-portale/acl-diagnostica/` (alias compat legacy: `/admin-portale/acl/`): diagnostica combinata legacy + canonical con decisione finale del resolver v2 e trace.
 - `/admin-portale/mappa-permessi-navigazione/`: mappa unica route/menu con sorgente (`REGISTRY`/`LEGACY`), ruoli abilitati, override utente, admin bypass e redirect legacy. Ogni riga ha drill-down workflow visuale cliccabile; con filtro ruolo attivo supporta toggle live sia dei grant canonici v2 (`RolePermissionGrant.enabled`) sia dei permessi legacy (`can_view`) via API.
@@ -118,12 +127,16 @@ Pattern: `AppConfig.ready()` â†’ chiama `bootstrap_*_acl_endpoints()` â†
 
 ### Bootstrap ACL v2 (nuovo)
 
-- Management command: `python django_app/manage.py bootstrap_acl_v2 [--apply] [--import-legacy] [--activate-generated-bindings]`
+- Management command: `python django_app/manage.py bootstrap_acl_v2 [--dry-run] [--apps app1,app2] [--apply] [--import-legacy] [--activate-generated-bindings]`
 - Funzioni principali:
   - scansione route Django nominate
-  - proposta permission code iniziali
+  - classificazione copertura route: `CANONICAL_BOUND`, `LEGACY_FALLBACK`, `UNBOUND`, `COMING_SOON_EXCLUDED`, `REDIRECT_ONLY`
+  - proposta permission code iniziali (convenzione `modulo.risorsa.azione`)
+  - scope per app (`--apps`) per migrazione incrementale modulo-per-modulo
   - import opzionale da `pulsanti`/`permessi` legacy
-  - report copertura: `CANONICAL_BOUND`, `LEGACY_FALLBACK`, `UNBOUND`
+  - in apply: upsert `PermissionDefinition` + `RoutePermissionBinding` e sync opzionale grant ruolo da fallback legacy (`RolePermissionGrant`)
+  - report finale con grouping per app di route `LEGACY_FALLBACK/UNBOUND` e conteggi before/after
+  - in `SetupWizard.exe` (test/prod e promote release) viene eseguito workflow automatico: dry-run pre -> apply (`--import-legacy`) -> dry-run post; in `test` il seed `seed_acl_uat --reset` è opzionale tramite checkbox `Esegui seed UAT ACL`
 
 ### Seed ACL v2 UAT (nuovo)
 
@@ -132,7 +145,7 @@ Pattern: `AppConfig.ready()` â†’ chiama `bootstrap_*_acl_endpoints()` â†
   - 3 ruoli legacy (`utente_base`, `responsabile_operativo`, `amministratore_portale`)
   - 6 utenti seed (`uat.base1`, `uat.base2`, `uat.resp1`, `uat.resp2`, `uat.admin1`, `uat.override1`)
   - permission definition + route binding + role grant + user override canonici
-  - fallback legacy campione e redirect legacy campione
+  - fallback legacy campione (`/uat/legacy-fallback-map`) + route intentionally unbound (`/uat/unbound-probe/`) + redirect legacy campione
   - report finale con route coverage campione e scenari runtime ALLOW/DENY
 
 ### Impersonation
@@ -314,6 +327,27 @@ I nomi delle variabili nel `.env` devono corrispondere ESATTAMENTE a quelli lett
 
 ## Pattern di sviluppo
 
+### Allegati ticket privati
+
+- I nuovi allegati ticket usano `tickets.storage.PrivateTicketStorage` con root `TICKETS_PRIVATE_ROOT` (default `BASE_DIR / "media_private"`).
+- Nei template e nelle API non usare mai `TicketAllegato.file.url`: usare sempre `reverse("tickets:download_allegato", args=[allegato.pk])`.
+- In deploy IIS `/media/tickets` va bloccato nel `web.config`; gli eventuali file legacy rimasti in `MEDIA_ROOT/tickets/...` sono serviti solo come fallback dalla view autenticata.
+
+### Analytics KPI ticket
+
+- **Campi analitici su `Ticket`**: `componente`, `causa_radice`, `tipo_fermo` (TipoFermo: NESSUNO/PARZIALE/TOTALE), `ore_fermo_macchina`, `data_presa_in_carico` (auto al primo IN_CARICO), `data_primo_intervento` (auto al primo `TicketIntervento`), `risolto_da_nome` (auto al primo RISOLTO), `ricorrente` (bool), `ticket_origine` (FK self, nullable)
+- **`TicketStatoLog`**: log strutturato di ogni cambio stato (`api_stato` lo crea automaticamente). Visibile come timeline in fondo a `gestione_detail.html`.
+- **`TicketIntervento`**: sessioni di lavoro per tecnico. CRUD via `POST/PATCH/DELETE /tickets/api/intervento/`. `durata_ore` si calcola da `data_fine - data_inizio` se `ore_lavorate` non è impostato manualmente. Il primo intervento imposta automaticamente `Ticket.data_primo_intervento`.
+- **API `POST /tickets/api/analytics/`**: salva i campi analitici sul ticket. Richiede `_tickets_gestione_required`.
+- **KPI per asset** (`assets/views.py` — `_compute_ticket_kpi_for_asset`): 2 query totali → totale/aperti/chiusi, MTTR, ore_fermo_totali, ore_intervento_totali, top 3 componenti/cause/tecnici. Passato come `ticket_kpi` al template `asset_detail.html`.
+- **Nuovo stato `IN_ATTESA`**: ticket bloccato in attesa di ricambi o informazioni. Badge viola. Non considerato "chiuso" (non imposta `closed_at`).
+
+### Assenze e vincoli legacy SQL Server
+
+- `Flessibilità` e il valore canonico del modulo assenze; `Infortunio` va trattato solo come alias legacy in lettura per record storici o sistemi non ancora riallineati.
+- Su SQL Server il vincolo `CK_assenze_tipo` deve accettare `Ferie`, `Permesso`, `Malattia`, `Flessibilità`, `Altro`; se il database arriva da una versione storica usare il comando `python django_app/manage.py allinea_tipo_assenza_flessibilita --settings=config.settings.dev`.
+- `Certifica presenza` continua a essere persistita come `Altro` piu marker interno in `motivazione_richiesta` (`[CERTIFICA_PRESENZA] ...`) per ricostruire il tipo reale in lettura, export e sync SharePoint.
+
 ### Import in tickets/views.py â€” REGOLA CRITICA
 
 I modelli di altre app (`Asset`, `UserExtraInfo`, `AnagraficaDipendente`, `Fornitore`, ecc.) **NON** sono importati a livello di modulo in `tickets/views.py`. Vanno sempre importati **localmente dentro la funzione** che li usa:
@@ -374,8 +408,14 @@ Percorso: `/admin-portale/hub/` â€” richiede `is_legacy_admin()`.
 | `database/schema/` | `db_schema` | **Schema DB infografica**: mappa visuale di tutti i modelli Django (campi, tipi, relazioni FK/1:1/M:M). Template: `hub_tools/templates/hub_tools/db_schema.html`. Versione standalone anche in `db_schema.html` nella root del repo. |
 | `homepage-builder/` | `homepage_builder` | Editor visuale layout home page per ruolo. |
 | `setup-wizard/` | `setup_wizard_hub` | Riesecuzione wizard configurazione (12 step), legge `.env` corrente. |
-| `guide/` | `guide_list` | Elenco guide/manuali (file statici da `tools/`). |
+| `guide/` | `guide_list` | Elenco guide/manuali/documentazione tecnica indicizzato automaticamente da `tools/`, `doc/`, `deployment/` e `django_app/assets/README.md` con deduplica per formato (`html` > `pdf` > `md`). |
 | `guide/<slug>/` | `guide_view` | Visualizzazione singola guida. |
+
+### Guide Hub
+
+- `/admin-portale/hub/guide/` non usa piu un catalogo hardcoded: scopre automaticamente i documenti supportati (`.html`, `.pdf`, `.md`) nelle directory sorgente del progetto dedicate alla documentazione.
+- `guide_serve` risolve i documenti per `slug` (con fallback legacy sul filename), serve `html` e `pdf` nativamente e incapsula i `md` in un viewer HTML integrato per mantenerli consultabili anche dentro l'iframe dell'Hub.
+- La vista singola guida usa CTA topbar compatti (`Nuova scheda`, `Lista guide`) per non sottrarre spazio verticale/orizzontale al documento.
 
 ### Schema DB â€” riepilogo modelli per app
 
@@ -386,7 +426,7 @@ Percorso: `/admin-portale/hub/` â€” richiede `is_legacy_admin()`.
 | `assets` | 25 | Asset, AssetCategory, AssetITDetails, WorkMachine, WorkOrder, WorkOrderAttachment/Log, PeriodicVerification, AssetEndpoint, PlantLayout/Area/Marker, AssetDocument, AssetLabelTemplate + modelli config UI |
 | `tasks` | 7 | Project, Task, SubTask, TaskComment, ProjectComment, TaskEvent, TaskAttachment |
 | `automazioni` | 6 | AutomationRule, AutomationCondition, AutomationAction, AutomationRunLog, AutomationActionLog, DashboardMetricValue |
-| `tickets` | 4 | Ticket, TicketCommento, TicketAllegato, TicketImpostazioni |
+| `tickets` | 7 | Ticket (+ campi analitici: componente, causa_radice, tipo_fermo, ore_fermo_macchina, data_presa_in_carico, data_primo_intervento, risolto_da_nome, ricorrente, ticket_origine FK), TicketCommento, TicketAllegato, TicketImpostazioni, CategoriaTicket, TicketStatoLog (log cambio stato), TicketIntervento (sessioni lavoro tecnico) |
 | `notizie` | 4 | Notizia, NotiziaAudience, NotiziaAllegato, NotiziaLettura |
 | `anagrafica` | 9 | Fornitore, FornitoreDocumento/Ordine/Valutazione/Asset, RuoloOperativo, DipendenteRuoloOperativo, DipendenteStatLayout, AnagraficaStatPermission |
 | `timbri` | 4 | OperatoreTimbri, RegistroTimbro, RegistroTimbroImmagine, TimbriImportIssue |

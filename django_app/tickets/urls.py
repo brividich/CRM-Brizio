@@ -4,6 +4,7 @@ from . import views
 urlpatterns = [
     path("",                          views.ticket_dashboard,        name="dashboard"),
     path("nuovo/",                    views.ticket_nuovo,            name="nuovo"),
+    path("allegati/<int:allegato_id>/download/", views.ticket_download_allegato, name="download_allegato"),
     path("<int:pk>/pdf/",             views.ticket_pdf,              name="pdf"),
     path("<int:pk>/",                 views.ticket_detail,           name="detail"),
     path("gestione/",                 views.ticket_gestione_list,    name="gestione_list"),
@@ -21,4 +22,7 @@ urlpatterns = [
     path("api/test-sp/",              views.api_test_sp,             name="api_test_sp"),
     path("api/import-csv/",          views.api_import_csv,          name="api_import_csv"),
     path("api/bulk/",                views.api_bulk,                name="api_bulk"),
+    # Analytics
+    path("api/analytics/",           views.api_ticket_analytics,    name="api_analytics"),
+    path("api/intervento/",          views.api_intervento,          name="api_intervento"),
 ]

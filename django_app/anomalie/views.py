@@ -97,6 +97,16 @@ def _fetch_all_dict(sql: str, params: list | tuple | None = None) -> list[dict]:
         return [dict(zip(cols, row)) for row in cursor.fetchall()]
 
 
+def _quote_identifier(name: str) -> str:
+    return connections["default"].ops.quote_name(str(name))
+
+
+def _quoted_columns(columns: list[str], *, alias: str | None = None) -> str:
+    if alias:
+        return ", ".join(f"{alias}.{_quote_identifier(col)}" for col in columns)
+    return ", ".join(_quote_identifier(col) for col in columns)
+
+
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
@@ -1419,9 +1429,10 @@ def api_db_ordini_crea(request):
                         insert_placeholders.append("%s")
                         insert_params.append(val)
 
+                quoted_insert_cols = _quoted_columns(insert_cols)
                 cursor.execute(
                     f"""
-                    INSERT INTO ordini_produzione ({', '.join(insert_cols)})
+                    INSERT INTO ordini_produzione ({quoted_insert_cols})
                     OUTPUT
                         INSERTED.id,
                         INSERTED.sharepoint_item_id,
@@ -1858,10 +1869,11 @@ def api_salva(request):
                 set_sql_parts = []
                 set_params: list = []
                 for col, val in update_writable.items():
+                    quoted_col = _quote_identifier(col)
                     if isinstance(val, tuple) and val[0] == "__sql__":
-                        set_sql_parts.append(f"{col} = {val[1]}")
+                        set_sql_parts.append(f"{quoted_col} = {val[1]}")
                     else:
-                        set_sql_parts.append(f"{col} = %s")
+                        set_sql_parts.append(f"{quoted_col} = %s")
                         set_params.append(val)
                 if set_sql_parts:
                     cursor.execute(
@@ -1882,9 +1894,10 @@ def api_salva(request):
                         insert_placeholders.append("%s")
                         insert_params.append(val)
                 # sharepoint_item_id rimane NULL per record locali non ancora sincronizzati
+                quoted_insert_cols = _quoted_columns(insert_cols)
                 cursor.execute(
                     f"""
-                    INSERT INTO anomalie ({', '.join(insert_cols)})
+                    INSERT INTO anomalie ({quoted_insert_cols})
                     OUTPUT INSERTED.id, INSERTED.sharepoint_item_id
                     VALUES ({', '.join(insert_placeholders)})
                     """,
@@ -2341,14 +2354,26 @@ def export_anomalie_csv(request):
                            "created_datetime", "modified_datetime", "sharepoint_item_id"] if c in cols]
     if not wanted:
         wanted = list(cols)[:10]
+    quoted_wanted = _quoted_columns(wanted)
+    with connections["default"].cursor() as cur:
+        cur.execute(f"SELECT TOP 5000 {quoted_wanted} FROM anomalie ORDER BY id DESC")
+        rows_data = cur.fetchall()
+
+    log_action(
+        request,
+        "export_csv",
+        "anomalie",
+        {
+            "rows": len(rows_data),
+            "filters": {"mode": "all", "limit": 5000},
+        },
+    )
 
     def stream():
         writer = csv.writer(_Echo())
         yield writer.writerow(wanted)
-        with connections["default"].cursor() as cur:
-            cur.execute(f"SELECT TOP 5000 {', '.join(wanted)} FROM anomalie ORDER BY id DESC")
-            for row in cur.fetchall():
-                yield writer.writerow([str(v) if v is not None else "" for v in row])
+        for row in rows_data:
+            yield writer.writerow([str(v) if v is not None else "" for v in row])
 
     resp = StreamingHttpResponse(stream(), content_type="text/csv; charset=utf-8-sig")
     resp["Content-Disposition"] = 'attachment; filename="anomalie.csv"'
@@ -2494,15 +2519,33 @@ def export_anomalie_csv_filtrato(request):
         params.append(capocommessa)
 
     where_clause = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
-    sql = f"SELECT TOP 5000 {', '.join(wanted)} FROM anomalie {where_clause} ORDER BY id DESC"
+    quoted_wanted = _quoted_columns(wanted)
+    sql = f"SELECT TOP 5000 {quoted_wanted} FROM anomalie {where_clause} ORDER BY id DESC"
+    with connections["default"].cursor() as cur:
+        cur.execute(sql, params)
+        rows_data = cur.fetchall()
+
+    log_action(
+        request,
+        "export_csv",
+        "anomalie",
+        {
+            "rows": len(rows_data),
+            "filters": {
+                "da": da,
+                "a": a_val,
+                "avanzamento": avanzamento,
+                "capocommessa": capocommessa,
+                "limit": 5000,
+            },
+        },
+    )
 
     def stream():
         writer = csv.writer(_Echo())
         yield writer.writerow(wanted)
-        with connections["default"].cursor() as cur:
-            cur.execute(sql, params)
-            for row in cur.fetchall():
-                yield writer.writerow([str(v) if v is not None else "" for v in row])
+        for row in rows_data:
+            yield writer.writerow([str(v) if v is not None else "" for v in row])
 
     resp = StreamingHttpResponse(stream(), content_type="text/csv; charset=utf-8-sig")
     resp["Content-Disposition"] = 'attachment; filename="anomalie_export.csv"'
@@ -2626,6 +2669,7 @@ def _report_anomalie_rows(op_item_id: int | None, op_title: str | None) -> list[
     for optional_col in ("numero_rdc", "created_datetime", "modified_datetime"):
         if optional_col in cols:
             select_cols.append(optional_col)
+    quoted_select_cols = _quoted_columns(select_cols)
 
     where_parts: list[str] = []
     params: list[object] = []
@@ -2639,7 +2683,7 @@ def _report_anomalie_rows(op_item_id: int | None, op_title: str | None) -> list[
         return []
 
     sql = f"""
-        SELECT {", ".join(select_cols)}
+        SELECT {quoted_select_cols}
         FROM anomalie
         WHERE {" OR ".join(where_parts)}
         ORDER BY seriale, id

@@ -4,6 +4,7 @@ import base64
 import logging
 import uuid
 
+from cachetools import TTLCache
 from django.conf import settings
 from django.contrib.auth import login
 from django.contrib import messages
@@ -12,6 +13,7 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 
+from core.accounts.redirects import get_safe_redirect_target
 from core.legacy_utils import provision_legacy_user, sync_django_user_from_legacy
 
 logger = logging.getLogger(__name__)
@@ -19,7 +21,7 @@ logger = logging.getLogger(__name__)
 # Cache in-process dei contesti SPNEGO in corso (NTLM è multi-step).
 # Chiave: ctx_id (uuid), Valore: oggetto spnego context.
 # Vengono rimossi al completamento o alla scadenza implicita (max 60s).
-_SPNEGO_CONTEXTS: dict[str, object] = {}
+_SPNEGO_CONTEXTS: TTLCache[str, object] = TTLCache(maxsize=500, ttl=60)
 
 
 def _normalize_principal(principal: str) -> str:
@@ -51,7 +53,7 @@ def windows_sso_view(request):
         messages.error(request, "Modulo pyspnego non installato.")
         return redirect("login")
 
-    next_url = request.GET.get("next") or reverse("dashboard_home")
+    next_url = get_safe_redirect_target(request, request.GET.get("next")) or reverse("dashboard_home")
     auth_header = request.META.get("HTTP_AUTHORIZATION", "")
 
     if not auth_header:

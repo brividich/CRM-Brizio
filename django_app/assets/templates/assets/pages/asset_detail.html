@@ -345,6 +345,89 @@
             </table>
           </div>
         {% elif card.code == "TICKETS" %}
+          <!-- Azioni rapide ticket / intervento -->
+          <div style="display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px;border-bottom:1px solid #f1f5f9;align-items:center;">
+            <a href="{% url 'tickets:nuovo' %}?tipo=IT&asset={{ asset.pk }}"
+               style="display:inline-flex;align-items:center;gap:5px;padding:7px 14px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;">
+              + Ticket IT
+            </a>
+            <a href="{% url 'tickets:nuovo' %}?tipo=MAN&asset={{ asset.pk }}"
+               style="display:inline-flex;align-items:center;gap:5px;padding:7px 14px;background:#f0fdf4;color:#15803d;border:1px solid #86efac;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;">
+              + Ticket MAN
+            </a>
+            <a href="{{ asset_create_workorder_url }}"
+               style="display:inline-flex;align-items:center;gap:5px;padding:7px 14px;background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;">
+              + Intervento esterno
+            </a>
+            {% if ticket_kpi.aperti %}
+            <span style="margin-left:auto;font-size:12px;color:#92400e;font-weight:700;background:#fef3c7;padding:4px 10px;border-radius:6px;">
+              {{ ticket_kpi.aperti }} aperti
+            </span>
+            {% endif %}
+          </div>
+          {% if ticket_kpi.has_tickets %}
+          <!-- KPI ticket asset -->
+          <div style="display:flex;flex-wrap:wrap;gap:10px;padding:14px 16px 6px;border-bottom:1px solid #f1f5f9;">
+            <div style="flex:1;min-width:100px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px;text-align:center;">
+              <div style="font-size:22px;font-weight:800;color:#0f172a;">{{ ticket_kpi.totale }}</div>
+              <div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;">Totale</div>
+            </div>
+            <div style="flex:1;min-width:100px;background:#fef3c7;border:1px solid #fcd34d;border-radius:10px;padding:10px 14px;text-align:center;">
+              <div style="font-size:22px;font-weight:800;color:#92400e;">{{ ticket_kpi.aperti }}</div>
+              <div style="font-size:11px;color:#92400e;font-weight:600;text-transform:uppercase;">Aperti</div>
+            </div>
+            <div style="flex:1;min-width:100px;background:#d1fae5;border:1px solid #6ee7b7;border-radius:10px;padding:10px 14px;text-align:center;">
+              <div style="font-size:22px;font-weight:800;color:#065f46;">{{ ticket_kpi.chiusi }}</div>
+              <div style="font-size:11px;color:#065f46;font-weight:600;text-transform:uppercase;">Chiusi</div>
+            </div>
+            {% if ticket_kpi.mttr_ore is not None %}
+            <div style="flex:1;min-width:100px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;text-align:center;">
+              <div style="font-size:22px;font-weight:800;color:#1e40af;">{{ ticket_kpi.mttr_ore }}h</div>
+              <div style="font-size:11px;color:#1e40af;font-weight:600;text-transform:uppercase;">MTTR</div>
+            </div>
+            {% endif %}
+            {% if ticket_kpi.ore_fermo_totali %}
+            <div style="flex:1;min-width:100px;background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:10px 14px;text-align:center;">
+              <div style="font-size:22px;font-weight:800;color:#dc2626;">{{ ticket_kpi.ore_fermo_totali }}h</div>
+              <div style="font-size:11px;color:#dc2626;font-weight:600;text-transform:uppercase;">Ore fermo</div>
+            </div>
+            {% endif %}
+            {% if ticket_kpi.ore_intervento_totali %}
+            <div style="flex:1;min-width:100px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:10px 14px;text-align:center;">
+              <div style="font-size:22px;font-weight:800;color:#15803d;">{{ ticket_kpi.ore_intervento_totali }}h</div>
+              <div style="font-size:11px;color:#15803d;font-weight:600;text-transform:uppercase;">Ore intervento</div>
+            </div>
+            {% endif %}
+          </div>
+          {% if ticket_kpi.top_componenti or ticket_kpi.top_tecnici %}
+          <div style="display:flex;flex-wrap:wrap;gap:16px;padding:10px 16px;border-bottom:1px solid #f1f5f9;font-size:12px;">
+            {% if ticket_kpi.top_componenti %}
+            <div>
+              <div style="font-weight:700;color:#64748b;text-transform:uppercase;font-size:10px;letter-spacing:.04em;margin-bottom:4px;">Top componenti</div>
+              {% for comp, cnt in ticket_kpi.top_componenti %}
+              <div style="display:flex;gap:6px;margin-bottom:2px;"><span style="font-weight:600;color:#0f172a;">{{ comp }}</span><span style="color:#94a3b8;">({{ cnt }})</span></div>
+              {% endfor %}
+            </div>
+            {% endif %}
+            {% if ticket_kpi.top_cause %}
+            <div>
+              <div style="font-weight:700;color:#64748b;text-transform:uppercase;font-size:10px;letter-spacing:.04em;margin-bottom:4px;">Top cause radice</div>
+              {% for causa, cnt in ticket_kpi.top_cause %}
+              <div style="display:flex;gap:6px;margin-bottom:2px;"><span style="font-weight:600;color:#0f172a;">{{ causa }}</span><span style="color:#94a3b8;">({{ cnt }})</span></div>
+              {% endfor %}
+            </div>
+            {% endif %}
+            {% if ticket_kpi.top_tecnici %}
+            <div>
+              <div style="font-weight:700;color:#64748b;text-transform:uppercase;font-size:10px;letter-spacing:.04em;margin-bottom:4px;">Ore per tecnico</div>
+              {% for tec, ore in ticket_kpi.top_tecnici %}
+              <div style="display:flex;gap:6px;margin-bottom:2px;"><span style="font-weight:600;color:#0f172a;">{{ tec }}</span><span style="color:#94a3b8;">{{ ore }}h</span></div>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+          {% endif %}
+          {% endif %}
           <div class="af-table-wrap">
             <table class="af-table">
               <thead>
@@ -354,6 +437,7 @@
                   <th>Titolo</th>
                   <th>Stato</th>
                   <th>Priorita</th>
+                  <th>Componente</th>
                   <th>Apertura</th>
                   <th>Chiusura</th>
                 </tr>
@@ -372,11 +456,12 @@
                     <td>{{ ticket.titolo }}</td>
                     <td>{{ ticket.stato_label }}</td>
                     <td>{{ ticket.priorita_label }}</td>
+                    <td>{{ ticket.componente|default:"—" }}</td>
                     <td>{{ ticket.created_at|date:"d/m/Y" }}</td>
                     <td>{% if ticket.closed_at %}{{ ticket.closed_at|date:"d/m/Y" }}{% else %}-{% endif %}</td>
                   </tr>
                 {% empty %}
-                  <tr><td colspan="7" class="af-doc-empty">Nessun ticket collegato a questo asset.</td></tr>
+                  <tr><td colspan="8" class="af-doc-empty">Nessun ticket per questa macchina.</td></tr>
                 {% endfor %}
               </tbody>
             </table>
