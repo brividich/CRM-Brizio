@@ -16,6 +16,9 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 - **[ASSENZE][DEPLOY] `allinea_tipo_assenza_flessibilita` non blocca piu i database fresh** (`django_app/assenze/management/commands/allinea_tipo_assenza_flessibilita.py`, `README.md`, `CLAUDE.md`): se la tabella legacy `assenze` non esiste, il comando termina in no-op con warning esplicito invece di alzare eccezione e interrompere setup/installazione.
 
 ### Added
+
+- **\[ADMIN\]\[RUOLI\] Gestione ruoli CRUD completa** (`django_app/admin_portale/views.py`, `django_app/admin_portale/urls.py`, `django_app/admin_portale/templates/admin_portale/pages/ruoli_list.html`): nuova pagina `/admin-portale/ruoli/` con lista ruoli (ID, nome, conteggio utenti assegnati), form crea ruolo inline, rinomina inline (con sincronizzazione della colonna stringa `utenti.ruolo`), eliminazione con blocco se ci sono utenti assegnati e link diretto a "Configura permessi" per ogni ruolo. Aggiunto anche endpoint API `POST /admin-portale/api/ruoli/create` per la creazione asincrona dal wizard.
+- **\[ADMIN\]\[WIZARD\_RUOLO\] Creazione ruolo inline nel wizard** (`django_app/admin_portale/templates/admin_portale/pages/wizard_ruolo.html`): il wizard di configurazione permessi espone ora un pannello espandibile "Crea un nuovo ruolo" in cima alla lista ruoli (step 1). Dopo la creazione via AJAX il nuovo ruolo viene aggiunto dinamicamente alla lista, selezionato automaticamente e lo step 2 (configurazione permessi) si apre senza ricaricare la pagina.
 - **[WIZARD][SERVER DASHBOARD] Reset password live admin-only** (`deployment/setup_wizard.py`, `README.md`, `deployment/README_DEPLOY_IIS_WINDOWS.md`, `CLAUDE.md`): il Server Dashboard ora espone un reset password live per l'ambiente selezionato, disponibile solo quando il wizard gira come Administrator. L'azione aggiorna `UtenteLegacy`, sincronizza l'eventuale utente Django e prova anche a ripulire i tentativi Axes del username scelto.
 
 ### Changed

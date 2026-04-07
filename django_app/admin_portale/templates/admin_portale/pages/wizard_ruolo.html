@@ -62,6 +62,43 @@
   .wiz-role-btn.loading .wiz-role-spinner { display: block; }
   .wiz-role-btn.loading .wiz-role-arrow { display: none; }
 
+  /* ── Crea nuovo ruolo (inline nel step 1) ── */
+  .wiz-create-toggle {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border-bottom: 1px solid var(--border, #eee);
+    font-size: 13px; font-weight: 600; color: var(--accent, #3b82f6);
+    cursor: pointer; user-select: none; transition: background .15s;
+  }
+  .wiz-create-toggle:hover { background: var(--bg-hover, #f0f7ff); }
+  .wiz-create-toggle-icon {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: #eff6ff; border: 1.5px dashed var(--accent, #3b82f6);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 400; color: var(--accent, #3b82f6); flex-shrink: 0;
+  }
+  .wiz-create-chevron { margin-left: auto; font-size: 12px; color: var(--text-muted,#aaa); transition: transform .2s; }
+  .wiz-create-panel.open .wiz-create-chevron { transform: rotate(180deg); }
+  .wiz-create-form-wrap {
+    display: none; padding: 12px 14px 14px;
+    border-bottom: 2px solid var(--accent, #3b82f6);
+    background: #f8fbff;
+  }
+  .wiz-create-panel.open .wiz-create-form-wrap { display: block; }
+  .wiz-create-row { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+  .wiz-create-row .field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 180px; max-width: 300px; }
+  .wiz-create-row .field label { font-size: 11px; font-weight: 600; color: var(--text-mid,#666); }
+  .wiz-create-status { font-size: 12px; margin-top: 6px; }
+  .wiz-create-status.err  { color: #dc2626; }
+  .wiz-create-status.ok   { color: #16a34a; }
+
+  /* Spinner piccolo */
+  .spin-xs {
+    width:14px; height:14px; border:2px solid rgba(59,130,246,.25);
+    border-top-color:var(--accent,#3b82f6); border-radius:50%;
+    animation:spin-xs .65s linear infinite; display:none; vertical-align:middle; margin-right:4px;
+  }
+  @keyframes spin-xs { to { transform:rotate(360deg); } }
+
   /* ── Step 2: header fisso ── */
   .step2-header {
     display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
@@ -226,8 +263,32 @@
     <div class="wizard-panel active" id="panel-1">
       <div class="card">
         <div class="card-head"><div class="card-title">Seleziona il ruolo da configurare</div></div>
+
+        {# ── Crea nuovo ruolo inline ── #}
+        <div class="wiz-create-panel" id="wiz-create-panel">
+          <div class="wiz-create-toggle" id="wiz-create-toggle">
+            <div class="wiz-create-toggle-icon">+</div>
+            <span>Crea un nuovo ruolo</span>
+            <span class="wiz-create-chevron">▾</span>
+          </div>
+          <div class="wiz-create-form-wrap">
+            <div class="wiz-create-row">
+              <div class="field">
+                <label for="wiz-new-nome">Nome ruolo</label>
+                <input type="text" id="wiz-new-nome" class="input input-sm"
+                       placeholder="es. Operatore Magazzino" maxlength="100" autocomplete="off">
+              </div>
+              <button type="button" class="btn btn-sm" id="wiz-create-btn">
+                <span class="spin-xs" id="wiz-create-spin"></span>Crea e configura
+              </button>
+            </div>
+            <div class="wiz-create-status" id="wiz-create-status"></div>
+          </div>
+        </div>
+
         <div class="card-body">
-          <div class="wiz-role-list">
+          {% if ruoli %}<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-mid,#888);margin-bottom:8px;">Oppure seleziona un ruolo esistente</div>{% endif %}
+          <div class="wiz-role-list" id="wiz-role-list">
             {% for ruolo in ruoli %}
               <button type="button"
                       class="wiz-role-btn {% if ruolo_id_presel == ruolo.id|stringformat:'d' %}selected{% endif %}"
@@ -242,13 +303,14 @@
                 <div class="wiz-role-arrow">→</div>
               </button>
             {% empty %}
-              <p class="cell-muted">Nessun ruolo trovato nel database.</p>
+              <p class="cell-muted" id="wiz-no-roles-msg">Nessun ruolo trovato. Creane uno qui sopra.</p>
             {% endfor %}
           </div>
         </div>
       </div>
       <div class="wizard-actions" style="justify-content:flex-start;">
         <a href="{% url 'admin_portale:gestione_accessi' %}" class="btn btn-secondary">← Torna a Gestione Accessi</a>
+        <a href="{% url 'admin_portale:ruoli_list' %}" class="btn btn-secondary">Gestione Ruoli</a>
         <span id="wiz-status" style="font-size:12px;color:var(--text-muted,#888);"></span>
       </div>
     </div>
@@ -367,6 +429,7 @@
   const API_BULK = "{{ api_bulk_url|escapejs }}";
   const API_PERM = "{{ api_perm_ruolo_url|escapejs }}";
   const ACCESSI_URL = "{{ accessi_url|escapejs }}";
+  const API_RUOLO_CREATE = "{% url 'admin_portale:api_ruolo_create' %}";
 
   const FIELD_LABELS = { can_view: "Visibile", can_edit: "Modifica", can_delete: "Elimina", can_approve: "Approva" };
 
@@ -396,44 +459,119 @@
     el.style.color = isErr ? "#dc2626" : "#16a34a";
   }
 
-  // ── Step 1: selezione ruolo con AJAX ───────────────────────────────────────
-  document.querySelectorAll(".wiz-role-btn").forEach(function (btn) {
-    btn.addEventListener("click", async function () {
-      const ruoloId = Number(btn.dataset.ruoloId);
-      const ruoloNome = btn.dataset.ruoloNome;
+  // ── Crea nuovo ruolo inline ─────────────────────────────────────────────────
+  var createPanel = document.getElementById("wiz-create-panel");
+  var createToggle = document.getElementById("wiz-create-toggle");
+  if (createToggle) {
+    createToggle.addEventListener("click", function () {
+      createPanel.classList.toggle("open");
+      if (createPanel.classList.contains("open")) {
+        var inp = document.getElementById("wiz-new-nome");
+        if (inp) inp.focus();
+      }
+    });
+  }
 
-      // Mostra stato loading
+  document.getElementById("wiz-create-btn") && document.getElementById("wiz-create-btn").addEventListener("click", async function () {
+    var nome = (document.getElementById("wiz-new-nome").value || "").trim();
+    var statusEl = document.getElementById("wiz-create-status");
+    var spin = document.getElementById("wiz-create-spin");
+    var btn = document.getElementById("wiz-create-btn");
+    if (!nome) {
+      statusEl.textContent = "Inserisci un nome per il ruolo.";
+      statusEl.className = "wiz-create-status err";
+      return;
+    }
+    btn.disabled = true;
+    if (spin) spin.style.display = "inline-block";
+    statusEl.textContent = "Creazione in corso…";
+    statusEl.className = "wiz-create-status";
+
+    try {
+      var fd = new FormData();
+      fd.append("nome", nome);
+      fd.append("csrfmiddlewaretoken", CSRF);
+      var resp = await fetch(API_RUOLO_CREATE, { method: "POST", body: fd });
+      var data = await resp.json();
+      if (!data.ok) throw new Error(data.error || "Errore server");
+
+      // Successo: aggiunge il ruolo alla lista e lo seleziona per procedere
+      statusEl.textContent = "Ruolo «" + data.ruolo.nome + "» creato!";
+      statusEl.className = "wiz-create-status ok";
+
+      // Rimuovi messaggio "nessun ruolo" se presente
+      var noMsg = document.getElementById("wiz-no-roles-msg");
+      if (noMsg) noMsg.style.display = "none";
+
+      // Inserisci nuovo pulsante nella lista
+      var roleList = document.getElementById("wiz-role-list");
+      var newBtn = document.createElement("button");
+      newBtn.type = "button";
+      newBtn.className = "wiz-role-btn";
+      newBtn.dataset.ruoloId = data.ruolo.id;
+      newBtn.dataset.ruoloNome = data.ruolo.nome;
+      var initial = data.ruolo.nome.charAt(0).toUpperCase();
+      newBtn.innerHTML =
+        '<div class="wiz-role-icon">' + initial + '</div>' +
+        '<div><div class="wiz-role-name">' + data.ruolo.nome + '</div>' +
+        '<div class="wiz-role-id">ID: ' + data.ruolo.id + '</div></div>' +
+        '<div class="wiz-role-spinner"><span class="spinner-sm"></span></div>' +
+        '<div class="wiz-role-arrow">\u2192</div>';
+      if (roleList) roleList.appendChild(newBtn);
+
+      // Chiudi panel e reset
+      createPanel.classList.remove("open");
+      document.getElementById("wiz-new-nome").value = "";
+
+      // Trigger click sul nuovo pulsante per caricare i permessi e andare allo step 2
+      attachRoleBtnListener(newBtn);
+      newBtn.click();
+
+    } catch (err) {
+      statusEl.textContent = "Errore: " + err.message;
+      statusEl.className = "wiz-create-status err";
+      btn.disabled = false;
+      if (spin) spin.style.display = "none";
+    }
+  });
+
+  // Invio con Enter nel campo nome
+  document.getElementById("wiz-new-nome") && document.getElementById("wiz-new-nome").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); document.getElementById("wiz-create-btn") && document.getElementById("wiz-create-btn").click(); }
+  });
+
+  // ── Step 1: selezione ruolo con AJAX ───────────────────────────────────────
+  function attachRoleBtnListener(btn) {
+    btn.addEventListener("click", async function () {
+      var ruoloId = Number(btn.dataset.ruoloId);
+      var ruoloNome = btn.dataset.ruoloNome;
       document.querySelectorAll(".wiz-role-btn").forEach(function (b) { b.classList.remove("selected"); });
       btn.classList.add("selected", "loading");
       setStatus("wiz-status", "Caricamento permessi…", false);
-
       try {
-        const resp = await fetch(API_PERM + "?ruolo_id=" + ruoloId);
-        const data = await resp.json();
+        var resp = await fetch(API_PERM + "?ruolo_id=" + ruoloId);
+        var data = await resp.json();
         if (!data.ok) throw new Error(data.error || "Errore server");
-
         selectedRuoloId = ruoloId;
         selectedRuoloNome = ruoloNome;
         initialPermMap = data.perm_map;
-
         applyPermMapToToggles(initialPermMap);
         refreshAllBadges();
         updateGlobalCounter();
-
-        const nameEl = document.getElementById("wiz-ruolo-name");
+        var nameEl = document.getElementById("wiz-ruolo-name");
         if (nameEl) nameEl.textContent = ruoloNome;
-        const riepilogoName = document.getElementById("riepilogo-ruolo-name");
+        var riepilogoName = document.getElementById("riepilogo-ruolo-name");
         if (riepilogoName) riepilogoName.textContent = ruoloNome;
-
         setStatus("wiz-status", "", false);
         goStep(2);
-
       } catch (err) {
         setStatus("wiz-status", "Errore: " + err.message, true);
         btn.classList.remove("loading", "selected");
       }
     });
-  });
+  }
+
+  document.querySelectorAll(".wiz-role-btn").forEach(attachRoleBtnListener);
 
   // Pre-selezione da URL — vai subito allo step 2
   {% if ruolo_id_presel %}

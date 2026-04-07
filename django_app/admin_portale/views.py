@@ -7098,6 +7098,128 @@ def matrice_permessi(request):
 
 
 # ---------------------------------------------------------------------------
+# Gestione Ruoli (CRUD)
+# ---------------------------------------------------------------------------
+
+@legacy_admin_required
+def ruoli_list(request):
+    """Lista ruoli con conteggio utenti. POST crea un nuovo ruolo."""
+    if request.method == "POST":
+        nome = (request.POST.get("nome") or "").strip()
+        if not nome:
+            messages.error(request, "Il nome del ruolo è obbligatorio.")
+            return redirect(reverse("admin_portale:ruoli_list"))
+        try:
+            if Ruolo.objects.filter(nome__iexact=nome).exists():
+                messages.error(request, f"Esiste già un ruolo con nome «{nome}».")
+                return redirect(reverse("admin_portale:ruoli_list"))
+            ruolo = Ruolo.objects.create(nome=nome)
+            bump_legacy_cache_version()
+            log_action(request, "crea_ruolo", "admin_portale", f"Ruolo creato: {nome} (id={ruolo.id})")
+            messages.success(request, f"Ruolo «{nome}» creato con successo.")
+        except DatabaseError as exc:
+            messages.error(request, f"Errore database: {exc}")
+        return redirect(reverse("admin_portale:ruoli_list"))
+
+    ruoli = []
+    user_counts: dict[int, int] = {}
+    try:
+        ruoli = list(Ruolo.objects.all().order_by("id"))
+    except DatabaseError as exc:
+        messages.error(request, f"Errore lettura ruoli: {exc}")
+    try:
+        from django.db.models import Count as _Count
+        for row in UtenteLegacy.objects.values("ruolo_id").annotate(n=_Count("id")):
+            if row["ruolo_id"] is not None:
+                user_counts[int(row["ruolo_id"])] = row["n"]
+    except DatabaseError:
+        pass
+    for r in ruoli:
+        r.user_count = user_counts.get(int(r.id), 0)
+
+    return render(request, "admin_portale/pages/ruoli_list.html", {
+        "ruoli": ruoli,
+        "page_title": "Gestione Ruoli",
+    })
+
+
+@legacy_admin_required
+@require_POST
+def ruolo_update(request, ruolo_id: int):
+    """Aggiorna il nome di un ruolo e sincronizza la colonna stringa utenti.ruolo."""
+    try:
+        ruolo = Ruolo.objects.get(pk=ruolo_id)
+    except Ruolo.DoesNotExist:
+        messages.error(request, "Ruolo non trovato.")
+        return redirect(reverse("admin_portale:ruoli_list"))
+    nome = (request.POST.get("nome") or "").strip()
+    if not nome:
+        messages.error(request, "Il nome non può essere vuoto.")
+        return redirect(reverse("admin_portale:ruoli_list"))
+    try:
+        if Ruolo.objects.filter(nome__iexact=nome).exclude(pk=ruolo_id).exists():
+            messages.error(request, f"Esiste già un ruolo con nome «{nome}».")
+            return redirect(reverse("admin_portale:ruoli_list"))
+        old_nome = ruolo.nome
+        ruolo.nome = nome
+        ruolo.save(update_fields=["nome"])
+        UtenteLegacy.objects.filter(ruolo_id=ruolo_id).update(ruolo=nome)
+        bump_legacy_cache_version()
+        log_action(request, "modifica_ruolo", "admin_portale", f"Ruolo {ruolo_id}: '{old_nome}' → '{nome}'")
+        messages.success(request, f"Ruolo aggiornato: «{nome}».")
+    except DatabaseError as exc:
+        messages.error(request, f"Errore database: {exc}")
+    return redirect(reverse("admin_portale:ruoli_list"))
+
+
+@legacy_admin_required
+@require_POST
+def ruolo_delete(request, ruolo_id: int):
+    """Elimina ruolo solo se non ha utenti assegnati. Rimuove anche i permessi collegati."""
+    try:
+        ruolo = Ruolo.objects.get(pk=ruolo_id)
+    except Ruolo.DoesNotExist:
+        messages.error(request, "Ruolo non trovato.")
+        return redirect(reverse("admin_portale:ruoli_list"))
+    try:
+        user_count = UtenteLegacy.objects.filter(ruolo_id=ruolo_id).count()
+        if user_count > 0:
+            messages.error(
+                request,
+                f"Impossibile eliminare «{ruolo.nome}»: {user_count} utent{'e' if user_count == 1 else 'i'} "
+                f"{'è assegnato' if user_count == 1 else 'sono assegnati'} a questo ruolo.",
+            )
+            return redirect(reverse("admin_portale:ruoli_list"))
+        nome = ruolo.nome
+        Permesso.objects.filter(ruolo_id=ruolo_id).delete()
+        ruolo.delete()
+        bump_legacy_cache_version()
+        log_action(request, "elimina_ruolo", "admin_portale", f"Ruolo eliminato: {nome} (id={ruolo_id})")
+        messages.success(request, f"Ruolo «{nome}» eliminato.")
+    except DatabaseError as exc:
+        messages.error(request, f"Errore database: {exc}")
+    return redirect(reverse("admin_portale:ruoli_list"))
+
+
+@legacy_admin_required
+@require_POST
+def api_ruolo_create(request):
+    """API JSON — crea un nuovo ruolo (usato dal wizard inline)."""
+    nome = (request.POST.get("nome") or "").strip()
+    if not nome:
+        return JsonResponse({"ok": False, "error": "Nome obbligatorio."}, status=400)
+    try:
+        if Ruolo.objects.filter(nome__iexact=nome).exists():
+            return JsonResponse({"ok": False, "error": f"Esiste già un ruolo con nome «{nome}»."}, status=400)
+        ruolo = Ruolo.objects.create(nome=nome)
+        bump_legacy_cache_version()
+        log_action(request, "crea_ruolo", "admin_portale", f"Ruolo creato via wizard: {nome} (id={ruolo.id})")
+        return JsonResponse({"ok": True, "ruolo": {"id": ruolo.id, "nome": ruolo.nome}})
+    except DatabaseError as exc:
+        return JsonResponse({"ok": False, "error": str(exc)}, status=500)
+
+
+# ---------------------------------------------------------------------------
 # Wizard Configura Ruolo
 # ---------------------------------------------------------------------------
 

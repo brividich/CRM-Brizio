@@ -1,0 +1,227 @@
+{% extends "core/base.html" %}
+
+{% block title %}Gestione Ruoli | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ── Tabella ruoli ── */
+  .ruoli-table-wrap { width: 100%; overflow: auto; border: 1px solid var(--border, #dde1ec); border-radius: 10px; }
+  .ruoli-table { width: 100%; border-collapse: collapse; background: var(--surface, #fff); }
+  .ruoli-table thead th {
+    position: sticky; top: 0; background: #f8fafc;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--text-mid, #4a5568); padding: 10px 14px;
+    border-bottom: 2px solid var(--border, #dde1ec); white-space: nowrap; text-align: left;
+  }
+  .ruoli-table tbody td { padding: 11px 14px; border-bottom: 1px solid var(--border, #eee); vertical-align: middle; font-size: 13px; }
+  .ruoli-table tbody tr:last-child td { border-bottom: none; }
+  .ruoli-table tbody tr:hover td { background: #f9faff; }
+
+  /* ── Inline edit ── */
+  .edit-form-wrap { display: none; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .edit-form-wrap.open { display: flex; }
+  .name-display { display: flex; align-items: center; gap: 10px; }
+  .name-display.hidden { display: none; }
+
+  /* ── Badge utenti ── */
+  .badge-count {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 22px; height: 22px; padding: 0 7px;
+    border-radius: 999px; font-size: 11px; font-weight: 700;
+    background: #e0f2fe; color: #0369a1;
+  }
+  .badge-count.zero { background: #f1f5f9; color: #94a3b8; }
+
+  /* ── Ruolo-icon avatar ── */
+  .role-avatar {
+    width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
+    background: var(--accent-light, #eff6ff); color: var(--accent, #3b82f6);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 14px;
+  }
+
+  /* ── Form crea ── */
+  .create-card-body { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; padding: 14px; }
+  .create-card-body .field { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 180px; max-width: 340px; }
+  .create-card-body .field label { font-size: 12px; font-weight: 600; color: var(--text-mid, #4a5568); }
+
+  /* ── Spinner piccolo ── */
+  .spinner-xs {
+    width: 14px; height: 14px; border: 2px solid rgba(59,130,246,.25);
+    border-top-color: var(--accent, #3b82f6); border-radius: 50%;
+    animation: spin-xs .65s linear infinite; display: none;
+  }
+  @keyframes spin-xs { to { transform: rotate(360deg); } }
+  .saving .spinner-xs { display: inline-block; }
+
+  /* ── Confirm delete overlay ── */
+  .delete-confirm-wrap { display: none; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .delete-confirm-wrap.open { display: flex; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Gestione Ruoli" page_subtitle="Crea, rinomina o elimina i ruoli legacy. Un ruolo con utenti assegnati non può essere eliminato." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  {# ── Crea nuovo ruolo ── #}
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-head">
+      <div class="card-title">Crea nuovo ruolo</div>
+    </div>
+    <form method="post" action="{% url 'admin_portale:ruoli_list' %}" autocomplete="off">
+      {% csrf_token %}
+      <div class="create-card-body">
+        <div class="field">
+          <label for="id_nome_new">Nome ruolo</label>
+          <input type="text" id="id_nome_new" name="nome" class="input" placeholder="es. Operatore Magazzino" maxlength="100" required>
+        </div>
+        <button type="submit" class="btn" style="white-space:nowrap;">+ Crea ruolo</button>
+      </div>
+    </form>
+  </div>
+
+  {# ── Lista ruoli ── #}
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Ruoli esistenti</div>
+      <span style="font-size:12px;color:var(--text-mid,#666);">{{ ruoli|length }} ruol{{ ruoli|length|pluralize:"o,i" }}</span>
+    </div>
+    <div class="card-body" style="padding:0;">
+      {% if ruoli %}
+        <div class="ruoli-table-wrap">
+          <table class="ruoli-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Nome</th>
+                <th>Utenti assegnati</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ruolo in ruoli %}
+              <tr id="row-ruolo-{{ ruolo.id }}">
+                <td style="color:var(--text-mid,#888);font-family:monospace;font-size:12px;width:50px;">#{{ ruolo.id }}</td>
+                <td>
+                  {# Visualizzazione nome #}
+                  <div class="name-display" id="name-disp-{{ ruolo.id }}">
+                    <div class="role-avatar">{{ ruolo.nome|slice:":1"|upper }}</div>
+                    <span style="font-weight:600;">{{ ruolo.nome }}</span>
+                  </div>
+                  {# Form modifica inline #}
+                  <div class="edit-form-wrap" id="edit-form-{{ ruolo.id }}">
+                    <form method="post" action="{% url 'admin_portale:ruolo_update' ruolo.id %}"
+                          style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"
+                          id="update-form-{{ ruolo.id }}">
+                      {% csrf_token %}
+                      <input type="text" name="nome" class="input input-sm"
+                             value="{{ ruolo.nome }}" maxlength="100" required
+                             style="width:220px;" id="edit-input-{{ ruolo.id }}">
+                      <button type="submit" class="btn btn-sm">Salva</button>
+                      <button type="button" class="btn btn-sm btn-secondary"
+                              onclick="closeEdit({{ ruolo.id }})">Annulla</button>
+                    </form>
+                  </div>
+                </td>
+                <td>
+                  <span class="badge-count {% if ruolo.user_count == 0 %}zero{% endif %}">
+                    {{ ruolo.user_count }}
+                  </span>
+                  {% if ruolo.user_count > 0 %}
+                    <a href="{% url 'admin_portale:utenti_list' %}?ruolo_id={{ ruolo.id }}"
+                       style="font-size:11px;color:var(--accent,#3b82f6);margin-left:6px;">
+                      vedi utenti →
+                    </a>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="admin-inline-actions">
+                    {# Azioni default #}
+                    <div id="actions-{{ ruolo.id }}" style="display:flex;align-items:center;gap:6px;">
+                      <button type="button" class="btn btn-sm btn-secondary"
+                              onclick="openEdit({{ ruolo.id }}, '{{ ruolo.nome|escapejs }}')">
+                        Rinomina
+                      </button>
+                      <a href="{% url 'admin_portale:wizard_ruolo' %}?ruolo_id={{ ruolo.id }}"
+                         class="btn btn-sm btn-secondary" title="Configura permessi per questo ruolo">
+                        Configura permessi
+                      </a>
+                      {% if ruolo.user_count == 0 %}
+                        <button type="button" class="btn btn-sm btn-danger"
+                                onclick="openDelete({{ ruolo.id }}, '{{ ruolo.nome|escapejs }}')">
+                          Elimina
+                        </button>
+                      {% else %}
+                        <button type="button" class="btn btn-sm btn-secondary"
+                                disabled title="Rimuovi prima gli utenti da questo ruolo" style="opacity:.45;cursor:default;">
+                          Elimina
+                        </button>
+                      {% endif %}
+                    </div>
+                    {# Conferma eliminazione #}
+                    <div class="delete-confirm-wrap" id="del-confirm-{{ ruolo.id }}">
+                      <span style="font-size:12px;color:#dc2626;font-weight:600;">
+                        Elimina «{{ ruolo.nome }}»?
+                      </span>
+                      <form method="post" action="{% url 'admin_portale:ruolo_delete' ruolo.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-danger">Conferma</button>
+                      </form>
+                      <button type="button" class="btn btn-sm btn-secondary"
+                              onclick="closeDelete({{ ruolo.id }})">Annulla</button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div style="padding:24px;text-align:center;color:var(--text-mid,#888);font-size:13px;">
+          Nessun ruolo trovato. Creane uno usando il form sopra.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div style="margin-top:14px;">
+    <a href="{% url 'admin_portale:wizard_ruolo' %}" class="btn btn-secondary btn-sm">→ Wizard Configura Permessi</a>
+    <a href="{% url 'admin_portale:gestione_accessi' %}" class="btn btn-secondary btn-sm" style="margin-left:8px;">→ Gestione Accessi</a>
+  </div>
+
+<script>
+(function () {
+  function openEdit(id, nome) {
+    document.getElementById("name-disp-" + id).classList.add("hidden");
+    document.getElementById("edit-form-" + id).classList.add("open");
+    document.getElementById("actions-" + id).style.display = "none";
+    var inp = document.getElementById("edit-input-" + id);
+    if (inp) { inp.focus(); inp.select(); }
+  }
+  function closeEdit(id) {
+    document.getElementById("name-disp-" + id).classList.remove("hidden");
+    document.getElementById("edit-form-" + id).classList.remove("open");
+    document.getElementById("actions-" + id).style.display = "flex";
+  }
+  function openDelete(id, nome) {
+    document.getElementById("actions-" + id).style.display = "none";
+    document.getElementById("del-confirm-" + id).classList.add("open");
+  }
+  function closeDelete(id) {
+    document.getElementById("del-confirm-" + id).classList.remove("open");
+    document.getElementById("actions-" + id).style.display = "flex";
+  }
+  // Expose globally for onclick attributes
+  window.openEdit   = openEdit;
+  window.closeEdit  = closeEdit;
+  window.openDelete = openDelete;
+  window.closeDelete = closeDelete;
+})();
+</script>
+{% endblock %}

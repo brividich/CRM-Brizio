@@ -3900,6 +3900,27 @@ class ReleaseRunPage(Page):
             except: pass
         self._log.after(800, self._on_done)
 
+    def _pip_install_with_retry(self, venv_py, req_file):
+        """pip install con retry (speculare a InstallPage). Adatta pyodbc pin per Python 3.14+."""
+        try:
+            content = req_file.read_text(encoding="utf-8")
+            if "pyodbc==5.2.0" in content:
+                self._log_line("  → Adattamento pyodbc==5.2.0 → pyodbc>=5.2.0 (Python 3.14 compat)", "dim")
+                content = content.replace("pyodbc==5.2.0", "pyodbc>=5.2.0")
+                req_file.write_text(content, encoding="utf-8")
+        except Exception as e:
+            self._log_line(f"  ⚠ Errore durante la modifica requirements.txt: {e}", "warn")
+        ok = self._cmd([str(venv_py), "-m", "pip", "install", "-r", str(req_file)])
+        if ok:
+            return True
+        self._log_line("  ⚠ Tentando con --only-binary :all: (solo wheel precompilate)...", "warn")
+        ok = self._cmd([str(venv_py), "-m", "pip", "install", "-r", str(req_file), "--only-binary", ":all:"])
+        if ok:
+            return True
+        self._log_line("  ⚠ Su Windows con Python 3.12+, pyodbc richiede Microsoft Visual C++ 14.0 Build Tools:", "warn")
+        self._log_line("    https://visualstudio.microsoft.com/visual-cpp-build-tools/", "warn")
+        return False
+
     # ── Promuovi Release ─────────────────────────────────────
 
     def _run_promote(self):
