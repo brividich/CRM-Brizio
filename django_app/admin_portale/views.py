@@ -99,13 +99,13 @@ NAV_ICON_ALLOWED_EXTENSIONS = {".ico", ".png", ".svg", ".jpg", ".jpeg", ".gif", 
 MODULE_CATALOG: dict[str, dict] = {
     "dashboard": {
         "label": "Dashboard",
-        "icon": "dashboard",
+        "icon": "layout-dashboard",
         "buttons": [
             {
                 "codice": "view_dashboard",
                 "nome_visibile": "Dashboard",
                 "url": "route:dashboard_home",
-                "icona": "dashboard",
+                "icona": "layout-dashboard",
                 "ui_slot": "topbar",
                 "ui_section": "toolbar",
                 "visible_topbar": True,
@@ -161,13 +161,13 @@ MODULE_CATALOG: dict[str, dict] = {
     },
     "anomalie": {
         "label": "Gestione Anomalie",
-        "icon": "alert",
+        "icon": "octagon-alert",
         "buttons": [
             {
                 "codice": "gestione_anomalie",
                 "nome_visibile": "Anomalie",
                 "url": "route:gestione_anomalie_page",
-                "icona": "alert",
+                "icona": "octagon-alert",
                 "ui_slot": "topbar",
                 "ui_section": "gestione_anomalie",
                 "visible_topbar": True,
@@ -187,13 +187,13 @@ MODULE_CATALOG: dict[str, dict] = {
     },
     "notizie": {
         "label": "Notizie",
-        "icon": "list",
+        "icon": "newspaper",
         "buttons": [
             {
                 "codice": "view_notizie",
                 "nome_visibile": "Notizie",
                 "url": "route:notizie_lista",
-                "icona": "list",
+                "icona": "newspaper",
                 "ui_slot": "topbar",
                 "ui_section": "notizie",
                 "visible_topbar": True,
@@ -213,13 +213,13 @@ MODULE_CATALOG: dict[str, dict] = {
     },
     "assets": {
         "label": "Assets",
-        "icon": "box",
+        "icon": "package",
         "buttons": [
             {
                 "codice": "view_assets",
                 "nome_visibile": "Inventario Asset",
                 "url": "/assets/",
-                "icona": "box",
+                "icona": "package",
                 "ui_slot": "topbar",
                 "ui_section": "assets",
                 "visible_topbar": True,
@@ -239,13 +239,13 @@ MODULE_CATALOG: dict[str, dict] = {
     },
     "tasks": {
         "label": "Tasks",
-        "icon": "check",
+        "icon": "list-todo",
         "buttons": [
             {
                 "codice": "view_tasks",
                 "nome_visibile": "Task",
                 "url": "/tasks/",
-                "icona": "check",
+                "icona": "list-todo",
                 "ui_slot": "topbar",
                 "ui_section": "tasks",
                 "visible_topbar": True,
@@ -307,13 +307,13 @@ MODULE_CATALOG: dict[str, dict] = {
     },
     "anagrafica": {
         "label": "Anagrafica",
-        "icon": "users",
+        "icon": "id-card",
         "buttons": [
             {
                 "codice": "view_anagrafica_dipendenti",
                 "nome_visibile": "Dipendenti",
                 "url": "route:anagrafica:dipendenti_list",
-                "icona": "users",
+                "icona": "id-card",
                 "ui_slot": "topbar",
                 "ui_section": "anagrafica",
                 "visible_topbar": True,
@@ -333,13 +333,13 @@ MODULE_CATALOG: dict[str, dict] = {
     },
     "timbri": {
         "label": "Timbrature",
-        "icon": "clock",
+        "icon": "scan",
         "buttons": [
             {
                 "codice": "view_timbri",
                 "nome_visibile": "Timbrature",
                 "url": "route:timbri:index",
-                "icona": "clock",
+                "icona": "scan",
                 "ui_slot": "topbar",
                 "ui_section": "timbri",
                 "visible_topbar": True,
@@ -391,13 +391,13 @@ MODULE_CATALOG: dict[str, dict] = {
     },
     "diario_preposto": {
         "label": "Diario Preposto",
-        "icon": "book",
+        "icon": "clipboard-list",
         "buttons": [
             {
                 "codice": "view_diario_preposto",
                 "nome_visibile": "Diario Preposto",
                 "url": "route:diario_preposto:lista",
-                "icona": "book",
+                "icona": "clipboard-list",
                 "ui_slot": "topbar",
                 "ui_section": "diario_preposto",
                 "visible_topbar": True,
@@ -423,13 +423,13 @@ MODULE_CATALOG: dict[str, dict] = {
     },
     "dpi": {
         "label": "DPI",
-        "icon": "shield",
+        "icon": "shield-check",
         "buttons": [
             {
                 "codice": "view_dpi",
                 "nome_visibile": "DPI",
                 "url": "route:dpi:dashboard",
-                "icona": "shield",
+                "icona": "shield-check",
                 "ui_slot": "topbar",
                 "ui_section": "dpi",
                 "visible_topbar": True,
@@ -449,13 +449,13 @@ MODULE_CATALOG: dict[str, dict] = {
     },
     "procedure_refresh": {
         "label": "Procedure",
-        "icon": "file-text",
+        "icon": "file-check",
         "buttons": [
             {
                 "codice": "view_procedure_refresh",
                 "nome_visibile": "Le mie procedure",
                 "url": "route:procedure_refresh:my_assignments",
-                "icona": "file-text",
+                "icona": "file-check",
                 "ui_slot": "topbar",
                 "ui_section": "procedure_refresh",
                 "visible_topbar": True,
@@ -4930,14 +4930,35 @@ def pulsanti(request):
     default_icon_options = [
         "home",
         "dashboard",
+        "layout-dashboard",
         "calendar",
+        "calendar-x",
         "user",
         "users",
+        "id-card",
         "shield",
+        "shield-check",
         "lock",
         "settings",
         "list",
+        "list-todo",
         "alert",
+        "triangle-alert",
+        "octagon-alert",
+        "newspaper",
+        "scan",
+        "package",
+        "ticket",
+        "clipboard-list",
+        "file-check",
+        "file-text",
+        "briefcase",
+        "clock",
+        "recycle",
+        "workflow",
+        "wrench",
+        "siren",
+        "key-round",
         "ACL",
         "LDAP",
         "N",
@@ -6363,8 +6384,11 @@ def _wizard_context() -> dict:
         "admin", "admin_utenti", "admin_permessi", "admin_pulsanti", "admin_automazioni",
     ]
     default_icon_options = [
-        "home", "dashboard", "calendar", "user", "users",
-        "shield", "lock", "settings", "list", "alert",
+        "home", "dashboard", "layout-dashboard", "calendar", "calendar-x", "user", "users",
+        "id-card", "shield", "shield-check", "lock", "settings", "list", "list-todo",
+        "alert", "triangle-alert", "octagon-alert", "newspaper", "scan", "package",
+        "ticket", "clipboard-list", "file-check", "file-text", "briefcase", "clock",
+        "recycle", "workflow", "wrench", "siren", "key-round",
     ]
 
     return {

@@ -1,9 +1,79 @@
-# Changelog — Portale Novicrom / BoluHUB
+# Changelog - Portale Novicrom / BoluHUB
 
 Tutte le modifiche rilevanti al progetto sono documentate qui.
+Baseline documentale corrente: **NOVICROM HUB**.
 Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ---
+
+## 0.9.3 - 2026-04-03
+
+### Fixed
+- **[DEPLOY][IIS] `waitress` resa dipendenza runtime esplicita** (`django_app/requirements.txt`, `README.md`, `CLAUDE.md`, `CHANGELOG.md`): i deploy IIS avviano il portale con `python -m waitress ...`; su venv creati da zero la dipendenza non era garantita dal requirements principale e l'App Pool poteva terminare subito con `503 Service Unavailable`. `waitress` e ora dichiarata esplicitamente nel set di dipendenze del progetto.
+- **[DEPLOY][CONFIG] `config.ini` copiato anche nella root del release** (`deployment/scripts/deploy-release.ps1`, `README.md`, `CLAUDE.md`, `CHANGELOG.md`): il runtime Django legge `config.ini` da `current\config.ini` (`PROJECT_DIR.parent`), quindi il deploy manuale ora lo copia sia in `django_app\config.ini` sia nella root del release per evitare bootstrap parziali su ambienti nuovi.
+- **[DEPLOY][SQL SERVER] `DB_DRIVER` ora viene allineato al driver realmente installato** (`deployment/setup_wizard.py`, `deployment/scripts/deploy-release.ps1`, `README.md`, `deployment/README_DEPLOY_IIS_WINDOWS.md`, `CLAUDE.md`, `django_app/.env.example`): il setup e il deploy non assumono piu `ODBC Driver 18 for SQL Server` a scatola chiusa. Il wizard persiste `DB_DRIVER` nel `.env`, il deploy lo corregge se manca o non e compatibile con il server applicativo, e la DatabasePage mostra il driver effettivamente selezionato.
+- **[DEPLOY][STATIC] Verifica reale degli asset dopo `collectstatic`** (`deployment/setup_wizard.py`, `deployment/scripts/deploy-release.ps1`, `README.md`, `deployment/README_DEPLOY_IIS_WINDOWS.md`, `CLAUDE.md`): i flussi supportati controllano la presenza di `static\core\css\theme.css` e `static\monitoring\css\monitoring.css` prima di attivare o riciclare la release, evitando login page “senza grafica” nonostante `collectstatic` abbia restituito exit code 0.
+- **[ASSENZE][DEPLOY] `allinea_tipo_assenza_flessibilita` non blocca piu i database fresh** (`django_app/assenze/management/commands/allinea_tipo_assenza_flessibilita.py`, `README.md`, `CLAUDE.md`): se la tabella legacy `assenze` non esiste, il comando termina in no-op con warning esplicito invece di alzare eccezione e interrompere setup/installazione.
+
+### Added
+- **[WIZARD][SERVER DASHBOARD] Reset password live admin-only** (`deployment/setup_wizard.py`, `README.md`, `deployment/README_DEPLOY_IIS_WINDOWS.md`, `CLAUDE.md`): il Server Dashboard ora espone un reset password live per l'ambiente selezionato, disponibile solo quando il wizard gira come Administrator. L'azione aggiorna `UtenteLegacy`, sincronizza l'eventuale utente Django e prova anche a ripulire i tentativi Axes del username scelto.
+
+### Changed
+- **[UX][SIDEBAR] Sottomenu aperti piu riconoscibili** (`django_app/core/static/core/css/theme.css`): il gruppo aperto nella sidebar ora usa un trattamento piu chiaramente annidato rispetto al menu principale, con pulsante sezione evidenziato, pannello interno dedicato, rientro visivo, fondo leggermente differenziato e stato attivo del sottomenu piu leggibile.
+- **[DEPLOY][WIZARD] Bundle SetupWizard sanificato e runtime Tk esplicito** (`deployment/SetupWizard.spec`, `deployment/pyinstaller_hooks/pre_find_module_path/hook-tkinter.py`, `deployment/pyinstaller_hooks/rthook_tkinter.py`, `deployment/setup_wizard.py`): il build PyInstaller ora include esplicitamente `_tcl_data` e `_tk_data`, forza la discovery di `tkinter` anche su installazioni Python locali non perfette e bundla una copia filtrata di `django_app/` senza `.env`, `.venv`, `.tmp_tests`, database SQLite, cache, log, media e altri artefatti locali. Ridotti sia il rischio di leakage dei segreti sia il peso dell'exe.
+- **[DEPLOY][WIZARD] Autodiscovery Python 3.11+ e stop sicuro su errori critici** (`deployment/setup_wizard.py`, `deployment/scripts/setup-environment.ps1`, `README.md`, `deployment/README_DEPLOY_IIS_WINDOWS.md`, `CLAUDE.md`): il wizard e lo script di setup non dipendono piu dal path fisso `C:\Python311\python.exe`, ma cercano un runtime valido tramite `py`, percorsi standard, registry Windows e `PATH`. Se venv, pip, `collectstatic` o `migrate` falliscono, il deploy non segnala falsi positivi e non attiva piu una release incompleta sotto IIS.
+
+### Docs
+- **[DOCS][VERSIONING] Sidebar annidata allineata alla release 0.9.3** (`README.md`, `CLAUDE.md`, `CHANGELOG.md`, `doc/README.md`, `doc/START_HERE.md`, `doc/TESTING.md`, `doc/ARCHITETTURA_TARGET_E_DISMISSIONE_LEGACY.md`, `doc/STRUTTURA_ATTUALE_PORTALE.md`, `deployment/README_DEPLOY_IIS_WINDOWS.md`, `tools/MANUALE_ADMIN_NAVIGAZIONE_PERMESSI.md`, `VERSION`, `django_app/VERSION`, `django_app/.env`, `django_app/.env.example`, `django_app/config/app_version.py`, `deployment/setup_wizard.py`): bump versione e aggiornamento della documentazione e dei fallback di versione per includere il nuovo trattamento visivo dei sottomenu aperti senza drift tra package, wizard e repository.
+
+## 0.9.2 - 2026-04-03
+
+### Changed
+- **[UX][NAVIGATION] Icone modulo piu leggibili nella sidebar/topbar** (`django_app/core/icon_utils.py`, `django_app/core/templatetags/ui_icons.py`, `django_app/core/static/core/css/theme.css`, `django_app/admin_portale/views.py`, `django_app/core/migrations/0039_navigation_semantic_icon_defaults.py`, `django_app/admin_portale/templates/admin_portale/components/admin_subnav.html`, `django_app/admin_portale/templates/admin_portale/pages/acl_canonico.html`, `django_app/admin_portale/templates/admin_portale/pages/navigation_builder.html`, `django_app/hub_tools/templates/hub_tools/categorie.html`, `django_app/core/tests.py`): introdotto un renderer SVG per alias semantici di navigazione e una mappa dedicata per i moduli principali (`Notizie`, `Timbri`, `Anagrafica`, `Ticket`, `Assets`, `DPI`, `RENTRI`, `Diario Preposto`, `Presa Visione`, `Task`, `Accessi azienda`, categorie `HR`/`Manutenzione`/`Sicurezza`). Le iniziali placeholder ora vengono promosse automaticamente a icone piu rappresentative quando la label e riconosciuta, mantenendo compatibilita con immagini custom ed emoji.
+
+### Docs
+- **[DOCS][VERSIONING] Sistema icone navigazione allineato alla release 0.9.2** (`README.md`, `CLAUDE.md`, `CHANGELOG.md`, `VERSION`, `django_app/VERSION`, `django_app/.env`, `django_app/.env.example`): bump versione e aggiornamento della documentazione per esplicitare il supporto a icone SVG semantiche nella navigazione.
+
+## 0.9.1 - 2026-04-03
+
+### Changed
+- **[DASHBOARD][HOME] Il workspace KPI diventa la dashboard principale** (`dashboard/views.py`, `dashboard/templates/dashboard/components/subnav.html`, `dashboard/templates/dashboard/pages/employee_board.html`, `dashboard/templates/dashboard/pages/employee_board_pdf.html`, `core/templates/core/pages/profilo.html`, `dashboard/tests.py`, `README.md`, `CLAUDE.md`): la UI KPI/personalizzabile ora vive direttamente su `/dashboard`; la route `scheda-dipendente` resta solo come alias compatibile verso la dashboard principale. Aggiornati naming, CTA e subnav per rimuovere la percezione di una seconda pagina separata.
+
+### Docs
+- **[DOCS][VERSIONING] Dashboard principale convergente** (`README.md`, `CLAUDE.md`, `CHANGELOG.md`, `doc/README.md`, `doc/STRUTTURA_ATTUALE_PORTALE.md`, `tools/MANUALE_ADMIN_NAVIGAZIONE_PERMESSI.md`, `deployment/README_DEPLOY_IIS_WINDOWS.md`, `VERSION`, `django_app/VERSION`, `django_app/config/app_version.py`, `django_app/.env.example`): bump versione a `0.9.1` e riallineamento documentale per chiarire che il workspace personale non e piu una scheda separata ma la dashboard utente primaria.
+- **[TESTING][SETTINGS] Profilo locale test dedicato e documentazione coerente** (`manage.py`, `django_app/manage.py`, `config/settings/test.py`, `core/test_managepy_defaults.py`, `README.md`, `CLAUDE.md`, `doc/TESTING.md`, `deployment/README_DEPLOY_IIS_WINDOWS.md`, `tools/release_guard.ps1`): introdotto `config.settings.test` per la suite automatica locale/CI con SQLite forzato, cache/email locali e selezione automatica su `python manage.py test`. Allineata la documentazione per distinguere il profilo locale `config.settings.test` dall'ambiente IIS `test`, che continua a usare `config.settings.prod`.
+
+## 0.9.0 - 2026-04-03
+
+### Added
+- **[DASHBOARD][EMPLOYEE BOARD] Template iniziale admin + nuovi KPI multi-modulo** (`core/models.py`, `core/migrations/0038_employeeboardtemplate.py`, `dashboard/views.py`, `dashboard/urls.py`, `dashboard/templates/dashboard/pages/employee_board.html`, `dashboard/templates/dashboard/pages/employee_board_pdf.html`, `dashboard/tests.py`): introdotto `EmployeeBoardTemplate` come base globale della `scheda-dipendente`, salvabile dagli admin dalla UI stessa. Aggiunti widget nuovi per `Panoramica KPI`, `Ticket Personali`, `Asset in Dotazione` e `Procedure da Leggere`, con dati provenienti dai rispettivi moduli e rendering sia web sia PDF.
+- **[TOOLING][RELEASE] Guard eseguibile pre-package** (`tools/release_guard.ps1`, `deployment/scripts/package-release.ps1`, `deployment/README_DEPLOY_IIS_WINDOWS.md`, `django_app/config/app_version.py`, `deployment/setup_wizard.py`, `django_app/VERSION`): introdotto un controllo reale che valida documentazione canonica, sync versione, freshness del wizard e `bootstrap_acl_v2 --dry-run` prima della creazione dello zip; `package-release.ps1` esegue ora il guard in automatico ed esclude anche le workspace temporanee `.tmp_py` e `.tmp_tests`.
+
+### Changed
+- **[DASHBOARD][EMPLOYEE BOARD] Personalizzazione coerente utente/template** (`dashboard/views.py`, `dashboard/templates/dashboard/pages/employee_board.html`, `dashboard/tests.py`): la `scheda-dipendente` usa ora il template admin come stato iniziale per gli utenti senza personalizzazioni, espone un endpoint dedicato per il ripristino del template e rende effettiva la rimozione dei widget dal layout personale invece di riaggiungerli implicitamente.
+- **[UX][DASHBOARD] Scheda dipendente come workspace personale** (`dashboard/templates/dashboard/pages/employee_board.html`, `README.md`, `CLAUDE.md`): aggiornati header, messaggi di stato e flusso di editing per rendere la board piu leggibile, con distinzione esplicita tra layout personale e template iniziale.
+
+### Docs
+- **[DOCS][VERSIONING] Scheda dipendente personalizzabile e template admin** (`README.md`, `CLAUDE.md`, `doc/README.md`, `doc/STRUTTURA_ATTUALE_PORTALE.md`, `tools/MANUALE_ADMIN_NAVIGAZIONE_PERMESSI.md`, `deployment/README_DEPLOY_IIS_WINDOWS.md`, `VERSION`, `django_app/VERSION`, `django_app/config/app_version.py`, `django_app/.env.example`): documentazione e metadata di versione aggiornati a `0.9.0` con esplicitazione della nuova governance della `scheda-dipendente`.
+- **[DOCS][GOVERNANCE] Baseline canonica e percorsi per persona** (`README.md`, `CLAUDE.md`, `doc/README.md`, `doc/START_HERE.md`, `doc/TESTING.md`, `doc/ARCHITETTURA_TARGET_E_DISMISSIONE_LEGACY.md`, `doc/STRUTTURA_ATTUALE_PORTALE.md`, `deployment/README_DEPLOY_IIS_WINDOWS.md`, `tools/MANUALE_ADMIN_NAVIGAZIONE_PERMESSI.md`): allineati naming, versioni e fonti autorevoli alla baseline documentale `NOVICROM HUB`, con landing page per sviluppatore, admin funzionale, deployer e tester/UAT.
+
+## 0.8.9 - 2026-04-03
+
+### Fixed
+- **[ASSENZE][SQL SERVER] `Infortunio` rimosso dal runtime di scrittura** (`assenze/views.py`, `assenze/tests.py`, `README.md`, `CLAUDE.md`): eliminato il fallback che degradava `Flessibilità` a `Infortunio` durante insert/update e `sync/pull`. Il valore applicativo e persistito torna a essere solo `Flessibilità`; i database legacy vanno riallineati con il comando dedicato `allinea_tipo_assenza_flessibilita`.
+- **[DEPLOY][TEST][SQL SERVER] Riallineamento assenze automatizzato nei flussi supportati** (`deployment/setup_wizard.py`, `deployment/scripts/deploy-release.ps1`, `deployment/README_DEPLOY_IIS_WINDOWS.md`, `README.md`, `CLAUDE.md`): i deploy SQL Server eseguono automaticamente `allinea_tipo_assenza_flessibilita` subito dopo `migrate`, e `deploy-release.ps1` usa esplicitamente `config.settings.prod` anche per l'ambiente `test`, coerentemente con il repository reale.
+
+### Changed
+- **[ASSENZE][DASHBOARD] Confine modulo ripulito** (`dashboard/views.py`, `dashboard/urls.py`, `dashboard/templates/dashboard/components/subnav.html`, `dashboard/templates/dashboard/pages/dashboard.html`, `core/views.py`, `dashboard/acl_bootstrap.py`): la route compatibile `/richieste` non renderizza piu una pagina dashboard dedicata ma reindirizza a `assenze_gestione`; la subnav dashboard smette di esporre voci assenze e torna focalizzata su panoramica/feature dashboard; i CTA del widget recenti puntano direttamente al modulo `assenze`.
+- **[ASSENZE][LEGACY] Alias instradati al modulo vero** (`core/views.py`, `core/templates/core/pages/dashboard.html`, `core/tests.py`, `dashboard/tests.py`): `coming_assenze` e i link legacy continuano a funzionare come compatibilita, ma l'ingresso effettivo resta il modulo `/assenze/`. Aggiunti test dedicati sui route bridge.
+
+### Docs
+- **[DOCS][VERSIONING] Dashboard come KPI, assenze come modulo unificato** (`README.md`, `CLAUDE.md`, `VERSION`, `django_app/.env.example`): aggiornata la documentazione operativa per chiarire che la dashboard e un cruscotto KPI cross-modulo e che workflow richieste/calendario vivono nel modulo `assenze`; bump versione a `0.8.9`.
+- **[DOCS][GOVERNANCE] Entry point canonici per persona** (`doc/START_HERE.md`, `doc/TESTING.md`, `doc/ARCHITETTURA_TARGET_E_DISMISSIONE_LEGACY.md`, `doc/README.md`, `doc/STRUTTURA_ATTUALE_PORTALE.md`, `README.md`, `tools/MANUALE_ADMIN_NAVIGAZIONE_PERMESSI.md`, `deployment/README_DEPLOY_IIS_WINDOWS.md`): introdotte landing page e guide canoniche per sviluppatore, admin funzionale, deployer e tester/UAT, con allineamento esplicito a `VERSION`, ai settings reali del repo e al piano di uscita dal fallback legacy.
+- **[DOCS][BRANDING] Baseline documentale NOVICROM HUB** (`README.md`, `CHANGELOG.md`, `CLAUDE.md`, `django_app/.env.example`, `django_app/config/settings/base.py`): eliminati i riferimenti canonici a `BoluHUB` e `BrizioHUB` nei documenti principali; i nomi storici restano solo come esempi di installazione o path tecnici.
+
+### Added
+- **[TOOLING][RELEASE] Guard eseguibile pre-package** (`tools/release_guard.ps1`, `deployment/scripts/package-release.ps1`, `django_app/config/app_version.py`, `deployment/setup_wizard.py`, `django_app/VERSION`): nuovo controllo che blocca la creazione della release se trova mismatch di versione, documentazione canonica fuori sync, riferimenti docs incompatibili con il repo reale, fallback versione non allineati, `SetupWizard.exe` obsoleto o fallimento di `bootstrap_acl_v2 --dry-run`.
 
 ## 0.8.8 - 2026-04-02
 
@@ -161,3 +231,4 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 La storia delle versioni precedenti alla 0.8.5 non è stata ancora documentata in questo file.
 Consultare `git log` per la cronologia completa dei commit.
+

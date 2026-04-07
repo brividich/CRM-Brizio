@@ -104,6 +104,23 @@ if (-not $version) {
 Write-Log "Versione: $version" "INFO"
 
 # ---------------------------------------------------------------------------
+# Release guard (documentazione, versioni, wizard, smoke ACL)
+# ---------------------------------------------------------------------------
+$releaseGuard = Join-Path $SourcePath "tools\release_guard.ps1"
+if (-not (Test-Path -LiteralPath $releaseGuard)) {
+    Write-Log "release_guard.ps1 non trovato in tools\\." "ERROR"
+    exit 1
+}
+
+Write-Log "Esecuzione release guard..." "STEP"
+& $releaseGuard -SourcePath $SourcePath
+if ($LASTEXITCODE -ne 0) {
+    Write-Log "release_guard fallito: correggi i mismatch prima di creare il pacchetto." "ERROR"
+    exit 1
+}
+Write-Log "release guard completato." "SUCCESS"
+
+# ---------------------------------------------------------------------------
 # Timestamp e nome file
 # ---------------------------------------------------------------------------
 $timestamp  = Get-Date -Format "yyyyMMdd_HHmmss"
@@ -133,6 +150,8 @@ New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 # DIRECTORY da escludere (passate a robocopy con /XD)
 $excludeDirs = @(
     ".git",           # repository git
+    ".tmp_py",        # workspace temporaneo locale
+    ".tmp_tests",     # test temporanei con permessi variabili
     ".venv",          # virtual environment Python
     "venv",           # virtual environment alternativo
     "node_modules",   # dipendenze JS

@@ -246,7 +246,6 @@ class AssenzeTipoMappingTests(SimpleTestCase):
         self.assertEqual(fields["Tipoassenza"], "Certifica presenza")
         self.assertEqual(fields["Motivazionerichiesta"], "Turno mattina")
 
-
 class SharePointSyncDiagnosticsTests(SimpleTestCase):
     @patch("assenze.views._graph_get_item")
     @patch("assenze.views._get_assenza")

@@ -1,6 +1,6 @@
-# Struttura Attuale Portale Applicativo
+# Struttura Attuale - NOVICROM HUB
 
-Data snapshot: 2026-03-27 | Versione: 0.8.5
+Data snapshot: 2026-04-03 | Versione: 0.9.3
 
 ---
 
@@ -11,7 +11,8 @@ Data snapshot: 2026-03-27 | Versione: 0.8.5
 - Settings sviluppo: `django_app/config/settings/dev.py` (SQLite, DEBUG=True).
 - Settings produzione: `django_app/config/settings/prod.py` (SQL Server, SECRET_KEY obbligatoria, DatabaseCache).
 - Base settings condivisi: `django_app/config/settings/base.py`.
-- Variabili ambiente: `django_app/.env` (via `django-environ`) + `config.ini` opzionale (via `configparser`).
+- Variabili ambiente: `django_app/.env` caricato dal loader custom `_load_dotenv(...)` in `config/settings/base.py` + `config.ini` opzionale (via `configparser`).
+- Profili supportati: `config.settings.dev` e `config.settings.prod`. Nei flussi wizard/deploy l'ambiente `test` usa `config.settings.prod`.
 
 ---
 
@@ -208,3 +209,4 @@ Modelli in `core/legacy_models.py`, migration `0029_legacy_managed` applicata co
 | Compatibilita legacy | `core/legacy_flask_views.py` |
 | Monitoring e issue | `/admin-portale/monitoring/` |
 | Audit trail operazioni | `core/audit.py`, tabella `core_auditlog` |
+

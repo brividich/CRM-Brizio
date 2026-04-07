@@ -120,6 +120,22 @@
     .pdf-stat-val.green { color: #16a34a; }
     .pdf-stat-val.red { color: #dc2626; }
     .pdf-stat-lbl { font-size: 9px; font-weight: 600; color: #94a3b8; text-transform: uppercase; margin-top: 2px; }
+    .pdf-stats-row.compact-3 { grid-template-columns: repeat(3, 1fr); }
+
+    .pdf-kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 8px;
+    }
+    .pdf-kpi-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px;
+      background: #f8fafc;
+    }
+    .pdf-kpi-value { font-size: 22px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+    .pdf-kpi-label { font-size: 10px; font-weight: 700; color: #0f172a; }
+    .pdf-kpi-meta { font-size: 9px; color: #64748b; margin-top: 2px; }
 
     /* ── Liste ──────────────────────────────────────────────────────────────── */
     table.pdf-table {
@@ -161,6 +177,9 @@
     .pdf-tag.inprogress { background: #fefce8; color: #92400e; }
     .pdf-tag.open { background: #fef2f2; color: #dc2626; }
     .pdf-tag.closed { background: #f0fdf4; color: #15803d; }
+    .pdf-tag.info { background: #eff6ff; color: #1d4ed8; }
+    .pdf-tag.warning { background: #fefce8; color: #92400e; }
+    .pdf-tag.purple { background: #faf5ff; color: #7c3aed; }
 
     .pdf-empty { color: #94a3b8; font-style: italic; font-size: 10px; padding: 4px 0; }
 
@@ -192,8 +211,8 @@
   <div class="pdf-header">
     <div>
       <div class="pdf-logo">PORTALE<span> APP</span></div>
-      <div class="pdf-title">{{ display_name }}</div>
-      <div class="pdf-subtitle">Scheda Infografica Dipendente</div>
+      <div class="pdf-title">Dashboard</div>
+      <div class="pdf-subtitle">{{ display_name }} · workspace KPI personale</div>
     </div>
     <div class="pdf-meta">
       Generato il {{ now }}<br>
@@ -205,8 +224,8 @@
     <button onclick="window.print()" style="padding:8px 16px;background:#1d4ed8;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600;">
       &#128196; Stampa / Salva PDF
     </button>
-    <a href="{% url 'employee_board' %}" style="padding:8px 16px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;text-decoration:none;font-weight:600;">
-      &larr; Torna alla scheda
+    <a href="{% url 'dashboard_home' %}" style="padding:8px 16px;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;text-decoration:none;font-weight:600;">
+      &larr; Torna alla dashboard
     </a>
   </div>
 
@@ -233,6 +252,24 @@
                 {% if d.email_notifica %}<span class="pdf-badge gray">{{ d.email_notifica }}</span>{% endif %}
               </div>
             </div>
+          </div>
+          {% endwith %}
+        </div>
+      </div>
+
+      {% elif w.id == "panoramica_moduli" %}
+      <div class="pdf-widget full">
+        <div class="pdf-widget-head">{% render_icon w.icon w.title %} {{ w.title }}</div>
+        <div class="pdf-widget-body">
+          {% with d=widget_data.panoramica_moduli %}
+          <div class="pdf-kpi-grid">
+            {% for card in d.cards %}
+            <div class="pdf-kpi-card">
+              <div class="pdf-kpi-value">{{ card.value }}</div>
+              <div class="pdf-kpi-label">{{ card.label }}</div>
+              <div class="pdf-kpi-meta">{{ card.meta }}</div>
+            </div>
+            {% endfor %}
           </div>
           {% endwith %}
         </div>
@@ -325,6 +362,143 @@
           </table>
           {% else %}
           <div class="pdf-empty">Nessuna assenza programmata</div>
+          {% endif %}
+          {% endwith %}
+        </div>
+      </div>
+
+      {% elif w.id == "tickets_miei" %}
+      <div class="pdf-widget full">
+        <div class="pdf-widget-head">{% render_icon w.icon w.title %} {{ w.title }}</div>
+        <div class="pdf-widget-body">
+          {% with d=widget_data.tickets_miei %}
+          <div class="pdf-stats-row">
+            <div class="pdf-stat-box">
+              <div class="pdf-stat-val blue">{{ d.stats.open|default:0 }}</div>
+              <div class="pdf-stat-lbl">Aperti</div>
+            </div>
+            <div class="pdf-stat-box">
+              <div class="pdf-stat-val yellow">{{ d.stats.in_charge|default:0 }}</div>
+              <div class="pdf-stat-lbl">In carico</div>
+            </div>
+            <div class="pdf-stat-box">
+              <div class="pdf-stat-val">{{ d.stats.waiting|default:0 }}</div>
+              <div class="pdf-stat-lbl">In attesa</div>
+            </div>
+            <div class="pdf-stat-box">
+              <div class="pdf-stat-val red">{{ d.stats.urgent|default:0 }}</div>
+              <div class="pdf-stat-lbl">Urgenti</div>
+            </div>
+          </div>
+          {% if d.items %}
+          <table class="pdf-table" style="margin-top:10px;">
+            <thead><tr><th>Ticket</th><th>Tipo</th><th>Aggiornato</th><th>Stato</th><th>Priorità</th></tr></thead>
+            <tbody>
+              {% for t in d.items %}
+              <tr>
+                <td>{{ t.numero_ticket }} · {{ t.titolo }}</td>
+                <td>{{ t.tipo }}</td>
+                <td>{{ t.updated_at }}</td>
+                <td>
+                  <span class="pdf-tag {% if t.stato == 'APERTA' %}info{% elif t.stato == 'IN_CARICO' %}warning{% elif t.stato == 'IN_ATTESA' %}purple{% else %}approvato{% endif %}">{{ t.stato_label }}</span>
+                </td>
+                <td><span class="pdf-tag {% if t.priorita == 'URGENTE' or t.priorita == 'ALTA' %}overdue{% elif t.priorita == 'MEDIA' %}warning{% else %}approvato{% endif %}">{{ t.priorita_label }}</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="pdf-empty">Nessun ticket collegato al tuo profilo</div>
+          {% endif %}
+          {% endwith %}
+        </div>
+      </div>
+
+      {% elif w.id == "assets_dotazione" %}
+      <div class="pdf-widget full">
+        <div class="pdf-widget-head">{% render_icon w.icon w.title %} {{ w.title }}</div>
+        <div class="pdf-widget-body">
+          {% with d=widget_data.assets_dotazione %}
+          <div class="pdf-stats-row">
+            <div class="pdf-stat-box">
+              <div class="pdf-stat-val blue">{{ d.stats.assigned|default:0 }}</div>
+              <div class="pdf-stat-lbl">Assegnati</div>
+            </div>
+            <div class="pdf-stat-box">
+              <div class="pdf-stat-val green">{{ d.stats.in_use|default:0 }}</div>
+              <div class="pdf-stat-lbl">In uso</div>
+            </div>
+            <div class="pdf-stat-box">
+              <div class="pdf-stat-val yellow">{{ d.stats.in_repair|default:0 }}</div>
+              <div class="pdf-stat-lbl">In riparazione</div>
+            </div>
+            <div class="pdf-stat-box">
+              <div class="pdf-stat-val red">{{ d.stats.deadlines|default:0 }}</div>
+              <div class="pdf-stat-lbl">Scadenze</div>
+            </div>
+          </div>
+          {% if d.items %}
+          <table class="pdf-table" style="margin-top:10px;">
+            <thead><tr><th>Asset</th><th>Stato</th><th>Posizione</th><th>Scadenza</th></tr></thead>
+            <tbody>
+              {% for a in d.items %}
+              <tr>
+                <td>{{ a.asset_tag }} · {{ a.name }}</td>
+                <td><span class="pdf-tag info">{{ a.status_label }}</span></td>
+                <td>{{ a.location|default:"—" }}</td>
+                <td>
+                  {% if a.deadline_title %}
+                    {{ a.deadline_title }}{% if a.deadline_due_date %} · {{ a.deadline_due_date }}{% endif %}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="pdf-empty">Nessun asset assegnato</div>
+          {% endif %}
+          {% endwith %}
+        </div>
+      </div>
+
+      {% elif w.id == "procedure_da_leggere" %}
+      <div class="pdf-widget full">
+        <div class="pdf-widget-head">{% render_icon w.icon w.title %} {{ w.title }}</div>
+        <div class="pdf-widget-body">
+          {% with d=widget_data.procedure_da_leggere %}
+          <div class="pdf-stats-row compact-3">
+            <div class="pdf-stat-box">
+              <div class="pdf-stat-val yellow">{{ d.stats.pending|default:0 }}</div>
+              <div class="pdf-stat-lbl">Pendenti</div>
+            </div>
+            <div class="pdf-stat-box">
+              <div class="pdf-stat-val red">{{ d.stats.overdue|default:0 }}</div>
+              <div class="pdf-stat-lbl">Scadute</div>
+            </div>
+            <div class="pdf-stat-box">
+              <div class="pdf-stat-val green">{{ d.stats.confirmed|default:0 }}</div>
+              <div class="pdf-stat-lbl">Confermate</div>
+            </div>
+          </div>
+          {% if d.items %}
+          <table class="pdf-table" style="margin-top:10px;">
+            <thead><tr><th>Documento</th><th>Campagna</th><th>Scadenza</th><th>Stato</th></tr></thead>
+            <tbody>
+              {% for p in d.items %}
+              <tr>
+                <td>{{ p.document_code }} · {{ p.document_title|default:"—" }}</td>
+                <td>{{ p.campaign }}</td>
+                <td>{{ p.due_date|default:"—" }}</td>
+                <td><span class="pdf-tag {% if p.status == 'OVERDUE' %}overdue{% elif p.status == 'OPENED' %}warning{% elif p.status == 'READ_CONFIRMED' %}approvato{% else %}info{% endif %}">{{ p.status_label }}</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="pdf-empty">Nessuna procedura in attesa</div>
           {% endif %}
           {% endwith %}
         </div>

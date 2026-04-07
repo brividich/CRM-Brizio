@@ -3,14 +3,15 @@
 import json
 from collections import Counter
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.db import DatabaseError, connections
+from django.db.models import Q
 from django.http import JsonResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_protect
@@ -131,7 +132,7 @@ def _map_legacy_url(url_value: str) -> str:
     if path in {"/", "/dashboard"}:
         return reverse("dashboard_home")
     if path.startswith("/assenze"):
-        return reverse("coming_assenze")
+        return reverse("assenze_menu")
     if "anom" in path:
         return reverse("anomalie_menu")
     if path.startswith("/admin"):
@@ -564,16 +565,13 @@ def _base_dashboard_context(request) -> dict[str, Any]:
 
 @login_required
 def dashboard_home(request):
-    context = _base_dashboard_context(request)
-    return render(request, "dashboard/pages/dashboard.html", context)
+    context = _build_employee_board_context(request, primary_dashboard=True)
+    return render(request, "dashboard/pages/employee_board.html", context)
 
 
 @login_required
 def richieste(request):
-    context = _base_dashboard_context(request)
-    context["page_title"] = "Richieste"
-    context["richieste_list"] = _load_richieste_from_local_db(request)
-    return render(request, "dashboard/pages/richieste.html", context)
+    return redirect("assenze_gestione")
 
 
 def _anomalie_access_flags(request) -> dict[str, bool]:
@@ -703,6 +701,13 @@ EMPLOYEE_BOARD_WIDGETS = [
         "default_params": {"show_reparto": True, "show_mansione": True, "show_contatti": True},
     },
     {
+        "id": "panoramica_moduli",
+        "title": "Panoramica KPI",
+        "icon": "📈",
+        "description": "Contatori rapidi cross-modulo: task, assenze, ticket, asset, procedure",
+        "default_params": {"show_secondary": True},
+    },
+    {
         "id": "tasks_stats",
         "title": "Riepilogo Task",
         "icon": "📊",
@@ -722,6 +727,27 @@ EMPLOYEE_BOARD_WIDGETS = [
         "icon": "📅",
         "description": "Assenze future approvate/programmate",
         "default_params": {"max_items": 8, "show_tipo": True, "show_motivazione": False},
+    },
+    {
+        "id": "tickets_miei",
+        "title": "Ticket Personali",
+        "icon": "🎫",
+        "description": "I ticket aperti o presi in carico che ti coinvolgono",
+        "default_params": {"max_items": 6, "show_closed": False},
+    },
+    {
+        "id": "assets_dotazione",
+        "title": "Asset in Dotazione",
+        "icon": "💼",
+        "description": "Asset assegnati al dipendente con scadenze amministrative in evidenza",
+        "default_params": {"max_items": 6, "show_deadlines": True},
+    },
+    {
+        "id": "procedure_da_leggere",
+        "title": "Procedure da Leggere",
+        "icon": "📚",
+        "description": "Campagne e prese visione ancora aperte",
+        "default_params": {"max_items": 6, "show_confirmed": False},
     },
     {
         "id": "assenze_da_approvare",
@@ -757,27 +783,156 @@ EMPLOYEE_BOARD_WIDGETS = [
 ]
 
 EMPLOYEE_BOARD_DEFAULT_LAYOUT = [
-    "profilo", "tasks_stats", "tasks_assegnati", "assenze_future",
-    "assenze_da_approvare", "anomalie_gestione", "progetti_capo", "notifiche",
+    "profilo",
+    "panoramica_moduli",
+    "tasks_stats",
+    "assenze_future",
+    "tickets_miei",
+    "assets_dotazione",
+    "procedure_da_leggere",
+    "tasks_assegnati",
+    "assenze_da_approvare",
+    "anomalie_gestione",
+    "progetti_capo",
+    "notifiche",
 ]
 
 _ALLOWED_WIDGET_IDS = {w["id"] for w in EMPLOYEE_BOARD_WIDGETS}
 MAX_BOARD_WIDGET_ITEMS = 50
+EMPLOYEE_BOARD_TEMPLATE_KEY = "default"
+
+
+def _widget_def_map() -> dict[str, dict]:
+    return {widget["id"]: widget for widget in EMPLOYEE_BOARD_WIDGETS}
+
+
+def _sanitize_board_layout(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    layout: list[str] = []
+    seen: set[str] = set()
+    for raw in value:
+        wid = str(raw or "").strip()
+        if wid not in _ALLOWED_WIDGET_IDS or wid in seen:
+            continue
+        seen.add(wid)
+        layout.append(wid)
+    return layout
+
+
+def _sanitize_widget_params(widget_def: dict, raw_params: Any, *, include_defaults: bool) -> dict[str, Any]:
+    defaults = widget_def.get("default_params", {}) or {}
+    raw_params = raw_params if isinstance(raw_params, dict) else {}
+    sanitized: dict[str, Any] = {}
+    for key, default_val in defaults.items():
+        if key not in raw_params:
+            continue
+        raw_value = raw_params.get(key)
+        if isinstance(default_val, bool):
+            sanitized[key] = bool(raw_value)
+        elif isinstance(default_val, int):
+            try:
+                sanitized[key] = max(1, min(MAX_BOARD_WIDGET_ITEMS, int(raw_value)))
+            except (TypeError, ValueError):
+                continue
+        elif isinstance(default_val, str):
+            sanitized[key] = str(raw_value or "")[:100]
+    return {**defaults, **sanitized} if include_defaults else sanitized
+
+
+def _sanitize_widget_configs(raw_configs: Any, *, include_defaults: bool) -> dict[str, dict]:
+    widget_map = _widget_def_map()
+    if not isinstance(raw_configs, dict):
+        return {}
+    result: dict[str, dict] = {}
+    for raw_widget_id, raw_params in raw_configs.items():
+        wid = str(raw_widget_id or "").strip()
+        widget_def = widget_map.get(wid)
+        if not widget_def:
+            continue
+        result[wid] = _sanitize_widget_params(widget_def, raw_params, include_defaults=include_defaults)
+    return result
+
+
+def _default_employee_board_template() -> dict[str, Any]:
+    return {
+        "layout": list(EMPLOYEE_BOARD_DEFAULT_LAYOUT),
+        "widget_configs": {},
+        "template_name": "Predefinito sistema",
+        "template_source": "system",
+        "template_updated_at": None,
+    }
+
+
+def _load_employee_board_template() -> dict[str, Any]:
+    fallback = _default_employee_board_template()
+    try:
+        from core.models import EmployeeBoardTemplate
+
+        row = EmployeeBoardTemplate.objects.select_related("updated_by").filter(key=EMPLOYEE_BOARD_TEMPLATE_KEY).first()
+    except Exception:
+        row = None
+    if not row:
+        return fallback
+    layout = _sanitize_board_layout(row.layout) or list(EMPLOYEE_BOARD_DEFAULT_LAYOUT)
+    widget_configs = _sanitize_widget_configs(row.widget_configs, include_defaults=True)
+    return {
+        "layout": layout,
+        "widget_configs": widget_configs,
+        "template_name": str(row.name or "Template iniziale admin"),
+        "template_source": "admin",
+        "template_updated_at": row.updated_at,
+    }
 
 
 def _load_employee_board_config(legacy_user_id: int | None) -> dict:
+    template_cfg = _load_employee_board_template()
     if not legacy_user_id:
-        return {"layout": [], "widget_configs": {}}
+        return {
+            "layout": list(template_cfg["layout"]),
+            "widget_configs": dict(template_cfg["widget_configs"]),
+            "has_user_config": False,
+            "template_name": template_cfg["template_name"],
+            "template_source": template_cfg["template_source"],
+            "template_updated_at": template_cfg["template_updated_at"],
+        }
     try:
         from core.models import EmployeeBoardConfig
+
         row = EmployeeBoardConfig.objects.filter(legacy_user_id=legacy_user_id).first()
-        if not row:
-            return {"layout": [], "widget_configs": {}}
-        layout = row.layout if isinstance(row.layout, list) else []
-        wc = row.widget_configs if isinstance(row.widget_configs, dict) else {}
-        return {"layout": layout, "widget_configs": wc}
     except Exception:
-        return {"layout": [], "widget_configs": {}}
+        row = None
+    if not row:
+        return {
+            "layout": list(template_cfg["layout"]),
+            "widget_configs": dict(template_cfg["widget_configs"]),
+            "has_user_config": False,
+            "template_name": template_cfg["template_name"],
+            "template_source": template_cfg["template_source"],
+            "template_updated_at": template_cfg["template_updated_at"],
+        }
+
+    user_layout = _sanitize_board_layout(row.layout)
+    user_widget_configs = _sanitize_widget_configs(row.widget_configs, include_defaults=True)
+    has_user_config = bool(user_layout or user_widget_configs)
+    if not has_user_config:
+        return {
+            "layout": list(template_cfg["layout"]),
+            "widget_configs": dict(template_cfg["widget_configs"]),
+            "has_user_config": False,
+            "template_name": template_cfg["template_name"],
+            "template_source": template_cfg["template_source"],
+            "template_updated_at": template_cfg["template_updated_at"],
+        }
+
+    return {
+        "layout": user_layout or list(template_cfg["layout"]),
+        "widget_configs": {**template_cfg["widget_configs"], **user_widget_configs},
+        "has_user_config": True,
+        "template_name": template_cfg["template_name"],
+        "template_source": template_cfg["template_source"],
+        "template_updated_at": template_cfg["template_updated_at"],
+    }
 
 
 def _board_ordered_widgets(
@@ -788,23 +943,10 @@ def _board_ordered_widgets(
 ) -> list[dict]:
     ruolo = str(getattr(legacy_user, "ruolo", "") or "").strip().lower() if legacy_user else ""
     widget_visibility = widget_visibility or {}
-    visible_ids: list[str] = []
-    if user_layout:
-        seen: set[str] = set()
-        for wid in user_layout:
-            s = str(wid or "").strip()
-            if s in _ALLOWED_WIDGET_IDS and s not in seen:
-                visible_ids.append(s)
-                seen.add(s)
-        # aggiungi quelli non ancora salvati in fondo
-        for w in EMPLOYEE_BOARD_WIDGETS:
-            if w["id"] not in seen:
-                visible_ids.append(w["id"])
-    else:
-        visible_ids = list(EMPLOYEE_BOARD_DEFAULT_LAYOUT)
+    visible_ids = _sanitize_board_layout(user_layout) or list(EMPLOYEE_BOARD_DEFAULT_LAYOUT)
 
     result = []
-    widget_map = {w["id"]: w for w in EMPLOYEE_BOARD_WIDGETS}
+    widget_map = _widget_def_map()
     for wid in visible_ids:
         w = widget_map.get(wid)
         if not w:
@@ -1085,65 +1227,344 @@ def _board_data_profilo(legacy_user: Any, legacy_user_id: int | None) -> dict:
     return data
 
 
-@login_required
-def employee_board(request):
+def _board_identity_candidates(request_user: Any, legacy_user: Any, legacy_user_id: int | None) -> dict[str, Any]:
+    names: set[str] = set()
+    emails: set[str] = set()
+    for raw_name in [
+        request_user.get_full_name() if request_user else "",
+        request_user.get_username() if request_user else "",
+        getattr(legacy_user, "nome", "") if legacy_user else "",
+    ]:
+        value = str(raw_name or "").strip()
+        if value:
+            names.add(value)
+    for raw_email in [
+        getattr(request_user, "email", "") if request_user else "",
+        getattr(legacy_user, "email", "") if legacy_user else "",
+    ]:
+        value = str(raw_email or "").strip()
+        if value:
+            emails.add(value)
+    return {
+        "legacy_user_id": legacy_user_id,
+        "names": sorted(names),
+        "emails": sorted(emails),
+    }
+
+
+def _board_related_tickets_queryset(request_user: Any, legacy_user: Any, legacy_user_id: int | None):
+    from tickets.models import Ticket
+
+    identity = _board_identity_candidates(request_user, legacy_user, legacy_user_id)
+    filters = Q()
+    if identity["legacy_user_id"]:
+        filters |= Q(richiedente_legacy_user_id=identity["legacy_user_id"])
+    for name in identity["names"]:
+        filters |= Q(richiedente_nome__iexact=name)
+        filters |= Q(assegnato_a__iexact=name)
+    for email in identity["emails"]:
+        filters |= Q(richiedente_email__iexact=email)
+        filters |= Q(assegnato_email__iexact=email)
+    if not filters:
+        return Ticket.objects.none()
+    return Ticket.objects.filter(filters).distinct()
+
+
+def _board_data_tickets(request_user: Any, legacy_user: Any, legacy_user_id: int | None, params: dict) -> dict:
+    try:
+        from tickets.models import PrioritaTicket, StatoTicket
+
+        qs = _board_related_tickets_queryset(request_user, legacy_user, legacy_user_id)
+        max_items = min(int(params.get("max_items") or 6), MAX_BOARD_WIDGET_ITEMS)
+        show_closed = bool(params.get("show_closed", False))
+        list_qs = qs if show_closed else qs.exclude(
+            stato__in=[StatoTicket.RISOLTO, StatoTicket.CHIUSO, StatoTicket.ANNULLATO]
+        )
+        items = []
+        for ticket in list_qs.order_by("-updated_at", "-created_at")[:max_items]:
+            items.append(
+                {
+                    "id": ticket.id,
+                    "numero_ticket": ticket.numero_ticket,
+                    "titolo": ticket.titolo,
+                    "tipo": ticket.tipo,
+                    "stato": ticket.stato,
+                    "stato_label": ticket.get_stato_display(),
+                    "priorita": ticket.priorita,
+                    "priorita_label": ticket.get_priorita_display(),
+                    "asset": str(ticket.asset) if ticket.asset_id and ticket.asset else str(ticket.asset_descrizione_libera or ""),
+                    "updated_at": timezone.localtime(ticket.updated_at).strftime("%d/%m/%Y %H:%M"),
+                }
+            )
+        stats = {
+            "open": qs.filter(stato=StatoTicket.APERTA).count(),
+            "in_charge": qs.filter(stato=StatoTicket.IN_CARICO).count(),
+            "waiting": qs.filter(stato=StatoTicket.IN_ATTESA).count(),
+            "urgent": qs.filter(
+                priorita=PrioritaTicket.URGENTE,
+                stato__in=[StatoTicket.APERTA, StatoTicket.IN_CARICO, StatoTicket.IN_ATTESA],
+            ).count(),
+        }
+        return {"items": items, "stats": stats}
+    except Exception:
+        return {"items": [], "stats": {"open": 0, "in_charge": 0, "waiting": 0, "urgent": 0}}
+
+
+def _board_data_assets(legacy_user_id: int | None, params: dict) -> dict:
+    if not legacy_user_id:
+        return {"items": [], "stats": {"assigned": 0, "in_use": 0, "in_repair": 0, "deadlines": 0}}
+    try:
+        from assets.models import Asset, AssetAdministrativeDeadline
+
+        max_items = min(int(params.get("max_items") or 6), MAX_BOARD_WIDGET_ITEMS)
+        show_deadlines = bool(params.get("show_deadlines", True))
+        today = timezone.localdate()
+        assigned_qs = Asset.objects.filter(assigned_legacy_user_id=legacy_user_id).order_by("name", "asset_tag", "id")
+        assets = list(assigned_qs[:max_items])
+        deadline_map: dict[int, Any] = {}
+        if show_deadlines and assets:
+            asset_ids = [asset.id for asset in assets]
+            for deadline in (
+                AssetAdministrativeDeadline.objects.filter(asset_id__in=asset_ids, is_active=True)
+                .select_related("asset")
+                .order_by("asset_id", "due_date", "id")
+            ):
+                deadline_map.setdefault(deadline.asset_id, deadline)
+        items = []
+        for asset in assets:
+            deadline = deadline_map.get(asset.id)
+            days_until_due = deadline.days_until_due(today) if deadline else None
+            items.append(
+                {
+                    "id": asset.id,
+                    "asset_tag": asset.asset_tag,
+                    "name": asset.name,
+                    "status": asset.status,
+                    "status_label": asset.get_status_display(),
+                    "location": asset.assignment_location or asset.assignment_reparto or asset.reparto or "",
+                    "deadline_title": deadline.title if deadline else "",
+                    "deadline_due_date": deadline.due_date.strftime("%d/%m/%Y") if deadline and deadline.due_date else "",
+                    "deadline_state": (
+                        "overdue"
+                        if deadline and days_until_due is not None and days_until_due < 0
+                        else "warning"
+                        if deadline and days_until_due is not None and days_until_due <= int(deadline.warning_days or 0)
+                        else "ok"
+                    ),
+                }
+            )
+        stats = {
+            "assigned": assigned_qs.count(),
+            "in_use": assigned_qs.filter(status=Asset.STATUS_IN_USE).count(),
+            "in_repair": assigned_qs.filter(status=Asset.STATUS_IN_REPAIR).count(),
+            "deadlines": AssetAdministrativeDeadline.objects.filter(
+                asset__assigned_legacy_user_id=legacy_user_id,
+                is_active=True,
+                due_date__lte=today + timedelta(days=30),
+            ).count(),
+        }
+        return {"items": items, "stats": stats}
+    except Exception:
+        return {"items": [], "stats": {"assigned": 0, "in_use": 0, "in_repair": 0, "deadlines": 0}}
+
+
+def _board_data_procedure_refresh(request_user: Any, params: dict) -> dict:
+    try:
+        from procedure_refresh.models import AssignmentStatus, ProcedureAssignment
+
+        max_items = min(int(params.get("max_items") or 6), MAX_BOARD_WIDGET_ITEMS)
+        show_confirmed = bool(params.get("show_confirmed", False))
+        qs = (
+            ProcedureAssignment.objects.filter(user=request_user)
+            .select_related("campaign", "revision__document")
+            .order_by("due_date", "-assigned_at")
+        )
+        list_qs = qs if show_confirmed else qs.filter(
+            status__in=[AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED, AssignmentStatus.OVERDUE]
+        )
+        items = []
+        for assignment in list_qs[:max_items]:
+            document = getattr(assignment.revision, "document", None)
+            items.append(
+                {
+                    "id": assignment.id,
+                    "campaign": assignment.campaign.name,
+                    "document_code": getattr(document, "code", ""),
+                    "document_title": getattr(document, "title", ""),
+                    "status": assignment.status,
+                    "status_label": assignment.get_status_display(),
+                    "due_date": assignment.due_date.strftime("%d/%m/%Y") if assignment.due_date else "",
+                }
+            )
+        stats = {
+            "pending": qs.filter(status__in=[AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED]).count(),
+            "overdue": qs.filter(status=AssignmentStatus.OVERDUE).count(),
+            "confirmed": qs.filter(status=AssignmentStatus.READ_CONFIRMED).count(),
+        }
+        return {"items": items, "stats": stats}
+    except Exception:
+        return {"items": [], "stats": {"pending": 0, "overdue": 0, "confirmed": 0}}
+
+
+def _board_data_module_overview(
+    request_user: Any,
+    legacy_user: Any,
+    legacy_user_id: int | None,
+    params: dict,
+) -> dict:
+    task_data = _board_data_tasks(legacy_user_id, {"max_items": 1, "filter_status": "open"})
+    ticket_data = _board_data_tickets(request_user, legacy_user, legacy_user_id, {"max_items": 1, "show_closed": False})
+    asset_data = _board_data_assets(legacy_user_id, {"max_items": 1, "show_deadlines": True})
+    procedure_data = _board_data_procedure_refresh(request_user, {"max_items": 1, "show_confirmed": False})
+    assenze_programmate = _board_data_assenze_future(legacy_user, {"max_items": MAX_BOARD_WIDGET_ITEMS})
+    show_secondary = bool(params.get("show_secondary", True))
+    cards = [
+        {
+            "label": "Task aperti",
+            "value": int(task_data.get("stats", {}).get("todo", 0)) + int(task_data.get("stats", {}).get("in_progress", 0)),
+            "meta": f"{int(task_data.get('stats', {}).get('overdue', 0))} scaduti",
+            "tone": "blue",
+            "url": reverse("tasks:list"),
+        },
+        {
+            "label": "Assenze programmate",
+            "value": len(assenze_programmate),
+            "meta": "viste dal modulo assenze",
+            "tone": "green",
+            "url": reverse("assenze_menu"),
+        },
+        {
+            "label": "Ticket attivi",
+            "value": int(ticket_data.get("stats", {}).get("open", 0))
+            + int(ticket_data.get("stats", {}).get("in_charge", 0))
+            + int(ticket_data.get("stats", {}).get("waiting", 0)),
+            "meta": f"{int(ticket_data.get('stats', {}).get('urgent', 0))} urgenti",
+            "tone": "red",
+            "url": reverse("tickets:dashboard"),
+        },
+        {
+            "label": "Asset assegnati",
+            "value": int(asset_data.get("stats", {}).get("assigned", 0)),
+            "meta": f"{int(asset_data.get('stats', {}).get('deadlines', 0))} scadenze nei prossimi 30 gg",
+            "tone": "purple",
+            "url": reverse("assets:asset_list"),
+        },
+        {
+            "label": "Procedure aperte",
+            "value": int(procedure_data.get("stats", {}).get("pending", 0))
+            + int(procedure_data.get("stats", {}).get("overdue", 0)),
+            "meta": f"{int(procedure_data.get('stats', {}).get('confirmed', 0))} confermate",
+            "tone": "yellow",
+            "url": reverse("procedure_refresh:my_assignments"),
+        },
+    ]
+    if not show_secondary:
+        cards = cards[:4]
+    return {"cards": cards}
+
+
+def _available_board_widgets(
+    legacy_user: Any,
+    is_admin: bool,
+    widget_visibility: dict[str, bool] | None = None,
+) -> list[dict]:
+    return _board_ordered_widgets(
+        [widget["id"] for widget in EMPLOYEE_BOARD_WIDGETS],
+        legacy_user,
+        is_admin,
+        widget_visibility=widget_visibility,
+    )
+
+
+def _get_employee_board_widget_data(
+    widget_id: str,
+    *,
+    request_user: Any,
+    legacy_user: Any,
+    legacy_user_id: int | None,
+    is_admin: bool,
+    params: dict,
+) -> Any:
+    if widget_id == "profilo":
+        return _board_data_profilo(legacy_user, legacy_user_id)
+    if widget_id == "panoramica_moduli":
+        return _board_data_module_overview(request_user, legacy_user, legacy_user_id, params)
+    if widget_id in ("tasks_stats", "tasks_assegnati"):
+        return _board_data_tasks(legacy_user_id, params)
+    if widget_id == "assenze_future":
+        return _board_data_assenze_future(legacy_user, params)
+    if widget_id == "tickets_miei":
+        return _board_data_tickets(request_user, legacy_user, legacy_user_id, params)
+    if widget_id == "assets_dotazione":
+        return _board_data_assets(legacy_user_id, params)
+    if widget_id == "procedure_da_leggere":
+        return _board_data_procedure_refresh(request_user, params)
+    if widget_id == "assenze_da_approvare":
+        return _board_data_assenze_da_approvare(legacy_user, is_admin, params)
+    if widget_id == "progetti_capo":
+        return _board_data_progetti(legacy_user_id, params)
+    if widget_id == "anomalie_gestione":
+        return _board_data_anomalie(legacy_user, is_admin, params)
+    if widget_id == "notifiche":
+        return _board_data_notifiche(legacy_user_id, params)
+    return None
+
+
+def _build_employee_board_context(request, *, primary_dashboard: bool) -> dict[str, Any]:
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     is_admin = request.user.is_superuser or (is_legacy_admin(legacy_user) if legacy_user else False)
     legacy_user_id = int(legacy_user.id) if legacy_user else None
     display_name = request.user.get_full_name() or getattr(legacy_user, "nome", "") or request.user.get_username()
     anomalie_access = _anomalie_access_flags(request)
+    widget_visibility = {"anomalie_gestione": anomalie_access["can_view_anomalie_list"]}
 
     board_cfg = _load_employee_board_config(legacy_user_id)
-    user_layout = board_cfg.get("layout") or []
     widget_configs = board_cfg.get("widget_configs") or {}
 
     ordered_widgets = _board_ordered_widgets(
-        user_layout,
+        board_cfg.get("layout") or [],
         legacy_user,
         is_admin,
-        widget_visibility={"anomalie_gestione": anomalie_access["can_view_anomalie_list"]},
+        widget_visibility=widget_visibility,
     )
+    available_widgets = _available_board_widgets(legacy_user, is_admin, widget_visibility=widget_visibility)
 
-    # Raccoglie dati per ogni widget
     widget_data: dict[str, Any] = {}
     for w in ordered_widgets:
         wid = w["id"]
         params = {**w.get("default_params", {}), **widget_configs.get(wid, {})}
-        if wid == "profilo":
-            widget_data[wid] = _board_data_profilo(legacy_user, legacy_user_id)
-        elif wid == "tasks_stats":
-            widget_data[wid] = _board_data_tasks(legacy_user_id, params)
-        elif wid == "tasks_assegnati":
-            widget_data[wid] = _board_data_tasks(legacy_user_id, params)
-        elif wid == "assenze_future":
-            widget_data[wid] = _board_data_assenze_future(legacy_user, params)
-        elif wid == "assenze_da_approvare":
-            widget_data[wid] = _board_data_assenze_da_approvare(legacy_user, is_admin, params)
-        elif wid == "progetti_capo":
-            widget_data[wid] = _board_data_progetti(legacy_user_id, params)
-        elif wid == "anomalie_gestione":
-            widget_data[wid] = _board_data_anomalie(legacy_user, is_admin, params)
-        elif wid == "notifiche":
-            widget_data[wid] = _board_data_notifiche(legacy_user_id, params)
+        widget_data[wid] = _get_employee_board_widget_data(
+            wid,
+            request_user=request.user,
+            legacy_user=legacy_user,
+            legacy_user_id=legacy_user_id,
+            is_admin=is_admin,
+            params=params,
+        )
 
-    # Widget params effettivi (merge default + user)
     merged_params: dict[str, dict] = {}
-    for w in EMPLOYEE_BOARD_WIDGETS:
+    for w in available_widgets:
         wid = w["id"]
         merged_params[wid] = {**w.get("default_params", {}), **widget_configs.get(wid, {})}
 
     context = {
-        "page_title": f"Scheda Infografica — {display_name}",
+        "page_title": f"Dashboard — {display_name}" if primary_dashboard else f"Scheda Dipendente — {display_name}",
         "display_name": display_name,
         "legacy_user": legacy_user,
         "is_admin": is_admin,
         "ordered_widgets": ordered_widgets,
-        "all_widgets": EMPLOYEE_BOARD_WIDGETS,
+        "all_widgets": available_widgets,
         "widget_data": widget_data,
         "widget_params": merged_params,
         "board_cfg": board_cfg,
+        "primary_dashboard": primary_dashboard,
     }
-    return render(request, "dashboard/pages/employee_board.html", context)
+    return context
+
+
+@login_required
+def employee_board(request):
+    return redirect("dashboard_home")
 
 
 @login_required
@@ -1166,13 +1587,7 @@ def api_employee_board_layout(request):
     if not isinstance(raw_layout, list):
         return JsonResponse({"ok": False, "error": "layout deve essere una lista."}, status=400)
 
-    layout: list[str] = []
-    seen: set[str] = set()
-    for item in raw_layout:
-        wid = str(item or "").strip()
-        if wid in _ALLOWED_WIDGET_IDS and wid not in seen:
-            layout.append(wid)
-            seen.add(wid)
+    layout = _sanitize_board_layout(raw_layout)
 
     user_id = int(legacy_user.id)
     try:
@@ -1209,35 +1624,82 @@ def api_employee_board_widget_config(request):
     if not isinstance(raw_params, dict):
         return JsonResponse({"ok": False, "error": "params deve essere un oggetto."}, status=400)
 
-    # Trova defaults per questo widget
-    widget_def = next((w for w in EMPLOYEE_BOARD_WIDGETS if w["id"] == widget_id), None)
+    widget_def = _widget_def_map().get(widget_id)
     if not widget_def:
         return JsonResponse({"ok": False, "error": "Widget non trovato."}, status=400)
-
-    allowed_keys = set(widget_def.get("default_params", {}).keys())
-    sanitized: dict[str, Any] = {}
-    for k, v in raw_params.items():
-        if k not in allowed_keys:
-            continue
-        default_val = widget_def["default_params"].get(k)
-        if isinstance(default_val, bool):
-            sanitized[k] = bool(v)
-        elif isinstance(default_val, int):
-            try:
-                sanitized[k] = max(1, min(MAX_BOARD_WIDGET_ITEMS, int(v)))
-            except (TypeError, ValueError):
-                pass
-        elif isinstance(default_val, str):
-            sanitized[k] = str(v or "")[:100]
+    sanitized = _sanitize_widget_params(widget_def, raw_params, include_defaults=True)
 
     user_id = int(legacy_user.id)
     try:
         obj, _ = EmployeeBoardConfig.objects.get_or_create(legacy_user_id=user_id, defaults={"layout": [], "widget_configs": {}})
-        current = obj.widget_configs if isinstance(obj.widget_configs, dict) else {}
-        current[widget_id] = {**widget_def.get("default_params", {}), **sanitized}
+        current = _sanitize_widget_configs(obj.widget_configs, include_defaults=True)
+        current[widget_id] = sanitized
         obj.widget_configs = current
         obj.save(update_fields=["widget_configs", "updated_at"])
         return JsonResponse({"ok": True, "widget_id": widget_id, "params": current[widget_id]})
+    except Exception as exc:
+        return JsonResponse({"ok": False, "error": str(exc)}, status=500)
+
+
+@login_required
+@csrf_protect
+@require_POST
+def api_employee_board_reset(request):
+    """Ripristina la scheda dipendente al template iniziale definito dagli admin."""
+    from core.models import EmployeeBoardConfig
+
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    if not legacy_user:
+        return JsonResponse({"ok": False, "error": "Utente non trovato."}, status=400)
+
+    try:
+        EmployeeBoardConfig.objects.filter(legacy_user_id=int(legacy_user.id)).delete()
+        template_cfg = _load_employee_board_template()
+        return JsonResponse(
+            {
+                "ok": True,
+                "layout": template_cfg["layout"],
+                "template_name": template_cfg["template_name"],
+            }
+        )
+    except Exception as exc:
+        return JsonResponse({"ok": False, "error": str(exc)}, status=500)
+
+
+@login_required
+@csrf_protect
+@require_POST
+def api_employee_board_admin_template(request):
+    """Salva il template iniziale globale della scheda dipendente."""
+    from core.models import EmployeeBoardTemplate
+
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    is_admin = request.user.is_superuser or (is_legacy_admin(legacy_user) if legacy_user else False)
+    if not is_admin:
+        return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
+
+    try:
+        payload = json.loads(request.body or "{}")
+    except (ValueError, AttributeError):
+        return JsonResponse({"ok": False, "error": "Payload non valido."}, status=400)
+
+    layout = _sanitize_board_layout(payload.get("layout"))
+    if not layout:
+        layout = list(EMPLOYEE_BOARD_DEFAULT_LAYOUT)
+    widget_configs = _sanitize_widget_configs(payload.get("widget_configs"), include_defaults=True)
+    template_name = str(payload.get("name") or "Template iniziale admin").strip()[:100] or "Template iniziale admin"
+
+    try:
+        EmployeeBoardTemplate.objects.update_or_create(
+            key=EMPLOYEE_BOARD_TEMPLATE_KEY,
+            defaults={
+                "name": template_name,
+                "layout": layout,
+                "widget_configs": widget_configs,
+                "updated_by": request.user,
+            },
+        )
+        return JsonResponse({"ok": True, "layout": layout, "template_name": template_name})
     except Exception as exc:
         return JsonResponse({"ok": False, "error": str(exc)}, status=500)
 
@@ -1256,26 +1718,19 @@ def api_employee_board_data(request):
         return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
 
     board_cfg = _load_employee_board_config(legacy_user_id)
-    widget_def = next((w for w in EMPLOYEE_BOARD_WIDGETS if w["id"] == widget_id), None)
+    widget_def = _widget_def_map().get(widget_id)
     if not widget_def:
         return JsonResponse({"ok": False, "error": "Widget non trovato."}, status=400)
 
     params = {**widget_def.get("default_params", {}), **board_cfg.get("widget_configs", {}).get(widget_id, {})}
-    data: Any = None
-    if widget_id == "profilo":
-        data = _board_data_profilo(legacy_user, legacy_user_id)
-    elif widget_id in ("tasks_stats", "tasks_assegnati"):
-        data = _board_data_tasks(legacy_user_id, params)
-    elif widget_id == "assenze_future":
-        data = _board_data_assenze_future(legacy_user, params)
-    elif widget_id == "assenze_da_approvare":
-        data = _board_data_assenze_da_approvare(legacy_user, is_admin, params)
-    elif widget_id == "progetti_capo":
-        data = _board_data_progetti(legacy_user_id, params)
-    elif widget_id == "anomalie_gestione":
-        data = _board_data_anomalie(legacy_user, is_admin, params)
-    elif widget_id == "notifiche":
-        data = _board_data_notifiche(legacy_user_id, params)
+    data = _get_employee_board_widget_data(
+        widget_id,
+        request_user=request.user,
+        legacy_user=legacy_user,
+        legacy_user_id=legacy_user_id,
+        is_admin=is_admin,
+        params=params,
+    )
     return JsonResponse({"ok": True, "data": data, "params": params})
 
 
@@ -1287,39 +1742,33 @@ def employee_board_pdf(request):
     legacy_user_id = int(legacy_user.id) if legacy_user else None
     display_name = request.user.get_full_name() or getattr(legacy_user, "nome", "") or request.user.get_username()
     anomalie_access = _anomalie_access_flags(request)
+    widget_visibility = {"anomalie_gestione": anomalie_access["can_view_anomalie_list"]}
 
     board_cfg = _load_employee_board_config(legacy_user_id)
-    user_layout = board_cfg.get("layout") or []
     widget_configs = board_cfg.get("widget_configs") or {}
 
     ordered_widgets = _board_ordered_widgets(
-        user_layout,
+        board_cfg.get("layout") or [],
         legacy_user,
         is_admin,
-        widget_visibility={"anomalie_gestione": anomalie_access["can_view_anomalie_list"]},
+        widget_visibility=widget_visibility,
     )
 
     widget_data: dict[str, Any] = {}
     for w in ordered_widgets:
         wid = w["id"]
         params = {**w.get("default_params", {}), **widget_configs.get(wid, {})}
-        if wid == "profilo":
-            widget_data[wid] = _board_data_profilo(legacy_user, legacy_user_id)
-        elif wid in ("tasks_stats", "tasks_assegnati"):
-            widget_data[wid] = _board_data_tasks(legacy_user_id, params)
-        elif wid == "assenze_future":
-            widget_data[wid] = _board_data_assenze_future(legacy_user, params)
-        elif wid == "assenze_da_approvare":
-            widget_data[wid] = _board_data_assenze_da_approvare(legacy_user, is_admin, params)
-        elif wid == "progetti_capo":
-            widget_data[wid] = _board_data_progetti(legacy_user_id, params)
-        elif wid == "anomalie_gestione":
-            widget_data[wid] = _board_data_anomalie(legacy_user, is_admin, params)
-        elif wid == "notifiche":
-            widget_data[wid] = _board_data_notifiche(legacy_user_id, params)
+        widget_data[wid] = _get_employee_board_widget_data(
+            wid,
+            request_user=request.user,
+            legacy_user=legacy_user,
+            legacy_user_id=legacy_user_id,
+            is_admin=is_admin,
+            params=params,
+        )
 
     context = {
-        "page_title": f"Scheda {display_name}",
+        "page_title": f"Dashboard {display_name}",
         "display_name": display_name,
         "legacy_user": legacy_user,
         "is_admin": is_admin,

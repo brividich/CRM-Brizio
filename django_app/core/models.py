@@ -220,7 +220,7 @@ class ModuleCategory(models.Model):
     label = models.CharField(max_length=80)
     icon = models.CharField(
         max_length=500, blank=True, default="",
-        help_text="Emoji, testo breve o URL immagine (.ico, .png, .svg) mostrato nella sidebar per la categoria.",
+        help_text="Alias SVG (es. shield-check), emoji, testo breve o URL immagine (.ico, .png, .svg) mostrato nella sidebar per la categoria.",
     )
     topbar_color = models.CharField(
         max_length=20, default="#1e3a5f",
@@ -255,7 +255,7 @@ class NavigationItem(models.Model):
     open_in_new_tab = models.BooleanField(default=False)
     icon = models.CharField(
         max_length=500, blank=True, default="",
-        help_text="Emoji, testo breve o URL immagine (.ico, .png, .svg) mostrato accanto alla label.",
+        help_text="Alias SVG (es. newspaper), emoji, testo breve o URL immagine (.ico, .png, .svg) mostrato accanto alla label.",
     )
     group = models.CharField(
         max_length=80, blank=True, default="",
@@ -505,6 +505,29 @@ class EmployeeBoardConfig(models.Model):
 
     def __str__(self) -> str:
         return f"EmployeeBoardConfig<user={self.legacy_user_id}>"
+
+
+class EmployeeBoardTemplate(models.Model):
+    """Template iniziale della scheda dipendente definito dagli admin."""
+
+    key = models.CharField(max_length=50, unique=True, default="default")
+    name = models.CharField(max_length=100, default="Template iniziale admin")
+    layout = models.JSONField(default=list, blank=True)
+    widget_configs = models.JSONField(default=dict, blank=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employee_board_templates_updated",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["key"]
+
+    def __str__(self) -> str:
+        return f"EmployeeBoardTemplate<{self.key}>"
 
 
 class AuditLog(models.Model):

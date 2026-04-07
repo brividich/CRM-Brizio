@@ -18,7 +18,7 @@
       %%VENV_PATH%%      = C:\PortaleNovicrom\test\venv
       %%DJANGO_APP%%     = C:\PortaleNovicrom\test\current\django_app
       %%LOGS_PATH%%      = C:\PortaleNovicrom\test\logs
-      %%SETTINGS_MOD%%   = config.settings.test (o prod)
+      %%SETTINGS_MOD%%   = config.settings.prod
       %%PYTHON_FASTCGI%% = percorso stampato da wfastcgi-enable, es:
                            C:\PortaleNovicrom\test\venv\Scripts\python.exe|C:\...\wfastcgi.py
 

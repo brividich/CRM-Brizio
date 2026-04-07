@@ -12,7 +12,7 @@
 
 .PARAMETER PythonPath
     Percorso all'eseguibile python.exe da usare.
-    Default: "C:\Python311\python.exe"
+    Default: auto-discovery di un Python 3.11+ valido
 
 .PARAMETER RequirementsPath
     Percorso al file requirements.txt.
@@ -28,7 +28,7 @@ param(
     [ValidateSet("test","prod")]
     [string]$Environment,
 
-    [string]$PythonPath = "C:\Python311\python.exe",
+    [string]$PythonPath = "",
 
     [string]$RequirementsPath = ""
 )
@@ -39,6 +39,107 @@ $ErrorActionPreference = "Stop"
 
 Assert-Admin
 
+function Test-SupportedPythonPath {
+    param(
+        [string]$Candidate
+    )
+
+    if (-not $Candidate -or -not (Test-Path -LiteralPath $Candidate)) {
+        return $null
+    }
+
+    try {
+        $versionOutput = & $Candidate --version 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            return $null
+        }
+        $versionText = ($versionOutput | Out-String).Trim()
+        if ($versionText -match 'Python\s+(\d+)\.(\d+)\.(\d+)') {
+            $major = [int]$matches[1]
+            $minor = [int]$matches[2]
+            if ($major -gt 3 -or ($major -eq 3 -and $minor -ge 11)) {
+                return [pscustomobject]@{
+                    Path    = $Candidate
+                    Version = $versionText
+                }
+            }
+        }
+    } catch {
+        return $null
+    }
+
+    return $null
+}
+
+function Find-PythonExecutable {
+    param(
+        [string]$PreferredPath
+    )
+
+    $candidates = New-Object System.Collections.Generic.List[string]
+
+    if ($PreferredPath) {
+        $candidates.Add($PreferredPath)
+    }
+
+    $staticCandidates = @(
+        "C:\Python313\python.exe",
+        "C:\Python312\python.exe",
+        "C:\Python311\python.exe",
+        "C:\Program Files\Python313\python.exe",
+        "C:\Program Files\Python312\python.exe",
+        "C:\Program Files\Python311\python.exe",
+        "C:\Program Files (x86)\Python313\python.exe",
+        "C:\Program Files (x86)\Python312\python.exe",
+        "C:\Program Files (x86)\Python311\python.exe"
+    )
+    foreach ($candidate in $staticCandidates) {
+        $candidates.Add($candidate)
+    }
+
+    if ($env:LOCALAPPDATA) {
+        foreach ($versionDir in @("Python313", "Python312", "Python311")) {
+            $candidates.Add((Join-Path $env:LOCALAPPDATA "Programs\Python\$versionDir\python.exe"))
+        }
+    }
+
+    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+    if ($pythonCmd -and $pythonCmd.Source) {
+        $candidates.Add($pythonCmd.Source)
+    }
+
+    $seen = @{}
+    foreach ($candidate in $candidates) {
+        if (-not $candidate) { continue }
+        $normalized = $candidate.ToLowerInvariant()
+        if ($seen.ContainsKey($normalized)) { continue }
+        $seen[$normalized] = $true
+        $info = Test-SupportedPythonPath -Candidate $candidate
+        if ($info) {
+            return $info
+        }
+    }
+
+    $pyLauncher = Get-Command py -ErrorAction SilentlyContinue
+    if ($pyLauncher -and $pyLauncher.Source) {
+        foreach ($selector in @("-3.13", "-3.12", "-3.11")) {
+            try {
+                $resolvedPath = & $pyLauncher.Source $selector -c "import sys; print(sys.executable)" 2>$null
+                if ($LASTEXITCODE -ne 0) { continue }
+                $resolved = (($resolvedPath | Out-String).Trim() -split "`r?`n")[0].Trim()
+                $info = Test-SupportedPythonPath -Candidate $resolved
+                if ($info) {
+                    return $info
+                }
+            } catch {
+                continue
+            }
+        }
+    }
+
+    return $null
+}
+
 Write-LogSeparator
 Write-Log "SETUP AMBIENTE: $($Environment.ToUpper())" "STEP"
 Write-LogSeparator
@@ -46,12 +147,16 @@ Write-LogSeparator
 # ---------------------------------------------------------------------------
 # Verifica Python
 # ---------------------------------------------------------------------------
-if (-not (Test-Path $PythonPath)) {
-    Write-Log "Python non trovato in: $PythonPath" "ERROR"
+$resolvedPython = Find-PythonExecutable -PreferredPath $PythonPath
+if (-not $resolvedPython) {
+    if ($PythonPath) {
+        Write-Log "Python non trovato o non supportato in: $PythonPath" "ERROR"
+    }
     Write-Log "Installa Python 3.11+ e riprova, oppure specifica -PythonPath" "ERROR"
     exit 1
 }
-$pyVersion = & $PythonPath --version 2>&1
+$PythonPath = $resolvedPython.Path
+$pyVersion = $resolvedPython.Version
 Write-Log "Python trovato: $pyVersion ($PythonPath)" "INFO"
 
 # ---------------------------------------------------------------------------

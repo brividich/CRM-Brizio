@@ -217,20 +217,20 @@
 
     <div class="card">
       <div class="card-head">
-        <div class="card-title">Scheda infografica</div>
+        <div class="card-title">Dashboard KPI</div>
       </div>
       <div class="card-body">
         <div class="activity-item">
           <div class="act-dot blue"></div>
           <div>
-            <div class="act-text">Dashboard personale con task, assenze, anomalie e altro.</div>
-            <div class="act-time">Personalizzabile con drag &amp; drop e parametri per ogni widget.</div>
+            <div class="act-text">Dashboard principale con KPI, task, assenze, anomalie e altri moduli.</div>
+            <div class="act-time">Personalizzabile con drag &amp; drop, template iniziale admin e configurazione widget.</div>
           </div>
         </div>
         <div class="activity-item">
           <div class="act-dot"></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <a href="{% url 'employee_board' %}" class="alert-btn">Apri scheda &rarr;</a>
+            <a href="{% url 'dashboard_home' %}" class="alert-btn">Apri dashboard &rarr;</a>
             <a href="{% url 'employee_board_pdf' %}" class="alert-btn" style="background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;" target="_blank">&#128196; Stampa / PDF</a>
           </div>
         </div>

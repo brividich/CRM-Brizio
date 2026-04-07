@@ -64,7 +64,13 @@ class Command(BaseCommand):
             )
             row = cursor.fetchone()
             if not row or not row[0]:
-                raise RuntimeError("Tabella 'assenze' non trovata sul database corrente.")
+                self.stdout.write(
+                    self.style.WARNING(
+                        "Tabella legacy 'assenze' non trovata sul database corrente: "
+                        "nessun riallineamento necessario."
+                    )
+                )
+                return
             schema = str(row[0]).strip()
             table_name = f"{_quote_ident(schema)}.{_quote_ident('assenze')}"
 

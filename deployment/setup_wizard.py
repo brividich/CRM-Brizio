@@ -8,8 +8,6 @@ import ctypes, json, os, re, shutil, socket, subprocess, sys, threading
 import traceback, zipfile
 from datetime import datetime
 from pathlib import Path
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
 
 try:
     import winreg
@@ -24,6 +22,43 @@ except ImportError:
 # ─────────────────────────────────────────────────────────────
 # PALETTE & COSTANTI
 # ─────────────────────────────────────────────────────────────
+def _bootstrap_tcl_tk_env() -> None:
+    """Imposta i path Tcl/Tk in modo deterministico per exe frozen e runtime locali."""
+    candidates: list[tuple[str, Path]] = []
+
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        meipass = Path(sys._MEIPASS)
+        candidates.extend(
+            [
+                ("TCL_LIBRARY", meipass / "_tcl_data"),
+                ("TK_LIBRARY", meipass / "_tk_data"),
+            ]
+        )
+
+    try:
+        import _tkinter as _bootstrap_tk
+    except ImportError:
+        _bootstrap_tk = None
+
+    if _bootstrap_tk is not None and getattr(_bootstrap_tk, "__file__", None):
+        python_root = Path(_bootstrap_tk.__file__).resolve().parents[1]
+        candidates.extend(
+            [
+                ("TCL_LIBRARY", python_root / "tcl" / f"tcl{_bootstrap_tk.TCL_VERSION}"),
+                ("TK_LIBRARY", python_root / "tcl" / f"tk{_bootstrap_tk.TK_VERSION}"),
+            ]
+        )
+
+    for env_key, path in candidates:
+        if path.is_dir():
+            os.environ.setdefault(env_key, path.as_posix())
+
+
+_bootstrap_tcl_tk_env()
+
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
+
 BRAND        = "#1a56db"
 BRAND_DARK   = "#1e429f"
 BRAND_HOVER  = "#2563eb"
@@ -49,6 +84,8 @@ FMD = (SF, 12, "bold")
 FLG = (SF, 18, "bold")
 FMO = ("Consolas", 9)
 
+PYTHON_MIN_VERSION = (3, 11)
+
 STEPS = ["Benvenuto","Pacchetto","Ambiente","Python",
          "Database","Active Directory","Email","IIS / Web",
          "Prerequisiti IIS","Utente Admin","Riepilogo","Installazione","Completato"]
@@ -60,7 +97,7 @@ STEPS_UNINSTALL = ["Configurazione", "Conferma", "Disinstallazione", "Completato
 # Solo dev.py e prod.py esistono; test usa prod (stesse impostazioni SQL Server).
 _SETTINGS_MAP = {"dev": "dev", "test": "prod", "prod": "prod"}
 
-_DEFAULT_APP_VERSION = "0.8.6"
+_DEFAULT_APP_VERSION = "0.9.3"
 _VERSION_FILE = Path(__file__).resolve().parents[1] / "VERSION"
 _MODULE_VERSION_ENV_KEYS = (
     "APP_VERSION_CORE",
@@ -144,6 +181,54 @@ def _django_settings(environment: str) -> str:
     return f"config.settings.{_SETTINGS_MAP.get(environment, 'prod')}"
 
 
+_SQL_SERVER_DRIVER_PREFERENCE = (
+    "ODBC Driver 18 for SQL Server",
+    "ODBC Driver 17 for SQL Server",
+    "ODBC Driver 13 for SQL Server",
+    "ODBC Driver 11 for SQL Server",
+    "SQL Server Native Client 11.0",
+    "SQL Server",
+)
+
+_STATIC_ASSET_SENTINELS = (
+    ("core theme", Path("core") / "css" / "theme.css"),
+    ("monitoring css", Path("monitoring") / "css" / "monitoring.css"),
+)
+
+
+def _installed_sql_server_odbc_drivers() -> list[str]:
+    if _pyodbc_module is None:
+        return []
+    try:
+        return [driver for driver in _pyodbc_module.drivers() if "SQL Server" in driver]
+    except Exception:
+        return []
+
+
+def _sql_server_driver_sort_key(driver_name: str) -> tuple[int, str]:
+    normalized = str(driver_name or "").strip().lower()
+    try:
+        return (_SQL_SERVER_DRIVER_PREFERENCE.index(driver_name), normalized)
+    except ValueError:
+        return (len(_SQL_SERVER_DRIVER_PREFERENCE), normalized)
+
+
+def _preferred_sql_server_odbc_driver(drivers: list[str] | None = None) -> str:
+    available = list(dict.fromkeys(drivers or _installed_sql_server_odbc_drivers()))
+    if not available:
+        return ""
+    return sorted(available, key=_sql_server_driver_sort_key)[0]
+
+
+def _missing_static_assets(static_root: Path) -> list[tuple[str, Path]]:
+    root = Path(static_root)
+    return [
+        (label, root / relative_path)
+        for label, relative_path in _STATIC_ASSET_SENTINELS
+        if not (root / relative_path).exists()
+    ]
+
+
 def _ps_escape(value: str) -> str:
     """Escapa un valore per l'interpolazione in una stringa PowerShell double-quoted.
     Gestisce: apici doppi, backtick, dollaro."""
@@ -221,9 +306,10 @@ class Config:
         self.environment  = "test"
         self.acl_seed_uat = True
         self.base_dir     = r"C:\PortaleNovicrom"
-        self.python_path  = r"C:\Python311\python.exe"
+        self.python_path  = detect_python() or ""
         self.db_host = ""; self.db_name = ""; self.db_user = ""
         self.db_password = ""; self.db_trusted = False
+        self.db_driver = _preferred_sql_server_odbc_driver()
         self.ldap_uri = "ldap://DC01.cnovicrom.local"
         self.ldap_bind_dn = ""; self.ldap_bind_pwd = ""
         self.ldap_user_base = "OU=Users,DC=cnovicrom,DC=local"
@@ -254,6 +340,7 @@ class Config:
         h = self.iis_hostname or "localhost"
         pt = f":{self.iis_port}" if self.iis_port not in ("80","443") else ""
         ep = self.env_path
+        db_driver = self.db_driver or _preferred_sql_server_odbc_driver() or "ODBC Driver 18 for SQL Server"
         lines = [
             f"# Generato da Setup Wizard — {datetime.now():%Y-%m-%d %H:%M}\n",
             f"DJANGO_SECRET_KEY={self.secret_key}",
@@ -265,6 +352,7 @@ class Config:
             f"DB_ENGINE=sqlserver",
             f"DB_NAME={self.db_name}",
             f"DB_HOST={self.db_host}",
+            f"DB_DRIVER={db_driver}",
             f"DB_PORT=1433",
             f"DB_TRUST_CERT=True",
             ("DB_TRUSTED_CONNECTION=yes" if self.db_trusted
@@ -314,12 +402,160 @@ def run_as_admin():
     ctypes.windll.shell32.ShellExecuteW(
         None, "runas", sys.executable, " ".join(sys.argv), None, 1)
 
+def _python_version_ok(version):
+    return tuple(version[:2]) >= PYTHON_MIN_VERSION
+
+
+def _python_version_label(version):
+    return ".".join(str(part) for part in version[:3])
+
+
+def _common_python_paths():
+    candidates = [
+        r"C:\Python313\python.exe",
+        r"C:\Python312\python.exe",
+        r"C:\Python311\python.exe",
+        r"C:\Program Files\Python313\python.exe",
+        r"C:\Program Files\Python312\python.exe",
+        r"C:\Program Files\Python311\python.exe",
+        r"C:\Program Files (x86)\Python313\python.exe",
+        r"C:\Program Files (x86)\Python312\python.exe",
+        r"C:\Program Files (x86)\Python311\python.exe",
+    ]
+
+    local_appdata = os.environ.get("LOCALAPPDATA")
+    if local_appdata:
+        base = Path(local_appdata) / "Programs" / "Python"
+        for version_dir in ("Python313", "Python312", "Python311"):
+            candidates.append(str(base / version_dir / "python.exe"))
+
+    seen = set()
+    ordered = []
+    for candidate in candidates:
+        key = candidate.lower()
+        if key not in seen:
+            ordered.append(candidate)
+            seen.add(key)
+    return ordered
+
+
+def _registry_python_paths():
+    if winreg is None:
+        return []
+
+    candidates = []
+    seen = set()
+    key_specs = [
+        (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Python\PythonCore"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Python\PythonCore"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Python\PythonCore"),
+    ]
+    for hive, base_key in key_specs:
+        try:
+            with winreg.OpenKey(hive, base_key) as versions_key:
+                count = winreg.QueryInfoKey(versions_key)[0]
+                for idx in range(count):
+                    try:
+                        version_key = winreg.EnumKey(versions_key, idx)
+                        with winreg.OpenKey(
+                            hive, f"{base_key}\\{version_key}\\InstallPath"
+                        ) as install_key:
+                            install_path, _ = winreg.QueryValueEx(install_key, "")
+                    except OSError:
+                        continue
+                    candidate = str(Path(install_path) / "python.exe")
+                    key = candidate.lower()
+                    if key not in seen:
+                        candidates.append(candidate)
+                        seen.add(key)
+        except OSError:
+            continue
+    return candidates
+
+
+def _probe_python_command(cmd):
+    try:
+        proc = subprocess.run(
+            [
+                *cmd,
+                "-c",
+                (
+                    "import sys; "
+                    "print(sys.executable); "
+                    "print('.'.join(str(x) for x in sys.version_info[:3]))"
+                ),
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=8,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+    except Exception:
+        return None
+
+    if proc.returncode != 0:
+        return None
+
+    lines = [line.strip() for line in (proc.stdout or "").splitlines() if line.strip()]
+    if len(lines) < 2:
+        return None
+
+    match = re.match(r"^(\d+)\.(\d+)\.(\d+)", lines[1])
+    if not match:
+        return None
+
+    version = tuple(int(part) for part in match.groups())
+    return {
+        "path": lines[0],
+        "version": version,
+        "version_text": _python_version_label(version),
+    }
+
+
+def probe_python_path(python_path):
+    python_path = (python_path or "").strip()
+    if not python_path:
+        return None
+    return _probe_python_command([python_path])
+
+
+def detect_python_info():
+    if not getattr(sys, "frozen", False):
+        exe = Path(sys.executable)
+        if exe.name.lower() in {"python.exe", "pythonw.exe"}:
+            info = probe_python_path(str(exe))
+            if info and _python_version_ok(info["version"]):
+                return info
+
+    launcher = shutil.which("py")
+    if launcher:
+        for selector in ("-3.13", "-3.12", "-3.11"):
+            info = _probe_python_command([launcher, selector])
+            if info and _python_version_ok(info["version"]):
+                return info
+
+    seen = set()
+    candidates = [*_common_python_paths(), *_registry_python_paths()]
+    which_python = shutil.which("python")
+    if which_python:
+        candidates.append(which_python)
+
+    for candidate in candidates:
+        key = candidate.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        info = probe_python_path(candidate)
+        if info and _python_version_ok(info["version"]):
+            return info
+    return None
+
+
 def detect_python():
-    for p in [r"C:\Python311\python.exe", r"C:\Python312\python.exe",
-              r"C:\Python313\python.exe", r"C:\Python310\python.exe"]:
-        if Path(p).exists(): return p
-    w = shutil.which("python")
-    return w or r"C:\Python311\python.exe"
+    info = detect_python_info()
+    return info["path"] if info else ""
 
 def find_latest_zip(base_dir):
     d = Path(base_dir) / "shared" / "packages"
@@ -942,8 +1178,7 @@ class PythonPage(Page):
         tk.Label(sec, text="Percorsi comuni:", font=(SF,9,"bold"),
                  fg=GRAY600, bg="white").pack(anchor="w", pady=(0,6))
 
-        for p in [r"C:\Python311\python.exe", r"C:\Python312\python.exe",
-                   r"C:\Python313\python.exe"]:
+        for p in _common_python_paths():
             exists = Path(p).exists()
             row2 = frame(sec)
             row2.pack(anchor="w", pady=1)
@@ -965,22 +1200,35 @@ class PythonPage(Page):
 
     def _check(self):
         py = self._var.get().strip()
-        if not py or not Path(py).exists():
+        info = probe_python_path(py)
+        if not info:
             self._status.set("✗  File non trovato")
-            self._res.configure(fg=RED); return
-        try:
-            r = subprocess.run([py, "--version"], capture_output=True, text=True, timeout=5,
-                               creationflags=subprocess.CREATE_NO_WINDOW)
-            v = (r.stdout + r.stderr).strip()
-            self._status.set(f"✓  {v}")
-            self._res.configure(fg=GREEN)
-        except Exception as e:
-            self._status.set(f"✗  {e}"); self._res.configure(fg=RED)
+            self._res.configure(fg=RED)
+            return
+        if not _python_version_ok(info["version"]):
+            self._status.set(
+                f"✗  Python {info['version_text']} non supportato (serve 3.11+)"
+            )
+            self._res.configure(fg=RED)
+            return
+        self._var.set(info["path"])
+        self._status.set(f"✓  Python {info['version_text']} — {info['path']}")
+        self._res.configure(fg=GREEN)
 
     def validate(self):
         py = self._var.get().strip()
-        if not py: return False
-        self.cfg.python_path = py
+        info = probe_python_path(py)
+        if not info:
+            messagebox.showerror("Errore", "python.exe non trovato o non eseguibile.")
+            return False
+        if not _python_version_ok(info["version"]):
+            messagebox.showerror(
+                "Errore",
+                f"Versione Python non supportata: {info['version_text']}. Serve Python 3.11+.",
+            )
+            return False
+        self.cfg.python_path = info["path"]
+        self._var.set(info["path"])
         return True
 
 
@@ -994,6 +1242,7 @@ class DatabasePage(Page):
         self._name    = tk.StringVar()
         self._user    = tk.StringVar()
         self._pwd     = tk.StringVar()
+        self._driver  = tk.StringVar(value=cfg.db_driver or _preferred_sql_server_odbc_driver())
         self._trusted = tk.BooleanVar(value=False)
         b = self.body
         frame(b, height=8).pack()
@@ -1057,6 +1306,13 @@ class DatabasePage(Page):
 
         cell(0, 1, "Utente SQL", self._user)
         cell(1, 0, "Password", self._pwd, show="*")
+        driver_frame = frame(grid)
+        driver_frame.grid(row=1, column=1, sticky="ew", pady=4)
+        tk.Label(driver_frame, text="Driver ODBC SQL Server", font=(SF,9,"bold"),
+                 fg=GRAY600, bg="white").pack(anchor="w", pady=(0,3))
+        self._driver_combo = ttk.Combobox(driver_frame, textvariable=self._driver,
+                                          font=FMO, state="readonly")
+        self._driver_combo.pack(fill="x", ipady=7, ipadx=8)
 
         frame(sec, height=10).pack()
         chk_row = frame(sec)
@@ -1068,8 +1324,55 @@ class DatabasePage(Page):
         cb.pack(side="left")
         self._note = tk.Label(sec, text="", font=FSM, fg=GRAY500, bg="white")
         self._note.pack(anchor="w", pady=(4,0))
+        self._driver_note = tk.Label(sec, text="", font=FSM, fg=GRAY500, bg="white")
+        self._driver_note.pack(anchor="w", pady=(2,0))
         self._err = tk.Label(sec, text="", font=FSM, fg=RED, bg="white")
         self._err.pack(anchor="w")
+
+    def _refresh_driver_options(self) -> list[str]:
+        drivers = _installed_sql_server_odbc_drivers()
+        try:
+            self._driver_combo["values"] = drivers
+        except Exception:
+            pass
+        selected = self._driver.get().strip()
+        if selected not in drivers:
+            selected = ""
+        if not selected and self.cfg.db_driver in drivers:
+            selected = self.cfg.db_driver
+        if not selected:
+            selected = _preferred_sql_server_odbc_driver(drivers)
+        if selected:
+            self._driver.set(selected)
+        elif drivers:
+            self._driver.set(drivers[0])
+        else:
+            self._driver.set("")
+        self._update_driver_note(drivers)
+        return drivers
+
+    def _update_driver_note(self, drivers: list[str] | None = None, *, prefix: str | None = None):
+        installed = drivers if drivers is not None else _installed_sql_server_odbc_drivers()
+        selected = self._driver.get().strip()
+        if selected:
+            message = f"Driver SQL Server allineato: {selected}"
+            if len(installed) > 1:
+                message += f" | Installati: {', '.join(installed)}"
+        elif installed:
+            message = f"Driver SQL Server installati: {', '.join(installed)}"
+        else:
+            message = "Nessun driver ODBC SQL Server installato sul server applicativo."
+        if prefix:
+            message = f"{prefix} {message}"
+        self._driver_note.configure(text=message)
+
+    def _driver_candidates(self) -> list[str]:
+        drivers = []
+        selected = self._driver.get().strip()
+        for driver in [selected, *_installed_sql_server_odbc_drivers()]:
+            if driver and driver not in drivers:
+                drivers.append(driver)
+        return drivers
 
     def _discover_servers(self):
         """Avvia la discovery SQL Server in background (multi-strategia)."""
@@ -1243,17 +1546,11 @@ class DatabasePage(Page):
         user = self._user.get().strip()
         pwd  = self._pwd.get().strip()
         trusted = self._trusted.get()
-
-        # Prova driver 18 poi 17 poi generico
-        drivers = ["ODBC Driver 18 for SQL Server",
-                   "ODBC Driver 17 for SQL Server",
-                   "SQL Server"]
-        # Filtra solo driver effettivamente installati
-        if _pyodbc_module:
-            available = _pyodbc_module.drivers()
-            drivers = [d for d in drivers if d in available] or drivers
+        selected_driver = self._driver.get().strip()
+        drivers = self._driver_candidates()
         result_dbs = []
         last_err   = ""
+        driver_used = ""
         for drv in drivers:
             try:
                 if _pyodbc_module is None:
@@ -1276,6 +1573,7 @@ class DatabasePage(Page):
                     "  AND state_desc='ONLINE' ORDER BY name")
                 result_dbs = [r[0] for r in cur.fetchall()]
                 conn.close()
+                driver_used = drv
                 last_err = ""
                 break
             except Exception as e:
@@ -1289,6 +1587,9 @@ class DatabasePage(Page):
                 self._list_db_btn.configure(state="normal")
                 if result_dbs:
                     self._name_combo['values'] = result_dbs
+                    if driver_used:
+                        self._driver.set(driver_used)
+                        self._update_driver_note(prefix="Connessione verificata.")
                     if not self._name.get() or self._name.get() not in result_dbs:
                         # Auto-seleziona il DB con il nome più probabile
                         preferred = [d for d in result_dbs
@@ -1297,6 +1598,8 @@ class DatabasePage(Page):
                     self._note.configure(
                         text=f"✓ {len(result_dbs)} database disponibili — seleziona dalla lista")
                 elif last_err:
+                    if selected_driver:
+                        self._update_driver_note(prefix="Ultimo tentativo.")
                     self._note.configure(text=f"⚠ Errore connessione: {last_err[:70]}")
                 else:
                     self._note.configure(text="⚠ Nessun database trovato (verifica permessi)")
@@ -1321,9 +1624,14 @@ class DatabasePage(Page):
                 if odbc_drivers:
                     self._note.configure(text=f"ℹ  Driver ODBC: {', '.join(odbc_drivers)}")
                 else:
-                    self._note.configure(text="⚠  Nessun driver ODBC per SQL Server — installare 'ODBC Driver 17 for SQL Server'")
+                    self._note.configure(text="⚠  Nessun driver ODBC per SQL Server — installa un driver compatibile.")
             except Exception:
                 pass
+        drivers = self._refresh_driver_options()
+        if drivers:
+            self._note.configure(text="ℹ  Il wizard userà il miglior driver SQL Server installato sul server applicativo.")
+        else:
+            self._note.configure(text="⚠  Nessun driver ODBC per SQL Server rilevato — installa un driver prima di procedere.")
         # Avvia la discovery automaticamente
         self._discover_servers()
 
@@ -1345,11 +1653,20 @@ class DatabasePage(Page):
             self._err.configure(text="Inserisci il nome del database"); return False
         if not self._trusted.get() and not (self._user.get() and self._pwd.get()):
             self._err.configure(text="Inserisci utente e password, oppure attiva Windows Auth"); return False
+        drivers = self._refresh_driver_options()
+        if not drivers:
+            self._err.configure(text="Nessun driver ODBC SQL Server installato sul server applicativo"); return False
+        selected_driver = self._driver.get().strip()
+        if selected_driver not in drivers:
+            selected_driver = _preferred_sql_server_odbc_driver(drivers)
+            self._driver.set(selected_driver)
+            self._update_driver_note(drivers, prefix="Driver riallineato automaticamente.")
         self.cfg.db_host = self._host.get().strip()
         self.cfg.db_name = self._name.get().strip()
         self.cfg.db_user = self._user.get().strip()
         self.cfg.db_password = self._pwd.get().strip()
         self.cfg.db_trusted  = self._trusted.get()
+        self.cfg.db_driver = selected_driver
         return True
 
 
@@ -1802,6 +2119,7 @@ class SummaryPage(Page):
         h("── Database ────────────────────────────────────")
         kv("Server",        self.cfg.db_host)
         kv("Database",      self.cfg.db_name)
+        kv("Driver ODBC",   self.cfg.db_driver or "(auto)")
         kv("Auth", "Windows (Trusted)" if self.cfg.db_trusted else self.cfg.db_user)
         h("── Active Directory ────────────────────────────")
         if self.cfg.ldap_skip: kv("LDAP", "Non configurato", True)
@@ -1918,6 +2236,46 @@ class InstallPage(Page):
             w = self._pb_frame.winfo_width()
             self._pb_fill.place(width=int(w * pct / 100))
         self._log.after(0, _do)
+
+    @staticmethod
+    def _append_error(errors, entry):
+        if entry and entry not in errors:
+            errors.append(entry)
+
+    def _resolve_python_runtime(self, cfg, errors):
+        configured = probe_python_path(cfg.python_path)
+        if configured and _python_version_ok(configured["version"]):
+            cfg.python_path = configured["path"]
+            return configured
+
+        requested_path = (cfg.python_path or "").strip()
+        if requested_path:
+            if configured:
+                self._log_line(
+                    (
+                        "  ⚠ Python configurato non supportato: "
+                        f"{configured['version_text']} ({requested_path})"
+                    ),
+                    "warn",
+                )
+            else:
+                self._log_line(f"  ⚠ Python configurato non valido: {requested_path}", "warn")
+
+        detected = detect_python_info()
+        if detected:
+            cfg.python_path = detected["path"]
+            self._log_line(
+                f"  ✓ Python auto-rilevato: {detected['version_text']} ({detected['path']})",
+                "ok",
+            )
+            return detected
+
+        self._append_error(errors, "python")
+        self._log_line(
+            "  ✗ Nessun Python 3.11+ valido rilevato. Seleziona python.exe o installa Python 3.11+.",
+            "err",
+        )
+        return None
 
     def _cmd(self, cmd, cwd=None, env=None):
         self._log_line(f"  $ {' '.join(str(c) for c in cmd)}", "dim")
@@ -2047,6 +2405,46 @@ class InstallPage(Page):
             else:
                 self._log_line("  ✗ Seed ACL v2 UAT fallito (non bloccante)", "warn")
 
+    def _run_assenze_tipo_alignment(
+        self,
+        *,
+        venv_py,
+        django_app,
+        env_vars,
+        settings,
+    ) -> bool:
+        """
+        Riallinea il vincolo legacy SQL Server `CK_assenze_tipo` al valore canonico
+        `Flessibilità` subito dopo le migration su ambienti TEST/PROD.
+        """
+        self._log_line("  -> Assenze SQL Server: allineamento tipo_assenza legacy", "dim")
+        ok = self._cmd(
+            [
+                str(venv_py),
+                "manage.py",
+                "allinea_tipo_assenza_flessibilita",
+                f"--settings={settings}",
+            ],
+            cwd=django_app,
+            env=env_vars,
+        )
+        if ok:
+            self._log_line("  âœ“ CK_assenze_tipo riallineato a FlessibilitÃ ", "ok")
+        else:
+            self._log_line("  âœ— Riallineamento CK_assenze_tipo fallito", "err")
+        return ok
+
+    def _verify_collectstatic_output(self, static_root: Path, errors: list[str]) -> bool:
+        missing_assets = _missing_static_assets(static_root)
+        if not missing_assets:
+            self._log_line("  ✓ Statici condivisi verificati", "ok")
+            return True
+        self._append_error(errors, "collectstatic: asset statici mancanti")
+        self._log_line("  ✗ collectstatic completato ma alcuni asset attesi non esistono", "err")
+        for label, path in missing_assets:
+            self._log_line(f"    - {label}: {path}", "err")
+        return False
+
     def _run(self):
         """Wrapper crash-safe: garantisce che _on_done sia sempre chiamato."""
         try:
@@ -2106,6 +2504,8 @@ class InstallPage(Page):
             self._set_progress(pct, f"[{n}/{N}] {title}")
             self._log_line(f"\n── {title} {'─'*(44-len(title))}", "step")
 
+        python_info = self._resolve_python_runtime(cfg, errors)
+
         # 1. Estrazione / verifica sorgente
         if getattr(sys, "frozen", False):
             step(1, "Estrazione sorgente (bundled)", 5)
@@ -2128,15 +2528,31 @@ class InstallPage(Page):
 
         # 2. Virtualenv
         step(2, "Creazione virtualenv (.venv)", 15)
-        if not venv_py.exists():
+        if python_info is None:
+            venv_ready = False
+            self._append_error(errors, "venv")
+            self._log_line("  Skip — nessun Python 3.11+ disponibile per creare il virtualenv", "warn")
+        elif not venv_py.exists():
             ok = self._cmd([cfg.python_path, "-m", "venv", str(venv_dir)])
-            if ok: self._log_line("  ✓ Virtualenv .venv creato", "ok")
-            else:  errors.append("venv")
+            venv_ready = ok and venv_py.exists()
+            if venv_ready:
+                self._log_line("  ✓ Virtualenv .venv creato", "ok")
+            else:
+                self._append_error(errors, "venv")
+                self._log_line("  ✗ Virtualenv .venv non disponibile", "err")
         else:
+            venv_ready = True
             self._log_line("  ✓ Virtualenv .venv esistente", "ok")
-        self._cmd([str(venv_py), "-m", "pip", "install", "--upgrade",
-                   "pip", "setuptools", "wheel"])
-        self._log_line("  ✓ pip aggiornato", "ok")
+        if venv_ready:
+            ok = self._cmd([str(venv_py), "-m", "pip", "install", "--upgrade",
+                            "pip", "setuptools", "wheel"])
+            if ok:
+                self._log_line("  ✓ pip aggiornato", "ok")
+            else:
+                self._append_error(errors, "pip upgrade")
+                self._log_line("  ✗ Aggiornamento pip fallito", "err")
+        else:
+            self._log_line("  Skip — pip non aggiornato (venv non disponibile)", "warn")
 
         # 3. .env
         step(3, "Scrittura .env DEV", 30)
@@ -2159,37 +2575,53 @@ class InstallPage(Page):
         # 4. pip install
         step(4, "Installazione dipendenze pip", 45)
         req = django_app / "requirements.txt"
-        if req.exists():
+        deps_ready = venv_ready
+        if not venv_ready:
+            deps_ready = False
+            self._log_line("  Skip — venv non disponibile", "warn")
+        elif req.exists():
             ok = self._pip_install_with_retry(venv_py, req)
-            if ok: self._log_line("  ✓ Dipendenze installate", "ok")
-            else:  errors.append("pip install"); self._log_line("  ✗ pip fallito", "err")
+            if ok:
+                self._log_line("  ✓ Dipendenze installate", "ok")
+            else:
+                deps_ready = False
+                self._append_error(errors, "pip install")
+                self._log_line("  ✗ pip fallito", "err")
         else:
+            deps_ready = False
             self._log_line("  requirements.txt non trovato — skip", "warn")
 
         # 5. migrate
         step(5, "Django migrate (SQLite dev)", 60)
         env_vars = {**os.environ, "DJANGO_SETTINGS_MODULE": settings,
                     "PYTHONPATH": str(django_app)}
-        if (django_app / "manage.py").exists():
+        if not deps_ready:
+            self._log_line("  Skip — dipendenze Python non disponibili", "warn")
+        elif (django_app / "manage.py").exists():
             ok = self._cmd([str(venv_py), "manage.py", "migrate",
                             f"--settings={settings}", "--noinput"],
                            cwd=django_app, env=env_vars)
-            if ok: self._log_line("  ✓ migrate completato", "ok")
-            else:  self._log_line("  ✗ migrate fallito", "err")
-            self._run_acl_bootstrap_workflow(
-                venv_py=venv_py,
-                django_app=django_app,
-                env_vars=env_vars,
-                settings=settings,
-                include_legacy_import=True,
-                run_uat_seed=bool(getattr(cfg, "acl_seed_uat", True) and cfg.environment == "test"),
-            )
+            if ok:
+                self._log_line("  ✓ migrate completato", "ok")
+                self._run_acl_bootstrap_workflow(
+                    venv_py=venv_py,
+                    django_app=django_app,
+                    env_vars=env_vars,
+                    settings=settings,
+                    include_legacy_import=True,
+                    run_uat_seed=bool(getattr(cfg, "acl_seed_uat", True) and cfg.environment == "test"),
+                )
+            else:
+                self._append_error(errors, "migrate")
+                self._log_line("  ✗ migrate fallito", "err")
         else:
             self._log_line("  manage.py non trovato — skip", "warn")
 
         # 6. Admin
         step(6, "Creazione utente amministratore", 78)
-        if cfg.admin_username and cfg.admin_password and (django_app / "manage.py").exists():
+        if not deps_ready:
+            self._log_line("  Skip — ambiente Python non pronto", "warn")
+        elif cfg.admin_username and cfg.admin_password and (django_app / "manage.py").exists():
             self._create_legacy_admin(cfg, venv_py, django_app, env_vars, settings)
         else:
             self._log_line("  Skip — nessun admin configurato", "warn")
@@ -2247,14 +2679,31 @@ class InstallPage(Page):
 
         # 3. Virtualenv
         step(3, "Creazione virtualenv", 20)
-        if not venv_py.exists():
+        if python_info is None:
+            venv_ready = False
+            self._append_error(errors, "venv")
+            self._log_line("  Skip — nessun Python 3.11+ disponibile per creare il virtualenv", "warn")
+        elif not venv_py.exists():
             ok = self._cmd([cfg.python_path, "-m", "venv", str(venv_dir)])
-            if ok: self._log_line("  ✓ Virtualenv creato", "ok")
-            else: errors.append("venv")
-        else: self._log_line("  ✓ Virtualenv esistente", "ok")
-        self._cmd([str(venv_py), "-m", "pip", "install", "--upgrade",
-                   "pip", "setuptools", "wheel"])
-        self._log_line("  ✓ pip aggiornato", "ok")
+            venv_ready = ok and venv_py.exists()
+            if venv_ready:
+                self._log_line("  ✓ Virtualenv creato", "ok")
+            else:
+                self._append_error(errors, "venv")
+                self._log_line("  ✗ Virtualenv non disponibile", "err")
+        else:
+            venv_ready = True
+            self._log_line("  ✓ Virtualenv esistente", "ok")
+        if venv_ready:
+            ok = self._cmd([str(venv_py), "-m", "pip", "install", "--upgrade",
+                            "pip", "setuptools", "wheel"])
+            if ok:
+                self._log_line("  ✓ pip aggiornato", "ok")
+            else:
+                self._append_error(errors, "pip upgrade")
+                self._log_line("  ✗ Aggiornamento pip fallito", "err")
+        else:
+            self._log_line("  Skip — pip non aggiornato (venv non disponibile)", "warn")
 
         # 4. Estrazione
         step(4, "Estrazione pacchetto release", 30)
@@ -2312,55 +2761,104 @@ class InstallPage(Page):
                     "PYTHONPATH": str(django_app),
                     "STATIC_ROOT": str(ep / "static"),
                     "MEDIA_ROOT":  str(ep / "media")}
-        if req.exists():
+        deps_ready = venv_ready
+        if not venv_ready:
+            deps_ready = False
+            self._log_line("  Skip — venv non disponibile", "warn")
+        elif req.exists():
             ok = self._pip_install_with_retry(venv_py, req)
-            if ok: self._log_line("  ✓ Dipendenze installate", "ok")
-            else:  errors.append("pip install"); self._log_line("  ✗ pip fallito", "err")
-        else: self._log_line("  requirements.txt non trovato — skip", "warn")
-        self._log_line("  → Verifica waitress (WSGI server per IIS)…", "dim")
-        self._cmd([str(venv_py), "-m", "pip", "install", "waitress", "--quiet"])
-        self._log_line("  ✓ waitress disponibile", "ok")
+            if ok:
+                self._log_line("  ✓ Dipendenze installate", "ok")
+            else:
+                deps_ready = False
+                self._append_error(errors, "pip install")
+                self._log_line("  ✗ pip fallito", "err")
+        else:
+            deps_ready = False
+            self._log_line("  requirements.txt non trovato — skip", "warn")
+        waitress_ready = deps_ready
+        if deps_ready:
+            self._log_line("  → Verifica waitress (WSGI server per IIS)…", "dim")
+            ok_waitress = self._cmd([str(venv_py), "-m", "pip", "install", "waitress", "--quiet"])
+            if ok_waitress:
+                self._log_line("  ✓ waitress disponibile", "ok")
+            else:
+                waitress_ready = False
+                self._append_error(errors, "waitress")
+                self._log_line("  ✗ waitress non disponibile", "err")
+        else:
+            waitress_ready = False
+            self._log_line("  Skip — verifica waitress non eseguita", "warn")
 
         # 7. collectstatic
         step(7, "collectstatic", 65)
-        if django_app.exists() and (django_app/"manage.py").exists():
+        collectstatic_ok = False
+        if not waitress_ready:
+            self._log_line("  Skip — dipendenze Python non disponibili", "warn")
+        elif django_app.exists() and (django_app/"manage.py").exists():
             ok = self._cmd([str(venv_py),"manage.py","collectstatic",
                             "--noinput",f"--settings={settings}"],
                            cwd=django_app, env=env_vars)
-            if ok: self._log_line("  ✓ collectstatic completato", "ok")
-            else:  self._log_line("  ✗ collectstatic fallito", "err")
-        else: self._log_line("  manage.py non trovato — skip", "warn")
+            if ok:
+                collectstatic_ok = self._verify_collectstatic_output(ep / "static", errors)
+            else:
+                self._append_error(errors, "collectstatic")
+                self._log_line("  ✗ collectstatic fallito", "err")
+        else:
+            self._log_line("  manage.py non trovato — skip", "warn")
 
         # 8. migrate
         step(8, "Django migrate", 75)
+        migrate_ok = False
         if cfg.db_trusted or cfg.db_user:
             self._create_sql_database(cfg)
         if cfg.db_trusted:
             self._configure_sql_login(cfg)
-        if django_app.exists() and (django_app/"manage.py").exists():
+        if not waitress_ready:
+            self._log_line("  Skip — dipendenze Python non disponibili", "warn")
+        elif django_app.exists() and (django_app/"manage.py").exists():
             ok = self._cmd([str(venv_py),"manage.py","migrate",
                             f"--settings={settings}","--noinput"],
                            cwd=django_app, env=env_vars)
-            if ok: self._log_line("  ✓ migrate completato", "ok")
-            else:  self._log_line("  ✗ migrate fallito (verifica DB)", "err")
+            if ok:
+                migrate_ok = True
+                self._log_line("  ✓ migrate completato", "ok")
+            else:
+                self._append_error(errors, "migrate")
+                self._log_line("  ✗ migrate fallito (verifica DB)", "err")
+            if ok:
+                ok_align = self._run_assenze_tipo_alignment(
+                    venv_py=venv_py,
+                    django_app=django_app,
+                    env_vars=env_vars,
+                    settings=settings,
+                )
+                if not ok_align:
+                    self._append_error(errors, "allinea_tipo_assenza_flessibilita")
             ok_cc = self._cmd([str(venv_py),"manage.py","createcachetable",
                                f"--settings={settings}"], cwd=django_app, env=env_vars)
-            if ok_cc: self._log_line("  ✓ createcachetable completato", "ok")
-            else:     self._log_line("  ✗ createcachetable fallito", "warn")
-            self._run_acl_bootstrap_workflow(
-                venv_py=venv_py,
-                django_app=django_app,
-                env_vars=env_vars,
-                settings=settings,
-                include_legacy_import=True,
-                run_uat_seed=bool(getattr(cfg, "acl_seed_uat", True) and cfg.environment == "test"),
-            )
+            if ok_cc:
+                self._log_line("  ✓ createcachetable completato", "ok")
+            else:
+                self._append_error(errors, "createcachetable")
+                self._log_line("  ✗ createcachetable fallito", "warn")
+            if migrate_ok:
+                self._run_acl_bootstrap_workflow(
+                    venv_py=venv_py,
+                    django_app=django_app,
+                    env_vars=env_vars,
+                    settings=settings,
+                    include_legacy_import=True,
+                    run_uat_seed=bool(getattr(cfg, "acl_seed_uat", True) and cfg.environment == "test"),
+                )
         else:
             self._log_line("  Skip — django_app non trovato", "warn")
 
         # 9. Admin
         step(9, "Creazione utente amministratore", 80)
-        if cfg.admin_username and cfg.admin_password and django_app.exists():
+        if not migrate_ok:
+            self._log_line("  Skip — migrate non completato", "warn")
+        elif cfg.admin_username and cfg.admin_password and django_app.exists():
             self._create_legacy_admin(cfg, venv_py, django_app, env_vars, settings)
         elif not django_app.exists():
             self._log_line("  Skip — nessun package estratto", "warn")
@@ -2370,26 +2868,38 @@ class InstallPage(Page):
         # 10. Junction current
         step(10, "Attivazione release", 87)
         cur = ep/"current"
+        can_activate = rel_dir.exists() and waitress_ready and collectstatic_ok and migrate_ok
+        activated_release = False
         if not rel_dir.exists():
             self._log_line("  Skip — nessuna release da attivare", "warn")
+        elif not can_activate:
+            self._log_line("  Skip — release non attivata per errori nei passaggi precedenti", "warn")
         else:
             try:
                 _create_junction(cur, rel_dir)
+                activated_release = True
                 self._log_line(f"  ✓ current → {rel_dir.name}", "ok")
             except Exception as e:
-                self._log_line(f"  ✗ Junction: {e}", "err"); errors.append(str(e))
+                self._log_line(f"  ✗ Junction: {e}", "err")
+                self._append_error(errors, str(e))
 
         # 11. IIS
         step(11, "Configurazione IIS", 94)
-        self._check_httpplatformhandler()
-        self._write_webconfig(ep, cfg)
-        self._log_line("  ✓ web.config scritto", "ok")
-        self._configure_iis(cfg)
+        if not activated_release:
+            self._log_line("  Skip — IIS non aggiornato per evitare di puntare a una release incompleta", "warn")
+        else:
+            self._check_httpplatformhandler()
+            self._write_webconfig(ep, cfg)
+            self._log_line("  ✓ web.config scritto", "ok")
+            self._configure_iis(cfg)
 
         # 12. Backup automatico schedulato
         step(12, "Pianificazione backup automatico", 98)
         backup_dir_path = Path(cfg.base_dir) / "shared" / "backups" / cfg.environment
-        self._setup_scheduled_backup(cfg, ep, venv_py, settings, backup_dir_path)
+        if not activated_release:
+            self._log_line("  Skip — backup schedulato non registrato (release non attivata)", "warn")
+        else:
+            self._setup_scheduled_backup(cfg, ep, venv_py, settings, backup_dir_path)
 
     # ── Helper condiviso tra DEV e PROD ──────────────────────────────────────
 
@@ -3264,6 +3774,11 @@ class ReleaseRunPage(Page):
             self._pb_fill.place(width=int(w * pct / 100))
         self._log.after(0, _do)
 
+    @staticmethod
+    def _append_error(errors, entry):
+        if entry and entry not in errors:
+            errors.append(entry)
+
     def _cmd(self, cmd, cwd=None, env=None):
         self._log_line(f"  $ {' '.join(str(c) for c in cmd)}", "dim")
         try:
@@ -3445,50 +3960,86 @@ class ReleaseRunPage(Page):
         # 3. pip install
         step(3, "Aggiornamento dipendenze pip", 32)
         req = django_app / "requirements.txt"
+        deps_ready = True
         if req.exists():
             ok = self._pip_install_with_retry(venv_py, req)
-            if ok: self._log_line("  ✓ Dipendenze aggiornate", "ok")
-            else:  errors.append("pip install"); self._log_line("  ✗ pip fallito", "err")
+            if ok:
+                self._log_line("  ✓ Dipendenze aggiornate", "ok")
+            else:
+                deps_ready = False
+                self._append_error(errors, "pip install")
+                self._log_line("  ✗ pip fallito", "err")
         else:
+            deps_ready = False
             self._log_line("  requirements.txt non trovato — skip", "warn")
 
         # 4. collectstatic
         step(4, "collectstatic", 50)
         env_vars = {**os.environ,
                     "DJANGO_SETTINGS_MODULE": settings,
-                    "PYTHONPATH": str(django_app)}
-        if (django_app / "manage.py").exists():
+                    "PYTHONPATH": str(django_app),
+                    "STATIC_ROOT": str(ep / "static"),
+                    "MEDIA_ROOT": str(ep / "media")}
+        collectstatic_ok = False
+        if not deps_ready:
+            self._log_line("  Skip — dipendenze Python non disponibili", "warn")
+        elif (django_app / "manage.py").exists():
             ok = self._cmd([str(venv_py), "manage.py", "collectstatic",
                              "--noinput", f"--settings={settings}"],
                             cwd=django_app, env=env_vars)
-            if ok: self._log_line("  ✓ collectstatic completato", "ok")
-            else:  self._log_line("  ✗ collectstatic fallito", "err")
+            if ok:
+                collectstatic_ok = self._verify_collectstatic_output(ep / "static", errors)
+            else:
+                self._append_error(errors, "collectstatic")
+                self._log_line("  ✗ collectstatic fallito", "err")
 
         # 5. migrate
         step(5, "Django migrate", 65)
-        if (django_app / "manage.py").exists():
+        migrate_ok = False
+        if not deps_ready:
+            self._log_line("  Skip — dipendenze Python non disponibili", "warn")
+        elif (django_app / "manage.py").exists():
             ok = self._cmd([str(venv_py), "manage.py", "migrate",
                              f"--settings={settings}", "--noinput"],
                             cwd=django_app, env=env_vars)
-            if ok: self._log_line("  ✓ migrate completato", "ok")
-            else:  self._log_line("  ✗ migrate fallito (verifica DB)", "err")
+            if ok:
+                migrate_ok = True
+                self._log_line("  ✓ migrate completato", "ok")
+            else:
+                self._append_error(errors, "migrate")
+                self._log_line("  ✗ migrate fallito (verifica DB)", "err")
+            if ok:
+                ok_align = self._run_assenze_tipo_alignment(
+                    venv_py=venv_py,
+                    django_app=django_app,
+                    env_vars=env_vars,
+                    settings=settings,
+                )
+                if not ok_align:
+                    self._append_error(errors, "allinea_tipo_assenza_flessibilita")
             ok_cc = self._cmd([str(venv_py), "manage.py", "createcachetable",
                                f"--settings={settings}"], cwd=django_app, env=env_vars)
-            if ok_cc: self._log_line("  ✓ createcachetable completato", "ok")
-            else:     self._log_line("  ✗ createcachetable fallito", "warn")
-            self._run_acl_bootstrap_workflow(
-                venv_py=venv_py,
-                django_app=django_app,
-                env_vars=env_vars,
-                settings=settings,
-                include_legacy_import=True,
-                run_uat_seed=bool(getattr(cfg, "acl_seed_uat", True) and cfg.environment == "test"),
-            )
+            if ok_cc:
+                self._log_line("  ✓ createcachetable completato", "ok")
+            else:
+                self._append_error(errors, "createcachetable")
+                self._log_line("  ✗ createcachetable fallito", "warn")
+            if migrate_ok:
+                self._run_acl_bootstrap_workflow(
+                    venv_py=venv_py,
+                    django_app=django_app,
+                    env_vars=env_vars,
+                    settings=settings,
+                    include_legacy_import=True,
+                    run_uat_seed=bool(getattr(cfg, "acl_seed_uat", True) and cfg.environment == "test"),
+                )
 
         # 6. Attivazione junction
         step(6, "Attivazione release", 80)
         cur = ep / "current"
         prev_file = ep / "run" / "previous_release.txt"
+        activated_release = False
+        can_activate = rel_dir.exists() and deps_ready and collectstatic_ok and migrate_ok
         if cur.exists() or cur.is_symlink():
             try:
                 prev_target = str(cur.resolve())
@@ -3496,28 +4047,38 @@ class ReleaseRunPage(Page):
                 prev_file.write_text(prev_target, encoding="utf-8")
                 self._log_line(f"  ✓ Release precedente salvata: {prev_target}", "ok")
             except: pass
-        try:
-            _create_junction(cur, rel_dir)
-            self._log_line(f"  ✓ current → {rel_dir.name}", "ok")
-        except Exception as e:
-            errors.append(str(e)); self._log_line(f"  ✗ Junction: {e}", "err")
+        if not can_activate:
+            self._log_line("  Skip — release non attivata per errori nei passaggi precedenti", "warn")
+        else:
+            try:
+                _create_junction(cur, rel_dir)
+                activated_release = True
+                self._log_line(f"  ✓ current → {rel_dir.name}", "ok")
+            except Exception as e:
+                self._append_error(errors, str(e))
+                self._log_line(f"  ✗ Junction: {e}", "err")
 
         # 7. IIS recycle
         step(7, "Riavvio App Pool IIS", 93)
         site_name = f"PortaleNovicrom-{cfg.environment.upper()}"
-        ps = (f"Restart-WebAppPool -Name '{cfg.app_pool_name}' -ErrorAction SilentlyContinue; "
-              f"Start-Website -Name '{site_name}' -ErrorAction SilentlyContinue")
-        try:
-            r = subprocess.run(
-                ["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps],
-                capture_output=True, text=True, encoding="utf-8", errors="replace",
-                creationflags=subprocess.CREATE_NO_WINDOW)
-            if r.returncode == 0:
-                self._log_line(f"  ✓ App Pool {cfg.app_pool_name} riciclato", "ok")
-            else:
-                self._log_line(f"  ✗ IIS: {(r.stderr or r.stdout)[:200]}", "err")
-        except Exception as e:
-            self._log_line(f"  ✗ IIS recycle: {e}", "err")
+        if not activated_release:
+            self._log_line("  Skip — App Pool IIS non riavviato (release non attivata)", "warn")
+        else:
+            ps = (f"Restart-WebAppPool -Name '{cfg.app_pool_name}' -ErrorAction SilentlyContinue; "
+                  f"Start-Website -Name '{site_name}' -ErrorAction SilentlyContinue")
+            try:
+                r = subprocess.run(
+                    ["powershell", "-ExecutionPolicy", "Bypass", "-Command", ps],
+                    capture_output=True, text=True, encoding="utf-8", errors="replace",
+                    creationflags=subprocess.CREATE_NO_WINDOW)
+                if r.returncode == 0:
+                    self._log_line(f"  ✓ App Pool {cfg.app_pool_name} riciclato", "ok")
+                else:
+                    self._append_error(errors, "iis recycle")
+                    self._log_line(f"  ✗ IIS: {(r.stderr or r.stdout)[:200]}", "err")
+            except Exception as e:
+                self._append_error(errors, "iis recycle")
+                self._log_line(f"  ✗ IIS recycle: {e}", "err")
 
         self._set_progress(100, "Deploy completato!")
         self._log_line("\n" + "─"*50, "step")
@@ -4217,7 +4778,7 @@ class ServerDashboard:
         self.root.configure(bg="white")
         self.root.resizable(False, False)
 
-        W, H = 700, 580
+        W, H = 700, 610
         sw = self.root.winfo_screenwidth()
         sh = self.root.winfo_screenheight()
         self.root.geometry(f"{W}x{H}+{(sw-W)//2}+{(sh-H)//2 - 20}")
@@ -4225,6 +4786,7 @@ class ServerDashboard:
         self._selected_env = tk.StringVar(value="test")
         self._status_data: dict = {}
         self._after_id = None
+        self._admin_mode = is_admin()
 
         self._build()
         self._refresh()
@@ -4297,9 +4859,20 @@ class ServerDashboard:
         self._btn_restart = PrimaryButton(btn_row, "↺  Riavvia",  lambda: self._iis_action("restart"))
         self._btn_recycle = SecondaryButton(btn_row, "♻  Ricicla Pool", lambda: self._iis_action("recycle"))
         self._btn_browser = SecondaryButton(btn_row, "🌐  Apri browser", self._open_browser)
+        self._btn_reset_password = SecondaryButton(btn_row, "🔑  Reset password live", self._open_live_password_reset)
         for b in (self._btn_start, self._btn_stop, self._btn_restart,
-                  self._btn_recycle, self._btn_browser):
+                  self._btn_recycle, self._btn_browser, self._btn_reset_password):
             b.pack(side="left", padx=(0, 8))
+        if not self._admin_mode:
+            self._btn_reset_password.set_enabled(False)
+
+        admin_note = (
+            "Reset password live disponibile: aggiorna subito un account locale sull'ambiente attivo."
+            if self._admin_mode
+            else "Reset password live disponibile solo se il setup e avviato come Administrator."
+        )
+        admin_note_fg = GRAY500 if self._admin_mode else YELLOW_TX
+        tk.Label(ctrl, text=admin_note, font=FSM, fg=admin_note_fg, bg="white").pack(anchor="w", pady=(8, 0))
 
         # ── Log viewer ──────────────────────────────────────────
         frame(main, height=14).pack()
@@ -4476,6 +5049,263 @@ Write-Output "$sState|$pState|$port"
         except Exception:
             pass
 
+    def _open_live_password_reset(self):
+        if not self._admin_mode:
+            messagebox.showwarning(
+                "Privilegi richiesti",
+                "Il reset password live e disponibile solo quando Setup Wizard e avviato come Administrator.",
+            )
+            return
+
+        env = self._selected_env.get()
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"Reset password live - {env.upper()}")
+        dialog.configure(bg="white")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        W, H = 460, 280
+        sw = dialog.winfo_screenwidth()
+        sh = dialog.winfo_screenheight()
+        dialog.geometry(f"{W}x{H}+{(sw-W)//2}+{(sh-H)//2}")
+
+        body = frame(dialog, bg="white")
+        body.pack(fill="both", expand=True, padx=20, pady=18)
+
+        tk.Label(body, text=f"Ambiente {env.upper()}", font=(SF, 12, "bold"),
+                 fg=GRAY700, bg="white").pack(anchor="w")
+        tk.Label(
+            body,
+            text="Aggiorna la password di un account locale legacy e, se esiste, dell'utente Django associato.",
+            font=FSM,
+            fg=GRAY500,
+            bg="white",
+            wraplength=410,
+            justify="left",
+        ).pack(anchor="w", pady=(4, 14))
+
+        username_var = tk.StringVar(value="admin")
+        password_var = tk.StringVar()
+        confirm_var = tk.StringVar()
+
+        def _field(label_text, variable, *, show=""):
+            row = frame(body, bg="white")
+            row.pack(fill="x", pady=4)
+            tk.Label(row, text=label_text, font=(SF, 9, "bold"),
+                     fg=GRAY600, bg="white").pack(anchor="w", pady=(0, 3))
+            entry = tk.Entry(
+                row,
+                textvariable=variable,
+                show=show,
+                font=FMO,
+                relief="flat",
+                bg=GRAY50,
+                fg=GRAY800,
+                highlightthickness=1,
+                highlightbackground=GRAY200,
+                highlightcolor=BRAND,
+            )
+            entry.pack(fill="x", ipady=7, ipadx=8)
+            return entry
+
+        username_entry = _field("Username locale", username_var)
+        password_entry = _field("Nuova password", password_var, show="*")
+        confirm_entry = _field("Conferma password", confirm_var, show="*")
+
+        status_var = tk.StringVar(value="")
+        tk.Label(body, textvariable=status_var, font=FSM, fg=GRAY500, bg="white",
+                 wraplength=410, justify="left").pack(anchor="w", pady=(8, 0))
+
+        actions = frame(body, bg="white")
+        actions.pack(fill="x", pady=(18, 0))
+
+        def _set_busy(is_busy: bool):
+            state = "disabled" if is_busy else "normal"
+            for entry in (username_entry, password_entry, confirm_entry):
+                entry.configure(state=state)
+            btn_confirm.set_state(not is_busy)
+            btn_cancel.set_enabled(not is_busy)
+
+        def _submit():
+            identifier = username_var.get().strip()
+            password = password_var.get()
+            confirm = confirm_var.get()
+            if not identifier:
+                status_var.set("Inserisci lo username locale da aggiornare.")
+                return
+            if len(password) < 8:
+                status_var.set("La password deve contenere almeno 8 caratteri.")
+                return
+            if password != confirm:
+                status_var.set("Le due password non coincidono.")
+                return
+            status_var.set(f"Aggiornamento password live in corso su {env.upper()}...")
+            _set_busy(True)
+            threading.Thread(
+                target=self._run_live_password_reset,
+                args=(env, identifier, password, dialog, status_var, _set_busy),
+                daemon=True,
+            ).start()
+
+        btn_confirm = PrimaryButton(actions, "Aggiorna password", _submit)
+        btn_confirm.pack(side="right")
+        btn_cancel = SecondaryButton(actions, "Annulla", dialog.destroy)
+        btn_cancel.pack(side="right", padx=(0, 8))
+
+        username_entry.focus_set()
+
+    def _run_live_password_reset(self, env, identifier, password, dialog, status_var, set_busy):
+        env_root = Path(self.BASE_DIR) / env
+        django_app = env_root / "current" / "django_app"
+        venv_py = env_root / "venv" / "Scripts" / "python.exe"
+        settings = _django_settings(env)
+
+        if not django_app.exists() or not (django_app / "manage.py").exists():
+            self.root.after(
+                0,
+                lambda: (
+                    set_busy(False),
+                    status_var.set("Release corrente non trovata: manca current\\django_app."),
+                ),
+            )
+            return
+        if not venv_py.exists():
+            self.root.after(
+                0,
+                lambda: (
+                    set_busy(False),
+                    status_var.set("Virtualenv dell'ambiente non trovato."),
+                ),
+            )
+            return
+
+        reset_script = f"""
+import json
+import os
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", {settings!r})
+
+import django
+django.setup()
+
+from django.contrib.auth import get_user_model
+from django.db.models import Q
+from werkzeug.security import generate_password_hash
+from core.legacy_models import UtenteLegacy
+
+identifier = {identifier!r}
+password = {password!r}
+
+legacy_user = (
+    UtenteLegacy.objects.filter(Q(nome__iexact=identifier) | Q(email__iexact=identifier))
+    .order_by("id")
+    .first()
+)
+if not legacy_user:
+    raise SystemExit(f"Utente locale non trovato: {{identifier}}")
+
+legacy_user.password = generate_password_hash(password)
+legacy_user.attivo = True
+if hasattr(legacy_user, "deve_cambiare_password"):
+    legacy_user.deve_cambiare_password = False
+legacy_user.save()
+
+django_user_updated = False
+User = get_user_model()
+candidate_names = []
+for value in (legacy_user.nome, legacy_user.email, identifier):
+    if value and value not in candidate_names:
+        candidate_names.append(value)
+
+django_user = None
+for value in candidate_names:
+    django_user = User.objects.filter(username__iexact=value).first()
+    if django_user:
+        break
+if not django_user and legacy_user.email:
+    django_user = User.objects.filter(email__iexact=legacy_user.email).first()
+if django_user:
+    django_user.set_password(password)
+    django_user.save()
+    django_user_updated = True
+
+axes_reset = False
+try:
+    from axes.models import AccessAttempt, AccessFailureLog
+
+    for value in candidate_names:
+        AccessAttempt.objects.filter(username__iexact=value).delete()
+        AccessFailureLog.objects.filter(username__iexact=value).delete()
+    axes_reset = True
+except Exception:
+    pass
+
+print(json.dumps({{
+    "legacy_user": legacy_user.nome,
+    "legacy_email": legacy_user.email,
+    "django_user_updated": django_user_updated,
+    "axes_reset": axes_reset,
+}}))
+"""
+
+        env_vars = {
+            **os.environ,
+            "DJANGO_SETTINGS_MODULE": settings,
+            "PYTHONPATH": str(django_app),
+        }
+
+        try:
+            result = subprocess.run(
+                [str(venv_py), "-c", reset_script],
+                cwd=str(django_app),
+                env=env_vars,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=60,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+        except Exception as exc:
+            self.root.after(
+                0,
+                lambda: (
+                    set_busy(False),
+                    status_var.set(f"Reset password non riuscito: {exc}"),
+                ),
+            )
+            return
+
+        stdout = (result.stdout or "").strip()
+        stderr = (result.stderr or "").strip()
+
+        def _finish():
+            if result.returncode == 0:
+                summary = "Password live aggiornata con successo."
+                try:
+                    payload = json.loads(stdout or "{}")
+                    summary = (
+                        f"Utente legacy: {payload.get('legacy_user') or identifier}\n"
+                        f"Utente Django sincronizzato: {'si' if payload.get('django_user_updated') else 'no'}\n"
+                        f"Reset AXES: {'si' if payload.get('axes_reset') else 'no'}"
+                    )
+                except Exception:
+                    if stdout:
+                        summary = stdout
+                dialog.destroy()
+                messagebox.showinfo(
+                    "Reset password live",
+                    f"Ambiente {env.upper()}\n\n{summary}",
+                )
+                self._refresh()
+                return
+
+            set_busy(False)
+            status_var.set(stderr or stdout or "Reset password non riuscito.")
+
+        self.root.after(0, _finish)
+
 
 # ─────────────────────────────────────────────────────────────
 # LAUNCHER — schermata di avvio con selezione modalità
@@ -4650,3 +5480,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

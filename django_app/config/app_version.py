@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 
-DEFAULT_APP_VERSION = "0.8.6"
+DEFAULT_APP_VERSION = "0.9.3"
 
 # Keep insertion order stable for deterministic .env generation.
 MODULE_ENV_KEYS_BY_CODE: dict[str, str] = {

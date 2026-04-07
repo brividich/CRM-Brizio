@@ -613,15 +613,15 @@
       </div>
     </div>
 
-    <!-- ── Widget: Richieste recenti ── -->
+    <!-- ── Widget: Assenze recenti ── -->
     <div class="eb-widget" data-wid="richieste">
       <div class="eb-widget-head">
         <div class="eb-widget-title">
           <span class="eb-widget-handle" title="Trascina per riordinare">&#x2630;</span>
-          <span>&#128203;</span> Richieste recenti
+          <span>&#128203;</span> Assenze recenti
         </div>
         <div class="eb-widget-actions">
-          <a href="{% url 'richieste' %}" class="eb-btn secondary" style="font-size:11px;padding:4px 10px;">Apri &rarr;</a>
+          <a href="{% url 'assenze_gestione' %}" class="eb-btn secondary" style="font-size:11px;padding:4px 10px;">Apri modulo &rarr;</a>
           <button type="button" class="eb-widget-hide" data-wid="richieste" title="Nascondi sezione">&#10005;</button>
         </div>
       </div>
@@ -786,7 +786,7 @@
   const WIDGET_LABELS = {
     assenze:   "Assenze / Approvazioni",
     stats:     "Statistiche",
-    richieste: "Richieste recenti",
+    richieste: "Assenze recenti",
     launcher:  "Applicazioni",
   };
 

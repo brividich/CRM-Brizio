@@ -444,6 +444,9 @@ class DashboardRoutingTests(TestCase):
         self.assertEqual(self.client.get(dashboard_url).status_code, 200)
         self.assertEqual(self.client.get(dashboard_home_url).status_code, 200)
 
+    def test_coming_assenze_route_name_resolves_to_modulo_assenze_path(self):
+        self.assertEqual(reverse("coming_assenze"), reverse("assenze_menu"))
+
     @override_settings(
         LEGACY_AUTH_ENABLED=False,
         APP_VERSION="9.9.9-test",
@@ -477,7 +480,7 @@ class DashboardRoutingTests(TestCase):
         response = admin_views.index.__wrapped__(request)
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Versioning e Release Notes", response.content.decode("utf-8"))
+        self.assertIn("Versione portale", response.content.decode("utf-8"))
         self.assertIn("9.9.9-test", response.content.decode("utf-8"))
         self.assertIn("Assets", response.content.decode("utf-8"))
         self.assertIn("1.2.3-assets", response.content.decode("utf-8"))
@@ -1221,12 +1224,36 @@ class IconTemplateTagTests(SimpleTestCase):
         self.assertIn("<img", html)
         self.assertIn('/media/nav/test-icon.ico', html)
 
-    def test_render_icon_falls_back_to_text_when_value_is_not_image(self):
+    def test_render_icon_falls_back_to_text_when_no_semantic_icon_exists(self):
         html = Template(
-            "{% load ui_icons %}<span>{% render_icon '' 'Dashboard' %}</span>"
+            "{% load ui_icons %}<span>{% render_icon '' 'Foo' %}</span>"
         ).render(Context())
 
-        self.assertIn(">D<", html)
+        self.assertIn(">F<", html)
+
+    def test_render_icon_renders_svg_for_semantic_alias(self):
+        html = Template(
+            "{% load ui_icons %}<span>{% render_icon 'shield-check' 'DPI' %}</span>"
+        ).render(Context())
+
+        self.assertIn("<svg", html)
+        self.assertIn("ui-icon-svg", html)
+
+    def test_render_icon_uses_label_mapping_when_icon_is_blank(self):
+        html = Template(
+            "{% load ui_icons %}<span>{% render_icon '' 'Notizie' %}</span>"
+        ).render(Context())
+
+        self.assertIn("<svg", html)
+        self.assertNotIn(">N<", html)
+
+    def test_render_icon_replaces_placeholder_initials_with_semantic_icon(self):
+        html = Template(
+            "{% load ui_icons %}<span>{% render_icon 'A' 'Anagrafica' %}</span>"
+        ).render(Context())
+
+        self.assertIn("<svg", html)
+        self.assertNotIn(">A<", html)
 
 
 class ModuleRegistryStructureTests(TestCase):

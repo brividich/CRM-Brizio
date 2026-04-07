@@ -1,5 +1,5 @@
 {% extends "core/base.html" %}
-{% load static %}
+{% load static ui_icons %}
 
 {% block title %}Hub Tools — Categorie Moduli{% endblock %}
 
@@ -154,7 +154,7 @@
     <div class="cat-color-bar" style="background:{{ cat.topbar_color }}"></div>
     <div class="cat-body">
       <div style="display:flex;align-items:center;gap:10px">
-        <span class="cat-icon">{% firstof cat.icon cat.label|slice:":1"|upper %}</span>
+        <span class="cat-icon">{% render_icon cat.icon cat.label %}</span>
         <div>
           <div class="cat-label">{{ cat.label }}</div>
           <div class="cat-key">{{ cat.key }} &nbsp;·&nbsp; ordine {{ cat.order }}</div>
@@ -190,7 +190,7 @@
   {% for item in nav_items %}
   <div class="nav-item-row">
     <div class="nav-item-info">
-      <span class="cat-icon">{% firstof item.icon item.label|slice:":1"|upper %}</span>
+      <span class="cat-icon">{% render_icon item.icon item.label %}</span>
       <div>
         <div style="font-weight:600">{{ item.label }}</div>
         <div class="nav-item-code">{{ item.code }}</div>

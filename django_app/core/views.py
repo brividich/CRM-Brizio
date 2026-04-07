@@ -168,8 +168,8 @@ def dashboard(request):
         {"icon": "👥", "icon_class": "blue", "value": 48, "label": "Utenti attivi"},
     ]
     modules = [
-        {"icon": "📅", "name": "Gestione Assenze", "sub": "Visualizza richieste", "url_name": "coming_assenze"},
-        {"icon": "✏️", "name": "Richiedi Assenza", "sub": "Nuovo permesso/ferie", "url_name": "coming_assenze"},
+        {"icon": "📅", "name": "Gestione Assenze", "sub": "Visualizza richieste", "url_name": "assenze_menu"},
+        {"icon": "✏️", "name": "Richiedi Assenza", "sub": "Nuovo permesso/ferie", "url_name": "assenze_richiesta"},
         {"icon": "👥", "name": "Utenti", "sub": "Gestione anagrafica", "url_name": "coming_admin"},
         {"icon": "🔒", "name": "Permessi", "sub": "Ruoli e accessi", "url_name": "coming_admin"},
         {"icon": "⚠️", "name": "Anomalie", "sub": "Non conformità", "url_name": "coming_anomalie"},
@@ -217,7 +217,7 @@ def _coming_soon(request, section_title: str):
 
 
 def coming_assenze(request):
-    return _coming_soon(request, "Assenze")
+    return redirect("assenze_menu")
 
 
 def coming_anomalie(request):

@@ -121,9 +121,9 @@ APP_VERSION = env("APP_VERSION", load_app_version(DEFAULT_APP_VERSION))
 SETUP_WIZARD_REQUIRED = env_bool("SETUP_WIZARD_REQUIRED", True)
 
 # ── Branding istanza ──────────────────────────────────────────────────────────
-# INSTANCE_NAME: nome visualizzato nell'interfaccia (es. "Portale Novicrom").
-# Il nome del software su GitHub è sempre "BrizioHUB".
-INSTANCE_NAME = env("INSTANCE_NAME", "BrizioHUB")
+# INSTANCE_NAME: nome visualizzato nell'interfaccia (es. "NOVICROM HUB").
+# Puoi personalizzarlo per singola installazione senza cambiare il brand documentale.
+INSTANCE_NAME = env("INSTANCE_NAME", "NOVICROM HUB")
 BRANDING_LOGO = env("BRANDING_LOGO", "")    # percorso relativo a STATICFILES (es. core/img/branding_logo.png)
 BRANDING_FAVICON = env("BRANDING_FAVICON", "")  # percorso relativo a STATICFILES
 

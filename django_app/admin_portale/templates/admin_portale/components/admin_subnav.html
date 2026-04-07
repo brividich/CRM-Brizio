@@ -1,3 +1,4 @@
+{% load ui_icons %}
 {% if admin_subnav_items %}
 <div class="subnav">
   {% for item in admin_subnav_items %}
@@ -6,7 +7,7 @@
     {% endifchanged %}
     <a class="sub-a{% if item.active %} active{% endif %}{% if item.coming %} coming{% endif %}"
        href="{{ item.href }}"{% if item.coming %} title="In arrivo"{% endif %}>
-      {% if item.icon %}<span class="sub-icon" aria-hidden="true">{{ item.icon }}</span>{% endif %}
+      {% if item.icon %}<span class="sub-icon" aria-hidden="true">{% render_icon item.icon item.label %}</span>{% endif %}
       {{ item.label }}
     </a>
   {% endfor %}

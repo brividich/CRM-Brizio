@@ -954,7 +954,7 @@
                 {% for row in rows %}
                   <div class="acl-perm-row" data-nav-item-id="{{ row.item_id }}">
                     <div class="acl-perm-label">
-                      {% if row.item_icon %}<span style="margin-right:4px;">{{ row.item_icon }}</span>{% endif %}
+                      {% if row.item_icon %}<span style="margin-right:4px;">{% render_icon row.item_icon row.item_label %}</span>{% endif %}
                       {{ row.item_label }}
                       <span class="acl-perm-code">{{ row.item_code }}</span>
                     </div>

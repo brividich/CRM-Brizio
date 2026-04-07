@@ -13,7 +13,7 @@
       %%ENV_PATH%%      = C:\PortaleNovicrom\test  (o prod)
       %%VENV_PATH%%     = C:\PortaleNovicrom\test\venv
       %%LOGS_PATH%%     = C:\PortaleNovicrom\test\logs
-      %%SETTINGS_MOD%%  = config.settings.test  (o prod)
+      %%SETTINGS_MOD%%  = config.settings.prod
       %%DJANGO_APP%%    = C:\PortaleNovicrom\test\current\django_app
 
     POSIZIONE FILE:

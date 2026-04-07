@@ -1,4 +1,5 @@
 Django==5.2.11
+waitress>=3.0,<4
 mssql-django==1.6
 pyodbc>=5.2.0
 Werkzeug==3.0.3
