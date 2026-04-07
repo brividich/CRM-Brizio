@@ -247,10 +247,7 @@
             },
             body: JSON.stringify(payload)
           });
-          const data = await response.json().catch(function () { return {}; });
-          if (!response.ok || !data.ok) {
-            throw new Error(data.error || ("HTTP " + response.status));
-          }
+          await window.portalReadJsonResponse(response, { fallbackError: "Errore aggiornamento topbar." });
           setRowStatus(row, "Salvato", "topbar-live-row-ok");
           if (!silent) setGlobalStatus("Modifica salvata.", false);
           return true;

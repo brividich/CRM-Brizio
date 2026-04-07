@@ -483,7 +483,7 @@
               headers:{"Content-Type":"application/json","X-CSRFToken":getCsrf()},
               body:JSON.stringify(payload)
             });
-            return resp.json();
+            return window.portalReadJsonResponse(resp, { fallbackError: "Errore aggiornamento grant ruolo." });
           }
 
           function recalcModuleToggle(module){
@@ -524,7 +524,7 @@
                 cb.checked = !cb.checked;
               }
             } catch(err){
-              setStatus("Errore di rete.", false);
+              setStatus("Errore: "+((err && err.message) || "Errore aggiornamento grant ruolo."), false);
               cb.checked = !cb.checked;
             }
             if(row) row.classList.remove("saving");
@@ -548,7 +548,7 @@
                 recalcModuleToggle(module);
               }
             } catch(err){
-              setStatus("Errore di rete.", false);
+              setStatus("Errore: "+((err && err.message) || "Errore aggiornamento modulo."), false);
             }
             if(card) card.querySelectorAll(".acl-perm-row").forEach(function(r){ r.classList.remove("saving"); });
           });
@@ -711,7 +711,9 @@
         if(q.length < 2){ dropdownWrap.innerHTML=""; return; }
         debounceTimer = setTimeout(function(){
           fetch(SEARCH_URL + "?q=" + encodeURIComponent(q))
-            .then(function(r){ return r.json(); })
+            .then(function(r){
+              return window.portalReadJsonResponse(r, { fallbackError: "Errore ricerca utente ACL." });
+            })
             .then(function(data){
               if(!data.results||!data.results.length){
                 dropdownWrap.innerHTML='<div style="position:absolute;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:13px;color:#64748b;z-index:99;">Nessun utente trovato.</div>';
@@ -734,6 +736,12 @@
                   searchInput.closest("form").submit();
                 });
               });
+            })
+            .catch(function(err){
+              dropdownWrap.innerHTML='<div style="position:absolute;left:0;right:0;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;font-size:13px;color:#b91c1c;z-index:99;"></div>';
+              if (dropdownWrap.firstElementChild) {
+                dropdownWrap.firstElementChild.textContent = String((err && err.message) || "Errore ricerca utente ACL.");
+              }
             });
         }, 280);
       });
@@ -743,7 +751,7 @@
       function getCsrf(){ var inp=document.querySelector("input[name=csrfmiddlewaretoken]"); return inp?inp.value:""; }
       async function postJson(url,payload){
         var r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":getCsrf()},body:JSON.stringify(payload)});
-        return r.json();
+        return window.portalReadJsonResponse(r, { fallbackError: "Errore aggiornamento override ACL." });
       }
       function setStatus(msg,ok){
         if(!statusEl) return;
@@ -778,7 +786,7 @@
             var data=await postJson(TOGGLE_URL,{permission_code:this.dataset.code,state:stateMap[next]});
             if(data.ok){ applyToggleStyle(this,next); setStatus("Salvato: "+this.dataset.code,true); }
             else{ setStatus("Errore: "+(data.error||"?"),false); }
-          }catch(e){ setStatus("Errore di rete.",false); }
+          }catch(e){ setStatus("Errore: "+((e && e.message) || "Errore aggiornamento override ACL."),false); }
           this.disabled=false; if(row) row.classList.remove("saving");
           updateModuleBtn(this.closest(".acl-mod-card"));
         });
@@ -823,7 +831,7 @@
               setStatus("Modulo "+this.dataset.module+": "+state,true);
               updateModuleBtn(card);
             } else { setStatus("Errore: "+(data.error||"?"),false); }
-          }catch(e){ setStatus("Errore di rete.",false); }
+          }catch(e){ setStatus("Errore: "+((e && e.message) || "Errore aggiornamento modulo ACL."),false); }
           card.querySelectorAll(".acl-perm-row").forEach(function(r){ r.classList.remove("saving"); });
         });
       });
@@ -955,7 +963,9 @@
         if(q.length < 2){ dropdownWrap2.innerHTML=""; return; }
         debounce2 = setTimeout(function(){
           fetch(SEARCH_URL2 + "?q=" + encodeURIComponent(q))
-            .then(function(r){ return r.json(); })
+            .then(function(r){
+              return window.portalReadJsonResponse(r, { fallbackError: "Errore ricerca utente override navigazione." });
+            })
             .then(function(data){
               if(!data.results||!data.results.length){
                 dropdownWrap2.innerHTML='<div style="position:absolute;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:13px;color:#64748b;z-index:99;">Nessun utente trovato.</div>';
@@ -978,6 +988,12 @@
                   searchInput2.closest("form").submit();
                 });
               });
+            })
+            .catch(function(err){
+              dropdownWrap2.innerHTML='<div style="position:absolute;left:0;right:0;background:#fff;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;font-size:13px;color:#b91c1c;z-index:99;"></div>';
+              if (dropdownWrap2.firstElementChild) {
+                dropdownWrap2.firstElementChild.textContent = String((err && err.message) || "Errore ricerca utente override navigazione.");
+              }
             });
         }, 280);
       });
@@ -987,7 +1003,7 @@
       function getCsrf(){ var inp=document.querySelector("input[name=csrfmiddlewaretoken]"); return inp?inp.value:""; }
       async function postJson(url,payload){
         var r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":getCsrf()},body:JSON.stringify(payload)});
-        return r.json();
+        return window.portalReadJsonResponse(r, { fallbackError: "Errore aggiornamento override navigazione." });
       }
       function setStatus(msg,ok){
         if(!statusEl) return;
@@ -1029,7 +1045,7 @@
             var data = await postJson(NAV_OV_TOGGLE_URL, {item_id: parseInt(this.dataset.itemId), state: stateMap[next]});
             if(data.ok){ applyNavOvStyle(this, next); setStatus("Salvato: "+this.dataset.itemId, true); }
             else{ setStatus("Errore: "+(data.error||"?"), false); }
-          }catch(e){ setStatus("Errore di rete.", false); }
+          }catch(e){ setStatus("Errore: "+((e && e.message) || "Errore aggiornamento override navigazione."), false); }
           this.disabled=false; if(row) row.classList.remove("saving");
         });
       });

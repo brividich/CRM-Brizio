@@ -54,6 +54,7 @@ class PulsanteForm(forms.Form):
     url = forms.CharField(max_length=500)
     icona = forms.CharField(max_length=50, required=False)
     ordine = forms.IntegerField(required=False)
+    descrizione = forms.CharField(required=False)
 
     def clean_codice(self):
         value = (self.cleaned_data.get("codice") or "").strip()

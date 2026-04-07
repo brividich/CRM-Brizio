@@ -7,7 +7,7 @@
 {% endblock %}
 
 {% block content %}
-  {% include "admin_portale/components/page_header.html" with page_title="Config SRV" page_subtitle="Pannello unico per configurare e testare i server LDAP / Active Directory e SMTP usando `config.ini`." %}
+  {% include "admin_portale/components/page_header.html" with page_title="Config SRV" page_subtitle="Pannello unico per configurare e testare LDAP / Active Directory e SMTP. La sezione LDAP distingue runtime attivo e configurazione persistita." %}
   {% include "admin_portale/components/flash_messages.html" %}
 
   <div class="card" style="margin-bottom:10px;">
@@ -34,8 +34,72 @@
 
   <div class="card">
     <div class="card-head">
-      <div class="card-title">Configurazione attiva</div>
-      <div class="cell-muted">{% if ldap_cfg.enabled %}LDAP abilitato{% else %}LDAP disabilitato{% endif %}</div>
+      <div class="card-title">Runtime LDAP attivo</div>
+      <div class="cell-muted">{% if ldap_runtime_cfg.enabled %}LDAP abilitato{% else %}LDAP disabilitato{% endif %}</div>
+    </div>
+    <div class="card-body">
+      {% if ldap_runtime_has_pending_restart %}
+        <div class="notice notice-warning" style="margin-bottom:12px;">
+          Il processo Django attuale non e' ancora allineato ai valori che verranno letti al prossimo riavvio.
+        </div>
+      {% elif ldap_runtime_has_env_override %}
+        <div class="notice" style="margin-bottom:12px;">
+          Alcuni campi risultano intenzionalmente sovrascritti da <code>.env</code> o dall'ambiente processo rispetto a <code>config.ini</code>.
+        </div>
+      {% else %}
+        <div class="notice notice-success" style="margin-bottom:12px;">
+          Runtime attivo e configurazione persistita risultano allineati per i campi LDAP monitorati.
+        </div>
+      {% endif %}
+
+      <div style="overflow-x:auto;">
+        <table class="table" style="width:100%; min-width:860px;">
+          <thead>
+            <tr>
+              <th>Campo</th>
+              <th>Runtime attivo</th>
+              <th>Al prossimo riavvio</th>
+              <th>Stato</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in ldap_runtime_rows %}
+              <tr>
+                <td><strong>{{ row.label }}</strong></td>
+                <td>
+                  <div><code>{{ row.runtime_value_display }}</code></div>
+                  <div class="cell-muted">{{ row.runtime_source_label }}</div>
+                </td>
+                <td>
+                  <div><code>{{ row.next_value_display }}</code></div>
+                  <div class="cell-muted">{{ row.next_source_label }}</div>
+                </td>
+                <td>
+                  {% if row.status_tone == "success" %}
+                    <span class="badge badge-success">{{ row.status_label }}</span>
+                  {% elif row.status_tone == "warning" %}
+                    <span class="badge badge-danger">{{ row.status_label }}</span>
+                  {% else %}
+                    <span class="badge">{{ row.status_label }}</span>
+                  {% endif %}
+                  <div class="cell-muted" style="margin-top:6px;">{{ row.note }}</div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="cell-muted" style="margin-top:10px;">
+        Il runtime attivo viene letto all'avvio di Django; il confronto sopra mostra anche quali valori saranno usati al prossimo riavvio in base a <code>.env</code>, ambiente processo e <code>config.ini</code>.
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Configurazione LDAP persistita in config.ini</div>
+      <div class="cell-muted">{% if ldap_cfg.enabled %}config.ini: LDAP abilitato{% else %}config.ini: LDAP disabilitato{% endif %}</div>
     </div>
     <div class="card-body">
       <form method="post" class="admin-form-grid">
@@ -86,16 +150,16 @@
         </div>
       {% endif %}
       <div class="cell-muted" style="margin-top:10px;">
-        Nota: dopo il salvataggio su <code>config.ini</code> serve <strong>riavviare il server</strong> per far rileggere i settings Django.
+        Questa form modifica <code>config.ini</code>. Dopo il salvataggio serve <strong>riavviare il server</strong> per far rileggere i settings Django; se esiste un override in <code>.env</code>, il confronto nel riquadro sopra lo segnala esplicitamente.
       </div>
       <div class="notice" style="margin-top:10px;">
-        <strong>Import utenti LDAP:</strong>
+        <strong>Import utenti LDAP attualmente in uso dal runtime:</strong>
         <div style="margin-top:6px;">
-          Service user: <code>{{ ldap_cfg.service_user|default:"(non configurato)" }}</code><br>
-          Base DN: <code>{{ ldap_cfg.base_dn|default:"(non configurato)" }}</code><br>
-          User filter: <code>{{ ldap_cfg.user_filter|default:"(non configurato)" }}</code><br>
-          Group allowlist: <code>{{ ldap_cfg.group_allowlist|default:"(vuota: importa tutti i gruppi)" }}</code><br>
-          Page size: <code>{{ ldap_cfg.sync_page_size }}</code>
+          Service user: <code>{{ ldap_runtime_cfg.service_user|default:"(non configurato)" }}</code><br>
+          Base DN: <code>{{ ldap_runtime_cfg.base_dn|default:"(non configurato)" }}</code><br>
+          User filter: <code>{{ ldap_runtime_cfg.user_filter|default:"(non configurato)" }}</code><br>
+          Group allowlist: <code>{{ ldap_runtime_cfg.group_allowlist|default:"(vuota: importa tutti i gruppi)" }}</code><br>
+          Page size: <code>{{ ldap_runtime_cfg.sync_page_size }}</code>
         </div>
       </div>
     </div>
@@ -203,7 +267,7 @@
 
       <div class="cell-muted" style="margin-top:10px;">
         Nota: dopo aver salvato il service account e' necessario <strong>riavviare il server</strong> per applicare le credenziali.
-        In alternativa imposta <code>LDAP_SERVICE_USER</code> e <code>LDAP_SERVICE_PASSWORD</code> nel file <code>.env</code> senza riavvio.
+        Se imposti <code>LDAP_SERVICE_USER</code> e <code>LDAP_SERVICE_PASSWORD</code> nel file <code>.env</code>, anche in quel caso serve il riavvio o il reload del processo Django.
       </div>
     </div>
   </div>
@@ -237,15 +301,15 @@
         <input type="hidden" name="action" value="sync_users">
         <div class="field">
           <label for="sync_limit">Limite utenti (0 = tutti)</label>
-          <input class="input" type="number" min="0" name="sync_limit" id="sync_limit" value="{{ ldap_cfg.sync_limit|default:0 }}">
+          <input class="input" type="number" min="0" name="sync_limit" id="sync_limit" value="{{ ldap_sync_cfg.sync_limit|default:0 }}">
         </div>
         <div class="field">
           <label for="sync_group_allowlist">Override allowlist gruppi (CSV)</label>
-          <input class="input" type="text" name="sync_group_allowlist" id="sync_group_allowlist" value="{{ ldap_cfg.group_allowlist|default:'' }}" placeholder="CAR,AMMINISTRAZIONE,UTENTI">
+          <input class="input" type="text" name="sync_group_allowlist" id="sync_group_allowlist" value="{{ ldap_sync_cfg.group_allowlist|default:'' }}" placeholder="CAR,AMMINISTRAZIONE,UTENTI">
         </div>
         <div class="field field-checks">
-          <label class="checkline"><input type="checkbox" name="sync_dry_run" {% if ldap_cfg.sync_dry_run %}checked{% endif %}> Dry run (nessuna modifica)</label>
-          <label class="checkline"><input type="checkbox" name="sync_replace_allowlist" {% if ldap_cfg.sync_replace_allowlist %}checked{% endif %}> Replace memberships allowlist</label>
+          <label class="checkline"><input type="checkbox" name="sync_dry_run" {% if ldap_sync_cfg.sync_dry_run %}checked{% endif %}> Dry run (nessuna modifica)</label>
+          <label class="checkline"><input type="checkbox" name="sync_replace_allowlist" {% if ldap_sync_cfg.sync_replace_allowlist %}checked{% endif %}> Replace memberships allowlist</label>
         </div>
         <div class="field field-actions">
           <button class="btn" type="submit">Sync utenti LDAP</button>

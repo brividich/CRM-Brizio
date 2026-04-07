@@ -648,10 +648,7 @@
             },
             body: JSON.stringify(payload),
           });
-          const data = await response.json();
-          if (!response.ok || !data.ok) {
-            throw new Error(data.error || "Errore aggiornamento permesso.");
-          }
+          await window.portalReadJsonResponse(response, { fallbackError: "Errore aggiornamento permesso." });
           const actions = button.closest(".map-live-actions");
           if (actions) {
             actions.querySelectorAll(".live-perm-btn").forEach((btnEl) => {
@@ -704,10 +701,7 @@
             },
             body: JSON.stringify(payload),
           });
-          const data = await response.json();
-          if (!response.ok || !data.ok) {
-            throw new Error(data.error || "Errore aggiornamento grant canonico.");
-          }
+          await window.portalReadJsonResponse(response, { fallbackError: "Errore aggiornamento grant canonico." });
           const actions = button.closest(".map-live-actions");
           if (actions) {
             actions.querySelectorAll(".live-canonical-btn").forEach((btnEl) => {

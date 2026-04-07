@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+import configparser
 import json
 import logging
 import os
@@ -992,7 +993,351 @@ def _asset_model():
         return None
 
 
-def _ldap_diag_defaults() -> dict[str, str]:
+LDAP_DIAG_FIELDS: tuple[dict[str, object], ...] = (
+    {
+        "key": "enabled",
+        "label": "LDAP abilitato",
+        "setting_name": "LDAP_ENABLED",
+        "env_key": "LDAP_ENABLED",
+        "ini_key": "enabled",
+        "default": False,
+        "kind": "bool",
+    },
+    {
+        "key": "server",
+        "label": "Server LDAP",
+        "setting_name": "LDAP_SERVER",
+        "env_key": "LDAP_SERVER",
+        "ini_key": "server",
+        "default": "",
+        "kind": "str",
+    },
+    {
+        "key": "domain",
+        "label": "Dominio (NetBIOS)",
+        "setting_name": "LDAP_DOMAIN",
+        "env_key": "LDAP_DOMAIN",
+        "ini_key": "domain",
+        "default": "",
+        "kind": "str",
+    },
+    {
+        "key": "upn_suffix",
+        "label": "UPN suffix",
+        "setting_name": "LDAP_UPN_SUFFIX",
+        "env_key": "LDAP_UPN_SUFFIX",
+        "ini_key": "upn_suffix",
+        "default": "",
+        "kind": "str",
+    },
+    {
+        "key": "timeout",
+        "label": "Timeout (s)",
+        "setting_name": "LDAP_TIMEOUT",
+        "env_key": "LDAP_TIMEOUT",
+        "ini_key": "timeout",
+        "default": 5,
+        "kind": "int",
+    },
+    {
+        "key": "service_user",
+        "label": "Service user",
+        "setting_name": "LDAP_SERVICE_USER",
+        "env_key": "LDAP_SERVICE_USER",
+        "ini_key": "service_user",
+        "default": "",
+        "kind": "str",
+    },
+    {
+        "key": "base_dn",
+        "label": "Base DN",
+        "setting_name": "LDAP_BASE_DN",
+        "env_key": "LDAP_BASE_DN",
+        "ini_key": "base_dn",
+        "default": "",
+        "kind": "str",
+    },
+    {
+        "key": "user_filter",
+        "label": "User filter",
+        "setting_name": "LDAP_USER_FILTER",
+        "env_key": "LDAP_USER_FILTER",
+        "ini_key": "user_filter",
+        "default": "(&(objectCategory=person)(objectClass=user))",
+        "kind": "str",
+    },
+    {
+        "key": "group_allowlist",
+        "label": "Group allowlist",
+        "setting_name": "LDAP_GROUP_ALLOWLIST",
+        "env_key": "LDAP_GROUP_ALLOWLIST",
+        "ini_key": "group_allowlist",
+        "default": [],
+        "kind": "csv",
+    },
+    {
+        "key": "sync_page_size",
+        "label": "Sync page size",
+        "setting_name": "LDAP_SYNC_PAGE_SIZE",
+        "env_key": "LDAP_SYNC_PAGE_SIZE",
+        "ini_key": "sync_page_size",
+        "default": 500,
+        "kind": "int",
+    },
+)
+
+
+def _load_dotenv_values(dotenv_path: Path | None = None) -> dict[str, str]:
+    path = dotenv_path or (Path(settings.BASE_DIR) / ".env")
+    values: dict[str, str] = {}
+    try:
+        if not path.exists():
+            return values
+        for raw_line in path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            values[key.strip()] = value.strip().strip("'").strip('"')
+    except Exception:
+        return {}
+    return values
+
+
+def _config_ini_path() -> Path:
+    return Path(settings.BASE_DIR).parent / "config.ini"
+
+
+def _load_config_ini_parser(config_path: Path | None = None) -> configparser.ConfigParser:
+    config_path = config_path or _config_ini_path()
+    parser = configparser.ConfigParser()
+    try:
+        if config_path.exists():
+            parser.read(str(config_path), encoding="utf-8")
+    except Exception:
+        return configparser.ConfigParser()
+    return parser
+
+
+def _config_ini_has_option(parser: configparser.ConfigParser, section: str, option: str) -> bool:
+    try:
+        return parser.has_section(section) and parser.has_option(section, option)
+    except Exception:
+        return False
+
+
+def _config_ini_get(parser: configparser.ConfigParser, section: str, option: str, fallback: str = "") -> str:
+    try:
+        if _config_ini_has_option(parser, section, option):
+            return parser.get(section, option, fallback=fallback)
+    except Exception:
+        pass
+    return fallback
+
+
+def _config_ini_get_bool(parser: configparser.ConfigParser, section: str, option: str, fallback: bool) -> bool:
+    try:
+        if _config_ini_has_option(parser, section, option):
+            return parser.getboolean(section, option, fallback=fallback)
+    except Exception:
+        pass
+    return fallback
+
+
+def _config_ini_get_int(parser: configparser.ConfigParser, section: str, option: str, fallback: int) -> int:
+    try:
+        if _config_ini_has_option(parser, section, option):
+            return int(parser.get(section, option, fallback=str(fallback)) or fallback)
+    except Exception:
+        pass
+    return fallback
+
+
+def _ldap_csv_items(value) -> list[str]:
+    if isinstance(value, (list, tuple, set)):
+        items = value
+    elif value in (None, ""):
+        items = []
+    else:
+        items = str(value).split(",")
+    return [str(item).strip() for item in items if str(item).strip()]
+
+
+def _ldap_normalize_field_value(field: dict[str, object], value):
+    kind = str(field.get("kind") or "str")
+    default = field.get("default")
+    if kind == "bool":
+        return _bool_from_any(default if value is None else value)
+    if kind == "int":
+        coerced = _int_or_none(value)
+        if coerced is None:
+            coerced = _int_or_none(default)
+        return coerced or 0
+    if kind == "csv":
+        return tuple(item.casefold() for item in _ldap_csv_items(value))
+    return str(value or "").strip()
+
+
+def _ldap_display_field_value(field: dict[str, object], value) -> str:
+    kind = str(field.get("kind") or "str")
+    if kind == "bool":
+        return "Si" if _ldap_normalize_field_value(field, value) else "No"
+    if kind == "int":
+        return str(_ldap_normalize_field_value(field, value))
+    if kind == "csv":
+        items = _ldap_csv_items(value)
+        return ", ".join(items) if items else "(vuota)"
+    text = str(value or "").strip()
+    return text or "(non configurato)"
+
+
+def _ldap_source_label(source_key: str) -> str:
+    mapping = {
+        "dotenv": ".env",
+        "process_env": "ambiente processo",
+        "config_ini": "config.ini",
+        "default": "default codice",
+        "stale_runtime": "runtime gia caricato",
+    }
+    return mapping.get(source_key, source_key)
+
+
+def _ldap_runtime_source(
+    field: dict[str, object],
+    runtime_value,
+    dotenv_values: dict[str, str],
+    parser: configparser.ConfigParser,
+) -> str:
+    runtime_norm = _ldap_normalize_field_value(field, runtime_value)
+    env_key = str(field.get("env_key") or "")
+    dotenv_value = dotenv_values.get(env_key)
+    process_env_value = os.environ.get(env_key)
+
+    if process_env_value is not None and (dotenv_value is None or process_env_value != dotenv_value):
+        if runtime_norm == _ldap_normalize_field_value(field, process_env_value):
+            return "process_env"
+    if dotenv_value is not None and runtime_norm == _ldap_normalize_field_value(field, dotenv_value):
+        return "dotenv"
+    ini_key = str(field.get("ini_key") or "")
+    if _config_ini_has_option(parser, "ACTIVE_DIRECTORY", ini_key):
+        ini_value = _config_ini_get(parser, "ACTIVE_DIRECTORY", ini_key, "")
+        if runtime_norm == _ldap_normalize_field_value(field, ini_value):
+            return "config_ini"
+    if runtime_norm == _ldap_normalize_field_value(field, field.get("default")):
+        return "default"
+    return "stale_runtime"
+
+
+def _ldap_next_boot_value(
+    field: dict[str, object],
+    dotenv_values: dict[str, str],
+    parser: configparser.ConfigParser,
+):
+    env_key = str(field.get("env_key") or "")
+    dotenv_value = dotenv_values.get(env_key)
+    process_env_value = os.environ.get(env_key)
+    if process_env_value is not None and (dotenv_value is None or process_env_value != dotenv_value):
+        return process_env_value, "process_env"
+    if dotenv_value is not None:
+        return dotenv_value, "dotenv"
+    ini_key = str(field.get("ini_key") or "")
+    if _config_ini_has_option(parser, "ACTIVE_DIRECTORY", ini_key):
+        return _config_ini_get(parser, "ACTIVE_DIRECTORY", ini_key, ""), "config_ini"
+    return field.get("default"), "default"
+
+
+def _ldap_diag_runtime_rows(runtime_cfg: dict[str, object]) -> tuple[list[dict[str, object]], bool, bool]:
+    parser = _load_config_ini_parser()
+    dotenv_values = _load_dotenv_values()
+    rows: list[dict[str, object]] = []
+    has_pending_restart = False
+    has_env_override = False
+
+    for field in LDAP_DIAG_FIELDS:
+        key = str(field["key"])
+        runtime_value = runtime_cfg.get(key)
+        runtime_source = _ldap_runtime_source(field, runtime_value, dotenv_values, parser)
+        next_value, next_source = _ldap_next_boot_value(field, dotenv_values, parser)
+        ini_key = str(field.get("ini_key") or "")
+        ini_has_value = _config_ini_has_option(parser, "ACTIVE_DIRECTORY", ini_key)
+        ini_value = _config_ini_get(parser, "ACTIVE_DIRECTORY", ini_key, "") if ini_has_value else ""
+
+        runtime_norm = _ldap_normalize_field_value(field, runtime_value)
+        next_norm = _ldap_normalize_field_value(field, next_value)
+        runtime_matches_next = runtime_norm == next_norm
+        override_active = (
+            next_source in {"dotenv", "process_env"}
+            and ini_has_value
+            and _ldap_normalize_field_value(field, ini_value) != next_norm
+        )
+
+        if not runtime_matches_next:
+            status_label = "Riavvio necessario"
+            status_tone = "warning"
+            note = "Il processo Django attuale non usa ancora il valore che verra letto al prossimo avvio."
+            has_pending_restart = True
+        elif override_active:
+            status_label = "Override attivo"
+            status_tone = "warning"
+            note = f"{_ldap_source_label(next_source)} ha priorita su config.ini per questo campo."
+            has_env_override = True
+        elif next_source == "config_ini":
+            status_label = "Allineato"
+            status_tone = "success"
+            note = "Il valore runtime coincide con config.ini."
+        elif next_source in {"dotenv", "process_env"}:
+            status_label = "Allineato"
+            status_tone = "success"
+            note = f"Il runtime legge questo campo da {_ldap_source_label(next_source)}."
+        else:
+            status_label = "Default"
+            status_tone = "muted"
+            note = "Nessun valore persistito trovato: resta attivo il default applicativo."
+
+        rows.append(
+            {
+                "key": key,
+                "label": field["label"],
+                "runtime_value_display": _ldap_display_field_value(field, runtime_value),
+                "runtime_source_label": _ldap_source_label(runtime_source),
+                "next_value_display": _ldap_display_field_value(field, next_value),
+                "next_source_label": _ldap_source_label(next_source),
+                "status_label": status_label,
+                "status_tone": status_tone,
+                "note": note,
+            }
+        )
+
+    return rows, has_pending_restart, has_env_override
+
+
+def _ldap_file_defaults(runtime_cfg: dict[str, object]) -> dict[str, object]:
+    parser = _load_config_ini_parser()
+    return {
+        "enabled": _config_ini_get_bool(parser, "ACTIVE_DIRECTORY", "enabled", bool(runtime_cfg["enabled"])),
+        "server": _config_ini_get(parser, "ACTIVE_DIRECTORY", "server", str(runtime_cfg["server"])),
+        "domain": _config_ini_get(parser, "ACTIVE_DIRECTORY", "domain", str(runtime_cfg["domain"])),
+        "upn_suffix": _config_ini_get(parser, "ACTIVE_DIRECTORY", "upn_suffix", str(runtime_cfg["upn_suffix"])),
+        "timeout": _config_ini_get_int(parser, "ACTIVE_DIRECTORY", "timeout", int(runtime_cfg["timeout"])),
+        "service_user": _config_ini_get(parser, "ACTIVE_DIRECTORY", "service_user", str(runtime_cfg["service_user"])),
+        "base_dn": _config_ini_get(parser, "ACTIVE_DIRECTORY", "base_dn", str(runtime_cfg["base_dn"])),
+        "user_filter": _config_ini_get(parser, "ACTIVE_DIRECTORY", "user_filter", str(runtime_cfg["user_filter"])),
+        "group_allowlist": _config_ini_get(
+            parser,
+            "ACTIVE_DIRECTORY",
+            "group_allowlist",
+            str(runtime_cfg["group_allowlist"]),
+        ),
+        "sync_page_size": _config_ini_get_int(
+            parser,
+            "ACTIVE_DIRECTORY",
+            "sync_page_size",
+            int(runtime_cfg["sync_page_size"]),
+        ),
+    }
+
+
+def _ldap_diag_defaults() -> dict[str, object]:
     allowlist = getattr(settings, "LDAP_GROUP_ALLOWLIST", []) or []
     return {
         "enabled": bool(getattr(settings, "LDAP_ENABLED", False)),
@@ -1024,23 +1369,12 @@ def _smtp_diag_defaults() -> dict[str, str | bool | int]:
         "test_to": "",
     }
 
-
-def _config_ini_path() -> Path:
-    return Path(settings.BASE_DIR).parent / "config.ini"
-
-
 def _update_config_ini_section(section: str, values: dict[str, str]) -> tuple[bool, str]:
-    import configparser
-
     config_path = _config_ini_path()
     if not config_path.exists():
         return False, f"config.ini non trovato: {config_path}"
 
-    parser = configparser.ConfigParser()
-    try:
-        parser.read(str(config_path), encoding="utf-8")
-    except Exception as exc:
-        return False, f"Errore lettura config.ini: {exc}"
+    parser = _load_config_ini_parser(config_path)
 
     if not parser.has_section(section):
         parser.add_section(section)
@@ -1886,7 +2220,15 @@ def schema_dati(request):
 
 @legacy_admin_required
 def ldap_diagnostica(request):
-    defaults = _ldap_diag_defaults()
+    runtime_cfg = _ldap_diag_defaults()
+    defaults = _ldap_file_defaults(runtime_cfg)
+    ldap_sync_cfg = {
+        "sync_limit": 0,
+        "sync_dry_run": True,
+        "sync_replace_allowlist": False,
+        "group_allowlist": str(runtime_cfg["group_allowlist"] or ""),
+    }
+    ldap_diag_rows, ldap_runtime_has_pending_restart, ldap_runtime_has_env_override = _ldap_diag_runtime_rows(runtime_cfg)
     smtp_defaults = _smtp_diag_defaults()
     result_connect = None
     result_bind = None
@@ -1934,7 +2276,8 @@ def ldap_diagnostica(request):
                 result_service = {"ok": ok, "message": msg}
                 (messages.success if ok else messages.error)(request, msg)
                 if ok:
-                    defaults["service_user"] = svc_user
+                    defaults = _ldap_file_defaults(runtime_cfg)
+                    ldap_diag_rows, ldap_runtime_has_pending_restart, ldap_runtime_has_env_override = _ldap_diag_runtime_rows(runtime_cfg)
             else:
                 if not server:
                     result_service = {"ok": False, "message": "Server LDAP non configurato. Verifica config.ini ([ACTIVE_DIRECTORY] server=...) e riavvia il server."}
@@ -2027,6 +2370,9 @@ def ldap_diagnostica(request):
             )
             result_connect = {"ok": ok, "message": msg}
             (messages.success if ok else messages.error)(request, msg)
+            if ok:
+                defaults = _ldap_file_defaults(runtime_cfg)
+                ldap_diag_rows, ldap_runtime_has_pending_restart, ldap_runtime_has_env_override = _ldap_diag_runtime_rows(runtime_cfg)
         elif action == "test_connect":
             if not server:
                 result_connect = {"ok": False, "message": "Server LDAP non configurato. Compilare il campo 'Server LDAP' oppure impostare il valore in config.ini e riavviare il server."}
@@ -2046,10 +2392,14 @@ def ldap_diagnostica(request):
             sync_dry_run = _bool_from_any(request.POST.get("sync_dry_run"))
             sync_replace_allowlist = _bool_from_any(request.POST.get("sync_replace_allowlist"))
             sync_group_allowlist = (request.POST.get("sync_group_allowlist") or "").strip()
-            defaults["sync_limit"] = sync_limit
-            defaults["sync_dry_run"] = sync_dry_run
-            defaults["sync_replace_allowlist"] = sync_replace_allowlist
-            defaults["group_allowlist"] = sync_group_allowlist or defaults.get("group_allowlist", "")
+            ldap_sync_cfg.update(
+                {
+                    "sync_limit": sync_limit,
+                    "sync_dry_run": sync_dry_run,
+                    "sync_replace_allowlist": sync_replace_allowlist,
+                    "group_allowlist": sync_group_allowlist or str(runtime_cfg.get("group_allowlist") or ""),
+                }
+            )
 
             cmd_out = StringIO()
             cmd_err = StringIO()
@@ -2084,6 +2434,11 @@ def ldap_diagnostica(request):
         "admin_portale/pages/ldap_diagnostica.html",
         {
             "ldap_cfg": defaults,
+            "ldap_runtime_cfg": runtime_cfg,
+            "ldap_runtime_rows": ldap_diag_rows,
+            "ldap_runtime_has_pending_restart": ldap_runtime_has_pending_restart,
+            "ldap_runtime_has_env_override": ldap_runtime_has_env_override,
+            "ldap_sync_cfg": ldap_sync_cfg,
             "smtp_cfg": smtp_defaults,
             "result_connect": result_connect,
             "result_bind": result_bind,
@@ -2093,6 +2448,232 @@ def ldap_diagnostica(request):
             "sync_result": sync_result,
         },
     )
+
+
+@legacy_admin_required
+def ldap_import_utenti(request):
+    """Pagina importazione selettiva utenti da LDAP/AD."""
+    server_url = str(getattr(settings, "LDAP_SERVER", "") or "").strip()
+    service_user = str(getattr(settings, "LDAP_SERVICE_USER", "") or "").strip()
+    service_password = str(getattr(settings, "LDAP_SERVICE_PASSWORD", "") or "").strip()
+    base_dn = str(getattr(settings, "LDAP_BASE_DN", "") or "").strip()
+    user_filter_tmpl = str(getattr(settings, "LDAP_USER_FILTER", "") or "").strip()
+    domain = str(getattr(settings, "LDAP_DOMAIN", "") or "").strip()
+    upn_suffix = str(getattr(settings, "LDAP_UPN_SUFFIX", "") or "").strip()
+    timeout = int(getattr(settings, "LDAP_TIMEOUT", 5) or 5)
+    ldap_enabled = bool(getattr(settings, "LDAP_ENABLED", False))
+    ldap_configured = bool(server_url and service_user and base_dn and user_filter_tmpl)
+
+    if request.method == "GET":
+        return render(
+            request,
+            "admin_portale/pages/ldap_import.html",
+            {
+                "ldap_enabled": ldap_enabled,
+                "ldap_configured": ldap_configured,
+                "ldap_server": server_url,
+                "roles": _role_choices(),
+            },
+        )
+
+    # POST — azioni AJAX
+    action = (request.POST.get("action") or "").strip()
+
+    if not ldap_configured:
+        return JsonResponse({"ok": False, "error": "LDAP non configurato (server, service account o base DN mancanti)."}, status=400)
+
+    try:
+        from ldap3 import AUTO_BIND_NO_TLS, NONE, NTLM, SIMPLE, SUBTREE, Connection
+        from ldap3 import Server as LdapServer
+        from ldap3.core.exceptions import LDAPException, LDAPSocketOpenError
+    except Exception as exc:
+        return JsonResponse({"ok": False, "error": f"ldap3 non disponibile: {exc}"}, status=500)
+
+    def _ldap_connect():
+        srv = LdapServer(server_url, connect_timeout=timeout, get_info=NONE)
+        conn = Connection(srv, user=service_user, password=service_password, authentication=SIMPLE, auto_bind=AUTO_BIND_NO_TLS, raise_exceptions=False)
+        if conn.bind():
+            return conn, None
+        if domain and "@" not in service_user and "\\" not in service_user:
+            conn2 = Connection(srv, user=f"{domain}\\{service_user}", password=service_password, authentication=NTLM, auto_bind=AUTO_BIND_NO_TLS, raise_exceptions=False)
+            if conn2.bind():
+                return conn2, None
+        return None, f"Bind LDAP fallito: {conn.result}"
+
+    def _first(data, key):
+        raw = data.get(key)
+        if isinstance(raw, list):
+            return str(raw[0]).strip() if raw else ""
+        return str(raw or "").strip()
+
+    def _entry_to_user(data):
+        upn = _first(data, "userPrincipalName").lower()
+        mail = _first(data, "mail").lower()
+        sam = _first(data, "sAMAccountName")
+        given = _first(data, "givenName")
+        sn = _first(data, "sn")
+        display = _first(data, "displayName") or f"{given} {sn}".strip() or sam
+        if not upn and sam and upn_suffix:
+            upn = f"{sam.lower()}@{upn_suffix.lstrip('@')}"
+        ident = upn or mail
+        member_dns = data.get("memberOf") or []
+        if isinstance(member_dns, str):
+            member_dns = [member_dns]
+        groups = []
+        for dn in member_dns:
+            for part in str(dn).split(","):
+                chunk = part.strip()
+                if chunk.upper().startswith("CN="):
+                    groups.append(chunk[3:])
+                    break
+        return ident, sam, display, groups[:8]
+
+    if action == "search":
+        name_q = (request.POST.get("q") or "").strip()
+        if name_q:
+            ldap_filter = f"(&{user_filter_tmpl}(|(displayName=*{name_q}*)(sAMAccountName=*{name_q}*)(mail=*{name_q}*)))"
+        else:
+            ldap_filter = user_filter_tmpl
+
+        try:
+            conn, err = _ldap_connect()
+            if not conn:
+                return JsonResponse({"ok": False, "error": err}, status=400)
+        except (LDAPSocketOpenError, LDAPException, OSError) as exc:
+            return JsonResponse({"ok": False, "error": f"Connessione LDAP fallita: {exc}"}, status=400)
+
+        attrs = ["displayName", "givenName", "sn", "mail", "userPrincipalName", "sAMAccountName", "memberOf"]
+        ok = conn.search(search_base=base_dn, search_filter=ldap_filter, search_scope=SUBTREE, attributes=attrs, paged_size=500)
+        if not ok:
+            conn.unbind()
+            return JsonResponse({"ok": False, "error": f"Ricerca LDAP fallita: {conn.result}"}, status=400)
+
+        existing_emails = {(e or "").strip().lower() for e in UtenteLegacy.objects.values_list("email", flat=True) if e}
+
+        users = []
+        for entry in conn.entries:
+            data = entry.entry_attributes_as_dict if hasattr(entry, "entry_attributes_as_dict") else {}
+            ident, sam, display, groups = _entry_to_user(data)
+            if not ident:
+                continue
+            users.append({
+                "display_name": display,
+                "email": ident,
+                "sam": sam,
+                "groups": groups,
+                "already_imported": ident.lower() in existing_emails,
+            })
+
+        conn.unbind()
+        users.sort(key=lambda u: (u["already_imported"], (u["display_name"] or "").lower()))
+        return JsonResponse({"ok": True, "users": users, "total": len(users)})
+
+    elif action == "import":
+        selected_emails_raw = request.POST.getlist("emails[]")
+        ruolo_id = _int_or_none(request.POST.get("ruolo_id"))
+
+        if not selected_emails_raw:
+            return JsonResponse({"ok": False, "error": "Nessun utente selezionato."}, status=400)
+
+        target_set = {e.strip().lower() for e in selected_emails_raw if e.strip()}
+
+        ruolo_name = ""
+        if ruolo_id:
+            try:
+                ruolo_obj = Ruolo.objects.filter(id=ruolo_id).first()
+                if ruolo_obj:
+                    ruolo_name = (ruolo_obj.nome or "").strip()
+            except DatabaseError:
+                pass
+        if not ruolo_name:
+            try:
+                default_role = Ruolo.objects.filter(nome__iexact="utente").first()
+                if default_role:
+                    ruolo_name = default_role.nome
+                    ruolo_id = int(default_role.id)
+            except DatabaseError:
+                pass
+
+        from core.legacy_utils import legacy_table_columns, sync_django_user_from_legacy
+        user_cols = legacy_table_columns("utenti")
+        has_json_ruoli = "ruoli" in user_cols
+
+        # Costruisce filtro LDAP mirato se pochi utenti, altrimenti cerca tutti e filtra
+        if len(target_set) <= 30:
+            upn_clauses = "".join(f"(userPrincipalName={e})" for e in target_set)
+            mail_clauses = "".join(f"(mail={e})" for e in target_set)
+            ldap_filter = f"(&{user_filter_tmpl}(|{upn_clauses}{mail_clauses}))"
+        else:
+            ldap_filter = user_filter_tmpl
+
+        try:
+            conn, err = _ldap_connect()
+            if not conn:
+                return JsonResponse({"ok": False, "error": err}, status=400)
+        except (LDAPSocketOpenError, LDAPException, OSError) as exc:
+            return JsonResponse({"ok": False, "error": f"Connessione LDAP fallita: {exc}"}, status=400)
+
+        attrs = ["displayName", "givenName", "sn", "mail", "userPrincipalName", "sAMAccountName"]
+        conn.search(search_base=base_dn, search_filter=ldap_filter, search_scope=SUBTREE, attributes=attrs, paged_size=500)
+
+        results = {"created": [], "updated": [], "errors": []}
+
+        try:
+            with transaction.atomic():
+                for entry in conn.entries:
+                    data = entry.entry_attributes_as_dict if hasattr(entry, "entry_attributes_as_dict") else {}
+                    ident, sam, display, _groups = _entry_to_user(data)
+                    if not ident:
+                        continue
+                    if len(target_set) > 30 and ident.lower() not in target_set:
+                        continue
+
+                    try:
+                        legacy_user = UtenteLegacy.objects.filter(email__iexact=ident).first()
+                        if legacy_user is None:
+                            create_kwargs = {
+                                "nome": display,
+                                "email": ident,
+                                "password": "*AD_MANAGED*",
+                                "ruolo": ruolo_name,
+                                "attivo": True,
+                                "deve_cambiare_password": False,
+                            }
+                            if ruolo_id:
+                                create_kwargs["ruolo_id"] = ruolo_id
+                            if has_json_ruoli:
+                                create_kwargs["ruoli"] = f'["{ruolo_name}"]' if ruolo_name else "[]"
+                            legacy_user = UtenteLegacy.objects.create(**create_kwargs)
+                            sync_django_user_from_legacy(legacy_user)
+                            results["created"].append({"nome": display, "email": ident})
+                            _audit_safe(request, "ldap_import_user_create", "admin_portale", {
+                                "email": ident, "nome": display, "ruolo_id": ruolo_id, "ruolo": ruolo_name,
+                            })
+                        else:
+                            changed = []
+                            if (legacy_user.password or "") != "*AD_MANAGED*":
+                                legacy_user.password = "*AD_MANAGED*"
+                                changed.append("password")
+                            if not bool(legacy_user.attivo):
+                                legacy_user.attivo = True
+                                changed.append("attivo")
+                            if changed:
+                                legacy_user.save(update_fields=changed)
+                            sync_django_user_from_legacy(legacy_user)
+                            results["updated"].append({"nome": display, "email": ident})
+                            _audit_safe(request, "ldap_import_user_update", "admin_portale", {
+                                "email": ident, "nome": display, "changed": changed,
+                            })
+                    except DatabaseError as exc:
+                        results["errors"].append({"email": ident, "error": str(exc)})
+        except Exception as exc:
+            conn.unbind()
+            return JsonResponse({"ok": False, "error": f"Errore durante l'importazione: {exc}"}, status=500)
+
+        conn.unbind()
+        return JsonResponse({"ok": True, "results": results})
+
+    return JsonResponse({"ok": False, "error": "Azione non valida."}, status=400)
 
 
 def _normalize_acl_diag_path(raw_path: str) -> str:
@@ -6167,6 +6748,7 @@ def api_pulsanti_create(request):
                 modulo=data["modulo"],
                 url=data["url"],
                 icona=(data.get("icona") or "").strip() or None,
+                descrizione=(data.get("descrizione") or "").strip() or None,
             )
             _set_pulsante_ordine(int(pulsante.id), data.get("ordine"))
             _save_pulsante_ui_meta(int(pulsante.id), raw_payload)
@@ -6195,6 +6777,7 @@ def api_pulsanti_update(request):
     pulsante.modulo = data["modulo"]
     pulsante.url = data["url"]
     pulsante.icona = (data.get("icona") or "").strip() or None
+    pulsante.descrizione = (data.get("descrizione") or "").strip() or None
 
     try:
         with transaction.atomic():

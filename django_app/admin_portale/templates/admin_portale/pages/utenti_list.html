@@ -46,6 +46,9 @@
   <div class="card">
     <div class="card-head">
       <div class="card-title">Nuovo Utente</div>
+      <div class="admin-inline-actions">
+        <a href="{% url 'admin_portale:ldap_import_utenti' %}" class="btn btn-secondary btn-sm">Importa da LDAP / AD</a>
+      </div>
     </div>
     <div class="card-body">
       <form method="post" action="{% url 'admin_portale:utente_create' %}" class="admin-form-grid">

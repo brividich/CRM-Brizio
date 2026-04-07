@@ -159,9 +159,7 @@
             value: newVal
           })
         });
-        var data = {};
-        try { data = await resp.json(); } catch (e) {}
-        if (!resp.ok || !data.ok) throw new Error(data.error || ("HTTP " + resp.status));
+        await window.portalReadJsonResponse(resp, { fallbackError: "Errore aggiornamento override." });
 
         badge.dataset.val = newVal ? "1" : "0";
         badge.textContent = newVal ? "✓ ON" : "✗ OFF";

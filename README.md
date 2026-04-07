@@ -183,6 +183,7 @@ Endpoint tipici in locale:
 - `config.settings.prod` usa SQL Server di default, `ALLOWED_HOSTS` vuoto e impostazioni HTTP/HTTPS piu restrittive.
 - Per SQL Server serve almeno un driver ODBC SQL Server installato (`ODBC Driver 18/17/13`, `SQL Server Native Client 11.0` o `SQL Server`); il wizard e `deployment/scripts/deploy-release.ps1` allineano automaticamente `DB_DRIVER` al miglior driver disponibile sul server applicativo.
 - LDAP, Graph e SMTP sono attivabili da variabili ambiente o da `config.ini` dove previsto.
+- Per LDAP la precedenza effettiva e: ambiente processo -> `django_app/.env` -> `[ACTIVE_DIRECTORY]` in `config.ini` -> default codice. La pagina `/admin-portale/ldap/` mostra sia il runtime attivo sia i valori che verrebbero caricati al prossimo riavvio.
 
 Check rapido del profilo produzione:
 
@@ -257,7 +258,7 @@ I nuovi upload usano storage privato e il download passa da una view Django aute
 
 Per il flusso manuale e il troubleshooting: [deployment/README_DEPLOY_IIS_WINDOWS.md](deployment/README_DEPLOY_IIS_WINDOWS.md)
 
-Prima di creare lo zip, `deployment/scripts/package-release.ps1` esegue `tools/release_guard.ps1` e blocca il packaging se trova drift su versioni, documentazione canonica, fallback di versione, `SetupWizard.exe` o smoke ACL non distruttivo.
+Prima di creare lo zip, `deployment/scripts/package-release.ps1` esegue `tools/release_guard.ps1` e blocca il packaging se trova drift su versioni, documentazione canonica, fallback di versione, `SetupWizard.exe` o smoke ACL non distruttivo. Il freshness check del wizard segue le regole condivise in `deployment/setup_wizard_bundle_rules.json`, quindi ignora i file test-only esclusi dal bundle (`tests.py`, `test_*.py`, `tests/`, `conftest.py`).
 Nei deploy `test` e `prod`, i flussi supportati eseguono anche `python manage.py allinea_tipo_assenza_flessibilita` subito dopo `migrate`, cosÃƒÆ’Ã‚Â¬ `CK_assenze_tipo` resta allineato a `FlessibilitÃƒÆ’Ã‚Â ` prima dell'attivazione della release; se il database non contiene la tabella legacy `assenze`, il comando termina in no-op senza rompere il setup. I flussi supportati verificano inoltre che `collectstatic` abbia realmente prodotto `static\core\css\theme.css` e `static\monitoring\css\monitoring.css`.
 
 ### Post-deploy (obbligatorio)

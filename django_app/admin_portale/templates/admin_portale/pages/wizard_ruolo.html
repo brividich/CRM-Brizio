@@ -114,29 +114,23 @@
   }
   .step2-search:focus { border-color: var(--accent, #3b82f6); }
 
-  /* ── Griglia card moduli ── */
-  .perm-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
-  .perm-mod-card { border: 1px solid var(--border, #eee); border-radius: 10px; overflow: hidden; transition: box-shadow .2s; }
-  .perm-mod-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,.06); }
-  .perm-mod-card.hidden { display: none; }
+  /* ── Sezioni modulo ── */
+  .perm-section { border: 1px solid var(--border, #eee); border-radius: 10px; overflow: hidden; margin-bottom: 8px; }
+  .perm-section.hidden { display: none; }
 
-  .perm-mod-head {
+  .perm-section-head {
     display: flex; align-items: center; justify-content: space-between;
     padding: 10px 14px; background: var(--bg-card, #fafafa);
     border-bottom: 1px solid var(--border, #eee); gap: 8px; cursor: pointer;
     user-select: none;
   }
-  .perm-mod-head:hover { background: var(--bg-hover, #f0f7ff); }
-  .perm-mod-head-left { display: flex; align-items: center; gap: 10px; }
-  .perm-mod-icon {
-    width: 30px; height: 30px; border-radius: 6px;
-    background: var(--accent-light, #eff6ff); color: var(--accent, #3b82f6);
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 12px; flex-shrink: 0;
-  }
-  .perm-mod-name { font-weight: 600; font-size: 13px; }
+  .perm-section-head:hover { background: var(--bg-hover, #f0f7ff); }
+  .perm-section-left { display: flex; align-items: center; gap: 8px; }
+  .perm-section-chevron { font-size: 11px; color: var(--text-muted, #aaa); transition: transform .2s; }
+  .perm-section.collapsed .perm-section-chevron { transform: rotate(-90deg); }
+  .perm-section-name { font-weight: 600; font-size: 13px; }
+  .perm-section-right { display: flex; align-items: center; gap: 8px; }
 
-  .perm-mod-head-right { display: flex; align-items: center; gap: 8px; }
   .perm-mod-badge {
     font-size: 11px; font-weight: 600; padding: 2px 8px;
     border-radius: 999px; white-space: nowrap;
@@ -146,30 +140,27 @@
   .perm-mod-badge.partial { background: #fef9c3; color: #854d0e; }
   .perm-mod-badge.all-off { background: var(--border, #eee); color: var(--text-muted, #888); }
 
-  .perm-mod-toggle-chevron { font-size: 12px; color: var(--text-muted, #888); transition: transform .2s; }
-  .perm-mod-card.collapsed .perm-mod-toggle-chevron { transform: rotate(-90deg); }
-  .perm-mod-body { padding: 4px 0; }
-  .perm-mod-card.collapsed .perm-mod-body { display: none; }
-
-  .perm-mod-bulk { display: flex; gap: 6px; padding: 6px 14px 2px; }
   .perm-mod-btn {
     font-size: 10px; padding: 2px 8px; border-radius: 4px; cursor: pointer; border: none;
     background: var(--border, #eee); color: var(--text-muted, #666); transition: background .15s;
   }
   .perm-mod-btn:hover { background: #dbeafe; color: var(--accent, #3b82f6); }
 
-  /* ── Riga pulsante ── */
-  .perm-puls-row {
-    display: flex; flex-direction: column;
-    padding: 8px 14px; border-bottom: 1px solid var(--border, #f0f0f0); gap: 5px;
-  }
-  .perm-puls-row:last-child { border-bottom: none; }
-  .perm-puls-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .perm-puls-label { font-size: 13px; color: var(--text, #333); flex: 1; min-width: 0; }
-  .perm-puls-code  { font-size: 10px; color: var(--text-muted, #999); font-family: monospace; display: block; }
-  .perm-vis-wrap   { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-  .flag-lbl        { font-size: 10px; color: var(--text-muted, #999); }
-  .perm-puls-extras { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .perm-section-body { display: block; }
+  .perm-section.collapsed .perm-section-body { display: none; }
+
+  /* ── Tabella pulsanti ── */
+  .perm-table { width: 100%; border-collapse: collapse; }
+  .perm-row { border-bottom: 1px solid var(--border, #f0f0f0); }
+  .perm-row:last-child { border-bottom: none; }
+  .perm-row:hover td { background: var(--bg-hover, #f8fafc); }
+  .perm-row td { padding: 9px 14px; vertical-align: middle; }
+  .perm-row-name { font-size: 13px; color: var(--text, #333); }
+  .perm-row-code { font-size: 10px; color: var(--text-muted, #999); font-family: monospace; display: block; margin-top: 1px; }
+  .perm-row-desc { font-size: 11px; color: var(--text-muted, #888); display: block; margin-top: 1px; font-style: italic; }
+  .perm-row-url { color: var(--accent, #3b82f6); text-decoration: none; font-family: monospace; }
+  .perm-row-url:hover { text-decoration: underline; }
+  .perm-row-toggle { width: 52px; text-align: right; }
 
   /* ── Toggle switch ── */
   .toggle-switch { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
@@ -185,16 +176,6 @@
   }
   .toggle-switch input:checked + .toggle-slider { background: var(--accent, #3b82f6); }
   .toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); }
-
-  /* ── Flag extra ── */
-  .perm-extra-flag { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text, #444); cursor: pointer; white-space: nowrap; }
-  .perm-extra-flag input[type=checkbox] { width: 14px; height: 14px; cursor: pointer; accent-color: var(--accent, #3b82f6); flex-shrink: 0; }
-  .perm-all-btn {
-    font-size: 10px; padding: 2px 8px; border-radius: 4px; cursor: pointer;
-    border: 1px solid var(--border, #ddd); background: #fff; color: var(--text-muted, #666);
-    transition: background .15s; margin-left: auto;
-  }
-  .perm-all-btn:hover { background: #dbeafe; color: var(--accent, #3b82f6); border-color: var(--accent, #3b82f6); }
 
   /* ── Azioni wizard ── */
   .wizard-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 20px; gap: 12px; flex-wrap: wrap; }
@@ -326,62 +307,44 @@
         <input type="text" class="step2-search" id="step2-search" placeholder="Cerca modulo…" autocomplete="off">
       </div>
 
-      <div class="perm-card-grid" id="perm-card-grid">
+      <div id="perm-card-grid">
         {% for modulo, pulsanti in moduli_pulsanti.items %}
-          <div class="perm-mod-card" data-modulo="{{ modulo }}">
-            <div class="perm-mod-head" data-modulo="{{ modulo }}">
-              <div class="perm-mod-head-left">
-                <div class="perm-mod-icon">{{ modulo|slice:":1"|upper }}</div>
-                <span class="perm-mod-name">{{ modulo|capfirst }}</span>
+          <div class="perm-section" data-modulo="{{ modulo }}">
+            <div class="perm-section-head">
+              <div class="perm-section-left">
+                <span class="perm-section-chevron">▾</span>
+                <span class="perm-section-name">{{ modulo|capfirst }}</span>
               </div>
-              <div class="perm-mod-head-right">
+              <div class="perm-section-right">
                 <span class="perm-mod-badge all-off" id="badge-{{ modulo }}">0/{{ pulsanti|length }}</span>
-                <span class="perm-mod-toggle-chevron">▾</span>
-              </div>
-            </div>
-            <div class="perm-mod-body">
-              <div class="perm-mod-bulk">
                 <button type="button" class="perm-mod-btn" data-modulo="{{ modulo }}" data-action="all-on">Tutto ON</button>
                 <button type="button" class="perm-mod-btn" data-modulo="{{ modulo }}" data-action="all-off">Tutto OFF</button>
               </div>
-              {% for p in pulsanti %}
-                <div class="perm-puls-row" data-modulo="{{ modulo }}" data-azione="{{ p.codice }}">
-                  <div class="perm-puls-top">
-                    <div class="perm-puls-label">
-                      {{ p.nome_visibile|default:p.codice }}
-                      <span class="perm-puls-code">{{ p.codice }}</span>
-                    </div>
-                    <div class="perm-vis-wrap">
-                      <span class="flag-lbl">visibile</span>
-                      <label class="toggle-switch">
-                        <input type="checkbox"
-                               class="perm-cv-toggle"
-                               data-modulo="{{ modulo }}"
-                               data-azione="{{ p.codice }}"
-                               data-field="can_view">
-                        <span class="toggle-slider"></span>
-                      </label>
-                    </div>
-                  </div>
-                  <div class="perm-puls-extras">
-                    <label class="perm-extra-flag" title="Può modificare i dati">
-                      <input type="checkbox" class="perm-extra-toggle" data-modulo="{{ modulo }}" data-azione="{{ p.codice }}" data-field="can_edit">
-                      Può modificare
-                    </label>
-                    <label class="perm-extra-flag" title="Può eliminare record">
-                      <input type="checkbox" class="perm-extra-toggle" data-modulo="{{ modulo }}" data-azione="{{ p.codice }}" data-field="can_delete">
-                      Può eliminare
-                    </label>
-                    <label class="perm-extra-flag" title="Può approvare richieste">
-                      <input type="checkbox" class="perm-extra-toggle" data-modulo="{{ modulo }}" data-azione="{{ p.codice }}" data-field="can_approve">
-                      Può approvare
-                    </label>
-                    <button type="button" class="perm-all-btn"
-                            data-modulo="{{ modulo }}" data-azione="{{ p.codice }}" data-action="row-all"
-                            title="Toggle tutti i permessi della riga">Tutto</button>
-                  </div>
-                </div>
-              {% endfor %}
+            </div>
+            <div class="perm-section-body">
+              <table class="perm-table">
+                <tbody>
+                  {% for p in pulsanti %}
+                    <tr class="perm-row">
+                      <td class="perm-row-name">
+                        {{ p.nome_visibile|default:p.codice }}
+                        {% if p.descrizione %}<span class="perm-row-desc">{{ p.descrizione }}</span>{% endif %}
+                        <span class="perm-row-code">{{ p.codice }}{% if p.url %} &nbsp;·&nbsp; <a href="{{ p.url }}" target="_blank" class="perm-row-url" tabindex="-1">{{ p.url }}</a>{% endif %}</span>
+                      </td>
+                      <td class="perm-row-toggle">
+                        <label class="toggle-switch">
+                          <input type="checkbox"
+                                 class="perm-cv-toggle"
+                                 data-modulo="{{ modulo }}"
+                                 data-azione="{{ p.codice }}"
+                                 data-field="can_view">
+                          <span class="toggle-slider"></span>
+                        </label>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
             </div>
           </div>
         {% endfor %}
@@ -492,8 +455,7 @@
       fd.append("nome", nome);
       fd.append("csrfmiddlewaretoken", CSRF);
       var resp = await fetch(API_RUOLO_CREATE, { method: "POST", body: fd });
-      var data = await resp.json();
-      if (!data.ok) throw new Error(data.error || "Errore server");
+      var data = await window.portalReadJsonResponse(resp, { fallbackError: "Errore server." });
 
       // Successo: aggiunge il ruolo alla lista e lo seleziona per procedere
       statusEl.textContent = "Ruolo «" + data.ruolo.nome + "» creato!";
@@ -550,8 +512,7 @@
       setStatus("wiz-status", "Caricamento permessi…", false);
       try {
         var resp = await fetch(API_PERM + "?ruolo_id=" + ruoloId);
-        var data = await resp.json();
-        if (!data.ok) throw new Error(data.error || "Errore server");
+        var data = await window.portalReadJsonResponse(resp, { fallbackError: "Errore server." });
         selectedRuoloId = ruoloId;
         selectedRuoloNome = ruoloNome;
         initialPermMap = data.perm_map;
@@ -594,10 +555,10 @@
 
   // ── Applica perm_map ai toggle ─────────────────────────────────────────────
   function applyPermMapToToggles(permMap) {
-    document.querySelectorAll(".perm-cv-toggle, .perm-extra-toggle").forEach(function (cb) {
+    document.querySelectorAll(".perm-cv-toggle").forEach(function (cb) {
       const key = cb.dataset.modulo + "__" + cb.dataset.azione;
       const entry = permMap[key];
-      cb.checked = entry ? Boolean(entry[cb.dataset.field]) : false;
+      cb.checked = entry ? Boolean(entry.can_view) : false;
     });
   }
 
@@ -613,7 +574,7 @@
   }
 
   function refreshAllBadges() {
-    document.querySelectorAll(".perm-mod-card").forEach(function (card) {
+    document.querySelectorAll(".perm-section").forEach(function (card) {
       refreshModuloBadge(card.dataset.modulo);
     });
   }
@@ -634,41 +595,24 @@
     }
   });
 
-  // ── Accordion per card modulo ──────────────────────────────────────────────
-  document.querySelectorAll(".perm-mod-head").forEach(function (head) {
-    head.addEventListener("click", function (e) {
-      // Non collassare se click su bottone bulk
-      if (e.target.closest(".perm-mod-btn")) return;
-      const card = head.closest(".perm-mod-card");
-      if (card) card.classList.toggle("collapsed");
-    });
-  });
-
-  // ── Bulk: Tutto ON/OFF per modulo + row-all ────────────────────────────────
+  // ── Accordion per sezione modulo ──────────────────────────────────────────
   document.getElementById("perm-card-grid") && document.getElementById("perm-card-grid").addEventListener("click", function (e) {
+    // Bulk ON/OFF
     const modBtn = e.target.closest(".perm-mod-btn");
     if (modBtn) {
       const modulo = modBtn.dataset.modulo;
       const isOn = modBtn.dataset.action === "all-on";
-      document.querySelectorAll(
-        ".perm-cv-toggle[data-modulo='" + modulo + "'], .perm-extra-toggle[data-modulo='" + modulo + "']"
-      ).forEach(function (cb) { cb.checked = isOn; });
+      document.querySelectorAll(".perm-cv-toggle[data-modulo='" + modulo + "']")
+        .forEach(function (cb) { cb.checked = isOn; });
       refreshModuloBadge(modulo);
       updateGlobalCounter();
       return;
     }
-    const rowBtn = e.target.closest(".perm-all-btn[data-action='row-all']");
-    if (rowBtn) {
-      const modulo = rowBtn.dataset.modulo;
-      const azione = rowBtn.dataset.azione;
-      const all = document.querySelectorAll(
-        ".perm-cv-toggle[data-modulo='" + modulo + "'][data-azione='" + azione + "'], " +
-        ".perm-extra-toggle[data-modulo='" + modulo + "'][data-azione='" + azione + "']"
-      );
-      const allChecked = Array.from(all).every(function (cb) { return cb.checked; });
-      all.forEach(function (cb) { cb.checked = !allChecked; });
-      refreshModuloBadge(modulo);
-      updateGlobalCounter();
+    // Collapse/expand sezione
+    const head = e.target.closest(".perm-section-head");
+    if (head) {
+      const section = head.closest(".perm-section");
+      if (section) section.classList.toggle("collapsed");
     }
   });
 
@@ -676,7 +620,7 @@
   document.getElementById("step2-search") && document.getElementById("step2-search").addEventListener("input", function () {
     const q = this.value.toLowerCase().trim();
     let visible = 0;
-    document.querySelectorAll(".perm-mod-card").forEach(function (card) {
+    document.querySelectorAll(".perm-section").forEach(function (card) {
       const name = (card.dataset.modulo || "").toLowerCase();
       const match = !q || name.includes(q);
       card.classList.toggle("hidden", !match);
@@ -697,10 +641,9 @@
   // ── Step 3: diff ───────────────────────────────────────────────────────────
   function captureCurrentState() {
     const state = {};
-    document.querySelectorAll(".perm-cv-toggle, .perm-extra-toggle").forEach(function (cb) {
+    document.querySelectorAll(".perm-cv-toggle").forEach(function (cb) {
       const key = cb.dataset.modulo + "__" + cb.dataset.azione;
-      if (!state[key]) state[key] = { modulo: cb.dataset.modulo, azione: cb.dataset.azione };
-      state[key][cb.dataset.field] = cb.checked ? 1 : 0;
+      state[key] = { modulo: cb.dataset.modulo, azione: cb.dataset.azione, can_view: cb.checked ? 1 : 0 };
     });
     return state;
   }
@@ -712,7 +655,7 @@
     if (!container) return;
     container.innerHTML = "";
 
-    const fields = ["can_view", "can_edit", "can_delete", "can_approve"];
+    const fields = ["can_view"];
     // Raggruppa per modulo
     const byModule = {};
     Object.keys(currentState).forEach(function (key) {
@@ -777,11 +720,8 @@
 
     const currentState = captureCurrentState();
     const rows = [];
-    const fields = ["can_view", "can_edit", "can_delete", "can_approve"];
     Object.values(currentState).forEach(function (entry) {
-      fields.forEach(function (f) {
-        rows.push({ modulo: entry.modulo, azione: entry.azione, field: f, value: entry[f] || 0 });
-      });
+      rows.push({ modulo: entry.modulo, azione: entry.azione, field: "can_view", value: entry.can_view || 0 });
     });
 
     try {
@@ -790,8 +730,7 @@
         headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
         body: JSON.stringify({ ruolo_id: selectedRuoloId, mode: "update", rows: rows }),
       });
-      const data = await resp.json();
-      if (!resp.ok || !data.ok) throw new Error(data.error || "HTTP " + resp.status);
+      await window.portalReadJsonResponse(resp, { fallbackError: "Errore salvataggio permessi." });
       setStatus("wiz-status-3", "Salvato! Reindirizzo…", false);
       setTimeout(function () { window.location.href = ACCESSI_URL + "?ruolo_id=" + selectedRuoloId; }, 800);
     } catch (err) {

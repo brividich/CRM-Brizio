@@ -195,22 +195,32 @@
 const csrfToken = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || "";
 
 async function toggleBanner(id, btn) {
-  const res = await fetch("{% url 'admin_portale:api_login_banner_toggle' %}", {
-    method: "POST",
-    headers: {"Content-Type": "application/json", "X-CSRFToken": csrfToken},
-    body: JSON.stringify({id}),
-  });
-  if ((await res.json()).ok) location.reload();
+  try {
+    const res = await fetch("{% url 'admin_portale:api_login_banner_toggle' %}", {
+      method: "POST",
+      headers: {"Content-Type": "application/json", "X-CSRFToken": csrfToken},
+      body: JSON.stringify({id}),
+    });
+    await window.portalReadJsonResponse(res, { fallbackError: "Errore aggiornamento banner login." });
+    location.reload();
+  } catch (err) {
+    alert("Errore: " + ((err && err.message) || "Errore aggiornamento banner login."));
+  }
 }
 
 async function deleteBanner(id, btn) {
   if (!confirm("Eliminare questo banner?")) return;
-  const res = await fetch("{% url 'admin_portale:api_login_banner_delete' %}", {
-    method: "POST",
-    headers: {"Content-Type": "application/json", "X-CSRFToken": csrfToken},
-    body: JSON.stringify({id}),
-  });
-  if ((await res.json()).ok) btn.closest("[style]").remove();
+  try {
+    const res = await fetch("{% url 'admin_portale:api_login_banner_delete' %}", {
+      method: "POST",
+      headers: {"Content-Type": "application/json", "X-CSRFToken": csrfToken},
+      body: JSON.stringify({id}),
+    });
+    await window.portalReadJsonResponse(res, { fallbackError: "Errore eliminazione banner login." });
+    btn.closest("[style]").remove();
+  } catch (err) {
+    alert("Errore: " + ((err && err.message) || "Errore eliminazione banner login."));
+  }
 }
 </script>
 {% endblock %}

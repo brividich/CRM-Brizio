@@ -304,8 +304,7 @@
           headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
           body: JSON.stringify(body),
         });
-        const d = await r.json().catch(() => ({}));
-        if (!r.ok || !d.ok) throw new Error(d.error || "HTTP " + r.status);
+        await window.portalReadJsonResponse(r, { fallbackError: "Errore salvataggio checklist utente." });
         statusEl.textContent = "Salvato!";
         statusEl.style.color = "#16a34a";
         setTimeout(function () { location.reload(); }, 800);

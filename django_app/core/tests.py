@@ -353,6 +353,55 @@ class ACLLegacyDecisionTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertTrue(any("senza binding canonico e senza pulsante legacy matchato" in line for line in logs.output))
 
+    def test_acl_middleware_returns_json_for_unauthenticated_api_requests(self):
+        request = self.factory.post(
+            "/admin-portale/api/ruoli/create",
+            HTTP_ACCEPT="application/json",
+        )
+        _attach_session(request)
+        request.user = AnonymousUser()
+        middleware = ACLMiddleware(lambda req: HttpResponse("ok"))
+
+        response = middleware(request)
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response["Content-Type"], "application/json")
+        payload = json.loads(response.content)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["reason"], "unauthenticated")
+        self.assertIn(reverse("login"), payload["login_url"])
+
+    def test_acl_middleware_returns_json_for_forbidden_api_requests(self):
+        request = self.factory.get(
+            "/admin-portale/api/ruoli/create",
+            HTTP_ACCEPT="application/json",
+        )
+        _attach_session(request)
+        request.user = SimpleNamespace(is_authenticated=True, is_superuser=False, id=888)
+        middleware = ACLMiddleware(lambda req: HttpResponse("ok"))
+        fake_decision = {
+            "allowed": False,
+            "decision_source": "legacy_fallback",
+            "path_normalized": "/admin-portale/api/ruoli/create",
+            "route_name": "",
+            "legacy_user": {"id": self.legacy_role_denied.id},
+            "reason": "Permesso negato",
+            "legacy_fallback": {"reason_code": "explicit_deny"},
+        }
+
+        with patch("core.middleware.get_legacy_user", return_value=self.legacy_role_denied), patch(
+            "core.middleware.resolve_acl_access",
+            return_value=fake_decision,
+        ):
+            response = middleware(request)
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response["Content-Type"], "application/json")
+        payload = json.loads(response.content)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["reason"], "forbidden")
+        self.assertEqual(payload["error"], "Permessi insufficienti.")
+
 
 @override_settings(
     LEGACY_AUTH_ENABLED=True,

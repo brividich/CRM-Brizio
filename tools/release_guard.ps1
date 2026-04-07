@@ -71,6 +71,41 @@ function Assert-Regex {
     }
 }
 
+function Test-IsExcludedByWizardBundleRules {
+    param(
+        [string]$BaseDir,
+        [System.IO.FileInfo]$File,
+        [string[]]$ExcludeDirNames,
+        [string[]]$ExcludeFilePatterns
+    )
+
+    $normalizedBaseDir = [System.IO.Path]::GetFullPath($BaseDir).TrimEnd('\', '/')
+    $normalizedFilePath = [System.IO.Path]::GetFullPath($File.FullName)
+    if ($normalizedFilePath.StartsWith($normalizedBaseDir, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $relativePath = $normalizedFilePath.Substring($normalizedBaseDir.Length).TrimStart('\', '/')
+    } else {
+        $relativePath = $File.Name
+    }
+    $pathSegments = $relativePath -split '[\\/]'
+
+    if ($pathSegments.Count -gt 1) {
+        $lastDirectoryIndex = $pathSegments.Count - 2
+        foreach ($segment in $pathSegments[0..$lastDirectoryIndex]) {
+            if ($ExcludeDirNames -contains $segment) {
+                return $true
+            }
+        }
+    }
+
+    foreach ($pattern in $ExcludeFilePatterns) {
+        if ($File.Name -like $pattern) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
 function Resolve-Python {
     param([string]$RootPath)
 
@@ -115,6 +150,7 @@ $paths = @{
     SetupWizard = Join-Path $SourcePath "deployment\setup_wizard.py"
     SetupWizardExe = Join-Path $SourcePath "deployment\dist\SetupWizard.exe"
     SetupWizardSpec = Join-Path $SourcePath "deployment\SetupWizard.spec"
+    SetupWizardBundleRules = Join-Path $SourcePath "deployment\setup_wizard_bundle_rules.json"
     PackageRelease = Join-Path $SourcePath "deployment\scripts\package-release.ps1"
 }
 
@@ -135,7 +171,9 @@ $adminManualText = Read-Text $paths.AdminManual
 $envExampleText = Read-Text $paths.EnvExample
 $appVersionText = Read-Text $paths.AppVersion
 $setupWizardText = Read-Text $paths.SetupWizard
+$setupWizardSpecText = Read-Text $paths.SetupWizardSpec
 $packageReleaseText = Read-Text $paths.PackageRelease
+$setupWizardBundleRulesText = Read-Text $paths.SetupWizardBundleRules
 
 Assert-Regex -Text $readmeText -Pattern ("version-" + [regex]::Escape($version)) -Label "README.md"
 Assert-Contains -Text $readmeText -Needle "doc/START_HERE.md" -Label "README.md"
@@ -249,6 +287,28 @@ foreach ($path in $snippetFiles) {
 }
 
 Assert-Contains -Text $packageReleaseText -Needle "release_guard.ps1" -Label "deployment/scripts/package-release.ps1"
+Assert-Contains -Text $setupWizardSpecText -Needle "setup_wizard_bundle_rules.json" -Label "deployment/SetupWizard.spec"
+
+$bundleRules = $null
+$wizardExcludedDirNames = @()
+$wizardExcludedFilePatterns = @()
+try {
+    $bundleRules = $setupWizardBundleRulesText | ConvertFrom-Json
+} catch {
+    Add-Failure("deployment/setup_wizard_bundle_rules.json non e JSON valido: $($_.Exception.Message)")
+}
+
+if ($bundleRules -and $bundleRules.exclude_dir_names) {
+    $wizardExcludedDirNames = @($bundleRules.exclude_dir_names | ForEach-Object { [string]$_ })
+} else {
+    Add-Failure("deployment/setup_wizard_bundle_rules.json deve definire exclude_dir_names")
+}
+
+if ($bundleRules -and $bundleRules.exclude_file_patterns) {
+    $wizardExcludedFilePatterns = @($bundleRules.exclude_file_patterns | ForEach-Object { [string]$_ })
+} else {
+    Add-Failure("deployment/setup_wizard_bundle_rules.json deve definire exclude_file_patterns")
+}
 
 $setupWizardExeInfo = Get-Item -LiteralPath $paths.SetupWizardExe
 $triggerFiles = New-Object System.Collections.Generic.List[System.IO.FileInfo]
@@ -273,8 +333,7 @@ if (Test-Path -LiteralPath $deploymentConfigDir) {
 $djangoAppDir = Join-Path $SourcePath "django_app"
 if (Test-Path -LiteralPath $djangoAppDir) {
     $djangoFiles = Get-ChildItem -LiteralPath $djangoAppDir -File -Recurse | Where-Object {
-        $_.FullName -notmatch '\\(__pycache__|logs)\\' -and
-        $_.Extension -notin @('.pyc', '.pyo')
+        -not (Test-IsExcludedByWizardBundleRules -BaseDir $djangoAppDir -File $_ -ExcludeDirNames $wizardExcludedDirNames -ExcludeFilePatterns $wizardExcludedFilePatterns)
     }
     foreach ($file in $djangoFiles) {
         $triggerFiles.Add($file)

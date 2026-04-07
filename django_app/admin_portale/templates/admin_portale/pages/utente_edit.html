@@ -610,10 +610,7 @@
         headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
         body: JSON.stringify(body),
       });
-      let data = {};
-      try { data = await resp.json(); } catch (e) {}
-      if (!resp.ok || !data.ok) throw new Error(data.error || ("HTTP " + resp.status));
-      return data;
+      return window.portalReadJsonResponse(resp, { fallbackError: "Errore aggiornamento utente." });
     }
 
     // ── Inizializza flag-toggle ──

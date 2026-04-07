@@ -206,5 +206,5 @@ Il modello a release directory + junction `current` permette di tornare indietro
 - documentare `django-environ` come loader attivo
 - creare una release senza eseguire il release guard
 - considerare `django_app/VERSION` come sorgente primaria
-- modificare `deployment/setup_wizard.py`, `deployment/scripts/*`, `deployment/config/*` o file in `django_app/` senza rigenerare `SetupWizard.exe`
+- modificare `deployment/setup_wizard.py`, `deployment/SetupWizard.spec`, `deployment/setup_wizard_bundle_rules.json`, `deployment/scripts/*`, `deployment/config/*` o file runtime in `django_app/` senza rigenerare `SetupWizard.exe`
 

@@ -760,9 +760,7 @@
         headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
         body: JSON.stringify(payload),
       });
-      let data = {};
-      try { data = await resp.json(); } catch (e) {}
-      if (!resp.ok || !data.ok) throw new Error(data.error || ("HTTP " + resp.status));
+      await window.portalReadJsonResponse(resp, { fallbackError: "Errore salvataggio pulsante." });
 
       // Successo
       actionsEl.style.display = "none";

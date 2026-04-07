@@ -164,8 +164,11 @@ LDAP_USER_FILTER = env(
     "LDAP_USER_FILTER",
     ini_get("ACTIVE_DIRECTORY", "user_filter", "(&(objectCategory=person)(objectClass=user))"),
 )
-LDAP_GROUP_ALLOWLIST = env_list("LDAP_GROUP_ALLOWLIST", [])
-LDAP_SYNC_PAGE_SIZE = int(env("LDAP_SYNC_PAGE_SIZE", "500") or "500")
+LDAP_GROUP_ALLOWLIST = env_list(
+    "LDAP_GROUP_ALLOWLIST",
+    [item.strip() for item in ini_get("ACTIVE_DIRECTORY", "group_allowlist", "").split(",") if item.strip()],
+)
+LDAP_SYNC_PAGE_SIZE = int(env("LDAP_SYNC_PAGE_SIZE", ini_get("ACTIVE_DIRECTORY", "sync_page_size", "500")) or "500")
 EMAIL_BACKEND = env("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST = env("EMAIL_HOST", ini_get("SMTP", "host", ""))
 EMAIL_PORT = int(env("EMAIL_PORT", ini_get("SMTP", "port", "587")) or "587")

@@ -5,6 +5,7 @@ from urllib.parse import urlencode
 
 from django.conf import settings
 from django.core.cache import cache
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
@@ -17,6 +18,19 @@ API_ACL_GATE_PATHS = {
 }
 _ACL_MIDDLEWARE_LOG_TTL_SECONDS = 300
 logger = logging.getLogger(__name__)
+
+
+def _is_json_request(request) -> bool:
+    accept = (request.headers.get("Accept") or "").lower()
+    content_type = (request.headers.get("Content-Type") or "").lower()
+    requested_with = (request.headers.get("X-Requested-With") or "").lower()
+    path = request.path or ""
+    return (
+        "application/json" in accept
+        or "application/json" in content_type
+        or requested_with == "xmlhttprequest"
+        or "/api/" in path
+    )
 
 
 def _log_acl_once(level: str, cache_key: str, message: str, **extra) -> None:
@@ -63,7 +77,18 @@ class ACLMiddleware:
         if not request.user.is_authenticated:
             login_url = reverse("login")
             query = urlencode({"next": request.get_full_path()})
-            return redirect(f"{login_url}?{query}")
+            target = f"{login_url}?{query}"
+            if _is_json_request(request):
+                return JsonResponse(
+                    {
+                        "ok": False,
+                        "error": "Autenticazione richiesta.",
+                        "reason": "unauthenticated",
+                        "login_url": target,
+                    },
+                    status=401,
+                )
+            return redirect(target)
 
         if getattr(request, "impersonation_active", False) and is_impersonation_stop_path(path):
             return self.get_response(request)
@@ -121,6 +146,16 @@ class ACLMiddleware:
                 db_error=legacy_diag.get("db_error"),
                 decision_source=decision.get("decision_source"),
                 decision_reason=decision.get("reason"),
+            )
+
+        if _is_json_request(request):
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": "Permessi insufficienti.",
+                    "reason": "forbidden",
+                },
+                status=403,
             )
 
         return render(

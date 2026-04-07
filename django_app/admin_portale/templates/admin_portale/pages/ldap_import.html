@@ -1,0 +1,363 @@
+{% extends "core/base.html" %}
+
+{% block title %}Importa utenti da LDAP | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .ldap-status-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    margin-bottom: 0;
+  }
+  .ldap-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .ldap-badge.ok    { background: #d1fae5; color: #065f46; }
+  .ldap-badge.warn  { background: #fef9c3; color: #854d0e; }
+  .ldap-badge.error { background: #fee2e2; color: #991b1b; }
+
+  #ldap-results-wrap { display: none; }
+
+  .import-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .import-table th { text-align: left; padding: 6px 10px; border-bottom: 2px solid var(--border, #e5e7eb); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted, #888); }
+  .import-table td { padding: 7px 10px; border-bottom: 1px solid var(--border, #f0f0f0); vertical-align: middle; }
+  .import-table tr.already td { opacity: .5; }
+  .import-table tr:hover td { background: var(--row-hover, #f9fafb); }
+
+  .badge-already { display: inline-block; padding: 1px 7px; border-radius: 12px; font-size: 10px; font-weight: 600; background: #e0e7ff; color: #3730a3; }
+  .groups-list { display: flex; flex-wrap: wrap; gap: 4px; }
+  .group-chip { padding: 1px 7px; background: var(--bg-alt, #f3f4f6); border-radius: 12px; font-size: 10px; color: var(--text-muted, #666); }
+
+  .import-footer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0 4px;
+    flex-wrap: wrap;
+  }
+  .import-footer .select-info { font-size: 12px; color: var(--text-muted, #888); }
+
+  #import-result-box { margin-top: 14px; }
+  .result-section { margin-bottom: 10px; }
+  .result-section strong { font-size: 12px; display: block; margin-bottom: 4px; }
+  .result-item { font-size: 12px; padding: 2px 0; color: var(--text-secondary, #444); }
+  .result-item.ok   { color: #065f46; }
+  .result-item.warn { color: #854d0e; }
+  .result-item.err  { color: #991b1b; }
+
+  .search-spinner { display: none; width: 16px; height: 16px; border: 2px solid #ccc; border-top-color: #555; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-left: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Importa utenti da LDAP / AD" page_subtitle="Cerca utenti in Active Directory e seleziona quali importare nel portale." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+
+  {% if not ldap_configured %}
+  <div class="card">
+    <div class="card-body">
+      <div class="alert alert-warning" style="margin:0">
+        <strong>LDAP non configurato.</strong>
+        Configura server, service account e base DN nella pagina
+        <a href="{% url 'admin_portale:ldap_diagnostica' %}">Diagnostica LDAP</a> prima di usare questa funzione.
+      </div>
+    </div>
+  </div>
+  {% else %}
+
+  <!-- Stato LDAP -->
+  <div class="card">
+    <div class="card-body">
+      <div class="ldap-status-bar">
+        {% if ldap_enabled %}
+          <span class="ldap-badge ok">LDAP abilitato</span>
+        {% else %}
+          <span class="ldap-badge warn">LDAP disabilitato</span>
+        {% endif %}
+        <span style="font-size:12px;color:var(--text-muted,#888)">Server: <strong>{{ ldap_server }}</strong></span>
+        <a href="{% url 'admin_portale:ldap_diagnostica' %}" class="btn btn-secondary btn-sm" style="margin-left:auto">Impostazioni LDAP</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ricerca -->
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Cerca utenti AD</div>
+    </div>
+    <div class="card-body">
+      <div class="admin-form-grid">
+        <div class="field" style="flex:1 1 280px">
+          <label for="ldap-q">Filtro nome / username / email</label>
+          <input class="input" type="text" id="ldap-q" placeholder="Es. mario.rossi  oppure lascia vuoto per tutti">
+        </div>
+        <div class="field field-actions" style="align-self:flex-end">
+          <button class="btn" id="btn-ldap-search" type="button">Cerca in AD</button>
+          <span class="search-spinner" id="search-spinner"></span>
+        </div>
+      </div>
+      <div id="ldap-search-error" style="display:none;color:#991b1b;font-size:13px;margin-top:8px"></div>
+    </div>
+  </div>
+
+  <!-- Risultati + importazione -->
+  <div id="ldap-results-wrap">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title" id="results-title">Risultati</div>
+        <div class="admin-inline-actions">
+          <button class="btn btn-secondary btn-sm" id="btn-select-all" type="button">Seleziona tutti</button>
+          <button class="btn btn-secondary btn-sm" id="btn-deselect-all" type="button">Deseleziona tutti</button>
+          <button class="btn btn-secondary btn-sm" id="btn-select-not-imported" type="button">Solo non importati</button>
+        </div>
+      </div>
+      <div class="card-body" style="padding:0">
+        <div class="table-wrap">
+          <table class="import-table">
+            <thead>
+              <tr>
+                <th style="width:36px"><input type="checkbox" id="th-checkbox"></th>
+                <th>Nome</th>
+                <th>Email / UPN</th>
+                <th>Username AD</th>
+                <th>Gruppi AD</th>
+                <th>Stato</th>
+              </tr>
+            </thead>
+            <tbody id="ldap-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Azione import -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Importa selezionati</div>
+      </div>
+      <div class="card-body">
+        <div class="admin-form-grid">
+          <div class="field" style="flex:1 1 220px">
+            <label for="import-ruolo">Ruolo da assegnare</label>
+            <select class="input" id="import-ruolo">
+              <option value="">-- Default (utente) --</option>
+              {% for r in roles %}
+                <option value="{{ r.id }}">{{ r.nome }} (#{{ r.id }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field field-actions" style="align-self:flex-end">
+            <button class="btn" id="btn-import" type="button">Importa selezionati</button>
+            <span class="import-footer">
+              <span class="select-info" id="select-count">0 selezionati</span>
+              <span class="search-spinner" id="import-spinner"></span>
+            </span>
+          </div>
+        </div>
+        <div id="import-error" style="display:none;color:#991b1b;font-size:13px;margin-top:8px"></div>
+        <div id="import-result-box" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
+  {% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  const SEARCH_URL = "{% url 'admin_portale:ldap_import_utenti' %}";
+  const CSRF = "{{ csrf_token }}";
+
+  let allUsers = [];
+
+  // ─── ricerca ───────────────────────────────────────────────────────────────
+  document.getElementById("btn-ldap-search")?.addEventListener("click", doSearch);
+  document.getElementById("ldap-q")?.addEventListener("keydown", e => { if (e.key === "Enter") doSearch(); });
+
+  async function doSearch() {
+    const q = document.getElementById("ldap-q").value.trim();
+    const errBox = document.getElementById("ldap-search-error");
+    const spinner = document.getElementById("search-spinner");
+    errBox.style.display = "none";
+    spinner.style.display = "inline-block";
+    document.getElementById("btn-ldap-search").disabled = true;
+
+    try {
+      const fd = new FormData();
+      fd.append("csrfmiddlewaretoken", CSRF);
+      fd.append("action", "search");
+      if (q) fd.append("q", q);
+      const resp = await fetch(SEARCH_URL, { method: "POST", body: fd });
+      const data = await window.portalReadJsonResponse(resp, { fallbackError: "Errore ricerca LDAP." });
+      allUsers = data.users || [];
+      renderTable(allUsers);
+      document.getElementById("ldap-results-wrap").style.display = "";
+      document.getElementById("results-title").textContent = `Risultati — ${allUsers.length} utenti trovati in AD`;
+      updateSelectCount();
+    } catch (e) {
+      showSearchError("Errore di rete: " + e.message);
+    } finally {
+      spinner.style.display = "none";
+      document.getElementById("btn-ldap-search").disabled = false;
+    }
+  }
+
+  function showSearchError(msg) {
+    const b = document.getElementById("ldap-search-error");
+    b.textContent = msg;
+    b.style.display = "";
+  }
+
+  // ─── render tabella ────────────────────────────────────────────────────────
+  function renderTable(users) {
+    const tbody = document.getElementById("ldap-tbody");
+    tbody.innerHTML = "";
+    users.forEach(u => {
+      const tr = document.createElement("tr");
+      if (u.already_imported) tr.classList.add("already");
+      tr.dataset.email = u.email;
+      tr.dataset.already = u.already_imported ? "1" : "0";
+
+      const groupsHtml = u.groups.length
+        ? `<div class="groups-list">${u.groups.map(g => `<span class="group-chip">${_esc(g)}</span>`).join("")}</div>`
+        : '<span style="color:#bbb;font-size:11px">—</span>';
+
+      const statusHtml = u.already_imported
+        ? '<span class="badge-already">Già importato</span>'
+        : '<span style="color:#16a34a;font-size:11px;font-weight:600">Non importato</span>';
+
+      tr.innerHTML = `
+        <td><input type="checkbox" class="row-check" data-email="${_esc(u.email)}" ${u.already_imported ? "" : "checked"}></td>
+        <td>${_esc(u.display_name)}</td>
+        <td style="font-size:12px">${_esc(u.email)}</td>
+        <td style="font-size:12px;color:var(--text-muted,#888)">${_esc(u.sam)}</td>
+        <td>${groupsHtml}</td>
+        <td>${statusHtml}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+    addRowCheckListeners();
+  }
+
+  function addRowCheckListeners() {
+    document.querySelectorAll(".row-check").forEach(cb => {
+      cb.addEventListener("change", updateSelectCount);
+    });
+  }
+
+  function updateSelectCount() {
+    const n = document.querySelectorAll(".row-check:checked").length;
+    document.getElementById("select-count").textContent = `${n} selezionati`;
+  }
+
+  // ─── selezione bulk ────────────────────────────────────────────────────────
+  document.getElementById("btn-select-all")?.addEventListener("click", () => {
+    document.querySelectorAll(".row-check").forEach(cb => cb.checked = true);
+    updateSelectCount();
+  });
+  document.getElementById("btn-deselect-all")?.addEventListener("click", () => {
+    document.querySelectorAll(".row-check").forEach(cb => cb.checked = false);
+    updateSelectCount();
+  });
+  document.getElementById("btn-select-not-imported")?.addEventListener("click", () => {
+    document.querySelectorAll(".row-check").forEach(cb => {
+      const tr = cb.closest("tr");
+      cb.checked = tr && tr.dataset.already === "0";
+    });
+    updateSelectCount();
+  });
+  document.getElementById("th-checkbox")?.addEventListener("change", function () {
+    document.querySelectorAll(".row-check").forEach(cb => cb.checked = this.checked);
+    updateSelectCount();
+  });
+
+  // ─── importazione ──────────────────────────────────────────────────────────
+  document.getElementById("btn-import")?.addEventListener("click", doImport);
+
+  async function doImport() {
+    const checked = Array.from(document.querySelectorAll(".row-check:checked")).map(cb => cb.dataset.email);
+    if (!checked.length) { alert("Seleziona almeno un utente."); return; }
+
+    const errBox = document.getElementById("import-error");
+    const spinner = document.getElementById("import-spinner");
+    const resultBox = document.getElementById("import-result-box");
+    errBox.style.display = "none";
+    resultBox.style.display = "none";
+    spinner.style.display = "inline-block";
+    document.getElementById("btn-import").disabled = true;
+
+    try {
+      const fd = new FormData();
+      fd.append("csrfmiddlewaretoken", CSRF);
+      fd.append("action", "import");
+      fd.append("ruolo_id", document.getElementById("import-ruolo").value);
+      checked.forEach(email => fd.append("emails[]", email));
+
+      const resp = await fetch(SEARCH_URL, { method: "POST", body: fd });
+      const data = await window.portalReadJsonResponse(resp, { fallbackError: "Errore importazione." });
+      renderImportResult(data.results);
+      // aggiorna badges nella tabella
+      const r = data.results;
+      const importedEmails = new Set([...(r.created || []), ...(r.updated || [])].map(u => u.email));
+      document.querySelectorAll("tr[data-email]").forEach(tr => {
+        if (importedEmails.has(tr.dataset.email)) {
+          tr.dataset.already = "1";
+          tr.classList.add("already");
+          const statusTd = tr.querySelector("td:last-child");
+          if (statusTd) statusTd.innerHTML = '<span class="badge-already">Già importato</span>';
+        }
+      });
+    } catch (e) {
+      errBox.textContent = "Errore di rete: " + e.message;
+      errBox.style.display = "";
+    } finally {
+      spinner.style.display = "none";
+      document.getElementById("btn-import").disabled = false;
+    }
+  }
+
+  function renderImportResult(results) {
+    const box = document.getElementById("import-result-box");
+    let html = "";
+    if (results.created?.length) {
+      html += `<div class="result-section"><strong style="color:#065f46">Creati (${results.created.length})</strong>`;
+      results.created.forEach(u => { html += `<div class="result-item ok">✓ ${_esc(u.nome)} — ${_esc(u.email)}</div>`; });
+      html += "</div>";
+    }
+    if (results.updated?.length) {
+      html += `<div class="result-section"><strong style="color:#854d0e">Aggiornati (${results.updated.length})</strong>`;
+      results.updated.forEach(u => { html += `<div class="result-item warn">↻ ${_esc(u.nome)} — ${_esc(u.email)}</div>`; });
+      html += "</div>";
+    }
+    if (results.errors?.length) {
+      html += `<div class="result-section"><strong style="color:#991b1b">Errori (${results.errors.length})</strong>`;
+      results.errors.forEach(u => { html += `<div class="result-item err">✗ ${_esc(u.email)}: ${_esc(u.error)}</div>`; });
+      html += "</div>";
+    }
+    if (!html) html = '<div class="result-item" style="color:var(--text-muted,#888)">Nessun utente elaborato.</div>';
+    box.innerHTML = html;
+    box.style.display = "";
+  }
+
+  function _esc(s) {
+    return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+})();
+</script>
+{% endblock %}

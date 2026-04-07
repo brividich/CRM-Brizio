@@ -1,0 +1,35 @@
+{
+  "exclude_dir_names": [
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".tmp_py",
+    ".tmp_tests",
+    ".venv",
+    ".vscode",
+    "__pycache__",
+    "build",
+    "dist",
+    "htmlcov",
+    "logs",
+    "media",
+    "node_modules",
+    "releases",
+    "staticfiles",
+    "tests",
+    "venv"
+  ],
+  "exclude_file_patterns": [
+    ".env",
+    "*.db",
+    "*.log",
+    "*.pyc",
+    "*.pyo",
+    "*.sqlite3",
+    "conftest.py",
+    "DIPENDENTI.csv",
+    "db.sqlite3",
+    "test_*.py",
+    "tests.py"
+  ]
+}

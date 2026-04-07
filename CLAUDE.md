@@ -241,7 +241,8 @@ Il file `.exe` ÃƒÂ¨ l'unico artefatto distribuito agli utenti finali Ã¢â�
 - Spec file: `deployment/SetupWizard.spec`
 - Output: `deployment/dist/SetupWizard.exe` (escluso da git via `.gitignore`)
 - Dimensione attesa: ~14 MB dopo la sanificazione del bundle (include sorgente Django filtrato per installazione DEV self-contained e runtime Tcl/Tk necessario alla UI)
-- Il bundle del wizard deve escludere sempre `.env`, `.venv`, `.tmp_tests`, database locali, cache, log, media e altri artefatti macchina-specifici dal sorgente `django_app/` incorporato.
+- Il bundle del wizard deve escludere sempre `.env`, `.venv`, `.tmp_tests`, database locali, cache, log, media, test suite Python e altri artefatti macchina-specifici dal sorgente `django_app/` incorporato.
+- Le esclusioni del bundle sono centralizzate in `deployment/setup_wizard_bundle_rules.json`; `SetupWizard.spec` e `tools/release_guard.ps1` devono leggerlo entrambi per evitare falsi positivi sul freshness check.
 - `SetupWizard.spec` usa hook custom per `tkinter` e deve continuare a includere `_tcl_data` e `_tk_data`, altrimenti l'exe GUI puo risultare costruito ma non avviabile.
 - Il runtime Python del wizard e di `deployment/scripts/setup-environment.ps1` deve essere auto-rilevato in modo robusto (`py`, percorsi standard, registry, `PATH`) e validato come **Python 3.11+**: non fare affidamento sul solo `C:\Python311\python.exe`.
 - Se falliscono `venv`, `pip install`, `collectstatic` o `migrate`, il wizard deve segnare l'errore esplicitamente e **non** attivare la release/IIS o schedulare task che punterebbero a un ambiente incompleto.
@@ -346,7 +347,7 @@ I nomi delle variabili nel `.env` devono corrispondere ESATTAMENTE a quelli lett
 | File / cartella | Motivo |
 | --- | --- |
 | `deployment/setup_wizard.py` | Il wizard stesso ÃƒÂ¨ compilato nell'exe |
-| `django_app/` (qualsiasi file) | Il sorgente Django ÃƒÂ¨ bundled nell'exe per DEV self-contained |
+| `django_app/` (file runtime) | Il sorgente Django bundled nell'exe per DEV self-contained richiede rebuild; i file test-only esclusi dal bundle (`tests.py`, `test_*.py`, `tests/`, `conftest.py`) non devono bloccare il release guard |
 | `deployment/scripts/*.ps1` | Script PowerShell inclusi in `datas` dello spec |
 | `deployment/config/*.template` | Template inclusi in `datas` dello spec |
 | `deployment/SetupWizard.spec` | Cambia la struttura del bundle |
@@ -407,6 +408,8 @@ Il progetto usa quasi esclusivamente FBV. Non introdurre CBV senza necessitÃƒ�
 - `python manage.py test` usa automaticamente `config.settings.test` se non passi `--settings`
 - Nei flussi wizard/deploy l'ambiente `test` usa comunque `config.settings.prod`
 - `config.ini` runtime viene letto da `PROJECT_DIR.parent / "config.ini"` (quindi nella root del release attivo, non solo dentro `django_app/`)
+- Per LDAP la precedenza runtime e: ambiente processo -> `django_app/.env` -> `[ACTIVE_DIRECTORY]` in `config.ini` -> default codice. La pagina `/admin-portale/ldap/` deve distinguere esplicitamente tra runtime attivo e valori che verrebbero letti al prossimo riavvio; la form modifica `config.ini`.
+- `LDAP_GROUP_ALLOWLIST` e `LDAP_SYNC_PAGE_SIZE` devono avere fallback a `config.ini` coerente con il salvataggio della pagina admin, non restare bloccati al solo `.env`/default.
 - Per sviluppo: `--settings=config.settings.dev`
 
 ### Template Django Ã¢â‚¬â€ REGOLA: variabili NON possono iniziare con underscore
@@ -514,6 +517,17 @@ Questi componenti esistono solo sul server di produzione:
 ---
 
 ## URL routing
+
+### `legacy_admin_required` su endpoint API/AJAX
+
+- File: `django_app/admin_portale/decorators.py`
+- Per pagine HTML mantiene il comportamento storico: redirect a login se l'utente non e autenticato, pagina `403` se e autenticato ma non admin legacy.
+- Per richieste API/AJAX (`/api/`, `Accept: application/json`, `Content-Type: application/json`, `X-Requested-With: XMLHttpRequest`) deve restituire JSON esplicito:
+  - `401` con `{ok: false, reason: "unauthenticated", ...}`
+  - `403` con `{ok: false, reason: "forbidden", ...}`
+- Motivo: evitare errori frontend tipo `Unexpected token '<'` quando il browser prova a fare `response.json()` su una pagina HTML di login/forbidden.
+- La stessa regola vale anche per `django_app/core/middleware.py` (`ACLMiddleware`): gli endpoint protetti non devono fare redirect/render HTML se la richiesta e API/AJAX.
+- I template/admin page che consumano API JSON devono passare da `window.portalReadJsonResponse(...)` (definito in `django_app/core/templates/core/base.html`) invece di chiamare `response.json()` direttamente, cosi `401/403`, payload `{ok:false}` e HTML inatteso vengono trasformati in errori gestibili con messaggi utente leggibili.
 
 Tutte le app sono incluse in `config/urls.py`. Prefissi notevoli:
 

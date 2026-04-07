@@ -362,9 +362,7 @@
         headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
         body: JSON.stringify(body),
       });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok || !d.ok) throw new Error(d.error || "HTTP " + r.status);
-      return d;
+      return window.portalReadJsonResponse(r, { fallbackError: "Errore aggiornamento anagrafica." });
     }
 
     // ════════════════ OPZIONI DROPDOWN ════════════════

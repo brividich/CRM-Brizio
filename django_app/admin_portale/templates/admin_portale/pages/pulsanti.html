@@ -484,6 +484,7 @@
           <div class="cf"><label>Nome visibile</label><input class="input" type="text" name="nome_visibile" placeholder="es. Gestione Assenze"></div>
           <div class="cf"><label>Modulo *</label><input class="input" type="text" name="modulo" list="modulo-options-list" required placeholder="es. assenze"></div>
           <div class="cf cf-full"><label>URL *</label><input class="input" type="text" name="url" required placeholder="/path/ oppure route:nome_route oppure https://…"></div>
+          <div class="cf cf-full"><label>Descrizione</label><input class="input" type="text" name="descrizione" placeholder="Breve spiegazione di cosa fa questa pagina/funzione"></div>
           <div class="cf"><label>Slot UI</label><input class="input" type="text" name="ui_slot" list="ui-slot-options-list" placeholder="topbar / sidebar / page"></div>
           <div class="cf"><label>Sezione UI</label><input class="input" type="text" name="ui_section" list="ui-section-options-list" placeholder="gestione_assenze / admin"></div>
           <div class="cf"><label>Ordine UI</label><input class="input" type="number" name="ui_order" placeholder="es. 10"></div>
@@ -588,6 +589,7 @@
                 <div class="ef"><label>Modulo</label><input class="input input-sm" type="text" data-name="modulo" list="modulo-options-list" value="{{ p.modulo }}"></div>
                 <div class="ef"><label>Icona</label><input class="input input-sm" type="text" data-name="icona" list="icon-options-list" value="{{ p.icona|default:'' }}"></div>
                 <div class="ef ef-full"><label>URL</label><input class="input input-sm" type="text" data-name="url" value="{{ p.url }}"></div>
+                <div class="ef ef-full"><label>Descrizione</label><input class="input input-sm" type="text" data-name="descrizione" value="{{ p.descrizione|default:'' }}" placeholder="Breve spiegazione di cosa fa questa pagina/funzione"></div>
                 <div class="ef ef-full">
                   <label>Immagine modulo (globale)</label>
                   <div class="card-image-editor">
@@ -724,10 +726,7 @@
       headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken },
       body: JSON.stringify(payload)
     });
-    let data = {};
-    try { data = await resp.json(); } catch (e) {}
-    if (!resp.ok || !data.ok) throw new Error(data.error || ("HTTP " + resp.status));
-    return data;
+    return window.portalReadJsonResponse(resp, { fallbackError: "Errore salvataggio." });
   }
 
   async function postFormData(url, formData) {
@@ -736,10 +735,7 @@
       headers: { "X-CSRFToken": csrfToken },
       body: formData
     });
-    let data = {};
-    try { data = await resp.json(); } catch (e) {}
-    if (!resp.ok || !data.ok) throw new Error(data.error || ("HTTP " + resp.status));
-    return data;
+    return window.portalReadJsonResponse(resp, { fallbackError: "Errore upload." });
   }
 
   function setCardPreview(pid, imageUrl, label, storageValue) {

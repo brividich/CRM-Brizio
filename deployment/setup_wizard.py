@@ -2463,6 +2463,19 @@ class InstallPage(Page):
             self._log_line("  âœ— Riallineamento CK_assenze_tipo fallito", "err")
         return ok
 
+    def _run_seed_pulsanti_descrizioni(self, *, venv_py, django_app, env_vars, settings):
+        """Popola le descrizioni dei pulsanti via seed. Non bloccante."""
+        self._log_line("  -> Seed descrizioni pulsanti", "dim")
+        ok = self._cmd(
+            [str(venv_py), "manage.py", "seed_pulsanti_descrizioni", f"--settings={settings}"],
+            cwd=django_app,
+            env=env_vars,
+        )
+        if ok:
+            self._log_line("  ✓ Seed pulsanti descrizioni completato", "ok")
+        else:
+            self._log_line("  ✗ Seed pulsanti descrizioni fallito (non bloccante)", "warn")
+
     def _verify_collectstatic_output(self, static_root: Path, errors: list[str]) -> bool:
         missing_assets = _missing_static_assets(static_root)
         if not missing_assets:
@@ -2899,6 +2912,13 @@ class InstallPage(Page):
                     settings=settings,
                     include_legacy_import=True,
                     run_uat_seed=bool(getattr(cfg, "acl_seed_uat", True) and cfg.environment == "test"),
+                )
+            if migrate_ok:
+                self._run_seed_pulsanti_descrizioni(
+                    venv_py=venv_py,
+                    django_app=django_app,
+                    env_vars=env_vars,
+                    settings=settings,
                 )
         else:
             self._log_line("  Skip — django_app non trovato", "warn")
@@ -3993,6 +4013,19 @@ class ReleaseRunPage(Page):
             self._log_line("  ✗ Riallineamento CK_assenze_tipo fallito", "err")
         return ok
 
+    def _run_seed_pulsanti_descrizioni(self, *, venv_py, django_app, env_vars, settings):
+        """Popola le descrizioni dei pulsanti via seed. Non bloccante."""
+        self._log_line("  -> Seed descrizioni pulsanti", "dim")
+        ok = self._cmd(
+            [str(venv_py), "manage.py", "seed_pulsanti_descrizioni", f"--settings={settings}"],
+            cwd=django_app,
+            env=env_vars,
+        )
+        if ok:
+            self._log_line("  ✓ Seed pulsanti descrizioni completato", "ok")
+        else:
+            self._log_line("  ✗ Seed pulsanti descrizioni fallito (non bloccante)", "warn")
+
     def _run_acl_bootstrap_workflow(
         self, *, venv_py, django_app, env_vars, settings,
         include_legacy_import=True, run_uat_seed=False,
@@ -4178,6 +4211,12 @@ class ReleaseRunPage(Page):
                     settings=settings,
                     include_legacy_import=True,
                     run_uat_seed=bool(getattr(cfg, "acl_seed_uat", True) and cfg.environment == "test"),
+                )
+                self._run_seed_pulsanti_descrizioni(
+                    venv_py=venv_py,
+                    django_app=django_app,
+                    env_vars=env_vars,
+                    settings=settings,
                 )
 
         # 6. Attivazione junction

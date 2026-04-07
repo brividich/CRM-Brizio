@@ -2,10 +2,12 @@
 
 import configparser
 import json
+import shutil
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import ANY, MagicMock, patch
+from uuid import uuid4
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -39,6 +41,14 @@ from core.models import (
 )
 
 User = get_user_model()
+
+
+def _make_workspace_tempdir(prefix: str) -> Path:
+    root = Path.cwd() / ".tmp_tests"
+    root.mkdir(exist_ok=True)
+    target = root / f"{prefix}{uuid4().hex}"
+    target.mkdir(parents=True, exist_ok=False)
+    return target
 
 
 def _ensure_utenti_table() -> None:
@@ -624,8 +634,9 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
     def test_config_srv_can_save_ldap_config(self):
         self.client.force_login(self.admin_user)
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            config_path = Path(tmpdir) / "config.ini"
+        tmpdir = _make_workspace_tempdir("ldap-config-")
+        try:
+            config_path = tmpdir / "config.ini"
             config_path.write_text("[ACTIVE_DIRECTORY]\nserver = ldap://old.local\nenabled = false\n", encoding="utf-8")
 
             with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
@@ -663,6 +674,76 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
             self.assertEqual(parser.get("ACTIVE_DIRECTORY", "user_filter"), "(&(objectCategory=person)(objectClass=user))")
             self.assertEqual(parser.get("ACTIVE_DIRECTORY", "group_allowlist"), "EMPLOYEES,ADMINS")
             self.assertEqual(parser.get("ACTIVE_DIRECTORY", "sync_page_size"), "750")
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_config_srv_shows_runtime_vs_next_restart_when_config_differs(self):
+        self.client.force_login(self.admin_user)
+
+        tmpdir = _make_workspace_tempdir("ldap-runtime-")
+        try:
+            config_path = tmpdir / "config.ini"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[ACTIVE_DIRECTORY]",
+                        "enabled = true",
+                        "server = ldap://config.example.local",
+                        "domain = CONFIG",
+                        "upn_suffix = @config.local",
+                        "timeout = 9",
+                        "service_user = svc_config",
+                        "base_dn = DC=CONFIG,DC=LOCAL",
+                        "user_filter = (objectClass=user)",
+                        "group_allowlist = EMPLOYEES,ADMINS",
+                        "sync_page_size = 750",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            with override_settings(
+                LDAP_ENABLED=False,
+                LDAP_SERVER="ldap://runtime.example.local",
+                LDAP_DOMAIN="RUNTIME",
+                LDAP_UPN_SUFFIX="@runtime.local",
+                LDAP_TIMEOUT=5,
+                LDAP_SERVICE_USER="svc_runtime",
+                LDAP_BASE_DN="DC=RUNTIME,DC=LOCAL",
+                LDAP_USER_FILTER="(&(objectCategory=person)(objectClass=user))",
+                LDAP_GROUP_ALLOWLIST=["RUNTIME"],
+                LDAP_SYNC_PAGE_SIZE=500,
+            ), patch(
+                "admin_portale.decorators.get_legacy_user",
+                return_value=self.admin_legacy,
+            ), patch(
+                "admin_portale.decorators.is_legacy_admin",
+                return_value=True,
+            ), patch(
+                "admin_portale.views._config_ini_path",
+                return_value=config_path,
+            ), patch(
+                "admin_portale.views._load_dotenv_values",
+                return_value={},
+            ), patch.dict(
+                "admin_portale.views.os.environ",
+                {},
+                clear=True,
+            ):
+                response = self.client.get(self.url)
+
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "Runtime LDAP attivo")
+            self.assertContains(response, "Configurazione LDAP persistita in config.ini")
+            self.assertContains(response, "ldap://runtime.example.local")
+            self.assertContains(response, "ldap://config.example.local")
+            self.assertContains(response, "Riavvio necessario")
+            self.assertContains(response, "Il processo Django attuale non e' ancora allineato")
+            self.assertContains(response, '<input class="input" type="text" name="server" value="ldap://config.example.local">', html=True)
+            self.assertContains(response, '<input class="input" type="text" name="group_allowlist" value="EMPLOYEES,ADMINS" placeholder="EMPLOYEES,MANAGERS,ADMINS">', html=True)
+            self.assertContains(response, '<input class="input" type="number" min="100" max="2000" name="sync_page_size" value="750">', html=True)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -1325,6 +1406,7 @@ class AdminPortaleFormSecurityTests(TestCase):
         form = PulsanteForm({"codice": "test", "modulo": "test", "url": "/assenze/"})
         self.assertTrue(form.is_valid())
 
+
     def test_pulsante_url_prepends_slash_to_bare_path(self):
         form = PulsanteForm({"codice": "test", "modulo": "test", "url": "assenze"})
         self.assertTrue(form.is_valid())
@@ -1354,6 +1436,60 @@ class AdminPortaleFormSecurityTests(TestCase):
             "password_iniziale": "",
         })
         self.assertTrue(form.is_valid())
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AdminPortaleDecoratorJsonResponseTests(TestCase):
+    def setUp(self):
+        _ensure_utenti_table()
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM utenti")
+
+        self.user = User.objects.create_user(
+            username="admin-portale-json-check",
+            email="json.check@test.local",
+            password="pass12345",
+        )
+        self.non_admin_legacy = UtenteLegacy.objects.create(
+            nome="Operatore JSON",
+            email="json.check@test.local",
+            password="*AD_MANAGED*",
+            ruolo="operatore",
+            ruolo_id=2,
+            attivo=True,
+            deve_cambiare_password=False,
+        )
+
+    def test_api_returns_json_for_unauthenticated_requests(self):
+        response = self.client.post(
+            reverse("admin_portale:api_ruolo_create"),
+            {"nome": "Ruolo Test"},
+            HTTP_ACCEPT="application/json",
+        )
+
+        self.assertEqual(response.status_code, 401)
+        payload = response.json()
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["reason"], "unauthenticated")
+        self.assertIn(reverse("login"), payload["login_url"])
+
+    def test_api_returns_json_for_forbidden_non_admin_requests(self):
+        self.client.force_login(self.user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.non_admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=False,
+        ):
+            response = self.client.post(
+                reverse("admin_portale:api_ruolo_create"),
+                {"nome": "Ruolo Test"},
+                HTTP_ACCEPT="application/json",
+            )
+
+        self.assertEqual(response.status_code, 403)
+        payload = response.json()
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["reason"], "forbidden")
+        self.assertEqual(payload["error"], "Permessi insufficienti.")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

@@ -23,6 +23,7 @@ urlpatterns = [
         views.utente_force_change_password,
         name="utente_force_change_password",
     ),
+    path("utenti/ldap-import/", views.ldap_import_utenti, name="ldap_import_utenti"),
     path("utenti/bulk-role", views.utenti_bulk_role, name="utenti_bulk_role"),
     path("utenti/bulk-action", views.utenti_bulk_action, name="utenti_bulk_action"),
     path("permessi/", views.permessi, name="permessi"),
