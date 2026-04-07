@@ -220,6 +220,31 @@ def _preferred_sql_server_odbc_driver(drivers: list[str] | None = None) -> str:
     return sorted(available, key=_sql_server_driver_sort_key)[0]
 
 
+def _realign_db_driver_in_env(env_content: str) -> tuple[str, str]:
+    """Controlla che DB_DRIVER nel .env sia un driver ODBC SQL Server installato.
+    Se manca, è vuoto o non corrisponde a un driver installato, lo aggiunge/sostituisce
+    con il miglior driver disponibile.
+    Restituisce (env_content_aggiornato, nota_log).  nota_log è vuota se nessun cambio."""
+    import re
+    drivers = _installed_sql_server_odbc_drivers()
+    if not drivers:
+        return env_content, ""
+    best = _preferred_sql_server_odbc_driver(drivers)
+    if not best:
+        return env_content, ""
+    m = re.search(r"^DB_DRIVER=(.*)$", env_content, re.MULTILINE)
+    if not m:
+        # DB_DRIVER assente: aggiunge la riga alla fine
+        updated = env_content.rstrip("\n") + f"\nDB_DRIVER={best}\n"
+        return updated, f"  ✓ DB_DRIVER aggiunto: '{best}' (riga mancante nel .env)"
+    current = m.group(1).strip()
+    if current in drivers:
+        return env_content, ""
+    updated = re.sub(r"^DB_DRIVER=.*$", f"DB_DRIVER={best}", env_content, flags=re.MULTILINE)
+    label = "vuoto" if not current else f"'{current}' non installato"
+    return updated, f"  ✓ DB_DRIVER riallineato: {label} → '{best}'"
+
+
 def _missing_static_assets(static_root: Path) -> list[tuple[str, Path]]:
     root = Path(static_root)
     return [
@@ -259,17 +284,21 @@ def _validate_sql_identifier(name: str) -> str:
 
 def _create_junction(link_path, target_path):
     """Crea una junction NTFS. Rimuove junction preesistente.
-    Solleva RuntimeError se il path è una directory reale (non junction)."""
+    Se il path è una directory reale (non junction) la rinomina come backup invece di bloccare."""
     link = Path(link_path)
     target = Path(target_path)
     if link.exists() or link.is_symlink():
         # Verifica che sia una junction/symlink, NON una directory reale.
         # os.path.islink() restituisce True per junction e symlink su Windows (Python 3.8+).
         if link.is_dir() and not os.path.islink(str(link)):
-            raise RuntimeError(
-                f"{link} è una directory reale (non una junction NTFS) — "
-                f"rimuoverla manualmente prima di procedere"
-            )
+            # Directory reale: rinomina come backup invece di bloccare il promote
+            backup = link.parent / f"{link.name}_dir_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            try:
+                link.rename(backup)
+            except Exception as e:
+                raise RuntimeError(
+                    f"{link} è una directory reale e non è stato possibile rinominarla: {e}"
+                )
         # rmdir rimuove junction senza toccare il contenuto target
         subprocess.run(f'cmd /c rmdir /Q "{link}"',
                        capture_output=True, text=True,
@@ -2727,10 +2756,31 @@ class InstallPage(Page):
                 errors.append("Nessun pacchetto")
 
         # 5. .env
-        step(5, "Scrittura configurazione .env", 40)
+        step(5, "Configurazione .env", 40)
         backup_dir_path = Path(cfg.base_dir) / "shared" / "backups" / cfg.environment
-        env_content = cfg.to_env()
-        # Aggiunge variabili backup solo se mancanti come chiavi .env reali.
+        env_cfg_file = ep / "config" / ".env"
+        if env_cfg_file.exists():
+            # .env già presente — non sovrascrivere, preserva le modifiche manuali
+            env_content = env_cfg_file.read_text(encoding="utf-8")
+            self._log_line(f"  ✓ .env esistente mantenuto (non sovrascritto): {env_cfg_file}", "ok")
+        else:
+            # Prima installazione: genera .env dai parametri wizard
+            env_content = cfg.to_env()
+            try:
+                env_cfg_file.parent.mkdir(parents=True, exist_ok=True)
+                env_cfg_file.write_text(env_content, encoding="utf-8")
+                self._log_line(f"  ✓ .env creato: {env_cfg_file}", "ok")
+            except Exception as e:
+                errors.append(str(e)); self._log_line(f"  ✗ {e}", "err")
+        # Riallinea DB_DRIVER se il driver nel .env non è installato sul server applicativo
+        env_content, driver_note = _realign_db_driver_in_env(env_content)
+        if driver_note:
+            self._log_line(driver_note, "warn")
+            try:
+                env_cfg_file.write_text(env_content, encoding="utf-8")
+            except Exception:
+                pass
+        # Aggiunge variabili backup solo se mancanti nel .env (sia nuovo che esistente)
         env_keys = {
             line.split("=", 1)[0].strip()
             for line in env_content.splitlines()
@@ -2743,11 +2793,10 @@ class InstallPage(Page):
             backup_lines.append("BACKUP_RETENTION=10")
         if backup_lines:
             env_content += f"\n# Backup automatico\n{'\n'.join(backup_lines)}\n"
-        try:
-            (ep/"config"/".env").write_text(env_content, encoding="utf-8")
-            self._log_line(f"  ✓ .env → {ep/'config'/'.env'}", "ok")
-        except Exception as e:
-            errors.append(str(e)); self._log_line(f"  ✗ {e}", "err")
+            try:
+                env_cfg_file.write_text(env_content, encoding="utf-8")
+                self._log_line(f"  ✓ Variabili backup aggiunte al .env", "ok")
+            except: pass
         if django_app.exists():
             try:
                 (django_app/".env").write_text(env_content, encoding="utf-8")
@@ -3921,6 +3970,74 @@ class ReleaseRunPage(Page):
         self._log_line("    https://visualstudio.microsoft.com/visual-cpp-build-tools/", "warn")
         return False
 
+    def _verify_collectstatic_output(self, static_root: Path, errors: list[str]) -> bool:
+        missing_assets = _missing_static_assets(static_root)
+        if not missing_assets:
+            self._log_line("  ✓ Statici condivisi verificati", "ok")
+            return True
+        self._append_error(errors, "collectstatic: asset statici mancanti")
+        self._log_line("  ✗ collectstatic completato ma alcuni asset attesi non esistono", "err")
+        for label, path in missing_assets:
+            self._log_line(f"    - {label}: {path}", "err")
+        return False
+
+    def _run_assenze_tipo_alignment(self, *, venv_py, django_app, env_vars, settings) -> bool:
+        self._log_line("  -> Assenze SQL Server: allineamento tipo_assenza legacy", "dim")
+        ok = self._cmd(
+            [str(venv_py), "manage.py", "allinea_tipo_assenza_flessibilita", f"--settings={settings}"],
+            cwd=django_app, env=env_vars,
+        )
+        if ok:
+            self._log_line("  ✓ CK_assenze_tipo riallineato a Flessibilità", "ok")
+        else:
+            self._log_line("  ✗ Riallineamento CK_assenze_tipo fallito", "err")
+        return ok
+
+    def _run_acl_bootstrap_workflow(
+        self, *, venv_py, django_app, env_vars, settings,
+        include_legacy_import=True, run_uat_seed=False,
+    ):
+        self._log_line("  -> ACL v2 audit pre-migrazione (--dry-run)", "dim")
+        ok_pre = self._cmd(
+            [str(venv_py), "manage.py", "bootstrap_acl_v2", "--dry-run", f"--settings={settings}"],
+            cwd=django_app, env=env_vars,
+        )
+        if ok_pre:
+            self._log_line("  ✓ ACL v2 dry-run pre completato", "ok")
+        else:
+            self._log_line("  ✗ ACL v2 dry-run pre fallito (non bloccante)", "warn")
+
+        apply_cmd = [str(venv_py), "manage.py", "bootstrap_acl_v2"]
+        if include_legacy_import:
+            apply_cmd.append("--import-legacy")
+        apply_cmd.extend(["--apply", f"--settings={settings}"])
+        ok_apply = self._cmd(apply_cmd, cwd=django_app, env=env_vars)
+        if ok_apply:
+            self._log_line("  ✓ ACL v2 bootstrap apply completato", "ok")
+        else:
+            self._log_line("  ✗ ACL v2 bootstrap apply fallito (non bloccante)", "warn")
+
+        self._log_line("  -> ACL v2 audit post-migrazione (--dry-run)", "dim")
+        ok_post = self._cmd(
+            [str(venv_py), "manage.py", "bootstrap_acl_v2", "--dry-run", f"--settings={settings}"],
+            cwd=django_app, env=env_vars,
+        )
+        if ok_post:
+            self._log_line("  ✓ ACL v2 dry-run post completato", "ok")
+        else:
+            self._log_line("  ✗ ACL v2 dry-run post fallito (non bloccante)", "warn")
+
+        if run_uat_seed:
+            self._log_line("  -> Seed ACL v2 UAT (--reset) [solo TEST]", "dim")
+            ok_seed = self._cmd(
+                [str(venv_py), "manage.py", "seed_acl_uat", "--reset", f"--settings={settings}"],
+                cwd=django_app, env=env_vars,
+            )
+            if ok_seed:
+                self._log_line("  ✓ Seed ACL v2 UAT completato", "ok")
+            else:
+                self._log_line("  ✗ Seed ACL v2 UAT fallito (non bloccante)", "warn")
+
     # ── Promuovi Release ─────────────────────────────────────
 
     def _run_promote(self):
@@ -3969,7 +4086,15 @@ class ReleaseRunPage(Page):
         env_src = ep / "config" / ".env"
         if env_src.exists() and django_app.exists():
             try:
-                shutil.copy2(env_src, django_app / ".env")
+                env_content = env_src.read_text(encoding="utf-8")
+                env_content, driver_note = _realign_db_driver_in_env(env_content)
+                if driver_note:
+                    self._log_line(driver_note, "warn")
+                    try:
+                        env_src.write_text(env_content, encoding="utf-8")
+                    except Exception:
+                        pass
+                (django_app / ".env").write_text(env_content, encoding="utf-8")
                 self._log_line(f"  ✓ .env copiato da {env_src}", "ok")
             except Exception as e:
                 errors.append(str(e)); self._log_line(f"  ✗ {e}", "err")
