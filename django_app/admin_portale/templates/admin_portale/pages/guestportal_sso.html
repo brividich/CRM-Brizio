@@ -111,7 +111,7 @@
             <div>
               Se il GuestPortal non ti autentica, verifica i nomi dei campi
               (<code>{{ gp_field_username }}</code> / <code>{{ gp_field_password }}</code>)
-              in <code>config.ini - [GUESTPORTAL]</code>.
+              nel file <code>.env</code> tramite <code>GUESTPORTAL_FIELD_USERNAME</code> e <code>GUESTPORTAL_FIELD_PASSWORD</code>.
             </div>
           </div>
         </div>
@@ -121,7 +121,7 @@
         <div class="card-body">
           <p class="cell-muted">
             URL GuestPortal non configurato.<br>
-            Aggiungi la sezione <code>[GUESTPORTAL]</code> nel file <code>config.ini</code>.
+            Imposta <code>GUESTPORTAL_URL</code> nel file <code>.env</code>.
           </p>
           <a href="{% url 'admin_portale:index' %}" class="btn btn-secondary" style="margin-top:12px;">&larr; Torna alla home</a>
         </div>

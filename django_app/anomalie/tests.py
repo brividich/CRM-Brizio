@@ -1,15 +1,23 @@
-import configparser
 import json
-import tempfile
+import shutil
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
+from uuid import uuid4
 
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
 from anomalie import views as anomalie_views
+
+
+def _make_workspace_tempdir(prefix: str) -> Path:
+    root = Path.cwd() / "django_app" / ".tmp_tests"
+    root.mkdir(parents=True, exist_ok=True)
+    target = root / f"{prefix}{uuid4().hex}"
+    target.mkdir(parents=True, exist_ok=False)
+    return target
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -19,19 +27,17 @@ class AnomalieSharePointSyncTests(TestCase):
         self.user = get_user_model().objects.create_user(username="anom-sync-user", password="pass12345")
         self.factory = RequestFactory()
 
-    def _graph_config(self, list_id: str = "<GRAPH_LIST_ID_ANOMALIE_DB>") -> configparser.ConfigParser:
-        cfg = configparser.ConfigParser()
-        cfg["AZIENDA"] = {
-            "tenant_id": "tenant-test",
-            "client_id": "client-test",
-            "client_secret": "secret-test",
-            "site_id": "site-test",
-            "list_id_anomalie_db": list_id,
+    def _graph_config(self, list_id: str = "<GRAPH_LIST_ID_ANOMALIE_DB>") -> dict[str, str]:
+        return {
+            "GRAPH_TENANT_ID": "tenant-test",
+            "GRAPH_CLIENT_ID": "client-test",
+            "GRAPH_CLIENT_SECRET": "secret-test",
+            "GRAPH_SITE_ID": "site-test",
+            "GRAPH_LIST_ID_ANOMALIE_DB": list_id,
         }
-        return cfg
 
     def test_graph_config_detects_placeholder_list_id(self):
-        with patch("anomalie.views._load_app_config", return_value=self._graph_config()):
+        with patch.dict("anomalie.views.os.environ", self._graph_config(), clear=True):
             self.assertFalse(anomalie_views._graph_configured())
             self.assertEqual(
                 anomalie_views._graph_config_issue(),
@@ -66,7 +72,7 @@ class AnomalieSharePointSyncTests(TestCase):
             patch("anomalie.views.user_can_modulo_action", return_value=True),
             patch("anomalie.views.get_legacy_user", return_value=None),
             patch("anomalie.views._has_table", return_value=True),
-            patch("anomalie.views._load_app_config", return_value=self._graph_config()),
+            patch.dict("anomalie.views.os.environ", self._graph_config(), clear=True),
         ):
             response = self.client.get(reverse("gestione_anomalie_page"))
 
@@ -156,24 +162,30 @@ class AnomalieConfigPageTests(TestCase):
     def test_config_page_shows_sharepoint_config_card(self):
         self.client.force_login(self.admin)
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            config_path = Path(tmpdir) / "config.ini"
-            config_path.write_text(
+        tmpdir = _make_workspace_tempdir("anomalie-config-")
+        try:
+            env_path = tmpdir / ".env"
+            env_path.write_text(
                 "\n".join(
                     [
-                        "[AZIENDA]",
-                        "tenant_id = tenant-test",
-                        "client_id = client-test",
-                        "client_secret = secret-test",
-                        "site_id = site-test",
-                        "list_id_anomalie_db = list-test",
+                        "GRAPH_TENANT_ID=tenant-test",
+                        "GRAPH_CLIENT_ID=client-test",
+                        "GRAPH_CLIENT_SECRET=secret-test",
+                        "GRAPH_SITE_ID=site-test",
+                        "GRAPH_LIST_ID_ANOMALIE_DB=list-test",
                     ]
                 ),
                 encoding="utf-8",
             )
 
-            with patch("anomalie.views._config_ini_path", return_value=config_path):
+            with patch("config.env_config.default_env_path", return_value=env_path), patch.dict(
+                "anomalie.views.os.environ",
+                {},
+                clear=True,
+            ):
                 response = self.client.get(reverse("anomalie_configurazione_page") + "?tab=config")
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "SharePoint / Microsoft Graph")
@@ -183,11 +195,12 @@ class AnomalieConfigPageTests(TestCase):
     def test_config_page_can_save_sharepoint_config(self):
         self.client.force_login(self.admin)
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            config_path = Path(tmpdir) / "config.ini"
-            config_path.write_text("[AZIENDA]\nclient_secret = old-secret\n", encoding="utf-8")
+        tmpdir = _make_workspace_tempdir("anomalie-save-")
+        try:
+            env_path = tmpdir / ".env"
+            env_path.write_text("GRAPH_CLIENT_SECRET=old-secret\n", encoding="utf-8")
 
-            with patch("anomalie.views._config_ini_path", return_value=config_path):
+            with patch("config.env_config.default_env_path", return_value=env_path):
                 response = self.client.post(
                     reverse("anomalie_configurazione_page") + "?tab=config",
                     {
@@ -203,13 +216,14 @@ class AnomalieConfigPageTests(TestCase):
             self.assertEqual(response.status_code, 302)
             self.assertEqual(response.headers["Location"], f"{reverse('anomalie_configurazione_page')}?tab=config")
 
-            cfg = configparser.ConfigParser()
-            cfg.read(config_path, encoding="utf-8")
-            self.assertEqual(cfg.get("AZIENDA", "tenant_id"), "tenant-new")
-            self.assertEqual(cfg.get("AZIENDA", "client_id"), "client-new")
-            self.assertEqual(cfg.get("AZIENDA", "site_id"), "site-new")
-            self.assertEqual(cfg.get("AZIENDA", "list_id_anomalie_db"), "list-new")
-            self.assertEqual(cfg.get("AZIENDA", "client_secret"), "old-secret")
+            content = env_path.read_text(encoding="utf-8")
+            self.assertIn("GRAPH_TENANT_ID=tenant-new", content)
+            self.assertIn("GRAPH_CLIENT_ID=client-new", content)
+            self.assertIn("GRAPH_SITE_ID=site-new", content)
+            self.assertIn("GRAPH_LIST_ID_ANOMALIE_DB=list-new", content)
+            self.assertIn("GRAPH_CLIENT_SECRET=old-secret", content)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

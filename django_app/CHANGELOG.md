@@ -325,7 +325,7 @@
 
 - **[feature] Step 11 — Informazioni operative**: nome azienda, indirizzo, telefono, email di contatto, fuso orario (default `Europe/Rome`), lingua interfaccia e formato data.
 
-- **[feature] Step 12 — Installa & Avvia**: sostituisce il vecchio "Riepilogo & Salva". Esegue 4 fasi in sequenza con progress indicator in tempo reale: (1) salva `.env` + `config.ini`, (2) `manage.py migrate` via subprocess con rilevamento auto dev/prod settings, (3) crea superuser Django, (4) scrive visibilità moduli in `SiteConfig`. Redirect automatico a `/login/` al termine.
+- **[feature] Step 12 — Installa & Avvia**: sostituisce il vecchio "Riepilogo & Salva". Esegue 4 fasi in sequenza con progress indicator in tempo reale: (1) salva `.env` e la configurazione legacy su file, (2) `manage.py migrate` via subprocess con rilevamento auto dev/prod settings, (3) crea superuser Django, (4) scrive visibilità moduli in `SiteConfig`. Redirect automatico a `/login/` al termine.
 
 - **[api] Nuovi endpoint setup wizard**: `POST /setup/api/run-migrations/`, `POST /setup/api/create-admin/`, `POST /setup/api/set-modules/`.
 
@@ -357,7 +357,7 @@
 
 - **[feature] Test live connessioni** (Steps 4/5/7): pulsanti "Testa connessione" per SQL Server (pyodbc), LDAP/AD (ldap3 + fallback porta TCP) e SMTP (smtplib + STARTTLS).
 
-- **[feature] Salvataggio configurazione server-side**: al termine del wizard, `/setup/api/save/` scrive `django_app/.env` e `config.ini` sul server e imposta `SETUP_COMPLETED=1`. Il middleware non reindirizzerà più al wizard.
+- **[feature] Salvataggio configurazione server-side**: al termine del wizard, `/setup/api/save/` scrive `django_app/.env` e la configurazione legacy su file sul server e imposta `SETUP_COMPLETED=1`. Il middleware non reindirizzerà più al wizard.
 
 - **[feature] `SetupRequiredMiddleware`**: middleware file-based (legge `.env` direttamente, senza DB) che intercetta ogni richiesta e reindirizza a `/setup/` finché `SETUP_COMPLETED≠1`.
 
@@ -367,7 +367,7 @@
 
 - **[infra] `/setup/`** aggiunto a `MIDDLEWARE_EXEMPT_PREFIXES` (ACL e session middleware non intercettano il wizard).
 
-- **[tool] `tools/setup-wizard.html`**: wizard standalone HTML (zero dipendenze) per generare `.env` / `config.ini` offline; mantenuto come tool di supporto alternativo.
+- **[tool] `tools/setup-wizard.html`**: wizard standalone HTML (zero dipendenze) per generare `.env` e, nello storico, la configurazione legacy offline; mantenuto come tool di supporto alternativo.
 
 - **[versioning]** Bump versione `0.6.40-dev` → `0.7.0`.
 
@@ -413,9 +413,9 @@
 
 - **[feature] Automazioni — builder regole con pannello campi sempre visibile**: introdotte le pagine `/admin-portale/automazioni/regole/` con form SSR, formset condizioni/azioni, configurazione umana di `send_email`, `write_log`, `update_dashboard_metric`, `insert_record`, `update_record` e pannello laterale `Contenuti / Colonne disponibili` sempre visibile e coerente con il source registry.
 
-- **[feature] Admin Portale — `Config SRV`**: la precedente area `Diagnostica LDAP` e' stata rinominata lato UI in `Config SRV` e ora centralizza configurazione/test di LDAP / Active Directory e SMTP nello stesso pannello, con persistenza su `config.ini`.
+- **[feature] Admin Portale — `Config SRV`**: la precedente area `Diagnostica LDAP` e' stata rinominata lato UI in `Config SRV` e ora centralizza configurazione/test di LDAP / Active Directory e SMTP nello stesso pannello, con persistenza nel file di configurazione legacy.
 
-- **[infra] SMTP nei settings Django**: aggiunto supporto a `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, `EMAIL_USE_SSL`, `EMAIL_TIMEOUT` e `DEFAULT_FROM_EMAIL`, letti da environment oppure dalla nuova sezione `[SMTP]` di `config.ini`.
+- **[infra] SMTP nei settings Django**: aggiunto supporto a `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, `EMAIL_USE_SSL`, `EMAIL_TIMEOUT` e `DEFAULT_FROM_EMAIL`, letti da environment oppure dalla sezione SMTP del file di configurazione legacy.
 
 - **[versioning] Versione allineata**: aggiornati `django_app/VERSION` e `config.settings.base.APP_VERSION` alla release corrente `0.6.38-dev`.
 
@@ -447,7 +447,7 @@
 
 - **[feature] Anagrafica — dashboard personalizzabile**: la dashboard `/anagrafica/` supporta ora la modalità "Personalizza" (solo admin), analoga alle altre dashboard del portale. Tre widget (`kpi`, `moduli`, `ultimi`) sono nascondibili, riordinabili con drag-and-drop e le preferenze sono persistite in `localStorage` con chiave `ana_dash_prefs_v1`. Pulsante "Personalizza" nel hero; barra edit con Salva/Reset/Chiudi.
 
-- **[infra] `list_id_presenza` in `config.ini`**: aggiunta la chiave `list_id_presenza = 7B15a131b8-...` nella sezione `[AZIENDA]` di `config.ini` per la lista SharePoint "Certificazione presenza".
+- **[infra] `list_id_presenza` nella configurazione legacy**: aggiunta la chiave `list_id_presenza = 7B15a131b8-...` nella sezione `[AZIENDA]` del file di configurazione legacy per la lista SharePoint "Certificazione presenza".
 
 - **[ux] Subnav assenze — voce Certifica presenza**: aggiunto link "Certifica presenza" nella barra di navigazione secondaria del modulo assenze (`assenze/components/subnav.html`) con highlight attivo sulla pagina corrente.
 
@@ -905,10 +905,10 @@
 - **[feature] Gestione Anomalie — completamento modulo**: il modulo anomalie era parzialmente implementato; questa release lo porta a produzione.
   - **[nav] Fix navigazione anomalie**: `context_processors.py`, `topnav.html`, `subnav.html` (core e dashboard) e `anomalie_menu.html` aggiornati per puntare direttamente a `gestione_anomalie_page` (React app) invece della vecchia pagina intermediaria "Migrazione in corso".
   - **[db] Nuove colonne tabella `anomalie`**: aggiunte `numero_rdc NVARCHAR(100) NULL` (salva il numero RDC quando `aprire_rdc=1`) e `created_by_user_id INT NULL` (autore del record, usato per notifiche di chiusura). Script SQL da eseguire: `ALTER TABLE anomalie ADD numero_rdc NVARCHAR(100) NULL; ALTER TABLE anomalie ADD created_by_user_id INT NULL;`
-  - **[feature] Allegati anomalia (immagini + documenti)**: nella pagina React `gestione_anomalie` aggiunta gestione allegati multipli con upload, elenco, preview immagini, apertura/scaricamento ed eliminazione. Endpoint introdotti: `api_anomalie_allegati`, `api_anomalie_allegati_upload`, `api_anomalie_allegati_delete`, `api_anomalie_allegati_file`. Validazioni lato server: estensioni consentite (`jpg/jpeg/png/gif/bmp/webp/pdf/doc/docx/xls/xlsx/xlsm/csv`), dimensione massima 20 MB, sanitizzazione nome file e protezione path traversal. Storage locale per record in `media/anomalie_allegati/<local_id>` (override opzionale via `config.ini` sezione `ANOMALIE.attachments_dir`).
+  - **[feature] Allegati anomalia (immagini + documenti)**: nella pagina React `gestione_anomalie` aggiunta gestione allegati multipli con upload, elenco, preview immagini, apertura/scaricamento ed eliminazione. Endpoint introdotti: `api_anomalie_allegati`, `api_anomalie_allegati_upload`, `api_anomalie_allegati_delete`, `api_anomalie_allegati_file`. Validazioni lato server: estensioni consentite (`jpg/jpeg/png/gif/bmp/webp/pdf/doc/docx/xls/xlsx/xlsm/csv`), dimensione massima 20 MB, sanitizzazione nome file e protezione path traversal. Storage locale per record in `media/anomalie_allegati/<local_id>` (override opzionale via file di configurazione legacy, sezione `ANOMALIE.attachments_dir`).
   - **[ux] Apertura segnalazione (`/gestione-anomalie/nuova-segnalazione`)**: aggiunto pulsante `Aggiungi allegati` nel form Step 2 con coda file pre-salvataggio e upload automatico dopo il salvataggio del record (single S/N). In caso di range S/N, allegati disabilitati per evitare associazioni ambigue su più record.
   - **[ux] Gestione anomalia (`/gestione-anomalie`)**: ripristinata preview grande dell'allegato selezionato (immagine o documento) sopra la lista allegati, mantenendo azioni `Apri`, `Scarica`, `Elimina`.
-  - **[config] Percorso cartella allegati gestibile da pannello**: nella pagina `gestione-anomalie/configurazione` aggiunto campo `Percorso cartella allegati`; salvataggio su `config.ini` sezione `[ANOMALIE]` chiave `attachments_dir` via API `api/anomalie/config/liste` (GET/POST).
+  - **[config] Percorso cartella allegati gestibile da pannello**: nella pagina `gestione-anomalie/configurazione` aggiunto campo `Percorso cartella allegati`; salvataggio nel file di configurazione legacy, sezione `[ANOMALIE]` chiave `attachments_dir`, via API `api/anomalie/config/liste` (GET/POST).
   - **[ux] Campo Numero RDC funzionante**: l'input "Numero RDC" (visibile quando `Aprire RDC = true`) è ora collegato a state React, incluso nel payload di salvataggio e persistito in DB. Incluso anche nell'export CSV.
   - **[ux] Bottoni Aggiungi anomalia e Duplica**: il bottone "Anomalia" ora chiama `handleNewAnomalia()` (svuota form, pronto per nuovo record sull'OP selezionato). Il bottone "Duplica" mantiene i dati del form ma azzera `item_id` (force INSERT). Il bottone "Segnalazione" attiva il toggle `segnalare` e avvisa l'utente.
   - **[audit] Audit trail anomalie**: ogni salvataggio (`api_salva`) registra `anomalia_creata` o `anomalia_modificata` in `AuditLog` tramite `core.audit.log_action`. Anche `api_sync` registra l'evento `anomalie_sync`.
@@ -1186,7 +1186,7 @@
 
 ## 0.3.22-dev - 2026-02-27
 
-- VS Code debug fix: aggiunto `.vscode/launch.json` con configurazioni esplicite Django (`runserver` e `shell`) puntate a `django_app/manage.py`, evitando l'esecuzione accidentale di file non Python (es. `config.ini`).
+- VS Code debug fix: aggiunto `.vscode/launch.json` con configurazioni esplicite Django (`runserver` e `shell`) puntate a `django_app/manage.py`, evitando l'esecuzione accidentale di file non Python (es. il vecchio file di configurazione legacy).
 
 - VS Code Python interpreter: impostato `python.defaultInterpreterPath` su `.venv\\Scripts\\python.exe` in `.vscode/settings.json` per allineare debug/terminal all'ambiente virtuale corretto.
 
@@ -1212,7 +1212,7 @@
 
 - Sync LDAP -> SQL/Django: ogni utente LDAP viene creato/aggiornato in tabella legacy `utenti` come `*AD_MANAGED*`, poi allineato su `auth_user` + `Profile` tramite `sync_django_user_from_legacy`.
 
-- Config LDAP estesa: aggiunte impostazioni `LDAP_SERVICE_USER`, `LDAP_SERVICE_PASSWORD`, `LDAP_BASE_DN`, `LDAP_USER_FILTER`, `LDAP_GROUP_ALLOWLIST`, `LDAP_SYNC_PAGE_SIZE` (da `.env`/`config.ini`).
+- Config LDAP estesa: aggiunte impostazioni `LDAP_SERVICE_USER`, `LDAP_SERVICE_PASSWORD`, `LDAP_BASE_DN`, `LDAP_USER_FILTER`, `LDAP_GROUP_ALLOWLIST`, `LDAP_SYNC_PAGE_SIZE` (da `.env` o dal file di configurazione legacy).
 
 - Gruppi: supporto import selettivo via allowlist e opzione autoritativa `--replace-allowlist-memberships` per allineare i gruppi portale da AD.
 
@@ -1320,7 +1320,7 @@
 
 - Topbar dinamica: ora usa i metadati UI (`enabled`, `visible_topbar`, `ui_slot=topbar/toolbar`, `ui_order`) se presenti, con fallback ai campi legacy.
 
-- LDAP/AD (Django): parametri LDAP ora letti con priorita' da `config.ini` (`[ACTIVE_DIRECTORY]`) invece di essere bloccati dai default in `.env`.
+- LDAP/AD (Django): parametri LDAP letti con priorita' dal file di configurazione legacy (`[ACTIVE_DIRECTORY]`) invece di essere bloccati dai default in `.env`.
 
 - LDAP/AD backend: aggiunto fallback `NTLM` per bind `DOMINIO\\utente` (oltre al bind UPN), migliorando compatibilita' con Active Directory Windows.
 

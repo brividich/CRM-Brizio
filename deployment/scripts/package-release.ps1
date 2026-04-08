@@ -170,7 +170,7 @@ $excludeDirs = @(
 # FILE da escludere (passati a robocopy con /XF)
 $excludeFiles = @(
     ".env",           # NON includere .env — va gestito separatamente sul server
-    "config.ini",     # idem
+    "config.ini",     # eventuale residuo legacy locale
     "db.sqlite3",
     "*.sqlite3",
     "*.pyc",

@@ -74,6 +74,24 @@
 .dl-pill.danger { background:#fee2e2; color:#b91c1c; }
 .dl-pill.muted { background:#e2e8f0; color:#475569; }
 .dl-link-stack { display:grid; gap:6px; }
+.dl-inline-form { display:grid; gap:8px; margin-top:10px; }
+.dl-inline-select {
+  width:100%;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:#fff;
+  color:#0f172a;
+  padding:9px 10px;
+  font:inherit;
+}
+.dl-inline-note { color:#64748b; font-size:var(--fs-sm); line-height:1.45; }
+.dl-existing-events {
+  display:grid;
+  gap:6px;
+  margin-top:10px;
+  padding-top:10px;
+  border-top:1px dashed #dbe1ea;
+}
 .dl-empty { color:#64748b; font-size:var(--fs-base); }
 @media (max-width: 1200px) {
   .dl-kpis,
@@ -200,6 +218,11 @@
         <h2>Elenco scadenze</h2>
         <p>Dati interrogabili a database, senza ricorrenze automatiche nella prima patch.</p>
       </div>
+      {% if can_manage_outlook_calendar and not outlook_calendar_ready %}
+        <p class="dl-inline-note" style="margin:0;max-width:360px;">
+          Integrazione Outlook non pronta: verifica le credenziali `GRAPH_*` e il permesso `Calendars.ReadWrite`.
+        </p>
+      {% endif %}
     </div>
     <div class="dl-card-body">
       {% if deadline_rows %}
@@ -252,6 +275,45 @@
                       <a href="{{ row.edit_url }}">Modifica</a>
                       <a href="{{ row.asset_url }}">Apri asset</a>
                     </div>
+                    {% if can_manage_outlook_calendar %}
+                      {% if not outlook_calendar_ready %}
+                        <div class="dl-inline-note">Configura Graph prima di creare eventi Outlook.</div>
+                      {% elif calendar_user_choices %}
+                        <form method="post" class="dl-inline-form">
+                          {% csrf_token %}
+                          <input type="hidden" name="action" value="create_outlook_calendar_event">
+                          <input type="hidden" name="deadline_id" value="{{ row.deadline.id }}">
+                          <input type="hidden" name="filter_asset" value="{% if selected_asset %}{{ selected_asset.id }}{% endif %}">
+                          <input type="hidden" name="filter_component" value="{% if selected_component %}{{ selected_component.id }}{% endif %}">
+                          <input type="hidden" name="filter_deadline_type" value="{{ selected_deadline_type }}">
+                          <input type="hidden" name="filter_status" value="{{ status_filter }}">
+                          <input type="hidden" name="filter_q" value="{{ q }}">
+                          <select class="dl-inline-select" name="target_legacy_user_id" required>
+                            <option value="">Seleziona utente calendario</option>
+                            {% for user_id, user_label in calendar_user_choices %}
+                              <option value="{{ user_id }}" {% if row.default_calendar_user_id == user_id %}selected{% endif %}>{{ user_label }}</option>
+                            {% endfor %}
+                          </select>
+                          <button type="submit" class="btn btn-secondary">Crea evento Outlook</button>
+                        </form>
+                      {% else %}
+                        <div class="dl-inline-note">Nessun utente con mailbox disponibile per la sincronizzazione calendario.</div>
+                      {% endif %}
+                    {% endif %}
+                    {% if row.calendar_event_rows %}
+                      <div class="dl-existing-events">
+                        {% for event_row in row.calendar_event_rows %}
+                          {% if event_row.graph_event_web_link %}
+                            <a href="{{ event_row.graph_event_web_link }}" target="_blank" rel="noopener">
+                              Evento Outlook | {{ event_row.target_display_name|default:event_row.target_email }}
+                            </a>
+                          {% else %}
+                            <span class="dl-inline-note">Evento registrato | {{ event_row.target_display_name|default:event_row.target_email }}</span>
+                          {% endif %}
+                          <div class="dl-inline-note">Scadenza {{ event_row.due_date|date:"d/m/Y" }} | creato il {{ event_row.created_at|date:"d/m/Y H:i" }}</div>
+                        {% endfor %}
+                      </div>
+                    {% endif %}
                   </td>
                 </tr>
               {% endfor %}

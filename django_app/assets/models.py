@@ -1720,6 +1720,136 @@ class AssetMaintenanceRuleState(models.Model):
             raise ValidationError({"last_work_order": "Il work order collegato appartiene a un asset diverso."})
 
 
+class AssetCalendarEvent(models.Model):
+    KIND_MAINTENANCE = "MAINTENANCE"
+    KIND_ADMINISTRATIVE_DEADLINE = "ADMIN_DEADLINE"
+    KIND_PERIODIC_VERIFICATION = "PERIODIC_VERIFICATION"
+    KIND_ASSISTANCE_CONTRACT = "ASSISTANCE_CONTRACT"
+    KIND_CHOICES = [
+        (KIND_MAINTENANCE, "Manutenzione"),
+        (KIND_ADMINISTRATIVE_DEADLINE, "Scadenza amministrativa"),
+        (KIND_PERIODIC_VERIFICATION, "Verifica periodica"),
+        (KIND_ASSISTANCE_CONTRACT, "Contratto assistenza"),
+    ]
+
+    asset = models.ForeignKey(
+        Asset,
+        on_delete=models.CASCADE,
+        related_name="calendar_events",
+    )
+    event_kind = models.CharField(max_length=40, choices=KIND_CHOICES, default=KIND_MAINTENANCE, db_index=True)
+    maintenance_rule = models.ForeignKey(
+        "MaintenanceRule",
+        on_delete=models.CASCADE,
+        related_name="calendar_events",
+        null=True,
+        blank=True,
+    )
+    administrative_deadline = models.ForeignKey(
+        "AssetAdministrativeDeadline",
+        on_delete=models.CASCADE,
+        related_name="calendar_events",
+        null=True,
+        blank=True,
+    )
+    periodic_verification = models.ForeignKey(
+        "PeriodicVerification",
+        on_delete=models.CASCADE,
+        related_name="calendar_events",
+        null=True,
+        blank=True,
+    )
+    assistance_contract = models.ForeignKey(
+        "AssistanceContract",
+        on_delete=models.CASCADE,
+        related_name="calendar_events",
+        null=True,
+        blank=True,
+    )
+    due_date = models.DateField(db_index=True)
+    source_key = models.CharField(max_length=255, unique=True, db_index=True, default="")
+    target_legacy_user_id = models.IntegerField(db_index=True)
+    target_display_name = models.CharField(max_length=200, blank=True, default="")
+    target_email = models.CharField(max_length=200)
+    subject = models.CharField(max_length=255, blank=True, default="")
+    transaction_id = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    graph_event_id = models.CharField(max_length=255, blank=True, default="", db_index=True)
+    graph_event_web_link = models.CharField(max_length=1000, blank=True, default="")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="asset_calendar_events_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["due_date", "target_display_name", "target_email", "id"]
+        verbose_name = "Evento calendario asset"
+        verbose_name_plural = "Eventi calendario asset"
+
+    def __str__(self) -> str:
+        asset_label = getattr(self.asset, "asset_tag", self.asset_id)
+        source_label = self.source_object_label
+        target_label = self.target_display_name or self.target_email or self.target_legacy_user_id
+        return f"{asset_label} - {source_label} - {target_label}"
+
+    @property
+    def source_object_label(self) -> str:
+        if self.event_kind == self.KIND_MAINTENANCE and self.maintenance_rule_id:
+            return getattr(getattr(self.maintenance_rule, "intervention_template", None), "label", "") or "Manutenzione"
+        if self.event_kind == self.KIND_ADMINISTRATIVE_DEADLINE and self.administrative_deadline_id:
+            return getattr(self.administrative_deadline, "title", "") or "Scadenza amministrativa"
+        if self.event_kind == self.KIND_PERIODIC_VERIFICATION and self.periodic_verification_id:
+            return getattr(self.periodic_verification, "name", "") or "Verifica periodica"
+        if self.event_kind == self.KIND_ASSISTANCE_CONTRACT and self.assistance_contract_id:
+            return getattr(self.assistance_contract, "title", "") or "Contratto assistenza"
+        return self.get_event_kind_display() or "Evento asset"
+
+    def clean(self):
+        self.source_key = (self.source_key or "").strip()
+        self.target_display_name = (self.target_display_name or "").strip()
+        self.target_email = (self.target_email or "").strip()
+        self.subject = (self.subject or "").strip()
+        self.transaction_id = (self.transaction_id or "").strip()
+        self.graph_event_id = (self.graph_event_id or "").strip()
+        self.graph_event_web_link = (self.graph_event_web_link or "").strip()
+        if not self.asset_id:
+            raise ValidationError({"asset": "Seleziona un asset."})
+        if not self.due_date:
+            raise ValidationError({"due_date": "La data scadenza e obbligatoria."})
+        if not self.source_key:
+            raise ValidationError({"source_key": "Chiave sorgente evento obbligatoria."})
+        if not int(self.target_legacy_user_id or 0):
+            raise ValidationError({"target_legacy_user_id": "Seleziona un utente destinazione."})
+        if not self.target_email:
+            raise ValidationError({"target_email": "L'utente selezionato non ha un identificatore Outlook valido."})
+        source_fields = {
+            self.KIND_MAINTENANCE: bool(self.maintenance_rule_id),
+            self.KIND_ADMINISTRATIVE_DEADLINE: bool(self.administrative_deadline_id),
+            self.KIND_PERIODIC_VERIFICATION: bool(self.periodic_verification_id),
+            self.KIND_ASSISTANCE_CONTRACT: bool(self.assistance_contract_id),
+        }
+        if self.event_kind not in source_fields:
+            raise ValidationError({"event_kind": "Tipo evento non valido."})
+        if not source_fields[self.event_kind]:
+            raise ValidationError({"event_kind": "Collega l'evento alla sorgente coerente con il tipo selezionato."})
+        if sum(1 for value in source_fields.values() if value) != 1:
+            raise ValidationError("Associa un solo tipo di sorgente per evento calendario asset.")
+        if self.maintenance_rule_id:
+            asset_category_id = getattr(self.asset, "asset_category_id", None)
+            if asset_category_id != getattr(self.maintenance_rule, "asset_category_id", None):
+                raise ValidationError({"maintenance_rule": "La regola selezionata non appartiene alla categoria dell'asset."})
+        if self.administrative_deadline_id and getattr(self.administrative_deadline, "asset_id", None) != self.asset_id:
+            raise ValidationError({"administrative_deadline": "La scadenza selezionata appartiene a un asset diverso."})
+        if self.periodic_verification_id and not self.periodic_verification.assets.filter(pk=self.asset_id).exists():
+            raise ValidationError({"periodic_verification": "La verifica selezionata non e collegata a questo asset."})
+        if self.assistance_contract_id and not self.assistance_contract.applies_to_asset(self.asset):
+            raise ValidationError({"assistance_contract": "Il contratto selezionato non si applica a questo asset."})
+
+
 class AssetHeaderTool(models.Model):
     """Pulsanti strumento nella barra header dell'inventario asset (campana, widget, cloud)."""
 

@@ -1,7 +1,7 @@
 # MIGRATION_MAP (Flask -> Django 5.2 LTS)
 
 ## Scope e metodo
-- Audit statico del codice in `flask_app/` (con riferimenti runtime a `config.ini` e `requirements.txt` quando necessari).
+- Audit statico del codice in `flask_app/` (con riferimenti runtime al file di configurazione legacy e a `requirements.txt` quando necessari).
 - Nessuna modifica al codice Flask; documento preparatorio per migrazione a Django 5.2 LTS.
 - Nota: non elenco `HEAD`/`OPTIONS` impliciti di Flask, solo metodi dichiarati/effettivi.
 
@@ -81,7 +81,7 @@
 
 ## 2) Auth attuale (identita utente, sessione, LDAP/AD, mapping DB)
 ### Meccanismo principale
-- Sessione Flask cookie-based firmata con `SECRET_KEY` (`config.ini`), non JWT.
+- Sessione Flask cookie-based firmata con `SECRET_KEY` (dal file di configurazione legacy), non JWT.
 - In `flask_app/app.py`:
   - `PERMANENT_SESSION_LIFETIME = 8h`
   - `SESSION_COOKIE_HTTPONLY = True`
@@ -101,14 +101,14 @@
 ### Login Active Directory / LDAP (Domino non rilevato)
 - Gestito da `flask_app/modules/auth/ad_auth.py` con `ldap3`.
 - Bind LDAP semplice con UPN e fallback `DOMINIO\utente` (NetBIOS).
-- Parametri da `config.ini` `[ACTIVE_DIRECTORY]`: `enabled`, `server`, `domain`, `upn_suffix`, `timeout`, piu service account per sync anagrafica.
+- Parametri LDAP dal file di configurazione legacy: `enabled`, `server`, `domain`, `upn_suffix`, `timeout`, piu service account per sync anagrafica.
 - In caso di successo AD: `_find_or_create_ad_user()` crea utente locale automatico se assente.
 - Auto-provisioning in `utenti`: `ruolo='utente'`, `ruoli='["utente"]'`, password hash placeholder `*AD_MANAGED*`.
 - Mapping AD -> DB avviene per `email` (`UPN`) su `utenti.email`.
 
 ### Sync AD anagrafica (service account)
 - Route `GET /admin/anagrafica/sync_ad` (`routes_anagrafica.py`).
-- Usa `ldap3` con autenticazione `NTLM` e service account da `config.ini`.
+- Usa `ldap3` con autenticazione `NTLM` e service account dal file di configurazione legacy.
 - Aggiorna `anagrafica_dipendenti.ad_username` e `anagrafica_dipendenti.ad_guid` con matching per alias/email.
 
 ### Logout e password
@@ -142,7 +142,7 @@
 ## 4) DB: accesso a SQL Server, query e modelli
 ### Accesso DB
 - Modulo centrale: `flask_app/modules/utils.py`.
-- Driver: `pyodbc` (SQL Server), stringa di connessione da `config.ini` `[SQLSERVER]`.
+- Driver: `pyodbc` (SQL Server), stringa di connessione dal file di configurazione legacy.
 - Supporta Windows Authentication (`Trusted_Connection=yes`) se `username/password` sono vuoti.
 - Wrapper custom (`ConnectionWrapper`, `CursorWrapper`, `Row`) per compatibilita `sqlite3`:
   - row access per nome (`row['colonna']`)
@@ -308,14 +308,14 @@
 - Directory/LDAP: `ldap3`
 - SharePoint / Microsoft Graph: `requests`, `msal`
 - Data/export/media: `pandas`, `openpyxl`, `Pillow`, `reportlab`, `pytz`
-- File locali runtime: `config.ini`, `temp/...`, `static/fotocard/`, `app.log`
+- File locali runtime: file di configurazione legacy, `temp/...`, `static/fotocard/`, `app.log`
 
 ### Gap / incongruenze dipendenze
 - `pyodbc` e `ldap3` sono usati dal codice ma non risultano in `requirements.txt` (rischio bootstrap/CI).
 - `PyJWT` e presente in `requirements.txt` ma non viene usato nel codice Flask.
 
 ### Punti critici tecnici (migrazione)
-- Secrets in chiaro in `config.ini` (credenziali admin locale e Microsoft Graph, ecc.).
+- Secrets in chiaro nel file di configurazione legacy (credenziali admin locale e Microsoft Graph, ecc.).
 - Doppia route `/`: `auth.login` e `app.index` (possibile shadowing/ambiguita routing).
 - Authz incoerente: mix tra `require_roles()` e controlli manuali su sessione.
 - `require_roles()` ignora i ruoli passati al decorator e basa l'accesso sull'ACL dinamica del path.

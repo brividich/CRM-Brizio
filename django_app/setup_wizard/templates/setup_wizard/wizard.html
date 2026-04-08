@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BrizioHUB — Setup Wizard</title>
+<title>NOVICROM HUB — Setup Wizard</title>
 <style>
 :root {
   --primary: #1a6fc4; --primary-dark: #135099; --primary-light: #e8f0fb;
@@ -137,7 +137,7 @@ input[type=checkbox]{width:17px;height:17px;cursor:pointer;accent-color:var(--pr
 <body>
 
 <header class="hdr">
-  <div class="hdr-logo">BrizioHUB</div>
+  <div class="hdr-logo">NOVICROM HUB</div>
   <div class="hdr-sep"></div>
   <div class="hdr-sub">Configurazione iniziale — Setup Wizard</div>
   <div class="hdr-badge">Prima configurazione</div>
@@ -177,12 +177,12 @@ input[type=checkbox]{width:17px;height:17px;cursor:pointer;accent-color:var(--pr
         <div class="fg">
           <label>Nome software <span style="color:var(--muted);font-weight:400">(GitHub)</span></label>
           <div class="hint">Nome pubblico del software — non modificabile</div>
-          <input type="text" value="BrizioHUB" disabled style="background:#f0f4f9;color:var(--muted);cursor:not-allowed">
+          <input type="text" value="NOVICROM HUB" disabled style="background:#f0f4f9;color:var(--muted);cursor:not-allowed">
         </div>
         <div class="fg">
           <label>Nome istanza <span class="req">*</span></label>
           <div class="hint">Nome visualizzato agli utenti (es. Portale Novicrom)</div>
-          <input type="text" id="instance_name" placeholder="Portale Novicrom" value="BrizioHUB">
+          <input type="text" id="instance_name" placeholder="NOVICROM HUB" value="NOVICROM HUB">
         </div>
       </div>
 
@@ -246,7 +246,7 @@ input[type=checkbox]{width:17px;height:17px;cursor:pointer;accent-color:var(--pr
       <div class="fr">
         <div class="fg">
           <label>APP_VERSION</label>
-          <input type="text" id="app_version" value="0.6.40">
+          <input type="text" id="app_version" value="{{ app_version|default:'0.9.3' }}">
         </div>
         <div class="fg">
           <label>DJANGO_DEBUG</label>
@@ -704,7 +704,7 @@ input[type=checkbox]{width:17px;height:17px;cursor:pointer;accent-color:var(--pr
 
     <!-- ═══ STEP 12: Installa & Avvia ═══ -->
     <div class="card hidden" id="step12">
-      <div class="card-title"><span class="step-icon">🚀</span> Installa &amp; Avvia BrizioHUB</div>
+      <div class="card-title"><span class="step-icon">🚀</span> Installa &amp; Avvia NOVICROM HUB</div>
       <div class="card-desc">Il wizard eseguirà le seguenti operazioni in sequenza. Controlla la checklist e poi clicca <strong>Installa</strong>.</div>
 
       <div id="checklistEl"></div>
@@ -723,7 +723,7 @@ input[type=checkbox]{width:17px;height:17px;cursor:pointer;accent-color:var(--pr
 
       <div style="text-align:center;margin-bottom:18px">
         <button class="btn btn-success" id="btnInstall" onclick="runInstall()">
-          🚀 Installa BrizioHUB
+          🚀 Installa NOVICROM HUB
         </button>
       </div>
 
@@ -1000,7 +1000,7 @@ function buildChecklist() {
 
 // ── Install flow ──────────────────────────────────────────────────────────────
 const INSTALL_STEPS = [
-  {id:'s_save',   label:'Salvataggio configurazione (.env + config.ini)'},
+  {id:'s_save',   label:'Salvataggio configurazione (.env)'},
   {id:'s_migrate',label:'Esecuzione migrazioni database'},
   {id:'s_admin',  label:'Creazione utente amministratore'},
   {id:'s_modules',label:'Attivazione moduli selezionati'},
@@ -1078,11 +1078,11 @@ function showInstallError(msg) {
 function buildPayload() {
   return {
     // Branding
-    instance_name: v('instance_name', 'BrizioHUB'),
+    instance_name: v('instance_name', 'NOVICROM HUB'),
     logo_b64: logoB64, logo_ext: logoExt,
     favicon_b64: faviconB64, favicon_ext: faviconExt,
     // App
-    secret_key: v('secret_key'), app_version: v('app_version','0.7.0'),
+    secret_key: v('secret_key'), app_version: v('app_version','{{ app_version|default:"0.9.3" }}'),
     debug: v('django_debug') === '1', allowed_hosts: v('allowed_hosts'),
     // HTTPS
     secure_ssl: chk('secure_ssl'), csrf_secure: chk('csrf_secure'), session_secure: chk('session_secure'),

@@ -67,6 +67,23 @@
 }
 .ac-meta { color:#64748b; font-size:var(--fs-sm); line-height:1.5; }
 .ac-row-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.ac-inline-form { display:grid; gap:8px; margin-top:10px; }
+.ac-inline-select {
+  width:100%;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  padding:9px 10px;
+  font:inherit;
+  background:#fff;
+}
+.ac-inline-note { color:#64748b; font-size:var(--fs-sm); line-height:1.45; }
+.ac-existing-events {
+  display:grid;
+  gap:6px;
+  margin-top:10px;
+  padding-top:10px;
+  border-top:1px dashed #dbe1ea;
+}
 .ac-delete { display:inline-flex; }
 .ac-empty { color:#64748b; }
 @media (max-width: 1220px) {
@@ -154,11 +171,21 @@
   <section class="ac-grid">
     <article class="ac-card">
       <div class="ac-card-head">
-        <div>
-          <h2>Elenco contratti</h2>
-          <p>Stato, target e costo periodico restano leggibili senza trasformare la pagina in un mini ERP.</p>
-        </div>
+      <div>
+        <h2>Elenco contratti</h2>
+        <p>
+          Stato, target e costo periodico restano leggibili senza trasformare la pagina in un mini ERP.
+          {% if can_manage_outlook_calendar and not selected_asset %}
+            Per creare eventi Outlook filtra prima la pagina su un singolo asset.
+          {% endif %}
+        </p>
       </div>
+      {% if can_manage_outlook_calendar and selected_asset and not outlook_calendar_ready %}
+        <p class="ac-inline-note" style="margin:0;max-width:320px;">
+          Integrazione Outlook non pronta: verifica le credenziali `GRAPH_*` e il permesso `Calendars.ReadWrite`.
+        </p>
+      {% endif %}
+    </div>
       <div class="ac-card-body">
         {% if contract_rows %}
           <div class="ac-table-wrap">
@@ -229,6 +256,50 @@
                           <a class="btn" href="{{ row.supplier_url }}">Apri fornitore</a>
                         {% endif %}
                       </div>
+                      {% if can_manage_outlook_calendar and selected_asset %}
+                        {% if row.can_create_calendar_event %}
+                          {% if not outlook_calendar_ready %}
+                            <div class="ac-inline-note">Configura Graph prima di creare eventi Outlook.</div>
+                          {% elif calendar_user_choices %}
+                            <form method="post" class="ac-inline-form">
+                              {% csrf_token %}
+                              <input type="hidden" name="action" value="create_outlook_calendar_event">
+                              <input type="hidden" name="contract_id" value="{{ row.contract.id }}">
+                              <input type="hidden" name="asset_id" value="{{ selected_asset.id }}">
+                              <input type="hidden" name="filter_asset" value="{{ selected_asset.id }}">
+                              <input type="hidden" name="filter_supplier" value="{{ supplier_filter }}">
+                              <input type="hidden" name="filter_state" value="{{ state_filter }}">
+                              <input type="hidden" name="filter_scope" value="{{ scope_filter }}">
+                              <input type="hidden" name="filter_q" value="{{ q }}">
+                              <select class="ac-inline-select" name="target_legacy_user_id" required>
+                                <option value="">Seleziona utente calendario</option>
+                                {% for user_id, user_label in calendar_user_choices %}
+                                  <option value="{{ user_id }}" {% if row.default_calendar_user_id == user_id %}selected{% endif %}>{{ user_label }}</option>
+                                {% endfor %}
+                              </select>
+                              <button type="submit" class="btn btn-secondary">Crea evento Outlook</button>
+                            </form>
+                          {% else %}
+                            <div class="ac-inline-note">Nessun utente con mailbox disponibile per la sincronizzazione calendario.</div>
+                          {% endif %}
+                        {% else %}
+                          <div class="ac-inline-note">Questo contratto non ha una scadenza calendarizzabile per l'asset filtrato.</div>
+                        {% endif %}
+                      {% endif %}
+                      {% if row.calendar_event_rows %}
+                        <div class="ac-existing-events">
+                          {% for event_row in row.calendar_event_rows %}
+                            {% if event_row.graph_event_web_link %}
+                              <a href="{{ event_row.graph_event_web_link }}" target="_blank" rel="noopener">
+                                Evento Outlook | {{ event_row.target_display_name|default:event_row.target_email }}
+                              </a>
+                            {% else %}
+                              <span class="ac-inline-note">Evento registrato | {{ event_row.target_display_name|default:event_row.target_email }}</span>
+                            {% endif %}
+                            <div class="ac-inline-note">Scadenza {{ event_row.due_date|date:"d/m/Y" }} | creato il {{ event_row.created_at|date:"d/m/Y H:i" }}</div>
+                          {% endfor %}
+                        </div>
+                      {% endif %}
                     </td>
                   </tr>
                 {% endfor %}

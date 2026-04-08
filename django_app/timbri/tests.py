@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import io
-import tempfile
+import shutil
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+from uuid import uuid4
 
 from PIL import Image
 from django.contrib.auth import get_user_model
@@ -18,6 +19,14 @@ from . import views as timbri_views
 from .models import OperatoreTimbri, RegistroTimbro, RegistroTimbroImmagine, TimbriImportIssue
 
 User = get_user_model()
+
+
+def _make_workspace_tempdir(prefix: str) -> Path:
+    root = Path.cwd() / "django_app" / ".tmp_tests"
+    root.mkdir(parents=True, exist_ok=True)
+    target = root / f"{prefix}-{uuid4().hex}"
+    target.mkdir(parents=True, exist_ok=False)
+    return target
 
 
 def _png_upload(name: str = "sample.png") -> SimpleUploadedFile:
@@ -48,6 +57,24 @@ def _ensure_anagrafica_table() -> None:
                 )
                 """
             )
+            cursor.execute("PRAGMA table_info(anagrafica_dipendenti)")
+            existing_columns = {str(row[1]).lower() for row in cursor.fetchall()}
+            required_columns = {
+                "aliasusername": "VARCHAR(200) NULL",
+                "nome": "VARCHAR(200) NULL",
+                "cognome": "VARCHAR(200) NULL",
+                "mansione": "VARCHAR(200) NULL",
+                "reparto": "VARCHAR(200) NULL",
+                "ruolo": "VARCHAR(200) NULL",
+                "matricola": "VARCHAR(100) NULL",
+                "attivo": "INTEGER NULL",
+                "email": "VARCHAR(200) NULL",
+                "email_notifica": "VARCHAR(200) NULL",
+                "utente_id": "INTEGER NULL",
+            }
+            for column_name, column_def in required_columns.items():
+                if column_name not in existing_columns:
+                    cursor.execute(f"ALTER TABLE anagrafica_dipendenti ADD COLUMN {column_name} {column_def}")
         else:
             cursor.execute(
                 """
@@ -162,10 +189,18 @@ class TimbriViewTests(TestCase):
 
     def test_config_page_can_save_mapping(self):
         self.client.force_login(self.admin)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            config_path = Path(tmpdir) / "config.ini"
-            config_path.write_text("[AZIENDA]\ntenant_id = test\nclient_id = test\nclient_secret = secret\nsite_id = site\n", encoding="utf-8")
-            with patch("timbri.views._config_ini_path", return_value=config_path):
+        tmpdir = _make_workspace_tempdir("timbri-config")
+        try:
+            env_path = tmpdir / ".env"
+            env_path.write_text(
+                "GRAPH_TENANT_ID=test\nGRAPH_CLIENT_ID=test\nGRAPH_CLIENT_SECRET=secret\nGRAPH_SITE_ID=site\n",
+                encoding="utf-8",
+            )
+            with patch("config.env_config.default_env_path", return_value=env_path), patch.dict(
+                "timbri.views.os.environ",
+                {},
+                clear=True,
+            ):
                 response = self.client.post(
                     reverse("timbri:configurazione") + "?tab=config",
                     {
@@ -189,17 +224,26 @@ class TimbriViewTests(TestCase):
                     },
                 )
             self.assertEqual(response.status_code, 302)
-            text = config_path.read_text(encoding="utf-8")
-            self.assertIn("[TIMBRI]", text)
-            self.assertIn("list_id = list-test", text)
-            self.assertIn("field_operatore_lookup = OperatoreLookupId", text)
+            text = env_path.read_text(encoding="utf-8")
+            self.assertIn("GRAPH_LIST_ID_TIMBRI=list-test", text)
+            self.assertIn("TIMBRI_FIELD_OPERATORE_LOOKUP=OperatoreLookupId", text)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
     def test_config_page_normalizes_guid_like_list_id(self):
         self.client.force_login(self.admin)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            config_path = Path(tmpdir) / "config.ini"
-            config_path.write_text("[AZIENDA]\ntenant_id = test\nclient_id = test\nclient_secret = secret\nsite_id = site\n", encoding="utf-8")
-            with patch("timbri.views._config_ini_path", return_value=config_path):
+        tmpdir = _make_workspace_tempdir("timbri-config-guid")
+        try:
+            env_path = tmpdir / ".env"
+            env_path.write_text(
+                "GRAPH_TENANT_ID=test\nGRAPH_CLIENT_ID=test\nGRAPH_CLIENT_SECRET=secret\nGRAPH_SITE_ID=site\n",
+                encoding="utf-8",
+            )
+            with patch("config.env_config.default_env_path", return_value=env_path), patch.dict(
+                "timbri.views.os.environ",
+                {},
+                clear=True,
+            ):
                 response = self.client.post(
                     reverse("timbri:configurazione") + "?tab=config",
                     {
@@ -208,8 +252,10 @@ class TimbriViewTests(TestCase):
                     },
                 )
             self.assertEqual(response.status_code, 302)
-            text = config_path.read_text(encoding="utf-8")
-            self.assertIn("list_id = 23dddb4c-ea5f-47b7-85c7-e75c5524c653", text)
+            text = env_path.read_text(encoding="utf-8")
+            self.assertIn("GRAPH_LIST_ID_TIMBRI=23dddb4c-ea5f-47b7-85c7-e75c5524c653", text)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
     def test_config_page_can_reset_table_and_reimport_names(self):
         self.client.force_login(self.admin)

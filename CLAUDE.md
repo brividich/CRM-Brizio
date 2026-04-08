@@ -1,7 +1,7 @@
 # CLAUDE.md - Portale Novicrom
 
 Documento di contesto per AI coding assistant. Aggiornato continuamente con il progetto.
-Versione app corrente: **0.9.4** (2026-04-08)
+Versione app corrente: **0.9.9** (2026-04-08)
 
 ---
 
@@ -33,7 +33,7 @@ Hardening sicurezza 0.8.7:
 | `dashboard` | Home page utente e dashboard principale KPI/personalizzabile |
 | `assenze` | Modulo unificato assenze: richieste, gestione, calendario, certificazioni + sync SharePoint |
 | `anomalie` | Segnalazione e gestione anomalie produzione |
-| `assets` | Gestione asset aziendali (macchinari, attrezzature) + scadenzario manutenzioni con creazione eventi Outlook sul calendario dell'utente selezionato |
+| `assets` | Gestione asset aziendali (macchinari, attrezzature) + scadenzari manutenzioni/scadenze con creazione eventi Outlook sul calendario dell'utente selezionato |
 | `tasks` | Task management interno |
 | `automazioni` | Designer visuale automazioni + SQL trigger -> event queue |
 | `admin_portale` | Pannello admin custom (non Django admin) |
@@ -240,6 +240,7 @@ L'exe e l'artefatto distribuito agli utenti finali: se non viene rigenerato, le 
 - Spec file: `deployment/SetupWizard.spec`
 - Output: `deployment/dist/SetupWizard.exe` (escluso da git via `.gitignore`)
 - Il bundle del wizard deve escludere sempre `.env`, `.venv`, `.tmp_tests`, database locali, cache, log, media, test suite Python e altri artefatti macchina-specifici da `django_app/`.
+- Nei test Django che scrivono file o `MEDIA_ROOT` su Windows, preferire cartelle sotto `django_app/.tmp_tests` invece di `tempfile.TemporaryDirectory()` di sistema, per evitare `PermissionError` sporadici su creazione o cleanup di directory annidate.
 - Le esclusioni del bundle sono centralizzate in `deployment/setup_wizard_bundle_rules.json`; `SetupWizard.spec` e `tools/release_guard.ps1` devono leggerlo entrambi.
 - `SetupWizard.spec` usa hook custom per `tkinter` e deve continuare a includere `_tcl_data` e `_tk_data`.
 - Il runtime Python del wizard e di `deployment/scripts/setup-environment.ps1` deve essere auto-rilevato in modo robusto (`py`, percorsi standard, registry, `PATH`) e validato come Python 3.11+.

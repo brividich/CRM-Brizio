@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Esegue backup di:
-    - config\.env e config\config.ini
+    - config\.env
     - media\ (file utente)
     - Database SQL Server (via sqlcmd — opzionale)
     - Lista pacchetti pip installati (pip freeze)
@@ -76,7 +76,7 @@ Log-BackupStep "[1] Backup config..."
 $configBackup = "$backupRoot\config"
 New-Item -ItemType Directory -Path $configBackup -Force | Out-Null
 
-foreach ($file in @(".env", "config.ini")) {
+foreach ($file in @(".env")) {
     $src = "$($paths.Config)\$file"
     if (Test-Path $src) {
         Copy-Item $src "$configBackup\$file" -Force

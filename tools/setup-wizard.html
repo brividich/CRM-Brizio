@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Portale Novicrom — Setup Wizard</title>
+<title>NOVICROM HUB - Setup Wizard</title>
 <style>
   :root {
     --primary: #1a6fc4;
@@ -21,15 +21,15 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
 
-  /* ── Header ── */
+  /* -- Header -- */
   .header { background: var(--primary); color: #fff; padding: 18px 32px; display: flex; align-items: center; gap: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
   .header-logo { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.5px; }
   .header-sub { font-size: .85rem; opacity: .8; }
 
-  /* ── Layout ── */
+  /* -- Layout -- */
   .layout { display: flex; max-width: 1100px; margin: 32px auto; gap: 28px; padding: 0 20px 60px; }
 
-  /* ── Sidebar steps ── */
+  /* -- Sidebar steps -- */
   .sidebar { width: 230px; flex-shrink: 0; }
   .step-list { list-style: none; position: sticky; top: 24px; }
   .step-list li { display: flex; align-items: flex-start; gap: 12px; padding: 10px 14px; border-radius: 8px; cursor: default; margin-bottom: 4px; transition: background .15s; }
@@ -40,13 +40,13 @@
   .step-label { font-size: .84rem; line-height: 1.35; }
   .step-list li.active .step-label { font-weight: 600; color: var(--primary); }
 
-  /* ── Main panel ── */
+  /* -- Main panel -- */
   .main { flex: 1; }
   .card { background: var(--card); border-radius: 12px; border: 1px solid var(--border); padding: 32px; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
   .card-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 4px; }
   .card-desc { font-size: .87rem; color: var(--muted); margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
 
-  /* ── Form ── */
+  /* -- Form -- */
   .field-group { margin-bottom: 20px; }
   .field-group label { display: block; font-size: .84rem; font-weight: 600; margin-bottom: 5px; }
   .field-group .hint { font-size: .78rem; color: var(--muted); margin-bottom: 6px; }
@@ -69,21 +69,21 @@
 
   .section-sep { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
 
-  /* ── Secret key gen ── */
+  /* -- Secret key gen -- */
   .input-action { display: flex; gap: 8px; }
   .input-action input { flex: 1; }
   .btn-sm { padding: 8px 14px; border: none; border-radius: 6px; font-size: .8rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
   .btn-gen { background: #eef2fa; color: var(--primary); }
   .btn-gen:hover { background: #dce7f7; }
 
-  /* ── Alert ── */
+  /* -- Alert -- */
   .alert { padding: 10px 14px; border-radius: 7px; font-size: .84rem; margin-bottom: 18px; }
   .alert-info { background: #e8f0fb; border-left: 4px solid var(--primary); }
   .alert-warn { background: #fff9e6; border-left: 4px solid var(--warning); }
   .alert-danger { background: #fce8e9; border-left: 4px solid var(--danger); }
   .alert-success { background: #e6f7ec; border-left: 4px solid var(--success); }
 
-  /* ── Nav buttons ── */
+  /* -- Nav buttons -- */
   .nav-btns { display: flex; justify-content: space-between; margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--border); }
   .btn { padding: 10px 24px; border: none; border-radius: 7px; font-size: .9rem; font-weight: 600; cursor: pointer; transition: background .15s; }
   .btn-primary { background: var(--primary); color: #fff; }
@@ -93,7 +93,7 @@
   .btn-success { background: var(--success); color: #fff; font-size: 1rem; padding: 12px 32px; }
   .btn-success:hover { background: #1e8035; }
 
-  /* ── Output / riepilogo ── */
+  /* -- Output / riepilogo -- */
   .output-block { background: #1e2433; color: #c9d4e8; border-radius: 8px; padding: 18px; font-family: 'Courier New', monospace; font-size: .8rem; line-height: 1.6; overflow-x: auto; white-space: pre; margin-bottom: 12px; max-height: 320px; overflow-y: auto; }
   .output-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
   .output-filename { font-weight: 700; font-size: .88rem; }
@@ -125,8 +125,8 @@
 
 <div class="header">
   <div>
-    <div class="header-logo">Portale Novicrom</div>
-    <div class="header-sub">Configurazione avanzata — parametri Django (Graph, SMTP, AD, Cache)</div>
+    <div class="header-logo">NOVICROM HUB</div>
+    <div class="header-sub">Configurazione avanzata - parametri Django (Graph, SMTP, AD, Cache)</div>
   </div>
 </div>
 
@@ -154,7 +154,7 @@
 
     <!-- STEP 1: Applicazione -->
     <div class="card" id="step1">
-      <div class="card-title">1 — Applicazione</div>
+      <div class="card-title">1 - Applicazione</div>
       <div class="card-desc">Parametri base dell'istanza Django. La SECRET_KEY deve essere una stringa casuale lunga almeno 50 caratteri.</div>
 
       <div class="field-group">
@@ -175,13 +175,13 @@
       <div class="field-row">
         <div class="field-group">
           <label>APP_VERSION</label>
-          <input type="text" id="app_version" value="0.6.40" placeholder="0.6.40" />
+          <input type="text" id="app_version" value="0.9.9" placeholder="0.9.9" />
         </div>
         <div class="field-group">
           <label>DJANGO_DEBUG</label>
           <select id="django_debug">
-            <option value="0" selected>0 — Disabilitato (produzione)</option>
-            <option value="1">1 — Abilitato (solo sviluppo)</option>
+            <option value="0" selected>0 - Disabilitato (produzione)</option>
+            <option value="1">1 - Abilitato (solo sviluppo)</option>
           </select>
         </div>
       </div>
@@ -192,14 +192,14 @@
 
       <div class="nav-btns">
         <div></div>
-        <button class="btn btn-primary" onclick="goStep(2)">Avanti →</button>
+        <button class="btn btn-primary" onclick="goStep(2)">Avanti -></button>
       </div>
     </div>
 
     <!-- STEP 2: Sicurezza HTTPS -->
     <div class="card hidden" id="step2">
-      <div class="card-title">2 — Sicurezza HTTPS</div>
-      <div class="card-desc">Imposta le opzioni SSL solo se il portale è raggiungibile tramite HTTPS (certificato valido). In rete interna senza TLS lascia tutto disabilitato.</div>
+      <div class="card-title">2 - Sicurezza HTTPS</div>
+      <div class="card-desc">Imposta le opzioni SSL solo se il portale e raggiungibile tramite HTTPS (certificato valido). In rete interna senza TLS lascia tutto disabilitato.</div>
 
       <div class="alert alert-info">
         Se il server ha un certificato SSL valido e risponde su HTTPS, abilita tutte e tre le opzioni sotto. Altrimenti lascia tutto a 0.
@@ -207,15 +207,15 @@
 
       <div class="toggle-row">
         <input type="checkbox" id="secure_ssl" onchange="syncHttps()">
-        <label for="secure_ssl">SECURE_SSL_REDIRECT — Forza redirect HTTPS</label>
+        <label for="secure_ssl">SECURE_SSL_REDIRECT - Forza redirect HTTPS</label>
       </div>
       <div class="toggle-row">
         <input type="checkbox" id="csrf_secure" onchange="syncHttps()">
-        <label for="csrf_secure">CSRF_COOKIE_SECURE — Cookie CSRF solo su HTTPS</label>
+        <label for="csrf_secure">CSRF_COOKIE_SECURE - Cookie CSRF solo su HTTPS</label>
       </div>
       <div class="toggle-row">
         <input type="checkbox" id="session_secure" onchange="syncHttps()">
-        <label for="session_secure">SESSION_COOKIE_SECURE — Cookie sessione solo su HTTPS</label>
+        <label for="session_secure">SESSION_COOKIE_SECURE - Cookie sessione solo su HTTPS</label>
       </div>
 
       <button class="btn-sm btn-gen" style="margin-top:8px" onclick="enableAllHttps()">&#9989; Abilita tutto (server con HTTPS)</button>
@@ -223,21 +223,21 @@
       <button class="btn-sm" style="background:#fce8e9;color:var(--danger)" onclick="disableAllHttps()">&#10060; Disabilita tutto (HTTP interno)</button>
 
       <div class="nav-btns">
-        <button class="btn btn-secondary" onclick="goStep(1)">← Indietro</button>
-        <button class="btn btn-primary" onclick="goStep(3)">Avanti →</button>
+        <button class="btn btn-secondary" onclick="goStep(1)"><- Indietro</button>
+        <button class="btn btn-primary" onclick="goStep(3)">Avanti -></button>
       </div>
     </div>
 
     <!-- STEP 3: Database SQL Server -->
     <div class="card hidden" id="step3">
-      <div class="card-title">3 — Database SQL Server</div>
+      <div class="card-title">3 - Database SQL Server</div>
       <div class="card-desc">Connessione al database SQL Server di produzione. Assicurati che il driver ODBC sia installato sul server.</div>
 
       <div class="field-group">
         <label>DB_ENGINE</label>
         <select id="db_engine">
-          <option value="mssql" selected>mssql — SQL Server (produzione)</option>
-          <option value="sqlite">sqlite — SQLite (solo sviluppo locale)</option>
+          <option value="mssql" selected>mssql - SQL Server (produzione)</option>
+          <option value="sqlite">sqlite - SQLite (solo sviluppo locale)</option>
         </select>
       </div>
 
@@ -275,32 +275,21 @@
 
       <div class="toggle-row">
         <input type="checkbox" id="db_trust_cert">
-        <label for="db_trust_cert">DB_TRUST_CERT — Trust Server Certificate (solo certificati self-signed)</label>
-      </div>
-
-      <hr class="section-sep">
-      <div class="card-title" style="font-size:1rem;margin-bottom:12px">Percorso database legacy (config.ini)</div>
-
-      <div class="field-group">
-        <label>Percorso utenti.db</label>
-        <div class="hint">Percorso al file utenti.db legacy usato dal backend di auth SQL Server</div>
-        <input type="text" id="legacy_db_path" value="utenti.db" placeholder="utenti.db" />
-      </div>
-
-      <div class="nav-btns">
-        <button class="btn btn-secondary" onclick="goStep(2)">← Indietro</button>
-        <button class="btn btn-primary" onclick="goStep(4)">Avanti →</button>
+        <label for="db_trust_cert">DB_TRUST_CERT - Trust Server Certificate (solo certificati self-signed)</label>
+      </div>      <div class="nav-btns">
+        <button class="btn btn-secondary" onclick="goStep(2)"><- Indietro</button>
+        <button class="btn btn-primary" onclick="goStep(4)">Avanti -></button>
       </div>
     </div>
 
     <!-- STEP 4: Active Directory / LDAP -->
     <div class="card hidden" id="step4">
-      <div class="card-title">4 — Active Directory / LDAP</div>
+      <div class="card-title">4 - Active Directory / LDAP</div>
       <div class="card-desc">Autenticazione tramite Active Directory aziendale (cnovicrom.local). Se non usi AD lascia disabilitato.</div>
 
       <div class="toggle-row">
         <input type="checkbox" id="ldap_enabled" onchange="toggleLdap()">
-        <label for="ldap_enabled">LDAP_ENABLED — Abilita autenticazione Active Directory</label>
+        <label for="ldap_enabled">LDAP_ENABLED - Abilita autenticazione Active Directory</label>
       </div>
 
       <div id="ldapFields" class="hidden">
@@ -362,18 +351,18 @@
       </div>
 
       <div class="nav-btns">
-        <button class="btn btn-secondary" onclick="goStep(3)">← Indietro</button>
-        <button class="btn btn-primary" onclick="goStep(5)">Avanti →</button>
+        <button class="btn btn-secondary" onclick="goStep(3)"><- Indietro</button>
+        <button class="btn btn-primary" onclick="goStep(5)">Avanti -></button>
       </div>
     </div>
 
     <!-- STEP 5: Microsoft Graph / SharePoint -->
     <div class="card hidden" id="step5">
-      <div class="card-title">5 — Microsoft Graph / SharePoint</div>
+      <div class="card-title">5 - Microsoft Graph / SharePoint</div>
       <div class="card-desc">Credenziali Azure AD app registration per accesso a SharePoint (assenze, dipendenti, anomalie). Tutti i valori si trovano nel portale Azure.</div>
 
       <div class="alert alert-info">
-        Registra un'app in <strong>Azure Portal → App registrations</strong> con permessi: <code>Sites.ReadWrite.All</code>, <code>Lists.ReadWrite.All</code>.
+        Registra un'app in <strong>Azure Portal -> App registrations</strong> con permessi: <code>Sites.ReadWrite.All</code>, <code>Lists.ReadWrite.All</code>.
       </div>
 
       <div class="field-row">
@@ -424,14 +413,14 @@
       </div>
 
       <div class="nav-btns">
-        <button class="btn btn-secondary" onclick="goStep(4)">← Indietro</button>
-        <button class="btn btn-primary" onclick="goStep(6)">Avanti →</button>
+        <button class="btn btn-secondary" onclick="goStep(4)"><- Indietro</button>
+        <button class="btn btn-primary" onclick="goStep(6)">Avanti -></button>
       </div>
     </div>
 
     <!-- STEP 6: Email SMTP -->
     <div class="card hidden" id="step6">
-      <div class="card-title">6 — Email SMTP</div>
+      <div class="card-title">6 - Email SMTP</div>
       <div class="card-desc">Usato dalle Automazioni per le azioni SEND_EMAIL. Configura un relay SMTP interno o un account Exchange.</div>
 
       <div class="field-row">
@@ -464,27 +453,27 @@
         <div class="field-group">
           <label>EMAIL_USE_TLS</label>
           <select id="email_tls">
-            <option value="1" selected>1 — Abilitato (STARTTLS)</option>
-            <option value="0">0 — Disabilitato</option>
+            <option value="1" selected>1 - Abilitato (STARTTLS)</option>
+            <option value="0">0 - Disabilitato</option>
           </select>
         </div>
       </div>
 
       <div class="nav-btns">
-        <button class="btn btn-secondary" onclick="goStep(5)">← Indietro</button>
-        <button class="btn btn-primary" onclick="goStep(7)">Avanti →</button>
+        <button class="btn btn-secondary" onclick="goStep(5)"><- Indietro</button>
+        <button class="btn btn-primary" onclick="goStep(7)">Avanti -></button>
       </div>
     </div>
 
     <!-- STEP 7: Sessioni & Cache -->
     <div class="card hidden" id="step7">
-      <div class="card-title">7 — Sessioni &amp; Cache</div>
+      <div class="card-title">7 - Sessioni &amp; Cache</div>
       <div class="card-desc">Timeout sessione, TTL cache ACL/navigation, parametri SharePoint. I valori di default sono adatti alla produzione.</div>
 
       <div class="field-row">
         <div class="field-group">
           <label>SESSION_IDLE_TIMEOUT_SECONDS</label>
-          <div class="hint">Scadenza sessione per inattività</div>
+          <div class="hint">Scadenza sessione per inattivita</div>
           <input type="number" id="session_timeout" value="3600" min="300" />
         </div>
         <div class="field-group">
@@ -519,7 +508,7 @@
       </div>
 
       <hr class="section-sep">
-      <div style="font-size:.9rem;font-weight:700;margin-bottom:14px">Autenticazione &amp; Funzionalità</div>
+      <div style="font-size:.9rem;font-weight:700;margin-bottom:14px">Autenticazione &amp; Funzionalita</div>
 
       <div class="toggle-row">
         <input type="checkbox" id="legacy_auth" checked>
@@ -543,14 +532,14 @@
       </div>
 
       <div class="nav-btns">
-        <button class="btn btn-secondary" onclick="goStep(6)">← Indietro</button>
-        <button class="btn btn-primary" onclick="goStep(8)">Avanti →</button>
+        <button class="btn btn-secondary" onclick="goStep(6)"><- Indietro</button>
+        <button class="btn btn-primary" onclick="goStep(8)">Avanti -></button>
       </div>
     </div>
 
     <!-- STEP 8: Riepilogo & Download -->
     <div class="card hidden" id="step8">
-      <div class="card-title">8 — Riepilogo &amp; Download</div>
+      <div class="card-title">8 - Riepilogo &amp; Download</div>
       <div class="card-desc">Verifica la configurazione e scarica i file pronti per il server.</div>
 
       <div id="checklistEl"></div>
@@ -558,7 +547,7 @@
       <hr class="section-sep">
 
       <div class="output-header">
-        <span class="output-filename">📄 django_app/.env</span>
+        <span class="output-filename">File django_app/.env</span>
         <div>
           <button class="btn-copy" onclick="copyText('envOutput')">Copia</button>
           <button class="btn-download" onclick="downloadFile('envOutput', '.env')">&#8681; Scarica</button>
@@ -566,25 +555,15 @@
       </div>
       <div class="output-block" id="envOutput"></div>
 
-      <div class="output-header" style="margin-top:20px">
-        <span class="output-filename">📄 config.ini</span>
-        <div>
-          <button class="btn-copy" onclick="copyText('iniOutput')">Copia</button>
-          <button class="btn-download" onclick="downloadFile('iniOutput', 'config.ini')">&#8681; Scarica</button>
-        </div>
-      </div>
-      <div class="output-block" id="iniOutput"></div>
-
       <div class="alert alert-warn" style="margin-top:20px">
         <strong>Posizionamento file:</strong><br>
         • <code>.env</code> → <code>django_app/.env</code> (es. <code>C:\PortaleNovicrom\test\releases\...\django_app\.env</code>)<br>
-        • <code>config.ini</code> → cartella radice del progetto<br>
-        • Non committare mai questi file nel repository Git!
+        • Non committare mai questo file nel repository Git!
       </div>
 
       <div class="alert alert-info" style="margin-top:12px">
         <strong>Nota:</strong> Database, migrate, collectstatic e IIS sono gestiti automaticamente da <strong>SetupWizard.exe</strong>.<br>
-        Questo wizard genera solo le variabili avanzate (<em>Graph, SMTP, AD, Cache</em>) da aggiungere al <code>.env</code> già creato dal wizard di installazione.<br><br>
+        Questo wizard genera solo le variabili avanzate (<em>Graph, SMTP, AD, Cache</em>) da aggiungere al <code>.env</code> gia creato dal wizard di installazione.<br><br>
         <strong>Aggiornamento .env esistente:</strong><br>
         1. Apri <code>django_app\.env</code> sul server<br>
         2. Copia le variabili generate sopra in fondo al file<br>
@@ -592,8 +571,8 @@
       </div>
 
       <div class="nav-btns">
-        <button class="btn btn-secondary" onclick="goStep(7)">← Indietro</button>
-        <button class="btn btn-success" onclick="downloadAll()">&#8681; Scarica entrambi i file</button>
+        <button class="btn btn-secondary" onclick="goStep(7)"><- Indietro</button>
+        <button class="btn btn-success" onclick="downloadAll()">&#8681; Scarica .env</button>
       </div>
     </div>
 
@@ -647,9 +626,21 @@ function chkb(id) { return document.getElementById(id)?.checked; }
 
 function buildEnv() {
   const ldapEnabled = chk('ldap_enabled');
-  return `# ── Generato da Setup Wizard Portale Novicrom ──────────────────────────────
+  return `# -- Generato da Setup Wizard NOVICROM HUB ------------------------------
 DJANGO_SECRET_KEY=${v('secret_key')}
 APP_VERSION=${v('app_version')}
+APP_VERSION_CORE=${v('app_version')}
+APP_VERSION_DASHBOARD=${v('app_version')}
+APP_VERSION_ASSENZE=${v('app_version')}
+APP_VERSION_ANOMALIE=${v('app_version')}
+APP_VERSION_ASSETS=${v('app_version')}
+APP_VERSION_TASKS=${v('app_version')}
+APP_VERSION_ADMIN_PORTALE=${v('app_version')}
+APP_VERSION_NOTIZIE=${v('app_version')}
+APP_VERSION_ANAGRAFICA=${v('app_version')}
+APP_VERSION_TICKETS=${v('app_version')}
+APP_VERSION_DPI=${v('app_version')}
+APP_VERSION_PROCEDURE_REFRESH=${v('app_version')}
 DJANGO_DEBUG=${v('django_debug')}
 DJANGO_ALLOWED_HOSTS=${v('allowed_hosts')}
 
@@ -718,91 +709,29 @@ EMAIL_PORT=${v('email_port')}
 EMAIL_HOST_USER=${v('email_user')}
 EMAIL_HOST_PASSWORD=${v('email_password')}
 EMAIL_USE_TLS=${v('email_tls')}
+EMAIL_USE_SSL=0
+EMAIL_TIMEOUT=10
 DEFAULT_FROM_EMAIL=${v('email_from')}
 `;
 }
-
-function buildIni() {
-  const ldapEnabled = chkb('ldap_enabled') ? 'true' : 'false';
-  return `; ── Generato da Setup Wizard Portale Novicrom ──────────────────────────────
-[APP]
-debug = False
-secret_key = LOADED_FROM_ENV
-
-[ADMIN]
-email = admin@cnovicrom.local
-password = CHANGE_ME
-nome = Amministratore
-
-[DATABASE]
-path = ${v('legacy_db_path')}
-
-[SQLSERVER]
-server = ${v('db_host')}
-database = ${v('db_name')}
-driver = ${v('db_driver')}
-username = ${v('db_user')}
-password = ${v('db_password')}
-encrypt = yes
-trust_server_certificate = ${chkb('db_trust_cert') ? 'yes' : 'no'}
-login_timeout = 5
-
-[CACHE]
-foto_ttl = 600
-assenze_ttl = ${v('assenze_interval')}
-capi_ttl = 600
-
-[ANOMALIE]
-draft_temp_dir = temp\\anomalie_drafts
-pending_files_dir = temp\\anomalie_pending_sync
-
-[AZIENDA]
-tenant_id = ${v('graph_tenant_id')}
-client_id = ${v('graph_client_id')}
-client_secret = ${v('graph_client_secret')}
-site_id = ${v('graph_site_id')}
-list_id_assenze = ${v('graph_list_assenze')}
-list_id_dipendenti = ${v('graph_list_dipendenti')}
-list_id_caporeparto = ${v('graph_list_caporeparto')}
-list_id_anagrafica =
-list_id_anomalie_op =
-list_id_anomalie_db = ${v('graph_list_anomalie_db')}
-
-[ACTIVE_DIRECTORY]
-enabled = ${ldapEnabled}
-server = ${v('ldap_server')}
-domain = ${v('ldap_domain')}
-upn_suffix = ${v('ldap_upn')}
-timeout = ${v('ldap_timeout')}
-service_user = ${v('ldap_service_user')}
-service_password = ${v('ldap_service_password')}
-base_dn = ${v('ldap_base_dn')}
-user_filter = ${v('ldap_user_filter')}
-group_allowlist = ${v('ldap_group_allowlist')}
-
-[DEFAULT]
-default_password = CHANGE_ME
-`;
-}
-
 function buildChecklist() {
   const checks = [
     { label: 'SECRET_KEY configurata', ok: v('secret_key').length >= 50, warn: v('secret_key').length > 0 && v('secret_key').length < 50, msg: 'Troppo corta (< 50 caratteri)' },
     { label: 'ALLOWED_HOSTS configurato', ok: v('allowed_hosts').length > 0 },
-    { label: 'DB_ENGINE = mssql (produzione)', ok: v('db_engine') === 'mssql', warn: v('db_engine') === 'sqlite', msg: 'SQLite selezionato — solo per sviluppo!' },
+    { label: 'DB_ENGINE = mssql (produzione)', ok: v('db_engine') === 'mssql', warn: v('db_engine') === 'sqlite', msg: 'SQLite selezionato - solo per sviluppo!' },
     { label: 'DB_HOST configurato', ok: v('db_host').length > 0 },
     { label: 'DB_USER e DB_PASSWORD configurati', ok: v('db_user').length > 0 && v('db_password').length > 0 },
-    { label: 'DJANGO_DEBUG = 0 (produzione)', ok: v('django_debug') === '0', warn: v('django_debug') === '1', msg: 'DEBUG abilitato — pericoloso in produzione!' },
-    { label: 'GRAPH_TENANT_ID configurato', ok: v('graph_tenant_id').length > 10, warn: v('graph_tenant_id').length === 0, msg: 'Non configurato — funzionalità SharePoint non disponibili' },
-    { label: 'EMAIL_HOST configurato', ok: v('email_host').length > 0, warn: v('email_host').length === 0, msg: 'Non configurato — email automazioni non funzioneranno' },
+    { label: 'DJANGO_DEBUG = 0 (produzione)', ok: v('django_debug') === '0', warn: v('django_debug') === '1', msg: 'DEBUG abilitato - pericoloso in produzione!' },
+    { label: 'GRAPH_TENANT_ID configurato', ok: v('graph_tenant_id').length > 10, warn: v('graph_tenant_id').length === 0, msg: 'Non configurato - funzionalita SharePoint non disponibili' },
+    { label: 'EMAIL_HOST configurato', ok: v('email_host').length > 0, warn: v('email_host').length === 0, msg: 'Non configurato - email automazioni non funzioneranno' },
   ];
 
   let html = '<ul class="checklist">';
   checks.forEach(c => {
     let icon, cls, note = '';
-    if (c.ok) { icon = '✓'; cls = 'check-ok'; }
-    else if (c.warn) { icon = '⚠'; cls = 'check-warn'; note = c.msg ? ` — <em>${c.msg}</em>` : ''; }
-    else { icon = '✗'; cls = 'check-no'; note = c.msg ? ` — <em>${c.msg}</em>` : ' — <em>Campo obbligatorio mancante</em>'; }
+    if (c.ok) { icon = 'OK'; cls = 'check-ok'; }
+    else if (c.warn) { icon = 'WARN'; cls = 'check-warn'; note = c.msg ? ` - <em>${c.msg}</em>` : ''; }
+    else { icon = 'NO'; cls = 'check-no'; note = c.msg ? ` - <em>${c.msg}</em>` : ' - <em>Campo obbligatorio mancante</em>'; }
     html += `<li><span class="${cls}">${icon}</span> ${c.label}${note}</li>`;
   });
   html += '</ul>';
@@ -812,7 +741,6 @@ function buildChecklist() {
 function buildOutputs() {
   document.getElementById('checklistEl').innerHTML = buildChecklist();
   document.getElementById('envOutput').textContent = buildEnv();
-  document.getElementById('iniOutput').textContent = buildIni();
 }
 
 function copyText(id) {
@@ -833,8 +761,8 @@ function downloadFile(id, filename) {
 
 function downloadAll() {
   setTimeout(() => downloadFile('envOutput', '.env'), 100);
-  setTimeout(() => downloadFile('iniOutput', 'config.ini'), 500);
 }
 </script>
 </body>
 </html>
+

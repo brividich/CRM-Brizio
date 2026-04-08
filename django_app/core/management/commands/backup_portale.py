@@ -3,7 +3,7 @@ backup_portale — Management command per il backup automatico del portale.
 
 Esegue:
   1. Backup database (SQLite copia file / SQL Server via sqlcmd BACKUP DATABASE)
-  2. File di configurazione (.env, config.ini)
+  2. File di configurazione (.env)
   3. pip freeze (snapshot dipendenze)
   4. media/ (opzionale, --include-media)
 
@@ -176,7 +176,7 @@ class Command(BaseCommand):
     def _backup_config(self, backup_dir, log, errors):
         config_dst = backup_dir / "config"
         config_dst.mkdir(exist_ok=True)
-        for name in (".env", "config.ini"):
+        for name in (".env",):
             # Cerca prima vicino a BASE_DIR, poi in config/ al livello superiore
             for candidate in [
                 settings.BASE_DIR / name,

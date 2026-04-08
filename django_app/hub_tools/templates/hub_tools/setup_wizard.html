@@ -147,7 +147,7 @@ input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color:
 
   <div class="sw-alert sw-alert-warn">
     ⚠️ <div>
-      <strong>Attenzione:</strong> le modifiche vengono scritte direttamente nel file <code>.env</code> e in <code>config.ini</code>.
+      <strong>Attenzione:</strong> le modifiche vengono scritte direttamente nel file <code>.env</code>.
       Per le impostazioni database, LDAP e SMTP è consigliato <strong>testare la connessione</strong> prima di salvare.
       Alcune modifiche (es. cambio database) richiedono il <strong>riavvio del server Django</strong> per avere effetto.
     </div>
@@ -165,12 +165,12 @@ input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color:
         <div class="sw-fg">
           <label>Nome istanza <span style="color:var(--sw-danger)">*</span></label>
           <div class="hint">Nome visualizzato nella barra superiore e nei titoli</div>
-          <input type="text" id="f_instance_name" value="{{ env.INSTANCE_NAME|default:'BrizioHUB' }}">
+          <input type="text" id="f_instance_name" value="{{ env.INSTANCE_NAME|default:'NOVICROM HUB' }}">
         </div>
         <div class="sw-fg">
           <label>Versione app</label>
           <div class="hint">Numero versione mostrato nell'header</div>
-          <input type="text" id="f_app_version" value="{{ env.APP_VERSION|default:'' }}">
+          <input type="text" id="f_app_version" value="{{ env.APP_VERSION|default:'0.9.3' }}">
         </div>
       </div>
     </div>
@@ -568,7 +568,7 @@ input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color:
       <div>
         <div class="sw-save-result" id="res-save"></div>
         <div style="font-size:.8rem;color:var(--sw-muted)">
-          Salva aggiorna <code>.env</code> e <code>config.ini</code>. Alcune modifiche richiedono il riavvio del server.
+          Salva aggiorna <code>.env</code>. Alcune modifiche richiedono il riavvio del server.
         </div>
       </div>
       <div style="display:flex;gap:10px;flex-shrink:0">

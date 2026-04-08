@@ -1,8 +1,8 @@
 # Deployment Guide - NOVICROM HUB su Windows Server + IIS
 
 > Versione guida: **2.1**  
-> Versione repo: **0.9.3**  
-> Aggiornata: **2026-04-03**
+> Versione repo: **0.9.9**  
+> Aggiornata: **2026-04-08**
 
 Questa guida descrive il flusso di deploy reale supportato oggi dal repository. La priorita e evitare drift tra documentazione, settings, wizard e packaging.
 

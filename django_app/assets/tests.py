@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import configparser
 import io
 import json
+import shutil
 import tempfile
 from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
+from uuid import uuid4
 
 from django.contrib.auth import get_user_model
 from django.contrib.messages.storage.fallback import FallbackStorage
@@ -23,7 +24,7 @@ from types import SimpleNamespace
 from PIL import Image
 
 from anagrafica.models import Fornitore, FornitoreDocumento
-from core.legacy_models import Pulsante
+from core.legacy_models import Pulsante, UtenteLegacy
 from core.models import UserDashboardLayout
 from core.upload_mime import UploadMimeValidationError
 from tickets.models import PrioritaTicket, StatoTicket, Ticket, TipoTicket
@@ -53,6 +54,7 @@ from .models import (
     AssetListLayout,
     AssetListOption,
     AssetMaintenanceRuleState,
+    AssetCalendarEvent,
     MaintenanceInterventionTemplate,
     MaintenanceRule,
     MaintenanceRuleAssetOverride,
@@ -70,6 +72,15 @@ from .models import (
 )
 
 User = get_user_model()
+
+
+def _make_workspace_tempdir(prefix: str) -> Path:
+    root = Path.cwd() / "django_app" / ".tmp_tests"
+    root.mkdir(parents=True, exist_ok=True)
+    target = root / f"{prefix}{uuid4().hex}"
+    target.mkdir(parents=True, exist_ok=False)
+    return target
+
 
 def _valid_png_upload(name: str = "planimetria.png") -> SimpleUploadedFile:
     buffer = io.BytesIO()
@@ -243,15 +254,15 @@ class AssetsRoutingTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="asset-user", password="pass12345")
         self.factory = RequestFactory()
-        self._config_tmpdir = tempfile.TemporaryDirectory()
-        self._config_path = Path(self._config_tmpdir.name) / "config.ini"
+        self._config_tmpdir = _make_workspace_tempdir("assets-config-")
+        self._config_path = self._config_tmpdir / ".env"
         self._config_path.write_text("", encoding="utf-8")
-        self._config_patcher = patch("assets.views._assets_config_ini_path", return_value=self._config_path)
+        self._config_patcher = patch("config.env_config.default_env_path", return_value=self._config_path)
         self._config_patcher.start()
 
     def tearDown(self):
         self._config_patcher.stop()
-        self._config_tmpdir.cleanup()
+        shutil.rmtree(self._config_tmpdir, ignore_errors=True)
         super().tearDown()
 
     def test_assets_list_200_when_logged(self):
@@ -1098,22 +1109,19 @@ class AssetsRoutingTests(TestCase):
                 self.assertTrue(Path(template.logo_file.path).exists())
 
     def test_gestione_admin_shows_sharepoint_config_card(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            config_path = Path(tmpdir) / "config.ini"
-            config_path.write_text(
+        tmpdir = _make_workspace_tempdir("assets-sharepoint-card-")
+        try:
+            env_path = tmpdir / ".env"
+            env_path.write_text(
                 "\n".join(
                     [
-                        "[AZIENDA]",
-                        "tenant_id = tenant-test",
-                        "client_id = client-test",
-                        "client_secret = secret-test",
-                        "site_id = site-test",
-                        "",
-                        "[ASSETS]",
-                        "sharepoint_asset_root_path = Asset/Inventario",
-                        "sharepoint_work_machine_root_path = Macchine",
-                        "sharepoint_library_url = https://contoso.sharepoint.com/sites/example-assets",
-                        "",
+                        "GRAPH_TENANT_ID=tenant-test",
+                        "GRAPH_CLIENT_ID=client-test",
+                        "GRAPH_CLIENT_SECRET=secret-test",
+                        "GRAPH_SITE_ID=site-test",
+                        "ASSETS_SHAREPOINT_ASSET_ROOT_PATH=Asset/Inventario",
+                        "ASSETS_SHAREPOINT_WORK_MACHINE_ROOT_PATH=Macchine",
+                        "ASSETS_SHAREPOINT_LIBRARY_URL=https://contoso.sharepoint.com/sites/example-assets",
                     ]
                 ),
                 encoding="utf-8",
@@ -1124,14 +1132,20 @@ class AssetsRoutingTests(TestCase):
             request.legacy_user = None
             setattr(request, "_messages", FallbackStorage(request))
 
-            with patch("assets.views._assets_config_ini_path", return_value=config_path):
+            with patch("config.env_config.default_env_path", return_value=env_path), patch.dict(
+                "assets.views.os.environ",
+                {},
+                clear=True,
+            ):
                 response = asset_views.gestione_admin.__wrapped__(request)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
-            self.assertEqual(response.status_code, 200)
-            content = response.content.decode("utf-8")
-            self.assertIn("SharePoint / Microsoft Graph", content)
-            self.assertIn("Asset/Inventario", content)
-            self.assertIn("Macchine", content)
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode("utf-8")
+        self.assertIn("SharePoint / Microsoft Graph", content)
+        self.assertIn("Asset/Inventario", content)
+        self.assertIn("Macchine", content)
 
     def test_gestione_admin_shows_label_type_rows_and_overrides(self):
         asset = Asset.objects.create(
@@ -1247,9 +1261,10 @@ class AssetsRoutingTests(TestCase):
         self.assertFalse(AssetLabelTemplate.objects.filter(pk=template.pk).exists())
 
     def test_gestione_admin_can_save_sharepoint_config(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            config_path = Path(tmpdir) / "config.ini"
-            config_path.write_text("[AZIENDA]\nclient_secret = keep-me\n", encoding="utf-8")
+        tmpdir = _make_workspace_tempdir("assets-sharepoint-save-")
+        try:
+            env_path = tmpdir / ".env"
+            env_path.write_text("GRAPH_CLIENT_SECRET=keep-me\n", encoding="utf-8")
             request = self.factory.post(
                 reverse("assets:gestione_admin"),
                 {
@@ -1268,18 +1283,24 @@ class AssetsRoutingTests(TestCase):
             request.legacy_user = None
             setattr(request, "_messages", FallbackStorage(request))
 
-            with patch("assets.views._assets_config_ini_path", return_value=config_path):
+            with patch("config.env_config.default_env_path", return_value=env_path), patch.dict(
+                "assets.views.os.environ",
+                {},
+                clear=True,
+            ):
                 response = asset_views.gestione_admin.__wrapped__(request)
 
             self.assertEqual(response.status_code, 302)
-            cfg = configparser.ConfigParser()
-            cfg.read(config_path, encoding="utf-8")
-            self.assertEqual(cfg.get("AZIENDA", "tenant_id"), "tenant-new")
-            self.assertEqual(cfg.get("AZIENDA", "client_id"), "client-new")
-            self.assertEqual(cfg.get("AZIENDA", "site_id"), "site-new")
-            self.assertEqual(cfg.get("AZIENDA", "client_secret"), "keep-me")
-            self.assertEqual(cfg.get("ASSETS", "sharepoint_asset_root_path"), "Asset/Inventario")
-            self.assertEqual(cfg.get("ASSETS", "sharepoint_work_machine_root_path"), "Macchine")
+            content = env_path.read_text(encoding="utf-8")
+            self.assertIn("GRAPH_TENANT_ID=tenant-new", content)
+            self.assertIn("GRAPH_CLIENT_ID=client-new", content)
+            self.assertIn("GRAPH_SITE_ID=site-new", content)
+            self.assertIn("GRAPH_CLIENT_SECRET=keep-me", content)
+            self.assertIn("ASSETS_SHAREPOINT_ASSET_ROOT_PATH=Asset/Inventario", content)
+            self.assertIn("ASSETS_SHAREPOINT_WORK_MACHINE_ROOT_PATH=Macchine", content)
+            self.assertIn("ASSETS_SHAREPOINT_LIBRARY_URL=https://contoso.sharepoint.com/sites/example-assets", content)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
     def test_asset_edit_redirects_to_work_machine_edit_for_work_machine(self):
         asset = Asset.objects.create(
@@ -3206,6 +3227,326 @@ class AssetMaintenanceStepThreeTests(TestCase):
         self.assertEqual(str(state.last_execution_date), "2026-03-01")
         self.assertEqual(state.notes, "Manutenzione straordinaria registrata a mano")
 
+    def test_maintenance_schedule_creates_outlook_event_for_selected_legacy_user(self):
+        target_user = UtenteLegacy.objects.create(
+            nome="Mario Rossi",
+            email="m.rossi@example.local",
+            password="hash-test",
+            attivo=True,
+        )
+        AssetMaintenanceRuleState.objects.create(
+            asset=self.asset,
+            base_rule=self.base_rule,
+            last_execution_date=date(2026, 1, 1),
+            notes="Storico per calendario",
+        )
+        self.client.force_login(self.admin)
+
+        with patch.object(
+            asset_views,
+            "_outlook_calendar_create_event",
+            return_value={"id": "evt-123", "webLink": "https://outlook.office.com/calendar/item/evt-123"},
+        ) as mocked_create:
+            response = self.client.post(
+                reverse("assets:maintenance_schedule"),
+                {
+                    "action": "create_outlook_calendar_event",
+                    "asset_id": str(self.asset.id),
+                    "base_rule_id": str(self.base_rule.id),
+                    "target_legacy_user_id": str(target_user.id),
+                    "filter_asset": str(self.asset.id),
+                    "filter_status": "all",
+                    "filter_category": "",
+                    "filter_reparto": "",
+                    "filter_coverage": "all",
+                    "filter_q": "",
+                },
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(f"asset={self.asset.id}", response["Location"])
+        mocked_create.assert_called_once()
+        self.assertEqual(mocked_create.call_args.kwargs["target_email"], "m.rossi@example.local")
+        payload = mocked_create.call_args.kwargs["payload"]
+        self.assertIn(self.asset.asset_tag, payload["subject"])
+        self.assertIn(self.category_template.label, payload["subject"])
+        self.assertEqual(payload["start"]["timeZone"], asset_views.OUTLOOK_CALENDAR_TIMEZONE)
+
+        calendar_event = AssetCalendarEvent.objects.get(
+            asset=self.asset,
+            event_kind=AssetCalendarEvent.KIND_MAINTENANCE,
+            maintenance_rule=self.base_rule,
+            target_legacy_user_id=target_user.id,
+        )
+        self.assertEqual(calendar_event.target_email, "m.rossi@example.local")
+        self.assertEqual(str(calendar_event.due_date), "2026-04-01")
+        self.assertEqual(calendar_event.graph_event_id, "evt-123")
+
+        with patch.object(asset_views, "_outlook_calendar_graph_ready", return_value=True):
+            page_response = self.client.get(reverse("assets:maintenance_schedule") + f"?asset={self.asset.id}")
+        self.assertEqual(page_response.status_code, 200)
+        self.assertContains(page_response, "Crea evento Outlook")
+        self.assertContains(page_response, "Evento Outlook")
+        self.assertContains(page_response, "Mario Rossi")
+
+    def test_maintenance_schedule_does_not_duplicate_existing_outlook_event(self):
+        target_user = UtenteLegacy.objects.create(
+            nome="Laura Bianchi",
+            email="l.bianchi@example.local",
+            password="hash-test",
+            attivo=True,
+        )
+        AssetMaintenanceRuleState.objects.create(
+            asset=self.asset,
+            base_rule=self.base_rule,
+            last_execution_date=date(2026, 1, 1),
+        )
+        source_key = asset_views._asset_calendar_source_key(
+            event_kind=AssetCalendarEvent.KIND_MAINTENANCE,
+            asset_id=self.asset.id,
+            source_id=self.base_rule.id,
+            due_date=date(2026, 4, 1),
+            target_legacy_user_id=target_user.id,
+        )
+        AssetCalendarEvent.objects.create(
+            asset=self.asset,
+            event_kind=AssetCalendarEvent.KIND_MAINTENANCE,
+            source_key=source_key,
+            maintenance_rule=self.base_rule,
+            due_date=date(2026, 4, 1),
+            target_legacy_user_id=target_user.id,
+            target_display_name="Laura Bianchi",
+            target_email="l.bianchi@example.local",
+            subject="Manutenzione esistente",
+            transaction_id="existing-transaction",
+            graph_event_id="evt-existing",
+            graph_event_web_link="https://outlook.office.com/calendar/item/evt-existing",
+            created_by=self.admin,
+        )
+        self.client.force_login(self.admin)
+
+        with patch.object(asset_views, "_outlook_calendar_create_event") as mocked_create:
+            response = self.client.post(
+                reverse("assets:maintenance_schedule"),
+                {
+                    "action": "create_outlook_calendar_event",
+                    "asset_id": str(self.asset.id),
+                    "base_rule_id": str(self.base_rule.id),
+                    "target_legacy_user_id": str(target_user.id),
+                    "filter_asset": str(self.asset.id),
+                    "filter_status": "all",
+                    "filter_category": "",
+                    "filter_reparto": "",
+                    "filter_coverage": "all",
+                    "filter_q": "",
+                },
+            )
+
+        self.assertEqual(response.status_code, 302)
+        mocked_create.assert_not_called()
+        self.assertEqual(
+            AssetCalendarEvent.objects.filter(
+                asset=self.asset,
+                event_kind=AssetCalendarEvent.KIND_MAINTENANCE,
+                maintenance_rule=self.base_rule,
+                target_legacy_user_id=target_user.id,
+                due_date=date(2026, 4, 1),
+            ).count(),
+            1,
+        )
+
+    def test_administrative_deadline_list_creates_outlook_event_for_selected_legacy_user(self):
+        target_user = UtenteLegacy.objects.create(
+            nome="Giulia Verdi",
+            email="g.verdi@example.local",
+            password="hash-test",
+            attivo=True,
+        )
+        deadline = AssetAdministrativeDeadline.objects.create(
+            asset=self.asset,
+            deadline_type=AssetAdministrativeDeadline.TYPE_TECHNICAL,
+            title="Revisione impianto",
+            reference_code="REV-2026",
+            issuer="INAIL",
+            due_date=date(2026, 5, 20),
+            warning_days=20,
+        )
+        self.client.force_login(self.admin)
+
+        with patch.object(
+            asset_views,
+            "_outlook_calendar_create_event",
+            return_value={"id": "evt-deadline", "webLink": "https://outlook.office.com/calendar/item/evt-deadline"},
+        ) as mocked_create:
+            response = self.client.post(
+                reverse("assets:asset_administrative_deadline_list"),
+                {
+                    "action": "create_outlook_calendar_event",
+                    "deadline_id": str(deadline.id),
+                    "target_legacy_user_id": str(target_user.id),
+                    "filter_asset": str(self.asset.id),
+                    "filter_component": "",
+                    "filter_deadline_type": "",
+                    "filter_status": "all",
+                    "filter_q": "",
+                },
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(f"asset={self.asset.id}", response["Location"])
+        mocked_create.assert_called_once()
+        self.assertEqual(mocked_create.call_args.kwargs["target_email"], "g.verdi@example.local")
+        payload = mocked_create.call_args.kwargs["payload"]
+        self.assertIn(deadline.title, payload["subject"])
+
+        calendar_event = AssetCalendarEvent.objects.get(
+            asset=self.asset,
+            event_kind=AssetCalendarEvent.KIND_ADMINISTRATIVE_DEADLINE,
+            administrative_deadline=deadline,
+            target_legacy_user_id=target_user.id,
+        )
+        self.assertEqual(calendar_event.target_email, "g.verdi@example.local")
+        self.assertEqual(calendar_event.graph_event_id, "evt-deadline")
+
+        with patch.object(asset_views, "_outlook_calendar_graph_ready", return_value=True):
+            page_response = self.client.get(
+                reverse("assets:asset_administrative_deadline_list") + f"?asset={self.asset.id}"
+            )
+        self.assertEqual(page_response.status_code, 200)
+        self.assertContains(page_response, "Crea evento Outlook")
+        self.assertContains(page_response, "Evento Outlook")
+        self.assertContains(page_response, "Giulia Verdi")
+
+    def test_periodic_verification_list_creates_outlook_event_for_selected_asset_context(self):
+        target_user = UtenteLegacy.objects.create(
+            nome="Paolo Neri",
+            email="p.neri@example.local",
+            password="hash-test",
+            attivo=True,
+        )
+        supplier = Fornitore.objects.create(
+            ragione_sociale="Fornitore Verifiche",
+            categoria=Fornitore.CATEGORIA_MANUTENZIONE,
+        )
+        verification = PeriodicVerification.objects.create(
+            name="Taratura annuale",
+            supplier=supplier,
+            frequency_months=12,
+            next_verification_date=date(2026, 6, 15),
+            created_by=self.admin,
+        )
+        verification.assets.add(self.asset)
+        self.client.force_login(self.admin)
+
+        with patch.object(
+            asset_views,
+            "_outlook_calendar_create_event",
+            return_value={"id": "evt-periodic", "webLink": "https://outlook.office.com/calendar/item/evt-periodic"},
+        ) as mocked_create:
+            response = self.client.post(
+                reverse("assets:periodic_verifications"),
+                {
+                    "action": "create_outlook_calendar_event",
+                    "verification_id": str(verification.id),
+                    "asset_id": str(self.asset.id),
+                    "target_legacy_user_id": str(target_user.id),
+                    "filter_asset": str(self.asset.id),
+                    "filter_edit": "",
+                },
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(f"asset={self.asset.id}", response["Location"])
+        mocked_create.assert_called_once()
+        self.assertEqual(mocked_create.call_args.kwargs["target_email"], "p.neri@example.local")
+        payload = mocked_create.call_args.kwargs["payload"]
+        self.assertIn(verification.name, payload["subject"])
+
+        calendar_event = AssetCalendarEvent.objects.get(
+            asset=self.asset,
+            event_kind=AssetCalendarEvent.KIND_PERIODIC_VERIFICATION,
+            periodic_verification=verification,
+            target_legacy_user_id=target_user.id,
+        )
+        self.assertEqual(calendar_event.target_email, "p.neri@example.local")
+        self.assertEqual(str(calendar_event.due_date), "2026-06-15")
+        self.assertEqual(calendar_event.graph_event_id, "evt-periodic")
+
+        with patch.object(asset_views, "_outlook_calendar_graph_ready", return_value=True):
+            page_response = self.client.get(reverse("assets:periodic_verifications") + f"?asset={self.asset.id}")
+        self.assertEqual(page_response.status_code, 200)
+        self.assertContains(page_response, "Crea evento Outlook")
+        self.assertContains(page_response, "Evento Outlook")
+        self.assertContains(page_response, "Paolo Neri")
+
+    def test_assistance_contract_list_creates_outlook_event_for_selected_asset_context(self):
+        target_user = UtenteLegacy.objects.create(
+            nome="Sara Blu",
+            email="s.blu@example.local",
+            password="hash-test",
+            attivo=True,
+        )
+        supplier = Fornitore.objects.create(
+            ragione_sociale="Fornitore Contratto Calendario",
+            categoria=Fornitore.CATEGORIA_MANUTENZIONE,
+        )
+        contract = AssistanceContract.objects.create(
+            supplier=supplier,
+            asset=self.asset,
+            code="CTR-CAL",
+            title="Contratto con promemoria",
+            contract_type=AssistanceContract.TYPE_FULL_SERVICE,
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 12, 31),
+            is_active=True,
+            coverage_summary="Copertura standard",
+        )
+        self.client.force_login(self.admin)
+
+        with patch.object(
+            asset_views,
+            "_outlook_calendar_create_event",
+            return_value={"id": "evt-contract", "webLink": "https://outlook.office.com/calendar/item/evt-contract"},
+        ) as mocked_create:
+            response = self.client.post(
+                reverse("assets:assistance_contract_list"),
+                {
+                    "action": "create_outlook_calendar_event",
+                    "contract_id": str(contract.id),
+                    "asset_id": str(self.asset.id),
+                    "target_legacy_user_id": str(target_user.id),
+                    "filter_asset": str(self.asset.id),
+                    "filter_supplier": "",
+                    "filter_state": "all",
+                    "filter_scope": "all",
+                    "filter_q": "",
+                },
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(f"asset={self.asset.id}", response["Location"])
+        mocked_create.assert_called_once()
+        self.assertEqual(mocked_create.call_args.kwargs["target_email"], "s.blu@example.local")
+        payload = mocked_create.call_args.kwargs["payload"]
+        self.assertIn(contract.title, payload["subject"])
+
+        calendar_event = AssetCalendarEvent.objects.get(
+            asset=self.asset,
+            event_kind=AssetCalendarEvent.KIND_ASSISTANCE_CONTRACT,
+            assistance_contract=contract,
+            target_legacy_user_id=target_user.id,
+        )
+        self.assertEqual(calendar_event.target_email, "s.blu@example.local")
+        self.assertEqual(str(calendar_event.due_date), "2026-12-31")
+        self.assertEqual(calendar_event.graph_event_id, "evt-contract")
+
+        with patch.object(asset_views, "_outlook_calendar_graph_ready", return_value=True):
+            page_response = self.client.get(reverse("assets:assistance_contract_list") + f"?asset={self.asset.id}")
+        self.assertEqual(page_response.status_code, 200)
+        self.assertContains(page_response, "Crea evento Outlook")
+        self.assertContains(page_response, "Evento Outlook")
+        self.assertContains(page_response, "Sara Blu")
+
     def test_assistance_contract_list_creates_contract_for_selected_asset(self):
         supplier = Fornitore.objects.create(
             ragione_sociale="Fornitore Contratti Step 3",
@@ -3281,23 +3622,27 @@ class AssetMaintenanceStepThreeTests(TestCase):
         )
         self.client.force_login(self.admin)
 
-        with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
-            document = FornitoreDocumento.objects.create(
-                fornitore=supplier,
-                nome="Contratto officina firmato",
-                tipo=FornitoreDocumento.TIPO_CONTRATTO,
-                file=SimpleUploadedFile("contratto.pdf", b"%PDF-1.4 test", content_type="application/pdf"),
-            )
-            AssistanceContract.objects.create(
-                supplier=supplier,
-                asset=self.asset,
-                title="Contratto con documento",
-                contract_type=AssistanceContract.TYPE_FULL_SERVICE,
-                start_date=timezone.localdate() - timedelta(days=5),
-                document=document,
-            )
+        media_root = _make_workspace_tempdir("assets-contract-doc-")
+        try:
+            with override_settings(MEDIA_ROOT=media_root):
+                document = FornitoreDocumento.objects.create(
+                    fornitore=supplier,
+                    nome="Contratto officina firmato",
+                    tipo=FornitoreDocumento.TIPO_CONTRATTO,
+                    file=SimpleUploadedFile("contratto.pdf", b"%PDF-1.4 test", content_type="application/pdf"),
+                )
+                AssistanceContract.objects.create(
+                    supplier=supplier,
+                    asset=self.asset,
+                    title="Contratto con documento",
+                    contract_type=AssistanceContract.TYPE_FULL_SERVICE,
+                    start_date=timezone.localdate() - timedelta(days=5),
+                    document=document,
+                )
 
-            response = self.client.get(reverse("assets:assistance_contract_list") + f"?asset={self.asset.id}")
+                response = self.client.get(reverse("assets:assistance_contract_list") + f"?asset={self.asset.id}")
+        finally:
+            shutil.rmtree(media_root, ignore_errors=True)
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Stai creando un contratto per questo asset")

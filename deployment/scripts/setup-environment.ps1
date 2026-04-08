@@ -245,11 +245,6 @@ if (-not (Test-Path $envDest)) {
     }
 }
 
-$configIniDest = "$($paths.Config)\config.ini"
-if (-not (Test-Path $configIniDest)) {
-    Write-Log "File config.ini non trovato in $configIniDest — crealo prima del deploy!" "WARN"
-}
-
 # ---------------------------------------------------------------------------
 # File marker versione ambiente
 # ---------------------------------------------------------------------------
@@ -265,7 +260,6 @@ Write-Log "Setup ambiente '$Environment' completato." "SUCCESS"
 Write-Log "" "INFO"
 Write-Log "PROSSIMI PASSI:" "STEP"
 Write-Log "  1. Copia e modifica il file config: $($paths.Config)\.env" "INFO"
-Write-Log "  2. Copia e modifica: $($paths.Config)\config.ini" "INFO"
-Write-Log "  3. Configura IIS: .\configure-iis-site.ps1 -Environment $Environment" "INFO"
-Write-Log "  4. Deploya il primo release: .\deploy-release.ps1 -Environment $Environment -PackagePath <zip>" "INFO"
+Write-Log "  2. Configura IIS: .\configure-iis-site.ps1 -Environment $Environment" "INFO"
+Write-Log "  3. Deploya il primo release: .\deploy-release.ps1 -Environment $Environment -PackagePath <zip>" "INFO"
 Write-LogSeparator

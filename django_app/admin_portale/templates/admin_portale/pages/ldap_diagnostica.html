@@ -7,30 +7,8 @@
 {% endblock %}
 
 {% block content %}
-  {% include "admin_portale/components/page_header.html" with page_title="Config SRV" page_subtitle="Pannello unico per configurare e testare LDAP / Active Directory e SMTP. La sezione LDAP distingue runtime attivo e configurazione persistita." %}
+  {% include "admin_portale/components/page_header.html" with page_title="Config SRV" page_subtitle="Pannello unico per configurare e testare LDAP / Active Directory e SMTP. La sezione LDAP espone i valori effettivi con precedenza ambiente processo -> .env -> default." %}
   {% include "admin_portale/components/flash_messages.html" %}
-
-  <div class="card" style="margin-bottom:10px;">
-    <div class="card-head">
-      <div class="card-title">Sync rapido utenti LDAP</div>
-      <div class="cell-muted">Azione diretta dalla pagina</div>
-    </div>
-    <div class="card-body admin-inline-actions">
-      <form method="post" style="display:inline;">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="sync_users">
-        <input type="hidden" name="sync_dry_run" value="1">
-        <input type="hidden" name="sync_limit" value="20">
-        <button class="btn btn-secondary" type="submit">Sync utenti LDAP (dry-run 20)</button>
-      </form>
-      <form method="post" style="display:inline;">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="sync_users">
-        <input type="hidden" name="sync_limit" value="0">
-        <button class="btn" type="submit">Sync utenti LDAP (reale)</button>
-      </form>
-    </div>
-  </div>
 
   <div class="card">
     <div class="card-head">
@@ -44,11 +22,33 @@
         </div>
       {% elif ldap_runtime_has_env_override %}
         <div class="notice" style="margin-bottom:12px;">
-          Alcuni campi risultano intenzionalmente sovrascritti da <code>.env</code> o dall'ambiente processo rispetto a <code>config.ini</code>.
+          Alcuni campi risultano intenzionalmente sovrascritti dall'ambiente processo rispetto a <code>.env</code>.
         </div>
       {% else %}
         <div class="notice notice-success" style="margin-bottom:12px;">
           Runtime attivo e configurazione persistita risultano allineati per i campi LDAP monitorati.
+        </div>
+      {% endif %}
+
+      {% if ldap_effective_auth_ready %}
+        <div class="notice notice-success" style="margin-bottom:12px;">
+          Test LDAP pronti. Server effettivo: <code>{{ ldap_cfg.server|default:"(non configurato)" }}</code>
+          <span class="cell-muted">da {{ ldap_cfg_source_labels.server }}</span>.
+        </div>
+      {% else %}
+        <div class="notice notice-warning" style="margin-bottom:12px;">
+          Test LDAP non pronti. Mancano nei valori effettivi: <strong>{{ ldap_effective_auth_missing|join:", " }}</strong>.
+        </div>
+      {% endif %}
+
+      {% if ldap_effective_sync_ready %}
+        <div class="notice" style="margin-bottom:12px;">
+          Sync LDAP pronta con service account <code>{{ ldap_cfg.service_user|default:"(non configurato)" }}</code>
+          e Base DN <code>{{ ldap_cfg.base_dn|default:"(non configurato)" }}</code>.
+        </div>
+      {% else %}
+        <div class="notice" style="margin-bottom:12px;">
+          Sync LDAP incompleta. Mancano nei valori effettivi: <strong>{{ ldap_effective_sync_missing|join:", " }}</strong>.
         </div>
       {% endif %}
 
@@ -91,17 +91,23 @@
       </div>
 
       <div class="cell-muted" style="margin-top:10px;">
-        Il runtime attivo viene letto all'avvio di Django; il confronto sopra mostra anche quali valori saranno usati al prossimo riavvio in base a <code>.env</code>, ambiente processo e <code>config.ini</code>.
+        Il runtime attivo viene letto all'avvio di Django; il confronto sopra mostra anche quali valori saranno usati al prossimo riavvio in base a <code>.env</code> e all'ambiente processo.
       </div>
     </div>
   </div>
 
   <div class="card">
     <div class="card-head">
-      <div class="card-title">Configurazione LDAP persistita in config.ini</div>
-      <div class="cell-muted">{% if ldap_cfg.enabled %}config.ini: LDAP abilitato{% else %}config.ini: LDAP disabilitato{% endif %}</div>
+      <div class="card-title">Configurazione LDAP</div>
+      <div class="cell-muted">{% if ldap_cfg.enabled %}Valori effettivi attivi{% else %}Valori effettivi incompleti o disabilitati{% endif %}</div>
     </div>
     <div class="card-body">
+      <div class="notice" style="margin-bottom:12px;">
+        Questa form mostra i valori effettivi con la precedenza reale del progetto:
+        <code>ambiente processo -&gt; .env -&gt; default</code>.
+        Il pulsante di salvataggio aggiorna direttamente <code>.env</code>, che e' ora la sola configurazione persistita del progetto.
+      </div>
+
       <form method="post" class="admin-form-grid">
         {% csrf_token %}
         <div class="field">
@@ -141,7 +147,7 @@
         </div>
         <div class="field field-actions" style="gap:8px; display:flex; flex-wrap:wrap;">
           <button class="btn btn-secondary" type="submit" name="action" value="test_connect">Test Connessione LDAP</button>
-          <button class="btn" type="submit" name="action" value="save_ldap_config">Salva config LDAP in config.ini</button>
+          <button class="btn" type="submit" name="action" value="save_ldap_config">Salva config LDAP in .env</button>
         </div>
       </form>
       {% if result_connect %}
@@ -150,17 +156,13 @@
         </div>
       {% endif %}
       <div class="cell-muted" style="margin-top:10px;">
-        Questa form modifica <code>config.ini</code>. Dopo il salvataggio serve <strong>riavviare il server</strong> per far rileggere i settings Django; se esiste un override in <code>.env</code>, il confronto nel riquadro sopra lo segnala esplicitamente.
+        Il salvataggio aggiorna <code>.env</code>. Dopo il salvataggio serve <strong>riavviare il server</strong> per far rileggere i settings Django; se esiste un override nell'ambiente processo, il confronto nel riquadro sopra lo segnala esplicitamente.
       </div>
       <div class="notice" style="margin-top:10px;">
-        <strong>Import utenti LDAP attualmente in uso dal runtime:</strong>
-        <div style="margin-top:6px;">
-          Service user: <code>{{ ldap_runtime_cfg.service_user|default:"(non configurato)" }}</code><br>
-          Base DN: <code>{{ ldap_runtime_cfg.base_dn|default:"(non configurato)" }}</code><br>
-          User filter: <code>{{ ldap_runtime_cfg.user_filter|default:"(non configurato)" }}</code><br>
-          Group allowlist: <code>{{ ldap_runtime_cfg.group_allowlist|default:"(vuota: importa tutti i gruppi)" }}</code><br>
-          Page size: <code>{{ ldap_runtime_cfg.sync_page_size }}</code>
-        </div>
+        Origine valori effettivi principali:
+        server <code>{{ ldap_cfg.server|default:"(non configurato)" }}</code> da <strong>{{ ldap_cfg_source_labels.server }}</strong>,
+        service account <code>{{ ldap_cfg.service_user|default:"(non configurato)" }}</code> da <strong>{{ ldap_cfg_source_labels.service_user }}</strong>,
+        Base DN <code>{{ ldap_cfg.base_dn|default:"(non configurato)" }}</code> da <strong>{{ ldap_cfg_source_labels.base_dn }}</strong>.
       </div>
     </div>
   </div>
@@ -205,7 +207,7 @@
         <div class="field field-actions" style="gap:8px; display:flex; flex-wrap:wrap;">
           <button class="btn btn-secondary" type="submit" name="action" value="test_smtp_connect">Test Connessione SMTP</button>
           <button class="btn btn-secondary" type="submit" name="action" value="test_smtp_send">Invia Mail di Test</button>
-          <button class="btn" type="submit" name="action" value="save_smtp_config">Salva SMTP in config.ini</button>
+          <button class="btn" type="submit" name="action" value="save_smtp_config">Salva SMTP in .env</button>
         </div>
       </form>
 
@@ -224,7 +226,7 @@
       {% endif %}
 
       <div class="cell-muted" style="margin-top:10px;">
-        Nota: se salvi la configurazione SMTP in <code>config.ini</code>, poi serve <strong>riavviare il server</strong>
+        Nota: se salvi la configurazione SMTP in <code>.env</code>, poi serve <strong>riavviare il server</strong>
         per far rileggere i settings Django. Il test connessione qui sopra usa invece i valori del form, senza riavvio.
       </div>
     </div>
@@ -235,11 +237,11 @@
     <div class="card-body">
       {% if not ldap_cfg.service_user %}
         <div class="notice notice-warning" style="margin-bottom:12px;">
-          Service account non configurato. La sync massiva da AD non e' disponibile finche' non vengono impostati username e password.
+          Service account effettivo non configurato. La sync massiva da AD non e' disponibile finche' non vengono impostati username e password nei valori effettivi.
         </div>
       {% else %}
         <div class="notice notice-success" style="margin-bottom:12px;">
-          Service account configurato: <strong>{{ ldap_cfg.service_user }}</strong>
+          Service account effettivo configurato: <strong>{{ ldap_cfg.service_user }}</strong>
         </div>
       {% endif %}
 
@@ -255,7 +257,7 @@
         </div>
         <div class="field field-actions" style="gap:8px; display:flex; flex-wrap:wrap;">
           <button class="btn btn-secondary" type="submit" name="action" value="test_service_bind">Testa bind service account</button>
-          <button class="btn" type="submit" name="action" value="save_service_account">Salva in config.ini</button>
+          <button class="btn" type="submit" name="action" value="save_service_account">Salva in .env</button>
         </div>
       </form>
 

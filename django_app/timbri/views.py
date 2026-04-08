@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import configparser
 import csv
 import io
 import logging
@@ -23,6 +22,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
+from config.env_config import get_first_env_value, load_env_file_values, resolve_env_value, update_env_file_values
 from core.acl import user_can_modulo_action
 from core.audit import log_action
 from core.graph_utils import acquire_graph_token, is_placeholder_value
@@ -37,7 +37,6 @@ logger = logging.getLogger(__name__)
 
 _READ_ROLE_NAMES = {"admin", "amministrazione", "caporeparto", "hr"}
 _EDIT_ROLE_NAMES = {"admin", "amministrazione"}
-_TIMBRI_CONFIG_SECTION = "TIMBRI"
 _TIMBRI_IMAGE_MAX_DIM = 1600
 _TIMBRI_REQUIRED_TABLES = {
     "timbri_operatoretimbri",
@@ -87,60 +86,6 @@ _FIELD_CANDIDATES = {
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
-
-
-def _config_ini_path() -> Path:
-    return _repo_root() / "config.ini"
-
-
-def _load_app_config() -> configparser.ConfigParser:
-    cfg = configparser.ConfigParser()
-    cfg.read(_config_ini_path(), encoding="utf-8")
-    return cfg
-
-
-def _set_ini_option_preserve(section: str, option: str, value: str) -> None:
-    path = _config_ini_path()
-    lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
-    section_key = str(section or "").strip().casefold()
-    sec_idx = None
-    sec_end = len(lines)
-    for idx, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped.startswith("[") and stripped.endswith("]"):
-            current = stripped[1:-1].strip().casefold()
-            if current == section_key:
-                sec_idx = idx
-                for j in range(idx + 1, len(lines)):
-                    nxt = lines[j].strip()
-                    if nxt.startswith("[") and nxt.endswith("]"):
-                        sec_end = j
-                        break
-                break
-    new_line = f"{option} = {value}"
-    if sec_idx is None:
-        if lines and lines[-1].strip():
-            lines.append("")
-        lines.extend([f"[{section}]", new_line])
-    else:
-        option_key = str(option or "").strip().casefold()
-        found = None
-        for idx in range(sec_idx + 1, sec_end):
-            stripped = lines[idx].strip()
-            if "=" not in stripped or stripped.startswith("#") or stripped.startswith(";"):
-                continue
-            key = stripped.split("=", 1)[0].strip().casefold()
-            if key == option_key:
-                found = idx
-                break
-        if found is not None:
-            lines[found] = new_line
-        else:
-            lines.insert(sec_end, new_line)
-    out = "\n".join(lines)
-    if out and not out.endswith("\n"):
-        out += "\n"
-    path.write_text(out, encoding="utf-8")
 
 
 def _legacy_user(request):
@@ -197,31 +142,27 @@ def _can_manage_timbri_config(request) -> bool:
     return _can_edit_timbri(request)
 
 
-def _graph_runtime_value(*env_keys: str, option: str) -> tuple[str, str]:
-    cfg = _load_app_config()
-    az = cfg["AZIENDA"] if cfg.has_section("AZIENDA") else {}
-    tim = cfg[_TIMBRI_CONFIG_SECTION] if cfg.has_section(_TIMBRI_CONFIG_SECTION) else {}
-    section_obj = tim if option == "list_id" else az
-    for key in env_keys:
-        raw = (os.getenv(key) or "").strip()
-        if raw:
-            if option == "list_id":
-                raw = _normalize_graph_list_id(raw)
-            return raw, "env"
-    if hasattr(section_obj, "get"):
-        raw = str(section_obj.get(option, "") or "").strip()
-        if option == "list_id":
-            raw = _normalize_graph_list_id(raw)
-        return raw, "config.ini"
-    return "", "config.ini"
+def _mapping_env_key(key: str) -> str:
+    return f"TIMBRI_{str(key or '').upper()}"
+
+
+def _graph_runtime_value(*env_keys: str, normalize_list_id: bool = False) -> tuple[str, str]:
+    raw, source = resolve_env_value(*env_keys, dotenv_values=load_env_file_values())
+    if normalize_list_id:
+        raw = _normalize_graph_list_id(raw)
+    if source == "process_env":
+        return raw, "ambiente processo"
+    if source == "dotenv":
+        return raw, ".env"
+    return raw, "non configurato"
 
 
 def _graph_settings() -> dict[str, str]:
-    tenant_id, _ = _graph_runtime_value("GRAPH_TENANT_ID", "AZURE_TENANT_ID", option="tenant_id")
-    client_id, _ = _graph_runtime_value("GRAPH_CLIENT_ID", "AZURE_CLIENT_ID", option="client_id")
-    client_secret, _ = _graph_runtime_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET", option="client_secret")
-    site_id, _ = _graph_runtime_value("GRAPH_SITE_ID", option="site_id")
-    list_id, _ = _graph_runtime_value("GRAPH_LIST_ID_TIMBRI", option="list_id")
+    tenant_id = get_first_env_value("GRAPH_TENANT_ID", "AZURE_TENANT_ID")
+    client_id = get_first_env_value("GRAPH_CLIENT_ID", "AZURE_CLIENT_ID")
+    client_secret = get_first_env_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET")
+    site_id = get_first_env_value("GRAPH_SITE_ID")
+    list_id = _normalize_graph_list_id(get_first_env_value("GRAPH_LIST_ID_TIMBRI"))
     return {
         "tenant_id": tenant_id,
         "client_id": client_id,
@@ -269,15 +210,8 @@ def _graph_healthcheck() -> tuple[bool, str]:
         return False, f"Test Graph timbri fallito: {exc}"
 
 
-def _config_value(section: str, option: str, default: str = "") -> str:
-    cfg = _load_app_config()
-    if cfg.has_section(section):
-        return str(cfg.get(section, option, fallback=default) or default).strip()
-    return default
-
-
 def _mapping_value(key: str) -> str:
-    return _config_value(_TIMBRI_CONFIG_SECTION, key, "")
+    return str(load_env_file_values().get(_mapping_env_key(key), "") or "").strip()
 
 
 def _normalize_graph_list_id(value: str) -> str:
@@ -294,17 +228,18 @@ def _normalize_graph_list_id(value: str) -> str:
 
 
 def _sharepoint_admin_config() -> dict[str, object]:
-    tenant_id, tenant_source = _graph_runtime_value("GRAPH_TENANT_ID", "AZURE_TENANT_ID", option="tenant_id")
-    client_id, client_source = _graph_runtime_value("GRAPH_CLIENT_ID", "AZURE_CLIENT_ID", option="client_id")
-    secret, secret_source = _graph_runtime_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET", option="client_secret")
-    site_id, site_source = _graph_runtime_value("GRAPH_SITE_ID", option="site_id")
-    list_id, list_source = _graph_runtime_value("GRAPH_LIST_ID_TIMBRI", option="list_id")
+    dotenv_values = load_env_file_values()
+    tenant_id, tenant_source = _graph_runtime_value("GRAPH_TENANT_ID", "AZURE_TENANT_ID")
+    client_id, client_source = _graph_runtime_value("GRAPH_CLIENT_ID", "AZURE_CLIENT_ID")
+    secret, secret_source = _graph_runtime_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET")
+    site_id, site_source = _graph_runtime_value("GRAPH_SITE_ID")
+    list_id, list_source = _graph_runtime_value("GRAPH_LIST_ID_TIMBRI", normalize_list_id=True)
     return {
-        "tenant_id": _config_value("AZIENDA", "tenant_id", ""),
-        "client_id": _config_value("AZIENDA", "client_id", ""),
-        "site_id": _config_value("AZIENDA", "site_id", ""),
-        "list_id": _normalize_graph_list_id(_config_value(_TIMBRI_CONFIG_SECTION, "list_id", "")),
-        "client_secret_configured": bool(_config_value("AZIENDA", "client_secret", "")),
+        "tenant_id": str(dotenv_values.get("GRAPH_TENANT_ID") or dotenv_values.get("AZURE_TENANT_ID") or "").strip(),
+        "client_id": str(dotenv_values.get("GRAPH_CLIENT_ID") or dotenv_values.get("AZURE_CLIENT_ID") or "").strip(),
+        "site_id": str(dotenv_values.get("GRAPH_SITE_ID") or "").strip(),
+        "list_id": _normalize_graph_list_id(str(dotenv_values.get("GRAPH_LIST_ID_TIMBRI") or "").strip()),
+        "client_secret_configured": bool(str(dotenv_values.get("GRAPH_CLIENT_SECRET") or dotenv_values.get("AZURE_CLIENT_SECRET") or "").strip()),
         "runtime_ready": not _graph_config_issue(),
         "runtime_sources": {
             "tenant_id": tenant_source,
@@ -313,7 +248,10 @@ def _sharepoint_admin_config() -> dict[str, object]:
             "site_id": site_source,
             "list_id": list_source,
         },
-        "env_override_active": any(src == "env" for src in [tenant_source, client_source, secret_source, site_source, list_source]),
+        "env_override_active": any(
+            src == "ambiente processo"
+            for src in [tenant_source, client_source, secret_source, site_source, list_source]
+        ),
         "sync_issue": _graph_config_issue(),
         "mapping": {key: _mapping_value(key) for key, _label, _help in TIMBRI_CONFIG_FIELDS if key.startswith("field_")},
     }
@@ -1406,15 +1344,19 @@ def configurazione_page(request):
         redirect_url = f"{reverse('timbri:configurazione')}?tab={tab}"
         if action == "save_sharepoint_config":
             try:
+                updates: dict[str, str] = {}
                 for field_name, _label, _help in TIMBRI_CONFIG_FIELDS:
                     value = str(request.POST.get(field_name) or "").strip()[:1000]
                     if field_name == "list_id":
                         value = _normalize_graph_list_id(value)
-                    _set_ini_option_preserve(_TIMBRI_CONFIG_SECTION, field_name, value)
+                        updates["GRAPH_LIST_ID_TIMBRI"] = value
+                    else:
+                        updates[_mapping_env_key(field_name)] = value
+                update_env_file_values(updates)
                 messages.success(request, "Configurazione timbri aggiornata.")
                 log_action(request, "timbri_config_save", "timbri", {"fields": [x[0] for x in TIMBRI_CONFIG_FIELDS]})
             except Exception as exc:
-                messages.error(request, f"Errore scrittura config.ini: {exc}")
+                messages.error(request, f"Errore scrittura .env: {exc}")
             return redirect(redirect_url)
         if action == "test_sharepoint_config":
             ok, message = _graph_healthcheck()

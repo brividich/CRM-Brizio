@@ -1,4 +1,3 @@
-import configparser
 import logging.handlers  # noqa: F401 — registra il handler per LOGGING dict
 import os
 import socket
@@ -10,6 +9,7 @@ from config.app_version import (
     MODULE_ENV_KEYS_BY_CODE,
     load_app_version,
 )
+from config.env_config import load_dotenv_into_environ
 
 # mssql-django 1.6 non riconosce ancora SQL Server major version 17.
 # Trattiamo v17 come compatibile con il profilo 2022 per evitare blocchi in startup.
@@ -23,19 +23,6 @@ except Exception:
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
 BASE_DIR = PROJECT_DIR
-
-
-def _load_dotenv(dotenv_path: Path) -> None:
-    if not dotenv_path.exists():
-        return
-    for raw_line in dotenv_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip("'").strip('"')
-        os.environ.setdefault(key, value)
 
 
 def env(key: str, default: str = "") -> str:
@@ -80,38 +67,7 @@ def default_dev_allowed_hosts() -> list[str]:
     return sorted(hosts)
 
 
-_load_dotenv(PROJECT_DIR / ".env")
-
-
-def _load_config_ini(config_path: Path):
-    parser = configparser.ConfigParser()
-    try:
-        if config_path.exists():
-            parser.read(config_path, encoding="utf-8")
-    except Exception:
-        return configparser.ConfigParser()
-    return parser
-
-
-_CONFIG_INI = _load_config_ini(PROJECT_DIR.parent / "config.ini")
-
-
-def ini_get(section: str, option: str, default: str = "") -> str:
-    try:
-        if _CONFIG_INI.has_section(section):
-            return _CONFIG_INI.get(section, option, fallback=default)
-    except Exception:
-        pass
-    return default
-
-
-def ini_bool(section: str, option: str, default: bool = False) -> bool:
-    try:
-        if _CONFIG_INI.has_section(section):
-            return _CONFIG_INI.getboolean(section, option, fallback=default)
-    except Exception:
-        pass
-    return default
+load_dotenv_into_environ(PROJECT_DIR / ".env")
 
 
 SECRET_KEY = env("DJANGO_SECRET_KEY", "change-me-in-dev")
@@ -152,32 +108,26 @@ NAVIGATION_LEGACY_FALLBACK_ENABLED = env_bool("NAVIGATION_LEGACY_FALLBACK_ENABLE
 #     }
 # }
 MODULE_BRANDING = {}
-LDAP_ENABLED = env_bool("LDAP_ENABLED", ini_bool("ACTIVE_DIRECTORY", "enabled", False))
-LDAP_SERVER = env("LDAP_SERVER", ini_get("ACTIVE_DIRECTORY", "server", ""))
-LDAP_DOMAIN = env("LDAP_DOMAIN", ini_get("ACTIVE_DIRECTORY", "domain", ""))
-LDAP_UPN_SUFFIX = env("LDAP_UPN_SUFFIX", ini_get("ACTIVE_DIRECTORY", "upn_suffix", ""))
-LDAP_TIMEOUT = int(env("LDAP_TIMEOUT", ini_get("ACTIVE_DIRECTORY", "timeout", "5")) or "5")
-LDAP_SERVICE_USER = env("LDAP_SERVICE_USER", ini_get("ACTIVE_DIRECTORY", "service_user", ""))
-LDAP_SERVICE_PASSWORD = env("LDAP_SERVICE_PASSWORD", ini_get("ACTIVE_DIRECTORY", "service_password", ""))
-LDAP_BASE_DN = env("LDAP_BASE_DN", ini_get("ACTIVE_DIRECTORY", "base_dn", ""))
-LDAP_USER_FILTER = env(
-    "LDAP_USER_FILTER",
-    ini_get("ACTIVE_DIRECTORY", "user_filter", "(&(objectCategory=person)(objectClass=user))"),
-)
-LDAP_GROUP_ALLOWLIST = env_list(
-    "LDAP_GROUP_ALLOWLIST",
-    [item.strip() for item in ini_get("ACTIVE_DIRECTORY", "group_allowlist", "").split(",") if item.strip()],
-)
-LDAP_SYNC_PAGE_SIZE = int(env("LDAP_SYNC_PAGE_SIZE", ini_get("ACTIVE_DIRECTORY", "sync_page_size", "500")) or "500")
+LDAP_ENABLED = env_bool("LDAP_ENABLED", False)
+LDAP_SERVER = env("LDAP_SERVER", "")
+LDAP_DOMAIN = env("LDAP_DOMAIN", "")
+LDAP_UPN_SUFFIX = env("LDAP_UPN_SUFFIX", "")
+LDAP_TIMEOUT = int(env("LDAP_TIMEOUT", "5") or "5")
+LDAP_SERVICE_USER = env("LDAP_SERVICE_USER", "")
+LDAP_SERVICE_PASSWORD = env("LDAP_SERVICE_PASSWORD", "")
+LDAP_BASE_DN = env("LDAP_BASE_DN", "")
+LDAP_USER_FILTER = env("LDAP_USER_FILTER", "(&(objectCategory=person)(objectClass=user))")
+LDAP_GROUP_ALLOWLIST = env_list("LDAP_GROUP_ALLOWLIST", [])
+LDAP_SYNC_PAGE_SIZE = int(env("LDAP_SYNC_PAGE_SIZE", "500") or "500")
 EMAIL_BACKEND = env("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
-EMAIL_HOST = env("EMAIL_HOST", ini_get("SMTP", "host", ""))
-EMAIL_PORT = int(env("EMAIL_PORT", ini_get("SMTP", "port", "587")) or "587")
-EMAIL_HOST_USER = env("EMAIL_HOST_USER", ini_get("SMTP", "user", ""))
-EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", ini_get("SMTP", "password", ""))
-EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", ini_bool("SMTP", "use_tls", True))
-EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", ini_bool("SMTP", "use_ssl", False))
-EMAIL_TIMEOUT = int(env("EMAIL_TIMEOUT", ini_get("SMTP", "timeout", "10")) or "10")
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", ini_get("SMTP", "default_from_email", ""))
+EMAIL_HOST = env("EMAIL_HOST", "")
+EMAIL_PORT = int(env("EMAIL_PORT", "587") or "587")
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", False)
+EMAIL_TIMEOUT = int(env("EMAIL_TIMEOUT", "10") or "10")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "")
 SESSION_IDLE_TIMEOUT_SECONDS = int(env("SESSION_IDLE_TIMEOUT_SECONDS", "3600") or "3600")
 SESSION_EXPIRE_AT_BROWSER_CLOSE = env_bool("SESSION_EXPIRE_AT_BROWSER_CLOSE", True)
 LEGACY_ACL_CACHE_TTL = int(env("LEGACY_ACL_CACHE_TTL", "120") or "120")
@@ -185,7 +135,7 @@ LEGACY_NAV_CACHE_TTL = int(env("LEGACY_NAV_CACHE_TTL", "120") or "120")
 ASSENZE_SP_PULL_INTERVAL_SECONDS = int(env("ASSENZE_SP_PULL_INTERVAL_SECONDS", "300") or "300")
 ASSENZE_SYNC_ON_PAGE_LOAD = env_bool("ASSENZE_SYNC_ON_PAGE_LOAD", False)
 ASSENZE_CALENDAR_MAX_EVENTS = int(env("ASSENZE_CALENDAR_MAX_EVENTS", "1500") or "1500")
-ANOMALIE_SP_FOLDER_URL = env("ANOMALIE_SP_FOLDER_URL", ini_get("ANOMALIE", "sp_folder_url", "#"))
+ANOMALIE_SP_FOLDER_URL = env("ANOMALIE_SP_FOLDER_URL", "#")
 SQL_LOG_ENABLED = env_bool("SQL_LOG_ENABLED", False)
 SQL_LOG_LEVEL = env("SQL_LOG_LEVEL", "DEBUG").strip().upper() or "DEBUG"
 SQL_LOG_FORCE_DEBUG_CURSOR = env_bool("SQL_LOG_FORCE_DEBUG_CURSOR", SQL_LOG_ENABLED)

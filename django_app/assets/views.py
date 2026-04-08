@@ -9459,7 +9459,7 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
                 continue
         filtered_rows.append(row)
 
-    calendar_event_map: dict[tuple[int, int, date], list[AssetMaintenanceCalendarEvent]] = defaultdict(list)
+    calendar_event_map: dict[tuple[int, int, date], list[AssetCalendarEvent]] = defaultdict(list)
     if filtered_rows:
         asset_ids = set()
         base_rule_ids = set()

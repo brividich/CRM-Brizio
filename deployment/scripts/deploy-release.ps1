@@ -6,7 +6,7 @@
 .DESCRIPTION
     Questo script:
     1. Estrae il pacchetto zip in releases\TIMESTAMP\
-    2. Copia .env e config.ini dal config\ dell'ambiente
+    2. Copia .env dal config\ dell'ambiente
     3. Aggiorna le dipendenze pip nel venv condiviso
     4. Esegue collectstatic (output in static\)
     5. Esegue migrate
@@ -225,8 +225,6 @@ Write-Log "Struttura pacchetto verificata." "SUCCESS"
 # ---------------------------------------------------------------------------
 Write-Log "[2/8] Copia configurazione..." "STEP"
 $envFile = "$($paths.Config)\.env"
-$configFile = "$($paths.Config)\config.ini"
-
 if (-not (Test-Path $envFile)) {
     Write-Log "File .env non trovato: $envFile" "ERROR"
     Write-Log "Crea il file prima di eseguire il deploy." "ERROR"
@@ -236,15 +234,6 @@ if (-not (Test-Path $envFile)) {
 Copy-Item $envFile "$djangoApp\.env" -Force
 Write-Log "  .env copiato." "INFO"
 Sync-ReleaseEnvSqlDriver -EnvPath "$djangoApp\.env"
-
-if (Test-Path $configFile) {
-    Copy-Item $configFile "$djangoApp\config.ini" -Force
-    Copy-Item $configFile "$releaseDir\config.ini" -Force
-    Write-Log "  config.ini copiato in django_app\\ e nella root del release." "INFO"
-}
-else {
-    Write-Log "  config.ini non trovato in $configFile - potrebbe essere necessario." "WARN"
-}
 
 # ---------------------------------------------------------------------------
 # 3. Verifica / crea venv

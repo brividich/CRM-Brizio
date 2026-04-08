@@ -1661,29 +1661,17 @@ def api_test_sp(request):
         return _json_err("List ID vuoto")
 
     try:
-        import configparser, pathlib, os
+        import os
         from core.graph_utils import acquire_graph_token, is_placeholder_value
+        from config.env_config import get_first_env_value
 
-        def _cfg(section: str, key: str, *env_keys: str) -> str:
-            for ek in env_keys:
-                v = os.environ.get(ek, "")
-                if v:
-                    return v
-            try:
-                ini = pathlib.Path(__file__).resolve().parents[2] / "config.ini"
-                cfg = configparser.ConfigParser()
-                cfg.read(str(ini), encoding="utf-8")
-                return cfg.get(section, key, fallback="")
-            except Exception:
-                return ""
-
-        tenant_id     = _cfg("AZIENDA", "tenant_id",     "GRAPH_TENANT_ID",     "AZURE_TENANT_ID")
-        client_id     = _cfg("AZIENDA", "client_id",     "GRAPH_CLIENT_ID",     "AZURE_CLIENT_ID")
-        client_secret = _cfg("AZIENDA", "client_secret", "GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET")
-        site_id       = _cfg("AZIENDA", "site_id",       "GRAPH_SITE_ID")
+        tenant_id = get_first_env_value("GRAPH_TENANT_ID", "AZURE_TENANT_ID")
+        client_id = get_first_env_value("GRAPH_CLIENT_ID", "AZURE_CLIENT_ID")
+        client_secret = get_first_env_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET")
+        site_id = get_first_env_value("GRAPH_SITE_ID")
 
         if any(is_placeholder_value(v) or not v for v in [tenant_id, client_id, client_secret, site_id]):
-            return _json_err("Configurazione Graph incompleta in config.ini (tenant_id/client_id/client_secret/site_id)")
+            return _json_err("Configurazione Graph incompleta in .env (tenant_id/client_id/client_secret/site_id)")
 
         import requests as req_lib
         token   = acquire_graph_token(tenant_id, client_id, client_secret)

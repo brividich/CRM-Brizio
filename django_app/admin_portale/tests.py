@@ -1,6 +1,5 @@
 ﻿from __future__ import annotations
 
-import configparser
 import json
 import shutil
 import tempfile
@@ -636,13 +635,17 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
 
         tmpdir = _make_workspace_tempdir("ldap-config-")
         try:
-            config_path = tmpdir / "config.ini"
-            config_path.write_text("[ACTIVE_DIRECTORY]\nserver = ldap://old.local\nenabled = false\n", encoding="utf-8")
+            env_path = tmpdir / ".env"
+            env_path.write_text("LDAP_SERVER=ldap://old.local\nLDAP_ENABLED=0\n", encoding="utf-8")
 
             with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
                 "admin_portale.decorators.is_legacy_admin",
                 return_value=True,
-            ), patch("admin_portale.views._config_ini_path", return_value=config_path):
+            ), patch("admin_portale.views._dotenv_path", return_value=env_path), patch.dict(
+                "admin_portale.views.os.environ",
+                {},
+                clear=True,
+            ):
                 response = self.client.post(
                     self.url,
                     {
@@ -662,18 +665,16 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertContains(response, "Configurazione LDAP salvata")
 
-            parser = configparser.ConfigParser()
-            parser.read(config_path, encoding="utf-8")
-
-            self.assertEqual(parser.get("ACTIVE_DIRECTORY", "enabled"), "true")
-            self.assertEqual(parser.get("ACTIVE_DIRECTORY", "server"), "ldap://dc1.example.local")
-            self.assertEqual(parser.get("ACTIVE_DIRECTORY", "domain"), "EXAMPLE")
-            self.assertEqual(parser.get("ACTIVE_DIRECTORY", "upn_suffix"), "@example.local")
-            self.assertEqual(parser.get("ACTIVE_DIRECTORY", "timeout"), "8")
-            self.assertEqual(parser.get("ACTIVE_DIRECTORY", "base_dn"), "DC=EXAMPLE,DC=LOCAL")
-            self.assertEqual(parser.get("ACTIVE_DIRECTORY", "user_filter"), "(&(objectCategory=person)(objectClass=user))")
-            self.assertEqual(parser.get("ACTIVE_DIRECTORY", "group_allowlist"), "EMPLOYEES,ADMINS")
-            self.assertEqual(parser.get("ACTIVE_DIRECTORY", "sync_page_size"), "750")
+            content = env_path.read_text(encoding="utf-8")
+            self.assertIn("LDAP_ENABLED=1", content)
+            self.assertIn("LDAP_SERVER=ldap://dc1.example.local", content)
+            self.assertIn("LDAP_DOMAIN=EXAMPLE", content)
+            self.assertIn("LDAP_UPN_SUFFIX=@example.local", content)
+            self.assertIn("LDAP_TIMEOUT=8", content)
+            self.assertIn("LDAP_BASE_DN=DC=EXAMPLE,DC=LOCAL", content)
+            self.assertIn("LDAP_USER_FILTER=(&(objectCategory=person)(objectClass=user))", content)
+            self.assertIn("LDAP_GROUP_ALLOWLIST=EMPLOYEES,ADMINS", content)
+            self.assertIn("LDAP_SYNC_PAGE_SIZE=750", content)
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 
@@ -682,21 +683,20 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
 
         tmpdir = _make_workspace_tempdir("ldap-runtime-")
         try:
-            config_path = tmpdir / "config.ini"
-            config_path.write_text(
+            env_path = tmpdir / ".env"
+            env_path.write_text(
                 "\n".join(
                     [
-                        "[ACTIVE_DIRECTORY]",
-                        "enabled = true",
-                        "server = ldap://config.example.local",
-                        "domain = CONFIG",
-                        "upn_suffix = @config.local",
-                        "timeout = 9",
-                        "service_user = svc_config",
-                        "base_dn = DC=CONFIG,DC=LOCAL",
-                        "user_filter = (objectClass=user)",
-                        "group_allowlist = EMPLOYEES,ADMINS",
-                        "sync_page_size = 750",
+                        "LDAP_ENABLED=1",
+                        "LDAP_SERVER=ldap://config.example.local",
+                        "LDAP_DOMAIN=CONFIG",
+                        "LDAP_UPN_SUFFIX=@config.local",
+                        "LDAP_TIMEOUT=9",
+                        "LDAP_SERVICE_USER=svc_config",
+                        "LDAP_BASE_DN=DC=CONFIG,DC=LOCAL",
+                        "LDAP_USER_FILTER=(objectClass=user)",
+                        "LDAP_GROUP_ALLOWLIST=EMPLOYEES,ADMINS",
+                        "LDAP_SYNC_PAGE_SIZE=750",
                     ]
                 ),
                 encoding="utf-8",
@@ -720,11 +720,8 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
                 "admin_portale.decorators.is_legacy_admin",
                 return_value=True,
             ), patch(
-                "admin_portale.views._config_ini_path",
-                return_value=config_path,
-            ), patch(
-                "admin_portale.views._load_dotenv_values",
-                return_value={},
+                "admin_portale.views._dotenv_path",
+                return_value=env_path,
             ), patch.dict(
                 "admin_portale.views.os.environ",
                 {},
@@ -734,14 +731,108 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
 
             self.assertEqual(response.status_code, 200)
             self.assertContains(response, "Runtime LDAP attivo")
-            self.assertContains(response, "Configurazione LDAP persistita in config.ini")
+            self.assertContains(response, "Configurazione LDAP")
             self.assertContains(response, "ldap://runtime.example.local")
             self.assertContains(response, "ldap://config.example.local")
             self.assertContains(response, "Riavvio necessario")
             self.assertContains(response, "Il processo Django attuale non e' ancora allineato")
             self.assertContains(response, '<input class="input" type="text" name="server" value="ldap://config.example.local">', html=True)
-            self.assertContains(response, '<input class="input" type="text" name="group_allowlist" value="EMPLOYEES,ADMINS" placeholder="EMPLOYEES,MANAGERS,ADMINS">', html=True)
+            self.assertContains(response, '<input class="input" type="text" name="group_allowlist" value="EMPLOYEES, ADMINS" placeholder="EMPLOYEES,MANAGERS,ADMINS">', html=True)
             self.assertContains(response, '<input class="input" type="number" min="100" max="2000" name="sync_page_size" value="750">', html=True)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_config_srv_uses_dotenv_values_for_effective_form_and_connection_test(self):
+        self.client.force_login(self.admin_user)
+
+        tmpdir = _make_workspace_tempdir("ldap-dotenv-")
+        try:
+            env_path = tmpdir / ".env"
+            env_path.write_text(
+                "\n".join(
+                    [
+                        "LDAP_ENABLED=1",
+                        "LDAP_SERVER=ldap://dotenv.example.local",
+                        "LDAP_DOMAIN=DOTENV",
+                        "LDAP_UPN_SUFFIX=@dotenv.local",
+                        "LDAP_TIMEOUT=7",
+                        "LDAP_SERVICE_USER=svc_dotenv",
+                        "LDAP_BASE_DN=DC=DOTENV,DC=LOCAL",
+                        "LDAP_USER_FILTER=(&(objectCategory=person)(objectClass=user))",
+                        "LDAP_GROUP_ALLOWLIST=EMPLOYEES,ADMINS",
+                        "LDAP_SYNC_PAGE_SIZE=640",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            with override_settings(
+                LDAP_ENABLED=True,
+                LDAP_SERVER="ldap://dotenv.example.local",
+                LDAP_DOMAIN="DOTENV",
+                LDAP_UPN_SUFFIX="@dotenv.local",
+                LDAP_TIMEOUT=7,
+                LDAP_SERVICE_USER="svc_dotenv",
+                LDAP_BASE_DN="DC=DOTENV,DC=LOCAL",
+                LDAP_USER_FILTER="(&(objectCategory=person)(objectClass=user))",
+                LDAP_GROUP_ALLOWLIST=["EMPLOYEES", "ADMINS"],
+                LDAP_SYNC_PAGE_SIZE=640,
+            ), patch(
+                "admin_portale.decorators.get_legacy_user",
+                return_value=self.admin_legacy,
+            ), patch(
+                "admin_portale.decorators.is_legacy_admin",
+                return_value=True,
+            ), patch(
+                "admin_portale.views._dotenv_path",
+                return_value=env_path,
+            ), patch.dict(
+                "admin_portale.views.os.environ",
+                {},
+                clear=True,
+            ):
+                response = self.client.get(self.url)
+
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "Test LDAP pronti.")
+            self.assertContains(response, '<input class="input" type="text" name="server" value="ldap://dotenv.example.local">', html=True)
+            self.assertContains(response, "da .env")
+            self.assertContains(response, "Service account effettivo configurato")
+            self.assertContains(response, "svc_dotenv")
+
+            with override_settings(
+                LDAP_ENABLED=True,
+                LDAP_SERVER="ldap://dotenv.example.local",
+                LDAP_DOMAIN="DOTENV",
+                LDAP_UPN_SUFFIX="@dotenv.local",
+                LDAP_TIMEOUT=7,
+                LDAP_SERVICE_USER="svc_dotenv",
+                LDAP_BASE_DN="DC=DOTENV,DC=LOCAL",
+                LDAP_USER_FILTER="(&(objectCategory=person)(objectClass=user))",
+                LDAP_GROUP_ALLOWLIST=["EMPLOYEES", "ADMINS"],
+                LDAP_SYNC_PAGE_SIZE=640,
+            ), patch(
+                "admin_portale.decorators.get_legacy_user",
+                return_value=self.admin_legacy,
+            ), patch(
+                "admin_portale.decorators.is_legacy_admin",
+                return_value=True,
+            ), patch(
+                "admin_portale.views._dotenv_path",
+                return_value=env_path,
+            ), patch.dict(
+                "admin_portale.views.os.environ",
+                {},
+                clear=True,
+            ), patch(
+                "admin_portale.views._ldap_test_connect",
+                return_value=(True, "Connessione LDAP riuscita."),
+            ) as mocked_test_connect:
+                response = self.client.post(self.url, {"action": "test_connect"})
+
+            self.assertEqual(response.status_code, 200)
+            mocked_test_connect.assert_called_once_with("ldap://dotenv.example.local", 7)
+            self.assertContains(response, "Connessione LDAP riuscita.")
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 

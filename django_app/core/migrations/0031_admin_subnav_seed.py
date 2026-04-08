@@ -206,7 +206,7 @@ ITEMS = [
         order=210,
         route_name="admin_portale:ldap_diagnostica",
         active_patterns="admin_portale:ldap_diagnostica",
-        description="Config SRV: pannello unico per configurare e testare LDAP / Active Directory e SMTP, con persistenza su config.ini.",
+        description="Config SRV: pannello unico per configurare e testare LDAP / Active Directory e SMTP, con persistenza su .env.",
     ),
     # ── Gruppo "hub" ──────────────────────────────────────────────────────────
     dict(

@@ -1,6 +1,6 @@
 # Manuale Amministratore - NOVICROM HUB
 
-> NOVICROM HUB · Aggiornato: 2026-04-03 (v0.9.3)  
+> NOVICROM HUB · Aggiornato: 2026-04-08 (v0.9.9)  
 > Percorso admin: **Admin Portale**  
 > Governance legacy/canonico: vedi anche [`../doc/ARCHITETTURA_TARGET_E_DISMISSIONE_LEGACY.md`](../doc/ARCHITETTURA_TARGET_E_DISMISSIONE_LEGACY.md)
 
@@ -194,6 +194,6 @@ Controlla periodicamente anche:
 - [`../doc/ACL_V2_ADMIN_QUICK_GUIDE.md`](../doc/ACL_V2_ADMIN_QUICK_GUIDE.md)
 - [`../doc/ACL_V2_UAT_CHECKLIST.md`](../doc/ACL_V2_UAT_CHECKLIST.md)
 
-Fine manuale - NOVICROM HUB Admin (v0.9.3)
+Fine manuale - NOVICROM HUB Admin (v0.9.9)
 
 

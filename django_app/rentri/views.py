@@ -4,7 +4,6 @@ Gestione locale + sincronizzazione con SharePoint tramite Microsoft Graph API.
 """
 from __future__ import annotations
 
-import configparser
 import csv
 import io
 import json
@@ -12,7 +11,6 @@ import os
 import re
 from datetime import date, datetime
 from datetime import timezone as dt_timezone
-from pathlib import Path
 
 import requests
 from django.contrib.auth.decorators import login_required
@@ -24,6 +22,7 @@ from django.views.decorators.http import require_POST
 
 from django.contrib import messages
 
+from config.env_config import get_first_env_value
 from core.audit import log_action
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 
@@ -32,40 +31,17 @@ from .models import RegistroRifiuti, RentriImpostazioni
 # ── Helpers Graph / SharePoint ────────────────────────────────────────────────
 
 
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parent.parent
-
-
-def _load_ini() -> configparser.ConfigParser:
-    parser = configparser.ConfigParser()
-    parser.read(_repo_root() / "config.ini", encoding="utf-8")
-    return parser
-
-
-_INI = _load_ini()
-
-
-def _env_or_ini(section: str, option: str, *env_keys: str) -> str:
-    for key in env_keys:
-        value = (os.getenv(key) or "").strip()
-        if value:
-            return value
-    if _INI.has_section(section):
-        return str(_INI.get(section, option, fallback="") or "").strip()
-    return ""
-
-
 def _is_placeholder(value: str) -> bool:
     return not value or value.startswith("<") and value.endswith(">")
 
 
 def _graph_settings() -> dict[str, str]:
     return {
-        "tenant_id": _env_or_ini("AZIENDA", "tenant_id", "GRAPH_TENANT_ID", "AZURE_TENANT_ID"),
-        "client_id": _env_or_ini("AZIENDA", "client_id", "GRAPH_CLIENT_ID", "AZURE_CLIENT_ID"),
-        "client_secret": _env_or_ini("AZIENDA", "client_secret", "GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET"),
-        "site_id": _env_or_ini("AZIENDA", "site_id", "GRAPH_SITE_ID"),
-        "list_id_rentri": _env_or_ini("AZIENDA", "list_id_rentri", "GRAPH_LIST_ID_RENTRI"),
+        "tenant_id": get_first_env_value("GRAPH_TENANT_ID", "AZURE_TENANT_ID"),
+        "client_id": get_first_env_value("GRAPH_CLIENT_ID", "AZURE_CLIENT_ID"),
+        "client_secret": get_first_env_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET"),
+        "site_id": get_first_env_value("GRAPH_SITE_ID"),
+        "list_id_rentri": get_first_env_value("GRAPH_LIST_ID_RENTRI"),
     }
 
 

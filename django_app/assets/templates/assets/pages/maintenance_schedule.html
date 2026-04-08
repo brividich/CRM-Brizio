@@ -58,6 +58,27 @@
 .ms-actions-row { display:flex; gap:8px; flex-wrap:wrap; }
 .ms-suggestions { display:grid; gap:6px; margin-top:8px; }
 .ms-suggestion { color:#64748b; font-size:var(--fs-sm); line-height:1.45; }
+.ms-inline-form { display:grid; gap:8px; margin-top:10px; }
+.ms-inline-select {
+  width:100%;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:#fff;
+  padding:9px 10px;
+  font:inherit;
+}
+.ms-inline-note {
+  color:#64748b;
+  font-size:var(--fs-sm);
+  line-height:1.45;
+}
+.ms-existing-events {
+  display:grid;
+  gap:6px;
+  margin-top:10px;
+  padding-top:10px;
+  border-top:1px dashed #dbe1ea;
+}
 .ms-empty { color:#64748b; }
 @media (max-width: 1280px) {
   .ms-grid-kpi { grid-template-columns:repeat(3, minmax(0, 1fr)); }
@@ -160,6 +181,11 @@
         <h2>Scadenzario</h2>
         <p>Le righe senza una data base vengono mostrate come prima esecuzione da pianificare.</p>
       </div>
+      {% if can_manage_outlook_calendar and not outlook_calendar_ready %}
+        <p class="ms-inline-note" style="margin:0;max-width:360px;">
+          Integrazione Outlook non pronta: verifica le credenziali `GRAPH_*` e il permesso `Calendars.ReadWrite`.
+        </p>
+      {% endif %}
     </div>
     <div class="ms-card-body">
       {% if schedule_rows %}
@@ -233,6 +259,47 @@
                             <a class="as-link-subtle" href="{{ suggestion.href }}">{{ suggestion.label }}</a>
                             <div class="ms-suggestion">{{ suggestion.description }}</div>
                           {% endif %}
+                        {% endfor %}
+                      </div>
+                    {% endif %}
+                    {% if can_manage_outlook_calendar and row.due_date %}
+                      {% if not outlook_calendar_ready %}
+                        <div class="ms-inline-note">Configura Graph prima di creare eventi Outlook.</div>
+                      {% elif calendar_user_choices %}
+                        <form method="post" class="ms-inline-form">
+                          {% csrf_token %}
+                          <input type="hidden" name="action" value="create_outlook_calendar_event">
+                          <input type="hidden" name="asset_id" value="{{ row.asset.id }}">
+                          <input type="hidden" name="base_rule_id" value="{{ row.base_rule.id }}">
+                          <input type="hidden" name="filter_asset" value="{% if selected_asset %}{{ selected_asset.id }}{% endif %}">
+                          <input type="hidden" name="filter_status" value="{{ status_filter }}">
+                          <input type="hidden" name="filter_category" value="{{ selected_category_id }}">
+                          <input type="hidden" name="filter_reparto" value="{{ reparto_filter }}">
+                          <input type="hidden" name="filter_coverage" value="{{ coverage_filter }}">
+                          <input type="hidden" name="filter_q" value="{{ q }}">
+                          <select class="ms-inline-select" name="target_legacy_user_id" required>
+                            <option value="">Seleziona utente calendario</option>
+                            {% for user_id, user_label in calendar_user_choices %}
+                              <option value="{{ user_id }}" {% if row.default_calendar_user_id == user_id %}selected{% endif %}>{{ user_label }}</option>
+                            {% endfor %}
+                          </select>
+                          <button type="submit" class="btn btn-secondary">Crea evento Outlook</button>
+                        </form>
+                      {% else %}
+                        <div class="ms-inline-note">Nessun utente con mailbox disponibile per la sincronizzazione calendario.</div>
+                      {% endif %}
+                    {% endif %}
+                    {% if row.calendar_event_rows %}
+                      <div class="ms-existing-events">
+                        {% for event_row in row.calendar_event_rows %}
+                          {% if event_row.graph_event_web_link %}
+                            <a class="as-link-subtle" href="{{ event_row.graph_event_web_link }}" target="_blank" rel="noopener">
+                              Evento Outlook · {{ event_row.target_display_name|default:event_row.target_email }}
+                            </a>
+                          {% else %}
+                            <span class="ms-inline-note">Evento registrato · {{ event_row.target_display_name|default:event_row.target_email }}</span>
+                          {% endif %}
+                          <div class="ms-suggestion">Scadenza {{ event_row.due_date|date:"d/m/Y" }} · creato il {{ event_row.created_at|date:"d/m/Y H:i" }}</div>
                         {% endfor %}
                       </div>
                     {% endif %}

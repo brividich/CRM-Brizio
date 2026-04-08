@@ -1,14 +1,12 @@
 ﻿
 from __future__ import annotations
 
-import configparser
 import json
 import logging
 import os
 import re
 import time
 from datetime import datetime, timedelta, timezone as dt_timezone
-from pathlib import Path
 import requests
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -20,6 +18,7 @@ from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
+from config.env_config import get_first_env_value
 from core.acl import user_can_modulo_action
 from core.caporeparto_utils import resolve_caporeparto_legacy_user
 
@@ -82,37 +81,13 @@ def _quoted_columns(columns: list[str], *, alias: str | None = None) -> str:
     return ", ".join(_quote_identifier(col) for col in columns)
 
 
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
-
-
-def _load_ini() -> configparser.ConfigParser:
-    parser = configparser.ConfigParser()
-    parser.read(_repo_root() / "config.ini", encoding="utf-8")
-    return parser
-
-
-# Caricato una volta sola a import time, come in config/settings/base.py.
-_INI = _load_ini()
-
-
-def _env_or_ini(section: str, option: str, *env_keys: str) -> str:
-    for key in env_keys:
-        value = (os.getenv(key) or "").strip()
-        if value:
-            return value
-    if _INI.has_section(section):
-        return str(_INI.get(section, option, fallback="") or "").strip()
-    return ""
-
-
 def _graph_settings() -> dict[str, str]:
     return {
-        "tenant_id": _env_or_ini("AZIENDA", "tenant_id", "GRAPH_TENANT_ID", "AZURE_TENANT_ID"),
-        "client_id": _env_or_ini("AZIENDA", "client_id", "GRAPH_CLIENT_ID", "AZURE_CLIENT_ID"),
-        "client_secret": _env_or_ini("AZIENDA", "client_secret", "GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET"),
-        "site_id": _env_or_ini("AZIENDA", "site_id", "GRAPH_SITE_ID"),
-        "list_id_assenze": _env_or_ini("AZIENDA", "list_id_assenze", "GRAPH_LIST_ID_ASSENZE"),
+        "tenant_id": get_first_env_value("GRAPH_TENANT_ID", "AZURE_TENANT_ID"),
+        "client_id": get_first_env_value("GRAPH_CLIENT_ID", "AZURE_CLIENT_ID"),
+        "client_secret": get_first_env_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET"),
+        "site_id": get_first_env_value("GRAPH_SITE_ID"),
+        "list_id_assenze": get_first_env_value("GRAPH_LIST_ID_ASSENZE"),
     }
 
 

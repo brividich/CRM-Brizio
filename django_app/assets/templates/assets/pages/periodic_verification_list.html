@@ -248,6 +248,24 @@
 .pv-asset-chip.active { background:#dbeafe; }
 .pv-note { color:#64748b; font-size: var(--fs-base); line-height:1.5; }
 .pv-inline-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.pv-inline-form { display:grid; gap:8px; margin-top:10px; }
+.pv-inline-select {
+  width:100%;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:#fff;
+  color:#0f172a;
+  padding:9px 10px;
+  font:inherit;
+}
+.pv-inline-note { color:#64748b; font-size: var(--fs-sm); line-height:1.45; }
+.pv-existing-events {
+  display:grid;
+  gap:6px;
+  margin-top:10px;
+  padding-top:10px;
+  border-top:1px dashed #dbe1ea;
+}
 .pv-delete-form { display:inline-flex; }
 .pv-empty { color:#64748b; font-size: var(--fs-base); }
 @media (max-width: 1500px) {
@@ -433,8 +451,18 @@
       <div class="pv-card-head">
         <div>
           <h2>Verifiche registrate</h2>
-          <p>Ogni asset puo comparire in piu verifiche diverse.</p>
+          <p>
+            Ogni asset puo comparire in piu verifiche diverse.
+            {% if can_manage_outlook_calendar and not selected_asset %}
+              Per creare eventi Outlook filtra prima la pagina su un singolo asset.
+            {% endif %}
+          </p>
         </div>
+        {% if can_manage_outlook_calendar and selected_asset and not outlook_calendar_ready %}
+          <p class="pv-inline-note" style="margin:0;max-width:320px;">
+            Integrazione Outlook non pronta: verifica le credenziali `GRAPH_*` e il permesso `Calendars.ReadWrite`.
+          </p>
+        {% endif %}
       </div>
       <div class="pv-card-body">
         <div class="pv-list">
@@ -476,6 +504,47 @@
                     <input type="hidden" name="asset_id" value="{% if selected_asset %}{{ selected_asset.id }}{% endif %}">
                     <button class="btn btn-danger" type="submit">Elimina</button>
                   </form>
+                </div>
+              {% endif %}
+              {% if can_manage_outlook_calendar and selected_asset %}
+                {% if row.can_create_calendar_event %}
+                  {% if not outlook_calendar_ready %}
+                    <div class="pv-inline-note">Configura Graph prima di creare eventi Outlook.</div>
+                  {% elif calendar_user_choices %}
+                    <form method="post" class="pv-inline-form">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="create_outlook_calendar_event">
+                      <input type="hidden" name="verification_id" value="{{ row.verification.id }}">
+                      <input type="hidden" name="asset_id" value="{{ selected_asset.id }}">
+                      <input type="hidden" name="filter_asset" value="{{ selected_asset.id }}">
+                      <input type="hidden" name="filter_edit" value="{% if edit_verification %}{{ edit_verification.id }}{% endif %}">
+                      <select class="pv-inline-select" name="target_legacy_user_id" required>
+                        <option value="">Seleziona utente calendario</option>
+                        {% for user_id, user_label in calendar_user_choices %}
+                          <option value="{{ user_id }}" {% if row.default_calendar_user_id == user_id %}selected{% endif %}>{{ user_label }}</option>
+                        {% endfor %}
+                      </select>
+                      <button class="btn btn-secondary" type="submit">Crea evento Outlook</button>
+                    </form>
+                  {% else %}
+                    <div class="pv-inline-note">Nessun utente con mailbox disponibile per la sincronizzazione calendario.</div>
+                  {% endif %}
+                {% elif row.is_selected_asset_linked %}
+                  <div class="pv-inline-note">Questa verifica non ha ancora una prossima data calendarizzabile.</div>
+                {% endif %}
+              {% endif %}
+              {% if row.calendar_event_rows %}
+                <div class="pv-existing-events">
+                  {% for event_row in row.calendar_event_rows %}
+                    {% if event_row.graph_event_web_link %}
+                      <a href="{{ event_row.graph_event_web_link }}" target="_blank" rel="noopener">
+                        Evento Outlook | {{ event_row.target_display_name|default:event_row.target_email }}
+                      </a>
+                    {% else %}
+                      <span class="pv-inline-note">Evento registrato | {{ event_row.target_display_name|default:event_row.target_email }}</span>
+                    {% endif %}
+                    <div class="pv-inline-note">Scadenza {{ event_row.due_date|date:"d/m/Y" }} | creato il {{ event_row.created_at|date:"d/m/Y H:i" }}</div>
+                  {% endfor %}
                 </div>
               {% endif %}
             </article>

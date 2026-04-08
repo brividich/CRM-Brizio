@@ -3,7 +3,7 @@
 
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![Django 5.2](https://img.shields.io/badge/Django-5.2-0C4B33?logo=django&logoColor=white)
-![Version 0.9.4](https://img.shields.io/badge/version-0.9.4-F97316)
+![Version 0.9.9](https://img.shields.io/badge/version-0.9.9-F97316)
 ![Database SQLite or SQL Server](https://img.shields.io/badge/DB-SQLite%20%7C%20SQL%20Server-1E3A5F)
 
 Repository di riferimento del software **NOVICROM HUB**. I nomi storici come
@@ -57,7 +57,7 @@ Le preferenze vengono salvate lato server e riapplicate automaticamente al login
 
 La `dashboard` resta il cruscotto KPI cross-modulo e i workflow di dominio vivono dentro i rispettivi moduli. Per `assenze` il punto di ingresso unico e `/assenze/`, che raccoglie menu modulo, nuova richiesta, gestione personale, calendario e certificazione presenza.
 
-Nel modulo `assets`, lo scadenzario delle manutenzioni puo ora creare eventi Outlook Calendar direttamente sul calendario dell'utente selezionato dagli admin, riusando Microsoft Graph e tracciando gli eventi gia generati per evitare duplicati sulla stessa scadenza. Il logo del modulo Assets e personalizzabile da Gestione Admin (tab Configurazione) con upload diretto o URL esterno; il brand nella sidebar e cliccabile per tornare all'homepage del modulo. La sidebar di Gestione Admin e visibile su tutte le pagine del modulo per gli utenti con permesso `admin_assets`.
+Nel modulo `assets`, gli admin possono ora creare eventi Outlook Calendar per le scadenze principali del modulo: manutenzioni, scadenze amministrative, verifiche periodiche e contratti assistenza. La sincronizzazione riusa Microsoft Graph, salva un tracking unico per evitare duplicati e, per verifiche/contratti, richiede il filtro su un asset specifico cosi il calendario resta legato a un contesto chiaro. Il logo del modulo Assets e personalizzabile da Gestione Admin (tab Configurazione) con upload diretto o URL esterno; il brand nella sidebar e cliccabile per tornare all'homepage del modulo. La sidebar di Gestione Admin e visibile su tutte le pagine del modulo per gli utenti con permesso `admin_assets`.
 
 La dashboard principale usa ora questo workspace personale: widget KPI multi-modulo, layout personale per utente, template iniziale definibile dagli admin e ripristino rapido al template di partenza. La route `scheda-dipendente` resta solo come alias compatibile.
 
@@ -299,5 +299,3 @@ Questo repository e stato ripulito per una pubblicazione sicura:
 - credenziali reali e configurazioni sensibili non sono incluse
 - i file `.example` rappresentano solo template o placeholder
 - la documentazione mantenuta nel repository e limitata a cio che serve per orientarsi nel codice
-
-

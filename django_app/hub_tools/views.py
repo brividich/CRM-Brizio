@@ -1,13 +1,13 @@
-"""
-hub_tools/views.py — Strumenti di gestione BrizioHUB
+﻿"""
+hub_tools/views.py â€” Strumenti di gestione NOVICROM HUB
 
 Views:
-  /admin-portale/hub/moduli/           → module manager
-  /admin-portale/hub/database/         → DB manager (stats, backup, cleanup, ottimizza, ripristino)
-  /admin-portale/hub/homepage-builder/ → Homepage Builder (visual editor)
-  /admin-portale/hub/setup-wizard/     → Setup Wizard riconfigura (legge .env corrente)
-  /admin-portale/hub/guide/            → Guide e Manuali (lista)
-  /admin-portale/hub/guide/<slug>/     → Visualizza guida specifica
+  /admin-portale/hub/moduli/           â†’ module manager
+  /admin-portale/hub/database/         â†’ DB manager (stats, backup, cleanup, ottimizza, ripristino)
+  /admin-portale/hub/homepage-builder/ â†’ Homepage Builder (visual editor)
+  /admin-portale/hub/setup-wizard/     â†’ Setup Wizard riconfigura (legge .env corrente)
+  /admin-portale/hub/guide/            â†’ Guide e Manuali (lista)
+  /admin-portale/hub/guide/<slug>/     â†’ Visualizza guida specifica
 
 Tutte le views richiedono utente staff (is_staff=True).
 """
@@ -29,6 +29,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from admin_portale.decorators import legacy_admin_required as _staff_required
 from config.app_version import build_module_version_env_block, load_app_version
+from config.env_config import update_env_file_values
 
 logger = logging.getLogger(__name__)
 
@@ -80,61 +81,61 @@ def _is_local_sql_host(host: str) -> bool:
     }
     return h in local_aliases
 
-# ── Catalogo Guide e Manuali ──────────────────────────────────────────────────
+# â”€â”€ Catalogo Guide e Manuali â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 _LEGACY_STATIC_GUIDES = [
     {
         "slug": "manuale-navigazione",
         "title": "Manuale Navigazione & Permessi",
-        "icon": "📖",
+        "icon": "ðŸ“–",
         "file": "MANUALE_ADMIN_NAVIGAZIONE_PERMESSI.html",
         "desc": "Guida completa alla gestione della navigazione, pulsanti legacy, Navigation Builder e permessi utente.",
     },
     {
         "slug": "mappa-moduli",
         "title": "Mappa Moduli",
-        "icon": "🗺️",
+        "icon": "ðŸ—ºï¸",
         "file": "mappa_moduli.html",
         "desc": "Catalogo completo dei moduli del portale con descrizione funzionale, dipendenze e configurazione.",
     },
     {
         "slug": "audit-acl",
         "title": "Audit ACL e Permessi",
-        "icon": "🔐",
+        "icon": "ðŸ”",
         "file": "AUDIT_ACL_PERMESSI.html",
         "desc": "Documento di audit tecnico del sistema ACL: pipeline, bug noti, permessi hardcoded e architettura target.",
     },
     {
         "slug": "homepage-builder-guida",
-        "title": "Homepage Builder — Guida",
-        "icon": "🏠",
+        "title": "Homepage Builder â€” Guida",
+        "icon": "ðŸ ",
         "file": "homepage-builder.html",
         "desc": "Editor visuale con drag&drop nell'anteprima per configurare e riordinare le sezioni della homepage. Supporta griglia app con loghi personalizzati. Genera template Django pronto all'uso.",
     },
     {
         "slug": "setup-wizard-guida",
-        "title": "Setup Wizard — Guida",
-        "icon": "⚙️",
+        "title": "Setup Wizard â€” Guida",
+        "icon": "âš™ï¸",
         "file": "setup-wizard.html",
         "desc": "Guida interattiva al setup iniziale del portale: configurazione database, LDAP, SMTP, moduli e branding.",
     },
     {
         "slug": "schema-layout",
         "title": "Schema Layout Pagine",
-        "icon": "📐",
+        "icon": "ðŸ“",
         "file": "schema-layout.html",
         "desc": "Schema visivo del layout del portale: dove si trova la Topnav, la Subnav e il Content, e da dove vengono i dati di ciascuno.",
     },
     {
         "slug": "gestione-permessi",
         "title": "Gestione Permessi",
-        "icon": "🔑",
+        "icon": "ðŸ”‘",
         "file": "GUIDA_GESTIONE_PERMESSI.html",
         "desc": "Guida operativa al sistema ACL: Gestione Accessi (accordion), Wizard Configura Ruolo (AJAX 3 passi) e Matrice Permessi.",
     },
     {
         "slug": "db-documentazione",
         "title": "Documentazione Database",
-        "icon": "🗄️",
+        "icon": "ðŸ—„ï¸",
         "file": "db_documentazione.html",
         "desc": "Schema completo del database: tutte le tabelle, chiavi primarie, foreign key e relazioni inter-app. Ricercabile e navigabile per app.",
     },
@@ -167,121 +168,121 @@ _GUIDE_DISCOVERY_RULES = (
 _GUIDE_METADATA = {
     "tools/manuale_admin_navigazione_permessi": {
         "title": "Manuale Navigazione & Permessi",
-        "icon": "📖",
+        "icon": "ðŸ“–",
         "desc": "Guida completa alla gestione della navigazione, pulsanti legacy, Navigation Builder e permessi utente.",
         "order": 10,
     },
     "tools/mappa_moduli": {
         "title": "Mappa Moduli",
-        "icon": "🗺️",
+        "icon": "ðŸ—ºï¸",
         "desc": "Catalogo completo dei moduli del portale con descrizione funzionale, dipendenze e configurazione.",
         "order": 20,
     },
     "tools/audit_acl_permessi": {
         "title": "Audit ACL e Permessi",
-        "icon": "🔐",
+        "icon": "ðŸ”",
         "desc": "Documento di audit tecnico del sistema ACL: pipeline, bug noti, permessi hardcoded e architettura target.",
         "order": 30,
     },
     "tools/homepage-builder": {
         "title": "Homepage Builder",
-        "icon": "🏠",
+        "icon": "ðŸ ",
         "desc": "Guida all'editor visuale per configurare e riordinare le sezioni della homepage.",
         "order": 40,
     },
     "tools/setup-wizard": {
         "title": "Setup Wizard",
-        "icon": "⚙️",
+        "icon": "âš™ï¸",
         "desc": "Guida interattiva al setup iniziale del portale: database, LDAP, SMTP, moduli e branding.",
         "order": 50,
     },
     "tools/schema-layout": {
         "title": "Schema Layout Pagine",
-        "icon": "📐",
+        "icon": "ðŸ“",
         "desc": "Schema visivo del layout del portale: topnav, subnav, contenuto e relative sorgenti dati.",
         "order": 60,
     },
     "guida_gestione_permessi": {
         "title": "Gestione Permessi",
-        "icon": "🔑",
+        "icon": "ðŸ”‘",
         "desc": "Guida operativa al sistema ACL: gestione accessi, wizard ruolo e matrice permessi.",
         "order": 70,
     },
     "db_documentazione": {
         "title": "Documentazione Database",
-        "icon": "🗄️",
+        "icon": "ðŸ—„ï¸",
         "desc": "Schema completo del database: tabelle, chiavi, relazioni inter-app e navigazione per area.",
         "order": 80,
     },
     "doc/guida_moduli_programma": {
         "title": "Guida Moduli Programma",
-        "icon": "🧩",
+        "icon": "ðŸ§©",
         "desc": "Panoramica funzionale dei moduli del portale: flussi, dati e integrazioni principali.",
         "order": 90,
     },
     "doc/guida_automazioni_designer": {
         "title": "Guida Automazioni Designer",
-        "icon": "🤖",
+        "icon": "ðŸ¤–",
         "desc": "Manuale operativo del designer visuale automazioni e dei suoi workflow principali.",
         "order": 100,
     },
     "deployment/readme_deploy_iis_windows": {
         "title": "Guida Deployment IIS",
-        "icon": "🚀",
+        "icon": "ðŸš€",
         "desc": "Manuale di deploy su Windows Server e IIS con troubleshooting e checklist operative.",
         "order": 110,
     },
     "deployment/guida_gestione_release": {
         "title": "Guida Gestione Release",
-        "icon": "📦",
+        "icon": "ðŸ“¦",
         "desc": "Procedura operativa per la gestione delle release e dei relativi artefatti di distribuzione.",
         "order": 120,
     },
     "deployment/manuale_deploy_portale_novicrom": {
         "title": "Manuale Deploy Portale Novicrom",
-        "icon": "🛠️",
-        "desc": "Guida completa alle attività di installazione e messa online del portale.",
+        "icon": "ðŸ› ï¸",
+        "desc": "Guida completa alle attivitÃ  di installazione e messa online del portale.",
         "order": 130,
     },
     "doc/acl_v2_permission_guide": {
         "title": "Guida ACL v2",
-        "icon": "🔒",
+        "icon": "ðŸ”’",
         "desc": "Guida permission-code based del layer ACL canonico v2.",
         "order": 140,
     },
     "doc/acl_v2_admin_quick_guide": {
         "title": "Guida Rapida Admin ACL v2",
-        "icon": "🧭",
+        "icon": "ðŸ§­",
         "desc": "Riferimento rapido per amministratori che operano sul nuovo layer ACL v2.",
         "order": 150,
     },
     "doc/acl_v2_permission_code_convention": {
         "title": "Convenzione Permission Code ACL v2",
-        "icon": "🏷️",
+        "icon": "ðŸ·ï¸",
         "desc": "Convenzioni di naming e organizzazione dei permission code del layer v2.",
         "order": 160,
     },
     "doc/acl_v2_uat_checklist": {
         "title": "Checklist UAT ACL v2",
-        "icon": "✅",
+        "icon": "âœ…",
         "desc": "Checklist operativa per validare in UAT il comportamento ACL v2.",
         "order": 170,
     },
     "doc/acl_v2_uat_seed_guide": {
         "title": "Guida Seed UAT ACL v2",
-        "icon": "🧪",
+        "icon": "ðŸ§ª",
         "desc": "Procedura per preparare dati e scenari UAT ripetibili per il layer ACL v2.",
         "order": 180,
     },
     "doc/acl_v2_uat_scenarios": {
         "title": "Scenari UAT ACL v2",
-        "icon": "📋",
+        "icon": "ðŸ“‹",
         "desc": "Matrice scenari e risultati attesi per la validazione ACL v2.",
         "order": 190,
     },
     "django_app/assets/readme": {
         "title": "Note del Modulo Assets",
-        "icon": "🏭",
+        "icon": "ðŸ­",
         "desc": "Documentazione tecnica e note operative del modulo Assets.",
         "order": 200,
     },
@@ -322,10 +323,10 @@ def _humanize_guide_title(stem: str) -> str:
 
 def _guide_icon_for_suffix(suffix: str) -> str:
     if suffix == ".pdf":
-        return "📕"
+        return "ðŸ“•"
     if suffix == ".md":
-        return "📝"
-    return "📄"
+        return "ðŸ“"
+    return "ðŸ“„"
 
 
 def _guide_catalog_key(source_key: str, path: Path) -> str:
@@ -497,7 +498,7 @@ def _render_text_guide_html(guide: dict, content: str) -> str:
 
 
 def _read_env() -> dict:
-    """Legge il file .env e restituisce un dizionario chiave→valore (senza virgolette)."""
+    """Legge il file .env e restituisce un dizionario chiaveâ†’valore (senza virgolette)."""
     values = {}
     if not _ENV_PATH.exists():
         return values
@@ -513,32 +514,32 @@ def _read_env() -> dict:
         values[key] = val
     return values
 
-# ── Definizione moduli ────────────────────────────────────────────────────────
+# â”€â”€ Definizione moduli â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 MODULE_DEFS = [
     # core (sempre attivi)
-    {"key": "core",         "name": "Core & Auth",          "icon": "🔐", "desc": "Autenticazione, ACL, navigazione, sessioni", "core": True,  "home_url": "/"},
-    {"key": "dashboard",    "name": "Dashboard",             "icon": "📊", "desc": "Home operativa modulare con widget per ruolo", "core": True,  "home_url": "/"},
-    {"key": "admin_portale","name": "Admin Portale",         "icon": "🛠️", "desc": "Gestione utenti, ruoli, permessi, audit e configurazioni", "core": True,  "home_url": "/admin-portale/"},
+    {"key": "core",         "name": "Core & Auth",          "icon": "ðŸ”", "desc": "Autenticazione, ACL, navigazione, sessioni", "core": True,  "home_url": "/"},
+    {"key": "dashboard",    "name": "Dashboard",             "icon": "ðŸ“Š", "desc": "Home operativa modulare con widget per ruolo", "core": True,  "home_url": "/"},
+    {"key": "admin_portale","name": "Admin Portale",         "icon": "ðŸ› ï¸", "desc": "Gestione utenti, ruoli, permessi, audit e configurazioni", "core": True,  "home_url": "/admin-portale/"},
     # opzionali
-    {"key": "assenze",      "name": "Gestione Assenze",      "icon": "📅", "desc": "Workflow assenze, ferie, permessi con integrazione SharePoint", "core": False, "home_url": "/assenze/"},
-    {"key": "anomalie",     "name": "Segnalazioni Anomalie", "icon": "⚠️", "desc": "Raccolta, gestione e tracciamento segnalazioni operative", "core": False, "home_url": "/gestione-anomalie"},
-    {"key": "assets",       "name": "Asset & Officina",      "icon": "🏭", "desc": "Inventario macchinari, work order, schede tecniche, verifiche periodiche", "core": False, "home_url": "/assets/"},
-    {"key": "tasks",        "name": "Progetti & Task",       "icon": "📋", "desc": "Gestione progetti con Gantt, task assegnabili e milestone", "core": False, "home_url": "/tasks/"},
-    {"key": "tickets",      "name": "Ticket IT & Manut.",    "icon": "🎫", "desc": "Sistema ticket IT e manutenzione con priorità e deleghe", "core": False, "home_url": "/tickets/"},
-    {"key": "notizie",      "name": "Bacheca Notizie",       "icon": "📰", "desc": "Comunicazioni interne, notizie obbligatorie, avvisi", "core": False, "home_url": "/notizie/"},
-    {"key": "anagrafica",   "name": "Anagrafica",            "icon": "👥", "desc": "Registro centrale dipendenti, fornitori, reparti", "core": False, "home_url": "/anagrafica/"},
-    {"key": "automazioni",  "name": "Automazioni",           "icon": "🤖", "desc": "Designer visuale regole, trigger, azioni email e integrazioni", "core": False, "home_url": "/automazioni/"},
-    {"key": "timbri",       "name": "Timbri & Presenze",     "icon": "🕐", "desc": "Timbrature digitali con integrazione SharePoint", "core": False, "home_url": "/timbri/"},
-    {"key": "planimetria",  "name": "Planimetria",           "icon": "🗺️", "desc": "Mappe interattive stabilimento e posizionamento asset", "core": False, "home_url": "/planimetria/"},
-    {"key": "dpi",          "name": "Gestione DPI",          "icon": "🦺", "desc": "Dispositivi di Protezione Individuale: richieste, approvazione, consegna, storico", "core": False, "home_url": "/dpi/"},
-    {"key": "procedure_refresh", "name": "Presa Visione Procedure", "icon": "📄", "desc": "Presa visione MT/MTSI: anagrafica documenti, revisioni, campagne, tracking lettura, report audit", "core": False, "home_url": "/procedure-refresh/"},
+    {"key": "assenze",      "name": "Gestione Assenze",      "icon": "ðŸ“…", "desc": "Workflow assenze, ferie, permessi con integrazione SharePoint", "core": False, "home_url": "/assenze/"},
+    {"key": "anomalie",     "name": "Segnalazioni Anomalie", "icon": "âš ï¸", "desc": "Raccolta, gestione e tracciamento segnalazioni operative", "core": False, "home_url": "/gestione-anomalie"},
+    {"key": "assets",       "name": "Asset & Officina",      "icon": "ðŸ­", "desc": "Inventario macchinari, work order, schede tecniche, verifiche periodiche", "core": False, "home_url": "/assets/"},
+    {"key": "tasks",        "name": "Progetti & Task",       "icon": "ðŸ“‹", "desc": "Gestione progetti con Gantt, task assegnabili e milestone", "core": False, "home_url": "/tasks/"},
+    {"key": "tickets",      "name": "Ticket IT & Manut.",    "icon": "ðŸŽ«", "desc": "Sistema ticket IT e manutenzione con prioritÃ  e deleghe", "core": False, "home_url": "/tickets/"},
+    {"key": "notizie",      "name": "Bacheca Notizie",       "icon": "ðŸ“°", "desc": "Comunicazioni interne, notizie obbligatorie, avvisi", "core": False, "home_url": "/notizie/"},
+    {"key": "anagrafica",   "name": "Anagrafica",            "icon": "ðŸ‘¥", "desc": "Registro centrale dipendenti, fornitori, reparti", "core": False, "home_url": "/anagrafica/"},
+    {"key": "automazioni",  "name": "Automazioni",           "icon": "ðŸ¤–", "desc": "Designer visuale regole, trigger, azioni email e integrazioni", "core": False, "home_url": "/automazioni/"},
+    {"key": "timbri",       "name": "Timbri & Presenze",     "icon": "ðŸ•", "desc": "Timbrature digitali con integrazione SharePoint", "core": False, "home_url": "/timbri/"},
+    {"key": "planimetria",  "name": "Planimetria",           "icon": "ðŸ—ºï¸", "desc": "Mappe interattive stabilimento e posizionamento asset", "core": False, "home_url": "/planimetria/"},
+    {"key": "dpi",          "name": "Gestione DPI",          "icon": "ðŸ¦º", "desc": "Dispositivi di Protezione Individuale: richieste, approvazione, consegna, storico", "core": False, "home_url": "/dpi/"},
+    {"key": "procedure_refresh", "name": "Presa Visione Procedure", "icon": "ðŸ“„", "desc": "Presa visione MT/MTSI: anagrafica documenti, revisioni, campagne, tracking lettura, report audit", "core": False, "home_url": "/procedure-refresh/"},
 ]
 
 OPTIONAL_KEYS = [m["key"] for m in MODULE_DEFS if not m["core"]]
 
 
 def _get_module_states() -> dict[str, bool]:
-    """Legge stato visibilità moduli da SiteConfig."""
+    """Legge stato visibilitÃ  moduli da SiteConfig."""
     try:
         from core.models import SiteConfig
         states = {}
@@ -577,9 +578,9 @@ def _set_login_redirect_target(key: str) -> None:
     )
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # Module Manager
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @_staff_required
 def moduli(request):
@@ -645,9 +646,9 @@ def api_set_login_redirect(request):
         return _json_internal_error("api_set_login_redirect")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # Database Manager
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 def _get_db_engine() -> str:
     from django.conf import settings
@@ -692,7 +693,7 @@ def api_db_stats(request):
                     try:
                         cur.execute(f"SELECT COUNT(*) FROM [{t}]")  # noqa: S608
                         count = cur.fetchone()[0]
-                        stats.append({"table": t, "rows": count, "size": "—"})
+                        stats.append({"table": t, "rows": count, "size": "â€”"})
                     except Exception:
                         pass
 
@@ -759,12 +760,12 @@ def api_db_backup(request):
             with connection.cursor() as cur:
                 cur.execute(
                     "BACKUP DATABASE ? TO DISK = ? WITH FORMAT, INIT, NAME = ?",
-                    [db_name, backup_path, f"BrizioHUB_backup_{ts}"]
+                    [db_name, backup_path, f"NOVICROM_HUB_backup_{ts}"]
                 )
             # Registra il backup nella lista locale
             ref_file = _BACKUP_DIR / f"sqlserver_backup_{ts}.ref"
             ref_file.write_text(backup_path, encoding="utf-8")
-            return JsonResponse({"ok": True, "message": f"Backup SQL Server avviato → {backup_path}"})
+            return JsonResponse({"ok": True, "message": f"Backup SQL Server avviato â†’ {backup_path}"})
 
         return JsonResponse({"ok": False, "error": f"Engine '{engine}' non supportato per backup"})
     except Exception:
@@ -832,10 +833,10 @@ def api_db_optimize(request):
         if engine == "sqlite":
             with connection.cursor() as cur:
                 cur.execute("VACUUM")
-            results.append("VACUUM eseguito — database compattato.")
+            results.append("VACUUM eseguito â€” database compattato.")
             with connection.cursor() as cur:
                 cur.execute("ANALYZE")
-            results.append("ANALYZE eseguito — statistiche aggiornate.")
+            results.append("ANALYZE eseguito â€” statistiche aggiornate.")
 
         elif engine == "sqlserver":
             from django.conf import settings
@@ -925,9 +926,9 @@ def api_db_restore(request):
         return _json_internal_error("api_db_restore")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # Homepage Builder
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @_staff_required
 def homepage_builder(request):
@@ -946,9 +947,9 @@ def homepage_builder_tool(request):
     return HttpResponse(filepath.read_text(encoding="utf-8"), content_type="text/html; charset=utf-8")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Setup Wizard — Riconfigura (legge .env corrente)
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# Setup Wizard â€” Riconfigura (legge .env corrente)
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @_staff_required
 def setup_wizard_hub(request):
@@ -957,9 +958,9 @@ def setup_wizard_hub(request):
     return render(request, "hub_tools/setup_wizard.html", {"env": env})
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # Guide e Manuali
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @_staff_required
 def db_schema(request):
@@ -1003,16 +1004,16 @@ def guide_serve(request, filename):
     return HttpResponse(rendered, content_type="text/html; charset=utf-8")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# API Riconfigura — salva .env e config.ini anche a setup già completato
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# API Riconfigura â€” salva .env anche a setup giÃ  completato
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @_staff_required
 @require_POST
 def api_reconfigure(request):
     """
-    Salva la configurazione nel .env e config.ini senza verificare SETUP_COMPLETED.
-    Richiamato dal Setup Wizard hub (riconfigura sistema già installato).
+    Salva la configurazione nel .env senza verificare SETUP_COMPLETED.
+    Richiamato dal Setup Wizard hub (riconfigura sistema giÃ  installato).
     """
     try:
         data = json.loads(request.body)
@@ -1036,147 +1037,84 @@ def api_reconfigure(request):
         alphabet = _string.ascii_letters + _string.digits + "!@#$%^&*(-_=+)"
         secret_key = "".join(_secrets.choice(alphabet) for _ in range(50))
 
-    instance_name = s("instance_name", current_env.get("INSTANCE_NAME", "BrizioHUB"))
+    instance_name = s("instance_name", current_env.get("INSTANCE_NAME", "NOVICROM HUB"))
     app_version = s("app_version", current_env.get("APP_VERSION", load_app_version()))
     module_version_lines = build_module_version_env_block(app_version)
-    ldap_enabled_ini = "true" if data.get("ldap_enabled") else "false"
-
-    env_lines = f"""\
-# ── BrizioHUB — Configurazione aggiornata da Hub Setup Wizard ─────────────────
-INSTANCE_NAME={instance_name}
-DJANGO_SECRET_KEY={secret_key}
-APP_VERSION={app_version}
-{module_version_lines}
-DJANGO_DEBUG={current_env.get('DJANGO_DEBUG', '0')}
-DJANGO_ALLOWED_HOSTS={current_env.get('DJANGO_ALLOWED_HOSTS', '*')}
-SETUP_COMPLETED=1
-
-# Branding
-BRANDING_LOGO={current_env.get('BRANDING_LOGO', '')}
-BRANDING_FAVICON={current_env.get('BRANDING_FAVICON', '')}
-
-# Sicurezza HTTPS
-SECURE_SSL_REDIRECT={b('secure_ssl')}
-CSRF_COOKIE_SECURE={b('csrf_secure')}
-SESSION_COOKIE_SECURE={b('session_secure')}
-
-# Database
-DB_ENGINE={s('db_engine', current_env.get('DB_ENGINE', 'sqlserver'))}
-DB_HOST={s('db_host', current_env.get('DB_HOST', ''))}
-DB_NAME={s('db_name', current_env.get('DB_NAME', ''))}
-DB_USER={s('db_user', current_env.get('DB_USER', ''))}
-DB_PASSWORD={s('db_password', current_env.get('DB_PASSWORD', ''))}
-DB_DRIVER={s('db_driver', current_env.get('DB_DRIVER', 'ODBC Driver 18 for SQL Server'))}
-DB_TRUST_CERT={b('db_trust_cert')}
-
-# Autenticazione e navigazione
-LEGACY_AUTH_ENABLED={current_env.get('LEGACY_AUTH_ENABLED', '1')}
-NAVIGATION_REGISTRY_ENABLED={b('nav_registry', current_env.get('NAVIGATION_REGISTRY_ENABLED', '0') == '1')}
-NAVIGATION_LEGACY_FALLBACK_ENABLED=1
-ASSENZE_SYNC_ON_PAGE_LOAD={current_env.get('ASSENZE_SYNC_ON_PAGE_LOAD', '0')}
-SESSION_IDLE_TIMEOUT_SECONDS={s('session_timeout', current_env.get('SESSION_IDLE_TIMEOUT_SECONDS', '3600'))}
-SESSION_EXPIRE_AT_BROWSER_CLOSE={b('session_expire', True)}
-LEGACY_ACL_CACHE_TTL={s('acl_cache_ttl', current_env.get('LEGACY_ACL_CACHE_TTL', '120'))}
-LEGACY_NAV_CACHE_TTL={s('nav_cache_ttl', current_env.get('LEGACY_NAV_CACHE_TTL', '120'))}
-
-# Active Directory / LDAP
-LDAP_ENABLED={b('ldap_enabled')}
-LDAP_SERVER={s('ldap_server', current_env.get('LDAP_SERVER', ''))}
-LDAP_DOMAIN={s('ldap_domain', current_env.get('LDAP_DOMAIN', ''))}
-LDAP_UPN_SUFFIX={s('ldap_upn', current_env.get('LDAP_UPN_SUFFIX', ''))}
-LDAP_TIMEOUT={s('ldap_timeout', current_env.get('LDAP_TIMEOUT', '5'))}
-LDAP_SERVICE_USER={s('ldap_service_user', current_env.get('LDAP_SERVICE_USER', ''))}
-LDAP_SERVICE_PASSWORD={s('ldap_service_password', current_env.get('LDAP_SERVICE_PASSWORD', ''))}
-LDAP_BASE_DN={s('ldap_base_dn', current_env.get('LDAP_BASE_DN', ''))}
-LDAP_USER_FILTER={current_env.get('LDAP_USER_FILTER', '(&(objectCategory=person)(objectClass=user))')}
-LDAP_GROUP_ALLOWLIST={current_env.get('LDAP_GROUP_ALLOWLIST', '')}
-LDAP_SYNC_PAGE_SIZE={current_env.get('LDAP_SYNC_PAGE_SIZE', '500')}
-
-# Microsoft Graph / SharePoint
-GRAPH_TENANT_ID={s('graph_tenant_id', current_env.get('GRAPH_TENANT_ID', ''))}
-GRAPH_CLIENT_ID={s('graph_client_id', current_env.get('GRAPH_CLIENT_ID', ''))}
-GRAPH_CLIENT_SECRET={s('graph_client_secret', current_env.get('GRAPH_CLIENT_SECRET', ''))}
-GRAPH_SITE_ID={s('graph_site_id', current_env.get('GRAPH_SITE_ID', ''))}
-GRAPH_LIST_ID_ASSENZE={s('graph_list_assenze', current_env.get('GRAPH_LIST_ID_ASSENZE', ''))}
-GRAPH_LIST_ID_DIPENDENTI={s('graph_list_dipendenti', current_env.get('GRAPH_LIST_ID_DIPENDENTI', ''))}
-GRAPH_LIST_ID_CAPOREPARTO={s('graph_list_caporeparto', current_env.get('GRAPH_LIST_ID_CAPOREPARTO', ''))}
-GRAPH_LIST_ID_ANOMALIE_DB={s('graph_list_anomalie_db', current_env.get('GRAPH_LIST_ID_ANOMALIE_DB', ''))}
-
-# Assenze
-ASSENZE_SP_PULL_INTERVAL_SECONDS={current_env.get('ASSENZE_SP_PULL_INTERVAL_SECONDS', '300')}
-ASSENZE_CALENDAR_MAX_EVENTS={current_env.get('ASSENZE_CALENDAR_MAX_EVENTS', '1500')}
-ASSENZE_CALENDAR_COLORS_CACHE_TTL={current_env.get('ASSENZE_CALENDAR_COLORS_CACHE_TTL', '300')}
-
-# SQL logging
-SQL_LOG_ENABLED={current_env.get('SQL_LOG_ENABLED', '0')}
-SQL_LOG_LEVEL={current_env.get('SQL_LOG_LEVEL', 'DEBUG')}
-SQL_LOG_FORCE_DEBUG_CURSOR={current_env.get('SQL_LOG_FORCE_DEBUG_CURSOR', '0')}
-SQL_LOG_MAX_BYTES={current_env.get('SQL_LOG_MAX_BYTES', '10485760')}
-SQL_LOG_BACKUP_COUNT={current_env.get('SQL_LOG_BACKUP_COUNT', '10')}
-
-# SMTP
-EMAIL_HOST={s('email_host', current_env.get('EMAIL_HOST', ''))}
-EMAIL_PORT={s('email_port', current_env.get('EMAIL_PORT', '587'))}
-EMAIL_HOST_USER={s('email_user', current_env.get('EMAIL_HOST_USER', ''))}
-EMAIL_HOST_PASSWORD={s('email_password', current_env.get('EMAIL_HOST_PASSWORD', ''))}
-EMAIL_USE_TLS={b('email_tls', True)}
-DEFAULT_FROM_EMAIL={s('email_from', current_env.get('DEFAULT_FROM_EMAIL', ''))}
-"""
-
-    # Aggiorna anche config.ini
-    _CONFIG_INI_PATH = _APP_DIR.parent / "config.ini"
-    ini_lines = f"""\
-; BrizioHUB — Configurazione aggiornata da Hub Setup Wizard
-
-[APP]
-debug = False
-secret_key = LOADED_FROM_ENV
-
-[DATABASE]
-path = {current_env.get('LEGACY_DB_PATH', 'utenti.db')}
-
-[SQLSERVER]
-server = {s('db_host', current_env.get('DB_HOST', ''))}
-database = {s('db_name', current_env.get('DB_NAME', ''))}
-driver = {s('db_driver', current_env.get('DB_DRIVER', 'ODBC Driver 18 for SQL Server'))}
-username = {s('db_user', current_env.get('DB_USER', ''))}
-password = {s('db_password', current_env.get('DB_PASSWORD', ''))}
-encrypt = yes
-trust_server_certificate = {'yes' if data.get('db_trust_cert') else 'no'}
-login_timeout = 5
-
-[CACHE]
-foto_ttl = 600
-assenze_ttl = {s('session_timeout', current_env.get('ASSENZE_SP_PULL_INTERVAL_SECONDS', '300'))}
-capi_ttl = 600
-
-[AZIENDA]
-tenant_id = {s('graph_tenant_id', current_env.get('GRAPH_TENANT_ID', ''))}
-client_id = {s('graph_client_id', current_env.get('GRAPH_CLIENT_ID', ''))}
-client_secret = {s('graph_client_secret', current_env.get('GRAPH_CLIENT_SECRET', ''))}
-site_id = {s('graph_site_id', current_env.get('GRAPH_SITE_ID', ''))}
-list_id_assenze = {s('graph_list_assenze', current_env.get('GRAPH_LIST_ID_ASSENZE', ''))}
-list_id_dipendenti = {s('graph_list_dipendenti', current_env.get('GRAPH_LIST_ID_DIPENDENTI', ''))}
-list_id_caporeparto = {s('graph_list_caporeparto', current_env.get('GRAPH_LIST_ID_CAPOREPARTO', ''))}
-list_id_anomalie_db = {s('graph_list_anomalie_db', current_env.get('GRAPH_LIST_ID_ANOMALIE_DB', ''))}
-
-[ACTIVE_DIRECTORY]
-enabled = {ldap_enabled_ini}
-server = {s('ldap_server', current_env.get('LDAP_SERVER', ''))}
-domain = {s('ldap_domain', current_env.get('LDAP_DOMAIN', ''))}
-upn_suffix = {s('ldap_upn', current_env.get('LDAP_UPN_SUFFIX', ''))}
-timeout = {s('ldap_timeout', current_env.get('LDAP_TIMEOUT', '5'))}
-service_user = {s('ldap_service_user', current_env.get('LDAP_SERVICE_USER', ''))}
-service_password = {s('ldap_service_password', current_env.get('LDAP_SERVICE_PASSWORD', ''))}
-base_dn = {s('ldap_base_dn', current_env.get('LDAP_BASE_DN', ''))}
-
-[DEFAULT]
-default_password = CHANGE_ME
-"""
+    env_updates = {
+        "INSTANCE_NAME": instance_name,
+        "DJANGO_SECRET_KEY": secret_key,
+        "APP_VERSION": app_version,
+        "DJANGO_DEBUG": current_env.get("DJANGO_DEBUG", "0"),
+        "DJANGO_ALLOWED_HOSTS": current_env.get("DJANGO_ALLOWED_HOSTS", "*"),
+        "SETUP_COMPLETED": "1",
+        "BRANDING_LOGO": current_env.get("BRANDING_LOGO", ""),
+        "BRANDING_FAVICON": current_env.get("BRANDING_FAVICON", ""),
+        "SECURE_SSL_REDIRECT": b("secure_ssl"),
+        "CSRF_COOKIE_SECURE": b("csrf_secure"),
+        "SESSION_COOKIE_SECURE": b("session_secure"),
+        "DB_ENGINE": s("db_engine", current_env.get("DB_ENGINE", "sqlserver")),
+        "DB_HOST": s("db_host", current_env.get("DB_HOST", "")),
+        "DB_NAME": s("db_name", current_env.get("DB_NAME", "")),
+        "DB_USER": s("db_user", current_env.get("DB_USER", "")),
+        "DB_PASSWORD": s("db_password", current_env.get("DB_PASSWORD", "")),
+        "DB_DRIVER": s("db_driver", current_env.get("DB_DRIVER", "ODBC Driver 18 for SQL Server")),
+        "DB_TRUST_CERT": b("db_trust_cert"),
+        "LEGACY_AUTH_ENABLED": current_env.get("LEGACY_AUTH_ENABLED", "1"),
+        "NAVIGATION_REGISTRY_ENABLED": b("nav_registry", current_env.get("NAVIGATION_REGISTRY_ENABLED", "0") == "1"),
+        "NAVIGATION_LEGACY_FALLBACK_ENABLED": "1",
+        "ASSENZE_SYNC_ON_PAGE_LOAD": current_env.get("ASSENZE_SYNC_ON_PAGE_LOAD", "0"),
+        "SESSION_IDLE_TIMEOUT_SECONDS": s("session_timeout", current_env.get("SESSION_IDLE_TIMEOUT_SECONDS", "3600")),
+        "SESSION_EXPIRE_AT_BROWSER_CLOSE": b("session_expire", True),
+        "LEGACY_ACL_CACHE_TTL": s("acl_cache_ttl", current_env.get("LEGACY_ACL_CACHE_TTL", "120")),
+        "LEGACY_NAV_CACHE_TTL": s("nav_cache_ttl", current_env.get("LEGACY_NAV_CACHE_TTL", "120")),
+        "LDAP_ENABLED": b("ldap_enabled"),
+        "LDAP_SERVER": s("ldap_server", current_env.get("LDAP_SERVER", "")),
+        "LDAP_DOMAIN": s("ldap_domain", current_env.get("LDAP_DOMAIN", "")),
+        "LDAP_UPN_SUFFIX": s("ldap_upn", current_env.get("LDAP_UPN_SUFFIX", "")),
+        "LDAP_TIMEOUT": s("ldap_timeout", current_env.get("LDAP_TIMEOUT", "5")),
+        "LDAP_SERVICE_USER": s("ldap_service_user", current_env.get("LDAP_SERVICE_USER", "")),
+        "LDAP_SERVICE_PASSWORD": s("ldap_service_password", current_env.get("LDAP_SERVICE_PASSWORD", "")),
+        "LDAP_BASE_DN": s("ldap_base_dn", current_env.get("LDAP_BASE_DN", "")),
+        "LDAP_USER_FILTER": current_env.get("LDAP_USER_FILTER", "(&(objectCategory=person)(objectClass=user))"),
+        "LDAP_GROUP_ALLOWLIST": current_env.get("LDAP_GROUP_ALLOWLIST", ""),
+        "LDAP_SYNC_PAGE_SIZE": current_env.get("LDAP_SYNC_PAGE_SIZE", "500"),
+        "GRAPH_TENANT_ID": s("graph_tenant_id", current_env.get("GRAPH_TENANT_ID", "")),
+        "GRAPH_CLIENT_ID": s("graph_client_id", current_env.get("GRAPH_CLIENT_ID", "")),
+        "GRAPH_CLIENT_SECRET": s("graph_client_secret", current_env.get("GRAPH_CLIENT_SECRET", "")),
+        "GRAPH_SITE_ID": s("graph_site_id", current_env.get("GRAPH_SITE_ID", "")),
+        "GRAPH_LIST_ID_ASSENZE": s("graph_list_assenze", current_env.get("GRAPH_LIST_ID_ASSENZE", "")),
+        "GRAPH_LIST_ID_DIPENDENTI": s("graph_list_dipendenti", current_env.get("GRAPH_LIST_ID_DIPENDENTI", "")),
+        "GRAPH_LIST_ID_CAPOREPARTO": s("graph_list_caporeparto", current_env.get("GRAPH_LIST_ID_CAPOREPARTO", "")),
+        "GRAPH_LIST_ID_ANOMALIE_DB": s("graph_list_anomalie_db", current_env.get("GRAPH_LIST_ID_ANOMALIE_DB", "")),
+        "ASSENZE_SP_PULL_INTERVAL_SECONDS": current_env.get("ASSENZE_SP_PULL_INTERVAL_SECONDS", "300"),
+        "ASSENZE_CALENDAR_MAX_EVENTS": current_env.get("ASSENZE_CALENDAR_MAX_EVENTS", "1500"),
+        "ASSENZE_CALENDAR_COLORS_CACHE_TTL": current_env.get("ASSENZE_CALENDAR_COLORS_CACHE_TTL", "300"),
+        "SQL_LOG_ENABLED": current_env.get("SQL_LOG_ENABLED", "0"),
+        "SQL_LOG_LEVEL": current_env.get("SQL_LOG_LEVEL", "DEBUG"),
+        "SQL_LOG_FORCE_DEBUG_CURSOR": current_env.get("SQL_LOG_FORCE_DEBUG_CURSOR", "0"),
+        "SQL_LOG_MAX_BYTES": current_env.get("SQL_LOG_MAX_BYTES", "10485760"),
+        "SQL_LOG_BACKUP_COUNT": current_env.get("SQL_LOG_BACKUP_COUNT", "10"),
+        "EMAIL_HOST": s("email_host", current_env.get("EMAIL_HOST", "")),
+        "EMAIL_PORT": s("email_port", current_env.get("EMAIL_PORT", "587")),
+        "EMAIL_HOST_USER": s("email_user", current_env.get("EMAIL_HOST_USER", "")),
+        "EMAIL_HOST_PASSWORD": s("email_password", current_env.get("EMAIL_HOST_PASSWORD", "")),
+        "EMAIL_USE_TLS": b("email_tls", True),
+        "EMAIL_USE_SSL": current_env.get("EMAIL_USE_SSL", "0"),
+        "EMAIL_TIMEOUT": current_env.get("EMAIL_TIMEOUT", "10"),
+        "DEFAULT_FROM_EMAIL": s("email_from", current_env.get("DEFAULT_FROM_EMAIL", "")),
+    }
+    for line in module_version_lines.splitlines():
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        env_updates[key.strip()] = value.strip()
 
     try:
-        _ENV_PATH.write_text(env_lines, encoding="utf-8")
-        _CONFIG_INI_PATH.write_text(ini_lines, encoding="utf-8")
+        update_env_file_values(
+            env_updates,
+            dotenv_path=_ENV_PATH,
+            delete_keys=["AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"],
+        )
         return JsonResponse({"ok": True, "message": "Configurazione salvata con successo. Riavvia il server per applicare le modifiche al database/LDAP."})
     except PermissionError:
         return _json_internal_error("api_reconfigure.permission")
@@ -1184,9 +1122,9 @@ default_password = CHANGE_ME
         return _json_internal_error("api_reconfigure")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # Categorie moduli
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @_staff_required
 def categorie(request):
@@ -1274,9 +1212,9 @@ def categorie(request):
     })
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # Gestione Notifiche
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @_staff_required
 def notifiche_hub(request):
@@ -1390,7 +1328,7 @@ def api_notifica_invia(request):
     url_azione   = (data.get("url_azione") or "").strip()
 
     if not messaggio:
-        return JsonResponse({"ok": False, "error": "Il messaggio è obbligatorio"}, status=400)
+        return JsonResponse({"ok": False, "error": "Il messaggio Ã¨ obbligatorio"}, status=400)
 
     from core.models import Notifica
     tipi_validi = {t[0] for t in Notifica.TIPI}
@@ -1484,3 +1422,4 @@ def api_notifiche_bulk(request):
         return JsonResponse({"ok": True, "count": updated, "message": f"Segnate come lette {updated} notifiche."})
 
     return JsonResponse({"ok": False, "error": "Azione non riconosciuta"}, status=400)
+

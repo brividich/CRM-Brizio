@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import configparser
 import csv
 import json
 import logging
@@ -22,6 +21,7 @@ from django.urls import reverse
 from django.conf import settings
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from django.views.decorators.http import require_POST
+from config.env_config import get_first_env_value, load_env_file_values, resolve_env_value, update_env_file_values
 from core.acl import user_can_modulo_action
 from core.audit import log_action
 from core.graph_utils import acquire_graph_token, is_placeholder_value
@@ -111,16 +111,6 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def _config_ini_path() -> Path:
-    return _repo_root() / "config.ini"
-
-
-def _load_app_config() -> configparser.ConfigParser:
-    cfg = configparser.ConfigParser()
-    cfg.read(_config_ini_path(), encoding="utf-8")
-    return cfg
-
-
 def _utcnow_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -136,78 +126,18 @@ def _resolve_anomalie_attachments_path(raw_value: str | None = None) -> tuple[st
 
 
 def _anomalie_attachments_root() -> Path:
-    cfg = _load_app_config()
-    rel_cfg = ANOMALIE_ATTACHMENTS_DIR_DEFAULT
-    if cfg.has_section("ANOMALIE"):
-        rel_cfg = str(cfg.get("ANOMALIE", "attachments_dir", fallback=rel_cfg) or rel_cfg).strip() or rel_cfg
+    rel_cfg = get_first_env_value("ANOMALIE_ATTACHMENTS_DIR", default=ANOMALIE_ATTACHMENTS_DIR_DEFAULT)
     _, path = _resolve_anomalie_attachments_path(rel_cfg)
     return path
 
 
 def _anomalie_attachments_dir_value() -> str:
-    cfg = _load_app_config()
-    rel = ANOMALIE_ATTACHMENTS_DIR_DEFAULT
-    if cfg.has_section("ANOMALIE"):
-        rel = str(cfg.get("ANOMALIE", "attachments_dir", fallback=rel) or rel).strip() or rel
-    return rel
-
-
-def _set_ini_option_preserve(section: str, option: str, value: str) -> None:
-    path = _config_ini_path()
-    if path.exists():
-        lines = path.read_text(encoding="utf-8").splitlines()
-    else:
-        lines = []
-
-    sec_idx = None
-    sec_end = len(lines)
-    section_key = str(section or "").strip().casefold()
-    for idx, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped.startswith("[") and stripped.endswith("]"):
-            current = stripped[1:-1].strip().casefold()
-            if current == section_key:
-                sec_idx = idx
-                for j in range(idx + 1, len(lines)):
-                    nxt = lines[j].strip()
-                    if nxt.startswith("[") and nxt.endswith("]"):
-                        sec_end = j
-                        break
-                break
-
-    new_line = f"{option} = {value}"
-    if sec_idx is None:
-        if lines and lines[-1].strip():
-            lines.append("")
-        lines.append(f"[{section}]")
-        lines.append(new_line)
-    else:
-        opt_idx = None
-        option_key = str(option or "").strip().casefold()
-        for j in range(sec_idx + 1, sec_end):
-            stripped = lines[j].strip()
-            if not stripped or stripped.startswith(";") or stripped.startswith("#"):
-                continue
-            if "=" not in stripped:
-                continue
-            key = stripped.split("=", 1)[0].strip().casefold()
-            if key == option_key:
-                opt_idx = j
-                break
-        if opt_idx is not None:
-            lines[opt_idx] = new_line
-        else:
-            lines.insert(sec_end, new_line)
-
-    out = "\n".join(lines)
-    if out and not out.endswith("\n"):
-        out += "\n"
-    path.write_text(out, encoding="utf-8")
+    return get_first_env_value("ANOMALIE_ATTACHMENTS_DIR", default=ANOMALIE_ATTACHMENTS_DIR_DEFAULT)
 
 
 def _save_anomalie_attachments_dir(value: str) -> str:
     cleaned, _ = _resolve_anomalie_attachments_path(value)
-    _set_ini_option_preserve("ANOMALIE", "attachments_dir", cleaned)
+    update_env_file_values({"ANOMALIE_ATTACHMENTS_DIR": cleaned})
     return cleaned
 
 
@@ -618,37 +548,26 @@ def _save_anomalie_menu_logo(url: str) -> None:
 
 
 def _graph_settings() -> dict[str, str]:
-    cfg = _load_app_config()
-    az = cfg["AZIENDA"] if cfg.has_section("AZIENDA") else {}
-
-    def _env_or_cfg(*env_keys: str, option: str) -> str:
-        for key in env_keys:
-            value = (os.getenv(key) or "").strip()
-            if value:
-                return value
-        if hasattr(az, "get"):
-            return str(az.get(option, "") or "").strip()
-        return ""
-
     return {
-        "tenant_id": _env_or_cfg("GRAPH_TENANT_ID", "AZURE_TENANT_ID", option="tenant_id"),
-        "client_id": _env_or_cfg("GRAPH_CLIENT_ID", "AZURE_CLIENT_ID", option="client_id"),
-        "client_secret": _env_or_cfg("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET", option="client_secret"),
-        "site_id": _env_or_cfg("GRAPH_SITE_ID", option="site_id"),
-        "list_id_anomalie_db": _env_or_cfg("GRAPH_LIST_ID_ANOMALIE_DB", option="list_id_anomalie_db"),
+        "tenant_id": get_first_env_value("GRAPH_TENANT_ID", "AZURE_TENANT_ID"),
+        "client_id": get_first_env_value("GRAPH_CLIENT_ID", "AZURE_CLIENT_ID"),
+        "client_secret": get_first_env_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET"),
+        "site_id": get_first_env_value("GRAPH_SITE_ID"),
+        "list_id_anomalie_db": get_first_env_value("GRAPH_LIST_ID_ANOMALIE_DB"),
     }
 
 
-def _graph_runtime_value(*env_keys: str, option: str) -> tuple[str, str]:
-    cfg = _load_app_config()
-    az = cfg["AZIENDA"] if cfg.has_section("AZIENDA") else {}
-    for key in env_keys:
-        value = (os.getenv(key) or "").strip()
-        if value:
-            return value, "env"
-    if hasattr(az, "get"):
-        return str(az.get(option, "") or "").strip(), "config.ini"
-    return "", "config.ini"
+def _env_source_label(source: str) -> str:
+    if source == "process_env":
+        return "ambiente processo"
+    if source == "dotenv":
+        return ".env"
+    return "non configurato"
+
+
+def _graph_runtime_value(*env_keys: str) -> tuple[str, str]:
+    value, source = resolve_env_value(*env_keys, dotenv_values=load_env_file_values())
+    return value, _env_source_label(source)
 
 
 def _graph_config_issue() -> str:
@@ -671,31 +590,12 @@ def _graph_configured() -> bool:
 
 
 def _sharepoint_admin_config() -> dict[str, object]:
-    cfg = _load_app_config()
-    az = cfg["AZIENDA"] if cfg.has_section("AZIENDA") else {}
-    runtime_tenant_id, tenant_source = _graph_runtime_value(
-        "GRAPH_TENANT_ID",
-        "AZURE_TENANT_ID",
-        option="tenant_id",
-    )
-    runtime_client_id, client_source = _graph_runtime_value(
-        "GRAPH_CLIENT_ID",
-        "AZURE_CLIENT_ID",
-        option="client_id",
-    )
-    runtime_client_secret, secret_source = _graph_runtime_value(
-        "GRAPH_CLIENT_SECRET",
-        "AZURE_CLIENT_SECRET",
-        option="client_secret",
-    )
-    runtime_site_id, site_source = _graph_runtime_value(
-        "GRAPH_SITE_ID",
-        option="site_id",
-    )
-    runtime_list_id, list_source = _graph_runtime_value(
-        "GRAPH_LIST_ID_ANOMALIE_DB",
-        option="list_id_anomalie_db",
-    )
+    dotenv_values = load_env_file_values()
+    runtime_tenant_id, tenant_source = _graph_runtime_value("GRAPH_TENANT_ID", "AZURE_TENANT_ID")
+    runtime_client_id, client_source = _graph_runtime_value("GRAPH_CLIENT_ID", "AZURE_CLIENT_ID")
+    runtime_client_secret, secret_source = _graph_runtime_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET")
+    runtime_site_id, site_source = _graph_runtime_value("GRAPH_SITE_ID")
+    runtime_list_id, list_source = _graph_runtime_value("GRAPH_LIST_ID_ANOMALIE_DB")
     runtime_values = [
         runtime_tenant_id,
         runtime_client_id,
@@ -704,12 +604,12 @@ def _sharepoint_admin_config() -> dict[str, object]:
         runtime_list_id,
     ]
     return {
-        "tenant_id": str(getattr(az, "get", lambda *_args, **_kwargs: "")("tenant_id", "") or "").strip(),
-        "client_id": str(getattr(az, "get", lambda *_args, **_kwargs: "")("client_id", "") or "").strip(),
-        "site_id": str(getattr(az, "get", lambda *_args, **_kwargs: "")("site_id", "") or "").strip(),
-        "list_id_anomalie_db": str(getattr(az, "get", lambda *_args, **_kwargs: "")("list_id_anomalie_db", "") or "").strip(),
+        "tenant_id": str(dotenv_values.get("GRAPH_TENANT_ID") or dotenv_values.get("AZURE_TENANT_ID") or "").strip(),
+        "client_id": str(dotenv_values.get("GRAPH_CLIENT_ID") or dotenv_values.get("AZURE_CLIENT_ID") or "").strip(),
+        "site_id": str(dotenv_values.get("GRAPH_SITE_ID") or "").strip(),
+        "list_id_anomalie_db": str(dotenv_values.get("GRAPH_LIST_ID_ANOMALIE_DB") or "").strip(),
         "client_secret_configured": bool(
-            str(getattr(az, "get", lambda *_args, **_kwargs: "")("client_secret", "") or "").strip()
+            str(dotenv_values.get("GRAPH_CLIENT_SECRET") or dotenv_values.get("AZURE_CLIENT_SECRET") or "").strip()
         ),
         "runtime_ready": all(not is_placeholder_value(value) for value in runtime_values),
         "runtime_sources": {
@@ -720,7 +620,7 @@ def _sharepoint_admin_config() -> dict[str, object]:
             "list_id_anomalie_db": list_source,
         },
         "env_override_active": any(
-            source == "env"
+            source == "ambiente processo"
             for source in [tenant_source, client_source, secret_source, site_source, list_source]
         ),
         "sync_issue": _graph_config_issue(),
@@ -766,18 +666,24 @@ def _handle_sharepoint_config_request(request) -> tuple[bool, str]:
     list_id_anomalie_db = str(request.POST.get("sharepoint_list_id_anomalie_db") or "").strip()[:500]
 
     try:
-        _set_ini_option_preserve("AZIENDA", "tenant_id", tenant_id)
-        _set_ini_option_preserve("AZIENDA", "client_id", client_id)
-        _set_ini_option_preserve("AZIENDA", "site_id", site_id)
-        _set_ini_option_preserve("AZIENDA", "list_id_anomalie_db", list_id_anomalie_db)
+        dotenv_values = load_env_file_values()
+        current_secret = str(dotenv_values.get("GRAPH_CLIENT_SECRET") or dotenv_values.get("AZURE_CLIENT_SECRET") or "").strip()
+        updates = {
+            "GRAPH_TENANT_ID": tenant_id,
+            "GRAPH_CLIENT_ID": client_id,
+            "GRAPH_SITE_ID": site_id,
+            "GRAPH_LIST_ID_ANOMALIE_DB": list_id_anomalie_db,
+        }
         if client_secret:
-            _set_ini_option_preserve("AZIENDA", "client_secret", client_secret)
-        else:
-            cfg = _load_app_config()
-            if not cfg.has_option("AZIENDA", "client_secret"):
-                _set_ini_option_preserve("AZIENDA", "client_secret", "")
+            updates["GRAPH_CLIENT_SECRET"] = client_secret
+        elif not current_secret and not get_first_env_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET"):
+            updates["GRAPH_CLIENT_SECRET"] = ""
+        update_env_file_values(
+            updates,
+            delete_keys=["AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"],
+        )
     except Exception as exc:
-        return False, f"Errore scrittura config.ini: {exc}"
+        return False, f"Errore scrittura .env: {exc}"
 
     return True, "Configurazione SharePoint anomalie aggiornata."
 

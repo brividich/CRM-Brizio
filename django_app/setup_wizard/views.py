@@ -1,12 +1,12 @@
-"""
-Views del Setup Wizard BrizioHUB.
+﻿"""
+Views del Setup Wizard NOVICROM HUB.
 
 Endpoints:
   GET  /setup/              → wizard_home  (renderizza il wizard)
   POST /setup/api/test-db/  → test connessione SQL Server via pyodbc
   POST /setup/api/test-ldap/ → test connessione LDAP/AD
   POST /setup/api/test-smtp/ → test connessione SMTP
-  POST /setup/api/save/     → salva .env e config.ini, marca setup completato
+  POST /setup/api/save/     → salva .env, marca setup completato
 """
 import base64
 import json
@@ -19,13 +19,12 @@ from pathlib import Path
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_GET, require_POST
 from config.app_version import build_module_version_env_block, load_app_version
+from config.env_config import update_env_file_values
 
 # Percorsi assoluti calcolati relativamente a questo file
 # setup_wizard/views.py → django_app/ → progetto root
 _APP_DIR = Path(__file__).resolve().parent.parent       # django_app/
-_PROJECT_DIR = _APP_DIR.parent                          # root repo
 _ENV_PATH = _APP_DIR / ".env"
-_CONFIG_INI_PATH = _PROJECT_DIR / "config.ini"
 _BRANDING_DIR = _APP_DIR / "core" / "static" / "core" / "img"
 
 
@@ -46,7 +45,11 @@ def _setup_needed() -> bool:
 def wizard_home(request):
     if not _setup_needed():
         return redirect("/")
-    return render(request, "setup_wizard/wizard.html")
+    return render(
+        request,
+        "setup_wizard/wizard.html",
+        {"app_version": load_app_version()},
+    )
 
 
 # ── Helper JSON ───────────────────────────────────────────────────────────────
@@ -238,160 +241,84 @@ def api_save(request):
         alphabet = string.ascii_letters + string.digits + "!@#$%^&*(-_=+)"
         secret_key = "".join(secrets.choice(alphabet) for _ in range(50))
 
-    instance_name = s("instance_name", "BrizioHUB")
+    instance_name = s("instance_name", "NOVICROM HUB")
     app_version = s("app_version", load_app_version())
     module_version_lines = build_module_version_env_block(app_version)
-    ldap_enabled_ini = "true" if data.get("ldap_enabled") else "false"
-
-    # ── Costruisce .env ───────────────────────────────────────────────────────
-    env_lines = f"""\
-# ── BrizioHUB — Configurazione generata dal Setup Wizard ──────────────────────
-INSTANCE_NAME={instance_name}
-DJANGO_SECRET_KEY={secret_key}
-APP_VERSION={app_version}
-{module_version_lines}
-DJANGO_DEBUG={b('debug')}
-DJANGO_ALLOWED_HOSTS={s('allowed_hosts')}
-SETUP_COMPLETED=1
-
-# Branding
-BRANDING_LOGO={branding_logo_path}
-BRANDING_FAVICON={branding_favicon_path}
-
-# Sicurezza HTTPS (impostare a 1 solo se il server usa HTTPS con certificato valido)
-SECURE_SSL_REDIRECT={b('secure_ssl')}
-CSRF_COOKIE_SECURE={b('csrf_secure')}
-SESSION_COOKIE_SECURE={b('session_secure')}
-
-# Database
-DB_ENGINE={s('db_engine', 'sqlserver')}
-DB_HOST={s('db_host')}
-DB_NAME={s('db_name')}
-DB_USER={s('db_user')}
-DB_PASSWORD={s('db_password')}
-DB_DRIVER={s('db_driver', 'ODBC Driver 18 for SQL Server')}
-DB_TRUST_CERT={b('db_trust_cert')}
-
-# Autenticazione e navigazione
-LEGACY_AUTH_ENABLED={b('legacy_auth', True)}
-NAVIGATION_REGISTRY_ENABLED={b('nav_registry', True)}
-NAVIGATION_LEGACY_FALLBACK_ENABLED={b('nav_legacy_fallback')}
-ASSENZE_SYNC_ON_PAGE_LOAD={b('assenze_sync')}
-SESSION_IDLE_TIMEOUT_SECONDS={s('session_timeout', '3600')}
-SESSION_EXPIRE_AT_BROWSER_CLOSE={b('session_expire', True)}
-LEGACY_ACL_CACHE_TTL={s('acl_cache_ttl', '120')}
-LEGACY_NAV_CACHE_TTL={s('nav_cache_ttl', '120')}
-
-# Active Directory / LDAP
-LDAP_ENABLED={b('ldap_enabled')}
-LDAP_SERVER={s('ldap_server')}
-LDAP_DOMAIN={s('ldap_domain')}
-LDAP_UPN_SUFFIX={s('ldap_upn')}
-LDAP_TIMEOUT={s('ldap_timeout', '5')}
-LDAP_SERVICE_USER={s('ldap_service_user')}
-LDAP_SERVICE_PASSWORD={s('ldap_service_password')}
-LDAP_BASE_DN={s('ldap_base_dn')}
-LDAP_USER_FILTER={s('ldap_user_filter', '(&(objectCategory=person)(objectClass=user))')}
-LDAP_GROUP_ALLOWLIST={s('ldap_group_allowlist')}
-LDAP_SYNC_PAGE_SIZE={s('ldap_sync_page_size', '500')}
-
-# Microsoft Graph / SharePoint
-GRAPH_TENANT_ID={s('graph_tenant_id')}
-GRAPH_CLIENT_ID={s('graph_client_id')}
-GRAPH_CLIENT_SECRET={s('graph_client_secret')}
-GRAPH_SITE_ID={s('graph_site_id')}
-GRAPH_LIST_ID_ASSENZE={s('graph_list_assenze')}
-GRAPH_LIST_ID_DIPENDENTI={s('graph_list_dipendenti')}
-GRAPH_LIST_ID_CAPOREPARTO={s('graph_list_caporeparto')}
-GRAPH_LIST_ID_ANOMALIE_DB={s('graph_list_anomalie_db')}
-
-# Assenze
-ASSENZE_SP_PULL_INTERVAL_SECONDS={s('assenze_interval', '300')}
-ASSENZE_CALENDAR_MAX_EVENTS={s('assenze_max_events', '1500')}
-ASSENZE_CALENDAR_COLORS_CACHE_TTL={s('assenze_colors_ttl', '300')}
-
-# SQL logging (disabilitare in produzione)
-SQL_LOG_ENABLED=0
-SQL_LOG_LEVEL=DEBUG
-SQL_LOG_FORCE_DEBUG_CURSOR=0
-SQL_LOG_MAX_BYTES=10485760
-SQL_LOG_BACKUP_COUNT=10
-
-# SMTP
-EMAIL_HOST={s('email_host')}
-EMAIL_PORT={s('email_port', '587')}
-EMAIL_HOST_USER={s('email_user')}
-EMAIL_HOST_PASSWORD={s('email_password')}
-EMAIL_USE_TLS={b('email_tls', True)}
-DEFAULT_FROM_EMAIL={s('email_from')}
-"""
-
-    # ── Costruisce config.ini ─────────────────────────────────────────────────
-    ini_lines = f"""\
-; BrizioHUB — Configurazione generata dal Setup Wizard
-
-[APP]
-debug = False
-secret_key = LOADED_FROM_ENV
-
-[ADMIN]
-email = admin@example.local
-password = CHANGE_ME
-nome = Amministratore
-
-[DATABASE]
-path = {s('legacy_db_path', 'utenti.db')}
-
-[SQLSERVER]
-server = {s('db_host')}
-database = {s('db_name')}
-driver = {s('db_driver', 'ODBC Driver 18 for SQL Server')}
-username = {s('db_user')}
-password = {s('db_password')}
-encrypt = yes
-trust_server_certificate = {'yes' if data.get('db_trust_cert') else 'no'}
-login_timeout = 5
-
-[CACHE]
-foto_ttl = 600
-assenze_ttl = {s('assenze_interval', '300')}
-capi_ttl = 600
-
-[ANOMALIE]
-draft_temp_dir = temp\\anomalie_drafts
-pending_files_dir = temp\\anomalie_pending_sync
-
-[AZIENDA]
-tenant_id = {s('graph_tenant_id')}
-client_id = {s('graph_client_id')}
-client_secret = {s('graph_client_secret')}
-site_id = {s('graph_site_id')}
-list_id_assenze = {s('graph_list_assenze')}
-list_id_dipendenti = {s('graph_list_dipendenti')}
-list_id_caporeparto = {s('graph_list_caporeparto')}
-list_id_anagrafica =
-list_id_anomalie_op =
-list_id_anomalie_db = {s('graph_list_anomalie_db')}
-
-[ACTIVE_DIRECTORY]
-enabled = {ldap_enabled_ini}
-server = {s('ldap_server')}
-domain = {s('ldap_domain')}
-upn_suffix = {s('ldap_upn')}
-timeout = {s('ldap_timeout', '5')}
-service_user = {s('ldap_service_user')}
-service_password = {s('ldap_service_password')}
-base_dn = {s('ldap_base_dn')}
-user_filter = {s('ldap_user_filter', '(&(objectCategory=person)(objectClass=user))')}
-group_allowlist = {s('ldap_group_allowlist')}
-
-[DEFAULT]
-default_password = CHANGE_ME
-"""
+    env_updates = {
+        "INSTANCE_NAME": instance_name,
+        "DJANGO_SECRET_KEY": secret_key,
+        "APP_VERSION": app_version,
+        "DJANGO_DEBUG": b("debug"),
+        "DJANGO_ALLOWED_HOSTS": s("allowed_hosts"),
+        "SETUP_COMPLETED": "1",
+        "BRANDING_LOGO": branding_logo_path,
+        "BRANDING_FAVICON": branding_favicon_path,
+        "SECURE_SSL_REDIRECT": b("secure_ssl"),
+        "CSRF_COOKIE_SECURE": b("csrf_secure"),
+        "SESSION_COOKIE_SECURE": b("session_secure"),
+        "DB_ENGINE": s("db_engine", "sqlserver"),
+        "DB_HOST": s("db_host"),
+        "DB_NAME": s("db_name"),
+        "DB_USER": s("db_user"),
+        "DB_PASSWORD": s("db_password"),
+        "DB_DRIVER": s("db_driver", "ODBC Driver 18 for SQL Server"),
+        "DB_TRUST_CERT": b("db_trust_cert"),
+        "LEGACY_AUTH_ENABLED": b("legacy_auth", True),
+        "NAVIGATION_REGISTRY_ENABLED": b("nav_registry", True),
+        "NAVIGATION_LEGACY_FALLBACK_ENABLED": b("nav_legacy_fallback"),
+        "ASSENZE_SYNC_ON_PAGE_LOAD": b("assenze_sync"),
+        "SESSION_IDLE_TIMEOUT_SECONDS": s("session_timeout", "3600"),
+        "SESSION_EXPIRE_AT_BROWSER_CLOSE": b("session_expire", True),
+        "LEGACY_ACL_CACHE_TTL": s("acl_cache_ttl", "120"),
+        "LEGACY_NAV_CACHE_TTL": s("nav_cache_ttl", "120"),
+        "LDAP_ENABLED": b("ldap_enabled"),
+        "LDAP_SERVER": s("ldap_server"),
+        "LDAP_DOMAIN": s("ldap_domain"),
+        "LDAP_UPN_SUFFIX": s("ldap_upn"),
+        "LDAP_TIMEOUT": s("ldap_timeout", "5"),
+        "LDAP_SERVICE_USER": s("ldap_service_user"),
+        "LDAP_SERVICE_PASSWORD": s("ldap_service_password"),
+        "LDAP_BASE_DN": s("ldap_base_dn"),
+        "LDAP_USER_FILTER": s("ldap_user_filter", "(&(objectCategory=person)(objectClass=user))"),
+        "LDAP_GROUP_ALLOWLIST": s("ldap_group_allowlist"),
+        "LDAP_SYNC_PAGE_SIZE": s("ldap_sync_page_size", "500"),
+        "GRAPH_TENANT_ID": s("graph_tenant_id"),
+        "GRAPH_CLIENT_ID": s("graph_client_id"),
+        "GRAPH_CLIENT_SECRET": s("graph_client_secret"),
+        "GRAPH_SITE_ID": s("graph_site_id"),
+        "GRAPH_LIST_ID_ASSENZE": s("graph_list_assenze"),
+        "GRAPH_LIST_ID_DIPENDENTI": s("graph_list_dipendenti"),
+        "GRAPH_LIST_ID_CAPOREPARTO": s("graph_list_caporeparto"),
+        "GRAPH_LIST_ID_ANOMALIE_DB": s("graph_list_anomalie_db"),
+        "ASSENZE_SP_PULL_INTERVAL_SECONDS": s("assenze_interval", "300"),
+        "ASSENZE_CALENDAR_MAX_EVENTS": s("assenze_max_events", "1500"),
+        "ASSENZE_CALENDAR_COLORS_CACHE_TTL": s("assenze_colors_ttl", "300"),
+        "SQL_LOG_ENABLED": "0",
+        "SQL_LOG_LEVEL": "DEBUG",
+        "SQL_LOG_FORCE_DEBUG_CURSOR": "0",
+        "SQL_LOG_MAX_BYTES": "10485760",
+        "SQL_LOG_BACKUP_COUNT": "10",
+        "EMAIL_HOST": s("email_host"),
+        "EMAIL_PORT": s("email_port", "587"),
+        "EMAIL_HOST_USER": s("email_user"),
+        "EMAIL_HOST_PASSWORD": s("email_password"),
+        "EMAIL_USE_TLS": b("email_tls", True),
+        "EMAIL_USE_SSL": "0",
+        "EMAIL_TIMEOUT": "10",
+        "DEFAULT_FROM_EMAIL": s("email_from"),
+    }
+    for line in module_version_lines.splitlines():
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        env_updates[key.strip()] = value.strip()
 
     try:
-        _ENV_PATH.write_text(env_lines, encoding="utf-8")
-        _CONFIG_INI_PATH.write_text(ini_lines, encoding="utf-8")
+        update_env_file_values(
+            env_updates,
+            dotenv_path=_ENV_PATH,
+            delete_keys=["AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"],
+        )
     except PermissionError as exc:
         return _json({"ok": False, "error": f"Permessi insufficienti: {exc}"})
     except Exception as exc:
@@ -520,3 +447,4 @@ def api_set_modules(request):
     except Exception as exc:
         # Non bloccante: SiteConfig potrebbe non esistere ancora se le migrazioni fallirono
         return _json({"ok": False, "error": str(exc)})
+
