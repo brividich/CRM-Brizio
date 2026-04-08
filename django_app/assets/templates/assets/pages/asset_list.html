@@ -9,7 +9,9 @@
 .dash { display: grid; grid-template-columns: 230px 1fr; align-items: start; border: 1px solid #dbe3f0; border-radius: 0; overflow: hidden; background: #f4f7fc; }
 .side { align-self: start; background: #f8fbff; border-right: 1px solid #dbe3f0; padding: 14px; display: grid; grid-template-rows: auto 1fr auto; gap: 12px; }
 .brand { display: flex; align-items: center; gap: 10px; }
-.logo { width: 34px; height: 34px; border-radius: 9px; background: #1f64d8; color: #fff; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+.logo { width: 34px; height: 34px; border-radius: 9px; background: #1f64d8; color: #fff; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
+.logo img { width: 100%; height: 100%; object-fit: cover; border-radius: 9px; }
+.brand-link { text-decoration: none; display: flex; align-items: center; gap: 10px; }
 .name { font-size: var(--fs-display-lg); font-weight: 800; color: #0f172a; }
 .name span { color: #1f64d8; }
 .menu { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 4px; }
@@ -239,7 +241,10 @@ body.admin-studio-open { overflow: hidden; }
 {% block content %}
 <section class="dash">
   <aside class="side">
-    <div class="brand"><span class="logo">A</span><div class="name">Inven<span>tario</span></div></div>
+    <a class="brand-link" href="{% url 'assets:asset_list' %}">
+      <span class="logo">{% if assets_logo_url %}<img src="{{ assets_logo_url }}" alt="Logo">{% else %}A{% endif %}</span>
+      <div class="name">Inven<span>tario</span></div>
+    </a>
     <nav class="menu">
       {% for group in assets_sidebar_groups %}
         <div class="mh">{{ group.label }}</div>
@@ -1526,6 +1531,12 @@ body.admin-studio-open { overflow: hidden; }
   const TABLE_CONTEXT_KEY = "assets.list.{{ asset_list_context_key }}";
   const DEFAULT_VISIBLE_COLUMNS = {{ asset_list_default_visible_columns_json|safe }};
   const SERVER_TABLE_LAYOUT = {{ asset_table_saved_layout_json|safe }};
+  const DEFAULT_COLUMN_WIDTHS = {
+    "name": 220, "status": 90, "category": 120, "assigned": 140,
+    "last_seen": 120, "reparto": 100, "serial_number": 130,
+    "manufacturer": 110, "model": 110, "vlan": 80, "ip": 100,
+    "assignment_location": 130
+  };
   const CAN_PERSIST_TABLE_LAYOUT = {{ asset_table_layout_can_persist|yesno:"true,false" }};
   const TABLE_LAYOUT_SAVE_URL = "{% url 'assets:asset_list' %}";
   const TABLE_LAYOUT_CONTEXT = "{{ asset_list_context_key }}";
@@ -1729,9 +1740,11 @@ body.admin-studio-open { overflow: hidden; }
   function getSavedWidths() {
     try {
       const raw = localStorage.getItem(COLUMN_W_KEY);
-      return raw ? JSON.parse(raw) : getServerColumnWidths();
+      if (raw) return JSON.parse(raw);
+      const srv = getServerColumnWidths();
+      return Object.keys(srv).length ? srv : Object.assign({}, DEFAULT_COLUMN_WIDTHS);
     } catch (e) {
-      return getServerColumnWidths();
+      return Object.assign({}, DEFAULT_COLUMN_WIDTHS);
     }
   }
 

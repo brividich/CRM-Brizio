@@ -1,7 +1,7 @@
-# CLAUDE.md Ã¢â‚¬â€ Portale Novicrom
+# CLAUDE.md - Portale Novicrom
 
 Documento di contesto per AI coding assistant. Aggiornato continuamente con il progetto.
-Versione app corrente: **0.9.3** (2026-04-03)
+Versione app corrente: **0.9.4** (2026-04-08)
 
 ---
 
@@ -11,9 +11,9 @@ Versione app corrente: **0.9.3** (2026-04-03)
 - **WSGI IIS:** Waitress tramite HttpPlatformHandler (dipendenza runtime dichiarata in `django_app/requirements.txt`)
 - **Database prod:** SQL Server (mssql-django 1.6, pyodbc 5.2)
 - **Database dev:** SQLite (solo per sviluppo Django-only, senza tabelle legacy)
-- **Auth:** 4 backend in cascata Ã¢â‚¬â€ `AxesStandaloneBackend` Ã¢â€ â€™ `SQLServerLegacyBackend` Ã¢â€ â€™ `LDAPBackend` (AD `cnovicrom.local`) Ã¢â€ â€™ `ModelBackend`
+- **Auth:** 4 backend in cascata - `AxesStandaloneBackend` -> `SQLServerLegacyBackend` -> `LDAPBackend` (AD `cnovicrom.local`) -> `ModelBackend`
 - **Frontend:** SSR puro con Django templates, nessun framework JS, CSS custom
-- **Integrazioni:** Microsoft Graph/SharePoint (MSAL), LDAP/AD, SMTP
+- **Integrazioni:** Microsoft Graph/SharePoint/Outlook Calendar (MSAL), LDAP/AD, SMTP
 
 Hardening sicurezza 0.8.7:
 - login rate limiting con `django-axes` (5 tentativi, lockout 1 ora, template custom `core/pages/lockout.html`)
@@ -33,18 +33,18 @@ Hardening sicurezza 0.8.7:
 | `dashboard` | Home page utente e dashboard principale KPI/personalizzabile |
 | `assenze` | Modulo unificato assenze: richieste, gestione, calendario, certificazioni + sync SharePoint |
 | `anomalie` | Segnalazione e gestione anomalie produzione |
-| `assets` | Gestione asset aziendali (macchinari, attrezzature) |
+| `assets` | Gestione asset aziendali (macchinari, attrezzature) + scadenzario manutenzioni con creazione eventi Outlook sul calendario dell'utente selezionato |
 | `tasks` | Task management interno |
-| `automazioni` | Designer visuale automazioni + SQL trigger Ã¢â€ â€™ event queue |
+| `automazioni` | Designer visuale automazioni + SQL trigger -> event queue |
 | `admin_portale` | Pannello admin custom (non Django admin) |
 | `anagrafica` | Anagrafica dipendenti (integrata con AD/legacy DB) |
 | `notizie` | Bacheca notizie/comunicazioni |
 | `timbri` | Report timbrature (lettura da DB legacy) |
 | `planimetria` | Wrapper per assets (modelli vuoti, solo reindirizzamento) |
 | `tickets` | Sistema ticket interni |
-| `rentri` | TracciabilitÃƒÂ  rifiuti (normativa RENTRI) |
+| `rentri` | Tracciabilita rifiuti (normativa RENTRI) |
 | `diario_preposto` | Diario del preposto sicurezza |
-| `rilevazione_incidenti` | Rilevazione incidenti / unsafe condition (CRUD via Graph API, SharePoint come fonte di veritÃƒÂ ) |
+| `rilevazione_incidenti` | Rilevazione incidenti / unsafe condition (CRUD via Graph API, SharePoint come fonte di verita) |
 | `hub_tools` | Hub strumenti interni: Module Manager + Database Manager |
 | `setup_wizard` | Wizard guidato prima configurazione (12 step) |
 | `dpi` | Gestione DPI (Dispositivi Protezione Individuale): richieste con card-picker immagini, approvazione, consegna, storico, KPI |
@@ -175,8 +175,7 @@ Pattern: `AppConfig.ready()` Ã¢â€ â€™ chiama `bootstrap_*_acl_endpoin
 
 ---
 
-## Configurazione globale Ã¢â‚¬â€ SiteConfig
-
+## Configurazione globale - SiteConfig
 `SiteConfig` (in `core/models.py`) ÃƒÂ¨ una tabella key-value Django per personalizzare il portale senza toccare il codice (titolo sito, moduli abilitati, temi login, ecc.).
 
 - Accesso: `SiteConfig.get_many(defaults)` Ã¢â‚¬â€ restituisce dict con fallback
@@ -206,29 +205,29 @@ Questo aggiornamento ÃƒÂ¨ parte integrante di ogni task, non un'attivitÃƒ�
 
 ---
 
-## Bump di versione Ã¢â‚¬â€ checklist obbligatoria
+## Bump di versione - checklist obbligatoria
 
-Ad ogni bump di versione (es. 0.7.3 Ã¢â€ â€™ 0.7.4) aggiornare **tutti** questi punti, senza eccezioni:
+Ad ogni bump di versione (es. `0.7.3 -> 0.7.4`) aggiornare tutti questi punti, senza eccezioni:
 
-1. `VERSION` (root repo) Ã¢â‚¬â€ **single source of truth** (`X.Y.Z`)
-2. `CLAUDE.md` riga 4 Ã¢â‚¬â€ `Versione app corrente: **X.Y.Z**`
-3. `.env` (file locale, non versionato) Ã¢â‚¬â€ `APP_VERSION=X.Y.Z` + tutte le `APP_VERSION_*` se presenti
-4. `django_app/.env.example` Ã¢â‚¬â€ aggiornare `APP_VERSION` e `APP_VERSION_*`
-5. `CHANGELOG.md` Ã¢â‚¬â€ aggiungere sezione `## X.Y.Z - YYYY-MM-DD`
+1. `VERSION` (root repo) - single source of truth (`X.Y.Z`)
+2. `CLAUDE.md` riga 4 - `Versione app corrente: **X.Y.Z**`
+3. `.env` locale runtime - `APP_VERSION=X.Y.Z` + tutte le `APP_VERSION_*` se presenti
+4. `django_app/.env.example` - aggiornare `APP_VERSION` e tutte le `APP_VERSION_*`
+5. `CHANGELOG.md` - aggiungere sezione `## X.Y.Z - YYYY-MM-DD`
 
-I default codice ora leggono da `VERSION` tramite `config/app_version.py`; evitare hardcode diretti in altri file.
+I default codice leggono da `VERSION` tramite `config/app_version.py`; evitare hardcode diretti in altri file.
 
 Se esiste `django_app/VERSION`, trattarlo solo come mirror di compatibilita: non e una source of truth indipendente e va mantenuto allineato al file root.
 
-Il file `.env` ha **la precedenza** su tutti i default nel codice: se non viene aggiornato, la UI mostrerÃƒÂ  sempre il valore vecchio indipendentemente dagli altri file.
+Il file `.env` ha precedenza sui default nel codice: se non viene aggiornato, UI e wizard continueranno a mostrare il valore precedente.
 
 ---
 
-## Setup Wizard Ã¢â‚¬â€ regola obbligatoria
+## Setup Wizard - regola obbligatoria
 
-**Dopo ogni modifica a `deployment/setup_wizard.py` rigenerare SEMPRE il file `SetupWizard.exe`.**
+Dopo ogni modifica a `deployment/setup_wizard.py` rigenerare sempre `deployment/dist/SetupWizard.exe`.
 
-Comando da eseguire (dalla root del repo, in bash):
+Comando da eseguire dalla root del repo:
 
 ```bash
 cd "c:/Dev/Portale Novicrom/deployment" && python -m PyInstaller SetupWizard.spec --noconfirm
@@ -236,183 +235,65 @@ cd "c:/Dev/Portale Novicrom/deployment" && python -m PyInstaller SetupWizard.spe
 
 Output atteso finale: `Build complete! The results are available in: .../deployment/dist`
 
-Il file `.exe` ÃƒÂ¨ l'unico artefatto distribuito agli utenti finali Ã¢â‚¬â€ se non viene rigenerato, le modifiche al wizard non raggiungono chi non ha Python installato.
+L'exe e l'artefatto distribuito agli utenti finali: se non viene rigenerato, le modifiche al wizard non raggiungono chi non ha Python installato.
 
 - Spec file: `deployment/SetupWizard.spec`
 - Output: `deployment/dist/SetupWizard.exe` (escluso da git via `.gitignore`)
-- Dimensione attesa: ~14 MB dopo la sanificazione del bundle (include sorgente Django filtrato per installazione DEV self-contained e runtime Tcl/Tk necessario alla UI)
-- Il bundle del wizard deve escludere sempre `.env`, `.venv`, `.tmp_tests`, database locali, cache, log, media, test suite Python e altri artefatti macchina-specifici dal sorgente `django_app/` incorporato.
-- Le esclusioni del bundle sono centralizzate in `deployment/setup_wizard_bundle_rules.json`; `SetupWizard.spec` e `tools/release_guard.ps1` devono leggerlo entrambi per evitare falsi positivi sul freshness check.
-- `SetupWizard.spec` usa hook custom per `tkinter` e deve continuare a includere `_tcl_data` e `_tk_data`, altrimenti l'exe GUI puo risultare costruito ma non avviabile.
-- Il runtime Python del wizard e di `deployment/scripts/setup-environment.ps1` deve essere auto-rilevato in modo robusto (`py`, percorsi standard, registry, `PATH`) e validato come **Python 3.11+**: non fare affidamento sul solo `C:\Python311\python.exe`.
-- Se falliscono `venv`, `pip install`, `collectstatic` o `migrate`, il wizard deve segnare l'errore esplicitamente e **non** attivare la release/IIS o schedulare task che punterebbero a un ambiente incompleto.
+- Il bundle del wizard deve escludere sempre `.env`, `.venv`, `.tmp_tests`, database locali, cache, log, media, test suite Python e altri artefatti macchina-specifici da `django_app/`.
+- Le esclusioni del bundle sono centralizzate in `deployment/setup_wizard_bundle_rules.json`; `SetupWizard.spec` e `tools/release_guard.ps1` devono leggerlo entrambi.
+- `SetupWizard.spec` usa hook custom per `tkinter` e deve continuare a includere `_tcl_data` e `_tk_data`.
+- Il runtime Python del wizard e di `deployment/scripts/setup-environment.ps1` deve essere auto-rilevato in modo robusto (`py`, percorsi standard, registry, `PATH`) e validato come Python 3.11+.
+- Se falliscono `venv`, `pip install`, `collectstatic` o `migrate`, il wizard deve marcare l'errore esplicitamente e non attivare la release/IIS o schedulare task su un ambiente incompleto.
 
 ### Discovery SQL Server (DatabasePage)
 
-- **3 strategie in background thread** (non blocca UI):
-  1. `pyodbc.sqlservers()` Ã¢â‚¬â€ UDP broadcast SQL Browser (porta 1434)
-  2. TCP scan porta 1433 su hostname comuni (localhost, macchina, varianti SQLEXPRESS, AD)
+- 3 strategie in background thread:
+  1. `pyodbc.sqlservers()` - UDP broadcast SQL Browser (porta 1434)
+  2. TCP scan porta 1433 su hostname comuni
   3. UDP SSRP broadcast manuale per istanze su subnet diverse
-- Pulsante "Ã°Å¸â€œâ€¹ Lista DB": si connette al server e popola Combobox con database utente (prova ODBC 18Ã¢â€ â€™17Ã¢â€ â€™generico)
-- Il wizard espone e persiste anche `DB_DRIVER`: allinea automaticamente il `.env` al miglior driver SQL Server realmente installato sul server applicativo (`18` -> `17` -> `13` -> `Native Client` -> `SQL Server`) e blocca il setup se non trova alcun driver compatibile.
-- `self._discover_btn` e `self._list_db_btn` si disabilitano durante la ricerca
+- Pulsante `Lista DB`: si connette al server e popola la combobox con i database utente.
+- Il wizard espone e persiste anche `DB_DRIVER`: allinea automaticamente il `.env` al miglior driver SQL Server realmente installato sul server applicativo (`18 -> 17 -> 13 -> Native Client -> SQL Server`) e blocca il setup se non trova alcun driver compatibile.
+- `self._discover_btn` e `self._list_db_btn` si disabilitano durante la ricerca.
 
 ### Meccanismo auto-close (FinishPage / ReleaseDonePage / UninstallDonePage)
 
-- Countdown gestito internamente da ogni pagina "Done" via `_start_countdown(n)` (aggiornato ogni secondo)
-- Costruttore accetta `on_close=None` callback Ã¢â‚¬â€ passare sempre `self._close` dalla App parent
-- `_close()` in WizardApp/ReleaseApp/UninstallApp chiama `root.destroy()` direttamente (non via `after`)
+- Countdown gestito internamente da ogni pagina `Done` via `_start_countdown(n)`.
+- Il costruttore accetta `on_close=None`: passare sempre `self._close` dalla app parent.
+- `_close()` in `WizardApp` / `ReleaseApp` / `UninstallApp` chiama `root.destroy()` direttamente.
 
 ### Server Dashboard
 
-Accessibile da: launcher (card "Gestisci server"), FinishPage (pulsante), CLI `--mode=dashboard`.
+Accessibile da launcher, FinishPage e CLI `--mode=dashboard`.
 
-- Mostra stato IIS Site + App Pool per `TEST` e `PROD` con tab switcher
+- Mostra stato IIS Site + App Pool per `TEST` e `PROD`
 - Auto-refresh ogni 5 secondi via PowerShell `Get-Website` / `Get-WebAppPool`
-- Pulsanti: Avvia, Ferma, Riavvia, Ricicla Pool, Apri Browser
-- Reset password live degli account locali disponibile direttamente dal dashboard solo quando il wizard e avviato come Administrator; aggiorna `UtenteLegacy`, sincronizza l'eventuale utente Django e ripulisce i tentativi Axes del username scelto.
-- Log viewer: ultimi 40 righe di `ENV\logs\waitress_stdout.log`
-- **Cleaner**: elimina release vecchie mantenendo ultime 3 + quella attiva (`current`)
-- `ServerDashboard(parent=None)` Ã¢â€ â€™ standalone (`tk.Tk`); `parent=widget` Ã¢â€ â€™ `tk.Toplevel`
+- Pulsanti: avvia, ferma, riavvia, ricicla pool, apri browser
+- Reset password live account locali disponibile solo quando il wizard gira come Administrator
+- Log viewer: ultime 40 righe di `ENV\logs\waitress_stdout.log`
+- Cleaner: elimina release vecchie mantenendo ultime 3 + quella attiva (`current`)
+- `ServerDashboard(parent=None)` usa `tk.Tk`; con `parent=widget` usa `tk.Toplevel`
 
 ### HttpPlatformHandlerPage (step 8)
 
-- Verifica presenza `httpPlatformHandler` via `Get-WebGlobalModule` PowerShell
+- Verifica presenza `httpPlatformHandler` via `Get-WebGlobalModule`
 - Badge verde se installato, giallo se mancante
-- Pulsante "Scarica" apre `iis.net/downloads/microsoft/httpplatformhandler`
-- `validate()` non bloccante Ã¢â‚¬â€ avvisa con dialog ma permette di continuare
-- Saltata in DEV (aggiunta a `_skip_for_dev` con `_HPH_PAGE_IDX = 8`)
-
-### Settings module mapping
-
-Nel repository esistono `config/settings/dev.py`, `config/settings/test.py` e `config/settings/prod.py`.
-
-- `config.settings.dev`: sviluppo locale ordinario
-- `config.settings.test`: suite automatica locale/CI, sempre SQLite
-- `config.settings.prod`: runtime server SQL Server
-
-Il wizard usa `_django_settings(environment)` solo per gli ambienti deploy:
-- `dev` -> `config.settings.dev` (SQLite)
-- `test` -> `config.settings.prod` (SQL Server)
-- `prod` -> `config.settings.prod` (SQL Server)
-
-La funzione `_django_settings()` e definita a livello modulo in `setup_wizard.py`.
-
-### Variabili .env generate dal wizard
-
-I nomi delle variabili nel `.env` devono corrispondere ESATTAMENTE a quelli letti da `base.py`/`prod.py`:
-
-| Variabile .env | Letta da | Note |
-| --- | --- | --- |
-| `DJANGO_SECRET_KEY` | `base.py` | NON `SECRET_KEY` |
-| `DJANGO_DEBUG` | `base.py`/`prod.py` | NON `DEBUG` |
-| `DJANGO_ALLOWED_HOSTS` | `prod.py` | NON `ALLOWED_HOSTS` |
-| `DJANGO_CSRF_TRUSTED_ORIGINS` | `prod.py` | NON `CSRF_TRUSTED_ORIGINS` |
-| `DJANGO_LOG_DIR` | `base.py` | NON `LOG_DIR` |
-| `DB_ENGINE`, `DB_NAME`, `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_DRIVER` | `base.py` | `DB_DRIVER` va sempre allineato a un driver ODBC SQL Server realmente installato |
-| `STATIC_ROOT`, `MEDIA_ROOT` | `base.py` | Ora leggono da env con fallback |
-| `BACKUP_DIR`, `BACKUP_RETENTION` | `base.py` + `core/management/commands/backup_portale.py` | Backup automatico e retention |
-
-### Backup automatico (wizard + command)
-
-- Command: `python manage.py backup_portale [--include-media] [--retention N]`
-- Path default: `BACKUP_DIR` (fallback `BASE_DIR/../backups`)
-- Retention default: `BACKUP_RETENTION=10`
-- `backup_portale` elimina solo cartelle timestamp `YYYYMMDD_HHMMSS` (non tocca sottocartelle tecniche come `sqlserver/`)
-- Wizard `InstallPage._run_prod`:
-  - aggiunge `BACKUP_DIR` e `BACKUP_RETENTION` al `.env` solo se le chiavi sono assenti
-  - registra task scheduler `PortaleNovicrom-Backup-<ENV>` alle 02:00
-- Dopo `collectstatic`, wizard e promote release devono verificare anche la presenza degli asset sentinella `static\core\css\theme.css` e `static\monitoring\css\monitoring.css`; se mancano, la release non va attivata sotto IIS.
-
-### Junction NTFS (\_create\_junction)
-
-- Funzione module-level `_create_junction(link_path, target_path)` usata da `InstallPage` e `ReleaseRunPage`
-- Strategia rimozione: `rmdir /Q` Ã¢â€ â€™ `shutil.rmtree` Ã¢â€ â€™ `rd /s /q`
-- Errore chiaro se il path ÃƒÂ¨ ancora in uso
-
-### HttpPlatformHandler check
-
-- `_check_httpplatformhandler()` verifica la presenza del modulo IIS via `Get-WebGlobalModule`
-- Se mancante: tenta installazione via WebPI CLI, altrimenti mostra istruzioni manuali
-- Senza questo modulo, IIS restituisce errore 500.19 (0x8007000d)
-- Il runtime IIS avvia sempre `python -m waitress ...`: `waitress` deve restare in `django_app/requirements.txt`, altrimenti un venv creato da zero porta a `503 Service Unavailable`
-
-### Crash-safety _run()
-
-- `InstallPage`, `ReleaseRunPage`, `UninstallRunPage` hanno wrapper `_run()` Ã¢â€ â€™ `_run_impl()` in try/except
-- Se eccezione non gestita: logga traceback + chiama `_on_done` per mostrare comunque la pagina Done
-
-**Trigger obbligatori Ã¢â‚¬â€ rigenerare l'exe dopo qualsiasi modifica a:**
-
-| File / cartella | Motivo |
-| --- | --- |
-| `deployment/setup_wizard.py` | Il wizard stesso ÃƒÂ¨ compilato nell'exe |
-| `django_app/` (file runtime) | Il sorgente Django bundled nell'exe per DEV self-contained richiede rebuild; i file test-only esclusi dal bundle (`tests.py`, `test_*.py`, `tests/`, `conftest.py`) non devono bloccare il release guard |
-| `deployment/scripts/*.ps1` | Script PowerShell inclusi in `datas` dello spec |
-| `deployment/config/*.template` | Template inclusi in `datas` dello spec |
-| `deployment/SetupWizard.spec` | Cambia la struttura del bundle |
-| Bump di versione | Il numero versione nel wizard deve corrispondere |
-
----
-
-## Pattern di sviluppo
-
-### Allegati ticket privati
-
-- I nuovi allegati ticket usano `tickets.storage.PrivateTicketStorage` con root `TICKETS_PRIVATE_ROOT` (default `BASE_DIR / "media_private"`).
-- Nei template e nelle API non usare mai `TicketAllegato.file.url`: usare sempre `reverse("tickets:download_allegato", args=[allegato.pk])`.
-- In deploy IIS `/media/tickets` va bloccato nel `web.config`; gli eventuali file legacy rimasti in `MEDIA_ROOT/tickets/...` sono serviti solo come fallback dalla view autenticata.
-
-### Analytics KPI ticket
-
-- **Campi analitici su `Ticket`**: `componente`, `causa_radice`, `tipo_fermo` (TipoFermo: NESSUNO/PARZIALE/TOTALE), `ore_fermo_macchina`, `data_presa_in_carico` (auto al primo IN_CARICO), `data_primo_intervento` (auto al primo `TicketIntervento`), `risolto_da_nome` (auto al primo RISOLTO), `ricorrente` (bool), `ticket_origine` (FK self, nullable)
-- **`TicketStatoLog`**: log strutturato di ogni cambio stato (`api_stato` lo crea automaticamente). Visibile come timeline in fondo a `gestione_detail.html`.
-- **`TicketIntervento`**: sessioni di lavoro per tecnico. CRUD via `POST/PATCH/DELETE /tickets/api/intervento/`. `durata_ore` si calcola da `data_fine - data_inizio` se `ore_lavorate` non Ã¨ impostato manualmente. Il primo intervento imposta automaticamente `Ticket.data_primo_intervento`.
-- **API `POST /tickets/api/analytics/`**: salva i campi analitici sul ticket. Richiede `_tickets_gestione_required`.
-- **KPI per asset** (`assets/views.py` â€” `_compute_ticket_kpi_for_asset`): 2 query totali ? totale/aperti/chiusi, MTTR, ore_fermo_totali, ore_intervento_totali, top 3 componenti/cause/tecnici. Passato come `ticket_kpi` al template `asset_detail.html`.
-- **Nuovo stato `IN_ATTESA`**: ticket bloccato in attesa di ricambi o informazioni. Badge viola. Non considerato "chiuso" (non imposta `closed_at`).
-
-### Assenze e vincoli legacy SQL Server
-
-- `FlessibilitÃ ` e il valore canonico del modulo assenze; `Infortunio` non deve piu essere persistito dal runtime.
-- Su SQL Server il vincolo `CK_assenze_tipo` deve accettare `Ferie`, `Permesso`, `Malattia`, `FlessibilitÃ `, `Altro`; se il database arriva da una versione storica usare il comando `python django_app/manage.py allinea_tipo_assenza_flessibilita --settings=config.settings.dev` prima di usare insert/update o `sync/pull`.
-- L'app continua a normalizzare eventuali valori legacy `Infortunio` provenienti da dati storici o integrazioni esterne in `FlessibilitÃ `, ma il percorso ufficiale e il riallineamento del database.
-- Nei flussi di deploy SQL Server supportati (`SetupWizard.exe`, `deployment/setup_wizard.py`, `deployment/scripts/deploy-release.ps1`) il comando `allinea_tipo_assenza_flessibilita` va eseguito automaticamente subito dopo `migrate`, prima di attivare la release; se la tabella legacy `assenze` non esiste deve uscire in no-op, non come errore bloccante.
-- `Certifica presenza` continua a essere persistita come `Altro` piu marker interno in `motivazione_richiesta` (`[CERTIFICA_PRESENZA] ...`) per ricostruire il tipo reale in lettura, export e sync SharePoint.
-
-### Import in tickets/views.py Ã¢â‚¬â€ REGOLA CRITICA
-
-I modelli di altre app (`Asset`, `UserExtraInfo`, `AnagraficaDipendente`, `Fornitore`, ecc.) **NON** sono importati a livello di modulo in `tickets/views.py`. Vanno sempre importati **localmente dentro la funzione** che li usa:
-
-```python
-# CORRETTO
-def mia_view(request):
-    from assets.models import Asset as AssetModel
-    ...
-
-# SBAGLIATO Ã¢â‚¬â€ causa NameError a runtime
-Asset.objects.filter(...)
-```
-
-Motivo: import lazy per evitare circular imports tra app.
-
-### FBV (Function-Based Views)
-
-Il progetto usa quasi esclusivamente FBV. Non introdurre CBV senza necessitÃƒÂ .
+- Pulsante `Scarica` apre `iis.net/downloads/microsoft/httpplatformhandler`
+- `validate()` non e bloccante: avvisa con dialog ma permette di continuare
+- Saltata in DEV tramite `_skip_for_dev` con `_HPH_PAGE_IDX = 8`
 
 ### Settings
 
 - `config/settings/base.py` + `dev.py` + `test.py` + `prod.py`
-- Variabili ambiente da `.env` caricate dal loader custom `_load_dotenv(...)` in `base.py` + `config.ini` (via `configparser`)
+- Variabili ambiente da `django_app/.env` caricate dal loader custom `_load_dotenv(...)` in `base.py`
 - `config.settings.test` forza SQLite e servizi lightweight anche se il file `.env` punta a SQL Server
 - `python manage.py test` usa automaticamente `config.settings.test` se non passi `--settings`
 - Nei flussi wizard/deploy l'ambiente `test` usa comunque `config.settings.prod`
-- `config.ini` runtime viene letto da `PROJECT_DIR.parent / "config.ini"` (quindi nella root del release attivo, non solo dentro `django_app/`)
-- Per LDAP la precedenza runtime e: ambiente processo -> `django_app/.env` -> `[ACTIVE_DIRECTORY]` in `config.ini` -> default codice. La pagina `/admin-portale/ldap/` deve distinguere esplicitamente tra runtime attivo e valori che verrebbero letti al prossimo riavvio; la form modifica `config.ini`.
-- `LDAP_GROUP_ALLOWLIST` e `LDAP_SYNC_PAGE_SIZE` devono avere fallback a `config.ini` coerente con il salvataggio della pagina admin, non restare bloccati al solo `.env`/default.
-- Per sviluppo: `--settings=config.settings.dev`
+- La source of truth persistita e `django_app/.env`; il processo puo sovrascrivere singole chiavi via environment variables
+- Per LDAP la precedenza runtime e: ambiente processo -> `django_app/.env` -> default codice
+- `LDAP_GROUP_ALLOWLIST` e `LDAP_SYNC_PAGE_SIZE` devono restare coerenti con i valori persistiti in `.env`, senza fallback paralleli legacy
+- Per sviluppo usare `--settings=config.settings.dev`
 
-### Template Django Ã¢â‚¬â€ REGOLA: variabili NON possono iniziare con underscore
+### Template Django - REGOLA: variabili NON possono iniziare con underscore
 
 Django proibisce a livello di template engine l'accesso a chiavi dict o attributi che iniziano con `_`. Questo vale per template tag, dot notation e loop variables.
 
@@ -493,7 +374,7 @@ Questi componenti esistono solo sul server di produzione:
 - Tabella `automation_event_queue` (`sql/automation_event_queue.sql`)
 - SharePoint/Graph data (credenziali `GRAPH_*` nel `.env`)
 - `media/fotocard`, `media/timbri`, `media/firme`
-- `config.ini` runtime (solo `.example` nel repo)
+- `django_app/.env` runtime (solo `.example` nel repo)
 
 ---
 
@@ -600,7 +481,7 @@ Con 2+ worker IIS usare `DatabaseCache` (SQL Server) Ã¢â‚¬â€ condivis
 python -m venv .venv
 # Windows: .venv\Scripts\Activate.ps1
 pip install -r django_app/requirements.txt
-# configurare django_app/.env e config.ini da .example
+# configurare django_app/.env da .env.example
 python django_app/manage.py migrate --settings=config.settings.dev
 python django_app/manage.py test
 # applicare manualmente sql/ scripts su SQL Server

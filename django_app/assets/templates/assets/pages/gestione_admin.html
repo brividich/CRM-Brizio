@@ -1,9 +1,7 @@
-{% extends "core/base.html" %}
+{% extends "assets/base_shell.html" %}
 {% load assets_extras %}
 
-{% block title %}{{ page_title }}{% endblock %}
-
-{% block extra_head %}
+{% block assets_shell_head %}
 <style>
 .ga-wrap { max-width: 1200px; margin: 0 auto; padding: 18px 16px; }
 .ga-header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
@@ -88,13 +86,12 @@
 </style>
 {% endblock %}
 
-{% block content %}
-<div class="ga-wrap">
-  <div class="ga-header">
-    <a class="btn-back" href="{% url 'assets:asset_list' %}" onclick="if (window.history.length > 1) { window.history.back(); return false; }">&larr; Indietro</a>
-    <div class="ga-title">Gestione Assets</div>
-    <span class="ga-badge">Admin</span>
-  </div>
+{% block assets_shell_title %}Gestione Assets <span class="ga-badge">Admin</span>{% endblock %}
+{% block assets_shell_toolbar %}
+<a class="as-backlink" href="{% url 'assets:asset_list' %}" onclick="if (window.history.length > 1) { window.history.back(); return false; }">&larr; Inventario</a>
+{% endblock %}
+
+{% block assets_shell_content %}
 
   <div class="ga-tabs">
     <a href="?tab=riepilogo" class="ga-tab {% if tab == 'riepilogo' %}active{% endif %}">Riepilogo</a>
@@ -523,7 +520,7 @@
 
       {% if sharepoint_admin_config.env_override_active %}
         <div class="text-base" style="padding:10px 12px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;border-radius:10px;">
-          Alcuni valori Graph arrivano da variabili ambiente. In quel caso hanno priorita rispetto a <code>config.ini</code>.
+          Alcuni valori Graph arrivano dall'ambiente processo. In quel caso hanno priorita rispetto a <code>.env</code>.
         </div>
       {% endif %}
 
@@ -665,6 +662,57 @@
       </form>
     </div>
   </div>
+
+  {# ---- Logo modulo ---- #}
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-head"><h3 class="card-title">Logo modulo</h3></div>
+    <div class="card-body" style="display:grid;gap:16px;">
+      <div style="display:flex;align-items:center;gap:16px;">
+        <div id="logo-preview-wrap" style="width:52px;height:52px;border-radius:12px;background:#1f64d8;display:inline-flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">
+          {% if assets_logo_url %}
+            <img id="logo-preview-img" src="{{ assets_logo_url }}" alt="Logo" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">
+          {% else %}
+            <span id="logo-preview-letter" style="color:#fff;font-weight:800;font-size:1.4rem;">A</span>
+          {% endif %}
+        </div>
+        <div style="display:grid;gap:4px;">
+          <div style="font-weight:700;color:#0f172a;">Anteprima logo corrente</div>
+          <div class="muted-note">Appare nella sidebar e nell'intestazione del modulo inventario.</div>
+          {% if assets_logo_url %}
+            <div style="font-size:var(--fs-xs);color:#64748b;word-break:break-all;">{{ assets_logo_url }}</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <form method="post" enctype="multipart/form-data" style="display:grid;gap:10px;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save_assets_logo">
+        <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;">
+          <div class="form-group" style="margin:0;">
+            <label>Carica immagine (PNG/JPG/SVG, max 512 KB)</label>
+            <input type="file" name="logo_file" accept="image/png,image/jpeg,image/svg+xml,image/webp" id="logo-file-input">
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm" style="height:34px;">Carica</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;">
+          <div class="form-group" style="margin:0;">
+            <label>Oppure usa un URL esterno</label>
+            <input type="url" name="logo_url" value="{{ assets_logo_url|default:'' }}" placeholder="https://..." style="width:100%;">
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm" style="height:34px;">Salva URL</button>
+        </div>
+      </form>
+
+      {% if assets_logo_url %}
+      <form method="post" style="margin:0;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="remove_assets_logo">
+        <button type="submit" class="btn btn-danger btn-sm">Rimuovi logo personalizzato</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
   {% endif %}
 
   {# ========== TAB RECORD ========== #}
@@ -917,5 +965,4 @@
   </div>
   {% endif %}
 
-</div>
 {% endblock %}

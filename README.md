@@ -3,7 +3,7 @@
 
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![Django 5.2](https://img.shields.io/badge/Django-5.2-0C4B33?logo=django&logoColor=white)
-![Version 0.9.3](https://img.shields.io/badge/version-0.9.3-F97316)
+![Version 0.9.4](https://img.shields.io/badge/version-0.9.4-F97316)
 ![Database SQLite or SQL Server](https://img.shields.io/badge/DB-SQLite%20%7C%20SQL%20Server-1E3A5F)
 
 Repository di riferimento del software **NOVICROM HUB**. I nomi storici come
@@ -38,6 +38,7 @@ la leggibilita e i comandi rapidi senza modificare codice o template:
 - icone topbar/sidebar con alias SVG semantici e fallback automatico sui moduli principali
 - sottomenu sidebar aperti resi come livello annidato con pannello dedicato e stato aperto piu evidente
 - footer sidebar personalizzabile con azioni rapide aggiungibili, rimovibili e riordinabili
+- favicon del portale sostituibile da `/admin-portale/branding/` senza toccare codice o file statici
 
 Le preferenze vengono salvate lato server e riapplicate automaticamente al login successivo.
 
@@ -49,12 +50,14 @@ Le preferenze vengono salvate lato server e riapplicate automaticamente al login
 | Workflow | assenze, anomalie, tickets, timbri, notizie e richieste interne |
 | Operations | inventory asset, work order, macchine di lavoro, planimetrie e verifiche periodiche |
 | Sicurezza e compliance | DPI (richieste/approvazione/consegna), diario preposto, rilevazione incidenti, presa visione procedure MT/MTSI, tracciabilita rifiuti RENTRI |
-| Governance | gestione utenti, ACL canonico v2 + fallback legacy, pulsanti UI, audit, diagnostica LDAP, diagnostica ACL e mappa permessi/navigazione |
+| Governance | gestione utenti, ACL canonico v2 + fallback legacy, pulsanti UI, audit, diagnostica LDAP, diagnostica ACL, mappa permessi/navigazione e branding portale (favicon, login) |
 | Automazioni | designer visuale, sorgenti, queue processor, test regole e import package |
 | Osservabilita | monitoring interno, issue tracking, alert email, segnalazioni utente, monitor automazioni |
 | Compatibilita legacy | route storiche, tabelle unmanaged e fallback di navigazione/permessi |
 
 La `dashboard` resta il cruscotto KPI cross-modulo e i workflow di dominio vivono dentro i rispettivi moduli. Per `assenze` il punto di ingresso unico e `/assenze/`, che raccoglie menu modulo, nuova richiesta, gestione personale, calendario e certificazione presenza.
+
+Nel modulo `assets`, lo scadenzario delle manutenzioni puo ora creare eventi Outlook Calendar direttamente sul calendario dell'utente selezionato dagli admin, riusando Microsoft Graph e tracciando gli eventi gia generati per evitare duplicati sulla stessa scadenza. Il logo del modulo Assets e personalizzabile da Gestione Admin (tab Configurazione) con upload diretto o URL esterno; il brand nella sidebar e cliccabile per tornare all'homepage del modulo. La sidebar di Gestione Admin e visibile su tutte le pagine del modulo per gli utenti con permesso `admin_assets`.
 
 La dashboard principale usa ora questo workspace personale: widget KPI multi-modulo, layout personale per utente, template iniziale definibile dagli admin e ripristino rapido al template di partenza. La route `scheda-dipendente` resta solo come alias compatibile.
 
@@ -150,8 +153,7 @@ DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost
 DB_ENGINE=sqlite
 ```
 
-`django_app/.env` e il file principale di runtime.
-`config.ini.example` resta utile solo per integrazioni legacy o configurazioni opzionali.
+`django_app/.env` e l'unica sorgente persistita di configurazione runtime.
 
 ### 3. Avvia il progetto
 
@@ -165,7 +167,9 @@ Endpoint tipici in locale:
 - `http://127.0.0.1:8000/` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â dashboard
 - `http://127.0.0.1:8000/assenze/` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â modulo assenze unificato (menu, gestione, calendario)
 - `http://127.0.0.1:8000/assets/` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â gestione asset
-- `http://127.0.0.1:8000/admin-portale/` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â pannello admin
+- `http://127.0.0.1:8000/admin-portale/` → pannello admin
+- `http://127.0.0.1:8000/admin-portale/branding/` - favicon e identità visiva del portale (ICO/PNG/SVG, aggiornamento immediato su tutte le pagine)
+- `http://127.0.0.1:8000/admin-portale/login-config/` - titolo, logo, banner e SSO della pagina di login
 - `http://127.0.0.1:8000/admin-portale/navigation-builder/` - builder navigazione con vista visuale drag&drop orizzontale (scroll laterale) + editor tabellare completo, con toggle modalita avanzata per slot `Sidebar Dedicated`
 - `http://127.0.0.1:8000/admin-portale/acl-canonico/` - gestione permission code / binding / grant
 - `http://127.0.0.1:8000/admin-portale/acl-route-coverage/` - report copertura route ACL con filtri e export CSV
@@ -182,8 +186,9 @@ Endpoint tipici in locale:
 - `config.settings.test` forza sempre SQLite, cache/email locali e viene usato automaticamente da `python django_app\manage.py test` se non passi `--settings` esplicito.
 - `config.settings.prod` usa SQL Server di default, `ALLOWED_HOSTS` vuoto e impostazioni HTTP/HTTPS piu restrittive.
 - Per SQL Server serve almeno un driver ODBC SQL Server installato (`ODBC Driver 18/17/13`, `SQL Server Native Client 11.0` o `SQL Server`); il wizard e `deployment/scripts/deploy-release.ps1` allineano automaticamente `DB_DRIVER` al miglior driver disponibile sul server applicativo.
-- LDAP, Graph e SMTP sono attivabili da variabili ambiente o da `config.ini` dove previsto.
-- Per LDAP la precedenza effettiva e: ambiente processo -> `django_app/.env` -> `[ACTIVE_DIRECTORY]` in `config.ini` -> default codice. La pagina `/admin-portale/ldap/` mostra sia il runtime attivo sia i valori che verrebbero caricati al prossimo riavvio.
+- LDAP, Graph, SMTP, GuestPortal e le configurazioni applicative admin sono lette dal processo e da `django_app/.env`.
+- La precedenza effettiva e: ambiente processo -> `django_app/.env` -> default codice.
+- `/admin-portale/ldap/` mostra runtime attivo e valori che verrebbero caricati al prossimo riavvio; il salvataggio scrive direttamente `.env`, che resta la sola source of truth persistita.
 
 Check rapido del profilo produzione:
 
@@ -237,8 +242,7 @@ repo-root/
 |-- doc/
 |-- sql/
 |-- .github/assets/
-|-- .env.example
-`-- config.ini.example
+`-- .env.example
 ```
 
 ## Deployment su Windows Server + IIS
@@ -251,7 +255,7 @@ Il wizard e `deployment/scripts/setup-environment.ps1` auto-rilevano ora un Pyth
 
 Prerequisiti: IIS + HttpPlatformHandler, SQL Server, un driver ODBC SQL Server installato (18/17/13 o equivalente), sqlcmd, Python 3.11+.
 Il venv condiviso dell'ambiente deve includere anche `waitress`, ora dichiarato direttamente in `django_app/requirements.txt`.
-Nel deploy manuale, `config.ini` deve trovarsi anche nella root del release attivo (`current\config.ini`), che e il percorso letto dal runtime Django. Nel Server Dashboard del wizard e disponibile anche un reset password live degli account locali per l'ambiente selezionato, ma solo se il setup/exe e avviato come Administrator.
+Nel deploy manuale basta fornire il file `.env` dell'ambiente in `config\` cosi lo script lo copia nella release attiva sotto `django_app\.env`. Nel Server Dashboard del wizard e disponibile anche un reset password live degli account locali per l'ambiente selezionato, ma solo se il setup/exe e avviato come Administrator.
 
 Nota sicurezza deployment: gli allegati ticket non devono essere serviti direttamente da `/media/tickets/`.
 I nuovi upload usano storage privato e il download passa da una view Django autenticata; il template IIS incluso nel repo blocca l'accesso diretto alla cartella pubblica legacy.

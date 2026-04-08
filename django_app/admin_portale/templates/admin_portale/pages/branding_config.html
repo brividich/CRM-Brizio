@@ -1,0 +1,136 @@
+{% extends "core/base.html" %}
+
+{% block title %}Branding Portale | Admin Portale{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Branding portale" page_subtitle="Personalizza il favicon che appare nella scheda del browser per tutte le pagine del portale." %}
+
+  {% if messages %}
+    <div class="messages-wrap" style="margin-bottom:20px;">
+      {% for message in messages %}
+        <div class="notice{% if message.tags == 'success' %} notice-success{% elif message.tags == 'error' %} notice-danger{% endif %}">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div style="display:grid;grid-template-columns:1fr 300px;gap:20px;max-width:900px;">
+
+    <!-- COLONNA SINISTRA -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+
+      <!-- Favicon -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Favicon</div>
+          <span style="font-size:11px;color:var(--text-light);">Appare nella scheda del browser su tutte le pagine</span>
+        </div>
+        <div class="card-body">
+
+          {% if favicon_url %}
+            <div style="margin-bottom:18px;background:#f8fafc;border-radius:10px;padding:16px;display:flex;align-items:center;gap:16px;border:1px solid var(--border);">
+              <div style="width:48px;height:48px;border-radius:10px;border:1px solid var(--border);background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">
+                <img src="{{ favicon_url }}" alt="Favicon corrente" style="width:32px;height:32px;object-fit:contain;">
+              </div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px;">Favicon attivo</div>
+                <div style="font-size:11px;color:var(--text-light);word-break:break-all;">{{ favicon_url }}</div>
+              </div>
+              <form method="post" action="{% url 'admin_portale:api_branding_favicon_remove' %}" style="flex-shrink:0;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Rimuovere il favicon personalizzato?')">Rimuovi</button>
+              </form>
+            </div>
+          {% else %}
+            <div style="margin-bottom:16px;padding:12px 14px;background:#f8fafc;border-radius:8px;border:1px solid var(--border);font-size:13px;color:var(--text-light);">
+              Nessun favicon personalizzato — il browser mostra l'icona predefinita del browser.
+            </div>
+          {% endif %}
+
+          <form method="post" action="{% url 'admin_portale:api_branding_favicon_upload' %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="field" style="margin-bottom:8px;">
+              <label>Carica favicon <span style="font-weight:400;color:var(--text-light)">(ICO, PNG o SVG &mdash; max 512 KB)</span></label>
+              <input class="input" type="file" name="favicon" accept=".ico,.png,.svg,image/x-icon,image/png,image/svg+xml" required id="faviconInput" onchange="previewFavicon(this)">
+            </div>
+            <div id="faviconPreviewWrap" style="display:none;margin-bottom:12px;padding:10px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;display:none;align-items:center;gap:10px;">
+              <img id="faviconPreviewImg" src="" alt="" style="width:24px;height:24px;object-fit:contain;">
+              <span style="font-size:12px;color:#166534;" id="faviconPreviewLabel"></span>
+            </div>
+            <button type="submit" class="btn btn-secondary">Carica favicon</button>
+          </form>
+
+          <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);font-size:12px;color:var(--text-light);line-height:1.6;">
+            <strong style="color:var(--text-mid);">Formato consigliato:</strong> ICO 32&times;32 px o PNG 32&times;32 px per la massima compatibilità con tutti i browser.<br>
+            SVG è supportato dai browser moderni. Il favicon viene aggiornato immediatamente su tutte le pagine del portale.
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- COLONNA DESTRA — anteprima tab browser -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+      <div class="card">
+        <div class="card-head"><div class="card-title">Anteprima</div></div>
+        <div class="card-body">
+
+          <!-- Simulazione tab browser -->
+          <div style="border:1px solid #cbd5e1;border-radius:8px 8px 0 0;overflow:hidden;background:#e2e8f0;padding:6px 8px 0;">
+            <div style="background:white;border-radius:6px 6px 0 0;padding:7px 10px;display:flex;align-items:center;gap:7px;max-width:180px;">
+              {% if favicon_url %}
+                <img src="{{ favicon_url }}" id="tabFaviconImg" alt="" style="width:14px;height:14px;object-fit:contain;flex-shrink:0;">
+              {% else %}
+                <div id="tabFaviconImg" style="width:14px;height:14px;border-radius:2px;background:#cbd5e1;flex-shrink:0;"></div>
+              {% endif %}
+              <span style="font-size:11px;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="tabTitleLabel">{{ portal_branding.portal_name|default:"Portale" }}</span>
+              <span style="font-size:10px;color:#9ca3af;margin-left:auto;flex-shrink:0;">&times;</span>
+            </div>
+          </div>
+          <div style="border:1px solid #cbd5e1;border-top:none;border-radius:0 0 8px 8px;background:#f8fafc;padding:14px;text-align:center;font-size:11px;color:var(--text-light);">
+            Aspetto scheda browser
+          </div>
+
+          <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
+            <a href="{% url 'admin_portale:login_config' %}" class="btn btn-secondary btn-sm" style="width:100%;justify-content:center;">
+              Configura login &rarr;
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function previewFavicon(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const wrap = document.getElementById('faviconPreviewWrap');
+  const img = document.getElementById('faviconPreviewImg');
+  const label = document.getElementById('faviconPreviewLabel');
+  if (file.type === 'image/svg+xml' || file.name.endsWith('.svg')) {
+    // SVG: usa FileReader per data URL
+    const reader = new FileReader();
+    reader.onload = e => {
+      img.src = e.target.result;
+      document.getElementById('tabFaviconImg').src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  } else if (file.type !== 'image/x-icon' && !file.name.endsWith('.ico')) {
+    const url = URL.createObjectURL(file);
+    img.src = url;
+    const tabEl = document.getElementById('tabFaviconImg');
+    if (tabEl.tagName === 'IMG') tabEl.src = url;
+  }
+  label.textContent = file.name + ' (' + Math.round(file.size / 1024) + ' KB)';
+  wrap.style.display = 'flex';
+}
+</script>
+{% endblock %}

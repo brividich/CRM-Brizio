@@ -1,6 +1,5 @@
 ﻿from __future__ import annotations
 
-import configparser
 import json
 import logging
 import os
@@ -33,6 +32,7 @@ from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_GET, require_POST
 from werkzeug.security import generate_password_hash
 
+from config.env_config import get_first_env_value, load_env_file_values, update_env_file_values
 from core.acl import diagnose_permesso_for_context
 from core.acl_v2 import diagnose_acl_access, normalize_binding_path_pattern, normalize_permission_code, validate_permission_code
 from core.audit import log_action
@@ -56,6 +56,7 @@ from core.navigation_registry import (
     restore_navigation_snapshot,
 )
 from core.legacy_utils import get_legacy_user, legacy_table_columns, legacy_table_has_column
+from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 from core.models import (
     AnagraficaRisposta,
     AnagraficaVoce,
@@ -1087,70 +1088,37 @@ LDAP_DIAG_FIELDS: tuple[dict[str, object], ...] = (
 )
 
 
+def _dotenv_path() -> Path:
+    return Path(settings.BASE_DIR) / ".env"
+
+
 def _load_dotenv_values(dotenv_path: Path | None = None) -> dict[str, str]:
-    path = dotenv_path or (Path(settings.BASE_DIR) / ".env")
-    values: dict[str, str] = {}
-    try:
-        if not path.exists():
-            return values
-        for raw_line in path.read_text(encoding="utf-8").splitlines():
-            line = raw_line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            values[key.strip()] = value.strip().strip("'").strip('"')
-    except Exception:
-        return {}
-    return values
+    return load_env_file_values(dotenv_path or _dotenv_path())
 
 
-def _config_ini_path() -> Path:
-    return Path(settings.BASE_DIR).parent / "config.ini"
+def _effective_env_value(env_key: str, default: str = "") -> str:
+    dotenv_values = _load_dotenv_values()
+    dotenv_value = dotenv_values.get(env_key)
+    process_env_value = os.environ.get(env_key)
+    if process_env_value is not None and (dotenv_value is None or process_env_value != dotenv_value):
+        return str(process_env_value or "").strip()
+    if dotenv_value is not None:
+        return str(dotenv_value or "").strip()
+    return str(default or "").strip()
 
 
-def _load_config_ini_parser(config_path: Path | None = None) -> configparser.ConfigParser:
-    config_path = config_path or _config_ini_path()
-    parser = configparser.ConfigParser()
-    try:
-        if config_path.exists():
-            parser.read(str(config_path), encoding="utf-8")
-    except Exception:
-        return configparser.ConfigParser()
-    return parser
+def _effective_env_bool(env_key: str, default: bool = False) -> bool:
+    value = _effective_env_value(env_key, "")
+    if value == "":
+        return bool(default)
+    return _bool_from_any(value)
 
 
-def _config_ini_has_option(parser: configparser.ConfigParser, section: str, option: str) -> bool:
-    try:
-        return parser.has_section(section) and parser.has_option(section, option)
-    except Exception:
-        return False
-
-
-def _config_ini_get(parser: configparser.ConfigParser, section: str, option: str, fallback: str = "") -> str:
-    try:
-        if _config_ini_has_option(parser, section, option):
-            return parser.get(section, option, fallback=fallback)
-    except Exception:
-        pass
-    return fallback
-
-
-def _config_ini_get_bool(parser: configparser.ConfigParser, section: str, option: str, fallback: bool) -> bool:
-    try:
-        if _config_ini_has_option(parser, section, option):
-            return parser.getboolean(section, option, fallback=fallback)
-    except Exception:
-        pass
-    return fallback
-
-
-def _config_ini_get_int(parser: configparser.ConfigParser, section: str, option: str, fallback: int) -> int:
-    try:
-        if _config_ini_has_option(parser, section, option):
-            return int(parser.get(section, option, fallback=str(fallback)) or fallback)
-    except Exception:
-        pass
-    return fallback
+def _effective_env_int(env_key: str, default: int) -> int:
+    value = _int_or_none(_effective_env_value(env_key, ""))
+    if value is None:
+        return int(default)
+    return int(value)
 
 
 def _ldap_csv_items(value) -> list[str]:
@@ -1191,6 +1159,32 @@ def _ldap_display_field_value(field: dict[str, object], value) -> str:
     return text or "(non configurato)"
 
 
+def _ldap_form_field_value(field: dict[str, object], value):
+    kind = str(field.get("kind") or "str")
+    if kind == "bool":
+        return _ldap_normalize_field_value(field, value)
+    if kind == "int":
+        return _ldap_normalize_field_value(field, value)
+    if kind == "csv":
+        return ", ".join(_ldap_csv_items(value))
+    return str(value or "").strip()
+
+
+def _load_config_ini_ad_values() -> dict[str, str]:
+    """Legge la sezione [ACTIVE_DIRECTORY] da config.ini e restituisce un dict chiave->valore."""
+    import configparser as _cp
+    parser = _cp.ConfigParser()
+    config_path = _config_ini_path()
+    if config_path.exists():
+        try:
+            parser.read(str(config_path), encoding="utf-8")
+        except Exception:
+            pass
+    if parser.has_section("ACTIVE_DIRECTORY"):
+        return dict(parser.items("ACTIVE_DIRECTORY"))
+    return {}
+
+
 def _ldap_source_label(source_key: str) -> str:
     mapping = {
         "dotenv": ".env",
@@ -1206,10 +1200,11 @@ def _ldap_runtime_source(
     field: dict[str, object],
     runtime_value,
     dotenv_values: dict[str, str],
-    parser: configparser.ConfigParser,
+    ini_values: dict[str, str] | None = None,
 ) -> str:
     runtime_norm = _ldap_normalize_field_value(field, runtime_value)
     env_key = str(field.get("env_key") or "")
+    ini_key = str(field.get("ini_key") or "")
     dotenv_value = dotenv_values.get(env_key)
     process_env_value = os.environ.get(env_key)
 
@@ -1218,10 +1213,8 @@ def _ldap_runtime_source(
             return "process_env"
     if dotenv_value is not None and runtime_norm == _ldap_normalize_field_value(field, dotenv_value):
         return "dotenv"
-    ini_key = str(field.get("ini_key") or "")
-    if _config_ini_has_option(parser, "ACTIVE_DIRECTORY", ini_key):
-        ini_value = _config_ini_get(parser, "ACTIVE_DIRECTORY", ini_key, "")
-        if runtime_norm == _ldap_normalize_field_value(field, ini_value):
+    if ini_values is not None and ini_key and ini_key in ini_values:
+        if runtime_norm == _ldap_normalize_field_value(field, ini_values[ini_key]):
             return "config_ini"
     if runtime_norm == _ldap_normalize_field_value(field, field.get("default")):
         return "default"
@@ -1231,24 +1224,24 @@ def _ldap_runtime_source(
 def _ldap_next_boot_value(
     field: dict[str, object],
     dotenv_values: dict[str, str],
-    parser: configparser.ConfigParser,
+    ini_values: dict[str, str] | None = None,
 ):
     env_key = str(field.get("env_key") or "")
+    ini_key = str(field.get("ini_key") or "")
     dotenv_value = dotenv_values.get(env_key)
     process_env_value = os.environ.get(env_key)
     if process_env_value is not None and (dotenv_value is None or process_env_value != dotenv_value):
         return process_env_value, "process_env"
     if dotenv_value is not None:
         return dotenv_value, "dotenv"
-    ini_key = str(field.get("ini_key") or "")
-    if _config_ini_has_option(parser, "ACTIVE_DIRECTORY", ini_key):
-        return _config_ini_get(parser, "ACTIVE_DIRECTORY", ini_key, ""), "config_ini"
+    if ini_values is not None and ini_key and ini_key in ini_values:
+        return ini_values[ini_key], "config_ini"
     return field.get("default"), "default"
 
 
 def _ldap_diag_runtime_rows(runtime_cfg: dict[str, object]) -> tuple[list[dict[str, object]], bool, bool]:
-    parser = _load_config_ini_parser()
     dotenv_values = _load_dotenv_values()
+    ini_values = _load_config_ini_ad_values()
     rows: list[dict[str, object]] = []
     has_pending_restart = False
     has_env_override = False
@@ -1256,19 +1249,17 @@ def _ldap_diag_runtime_rows(runtime_cfg: dict[str, object]) -> tuple[list[dict[s
     for field in LDAP_DIAG_FIELDS:
         key = str(field["key"])
         runtime_value = runtime_cfg.get(key)
-        runtime_source = _ldap_runtime_source(field, runtime_value, dotenv_values, parser)
-        next_value, next_source = _ldap_next_boot_value(field, dotenv_values, parser)
-        ini_key = str(field.get("ini_key") or "")
-        ini_has_value = _config_ini_has_option(parser, "ACTIVE_DIRECTORY", ini_key)
-        ini_value = _config_ini_get(parser, "ACTIVE_DIRECTORY", ini_key, "") if ini_has_value else ""
+        runtime_source = _ldap_runtime_source(field, runtime_value, dotenv_values, ini_values)
+        next_value, next_source = _ldap_next_boot_value(field, dotenv_values, ini_values)
 
         runtime_norm = _ldap_normalize_field_value(field, runtime_value)
         next_norm = _ldap_normalize_field_value(field, next_value)
         runtime_matches_next = runtime_norm == next_norm
+        dotenv_value = dotenv_values.get(str(field.get("env_key") or ""))
         override_active = (
-            next_source in {"dotenv", "process_env"}
-            and ini_has_value
-            and _ldap_normalize_field_value(field, ini_value) != next_norm
+            next_source == "process_env"
+            and dotenv_value is not None
+            and _ldap_normalize_field_value(field, dotenv_value) != next_norm
         )
 
         if not runtime_matches_next:
@@ -1279,13 +1270,9 @@ def _ldap_diag_runtime_rows(runtime_cfg: dict[str, object]) -> tuple[list[dict[s
         elif override_active:
             status_label = "Override attivo"
             status_tone = "warning"
-            note = f"{_ldap_source_label(next_source)} ha priorita su config.ini per questo campo."
+            note = f"{_ldap_source_label(next_source)} ha priorita su .env per questo campo."
             has_env_override = True
-        elif next_source == "config_ini":
-            status_label = "Allineato"
-            status_tone = "success"
-            note = "Il valore runtime coincide con config.ini."
-        elif next_source in {"dotenv", "process_env"}:
+        elif next_source in {"dotenv", "process_env", "config_ini"}:
             status_label = "Allineato"
             status_tone = "success"
             note = f"Il runtime legge questo campo da {_ldap_source_label(next_source)}."
@@ -1311,30 +1298,47 @@ def _ldap_diag_runtime_rows(runtime_cfg: dict[str, object]) -> tuple[list[dict[s
     return rows, has_pending_restart, has_env_override
 
 
+def _ldap_effective_form_state() -> tuple[dict[str, object], dict[str, str]]:
+    dotenv_values = _load_dotenv_values()
+    ini_values = _load_config_ini_ad_values()
+    values: dict[str, object] = {}
+    source_labels: dict[str, str] = {}
+
+    for field in LDAP_DIAG_FIELDS:
+        key = str(field["key"])
+        next_value, next_source = _ldap_next_boot_value(field, dotenv_values, ini_values)
+        values[key] = _ldap_form_field_value(field, next_value)
+        source_labels[key] = _ldap_source_label(next_source)
+
+    return values, source_labels
+
+
 def _ldap_file_defaults(runtime_cfg: dict[str, object]) -> dict[str, object]:
-    parser = _load_config_ini_parser()
-    return {
-        "enabled": _config_ini_get_bool(parser, "ACTIVE_DIRECTORY", "enabled", bool(runtime_cfg["enabled"])),
-        "server": _config_ini_get(parser, "ACTIVE_DIRECTORY", "server", str(runtime_cfg["server"])),
-        "domain": _config_ini_get(parser, "ACTIVE_DIRECTORY", "domain", str(runtime_cfg["domain"])),
-        "upn_suffix": _config_ini_get(parser, "ACTIVE_DIRECTORY", "upn_suffix", str(runtime_cfg["upn_suffix"])),
-        "timeout": _config_ini_get_int(parser, "ACTIVE_DIRECTORY", "timeout", int(runtime_cfg["timeout"])),
-        "service_user": _config_ini_get(parser, "ACTIVE_DIRECTORY", "service_user", str(runtime_cfg["service_user"])),
-        "base_dn": _config_ini_get(parser, "ACTIVE_DIRECTORY", "base_dn", str(runtime_cfg["base_dn"])),
-        "user_filter": _config_ini_get(parser, "ACTIVE_DIRECTORY", "user_filter", str(runtime_cfg["user_filter"])),
-        "group_allowlist": _config_ini_get(
-            parser,
-            "ACTIVE_DIRECTORY",
-            "group_allowlist",
-            str(runtime_cfg["group_allowlist"]),
-        ),
-        "sync_page_size": _config_ini_get_int(
-            parser,
-            "ACTIVE_DIRECTORY",
-            "sync_page_size",
-            int(runtime_cfg["sync_page_size"]),
-        ),
+    values, _source_labels = _ldap_effective_form_state()
+    return values
+
+
+def _ldap_effective_source_labels() -> dict[str, str]:
+    _values, source_labels = _ldap_effective_form_state()
+    return source_labels
+
+
+def _ldap_missing_required_labels(cfg: dict[str, object], required_keys: tuple[str, ...]) -> list[str]:
+    labels_by_key = {
+        str(field["key"]): str(field["label"])
+        for field in LDAP_DIAG_FIELDS
     }
+    missing: list[str] = []
+
+    for key in required_keys:
+        if key == "enabled":
+            if not _bool_from_any(cfg.get(key)):
+                missing.append(labels_by_key.get(key, key))
+            continue
+        if not str(cfg.get(key) or "").strip():
+            missing.append(labels_by_key.get(key, key))
+
+    return missing
 
 
 def _ldap_diag_defaults() -> dict[str, object]:
@@ -1358,37 +1362,28 @@ def _ldap_diag_defaults() -> dict[str, object]:
 
 def _smtp_diag_defaults() -> dict[str, str | bool | int]:
     return {
-        "host": str(getattr(settings, "EMAIL_HOST", "") or ""),
-        "port": int(getattr(settings, "EMAIL_PORT", 587) or 587),
-        "user": str(getattr(settings, "EMAIL_HOST_USER", "") or ""),
-        "password_configured": bool(str(getattr(settings, "EMAIL_HOST_PASSWORD", "") or "").strip()),
-        "use_tls": bool(getattr(settings, "EMAIL_USE_TLS", True)),
-        "use_ssl": bool(getattr(settings, "EMAIL_USE_SSL", False)),
-        "timeout": int(getattr(settings, "EMAIL_TIMEOUT", 10) or 10),
-        "default_from_email": str(getattr(settings, "DEFAULT_FROM_EMAIL", "") or ""),
+        "host": _effective_env_value("EMAIL_HOST", str(getattr(settings, "EMAIL_HOST", "") or "")),
+        "port": _effective_env_int("EMAIL_PORT", int(getattr(settings, "EMAIL_PORT", 587) or 587)),
+        "user": _effective_env_value("EMAIL_HOST_USER", str(getattr(settings, "EMAIL_HOST_USER", "") or "")),
+        "password_configured": bool(
+            _effective_env_value("EMAIL_HOST_PASSWORD", str(getattr(settings, "EMAIL_HOST_PASSWORD", "") or ""))
+        ),
+        "use_tls": _effective_env_bool("EMAIL_USE_TLS", bool(getattr(settings, "EMAIL_USE_TLS", True))),
+        "use_ssl": _effective_env_bool("EMAIL_USE_SSL", bool(getattr(settings, "EMAIL_USE_SSL", False))),
+        "timeout": _effective_env_int("EMAIL_TIMEOUT", int(getattr(settings, "EMAIL_TIMEOUT", 10) or 10)),
+        "default_from_email": _effective_env_value(
+            "DEFAULT_FROM_EMAIL",
+            str(getattr(settings, "DEFAULT_FROM_EMAIL", "") or ""),
+        ),
         "test_to": "",
     }
 
-def _update_config_ini_section(section: str, values: dict[str, str]) -> tuple[bool, str]:
-    config_path = _config_ini_path()
-    if not config_path.exists():
-        return False, f"config.ini non trovato: {config_path}"
-
-    parser = _load_config_ini_parser(config_path)
-
-    if not parser.has_section(section):
-        parser.add_section(section)
-
-    for key, value in values.items():
-        parser.set(section, key, str(value))
-
+def _update_dotenv_assignments(values: dict[str, str], *, delete_keys: list[str] | None = None) -> tuple[bool, str]:
     try:
-        with config_path.open("w", encoding="utf-8") as file_handle:
-            parser.write(file_handle)
+        update_env_file_values(values, dotenv_path=_dotenv_path(), delete_keys=delete_keys or [])
     except Exception as exc:
-        return False, f"Errore scrittura config.ini: {exc}"
-
-    return True, f"Configurazione {section} salvata. Riavvia il server per applicare."
+        return False, f"Errore scrittura .env: {exc}"
+    return True, "Configurazione salvata in .env. Riavvia il server per applicare."
 
 
 def _ldap_test_connect(server_url: str, timeout: int) -> tuple[bool, str]:
@@ -1472,13 +1467,11 @@ def _ldap_test_bind(server_url: str, timeout: int, username: str, password: str,
 
 
 def _ldap_save_service_account(service_user: str, service_password: str) -> tuple[bool, str]:
-    """Scrive service_user e service_password nella sezione [ACTIVE_DIRECTORY] di config.ini."""
-    ok, message = _update_config_ini_section(
-        "ACTIVE_DIRECTORY",
+    ok, message = _update_dotenv_assignments(
         {
-            "service_user": service_user,
-            "service_password": service_password,
-        },
+            "LDAP_SERVICE_USER": service_user,
+            "LDAP_SERVICE_PASSWORD": service_password,
+        }
     )
     if not ok:
         return ok, message
@@ -1497,23 +1490,21 @@ def _ldap_save_settings(
     group_allowlist: str,
     sync_page_size: int,
 ) -> tuple[bool, str]:
-    """Scrive la configurazione LDAP principale nella sezione [ACTIVE_DIRECTORY] di config.ini."""
     normalized_timeout = max(1, int(timeout or 5))
     normalized_page_size = max(100, min(int(sync_page_size or 500), 2000))
 
-    ok, message = _update_config_ini_section(
-        "ACTIVE_DIRECTORY",
+    ok, message = _update_dotenv_assignments(
         {
-            "enabled": "true" if enabled else "false",
-            "server": server,
-            "domain": domain,
-            "upn_suffix": upn_suffix,
-            "timeout": str(normalized_timeout),
-            "base_dn": base_dn,
-            "user_filter": user_filter,
-            "group_allowlist": group_allowlist,
-            "sync_page_size": str(normalized_page_size),
-        },
+            "LDAP_ENABLED": "1" if enabled else "0",
+            "LDAP_SERVER": server,
+            "LDAP_DOMAIN": domain,
+            "LDAP_UPN_SUFFIX": upn_suffix,
+            "LDAP_TIMEOUT": str(normalized_timeout),
+            "LDAP_BASE_DN": base_dn,
+            "LDAP_USER_FILTER": user_filter,
+            "LDAP_GROUP_ALLOWLIST": group_allowlist,
+            "LDAP_SYNC_PAGE_SIZE": str(normalized_page_size),
+        }
     )
     if not ok:
         return ok, message
@@ -1648,20 +1639,22 @@ def _smtp_save_settings(
     timeout: int,
     default_from_email: str,
 ) -> tuple[bool, str]:
-    current_password = str(getattr(settings, "EMAIL_HOST_PASSWORD", "") or "").strip()
+    current_password = _effective_env_value(
+        "EMAIL_HOST_PASSWORD",
+        str(getattr(settings, "EMAIL_HOST_PASSWORD", "") or ""),
+    )
     effective_password = str(password or "").strip() or current_password
-    return _update_config_ini_section(
-        "SMTP",
+    return _update_dotenv_assignments(
         {
-            "host": host,
-            "port": port,
-            "user": user,
-            "password": effective_password,
-            "use_tls": "1" if use_tls else "0",
-            "use_ssl": "1" if use_ssl else "0",
-            "timeout": timeout,
-            "default_from_email": default_from_email,
-        },
+            "EMAIL_HOST": host,
+            "EMAIL_PORT": str(port),
+            "EMAIL_HOST_USER": user,
+            "EMAIL_HOST_PASSWORD": effective_password,
+            "EMAIL_USE_TLS": "1" if use_tls else "0",
+            "EMAIL_USE_SSL": "1" if use_ssl else "0",
+            "EMAIL_TIMEOUT": str(timeout),
+            "DEFAULT_FROM_EMAIL": default_from_email,
+        }
     )
 
 
@@ -2222,6 +2215,7 @@ def schema_dati(request):
 def ldap_diagnostica(request):
     runtime_cfg = _ldap_diag_defaults()
     defaults = _ldap_file_defaults(runtime_cfg)
+    ldap_cfg_source_labels = _ldap_effective_source_labels()
     ldap_sync_cfg = {
         "sync_limit": 0,
         "sync_dry_run": True,
@@ -2271,16 +2265,21 @@ def ldap_diagnostica(request):
         if action in ("save_service_account", "test_service_bind"):
             svc_user = (request.POST.get("service_user") or "").strip()
             svc_password = (request.POST.get("service_password") or "").strip()
+            defaults["service_user"] = svc_user
             if action == "save_service_account":
                 ok, msg = _ldap_save_service_account(svc_user, svc_password)
                 result_service = {"ok": ok, "message": msg}
                 (messages.success if ok else messages.error)(request, msg)
                 if ok:
                     defaults = _ldap_file_defaults(runtime_cfg)
+                    ldap_cfg_source_labels = _ldap_effective_source_labels()
                     ldap_diag_rows, ldap_runtime_has_pending_restart, ldap_runtime_has_env_override = _ldap_diag_runtime_rows(runtime_cfg)
             else:
                 if not server:
-                    result_service = {"ok": False, "message": "Server LDAP non configurato. Verifica config.ini ([ACTIVE_DIRECTORY] server=...) e riavvia il server."}
+                    result_service = {
+                        "ok": False,
+                        "message": "Server LDAP non configurato nei valori effettivi. Controlla ambiente processo o .env.",
+                    }
                 else:
                     try:
                         ok, msg = _ldap_test_bind(server, int(timeout), svc_user, svc_password, domain, upn_suffix)
@@ -2314,7 +2313,10 @@ def ldap_diagnostica(request):
             )
 
             if action == "test_smtp_connect":
-                effective_password = smtp_password or str(getattr(settings, "EMAIL_HOST_PASSWORD", "") or "")
+                effective_password = smtp_password or _effective_env_value(
+                    "EMAIL_HOST_PASSWORD",
+                    str(getattr(settings, "EMAIL_HOST_PASSWORD", "") or ""),
+                )
                 ok, msg = _smtp_test_connect(
                     smtp_host,
                     smtp_port,
@@ -2327,7 +2329,10 @@ def ldap_diagnostica(request):
                 result_smtp = {"ok": ok, "message": msg}
                 (messages.success if ok else messages.error)(request, msg)
             elif action == "test_smtp_send":
-                effective_password = smtp_password or str(getattr(settings, "EMAIL_HOST_PASSWORD", "") or "")
+                effective_password = smtp_password or _effective_env_value(
+                    "EMAIL_HOST_PASSWORD",
+                    str(getattr(settings, "EMAIL_HOST_PASSWORD", "") or ""),
+                )
                 ok, msg = _smtp_send_test_email(
                     smtp_host,
                     smtp_port,
@@ -2372,17 +2377,24 @@ def ldap_diagnostica(request):
             (messages.success if ok else messages.error)(request, msg)
             if ok:
                 defaults = _ldap_file_defaults(runtime_cfg)
+                ldap_cfg_source_labels = _ldap_effective_source_labels()
                 ldap_diag_rows, ldap_runtime_has_pending_restart, ldap_runtime_has_env_override = _ldap_diag_runtime_rows(runtime_cfg)
         elif action == "test_connect":
             if not server:
-                result_connect = {"ok": False, "message": "Server LDAP non configurato. Compilare il campo 'Server LDAP' oppure impostare il valore in config.ini e riavviare il server."}
+                result_connect = {
+                    "ok": False,
+                    "message": "Server LDAP non configurato nei valori effettivi. Compila il campo oppure verifica ambiente processo e .env.",
+                }
             else:
                 ok, msg = _ldap_test_connect(server, int(timeout))
                 result_connect = {"ok": ok, "message": msg}
                 (messages.success if ok else messages.error)(request, msg)
         elif action == "test_bind":
             if not server:
-                result_bind = {"ok": False, "message": "Server LDAP non configurato. Compilare il campo 'Server LDAP' nel form qui sopra."}
+                result_bind = {
+                    "ok": False,
+                    "message": "Server LDAP non configurato nei valori effettivi. Compila il campo oppure verifica ambiente processo e .env.",
+                }
             else:
                 ok, msg = _ldap_test_bind(server, int(timeout), bind_username, bind_password, domain, upn_suffix)
                 result_bind = {"ok": ok, "message": msg}
@@ -2429,15 +2441,26 @@ def ldap_diagnostica(request):
         else:
             messages.warning(request, "Azione non riconosciuta.")
 
+    ldap_effective_auth_missing = _ldap_missing_required_labels(defaults, ("enabled", "server"))
+    ldap_effective_sync_missing = _ldap_missing_required_labels(
+        defaults,
+        ("enabled", "server", "service_user", "base_dn", "user_filter"),
+    )
+
     return render(
         request,
         "admin_portale/pages/ldap_diagnostica.html",
         {
             "ldap_cfg": defaults,
+            "ldap_cfg_source_labels": ldap_cfg_source_labels,
             "ldap_runtime_cfg": runtime_cfg,
             "ldap_runtime_rows": ldap_diag_rows,
             "ldap_runtime_has_pending_restart": ldap_runtime_has_pending_restart,
             "ldap_runtime_has_env_override": ldap_runtime_has_env_override,
+            "ldap_effective_auth_ready": len(ldap_effective_auth_missing) == 0,
+            "ldap_effective_auth_missing": ldap_effective_auth_missing,
+            "ldap_effective_sync_ready": len(ldap_effective_sync_missing) == 0,
+            "ldap_effective_sync_missing": ldap_effective_sync_missing,
             "ldap_sync_cfg": ldap_sync_cfg,
             "smtp_cfg": smtp_defaults,
             "result_connect": result_connect,
@@ -7884,22 +7907,11 @@ def api_wizard_permessi_ruolo(request):
 # ---------------------------------------------------------------------------
 
 def _read_guestportal_config() -> dict:
-    """Legge la sezione [GUESTPORTAL] da config.ini. Restituisce dict con valori o defaults."""
-    import configparser
-    from pathlib import Path
-
-    config_path = Path(settings.BASE_DIR).parent / "config.ini"
-    parser = configparser.ConfigParser()
-    try:
-        parser.read(str(config_path), encoding="utf-8")
-    except Exception:
-        pass
-    section = "GUESTPORTAL"
     return {
-        "url": parser.get(section, "url", fallback=""),
-        "field_username": parser.get(section, "field_username", fallback="username"),
-        "field_password": parser.get(section, "field_password", fallback="password"),
-        "username_format": parser.get(section, "username_format", fallback="upn"),
+        "url": _effective_env_value("GUESTPORTAL_URL", ""),
+        "field_username": _effective_env_value("GUESTPORTAL_FIELD_USERNAME", "username") or "username",
+        "field_password": _effective_env_value("GUESTPORTAL_FIELD_PASSWORD", "password") or "password",
+        "username_format": _effective_env_value("GUESTPORTAL_USERNAME_FORMAT", "upn") or "upn",
     }
 
 
@@ -7937,7 +7949,7 @@ def guestportal_sso(request):
     if not cfg["url"]:
         messages.error(
             request,
-            "URL GuestPortal non configurato. Aggiungi la sezione [GUESTPORTAL] in config.ini."
+            "URL GuestPortal non configurato. Imposta GUESTPORTAL_URL nel file .env."
         )
     username = _build_guestportal_username(request, cfg["username_format"])
     return render(request, "admin_portale/pages/guestportal_sso.html", {
@@ -8075,6 +8087,82 @@ def api_login_banner_delete(request):
     b.delete()
     _audit_safe(request, "login_banner_delete", "admin_portale", {"banner_id": banner_id})
     return JsonResponse({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# BRANDING PORTALE — favicon globale
+# ---------------------------------------------------------------------------
+
+_FAVICON_UPLOAD_DIR = "site"
+_FAVICON_ALLOWED_EXTS = {".ico", ".png", ".svg"}
+_FAVICON_ALLOWED_MIMES = {
+    "image/x-icon",
+    "image/vnd.microsoft.icon",
+    "image/png",
+    "image/svg+xml",
+}
+
+
+@legacy_admin_required
+@require_GET
+def branding_config(request):
+    favicon_url = SiteConfig.get("brand_favicon", "")
+    return render(request, "admin_portale/pages/branding_config.html", {
+        "favicon_url": favicon_url,
+    })
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_branding_favicon_upload(request):
+    upload = request.FILES.get("favicon")
+    if not upload:
+        messages.error(request, "Nessun file selezionato.")
+        return redirect("admin_portale:branding_config")
+    if upload.size > 512 * 1024:
+        messages.error(request, "File troppo grande (max 512 KB).")
+        return redirect("admin_portale:branding_config")
+    try:
+        validate_extension_and_mime(
+            upload,
+            allowed_extensions=_FAVICON_ALLOWED_EXTS,
+            allowed_mimes=_FAVICON_ALLOWED_MIMES,
+            max_bytes=None,
+            label="Favicon",
+        )
+    except UploadMimeValidationError as exc:
+        messages.error(request, str(exc))
+        return redirect("admin_portale:branding_config")
+    raw_ext = os.path.splitext(upload.name)[1].lower()
+    ext = raw_ext if raw_ext in _FAVICON_ALLOWED_EXTS else ".ico"
+    save_path = os.path.join(_FAVICON_UPLOAD_DIR, f"branding_favicon{ext}")
+    if default_storage.exists(save_path):
+        default_storage.delete(save_path)
+    saved = default_storage.save(save_path, upload)
+    url = settings.MEDIA_URL + saved.replace("\\", "/")
+    SiteConfig.set("brand_favicon", url, "URL favicon globale del portale")
+    _audit_safe(request, "branding_favicon_upload", "admin_portale", {"path": saved})
+    messages.success(request, "Favicon aggiornato.")
+    return redirect("admin_portale:branding_config")
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_branding_favicon_remove(request):
+    current = SiteConfig.get("brand_favicon", "")
+    if current:
+        rel = current.replace(settings.MEDIA_URL, "", 1)
+        try:
+            if default_storage.exists(rel):
+                default_storage.delete(rel)
+        except Exception:
+            pass
+        SiteConfig.set("brand_favicon", "", "URL favicon globale del portale")
+    _audit_safe(request, "branding_favicon_remove", "admin_portale", {})
+    messages.success(request, "Favicon rimosso. Verrà usato il favicon predefinito.")
+    return redirect("admin_portale:branding_config")
 
 
 # ---------------------------------------------------------------------------

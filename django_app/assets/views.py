@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import configparser
 import io
 import json
 import logging
@@ -10,10 +9,11 @@ import tempfile
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from html import escape
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import parse_qs, quote, urlsplit
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 import requests
 from django.conf import settings
@@ -22,7 +22,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.core.paginator import Paginator
-from django.db import DatabaseError, connections, transaction
+from django.db import DatabaseError, IntegrityError, connections, transaction
 from django.db.models import Avg, Count, Q
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -40,12 +40,13 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
 from admin_portale.decorators import legacy_admin_required
+from config.env_config import get_first_env_value, load_env_file_values, resolve_env_value, update_env_file_values
 from core.acl import user_can_modulo_action
 from core.audit import log_action
 from core.graph_utils import acquire_graph_token, is_placeholder_value
 from core.legacy_models import AnagraficaDipendente, UtenteLegacy
 from core.legacy_utils import get_legacy_user, is_legacy_admin
-from core.models import AuditLog, UserDashboardLayout, UserExtraInfo
+from core.models import AuditLog, SiteConfig, UserDashboardLayout, UserExtraInfo
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 from .forms import (
     AssistanceContractForm,
@@ -81,6 +82,7 @@ from .models import (
     AssetListLayout,
     AssetListOption,
     AssetMaintenanceRuleState,
+    AssetCalendarEvent,
     AssistanceContract,
     AssetReportDefinition,
     AssetReportTemplate,
@@ -292,6 +294,9 @@ ITALIAN_MONTH_NAMES = [
     "novembre",
     "dicembre",
 ]
+OUTLOOK_CALENDAR_TIMEZONE = "W. Europe Standard Time"
+OUTLOOK_CALENDAR_START_HOUR = 8
+OUTLOOK_CALENDAR_DURATION_MINUTES = 60
 
 
 def _clean_string(value: str | None) -> str:
@@ -440,26 +445,6 @@ def _report_templates_grouped() -> list[dict[str, object]]:
             }
         )
     return grouped
-
-
-def _assets_config_ini_path() -> Path:
-    return Path(__file__).resolve().parents[2] / "config.ini"
-
-
-def _load_assets_app_config() -> configparser.ConfigParser:
-    cfg = configparser.ConfigParser()
-    try:
-        cfg.read(_assets_config_ini_path(), encoding="utf-8")
-    except Exception:
-        return configparser.ConfigParser()
-    return cfg
-
-
-def _save_assets_app_config(cfg: configparser.ConfigParser) -> None:
-    path = _assets_config_ini_path()
-    with path.open("w", encoding="utf-8") as handle:
-        cfg.write(handle)
-
 
 LABEL_TEMPLATE_DEFAULT_CODE = "default"
 HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
@@ -914,15 +899,28 @@ def _asset_component_create_page_url(*, asset_id: int = 0) -> str:
     return base_url
 
 
-def _asset_administrative_deadline_page_url(*, asset_id: int = 0, component_id: int = 0, status: str = "") -> str:
+def _asset_administrative_deadline_page_url(
+    *,
+    asset_id: int = 0,
+    component_id: int = 0,
+    deadline_type: str = "",
+    status: str = "",
+    q: str = "",
+) -> str:
     params: list[str] = []
     if asset_id:
         params.append(f"asset={int(asset_id)}")
     if component_id:
         params.append(f"component={int(component_id)}")
+    deadline_type_value = _clean_string(deadline_type).upper()
+    if deadline_type_value:
+        params.append(f"deadline_type={quote(deadline_type_value)}")
     status_value = _clean_string(status).lower()
     if status_value:
         params.append(f"status={quote(status_value)}")
+    q_value = _clean_string(q)
+    if q_value:
+        params.append(f"q={quote(q_value)}")
     base_url = reverse("assets:asset_administrative_deadline_list")
     return f"{base_url}?{'&'.join(params)}" if params else base_url
 
@@ -2028,47 +2026,25 @@ def _draw_asset_report_pdf(
     draw_footer()
 
 
-def _sharepoint_runtime_value(*env_keys: str, config_section: str, config_option: str, setting_keys: tuple[str, ...] = ()) -> tuple[str, str]:
-    for key in env_keys:
-        value = str(os.getenv(key) or "").strip()
-        if value and not is_placeholder_value(value):
-            return value, "env"
+def _sharepoint_runtime_value(*env_keys: str, setting_keys: tuple[str, ...] = ()) -> tuple[str, str]:
+    value, source = resolve_env_value(*env_keys, dotenv_values=load_env_file_values())
+    if value and not is_placeholder_value(value):
+        if source == "process_env":
+            return value, "ambiente processo"
+        if source == "dotenv":
+            return value, ".env"
     for key in setting_keys:
         value = str(getattr(settings, key, "") or "").strip()
         if value and not is_placeholder_value(value):
             return value, "settings"
-    cfg = _load_assets_app_config()
-    if cfg.has_section(config_section):
-        value = str(cfg.get(config_section, config_option, fallback="") or "").strip()
-        if value and not is_placeholder_value(value):
-            return value, "config.ini"
     return "", "missing"
 
 
 def _sharepoint_graph_settings() -> dict[str, str]:
-    tenant_id, _tenant_source = _sharepoint_runtime_value(
-        "GRAPH_TENANT_ID",
-        "AZURE_TENANT_ID",
-        config_section="AZIENDA",
-        config_option="tenant_id",
-    )
-    client_id, _client_source = _sharepoint_runtime_value(
-        "GRAPH_CLIENT_ID",
-        "AZURE_CLIENT_ID",
-        config_section="AZIENDA",
-        config_option="client_id",
-    )
-    client_secret, _secret_source = _sharepoint_runtime_value(
-        "GRAPH_CLIENT_SECRET",
-        "AZURE_CLIENT_SECRET",
-        config_section="AZIENDA",
-        config_option="client_secret",
-    )
-    site_id, _site_source = _sharepoint_runtime_value(
-        "GRAPH_SITE_ID",
-        config_section="AZIENDA",
-        config_option="site_id",
-    )
+    tenant_id = get_first_env_value("GRAPH_TENANT_ID", "AZURE_TENANT_ID")
+    client_id = get_first_env_value("GRAPH_CLIENT_ID", "AZURE_CLIENT_ID")
+    client_secret = get_first_env_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET")
+    site_id = get_first_env_value("GRAPH_SITE_ID")
     return {
         "tenant_id": tenant_id,
         "client_id": client_id,
@@ -2078,52 +2054,28 @@ def _sharepoint_graph_settings() -> dict[str, str]:
 
 
 def _sharepoint_assets_defaults() -> dict[str, str]:
-    cfg = _load_assets_app_config()
-    if not cfg.has_section("ASSETS"):
-        return {
-            "library_url": "",
-            "asset_root_path": "",
-            "work_machine_root_path": "",
-        }
+    dotenv_values = load_env_file_values()
     return {
-        "library_url": _clean_string(cfg.get("ASSETS", "sharepoint_library_url", fallback=""))[:1000],
-        "asset_root_path": _normalize_sharepoint_path(cfg.get("ASSETS", "sharepoint_asset_root_path", fallback="")),
-        "work_machine_root_path": _normalize_sharepoint_path(cfg.get("ASSETS", "sharepoint_work_machine_root_path", fallback="")),
+        "library_url": _clean_string(dotenv_values.get("ASSETS_SHAREPOINT_LIBRARY_URL", ""))[:1000],
+        "asset_root_path": _normalize_sharepoint_path(dotenv_values.get("ASSETS_SHAREPOINT_ASSET_ROOT_PATH", "")),
+        "work_machine_root_path": _normalize_sharepoint_path(dotenv_values.get("ASSETS_SHAREPOINT_WORK_MACHINE_ROOT_PATH", "")),
     }
 
 
 def _sharepoint_admin_config() -> dict[str, object]:
-    cfg = _load_assets_app_config()
-    az = cfg["AZIENDA"] if cfg.has_section("AZIENDA") else {}
-    runtime_tenant_id, tenant_source = _sharepoint_runtime_value(
-        "GRAPH_TENANT_ID",
-        "AZURE_TENANT_ID",
-        config_section="AZIENDA",
-        config_option="tenant_id",
-    )
-    runtime_client_id, client_source = _sharepoint_runtime_value(
-        "GRAPH_CLIENT_ID",
-        "AZURE_CLIENT_ID",
-        config_section="AZIENDA",
-        config_option="client_id",
-    )
-    runtime_client_secret, secret_source = _sharepoint_runtime_value(
-        "GRAPH_CLIENT_SECRET",
-        "AZURE_CLIENT_SECRET",
-        config_section="AZIENDA",
-        config_option="client_secret",
-    )
-    runtime_site_id, site_source = _sharepoint_runtime_value(
-        "GRAPH_SITE_ID",
-        config_section="AZIENDA",
-        config_option="site_id",
-    )
+    dotenv_values = load_env_file_values()
+    runtime_tenant_id, tenant_source = _sharepoint_runtime_value("GRAPH_TENANT_ID", "AZURE_TENANT_ID")
+    runtime_client_id, client_source = _sharepoint_runtime_value("GRAPH_CLIENT_ID", "AZURE_CLIENT_ID")
+    runtime_client_secret, secret_source = _sharepoint_runtime_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET")
+    runtime_site_id, site_source = _sharepoint_runtime_value("GRAPH_SITE_ID")
     defaults = _sharepoint_assets_defaults()
     return {
-        "tenant_id": _clean_string(getattr(az, "get", lambda *_args, **_kwargs: "")("tenant_id", "")),
-        "client_id": _clean_string(getattr(az, "get", lambda *_args, **_kwargs: "")("client_id", "")),
-        "site_id": _clean_string(getattr(az, "get", lambda *_args, **_kwargs: "")("site_id", "")),
-        "client_secret_configured": bool(_clean_string(getattr(az, "get", lambda *_args, **_kwargs: "")("client_secret", ""))),
+        "tenant_id": _clean_string(dotenv_values.get("GRAPH_TENANT_ID") or dotenv_values.get("AZURE_TENANT_ID", "")),
+        "client_id": _clean_string(dotenv_values.get("GRAPH_CLIENT_ID") or dotenv_values.get("AZURE_CLIENT_ID", "")),
+        "site_id": _clean_string(dotenv_values.get("GRAPH_SITE_ID", "")),
+        "client_secret_configured": bool(
+            _clean_string(dotenv_values.get("GRAPH_CLIENT_SECRET") or dotenv_values.get("AZURE_CLIENT_SECRET", ""))
+        ),
         "runtime_ready": all([runtime_tenant_id, runtime_client_id, runtime_client_secret, runtime_site_id]),
         "runtime_sources": {
             "tenant_id": tenant_source,
@@ -2131,7 +2083,10 @@ def _sharepoint_admin_config() -> dict[str, object]:
             "client_secret": secret_source,
             "site_id": site_source,
         },
-        "env_override_active": any(source == "env" for source in [tenant_source, client_source, secret_source, site_source]),
+        "env_override_active": any(
+            source == "ambiente processo"
+            for source in [tenant_source, client_source, secret_source, site_source]
+        ),
         "library_url": defaults["library_url"],
         "asset_root_path": defaults["asset_root_path"],
         "work_machine_root_path": defaults["work_machine_root_path"],
@@ -2765,6 +2720,8 @@ def _legacy_employee_options() -> tuple[list[tuple[str, str]], dict[str, dict[st
         extra = extra_map.get(uid)
         nome = _clean_string(user.nome)
         email = _clean_string(user.email)
+        notification_email = _clean_string(getattr(anagrafica, "email_notifica", ""))
+        calendar_user_id = email or notification_email
         if not nome and anagrafica:
             nome = " ".join(
                 [
@@ -2774,14 +2731,544 @@ def _legacy_employee_options() -> tuple[list[tuple[str, str]], dict[str, dict[st
             ).strip()
         display_name = nome or email or f"Utente #{uid}"
         reparto = _clean_string(getattr(extra, "reparto", "")) or _clean_string(getattr(anagrafica, "reparto", ""))
-        label = f"{display_name} - {email}" if email else display_name
+        label_email = calendar_user_id
+        label = f"{display_name} - {label_email}" if label_email else display_name
         options.append((str(uid), label))
         details[str(uid)] = {
             "display_name": display_name,
             "email": email,
+            "notification_email": notification_email,
+            "calendar_user_id": calendar_user_id,
             "reparto": reparto,
         }
     return options, details
+
+
+def _outlook_calendar_graph_settings() -> dict[str, str]:
+    return {
+        "tenant_id": _clean_string(get_first_env_value("GRAPH_TENANT_ID", "AZURE_TENANT_ID")),
+        "client_id": _clean_string(get_first_env_value("GRAPH_CLIENT_ID", "AZURE_CLIENT_ID")),
+        "client_secret": _clean_string(get_first_env_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET")),
+    }
+
+
+def _outlook_calendar_graph_ready() -> bool:
+    config = _outlook_calendar_graph_settings()
+    return all(config.values()) and not any(is_placeholder_value(value) for value in config.values())
+
+
+def _outlook_calendar_graph_token() -> str:
+    config = _outlook_calendar_graph_settings()
+    if not _outlook_calendar_graph_ready():
+        raise RuntimeError("Configurazione Graph incompleta: tenant, client o secret mancanti.")
+    return acquire_graph_token(config["tenant_id"], config["client_id"], config["client_secret"])
+
+
+def _outlook_calendar_headers() -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {_outlook_calendar_graph_token()}",
+        "Content-Type": "application/json",
+    }
+
+
+def _asset_calendar_target_email(target_details: dict[str, str]) -> str:
+    return _clean_string(target_details.get("calendar_user_id") or target_details.get("email"))
+
+
+def _asset_calendar_default_user_id(
+    asset: Asset | None,
+    calendar_user_details: dict[str, dict[str, str]],
+) -> str:
+    suggested_user_id = str(getattr(asset, "assigned_legacy_user_id", "") or "")
+    if suggested_user_id and suggested_user_id not in calendar_user_details:
+        return ""
+    return suggested_user_id
+
+
+def _asset_calendar_source_key(
+    *,
+    event_kind: str,
+    asset_id: int,
+    source_id: int,
+    due_date: date,
+    target_legacy_user_id: int,
+) -> str:
+    return (
+        f"{_clean_string(event_kind)}:{int(asset_id or 0)}:{int(source_id or 0)}:"
+        f"{due_date.isoformat()}:{int(target_legacy_user_id or 0)}"
+    )
+
+
+def _asset_calendar_transaction_id(*, source_key: str) -> str:
+    return str(uuid5(NAMESPACE_URL, f"https://novicrom.local/assets/calendar/{source_key}"))
+
+
+def _outlook_event_time_window(due_date: date) -> tuple[datetime, datetime]:
+    start_dt = datetime.combine(due_date, datetime.min.time()).replace(hour=OUTLOOK_CALENDAR_START_HOUR)
+    end_dt = start_dt + timedelta(minutes=OUTLOOK_CALENDAR_DURATION_MINUTES)
+    return start_dt, end_dt
+
+
+def _build_outlook_event_payload(
+    *,
+    subject: str,
+    body_html: str,
+    location_label: str,
+    due_date: date,
+    transaction_id: str,
+) -> dict[str, object]:
+    start_dt, end_dt = _outlook_event_time_window(due_date)
+    return {
+        "subject": _clean_string(subject)[:255],
+        "body": {
+            "contentType": "HTML",
+            "content": body_html,
+        },
+        "start": {
+            "dateTime": start_dt.strftime("%Y-%m-%dT%H:%M:%S"),
+            "timeZone": OUTLOOK_CALENDAR_TIMEZONE,
+        },
+        "end": {
+            "dateTime": end_dt.strftime("%Y-%m-%dT%H:%M:%S"),
+            "timeZone": OUTLOOK_CALENDAR_TIMEZONE,
+        },
+        "location": {
+            "displayName": _clean_string(location_label) or "Promemoria assets",
+        },
+        "showAs": "busy",
+        "responseRequested": False,
+        "transactionId": transaction_id,
+    }
+
+
+def _maintenance_schedule_redirect_from_request(request: HttpRequest) -> str:
+    return _maintenance_schedule_page_url(
+        asset_id=_as_int(request.POST.get("filter_asset"), default=0),
+        status=_clean_string(request.POST.get("filter_status")),
+        category_id=_as_int(request.POST.get("filter_category"), default=0),
+        reparto=_clean_string(request.POST.get("filter_reparto")),
+        coverage=_clean_string(request.POST.get("filter_coverage")),
+        q=_clean_string(request.POST.get("filter_q")),
+    )
+
+
+def _deadline_list_redirect_from_request(request: HttpRequest) -> str:
+    return _asset_administrative_deadline_page_url(
+        asset_id=_as_int(request.POST.get("filter_asset"), default=0),
+        component_id=_as_int(request.POST.get("filter_component"), default=0),
+        deadline_type=_clean_string(request.POST.get("filter_deadline_type")),
+        status=_clean_string(request.POST.get("filter_status")),
+        q=_clean_string(request.POST.get("filter_q")),
+    )
+
+
+def _periodic_verification_redirect_from_request(request: HttpRequest) -> str:
+    return _periodic_verifications_page_url(
+        asset_id=_as_int(request.POST.get("filter_asset"), default=0),
+        edit_id=_as_int(request.POST.get("filter_edit"), default=0),
+    )
+
+
+def _assistance_contract_redirect_from_request(request: HttpRequest) -> str:
+    return _assistance_contracts_page_url(
+        asset_id=_as_int(request.POST.get("filter_asset"), default=0),
+        supplier_filter=_as_int(request.POST.get("filter_supplier"), default=0),
+        state=_clean_string(request.POST.get("filter_state")),
+        scope=_clean_string(request.POST.get("filter_scope")),
+        q=_clean_string(request.POST.get("filter_q")),
+    )
+
+
+def _maintenance_schedule_row_for_asset_rule(*, asset: Asset, base_rule_id: int) -> dict[str, object] | None:
+    rows = build_day_based_maintenance_schedule_rows(
+        asset_queryset=Asset.objects.filter(pk=asset.id).select_related("asset_category"),
+    )
+    for row in rows:
+        if getattr(row.get("base_rule"), "id", 0) == int(base_rule_id or 0):
+            return row
+    return None
+
+
+def _build_maintenance_outlook_event_payload(
+    *,
+    request: HttpRequest,
+    asset: Asset,
+    schedule_row: dict[str, object],
+    target_display_name: str,
+    transaction_id: str,
+) -> dict[str, object]:
+    due_date = schedule_row.get("due_date")
+    if not isinstance(due_date, date):
+        raise RuntimeError("La regola selezionata non ha una scadenza calendarizzabile.")
+
+    template = schedule_row["effective_intervention_template"]
+    template_label = _clean_string(getattr(template, "label", "Intervento manutentivo")) or "Intervento manutentivo"
+    threshold_label = _clean_string(schedule_row.get("effective_threshold_label"))
+    threshold_value = schedule_row.get("effective_threshold_value")
+    warning_days = int(schedule_row.get("effective_warning_days") or 0)
+    contract = get_primary_assistance_contract(asset)
+    asset_url = request.build_absolute_uri(reverse("assets:asset_view", kwargs={"id": asset.id}))
+    workorder_url = request.build_absolute_uri(
+        _workorder_create_page_url(asset_id=asset.id, rule_id=schedule_row["base_rule"].id, source="maintenance_schedule")
+    )
+    due_date_label = due_date.strftime("%d/%m/%Y")
+    subject = f"Manutenzione {asset.asset_tag} - {template_label}"[:255]
+
+    start_dt = datetime.combine(due_date, datetime.min.time()).replace(hour=OUTLOOK_CALENDAR_START_HOUR)
+    end_dt = start_dt + timedelta(minutes=OUTLOOK_CALENDAR_DURATION_MINUTES)
+    contract_label = (
+        escape(_clean_string(getattr(contract, "title", "")) or str(getattr(contract, "supplier", "")))
+        if contract is not None
+        else "Nessuna copertura contrattuale attiva"
+    )
+    body_html = (
+        "<p>Promemoria manutenzione generato dal modulo Assets.</p>"
+        f"<p><strong>Destinatario:</strong> {escape(target_display_name or 'Utente selezionato')}<br>"
+        f"<strong>Asset:</strong> {escape(asset.asset_tag)} - {escape(asset.name)}<br>"
+        f"<strong>Reparto:</strong> {escape(_clean_string(asset.reparto) or '-')}<br>"
+        f"<strong>Intervento:</strong> {escape(template_label)}<br>"
+        f"<strong>Scadenza:</strong> {escape(due_date_label)}<br>"
+        f"<strong>Periodicita:</strong> {escape(str(threshold_value or 0))} {escape(threshold_label.lower() or 'giorni')}<br>"
+        f"<strong>Warning:</strong> {warning_days} gg<br>"
+        f"<strong>Contratto:</strong> {contract_label}</p>"
+        f"<p><a href=\"{escape(asset_url)}\">Apri scheda asset</a><br>"
+        f"<a href=\"{escape(workorder_url)}\">Apri creazione intervento</a></p>"
+    )
+    return _build_outlook_event_payload(
+        subject=subject,
+        body_html=body_html,
+        location_label=_clean_string(asset.reparto) or "Manutenzione asset",
+        due_date=due_date,
+        transaction_id=transaction_id,
+    )
+
+
+def _build_deadline_outlook_event_payload(
+    *,
+    request: HttpRequest,
+    deadline: AssetAdministrativeDeadline,
+    target_display_name: str,
+    transaction_id: str,
+) -> dict[str, object]:
+    asset = deadline.asset
+    component_label = (
+        f"{deadline.component.name} ({deadline.component.code})"
+        if deadline.component_id and deadline.component and deadline.component.code
+        else getattr(deadline.component, "name", "")
+    )
+    asset_url = request.build_absolute_uri(reverse("assets:asset_view", kwargs={"id": asset.id}))
+    edit_url = request.build_absolute_uri(reverse("assets:asset_administrative_deadline_edit", kwargs={"id": deadline.id}))
+    body_html = (
+        "<p>Promemoria scadenza amministrativa/tecnica generato dal modulo Assets.</p>"
+        f"<p><strong>Destinatario:</strong> {escape(target_display_name or 'Utente selezionato')}<br>"
+        f"<strong>Asset:</strong> {escape(asset.asset_tag)} - {escape(asset.name)}<br>"
+        f"<strong>Scadenza:</strong> {escape(deadline.title)}<br>"
+        f"<strong>Tipo:</strong> {escape(deadline.get_deadline_type_display())}<br>"
+        f"<strong>Data:</strong> {deadline.due_date:%d/%m/%Y}<br>"
+        f"<strong>Preavviso:</strong> {int(deadline.warning_days or 0)} gg<br>"
+        f"<strong>Riferimento:</strong> {escape(_clean_string(deadline.reference_code) or '-')}<br>"
+        f"<strong>Ente/Rilasciato da:</strong> {escape(_clean_string(deadline.issuer) or '-')}<br>"
+        f"<strong>Componente:</strong> {escape(_clean_string(component_label) or '-')}</p>"
+        f"<p><a href=\"{escape(asset_url)}\">Apri scheda asset</a><br>"
+        f"<a href=\"{escape(edit_url)}\">Apri scadenza amministrativa</a></p>"
+    )
+    subject = f"Scadenza {asset.asset_tag} - {deadline.title}"[:255]
+    return _build_outlook_event_payload(
+        subject=subject,
+        body_html=body_html,
+        location_label=_clean_string(asset.reparto) or "Scadenza asset",
+        due_date=deadline.due_date,
+        transaction_id=transaction_id,
+    )
+
+
+def _build_periodic_verification_outlook_event_payload(
+    *,
+    request: HttpRequest,
+    asset: Asset,
+    verification: PeriodicVerification,
+    target_display_name: str,
+    transaction_id: str,
+) -> dict[str, object]:
+    next_date = verification.next_verification_date
+    if not isinstance(next_date, date):
+        raise RuntimeError("La verifica periodica non ha una prossima data calendarizzabile.")
+    asset_url = request.build_absolute_uri(reverse("assets:asset_view", kwargs={"id": asset.id}))
+    verification_url = request.build_absolute_uri(_periodic_verifications_page_url(asset_id=asset.id, edit_id=verification.id))
+    supplier_label = _clean_string(str(getattr(verification, "supplier", "") or "")) or "Fornitore non impostato"
+    body_html = (
+        "<p>Promemoria verifica periodica generato dal modulo Assets.</p>"
+        f"<p><strong>Destinatario:</strong> {escape(target_display_name or 'Utente selezionato')}<br>"
+        f"<strong>Asset:</strong> {escape(asset.asset_tag)} - {escape(asset.name)}<br>"
+        f"<strong>Verifica:</strong> {escape(verification.name)}<br>"
+        f"<strong>Prossima data:</strong> {next_date:%d/%m/%Y}<br>"
+        f"<strong>Cadenza:</strong> {int(verification.frequency_months or 0)} mesi<br>"
+        f"<strong>Fornitore:</strong> {escape(supplier_label)}</p>"
+        f"<p><a href=\"{escape(asset_url)}\">Apri scheda asset</a><br>"
+        f"<a href=\"{escape(verification_url)}\">Apri verifiche periodiche</a></p>"
+    )
+    subject = f"Verifica periodica {asset.asset_tag} - {verification.name}"[:255]
+    return _build_outlook_event_payload(
+        subject=subject,
+        body_html=body_html,
+        location_label=_clean_string(asset.reparto) or "Verifica periodica asset",
+        due_date=next_date,
+        transaction_id=transaction_id,
+    )
+
+
+def _build_assistance_contract_outlook_event_payload(
+    *,
+    request: HttpRequest,
+    asset: Asset,
+    contract: AssistanceContract,
+    target_display_name: str,
+    transaction_id: str,
+) -> dict[str, object]:
+    if not isinstance(contract.end_date, date):
+        raise RuntimeError("Il contratto selezionato non ha una data scadenza calendarizzabile.")
+    supplier_label = _clean_string(str(getattr(contract, "supplier", "") or "")) or "Fornitore non impostato"
+    asset_url = request.build_absolute_uri(reverse("assets:asset_view", kwargs={"id": asset.id}))
+    contracts_url = request.build_absolute_uri(_assistance_contracts_page_url(asset_id=asset.id, edit_id=contract.id))
+    scope_payload = _contract_scope_payload(contract)
+    body_html = (
+        "<p>Promemoria scadenza contratto assistenza generato dal modulo Assets.</p>"
+        f"<p><strong>Destinatario:</strong> {escape(target_display_name or 'Utente selezionato')}<br>"
+        f"<strong>Asset di contesto:</strong> {escape(asset.asset_tag)} - {escape(asset.name)}<br>"
+        f"<strong>Contratto:</strong> {escape(contract.title)}<br>"
+        f"<strong>Fornitore:</strong> {escape(supplier_label)}<br>"
+        f"<strong>Codice:</strong> {escape(_clean_string(contract.code) or '-')}<br>"
+        f"<strong>Scadenza:</strong> {contract.end_date:%d/%m/%Y}<br>"
+        f"<strong>Ambito:</strong> {escape(scope_payload.get('label') or '-')}<br>"
+        f"<strong>Dettaglio:</strong> {escape(scope_payload.get('detail') or '-')}</p>"
+        f"<p><a href=\"{escape(asset_url)}\">Apri scheda asset</a><br>"
+        f"<a href=\"{escape(contracts_url)}\">Apri contratti assistenza</a></p>"
+    )
+    subject = f"Scadenza contratto {asset.asset_tag} - {contract.title}"[:255]
+    return _build_outlook_event_payload(
+        subject=subject,
+        body_html=body_html,
+        location_label=_clean_string(asset.reparto) or "Contratto assistenza",
+        due_date=contract.end_date,
+        transaction_id=transaction_id,
+    )
+
+
+def _outlook_calendar_create_event(*, target_email: str, payload: dict[str, object]) -> dict[str, object]:
+    if not _outlook_calendar_graph_ready():
+        raise RuntimeError("Integrazione Outlook non configurata: mancano le credenziali Graph valide.")
+    target_value = _clean_string(target_email)
+    if not target_value:
+        raise RuntimeError("Utente Outlook non valido.")
+    url = f"https://graph.microsoft.com/v1.0/users/{quote(target_value, safe='')}/calendar/events"
+    response = requests.post(url, headers=_outlook_calendar_headers(), json=payload, timeout=20)
+    if response.status_code in {200, 201}:
+        return response.json()
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = {}
+    graph_error = payload.get("error") if isinstance(payload, dict) else None
+    message = ""
+    if isinstance(graph_error, dict):
+        message = _clean_string(graph_error.get("message"))
+    raise RuntimeError(message or response.text or f"Errore Outlook Calendar {response.status_code}")
+
+
+def _create_asset_calendar_event_record(
+    *,
+    asset: Asset,
+    event_kind: str,
+    source_key: str,
+    due_date: date,
+    target_legacy_user_id: int,
+    target_details: dict[str, str],
+    payload: dict[str, object],
+    request_user,
+    maintenance_rule: MaintenanceRule | None = None,
+    administrative_deadline: AssetAdministrativeDeadline | None = None,
+    periodic_verification: PeriodicVerification | None = None,
+    assistance_contract: AssistanceContract | None = None,
+) -> tuple[AssetCalendarEvent, bool]:
+    target_email = _asset_calendar_target_email(target_details)
+    if not target_email:
+        raise RuntimeError("L'utente selezionato non ha un identificatore Outlook configurato.")
+    existing = AssetCalendarEvent.objects.filter(source_key=source_key).order_by("id").first()
+    if existing is not None:
+        return existing, False
+
+    target_display_name = _clean_string(target_details.get("display_name")) or target_email
+    graph_event = _outlook_calendar_create_event(target_email=target_email, payload=payload)
+    try:
+        entry = AssetCalendarEvent.objects.create(
+            asset=asset,
+            event_kind=event_kind,
+            source_key=source_key,
+            maintenance_rule=maintenance_rule,
+            administrative_deadline=administrative_deadline,
+            periodic_verification=periodic_verification,
+            assistance_contract=assistance_contract,
+            due_date=due_date,
+            target_legacy_user_id=int(target_legacy_user_id),
+            target_display_name=target_display_name,
+            target_email=target_email,
+            subject=_clean_string(payload.get("subject")),
+            transaction_id=_clean_string(payload.get("transactionId")),
+            graph_event_id=_clean_string(graph_event.get("id")),
+            graph_event_web_link=_clean_string(graph_event.get("webLink")),
+            created_by=request_user if getattr(request_user, "is_authenticated", False) else None,
+        )
+    except IntegrityError:
+        entry = AssetCalendarEvent.objects.get(source_key=source_key)
+        return entry, False
+    return entry, True
+
+
+def _create_asset_maintenance_calendar_event(
+    *,
+    request: HttpRequest,
+    asset: Asset,
+    schedule_row: dict[str, object],
+    target_legacy_user_id: int,
+    target_details: dict[str, str],
+) -> tuple[AssetCalendarEvent, bool]:
+    due_date = schedule_row.get("due_date")
+    if not isinstance(due_date, date):
+        raise RuntimeError("La manutenzione selezionata non ha una scadenza impostata.")
+    source_key = _asset_calendar_source_key(
+        event_kind=AssetCalendarEvent.KIND_MAINTENANCE,
+        asset_id=asset.id,
+        source_id=schedule_row["base_rule"].id,
+        due_date=due_date,
+        target_legacy_user_id=target_legacy_user_id,
+    )
+    payload = _build_maintenance_outlook_event_payload(
+        request=request,
+        asset=asset,
+        schedule_row=schedule_row,
+        target_display_name=_clean_string(target_details.get("display_name")),
+        transaction_id=_asset_calendar_transaction_id(source_key=source_key),
+    )
+    return _create_asset_calendar_event_record(
+        asset=asset,
+        event_kind=AssetCalendarEvent.KIND_MAINTENANCE,
+        source_key=source_key,
+        due_date=due_date,
+        target_legacy_user_id=target_legacy_user_id,
+        target_details=target_details,
+        payload=payload,
+        request_user=request.user,
+        maintenance_rule=schedule_row["base_rule"],
+    )
+
+
+def _create_asset_deadline_calendar_event(
+    *,
+    request: HttpRequest,
+    deadline: AssetAdministrativeDeadline,
+    target_legacy_user_id: int,
+    target_details: dict[str, str],
+) -> tuple[AssetCalendarEvent, bool]:
+    due_date = deadline.due_date
+    source_key = _asset_calendar_source_key(
+        event_kind=AssetCalendarEvent.KIND_ADMINISTRATIVE_DEADLINE,
+        asset_id=deadline.asset_id,
+        source_id=deadline.id,
+        due_date=due_date,
+        target_legacy_user_id=target_legacy_user_id,
+    )
+    payload = _build_deadline_outlook_event_payload(
+        request=request,
+        deadline=deadline,
+        target_display_name=_clean_string(target_details.get("display_name")),
+        transaction_id=_asset_calendar_transaction_id(source_key=source_key),
+    )
+    return _create_asset_calendar_event_record(
+        asset=deadline.asset,
+        event_kind=AssetCalendarEvent.KIND_ADMINISTRATIVE_DEADLINE,
+        source_key=source_key,
+        due_date=due_date,
+        target_legacy_user_id=target_legacy_user_id,
+        target_details=target_details,
+        payload=payload,
+        request_user=request.user,
+        administrative_deadline=deadline,
+    )
+
+
+def _create_asset_periodic_verification_calendar_event(
+    *,
+    request: HttpRequest,
+    asset: Asset,
+    verification: PeriodicVerification,
+    target_legacy_user_id: int,
+    target_details: dict[str, str],
+) -> tuple[AssetCalendarEvent, bool]:
+    next_date = verification.next_verification_date
+    if not isinstance(next_date, date):
+        raise RuntimeError("La verifica selezionata non ha una prossima data impostata.")
+    source_key = _asset_calendar_source_key(
+        event_kind=AssetCalendarEvent.KIND_PERIODIC_VERIFICATION,
+        asset_id=asset.id,
+        source_id=verification.id,
+        due_date=next_date,
+        target_legacy_user_id=target_legacy_user_id,
+    )
+    payload = _build_periodic_verification_outlook_event_payload(
+        request=request,
+        asset=asset,
+        verification=verification,
+        target_display_name=_clean_string(target_details.get("display_name")),
+        transaction_id=_asset_calendar_transaction_id(source_key=source_key),
+    )
+    return _create_asset_calendar_event_record(
+        asset=asset,
+        event_kind=AssetCalendarEvent.KIND_PERIODIC_VERIFICATION,
+        source_key=source_key,
+        due_date=next_date,
+        target_legacy_user_id=target_legacy_user_id,
+        target_details=target_details,
+        payload=payload,
+        request_user=request.user,
+        periodic_verification=verification,
+    )
+
+
+def _create_asset_assistance_contract_calendar_event(
+    *,
+    request: HttpRequest,
+    asset: Asset,
+    contract: AssistanceContract,
+    target_legacy_user_id: int,
+    target_details: dict[str, str],
+) -> tuple[AssetCalendarEvent, bool]:
+    if not isinstance(contract.end_date, date):
+        raise RuntimeError("Il contratto selezionato non ha una data scadenza impostata.")
+    source_key = _asset_calendar_source_key(
+        event_kind=AssetCalendarEvent.KIND_ASSISTANCE_CONTRACT,
+        asset_id=asset.id,
+        source_id=contract.id,
+        due_date=contract.end_date,
+        target_legacy_user_id=target_legacy_user_id,
+    )
+    payload = _build_assistance_contract_outlook_event_payload(
+        request=request,
+        asset=asset,
+        contract=contract,
+        target_display_name=_clean_string(target_details.get("display_name")),
+        transaction_id=_asset_calendar_transaction_id(source_key=source_key),
+    )
+    return _create_asset_calendar_event_record(
+        asset=asset,
+        event_kind=AssetCalendarEvent.KIND_ASSISTANCE_CONTRACT,
+        source_key=source_key,
+        due_date=contract.end_date,
+        target_legacy_user_id=target_legacy_user_id,
+        target_details=target_details,
+        payload=payload,
+        request_user=request.user,
+        assistance_contract=contract,
+    )
 
 
 def _as_int(value, default: int = 100) -> int:
@@ -4587,12 +5074,15 @@ def _assets_shell_context(
     new_label: str | None = None,
     search_placeholder: str | None = None,
 ) -> dict[str, object]:
+    cfg = SiteConfig.get_many({"assets_logo_image": ""})
     return {
         "assets_sidebar_groups": _build_sidebar_groups(request, rows=rows),
         "assets_shell_search_action": search_action or reverse("assets:asset_list"),
         "assets_shell_new_url": new_url or reverse("assets:asset_create"),
         "assets_shell_new_label": new_label or "+ Nuovo asset",
         "assets_shell_search_placeholder": search_placeholder or "Ricerca rapida per asset, seriali o utenti (Ctrl + K)",
+        "can_gestione_admin": user_can_modulo_action(request, "assets", "admin_assets"),
+        "assets_logo_url": cfg.get("assets_logo_image", "").strip() or None,
     }
 
 
@@ -7731,6 +8221,71 @@ def asset_component_edit(request: HttpRequest, id: int | None = None) -> HttpRes
 
 @login_required
 def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
+    can_manage_outlook_calendar = _is_assets_admin(request)
+    calendar_user_choices: list[tuple[str, str]] = []
+    calendar_user_details: dict[str, dict[str, str]] = {}
+    if can_manage_outlook_calendar:
+        calendar_user_choices, calendar_user_details = _legacy_employee_options()
+
+    if request.method == "POST":
+        action = _clean_string(request.POST.get("action"))
+        if action == "create_outlook_calendar_event":
+            redirect_url = _deadline_list_redirect_from_request(request)
+            if not can_manage_outlook_calendar:
+                messages.error(request, "Solo gli admin assets possono creare eventi Outlook su calendari utente.")
+                return redirect(redirect_url)
+
+            deadline_id = _as_int(request.POST.get("deadline_id"), default=0)
+            target_legacy_user_id = _as_int(request.POST.get("target_legacy_user_id"), default=0)
+            deadline = (
+                AssetAdministrativeDeadline.objects.select_related("asset", "component")
+                .filter(pk=deadline_id)
+                .first()
+            )
+            target_details = calendar_user_details.get(str(target_legacy_user_id))
+            if deadline is None:
+                messages.error(request, "Scadenza amministrativa non trovata.")
+                return redirect(redirect_url)
+            if target_details is None:
+                messages.error(request, "Seleziona un utente valido per il calendario Outlook.")
+                return redirect(redirect_url)
+
+            try:
+                entry, created = _create_asset_deadline_calendar_event(
+                    request=request,
+                    deadline=deadline,
+                    target_legacy_user_id=target_legacy_user_id,
+                    target_details=target_details,
+                )
+                target_label = entry.target_display_name or entry.target_email or f"utente {entry.target_legacy_user_id}"
+                if created:
+                    log_action(
+                        request,
+                        "create_deadline_calendar_event",
+                        "assets",
+                        {
+                            "deadline_id": deadline.id,
+                            "asset_id": deadline.asset_id,
+                            "component_id": deadline.component_id,
+                            "due_date": str(deadline.due_date),
+                            "target_legacy_user_id": entry.target_legacy_user_id,
+                            "target_email": entry.target_email,
+                            "graph_event_id": entry.graph_event_id,
+                        },
+                    )
+                    messages.success(
+                        request,
+                        f"Evento Outlook creato per {target_label} sulla scadenza del {entry.due_date:%d/%m/%Y}.",
+                    )
+                else:
+                    messages.info(
+                        request,
+                        f"Esiste gia un evento Outlook per {target_label} su questa stessa scadenza.",
+                    )
+            except Exception as exc:
+                messages.error(request, f"Creazione evento Outlook fallita: {exc}")
+            return redirect(redirect_url)
+
     today = timezone.localdate()
     selected_asset_id = _as_int(request.GET.get("asset"), default=0)
     selected_component_id = _as_int(request.GET.get("component"), default=0)
@@ -7798,10 +8353,29 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
             }
         )
 
+    calendar_event_map: dict[int, list[AssetCalendarEvent]] = defaultdict(list)
+    deadline_ids = [row["deadline"].id for row in deadline_rows_all]
+    if deadline_ids:
+        for entry in (
+            AssetCalendarEvent.objects.select_related("administrative_deadline")
+            .filter(
+                event_kind=AssetCalendarEvent.KIND_ADMINISTRATIVE_DEADLINE,
+                administrative_deadline_id__in=deadline_ids,
+            )
+            .order_by("target_display_name", "target_email", "created_at", "id")
+        ):
+            if entry.administrative_deadline_id:
+                calendar_event_map[entry.administrative_deadline_id].append(entry)
+
     if status_filter == "all":
         deadline_rows = deadline_rows_all
     else:
         deadline_rows = [row for row in deadline_rows_all if row["state"]["status"] == status_filter]
+
+    for row in deadline_rows:
+        deadline = row["deadline"]
+        row["calendar_event_rows"] = list(calendar_event_map.get(deadline.id, []))
+        row["default_calendar_user_id"] = _asset_calendar_default_user_id(deadline.asset, calendar_user_details)
 
     component_options = []
     if selected_asset is not None:
@@ -7843,6 +8417,9 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
                 if selected_asset
                 else reverse("assets:periodic_verifications")
             ),
+            "can_manage_outlook_calendar": can_manage_outlook_calendar,
+            "outlook_calendar_ready": _outlook_calendar_graph_ready() if can_manage_outlook_calendar else False,
+            "calendar_user_choices": calendar_user_choices,
             **_assets_shell_context(
                 request,
                 rows=_as_int(request.GET.get("rows"), default=25),
@@ -8722,6 +9299,79 @@ def _maintenance_schedule_status_choices() -> list[tuple[str, str]]:
 
 @login_required
 def maintenance_schedule(request: HttpRequest) -> HttpResponse:
+    can_manage_outlook_calendar = _is_assets_admin(request)
+    calendar_user_choices: list[tuple[str, str]] = []
+    calendar_user_details: dict[str, dict[str, str]] = {}
+    if can_manage_outlook_calendar:
+        calendar_user_choices, calendar_user_details = _legacy_employee_options()
+
+    if request.method == "POST":
+        action = _clean_string(request.POST.get("action"))
+        if action == "create_outlook_calendar_event":
+            redirect_url = _maintenance_schedule_redirect_from_request(request)
+            if not can_manage_outlook_calendar:
+                messages.error(request, "Solo gli admin assets possono creare eventi Outlook su calendari utente.")
+                return redirect(redirect_url)
+
+            asset_id = _as_int(request.POST.get("asset_id"), default=0)
+            base_rule_id = _as_int(request.POST.get("base_rule_id"), default=0)
+            target_legacy_user_id = _as_int(request.POST.get("target_legacy_user_id"), default=0)
+            asset = Asset.objects.select_related("asset_category").filter(pk=asset_id).first()
+            target_details = calendar_user_details.get(str(target_legacy_user_id))
+            if asset is None:
+                messages.error(request, "Asset non trovato.")
+                return redirect(redirect_url)
+            if not base_rule_id:
+                messages.error(request, "Regola manutenzione non valida.")
+                return redirect(redirect_url)
+            if target_details is None:
+                messages.error(request, "Seleziona un utente valido per il calendario Outlook.")
+                return redirect(redirect_url)
+
+            schedule_row = _maintenance_schedule_row_for_asset_rule(asset=asset, base_rule_id=base_rule_id)
+            if schedule_row is None:
+                messages.error(request, "Scadenza manutenzione non trovata per l'asset selezionato.")
+                return redirect(redirect_url)
+            if not isinstance(schedule_row.get("due_date"), date):
+                messages.error(request, "Questa manutenzione non ha ancora una data scadenza calendarizzabile.")
+                return redirect(redirect_url)
+
+            try:
+                entry, created = _create_asset_maintenance_calendar_event(
+                    request=request,
+                    asset=asset,
+                    schedule_row=schedule_row,
+                    target_legacy_user_id=target_legacy_user_id,
+                    target_details=target_details,
+                )
+                target_label = entry.target_display_name or entry.target_email or f"utente {entry.target_legacy_user_id}"
+                if created:
+                    log_action(
+                        request,
+                        "create_maintenance_calendar_event",
+                        "assets",
+                        {
+                            "asset_id": asset.id,
+                            "base_rule_id": schedule_row["base_rule"].id,
+                            "due_date": str(schedule_row["due_date"]),
+                            "target_legacy_user_id": entry.target_legacy_user_id,
+                            "target_email": entry.target_email,
+                            "graph_event_id": entry.graph_event_id,
+                        },
+                    )
+                    messages.success(
+                        request,
+                        f"Evento Outlook creato per {target_label} sulla scadenza del {entry.due_date:%d/%m/%Y}.",
+                    )
+                else:
+                    messages.info(
+                        request,
+                        f"Esiste gia un evento Outlook per {target_label} su questa stessa scadenza.",
+                    )
+            except Exception as exc:
+                messages.error(request, f"Creazione evento Outlook fallita: {exc}")
+            return redirect(redirect_url)
+
     selected_asset_id = _as_int(request.GET.get("asset"), default=0)
     selected_asset = None
     if selected_asset_id:
@@ -8809,6 +9459,41 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
                 continue
         filtered_rows.append(row)
 
+    calendar_event_map: dict[tuple[int, int, date], list[AssetMaintenanceCalendarEvent]] = defaultdict(list)
+    if filtered_rows:
+        asset_ids = set()
+        base_rule_ids = set()
+        due_dates = set()
+        for row in filtered_rows:
+            due_date = row.get("due_date")
+            if not isinstance(due_date, date):
+                continue
+            asset_ids.add(row["asset"].id)
+            base_rule_ids.add(row["base_rule"].id)
+            due_dates.add(due_date)
+        if asset_ids and base_rule_ids and due_dates:
+            for entry in (
+                AssetCalendarEvent.objects.filter(
+                    event_kind=AssetCalendarEvent.KIND_MAINTENANCE,
+                    asset_id__in=asset_ids,
+                    maintenance_rule_id__in=base_rule_ids,
+                    due_date__in=due_dates,
+                )
+                .order_by("target_display_name", "target_email", "created_at", "id")
+            ):
+                if entry.maintenance_rule_id:
+                    calendar_event_map[(entry.asset_id, entry.maintenance_rule_id, entry.due_date)].append(entry)
+
+    for row in filtered_rows:
+        due_date = row.get("due_date")
+        if isinstance(due_date, date):
+            row["calendar_event_rows"] = list(
+                calendar_event_map.get((row["asset"].id, row["base_rule"].id, due_date), [])
+            )
+        else:
+            row["calendar_event_rows"] = []
+        row["default_calendar_user_id"] = _asset_calendar_default_user_id(row["asset"], calendar_user_details)
+
     reparto_options = [
         value
         for value in Asset.objects.exclude(reparto="")
@@ -8840,6 +9525,9 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
             "coverage_filter": coverage_filter,
             "q": q,
             "clear_filters_url": _maintenance_schedule_page_url(asset_id=selected_asset.id if selected_asset else 0),
+            "can_manage_outlook_calendar": can_manage_outlook_calendar,
+            "outlook_calendar_ready": _outlook_calendar_graph_ready() if can_manage_outlook_calendar else False,
+            "calendar_user_choices": calendar_user_choices,
             **_assets_shell_context(
                 request,
                 rows=_as_int(request.GET.get("rows"), default=25),
@@ -8855,8 +9543,15 @@ def maintenance_schedule(request: HttpRequest) -> HttpResponse:
 @login_required
 def assistance_contract_list(request: HttpRequest) -> HttpResponse:
     from anagrafica.models import Fornitore
+
     today = timezone.localdate()
     can_manage_contracts = _is_assets_admin(request)
+    can_manage_outlook_calendar = can_manage_contracts
+    calendar_user_choices: list[tuple[str, str]] = []
+    calendar_user_details: dict[str, dict[str, str]] = {}
+    if can_manage_outlook_calendar:
+        calendar_user_choices, calendar_user_details = _legacy_employee_options()
+
     selected_asset_id = _as_int(request.POST.get("asset_id") or request.GET.get("asset"), default=0)
     supplier_filter = _as_int(request.GET.get("supplier"), default=0)
     state_filter = _clean_string(request.GET.get("state")) or "all"
@@ -8882,6 +9577,75 @@ def assistance_contract_list(request: HttpRequest) -> HttpResponse:
 
     if request.method == "POST":
         action = _clean_string(request.POST.get("action"))
+        if action == "create_outlook_calendar_event":
+            redirect_url = _assistance_contract_redirect_from_request(request)
+            if not can_manage_outlook_calendar:
+                messages.error(request, "Solo gli admin assets possono creare eventi Outlook su calendari utente.")
+                return redirect(redirect_url)
+            if selected_asset is None:
+                messages.error(
+                    request,
+                    "Per i contratti assistenza seleziona prima un asset: l'evento Outlook viene creato sul contesto asset.",
+                )
+                return redirect(redirect_url)
+
+            contract_id = _as_int(request.POST.get("contract_id"), default=0)
+            target_legacy_user_id = _as_int(request.POST.get("target_legacy_user_id"), default=0)
+            contract = (
+                AssistanceContract.objects.select_related("supplier", "asset", "asset_category", "document")
+                .filter(pk=contract_id)
+                .first()
+            )
+            target_details = calendar_user_details.get(str(target_legacy_user_id))
+            if contract is None:
+                messages.error(request, "Contratto assistenza non trovato.")
+                return redirect(redirect_url)
+            if target_details is None:
+                messages.error(request, "Seleziona un utente valido per il calendario Outlook.")
+                return redirect(redirect_url)
+            if not contract.applies_to_asset(selected_asset):
+                messages.error(request, "Il contratto selezionato non si applica all'asset attualmente filtrato.")
+                return redirect(redirect_url)
+            if not isinstance(contract.end_date, date):
+                messages.error(request, "Questo contratto non ha una scadenza calendarizzabile.")
+                return redirect(redirect_url)
+
+            try:
+                entry, created = _create_asset_assistance_contract_calendar_event(
+                    request=request,
+                    asset=selected_asset,
+                    contract=contract,
+                    target_legacy_user_id=target_legacy_user_id,
+                    target_details=target_details,
+                )
+                target_label = entry.target_display_name or entry.target_email or f"utente {entry.target_legacy_user_id}"
+                if created:
+                    log_action(
+                        request,
+                        "create_assistance_contract_calendar_event",
+                        "assets",
+                        {
+                            "contract_id": contract.id,
+                            "asset_id": selected_asset.id,
+                            "due_date": str(contract.end_date),
+                            "target_legacy_user_id": entry.target_legacy_user_id,
+                            "target_email": entry.target_email,
+                            "graph_event_id": entry.graph_event_id,
+                        },
+                    )
+                    messages.success(
+                        request,
+                        f"Evento Outlook creato per {target_label} sulla scadenza del {entry.due_date:%d/%m/%Y}.",
+                    )
+                else:
+                    messages.info(
+                        request,
+                        f"Esiste gia un evento Outlook per {target_label} su questa stessa scadenza.",
+                    )
+            except Exception as exc:
+                messages.error(request, f"Creazione evento Outlook fallita: {exc}")
+            return redirect(redirect_url)
+
         if action in {"create_assistance_contract", "update_assistance_contract", "delete_assistance_contract"} and not can_manage_contracts:
             messages.error(request, "Solo admin puo gestire i contratti assistenza.")
             return redirect(
@@ -9006,6 +9770,33 @@ def assistance_contract_list(request: HttpRequest) -> HttpResponse:
             }
         )
 
+    contract_event_map: dict[int, list[AssetCalendarEvent]] = defaultdict(list)
+    if selected_asset is not None and contract_rows:
+        contract_ids = [row["contract"].id for row in contract_rows if isinstance(row["contract"].end_date, date)]
+        if contract_ids:
+            for entry in (
+                AssetCalendarEvent.objects.select_related("assistance_contract")
+                .filter(
+                    event_kind=AssetCalendarEvent.KIND_ASSISTANCE_CONTRACT,
+                    asset_id=selected_asset.id,
+                    assistance_contract_id__in=contract_ids,
+                )
+                .order_by("target_display_name", "target_email", "created_at", "id")
+            ):
+                if entry.assistance_contract_id:
+                    contract_event_map[entry.assistance_contract_id].append(entry)
+
+    default_calendar_user_id = _asset_calendar_default_user_id(selected_asset, calendar_user_details)
+    for row in contract_rows:
+        contract = row["contract"]
+        row["can_create_calendar_event"] = bool(
+            selected_asset is not None
+            and isinstance(contract.end_date, date)
+            and contract.applies_to_asset(selected_asset)
+        )
+        row["calendar_event_rows"] = list(contract_event_map.get(contract.id, []))
+        row["default_calendar_user_id"] = default_calendar_user_id
+
     periodic_cost_total = Decimal("0")
     for row in contract_rows:
         if row["state"]["status"] in {"active", "expiring"} and row["contract"].periodic_cost_eur is not None:
@@ -9047,6 +9838,9 @@ def assistance_contract_list(request: HttpRequest) -> HttpResponse:
                 ("asset", "Per asset"),
             ],
             "clear_filters_url": _assistance_contracts_page_url(asset_id=selected_asset.id if selected_asset else 0),
+            "can_manage_outlook_calendar": can_manage_outlook_calendar,
+            "outlook_calendar_ready": _outlook_calendar_graph_ready() if can_manage_outlook_calendar else False,
+            "calendar_user_choices": calendar_user_choices,
             **_assets_shell_context(
                 request,
                 rows=_as_int(request.GET.get("rows"), default=25),
@@ -9311,6 +10105,12 @@ def work_machine_dashboard(request: HttpRequest) -> HttpResponse:
 def periodic_verification_list(request: HttpRequest) -> HttpResponse:
     today = timezone.localdate()
     can_manage_periodic_verifications = _is_assets_admin(request)
+    can_manage_outlook_calendar = can_manage_periodic_verifications
+    calendar_user_choices: list[tuple[str, str]] = []
+    calendar_user_details: dict[str, dict[str, str]] = {}
+    if can_manage_outlook_calendar:
+        calendar_user_choices, calendar_user_details = _legacy_employee_options()
+
     selected_asset_id = _as_int(request.POST.get("asset_id") or request.GET.get("asset"), default=0)
     selected_asset = None
     if selected_asset_id:
@@ -9334,6 +10134,76 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
 
     if request.method == "POST":
         action = _clean_string(request.POST.get("action"))
+        if action == "create_outlook_calendar_event":
+            redirect_url = _periodic_verification_redirect_from_request(request)
+            if not can_manage_outlook_calendar:
+                messages.error(request, "Solo gli admin assets possono creare eventi Outlook su calendari utente.")
+                return redirect(redirect_url)
+            if selected_asset is None:
+                messages.error(
+                    request,
+                    "Per le verifiche periodiche seleziona prima un asset: l'evento Outlook viene creato sul contesto asset.",
+                )
+                return redirect(redirect_url)
+
+            verification_id = _as_int(request.POST.get("verification_id"), default=0)
+            target_legacy_user_id = _as_int(request.POST.get("target_legacy_user_id"), default=0)
+            verification = (
+                PeriodicVerification.objects.select_related("supplier", "created_by")
+                .prefetch_related("assets")
+                .filter(pk=verification_id)
+                .first()
+            )
+            target_details = calendar_user_details.get(str(target_legacy_user_id))
+            if verification is None:
+                messages.error(request, "Verifica periodica non trovata.")
+                return redirect(redirect_url)
+            if target_details is None:
+                messages.error(request, "Seleziona un utente valido per il calendario Outlook.")
+                return redirect(redirect_url)
+            if not verification.assets.filter(pk=selected_asset.id).exists():
+                messages.error(request, "La verifica selezionata non e collegata all'asset attualmente filtrato.")
+                return redirect(redirect_url)
+            if not isinstance(verification.next_verification_date, date):
+                messages.error(request, "Questa verifica non ha una prossima data calendarizzabile.")
+                return redirect(redirect_url)
+
+            try:
+                entry, created = _create_asset_periodic_verification_calendar_event(
+                    request=request,
+                    asset=selected_asset,
+                    verification=verification,
+                    target_legacy_user_id=target_legacy_user_id,
+                    target_details=target_details,
+                )
+                target_label = entry.target_display_name or entry.target_email or f"utente {entry.target_legacy_user_id}"
+                if created:
+                    log_action(
+                        request,
+                        "create_periodic_verification_calendar_event",
+                        "assets",
+                        {
+                            "verification_id": verification.id,
+                            "asset_id": selected_asset.id,
+                            "due_date": str(verification.next_verification_date),
+                            "target_legacy_user_id": entry.target_legacy_user_id,
+                            "target_email": entry.target_email,
+                            "graph_event_id": entry.graph_event_id,
+                        },
+                    )
+                    messages.success(
+                        request,
+                        f"Evento Outlook creato per {target_label} sulla scadenza del {entry.due_date:%d/%m/%Y}.",
+                    )
+                else:
+                    messages.info(
+                        request,
+                        f"Esiste gia un evento Outlook per {target_label} su questa stessa scadenza.",
+                    )
+            except Exception as exc:
+                messages.error(request, f"Creazione evento Outlook fallita: {exc}")
+            return redirect(redirect_url)
+
         if action in {"create_periodic_verification", "update_periodic_verification", "delete_periodic_verification"} and not can_manage_periodic_verifications:
             messages.error(request, "Solo admin puo gestire le verifiche periodiche.")
             return redirect(_periodic_verifications_page_url(asset_id=selected_asset.id if selected_asset else 0))
@@ -9366,21 +10236,46 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
             return redirect(_periodic_verifications_page_url(asset_id=selected_asset.id if selected_asset else 0))
 
     verification_rows: list[dict[str, object]] = []
+    verification_event_map: dict[int, list[AssetCalendarEvent]] = defaultdict(list)
+    if selected_asset is not None:
+        linked_ids = list(
+            PeriodicVerification.objects.filter(assets__id=selected_asset.id).values_list("id", flat=True).distinct()
+        )
+        if linked_ids:
+            for entry in (
+                AssetCalendarEvent.objects.select_related("periodic_verification")
+                .filter(
+                    event_kind=AssetCalendarEvent.KIND_PERIODIC_VERIFICATION,
+                    asset_id=selected_asset.id,
+                    periodic_verification_id__in=linked_ids,
+                )
+                .order_by("target_display_name", "target_email", "created_at", "id")
+            ):
+                if entry.periodic_verification_id:
+                    verification_event_map[entry.periodic_verification_id].append(entry)
+
+    default_calendar_user_id = _asset_calendar_default_user_id(selected_asset, calendar_user_details)
     for verification in (
         PeriodicVerification.objects.select_related("supplier", "created_by")
         .prefetch_related("assets")
         .order_by("-is_active", "next_verification_date", "name", "id")
     ):
         linked_assets = list(verification.assets.all())
+        is_selected_asset_linked = bool(selected_asset and any(asset.id == selected_asset.id for asset in linked_assets))
         verification_rows.append(
             {
                 "verification": verification,
                 "state": _periodic_verification_state(verification, today=today),
                 "linked_assets": linked_assets,
                 "linked_assets_count": len(linked_assets),
-                "is_selected_asset_linked": bool(
-                    selected_asset and any(asset.id == selected_asset.id for asset in linked_assets)
+                "is_selected_asset_linked": is_selected_asset_linked,
+                "can_create_calendar_event": bool(
+                    selected_asset is not None
+                    and is_selected_asset_linked
+                    and isinstance(verification.next_verification_date, date)
                 ),
+                "calendar_event_rows": list(verification_event_map.get(verification.id, [])),
+                "default_calendar_user_id": default_calendar_user_id,
                 "edit_url": _periodic_verifications_page_url(
                     asset_id=selected_asset.id if selected_asset else 0,
                     edit_id=verification.id,
@@ -9409,6 +10304,9 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
             "selected_asset": selected_asset,
             "selected_asset_linked_count": selected_asset_linked_count,
             "can_manage_periodic_verifications": can_manage_periodic_verifications,
+            "can_manage_outlook_calendar": can_manage_outlook_calendar,
+            "outlook_calendar_ready": _outlook_calendar_graph_ready() if can_manage_outlook_calendar else False,
+            "calendar_user_choices": calendar_user_choices,
             "is_edit": edit_verification is not None,
             "edit_verification": edit_verification,
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
@@ -10526,12 +11424,6 @@ def work_machine_maintenance_month_pdf(request: HttpRequest) -> HttpResponse:
 
 
 def _handle_sharepoint_config_request(request: HttpRequest) -> tuple[bool, str]:
-    cfg = _load_assets_app_config()
-    if not cfg.has_section("AZIENDA"):
-        cfg.add_section("AZIENDA")
-    if not cfg.has_section("ASSETS"):
-        cfg.add_section("ASSETS")
-
     tenant_id = _clean_string(request.POST.get("sharepoint_tenant_id"))[:200]
     client_id = _clean_string(request.POST.get("sharepoint_client_id"))[:200]
     site_id = _clean_string(request.POST.get("sharepoint_site_id"))[:500]
@@ -10540,22 +11432,27 @@ def _handle_sharepoint_config_request(request: HttpRequest) -> tuple[bool, str]:
     work_machine_root_path = _normalize_sharepoint_path(request.POST.get("sharepoint_work_machine_root_path"))[:500]
     library_url = _clean_string(request.POST.get("sharepoint_library_url"))[:1000]
 
-    cfg.set("AZIENDA", "tenant_id", tenant_id)
-    cfg.set("AZIENDA", "client_id", client_id)
-    cfg.set("AZIENDA", "site_id", site_id)
-    if client_secret:
-        cfg.set("AZIENDA", "client_secret", client_secret)
-    elif not cfg.has_option("AZIENDA", "client_secret"):
-        cfg.set("AZIENDA", "client_secret", "")
-
-    cfg.set("ASSETS", "sharepoint_asset_root_path", asset_root_path)
-    cfg.set("ASSETS", "sharepoint_work_machine_root_path", work_machine_root_path)
-    cfg.set("ASSETS", "sharepoint_library_url", library_url)
-
     try:
-        _save_assets_app_config(cfg)
+        dotenv_values = load_env_file_values()
+        current_secret = str(dotenv_values.get("GRAPH_CLIENT_SECRET") or dotenv_values.get("AZURE_CLIENT_SECRET") or "").strip()
+        updates = {
+            "GRAPH_TENANT_ID": tenant_id,
+            "GRAPH_CLIENT_ID": client_id,
+            "GRAPH_SITE_ID": site_id,
+            "ASSETS_SHAREPOINT_ASSET_ROOT_PATH": asset_root_path,
+            "ASSETS_SHAREPOINT_WORK_MACHINE_ROOT_PATH": work_machine_root_path,
+            "ASSETS_SHAREPOINT_LIBRARY_URL": library_url,
+        }
+        if client_secret:
+            updates["GRAPH_CLIENT_SECRET"] = client_secret
+        elif not current_secret and not get_first_env_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET"):
+            updates["GRAPH_CLIENT_SECRET"] = ""
+        update_env_file_values(
+            updates,
+            delete_keys=["AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"],
+        )
     except Exception as exc:
-        return False, f"Errore scrittura config.ini: {exc}"
+        return False, f"Errore scrittura .env: {exc}"
     return True, "Configurazione SharePoint aggiornata."
 
 
@@ -10699,6 +11596,56 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
                 messages.success(request, text)
             else:
                 messages.error(request, text)
+            return config_redirect
+
+        if action == "save_assets_logo":
+            logo_file = request.FILES.get("logo_file")
+            logo_url = request.POST.get("logo_url", "").strip()
+            if logo_file:
+                _LOGO_ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".svg", ".webp"}
+                _LOGO_ALLOWED_MIMES = {"image/png", "image/jpeg", "image/svg+xml", "image/webp"}
+                if logo_file.size > 512 * 1024:
+                    messages.error(request, "Immagine troppo grande (max 512 KB).")
+                    return config_redirect
+                try:
+                    validate_extension_and_mime(
+                        logo_file,
+                        allowed_extensions=_LOGO_ALLOWED_EXTS,
+                        allowed_mimes=_LOGO_ALLOWED_MIMES,
+                        max_bytes=None,
+                        label="Logo",
+                    )
+                except UploadMimeValidationError as exc:
+                    messages.error(request, str(exc))
+                    return config_redirect
+                import os
+                from django.core.files.storage import default_storage
+                raw_ext = os.path.splitext(logo_file.name)[1].lower()
+                ext = raw_ext if raw_ext in _LOGO_ALLOWED_EXTS else ".png"
+                save_path = f"assets_logo/logo{ext}"
+                if default_storage.exists(save_path):
+                    default_storage.delete(save_path)
+                saved = default_storage.save(save_path, logo_file)
+                final_url = default_storage.url(saved)
+                SiteConfig.set("assets_logo_image", final_url, "Logo personalizzato modulo Inventario Assets")
+                log_action(request, "save_assets_logo", "assets", {"path": saved})
+                messages.success(request, "Logo aggiornato.")
+            elif logo_url:
+                parsed = urlsplit(logo_url)
+                if parsed.scheme not in ("http", "https"):
+                    messages.error(request, "L'URL deve iniziare con http:// o https://")
+                    return config_redirect
+                SiteConfig.set("assets_logo_image", logo_url, "Logo personalizzato modulo Inventario Assets")
+                log_action(request, "save_assets_logo_url", "assets", {"url": logo_url})
+                messages.success(request, "Logo URL salvato.")
+            else:
+                messages.error(request, "Seleziona un file o inserisci un URL.")
+            return config_redirect
+
+        if action == "remove_assets_logo":
+            SiteConfig.set("assets_logo_image", "", "Logo personalizzato modulo Inventario Assets")
+            log_action(request, "remove_assets_logo", "assets", {})
+            messages.success(request, "Logo personalizzato rimosso.")
             return config_redirect
 
         if action in ("add_categoria_ticket", "toggle_categoria_ticket", "delete_categoria_ticket"):
