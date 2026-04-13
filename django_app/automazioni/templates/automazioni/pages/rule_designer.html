@@ -473,6 +473,10 @@
     forEachNode(document.querySelectorAll('select[name$="-field_name"]'), function(condSelect) {
       rebuildSelectOptions(condSelect, sourceData.condition, condSelect.value);
     });
+
+    forEachNode(document.querySelectorAll('select[name$="-run_if_field_name"]'), function(runIfSelect) {
+      rebuildSelectOptions(runIfSelect, sourceData.condition, runIfSelect.value);
+    });
   }
 
   function syncActionCards() {

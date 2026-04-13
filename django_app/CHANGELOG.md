@@ -1,6 +1,6 @@
 ﻿# Changelog
 
-## 0.9.14 - 2026-04-10
+## 0.9.15 - 2026-04-10
 
 ### Modulo KICK-OFF — redesign interfaccia
 

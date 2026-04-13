@@ -319,21 +319,21 @@ $triggerFiles.Add((Get-Item -LiteralPath $paths.SetupWizardBundleRules))
 
 $deploymentScriptDir = Join-Path $SourcePath "deployment\scripts"
 if (Test-Path -LiteralPath $deploymentScriptDir) {
-    foreach ($file in (Get-ChildItem -LiteralPath $deploymentScriptDir -File -Recurse)) {
+    foreach ($file in (Get-ChildItem -LiteralPath $deploymentScriptDir -File -Recurse -ErrorAction SilentlyContinue)) {
         $triggerFiles.Add($file)
     }
 }
 
 $deploymentConfigDir = Join-Path $SourcePath "deployment\config"
 if (Test-Path -LiteralPath $deploymentConfigDir) {
-    foreach ($file in (Get-ChildItem -LiteralPath $deploymentConfigDir -File -Recurse)) {
+    foreach ($file in (Get-ChildItem -LiteralPath $deploymentConfigDir -File -Recurse -ErrorAction SilentlyContinue)) {
         $triggerFiles.Add($file)
     }
 }
 
 $djangoAppDir = Join-Path $SourcePath "django_app"
 if (Test-Path -LiteralPath $djangoAppDir) {
-    $djangoFiles = Get-ChildItem -LiteralPath $djangoAppDir -File -Recurse | Where-Object {
+    $djangoFiles = Get-ChildItem -LiteralPath $djangoAppDir -File -Recurse -ErrorAction SilentlyContinue | Where-Object {
         -not (Test-IsExcludedByWizardBundleRules -BaseDir $djangoAppDir -File $_ -ExcludeDirNames $wizardExcludedDirNames -ExcludeFilePatterns $wizardExcludedFilePatterns)
     }
     foreach ($file in $djangoFiles) {

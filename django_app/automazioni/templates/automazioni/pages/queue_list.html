@@ -37,6 +37,19 @@
   {% include "admin_portale/components/flash_messages.html" %}
   {% include "automazioni/components/subnav.html" %}
 
+  {% if queue_table_missing %}
+  <div class="alert alert-warning" style="background:#fef9c3;border:1px solid #fcd34d;border-radius:12px;padding:18px 22px;margin-bottom:20px;display:flex;gap:14px;align-items:flex-start;">
+    <span style="font-size:22px;">⚠️</span>
+    <div>
+      <strong>Tabella <code>automation_event_queue</code> non trovata</strong><br>
+      La tabella SQL Server per la coda automazioni non è ancora stata creata in questo ambiente.<br>
+      Per completare il setup eseguire sul database:
+      <pre style="margin:10px 0 4px;background:#fffde7;padding:10px 14px;border-radius:8px;font-size:13px;">-- File: sql/automation_event_queue.sql
+-- Poi ri-applicare i trigger:
+python manage.py apply_sql_triggers</pre>
+    </div>
+  </div>
+  {% else %}
   <div class="auto-grid">
     <div class="card">
       <div class="card-head">
@@ -180,4 +193,5 @@
       </div>
     </div>
   </div>
+  {% endif %}
 {% endblock %}

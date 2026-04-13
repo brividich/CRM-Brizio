@@ -4,7 +4,8 @@ import json
 
 from django.contrib import messages
 from django.db.models import Count
-from django.db import transaction
+from django.db import connection, transaction
+from django.db.utils import ProgrammingError as DjangoProgrammingError
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
@@ -3962,12 +3963,34 @@ def rule_test_page(request, rule_id: int):
     return render(request, "automazioni/pages/rule_test.html", context)
 
 
+def _queue_table_exists() -> bool:
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT TOP 1 id FROM dbo.automation_event_queue WHERE 1=0;")
+        return True
+    except DjangoProgrammingError:
+        return False
+
+
 @legacy_admin_required
 @require_GET
 def queue_list_page(request):
     status = _get_filter_value(request, "status")
     source_code = _get_filter_value(request, "source_code")
     operation_type = _get_filter_value(request, "operation_type")
+
+    if not _queue_table_exists():
+        context = {
+            **_base_context(),
+            "queue_table_missing": True,
+            "queue_events": [],
+            "queue_counts": {},
+            "filters": {"status": status, "source_code": source_code, "operation_type": operation_type},
+            "queue_status_choices": QUEUE_STATUS_CHOICES,
+            "queue_operation_choices": QUEUE_OPERATION_CHOICES,
+            "source_choices": [],
+        }
+        return render(request, "automazioni/pages/queue_list.html", context)
 
     queue_events = list_queue_events(
         status=status or None,
@@ -3991,6 +4014,7 @@ def queue_list_page(request):
 
     context = {
         **_base_context(),
+        "queue_table_missing": False,
         "queue_events": queue_events,
         "queue_counts": count_queue_by_status(
             source_code=source_code or None,

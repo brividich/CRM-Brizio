@@ -15,6 +15,7 @@ from django.core.exceptions import ValidationError
 from django.core.mail import EmailMultiAlternatives
 from django.core.validators import validate_email
 from django.db import connection, transaction
+from django.db.utils import ProgrammingError as DjangoProgrammingError
 from django.utils import timezone
 
 from .models import (
@@ -393,9 +394,12 @@ AND (execute_after IS NULL OR execute_after <= GETUTCDATE())
 {source_filter_sql}
 ORDER BY id ASC;
 """
-    with connection.cursor() as cursor:
-        cursor.execute(sql, [QueueEventStatus.PENDING, *source_filter_params])
-        return _cursor_fetch_dicts(cursor)
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(sql, [QueueEventStatus.PENDING, *source_filter_params])
+            return _cursor_fetch_dicts(cursor)
+    except DjangoProgrammingError:
+        return []
 
 
 def list_queue_events(
@@ -430,9 +434,12 @@ FROM dbo.automation_event_queue
 {where_sql}
 ORDER BY id DESC;
 """
-    with connection.cursor() as cursor:
-        cursor.execute(sql, params)
-        return _cursor_fetch_dicts(cursor)
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(sql, params)
+            return _cursor_fetch_dicts(cursor)
+    except DjangoProgrammingError:
+        return []
 
 
 def get_queue_event_detail(queue_id: int) -> dict[str, Any] | None:
@@ -476,10 +483,13 @@ FROM dbo.automation_event_queue
 GROUP BY status;
 """
     counts = {QueueEventStatus.PENDING: 0, QueueEventStatus.PROCESSING: 0, QueueEventStatus.DONE: 0, QueueEventStatus.ERROR: 0}
-    with connection.cursor() as cursor:
-        cursor.execute(sql, params)
-        for row in _cursor_fetch_dicts(cursor):
-            counts[str(row["status"])] = int(row["total"])
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(sql, params)
+            for row in _cursor_fetch_dicts(cursor):
+                counts[str(row["status"])] = int(row["total"])
+    except DjangoProgrammingError:
+        pass
     return counts
 
 

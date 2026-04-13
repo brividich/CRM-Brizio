@@ -347,6 +347,10 @@
     document.querySelectorAll('select[name$="-field_name"]').forEach(function(condSelect) {
       rebuildSelectOptions(condSelect, sourceData.condition, condSelect.value);
     });
+
+    document.querySelectorAll('select[name$="-run_if_field_name"]').forEach(function(runIfSelect) {
+      rebuildSelectOptions(runIfSelect, sourceData.condition, runIfSelect.value);
+    });
   }
 
   function syncWatchedField() {

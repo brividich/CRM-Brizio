@@ -118,7 +118,7 @@ function Get-SetupWizardNewestTrigger {
         (Join-Path $RootPath "deployment\config")
     )) {
         if (Test-Path -LiteralPath $directory) {
-            foreach ($file in (Get-ChildItem -LiteralPath $directory -File -Recurse)) {
+            foreach ($file in (Get-ChildItem -LiteralPath $directory -File -Recurse -ErrorAction SilentlyContinue)) {
                 $triggerFiles.Add($file)
             }
         }
@@ -126,7 +126,7 @@ function Get-SetupWizardNewestTrigger {
 
     $djangoAppDir = Join-Path $RootPath "django_app"
     if (Test-Path -LiteralPath $djangoAppDir) {
-        $djangoFiles = Get-ChildItem -LiteralPath $djangoAppDir -File -Recurse | Where-Object {
+        $djangoFiles = Get-ChildItem -LiteralPath $djangoAppDir -File -Recurse -ErrorAction SilentlyContinue | Where-Object {
             -not (Test-IsExcludedByWizardBundleRules -BaseDir $djangoAppDir -File $_ -ExcludeDirNames $excludeDirNames -ExcludeFilePatterns $excludeFilePatterns)
         }
         foreach ($file in $djangoFiles) {

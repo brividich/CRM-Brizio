@@ -10,9 +10,10 @@
     3. Aggiorna le dipendenze pip nel venv condiviso
     4. Esegue collectstatic (output in static\)
     5. Esegue migrate
-    6. Riallinea assenze.tipo_assenza a Flessibilita su SQL Server
-    7. Esegue createcachetable (se primo deploy)
-    8. Stampa il tag release da usare con activate-release.ps1
+    6. Applica trigger SQL Server (trg_*.sql in automazioni/migrations/)
+    7. Riallinea assenze.tipo_assenza a Flessibilita su SQL Server
+    8. Esegue createcachetable (se primo deploy)
+    9. Stampa il tag release da usare con activate-release.ps1
 
     NOTA: il release rimane in releases\ ma NON diventa "current" finche
     non si esegue activate-release.ps1 (o si usa -AutoActivate).
@@ -49,7 +50,8 @@ param(
 
     [switch]$AutoActivate,
     [switch]$SkipMigrate,
-    [switch]$SkipCollectStatic
+    [switch]$SkipCollectStatic,
+    [switch]$SkipSqlTriggers
 )
 
 Set-StrictMode -Version Latest
@@ -206,7 +208,7 @@ Write-LogSeparator
 # ---------------------------------------------------------------------------
 # 1. Estrazione pacchetto
 # ---------------------------------------------------------------------------
-Write-Log "[1/8] Estrazione pacchetto..." "STEP"
+Write-Log "[1/9] Estrazione pacchetto..." "STEP"
 New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
 Expand-Archive -Path $PackagePath -DestinationPath $releaseDir -Force
 Write-Log "Pacchetto estratto in: $releaseDir" "SUCCESS"
@@ -223,7 +225,7 @@ Write-Log "Struttura pacchetto verificata." "SUCCESS"
 # ---------------------------------------------------------------------------
 # 2. Copia configurazione da config\
 # ---------------------------------------------------------------------------
-Write-Log "[2/8] Copia configurazione..." "STEP"
+Write-Log "[2/9] Copia configurazione..." "STEP"
 $envFile = "$($paths.Config)\.env"
 if (-not (Test-Path $envFile)) {
     Write-Log "File .env non trovato: $envFile" "ERROR"
@@ -238,7 +240,7 @@ Sync-ReleaseEnvSqlDriver -EnvPath "$djangoApp\.env"
 # ---------------------------------------------------------------------------
 # 3. Verifica / crea venv
 # ---------------------------------------------------------------------------
-Write-Log "[3/8] Verifica virtualenv..." "STEP"
+Write-Log "[3/9] Verifica virtualenv..." "STEP"
 $venvPython = "$($paths.Venv)\Scripts\python.exe"
 if (-not (Test-Path $venvPython)) {
     Write-Log "Virtualenv non trovato. Esegui prima setup-environment.ps1." "ERROR"
@@ -251,7 +253,7 @@ Write-Log "Venv Python: $pyVer" "INFO"
 # ---------------------------------------------------------------------------
 # 4. Installazione dipendenze
 # ---------------------------------------------------------------------------
-Write-Log "[4/8] Installazione dipendenze pip..." "STEP"
+Write-Log "[4/9] Installazione dipendenze pip..." "STEP"
 $reqFile = "$djangoApp\requirements.txt"
 if (-not (Test-Path $reqFile)) {
     Write-Log "requirements.txt non trovato: $reqFile" "ERROR"
@@ -280,7 +282,7 @@ $djangoEnv = @{
 # 5. collectstatic
 # ---------------------------------------------------------------------------
 if (-not $SkipCollectStatic) {
-    Write-Log "[5/8] collectstatic..." "STEP"
+    Write-Log "[5/9] collectstatic..." "STEP"
     # STATIC_ROOT deve puntare a $paths.Static - verificato nel .env
     try {
         Invoke-Venv -VenvPath $paths.Venv `
@@ -297,14 +299,14 @@ if (-not $SkipCollectStatic) {
     }
 }
 else {
-    Write-Log "[5/8] collectstatic - SALTATO (flag -SkipCollectStatic)" "WARN"
+    Write-Log "[5/9] collectstatic - SALTATO (flag -SkipCollectStatic)" "WARN"
 }
 
 # ---------------------------------------------------------------------------
 # 6. migrate
 # ---------------------------------------------------------------------------
 if (-not $SkipMigrate) {
-    Write-Log "[6/8] migrate..." "STEP"
+    Write-Log "[6/9] migrate..." "STEP"
     try {
         Invoke-Venv -VenvPath $paths.Venv `
                     -WorkDir  $djangoApp `
@@ -320,14 +322,36 @@ if (-not $SkipMigrate) {
     }
 }
 else {
-    Write-Log "[6/8] migrate - SALTATO (flag -SkipMigrate)" "WARN"
+    Write-Log "[6/9] migrate - SALTATO (flag -SkipMigrate)" "WARN"
+}
+
+# ---------------------------------------------------------------------------
+# 6. Applica trigger SQL Server
+# ---------------------------------------------------------------------------
+if (-not $SkipSqlTriggers) {
+    Write-Log "[7/9] Applicazione trigger SQL Server..." "STEP"
+    try {
+        Invoke-Venv -VenvPath $paths.Venv `
+                    -WorkDir  $djangoApp `
+                    -Args     @("manage.py", "apply_sql_triggers", "--settings=$settingsMod") `
+                    -EnvVars  $djangoEnv
+        Write-Log "Trigger SQL applicati." "SUCCESS"
+    }
+    catch {
+        Write-Log "apply_sql_triggers fallito: $_" "WARN"
+        Write-Log "ATTENZIONE: i trigger SQL potrebbero non essere aggiornati. Verificare manualmente." "WARN"
+        # Non bloccante: le migration Django sono gia passate, il trigger e solo un complemento
+    }
+}
+else {
+    Write-Log "[7/9] Trigger SQL - SALTATO (flag -SkipSqlTriggers)" "WARN"
 }
 
 # ---------------------------------------------------------------------------
 # 7. allinea tipo_assenza assenze (idempotente, richiesto per DB legacy)
 # ---------------------------------------------------------------------------
 if (-not $SkipMigrate) {
-    Write-Log "[7/8] allinea assenze.tipo_assenza a Flessibilita..." "STEP"
+    Write-Log "[8/9] allinea assenze.tipo_assenza a Flessibilita..." "STEP"
     try {
         Invoke-Venv -VenvPath $paths.Venv `
                     -WorkDir  $djangoApp `
@@ -343,13 +367,13 @@ if (-not $SkipMigrate) {
     }
 }
 else {
-    Write-Log "[7/8] allinea tipo_assenza - SALTATO (flag -SkipMigrate)" "WARN"
+    Write-Log "[8/9] allinea tipo_assenza - SALTATO (flag -SkipMigrate)" "WARN"
 }
 
 # ---------------------------------------------------------------------------
 # 8. createcachetable (idempotente, sicuro da rieseguire)
 # ---------------------------------------------------------------------------
-Write-Log "[8/8] createcachetable (idempotente)..." "STEP"
+Write-Log "[9/9] createcachetable (idempotente)..." "STEP"
 try {
     Invoke-Venv -VenvPath $paths.Venv `
                 -WorkDir  $djangoApp `
