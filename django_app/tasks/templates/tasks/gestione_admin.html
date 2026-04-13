@@ -94,27 +94,27 @@
 </style>
 {% endblock %}
 
-{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">Tasks / Gestione admin</span>{% endblock %}
-{% block tasks_shell_title %}Gestione tasks{% endblock %}
-{% block tasks_shell_subtitle %}Console amministrativa per riepilogo, record e log del modulo tasks.{% endblock %}
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Gestione admin</span>{% endblock %}
+{% block tasks_shell_title %}Gestione KICK-OFF{% endblock %}
+{% block tasks_shell_subtitle %}Console amministrativa per riepilogo, record e log del modulo KICK-OFF.{% endblock %}
 {% block tasks_shell_meta %}
   <span class="ts-hero-pill">Admin</span>
-  <span class="ts-hero-pill">{{ total_tasks }} task</span>
-  <span class="ts-hero-pill">{{ total_projects }} progetti</span>
+  <span class="ts-hero-pill">{{ total_tasks }} attivita</span>
+  <span class="ts-hero-pill">{{ total_projects }} kickoff</span>
 {% endblock %}
 {% block tasks_shell_actions %}
-  <a class="ts-hero-action" href="{% url 'tasks:list' %}">Dashboard task</a>
+  <a class="ts-hero-action" href="{% url 'tasks:list' %}">Dashboard attivita</a>
   {% if tasks_shell_can_create %}
-    <a class="ts-hero-action primary" href="{% url 'tasks:create' %}">Nuova task</a>
+    <a class="ts-hero-action primary" href="{% url 'tasks:create' %}">Nuova attivita</a>
   {% endif %}
 {% endblock %}
 
 {% block tasks_shell_kpis %}
 <section class="ts-kpis">
-  <article class="ts-kpi blue"><div class="ts-kpi-label">Task totali</div><div class="ts-kpi-value">{{ total_tasks }}</div><div class="ts-kpi-note">Volume complessivo gestito nel modulo.</div></article>
-  <article class="ts-kpi teal"><div class="ts-kpi-label">Progetti</div><div class="ts-kpi-value">{{ total_projects }}</div><div class="ts-kpi-note">Anagrafiche progetto presenti nel sistema.</div></article>
-  <article class="ts-kpi amber"><div class="ts-kpi-label">In corso</div><div class="ts-kpi-value">{{ in_progress_count }}</div><div class="ts-kpi-note">Task aperte in lavorazione.</div></article>
-  <article class="ts-kpi red"><div class="ts-kpi-label">Scadute</div><div class="ts-kpi-value">{{ tasks_overdue }}</div><div class="ts-kpi-note">Task aperte con data fine oltre la soglia.</div></article>
+  <article class="ts-kpi blue"><div class="ts-kpi-label">Attivita totali</div><div class="ts-kpi-value">{{ total_tasks }}</div><div class="ts-kpi-note">Volume complessivo gestito nel modulo.</div></article>
+  <article class="ts-kpi teal"><div class="ts-kpi-label">Kickoff</div><div class="ts-kpi-value">{{ total_projects }}</div><div class="ts-kpi-note">Anagrafiche kickoff presenti nel sistema.</div></article>
+  <article class="ts-kpi amber"><div class="ts-kpi-label">In corso</div><div class="ts-kpi-value">{{ in_progress_count }}</div><div class="ts-kpi-note">Attivita aperte in lavorazione.</div></article>
+  <article class="ts-kpi red"><div class="ts-kpi-label">Scadute</div><div class="ts-kpi-value">{{ tasks_overdue }}</div><div class="ts-kpi-note">Attivita aperte con data fine oltre la soglia.</div></article>
 </section>
 {% endblock %}
 
@@ -188,7 +188,7 @@
     <section class="ts-panel">
       <div class="ts-panel-head">
         <div class="ts-panel-title-wrap">
-          <h2 class="ts-panel-title">Progetti</h2>
+          <h2 class="ts-panel-title">Kickoff</h2>
           <p class="ts-panel-subtitle">{{ projects_page.paginator.count }} record con ricerca per nome o cliente.</p>
         </div>
       </div>
@@ -196,7 +196,7 @@
         <form method="get" class="admin-search-row">
           <input type="hidden" name="tab" value="record">
           <div class="ts-field">
-            <label for="id_q_proj">Cerca progetto</label>
+            <label for="id_q_proj">Cerca kickoff</label>
             <input id="id_q_proj" type="text" name="q_proj" value="{{ q_proj }}" class="input" placeholder="Nome o cliente">
           </div>
           <div class="ts-actions">
@@ -218,7 +218,7 @@
                   <td><a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_gantt' p.id %}">Gantt</a></td>
                 </tr>
               {% empty %}
-                <tr><td colspan="5">Nessun progetto trovato.</td></tr>
+                <tr><td colspan="5">Nessun kickoff trovato.</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -237,7 +237,7 @@
     <section class="ts-panel">
       <div class="ts-panel-head">
         <div class="ts-panel-title-wrap">
-          <h2 class="ts-panel-title">Task</h2>
+          <h2 class="ts-panel-title">Attivita kickoff</h2>
           <p class="ts-panel-subtitle">{{ tasks_page.paginator.count }} record filtrabili per titolo e stato.</p>
         </div>
       </div>
@@ -245,8 +245,8 @@
         <form method="get" class="admin-search-row">
           <input type="hidden" name="tab" value="record">
           <div class="ts-field">
-            <label for="id_q_task">Cerca task</label>
-            <input id="id_q_task" type="text" name="q_task" value="{{ q_task }}" class="input" placeholder="Titolo task">
+            <label for="id_q_task">Cerca attivita</label>
+            <input id="id_q_task" type="text" name="q_task" value="{{ q_task }}" class="input" placeholder="Titolo attivita">
           </div>
           <div class="ts-field">
             <label for="id_filter_status">Stato</label>
@@ -264,7 +264,7 @@
 
         <div class="ts-table-wrap">
           <table class="ts-table">
-            <thead><tr><th>Titolo</th><th>Progetto</th><th>Stato</th><th>Priorita</th><th>Assegnato a</th><th>Scadenza</th><th></th></tr></thead>
+            <thead><tr><th>Titolo</th><th>Kickoff</th><th>Stato</th><th>Priorita</th><th>Assegnato a</th><th>Scadenza</th><th></th></tr></thead>
             <tbody>
               {% for t in tasks_page %}
                 <tr>
@@ -277,7 +277,7 @@
                   <td><a class="btn btn-secondary btn-sm" href="{% url 'tasks:detail' t.id %}">Apri</a></td>
                 </tr>
               {% empty %}
-                <tr><td colspan="7">Nessun task trovato.</td></tr>
+                <tr><td colspan="7">Nessuna attivita trovata.</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -298,7 +298,7 @@
     <section class="ts-panel">
       <div class="ts-panel-head">
         <div class="ts-panel-title-wrap">
-          <h2 class="ts-panel-title">Log attivita tasks</h2>
+          <h2 class="ts-panel-title">Log attivita KICK-OFF</h2>
           <p class="ts-panel-subtitle">Ultime 100 voci di audit per il modulo.</p>
         </div>
       </div>

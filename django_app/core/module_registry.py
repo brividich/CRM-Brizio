@@ -13,6 +13,7 @@ MODULE_BRANDING_FIELDS = (
     "menu_label",
     "short_label",
     "dashboard_label",
+    "logo_url",
 )
 
 
@@ -47,6 +48,7 @@ class ModuleBranding:
     short_label: str
     menu_label: str
     dashboard_label: str
+    logo_url: str = ""
 
 
 MODULE_DEFINITIONS: dict[str, ModuleDefinition] = {
@@ -239,6 +241,19 @@ MODULE_DEFINITIONS: dict[str, ModuleDefinition] = {
         default_menu_label="Rilevazione Incidenti",
         default_dashboard_label="Incidenti",
     ),
+    "procedure_refresh": ModuleDefinition(
+        key="procedure_refresh",
+        default_label="Procedure Refresh",
+        icon="file-check",
+        order=90,
+        route_name="procedure_refresh:my_assignments",
+        route_namespace="procedure_refresh",
+        permission_namespace="procedure_refresh",
+        navigation_codes=("procedure_refresh",),
+        default_short_label="Procedure",
+        default_menu_label="Procedure",
+        default_dashboard_label="Procedure",
+    ),
     # -------------------------------------------------------------------------
     # Moduli admin — richiede is_legacy_admin(), non visibili agli utenti normali
     # -------------------------------------------------------------------------
@@ -354,11 +369,13 @@ def get_module_brandings() -> dict[str, ModuleBranding]:
         short_label = str(override.get("short_label") or "").strip() or default_short
         menu_label = str(override.get("menu_label") or "").strip() or display_label or default_menu
         dashboard_label = str(override.get("dashboard_label") or "").strip() or display_label or default_dashboard
+        logo_url = str(override.get("logo_url") or "").strip()
 
         site_display = str(site_values.get(config_keys.get("display_label", ""), "") or "").strip()
         site_short = str(site_values.get(config_keys.get("short_label", ""), "") or "").strip()
         site_menu = str(site_values.get(config_keys.get("menu_label", ""), "") or "").strip()
         site_dashboard = str(site_values.get(config_keys.get("dashboard_label", ""), "") or "").strip()
+        site_logo = str(site_values.get(config_keys.get("logo_url", ""), "") or "").strip()
 
         if site_display:
             display_label = site_display
@@ -368,6 +385,8 @@ def get_module_brandings() -> dict[str, ModuleBranding]:
             menu_label = site_menu
         if site_dashboard:
             dashboard_label = site_dashboard
+        if site_logo:
+            logo_url = site_logo
 
         brandings[module_key] = ModuleBranding(
             key=module_key,
@@ -376,6 +395,7 @@ def get_module_brandings() -> dict[str, ModuleBranding]:
             short_label=short_label or default_short,
             menu_label=menu_label or display_label or default_menu,
             dashboard_label=dashboard_label or display_label or default_dashboard,
+            logo_url=logo_url,
         )
 
     return brandings

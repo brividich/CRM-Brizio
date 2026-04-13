@@ -71,6 +71,15 @@ class ACLMiddleware:
 
     def __call__(self, request):
         path = request.path or "/"
+        onboarding_path = reverse("onboarding_wizard")
+        notifiche_path = reverse("notifiche")
+        notifiche_public_prefixes = (
+            notifiche_path,
+            "/api/notifiche/",
+        )
+        is_auth_shared_path = path == onboarding_path or any(
+            path.startswith(prefix) for prefix in notifiche_public_prefixes
+        )
         if any(path.startswith(prefix) for prefix in self.exempt_prefixes):
             return self.get_response(request)
 
@@ -93,10 +102,29 @@ class ACLMiddleware:
         if getattr(request, "impersonation_active", False) and is_impersonation_stop_path(path):
             return self.get_response(request)
 
+        # Onboarding wizard: reindirizza l'utente se non ha ancora completato il wizard
+        # (solo utenti non-superuser; /onboarding/ stesso è sempre permesso)
+        if not getattr(request.user, "is_superuser", False) and not is_auth_shared_path:
+            try:
+                from core.models import UserOnboarding
+                onboarding = UserOnboarding.objects.filter(user=request.user).first()
+                if onboarding is None or not onboarding.is_done():
+                    if _is_json_request(request):
+                        return JsonResponse(
+                            {"ok": False, "reason": "onboarding_required", "redirect": onboarding_path},
+                            status=403,
+                        )
+                    return redirect(onboarding_path)
+            except Exception:
+                pass  # non bloccare l'accesso in caso di errore DB
+
         if not legacy_auth_enabled():
             return self.get_response(request)
 
         if getattr(request.user, "is_superuser", False):
+            return self.get_response(request)
+
+        if is_auth_shared_path:
             return self.get_response(request)
 
         legacy_user = get_legacy_user(request.user)

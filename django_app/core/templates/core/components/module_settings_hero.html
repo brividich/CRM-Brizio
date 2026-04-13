@@ -1,0 +1,21 @@
+<section class="ms-hero">
+  <div class="ms-hero-copy">
+    <span class="ms-eyebrow">Impostazioni modulo</span>
+    <h1>{{ settings_title }}</h1>
+    <p>{{ settings_subtitle }}</p>
+    {% if settings_badges %}
+      <div class="ms-hero-meta">
+        {% for badge in settings_badges %}
+          <span class="ms-pill">{{ badge }}</span>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+  {% if settings_actions %}
+    <div class="ms-hero-actions">
+      {% for action in settings_actions %}
+        <a href="{{ action.url }}" class="ms-action{% if action.variant == 'primary' %} primary{% endif %}">{{ action.label }}</a>
+      {% endfor %}
+    </div>
+  {% endif %}
+</section>

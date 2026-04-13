@@ -79,6 +79,7 @@ from core.models import (
     UserDashboardConfig,
     UserDashboardLayout,
     UserExtraInfo,
+    UserUiPreference,
     UserModuleVisibility,
     UserPermissionGrant,
     UserPermissionOverride,
@@ -116,7 +117,7 @@ MODULE_CATALOG: dict[str, dict] = {
         ],
     },
     "assenze": {
-        "label": "Gestione Assenze",
+        "label": "Assenze",
         "icon": "calendar",
         "buttons": [
             {
@@ -131,7 +132,7 @@ MODULE_CATALOG: dict[str, dict] = {
             },
             {
                 "codice": "gestione_assenze",
-                "nome_visibile": "Gestione Assenze",
+                "nome_visibile": "Impostazioni Assenze",
                 "url": "route:gestione_assenze",
                 "icona": "calendar",
                 "ui_slot": "topbar",
@@ -203,8 +204,8 @@ MODULE_CATALOG: dict[str, dict] = {
             },
             {
                 "codice": "admin_notizie",
-                "nome_visibile": "Gestione interna Notizie",
-                "url": "/notizie/gestione/",
+                "nome_visibile": "Impostazioni Notizie",
+                "url": "/notizie/impostazioni/",
                 "icona": "settings",
                 "ui_slot": "topbar",
                 "ui_section": "notizie",
@@ -229,8 +230,8 @@ MODULE_CATALOG: dict[str, dict] = {
             },
             {
                 "codice": "admin_assets",
-                "nome_visibile": "Gestione interna Assets",
-                "url": "/assets/gestione/",
+                "nome_visibile": "Impostazioni Assets",
+                "url": "/assets/impostazioni/",
                 "icona": "settings",
                 "ui_slot": "topbar",
                 "ui_section": "assets",
@@ -465,7 +466,7 @@ MODULE_CATALOG: dict[str, dict] = {
             },
             {
                 "codice": "admin_procedure_refresh",
-                "nome_visibile": "Gestione Procedure",
+                "nome_visibile": "Impostazioni Procedure",
                 "url": "route:procedure_refresh:admin_dashboard",
                 "icona": "settings",
                 "ui_slot": "topbar",
@@ -1872,31 +1873,241 @@ def _build_gestione_accessi_data(ruolo_id: int) -> list[dict]:
     return result
 
 
+_ACCESSI_SEMPLICE_ROUTE_ALIASES = {
+    "anomalie_menu": "anomalie",
+    "coming_assenze": "assenze",
+    "employee_board": "dashboard",
+    "dashboard_home": "dashboard",
+    "scheda_dipendente": "dashboard",
+    "richieste": "assenze",
+}
+_ACCESSI_SEMPLICE_PATH_ALIASES = {
+    "/": "dashboard",
+    "/dashboard": "dashboard",
+    "/scheda-dipendente": "dashboard",
+    "/richieste": "assenze",
+    "/anomalie-menu": "anomalie",
+}
+
+
+def _normalize_accessi_semplice_module_key(raw_value: str) -> str:
+    value = str(raw_value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    while "__" in value:
+        value = value.replace("__", "_")
+    return value.strip("._:/")
+
+
+def _accessi_semplice_module_display_label(module_key: str) -> str:
+    key = _normalize_accessi_semplice_module_key(module_key)
+    catalog = MODULE_CATALOG.get(key) or {}
+    label = str(catalog.get("label") or "").strip()
+    if label:
+        return label
+    return key.replace("_", " ").strip().title() or "N/D"
+
+
+def _infer_accessi_semplice_module_from_route(route_name: str, known_modules: set[str]) -> str:
+    route = str(route_name or "").strip()
+    if not route:
+        return ""
+
+    route_norm = _normalize_accessi_semplice_module_key(route)
+    alias = _ACCESSI_SEMPLICE_ROUTE_ALIASES.get(route_norm)
+    if alias:
+        return alias
+
+    namespace = ""
+    local_name = route
+    if ":" in route:
+        namespace, local_name = route.split(":", 1)
+        namespace_norm = _normalize_accessi_semplice_module_key(namespace)
+        if namespace_norm in known_modules:
+            return namespace_norm
+
+    local_norm = _normalize_accessi_semplice_module_key(local_name)
+    if local_norm in known_modules:
+        return local_norm
+    if local_norm.startswith("coming_"):
+        coming_target = _normalize_accessi_semplice_module_key(local_norm[len("coming_"):])
+        if coming_target in known_modules:
+            return coming_target
+
+    tokens = [token for token in re.split(r"[_\-]+", local_name.lower()) if token]
+    if tokens:
+        first_token = _normalize_accessi_semplice_module_key(tokens[0])
+        if first_token in known_modules:
+            return first_token
+        two_tokens = _normalize_accessi_semplice_module_key("_".join(tokens[:2]))
+        if two_tokens in known_modules:
+            return two_tokens
+
+    return ""
+
+
+def _infer_accessi_semplice_module_from_path(path_value: str, known_modules: set[str]) -> str:
+    path_norm = normalize_legacy_path(path_value or "/")
+    alias = _ACCESSI_SEMPLICE_PATH_ALIASES.get(path_norm)
+    if alias:
+        return alias
+
+    pieces = [piece for piece in path_norm.strip("/").split("/") if piece]
+    if not pieces:
+        return ""
+    first_piece = pieces[0]
+    full_candidate = _normalize_accessi_semplice_module_key(first_piece)
+    if full_candidate in known_modules:
+        return full_candidate
+
+    split_candidate = _normalize_accessi_semplice_module_key(first_piece.split("-", 1)[0])
+    if split_candidate in known_modules:
+        return split_candidate
+    return ""
+
+
+def _infer_navigation_item_module_key(item: NavigationItem, known_modules: set[str]) -> str:
+    category = getattr(item, "category", None)
+    category_key = _normalize_accessi_semplice_module_key(getattr(category, "key", ""))
+    if category_key and category_key in known_modules:
+        return category_key
+
+    parent_code = _normalize_accessi_semplice_module_key(getattr(item, "parent_code", ""))
+    if parent_code and parent_code in known_modules:
+        return parent_code
+
+    route_candidate = _infer_accessi_semplice_module_from_route(str(item.route_name or ""), known_modules)
+    if route_candidate:
+        return route_candidate
+
+    target = _navigation_item_target_payload(item)
+    path_candidate = _infer_accessi_semplice_module_from_path(
+        str(target.get("normalized_path") or item.url_path or ""),
+        known_modules,
+    )
+    if path_candidate:
+        return path_candidate
+
+    return ""
+
+
 def _build_accessi_semplice_rows(selected_role_id: int | None) -> list[dict]:
-    """Righe sintetiche modulo->permessi+pulsanti per la UI semplificata."""
+    """Righe sintetiche modulo->legacy/canonical/menu per la UI semplificata."""
     try:
         pulsanti = list(Pulsante.objects.all().order_by("modulo", "nome_visibile", "id"))
     except DatabaseError:
         return []
 
+    try:
+        permission_defs = list(
+            PermissionDefinition.objects.filter(is_active=True).order_by("module", "code")
+        )
+    except Exception:
+        permission_defs = []
+
+    try:
+        nav_items = list(
+            NavigationItem.objects.filter(
+                is_visible=True,
+                is_enabled=True,
+            )
+            .exclude(section="admin_subnav")
+            .select_related("category")
+            .order_by("section", "order", "label", "id")
+        )
+    except Exception:
+        nav_items = []
+
+    known_modules = {
+        _normalize_accessi_semplice_module_key(key)
+        for key in MODULE_CATALOG.keys()
+        if _normalize_accessi_semplice_module_key(key)
+    }
+    for pulsante in pulsanti:
+        modulo_key = _normalize_accessi_semplice_module_key(pulsante.modulo or "")
+        if modulo_key:
+            known_modules.add(modulo_key)
+    for perm in permission_defs:
+        modulo_key = _normalize_accessi_semplice_module_key(perm.module or "")
+        if modulo_key:
+            known_modules.add(modulo_key)
+    for item in nav_items:
+        parent_code = _normalize_accessi_semplice_module_key(item.parent_code or "")
+        if parent_code:
+            known_modules.add(parent_code)
+
     grouped: dict[str, list[Pulsante]] = {}
     for pulsante in pulsanti:
-        modulo = (pulsante.modulo or "").strip() or "N/D"
-        grouped.setdefault(modulo, []).append(pulsante)
+        modulo_key = _normalize_accessi_semplice_module_key(pulsante.modulo or "")
+        if not modulo_key:
+            continue
+        grouped.setdefault(modulo_key, []).append(pulsante)
+
+    canonical_by_module: dict[str, list[PermissionDefinition]] = {}
+    for perm in permission_defs:
+        modulo_key = _normalize_accessi_semplice_module_key(perm.module or "")
+        if not modulo_key:
+            continue
+        canonical_by_module.setdefault(modulo_key, []).append(perm)
+
+    navigation_by_module: dict[str, list[NavigationItem]] = {}
+    for item in nav_items:
+        modulo_key = _infer_navigation_item_module_key(item, known_modules)
+        if not modulo_key:
+            continue
+        navigation_by_module.setdefault(modulo_key, []).append(item)
 
     module_perm_map: dict[str, ModuloPermRow] = {}
     if selected_role_id is not None:
         try:
             for row in _module_perm_rows_for_role(selected_role_id):
-                module_perm_map[(row.modulo or "").strip().lower()] = row
+                modulo_key = _normalize_accessi_semplice_module_key(row.modulo or "")
+                if modulo_key:
+                    module_perm_map[modulo_key] = row
         except DatabaseError:
             pass
 
+    canonical_grants_map: dict[str, bool] = {}
+    nav_access_map: dict[int, bool] = {}
+    if selected_role_id is not None:
+        try:
+            canonical_rows = list(
+                RolePermissionGrant.objects.filter(legacy_role_id=int(selected_role_id)).values(
+                    "permission_id",
+                    "enabled",
+                )
+            )
+        except Exception:
+            canonical_rows = []
+        for row in canonical_rows:
+            permission_code = normalize_permission_code(str(row.get("permission_id") or ""))
+            if permission_code:
+                canonical_grants_map[permission_code] = bool(row.get("enabled"))
+
+        try:
+            nav_rows = list(
+                NavigationRoleAccess.objects.filter(legacy_role_id=int(selected_role_id)).values(
+                    "item_id",
+                    "can_view",
+                )
+            )
+        except Exception:
+            nav_rows = []
+        for row in nav_rows:
+            item_id = _int_or_none(row.get("item_id"))
+            if item_id is None:
+                continue
+            nav_access_map[int(item_id)] = bool(row.get("can_view"))
+
     ui_meta_map = _pulsanti_ui_meta_map()
     rows: list[dict] = []
-    for modulo in sorted(grouped.keys(), key=str.lower):
-        module_pulsanti = grouped[modulo]
-        perm_row = module_perm_map.get(modulo.lower())
+    all_modules = sorted(
+        set(grouped.keys()) | set(canonical_by_module.keys()) | set(navigation_by_module.keys()),
+        key=str.lower,
+    )
+    for modulo_key in all_modules:
+        module_pulsanti = grouped.get(modulo_key, [])
+        perm_row = module_perm_map.get(modulo_key)
+        canonical_permissions = canonical_by_module.get(modulo_key, [])
+        nav_module_items = navigation_by_module.get(modulo_key, [])
 
         enabled_values: list[bool] = []
         pulsanti_rows: list[dict] = []
@@ -1914,20 +2125,59 @@ def _build_accessi_semplice_rows(selected_role_id: int | None) -> list[dict]:
             )
 
         enabled_count = sum(1 for item in enabled_values if item)
-        total = len(enabled_values)
-        buttons_enabled = total > 0 and enabled_count == total
-        buttons_partial = enabled_count > 0 and enabled_count < total
+        buttons_total = len(enabled_values)
+
+        canonical_codes = [str(perm.code or "").strip() for perm in canonical_permissions if str(perm.code or "").strip()]
+        canonical_enabled_count = sum(
+            1 for code in canonical_codes if canonical_grants_map.get(normalize_permission_code(code), False)
+        )
+        canonical_total = len(canonical_codes)
+        canonical_enabled = canonical_total > 0 and canonical_enabled_count == canonical_total
+        canonical_partial = canonical_enabled_count > 0 and canonical_enabled_count < canonical_total
+
+        nav_item_ids = [int(item.id) for item in nav_module_items]
+        nav_enabled_count = sum(1 for item_id in nav_item_ids if nav_access_map.get(int(item_id), False))
+        nav_total = len(nav_item_ids)
+        nav_enabled = nav_total > 0 and nav_enabled_count == nav_total
+        nav_partial = nav_enabled_count > 0 and nav_enabled_count < nav_total
+
+        component_states: list[bool] = []
+        component_partial = False
+        if perm_row is not None:
+            component_states.append(bool(perm_row.can_view))
+            component_partial = component_partial or bool(perm_row.partial)
+        if canonical_total:
+            component_states.append(bool(canonical_enabled))
+            component_partial = component_partial or bool(canonical_partial)
+        if nav_total:
+            component_states.append(bool(nav_enabled))
+            component_partial = component_partial or bool(nav_partial)
+
+        simple_enabled = bool(component_states) and all(component_states)
+        simple_partial = component_partial or (bool(component_states) and any(component_states) and not all(component_states))
+        display_label = _accessi_semplice_module_display_label(modulo_key)
 
         rows.append(
             {
-                "modulo": modulo,
+                "modulo": modulo_key,
+                "display_label": display_label,
                 "pulsanti": pulsanti_rows,
                 "pulsanti_count": len(pulsanti_rows),
                 "sample_labels": [p["label"] for p in pulsanti_rows[:3]],
-                "role_enabled": bool(perm_row.can_view) if perm_row else False,
-                "role_partial": bool(perm_row.partial) if perm_row else False,
-                "buttons_enabled": buttons_enabled,
-                "buttons_partial": buttons_partial,
+                "legacy_role_enabled": bool(perm_row.can_view) if perm_row else False,
+                "legacy_role_partial": bool(perm_row.partial) if perm_row else False,
+                "canonical_permissions_count": canonical_total,
+                "canonical_permission_codes": canonical_codes,
+                "canonical_enabled": canonical_enabled,
+                "canonical_partial": canonical_partial,
+                "navigation_items_count": nav_total,
+                "navigation_item_ids": nav_item_ids,
+                "navigation_enabled": nav_enabled,
+                "navigation_partial": nav_partial,
+                "buttons_enabled_count": enabled_count,
+                "buttons_total_count": buttons_total,
+                "simple_enabled": simple_enabled,
+                "simple_partial": simple_partial,
             }
         )
     return rows
@@ -1937,28 +2187,30 @@ def _apply_accessi_semplice_changes(
     role_id: int,
     module_rows: list[dict],
     allowed_modules: set[str],
-    enabled_modules: set[str],
-) -> tuple[int, int]:
+) -> tuple[int, int, int]:
     """Applica i cambiamenti richiesti dalla UI semplificata.
 
     Returns:
-      (permessi_modificati, pulsanti_modificati)
+      (permessi_legacy_modificati, grant_canonici_modificati, menu_ruolo_modificati)
     """
     acl_keys = _pulsanti_acl_keys()
     module_acl_map: dict[str, list[tuple[str, str]]] = {}
     for modulo, azione in acl_keys:
-        module_acl_map.setdefault((modulo or "").strip().lower(), []).append((modulo, azione))
+        modulo_key = _normalize_accessi_semplice_module_key(modulo or "")
+        if not modulo_key:
+            continue
+        module_acl_map.setdefault(modulo_key, []).append((modulo, azione))
 
     permessi_changed = 0
-    pulsanti_changed = 0
+    canonical_changed = 0
+    navigation_changed = 0
 
     for row in module_rows:
         modulo = str(row.get("modulo") or "").strip()
         if not modulo:
             continue
-        modulo_norm = modulo.lower()
+        modulo_norm = _normalize_accessi_semplice_module_key(modulo)
 
-        # 1) can_view ruolo per tutti i pulsanti del modulo
         should_allow = modulo in allowed_modules
         for mod, azione in module_acl_map.get(modulo_norm, []):
             perm = _get_or_create_permesso(role_id, mod, azione)
@@ -1968,19 +2220,40 @@ def _apply_accessi_semplice_changes(
             _set_perm_field(perm, "can_view", should_allow)
             permessi_changed += 1
 
-        # 2) enabled UI per tutti i pulsanti del modulo
-        should_enable_buttons = modulo in enabled_modules
-        for p in row.get("pulsanti", []):
-            pid = _int_or_none(p.get("id"))
-            if pid is None:
+        for permission_code in row.get("canonical_permission_codes", []):
+            permission_norm = normalize_permission_code(str(permission_code or ""))
+            if not permission_norm:
                 continue
-            current_enabled = bool(p.get("enabled", True))
-            if current_enabled == should_enable_buttons:
-                continue
-            _set_pulsante_meta_enabled(pid, should_enable_buttons)
-            pulsanti_changed += 1
+            grant, _created = RolePermissionGrant.objects.update_or_create(
+                legacy_role_id=int(role_id),
+                permission_id=permission_norm,
+                defaults={"enabled": bool(should_allow)},
+            )
+            if bool(grant.enabled) != bool(should_allow):
+                grant.enabled = bool(should_allow)
+                grant.save(update_fields=["enabled"])
+            # update_or_create may still leave us unable to count changes if defaults
+            # match current state; compare against row-level snapshot instead.
+        current_canonical_state = bool(row.get("canonical_enabled"))
+        current_canonical_partial = bool(row.get("canonical_partial"))
+        if row.get("canonical_permissions_count") and (current_canonical_partial or current_canonical_state != should_allow):
+            canonical_changed += int(row.get("canonical_permissions_count") or 0)
 
-    return permessi_changed, pulsanti_changed
+        for item_id in row.get("navigation_item_ids", []):
+            nav_item_id = _int_or_none(item_id)
+            if nav_item_id is None:
+                continue
+            NavigationRoleAccess.objects.update_or_create(
+                item_id=int(nav_item_id),
+                legacy_role_id=int(role_id),
+                defaults={"can_view": bool(should_allow)},
+            )
+        current_nav_state = bool(row.get("navigation_enabled"))
+        current_nav_partial = bool(row.get("navigation_partial"))
+        if row.get("navigation_items_count") and (current_nav_partial or current_nav_state != should_allow):
+            navigation_changed += int(row.get("navigation_items_count") or 0)
+
+    return permessi_changed, canonical_changed, navigation_changed
 
 
 def _full_perm_rows_for_user(legacy_user_id: int) -> list[PermRow]:
@@ -3960,6 +4233,20 @@ def utente_edit(request, user_id: int):
         for r in AnagraficaRisposta.objects.filter(legacy_user_id=utente.id)
     }
 
+    # Onboarding wizard primo accesso
+    onboarding_data = None
+    django_user_id = None
+    ui_prefs_data = None
+    try:
+        from core.models import Profile, UserOnboarding
+        _profile = Profile.objects.filter(legacy_user_id=utente.id).select_related("user").first()
+        if _profile:
+            django_user_id = _profile.user_id
+            onboarding_data = UserOnboarding.objects.filter(user_id=django_user_id).first()
+            ui_prefs_data = UserUiPreference.objects.filter(user_id=django_user_id).first()
+    except Exception:
+        pass
+
     return render(
         request,
         "admin_portale/pages/utente_edit.html",
@@ -3983,6 +4270,9 @@ def utente_edit(request, user_id: int):
             "checklist_checkin":  ChecklistEsecuzione.objects.filter(legacy_user_id=utente.id, tipo_checklist="checkin").first(),
             "checklist_checkout": ChecklistEsecuzione.objects.filter(legacy_user_id=utente.id, tipo_checklist="checkout").first(),
             "current_legacy_user_id": int(current_legacy_user.id) if current_legacy_user else None,
+            "onboarding_data": onboarding_data,
+            "django_user_id": django_user_id,
+            "ui_prefs_data": ui_prefs_data,
         },
     )
 
@@ -7431,8 +7721,10 @@ def accessi_semplice(request):
     """Pannello semplificato unico per ruoli/moduli.
 
     Permette in una sola schermata di:
-    - attivare/disattivare accesso modulo per ruolo (can_view su tutti i pulsanti del modulo)
-    - attivare/disattivare i pulsanti del modulo (enabled in ui_pulsanti_meta)
+    - attivare/disattivare accesso modulo per ruolo
+    - sincronizzare nella stessa azione legacy ACL, grant canonici v2 e visibilita menu
+
+    I casi speciali restano delegati agli strumenti avanzati.
     """
     roles = _role_choices()
     selected_role_id = _int_or_none(request.GET.get("ruolo_id") or request.POST.get("ruolo_id"))
@@ -7445,22 +7737,27 @@ def accessi_semplice(request):
             return redirect(reverse("admin_portale:accessi"))
 
         module_rows = _build_accessi_semplice_rows(selected_role_id)
-        allowed_modules = {str(v).strip() for v in request.POST.getlist("role_modules") if str(v).strip()}
-        enabled_modules = {str(v).strip() for v in request.POST.getlist("enabled_modules") if str(v).strip()}
+        allowed_modules = {str(v).strip() for v in request.POST.getlist("simple_modules") if str(v).strip()}
 
         try:
             with transaction.atomic():
-                perm_changed, buttons_changed = _apply_accessi_semplice_changes(
+                perm_changed, canonical_changed, navigation_changed = _apply_accessi_semplice_changes(
                     selected_role_id,
                     module_rows,
                     allowed_modules,
-                    enabled_modules,
                 )
                 if perm_changed:
                     _schedule_legacy_acl_cache_invalidation()
+                if navigation_changed:
+                    transaction.on_commit(bump_navigation_registry_version)
             messages.success(
                 request,
-                f"Salvato. Permessi aggiornati: {perm_changed}. Pulsanti aggiornati: {buttons_changed}.",
+                (
+                    "Salvato. "
+                    f"Legacy aggiornato: {perm_changed}. "
+                    f"Grant canonici aggiornati: {canonical_changed}. "
+                    f"Menu ruolo aggiornati: {navigation_changed}."
+                ),
             )
         except DatabaseError as exc:
             messages.error(request, f"Errore durante il salvataggio: {exc}")

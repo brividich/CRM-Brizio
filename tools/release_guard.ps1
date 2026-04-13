@@ -315,6 +315,7 @@ $triggerFiles = New-Object System.Collections.Generic.List[System.IO.FileInfo]
 $triggerFiles.Add((Get-Item -LiteralPath $versionPath))
 $triggerFiles.Add((Get-Item -LiteralPath $paths.SetupWizard))
 $triggerFiles.Add((Get-Item -LiteralPath $paths.SetupWizardSpec))
+$triggerFiles.Add((Get-Item -LiteralPath $paths.SetupWizardBundleRules))
 
 $deploymentScriptDir = Join-Path $SourcePath "deployment\scripts"
 if (Test-Path -LiteralPath $deploymentScriptDir) {

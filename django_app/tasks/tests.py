@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+import io
+from pathlib import Path
 import shutil
-import tempfile
+from uuid import uuid4
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -14,9 +16,22 @@ from django.utils import timezone
 
 from core.legacy_cache import bump_legacy_cache_version
 from core.legacy_models import Permesso
-from core.models import Notifica, Profile
+from core.models import Notifica, Profile, UserOnboarding
 
-from .models import Project, ProjectComment, SubTask, Task, TaskAttachment, TaskComment, TaskEvent, TaskEventType, TaskPriority, TaskStatus
+from .models import (
+    Project,
+    ProjectComment,
+    SubTask,
+    Task,
+    TaskAttachment,
+    TaskComment,
+    TaskEvent,
+    TaskEventType,
+    TaskImpostazioni,
+    TaskPriority,
+    TaskStatus,
+    VRFDocStatus,
+)
 from .views import _task_date_absence_conflicts
 
 User = get_user_model()
@@ -218,6 +233,7 @@ def _grant_role_actions(role_id: int, actions: list[str]) -> None:
 
 def _create_user_with_legacy(*, username: str, legacy_user_id: int, role_id: int, role_name: str):
     user = User.objects.create_user(username=username, password="pass12345")
+    UserOnboarding.objects.create(user=user, completed=True, completed_at=timezone.now())
     Profile.objects.create(
         user=user,
         legacy_user_id=legacy_user_id,
@@ -251,6 +267,60 @@ class TasksBaseTestCase(TestCase):
     def _refresh_acl_cache(self):
         cache.clear()
         bump_legacy_cache_version()
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class TaskAdminSettingsTests(TasksBaseTestCase):
+    def setUp(self):
+        super().setUp()
+        _ensure_role(1, "admin")
+        self._refresh_acl_cache()
+        self.admin_user = _create_user_with_legacy(
+            username="taskadmin",
+            legacy_user_id=9001,
+            role_id=1,
+            role_name="admin",
+        )
+
+    def test_legacy_gestione_route_redirects_to_settings_tab(self):
+        self.client.force_login(self.admin_user)
+        response = self.client.get(reverse("tasks:gestione_admin"))
+        self.assertRedirects(response, f"{reverse('tasks:impostazioni')}?tab=riepilogo")
+
+    def test_settings_page_shows_and_saves_all_editable_fields(self):
+        self.client.force_login(self.admin_user)
+
+        response = self.client.get(reverse("tasks:impostazioni"), {"tab": "config"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Tutte le impostazioni modificabili del modulo sono in questa tab")
+        self.assertContains(response, 'name="responsabile_email"', html=False)
+        self.assertContains(response, 'name="notifiche_scadenza_attive"', html=False)
+        self.assertContains(response, 'name="giorni_preavviso"', html=False)
+        self.assertContains(response, 'name="note_generali"', html=False)
+        self.assertContains(response, 'name="vrf_reminder_days"', html=False)
+        self.assertContains(response, 'name="vrf_blocking_days"', html=False)
+        self.assertContains(response, 'name="branding_display_label"', html=False)
+
+        post_response = self.client.post(
+            f"{reverse('tasks:impostazioni')}?tab=config",
+            {
+                "responsabile_email": "kickoff@example.com",
+                "notifiche_scadenza_attive": "on",
+                "giorni_preavviso": "5",
+                "note_generali": "Note test admin",
+                "vrf_reminder_days": "11",
+                "vrf_blocking_days": "40",
+            },
+        )
+        self.assertRedirects(post_response, f"{reverse('tasks:impostazioni')}?tab=config")
+
+        cfg = TaskImpostazioni.get_singleton()
+        self.assertEqual(cfg.responsabile_email, "kickoff@example.com")
+        self.assertTrue(cfg.notifiche_scadenza_attive)
+        self.assertEqual(cfg.giorni_preavviso, 5)
+        self.assertEqual(cfg.note_generali, "Note test admin")
+        self.assertEqual(cfg.vrf_reminder_days, 11)
+        self.assertEqual(cfg.vrf_blocking_days, 40)
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -633,9 +703,15 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
 
         self.user = _create_user_with_legacy(username="projectuser", legacy_user_id=5001, role_id=2, role_name="utente")
 
-        self._media_root = tempfile.mkdtemp(prefix="tasks_test_media_")
+        tmp_root = Path(__file__).resolve().parents[1] / ".tmp_tests"
+        tmp_root.mkdir(parents=True, exist_ok=True)
+        self._media_root = str(tmp_root / f"tasks_test_media_{uuid4().hex}")
+        Path(self._media_root).mkdir(parents=True, exist_ok=True)
         self._media_override = override_settings(MEDIA_ROOT=self._media_root)
         self._media_override.enable()
+        today = timezone.localdate()
+        Path(self._media_root, "tasks_vrf", today.strftime("%Y"), today.strftime("%m")).mkdir(parents=True, exist_ok=True)
+        Path(self._media_root, "tasks_attachments", today.strftime("%Y"), today.strftime("%m")).mkdir(parents=True, exist_ok=True)
         self.addCleanup(self._media_override.disable)
         self.addCleanup(shutil.rmtree, self._media_root, True)
 
@@ -647,6 +723,50 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
             "priority": TaskPriority.MEDIUM,
             "task_scope": "single",
         }
+
+    def _make_vrf_workbook_upload(
+        self,
+        *,
+        part_number: str,
+        description: str = "Descrizione VRF",
+        version: str = "1.0",
+        client_name: str = "Cliente Test",
+        filename: str = "kickoff-vrf.xlsx",
+    ) -> SimpleUploadedFile:
+        import openpyxl
+
+        workbook = openpyxl.Workbook()
+        worksheet = workbook.active
+        worksheet.title = "VRF"
+        worksheet["O2"] = "Q-001"
+        worksheet["P2"] = version
+        worksheet["B3"] = part_number
+        worksheet["I3"] = description
+        worksheet["P3"] = "ESP"
+        worksheet["B4"] = client_name
+
+        buffer = io.BytesIO()
+        workbook.save(buffer)
+        workbook.close()
+        return SimpleUploadedFile(
+            filename,
+            buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+    def _read_vrf_cell(self, project: Project, cell_ref: str) -> str:
+        import openpyxl
+
+        project.vrf_file.open("rb")
+        try:
+            workbook = openpyxl.load_workbook(io.BytesIO(project.vrf_file.read()), data_only=True)
+        finally:
+            project.vrf_file.close()
+        try:
+            worksheet = workbook["VRF"] if "VRF" in workbook.sheetnames else workbook.active
+            return str(worksheet[cell_ref].value or "")
+        finally:
+            workbook.close()
 
     def test_create_single_task_without_project(self):
         self.client.force_login(self.user)
@@ -662,7 +782,6 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         payload.update(
             {
                 "task_scope": "project",
-                "project_new_name": "Progetto Nuovo A",
                 "project_new_description": "Descrizione progetto A",
             }
         )
@@ -671,7 +790,8 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
 
         task = Task.objects.get(title="Task con nuovo progetto")
         self.assertIsNotNone(task.project_id)
-        self.assertEqual(task.project.name, "Progetto Nuovo A")
+        self.assertTrue(task.project.name.startswith("KICK-OFF "))
+        self.assertIsNotNone(task.project.kickoff_number)
         self.assertEqual(task.project.created_by_id, self.user.id)
 
     def test_create_task_with_new_project_metadata(self):
@@ -685,7 +805,6 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         payload.update(
             {
                 "task_scope": "project",
-                "project_new_name": "Commessa completa",
                 "project_new_description": "Descrizione completa",
                 "project_new_client": "Cliente Alfa",
                 "project_new_manager": str(project_manager.id),
@@ -710,6 +829,53 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         self.assertEqual(project.part_number, "PN-001")
         self.assertEqual(project.similar_project_id, similar_project.id)
 
+    def test_create_task_reuses_existing_project_with_same_part_number_identity(self):
+        self.client.force_login(self.user)
+        project = Project.objects.create(
+            name="Commessa storica",
+            client_name="Cliente Legacy",
+            part_number="PN-777",
+            revisione="A",
+            versione="1.0",
+            created_by=self.user,
+        )
+
+        payload = self._base_task_payload("Task agganciata a progetto esistente per PN")
+        payload.update(
+            {
+                "task_scope": "project",
+                "project_new_client": "Cliente Nuovo",
+                "project_new_part_number": "PN-777",
+                "project_new_revisione": "A",
+                "project_new_versione": "1.0",
+            }
+        )
+        response = self.client.post(reverse("tasks:create"), payload)
+        self.assertEqual(response.status_code, 302)
+
+        task = Task.objects.get(title="Task agganciata a progetto esistente per PN")
+        self.assertEqual(task.project_id, project.id)
+        self.assertEqual(
+            Project.objects.filter(part_number="PN-777", revisione="A", versione="1.0").count(),
+            1,
+        )
+        project.refresh_from_db()
+        self.assertEqual(project.client_name, "Cliente Nuovo")
+
+    def test_new_project_requires_part_number_when_revision_or_version_is_set(self):
+        self.client.force_login(self.user)
+        payload = self._base_task_payload("Task con revisione senza pn")
+        payload.update(
+            {
+                "task_scope": "project",
+                "project_new_revisione": "B",
+            }
+        )
+        response = self.client.post(reverse("tasks:create"), payload)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Compila il P/N prima di usare revisione o versione.")
+        self.assertFalse(Task.objects.filter(title="Task con revisione senza pn").exists())
+
     def test_create_task_with_existing_project(self):
         self.client.force_login(self.user)
         project = Project.objects.create(name="Progetto Esistente", created_by=self.user)
@@ -725,7 +891,188 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
 
         task = Task.objects.get(title="Task su progetto esistente")
         self.assertEqual(task.project_id, project.id)
-        self.assertEqual(Project.objects.filter(name="Progetto Esistente").count(), 1)
+        self.assertEqual(Project.objects.count(), 1)
+
+    def test_project_model_auto_generates_kickoff_name_and_number(self):
+        first = Project.objects.create(name="", created_by=self.user)
+        second = Project.objects.create(name="", created_by=self.user)
+
+        self.assertTrue(first.name.startswith("KICK-OFF "))
+        self.assertTrue(second.name.startswith("KICK-OFF "))
+        self.assertIsNotNone(first.kickoff_number)
+        self.assertIsNotNone(second.kickoff_number)
+        self.assertNotEqual(first.kickoff_number, second.kickoff_number)
+
+    def test_existing_kickoff_name_is_not_renamed(self):
+        legacy = Project.objects.create(
+            name="Legacy Kickoff",
+            kickoff_number=77,
+            client_name="Cliente Legacy",
+            created_by=self.user,
+        )
+        legacy.description = "Aggiornato"
+        legacy.save()
+        legacy.refresh_from_db()
+
+        self.assertEqual(legacy.name, "Legacy Kickoff")
+        self.assertEqual(legacy.kickoff_number, 77)
+
+    def test_create_form_no_longer_shows_removed_vrf_summary_section(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("tasks:create"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Scheda VRF")
+        self.assertNotContains(response, "Contenuto operativo")
+        self.assertContains(response, "Dettaglio attivita")
+
+    def test_create_form_from_kickoff_context_hides_kickoff_selection(self):
+        self.client.force_login(self.user)
+        project = Project.objects.create(
+            name="",
+            client_name="Cliente Context",
+            part_number="PN-CONTEXT-01",
+            created_by=self.user,
+        )
+
+        response = self.client.get(f"{reverse('tasks:create')}?project={project.id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Attivita gia collegata al kickoff corrente")
+        self.assertContains(response, project.name)
+        self.assertNotContains(response, "Come nasce questa attivita")
+        self.assertNotContains(response, "Aggancio e anagrafica kickoff")
+
+    def test_create_form_from_kickoff_context_forces_task_into_that_kickoff(self):
+        self.client.force_login(self.user)
+        project = Project.objects.create(
+            name="",
+            client_name="Cliente Locked",
+            part_number="PN-LOCK-01",
+            created_by=self.user,
+        )
+
+        payload = self._base_task_payload("Task dal kickoff contestuale")
+        payload.update(
+            {
+                "task_scope": "single",
+                "project_link_mode": "new",
+                "project_new_client": "Cliente alternativo",
+            }
+        )
+
+        response = self.client.post(f"{reverse('tasks:create')}?project={project.id}", payload)
+
+        self.assertEqual(response.status_code, 302)
+        task = Task.objects.get(title="Task dal kickoff contestuale")
+        self.assertEqual(task.project_id, project.id)
+        self.assertEqual(Project.objects.count(), 1)
+
+    def test_project_list_shows_copy_buttons(self):
+        self.client.force_login(self.user)
+        Project.objects.create(name="", created_by=self.user)
+
+        response = self.client.get(reverse("tasks:project_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Copia VRF")
+        self.assertContains(response, "Copia senza P/N")
+
+    def test_copy_project_with_vrf_duplicates_kickoff_metadata_and_file(self):
+        self.client.force_login(self.user)
+        project_manager = User.objects.create_user(username="copy_pm", password="pass12345")
+        source_project = Project.objects.create(
+            name="",
+            description="Kickoff sorgente",
+            client_name="Cliente Copy",
+            project_manager=project_manager,
+            control_method="Controllo finale",
+            part_number="PN-COPY-001",
+            revisione="A",
+            versione="2.0",
+            vrf_status=VRFDocStatus.UPLOADED,
+            vrf_original_name="source-vrf.xlsx",
+            vrf_quote_number="Q-500",
+            vrf_description="Scheda sorgente",
+            vrf_esp="ESP-1",
+            created_by=self.user,
+        )
+        source_project.vrf_file.save(
+            "source-vrf.xlsx",
+            self._make_vrf_workbook_upload(
+                part_number="PN-COPY-001",
+                description="Scheda sorgente",
+                version="2.0",
+                client_name="Cliente Copy",
+                filename="source-vrf.xlsx",
+            ),
+            save=True,
+        )
+        source_project.refresh_from_db()
+        source_task = Task.objects.create(title="Task sorgente", created_by=self.user, project=source_project)
+        ProjectComment.objects.create(project=source_project, author=self.user, body="Commento kickoff")
+        TaskComment.objects.create(task=source_task, author=self.user, body="Commento task")
+        TaskAttachment.objects.create(
+            project=source_project,
+            uploaded_by=self.user,
+            file="tasks_attachments/mock.txt",
+            original_name="mock.txt",
+        )
+
+        response = self.client.post(reverse("tasks:copy_project_with_vrf", args=[source_project.id]))
+        self.assertEqual(response.status_code, 302)
+
+        copied_project = Project.objects.exclude(id=source_project.id).get()
+        self.assertTrue(copied_project.name.startswith("KICK-OFF "))
+        self.assertNotEqual(copied_project.kickoff_number, source_project.kickoff_number)
+        self.assertEqual(copied_project.description, source_project.description)
+        self.assertEqual(copied_project.client_name, source_project.client_name)
+        self.assertEqual(copied_project.project_manager_id, source_project.project_manager_id)
+        self.assertEqual(copied_project.control_method, source_project.control_method)
+        self.assertEqual(copied_project.part_number, "PN-COPY-001")
+        self.assertEqual(copied_project.revisione, "A")
+        self.assertEqual(copied_project.versione, "2.0")
+        self.assertEqual(copied_project.vrf_status, VRFDocStatus.UPLOADED)
+        self.assertEqual(copied_project.vrf_original_name, "source-vrf.xlsx")
+        self.assertEqual(self._read_vrf_cell(source_project, "B3"), "PN-COPY-001")
+        self.assertEqual(self._read_vrf_cell(copied_project, "B3"), "PN-COPY-001")
+        self.assertEqual(Task.objects.filter(project=copied_project).count(), 0)
+        self.assertEqual(ProjectComment.objects.filter(project=copied_project).count(), 0)
+        self.assertEqual(TaskAttachment.objects.filter(project=copied_project).count(), 0)
+
+    def test_copy_project_with_vrf_without_pn_clears_project_and_excel_part_number(self):
+        self.client.force_login(self.user)
+        source_project = Project.objects.create(
+            name="",
+            client_name="Cliente No PN",
+            part_number="PN-COPY-002",
+            revisione="B",
+            versione="3.1",
+            vrf_status=VRFDocStatus.UPLOADED,
+            vrf_original_name="source-no-pn.xlsx",
+            created_by=self.user,
+        )
+        source_project.vrf_file.save(
+            "source-no-pn.xlsx",
+            self._make_vrf_workbook_upload(
+                part_number="PN-COPY-002",
+                version="3.1",
+                client_name="Cliente No PN",
+                filename="source-no-pn.xlsx",
+            ),
+            save=True,
+        )
+        source_project.refresh_from_db()
+
+        response = self.client.post(reverse("tasks:copy_project_with_vrf_without_pn", args=[source_project.id]))
+        self.assertEqual(response.status_code, 302)
+
+        copied_project = Project.objects.exclude(id=source_project.id).get()
+        self.assertEqual(copied_project.part_number, "")
+        self.assertEqual(copied_project.revisione, "B")
+        self.assertEqual(copied_project.versione, "3.1")
+        self.assertEqual(self._read_vrf_cell(source_project, "B3"), "PN-COPY-002")
+        self.assertEqual(self._read_vrf_cell(copied_project, "B3"), "")
 
     def test_assignment_conflict_alert_on_create_with_keep_priority(self):
         self.client.force_login(self.user)
@@ -981,10 +1328,10 @@ class TaskProjectGanttAndNotificationsTests(TasksBaseTestCase):
         notification = Notifica.objects.filter(
             legacy_user_id=6002,
             tipo="generico",
-            messaggio__icontains="Gantt Project",
+            messaggio__icontains=self.project.name,
         ).first()
         self.assertIsNotNone(notification)
-        self.assertIn("Gantt Project", notification.messaggio)
+        self.assertIn(self.project.name, notification.messaggio)
 
     def test_project_gantt_marks_invalid_range_cells(self):
         self.client.force_login(self.owner)
@@ -1001,7 +1348,7 @@ class TaskProjectGanttAndNotificationsTests(TasksBaseTestCase):
         response = self.client.get(reverse("tasks:project_gantt", args=[self.project.id]))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "is-invalid-range")
-        self.assertContains(response, "Range non valido (fine <= inizio)")
+        self.assertContains(response, "Range non valido")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

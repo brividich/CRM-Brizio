@@ -27,6 +27,7 @@ PULSANTI = [
     ("maintenance_rule_edit", "Asset - Regola manutenzione modifica", "maintenance_rule_edit"),
     ("maintenance_schedule", "Asset - Prossime manutenzioni", "maintenance_schedule"),
     ("assistance_contract_list", "Asset - Contratti assistenza", "assistance_contract_list"),
+    ("software_license_list", "Asset - Licenze software", "software_license_list"),
     ("asset_maintenance_rules", "Asset - Regole manutenzione asset", "asset_maintenance_rule_list"),
     (
         "asset_maintenance_override_create",
@@ -48,7 +49,7 @@ PULSANTI = [
     ("wo_view", "Asset - Intervento dettaglio", "wo_view"),
     ("wo_create", "Asset - Intervento nuovo", "wo_create"),
     ("wo_close", "Asset - Intervento chiusura", "wo_close"),
-    ("periodic_verifications", "Asset - Verifiche periodiche", "periodic_verifications"),
+    ("periodic_verifications", "Asset - Manutenzione periodica", "periodic_verifications"),
     ("reports", "Asset - Report", "reports"),
 ]
 

@@ -2,399 +2,783 @@
 
 {% block tasks_shell_head %}
 <style>
-  .task-filter-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 14px;
-  }
+  /* ══════════════════════════════════════════════
+     LIST.HTML — stili globale + project-mode
+  ══════════════════════════════════════════════ */
 
-  .task-filter-grid .full {
-    grid-column: 1 / -1;
-  }
-
-  .task-admin-grid {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 12px;
-  }
-
-  .task-feed {
-    display: grid;
-    gap: 14px;
-  }
-
-  .task-item {
-    border: 1px solid #dbe5ef;
-    border-radius: 18px;
-    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-    padding: 18px;
-    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
-  }
-
-  .task-item-head {
+  /* ── Filtri collassabili ── */
+  .tl-filter-toggle {
     display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    align-items: flex-start;
-  }
-
-  .task-item-title {
-    color: #0f172a;
-    text-decoration: none;
-    font-size: 18px;
-    font-weight: 900;
-    line-height: 1.2;
-  }
-
-  .task-item-title:hover {
-    color: #1d4ed8;
-  }
-
-  .task-item-text {
-    margin-top: 8px;
-    color: #64748b;
-    font-size: 13px;
-    line-height: 1.6;
-  }
-
-  .task-item-meta {
-    display: flex;
+    align-items: center;
     gap: 8px;
-    flex-wrap: wrap;
-    margin-top: 12px;
-    color: #64748b;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
     font-size: 12px;
+    font-weight: 800;
+    color: var(--ts-text-mid);
+    text-transform: uppercase;
+    letter-spacing: .06em;
   }
-
-  .task-meta-chip {
+  .tl-filter-toggle:hover { color: var(--ts-text); }
+  .tl-filter-icon {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    min-height: 30px;
-    padding: 0 11px;
-    border-radius: 999px;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: rgba(15,23,42,.05);
+    transition: background .12s ease;
+  }
+  .tl-filter-toggle:hover .tl-filter-icon { background: rgba(249,115,22,.1); }
+  .tl-filter-body { display: none; padding-top: 12px; border-top: 1px solid var(--ts-border); margin-top: 4px; }
+  .tl-filter-body.open { display: block; }
+  .tl-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .tl-active-chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+  /* ── Admin console KPI inline ── */
+  .tl-admin-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+  .tl-admin-kpi {
+    padding: 12px 14px;
+    border: 1px solid var(--ts-border);
+    border-radius: var(--ts-radius-md);
+    background: linear-gradient(180deg, #fff 0%, #f8fbff 100%);
+  }
+  .tl-admin-kpi-val { font-size: 26px; font-weight: 900; line-height: 1; color: #1d4ed8; }
+  .tl-admin-kpi-val.amber  { color: #b45309; }
+  .tl-admin-kpi-val.teal   { color: #0f766e; }
+  .tl-admin-kpi-val.purple { color: #7c3aed; }
+  .tl-admin-kpi-val.red    { color: #b91c1c; }
+  .tl-admin-kpi-label { margin-top: 4px; font-size: 11px; font-weight: 700; color: var(--ts-text-mid); }
+
+  /* ── Task table (global mode) ── */
+  .tl-table-wrap {
+    overflow-x: auto;
+    border-radius: var(--ts-radius-md);
+    border: 1px solid var(--ts-border);
     background: #fff;
-    border: 1px solid #dbe5ef;
   }
-
-  .task-inline-link {
-    color: #1d4ed8;
-    text-decoration: none;
-    font-weight: 700;
+  .tl-table { width: 100%; border-collapse: collapse; min-width: 760px; font-size: 13px; }
+  .tl-table thead th {
+    padding: 9px 12px;
+    background: #f8fbff;
+    border-bottom: 1px solid #e5edf5;
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    text-align: left;
+    white-space: nowrap;
   }
-
-  .task-inline-link:hover {
-    text-decoration: underline;
+  .tl-table tbody tr { border-bottom: 1px solid #f0f4f8; transition: background .08s ease; }
+  .tl-table tbody tr:last-child { border-bottom: none; }
+  .tl-table tbody tr:hover td { background: #f8fbff; }
+  .tl-table td { padding: 10px 12px; vertical-align: middle; color: #1e293b; }
+  .tl-table tbody tr.status-todo        td:first-child { border-left: 3px solid #818cf8; }
+  .tl-table tbody tr.status-in_progress td:first-child { border-left: 3px solid #f59e0b; }
+  .tl-table tbody tr.status-done        td:first-child { border-left: 3px solid #22c55e; }
+  .tl-table tbody tr.status-canceled    td:first-child { border-left: 3px solid #94a3b8; }
+  .tl-table tbody tr.status-overdue     td:first-child { border-left: 3px solid #ef4444; }
+  .tl-task-link  { font-weight: 800; color: #0f172a; text-decoration: none; font-size: 13px; line-height: 1.3; display: block; }
+  .tl-task-link:hover { color: #1d4ed8; }
+  .tl-task-desc  { margin-top: 2px; color: #94a3b8; font-size: 11px; line-height: 1.4; font-weight: 400; }
+  .tl-ko-link    { color: #475569; text-decoration: none; font-size: 11px; font-weight: 700; }
+  .tl-ko-link:hover { color: #1d4ed8; }
+  .tl-assignee   { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .tl-avatar {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: 999px;
+    background: linear-gradient(135deg, #93c5fd, #3b82f6);
+    color: #fff; font-size: 9px; font-weight: 900; letter-spacing: .02em; flex-shrink: 0;
   }
+  .tl-assignee-name { font-size: 12px; color: #475569; font-weight: 600; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tl-date         { font-size: 12px; color: #475569; font-weight: 600; white-space: nowrap; }
+  .tl-date.overdue { color: #dc2626; font-weight: 800; }
+  .tl-col-actions  { display: flex; gap: 4px; justify-content: flex-end; align-items: center; }
+  .tl-tag          { font-size: 11px; color: #64748b; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  @media (max-width: 1180px) {
-    .task-admin-grid,
-    .task-filter-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+  /* ══════════════════════════════════════════════
+     PROJECT MODE
+  ══════════════════════════════════════════════ */
+
+  /* Header card progetto */
+  .pk-header {
+    border-radius: 20px;
+    padding: 24px 28px;
+    background:
+      radial-gradient(ellipse at 90% -10%, rgba(249,115,22,.4) 0%, transparent 44%),
+      radial-gradient(ellipse at -5% 120%, rgba(56,189,248,.32) 0%, transparent 52%),
+      linear-gradient(140deg, #0f172a 0%, #1e3a8a 55%, #1d4ed8 100%);
+    box-shadow: 0 16px 40px rgba(30,58,138,.22), inset 0 1px 0 rgba(255,255,255,.08);
+    color: #fff;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 24px;
+    align-items: center;
   }
+  .pk-header-eyebrow {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.55);
+    margin-bottom: 4px;
+  }
+  .pk-header-title {
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: -.02em;
+    color: #fff;
+    margin: 0 0 10px;
+  }
+  .pk-header-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .pk-header-chip {
+    display: inline-flex; align-items: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.12);
+    border: 1px solid rgba(255,255,255,.18);
+    font-size: 11px; font-weight: 700; color: rgba(255,255,255,.9);
+    white-space: nowrap;
+  }
+  .pk-header-desc {
+    font-size: 12px;
+    color: rgba(255,255,255,.65);
+    line-height: 1.5;
+    margin-top: 6px;
+  }
+  .pk-header-people {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    font-size: 11px; color: rgba(255,255,255,.6); font-weight: 600;
+    margin-top: 8px;
+  }
+  .pk-header-people span b { color: rgba(255,255,255,.85); font-weight: 800; }
 
+  /* Cerchio progresso */
+  .pk-progress-ring { position: relative; width: 96px; height: 96px; flex-shrink: 0; }
+  .pk-progress-ring svg { transform: rotate(-90deg); }
+  .pk-progress-ring-bg  { fill: none; stroke: rgba(255,255,255,.14); stroke-width: 8; }
+  .pk-progress-ring-fill {
+    fill: none;
+    stroke: #86efac;
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dashoffset .6s cubic-bezier(.22,1,.36,1);
+  }
+  .pk-progress-pct {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 900; color: #fff;
+    line-height: 1;
+  }
+  .pk-progress-pct small { font-size: 9px; font-weight: 700; color: rgba(255,255,255,.55); text-transform: uppercase; margin-top: 2px; letter-spacing: .08em; }
+
+  /* Grid task cards */
+  .pk-task-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .pk-task-card {
+    background: #fff;
+    border: 1px solid #e5edf5;
+    border-radius: 16px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: box-shadow .13s ease, transform .13s ease, border-color .13s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .pk-task-card::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    border-radius: 16px 0 0 16px;
+    background: #cbd5e1;
+  }
+  .pk-task-card.status-todo::before        { background: #818cf8; }
+  .pk-task-card.status-in_progress::before { background: #f59e0b; }
+  .pk-task-card.status-done::before        { background: #22c55e; }
+  .pk-task-card.status-canceled::before    { background: #94a3b8; }
+  .pk-task-card.is-overdue::before         { background: #ef4444; }
+  .pk-task-card:hover {
+    box-shadow: 0 8px 24px rgba(15,23,42,.09);
+    transform: translateY(-2px);
+    border-color: #c7d8ee;
+  }
+  .pk-task-badges { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+  .pk-task-title {
+    font-size: 13px; font-weight: 800; color: #0f172a;
+    text-decoration: none; line-height: 1.35;
+    display: block;
+  }
+  .pk-task-title:hover { color: #1d4ed8; }
+  .pk-task-desc { font-size: 11px; color: #94a3b8; line-height: 1.45; font-weight: 400; flex: 1; }
+  .pk-task-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; margin-top: auto; padding-top: 8px;
+    border-top: 1px solid #f0f4f8;
+  }
+  .pk-task-assignee { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .pk-task-assignee-name {
+    font-size: 11px; color: #64748b; font-weight: 600;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .pk-task-date { font-size: 11px; color: #64748b; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+  .pk-task-date.overdue { color: #dc2626; }
+  .pk-task-open {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 5px 12px; border-radius: 8px;
+    background: #f1f5f9; border: 1px solid #e2e8f0;
+    font-size: 11px; font-weight: 800; color: #334155;
+    text-decoration: none; white-space: nowrap;
+    transition: background .1s ease, color .1s ease;
+    flex-shrink: 0;
+  }
+  .pk-task-open:hover { background: #e0e7ff; color: #1d4ed8; border-color: #c7d2fe; }
+
+  /* Empty state project */
+  .pk-empty {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 10px; padding: 48px 24px; text-align: center;
+    color: #64748b;
+  }
+  .pk-empty-icon {
+    width: 56px; height: 56px; border-radius: 18px;
+    background: #f1f5f9; border: 1px solid #e2e8f0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pk-empty strong { color: #0f172a; font-size: 15px; }
+  .pk-empty p { font-size: 13px; margin: 0; max-width: 340px; }
+
+  /* Responsive */
+  @media (max-width: 1100px) {
+    .tl-admin-kpis    { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .tl-filter-grid   { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .pk-task-grid     { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .pk-header        { grid-template-columns: 1fr; }
+    .pk-progress-ring { display: none; }
+  }
   @media (max-width: 760px) {
-    .task-admin-grid,
-    .task-filter-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .task-item-head {
-      flex-direction: column;
-    }
+    .tl-admin-kpis, .tl-filter-grid, .pk-task-grid { grid-template-columns: 1fr; }
   }
 </style>
 {% endblock %}
 
-{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">Tasks / Dashboard</span>{% endblock %}
+{% block tasks_shell_eyebrow %}
+  {% if active_project %}
+    <span class="ts-eyebrow">KICK-OFF {{ active_project.kickoff_number }}</span>
+  {% else %}
+    <span class="ts-eyebrow">KICK-OFF / Dashboard</span>
+  {% endif %}
+{% endblock %}
 
-{% block tasks_shell_title %}Control room task{% endblock %}
+{% block tasks_shell_title %}
+  {% if active_project %}{{ active_project.name }}{% else %}Control room KICK-OFF{% endif %}
+{% endblock %}
 
 {% block tasks_shell_subtitle %}
-  {% if is_scope_admin %}
-    Vista completa sul backlog del modulo tasks, con filtro rapido per stato, priorita, progetto, assegnatario e anomalie operative.
+  {% if active_project %}
+    {% if active_project.client_name %}{{ active_project.client_name }}{% endif %}
+    {% if active_project.part_number %} &middot; P/N: {{ active_project.part_number }}{% endif %}
+    {% if active_project.revisione %} &middot; Rev. {{ active_project.revisione }}{% endif %}
+  {% elif is_scope_admin %}
+    Vista completa sul backlog del modulo KICK-OFF.
   {% else %}
-    Vista personale sulle task in cui sei coinvolto come creator, assegnatario o subscriber, con scorciatoie per tenere il focus sul lavoro in corso.
+    Le tue attivita kickoff — creator, assegnatario o subscriber.
   {% endif %}
 {% endblock %}
 
 {% block tasks_shell_meta %}
-  <span class="ts-hero-pill">{% if is_scope_admin %}Scope completo attivo{% else %}Scope personale{% endif %}</span>
-  <span class="ts-hero-pill">{{ dashboard_stats.total }} task in scope</span>
-  <span class="ts-hero-pill">{{ dashboard_stats.overdue }} overdue</span>
-  {% if showing_mine_default %}
-    <span class="ts-hero-pill">Filtro mie task attivo</span>
+  {% if active_project %}
+    <span class="ts-hero-pill">{{ dashboard_stats.total }} attivita</span>
+    <span class="ts-hero-pill" style="background:rgba(34,197,94,.18);border-color:rgba(34,197,94,.3);">{{ done_pct }}% completato</span>
+    {% if dashboard_stats.overdue > 0 %}
+      <span class="ts-hero-pill" style="background:rgba(239,68,68,.22);border-color:rgba(239,68,68,.35);">{{ dashboard_stats.overdue }} overdue</span>
+    {% endif %}
+  {% else %}
+    <span class="ts-hero-pill">{% if is_scope_admin %}Scope completo{% else %}Scope personale{% endif %}</span>
+    <span class="ts-hero-pill">{{ dashboard_stats.total }} attivita</span>
+    {% if dashboard_stats.overdue > 0 %}
+      <span class="ts-hero-pill" style="background:rgba(239,68,68,.22);border-color:rgba(239,68,68,.35);">{{ dashboard_stats.overdue }} overdue</span>
+    {% endif %}
+    {% if showing_mine_default %}
+      <span class="ts-hero-pill">Solo mie</span>
+    {% endif %}
   {% endif %}
 {% endblock %}
 
 {% block tasks_shell_actions %}
-  {% if can_create %}
-    <a class="ts-hero-action primary" href="{% url 'tasks:create' %}">Nuova task</a>
-  {% endif %}
-  <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Apri progetti</a>
-  {% if tasks_shell_can_admin %}
-    <a class="ts-hero-action" href="{% url 'tasks:gestione_admin' %}">Gestione admin</a>
+  {% if active_project %}
+    <a class="ts-hero-action primary" href="{% url 'tasks:project_gantt' active_project.id %}">Diagramma Gantt</a>
+    {% if can_create %}
+      <a class="ts-hero-action" href="{% url 'tasks:create' %}?project={{ active_project.id }}">+ Nuova attivita</a>
+    {% endif %}
+    <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Portfolio kickoff</a>
+  {% else %}
+    {% if can_create %}
+      <a class="ts-hero-action primary" href="{% url 'tasks:create' %}">+ Nuova attivita</a>
+    {% endif %}
+    <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Portfolio kickoff</a>
+    {% if tasks_shell_can_admin %}
+      <a class="ts-hero-action" href="{% url 'tasks:impostazioni' %}">Impostazioni</a>
+    {% endif %}
   {% endif %}
 {% endblock %}
 
 {% block tasks_shell_kpis %}
 <section class="ts-kpis">
   <article class="ts-kpi blue">
-    <div class="ts-kpi-label">Task in scope</div>
+    <div class="ts-kpi-label">{% if active_project %}Attivita kickoff{% else %}In scope{% endif %}</div>
     <div class="ts-kpi-value">{{ dashboard_stats.total }}</div>
-    <div class="ts-kpi-note">Backlog visibile nel tuo perimetro operativo.</div>
+    <div class="ts-kpi-note">{% if active_project %}Totale in questo kickoff.{% else %}Attivita nel perimetro.{% endif %}</div>
+    <div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:100%"></div></div>
   </article>
   <article class="ts-kpi amber">
     <div class="ts-kpi-label">In corso</div>
     <div class="ts-kpi-value">{{ dashboard_stats.in_progress }}</div>
-    <div class="ts-kpi-note">Attivita che richiedono attenzione attiva.</div>
+    <div class="ts-kpi-note">Richiedono attenzione attiva.</div>
+    {% if dashboard_stats.total %}<div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{% widthratio dashboard_stats.in_progress dashboard_stats.total 100 %}%"></div></div>{% endif %}
   </article>
   <article class="ts-kpi teal">
     <div class="ts-kpi-label">Da fare</div>
     <div class="ts-kpi-value">{{ dashboard_stats.todo }}</div>
-    <div class="ts-kpi-note">Task aperte ancora da avviare.</div>
+    <div class="ts-kpi-note">Ancora da avviare.</div>
+    {% if dashboard_stats.total %}<div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{% widthratio dashboard_stats.todo dashboard_stats.total 100 %}%"></div></div>{% endif %}
   </article>
   <article class="ts-kpi red">
     <div class="ts-kpi-label">Overdue</div>
     <div class="ts-kpi-value">{{ dashboard_stats.overdue }}</div>
-    <div class="ts-kpi-note">Task con data superata e stato ancora aperto.</div>
+    <div class="ts-kpi-note">Scadute e ancora aperte.</div>
+    {% if dashboard_stats.total %}<div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{% widthratio dashboard_stats.overdue dashboard_stats.total 100 %}%"></div></div>{% endif %}
   </article>
   <article class="ts-kpi green">
     <div class="ts-kpi-label">Completate</div>
     <div class="ts-kpi-value">{{ dashboard_stats.done }}</div>
-    <div class="ts-kpi-note">Task chiuse correttamente nel modulo.</div>
+    <div class="ts-kpi-note">Chiuse correttamente.</div>
+    {% if dashboard_stats.total %}<div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{% widthratio dashboard_stats.done dashboard_stats.total 100 %}%"></div></div>{% endif %}
   </article>
   <article class="ts-kpi slate">
     <div class="ts-kpi-label">Annullate</div>
     <div class="ts-kpi-value">{{ dashboard_stats.canceled }}</div>
-    <div class="ts-kpi-note">Attivita chiuse senza esecuzione operativa.</div>
+    <div class="ts-kpi-note">Chiuse senza esecuzione.</div>
+    {% if dashboard_stats.total %}<div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{% widthratio dashboard_stats.canceled dashboard_stats.total 100 %}%"></div></div>{% endif %}
   </article>
 </section>
 {% endblock %}
 
 {% block tasks_shell_content %}
 <div class="ts-stack">
-  {% if is_scope_admin and admin_console %}
-    <section class="ts-panel">
-      <div class="ts-panel-head">
-        <div class="ts-panel-title-wrap">
-          <h2 class="ts-panel-title">Control room amministrativa</h2>
-          <p class="ts-panel-subtitle">Alert utili per riequilibrare assegnazioni, date mancanti e task che rischiano di rallentare il flusso.</p>
-        </div>
-        <div class="ts-panel-meta">
-          <span class="ts-chip info">Visibile con permesso `tasks_admin`</span>
-        </div>
-      </div>
-      <div class="ts-panel-body">
-        <div class="task-admin-grid">
-          <article class="ts-card">
-            <div class="ts-card-title">Non assegnate</div>
-            <div class="ts-kpi-value" style="margin-top:10px;font-size:28px;color:#1d4ed8;">{{ admin_console.unassigned }}</div>
-            <div class="ts-card-text">Task aperte senza responsabile operativo.</div>
-          </article>
-          <article class="ts-card">
-            <div class="ts-card-title">Senza data fine</div>
-            <div class="ts-kpi-value" style="margin-top:10px;font-size:28px;color:#b45309;">{{ admin_console.without_due_date }}</div>
-            <div class="ts-card-text">Elementi da pianificare meglio.</div>
-          </article>
-          <article class="ts-card">
-            <div class="ts-card-title">Task singole</div>
-            <div class="ts-kpi-value" style="margin-top:10px;font-size:28px;color:#0f766e;">{{ admin_console.without_project }}</div>
-            <div class="ts-card-text">Task non collegate a un progetto strutturato.</div>
-          </article>
-          <article class="ts-card">
-            <div class="ts-card-title">Scadenza 7 giorni</div>
-            <div class="ts-kpi-value" style="margin-top:10px;font-size:28px;color:#7c3aed;">{{ admin_console.due_next_7d }}</div>
-            <div class="ts-card-text">Task aperte con scadenza ravvicinata.</div>
-          </article>
-          <article class="ts-card">
-            <div class="ts-card-title">In corso ferme</div>
-            <div class="ts-kpi-value" style="margin-top:10px;font-size:28px;color:#b91c1c;">{{ admin_console.stale_in_progress }}</div>
-            <div class="ts-card-text">Task non aggiornate da oltre 7 giorni.</div>
-          </article>
-        </div>
 
-        {% if admin_project_summary %}
-          <div class="ts-card-grid">
-            {% for project in admin_project_summary %}
-              <a class="ts-card ts-card-link" href="{% url 'tasks:project_gantt' project.id %}">
-                <div class="ts-card-title">{{ project.name }}</div>
-                <div class="ts-card-text">Progetto con il volume aperto piu rilevante nel backlog.</div>
-                <div class="ts-card-meta">
-                  <span class="task-meta-chip">Aperte: {{ project.open_total }}</span>
-                  <span class="task-meta-chip">Totali: {{ project.task_total }}</span>
-                </div>
-              </a>
-            {% endfor %}
-          </div>
-        {% endif %}
+{# ════════════════════════════════════════
+   MODALITA PROGETTO (?project=N)
+════════════════════════════════════════ #}
+{% if active_project %}
+
+  {# Header card progetto #}
+  <div class="pk-header">
+    <div>
+      <p class="pk-header-eyebrow">Kickoff {{ active_project.kickoff_number }}</p>
+      <h2 class="pk-header-title">{{ active_project.name }}</h2>
+      <div class="pk-header-chips">
+        {% if active_project.part_number %}<span class="pk-header-chip">P/N {{ active_project.part_number }}</span>{% endif %}
+        {% if active_project.revisione %}<span class="pk-header-chip">Rev. {{ active_project.revisione }}</span>{% endif %}
+        {% if active_project.versione %}<span class="pk-header-chip">Ver. {{ active_project.versione }}</span>{% endif %}
+        {% if active_project.client_name %}<span class="pk-header-chip">{{ active_project.client_name }}</span>{% endif %}
+        {% if active_project.vrf_quote_number %}<span class="pk-header-chip">Prev. {{ active_project.vrf_quote_number }}</span>{% endif %}
+        <span class="pk-header-chip">VRF: {{ active_project.get_vrf_status_display }}</span>
       </div>
-    </section>
+      {% if active_project.vrf_description %}
+        <p class="pk-header-desc">{{ active_project.vrf_description }}</p>
+      {% elif active_project.description %}
+        <p class="pk-header-desc">{{ active_project.description|truncatechars:120 }}</p>
+      {% endif %}
+      <div class="pk-header-people">
+        {% if active_project.project_manager %}<span><b>PM</b> {{ active_project.project_manager.get_full_name|default:active_project.project_manager.username }}</span>{% endif %}
+        {% if active_project.capo_commessa %}<span><b>CC</b> {{ active_project.capo_commessa.get_full_name|default:active_project.capo_commessa.username }}</span>{% endif %}
+        {% if active_project.programmer %}<span><b>Prog.</b> {{ active_project.programmer.get_full_name|default:active_project.programmer.username }}</span>{% endif %}
+      </div>
+    </div>
+
+    {# Cerchio progresso #}
+    <div class="pk-progress-ring">
+      {% with circumference=264 %}
+      {% with offset=circumference|add:0 %}
+      <svg width="96" height="96" viewBox="0 0 96 96">
+        <circle class="pk-progress-ring-bg"   cx="48" cy="48" r="42"/>
+        <circle class="pk-progress-ring-fill" cx="48" cy="48" r="42"
+                stroke-dasharray="{{ circumference }}"
+                stroke-dashoffset="{{ circumference }}"
+                style="stroke-dashoffset:calc({{ circumference }}px - {{ done_pct }} * {{ circumference }}px / 100)"/>
+      </svg>
+      {% endwith %}{% endwith %}
+      <div class="pk-progress-pct">{{ done_pct }}<small>% done</small></div>
+    </div>
+  </div>
+
+  {# Pannello attivita + filtri #}
+  <section class="ts-panel">
+    <div class="ts-panel-head">
+      <div class="ts-panel-title-wrap">
+        <h2 class="ts-panel-title">Attivita kickoff</h2>
+        <p class="ts-panel-subtitle">{{ tasks|length }} attivita &middot; ordine per scadenza</p>
+      </div>
+      <div class="ts-panel-meta">
+        <a class="ts-chip soft" style="text-decoration:none;" href="{% url 'tasks:project_gantt' active_project.id %}">Gantt</a>
+        <button class="tl-filter-toggle" id="tl-toggle-btn" type="button" onclick="toggleFilters()">
+          <span class="tl-filter-icon">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </span>
+          Filtri
+        </button>
+      </div>
+    </div>
+
+    <div class="ts-panel-body">
+      <div id="tl-filter-body" class="tl-filter-body">
+        <form method="get" class="ts-stack">
+          <input type="hidden" name="project" value="{{ active_project.id }}">
+          <div class="tl-filter-grid">
+            <div class="ts-field">
+              <label for="{{ filter_form.status.id_for_label }}">Stato</label>
+              {{ filter_form.status }}
+            </div>
+            <div class="ts-field">
+              <label for="{{ filter_form.priority.id_for_label }}">Priorita</label>
+              {{ filter_form.priority }}
+            </div>
+            <div class="ts-field">
+              <label for="{{ filter_form.assigned_to.id_for_label }}">Assegnato a</label>
+              {{ filter_form.assigned_to }}
+            </div>
+            <div class="ts-field">
+              <label for="{{ filter_form.due_from.id_for_label }}">Scadenza da</label>
+              {{ filter_form.due_from }}
+            </div>
+            <div class="ts-field">
+              <label for="{{ filter_form.due_to.id_for_label }}">Scadenza a</label>
+              {{ filter_form.due_to }}
+            </div>
+            <div class="ts-field">
+              <label class="ts-field-label">Azioni</label>
+              <div class="ts-actions">
+                <button type="submit" class="btn">Applica</button>
+                <a href="{% url 'tasks:list' %}?project={{ active_project.id }}" class="btn btn-secondary">Reset</a>
+              </div>
+            </div>
+          </div>
+          <div class="ts-checkline-group">
+            <label class="ts-checkline">{{ filter_form.overdue }} Solo overdue</label>
+            <label class="ts-checkline">{{ filter_form.unassigned }} Non assegnate</label>
+            <label class="ts-checkline">{{ filter_form.without_due_date }} Senza data fine</label>
+          </div>
+        </form>
+      </div>
+
+      {% if tasks %}
+        <div class="pk-task-grid">
+          {% for task in tasks %}
+            <div class="pk-task-card status-{{ task.status|lower }}{% if task.is_overdue %} is-overdue{% endif %}">
+              <div class="pk-task-badges">
+                <span class="ts-badge ts-badge--{{ task.status|lower }}">{{ task.get_status_display }}</span>
+                <span class="ts-badge ts-badge--{{ task.priority|lower }}">{{ task.get_priority_display }}</span>
+                {% if task.is_overdue %}<span class="ts-badge danger">Overdue</span>{% endif %}
+              </div>
+              <a class="pk-task-title" href="{% url 'tasks:detail' task.id %}">{{ task.title }}</a>
+              {% if task.description %}
+                <p class="pk-task-desc">{{ task.description|truncatechars:80 }}</p>
+              {% endif %}
+              {% if task.tags %}
+                <div class="tl-tag" title="{{ task.tags }}">{{ task.tags }}</div>
+              {% endif %}
+              <div class="pk-task-footer">
+                <div class="pk-task-assignee">
+                  {% if task.assigned_to %}
+                    <span class="tl-avatar">{{ task.assigned_to.get_full_name|default:task.assigned_to.username|slice:":2"|upper }}</span>
+                    <span class="pk-task-assignee-name">{{ task.assigned_to.get_full_name|default:task.assigned_to.username }}</span>
+                  {% else %}
+                    <span style="color:#94a3b8;font-size:11px;">Non assegnato</span>
+                  {% endif %}
+                </div>
+                <div class="pk-task-date{% if task.is_overdue %} overdue{% endif %}">
+                  {% if task.next_step_due %}{{ task.next_step_due|date:"d/m" }} &rarr; {% endif %}
+                  {% if task.due_date %}{{ task.due_date|date:"d/m/Y" }}{% else %}&mdash;{% endif %}
+                </div>
+              </div>
+              <a class="pk-task-open" href="{% url 'tasks:detail' task.id %}">Apri &rarr;</a>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="pk-empty">
+          <div class="pk-empty-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <strong>Nessuna attivita trovata.</strong>
+          <p>Prova a rimuovere i filtri o crea la prima attivita per questo kickoff.</p>
+          <div class="ts-actions">
+            <a class="btn btn-secondary btn-sm" href="{% url 'tasks:list' %}?project={{ active_project.id }}">Reset filtri</a>
+            {% if can_create %}
+              <a class="btn btn-sm" href="{% url 'tasks:create' %}?project={{ active_project.id }}">+ Crea attivita</a>
+            {% endif %}
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+
+{# ════════════════════════════════════════
+   MODALITA GLOBALE (backlog completo)
+════════════════════════════════════════ #}
+{% else %}
+
+  {% if is_scope_admin and admin_console %}
+  <section class="ts-panel">
+    <div class="ts-panel-head">
+      <div class="ts-panel-title-wrap">
+        <h2 class="ts-panel-title">Alert operativi</h2>
+        <p class="ts-panel-subtitle">Situazioni che richiedono intervento amministrativo.</p>
+      </div>
+      <span class="ts-chip info">Admin</span>
+    </div>
+    <div class="ts-panel-body">
+      <div class="tl-admin-kpis">
+        <div class="tl-admin-kpi">
+          <div class="tl-admin-kpi-val">{{ admin_console.unassigned }}</div>
+          <div class="tl-admin-kpi-label">Non assegnate</div>
+        </div>
+        <div class="tl-admin-kpi">
+          <div class="tl-admin-kpi-val amber">{{ admin_console.without_due_date }}</div>
+          <div class="tl-admin-kpi-label">Senza data fine</div>
+        </div>
+        <div class="tl-admin-kpi">
+          <div class="tl-admin-kpi-val teal">{{ admin_console.without_project }}</div>
+          <div class="tl-admin-kpi-label">Attivita singole</div>
+        </div>
+        <div class="tl-admin-kpi">
+          <div class="tl-admin-kpi-val purple">{{ admin_console.due_next_7d }}</div>
+          <div class="tl-admin-kpi-label">Scadono in 7gg</div>
+        </div>
+        <div class="tl-admin-kpi">
+          <div class="tl-admin-kpi-val red">{{ admin_console.stale_in_progress }}</div>
+          <div class="tl-admin-kpi-label">In corso ferme &gt;7gg</div>
+        </div>
+      </div>
+
+      {% if admin_project_summary %}
+      <div class="ts-card-grid" style="margin-top:12px;">
+        {% for project in admin_project_summary %}
+          <a class="ts-card ts-card-link" href="{% url 'tasks:project_gantt' project.id %}">
+            <div class="ts-card-title">{{ project.name }}</div>
+            <div class="ts-card-meta" style="margin-top:6px;">
+              <span class="task-meta-chip">Aperte: {{ project.open_total }}</span>
+              <span class="task-meta-chip">Totali: {{ project.task_total }}</span>
+            </div>
+          </a>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </section>
   {% endif %}
 
   <section class="ts-panel">
     <div class="ts-panel-head">
       <div class="ts-panel-title-wrap">
-        <h2 class="ts-panel-title">Filtri e navigazione rapida</h2>
-        <p class="ts-panel-subtitle">Combina stato, priorita, progetto e date per isolare rapidamente il gruppo di task che ti serve.</p>
+        <h2 class="ts-panel-title">Backlog operativo</h2>
+        <p class="ts-panel-subtitle">{{ tasks|length }} risultati &mdash; ordine per scadenza e ultimo aggiornamento.</p>
       </div>
       <div class="ts-panel-meta">
-        <span class="ts-chip soft">{{ tasks|length }} risultati</span>
+        {% if showing_mine_default %}
+          <span class="ts-chip warn">Solo mie</span>
+          {% if is_scope_admin %}
+            <a class="ts-chip soft" style="text-decoration:none;" href="{% url 'tasks:list' %}?mine=0">Tutto scope</a>
+          {% endif %}
+        {% endif %}
+        <button class="tl-filter-toggle" id="tl-toggle-btn" type="button" onclick="toggleFilters()">
+          <span class="tl-filter-icon">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </span>
+          Filtri
+        </button>
+        <a class="ts-chip soft" style="text-decoration:none;font-size:11px;" href="{% url 'tasks:list' %}?status=IN_PROGRESS{% if is_scope_admin %}&mine=0{% endif %}">In corso</a>
+        <a class="ts-chip soft" style="text-decoration:none;font-size:11px;" href="{% url 'tasks:list' %}?overdue=on{% if is_scope_admin %}&mine=0{% endif %}">Overdue</a>
       </div>
     </div>
+
     <div class="ts-panel-body">
       {% if showing_mine_default %}
         <div class="ts-note-box">
-          Stai visualizzando per default le task piu vicine al tuo lavoro quotidiano.
+          Stai visualizzando le attivita kickoff vicine al tuo lavoro quotidiano.
           {% if is_scope_admin %}
             <a class="ts-link" href="{% url 'tasks:list' %}?mine=0">Passa alla vista completa di scope</a>.
           {% endif %}
         </div>
       {% endif %}
 
-      <form method="get" class="ts-stack">
-        <div class="task-filter-grid">
-          <div class="ts-field">
-            <label for="{{ filter_form.status.id_for_label }}">Stato</label>
-            {{ filter_form.status }}
-          </div>
-          <div class="ts-field">
-            <label for="{{ filter_form.priority.id_for_label }}">Priorita</label>
-            {{ filter_form.priority }}
-          </div>
-          <div class="ts-field">
-            <label for="{{ filter_form.assigned_to.id_for_label }}">Assegnato a</label>
-            {{ filter_form.assigned_to }}
-          </div>
-          <div class="ts-field">
-            <label for="{{ filter_form.project.id_for_label }}">Progetto</label>
-            {{ filter_form.project }}
-          </div>
-          <div class="ts-field">
-            <label for="{{ filter_form.tag.id_for_label }}">Tag</label>
-            {{ filter_form.tag }}
-          </div>
-          <div class="ts-field">
-            <label for="{{ filter_form.due_from.id_for_label }}">Scadenza da</label>
-            {{ filter_form.due_from }}
-          </div>
-          <div class="ts-field">
-            <label for="{{ filter_form.due_to.id_for_label }}">Scadenza a</label>
-            {{ filter_form.due_to }}
-          </div>
-          <div class="ts-field">
-            <label class="ts-field-label">Azioni</label>
-            <div class="ts-actions">
-              <button type="submit" class="btn">Applica</button>
-              <a href="{% url 'tasks:list' %}" class="btn btn-secondary">Reset</a>
+      <div id="tl-filter-body" class="tl-filter-body">
+        <form method="get" class="ts-stack">
+          <div class="tl-filter-grid">
+            <div class="ts-field">
+              <label for="{{ filter_form.status.id_for_label }}">Stato</label>
+              {{ filter_form.status }}
+            </div>
+            <div class="ts-field">
+              <label for="{{ filter_form.priority.id_for_label }}">Priorita</label>
+              {{ filter_form.priority }}
+            </div>
+            <div class="ts-field">
+              <label for="{{ filter_form.assigned_to.id_for_label }}">Assegnato a</label>
+              {{ filter_form.assigned_to }}
+            </div>
+            <div class="ts-field">
+              <label for="{{ filter_form.project.id_for_label }}">Kickoff</label>
+              {{ filter_form.project }}
+            </div>
+            <div class="ts-field">
+              <label for="{{ filter_form.tag.id_for_label }}">Tag</label>
+              {{ filter_form.tag }}
+            </div>
+            <div class="ts-field">
+              <label for="{{ filter_form.due_from.id_for_label }}">Scadenza da</label>
+              {{ filter_form.due_from }}
+            </div>
+            <div class="ts-field">
+              <label for="{{ filter_form.due_to.id_for_label }}">Scadenza a</label>
+              {{ filter_form.due_to }}
+            </div>
+            <div class="ts-field">
+              <label class="ts-field-label">Azioni</label>
+              <div class="ts-actions">
+                <button type="submit" class="btn">Applica</button>
+                <a href="{% url 'tasks:list' %}" class="btn btn-secondary">Reset</a>
+              </div>
             </div>
           </div>
-        </div>
-
-        <div class="ts-checkline-group">
-          <label class="ts-checkline">{{ filter_form.mine }} Solo mie task</label>
-          <label class="ts-checkline">{{ filter_form.overdue }} Solo overdue</label>
-          <label class="ts-checkline">{{ filter_form.unassigned }} Solo non assegnate</label>
-          <label class="ts-checkline">{{ filter_form.without_due_date }} Senza data fine</label>
-          <label class="ts-checkline">{{ filter_form.without_project }} Solo task singole</label>
-        </div>
-      </form>
-    </div>
-  </section>
-
-  <section class="ts-panel">
-    <div class="ts-panel-head">
-      <div class="ts-panel-title-wrap">
-        <h2 class="ts-panel-title">Backlog operativo</h2>
-        <p class="ts-panel-subtitle">Elenco task ordinato per prossima azione, data richiesta fine e ultimo aggiornamento.</p>
+          <div class="ts-checkline-group">
+            <label class="ts-checkline">{{ filter_form.mine }} Solo mie</label>
+            <label class="ts-checkline">{{ filter_form.overdue }} Solo overdue</label>
+            <label class="ts-checkline">{{ filter_form.unassigned }} Non assegnate</label>
+            <label class="ts-checkline">{{ filter_form.without_due_date }} Senza data fine</label>
+            <label class="ts-checkline">{{ filter_form.without_project }} Solo attivita singole</label>
+          </div>
+        </form>
       </div>
-      <div class="ts-panel-meta">
-        <a class="ts-chip soft" href="{% url 'tasks:list' %}?status=IN_PROGRESS{% if is_scope_admin %}&mine=0{% endif %}">In corso</a>
-        <a class="ts-chip soft" href="{% url 'tasks:list' %}?overdue=on{% if is_scope_admin %}&mine=0{% endif %}">Overdue</a>
-        {% if is_scope_admin %}
-          <a class="ts-chip soft" href="{% url 'tasks:list' %}?mine=0">Tutto scope</a>
-        {% endif %}
-      </div>
-    </div>
-    <div class="ts-panel-body">
+
       {% if tasks %}
-        <div class="task-feed">
-          {% for task in tasks %}
-            <article class="task-item">
-              <div class="task-item-head">
-                <div>
-                  <a class="task-item-title" href="{% url 'tasks:detail' task.id %}">{{ task.title }}</a>
-                  {% if task.description %}
-                    <div class="task-item-text">{{ task.description|truncatechars:180 }}</div>
-                  {% endif %}
-                </div>
-                <div class="ts-inline-actions">
-                  <span class="ts-badge ts-badge--{{ task.status|lower }}">{{ task.get_status_display }}</span>
-                  <span class="ts-badge ts-badge--{{ task.priority|lower }}">{{ task.get_priority_display }}</span>
-                  {% if task.is_overdue %}
-                    <span class="ts-badge danger">Overdue</span>
-                  {% endif %}
-                </div>
-              </div>
-
-              <div class="task-item-meta">
-                <span class="task-meta-chip">Creata da: {{ task.created_by.get_full_name|default:task.created_by.username }}</span>
-                <span class="task-meta-chip">
-                  Assegnata a:
-                  {% if task.assigned_to %}
-                    {{ task.assigned_to.get_full_name|default:task.assigned_to.username }}
-                  {% else %}
-                    Nessuno
-                  {% endif %}
-                </span>
-                <span class="task-meta-chip">
-                  Progetto:
-                  {% if task.project %}
-                    <a class="task-inline-link" href="{% url 'tasks:project_gantt' task.project.id %}">{{ task.project.name }}</a>
-                  {% else %}
-                    Task singola
-                  {% endif %}
-                </span>
-                <span class="task-meta-chip">
-                  Fine:
-                  {% if task.due_date %}
-                    {{ task.due_date|date:"d/m/Y" }}
-                  {% else %}
-                    -
-                  {% endif %}
-                </span>
-                <span class="task-meta-chip">
-                  Inizio:
-                  {% if task.next_step_due %}
-                    {{ task.next_step_due|date:"d/m/Y" }}
-                  {% else %}
-                    -
-                  {% endif %}
-                </span>
-                {% if task.tags %}
-                  <span class="task-meta-chip">Tag: {{ task.tags }}</span>
-                {% endif %}
-              </div>
-            </article>
-          {% endfor %}
+        <div class="tl-table-wrap">
+          <table class="tl-table">
+            <thead>
+              <tr>
+                <th style="width:38%">Titolo</th>
+                <th>Stato</th>
+                <th>Priorita</th>
+                <th>Kickoff</th>
+                <th>Assegnato a</th>
+                <th>Scadenza</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for task in tasks %}
+                <tr class="status-{{ task.status|lower }}{% if task.is_overdue %} status-overdue{% endif %}">
+                  <td>
+                    <a class="tl-task-link" href="{% url 'tasks:detail' task.id %}">{{ task.title }}</a>
+                    {% if task.description %}<div class="tl-task-desc">{{ task.description|truncatechars:90 }}</div>{% endif %}
+                    {% if task.tags %}<div class="tl-tag" title="{{ task.tags }}">{{ task.tags }}</div>{% endif %}
+                  </td>
+                  <td>
+                    <span class="ts-badge ts-badge--{{ task.status|lower }}">{{ task.get_status_display }}</span>
+                    {% if task.is_overdue %}<span class="ts-badge danger" style="margin-top:3px;display:block;">Overdue</span>{% endif %}
+                  </td>
+                  <td><span class="ts-badge ts-badge--{{ task.priority|lower }}">{{ task.get_priority_display }}</span></td>
+                  <td>
+                    {% if task.project %}
+                      <a class="tl-ko-link" href="{% url 'tasks:list' %}?project={{ task.project.id }}">{{ task.project.name }}</a>
+                    {% else %}
+                      <span style="color:#94a3b8;font-size:12px;">&mdash;</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if task.assigned_to %}
+                      <div class="tl-assignee">
+                        <span class="tl-avatar">{{ task.assigned_to.get_full_name|default:task.assigned_to.username|slice:":2"|upper }}</span>
+                        <span class="tl-assignee-name">{{ task.assigned_to.get_full_name|default:task.assigned_to.username }}</span>
+                      </div>
+                    {% else %}
+                      <span style="color:#94a3b8;font-size:12px;">&mdash;</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if task.due_date %}
+                      <span class="tl-date {% if task.is_overdue %}overdue{% endif %}">{{ task.due_date|date:"d/m/Y" }}</span>
+                    {% else %}
+                      <span style="color:#94a3b8;font-size:12px;">&mdash;</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div class="tl-col-actions">
+                      <a class="btn btn-secondary btn-sm" href="{% url 'tasks:detail' task.id %}">Apri</a>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
       {% else %}
         <div class="ts-empty">
-          <strong>Nessuna task per i filtri selezionati.</strong>
-          <div>Prova a ripulire i filtri o a cambiare scorciatoia di navigazione.</div>
+          <strong>Nessuna attivita per i filtri selezionati.</strong>
+          <div>Prova a ripulire i filtri o cambia scorciatoia di navigazione.</div>
           <div class="ts-actions">
             <a class="btn btn-secondary btn-sm" href="{% url 'tasks:list' %}">Reset filtri</a>
             {% if is_scope_admin %}
-              <a class="btn btn-secondary btn-sm" href="{% url 'tasks:list' %}?mine=0">Tutte le task in scope</a>
+              <a class="btn btn-secondary btn-sm" href="{% url 'tasks:list' %}?mine=0">Tutte le attivita in scope</a>
             {% endif %}
             {% if can_create %}
-              <a class="btn btn-sm" href="{% url 'tasks:create' %}">Crea task</a>
+              <a class="btn btn-sm" href="{% url 'tasks:create' %}">Crea attivita</a>
             {% endif %}
           </div>
         </div>
       {% endif %}
     </div>
   </section>
+
+{% endif %}{# fine if active_project #}
+
 </div>
+{% endblock %}
+
+{% block tasks_shell_scripts %}
+<script>
+  function toggleFilters() {
+    const body = document.getElementById('tl-filter-body');
+    if (!body) return;
+    body.classList.toggle('open');
+    const btn = document.getElementById('tl-toggle-btn');
+    if (btn) btn.querySelector('.tl-filter-icon').style.background = body.classList.contains('open') ? 'rgba(249,115,22,.15)' : '';
+  }
+
+  // Auto-open filters se ci sono filtri attivi (eccetto project che e gia nel contesto)
+  (function () {
+    const params = new URLSearchParams(window.location.search);
+    const filterKeys = ['status','priority','assigned_to','tag','due_from','due_to','overdue','unassigned','without_due_date','without_project'];
+    if (filterKeys.some(k => params.get(k))) {
+      const body = document.getElementById('tl-filter-body');
+      if (body) body.classList.add('open');
+    }
+  })();
+</script>
 {% endblock %}

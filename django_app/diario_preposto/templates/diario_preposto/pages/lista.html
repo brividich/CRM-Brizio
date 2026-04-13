@@ -66,6 +66,9 @@
       <div class="dp-hero-sub">RSPP · ASPP · RLS - Registro segnalazioni sicurezza</div>
     </div>
     <div class="dp-hero-actions">
+      {% if can_manage_settings %}
+      <a href="{% url 'diario_preposto:impostazioni' %}" class="dp-hbtn dp-hbtn-white">&#9881; Impostazioni</a>
+      {% endif %}
       {% if can_write %}
       <a href="{% url 'diario_preposto:nuovo' %}" class="dp-hbtn dp-hbtn-white">+ Nuova segnalazione</a>
       {% endif %}

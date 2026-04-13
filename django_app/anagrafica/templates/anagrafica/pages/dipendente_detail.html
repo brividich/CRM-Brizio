@@ -494,6 +494,140 @@
   </div>
   {% endif %}
 
+  <!-- LICENZE SOFTWARE -->
+  {% if software_licenses or is_admin %}
+  <div class="dp-card">
+    <div class="dp-card-head">
+      <div class="dp-card-title">Licenze software</div>
+      {% if is_admin %}
+        <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'assets:software_license_list' %}?anagrafica={{ legacy_id }}">Gestione licenze</a>
+      {% endif %}
+    </div>
+    <div class="dp-card-body">
+      {% if software_licenses %}
+        <div class="dp-qual-list">
+          {% for lic in software_licenses %}
+            <div class="dp-qual-item">
+              <div>
+                <div class="dp-qual-name">{{ lic.product_name }}{% if lic.edition %} - {{ lic.edition }}{% endif %}</div>
+                <div class="dp-qual-cat">{{ lic.get_category_display }}{% if lic.vendor %} | {{ lic.vendor }}{% endif %}</div>
+                <div class="dp-qual-dates">
+                  {% if lic.expiry_date %}
+                    <span>Scadenza {{ lic.expiry_date|date:"d/m/Y" }}</span>
+                  {% else %}
+                    <span>Scadenza non impostata</span>
+                  {% endif %}
+                  {% if lic.asset %}
+                    <span>Asset {{ lic.asset.asset_tag }}</span>
+                  {% endif %}
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+                {% if lic.is_active %}
+                  <span class="dp-pill dp-pill-green">Attiva</span>
+                {% else %}
+                  <span class="dp-pill dp-pill-gray">Disattiva</span>
+                {% endif %}
+                {% if lic.asset %}
+                  <a class="dp-btn dp-btn-ghost dp-btn-xs" href="{% url 'assets:asset_view' lic.asset.id %}">Apri asset</a>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div style="font-size:13px;color:#94a3b8;padding:6px 0;">Nessuna licenza assegnata a questo dipendente.</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ASSET -->
+  {% if assets_assegnati or assets_reparto or is_admin %}
+  <div class="dp-card">
+    <div class="dp-card-head">
+      <div class="dp-card-title">Asset</div>
+      {% if is_admin %}
+        <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'assets:asset_list' %}{% if dip.utente_id %}?q={{ dip.cognome|urlencode }}{% endif %}">Inventario asset</a>
+      {% endif %}
+    </div>
+    <div class="dp-card-body" style="display:flex;flex-direction:column;gap:20px;">
+
+      <!-- Asset assegnati personalmente -->
+      <div>
+        <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">
+          In carico personale
+          {% if assets_assegnati %}<span style="background:#e2e8f0;color:#475569;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:700;margin-left:6px;">{{ assets_assegnati|length }}</span>{% endif %}
+        </div>
+        {% if assets_assegnati %}
+          <div class="dp-qual-list">
+            {% for a in assets_assegnati %}
+              <div class="dp-qual-item">
+                <div>
+                  <div class="dp-qual-name">{{ a.name }}</div>
+                  <div class="dp-qual-cat">{{ a.category_label }}{% if a.assignment_reparto %} · {{ a.assignment_reparto }}{% endif %}</div>
+                  <div class="dp-qual-dates">
+                    <span style="font-family:monospace;font-size:11px;background:#f1f5f9;padding:2px 6px;border-radius:5px;">{{ a.asset_tag }}</span>
+                    {% if a.serial_number %}<span>S/N {{ a.serial_number }}</span>{% endif %}
+                    {% if a.assignment_location %}<span>{{ a.assignment_location }}</span>{% endif %}
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+                  {% if a.status == "IN_USE" %}<span class="dp-pill dp-pill-green">In uso</span>
+                  {% elif a.status == "IN_STOCK" %}<span class="dp-pill dp-pill-gray">In magazzino</span>
+                  {% elif a.status == "IN_REPAIR" %}<span class="dp-pill" style="background:#fef3c7;color:#92400e;">In riparazione</span>
+                  {% else %}<span class="dp-pill dp-pill-gray">{{ a.get_status_display }}</span>{% endif %}
+                  <a class="dp-btn dp-btn-ghost dp-btn-xs" href="{% url 'assets:asset_view' a.id %}">Apri &rarr;</a>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div style="font-size:13px;color:#94a3b8;">Nessun asset assegnato direttamente.</div>
+        {% endif %}
+      </div>
+
+      <!-- Asset reparto (solo se caporeparto) -->
+      {% if reparti_capo %}
+      <div>
+        <div style="font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">
+          In carico reparto
+          {% for r in reparti_capo %}<span style="background:#dbeafe;color:#1e40af;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:700;margin-left:4px;">{{ r }}</span>{% endfor %}
+          {% if assets_reparto %}<span style="background:#e2e8f0;color:#475569;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:700;margin-left:6px;">{{ assets_reparto|length }}</span>{% endif %}
+        </div>
+        {% if assets_reparto %}
+          <div class="dp-qual-list">
+            {% for a in assets_reparto %}
+              <div class="dp-qual-item">
+                <div>
+                  <div class="dp-qual-name">{{ a.name }}</div>
+                  <div class="dp-qual-cat">{{ a.category_label }}{% if a.assignment_reparto %} · {{ a.assignment_reparto }}{% endif %}</div>
+                  <div class="dp-qual-dates">
+                    <span style="font-family:monospace;font-size:11px;background:#f1f5f9;padding:2px 6px;border-radius:5px;">{{ a.asset_tag }}</span>
+                    {% if a.serial_number %}<span>S/N {{ a.serial_number }}</span>{% endif %}
+                    {% if a.assignment_location %}<span>{{ a.assignment_location }}</span>{% endif %}
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+                  {% if a.status == "IN_USE" %}<span class="dp-pill dp-pill-green">In uso</span>
+                  {% elif a.status == "IN_STOCK" %}<span class="dp-pill dp-pill-gray">In magazzino</span>
+                  {% elif a.status == "IN_REPAIR" %}<span class="dp-pill" style="background:#fef3c7;color:#92400e;">In riparazione</span>
+                  {% else %}<span class="dp-pill dp-pill-gray">{{ a.get_status_display }}</span>{% endif %}
+                  <a class="dp-btn dp-btn-ghost dp-btn-xs" href="{% url 'assets:asset_view' a.id %}">Apri &rarr;</a>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div style="font-size:13px;color:#94a3b8;">Nessun asset nel reparto.</div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+  {% endif %}
+
   <!-- STATISTICHE -->
   {% if can_stats %}
   <div class="dp-stat-section" id="dp-stat-section">

@@ -190,11 +190,11 @@
     <article class="wmf-card">
       <div class="wmf-card-head">
         <div>
-          <h2>Verifiche periodiche</h2>
-          <p>Collega la macchina a una o piu verifiche periodiche e apri la gestione dedicata.</p>
+          <h2>Manutenzione periodica</h2>
+          <p>Collega la macchina a uno o piu piani di manutenzione periodica e apri la gestione dedicata.</p>
         </div>
         {% if asset %}
-          <a class="btn" href="{% url 'assets:periodic_verifications' %}?asset={{ asset.id }}">Gestisci verifiche</a>
+          <a class="btn" href="{% url 'assets:periodic_verifications' %}?asset={{ asset.id }}">Gestisci manutenzione</a>
         {% endif %}
       </div>
       <div class="wmf-card-body">

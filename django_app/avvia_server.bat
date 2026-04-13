@@ -1,8 +1,8 @@
 @echo off
 setlocal
 set "ROOT=%~dp0"
-set "APP_DIR=%ROOT%django_app"
-set "VENV_PY=%ROOT%.venv\Scripts\python.exe"
+set "APP_DIR=%ROOT%"
+set "VENV_PY=%ROOT%..\.venv\Scripts\python.exe"
 set "PORT=8000"
 set "RUNSERVER_FLAGS="
 set "DRY_RUN="

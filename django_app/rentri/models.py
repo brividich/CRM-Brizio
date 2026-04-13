@@ -69,6 +69,7 @@ class RentriImpostazioni(models.Model):
         blank=True, default="",
         verbose_name="Email responsabile",
     )
+    responsabili = models.JSONField(blank=True, default=list, verbose_name="Referenti")
     note_generali = models.TextField(blank=True, default="", verbose_name="Note operative")
 
     class Meta:

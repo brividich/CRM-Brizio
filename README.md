@@ -3,7 +3,7 @@
 
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![Django 5.2](https://img.shields.io/badge/Django-5.2-0C4B33?logo=django&logoColor=white)
-![Version 0.9.9](https://img.shields.io/badge/version-0.9.9-F97316)
+![Version 0.9.15](https://img.shields.io/badge/version-0.9.15-F97316)
 ![Database SQLite or SQL Server](https://img.shields.io/badge/DB-SQLite%20%7C%20SQL%20Server-1E3A5F)
 
 Repository di riferimento del software **NOVICROM HUB**. I nomi storici come
@@ -17,6 +17,8 @@ Il codice applicativo vive in `django_app/` ed espone un portale aziendale costr
 con moduli separati per operativita quotidiana, amministrazione, anagrafiche, asset, workflow e automazioni.
 
 L'entrypoint corretto per lo sviluppo locale e `django_app/manage.py`.
+
+Nel modulo anagrafica, se il legacy non ha `email_notifica`, il portale usa e riallinea automaticamente l'`email` account per evitare schede dipendente e rubriche incoerenti.
 
 ## Start Here
 
@@ -39,8 +41,11 @@ la leggibilita e i comandi rapidi senza modificare codice o template:
 - sottomenu sidebar aperti resi come livello annidato con pannello dedicato e stato aperto piu evidente
 - footer sidebar personalizzabile con azioni rapide aggiungibili, rimovibili e riordinabili
 - favicon del portale sostituibile da `/admin-portale/branding/` senza toccare codice o file statici
+- shell modulo e dashboard shared a tutta altezza, cosi i layout principali non lasciano bande vuote in fondo al viewport
 
 Le preferenze vengono salvate lato server e riapplicate automaticamente al login successivo.
+
+Dal wizard di primo accesso (`/onboarding/`) l'utente appena creato configura subito anche queste preferenze UI, invece di doverle cercare dopo il login. La pagina resta raggiungibile da qualsiasi utente autenticato senza grant ACL dedicati, mentre le preferenze email continuano a mostrare solo i moduli che il ruolo rende davvero visibili, cosi il setup iniziale non propone opzioni fuorvianti. Anche il centro notifiche personale (`/notifiche/` e API `/api/notifiche/...`) resta sempre disponibile a ogni utente autenticato, senza dipendere dai permessi di modulo.
 
 ## Cosa include
 
@@ -48,7 +53,7 @@ Le preferenze vengono salvate lato server e riapplicate automaticamente al login
 | --- | --- |
 | Dashboard e UX | home modulare, viste per ruolo, scorciatoie operative, navigazione dinamica, font scaling globale e sidebar personalizzabile con categorie colorate, icone SVG semantiche e sottomenu annidati piu leggibili |
 | Workflow | assenze, anomalie, tickets, timbri, notizie e richieste interne |
-| Operations | inventory asset, work order, macchine di lavoro, planimetrie e verifiche periodiche |
+| Operations | inventory asset, work order, macchine di lavoro, planimetrie e manutenzione periodica |
 | Sicurezza e compliance | DPI (richieste/approvazione/consegna), diario preposto, rilevazione incidenti, presa visione procedure MT/MTSI, tracciabilita rifiuti RENTRI |
 | Governance | gestione utenti, ACL canonico v2 + fallback legacy, pulsanti UI, audit, diagnostica LDAP, diagnostica ACL, mappa permessi/navigazione e branding portale (favicon, login) |
 | Automazioni | designer visuale, sorgenti, queue processor, test regole e import package |
@@ -57,7 +62,15 @@ Le preferenze vengono salvate lato server e riapplicate automaticamente al login
 
 La `dashboard` resta il cruscotto KPI cross-modulo e i workflow di dominio vivono dentro i rispettivi moduli. Per `assenze` il punto di ingresso unico e `/assenze/`, che raccoglie menu modulo, nuova richiesta, gestione personale, calendario e certificazione presenza.
 
-Nel modulo `assets`, gli admin possono ora creare eventi Outlook Calendar per le scadenze principali del modulo: manutenzioni, scadenze amministrative, verifiche periodiche e contratti assistenza. La sincronizzazione riusa Microsoft Graph, salva un tracking unico per evitare duplicati e, per verifiche/contratti, richiede il filtro su un asset specifico cosi il calendario resta legato a un contesto chiaro. Il logo del modulo Assets e personalizzabile da Gestione Admin (tab Configurazione) con upload diretto o URL esterno; il brand nella sidebar e cliccabile per tornare all'homepage del modulo. La sidebar di Gestione Admin e visibile su tutte le pagine del modulo per gli utenti con permesso `admin_assets`.
+Nel modulo `automazioni`, sia il builder classico sia il designer visuale tengono ora allineati i dropdown di trigger e condizioni con la sorgente selezionata, cosi il catalogo colonne riflette davvero la tabella attiva invece di restare fermo sulla prima sorgente caricata.
+
+Le pagine `Impostazioni` restano separate per modulo ma seguono ora un pattern condiviso per hero, KPI/quick links e branding nome/logo modulo. I percorsi canonici sono `/diario-preposto/impostazioni/`, `/rilevazione-incidenti/impostazioni/`, `/timbri/impostazioni/`, `/rentri/impostazioni/`, `/assenze/impostazioni/`, `/notizie/impostazioni/`, `/procedure-refresh/impostazioni/`, `/tasks/impostazioni/` e `/assets/impostazioni/`; gli URL storici (`gestione`, `configurazione`, `admin`) restano compatibili come redirect legacy. Nel modulo `tasks`, `/tasks/impostazioni/` raccoglie ora anche le tab amministrative `Configurazione`, `Riepilogo`, `Record` e `Log attivita`, mentre il vecchio `/tasks/gestione/` reindirizza alla tab `Riepilogo`.
+
+Nel modulo `tasks`, presentato in UI come `KICK-OFF`, il kickoff coincide ora con il progetto ed e nominato automaticamente `KICK-OFF <progressivo dedicato>`, mentre `VRF` indica solo il documento Excel MOD.073. Il form crea o riusa kickoff in modo P/N-safe sull'identita `P/N + revisione + versione`, non chiede piu un nome progetto manuale e presenta le righe operative come `attivita kickoff`. Dal portfolio kickoff sono disponibili anche le azioni `Copia kickoff e VRF` e `Copia kickoff e VRF tranne P/N`: la seconda duplica il file Excel svuotando in memoria sia il campo `part_number` del kickoff sia la cella `B3` del workbook, senza alterare il file sorgente.
+
+Alla creazione di ogni kickoff il portale guida all'upload del documento MOD.073 VRF: il file .xlsx viene analizzato automaticamente e i campi identificativi (Cliente, P/N, Versione, Preventivo, Descrizione, Esp) vengono estratti e mostrati in anteprima prima del salvataggio. Se il documento non viene caricato subito, il sistema attiva un reminder progressivo configurabile: dopo N giorni compare un avviso, dopo M giorni il kickoff viene bloccato e non accetta nuove attivita fino al caricamento del documento. I valori N e M sono modificabili dalla tab `Configurazione` di `/tasks/impostazioni/` (parametri `vrf_reminder_days` e `vrf_blocking_days`). La stessa pagina include anche riepilogo, record e log amministrativi del modulo. Il portfolio kickoff mostra la colonna "Documento" con badge colorato per ogni progetto (Caricato / Avviso / Bloccato / Non richiesto).
+
+Nel modulo `assets`, gli admin possono ora creare eventi Outlook Calendar per le scadenze principali del modulo: manutenzioni, scadenze amministrative, manutenzione periodica e contratti assistenza. La sincronizzazione riusa Microsoft Graph, salva un tracking unico per evitare duplicati e, per manutenzione periodica/contratti, richiede il filtro su un asset specifico cosi il calendario resta legato a un contesto chiaro. La manutenzione periodica e ora trattata come categoria della manutenzione, con percorso canonico `/assets/manutenzione/verifiche/` e redirect compatibile dal vecchio `/assets/verifiche-periodiche/`. La dashboard del modulo vive su `/assets/`, mentre la lista inventario canonica e `/assets/lista/`; i vecchi link filtrati nel formato `/assets/?asset_type=...` vengono riallineati automaticamente alla lista. La pagina `/assets/licenze/` gestisce le licenze software (software, antivirus, Office) con assegnazione diretta a asset o dipendenti anagrafica. Il logo del modulo Assets e personalizzabile dalla pagina `Impostazioni` (tab Configurazione) con upload diretto o URL esterno; il brand nella sidebar e cliccabile per tornare all'homepage del modulo. La configurazione di categorie asset e campi dinamici vive nella tab `Categorie asset` di `/assets/impostazioni/`, mentre lo Studio amministratore dell'inventario mantiene un rimando rapido per chi arriva dai flussi storici. La sidebar del modulo espone il link `Impostazioni` su tutte le pagine per gli utenti con permesso `admin_assets`.
 
 La dashboard principale usa ora questo workspace personale: widget KPI multi-modulo, layout personale per utente, template iniziale definibile dagli admin e ripristino rapido al template di partenza. La route `scheda-dipendente` resta solo come alias compatibile.
 
@@ -81,9 +94,12 @@ Il portale supporta un layer ACL canonico progressivo che convive con il legacy:
 - `UserPermissionGrant`: override per-utente sullo stesso `permission_code`
 - resolver unificato in `core/acl_v2.py` integrato in middleware
 - fallback legacy (`pulsanti` + `permessi`) usato solo se il binding canonico manca
+- compat route dedicata: `/anomalie-menu` funziona come launcher del modulo anomalie e puo restare accessibile ai ruoli che hanno almeno un permesso operativo (`anomalie_aperte` o `inserimento_anomalie`) anche se il grant contenitore `dashboard_anomalie_menu` non e presente
 
 Strumenti operativi:
 
+- `/admin-portale/accessi/` come entrypoint semplice predefinito: un solo toggle per modulo sincronizza ACL legacy (`permessi.can_view/consentito`), grant canonici v2 e visibilita menu del ruolo
+- `/admin-portale/gestione-accessi/` per il dettaglio legacy storico modulo/azione
 - `/admin-portale/acl-canonico/` per gestire permission code, binding e grant
 - `/admin-portale/acl-route-coverage/` per classificare tutte le route (`CANONICAL_BOUND`, `LEGACY_FALLBACK`, `UNBOUND`, `COMING_SOON_EXCLUDED`, `REDIRECT_ONLY`)
 - `/admin-portale/acl-diagnostica/` per capire perchÃƒÆ’Ã‚Â© un accesso ÃƒÆ’Ã‚Â¨ consentito/negato
@@ -170,6 +186,8 @@ Endpoint tipici in locale:
 - `http://127.0.0.1:8000/admin-portale/` → pannello admin
 - `http://127.0.0.1:8000/admin-portale/branding/` - favicon e identità visiva del portale (ICO/PNG/SVG, aggiornamento immediato su tutte le pagine)
 - `http://127.0.0.1:8000/admin-portale/login-config/` - titolo, logo, banner e SSO della pagina di login
+- `http://127.0.0.1:8000/admin-portale/accessi/` - accessi semplici: un toggle per modulo sincronizza legacy ACL, grant canonici v2 e menu ruolo
+- `http://127.0.0.1:8000/admin-portale/gestione-accessi/` - dettaglio legacy storico per modulo/azione
 - `http://127.0.0.1:8000/admin-portale/navigation-builder/` - builder navigazione con vista visuale drag&drop orizzontale (scroll laterale) + editor tabellare completo, con toggle modalita avanzata per slot `Sidebar Dedicated`
 - `http://127.0.0.1:8000/admin-portale/acl-canonico/` - gestione permission code / binding / grant
 - `http://127.0.0.1:8000/admin-portale/acl-route-coverage/` - report copertura route ACL con filtri e export CSV
@@ -179,6 +197,8 @@ Endpoint tipici in locale:
 - `http://127.0.0.1:8000/dpi/` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â dispositivi protezione individuale
 - `http://127.0.0.1:8000/procedure-refresh/` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â presa visione procedure
 - `http://127.0.0.1:8000/admin-portale/hub/` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â hub strumenti interni
+
+Nota assets: la dashboard modulo risponde su `/assets/`, mentre la lista inventario canonica e `/assets/lista/`; i vecchi link filtrati come `/assets/?asset_type=FIREWALL&rows=25` vengono reindirizzati automaticamente alla lista.
 
 ## Configurazione ambienti
 
@@ -262,7 +282,7 @@ I nuovi upload usano storage privato e il download passa da una view Django aute
 
 Per il flusso manuale e il troubleshooting: [deployment/README_DEPLOY_IIS_WINDOWS.md](deployment/README_DEPLOY_IIS_WINDOWS.md)
 
-Prima di creare lo zip, `deployment/scripts/package-release.ps1` esegue `tools/release_guard.ps1` e blocca il packaging se trova drift su versioni, documentazione canonica, fallback di versione, `SetupWizard.exe` o smoke ACL non distruttivo. Il freshness check del wizard segue le regole condivise in `deployment/setup_wizard_bundle_rules.json`, quindi ignora i file test-only esclusi dal bundle (`tests.py`, `test_*.py`, `tests/`, `conftest.py`).
+Prima di creare lo zip, `deployment/scripts/package-release.ps1` verifica `deployment/dist/SetupWizard.exe` usando le stesse regole di bundle condivise in `deployment/setup_wizard_bundle_rules.json`; se l'exe manca o e obsoleto rispetto ai file runtime davvero inclusi, lo rigenera automaticamente con PyInstaller e solo dopo esegue `tools/release_guard.ps1`. Il controllo continua a ignorare i file test-only esclusi dal bundle (`tests.py`, `test_*.py`, `tests/`, `conftest.py`) e blocca il packaging solo se restano drift su versioni, documentazione canonica o smoke ACL non distruttivo.
 Nei deploy `test` e `prod`, i flussi supportati eseguono anche `python manage.py allinea_tipo_assenza_flessibilita` subito dopo `migrate`, cosÃƒÆ’Ã‚Â¬ `CK_assenze_tipo` resta allineato a `FlessibilitÃƒÆ’Ã‚Â ` prima dell'attivazione della release; se il database non contiene la tabella legacy `assenze`, il comando termina in no-op senza rompere il setup. I flussi supportati verificano inoltre che `collectstatic` abbia realmente prodotto `static\core\css\theme.css` e `static\monitoring\css\monitoring.css`.
 
 ### Post-deploy (obbligatorio)

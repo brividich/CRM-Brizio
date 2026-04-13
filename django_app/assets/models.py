@@ -355,6 +355,7 @@ class AssetDetailSectionLayout(models.Model):
     SECTION_MAINTENANCE = "MAINTENANCE"
     SECTION_TICKETS = "TICKETS"
     SECTION_PROFILE = "PROFILE"
+    SECTION_LICENSES = "LICENSES"
     SECTION_PERIODIC = "PERIODIC"
     SECTION_QR = "QR"
     SECTION_SHAREPOINT = "SHAREPOINT"
@@ -368,7 +369,8 @@ class AssetDetailSectionLayout(models.Model):
         (SECTION_MAINTENANCE, "Registro manutenzione"),
         (SECTION_TICKETS, "Ticket collegati"),
         (SECTION_PROFILE, "Profilo asset"),
-        (SECTION_PERIODIC, "Verifiche periodiche"),
+        (SECTION_LICENSES, "Licenze software"),
+        (SECTION_PERIODIC, "Manutenzione periodica"),
         (SECTION_QR, "QR asset"),
         (SECTION_SHAREPOINT, "Archivio SharePoint"),
         (SECTION_QUICK_ACTIONS, "Azioni rapide"),
@@ -980,6 +982,95 @@ class AssistanceContract(models.Model):
             raise ValidationError({"document": "Il documento selezionato appartiene a un fornitore diverso."})
 
 
+class SoftwareLicense(models.Model):
+    CATEGORY_SOFTWARE = "SOFTWARE"
+    CATEGORY_ANTIVIRUS = "ANTIVIRUS"
+    CATEGORY_OFFICE = "OFFICE"
+    CATEGORY_CHOICES = [
+        (CATEGORY_SOFTWARE, "Software"),
+        (CATEGORY_ANTIVIRUS, "Antivirus"),
+        (CATEGORY_OFFICE, "Office"),
+    ]
+
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default=CATEGORY_SOFTWARE, db_index=True)
+    vendor = models.CharField(max_length=120, blank=True, default="")
+    product_name = models.CharField(max_length=200)
+    edition = models.CharField(max_length=120, blank=True, default="")
+    license_reference = models.CharField(max_length=120, blank=True, default="")
+    account_email = models.CharField(max_length=200, blank=True, default="")
+    asset = models.ForeignKey(
+        Asset,
+        on_delete=models.SET_NULL,
+        related_name="software_licenses",
+        null=True,
+        blank=True,
+    )
+    assigned_anagrafica_id = models.IntegerField(null=True, blank=True, db_index=True)
+    assigned_legacy_user_id = models.IntegerField(null=True, blank=True, db_index=True)
+    assigned_to_display = models.CharField(max_length=200, blank=True, default="")
+    assigned_reparto = models.CharField(max_length=120, blank=True, default="")
+    seats_total = models.PositiveIntegerField(null=True, blank=True)
+    seats_used = models.PositiveIntegerField(default=1)
+    purchase_date = models.DateField(null=True, blank=True)
+    renewal_date = models.DateField(null=True, blank=True)
+    expiry_date = models.DateField(null=True, blank=True, db_index=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    auto_renew = models.BooleanField(default=False)
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["category", "vendor", "product_name", "id"]
+        verbose_name = "Licenza software"
+        verbose_name_plural = "Licenze software"
+
+    def __str__(self) -> str:
+        label = " - ".join(part for part in [self.product_name, self.edition] if part)
+        return label or self.license_reference or f"Licenza #{self.pk or 'new'}"
+
+    @property
+    def assignment_scope(self) -> str:
+        if self.asset_id:
+            return "asset"
+        if self.assigned_anagrafica_id or self.assigned_legacy_user_id:
+            return "user"
+        return "unassigned"
+
+    @property
+    def assignment_label(self) -> str:
+        if self.asset_id and self.asset:
+            return f"{self.asset.asset_tag} - {self.asset.name}"
+        return self.assigned_to_display or "Da assegnare"
+
+    def clean(self):
+        self.vendor = (self.vendor or "").strip()
+        self.product_name = (self.product_name or "").strip()
+        self.edition = (self.edition or "").strip()
+        self.license_reference = (self.license_reference or "").strip()
+        self.account_email = (self.account_email or "").strip()
+        self.assigned_to_display = (self.assigned_to_display or "").strip()
+        self.assigned_reparto = (self.assigned_reparto or "").strip()
+        self.notes = (self.notes or "").strip()
+
+        if not self.product_name:
+            raise ValidationError({"product_name": "Inserisci il nome del prodotto o della licenza."})
+        if self.asset_id and (self.assigned_anagrafica_id or self.assigned_legacy_user_id):
+            raise ValidationError(
+                {"assigned_to_display": "Assegna la licenza a un asset oppure a un dipendente, non entrambi."}
+            )
+        if (
+            self.assigned_legacy_user_id
+            and self.assigned_anagrafica_id is None
+            and not self.assigned_to_display
+        ):
+            raise ValidationError({"assigned_to_display": "Completa il nominativo del dipendente assegnatario."})
+        if self.seats_total is not None and self.seats_used > self.seats_total:
+            raise ValidationError({"seats_used": "I posti utilizzati non possono superare i posti acquistati."})
+        if self.expiry_date and self.renewal_date and self.renewal_date > self.expiry_date:
+            raise ValidationError({"renewal_date": "Il rinnovo non puo essere successivo alla scadenza attuale."})
+
+
 class WorkMachine(models.Model):
     asset = models.OneToOneField(Asset, on_delete=models.CASCADE, related_name="work_machine")
     source_key = models.CharField(max_length=64, unique=True, db_index=True)
@@ -1043,8 +1134,8 @@ class PeriodicVerification(models.Model):
 
     class Meta:
         ordering = ["name", "id"]
-        verbose_name = "Verifica periodica"
-        verbose_name_plural = "Verifiche periodiche"
+        verbose_name = "Manutenzione periodica"
+        verbose_name_plural = "Manutenzioni periodiche"
 
     def __str__(self) -> str:
         return self.name
@@ -1478,6 +1569,14 @@ class WorkOrder(models.Model):
         blank=True,
         related_name="workorders",
     )
+    ticket = models.ForeignKey(
+        "tickets.Ticket",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="workorders_generati",
+        help_text="Ticket manutenzione che ha originato questo OdL (opzionale)",
+    )
     covered_by_contract = models.BooleanField(default=False, db_index=True)
     kind = models.CharField(max_length=20, choices=KIND_CHOICES, default=KIND_OTHER)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_OPEN)
@@ -1872,3 +1971,52 @@ class AssetHeaderTool(models.Model):
 
     def __str__(self) -> str:
         return f"{self.label} ({self.code})"
+
+
+class AssetDashboardConfig(models.Model):
+    """Configurazione widget dashboard per utente nel modulo Assets."""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="asset_dashboard_config",
+    )
+    # Lista ordinata di codici widget abilitati (JSON array di stringhe)
+    enabled_widgets = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Configurazione dashboard asset"
+        verbose_name_plural = "Configurazioni dashboard asset"
+
+    def __str__(self) -> str:
+        return f"DashboardConfig [{self.user}]"
+
+    # Widget disponibili con ordine di default
+    DEFAULT_WIDGETS: list[str] = [
+        "totale_asset",
+        "asset_in_uso",
+        "asset_in_riparazione",
+        "scadenze_scadute",
+        "scadenze_30gg",
+        "scadenze_90gg",
+        "wo_aperte",
+        "wo_chiuse_mese",
+        "verifiche_scadute",
+        "verifiche_30gg",
+        "asset_per_stato",
+        "asset_per_categoria",
+    ]
+
+    def get_enabled_widgets(self) -> list[str]:
+        saved = self.enabled_widgets
+        if not saved or not isinstance(saved, list):
+            return list(self.DEFAULT_WIDGETS)
+        # Mantieni solo widget validi nell'ordine salvato, aggiungi nuovi in coda
+        valid = set(self.DEFAULT_WIDGETS)
+        result = [w for w in saved if w in valid]
+        for w in self.DEFAULT_WIDGETS:
+            if w not in result:
+                result.append(w)
+        return result

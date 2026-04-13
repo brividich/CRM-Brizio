@@ -165,6 +165,70 @@
     </div>
     {% endif %}
 
+    {% if onboarding %}
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Informazioni di contatto</div>
+      </div>
+      <div class="card-body">
+        <div style="display:flex;flex-direction:column;gap:10px;">
+
+          {# Email modificabile #}
+          <div class="activity-item" style="align-items:flex-start;">
+            <div class="act-dot blue"></div>
+            <div style="flex:1;">
+              <div class="act-time">Email di contatto</div>
+              <div id="onb-email-display" style="display:flex;align-items:center;gap:8px;margin-top:2px;">
+                <span class="act-text" id="onb-email-val">{{ onboarding.email_contatto|default:"—" }}</span>
+                <button type="button" onclick="onbEmailEdit()" style="font-size:12px;color:var(--color-accent,#3b82f6);background:none;border:none;cursor:pointer;padding:0;">Modifica</button>
+              </div>
+              <div id="onb-email-edit" style="display:none;margin-top:6px;">
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <input type="email" id="onb-email-input" value="{{ onboarding.email_contatto|default:'' }}"
+                         placeholder="la-tua@email.com"
+                         style="padding:.4rem .7rem;border:1.5px solid var(--color-border,#e2e8f0);border-radius:6px;font-size:.9rem;width:240px;">
+                  <button type="button" onclick="onbEmailSave()" class="alert-btn" style="padding:.35rem .85rem;">Salva</button>
+                  <button type="button" onclick="onbEmailCancel()" style="font-size:12px;color:var(--color-muted,#94a3b8);background:none;border:none;cursor:pointer;">Annulla</button>
+                </div>
+                <div id="onb-email-error" style="display:none;font-size:12px;color:#dc2626;margin-top:4px;"></div>
+              </div>
+            </div>
+          </div>
+
+          {# Cellulare read-only #}
+          {% if onboarding.cellulare_contatto %}
+          <div class="activity-item">
+            <div class="act-dot green"></div>
+            <div>
+              <div class="act-time">Cellulare</div>
+              <div class="act-text">{{ onboarding.cellulare_contatto }}</div>
+            </div>
+          </div>
+          {% endif %}
+
+          {# Preferenze notifiche read-only — onboarding_notifiche è lista di (label, abilitato) #}
+          {% if onboarding_notifiche %}
+          <div class="activity-item" style="align-items:flex-start;">
+            <div class="act-dot"></div>
+            <div>
+              <div class="act-time" style="margin-bottom:6px;">Notifiche via email</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                {% for label, abilitato in onboarding_notifiche %}
+                  <span style="font-size:12px;padding:2px 10px;border-radius:999px;
+                    background:{% if abilitato %}#dcfce7{% else %}#f1f5f9{% endif %};
+                    color:{% if abilitato %}#16a34a{% else %}#94a3b8{% endif %};">
+                    {% if abilitato %}&#10003;{% else %}&ndash;{% endif %} {{ label }}
+                  </span>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     <div class="card">
       <div class="card-head">
         <div class="card-title">Sicurezza</div>
@@ -237,4 +301,51 @@
       </div>
     </div>
   </div>
+
+{% if onboarding %}
+<script>
+(function () {
+  function onbEmailEdit() {
+    document.getElementById('onb-email-display').style.display = 'none';
+    document.getElementById('onb-email-edit').style.display = 'block';
+    document.getElementById('onb-email-input').focus();
+  }
+  function onbEmailCancel() {
+    document.getElementById('onb-email-edit').style.display = 'none';
+    document.getElementById('onb-email-display').style.display = 'flex';
+    document.getElementById('onb-email-error').style.display = 'none';
+  }
+  async function onbEmailSave() {
+    var email = document.getElementById('onb-email-input').value.trim();
+    var errEl = document.getElementById('onb-email-error');
+    errEl.style.display = 'none';
+    try {
+      var csrf = document.cookie.match(/csrftoken=([^;]+)/);
+      var resp = await fetch("{% url 'api_onboarding_email_save' %}", {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrf ? csrf[1] : '',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'email_contatto=' + encodeURIComponent(email),
+      });
+      var data = await window.portalReadJsonResponse(resp);
+      if (data && data.ok) {
+        document.getElementById('onb-email-val').textContent = email || '—';
+        onbEmailCancel();
+      } else {
+        errEl.textContent = 'Indirizzo email non valido.';
+        errEl.style.display = 'block';
+      }
+    } catch (e) {
+      errEl.textContent = 'Errore: ' + e.message;
+      errEl.style.display = 'block';
+    }
+  }
+  window.onbEmailEdit = onbEmailEdit;
+  window.onbEmailCancel = onbEmailCancel;
+  window.onbEmailSave = onbEmailSave;
+})();
+</script>
+{% endif %}
 {% endblock %}

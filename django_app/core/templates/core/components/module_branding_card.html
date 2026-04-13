@@ -1,0 +1,56 @@
+<section class="ms-card">
+  <div class="ms-card-head">
+    <div class="ms-card-title-wrap">
+      <h2 class="ms-card-title">Branding modulo</h2>
+      <p class="ms-card-subtitle">Nome e logo del modulo usati nelle intestazioni dedicate e nella navigazione quando disponibile.</p>
+    </div>
+  </div>
+  <div class="ms-card-body">
+    <div class="ms-brand-preview">
+      <span class="ms-brand-mark">
+        {% if module_branding_logo_url %}
+          <img src="{{ module_branding_logo_url }}" alt="Logo {{ module_branding_display_label }}">
+        {% else %}
+          {{ module_branding_display_label|default:module_branding_default_label|first|upper }}
+        {% endif %}
+      </span>
+      <div class="ms-brand-copy">
+        <div class="ms-brand-name">{{ module_branding_display_label|default:module_branding_default_label }}</div>
+        <div class="ms-brand-note">Puoi personalizzare il nome mostrato e il logo del singolo modulo senza toccare il branding globale del portale.</div>
+        {% if module_branding_logo_url %}
+          <div class="ms-brand-url">{{ module_branding_logo_url }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" class="ms-field-grid">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_module_branding">
+      <div class="ms-field">
+        <label for="branding_display_label_{{ module_branding_key }}">Nome modulo</label>
+        <input id="branding_display_label_{{ module_branding_key }}" type="text" name="branding_display_label" value="{{ module_branding_display_label }}" placeholder="{{ module_branding_default_label }}">
+        <span class="ms-field-help">Se lasci vuoto il valore torna al nome di default del modulo.</span>
+      </div>
+      <div class="ms-field">
+        <label for="branding_logo_file_{{ module_branding_key }}">Carica logo</label>
+        <input id="branding_logo_file_{{ module_branding_key }}" type="file" name="branding_logo_file" accept="image/png,image/jpeg,image/svg+xml,image/webp">
+        <span class="ms-field-help">Formati supportati: PNG, JPG, SVG e WebP. Dimensione massima: 512 KB.</span>
+      </div>
+      <div class="ms-field">
+        <label for="branding_logo_url_{{ module_branding_key }}">Oppure usa un URL</label>
+        <input id="branding_logo_url_{{ module_branding_key }}" type="url" name="branding_logo_url" value="{{ module_branding_logo_url }}" placeholder="https://...">
+      </div>
+      <div class="ms-form-actions">
+        <button type="submit" class="btn btn-primary">Salva branding</button>
+      </div>
+    </form>
+
+    {% if module_branding_has_logo %}
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="remove_module_branding">
+        <button type="submit" class="btn btn-danger btn-sm">Rimuovi logo</button>
+      </form>
+    {% endif %}
+  </div>
+</section>

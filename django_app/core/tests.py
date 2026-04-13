@@ -31,12 +31,22 @@ from core.context_processors import (
     legacy_nav,
     normalize_sidebar_footer_actions,
 )
+from core.contact_people import coalesce_contact_people, parse_contact_people, primary_contact, serialize_contact_people
 from core.legacy_models import Permesso, Pulsante, Ruolo, UtenteLegacy
 from core.logging_handlers import SafeTimedRotatingFileHandler
 from core.middleware import ACLMiddleware, AdaptiveSecureCookieMiddleware
 from core.legacy_cache import bump_legacy_cache_version
 from core.legacy_utils import ALLOWED_LEGACY_TABLES, legacy_table_columns, sync_django_user_from_legacy
-from core.models import AuditLog, LegacyRedirect, Profile, UserPermissionOverride
+from core.models import (
+    AuditLog,
+    LegacyRedirect,
+    NavigationItem,
+    NavigationRoleAccess,
+    Profile,
+    UserOnboarding,
+    UserPermissionOverride,
+    UserUiPreference,
+)
 from core.session_middleware import SessionIdleTimeoutMiddleware
 from core.module_registry import (
     MODULE_DEFINITIONS,
@@ -401,6 +411,42 @@ class ACLLegacyDecisionTests(TestCase):
         self.assertFalse(payload["ok"])
         self.assertEqual(payload["reason"], "forbidden")
         self.assertEqual(payload["error"], "Permessi insufficienti.")
+
+    def test_acl_middleware_allows_notifiche_routes_without_legacy_acl_permission(self):
+        request = self.factory.get("/notifiche/")
+        _attach_session(request)
+        request.user = SimpleNamespace(is_authenticated=True, is_superuser=False, id=889)
+        middleware = ACLMiddleware(lambda req: HttpResponse("ok"))
+
+        with patch("core.models.UserOnboarding.objects.filter") as mocked_onboarding_filter, patch(
+            "core.middleware.get_legacy_user"
+        ) as mocked_get_legacy_user, patch("core.middleware.resolve_acl_access") as mocked_resolve_acl_access:
+            response = middleware(request)
+
+        self.assertEqual(response.status_code, 200)
+        mocked_onboarding_filter.assert_not_called()
+        mocked_get_legacy_user.assert_not_called()
+        mocked_resolve_acl_access.assert_not_called()
+
+    def test_acl_middleware_allows_notifiche_api_routes_without_legacy_acl_permission(self):
+        request = self.factory.post(
+            "/api/notifiche/popup-ack/",
+            HTTP_ACCEPT="application/json",
+            CONTENT_TYPE="application/json",
+        )
+        _attach_session(request)
+        request.user = SimpleNamespace(is_authenticated=True, is_superuser=False, id=890)
+        middleware = ACLMiddleware(lambda req: HttpResponse("ok"))
+
+        with patch("core.models.UserOnboarding.objects.filter") as mocked_onboarding_filter, patch(
+            "core.middleware.get_legacy_user"
+        ) as mocked_get_legacy_user, patch("core.middleware.resolve_acl_access") as mocked_resolve_acl_access:
+            response = middleware(request)
+
+        self.assertEqual(response.status_code, 200)
+        mocked_onboarding_filter.assert_not_called()
+        mocked_get_legacy_user.assert_not_called()
+        mocked_resolve_acl_access.assert_not_called()
 
 
 @override_settings(
@@ -1090,6 +1136,10 @@ class ModuleBrandingRegistryTests(TestCase):
             chiave="module_branding.assets.dashboard_label",
             valore="Novicrom Assets Dashboard",
         )
+        SiteConfig.objects.create(
+            chiave="module_branding.assets.logo_url",
+            valore="/media/module_branding/assets/logo.svg",
+        )
 
         branding = get_module_branding("assets")
 
@@ -1100,6 +1150,7 @@ class ModuleBrandingRegistryTests(TestCase):
         self.assertEqual(branding.menu_label, "Novicrom Assets Menu")
         self.assertEqual(branding.short_label, "Assets")
         self.assertEqual(branding.dashboard_label, "Novicrom Assets Dashboard")
+        self.assertEqual(branding.logo_url, "/media/module_branding/assets/logo.svg")
 
     @override_settings(
         MODULE_BRANDING={
@@ -1113,6 +1164,42 @@ class ModuleBrandingRegistryTests(TestCase):
 
         self.assertEqual(mapping.get("assets"), "Novicrom Assets")
         self.assertEqual(resolve_module_label("assets", fallback="Asset", surface="dashboard"), "Novicrom Assets")
+
+
+class ContactPeopleTests(SimpleTestCase):
+    def test_parse_contact_people_accepts_pipe_and_angle_brackets(self):
+        people = parse_contact_people(
+            "Mario Rossi | mario.rossi@example.com\nLucia Bianchi <lucia.bianchi@example.com>\nsolo@example.com"
+        )
+
+        self.assertEqual(
+            people,
+            [
+                {"nome": "Mario Rossi", "email": "mario.rossi@example.com"},
+                {"nome": "Lucia Bianchi", "email": "lucia.bianchi@example.com"},
+                {"nome": "", "email": "solo@example.com"},
+            ],
+        )
+
+    def test_coalesce_and_primary_contact_fall_back_to_legacy_fields(self):
+        contacts = coalesce_contact_people([], fallback_name="Mario Rossi", fallback_email="mario@example.com")
+
+        self.assertEqual(contacts, [{"nome": "Mario Rossi", "email": "mario@example.com"}])
+        self.assertEqual(
+            primary_contact([], fallback_name="Mario Rossi", fallback_email="mario@example.com"),
+            {"nome": "Mario Rossi", "email": "mario@example.com"},
+        )
+
+    def test_serialize_contact_people_uses_multiline_format(self):
+        self.assertEqual(
+            serialize_contact_people(
+                [
+                    {"nome": "Mario Rossi", "email": "mario@example.com"},
+                    {"nome": "Lucia Bianchi", "email": ""},
+                ]
+            ),
+            "Mario Rossi | mario@example.com\nLucia Bianchi",
+        )
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -1208,6 +1295,49 @@ class NavigationRegistryBrandingTests(TestCase):
 
         self.assertEqual(len(sicurezza_nodes), 1)
         self.assertEqual(sicurezza_nodes[0].category_icon, "🛡️")
+
+
+class ModuleSettingsRouteTests(TestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = get_user_model().objects.create_superuser(
+            username="module-settings-admin",
+            email="module-settings@test.local",
+            password="pass12345",
+        )
+        self.client.force_login(self.user)
+
+    def test_canonical_module_settings_routes(self):
+        self.assertEqual(reverse("diario_preposto:impostazioni"), "/diario-preposto/impostazioni/")
+        self.assertEqual(reverse("rilevazione_incidenti:impostazioni"), "/rilevazione-incidenti/impostazioni/")
+        self.assertEqual(reverse("timbri:configurazione"), "/timbri/impostazioni/")
+        self.assertEqual(reverse("rentri_impostazioni"), "/rentri/impostazioni/")
+        self.assertEqual(reverse("assenze_gestione"), "/assenze/impostazioni/")
+        self.assertEqual(reverse("notizie_gestione_admin"), "/notizie/impostazioni/")
+        self.assertEqual(reverse("procedure_refresh:admin_dashboard"), "/procedure-refresh/impostazioni/")
+        self.assertEqual(reverse("tasks:impostazioni"), "/tasks/impostazioni/")
+        self.assertEqual(reverse("assets:gestione_admin"), "/assets/impostazioni/")
+
+    def test_legacy_settings_routes_redirect_to_canonical_paths(self):
+        response = self.client.get("/timbri/configurazione/")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/timbri/impostazioni/")
+
+        response = self.client.get("/notizie/gestione/")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/notizie/impostazioni/")
+
+        response = self.client.get("/assets/gestione/")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/assets/impostazioni/")
+
+        response = self.client.get("/assenze/gestione_assenze")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/assenze/impostazioni/")
+
+        response = self.client.get("/procedure-refresh/admin/")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/procedure-refresh/impostazioni/")
 
 
 @override_settings(SECURE_SSL_REDIRECT=False)
@@ -1463,6 +1593,131 @@ class ModuleRegistryStructureTests(TestCase):
         for code in disabled_codes:
             # Presenza o assenza sono entrambe accettabili; verifichiamo solo che non lanci eccezioni
             _ = label_map.get(code)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=True, SECURE_SSL_REDIRECT=False)
+class OnboardingWizardTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            username="onboarding.user",
+            password="test-pass-123",
+            email="onboarding.user@example.com",
+        )
+        self.role = Ruolo.objects.create(id=101, nome="Operatore Onboarding")
+        self.legacy_user = UtenteLegacy.objects.create(
+            id=501,
+            nome="Utente Onboarding",
+            email="onboarding.user@example.com",
+            password="hash",
+            ruolo=self.role.nome,
+            ruolo_id=self.role.id,
+            attivo=True,
+        )
+        Profile.objects.create(
+            user=self.user,
+            legacy_user_id=self.legacy_user.id,
+            legacy_ruolo_id=self.role.id,
+            legacy_ruolo=self.role.nome,
+        )
+        self._grant_legacy_path_access("/profilo/", "profilo")
+        self.client.force_login(self.user)
+
+    def _grant_topbar_module(self, code: str, label: str) -> None:
+        item = NavigationItem.objects.create(
+            code=code,
+            label=label,
+            section="topbar",
+            route_name="dashboard_home",
+            order=10,
+        )
+        NavigationRoleAccess.objects.create(item=item, legacy_role_id=self.role.id, can_view=True)
+
+    def _grant_legacy_path_access(self, path: str, action: str) -> None:
+        Pulsante.objects.create(
+            codice=action,
+            nome_visibile=action.title(),
+            modulo="core",
+            url=path,
+        )
+        Permesso.objects.create(
+            modulo="core",
+            azione=action,
+            ruolo_id=self.role.id,
+            consentito=1,
+            can_view=1,
+        )
+
+    def test_onboarding_get_shows_only_notification_options_for_visible_modules(self):
+        self._grant_topbar_module("assenze", "Assenze")
+
+        response = self.client.get(reverse("onboarding_wizard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Preferenze interfaccia")
+        visible_options = response.context["visible_notification_options"]
+        self.assertEqual([option["key"] for option in visible_options], ["assenze"])
+        self.assertContains(response, "Assenze e presenze")
+        self.assertNotContains(response, "Comunicazioni aziendali")
+        self.assertNotContains(response, "Ticket e segnalazioni")
+
+    def test_onboarding_get_is_accessible_without_legacy_acl_permission(self):
+        response = self.client.get(reverse("onboarding_wizard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Completa il setup iniziale del tuo profilo.")
+
+    def test_onboarding_post_saves_ui_preferences_and_disables_hidden_notification_modules(self):
+        self._grant_topbar_module("assenze", "Assenze")
+
+        response = self.client.post(
+            reverse("onboarding_wizard"),
+            {
+                "email_contatto": "contatto@example.com",
+                "cellulare_contatto": "+39 333 1234567",
+                "nav_mode": "side",
+                "font_scale": "large",
+                "sidebar_collapsed": "1",
+                "sidebar_footer_actions": ["car"],
+                "notifiche_assenze": "1",
+            },
+        )
+
+        self.assertRedirects(response, reverse("dashboard_home"), fetch_redirect_response=False)
+
+        onboarding = UserOnboarding.objects.get(user=self.user)
+        self.assertTrue(onboarding.completed)
+        self.assertEqual(onboarding.email_contatto, "contatto@example.com")
+        self.assertEqual(onboarding.notifiche_config.get("assenze"), True)
+        self.assertEqual(onboarding.notifiche_config.get("comunicazioni"), False)
+        self.assertEqual(onboarding.notifiche_config.get("scadenzari"), False)
+        self.assertEqual(onboarding.notifiche_config.get("ticket"), False)
+
+        ui_prefs = UserUiPreference.objects.get(user=self.user)
+        self.assertEqual(ui_prefs.nav_mode, "side")
+        self.assertEqual(ui_prefs.font_scale, "large")
+        self.assertTrue(ui_prefs.sidebar_collapsed)
+        self.assertEqual(ui_prefs.sidebar_footer_actions, ["car"])
+
+    def test_profile_summary_keeps_only_notification_options_for_current_role(self):
+        self._grant_topbar_module("assenze", "Assenze")
+        UserOnboarding.objects.create(
+            user=self.user,
+            completed=True,
+            email_contatto="contatto@example.com",
+            notifiche_config={
+                "assenze": True,
+                "comunicazioni": False,
+                "scadenzari": False,
+                "ticket": False,
+            },
+        )
+
+        response = self.client.get(reverse("profilo"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["onboarding_notifiche"], [("Assenze e presenze", True)])
 
 
 class SidebarFooterActionsTests(SimpleTestCase):

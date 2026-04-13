@@ -20,6 +20,7 @@ from core.acl import check_permesso, user_can_modulo_action
 from core.audit import log_action
 from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_auth_enabled
 from core.models import AuditLog
+from core.module_branding import get_module_branding_context, handle_module_branding_post
 
 from .forms import NotiziaAllegatoFormSet, NotiziaAudienceFormSet, NotiziaForm
 from .models import (
@@ -570,7 +571,13 @@ def dashboard(request):
     if not _can_manage_notizie_dashboard(request):
         return _forbidden_response(request)
 
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     can_edit_dashboard_acl = _is_admin_or_hr(request)
+    can_manage_settings = bool(
+        getattr(request.user, "is_superuser", False)
+        or (legacy_user and is_legacy_admin(legacy_user))
+        or user_can_modulo_action(request, "notizie", "admin_notizie")
+    )
     if request.method == "POST" and request.POST.get("action") == "save_dashboard_acl":
         if not can_edit_dashboard_acl:
             return _forbidden_response(request)
@@ -631,7 +638,7 @@ def dashboard(request):
             "filtro_stato": filtro_stato,
             "query": query,
             "can_edit_dashboard_acl": can_edit_dashboard_acl,
-            "can_gestione_admin": user_can_modulo_action(request, "notizie", "admin_notizie"),
+            "can_gestione_admin": can_manage_settings,
             "dashboard_acl_roles": _dashboard_acl_roles(),
         },
     )
@@ -921,6 +928,42 @@ def gestione_admin(request):
     from django.db.models import Count
 
     tab = request.GET.get("tab", "riepilogo")
+    can_edit_dashboard_acl = _is_admin_or_hr(request)
+
+    if request.method == "POST":
+        branding_response = handle_module_branding_post(
+            request,
+            module_key="notizie",
+            redirect_to=request.get_full_path() or reverse("notizie_gestione_admin"),
+            audit_module="notizie",
+            fallback_label="Notizie",
+        )
+        if branding_response is not None:
+            return branding_response
+
+        if request.POST.get("action") == "save_dashboard_acl":
+            if not can_edit_dashboard_acl:
+                return _forbidden_response(request)
+
+            selected_role_ids: set[int] = set()
+            for raw in request.POST.getlist("role_ids"):
+                try:
+                    selected_role_ids.add(int(raw))
+                except (TypeError, ValueError):
+                    continue
+
+            total, updated = _save_dashboard_acl_roles(selected_role_ids)
+            if total == 0 and updated == 0:
+                messages.error(
+                    request,
+                    "Impossibile aggiornare i permessi ruoli da questa istanza (tabella legacy non disponibile).",
+                )
+            else:
+                messages.success(
+                    request,
+                    f"Permessi dashboard notizie aggiornati su {updated} ruoli (totale ruoli: {total}).",
+                )
+            return redirect(request.get_full_path() or reverse("notizie_gestione_admin"))
 
     # --- Statistiche ---
     total = Notizia.objects.count()
@@ -958,7 +1001,7 @@ def gestione_admin(request):
         request,
         "notizie/pages/gestione_admin.html",
         {
-            "page_title": "Gestione Notizie",
+            "page_title": "Impostazioni Notizie",
             "tab": tab,
             # stats
             "total": total,
@@ -976,5 +1019,8 @@ def gestione_admin(request):
             "stati": stati,
             # log
             "audit_entries": audit_entries,
+            "can_edit_dashboard_acl": can_edit_dashboard_acl,
+            "dashboard_acl_roles": _dashboard_acl_roles(),
+            **get_module_branding_context("notizie", fallback_label="Notizie"),
         },
     )

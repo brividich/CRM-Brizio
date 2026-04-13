@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from decimal import Decimal
 import io
 import json
@@ -15,8 +16,10 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from core.models import UserOnboarding
 from tasks.models import Task
 
+from .forms import AutomationActionForm
 from .models import (
     AutomationAction,
     AutomationActionLog,
@@ -65,7 +68,23 @@ User = get_user_model()
 class SourceRegistryTests(SimpleTestCase):
     def test_registered_sources_include_expected_codes(self):
         sources = get_registered_sources()
-        self.assertEqual([source["code"] for source in sources], ["assenze", "tasks", "assets", "tickets", "anomalie"])
+        self.assertEqual(
+            [source["code"] for source in sources],
+            [
+                "assenze",
+                "tasks",
+                "assets",
+                "tickets",
+                "anomalie",
+                "notizie",
+                "diario_preposto",
+                "rilevazione_incidenti",
+                "rentri",
+                "dpi",
+                "procedure_campagne",
+                "procedure_assegnazioni",
+            ],
+        )
 
     def test_get_source_definition_by_code(self):
         source = get_source_definition("tickets")
@@ -78,10 +97,17 @@ class SourceRegistryTests(SimpleTestCase):
             get_source_choices(),
             [
                 ("assenze", "Assenze"),
-                ("tasks", "Tasks"),
+                ("tasks", "Tasks (KICK-OFF)"),
                 ("assets", "Assets"),
                 ("tickets", "Tickets"),
                 ("anomalie", "Anomalie"),
+                ("notizie", "Notizie"),
+                ("diario_preposto", "Diario Preposto"),
+                ("rilevazione_incidenti", "Incidenti / Sicurezza"),
+                ("rentri", "RENTRI / Rifiuti"),
+                ("dpi", "DPI"),
+                ("procedure_campagne", "Procedure - Campagne"),
+                ("procedure_assegnazioni", "Procedure - Assegnazioni"),
             ],
         )
 
@@ -133,10 +159,12 @@ class SourceRegistryFieldFilterTests(SimpleTestCase):
         self.assertEqual(get_action_mapping_fields("missing"), [])
 
     def test_placeholder_examples_are_generated_from_template_fields(self):
-        self.assertEqual(
-            build_placeholder_examples("tasks"),
-            ["{id}", "{title}", "{status}", "{priority}", "{assigned_to_id}", "{project_id}", "{due_date}"],
-        )
+        task_placeholders = build_placeholder_examples("tasks")
+        self.assertIn("{id}", task_placeholders)
+        self.assertIn("{title}", task_placeholders)
+        self.assertIn("{status}", task_placeholders)
+        self.assertIn("{next_step_text}", task_placeholders)
+        self.assertIn("{created_at}", task_placeholders)
         self.assertIn("{capo_email}", build_placeholder_examples("assenze"))
         self.assertIn("{dipendente_email}", build_placeholder_examples("assenze"))
         self.assertIn("{salta_approvazione}", build_placeholder_examples("assenze"))
@@ -165,6 +193,7 @@ class AutomazioniAdminPageTests(TestCase):
             email="automazioni@test.local",
             password="pass12345",
         )
+        UserOnboarding.objects.create(user=self.user, completed=True, completed_at=timezone.now())
         self.client.force_login(self.user)
         self.legacy_admin = SimpleNamespace(id=1, ruolo_id=1, nome="Admin Automazioni")
 
@@ -226,7 +255,7 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertContains(response, "Assenze")
         self.assertContains(response, "tickets_ticket")
         self.assertIn("sources", response.context)
-        self.assertEqual(len(response.context["sources"]), 5)
+        self.assertEqual(len(response.context["sources"]), 12)
 
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
@@ -381,6 +410,19 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertContains(response, "Stato passa a 2")
         self.assertContains(response, "Escludi malattia")
         self.assertContains(response, "designer-condition-suggestions")
+
+    @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
+    @patch("admin_portale.decorators.get_legacy_user")
+    def test_rule_designer_create_page_exposes_json_script_contexts_as_dicts(self, mock_get_legacy_user, _mock_is_admin):
+        mock_get_legacy_user.return_value = self.legacy_admin
+
+        response = self.client.get(reverse("admin_portale:automazioni_rule_designer_create"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.context["source_fields_json"], dict)
+        self.assertIsInstance(response.context["condition_suggestions_json"], dict)
+        self.assertIsInstance(response.context["action_suggestions_json"], dict)
+        self.assertIn("assenze", response.context["source_fields_json"])
 
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
@@ -589,6 +631,20 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertContains(response, "Contenuti / Colonne disponibili")
         self.assertContains(response, "{dipendente_id}")
         self.assertContains(response, "Campi usabili nei trigger")
+
+    @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
+    @patch("admin_portale.decorators.get_legacy_user")
+    def test_rule_create_page_exposes_source_fields_map_as_dict_for_json_script(self, mock_get_legacy_user, _mock_is_admin):
+        mock_get_legacy_user.return_value = self.legacy_admin
+
+        response = self.client.get(reverse("admin_portale:automazioni_rule_create"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.context["source_fields_json"], dict)
+        self.assertIn("assenze", response.context["source_fields_json"])
+        self.assertIn("tickets", response.context["source_fields_json"])
+        self.assertIn("trigger", response.context["source_fields_json"]["tickets"])
+        self.assertIn("condition", response.context["source_fields_json"]["tickets"])
 
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
@@ -1030,7 +1086,7 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Automazioni - Run Log")
         self.assertContains(response, f"#{matching_run.id}")
-        self.assertNotContains(response, f"#{other_run.id}")
+        self.assertNotContains(response, reverse("admin_portale:automazioni_run_log_detail", args=[other_run.id]))
 
     @patch("automazioni.views.get_queue_event_detail")
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
@@ -2529,6 +2585,229 @@ class AutomationEmailExecutorTests(TestCase):
 
         self.assertEqual(result["status"], AutomationActionLogStatus.ERROR)
         self.assertIn("Indirizzo email non valido", result["result_message"])
+
+
+class AutomationActionFormExtendedTests(TestCase):
+    def test_update_trigger_record_form_accepts_source_fields_and_run_if(self):
+        form = AutomationActionForm(
+            data={
+                "order": "1",
+                "action_type": AutomationActionType.UPDATE_TRIGGER_RECORD,
+                "is_enabled": "on",
+                "description": "Aggiorna record triggerante",
+                "trigger_update_fields_text": "status = DONE\nnext_step_text = Sollecito {id}",
+                "run_if_field_name": "status",
+                "run_if_operator": AutomationConditionOperator.CHANGED,
+                "run_if_expected_value": "",
+                "run_if_value_type": AutomationConditionValueType.STRING,
+                "run_if_compare_with_old": "on",
+                "run_if_negate": "",
+            },
+            source_code="tasks",
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(
+            form._config_json["update_fields"],
+            {"status": "DONE", "next_step_text": "Sollecito {id}"},
+        )
+        self.assertEqual(form._config_json["run_if"]["field_name"], "status")
+        self.assertEqual(form._config_json["run_if"]["operator"], AutomationConditionOperator.CHANGED)
+        self.assertTrue(form._config_json["run_if"]["compare_with_old"])
+
+    def test_update_trigger_record_form_rejects_invalid_source_field(self):
+        form = AutomationActionForm(
+            data={
+                "order": "1",
+                "action_type": AutomationActionType.UPDATE_TRIGGER_RECORD,
+                "is_enabled": "on",
+                "description": "Aggiorna record triggerante",
+                "trigger_update_fields_text": "campo_inesistente = X",
+            },
+            source_code="tasks",
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("trigger_update_fields_text", form.errors)
+
+
+class AutomationExtendedActionExecutorTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="extended-action-user", password="pass12345")
+        self.rule = AutomationRule.objects.create(
+            code="extended-actions-rule",
+            name="Extended actions rule",
+            source_code="tasks",
+            operation_type=AutomationRuleOperationType.UPDATE,
+            trigger_scope=AutomationRuleTriggerScope.ALL_UPDATES,
+        )
+        self.task = Task.objects.create(
+            title="Task runtime",
+            status="TODO",
+            priority="MEDIUM",
+            next_step_text="In attesa",
+            created_by=self.user,
+            assigned_to=self.user,
+        )
+        self.payload = {
+            "id": self.task.id,
+            "title": self.task.title,
+            "status": self.task.status,
+            "priority": self.task.priority,
+            "next_step_text": self.task.next_step_text,
+            "assigned_to_id": self.task.assigned_to_id,
+            "created_by_id": self.task.created_by_id,
+        }
+        self.old_payload = {**self.payload, "status": "OPEN"}
+        self.run_log = AutomationRunLog.objects.create(
+            rule=self.rule,
+            source_code="tasks",
+            operation_type=AutomationRuleOperationType.UPDATE,
+            status=AutomationRunLogStatus.SUCCESS,
+            payload_json=self.payload,
+            old_payload_json=self.old_payload,
+        )
+
+    def test_execute_action_skips_when_run_if_is_not_satisfied(self):
+        action = AutomationAction.objects.create(
+            rule=self.rule,
+            order=1,
+            action_type=AutomationActionType.WRITE_LOG,
+            config_json={
+                "message_template": "Non dovrei partire",
+                "run_if": {
+                    "field_name": "status",
+                    "operator": AutomationConditionOperator.EQUALS,
+                    "expected_value": "DONE",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": False,
+                    "negate": False,
+                },
+            },
+        )
+
+        result = execute_action(action, self.payload, old_payload=self.old_payload, run_log=self.run_log)
+
+        self.assertEqual(result["status"], AutomationActionLogStatus.SKIPPED)
+        self.assertIn("branch non soddisfatto", result["result_message"])
+        self.assertEqual(self.run_log.action_logs.count(), 1)
+        self.assertEqual(self.run_log.action_logs.first().status, AutomationActionLogStatus.SKIPPED)
+
+    def test_update_trigger_record_updates_current_source_row(self):
+        action = AutomationAction.objects.create(
+            rule=self.rule,
+            order=1,
+            action_type=AutomationActionType.UPDATE_TRIGGER_RECORD,
+            config_json={
+                "update_fields": {
+                    "status": "DONE",
+                    "next_step_text": "Sollecito task {id}",
+                }
+            },
+        )
+
+        result = execute_action(
+            action,
+            self.payload,
+            old_payload=self.old_payload,
+            run_log=self.run_log,
+            queue_event={"source_code": "tasks", "source_table": "tasks_task", "source_pk": str(self.task.id), "operation_type": "update"},
+        )
+
+        self.task.refresh_from_db()
+
+        self.assertEqual(result["status"], AutomationActionLogStatus.SUCCESS)
+        self.assertEqual(self.task.status, "DONE")
+        self.assertEqual(self.task.next_step_text, f"Sollecito task {self.task.id}")
+
+    @patch("automazioni.services.requests.request")
+    def test_http_request_executes_and_checks_expected_status(self, mock_request):
+        response = MagicMock()
+        response.status_code = 201
+        response.ok = True
+        response.text = "created"
+        mock_request.return_value = response
+        action = AutomationAction.objects.create(
+            rule=self.rule,
+            order=1,
+            action_type=AutomationActionType.HTTP_REQUEST,
+            config_json={
+                "method": "POST",
+                "url_template": "https://example.local/hooks/tasks/{id}",
+                "headers": {"Content-Type": "application/json", "X-Test": "task-{id}"},
+                "body_template": "{\"id\":\"{id}\",\"status\":\"{status}\"}",
+                "timeout_seconds": 15,
+                "expected_statuses": [200, 201],
+            },
+        )
+
+        result = execute_action(action, self.payload, old_payload=self.old_payload, run_log=self.run_log)
+
+        self.assertEqual(result["status"], AutomationActionLogStatus.SUCCESS)
+        kwargs = mock_request.call_args.kwargs
+        self.assertEqual(kwargs["method"], "POST")
+        self.assertEqual(kwargs["url"], f"https://example.local/hooks/tasks/{self.task.id}")
+        self.assertEqual(kwargs["headers"]["X-Test"], f"task-{self.task.id}")
+        self.assertEqual(kwargs["json"], {"id": str(self.task.id), "status": self.task.status})
+
+    @patch("automazioni.services.requests.request")
+    def test_teams_webhook_posts_message_card(self, mock_request):
+        response = MagicMock()
+        response.status_code = 200
+        response.ok = True
+        response.text = "1"
+        mock_request.return_value = response
+        action = AutomationAction.objects.create(
+            rule=self.rule,
+            order=1,
+            action_type=AutomationActionType.TEAMS_WEBHOOK,
+            config_json={
+                "webhook_url": "https://outlook.office.com/webhook/demo",
+                "title_template": "Task {id}",
+                "summary_template": "Aggiornamento task",
+                "text_template": "Stato: {status}",
+                "theme_color": "00AA55",
+                "facts": {"ID": "{id}", "Priorita": "{priority}"},
+            },
+        )
+
+        result = execute_action(action, self.payload, old_payload=self.old_payload, run_log=self.run_log)
+
+        self.assertEqual(result["status"], AutomationActionLogStatus.SUCCESS)
+        kwargs = mock_request.call_args.kwargs
+        self.assertEqual(kwargs["method"], "POST")
+        self.assertEqual(kwargs["url"], "https://outlook.office.com/webhook/demo")
+        self.assertEqual(kwargs["json"]["title"], f"Task {self.task.id}")
+        self.assertEqual(kwargs["json"]["themeColor"], "00AA55")
+        self.assertEqual(kwargs["json"]["sections"][0]["facts"][0]["value"], str(self.task.id))
+
+    @patch("automazioni.services._schedule_queue_event")
+    def test_delay_schedule_relative_uses_new_units(self, mock_schedule):
+        action = AutomationAction.objects.create(
+            rule=self.rule,
+            order=1,
+            action_type=AutomationActionType.DELAY_SCHEDULE,
+            config_json={
+                "mode": "relative",
+                "value_template": "2",
+                "unit": "hours",
+            },
+        )
+
+        before = timezone.now()
+        result = execute_action(
+            action,
+            self.payload,
+            old_payload=self.old_payload,
+            run_log=self.run_log,
+            queue_event={"source_code": "tasks", "source_table": "tasks_task", "source_pk": str(self.task.id), "operation_type": "update"},
+        )
+
+        self.assertEqual(result["status"], AutomationActionLogStatus.SUCCESS)
+        self.assertTrue(mock_schedule.called)
+        execute_after = mock_schedule.call_args.kwargs["execute_after"]
+        self.assertGreater(execute_after, before + timedelta(hours=1, minutes=50))
+        self.assertLess(execute_after, before + timedelta(hours=2, minutes=10))
 
 
 class AutomationDatabaseExecutorTests(TestCase):

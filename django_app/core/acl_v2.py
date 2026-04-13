@@ -6,7 +6,12 @@ from urllib.parse import urlsplit
 from django.db import DatabaseError
 from django.urls import Resolver404, resolve
 
-from core.acl import check_permesso, diagnose_permesso, normalize_acl_path
+from core.acl import (
+    check_permesso,
+    diagnose_permesso,
+    evaluate_modulo_action_access,
+    normalize_acl_path,
+)
 from core.legacy_utils import is_legacy_admin
 from core.models import (
     PermissionDefinition,
@@ -30,6 +35,10 @@ _STANDARD_PERMISSION_ACTIONS = {
     "import",
     "run",
 }
+_ANOMALIE_MENU_COMPAT_ACTIONS = (
+    ("anomalie", "anomalie_aperte"),
+    ("anomalie", "inserimento_anomalie"),
+)
 PERMISSION_CODE_FORMAT_HINT = (
     "Formato richiesto: modulo.risorsa.azione (solo lowercase e underscore). "
     "Esempi validi: admin_portale.users.view, assets.work_orders.manage."
@@ -199,6 +208,40 @@ def _find_canonical_binding(*, route_name: str, path_norm: str) -> tuple[RoutePe
     return None, ""
 
 
+def _resolve_anomalie_menu_compat_access(*, path_norm: str, legacy_user) -> dict | None:
+    if path_norm != "/anomalie-menu" or legacy_user is None:
+        return None
+
+    matched_actions: list[dict] = []
+    for modulo, azione in _ANOMALIE_MENU_COMPAT_ACTIONS:
+        action_result = evaluate_modulo_action_access(
+            legacy_user=legacy_user,
+            modulo=modulo,
+            azione=azione,
+        )
+        if not bool(action_result.get("allowed", False)):
+            continue
+        matched_actions.append(
+            {
+                "modulo": modulo,
+                "azione": azione,
+                "source": str(action_result.get("source") or ""),
+            }
+        )
+
+    if not matched_actions:
+        return None
+
+    action_labels = ", ".join(str(item["azione"]) for item in matched_actions)
+    return {
+        "matched_actions": matched_actions,
+        "reason": (
+            "Landing '/anomalie-menu' consentita in compatibilita perche il ruolo "
+            f"ha almeno un permesso operativo sul modulo anomalie ({action_labels})."
+        ),
+    }
+
+
 def resolve_acl_access(
     *,
     path: str,
@@ -233,6 +276,7 @@ def resolve_acl_access(
             "effective_level": None,
             "error": "",
         },
+        "compat": None,
         "legacy_fallback": None,
     }
 
@@ -276,6 +320,8 @@ def resolve_acl_access(
         binding = None
         matched_by = ""
 
+    compat_result = _resolve_anomalie_menu_compat_access(path_norm=path_norm, legacy_user=legacy_user)
+
     if binding is not None:
         permission = binding.permission
         result["canonical"]["binding_found"] = True
@@ -289,6 +335,25 @@ def resolve_acl_access(
             }
         )
 
+    if compat_result is not None:
+        result["allowed"] = True
+        result["decision_source"] = "compat_anomalie_menu"
+        result["decision_kind"] = "compat"
+        result["reason"] = str(compat_result.get("reason") or "")
+        result["compat"] = compat_result
+        trace.append(
+            {
+                "step": "compat_anomalie_menu",
+                "result": "allow",
+                "detail": ", ".join(
+                    str(item.get("azione") or "")
+                    for item in (compat_result.get("matched_actions") or [])
+                ),
+            }
+        )
+        return result
+
+    if binding is not None:
         if not bool(permission.is_active):
             result["decision_source"] = "canonical_permission_inactive"
             result["decision_kind"] = "canonical"

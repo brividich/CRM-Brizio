@@ -35,6 +35,14 @@ SFB = 'Helvetica-Bold'
 MONO = 'Courier'
 W, H = A4
 
+def get_project_version():
+    """Legge la versione dalla root del repository."""
+    try:
+        version_file = Path(__file__).parent.parent / "VERSION"
+        return version_file.read_text().strip()
+    except Exception:
+        return "0.9.15"  # Fallback coerente con CLAUDE.md
+
 def make_styles():
     return {
         'h1':   ParagraphStyle('h1',  fontName=SFB, fontSize=22, textColor=GRAY900, spaceAfter=4),
@@ -139,6 +147,8 @@ doc = SimpleDocTemplate(str(out), pagesize=A4,
 story = []
 s = make_styles()
 
+current_version = get_project_version()
+
 # Copertina
 story.append(Spacer(1, 3*cm))
 story.append(Table([['']], colWidths=[W-4*cm], rowHeights=[4],
@@ -153,7 +163,7 @@ story.append(Spacer(1,0.8*cm))
 story.append(Table([['']], colWidths=[W-4*cm], rowHeights=[1],
     style=TableStyle([('BACKGROUND',(0,0),(0,0),GRAY200)])))
 story.append(Spacer(1,0.5*cm))
-meta = [['Versione','0.8.3'],['Data',datetime.now().strftime('%d/%m/%Y')],
+meta = [['Versione', current_version],['Data',datetime.now().strftime('%d/%m/%Y')],
         ['Prodotto','Portale Novicrom'],['Azienda','Costruzioni Novicrom SRL']]
 mt = Table(meta, colWidths=[4.5*cm,10*cm])
 mt.setStyle(TableStyle([('FONTNAME',(0,0),(-1,-1),SF),('FONTSIZE',(0,0),(-1,-1),9),
@@ -413,7 +423,7 @@ story.append(Spacer(1,1*cm))
 story.append(HRFlowable(width='100%',thickness=0.5,color=GRAY200))
 story.append(Spacer(1,0.2*cm))
 story.append(Paragraph(
-    'Portale Novicrom  |  Gestione Release  |  Costruzioni Novicrom SRL  |  v0.8.3  |  2026-03-21',
+    f'Portale Novicrom  |  Gestione Release  |  Costruzioni Novicrom SRL  |  v{current_version}  |  {datetime.now().strftime("%d/%m/%Y")}',
     s['foot']))
 
 doc.build(story)

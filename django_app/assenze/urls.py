@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import RedirectView
 
 from . import views
 
@@ -6,7 +7,8 @@ from . import views
 urlpatterns = [
     path("assenze/", views.menu, name="assenze_menu"),
     path("assenze/richiesta_assenze", views.richiesta_assenze, name="assenze_richiesta"),
-    path("assenze/gestione_assenze", views.gestione_assenze, name="assenze_gestione"),
+    path("assenze/impostazioni/", views.gestione_assenze, name="assenze_gestione"),
+    path("assenze/gestione_assenze", RedirectView.as_view(pattern_name="assenze_gestione", permanent=False)),
     path("assenze/calendario", views.calendario, name="assenze_calendario"),
     path("assenze/api/eventi", views.api_eventi, name="assenze_api_eventi"),
     path("assenze/api/eventi/colors", views.api_eventi_colors, name="assenze_api_eventi_colors"),

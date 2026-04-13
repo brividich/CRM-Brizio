@@ -180,6 +180,15 @@
 .tkt-urgente-row.tkt-selected td { background:#ffe4e4 !important; }
 .tkt-empty { padding:32px; text-align:center; color:#94a3b8; font-size:13px; }
 
+/* Inline prendi in carico */
+.tkt-btn-pic {
+  padding:4px 10px; border-radius:8px; font-size:11px; font-weight:700;
+  background:#fef3c7; color:#92400e; border:1px solid #fcd34d;
+  cursor:pointer; white-space:nowrap; transition:all .15s;
+}
+.tkt-btn-pic:hover { background:#fde68a; border-color:#f59e0b; }
+.tkt-btn-pic:disabled { opacity:.5; cursor:not-allowed; }
+
 /* ── Selezione / Bulk ──────────────────────────────────────────────── */
 .tkt-cb-col { width:36px; padding-left:14px !important; padding-right:4px !important; }
 .tkt-cb { width:16px; height:16px; cursor:pointer; accent-color:#0369a1; }
@@ -435,6 +444,7 @@
             <th>Richiedente</th>
             <th>Assegnato a</th>
             <th>Apertura</th>
+            <th>Azioni</th>
             <th>Report</th>
           </tr>
         </thead>
@@ -458,6 +468,7 @@
             <td style="font-size:12px;">{{ t.richiedente_nome }}</td>
             <td style="font-size:12px;">{{ t.assegnato_a|default:"—" }}</td>
             <td style="font-size:12px;white-space:nowrap;">{{ t.created_at|date:"d/m/Y H:i" }}</td>
+            <td>{% if t.stato == 'APERTA' %}<button type="button" class="tkt-btn-pic" onclick="prendiInCaricoInline({{ t.pk }},this)">Prendi in carico</button>{% else %}—{% endif %}</td>
             <td><a href="{% url 'tickets:pdf' t.pk %}" target="_blank" rel="noopener" class="tkt-pdf-link">PDF</a></td>
           </tr>
           {% endfor %}
@@ -494,6 +505,7 @@
             <th>Richiedente</th>
             <th>Assegnato a</th>
             <th>Apertura</th>
+            <th>Azioni</th>
             <th>Report</th>
           </tr>
         </thead>
@@ -517,6 +529,7 @@
             <td style="font-size:12px;">{{ t.richiedente_nome }}</td>
             <td style="font-size:12px;">{{ t.assegnato_a|default:"—" }}</td>
             <td style="font-size:12px;white-space:nowrap;">{{ t.created_at|date:"d/m/Y H:i" }}</td>
+            <td>{% if t.stato == 'APERTA' %}<button type="button" class="tkt-btn-pic" onclick="prendiInCaricoInline({{ t.pk }},this)">Prendi in carico</button>{% else %}—{% endif %}</td>
             <td><a href="{% url 'tickets:pdf' t.pk %}" target="_blank" rel="noopener" class="tkt-pdf-link">PDF</a></td>
           </tr>
           {% endfor %}
@@ -867,5 +880,32 @@
     if (n !== false) { bulkSuccess('Annullati ' + n + ' ticket.'); window.bulkCloseModal('modal-annulla'); }
   };
 })();
+
+// ── Prendi in carico inline ──────────────────────────────────────────────────
+const _PIC_API  = "{% url 'tickets:api_stato' %}";
+const _PIC_CSRF = "{{ csrf_token }}";
+async function prendiInCaricoInline(ticketId, btn) {
+  btn.disabled = true;
+  btn.textContent = '…';
+  try {
+    const r = await fetch(_PIC_API, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': _PIC_CSRF},
+      body: JSON.stringify({ticket_id: ticketId, stato: 'IN_CARICO', nota: ''})
+    });
+    const d = await r.json();
+    if (d.ok) {
+      location.reload();
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Prendi in carico';
+      alert(d.error || 'Errore');
+    }
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = 'Prendi in carico';
+    alert('Errore di rete');
+  }
+}
 </script>
 {% endblock %}

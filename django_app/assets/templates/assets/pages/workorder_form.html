@@ -4,7 +4,7 @@
 
 {% block assets_shell_title %}Nuovo intervento - {{ asset.asset_tag }}{% endblock %}
 {% block assets_shell_subtitle %}
-<p>Registra un intervento su {{ asset.name }} e collega fornitore, verifica programmata e allegati in un unico passaggio.</p>
+<p>Registra un intervento su {{ asset.name }} e collega fornitore, manutenzione periodica e allegati in un unico passaggio.</p>
 {% endblock %}
 
 {% block assets_shell_head %}
@@ -258,7 +258,7 @@
         {% elif initial_contract %}
           <small>Il contratto attivo viene suggerito come copertura operativa per ridurre data entry.</small>
         {% else %}
-          <small>Compilazione assistita: se scegli regola, verifica o contratto il portale propone i collegamenti coerenti.</small>
+          <small>Compilazione assistita: se scegli regola, manutenzione periodica o contratto il portale propone i collegamenti coerenti.</small>
         {% endif %}
       </div>
       <div class="wof-side-card">
@@ -271,7 +271,7 @@
           <small>Contratto suggerito per questo asset. Opzioni disponibili: {{ available_contract_count }}.</small>
         {% else %}
           <strong>Compilazione smart</strong>
-          <small>Se scegli una verifica periodica collegata il portale propone il fornitore associato. Contratti disponibili: {{ available_contract_count }}.</small>
+          <small>Se scegli una manutenzione periodica collegata il portale propone il fornitore associato. Contratti disponibili: {{ available_contract_count }}.</small>
         {% endif %}
       </div>
     </aside>
@@ -567,7 +567,7 @@
     const payload = supplierMap[String(verificationEl.value || "")] || null;
     if (payload && payload.supplier_id) {
       setAutoValue(supplierEl, payload.supplier_id);
-      suggestionEl.textContent = "Fornitore proposto dalla verifica periodica collegata: " + payload.supplier_label;
+      suggestionEl.textContent = "Fornitore proposto dalla manutenzione periodica collegata: " + payload.supplier_label;
       suggestionEl.classList.add("is-highlight");
       return;
     }

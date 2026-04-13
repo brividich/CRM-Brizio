@@ -7,6 +7,7 @@
 {% endblock %}
 
 {% block content %}
+  <div class="portal-fill portal-fill-stack">
   <div class="page-header">
     <div class="page-h">Richieste assenze</div>
     <div class="page-sub">Dati letti dalla tabella locale `assenze` (sync SharePoint -> DB)</div>
@@ -53,5 +54,6 @@
         <div class="act-text">Nessuna richiesta trovata. Verifica il sync in `admin/sync` oppure i dati dell'utente legacy.</div>
       {% endif %}
     </div>
+  </div>
   </div>
 {% endblock %}

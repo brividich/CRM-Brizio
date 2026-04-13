@@ -24,8 +24,8 @@ _PULSANTI_DEFINITIONS = [
     {
         "modulo": "procedure_refresh",
         "codice": "pr_admin",
-        "label": "Presa Visione - Dashboard admin",
-        "url": "/procedure-refresh/admin/",
+        "label": "Presa Visione - Impostazioni",
+        "url": "/procedure-refresh/impostazioni/",
         "visible_topbar": False,
         "ui_order": None,
     },

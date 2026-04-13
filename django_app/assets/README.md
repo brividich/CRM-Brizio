@@ -20,6 +20,7 @@ Il command crea/aggiorna questi pulsanti (`modulo="assets"`):
 - `wo_close` -> `django:assets:wo_close`
 - `reports` -> `django:assets:reports`
 - `periodic_verifications` -> `django:assets:periodic_verifications`
+- `software_license_list` -> `django:assets:software_license_list`
 
 Dopo il seed, assegna i permessi per ruolo nella tabella legacy `permessi` (o da pannello admin ACL).
 
@@ -64,18 +65,18 @@ Alternativa: inserimento manuale da `/admin-portale/navigation-builder/`.
 - Placeholder supportati nel target:
   - `{asset_id}`, `{asset_tag}`, `{asset_name}`, `{asset_type}`, `{assigned_user_id}`
 
-## Verifiche periodiche
-- La pagina `/assets/verifiche-periodiche/` consente di configurare verifiche ricorrenti collegate agli asset.
-- Per ogni verifica puoi gestire:
-  - nome verifica
+## Manutenzione periodica
+- La pagina canonica `/assets/manutenzione/verifiche/` consente di configurare i piani di manutenzione periodica collegati agli asset. Il vecchio percorso `/assets/verifiche-periodiche/` resta disponibile come redirect compatibile.
+- Per ogni piano puoi gestire:
+  - nome piano
   - fornitore responsabile (`anagrafica.Fornitore`)
   - frequenza in mesi
-  - ultima verifica e prossima verifica
+  - ultima manutenzione e prossima manutenzione
   - stato attivo/disattivo
   - note interne
   - uno o piu asset coinvolti
-- Ogni asset puo appartenere a piu verifiche periodiche contemporaneamente.
-- La selezione delle verifiche e disponibile anche nei form `Nuovo/Modifica asset` e `Nuova/Modifica macchina di lavoro`, oltre che nella scheda dettaglio asset.
+- Ogni asset puo appartenere a piu piani di manutenzione periodica contemporaneamente.
+- La selezione della manutenzione periodica e disponibile anche nei form `Nuovo/Modifica asset` e `Nuova/Modifica macchina di lavoro`, oltre che nella scheda dettaglio asset.
 - La schermata di gestione include layout selezionabile lato utente (`Compatta`, `Bilanciata`, `Ampia`) memorizzato nel browser.
 - La selezione asset supporta ricerca live per tag/nome e azioni rapide `Seleziona visibili` / `Pulisci`.
 

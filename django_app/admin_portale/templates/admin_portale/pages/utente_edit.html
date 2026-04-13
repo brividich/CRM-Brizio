@@ -426,6 +426,66 @@
         </div>
       </div>
     </div>
+
+    {% if django_user_id %}
+    <div class="card" style="margin-top:16px;">
+      <div class="card-head">
+        <div class="card-title">Wizard primo accesso</div>
+      </div>
+      <div class="card-body">
+        {% if onboarding_data %}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px;">
+            <div>
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted,#888);margin-bottom:6px;">Stato</div>
+              {% if onboarding_data.skipped %}
+                <span style="color:#f59e0b;font-weight:600;">Esentato</span>
+              {% elif onboarding_data.completed %}
+                <span style="color:#16a34a;font-weight:600;">✓ Completato</span>
+                {% if onboarding_data.completed_at %}
+                  <div style="font-size:12px;color:var(--text-muted,#888);margin-top:3px;">{{ onboarding_data.completed_at|date:"d/m/Y H:i" }}</div>
+                {% endif %}
+              {% else %}
+                <span style="color:#94a3b8;">— In attesa</span>
+              {% endif %}
+            </div>
+            {% if onboarding_data.completed %}
+            <div>
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted,#888);margin-bottom:6px;">Dati raccolti</div>
+              <div style="font-size:12px;">
+                <div><b>Email:</b> {{ onboarding_data.email_contatto|default:"—" }}</div>
+                <div><b>Cellulare:</b> {{ onboarding_data.cellulare_contatto|default:"—" }}</div>
+                {% if ui_prefs_data %}
+                <div style="margin-top:8px;"><b>Menu:</b> {% if ui_prefs_data.nav_mode == "side" %}Barra laterale{% else %}Barra superiore{% endif %}</div>
+                <div><b>Testo:</b> {{ ui_prefs_data.get_font_scale_display|default:"Normale" }}</div>
+                <div><b>Sidebar:</b> {% if ui_prefs_data.nav_mode == "side" %}{% if ui_prefs_data.sidebar_collapsed %}Compressa{% else %}Espansa{% endif %}{% else %}Non applicata{% endif %}</div>
+                {% endif %}
+              </div>
+            </div>
+            {% endif %}
+          </div>
+          {% if onboarding_data.reset_at %}
+            <div style="font-size:12px;color:var(--text-muted,#888);margin-bottom:10px;">
+              Ultimo reset: {{ onboarding_data.reset_at|date:"d/m/Y H:i" }}
+              {% if onboarding_data.reset_by %} da {{ onboarding_data.reset_by.get_full_name|default:onboarding_data.reset_by.username }}{% endif %}
+            </div>
+          {% endif %}
+        {% else %}
+          <div style="color:#94a3b8;font-size:14px;margin-bottom:12px;">— Wizard non ancora avviato (utente non ha ancora effettuato il login).</div>
+        {% endif %}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button type="button" class="btn btn-secondary btn-sm"
+                  onclick="onboardingAction({{ django_user_id }}, 'reset')">
+            Riproponi wizard
+          </button>
+          <button type="button" class="btn btn-sm"
+                  style="background:var(--color-warning-bg,#fef3c7);color:#92400e;border:1px solid #fcd34d;"
+                  onclick="onboardingAction({{ django_user_id }}, 'skip')">
+            Esenta (non mostrare più)
+          </button>
+        </div>
+      </div>
+    </div>
+    {% endif %}
   </div>
 
   {# ════════════════ TAB 4 — PERMESSI ════════════════ #}
@@ -843,5 +903,34 @@
     });
 
   })();
+  </script>
+
+  <script>
+  async function onboardingAction(djangoUserId, action) {
+    var labels = { reset: "Riproponi wizard", skip: "Esenta utente" };
+    var confirms = {
+      reset: "Vuoi riproporre il wizard di primo accesso a questo utente?\nAl prossimo login vedrà nuovamente il wizard.",
+      skip:  "Vuoi esentare l'utente dal wizard? Non vedrà più il wizard di primo accesso."
+    };
+    if (!confirm(confirms[action] || "Confermi?")) return;
+
+    var csrfToken = document.querySelector("[name=csrfmiddlewaretoken]");
+    var csrf = csrfToken ? csrfToken.value : "";
+    var url = "/api/onboarding/" + djangoUserId + "/reset";
+    try {
+      var resp = await fetch(url, {
+        method: "POST",
+        headers: { "X-CSRFToken": csrf, "Content-Type": "application/x-www-form-urlencoded" },
+        body: "action=" + encodeURIComponent(action),
+      });
+      var data = await window.portalReadJsonResponse(resp);
+      if (data && data.ok) {
+        alert(action === "skip" ? "Utente esentato dal wizard." : "Wizard riproposto. Al prossimo login vedrà il wizard.");
+        location.reload();
+      }
+    } catch (e) {
+      alert("Errore: " + e.message);
+    }
+  }
   </script>
 {% endblock %}

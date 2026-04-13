@@ -1,5 +1,26 @@
 ﻿# Changelog
 
+## 0.9.14 - 2026-04-10
+
+### Modulo KICK-OFF — redesign interfaccia
+
+- **[ux] `base_shell.html` rinnovato**: hero più compatto con gradiente a doppio radiale, altezza ridotta, pills più piccole; tabs convertite in segmented-control a pillola (stile capsule); KPI card con barra di progresso animata proporzionale; tutti i token CSS unificati (`--ts-radius-sm/md/lg`, `--ts-shadow` coerente col tema).
+- **[ux] `list.html` — backlog operativo riscritta**: sostituita la card-feed a singola colonna con una tabella densa stile Linear; ogni riga mostra striscia colorata sinistra per stato (blu=todo, giallo=in_progress, verde=done, grigio=canceled, rosso=overdue), titolo + descrizione troncata, badge stato/priorità, kickoff link, avatar initials assegnatario, data scadenza con highlight rosso se overdue. Pannello filtri collassabile con auto-apertura se filtri attivi.
+- **[ux] `projects.html` — portfolio kickoff riscritta**: sostituita la tabella piatta con card grid responsive (`auto-fill minmax(320px)`); ogni card ha strip colorata in cima (verde=VRF ok, giallo=warning, rosso=blocked, grigio=N/A), nome kickoff, chips P/N/Rev/Ver/cliente, progress bar avanzamento attività con percentuale, contatori totali/aperte/chiuse, badge VRF, footer azioni compatte.
+- **[ux] `project_gantt.html` — Gantt riscritta e fluidificata**: toolbar opzioni compatta integrata nel panel header (sostituisce pannello separato) con select, toggle-flag pill e slider zoom/altezza inline con indicatore live; banner VRF ridisegnati con icone SVG (no emoji); progress card con gradiente multi-radiale e barra animata cubic-bezier; health grid 2x2 compatta; legenda ridisegnata nel footer del Gantt; barre con border-radius 7px e shadow colorata per stato; hint-bar contestuale drag/clic/resize; tutto il JavaScript invariato.
+
+## 0.9.11 - 2026-04-08
+
+### Anagrafica dipendenti
+
+- **[fix] `/onboarding/` sempre accessibile dopo il login**: `core/middleware.py` lascia passare il wizard di primo accesso a qualunque utente autenticato senza richiedere un permesso ACL legacy/canonico dedicato; aggiunto anche un test di regressione in `core/tests.py`.
+- **[fix] Allineamento email account/notifica**: `fetch_anagrafica_rows()` applica ora un fallback automatico `email_notifica -> email` quando il dato legacy manca, cosi scheda dipendente, liste anagrafiche e lookup collegati non mostrano piu una mail notifica vuota a fronte di una mail account valorizzata.
+- **[fix] Persistenza nuovi record/import**: `upsert_anagrafica_dipendente()` e `import_dipendenti_csv` valorizzano automaticamente `email_notifica` con l'email account se la colonna dedicata non e presente o arriva vuota dalla sorgente.
+- **[test] Regressione coperta**: aggiunti test anagrafica per il fallback in dettaglio e per il salvataggio automatico della mail notifica.
+- **[ux] Layout shared full-height**: `core/static/core/css/theme.css` tratta ora i wrapper principali di moduli e dashboard come superfici a tutta altezza; le shell `assets` non usano piu allineamenti che le fermavano prima del fondo viewport, evitando bande vuote sotto contenuti corti come assegnazioni e cruscotti.
+- **[ux] Pagine `Impostazioni` modulo uniformate**: `diario_preposto`, `rilevazione_incidenti`, `rentri`, `tasks`, `notizie`, `procedure_refresh`, `timbri`, `assets` e `assenze` espongono ora pagine impostazioni allineate su hero, branding nome/logo modulo e quick links. I path canonici dei moduli con naming incoerente sono stati portati a `/impostazioni/`, mantenendo redirect legacy da `/gestione/`, `/configurazione/`, `/admin/` e `/gestione_assenze`.
+- **[ux] Manutenzione periodica riallineata alla manutenzione assets**: la vecchia area `/assets/verifiche-periodiche/` ora converge su `/assets/manutenzione/verifiche/`, presentata in UI come `Manutenzione periodica` e agganciata alla sezione `Manutenzione` della sidebar. Aggiornati CTA, dettagli asset, work order, scadenzari, seed ACL e testi collegati; aggiunte anche le migration `0040_move_periodic_verifications_under_maintenance` e `0041_rename_periodic_verification_labels` per riallineare pulsanti sidebar e label Django negli ambienti gia esistenti.
+
 ## 0.8.5 — 2026-03-22
 
 ### Deployment — Wizard DEV funzionante + Disinstallazione completata

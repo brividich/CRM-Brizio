@@ -22,6 +22,7 @@ from core.legacy_utils import get_legacy_user
 from core.legacy_utils import is_legacy_admin
 from core.legacy_utils import legacy_table_columns
 from core.models import AuditLog, Notifica
+from core.module_branding import get_module_branding_context, handle_module_branding_post
 
 from .forms import (
     ProjectCommentForm,
@@ -47,6 +48,7 @@ from .models import (
     TaskImpostazioni,
     TaskPriority,
     TaskStatus,
+    VRFDocStatus,
 )
 
 TASK_MODULE_CODE = "tasks"
@@ -86,6 +88,268 @@ GANTT_NAME_WIDTH_OPTIONS = (
     (360, "Media"),
     (460, "Ampia"),
 )
+TASK_SETTINGS_TABS = ("config", "riepilogo", "record", "log")
+
+
+def _normalize_tasks_settings_tab(raw_tab: str | None, *, default: str = "config") -> str:
+    tab = str(raw_tab or "").strip().lower()
+    if tab in TASK_SETTINGS_TABS:
+        return tab
+    return default
+
+
+def _coerce_positive_int(value, *, default: int, minimum: int = 1) -> int:
+    try:
+        parsed = int(str(value).strip())
+    except (TypeError, ValueError, AttributeError):
+        parsed = default
+    return max(minimum, parsed)
+
+
+def _build_tasks_settings_context(request, *, tab: str) -> dict:
+    from django.core.paginator import Paginator
+
+    today = timezone.localdate()
+    total_tasks = Task.objects.count()
+    total_projects = Project.objects.count()
+    tasks_by_status_raw = dict(Task.objects.values_list("status").annotate(n=Count("id")).order_by())
+    tasks_overdue = Task.objects.filter(
+        due_date__lt=today,
+        status__in=[TaskStatus.TODO, TaskStatus.IN_PROGRESS],
+    ).count()
+
+    context: dict[str, object] = {
+        "tab": tab,
+        "total_tasks": total_tasks,
+        "total_projects": total_projects,
+        "tasks_overdue": tasks_overdue,
+        "todo_count": tasks_by_status_raw.get(TaskStatus.TODO, 0),
+        "in_progress_count": tasks_by_status_raw.get(TaskStatus.IN_PROGRESS, 0),
+        "done_count": tasks_by_status_raw.get(TaskStatus.DONE, 0),
+    }
+
+    if tab == "riepilogo":
+        context["tasks_by_status"] = [
+            (value, label, tasks_by_status_raw.get(value, 0))
+            for value, label in TaskStatus.choices
+        ]
+        context["top_assignees"] = list(
+            Task.objects.filter(assigned_to__isnull=False)
+            .values("assigned_to__username")
+            .annotate(n=Count("id"))
+            .order_by("-n")[:10]
+        )
+
+    if tab == "record":
+        q_task = request.GET.get("q_task", "").strip()
+        q_proj = request.GET.get("q_proj", "").strip()
+        filter_status = request.GET.get("filter_status", "").strip()
+
+        tasks_qs = Task.objects.select_related("project", "assigned_to").order_by("-updated_at")
+        if q_task:
+            tasks_qs = tasks_qs.filter(title__icontains=q_task)
+        if filter_status:
+            tasks_qs = tasks_qs.filter(status=filter_status)
+
+        projects_qs = Project.objects.select_related("project_manager").order_by("-updated_at")
+        if q_proj:
+            projects_qs = projects_qs.filter(Q(name__icontains=q_proj) | Q(client_name__icontains=q_proj))
+
+        context.update(
+            {
+                "tasks_page": Paginator(tasks_qs, 50).get_page(request.GET.get("task_page")),
+                "projects_page": Paginator(projects_qs, 50).get_page(request.GET.get("proj_page")),
+                "q_task": q_task,
+                "q_proj": q_proj,
+                "filter_status": filter_status,
+                "task_status_choices": TaskStatus.choices,
+            }
+        )
+
+    if tab == "log":
+        context["audit_entries"] = AuditLog.objects.filter(modulo="tasks").order_by("-created_at")[:100]
+
+    return context
+
+
+def _parse_vrf_excel(file_obj) -> dict:
+    """Estrae i campi identificativi da MOD.073 VRF Rev.10 (Sheet 'VRF').
+    Celle fisse: B3=P/N, I3=Descrizione, P3=Esp, O2=Preventivo n°, P2=Versione n°, B4=Cliente.
+    Restituisce dict con chiavi stringa, mai None.
+    """
+    import io
+    import openpyxl
+
+    def _s(val):
+        return str(val or "").strip()
+
+    result = {
+        "part_number": "",
+        "vrf_description": "",
+        "vrf_esp": "",
+        "vrf_quote_number": "",
+        "versione": "",
+        "client_name": "",
+    }
+    try:
+        data = file_obj.read() if hasattr(file_obj, "read") else file_obj
+        wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+        # Preferenza sheet "VRF", altrimenti primo sheet
+        ws = wb["VRF"] if "VRF" in wb.sheetnames else wb.active
+        # Leggi le 4 righe di intestazione (1-indexed)
+        rows = {}
+        for r in ws.iter_rows(min_row=1, max_row=4, values_only=True):
+            pass  # warming
+        # iter_rows con read_only non supporta accesso per cella — rileggiamo
+        wb.close()
+        wb = openpyxl.load_workbook(io.BytesIO(data), data_only=True)
+        ws = wb["VRF"] if "VRF" in wb.sheetnames else wb.active
+        result["vrf_quote_number"] = _s(ws.cell(row=2, column=15).value)  # O2
+        result["versione"]         = _s(ws.cell(row=2, column=16).value)  # P2
+        result["part_number"]      = _s(ws.cell(row=3, column=2).value)   # B3
+        result["vrf_description"]  = _s(ws.cell(row=3, column=9).value)   # I3
+        result["vrf_esp"]          = _s(ws.cell(row=3, column=16).value)  # P3
+        result["client_name"]      = _s(ws.cell(row=4, column=2).value)   # B4
+        wb.close()
+    except Exception:
+        pass
+    return result
+
+
+def _vrf_status_detail(project, cfg: "TaskImpostazioni") -> dict:
+    """Calcola lo stato del documento VRF per un kickoff.
+
+    Restituisce dict con:
+      status: 'ok' | 'na' | 'pending' | 'warning' | 'blocked'
+      label: str (messaggio utente)
+      is_blocked: bool
+      days_pending: int | None
+      show_upload_cta: bool
+    """
+    from django.utils import timezone as tz
+
+    vrf_status = project.vrf_status
+
+    if vrf_status == VRFDocStatus.UPLOADED:
+        return {
+            "status": "ok",
+            "label": "Documento VRF caricato.",
+            "is_blocked": False,
+            "days_pending": None,
+            "show_upload_cta": False,
+        }
+
+    if vrf_status == VRFDocStatus.NOT_REQUIRED:
+        return {
+            "status": "na",
+            "label": "Documento VRF non richiesto per questo kickoff.",
+            "is_blocked": False,
+            "days_pending": None,
+            "show_upload_cta": False,
+        }
+
+    # PENDING
+    today = tz.localdate()
+    created_date = project.created_at.date() if project.created_at else today
+    days = (today - created_date).days
+
+    if days >= cfg.vrf_blocking_days:
+        return {
+            "status": "blocked",
+            "label": (
+                f"Kickoff BLOCCATO: documento VRF non caricato da {days} giorni "
+                f"(soglia blocco: {cfg.vrf_blocking_days} giorni). "
+                "Non e possibile aggiungere o modificare attivita kickoff finche il documento non viene caricato."
+            ),
+            "is_blocked": True,
+            "days_pending": days,
+            "show_upload_cta": True,
+        }
+
+    if days >= cfg.vrf_reminder_days:
+        return {
+            "status": "warning",
+            "label": (
+                f"Attenzione: documento VRF non ancora caricato ({days} giorni dalla creazione del kickoff). "
+                f"Il kickoff sara bloccato dopo {cfg.vrf_blocking_days} giorni."
+            ),
+            "is_blocked": False,
+            "days_pending": days,
+            "show_upload_cta": True,
+        }
+
+    return {
+        "status": "pending",
+        "label": f"Documento VRF non ancora caricato ({days} giorni dalla creazione del kickoff).",
+        "is_blocked": False,
+        "days_pending": days,
+        "show_upload_cta": True,
+    }
+
+
+def _copy_project_vrf_file(project: Project, *, clear_part_number: bool = False) -> tuple[bytes | None, str]:
+    if not project.vrf_file:
+        return None, ""
+
+    import io
+    from pathlib import Path
+
+    project.vrf_file.open("rb")
+    try:
+        file_bytes = project.vrf_file.read()
+    finally:
+        project.vrf_file.close()
+
+    filename = project.vrf_original_name or Path(project.vrf_file.name).name
+
+    if clear_part_number:
+        import openpyxl
+
+        workbook = openpyxl.load_workbook(io.BytesIO(file_bytes))
+        try:
+            worksheet = workbook["VRF"] if "VRF" in workbook.sheetnames else workbook.active
+            worksheet["B3"] = ""
+            output = io.BytesIO()
+            workbook.save(output)
+            file_bytes = output.getvalue()
+        finally:
+            workbook.close()
+
+    return file_bytes, filename
+
+
+def _duplicate_kickoff(source_project: Project, *, created_by, clear_part_number: bool = False) -> Project:
+    from django.core.files.base import ContentFile
+
+    kickoff = Project.objects.create(
+        name="",
+        description=source_project.description,
+        client_name=source_project.client_name,
+        project_manager=source_project.project_manager,
+        capo_commessa=source_project.capo_commessa,
+        programmer=source_project.programmer,
+        control_method=source_project.control_method,
+        part_number="" if clear_part_number else source_project.part_number,
+        revisione=source_project.revisione,
+        versione=source_project.versione,
+        vrf_status=source_project.vrf_status,
+        vrf_original_name=source_project.vrf_original_name,
+        vrf_uploaded_at=source_project.vrf_uploaded_at,
+        vrf_quote_number=source_project.vrf_quote_number,
+        vrf_description=source_project.vrf_description,
+        vrf_esp=source_project.vrf_esp,
+        similar_project=source_project.similar_project,
+        similar_work_note=source_project.similar_work_note,
+        created_by=created_by,
+    )
+
+    file_bytes, filename = _copy_project_vrf_file(source_project, clear_part_number=clear_part_number)
+    if file_bytes is not None:
+        kickoff.vrf_file.save(filename, ContentFile(file_bytes), save=False)
+        kickoff.vrf_original_name = filename
+        kickoff.save(update_fields=["vrf_file", "vrf_original_name", "updated_at"])
+
+    return kickoff
 
 
 def _request_legacy_user(request):
@@ -772,6 +1036,11 @@ def _project_gantt_rows(tasks: list[Task], *, min_window_days: int = 31) -> dict
         row["duration_working_days"] = _count_working_days(row["active_start"], row["active_end"], holidays)
         rows.append(row)
 
+    # Predecessore implicito (WBS order): ogni task conosce l'end_index del task precedente
+    # per consentire il vincolo "task N non può iniziare prima della fine di task N-1" nel Gantt.
+    for i, row in enumerate(rows):
+        row["prev_end_index"] = rows[i - 1]["end_index"] if i > 0 else -1
+
     return {
         "rows": rows,
         "timeline_start": timeline_start,
@@ -929,22 +1198,28 @@ def task_list(request):
     can_edit = _has_task_permission(request, "tasks_edit")
     can_comment = _has_task_permission(request, "tasks_comment")
 
-    stats_qs = scoped_base_qs.order_by()
+    active_project = filter_form.cleaned_data.get("project") if filter_form.is_valid() else None
+
+    # Stats source: project-scoped when filtering by project, global otherwise
+    stats_qs = tasks_qs.order_by() if active_project else scoped_base_qs.order_by()
     status_counter = {
         row["status"]: row["total"]
         for row in stats_qs.values("status").annotate(total=Count("id")).order_by()
     }
+    total_count = stats_qs.count()
+    done_count = int(status_counter.get(TaskStatus.DONE, 0))
     dashboard_stats = {
-        "total": stats_qs.count(),
+        "total": total_count,
         "todo": int(status_counter.get(TaskStatus.TODO, 0)),
         "in_progress": int(status_counter.get(TaskStatus.IN_PROGRESS, 0)),
-        "done": int(status_counter.get(TaskStatus.DONE, 0)),
+        "done": done_count,
         "canceled": int(status_counter.get(TaskStatus.CANCELED, 0)),
         "overdue": stats_qs.filter(
             due_date__lt=timezone.localdate(),
             status__in=OPEN_STATUSES,
         ).count(),
     }
+    done_pct = round(done_count / max(total_count, 1) * 100)
 
     admin_console = None
     admin_project_summary = []
@@ -981,7 +1256,7 @@ def task_list(request):
         "tasks/list.html",
         {
             **_tasks_shell_context(request, active="dashboard"),
-            "page_title": "Task",
+            "page_title": "KICK-OFF",
             "tasks": tasks,
             "filter_form": filter_form,
             "can_create": can_create,
@@ -993,6 +1268,8 @@ def task_list(request):
             "showing_mine_default": (not is_scope_admin) or (not mine_explicit_false),
             "admin_console": admin_console,
             "admin_project_summary": admin_project_summary,
+            "active_project": active_project,
+            "done_pct": done_pct,
         },
     )
 
@@ -1058,33 +1335,106 @@ def project_info_json(request, project_id: int):
     pm = project.project_manager
     cc = project.capo_commessa
     prog = project.programmer
+    cfg = TaskImpostazioni.get_singleton()
+    vrf_detail = _vrf_status_detail(project, cfg)
     return JsonResponse({
         "id": project.id,
         "name": project.name,
         "client_name": project.client_name or "",
         "part_number": project.part_number or "",
+        "revisione": project.revisione or "",
+        "versione": project.versione or "",
         "project_manager": (pm.get_full_name() or pm.username) if pm else "",
         "capo_commessa": (cc.get_full_name() or cc.username) if cc else "",
         "programmer": (prog.get_full_name() or prog.username) if prog else "",
+        "task_total": len(tasks_data),
+        "vrf_status": vrf_detail["status"],
+        "vrf_label": vrf_detail["label"],
+        "vrf_upload_url": reverse("tasks:project_vrf_upload", kwargs={"project_id": project.id}),
         "tasks": tasks_data,
     })
+
+
+def _task_create_locked_project(request, projects_qs):
+    project_param = (request.GET.get("project") or "").strip()
+    if not project_param:
+        return None
+    try:
+        project_id = int(project_param)
+    except (TypeError, ValueError):
+        return None
+    return get_object_or_404(
+        projects_qs.select_related("project_manager", "capo_commessa", "programmer"),
+        pk=project_id,
+    )
 
 
 @task_permissions_required("tasks_view", "tasks_create")
 def task_create(request):
     projects_qs = _scoped_projects_queryset(request).order_by("name", "id")
+    locked_project = _task_create_locked_project(request, projects_qs)
+    suggested_start_date = None
+    if locked_project is not None:
+        last_task = (
+            Task.objects.filter(project=locked_project)
+            .order_by("-id")
+            .first()
+        )
+        if last_task:
+            last_end = last_task.due_date or last_task.next_step_due
+            if last_end:
+                suggested_start_date = last_end + timedelta(days=1)
+
     if request.method == "POST":
-        form = TaskForm(request.POST, user=request.user, project_queryset=projects_qs)
+        form = TaskForm(
+            request.POST,
+            user=request.user,
+            project_queryset=projects_qs,
+            locked_project=locked_project,
+        )
         if form.is_valid():
             task = form.save(commit=False)
             task.created_by = request.user
             task.project = form.resolve_project(created_by=request.user)
+
+            # Blocking guard: se il progetto esistente è bloccato per VRF mancante, blocca il salvataggio
+            if task.project and not getattr(form, "new_project_created", False):
+                cfg = TaskImpostazioni.get_singleton()
+                vrf_detail = _vrf_status_detail(task.project, cfg)
+                if vrf_detail["is_blocked"]:
+                    messages.error(
+                        request,
+                        f"Kickoff bloccato: carica il documento VRF prima di procedere. "
+                        f"({vrf_detail['days_pending']} giorni senza documento VRF)",
+                    )
+                    return redirect(
+                        reverse("tasks:project_vrf_upload", kwargs={"project_id": task.project.id})
+                        + f"?next={reverse('tasks:create')}"
+                    )
+
             task.save()
             form.save_m2m()
+            if form.reused_existing_project is not None and task.project_id:
+                if form.reused_existing_project_fields:
+                    messages.info(
+                        request,
+                        (
+                            f"Kickoff esistente riutilizzato per P/N {task.project.part_number or '-'}: "
+                            "anagrafica kickoff aggiornata con i dati inseriti."
+                        ),
+                    )
+                else:
+                    messages.info(
+                        request,
+                        (
+                            f"Kickoff esistente riutilizzato per P/N {task.project.part_number or '-'}: "
+                            "l'attivita kickoff e stata agganciata senza creare duplicati."
+                        ),
+                    )
             if task.project_id:
-                messages.success(request, f"Task creata nel progetto '{task.project.name}'.")
+                messages.success(request, f"Attivita kickoff creata nel kickoff '{task.project.name}'.")
             else:
-                messages.success(request, "Task singola creata correttamente.")
+                messages.success(request, "Attivita singola creata correttamente.")
             if form.assignment_conflicts and task.assigned_to_id:
                 assignee_name = task.assigned_to.get_full_name() or task.assigned_to.get_username()
                 messages.warning(
@@ -1097,48 +1447,46 @@ def task_create(request):
             if form.auto_raised_priority:
                 messages.warning(request, "Priorita aggiornata automaticamente a High per conflitto impegni.")
             if task.is_overdue:
-                messages.warning(request, "Task creata con scadenza gia oltre la data odierna.")
+                messages.warning(request, "Attivita kickoff creata con scadenza gia oltre la data odierna.")
             _add_task_absence_warnings(request, task)
+
+            # Se è stato creato un nuovo progetto, redirect alla pagina upload VRF
+            if getattr(form, "new_project_created", False) and task.project_id:
+                next_url = reverse("tasks:detail", kwargs={"task_id": task.id})
+                return redirect(
+                    reverse("tasks:project_vrf_upload", kwargs={"project_id": task.project.id})
+                    + f"?next={next_url}"
+                )
             return redirect("tasks:detail", task_id=task.id)
     else:
-        # Se arrivo dal Gantt con ?project=X, pre-calcolo la data suggerita
-        # come giorno successivo alla fine dell'ultima task del progetto.
-        suggested_start_date = None
-        suggested_project_id = None
-        try:
-            project_id_param = int(request.GET.get("project", ""))
-            last_task = (
-                Task.objects.filter(project_id=project_id_param)
-                .order_by("-id")
-                .first()
-            )
-            if last_task:
-                last_end = last_task.due_date or last_task.next_step_due
-                if last_end:
-                    suggested_start_date = last_end + timedelta(days=1)
-                    suggested_project_id = project_id_param
-        except (ValueError, TypeError):
-            pass
-
         initial = {}
         if suggested_start_date:
             initial["next_step_due"] = suggested_start_date
-        if suggested_project_id:
-            initial["project_choice"] = suggested_project_id
+        if locked_project is not None:
+            initial["project_choice"] = locked_project.id
             initial["task_scope"] = "project"
+            initial["project_link_mode"] = TaskForm.PROJECT_LINK_EXISTING
 
-        form = TaskForm(user=request.user, project_queryset=projects_qs, initial=initial)
+        form = TaskForm(
+            user=request.user,
+            project_queryset=projects_qs,
+            initial=initial,
+            locked_project=locked_project,
+        )
 
         return render(
             request,
             "tasks/form.html",
             {
                 **_tasks_shell_context(request, active="create"),
-                "page_title": "Nuova task",
+                "page_title": "Nuova attivita kickoff",
                 "form": form,
                 "mode": "create",
                 "suggested_start_date": suggested_start_date,
-                "suggested_project_id": suggested_project_id,
+                "suggested_project_id": locked_project.id if locked_project is not None else None,
+                "locked_project": locked_project,
+                "locked_project_vrf_detail": _vrf_status_detail(locked_project, TaskImpostazioni.get_singleton()) if locked_project is not None else None,
+                "locked_project_task_total": Task.objects.filter(project=locked_project).count() if locked_project is not None else 0,
             },
         )
 
@@ -1147,9 +1495,14 @@ def task_create(request):
         "tasks/form.html",
         {
             **_tasks_shell_context(request, active="create"),
-            "page_title": "Nuova task",
+            "page_title": "Nuova attivita kickoff",
             "form": form,
             "mode": "create",
+            "suggested_start_date": suggested_start_date,
+            "suggested_project_id": locked_project.id if locked_project is not None else None,
+            "locked_project": locked_project,
+            "locked_project_vrf_detail": _vrf_status_detail(locked_project, TaskImpostazioni.get_singleton()) if locked_project is not None else None,
+            "locked_project_task_total": Task.objects.filter(project=locked_project).count() if locked_project is not None else 0,
         },
     )
 
@@ -1172,10 +1525,33 @@ def task_edit(request, task_id: int):
         if form.is_valid():
             updated_task = form.save(commit=False)
             updated_task.project = form.resolve_project(created_by=request.user)
+
+            # Blocking guard: progetto bloccato per VRF mancante
+            if updated_task.project and not getattr(form, "new_project_created", False):
+                cfg = TaskImpostazioni.get_singleton()
+                vrf_detail = _vrf_status_detail(updated_task.project, cfg)
+                if vrf_detail["is_blocked"]:
+                    messages.error(
+                        request,
+                        "Kickoff bloccato: carica il documento VRF prima di modificare questa attivita kickoff.",
+                    )
+                    return redirect(
+                        reverse("tasks:project_vrf_upload", kwargs={"project_id": updated_task.project.id})
+                        + f"?next={reverse('tasks:edit', kwargs={'task_id': task.id})}"
+                    )
+
             updated_task.save()
             form.save_m2m()
             _log_task_update_events(updated_task, request.user, before)
-            messages.success(request, "Task aggiornata.")
+            if form.reused_existing_project is not None and updated_task.project_id:
+                messages.info(
+                    request,
+                    (
+                        f"Attivita kickoff riallineata al kickoff esistente '{updated_task.project.name}' "
+                        f"(P/N {updated_task.project.part_number or '-'})."
+                    ),
+                )
+            messages.success(request, "Attivita kickoff aggiornata.")
             if form.assignment_conflicts and updated_task.assigned_to_id:
                 assignee_name = updated_task.assigned_to.get_full_name() or updated_task.assigned_to.get_username()
                 messages.warning(
@@ -1199,7 +1575,7 @@ def task_edit(request, task_id: int):
         "tasks/form.html",
         {
             **_tasks_shell_context(request, active="edit", task=task),
-            "page_title": "Modifica task",
+            "page_title": "Modifica attivita kickoff",
             "form": form,
             "task": task,
             "mode": "edit",
@@ -1413,21 +1789,68 @@ def add_attachment(request, task_id: int):
 @task_permissions_required("tasks_view")
 def project_list(request):
     projects_base_qs = _scoped_projects_queryset(request).order_by()
-    projects = projects_base_qs.annotate(
-        task_total=Count("tasks", distinct=True),
-        task_open=Count("tasks", filter=Q(tasks__status__in=OPEN_STATUSES), distinct=True),
-        task_done=Count("tasks", filter=Q(tasks__status=TaskStatus.DONE), distinct=True),
-    ).order_by("name", "id")
+    projects = list(
+        projects_base_qs.annotate(
+            task_total=Count("tasks", distinct=True),
+            task_open=Count("tasks", filter=Q(tasks__status__in=OPEN_STATUSES), distinct=True),
+            task_done=Count("tasks", filter=Q(tasks__status=TaskStatus.DONE), distinct=True),
+        ).order_by("name", "id")
+    )
+    cfg = TaskImpostazioni.get_singleton()
+    for p in projects:
+        p.vrf_detail = _vrf_status_detail(p, cfg)
     return render(
         request,
         "tasks/projects.html",
         {
             **_tasks_shell_context(request, active="projects"),
-            "page_title": "Progetti Task",
+            "page_title": "Portfolio kickoff",
             "projects": projects,
             "is_scope_admin": _has_task_permission(request, "tasks_admin"),
         },
     )
+
+
+@require_POST
+@task_permissions_required("tasks_view", "tasks_create")
+def copy_project_with_vrf(request, project_id: int):
+    source_project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    kickoff = _duplicate_kickoff(source_project, created_by=request.user, clear_part_number=False)
+    log_action(
+        request,
+        "copy_kickoff_vrf",
+        "tasks",
+        {
+            "message": f"Copiato kickoff #{source_project.id} in kickoff #{kickoff.id} con duplicazione VRF.",
+            "source_project_id": source_project.id,
+            "copied_project_id": kickoff.id,
+        },
+    )
+    messages.success(request, f"Kickoff duplicato correttamente: {kickoff.name}.")
+    return redirect("tasks:project_gantt", project_id=kickoff.id)
+
+
+@require_POST
+@task_permissions_required("tasks_view", "tasks_create")
+def copy_project_with_vrf_without_pn(request, project_id: int):
+    source_project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    kickoff = _duplicate_kickoff(source_project, created_by=request.user, clear_part_number=True)
+    log_action(
+        request,
+        "copy_kickoff_vrf_without_pn",
+        "tasks",
+        {
+            "message": (
+                f"Copiato kickoff #{source_project.id} in kickoff #{kickoff.id} "
+                "svuotando il P/N e la cella B3 del file VRF."
+            ),
+            "source_project_id": source_project.id,
+            "copied_project_id": kickoff.id,
+            "without_part_number": True,
+        },
+    )
+    messages.success(request, f"Kickoff duplicato senza P/N: {kickoff.name}.")
+    return redirect("tasks:project_gantt", project_id=kickoff.id)
 
 
 @task_permissions_required("tasks_view")
@@ -1508,12 +1931,15 @@ def project_gantt(request, project_id: int):
         for row in gantt_meta["rows"]:
             row["update_form"] = task_update_forms.get(row["task"].id)
 
+    cfg = TaskImpostazioni.get_singleton()
+    vrf_detail = _vrf_status_detail(project, cfg)
+
     return render(
         request,
         "tasks/project_gantt.html",
         {
             **_tasks_shell_context(request, active="gantt", project=project),
-            "page_title": f"Gantt progetto - {project.name}",
+            "page_title": f"Gantt kickoff - {project.name}",
             "project": project,
             "tasks": tasks,
             "gantt_rows": gantt_meta["rows"],
@@ -1539,6 +1965,7 @@ def project_gantt(request, project_id: int):
             "gantt_cell_choices": gantt_options["cell_choices"],
             "gantt_name_width_choices": gantt_options["name_width_choices"],
             "gantt_return_qs": gantt_options["return_qs"],
+            "vrf_detail": vrf_detail,
         },
     )
 
@@ -1564,7 +1991,14 @@ def project_gantt_update_task(request, project_id: int, task_id: int):
         messages.success(request, f"Gantt aggiornato per task '{task.title}'.")
         _add_task_absence_warnings(request, task)
     else:
-        messages.error(request, "Aggiornamento Gantt non valido.")
+        errors = "; ".join(
+            f"{form.fields[f].label or f}: {', '.join(errs)}"
+            for f, errs in form.errors.items()
+            if f != "__all__"
+        )
+        non_field = "; ".join(form.non_field_errors())
+        detail = errors or non_field or "dati non validi"
+        messages.error(request, f"Aggiornamento non salvato — {detail}")
 
     return_qs = str(request.POST.get("return_qs") or "").strip()
     target_url = reverse("tasks:project_gantt", kwargs={"project_id": project.id})
@@ -1600,6 +2034,17 @@ def project_gantt_shift_task(request, project_id: int, task_id: int):
 
     # limite operativo anti-errori da drag involontario
     shift_days = max(-365, min(365, shift_days))
+
+    # Vincolo predecessore implicito (WBS order): il task non può iniziare prima della fine
+    # del task precedente. Il clamp garantisce la coerenza anche se il frontend è bypassato.
+    predecessor = Task.objects.filter(project=project, id__lt=task.id).order_by("-id").first()
+    if predecessor:
+        pred_end = predecessor.due_date or predecessor.next_step_due
+        if pred_end:
+            orig_start = task.next_step_due or task.due_date
+            if orig_start:
+                min_shift = (pred_end + timedelta(days=1) - orig_start).days
+                shift_days = max(shift_days, min_shift)
 
     # Salva la data originale di start PRIMA dello spostamento (per il cascade)
     original_active_start = task.next_step_due or task.due_date
@@ -1702,12 +2147,12 @@ def add_project_comment(request, project_id: int):
         if comment.target_user_id and comment.target_user_id != request.user.id:
             _notify_user(
                 comment.target_user,
-                message_text=f"Nuovo commento nel progetto '{project.name}'.",
+                message_text=f"Nuovo commento nel kickoff '{project.name}'.",
                 action_url=reverse("tasks:project_gantt", kwargs={"project_id": project.id}),
             )
-        messages.success(request, "Commento progetto aggiunto.")
+        messages.success(request, "Commento kickoff aggiunto.")
     else:
-        messages.error(request, "Commento progetto non valido.")
+        messages.error(request, "Commento kickoff non valido.")
     return_qs = str(request.POST.get("return_qs") or "").strip()
     target_url = reverse("tasks:project_gantt", kwargs={"project_id": project.id})
     if return_qs:
@@ -1767,7 +2212,7 @@ def gestione_admin(request):
         "tasks/gestione_admin.html",
         {
             **_tasks_shell_context(request, active="admin"),
-            "page_title": "Gestione Tasks",
+            "page_title": "Gestione KICK-OFF",
             "tab": tab,
             # stats
             "total_tasks": total_tasks,
@@ -1797,12 +2242,23 @@ def impostazioni(request):
     cfg = TaskImpostazioni.get_singleton()
 
     if request.method == "POST":
+        branding_response = handle_module_branding_post(
+            request,
+            module_key="tasks",
+            redirect_to="tasks:impostazioni",
+            audit_module="tasks",
+            fallback_label="KICK-OFF",
+        )
+        if branding_response is not None:
+            return branding_response
         cfg.responsabile_email = request.POST.get("responsabile_email", "").strip()
         cfg.notifiche_scadenza_attive = bool(request.POST.get("notifiche_scadenza_attive"))
         cfg.giorni_preavviso = max(1, int(request.POST.get("giorni_preavviso") or 3))
         cfg.note_generali = request.POST.get("note_generali", "").strip()
+        cfg.vrf_reminder_days = max(1, int(request.POST.get("vrf_reminder_days") or 7))
+        cfg.vrf_blocking_days = max(1, int(request.POST.get("vrf_blocking_days") or 30))
         cfg.save()
-        log_action(request, "modifica", "tasks", "Aggiornate impostazioni Task")
+        log_action(request, "modifica", "tasks", {"message": "Aggiornate impostazioni KICK-OFF"})
         messages.success(request, "Impostazioni salvate.")
         return redirect("tasks:impostazioni")
 
@@ -1810,4 +2266,548 @@ def impostazioni(request):
         "cfg": cfg,
         "tasks_shell_active": "impostazioni",
         "tasks_shell_can_admin": True,
+        **get_module_branding_context("tasks", fallback_label="KICK-OFF"),
     })
+
+
+@legacy_admin_required
+def gestione_admin(request):
+    """Compat legacy: la vecchia gestione admin confluisce nelle impostazioni."""
+    params = request.GET.copy()
+    params["tab"] = _normalize_tasks_settings_tab(params.get("tab"), default="riepilogo")
+    target_url = reverse("tasks:impostazioni")
+    query_string = params.urlencode()
+    if query_string:
+        target_url = f"{target_url}?{query_string}"
+    return redirect(target_url)
+
+
+@legacy_admin_required
+def impostazioni(request):
+    """Pagina canonica impostazioni/admin del modulo Task."""
+    cfg = TaskImpostazioni.get_singleton()
+    config_url = f"{reverse('tasks:impostazioni')}?tab=config"
+
+    if request.method == "POST":
+        branding_response = handle_module_branding_post(
+            request,
+            module_key="tasks",
+            redirect_to=config_url,
+            audit_module="tasks",
+            fallback_label="KICK-OFF",
+        )
+        if branding_response is not None:
+            return branding_response
+        cfg.responsabile_email = request.POST.get("responsabile_email", "").strip()
+        cfg.notifiche_scadenza_attive = bool(request.POST.get("notifiche_scadenza_attive"))
+        cfg.giorni_preavviso = _coerce_positive_int(request.POST.get("giorni_preavviso"), default=3)
+        cfg.note_generali = request.POST.get("note_generali", "").strip()
+        cfg.vrf_reminder_days = _coerce_positive_int(request.POST.get("vrf_reminder_days"), default=7)
+        cfg.vrf_blocking_days = _coerce_positive_int(request.POST.get("vrf_blocking_days"), default=30)
+        cfg.save()
+        log_action(request, "modifica", "tasks", {"message": "Aggiornate impostazioni KICK-OFF"})
+        messages.success(request, "Impostazioni salvate.")
+        return redirect(config_url)
+
+    tab = _normalize_tasks_settings_tab(request.GET.get("tab"), default="config")
+    return render(
+        request,
+        "tasks/impostazioni.html",
+        {
+            **_tasks_shell_context(request, active="impostazioni"),
+            **_build_tasks_settings_context(request, tab=tab),
+            "cfg": cfg,
+            **get_module_branding_context("tasks", fallback_label="KICK-OFF"),
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# VRF Document upload / management
+# ---------------------------------------------------------------------------
+
+@task_permissions_required("tasks_view")
+def project_vrf_upload(request, project_id: int):
+    """Upload documento VRF per un progetto: GET mostra form, POST gestisce upload/confirm/later/not_required."""
+    project_qs = _scoped_projects_queryset(request)
+    project = get_object_or_404(project_qs, pk=project_id)
+    cfg = TaskImpostazioni.get_singleton()
+    vrf_detail = _vrf_status_detail(project, cfg)
+
+    next_url = request.GET.get("next") or request.POST.get("next") or reverse(
+        "tasks:project_gantt", kwargs={"project_id": project_id}
+    )
+
+    # Sanitize next_url to only allow relative paths
+    if next_url and not next_url.startswith("/"):
+        next_url = reverse("tasks:project_gantt", kwargs={"project_id": project_id})
+
+    session_key = f"tasks_vrf_preview_{project_id}"
+
+    if request.method == "GET":
+        request.session.pop(session_key, None)
+        return render(request, "tasks/project_vrf_upload.html", {
+            **_tasks_shell_context(request, active="projects", project=project),
+            "page_title": f"Documento VRF - {project.name}",
+            "project": project,
+            "vrf_detail": vrf_detail,
+            "preview": None,
+            "next_url": next_url,
+        })
+
+    action = request.POST.get("action", "")
+
+    # --- action: upload → parse e mostra preview ---
+    if action == "upload":
+        uploaded = request.FILES.get("vrf_file")
+        if not uploaded:
+            messages.error(request, "Nessun file selezionato.")
+            return redirect(request.get_full_path())
+
+        ext = uploaded.name.rsplit(".", 1)[-1].lower() if "." in uploaded.name else ""
+        if ext not in {"xlsx", "xls"}:
+            messages.error(request, "Formato non valido. Carica un file .xlsx o .xls.")
+            return redirect(request.get_full_path())
+
+        try:
+            file_bytes = uploaded.read()
+            extracted = _parse_vrf_excel(file_bytes)
+        except Exception:
+            messages.error(request, "Impossibile leggere il file Excel. Verifica che sia un MOD.073 valido.")
+            return redirect(request.get_full_path())
+
+        request.session[session_key] = {
+            "filename": uploaded.name,
+            "file_bytes_b64": __import__("base64").b64encode(file_bytes).decode(),
+            "extracted": extracted,
+        }
+
+        return render(request, "tasks/project_vrf_upload.html", {
+            **_tasks_shell_context(request, active="projects", project=project),
+            "page_title": f"Documento VRF - {project.name}",
+            "project": project,
+            "vrf_detail": vrf_detail,
+            "preview": extracted,
+            "filename": uploaded.name,
+            "next_url": next_url,
+        })
+
+    # --- action: confirm → salva file e aggiorna progetto ---
+    if action == "confirm":
+        session_data = request.session.pop(session_key, None)
+        if not session_data:
+            messages.error(request, "Sessione scaduta. Ricarica il file.")
+            return redirect(request.get_full_path())
+
+        import base64, io
+        from django.core.files.base import ContentFile
+        from django.utils import timezone as tz
+
+        extracted = session_data["extracted"]
+        filename = session_data["filename"]
+        file_bytes = base64.b64decode(session_data["file_bytes_b64"])
+
+        project.vrf_file.save(filename, ContentFile(file_bytes), save=False)
+        project.vrf_original_name = filename
+        project.vrf_uploaded_at = tz.now()
+        project.vrf_status = VRFDocStatus.UPLOADED
+
+        if extracted.get("client_name"):
+            project.client_name = extracted["client_name"]
+        if extracted.get("part_number"):
+            project.part_number = extracted["part_number"]
+        if extracted.get("versione"):
+            project.versione = extracted["versione"]
+        if extracted.get("vrf_quote_number"):
+            project.vrf_quote_number = extracted["vrf_quote_number"]
+        if extracted.get("vrf_description"):
+            project.vrf_description = extracted["vrf_description"]
+        if extracted.get("vrf_esp"):
+            project.vrf_esp = extracted["vrf_esp"]
+
+        project.save()
+        log_action(
+            request,
+            "upload_vrf",
+            "tasks",
+            {
+                "message": f"Caricato documento VRF '{filename}' per kickoff #{project.id} — {project.name}",
+                "project_id": project.id,
+                "filename": filename,
+            },
+        )
+        messages.success(request, f"Documento VRF caricato correttamente. Dati del kickoff aggiornati da '{filename}'.")
+        return redirect(next_url)
+
+    # --- action: discard → torna al form upload ---
+    if action == "discard":
+        request.session.pop(session_key, None)
+        return redirect(request.get_full_path())
+
+    # --- action: later → resta PENDING ---
+    if action == "later":
+        request.session.pop(session_key, None)
+        log_action(
+            request,
+            "vrf_remind_skipped",
+            "tasks",
+            {
+                "message": f"VRF rimandato per kickoff #{project.id} — {project.name}",
+                "project_id": project.id,
+            },
+        )
+        messages.info(request, "Documento VRF rimandato. Ricordati di caricarlo al piu presto.")
+        return redirect(next_url)
+
+    # --- action: not_required ---
+    if action == "not_required":
+        request.session.pop(session_key, None)
+        project.vrf_status = VRFDocStatus.NOT_REQUIRED
+        project.save(update_fields=["vrf_status"])
+        log_action(
+            request,
+            "vrf_not_required",
+            "tasks",
+            {
+                "message": f"VRF marcato come 'non richiesto' per kickoff #{project.id} — {project.name}",
+                "project_id": project.id,
+            },
+        )
+        messages.success(request, "Kickoff marcato come 'VRF non richiesto'.")
+        return redirect(next_url)
+
+    return redirect(request.get_full_path())
+
+
+# ---------------------------------------------------------------------------
+# Excel import / template download
+# ---------------------------------------------------------------------------
+
+_IMPORT_COLUMNS = [
+    "Kickoff / Riferimento",
+    "Cliente",
+    "P/N",
+    "Revisione",
+    "Versione",
+    "PM (username)",
+    "Titolo attivita",
+    "Descrizione attivita",
+    "Stato",       # TODO / IN_PROGRESS / DONE / CANCELED
+    "Priorita",    # LOW / MEDIUM / HIGH
+    "Assegnato a (username)",
+    "Data inizio (YYYY-MM-DD)",
+    "Data fine (YYYY-MM-DD)",
+    "Tag",
+]
+
+
+@task_permissions_required("tasks_create")
+def download_excel_template(request):
+    """Genera e scarica il template .xlsx per l'import attivita kickoff."""
+    import io
+    import openpyxl
+    from django.http import HttpResponse
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Kickoff Import"
+
+    # Header row
+    for col_idx, col_name in enumerate(_IMPORT_COLUMNS, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=col_name)
+        cell.font = openpyxl.styles.Font(bold=True)
+
+    # Example row
+    example = [
+        "Rif. kickoff Alfa",
+        "Cliente SRL",
+        "PN-001",
+        "A",
+        "1.0",
+        "",
+        "Titolo attivita di esempio",
+        "Descrizione operativa",
+        "TODO",
+        "MEDIUM",
+        "",
+        "",
+        "",
+        "",
+    ]
+    for col_idx, val in enumerate(example, start=1):
+        ws.cell(row=2, column=col_idx, value=val)
+
+    # Istruzioni foglio
+    ws_info = wb.create_sheet("Istruzioni")
+    ws_info["A1"] = "Istruzioni import attivita kickoff"
+    ws_info["A1"].font = openpyxl.styles.Font(bold=True, size=13)
+    instructions = [
+        ("Kickoff / Riferimento", "Riferimento libero per raggruppare piu righe nello stesso kickoff quando il P/N non e disponibile."),
+        ("Cliente", "Ragione sociale cliente (testo libero)."),
+        ("P/N", "Part Number (testo libero)."),
+        ("Revisione", "Revisione del P/N (testo libero, es. A, B, 01)."),
+        ("Versione", "Versione del P/N (testo libero, es. 1.0, 2.3)."),
+        ("PM (username)", "Username del project manager. Deve esistere nel sistema."),
+        ("Titolo attivita", "Titolo dell'attivita kickoff (obbligatorio)."),
+        ("Descrizione attivita", "Descrizione operativa (opzionale)."),
+        ("Stato", "TODO / IN_PROGRESS / DONE / CANCELED. Default: TODO."),
+        ("Priorita", "LOW / MEDIUM / HIGH. Default: MEDIUM."),
+        ("Assegnato a (username)", "Username dell'operatore. Deve esistere nel sistema."),
+        ("Data inizio (YYYY-MM-DD)", "Data inizio (next_step_due). Formato: 2025-03-15."),
+        ("Data fine (YYYY-MM-DD)", "Data fine prevista (due_date). Formato: 2025-04-30."),
+        ("Tag", "Etichette separate da virgola."),
+    ]
+    ws_info["A3"] = "Campo"
+    ws_info["B3"] = "Descrizione"
+    ws_info["A3"].font = openpyxl.styles.Font(bold=True)
+    ws_info["B3"].font = openpyxl.styles.Font(bold=True)
+    for row_idx, (field, desc) in enumerate(instructions, start=4):
+        ws_info.cell(row=row_idx, column=1, value=field)
+        ws_info.cell(row=row_idx, column=2, value=desc)
+    ws_info.column_dimensions["A"].width = 28
+    ws_info.column_dimensions["B"].width = 80
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    response = HttpResponse(
+        buf.read(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = 'attachment; filename="template_import_kickoff.xlsx"'
+    return response
+
+
+@task_permissions_required("tasks_create")
+def import_excel(request):
+    """Upload + anteprima + commit import attivita kickoff da Excel."""
+    import io
+    import openpyxl
+    from django.db import transaction
+
+    if request.method == "GET":
+        return render(request, "tasks/import.html", {
+            **_tasks_shell_context(request, active="import"),
+            "page_title": "Import attivita kickoff da Excel",
+            "columns": _IMPORT_COLUMNS,
+        })
+
+    # --- STEP 1: upload file e anteprima ---
+    if "file" in request.FILES and "confirm" not in request.POST:
+        uploaded = request.FILES["file"]
+        try:
+            wb = openpyxl.load_workbook(io.BytesIO(uploaded.read()), read_only=True, data_only=True)
+        except Exception:
+            messages.error(request, "File non valido. Carica un file .xlsx corretto.")
+            return redirect("tasks:import_excel")
+
+        ws = wb.active
+        rows_raw = list(ws.iter_rows(min_row=2, values_only=True))
+        wb.close()
+
+        preview_rows = []
+        errors = []
+        for row_idx, row in enumerate(rows_raw, start=2):
+            if not any(row):
+                continue
+            def _cell(n):
+                try:
+                    return str(row[n] or "").strip()
+                except IndexError:
+                    return ""
+
+            kickoff_reference = _cell(0)
+            part_number = _cell(2)
+            revisione = _cell(3) if part_number else ""
+            versione = _cell(4) if part_number else ""
+            titolo = _cell(6)
+            if not titolo:
+                errors.append(f"Riga {row_idx}: campo Titolo attivita vuoto — riga ignorata.")
+                continue
+
+            stato_raw = _cell(8).upper() or "TODO"
+            if stato_raw not in {s.value for s in TaskStatus}:
+                stato_raw = "TODO"
+            priorita_raw = _cell(9).upper() or "MEDIUM"
+            if priorita_raw not in {p.value for p in TaskPriority}:
+                priorita_raw = "MEDIUM"
+
+            preview_rows.append({
+                "progetto": kickoff_reference,
+                "cliente": _cell(1),
+                "part_number": part_number,
+                "revisione": revisione,
+                "versione": versione,
+                "pm_username": _cell(5),
+                "titolo": titolo,
+                "descrizione": _cell(7),
+                "stato": stato_raw,
+                "priorita": priorita_raw,
+                "assegnato_username": _cell(10),
+                "data_inizio": _cell(11),
+                "data_fine": _cell(12),
+                "tag": _cell(13),
+            })
+
+        request.session["tasks_import_preview"] = preview_rows
+        return render(request, "tasks/import.html", {
+            **_tasks_shell_context(request, active="import"),
+            "page_title": "Import attivita kickoff da Excel",
+            "columns": _IMPORT_COLUMNS,
+            "preview_rows": preview_rows,
+            "errors": errors,
+            "filename": uploaded.name,
+        })
+
+    # --- STEP 2: commit ---
+    if "confirm" in request.POST:
+        preview_rows = request.session.pop("tasks_import_preview", [])
+        if not preview_rows:
+            messages.error(request, "Sessione scaduta o nessun dato da importare. Ricarica il file.")
+            return redirect("tasks:import_excel")
+
+        created_projects = 0
+        updated_projects = 0
+        created_tasks = 0
+        updated_project_ids: set[int] = set()
+        cached_projects_by_identity: dict[tuple[str, str, str], Project] = {}
+        cached_projects_by_reference: dict[str, Project] = {}
+
+        try:
+            with transaction.atomic():
+                for row in preview_rows:
+                    # Risolvi PM
+                    pm_user = None
+                    if row["pm_username"]:
+                        pm_user = User.objects.filter(username__iexact=row["pm_username"]).first()
+
+                    proj_defaults = {
+                        "client_name": row["cliente"],
+                        "project_manager": pm_user,
+                    }
+                    part_number = (row["part_number"] or "").strip()
+                    revisione = (row["revisione"] or "").strip()
+                    versione = (row["versione"] or "").strip()
+                    kickoff_reference = (row["progetto"] or "").strip()
+
+                    project = None
+                    project_was_created = False
+                    if part_number:
+                        identity_key = (
+                            part_number.lower(),
+                            revisione.lower(),
+                            versione.lower(),
+                        )
+                        project = cached_projects_by_identity.get(identity_key)
+                        if project is None:
+                            project = (
+                                Project.objects.filter(
+                                    part_number__iexact=part_number,
+                                    revisione__iexact=revisione,
+                                    versione__iexact=versione,
+                                )
+                                .order_by("id")
+                                .first()
+                            )
+                            if project is None:
+                                project = Project.objects.create(
+                                    name="",
+                                    client_name=row["cliente"],
+                                    project_manager=pm_user,
+                                    part_number=part_number,
+                                    revisione=revisione,
+                                    versione=versione,
+                                    created_by=request.user,
+                                )
+                                project_was_created = True
+                                created_projects += 1
+                            cached_projects_by_identity[identity_key] = project
+                    elif kickoff_reference:
+                        reference_key = kickoff_reference.lower()
+                        project = cached_projects_by_reference.get(reference_key)
+                        if project is None:
+                            project = Project.objects.create(
+                                name="",
+                                client_name=row["cliente"],
+                                project_manager=pm_user,
+                                created_by=request.user,
+                            )
+                            project_was_created = True
+                            cached_projects_by_reference[reference_key] = project
+                            created_projects += 1
+                    else:
+                        project = Project.objects.create(
+                            name="",
+                            client_name=row["cliente"],
+                            project_manager=pm_user,
+                            created_by=request.user,
+                        )
+                        project_was_created = True
+                        created_projects += 1
+
+                    updated_fields = []
+                    for field_name, value in proj_defaults.items():
+                        if getattr(project, field_name) != value:
+                            setattr(project, field_name, value)
+                            updated_fields.append(field_name)
+                    if updated_fields:
+                        project.save(update_fields=updated_fields + ["updated_at"])
+                    if project.id not in updated_project_ids and updated_fields and not project_was_created:
+                        updated_project_ids.add(project.id)
+                        updated_projects += 1
+
+                    # Risolvi assegnatario
+                    assigned = None
+                    if row["assegnato_username"]:
+                        assigned = User.objects.filter(username__iexact=row["assegnato_username"]).first()
+
+                    # Date
+                    data_inizio = _coerce_date(row["data_inizio"])
+                    data_fine = _coerce_date(row["data_fine"])
+                    # Sanity: data_fine deve essere > data_inizio
+                    if data_inizio and data_fine and data_fine <= data_inizio:
+                        data_fine = None
+
+                    Task.objects.create(
+                        title=row["titolo"],
+                        description=row["descrizione"],
+                        status=row["stato"],
+                        priority=row["priorita"],
+                        project=project,
+                        assigned_to=assigned,
+                        next_step_due=data_inizio,
+                        due_date=data_fine,
+                        tags=row["tag"],
+                        created_by=request.user,
+                    )
+                    created_tasks += 1
+
+        except Exception as exc:
+            messages.error(request, f"Errore durante l'import: {exc}")
+            return redirect("tasks:import_excel")
+
+        log_action(
+            request,
+            "import_excel",
+            "tasks",
+            {
+                "message": (
+                    f"Import Excel: {created_tasks} attivita kickoff create, "
+                    f"{created_projects} kickoff nuovi, {updated_projects} kickoff aggiornati."
+                ),
+                "created_tasks": created_tasks,
+                "created_projects": created_projects,
+                "updated_projects": updated_projects,
+            },
+        )
+        messages.success(
+            request,
+            (
+                f"Import completato: {created_tasks} attivita kickoff create "
+                f"({created_projects} kickoff nuovi, {updated_projects} aggiornati)."
+            ),
+        )
+        return redirect("tasks:list")
+
+    return redirect("tasks:import_excel")

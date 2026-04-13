@@ -47,6 +47,12 @@ from core.graph_utils import acquire_graph_token, is_placeholder_value
 from core.legacy_models import AnagraficaDipendente, UtenteLegacy
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.models import AuditLog, SiteConfig, UserDashboardLayout, UserExtraInfo
+from core.module_branding import (
+    get_module_branding_context,
+    handle_module_branding_post,
+    resolve_module_logo,
+)
+from core.module_registry import resolve_module_label
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 from .forms import (
     AssistanceContractForm,
@@ -61,6 +67,7 @@ from .forms import (
     MaintenanceRuleAssetOverrideForm,
     PeriodicVerificationForm,
     PlantLayoutForm,
+    SoftwareLicenseForm,
     WorkMachineAssetForm,
     WorkMachineFilterForm,
     WorkOrderCloseForm,
@@ -74,6 +81,7 @@ from .models import (
     AssetCategoryField,
     AssetComponent,
     AssetCustomField,
+    AssetDashboardConfig,
     AssetDetailField,
     AssetDetailSectionLayout,
     AssetDocument,
@@ -87,6 +95,7 @@ from .models import (
     AssetReportDefinition,
     AssetReportTemplate,
     AssetSidebarButton,
+    SoftwareLicense,
     MaintenanceInterventionTemplate,
     MaintenanceRule,
     MaintenanceRuleAssetOverride,
@@ -1023,7 +1032,7 @@ def _maintenance_rule_form_state(form: MaintenanceRuleForm, *, is_edit: bool) ->
         "template_create_base_url": template_create_base_url,
         "template_list_url": template_list_url,
         "template_create_url": template_create_url,
-        "category_admin_url": f"{reverse('assets:asset_list')}#admin-asset-categories",
+        "category_admin_url": f"{reverse('assets:gestione_admin')}?tab=categorie",
     }
 
 
@@ -1101,6 +1110,39 @@ def _assistance_contracts_page_url(
     if q_value:
         params.append(f"q={quote(q_value)}")
     base_url = reverse("assets:assistance_contract_list")
+    return f"{base_url}?{'&'.join(params)}" if params else base_url
+
+
+def _software_licenses_page_url(
+    *,
+    asset_id: int = 0,
+    anagrafica_id: int = 0,
+    edit_id: int = 0,
+    category: str = "",
+    status: str = "",
+    assignee: str = "",
+    q: str = "",
+) -> str:
+    params: list[str] = []
+    if asset_id:
+        params.append(f"asset={int(asset_id)}")
+    if anagrafica_id:
+        params.append(f"anagrafica={int(anagrafica_id)}")
+    if edit_id:
+        params.append(f"edit={int(edit_id)}")
+    category_value = _clean_string(category)
+    if category_value:
+        params.append(f"category={quote(category_value)}")
+    status_value = _clean_string(status)
+    if status_value:
+        params.append(f"status={quote(status_value)}")
+    assignee_value = _clean_string(assignee)
+    if assignee_value:
+        params.append(f"assignee={quote(assignee_value)}")
+    q_value = _clean_string(q)
+    if q_value:
+        params.append(f"q={quote(q_value)}")
+    base_url = reverse("assets:software_license_list")
     return f"{base_url}?{'&'.join(params)}" if params else base_url
 
 
@@ -1306,6 +1348,74 @@ def _contract_scope_payload(contract: AssistanceContract) -> dict[str, str]:
         "detail": "Copertura trasversale",
         "badge_class": "muted",
     }
+
+
+def _software_license_state_payload(license_row: SoftwareLicense, *, today: date | None = None) -> dict[str, object]:
+    current_day = today or timezone.localdate()
+    expiry_date = license_row.expiry_date
+    if not license_row.is_active:
+        return {"status": "inactive", "label": "Disattiva", "badge_class": "muted", "days_label": "Monitoraggio spento"}
+    if isinstance(expiry_date, date):
+        delta_days = (expiry_date - current_day).days
+        if delta_days < 0:
+            return {
+                "status": "expired",
+                "label": "Scaduta",
+                "badge_class": "danger",
+                "days_label": f"Scaduta da {abs(delta_days)} gg",
+            }
+        if delta_days <= 30:
+            return {
+                "status": "expiring",
+                "label": "In scadenza",
+                "badge_class": "warn",
+                "days_label": f"Scade tra {delta_days} gg" if delta_days else "Scade oggi",
+            }
+    return {"status": "active", "label": "Attiva", "badge_class": "ok", "days_label": "In uso"}
+
+
+def _anagrafica_employee_options() -> tuple[list[tuple[str, str]], dict[str, dict[str, str]]]:
+    try:
+        rows = list(
+            AnagraficaDipendente.objects.all()
+            .values(
+                "id",
+                "nome",
+                "cognome",
+                "aliasusername",
+                "reparto",
+                "email",
+                "email_notifica",
+                "utente_id",
+            )
+        )
+    except DatabaseError:
+        return [], {}
+
+    options: list[tuple[str, str]] = []
+    details: dict[str, dict[str, str]] = {}
+    for row in rows:
+        anagrafica_id = int(row.get("id") or 0)
+        if anagrafica_id <= 0:
+            continue
+        nome = _clean_string(row.get("nome"))
+        cognome = _clean_string(row.get("cognome"))
+        alias = _clean_string(row.get("aliasusername"))
+        display_name = " ".join([value for value in [cognome, nome] if value]).strip() or alias
+        email = _clean_string(row.get("email"))
+        notification_email = _clean_string(row.get("email_notifica"))
+        label_email = notification_email or email
+        label = f"{display_name} - {label_email}" if label_email else display_name or f"Dipendente #{anagrafica_id}"
+        options.append((str(anagrafica_id), label))
+        details[str(anagrafica_id)] = {
+            "display_name": display_name or f"Dipendente #{anagrafica_id}",
+            "email": email,
+            "notification_email": notification_email,
+            "reparto": _clean_string(row.get("reparto")),
+            "legacy_user_id": str(row.get("utente_id") or "").strip(),
+        }
+    options.sort(key=lambda item: item[1].casefold())
+    return options, details
 
 
 def _build_work_machine_maintenance_month_dataset(
@@ -2022,7 +2132,7 @@ def _draw_asset_report_pdf(
     draw_list_section("Documenti", ["Categoria", "File", "Data", "Peso"], list(snapshot.get("document_rows") or []))
     draw_list_section("Work order recenti", ["Data", "Tipo", "Titolo", "Stato"], list(snapshot.get("workorder_rows") or []))
     draw_list_section("Ticket collegati", ["Ticket", "Tipo", "Titolo", "Stato"], list(snapshot.get("ticket_rows") or []))
-    draw_list_section("Verifiche periodiche", ["Verifica", "Prossima data", "Fornitore"], list(snapshot.get("periodic_rows") or []))
+    draw_list_section("Manutenzione periodica", ["Piano", "Prossima data", "Fornitore"], list(snapshot.get("periodic_rows") or []))
     draw_footer()
 
 
@@ -2879,6 +2989,18 @@ def _assistance_contract_redirect_from_request(request: HttpRequest) -> str:
     )
 
 
+def _software_license_redirect_from_request(request: HttpRequest) -> str:
+    return _software_licenses_page_url(
+        asset_id=_as_int(request.POST.get("filter_asset"), default=0),
+        anagrafica_id=_as_int(request.POST.get("filter_anagrafica"), default=0),
+        edit_id=_as_int(request.POST.get("filter_edit"), default=0),
+        category=_clean_string(request.POST.get("filter_category")),
+        status=_clean_string(request.POST.get("filter_status")),
+        assignee=_clean_string(request.POST.get("filter_assignee")),
+        q=_clean_string(request.POST.get("filter_q")),
+    )
+
+
 def _maintenance_schedule_row_for_asset_rule(*, asset: Asset, base_rule_id: int) -> dict[str, object] | None:
     rows = build_day_based_maintenance_schedule_rows(
         asset_queryset=Asset.objects.filter(pk=asset.id).select_related("asset_category"),
@@ -2992,26 +3114,26 @@ def _build_periodic_verification_outlook_event_payload(
 ) -> dict[str, object]:
     next_date = verification.next_verification_date
     if not isinstance(next_date, date):
-        raise RuntimeError("La verifica periodica non ha una prossima data calendarizzabile.")
+        raise RuntimeError("La manutenzione periodica non ha una prossima data calendarizzabile.")
     asset_url = request.build_absolute_uri(reverse("assets:asset_view", kwargs={"id": asset.id}))
     verification_url = request.build_absolute_uri(_periodic_verifications_page_url(asset_id=asset.id, edit_id=verification.id))
     supplier_label = _clean_string(str(getattr(verification, "supplier", "") or "")) or "Fornitore non impostato"
     body_html = (
-        "<p>Promemoria verifica periodica generato dal modulo Assets.</p>"
+        "<p>Promemoria manutenzione periodica generato dal modulo Assets.</p>"
         f"<p><strong>Destinatario:</strong> {escape(target_display_name or 'Utente selezionato')}<br>"
         f"<strong>Asset:</strong> {escape(asset.asset_tag)} - {escape(asset.name)}<br>"
-        f"<strong>Verifica:</strong> {escape(verification.name)}<br>"
+        f"<strong>Manutenzione periodica:</strong> {escape(verification.name)}<br>"
         f"<strong>Prossima data:</strong> {next_date:%d/%m/%Y}<br>"
         f"<strong>Cadenza:</strong> {int(verification.frequency_months or 0)} mesi<br>"
         f"<strong>Fornitore:</strong> {escape(supplier_label)}</p>"
         f"<p><a href=\"{escape(asset_url)}\">Apri scheda asset</a><br>"
-        f"<a href=\"{escape(verification_url)}\">Apri verifiche periodiche</a></p>"
+        f"<a href=\"{escape(verification_url)}\">Apri manutenzione periodica</a></p>"
     )
-    subject = f"Verifica periodica {asset.asset_tag} - {verification.name}"[:255]
+    subject = f"Manutenzione periodica {asset.asset_tag} - {verification.name}"[:255]
     return _build_outlook_event_payload(
         subject=subject,
         body_html=body_html,
-        location_label=_clean_string(asset.reparto) or "Verifica periodica asset",
+        location_label=_clean_string(asset.reparto) or "Manutenzione periodica asset",
         due_date=next_date,
         transaction_id=transaction_id,
     )
@@ -3206,7 +3328,7 @@ def _create_asset_periodic_verification_calendar_event(
 ) -> tuple[AssetCalendarEvent, bool]:
     next_date = verification.next_verification_date
     if not isinstance(next_date, date):
-        raise RuntimeError("La verifica selezionata non ha una prossima data impostata.")
+        raise RuntimeError("La manutenzione periodica selezionata non ha una prossima data impostata.")
     source_key = _asset_calendar_source_key(
         event_kind=AssetCalendarEvent.KIND_PERIODIC_VERIFICATION,
         asset_id=asset.id,
@@ -4012,6 +4134,12 @@ def _default_asset_detail_section_layout_rows() -> list[dict[str, object]]:
             "is_visible": True,
         },
         {
+            "code": AssetDetailSectionLayout.SECTION_LICENSES,
+            "grid_size": AssetDetailSectionLayout.SIZE_HALF,
+            "sort_order": 215,
+            "is_visible": True,
+        },
+        {
             "code": AssetDetailSectionLayout.SECTION_PERIODIC,
             "grid_size": AssetDetailSectionLayout.SIZE_HALF,
             "sort_order": 220,
@@ -4325,12 +4453,14 @@ def _is_sidebar_button_active(request: HttpRequest, button: AssetSidebarButton, 
 
 def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]:
     base_list = reverse("assets:asset_list")
+    asset_dashboard = reverse("assets:asset_dashboard")
     asset_components = reverse("assets:asset_component_list")
     asset_deadlines = reverse("assets:asset_administrative_deadline_list")
     maintenance_templates = reverse("assets:maintenance_template_list")
     maintenance_rules = reverse("assets:maintenance_rule_list")
     maintenance_schedule = reverse("assets:maintenance_schedule")
     assistance_contracts = reverse("assets:assistance_contract_list")
+    software_licenses = reverse("assets:software_license_list")
     work_machine_list = reverse("assets:work_machine_list")
     work_machine_dashboard = reverse("assets:work_machine_dashboard")
     periodic_verifications = reverse("assets:periodic_verifications")
@@ -4340,6 +4470,13 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
     current_type = _clean_string(request.GET.get("asset_type"))
     current_route = getattr(getattr(request, "resolver_match", None), "url_name", "")
     return [
+        {
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Dashboard",
+            "url": asset_dashboard,
+            "is_subitem": False,
+            "active": current_route == "asset_dashboard",
+        },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Cruscotto",
@@ -4397,6 +4534,7 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
             "active": current_route in {
                 "maintenance_template_list", "maintenance_template_create", "maintenance_template_edit",
                 "maintenance_rule_list", "maintenance_rule_create", "maintenance_rule_edit",
+                "periodic_verifications",
                 "reports",
             },
         },
@@ -4413,6 +4551,13 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
             "url": maintenance_rules,
             "is_subitem": True,
             "active": current_route in {"maintenance_rule_list", "maintenance_rule_create", "maintenance_rule_edit"},
+        },
+        {
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Manutenzione periodica",
+            "url": periodic_verifications,
+            "is_subitem": True,
+            "active": current_route == "periodic_verifications",
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
@@ -4437,13 +4582,6 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
         },
         {
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Verifiche periodiche",
-            "url": periodic_verifications,
-            "is_subitem": True,
-            "active": current_route == "periodic_verifications",
-        },
-        {
-            "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Mappa officina",
             "url": plant_layout_map,
             "is_subitem": True,
@@ -4455,6 +4593,13 @@ def _default_sidebar_buttons(request: HttpRequest, rows: int = 25) -> list[dict]
             "url": wo_list,
             "is_subitem": False,
             "active": current_route == "wo_list",
+        },
+        {
+            "section": AssetSidebarButton.SECTION_MAIN,
+            "label": "Licenze software",
+            "url": software_licenses,
+            "is_subitem": False,
+            "active": current_route == "software_license_list",
         },
         {
             "section": AssetSidebarButton.SECTION_OPERATIONS,
@@ -4486,7 +4631,7 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "code": "dashboard",
             "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Cruscotto",
-            "target_url": "/assets/?rows={rows}",
+            "target_url": "django:assets:asset_list?rows={rows}",
             "active_match": "",
             "is_subitem": False,
             "parent_code": "",
@@ -4497,7 +4642,7 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "code": "hardware",
             "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Dispositivi",
-            "target_url": "/assets/?asset_type=HW&rows={rows}",
+            "target_url": "django:assets:asset_list?asset_type=HW&rows={rows}",
             "active_match": "asset_type=HW",
             "is_subitem": False,
             "parent_code": "",
@@ -4508,7 +4653,7 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "code": "servers",
             "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Server",
-            "target_url": "/assets/?asset_type=SERVER&rows={rows}",
+            "target_url": "django:assets:asset_list?asset_type=SERVER&rows={rows}",
             "active_match": "asset_type=SERVER",
             "is_subitem": True,
             "parent_code": "hardware",
@@ -4519,7 +4664,7 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "code": "workstations",
             "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Postazioni di lavoro",
-            "target_url": "/assets/?asset_type=PC&rows={rows}",
+            "target_url": "django:assets:asset_list?asset_type=PC&rows={rows}",
             "active_match": "asset_type=PC",
             "is_subitem": True,
             "parent_code": "hardware",
@@ -4530,7 +4675,7 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "code": "networking",
             "section": AssetSidebarButton.SECTION_MAIN,
             "label": "Rete",
-            "target_url": "/assets/?asset_type=FIREWALL&rows={rows}",
+            "target_url": "django:assets:asset_list?asset_type=FIREWALL&rows={rows}",
             "active_match": "asset_type=FIREWALL",
             "is_subitem": True,
             "parent_code": "hardware",
@@ -4562,12 +4707,12 @@ def _default_sidebar_seed_rows() -> list[dict]:
         {
             "code": "periodic_verifications",
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Verifiche periodiche",
+            "label": "Manutenzione periodica",
             "target_url": "django:assets:periodic_verifications",
-            "active_match": "/assets/verifiche-periodiche/",
+            "active_match": "/assets/manutenzione/verifiche/",
             "is_subitem": True,
-            "parent_code": "work_machines",
-            "sort_order": 62,
+            "parent_code": "manutenzione_hub",
+            "sort_order": 57,
             "is_visible": True,
         },
         {
@@ -4639,9 +4784,9 @@ def _default_sidebar_seed_rows() -> list[dict]:
         {
             "code": "software_licenses",
             "section": AssetSidebarButton.SECTION_MAIN,
-            "label": "Interventi",
-            "target_url": "django:assets:wo_list",
-            "active_match": "/assets/workorders/",
+            "label": "Licenze software",
+            "target_url": "django:assets:software_license_list",
+            "active_match": "/assets/licenze/",
             "is_subitem": False,
             "parent_code": "",
             "sort_order": 63,
@@ -4677,7 +4822,7 @@ def _default_sidebar_seed_rows() -> list[dict]:
             "active_match": "/assets/reports/",
             "is_subitem": True,
             "parent_code": "manutenzione_hub",
-            "sort_order": 57,
+            "sort_order": 58,
             "is_visible": True,
         },
         {
@@ -4722,13 +4867,14 @@ def _sidebar_input_suggestions() -> tuple[list[dict[str, str]], list[dict[str, s
         ("django:assets:maintenance_rule_list", "Regole manutenzione"),
         ("django:assets:work_machine_list", "Macchine di lavoro"),
         ("django:assets:work_machine_dashboard", "Dashboard officina"),
-        ("django:assets:periodic_verifications", "Verifiche periodiche"),
+        ("django:assets:periodic_verifications", "Manutenzione periodica"),
         ("django:assets:plant_layout_map", "Mappa officina"),
         ("django:assets:wo_list", "Interventi / Work order"),
+        ("django:assets:software_license_list", "Licenze software"),
         ("django:assets:maintenance_schedule", "Prossime manutenzioni"),
         ("django:assets:assistance_contract_list", "Contratti assistenza"),
         ("django:assets:reports", "Report manutenzione"),
-        ("django:assets:gestione_admin", "Gestione assets"),
+        ("django:assets:gestione_admin", "Impostazioni assets"),
     ]
     for value, label in route_targets:
         add_target(value, label)
@@ -4748,13 +4894,14 @@ def _sidebar_input_suggestions() -> tuple[list[dict[str, str]], list[dict[str, s
         ("assets:maintenance_rule_list", "Regole manutenzione"),
         ("assets:work_machine_list", "Macchine di lavoro"),
         ("assets:work_machine_dashboard", "Dashboard officina"),
-        ("assets:periodic_verifications", "Verifiche periodiche"),
+        ("assets:periodic_verifications", "Manutenzione periodica"),
         ("assets:plant_layout_map", "Mappa officina"),
         ("assets:wo_list", "Interventi / Work order"),
+        ("assets:software_license_list", "Licenze software"),
         ("assets:maintenance_schedule", "Prossime manutenzioni"),
         ("assets:assistance_contract_list", "Contratti assistenza"),
         ("assets:reports", "Report manutenzione"),
-        ("assets:gestione_admin", "Gestione assets"),
+        ("assets:gestione_admin", "Impostazioni assets"),
     ]
     for route_name, label in route_active_matches:
         try:
@@ -5074,7 +5221,8 @@ def _assets_shell_context(
     new_label: str | None = None,
     search_placeholder: str | None = None,
 ) -> dict[str, object]:
-    cfg = SiteConfig.get_many({"assets_logo_image": ""})
+    logo_url = resolve_module_logo("assets", legacy_logo_keys=("assets_logo_image",)) or None
+    display_label = resolve_module_label("assets", fallback="Assets", surface="display")
     return {
         "assets_sidebar_groups": _build_sidebar_groups(request, rows=rows),
         "assets_shell_search_action": search_action or reverse("assets:asset_list"),
@@ -5082,7 +5230,8 @@ def _assets_shell_context(
         "assets_shell_new_label": new_label or "+ Nuovo asset",
         "assets_shell_search_placeholder": search_placeholder or "Ricerca rapida per asset, seriali o utenti (Ctrl + K)",
         "can_gestione_admin": user_can_modulo_action(request, "assets", "admin_assets"),
-        "assets_logo_url": cfg.get("assets_logo_image", "").strip() or None,
+        "assets_logo_url": logo_url,
+        "assets_brand_label": display_label,
     }
 
 
@@ -7177,6 +7326,7 @@ def _build_asset_detail_section_cards(
     doc_category_labels: dict,
     spec_pairs: list[tuple[str, str]],
     profile_rows: list[dict[str, str]],
+    license_rows: list[dict[str, object]],
     ticket_rows: list[dict[str, object]],
 ) -> list[dict[str, str]]:
     cards_by_code = {
@@ -7205,9 +7355,14 @@ def _build_asset_detail_section_cards(
             "title": profile_card_title,
             "render": bool(profile_rows),
         },
+        AssetDetailSectionLayout.SECTION_LICENSES: {
+            "code": AssetDetailSectionLayout.SECTION_LICENSES,
+            "title": "Licenze software",
+            "render": bool(license_rows),
+        },
         AssetDetailSectionLayout.SECTION_PERIODIC: {
             "code": AssetDetailSectionLayout.SECTION_PERIODIC,
-            "title": "Verifiche periodiche",
+            "title": "Manutenzione periodica",
             "render": True,
         },
         AssetDetailSectionLayout.SECTION_QR: {
@@ -7319,6 +7474,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "tickets",
             "periodic_verifications",
             "periodic_verifications__supplier",
+            "software_licenses",
         ),
         pk=id,
     )
@@ -7582,6 +7738,19 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     )
     primary_contract = get_primary_assistance_contract(asset, today=today)
     primary_contract_state = contract_state_payload(primary_contract, today=today) if primary_contract is not None else None
+    asset_license_rows = [
+        {
+            "license": license_row,
+            "state": _software_license_state_payload(license_row, today=today),
+            "asset_url": reverse("assets:asset_view", kwargs={"id": asset.id}),
+            "employee_url": (
+                reverse("anagrafica:dipendente_detail", args=[license_row.assigned_anagrafica_id])
+                if license_row.assigned_anagrafica_id
+                else ""
+            ),
+        }
+        for license_row in asset.software_licenses.all().order_by("category", "vendor", "product_name", "id")
+    ]
     asset_create_workorder_url = _workorder_create_page_url(
         asset_id=asset.id,
         rule_id=getattr(next_maintenance_row.get("base_rule"), "id", 0) if next_maintenance_row else 0,
@@ -7612,10 +7781,14 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
     assigned_user_admin_url = ""
     if asset.assigned_legacy_user_id:
         try:
-            assigned_user_admin_url = reverse(
-                "admin_portale:utente_edit",
-                kwargs={"user_id": int(asset.assigned_legacy_user_id)},
-            )
+            anag = AnagraficaDipendente.objects.filter(
+                utente_id=int(asset.assigned_legacy_user_id)
+            ).values_list("id", flat=True).first()
+            if anag:
+                assigned_user_admin_url = reverse(
+                    "anagrafica:dipendente_detail",
+                    kwargs={"legacy_id": anag},
+                )
         except (NoReverseMatch, ValueError, TypeError):
             assigned_user_admin_url = ""
     collection_url = reverse("assets:work_machine_list") if asset.asset_type == Asset.TYPE_WORK_MACHINE else reverse("assets:asset_list")
@@ -7654,6 +7827,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
         doc_category_labels=doc_category_labels,
         spec_pairs=spec_pairs,
         profile_rows=profile_rows,
+        license_rows=asset_license_rows,
         ticket_rows=ticket_rows,
     )
     asset_primary_kpis = _build_asset_primary_kpis(
@@ -7701,6 +7875,8 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "work_machine": work_machine,
             "collection_url": collection_url,
             "collection_label": collection_label,
+            "asset_license_rows": asset_license_rows,
+            "asset_license_manage_url": _software_licenses_page_url(asset_id=asset.id),
             "doc_category_labels": doc_category_labels,
             "documents_by_category": dict(documents_by_category),
             "sharepoint_folder_url": _clean_string(asset.sharepoint_folder_url),
@@ -7747,6 +7923,7 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "asset_next_maintenance_row": next_maintenance_row,
             "asset_create_workorder_url": asset_create_workorder_url,
             "maintenance_suggestions": maintenance_suggestions,
+            "can_manage_licenses": _is_assets_admin(request),
             "asset_assign_url": asset_assign_url,
             "header_action_buttons": buttons_by_zone.get(AssetActionButton.ZONE_HEADER, []),
             "quick_action_buttons": quick_action_buttons,
@@ -9848,6 +10025,301 @@ def assistance_contract_list(request: HttpRequest) -> HttpResponse:
                 search_placeholder="Ricerca contratti per fornitore, codice o copertura",
             ),
         },
+        )
+
+
+@login_required
+def software_license_list(request: HttpRequest) -> HttpResponse:
+    today = timezone.localdate()
+    can_manage_licenses = _is_assets_admin(request)
+
+    selected_asset_id = _as_int(request.POST.get("asset_id") or request.GET.get("asset"), default=0)
+    selected_anagrafica_id = _as_int(request.POST.get("anagrafica_id") or request.GET.get("anagrafica"), default=0)
+    category_filter = _clean_string(request.GET.get("category")) or "all"
+    status_filter = _clean_string(request.GET.get("status")) or "all"
+    assignee_filter = _clean_string(request.GET.get("assignee")) or "all"
+    q = _clean_string(request.GET.get("q"))
+
+    selected_asset = None
+    if selected_asset_id:
+        selected_asset = Asset.objects.select_related("asset_category").filter(pk=selected_asset_id).first()
+
+    employee_choices, employee_details = _anagrafica_employee_options()
+    selected_employee = None
+    if selected_anagrafica_id:
+        selected_employee = employee_details.get(str(selected_anagrafica_id))
+        if selected_employee is None:
+            try:
+                row = (
+                    AnagraficaDipendente.objects.filter(pk=selected_anagrafica_id)
+                    .values(
+                        "id",
+                        "nome",
+                        "cognome",
+                        "aliasusername",
+                        "reparto",
+                        "email",
+                        "email_notifica",
+                        "utente_id",
+                    )
+                    .first()
+                )
+            except DatabaseError:
+                row = None
+            if row:
+                display_name = " ".join(
+                    [value for value in [_clean_string(row.get("cognome")), _clean_string(row.get("nome"))] if value]
+                ).strip() or _clean_string(row.get("aliasusername")) or f"Dipendente #{selected_anagrafica_id}"
+                selected_employee = {
+                    "display_name": display_name,
+                    "email": _clean_string(row.get("email")),
+                    "notification_email": _clean_string(row.get("email_notifica")),
+                    "reparto": _clean_string(row.get("reparto")),
+                    "legacy_user_id": str(row.get("utente_id") or "").strip(),
+                }
+                if str(selected_anagrafica_id) not in employee_details:
+                    employee_details[str(selected_anagrafica_id)] = dict(selected_employee)
+                    employee_choices.append((str(selected_anagrafica_id), display_name))
+
+    edit_id = _as_int(request.POST.get("edit_id") or request.GET.get("edit"), default=0)
+    edit_license = None
+    if edit_id:
+        edit_license = (
+            SoftwareLicense.objects.select_related("asset")
+            .filter(pk=edit_id)
+            .first()
+        )
+
+    form = SoftwareLicenseForm(
+        instance=edit_license,
+        locked_asset=selected_asset if selected_asset is not None and edit_license is None else None,
+        locked_employee_id=str(selected_anagrafica_id) if selected_anagrafica_id and edit_license is None else "",
+        employee_choices=employee_choices,
+        employee_details=employee_details,
+    )
+
+    if request.method == "POST":
+        action = _clean_string(request.POST.get("action"))
+        if action in {"create_software_license", "update_software_license", "delete_software_license"} and not can_manage_licenses:
+            messages.error(request, "Solo admin puo gestire le licenze software.")
+            return redirect(
+                _software_licenses_page_url(
+                    asset_id=selected_asset.id if selected_asset else 0,
+                    anagrafica_id=selected_anagrafica_id,
+                    category=category_filter,
+                    status=status_filter,
+                    assignee=assignee_filter,
+                    q=q,
+                )
+            )
+
+        if action in {"create_software_license", "update_software_license"}:
+            instance = edit_license if action == "update_software_license" else None
+            form = SoftwareLicenseForm(
+                request.POST,
+                instance=instance,
+                locked_asset=selected_asset if selected_asset is not None and instance is None else None,
+                locked_employee_id=str(selected_anagrafica_id) if selected_anagrafica_id and instance is None else "",
+                employee_choices=employee_choices,
+                employee_details=employee_details,
+            )
+            if form.is_valid():
+                license_row = form.save()
+                log_action(
+                    request,
+                    "update_software_license" if instance is not None else "create_software_license",
+                    "assets",
+                    {
+                        "license_id": license_row.id,
+                        "asset_id": license_row.asset_id,
+                        "assigned_anagrafica_id": license_row.assigned_anagrafica_id,
+                        "assigned_legacy_user_id": license_row.assigned_legacy_user_id,
+                    },
+                )
+                messages.success(
+                    request,
+                    "Licenza software aggiornata." if instance is not None else "Licenza software creata.",
+                )
+                return redirect(
+                    _software_licenses_page_url(
+                        asset_id=selected_asset.id if selected_asset else 0,
+                        anagrafica_id=selected_anagrafica_id,
+                        category=category_filter,
+                        status=status_filter,
+                        assignee=assignee_filter,
+                        q=q,
+                    )
+                )
+        elif action == "delete_software_license":
+            license_row = SoftwareLicense.objects.filter(
+                pk=_as_int(request.POST.get("license_id"), default=0)
+            ).first()
+            if license_row is None:
+                messages.error(request, "Licenza software non trovata.")
+            else:
+                log_action(
+                    request,
+                    "delete_software_license",
+                    "assets",
+                    {
+                        "license_id": license_row.id,
+                        "asset_id": license_row.asset_id,
+                        "assigned_anagrafica_id": license_row.assigned_anagrafica_id,
+                    },
+                )
+                license_row.delete()
+                messages.success(request, "Licenza software eliminata.")
+            return redirect(
+                _software_licenses_page_url(
+                    asset_id=selected_asset.id if selected_asset else 0,
+                    anagrafica_id=selected_anagrafica_id,
+                    category=category_filter,
+                    status=status_filter,
+                    assignee=assignee_filter,
+                    q=q,
+                )
+            )
+
+    license_qs = SoftwareLicense.objects.select_related("asset").order_by(
+        "category",
+        "vendor",
+        "product_name",
+        "id",
+    )
+    if selected_asset is not None:
+        license_qs = license_qs.filter(asset_id=selected_asset.id)
+    if selected_anagrafica_id:
+        legacy_user_id = 0
+        if selected_employee is not None:
+            try:
+                legacy_user_id = int(selected_employee.get("legacy_user_id") or 0)
+            except (TypeError, ValueError):
+                legacy_user_id = 0
+        if legacy_user_id:
+            license_qs = license_qs.filter(
+                Q(assigned_anagrafica_id=selected_anagrafica_id) | Q(assigned_legacy_user_id=legacy_user_id)
+            )
+        else:
+            license_qs = license_qs.filter(assigned_anagrafica_id=selected_anagrafica_id)
+    if category_filter != "all":
+        license_qs = license_qs.filter(category=category_filter)
+    if assignee_filter == "asset":
+        license_qs = license_qs.filter(asset_id__isnull=False)
+    elif assignee_filter == "user":
+        license_qs = license_qs.filter(assigned_anagrafica_id__isnull=False)
+    elif assignee_filter == "unassigned":
+        license_qs = license_qs.filter(asset_id__isnull=True, assigned_anagrafica_id__isnull=True)
+
+    if status_filter != "all":
+        if status_filter == "inactive":
+            license_qs = license_qs.filter(is_active=False)
+        else:
+            license_qs = license_qs.filter(is_active=True)
+            if status_filter == "expired":
+                license_qs = license_qs.filter(expiry_date__lt=today)
+            elif status_filter == "expiring":
+                license_qs = license_qs.filter(expiry_date__gte=today, expiry_date__lte=today + timedelta(days=30))
+            elif status_filter == "active":
+                license_qs = license_qs.filter(
+                    Q(expiry_date__isnull=True) | Q(expiry_date__gt=today + timedelta(days=30))
+                )
+
+    if q:
+        license_qs = license_qs.filter(
+            Q(product_name__icontains=q)
+            | Q(vendor__icontains=q)
+            | Q(edition__icontains=q)
+            | Q(license_reference__icontains=q)
+            | Q(account_email__icontains=q)
+            | Q(assigned_to_display__icontains=q)
+            | Q(asset__asset_tag__icontains=q)
+            | Q(asset__name__icontains=q)
+        )
+
+    license_rows: list[dict[str, object]] = []
+    for license_row in license_qs:
+        state = _software_license_state_payload(license_row, today=today)
+        license_rows.append(
+            {
+                "license": license_row,
+                "state": state,
+                "asset_url": (
+                    reverse("assets:asset_view", kwargs={"id": license_row.asset_id})
+                    if license_row.asset_id
+                    else ""
+                ),
+                "employee_url": (
+                    reverse("anagrafica:dipendente_detail", args=[license_row.assigned_anagrafica_id])
+                    if license_row.assigned_anagrafica_id
+                    else ""
+                ),
+                "edit_url": _software_licenses_page_url(
+                    asset_id=selected_asset.id if selected_asset else 0,
+                    anagrafica_id=selected_anagrafica_id,
+                    edit_id=license_row.id,
+                    category=category_filter,
+                    status=status_filter,
+                    assignee=assignee_filter,
+                    q=q,
+                ),
+            }
+        )
+
+    return render(
+        request,
+        "assets/pages/software_license_list.html",
+        {
+            "page_title": "Licenze software",
+            "form": form,
+            "license_rows": license_rows,
+            "license_total": len(license_rows),
+            "active_count": sum(1 for row in license_rows if row["state"]["status"] == "active"),
+            "expiring_count": sum(1 for row in license_rows if row["state"]["status"] == "expiring"),
+            "expired_count": sum(1 for row in license_rows if row["state"]["status"] == "expired"),
+            "inactive_count": sum(1 for row in license_rows if row["state"]["status"] == "inactive"),
+            "unassigned_count": sum(
+                1
+                for row in license_rows
+                if row["license"].assignment_scope == "unassigned"
+            ),
+            "can_manage_licenses": can_manage_licenses,
+            "is_edit": edit_license is not None,
+            "edit_license": edit_license,
+            "selected_asset": selected_asset,
+            "selected_employee": selected_employee,
+            "selected_anagrafica_id": selected_anagrafica_id,
+            "category_filter": category_filter,
+            "status_filter": status_filter,
+            "assignee_filter": assignee_filter,
+            "q": q,
+            "category_choices": [("all", "Tutte"), *SoftwareLicense.CATEGORY_CHOICES],
+            "status_choices": [
+                ("all", "Tutte"),
+                ("active", "Attive"),
+                ("expiring", "In scadenza"),
+                ("expired", "Scadute"),
+                ("inactive", "Disattive"),
+            ],
+            "assignee_choices": [
+                ("all", "Tutte"),
+                ("asset", "Assegnate a asset"),
+                ("user", "Assegnate a dipendente"),
+                ("unassigned", "Da assegnare"),
+            ],
+            "clear_filters_url": _software_licenses_page_url(
+                asset_id=selected_asset.id if selected_asset else 0,
+                anagrafica_id=selected_anagrafica_id,
+            ),
+            **_assets_shell_context(
+                request,
+                rows=_as_int(request.GET.get("rows"), default=25),
+                search_action=_software_licenses_page_url(
+                    asset_id=selected_asset.id if selected_asset else 0,
+                    anagrafica_id=selected_anagrafica_id,
+                ),
+                search_placeholder="Ricerca per prodotto, vendor, codice o asset",
+            ),
+        },
     )
 
 
@@ -10142,7 +10614,7 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
             if selected_asset is None:
                 messages.error(
                     request,
-                    "Per le verifiche periodiche seleziona prima un asset: l'evento Outlook viene creato sul contesto asset.",
+                    "Per la manutenzione periodica seleziona prima un asset: l'evento Outlook viene creato sul contesto asset.",
                 )
                 return redirect(redirect_url)
 
@@ -10156,16 +10628,16 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
             )
             target_details = calendar_user_details.get(str(target_legacy_user_id))
             if verification is None:
-                messages.error(request, "Verifica periodica non trovata.")
+                messages.error(request, "Piano di manutenzione periodica non trovato.")
                 return redirect(redirect_url)
             if target_details is None:
                 messages.error(request, "Seleziona un utente valido per il calendario Outlook.")
                 return redirect(redirect_url)
             if not verification.assets.filter(pk=selected_asset.id).exists():
-                messages.error(request, "La verifica selezionata non e collegata all'asset attualmente filtrato.")
+                messages.error(request, "La manutenzione periodica selezionata non e collegata all'asset attualmente filtrato.")
                 return redirect(redirect_url)
             if not isinstance(verification.next_verification_date, date):
-                messages.error(request, "Questa verifica non ha una prossima data calendarizzabile.")
+                messages.error(request, "Questa manutenzione periodica non ha una prossima data calendarizzabile.")
                 return redirect(redirect_url)
 
             try:
@@ -10205,13 +10677,13 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
             return redirect(redirect_url)
 
         if action in {"create_periodic_verification", "update_periodic_verification", "delete_periodic_verification"} and not can_manage_periodic_verifications:
-            messages.error(request, "Solo admin puo gestire le verifiche periodiche.")
+            messages.error(request, "Solo admin puo gestire la manutenzione periodica.")
             return redirect(_periodic_verifications_page_url(asset_id=selected_asset.id if selected_asset else 0))
 
         if action in {"create_periodic_verification", "update_periodic_verification"}:
             instance = edit_verification if action == "update_periodic_verification" else None
             if action == "update_periodic_verification" and instance is None:
-                messages.error(request, "Verifica periodica non trovata.")
+                messages.error(request, "Piano di manutenzione periodica non trovato.")
                 return redirect(_periodic_verifications_page_url(asset_id=selected_asset.id if selected_asset else 0))
             form = PeriodicVerificationForm(
                 request.POST,
@@ -10221,18 +10693,22 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
             )
             if form.is_valid():
                 verification = form.save()
-                message = "Verifica periodica aggiornata." if instance is not None else "Verifica periodica creata."
+                message = (
+                    "Manutenzione periodica aggiornata."
+                    if instance is not None
+                    else "Manutenzione periodica creata."
+                )
                 messages.success(request, message)
                 return redirect(_periodic_verifications_page_url(asset_id=selected_asset.id if selected_asset else 0))
         elif action == "delete_periodic_verification":
             verification_id = _as_int(request.POST.get("verification_id"), default=0)
             verification = PeriodicVerification.objects.filter(pk=verification_id).first()
             if verification is None:
-                messages.error(request, "Verifica periodica non trovata.")
+                messages.error(request, "Piano di manutenzione periodica non trovato.")
             else:
                 verification_name = verification.name
                 verification.delete()
-                messages.success(request, f'Verifica periodica "{verification_name}" eliminata.')
+                messages.success(request, f'Manutenzione periodica "{verification_name}" eliminata.')
             return redirect(_periodic_verifications_page_url(asset_id=selected_asset.id if selected_asset else 0))
 
     verification_rows: list[dict[str, object]] = []
@@ -10293,7 +10769,7 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
         request,
         "assets/pages/periodic_verification_list.html",
         {
-            "page_title": "Verifiche periodiche",
+            "page_title": "Manutenzione periodica",
             "form": form,
             "verification_rows": verification_rows,
             "verification_total": len(verification_rows),
@@ -10696,8 +11172,15 @@ def assignment_set(request: HttpRequest, id: int | None = None) -> HttpResponse:
         selected_id = 0
     if selected_id:
         try:
-            selected_user_admin_url = reverse("admin_portale:utente_edit", kwargs={"user_id": selected_id})
-        except NoReverseMatch:
+            anag_id = AnagraficaDipendente.objects.filter(
+                utente_id=selected_id
+            ).values_list("id", flat=True).first()
+            if anag_id:
+                selected_user_admin_url = reverse(
+                    "anagrafica:dipendente_detail",
+                    kwargs={"legacy_id": anag_id},
+                )
+        except (NoReverseMatch, ValueError, TypeError):
             selected_user_admin_url = ""
 
     return render(
@@ -10849,7 +11332,11 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
                 messages.success(request, "Intervento creato.")
                 return redirect("assets:wo_view", id=workorder.id)
     else:
-        form = WorkOrderForm(initial={"status": WorkOrder.STATUS_OPEN}, **form_kwargs)
+        initial = {"status": WorkOrder.STATUS_OPEN}
+        kind_param = request.GET.get("kind", "").strip().upper()
+        if kind_param in {c[0] for c in WorkOrder.KIND_CHOICES}:
+            initial["kind"] = kind_param
+        form = WorkOrderForm(initial=initial, **form_kwargs)
     periodic_verification_supplier_map = {
         str(verification.id): {
             "supplier_id": str(verification.supplier_id or ""),
@@ -11525,8 +12012,20 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
 
     # --- Azioni POST sulla configurazione ---
     if request.method == "POST":
+        branding_response = handle_module_branding_post(
+            request,
+            module_key="assets",
+            redirect_to=request.get_full_path() or f"{reverse('assets:gestione_admin')}?tab=config",
+            audit_module="assets",
+            legacy_logo_keys=("assets_logo_image",),
+            sync_legacy_logo_keys=("assets_logo_image",),
+            fallback_label="Assets",
+        )
+        if branding_response is not None:
+            return branding_response
         action = request.POST.get("action")
         config_redirect = redirect(f"{reverse('assets:gestione_admin')}?tab=config")
+        category_redirect = redirect(f"{reverse('assets:gestione_admin')}?tab=categorie")
 
         if action == "save_sharepoint_config":
             ok, text = _handle_sharepoint_config_request(request)
@@ -11589,6 +12088,14 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
             log_action(request, "delete_label_template", "assets", {"template_id": template_id, "scope": scope_info})
             messages.success(request, f"Template etichetta rimosso ({scope_info}).")
             return config_redirect
+
+        if action in CATEGORY_ACTIONS:
+            ok, text = _handle_asset_category_request(request)
+            if ok:
+                messages.success(request, text)
+            else:
+                messages.error(request, text)
+            return category_redirect
 
         if action in SIDEBAR_ACTIONS:
             ok, text = _handle_sidebar_button_request(request)
@@ -11699,6 +12206,20 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
     q_wo = request.GET.get("q_wo", "").strip()
     tab = request.GET.get("tab", "riepilogo")
 
+    asset_categories = []
+    asset_category_fields = []
+    if tab == "categorie":
+        asset_categories = list(AssetCategory.objects.order_by("sort_order", "label", "id"))
+        asset_category_fields = list(
+            AssetCategoryField.objects.select_related("category").order_by(
+                "category__sort_order",
+                "category__label",
+                "sort_order",
+                "label",
+                "id",
+            )
+        )
+
     # --- Categorie ticket (solo tab ticket) ---
     from tickets.models import CategoriaTicket as _CategoriaTicket, TipoTicket as _TipoTicket
     categorie_ticket = (
@@ -11723,7 +12244,12 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
         request,
         "assets/pages/gestione_admin.html",
         {
-            "page_title": "Gestione Assets",
+            **get_module_branding_context(
+                "assets",
+                fallback_label="Assets",
+                legacy_logo_keys=("assets_logo_image",),
+            ),
+            "page_title": "Impostazioni Assets",
             "tab": tab,
             # stats
             "total_assets": total_assets,
@@ -11758,6 +12284,14 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
             "sidebar_target_suggestions": sidebar_target_suggestions,
             "sidebar_active_match_suggestions": sidebar_active_match_suggestions,
             "sharepoint_admin_config": _sharepoint_admin_config(),
+            "asset_categories": asset_categories,
+            "asset_category_fields": asset_category_fields,
+            "asset_category_type_choices": _ui_choices(Asset.TYPE_CHOICES),
+            "asset_category_field_type_choices": _ui_choices(AssetCategoryField.TYPE_CHOICES),
+            "detail_section_choices": _ui_choices(AssetDetailField.SECTION_CHOICES),
+            "detail_format_choices": _ui_choices(AssetDetailField.FORMAT_CHOICES),
+            "asset_categories_active_count": sum(1 for row in asset_categories if row.is_active),
+            "asset_category_fields_active_count": sum(1 for row in asset_category_fields if row.is_active),
             "categorie_ticket": categorie_ticket,
             "ticket_tipo_choices": _TipoTicket.choices,
             **_assets_shell_context(request),
@@ -11803,3 +12337,191 @@ def asset_bulk_update(request: HttpRequest) -> JsonResponse:
 
     updated = Asset.objects.filter(pk__in=clean_ids).update(**update_kwargs)
     return JsonResponse({"ok": True, "updated": updated})
+
+
+# ---------------------------------------------------------------------------
+# Dashboard Assets
+# ---------------------------------------------------------------------------
+
+_WIDGET_META: dict[str, dict] = {
+    "totale_asset": {"label": "Totale asset", "icon": "package", "color": "blue"},
+    "asset_in_uso": {"label": "In uso", "icon": "check-circle", "color": "green"},
+    "asset_in_riparazione": {"label": "In riparazione", "icon": "wrench", "color": "orange"},
+    "scadenze_scadute": {"label": "Scadenze scadute", "icon": "alert-triangle", "color": "red"},
+    "scadenze_30gg": {"label": "Scadenze 30 gg", "icon": "clock", "color": "yellow"},
+    "scadenze_90gg": {"label": "Scadenze 90 gg", "icon": "calendar", "color": "slate"},
+    "wo_aperte": {"label": "OdL aperte", "icon": "clipboard-list", "color": "blue"},
+    "wo_chiuse_mese": {"label": "OdL chiuse (mese)", "icon": "clipboard-check", "color": "green"},
+    "verifiche_scadute": {"label": "Verifiche scadute", "icon": "shield-alert", "color": "red"},
+    "verifiche_30gg": {"label": "Verifiche 30 gg", "icon": "shield-check", "color": "yellow"},
+    "asset_per_stato": {"label": "Asset per stato", "icon": "bar-chart", "color": "slate"},
+    "asset_per_categoria": {"label": "Asset per categoria", "icon": "layers", "color": "slate"},
+}
+
+
+def _compute_dashboard_kpis(today: date) -> dict:
+    """Calcola tutti i valori KPI per la dashboard assets."""
+    from django.db.models import Min
+
+    in_30 = today + timedelta(days=30)
+    in_90 = today + timedelta(days=90)
+    first_day_month = today.replace(day=1)
+
+    total = Asset.objects.exclude(status=Asset.STATUS_RETIRED).count()
+    in_uso = Asset.objects.filter(status=Asset.STATUS_IN_USE).count()
+    in_repair = Asset.objects.filter(status=Asset.STATUS_IN_REPAIR).count()
+
+    # Scadenze amministrative
+    dl_qs = AssetAdministrativeDeadline.objects.filter(is_active=True)
+    dl_scadute = dl_qs.filter(due_date__lt=today).count()
+    dl_30 = dl_qs.filter(due_date__gte=today, due_date__lte=in_30).count()
+    dl_90 = dl_qs.filter(due_date__gt=in_30, due_date__lte=in_90).count()
+
+    # OdL
+    wo_aperte = WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN).count()
+    wo_chiuse_mese = WorkOrder.objects.filter(
+        status=WorkOrder.STATUS_DONE, closed_at__date__gte=first_day_month
+    ).count()
+
+    # Verifiche periodiche
+    pv_qs = PeriodicVerification.objects.filter(is_active=True, next_verification_date__isnull=False)
+    pv_scadute = pv_qs.filter(next_verification_date__lt=today).count()
+    pv_30 = pv_qs.filter(next_verification_date__gte=today, next_verification_date__lte=in_30).count()
+
+    # Asset per stato
+    status_map = dict(Asset.STATUS_CHOICES)
+    per_stato_qs = Asset.objects.values("status").annotate(n=Count("id")).order_by("-n")
+    per_stato = [
+        {"status": r["status"], "label": status_map.get(r["status"], r["status"]), "count": r["n"]}
+        for r in per_stato_qs
+    ]
+
+    # Asset per categoria (top 10 + "Altro")
+    per_cat_qs = list(
+        Asset.objects.values("asset_category__id", "asset_category__label")
+        .annotate(n=Count("id"))
+        .order_by("-n")[:12]
+    )
+    per_categoria = []
+    for r in per_cat_qs:
+        per_categoria.append({
+            "id": r["asset_category__id"],
+            "label": r["asset_category__label"] or "Senza categoria",
+            "count": r["n"],
+        })
+
+    # Prossime scadenze (lista breve)
+    prossime_scadenze = list(
+        AssetAdministrativeDeadline.objects.filter(is_active=True, due_date__gte=today, due_date__lte=in_30)
+        .select_related("asset")
+        .order_by("due_date")[:8]
+    )
+    prossime_verifiche = list(
+        PeriodicVerification.objects.filter(is_active=True, next_verification_date__gte=today, next_verification_date__lte=in_30)
+        .order_by("next_verification_date")[:8]
+    )
+    scadenze_arretrate = list(
+        AssetAdministrativeDeadline.objects.filter(is_active=True, due_date__lt=today)
+        .select_related("asset")
+        .order_by("due_date")[:8]
+    )
+
+    return {
+        "totale_asset": total,
+        "asset_in_uso": in_uso,
+        "asset_in_riparazione": in_repair,
+        "scadenze_scadute": dl_scadute,
+        "scadenze_30gg": dl_30,
+        "scadenze_90gg": dl_90,
+        "wo_aperte": wo_aperte,
+        "wo_chiuse_mese": wo_chiuse_mese,
+        "verifiche_scadute": pv_scadute,
+        "verifiche_30gg": pv_30,
+        "asset_per_stato": per_stato,
+        "asset_per_categoria": per_categoria,
+        # dati lista per le card detail
+        "prossime_scadenze": prossime_scadenze,
+        "prossime_verifiche": prossime_verifiche,
+        "scadenze_arretrate": scadenze_arretrate,
+    }
+
+
+def _legacy_asset_dashboard_list_redirect_url(request: HttpRequest) -> str:
+    if request.method != "GET" or not request.GET:
+        return ""
+    legacy_list_query_keys = {"q", "asset_type", "reparto", "vlan", "ip", "rows", "page"}
+    if not any(key in request.GET for key in legacy_list_query_keys):
+        return ""
+    query_string = request.GET.urlencode()
+    target_url = reverse("assets:asset_list")
+    return f"{target_url}?{query_string}" if query_string else target_url
+
+
+@login_required
+def asset_dashboard(request: HttpRequest) -> HttpResponse:
+    """Dashboard principale del modulo Assets con KPI personalizzabili."""
+    legacy_list_redirect = _legacy_asset_dashboard_list_redirect_url(request)
+    if legacy_list_redirect:
+        return redirect(legacy_list_redirect)
+
+    today = timezone.localdate()
+
+    # Configurazione widget utente
+    cfg, _ = AssetDashboardConfig.objects.get_or_create(user=request.user)
+    enabled = cfg.get_enabled_widgets()
+
+    kpis = _compute_dashboard_kpis(today)
+
+    # Categorie asset attive (solo principali, per i link in cima)
+    categories = list(AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label"))
+
+    # Metadati widget arricchiti con valore
+    widgets_all = []
+    for code, meta in _WIDGET_META.items():
+        widgets_all.append({
+            "code": code,
+            "label": meta["label"],
+            "icon": meta["icon"],
+            "color": meta["color"],
+            "enabled": code in enabled,
+            "order": enabled.index(code) if code in enabled else 999,
+        })
+    widgets_all.sort(key=lambda w: (0 if w["enabled"] else 1, w["order"]))
+
+    branding = get_module_branding_context("assets")
+
+    ctx = _assets_shell_context(request, search_action=reverse("assets:asset_list"))
+    ctx.update({
+        "today": today,
+        "kpis": kpis,
+        "enabled_widgets": enabled,
+        "enabled_widgets_json": json.dumps(enabled),
+        "widgets_all": widgets_all,
+        "categories": categories,
+        "branding": branding,
+        "page_title": "Dashboard Assets",
+    })
+    return render(request, "assets/pages/asset_dashboard.html", ctx)
+
+
+@login_required
+def api_asset_dashboard_save_config(request: HttpRequest) -> JsonResponse:
+    """Salva la configurazione widget dashboard per l'utente corrente."""
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "error": "Metodo non consentito"}, status=405)
+    try:
+        payload = json.loads(request.body or b"{}")
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({"ok": False, "error": "Payload non valido"}, status=400)
+
+    widgets = payload.get("widgets")
+    if not isinstance(widgets, list):
+        return JsonResponse({"ok": False, "error": "Campo widgets obbligatorio (lista)"}, status=400)
+
+    valid = set(AssetDashboardConfig.DEFAULT_WIDGETS)
+    clean = [w for w in widgets if isinstance(w, str) and w in valid]
+
+    cfg, _ = AssetDashboardConfig.objects.get_or_create(user=request.user)
+    cfg.enabled_widgets = clean
+    cfg.save(update_fields=["enabled_widgets", "updated_at"])
+    return JsonResponse({"ok": True, "saved": len(clean)})

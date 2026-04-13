@@ -15,6 +15,7 @@ from django.views.decorators.http import require_POST
 from core.audit import log_action
 from core.graph_utils import acquire_graph_token
 from core.legacy_utils import get_legacy_user, is_legacy_admin
+from core.module_branding import get_module_branding_context, handle_module_branding_post
 
 from .models import RilevazioneIncidente, SicurezzaImpostazioni
 
@@ -131,6 +132,13 @@ def _can_manage_rspp(request) -> bool:
     username = request.user.get_username().lower()
     email = (request.user.email or "").lower()
     return any(v.lower() in (username, email) for v in acl)
+
+
+def _can_manage_settings(request) -> bool:
+    if not request.user.is_authenticated:
+        return False
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    return bool(getattr(request.user, "is_superuser", False) or (legacy_user and is_legacy_admin(legacy_user)))
 
 
 def _create_required(view_func):
@@ -455,6 +463,7 @@ def lista(request):
         "all_reparti": all_reparti,
         "can_create": can_create,
         "can_rspp": can_rspp,
+        "can_manage_settings": _can_manage_settings(request),
         "error": error,
         "stats": stats,
     })
@@ -856,8 +865,18 @@ def impostazioni(request):
 
     cfg = _get_impostazioni()
     error = None
+    active_tab = request.GET.get("tab", "sharepoint")
 
     if request.method == "POST":
+        branding_response = handle_module_branding_post(
+            request,
+            module_key="rilevazione_incidenti",
+            redirect_to=request.get_full_path() or f"{request.path}?tab={active_tab}",
+            audit_module="rilevazione_incidenti",
+            fallback_label="Rilevazione Incidenti",
+        )
+        if branding_response is not None:
+            return branding_response
         tab = request.POST.get("_tab", "sharepoint")
         if tab == "sharepoint":
             cfg.sharepoint_site_id = request.POST.get("sharepoint_site_id", "").strip()
@@ -878,8 +897,6 @@ def impostazioni(request):
             return redirect(f"{request.path}?tab={tab}")
         except Exception as exc:
             error = str(exc)
-
-    active_tab = request.GET.get("tab", "sharepoint")
     n_record_db = RilevazioneIncidente.objects.count()
     storage_mode = "locale" if _use_local(cfg) else "sharepoint"
 
@@ -895,6 +912,7 @@ def impostazioni(request):
         "cause_evento_default": CAUSE_EVENTO,
         "n_record_db": n_record_db,
         "storage_mode": storage_mode,
+        **get_module_branding_context("rilevazione_incidenti", fallback_label="Rilevazione Incidenti"),
     })
 
 

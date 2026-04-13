@@ -1,69 +1,537 @@
 {% extends "tasks/base_shell.html" %}
 
+{% block tasks_shell_head %}
+  {% include "core/components/module_settings_styles.html" %}
+  <style>
+    .admin-tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .admin-tab {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      padding: 0 14px;
+      border-radius: 999px;
+      border: 1px solid #dbe5ef;
+      background: #fff;
+      color: #475569;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .admin-tab:hover {
+      color: #1d4ed8;
+      border-color: #bfdbfe;
+    }
+
+    .admin-tab.active {
+      background: #eff6ff;
+      border-color: #bfdbfe;
+      color: #1d4ed8;
+    }
+
+    .admin-log-grid {
+      display: grid;
+      grid-template-columns: 140px 90px 120px 1fr;
+      gap: 10px;
+    }
+
+    .admin-log-row {
+      display: contents;
+    }
+
+    .admin-log-row > span {
+      padding: 10px 0;
+      border-bottom: 1px solid #eef2f7;
+      font-size: 12px;
+    }
+
+    .admin-log-head > span {
+      color: #64748b;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .admin-search-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: end;
+    }
+
+    .admin-search-row .ts-field {
+      flex: 1;
+      min-width: 180px;
+    }
+
+    .inline-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .settings-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    .settings-summary-item {
+      border: 1px solid #e5edf6;
+      border-radius: 12px;
+      padding: 14px;
+      background: #f8fbff;
+    }
+
+    .settings-summary-label {
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 6px;
+    }
+
+    .settings-summary-value {
+      font-size: 15px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .settings-summary-note {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #64748b;
+    }
+
+    @media (max-width: 900px) {
+      .admin-log-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .admin-log-row > span {
+        border-bottom: 0;
+        padding: 0;
+      }
+
+      .admin-log-row {
+        display: grid;
+        gap: 6px;
+        padding: 12px 0;
+        border-bottom: 1px solid #eef2f7;
+      }
+
+      .admin-log-head {
+        display: none;
+      }
+    }
+  </style>
+{% endblock %}
+
 {% block tasks_shell_eyebrow %}Amministrazione{% endblock %}
-{% block tasks_shell_title %}Impostazioni Task{% endblock %}
-{% block tasks_shell_subtitle %}Configurazione globale del modulo Task: notifiche, responsabili e note operative.{% endblock %}
+{% block tasks_shell_title %}Impostazioni {{ module_branding_display_label }}{% endblock %}
+{% block tasks_shell_subtitle %}Punto unico per configurazione, riepilogo, record e log del modulo KICK-OFF.{% endblock %}
+{% block tasks_shell_meta %}
+  <span class="ts-hero-pill">Admin</span>
+  <span class="ts-hero-pill">{{ total_tasks }} attivita</span>
+  <span class="ts-hero-pill">{{ total_projects }} kickoff</span>
+{% endblock %}
+{% block tasks_shell_actions %}
+  <a class="ts-hero-action" href="{% url 'tasks:list' %}">Dashboard attivita</a>
+  <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Portfolio kickoff</a>
+  {% if tasks_shell_can_create %}
+    <a class="ts-hero-action primary" href="{% url 'tasks:create' %}">Nuova attivita</a>
+  {% endif %}
+{% endblock %}
+
+{% block tasks_shell_kpis %}
+  {% if tab == "riepilogo" %}
+    <section class="ts-kpis">
+      <article class="ts-kpi blue">
+        <div class="ts-kpi-label">Attivita totali</div>
+        <div class="ts-kpi-value">{{ total_tasks }}</div>
+        <div class="ts-kpi-note">Volume complessivo gestito nel modulo.</div>
+      </article>
+      <article class="ts-kpi teal">
+        <div class="ts-kpi-label">Kickoff</div>
+        <div class="ts-kpi-value">{{ total_projects }}</div>
+        <div class="ts-kpi-note">Anagrafiche kickoff presenti nel sistema.</div>
+      </article>
+      <article class="ts-kpi amber">
+        <div class="ts-kpi-label">In corso</div>
+        <div class="ts-kpi-value">{{ in_progress_count }}</div>
+        <div class="ts-kpi-note">Attivita aperte in lavorazione.</div>
+      </article>
+      <article class="ts-kpi red">
+        <div class="ts-kpi-label">Scadute</div>
+        <div class="ts-kpi-value">{{ tasks_overdue }}</div>
+        <div class="ts-kpi-note">Attivita aperte oltre la soglia.</div>
+      </article>
+    </section>
+  {% endif %}
+{% endblock %}
 
 {% block tasks_shell_content %}
-<form method="post">
-  {% csrf_token %}
+  <div class="ts-stack">
+    <section class="ts-panel">
+      <div class="ts-panel-body" style="padding-top:18px;">
+        <div class="admin-tabs">
+          <a href="?tab=config" class="admin-tab {% if tab == 'config' %}active{% endif %}">Configurazione</a>
+          <a href="?tab=riepilogo" class="admin-tab {% if tab == 'riepilogo' %}active{% endif %}">Riepilogo</a>
+          <a href="?tab=record" class="admin-tab {% if tab == 'record' %}active{% endif %}">Record</a>
+          <a href="?tab=log" class="admin-tab {% if tab == 'log' %}active{% endif %}">Log attivita</a>
+        </div>
+      </div>
+    </section>
 
-  <div class="ts-panel">
-    <div class="ts-panel-head">
-      <div class="ts-panel-title-wrap">
-        <h2 class="ts-panel-title">Notifiche &amp; Responsabile</h2>
-        <p class="ts-panel-subtitle">Configura le email di sistema per scadenze e assegnazioni.</p>
-      </div>
-    </div>
-    <div class="ts-panel-body">
-      <div class="ts-form-grid-2">
-        <div class="ts-field">
-          <label for="responsabile_email">Email notifiche</label>
-          <input type="email" id="responsabile_email" name="responsabile_email"
-                 value="{{ cfg.responsabile_email }}" placeholder="es. admin@azienda.it">
-          <span class="ts-field-help">Destinatario delle email di sistema (scadenze, assegnazioni).</span>
+    {% if tab == "config" %}
+      <section class="ts-grid-2">
+        <article class="ts-panel">
+          <div class="ts-panel-head">
+            <div class="ts-panel-title-wrap">
+              <h2 class="ts-panel-title">Tutte le impostazioni modificabili</h2>
+              <p class="ts-panel-subtitle">La vecchia area Gestione e ora confluita qui: configurazione, branding, record e log stanno dentro un unico punto admin.</p>
+            </div>
+          </div>
+          <div class="ts-panel-body">
+            <div class="inline-actions" style="margin-bottom:12px;">
+              <a href="{% url 'tasks:list' %}" class="btn btn-secondary btn-sm">Dashboard attivita</a>
+              <a href="{% url 'tasks:project_list' %}" class="btn btn-secondary btn-sm">Portfolio kickoff</a>
+              <a href="?tab=record" class="btn btn-secondary btn-sm">Apri record</a>
+              <a href="?tab=log" class="btn btn-secondary btn-sm">Apri log</a>
+            </div>
+            <div class="ts-note-box">
+              <strong>Tutte le impostazioni modificabili del modulo sono in questa tab:</strong>
+              branding nome/logo, email responsabile, notifiche scadenza, giorni di preavviso, note interne e soglie VRF.
+            </div>
+          </div>
+        </article>
+
+        {% include "core/components/module_branding_card.html" %}
+      </section>
+
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="tab" value="config">
+
+        <div class="ts-panel" style="margin-top:14px;">
+          <div class="ts-panel-head">
+            <div class="ts-panel-title-wrap">
+              <h2 class="ts-panel-title">Notifiche e responsabile</h2>
+              <p class="ts-panel-subtitle">Configura le email di sistema per scadenze e assegnazioni.</p>
+            </div>
+          </div>
+          <div class="ts-panel-body">
+            <div class="ts-form-grid-2">
+              <div class="ts-field">
+                <label for="responsabile_email">Email notifiche</label>
+                <input type="email" id="responsabile_email" name="responsabile_email" value="{{ cfg.responsabile_email }}" placeholder="es. admin@azienda.it">
+                <span class="ts-field-help">Destinatario delle email di sistema per scadenze e assegnazioni.</span>
+              </div>
+              <div class="ts-field">
+                <label for="giorni_preavviso">Giorni preavviso scadenza</label>
+                <input type="number" id="giorni_preavviso" name="giorni_preavviso" value="{{ cfg.giorni_preavviso }}" min="1" max="30">
+                <span class="ts-field-help">Quanti giorni prima della scadenza inviare il promemoria.</span>
+              </div>
+            </div>
+            <div class="ts-field">
+              <div class="ts-checkline">
+                <input type="checkbox" id="notifiche_scadenza_attive" name="notifiche_scadenza_attive" {% if cfg.notifiche_scadenza_attive %}checked{% endif %}>
+                <label for="notifiche_scadenza_attive">Abilita notifiche email per scadenza attivita kickoff</label>
+              </div>
+              <span class="ts-field-help">Se attivo, il sistema avvisa assegnatario e referente dell'attivita con il preavviso configurato.</span>
+            </div>
+          </div>
         </div>
-        <div class="ts-field">
-          <label for="giorni_preavviso">Giorni preavviso scadenza</label>
-          <input type="number" id="giorni_preavviso" name="giorni_preavviso"
-                 value="{{ cfg.giorni_preavviso }}" min="1" max="30">
-          <span class="ts-field-help">Quanti giorni prima della scadenza inviare il promemoria.</span>
+
+        <div class="ts-panel" style="margin-top:14px;">
+          <div class="ts-panel-head">
+            <div class="ts-panel-title-wrap">
+              <h2 class="ts-panel-title">Note operative</h2>
+              <p class="ts-panel-subtitle">Indicazioni interne visibili solo agli amministratori del modulo.</p>
+            </div>
+          </div>
+          <div class="ts-panel-body">
+            <div class="ts-field full">
+              <label for="note_generali">Note generali</label>
+              <textarea id="note_generali" name="note_generali" rows="4">{{ cfg.note_generali }}</textarea>
+            </div>
+          </div>
         </div>
-      </div>
-      <div class="ts-field">
-        <div class="ts-checkline">
-          <input type="checkbox" id="notifiche_scadenza_attive" name="notifiche_scadenza_attive"
-                 {% if cfg.notifiche_scadenza_attive %}checked{% endif %}>
-          <label for="notifiche_scadenza_attive">Abilita notifiche email per scadenza task</label>
+
+        <div class="ts-panel" style="margin-top:14px;">
+          <div class="ts-panel-head">
+            <div class="ts-panel-title-wrap">
+              <h2 class="ts-panel-title">Documento VRF - obbligo e reminder</h2>
+              <p class="ts-panel-subtitle">Configura dopo quanti giorni dalla creazione del kickoff il sistema mostra l'avviso e blocca le operazioni sulle attivita kickoff.</p>
+            </div>
+          </div>
+          <div class="ts-panel-body">
+            <div class="ts-form-grid-2">
+              <div class="ts-field">
+                <label for="vrf_reminder_days">Giorni avviso</label>
+                <input type="number" id="vrf_reminder_days" name="vrf_reminder_days" value="{{ cfg.vrf_reminder_days }}" min="1" max="365">
+                <span class="ts-field-help">Dopo quanti giorni dalla creazione del kickoff viene mostrato l'avviso se il documento VRF non e stato caricato.</span>
+              </div>
+              <div class="ts-field">
+                <label for="vrf_blocking_days">Giorni blocco</label>
+                <input type="number" id="vrf_blocking_days" name="vrf_blocking_days" value="{{ cfg.vrf_blocking_days }}" min="1" max="36500">
+                <span class="ts-field-help">Dopo quanti giorni il sistema impedisce di aggiungere o modificare attivita kickoff finche il documento non viene caricato. Imposta 9999 per disabilitare il blocco.</span>
+              </div>
+            </div>
+            <div class="ts-note-box" style="margin-top:12px;">
+              <strong>Soglie attive:</strong> avviso dopo {{ cfg.vrf_reminder_days }} giorni &bull; blocco dopo {{ cfg.vrf_blocking_days }} giorni.
+              Il timer parte dalla data di creazione del kickoff.
+            </div>
+          </div>
+          <div class="ts-panel-footer">
+            <button type="submit" class="btn btn-primary">Salva impostazioni</button>
+          </div>
         </div>
-        <span class="ts-field-help">Se attivo, invia una email all'assegnatario e all'email notifiche X giorni prima della scadenza.</span>
-      </div>
-    </div>
+      </form>
+    {% endif %}
+
+    {% if tab == "riepilogo" %}
+      <section class="ts-grid-2">
+        <article class="ts-panel">
+          <div class="ts-panel-head">
+            <div class="ts-panel-title-wrap">
+              <h2 class="ts-panel-title">Distribuzione per stato</h2>
+              <p class="ts-panel-subtitle">Lettura rapida del mix tra backlog aperto, avanzamento e chiusure.</p>
+            </div>
+          </div>
+          <div class="ts-panel-body no-pad">
+            <div class="ts-table-wrap" style="border:0;border-radius:0;">
+              <table class="ts-table" style="min-width:0;">
+                <thead><tr><th>Stato</th><th>Quantita</th></tr></thead>
+                <tbody>
+                  {% for val, lbl, cnt in tasks_by_status %}
+                    <tr>
+                      <td><span class="ts-badge ts-badge--{{ val|lower }}">{{ lbl }}</span></td>
+                      <td><strong>{{ cnt }}</strong></td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </article>
+
+        <article class="ts-panel">
+          <div class="ts-panel-head">
+            <div class="ts-panel-title-wrap">
+              <h2 class="ts-panel-title">Top 10 assegnatari</h2>
+              <p class="ts-panel-subtitle">Utenti con il maggior numero di task assegnate nel database attuale.</p>
+            </div>
+          </div>
+          <div class="ts-panel-body no-pad">
+            <div class="ts-table-wrap" style="border:0;border-radius:0;">
+              <table class="ts-table" style="min-width:0;">
+                <thead><tr><th>Utente</th><th>Task</th></tr></thead>
+                <tbody>
+                  {% for row in top_assignees %}
+                    <tr>
+                      <td>{{ row.assigned_to__username }}</td>
+                      <td><strong>{{ row.n }}</strong></td>
+                    </tr>
+                  {% empty %}
+                    <tr><td colspan="2">Nessun dato disponibile.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="ts-panel">
+        <div class="ts-panel-head">
+          <div class="ts-panel-title-wrap">
+            <h2 class="ts-panel-title">Configurazione attiva</h2>
+            <p class="ts-panel-subtitle">Riepilogo delle impostazioni modificabili oggi in uso nel modulo.</p>
+          </div>
+        </div>
+        <div class="ts-panel-body">
+          <div class="settings-summary">
+            <div class="settings-summary-item">
+              <div class="settings-summary-label">Branding modulo</div>
+              <div class="settings-summary-value">{{ module_branding_display_label }}</div>
+              <div class="settings-summary-note">{% if module_branding_has_logo %}Logo personalizzato attivo.{% else %}Nessun logo personalizzato.{% endif %}</div>
+            </div>
+            <div class="settings-summary-item">
+              <div class="settings-summary-label">Email notifiche</div>
+              <div class="settings-summary-value">{{ cfg.responsabile_email|default:"Non impostata" }}</div>
+              <div class="settings-summary-note">{% if cfg.notifiche_scadenza_attive %}Notifiche scadenza attive.{% else %}Notifiche scadenza disattivate.{% endif %}</div>
+            </div>
+            <div class="settings-summary-item">
+              <div class="settings-summary-label">Preavviso scadenza</div>
+              <div class="settings-summary-value">{{ cfg.giorni_preavviso }} giorni</div>
+              <div class="settings-summary-note">Promemoria anticipato per le attivita kickoff.</div>
+            </div>
+            <div class="settings-summary-item">
+              <div class="settings-summary-label">Soglie VRF</div>
+              <div class="settings-summary-value">{{ cfg.vrf_reminder_days }} / {{ cfg.vrf_blocking_days }} giorni</div>
+              <div class="settings-summary-note">Prima avviso, poi blocco operativo.</div>
+            </div>
+            <div class="settings-summary-item">
+              <div class="settings-summary-label">Note interne</div>
+              <div class="settings-summary-value">{% if cfg.note_generali %}Presenti{% else %}Assenti{% endif %}</div>
+              <div class="settings-summary-note">Le note operative si gestiscono dalla tab Configurazione.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    {% endif %}
+
+    {% if tab == "record" %}
+      <section class="ts-panel">
+        <div class="ts-panel-head">
+          <div class="ts-panel-title-wrap">
+            <h2 class="ts-panel-title">Kickoff</h2>
+            <p class="ts-panel-subtitle">{{ projects_page.paginator.count }} record con ricerca per nome o cliente.</p>
+          </div>
+        </div>
+        <div class="ts-panel-body">
+          <form method="get" class="admin-search-row">
+            <input type="hidden" name="tab" value="record">
+            <div class="ts-field">
+              <label for="id_q_proj">Cerca kickoff</label>
+              <input id="id_q_proj" type="text" name="q_proj" value="{{ q_proj }}" class="input" placeholder="Nome o cliente">
+            </div>
+            <div class="ts-actions">
+              <button type="submit" class="btn btn-sm">Cerca</button>
+              {% if q_proj %}<a href="?tab=record" class="btn btn-secondary btn-sm">Reset</a>{% endif %}
+            </div>
+          </form>
+
+          <div class="ts-table-wrap">
+            <table class="ts-table">
+              <thead><tr><th>Nome</th><th>Cliente</th><th>PM</th><th>Creato</th><th></th></tr></thead>
+              <tbody>
+                {% for p in projects_page %}
+                  <tr>
+                    <td>{{ p.name }}</td>
+                    <td>{{ p.client_name|default:"-" }}</td>
+                    <td>{{ p.project_manager.username|default:"-" }}</td>
+                    <td>{{ p.created_at|date:"d/m/Y" }}</td>
+                    <td><a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_gantt' p.id %}">Gantt</a></td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="5">Nessun kickoff trovato.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          {% if projects_page.has_other_pages %}
+            <div class="ts-panel-footer">
+              <span class="ts-chip soft">Pagina {{ projects_page.number }} di {{ projects_page.paginator.num_pages }}</span>
+              {% if projects_page.has_previous %}<a class="btn btn-secondary btn-sm" href="?tab=record&q_proj={{ q_proj }}&proj_page={{ projects_page.previous_page_number }}">Prec</a>{% endif %}
+              {% if projects_page.has_next %}<a class="btn btn-secondary btn-sm" href="?tab=record&q_proj={{ q_proj }}&proj_page={{ projects_page.next_page_number }}">Succ</a>{% endif %}
+            </div>
+          {% endif %}
+        </div>
+      </section>
+
+      <section class="ts-panel">
+        <div class="ts-panel-head">
+          <div class="ts-panel-title-wrap">
+            <h2 class="ts-panel-title">Attivita kickoff</h2>
+            <p class="ts-panel-subtitle">{{ tasks_page.paginator.count }} record filtrabili per titolo e stato.</p>
+          </div>
+        </div>
+        <div class="ts-panel-body">
+          <form method="get" class="admin-search-row">
+            <input type="hidden" name="tab" value="record">
+            <div class="ts-field">
+              <label for="id_q_task">Cerca attivita</label>
+              <input id="id_q_task" type="text" name="q_task" value="{{ q_task }}" class="input" placeholder="Titolo attivita">
+            </div>
+            <div class="ts-field">
+              <label for="id_filter_status">Stato</label>
+              <select id="id_filter_status" name="filter_status" class="input">
+                <option value="">Tutti gli stati</option>
+                {% for val, lbl in task_status_choices %}
+                  <option value="{{ val }}" {% if filter_status == val %}selected{% endif %}>{{ lbl }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="ts-actions">
+              <button type="submit" class="btn btn-sm">Cerca</button>
+            </div>
+          </form>
+
+          <div class="ts-table-wrap">
+            <table class="ts-table">
+              <thead><tr><th>Titolo</th><th>Kickoff</th><th>Stato</th><th>Priorita</th><th>Assegnato a</th><th>Scadenza</th><th></th></tr></thead>
+              <tbody>
+                {% for t in tasks_page %}
+                  <tr>
+                    <td>{{ t.title }}</td>
+                    <td>{{ t.project.name|default:"-" }}</td>
+                    <td><span class="ts-badge ts-badge--{{ t.status|lower }}">{{ t.get_status_display }}</span></td>
+                    <td><span class="ts-badge ts-badge--{{ t.priority|lower }}">{{ t.get_priority_display }}</span></td>
+                    <td>{{ t.assigned_to.username|default:"-" }}</td>
+                    <td>{% if t.due_date %}{{ t.due_date|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+                    <td><a class="btn btn-secondary btn-sm" href="{% url 'tasks:detail' t.id %}">Apri</a></td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="7">Nessuna attivita trovata.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          {% if tasks_page.has_other_pages %}
+            <div class="ts-panel-footer">
+              <span class="ts-chip soft">Pagina {{ tasks_page.number }} di {{ tasks_page.paginator.num_pages }}</span>
+              {% if tasks_page.has_previous %}<a class="btn btn-secondary btn-sm" href="?tab=record&q_task={{ q_task }}&filter_status={{ filter_status }}&task_page={{ tasks_page.previous_page_number }}">Prec</a>{% endif %}
+              {% if tasks_page.has_next %}<a class="btn btn-secondary btn-sm" href="?tab=record&q_task={{ q_task }}&filter_status={{ filter_status }}&task_page={{ tasks_page.next_page_number }}">Succ</a>{% endif %}
+            </div>
+          {% endif %}
+        </div>
+      </section>
+    {% endif %}
+
+    {% if tab == "log" %}
+      <section class="ts-panel">
+        <div class="ts-panel-head">
+          <div class="ts-panel-title-wrap">
+            <h2 class="ts-panel-title">Log attivita KICK-OFF</h2>
+            <p class="ts-panel-subtitle">Ultime 100 voci di audit per il modulo.</p>
+          </div>
+        </div>
+        <div class="ts-panel-body">
+          {% if audit_entries %}
+            <div class="admin-log-grid">
+              <div class="admin-log-row admin-log-head">
+                <span>Data/ora</span><span>Utente</span><span>Azione</span><span>Dettaglio</span>
+              </div>
+              {% for entry in audit_entries %}
+                <div class="admin-log-row">
+                  <span>{{ entry.created_at|date:"d/m/Y H:i" }}</span>
+                  <span>{{ entry.utente_display|default:"-" }}</span>
+                  <span>{{ entry.azione }}</span>
+                  <span style="color:#64748b;">{{ entry.dettaglio }}</span>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="ts-empty">
+              <strong>Nessuna voce di log disponibile.</strong>
+              <div>Il log si popola automaticamente quando vengono registrate azioni sul modulo.</div>
+            </div>
+          {% endif %}
+        </div>
+      </section>
+    {% endif %}
   </div>
-
-  <div class="ts-panel" style="margin-top:14px;">
-    <div class="ts-panel-head">
-      <div class="ts-panel-title-wrap">
-        <h2 class="ts-panel-title">Note operative</h2>
-        <p class="ts-panel-subtitle">Informazioni interne visibili solo agli amministratori.</p>
-      </div>
-    </div>
-    <div class="ts-panel-body">
-      <div class="ts-field full">
-        <label for="note_generali">Note generali</label>
-        <textarea id="note_generali" name="note_generali" rows="4">{{ cfg.note_generali }}</textarea>
-      </div>
-    </div>
-    <div class="ts-panel-footer">
-      <a href="{% url 'tasks:gestione_admin' %}" class="btn btn-secondary">Annulla</a>
-      <button type="submit" class="btn btn-primary">Salva impostazioni</button>
-    </div>
-  </div>
-
-</form>
 {% endblock %}
-
-{% block tasks_shell_actions %}
-  <a class="ts-hero-action" href="{% url 'tasks:gestione_admin' %}">← Gestione</a>
-{% endblock %}
-

@@ -2,318 +2,1125 @@
 
 {% block tasks_shell_head %}
 <style>
-  .gantt-options { display:grid; grid-template-columns:repeat(8, minmax(120px, 1fr)); gap:10px; align-items:end; }
-  .gantt-options .flag-row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
-  .gantt-options .flag { display:inline-flex; gap:7px; align-items:center; color:#475569; font-size:12px; font-weight:700; }
-  .gantt-options .actions { display:flex; gap:8px; align-items:center; justify-content:flex-end; }
-  .input-range { width:100%; accent-color:#1d4ed8; }
-  .gantt-table-wrap { width:100%; overflow:auto; border:1px solid #dbe5ef; border-radius:16px; box-shadow:0 6px 18px rgba(15,23,42,.05); }
-  .gantt-table { --wbs-col-w:58px; --day-cell-w:{{ gantt_day_cell_px|default:30 }}px; --day-cell-h:28px; --dur-col-w:110px; --start-col-w:110px; --end-col-w:110px; --row-content-h:46px; --name-col-w:{{ gantt_option_name_width|default:360 }}px; width:max-content; min-width:100%; border-collapse:separate; border-spacing:0; background:#fff; }
-  .gantt-table th, .gantt-table td { border-right:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0; padding:6px 8px; font-size:12px; height:var(--row-content-h); }
-  .gantt-table th:last-child, .gantt-table td:last-child { border-right:0; }
-  .gantt-table thead th { position:sticky; top:0; z-index:3; background:#f8fbff; color:#64748b; font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
-  .gantt-table .left-head { background:#f1f5f9; color:#0f172a; }
-  .gantt-table .month-head { text-align:center; background:linear-gradient(to bottom, #dbeafe, #eff6ff); color:#1e40af; }
-  .gantt-table .day-head { width:var(--day-cell-w); min-width:var(--day-cell-w); padding:4px 0; text-align:center; }
-  .gantt-table .day-head.is-weekend { background:#f8fafc; color:#94a3b8; }
-  .gantt-table .day-head.is-holiday { background:#fdf2f8; color:#9d174d; }
-  .gantt-table .day-head.is-today { background:#fef2f2; color:#b91c1c; }
-  .gantt-table .col-wbs { width:var(--wbs-col-w); min-width:var(--wbs-col-w); text-align:center; }
-  .gantt-table .col-name { width:var(--name-col-w); min-width:var(--name-col-w); }
-  .gantt-table .col-days { width:var(--dur-col-w); min-width:var(--dur-col-w); text-align:center; }
-  .gantt-table .col-date-start { width:var(--start-col-w); min-width:var(--start-col-w); text-align:center; }
-  .gantt-table .col-date-end { width:var(--end-col-w); min-width:var(--end-col-w); text-align:center; }
-  .gantt-table .col-wbs, .gantt-table .col-name { position:sticky; z-index:2; }
-  .gantt-table .col-wbs { background:#f1f5f9; }
-  .gantt-table .col-name { background:#fff; }
-  .gantt-table thead .col-wbs, .gantt-table thead .col-name { z-index:5; background:#f1f5f9; }
-  .resizable-col { position:relative; }
-  .col-resizer { position:absolute; top:0; right:-3px; width:8px; height:100%; cursor:col-resize; z-index:5; }
-  .col-resizer:hover { background:rgba(59,130,246,.25); }
-  .task-row { transition:background .12s ease; }
-  .task-row:hover .col-name, .task-row:hover .col-wbs { background:#eff6ff !important; }
-  .task-row:hover .g-cell:not(.is-active):not(.is-absence) { background:rgba(219,234,254,.35) !important; }
-  .gantt-task-link { color:#0f172a; text-decoration:none; font-size:13px; font-weight:800; line-height:1.3; }
-  .gantt-task-link:hover { color:#1d4ed8; }
-  .gantt-meta { display:flex; gap:6px; flex-wrap:wrap; margin-top:4px; color:#64748b; font-size:11px; }
-  .g-cell { width:var(--day-cell-w); min-width:var(--day-cell-w); height:var(--day-cell-h); padding:0 !important; background:#fff; position:relative; }
-  .g-cell.is-weekend { background:#f8fafc; }
-  .g-cell.is-holiday { background:#fdf4ff; }
-  .g-cell.is-today { background:#fff5f5; }
-  .g-cell.is-today::after { content:""; position:absolute; inset:0; border-left:2px solid rgba(220,38,38,.45); pointer-events:none; z-index:4; }
-  .task-row .g-cell.is-active { cursor:grab; touch-action:none; user-select:none; }
-  .task-row.is-dragging .g-cell.is-active { opacity:.25; }
-  .g-cell.is-active { background:#fff !important; }
-  .g-cell.is-active.is-weekend { background:#f0f4f8 !important; }
-  .g-cell.is-active.is-holiday { background:#fdf4ff !important; }
-  .g-cell.is-active.is-weekend::before, .g-cell.is-active.is-holiday::before { display:none; }
-  .g-cell.is-active.is-weekend::after, .g-cell.is-active.is-holiday::after { content:""; position:absolute; top:6px; bottom:6px; left:50%; width:2px; transform:translateX(-50%); background:rgba(148,163,184,.4); border-radius:1px; pointer-events:none; z-index:2; }
-  .g-cell.is-active.is-holiday::after { background:rgba(157,23,77,.25); }
-  .g-cell.is-active::before { content:""; position:absolute; top:5px; bottom:5px; left:0; right:0; z-index:2; pointer-events:none; }
-  .g-cell.is-bar-start::before { left:4px; border-radius:6px 0 0 6px; }
-  .g-cell.is-bar-end::before { right:4px; border-radius:0 6px 6px 0; }
-  .g-cell.is-bar-start.is-bar-end::before { left:4px; right:4px; border-radius:6px; }
-  .g-cell.is-active.status-todo::before { background:linear-gradient(135deg, #4ade80 0%, #16a34a 100%); box-shadow:0 2px 6px rgba(22,163,74,.3); }
-  .g-cell.is-active.status-in_progress::before { background:linear-gradient(135deg, #fde047 0%, #d97706 100%); box-shadow:0 2px 6px rgba(217,119,6,.3); }
-  .g-cell.is-active.status-done::before { background:linear-gradient(135deg, #60a5fa 0%, #2563eb 100%); box-shadow:0 2px 6px rgba(37,99,235,.3); }
-  .g-cell.is-active.status-canceled::before { background:linear-gradient(135deg, #e2e8f0 0%, #94a3b8 100%); box-shadow:0 2px 6px rgba(148,163,184,.2); }
-  .g-cell.is-active.is-invalid-range::before { background:repeating-linear-gradient(135deg, #fca5a5 0, #fca5a5 6px, #ef4444 6px, #ef4444 12px); box-shadow:inset 0 0 0 1px #b91c1c; border-radius:0 !important; top:0; bottom:0; left:0; right:0; }
-  .g-cell.is-active.is-absence, .g-cell.is-absence { background:#fee2e2 !important; position:relative; }
-  .g-cell.is-active.is-absence::before { display:none; }
-  .absence-x { display:flex; width:100%; height:100%; align-items:center; justify-content:center; color:#dc2626; font-size:11px; font-weight:800; position:relative; z-index:3; }
-  .g-cell.is-drag-preview::before { outline:2px solid #f97316 !important; outline-offset:-2px; box-shadow:0 0 8px rgba(249,115,22,.35) !important; }
-  .legend { display:flex; gap:12px; flex-wrap:wrap; padding:12px 14px; border-radius:14px; background:#f8fbff; border:1px solid #dbe5ef; }
-  .legend-item { display:inline-flex; align-items:center; gap:6px; color:#475569; font-size:11px; font-weight:700; }
-  .legend-dot { width:20px; height:11px; border-radius:5px; }
-  .legend-dot.todo { background:linear-gradient(135deg, #4ade80, #16a34a); }
-  .legend-dot.in_progress { background:linear-gradient(135deg, #fde047, #d97706); }
-  .legend-dot.done { background:linear-gradient(135deg, #60a5fa, #2563eb); }
-  .legend-dot.canceled { background:linear-gradient(135deg, #e2e8f0, #94a3b8); }
-  .legend-dot.holiday { background:linear-gradient(135deg, #f9a8d4, #db2777); }
-  .quick-edit-grid { display:grid; gap:10px; }
-  .quick-edit-item { display:none; gap:10px; border:1px solid #dbe5ef; border-radius:14px; background:#fff; padding:14px; }
-  .quick-edit-item.is-visible { display:grid; }
-  .quick-edit-placeholder { color:#64748b; font-size:13px; padding:8px 0; }
-  .quick-edit-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
-  .quick-edit-head a { color:#0f172a; text-decoration:none; font-size:14px; font-weight:800; }
-  .quick-edit-head a:hover { color:#1d4ed8; }
-  .quick-edit-row { display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:8px; align-items:end; }
-  .task-row.is-selected { outline:2px solid #1d4ed8; outline-offset:-1px; }
-  .task-row.is-selected .col-name, .task-row.is-selected .col-wbs { background:#eff6ff !important; }
-  .comment-list { list-style:none; margin:0; padding:0; display:grid; gap:10px; }
-  .comment-item { border:1px solid #dbe5ef; border-radius:14px; background:#fff; padding:12px 14px; }
-  .gantt-spotlight { display:grid; grid-template-columns:minmax(0, 1.2fr) minmax(320px, .8fr); gap:16px; }
-  .gantt-progress-card {
-    display:grid; gap:14px; padding:20px 22px; border-radius:20px; color:#fff;
+  /* ═══════════════════════════════════════
+     GANTT — CSS v2 (redesign fluido)
+     Tutta la logica JS è invariata.
+  ═══════════════════════════════════════ */
+
+  /* ── Variabili locali ── */
+  .gantt-page {
+    --g-border: #e2e8f0;
+    --g-head-bg: #f1f5f9;
+    --g-head-bg2: #f8fbff;
+    --g-row-hover: rgba(219,234,254,.28);
+    --g-today-line: rgba(220,38,38,.5);
+    --g-bar-todo:         linear-gradient(135deg, #4ade80 0%, #16a34a 100%);
+    --g-bar-in_progress:  linear-gradient(135deg, #fde047 0%, #d97706 100%);
+    --g-bar-done:         linear-gradient(135deg, #60a5fa 0%, #2563eb 100%);
+    --g-bar-canceled:     linear-gradient(135deg, #e2e8f0 0%, #94a3b8 100%);
+    --g-shadow-todo:        rgba(22,163,74,.3);
+    --g-shadow-in_progress: rgba(217,119,6,.3);
+    --g-shadow-done:        rgba(37,99,235,.3);
+    --g-shadow-canceled:    rgba(148,163,184,.2);
+  }
+
+  /* ── Banner VRF ── */
+  .g-vrf-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 14px;
+    border: 1px solid;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+
+  .g-vrf-banner .g-vrf-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    flex-shrink: 0;
+  }
+
+  .g-vrf-banner .g-vrf-text { flex: 1; }
+
+  .g-vrf-banner.blocked {
+    border-color: #fecaca;
+    background: linear-gradient(135deg, #fff5f5, #fef2f2);
+    color: #991b1b;
+  }
+  .g-vrf-banner.blocked .g-vrf-icon { background: #fee2e2; color: #dc2626; }
+
+  .g-vrf-banner.warning {
+    border-color: #fde68a;
+    background: linear-gradient(135deg, #fffef0, #fffbeb);
+    color: #92400e;
+  }
+  .g-vrf-banner.warning .g-vrf-icon { background: #fef3c7; color: #d97706; }
+
+  .g-vrf-banner.pending {
+    border-color: #bfdbfe;
+    background: linear-gradient(135deg, #f5f9ff, #eff6ff);
+    color: #1e40af;
+  }
+  .g-vrf-banner.pending .g-vrf-icon { background: #dbeafe; color: #2563eb; }
+
+  /* ── Spotlight (progress + health) ── */
+  .g-spotlight {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr);
+    gap: 10px;
+  }
+
+  .g-progress-card {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px 22px;
+    border-radius: 20px;
+    color: #fff;
     background:
-      radial-gradient(circle at top right, rgba(255,255,255,.16), transparent 28%),
-      linear-gradient(135deg, #0f172a 0%, #1d4ed8 58%, #38bdf8 100%);
-    box-shadow:0 18px 34px rgba(29,78,216,.18);
+      radial-gradient(ellipse at 90% -10%, rgba(249,115,22,.45) 0%, transparent 44%),
+      radial-gradient(ellipse at -5% 120%, rgba(56,189,248,.35) 0%, transparent 52%),
+      linear-gradient(140deg, #0f172a 0%, #1e3a8a 55%, #1d4ed8 100%);
+    box-shadow: 0 16px 40px rgba(30,58,138,.22), inset 0 1px 0 rgba(255,255,255,.08);
   }
-  .gantt-progress-top { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
-  .gantt-progress-top h3 { margin:0; font-size:22px; font-weight:900; letter-spacing:-.03em; }
-  .gantt-progress-top p { margin:6px 0 0; color:rgba(255,255,255,.84); font-size:13px; line-height:1.6; }
-  .gantt-progress-value { font-size:42px; line-height:1; font-weight:900; letter-spacing:-.04em; }
-  .gantt-progress-bar { height:12px; border-radius:999px; background:rgba(255,255,255,.16); overflow:hidden; }
-  .gantt-progress-bar > span { display:block; height:100%; border-radius:999px; background:linear-gradient(90deg, #f8fafc 0%, #bfdbfe 35%, #86efac 100%); box-shadow:0 0 14px rgba(255,255,255,.25); }
-  .gantt-progress-meta { display:flex; gap:8px; flex-wrap:wrap; }
-  .gantt-progress-pill {
-    display:inline-flex; align-items:center; justify-content:center; min-height:30px; padding:0 11px;
-    border-radius:999px; border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.10);
-    color:#fff; font-size:12px; font-weight:800;
+
+  .g-progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
   }
-  .gantt-health-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; }
-  .gantt-health-card {
-    border:1px solid #dbe5ef; border-radius:18px; background:linear-gradient(180deg, #fff 0%, #f8fbff 100%);
-    padding:16px 18px; box-shadow:0 10px 22px rgba(15,23,42,.04);
+
+  .g-progress-title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 900;
+    letter-spacing: -.03em;
   }
-  .gantt-health-label { color:#64748b; font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
-  .gantt-health-value { margin-top:10px; color:#0f172a; font-size:28px; line-height:1; font-weight:900; }
-  .gantt-health-note { margin-top:6px; color:#64748b; font-size:13px; line-height:1.5; }
-  .gantt-health-card.red .gantt-health-value { color:#b91c1c; }
-  .gantt-health-card.amber .gantt-health-value { color:#b45309; }
-  .gantt-health-card.blue .gantt-health-value { color:#1d4ed8; }
-  .gantt-health-card.teal .gantt-health-value { color:#0f766e; }
-  .gantt-instruction-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:12px; }
-  .gantt-instruction {
-    border:1px solid #dbe5ef; border-radius:16px; background:#fff; padding:14px 16px;
-    display:grid; gap:6px;
+
+  .g-progress-sub {
+    margin: 4px 0 0;
+    color: rgba(255,255,255,.72);
+    font-size: 12px;
+    line-height: 1.5;
   }
-  .gantt-instruction strong { color:#0f172a; font-size:14px; font-weight:800; }
-  .gantt-instruction span { color:#64748b; font-size:12px; line-height:1.55; }
-  .quick-edit-item { background:linear-gradient(180deg, #ffffff 0%, #f8fbff 100%); }
-  .quick-edit-item.is-visible { border-color:#93c5fd; box-shadow:0 12px 26px rgba(29,78,216,.08); }
+
+  .g-progress-pct {
+    font-size: 46px;
+    line-height: 1;
+    font-weight: 900;
+    letter-spacing: -.05em;
+    flex-shrink: 0;
+  }
+
+  .g-progress-bar-wrap {
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.16);
+    overflow: hidden;
+  }
+
+  .g-progress-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #86efac 0%, #bfdbfe 60%, #f8fafc 100%);
+    box-shadow: 0 0 12px rgba(255,255,255,.2);
+    transition: width .6s cubic-bezier(.22,1,.36,1);
+  }
+
+  .g-progress-pills {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .g-progress-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 26px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,.18);
+    background: rgba(255,255,255,.1);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  /* ── Health grid ── */
+  .g-health-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .g-health-card {
+    border: 1px solid var(--g-border);
+    border-radius: 16px;
+    background: linear-gradient(180deg, #fff 0%, #f8fbff 100%);
+    padding: 14px 16px;
+    box-shadow: 0 2px 8px rgba(15,23,42,.04);
+    transition: box-shadow .12s ease;
+  }
+
+  .g-health-card:hover { box-shadow: 0 4px 16px rgba(15,23,42,.08); }
+
+  .g-health-label {
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  .g-health-value {
+    margin-top: 8px;
+    font-size: 28px;
+    line-height: 1;
+    font-weight: 900;
+    color: #0f172a;
+  }
+
+  .g-health-note {
+    margin-top: 4px;
+    color: #64748b;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .g-health-card.red   .g-health-value { color: #b91c1c; }
+  .g-health-card.amber .g-health-value { color: #b45309; }
+  .g-health-card.blue  .g-health-value { color: #1d4ed8; }
+  .g-health-card.teal  .g-health-value { color: #0f766e; }
+
+  /* ── Toolbar opzioni gantt ── */
+  .g-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--g-border);
+    background: var(--g-head-bg2);
+  }
+
+  .g-toolbar-sep {
+    width: 1px;
+    height: 20px;
+    background: var(--g-border);
+    flex-shrink: 0;
+  }
+
+  .g-toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .g-toolbar .ts-field {
+    min-width: 120px;
+    max-width: 170px;
+    gap: 2px;
+  }
+
+  .g-toolbar .ts-field label {
+    font-size: 9px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #94a3b8;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .g-toolbar .ts-field .input,
+  .g-toolbar .ts-field select {
+    min-height: 32px;
+    font-size: 12px;
+    padding: 0 8px;
+    border-radius: 8px;
+  }
+
+  .g-flag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 8px;
+    border-radius: 8px;
+    border: 1px solid var(--g-border);
+    background: #fff;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .1s ease, border-color .1s ease;
+    white-space: nowrap;
+  }
+
+  .g-flag input { margin: 0; }
+  .g-flag:has(input:checked) { background: rgba(249,115,22,.08); border-color: rgba(249,115,22,.25); color: #9a3412; }
+
+  .g-range-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 100px;
+  }
+
+  .g-range-label {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #94a3b8;
+  }
+
+  .g-range-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .input-range {
+    flex: 1;
+    min-width: 80px;
+    accent-color: #3b82f6;
+    cursor: pointer;
+  }
+
+  .g-range-val {
+    font-size: 10px;
+    font-weight: 800;
+    color: #475569;
+    min-width: 28px;
+    text-align: right;
+  }
+
+  /* ── Tabella Gantt ── */
+  .gantt-table-wrap {
+    width: 100%;
+    overflow: auto;
+    border-radius: 12px;
+    border: 1px solid var(--g-border);
+    box-shadow: 0 2px 12px rgba(15,23,42,.04);
+    scroll-behavior: auto;
+  }
+
+  .gantt-table {
+    --wbs-col-w:     58px;
+    --day-cell-w:    {{ gantt_day_cell_px|default:30 }}px;
+    --day-cell-h:    28px;
+    --dur-col-w:     110px;
+    --start-col-w:   110px;
+    --end-col-w:     110px;
+    --row-content-h: 46px;
+    --name-col-w:    {{ gantt_option_name_width|default:360 }}px;
+    width: max-content;
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: #fff;
+    font-size: 12px;
+  }
+
+  .gantt-table th,
+  .gantt-table td {
+    border-right: 1px solid var(--g-border);
+    border-bottom: 1px solid var(--g-border);
+    padding: 6px 8px;
+    height: var(--row-content-h);
+  }
+
+  .gantt-table th:last-child,
+  .gantt-table td:last-child { border-right: 0; }
+
+  /* Header sticky */
+  .gantt-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--g-head-bg2);
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .gantt-table .left-head {
+    background: var(--g-head-bg);
+    color: #0f172a;
+  }
+
+  .gantt-table .month-head {
+    text-align: center;
+    background: linear-gradient(to bottom, #dbeafe, #eff6ff);
+    color: #1e40af;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .04em;
+  }
+
+  .gantt-table .day-head {
+    width: var(--day-cell-w);
+    min-width: var(--day-cell-w);
+    padding: 3px 0;
+    text-align: center;
+    font-size: 10px;
+  }
+
+  .gantt-table .day-head.is-weekend  { background: #f8fafc; color: #94a3b8; }
+  .gantt-table .day-head.is-holiday  { background: #fdf2f8; color: #9d174d; }
+  .gantt-table .day-head.is-today    { background: #fef2f2; color: #b91c1c; font-weight: 900; }
+
+  /* Colonne sticky sinistra */
+  .gantt-table .col-wbs  { width: var(--wbs-col-w);   min-width: var(--wbs-col-w);   text-align: center; }
+  .gantt-table .col-name { width: var(--name-col-w);  min-width: var(--name-col-w); }
+  .gantt-table .col-days { width: var(--dur-col-w);   min-width: var(--dur-col-w);   text-align: center; }
+  .gantt-table .col-date-start { width: var(--start-col-w); min-width: var(--start-col-w); text-align: center; }
+  .gantt-table .col-date-end   { width: var(--end-col-w);   min-width: var(--end-col-w);   text-align: center; }
+
+  .gantt-table .col-wbs,
+  .gantt-table .col-name { position: sticky; z-index: 2; }
+
+  .gantt-table .col-wbs  { background: var(--g-head-bg); }
+  .gantt-table .col-name { background: #fff; }
+
+  .gantt-table thead .col-wbs,
+  .gantt-table thead .col-name { z-index: 5; background: var(--g-head-bg); }
+
+  /* Resize handle */
+  .resizable-col { position: relative; }
+
+  .col-resizer {
+    position: absolute;
+    top: 0; right: -3px;
+    width: 8px; height: 100%;
+    cursor: col-resize;
+    z-index: 5;
+    transition: background .1s ease;
+  }
+
+  .col-resizer:hover { background: rgba(59,130,246,.3); }
+
+  /* Righe task */
+  .task-row { transition: background .08s ease; }
+
+  .task-row:hover .col-name,
+  .task-row:hover .col-wbs { background: #eff6ff !important; }
+
+  .task-row:hover .g-cell:not(.is-active):not(.is-absence) {
+    background: var(--g-row-hover) !important;
+  }
+
+  .gantt-task-link {
+    color: #0f172a;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.3;
+    display: block;
+  }
+
+  .gantt-task-link:hover { color: #1d4ed8; }
+
+  .gantt-meta {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    margin-top: 3px;
+    color: #94a3b8;
+    font-size: 10px;
+  }
+
+  .gantt-meta span { display: inline; }
+  .gantt-meta span + span::before { content: " · "; }
+
+  /* Celle giornaliere */
+  .g-cell {
+    width: var(--day-cell-w);
+    min-width: var(--day-cell-w);
+    height: var(--day-cell-h);
+    padding: 0 !important;
+    background: #fff;
+    position: relative;
+  }
+
+  .g-cell.is-weekend  { background: #f8fafc; }
+  .g-cell.is-holiday  { background: #fdf4ff; }
+  .g-cell.is-today    { background: #fff5f5; }
+
+  .g-cell.is-today::after {
+    content: "";
+    position: absolute; inset: 0;
+    border-left: 2px solid var(--g-today-line);
+    pointer-events: none;
+    z-index: 4;
+  }
+
+  /* Drag */
+  .task-row .g-cell.is-active { cursor: grab; touch-action: none; user-select: none; }
+  .task-row.is-dragging .g-cell.is-active { opacity: .22; }
+  .g-cell.is-active { background: #fff !important; }
+  .g-cell.is-active.is-weekend { background: #f0f4f8 !important; }
+  .g-cell.is-active.is-holiday { background: #fdf4ff !important; }
+
+  .g-cell.is-active.is-weekend::before,
+  .g-cell.is-active.is-holiday::before { display: none; }
+
+  .g-cell.is-active.is-weekend::after,
+  .g-cell.is-active.is-holiday::after {
+    content: "";
+    position: absolute;
+    top: 6px; bottom: 6px;
+    left: 50%; width: 2px;
+    transform: translateX(-50%);
+    background: rgba(148,163,184,.4);
+    border-radius: 1px;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .g-cell.is-active.is-holiday::after { background: rgba(157,23,77,.25); }
+
+  /* Barre Gantt */
+  .g-cell.is-active::before {
+    content: "";
+    position: absolute;
+    top: 5px; bottom: 5px;
+    left: 0; right: 0;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .g-cell.is-bar-start::before   { left: 4px;  border-radius: 7px 0 0 7px; }
+  .g-cell.is-bar-end::before     { right: 4px; border-radius: 0 7px 7px 0; }
+  .g-cell.is-bar-start.is-bar-end::before { left: 4px; right: 4px; border-radius: 7px; }
+
+  .g-cell.is-active.status-todo::before        { background: var(--g-bar-todo);        box-shadow: 0 2px 8px var(--g-shadow-todo); }
+  .g-cell.is-active.status-in_progress::before { background: var(--g-bar-in_progress); box-shadow: 0 2px 8px var(--g-shadow-in_progress); }
+  .g-cell.is-active.status-done::before        { background: var(--g-bar-done);        box-shadow: 0 2px 8px var(--g-shadow-done); }
+  .g-cell.is-active.status-canceled::before    { background: var(--g-bar-canceled);    box-shadow: 0 2px 8px var(--g-shadow-canceled); }
+
+  .g-cell.is-active.is-invalid-range::before {
+    background: repeating-linear-gradient(135deg, #fca5a5 0, #fca5a5 6px, #ef4444 6px, #ef4444 12px);
+    box-shadow: inset 0 0 0 1px #b91c1c;
+    border-radius: 0 !important;
+    top: 0; bottom: 0; left: 0; right: 0;
+  }
+
+  /* Assenze */
+  .g-cell.is-active.is-absence,
+  .g-cell.is-absence { background: #fee2e2 !important; position: relative; }
+  .g-cell.is-active.is-absence::before { display: none; }
+  .absence-x {
+    display: flex; width: 100%; height: 100%;
+    align-items: center; justify-content: center;
+    color: #dc2626; font-size: 10px; font-weight: 900;
+    position: relative; z-index: 3;
+  }
+
+  /* Drag preview — ghost bar visibile anche su celle non ancora attive */
+  .task-row.is-dragging .g-cell.is-drag-preview::before {
+    content: "" !important;
+    position: absolute !important;
+    top: 5px; bottom: 5px;
+    left: 0; right: 0;
+    z-index: 3;
+    background: rgba(249, 115, 22, 0.52) !important;
+    box-shadow: 0 0 12px rgba(249,115,22,.45) !important;
+    pointer-events: none;
+    border-radius: 0 !important;
+  }
+  .task-row.is-dragging .g-cell.is-drag-bar-start.is-drag-preview::before { left: 4px !important; border-radius: 7px 0 0 7px !important; }
+  .task-row.is-dragging .g-cell.is-drag-bar-end.is-drag-preview::before   { right: 4px !important; border-radius: 0 7px 7px 0 !important; }
+  .task-row.is-dragging .g-cell.is-drag-bar-start.is-drag-bar-end.is-drag-preview::before { left: 4px !important; right: 4px !important; border-radius: 7px !important; }
+
+  /* Selected row */
+  .task-row.is-selected { outline: 2px solid #3b82f6; outline-offset: -1px; }
+  .task-row.is-selected .col-name,
+  .task-row.is-selected .col-wbs { background: #eff6ff !important; }
+
+  /* ── Legenda ── */
+  .g-legend {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    border-top: 1px solid var(--g-border);
+    background: var(--g-head-bg2);
+  }
+
+  .g-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .g-legend-dot {
+    width: 18px; height: 9px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .g-legend-dot.todo        { background: var(--g-bar-todo); }
+  .g-legend-dot.in_progress { background: var(--g-bar-in_progress); }
+  .g-legend-dot.done        { background: var(--g-bar-done); }
+  .g-legend-dot.canceled    { background: var(--g-bar-canceled); }
+  .g-legend-dot.holiday     { background: linear-gradient(135deg, #f9a8d4, #db2777); }
+  .g-legend-dot.weekend     { background: #e2e8f0; border: 1px solid #cbd5e1; }
+  .g-legend-dot.absence     { background: #fee2e2; border: 1px solid #fca5a5; }
+  .g-legend-dot.invalid     { background: repeating-linear-gradient(135deg, #fca5a5 0, #fca5a5 4px, #ef4444 4px, #ef4444 8px); }
+
+  /* ── Quick edit floating ── */
+  .quick-edit-grid { display: grid; gap: 8px; }
+
   .quick-edit-placeholder {
-    padding:16px; border:1px dashed #cbd5e1; border-radius:16px; background:#f8fbff;
-    color:#64748b; font-size:13px;
+    padding: 14px 16px;
+    border: 1px dashed #cbd5e1;
+    border-radius: 14px;
+    background: #f8fbff;
+    color: #94a3b8;
+    font-size: 13px;
+    text-align: center;
   }
-  @media (max-width:1280px) { .gantt-options { grid-template-columns:repeat(3, minmax(0, 1fr)); } .gantt-options .flag-row { grid-column:span 2; } }
-  @media (max-width:1080px) { .gantt-spotlight { grid-template-columns:1fr; } }
-  @media (max-width:980px) { .gantt-options, .quick-edit-row, .gantt-health-grid { grid-template-columns:1fr; } .gantt-options .flag-row, .gantt-options .actions { grid-column:span 1; } .gantt-options .actions { justify-content:flex-start; } }
+
+  .quick-edit-item {
+    display: none;
+    gap: 12px;
+    border: 1px solid #bfdbfe;
+    border-radius: 16px;
+    background: linear-gradient(180deg, #fff 0%, #f0f9ff 100%);
+    padding: 16px;
+    box-shadow: 0 4px 20px rgba(29,78,216,.08);
+  }
+
+  .quick-edit-item.is-visible { display: grid; }
+
+  .quick-edit-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .quick-edit-head a {
+    color: #0f172a;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 900;
+    line-height: 1.3;
+  }
+
+  .quick-edit-head a:hover { color: #1d4ed8; }
+
+  .quick-edit-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 8px;
+    align-items: end;
+  }
+
+  /* ── Commenti ── */
+  .comment-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+  }
+
+  .comment-item {
+    border: 1px solid var(--g-border);
+    border-radius: 14px;
+    background: #fff;
+    padding: 12px 14px;
+    transition: box-shadow .1s ease;
+  }
+
+  .comment-item:hover { box-shadow: 0 4px 12px rgba(15,23,42,.06); }
+
+  /* ── Istruzioni toolbar ── */
+  .g-hint-bar {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--g-border);
+    background: #fffbeb;
+  }
+
+  .g-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: #92400e;
+    font-weight: 600;
+  }
+
+  .g-hint-key {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1px 6px;
+    border-radius: 5px;
+    background: rgba(249,115,22,.12);
+    border: 1px solid rgba(249,115,22,.22);
+    font-size: 10px;
+    font-weight: 800;
+    color: #c05621;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 1180px) {
+    .g-spotlight { grid-template-columns: 1fr; }
+    .g-health-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+
+  @media (max-width: 980px) {
+    .g-health-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .quick-edit-row { grid-template-columns: 1fr 1fr; }
+    .quick-edit-row > div:last-child { grid-column: 1 / -1; }
+  }
 </style>
 {% endblock %}
 
-{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">Tasks / Gantt progetto</span>{% endblock %}
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Gantt</span>{% endblock %}
 {% block tasks_shell_title %}{{ project.name }}{% endblock %}
-{% block tasks_shell_subtitle %}Timeline dal {{ gantt_timeline_start|date:"d/m/Y" }} al {{ gantt_timeline_end|date:"d/m/Y" }} con vista giornaliera, drag delle barre e quick edit contestuale.{% endblock %}
-{% block tasks_shell_meta %}
-  <span class="ts-hero-pill">{{ tasks|length }} task</span>
-  <span class="ts-hero-pill">{{ gantt_days|length }} giorni</span>
-  <span class="ts-hero-pill">{% if can_edit_schedule %}Modifica consentita{% else %}Sola lettura{% endif %}</span>
-  {% if project.client_name %}<span class="ts-hero-pill">Cliente: {{ project.client_name }}</span>{% endif %}
+{% block tasks_shell_subtitle %}
+  Timeline {{ gantt_timeline_start|date:"d/m/Y" }} → {{ gantt_timeline_end|date:"d/m/Y" }} — {{ gantt_days|length }} giorni, drag barre, quick edit contestuale.
 {% endblock %}
+
+{% block tasks_shell_meta %}
+  <span class="ts-hero-pill">{{ tasks|length }} attivita</span>
+  {% if project.client_name %}<span class="ts-hero-pill">{{ project.client_name }}</span>{% endif %}
+  {% if project.part_number %}<span class="ts-hero-pill">P/N {{ project.part_number }}</span>{% endif %}
+  <span class="ts-hero-pill" style="{% if can_edit_schedule %}background:rgba(34,197,94,.2);border-color:rgba(34,197,94,.35);{% endif %}">
+    {% if can_edit_schedule %}Modifica attiva{% else %}Sola lettura{% endif %}
+  </span>
+{% endblock %}
+
 {% block tasks_shell_actions %}
-  {% if tasks_shell_can_create %}<a class="ts-hero-action primary" href="{% url 'tasks:create' %}?project={{ project.id }}">Aggiungi task</a>{% endif %}
-  <a class="ts-hero-action" href="{% url 'tasks:list' %}?project={{ project.id }}">Task progetto</a>
-  <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Torna ai progetti</a>
+  {% if tasks_shell_can_create %}
+    {% if vrf_detail.is_blocked %}
+      <span class="ts-hero-action" style="opacity:.4;cursor:not-allowed;pointer-events:none;">+ Aggiungi attivita</span>
+    {% else %}
+      <a class="ts-hero-action primary" href="{% url 'tasks:create' %}?project={{ project.id %}">+ Aggiungi attivita</a>
+    {% endif %}
+  {% endif %}
+  <a class="ts-hero-action" href="{% url 'tasks:project_vrf_upload' project.id %}">VRF</a>
+  <a class="ts-hero-action" href="{% url 'tasks:list' %}?project={{ project.id }}">Attivita</a>
+  <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Portfolio</a>
 {% endblock %}
 
 {% block tasks_shell_kpis %}
 <section class="ts-kpis">
-  <article class="ts-kpi blue"><div class="ts-kpi-label">Task progetto</div><div class="ts-kpi-value">{{ project_summary.total_tasks }}</div><div class="ts-kpi-note">Elementi presenti nella timeline corrente.</div></article>
-  <article class="ts-kpi green"><div class="ts-kpi-label">Progresso</div><div class="ts-kpi-value">{{ project_summary.progress_percent }}%</div><div class="ts-kpi-note">{{ project_summary.done_tasks }} task chiuse sul totale attuale.</div></article>
-  <article class="ts-kpi amber"><div class="ts-kpi-label">Aperte</div><div class="ts-kpi-value">{{ project_summary.open_tasks }}</div><div class="ts-kpi-note">{{ project_summary.in_progress_tasks }} sono gia in corso.</div></article>
-  <article class="ts-kpi red"><div class="ts-kpi-label">Criticita</div><div class="ts-kpi-value">{{ project_summary.overdue_tasks|add:project_summary.absence_conflict_tasks|add:project_summary.invalid_range_tasks }}</div><div class="ts-kpi-note">Scadute, conflitti assenza o range non validi.</div></article>
-  <article class="ts-kpi teal"><div class="ts-kpi-label">Finestra vista</div><div class="ts-kpi-value">{{ gantt_days|length }}</div><div class="ts-kpi-note">Giorni inclusi nella timeline visibile.</div></article>
-  <article class="ts-kpi {% if can_edit_schedule %}green{% else %}slate{% endif %}"><div class="ts-kpi-label">Operativita</div><div class="ts-kpi-value">{% if can_edit_schedule %}Edit{% else %}Read{% endif %}</div><div class="ts-kpi-note">Drag, quick edit e salvataggi attivi solo se consentiti.</div></article>
+  <article class="ts-kpi blue">
+    <div class="ts-kpi-label">Attivita</div>
+    <div class="ts-kpi-value">{{ project_summary.total_tasks }}</div>
+    <div class="ts-kpi-note">Nella timeline corrente.</div>
+    <div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:100%"></div></div>
+  </article>
+  <article class="ts-kpi green">
+    <div class="ts-kpi-label">Progresso</div>
+    <div class="ts-kpi-value">{{ project_summary.progress_percent }}%</div>
+    <div class="ts-kpi-note">{{ project_summary.done_tasks }} chiuse.</div>
+    <div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{{ project_summary.progress_percent }}%"></div></div>
+  </article>
+  <article class="ts-kpi amber">
+    <div class="ts-kpi-label">Aperte</div>
+    <div class="ts-kpi-value">{{ project_summary.open_tasks }}</div>
+    <div class="ts-kpi-note">{{ project_summary.in_progress_tasks }} in corso.</div>
+    {% if project_summary.total_tasks %}
+      <div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{% widthratio project_summary.open_tasks project_summary.total_tasks 100 %}%"></div></div>
+    {% endif %}
+  </article>
+  <article class="ts-kpi red">
+    <div class="ts-kpi-label">Criticita</div>
+    <div class="ts-kpi-value">{{ project_summary.overdue_tasks|add:project_summary.absence_conflict_tasks|add:project_summary.invalid_range_tasks }}</div>
+    <div class="ts-kpi-note">Scadute, conflitti, range non validi.</div>
+  </article>
+  <article class="ts-kpi teal">
+    <div class="ts-kpi-label">Finestra</div>
+    <div class="ts-kpi-value">{{ gantt_days|length }}</div>
+    <div class="ts-kpi-note">Giorni visibili nella timeline.</div>
+  </article>
+  <article class="ts-kpi {% if can_edit_schedule %}green{% else %}slate{% endif %}">
+    <div class="ts-kpi-label">Permesso</div>
+    <div class="ts-kpi-value">{% if can_edit_schedule %}Edit{% else %}Read{% endif %}</div>
+    <div class="ts-kpi-note">Drag e quick edit {% if not can_edit_schedule %}non {% endif %}disponibili.</div>
+  </article>
 </section>
 {% endblock %}
 
 {% block tasks_shell_content %}
-<div class="ts-stack">
-  {% if project.client_name or project.project_manager or project.capo_commessa or project.programmer or project.control_method or project.part_number or project.similar_project or project.similar_work_note %}
+<div class="ts-stack gantt-page">
+
+  {# ── Banner VRF ── #}
+  {% if vrf_detail.status == 'blocked' %}
+    <div class="g-vrf-banner blocked">
+      <div class="g-vrf-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
+      <div class="g-vrf-text">{{ vrf_detail.label }}</div>
+      <a class="btn btn-sm" href="{% url 'tasks:project_vrf_upload' project.id %}">Carica VRF ora</a>
+    </div>
+  {% elif vrf_detail.status == 'warning' %}
+    <div class="g-vrf-banner warning">
+      <div class="g-vrf-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <div class="g-vrf-text">{{ vrf_detail.label }}</div>
+      <a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_vrf_upload' project.id %}">Carica VRF</a>
+    </div>
+  {% elif vrf_detail.status == 'pending' %}
+    <div class="g-vrf-banner pending">
+      <div class="g-vrf-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+      </div>
+      <div class="g-vrf-text">{{ vrf_detail.label }}</div>
+      <a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_vrf_upload' project.id %}">Carica VRF</a>
+    </div>
+  {% endif %}
+
+  {# ── Anagrafica kickoff ── #}
+  {% if project.client_name or project.project_manager or project.capo_commessa or project.programmer or project.control_method or project.part_number or project.revisione or project.versione or project.similar_project or project.similar_work_note %}
     <section class="ts-panel">
-      <div class="ts-panel-head"><div class="ts-panel-title-wrap"><h2 class="ts-panel-title">Anagrafica progetto</h2><p class="ts-panel-subtitle">Riferimenti principali utili mentre pianifichi o sposti le task lungo il Gantt.</p></div></div>
-      <div class="ts-panel-body"><div class="ts-card-meta">
-        {% if project.client_name %}<span class="ts-chip soft">Cliente: {{ project.client_name }}</span>{% endif %}
-        {% if project.project_manager %}<span class="ts-chip soft">PM: {{ project.project_manager.get_full_name|default:project.project_manager.username }}</span>{% endif %}
-        {% if project.capo_commessa %}<span class="ts-chip soft">Capocommessa: {{ project.capo_commessa.get_full_name|default:project.capo_commessa.username }}</span>{% endif %}
-        {% if project.programmer %}<span class="ts-chip soft">Programmatore: {{ project.programmer.get_full_name|default:project.programmer.username }}</span>{% endif %}
-        {% if project.control_method %}<span class="ts-chip soft">Metodo controllo: {{ project.control_method }}</span>{% endif %}
-        {% if project.part_number %}<span class="ts-chip soft">P/N: {{ project.part_number }}</span>{% endif %}
-        {% if project.similar_project %}<span class="ts-chip soft">Simile a: {{ project.similar_project.name }}</span>{% endif %}
-        {% if project.similar_work_note %}<span class="ts-chip soft">Lavorazione simile: {{ project.similar_work_note }}</span>{% endif %}
-      </div></div>
+      <div class="ts-panel-head">
+        <div class="ts-panel-title-wrap">
+          <h2 class="ts-panel-title">Anagrafica kickoff</h2>
+          <p class="ts-panel-subtitle">Riferimenti utili mentre pianifichi le attivita nella timeline.</p>
+        </div>
+        <div class="ts-panel-meta">
+          {% if vrf_detail.status == 'ok' %}     <span class="ts-chip ok">VRF caricato</span>
+          {% elif vrf_detail.status == 'na' %}    <span class="ts-chip soft">VRF N/A</span>
+          {% elif vrf_detail.status == 'blocked' %}<span class="ts-chip danger">VRF bloccato</span>
+          {% elif vrf_detail.status == 'warning' %}<span class="ts-chip warn">VRF in attesa</span>
+          {% else %}                               <span class="ts-chip soft">VRF da caricare</span>{% endif %}
+        </div>
+      </div>
+      <div class="ts-panel-body">
+        <div class="ts-card-meta">
+          {% if project.client_name %}<span class="task-meta-chip">{{ project.client_name }}</span>{% endif %}
+          {% if project.part_number %}<span class="task-meta-chip" style="background:#eef2ff;border-color:#c7d2fe;color:#3730a3;"><strong>P/N</strong> {{ project.part_number }}</span>{% endif %}
+          {% if project.revisione %}<span class="task-meta-chip" style="background:#f0fdf4;border-color:#bbf7d0;color:#166534;"><strong>Rev</strong> {{ project.revisione }}</span>{% endif %}
+          {% if project.versione %}<span class="task-meta-chip" style="background:#fff7ed;border-color:#fed7aa;color:#9a3412;"><strong>Ver</strong> {{ project.versione }}</span>{% endif %}
+          {% if project.vrf_quote_number %}<span class="task-meta-chip">Prev. {{ project.vrf_quote_number }}</span>{% endif %}
+          {% if project.vrf_description %}<span class="task-meta-chip">{{ project.vrf_description }}</span>{% endif %}
+          {% if project.project_manager %}<span class="task-meta-chip">PM: {{ project.project_manager.get_full_name|default:project.project_manager.username }}</span>{% endif %}
+          {% if project.capo_commessa %}<span class="task-meta-chip">Capocommessa: {{ project.capo_commessa.get_full_name|default:project.capo_commessa.username }}</span>{% endif %}
+          {% if project.programmer %}<span class="task-meta-chip">Prog.: {{ project.programmer.get_full_name|default:project.programmer.username }}</span>{% endif %}
+          {% if project.control_method %}<span class="task-meta-chip">Controllo: {{ project.control_method }}</span>{% endif %}
+          {% if project.similar_project %}<span class="task-meta-chip">Simile a: {{ project.similar_project.name }}</span>{% endif %}
+          {% if project.similar_work_note %}<span class="task-meta-chip">{{ project.similar_work_note }}</span>{% endif %}
+        </div>
+      </div>
     </section>
   {% endif %}
 
-  <section class="gantt-spotlight">
-    <article class="gantt-progress-card">
-      <div class="gantt-progress-top">
+  {# ── Spotlight: progress + health ── #}
+  <div class="g-spotlight">
+    <article class="g-progress-card">
+      <div class="g-progress-header">
         <div>
-          <h3>Stato progetto</h3>
-          <p>Una lettura rapida di avanzamento, finestra temporale e carico aperto senza entrare nella griglia.</p>
+          <h3 class="g-progress-title">Stato kickoff</h3>
+          <p class="g-progress-sub">Avanzamento, aperture e finestra temporale in un colpo d'occhio.</p>
         </div>
-        <div class="gantt-progress-value">{{ project_summary.progress_percent }}%</div>
+        <div class="g-progress-pct">{{ project_summary.progress_percent }}%</div>
       </div>
-      <div class="gantt-progress-bar">
-        <span style="width: {{ project_summary.progress_percent }}%;"></span>
+      <div class="g-progress-bar-wrap">
+        <div class="g-progress-bar-fill" style="width:{{ project_summary.progress_percent }}%"></div>
       </div>
-      <div class="gantt-progress-meta">
-        <span class="gantt-progress-pill">Aperte: {{ project_summary.open_tasks }}</span>
-        <span class="gantt-progress-pill">Chiuse: {{ project_summary.done_tasks }}</span>
-        <span class="gantt-progress-pill">Inizio vista: {{ project_summary.planned_start|date:"d/m" }}</span>
-        <span class="gantt-progress-pill">Fine vista: {{ project_summary.planned_end|date:"d/m" }}</span>
+      <div class="g-progress-pills">
+        <span class="g-progress-pill">Aperte: {{ project_summary.open_tasks }}</span>
+        <span class="g-progress-pill">Chiuse: {{ project_summary.done_tasks }}</span>
+        <span class="g-progress-pill">{{ project_summary.planned_start|date:"d/m" }} → {{ project_summary.planned_end|date:"d/m" }}</span>
       </div>
     </article>
 
-    <div class="gantt-health-grid">
-      <article class="gantt-health-card red">
-        <div class="gantt-health-label">Scadute</div>
-        <div class="gantt-health-value">{{ project_summary.overdue_tasks }}</div>
-        <div class="gantt-health-note">Task aperte con data fine gia superata.</div>
+    <div class="g-health-grid">
+      <article class="g-health-card red">
+        <div class="g-health-label">Scadute</div>
+        <div class="g-health-value">{{ project_summary.overdue_tasks }}</div>
+        <div class="g-health-note">Aperte con data fine superata.</div>
       </article>
-      <article class="gantt-health-card amber">
-        <div class="gantt-health-label">In 7 giorni</div>
-        <div class="gantt-health-value">{{ project_summary.due_next_7d_tasks }}</div>
-        <div class="gantt-health-note">Consegne vicine da tenere sotto controllo.</div>
+      <article class="g-health-card amber">
+        <div class="g-health-label">In 7 giorni</div>
+        <div class="g-health-value">{{ project_summary.due_next_7d_tasks }}</div>
+        <div class="g-health-note">Consegne ravvicinate.</div>
       </article>
-      <article class="gantt-health-card blue">
-        <div class="gantt-health-label">Alta priorita</div>
-        <div class="gantt-health-value">{{ project_summary.high_priority_open_tasks }}</div>
-        <div class="gantt-health-note">Task aperte marcate come `High`.</div>
+      <article class="g-health-card blue">
+        <div class="g-health-label">Alta priorita</div>
+        <div class="g-health-value">{{ project_summary.high_priority_open_tasks }}</div>
+        <div class="g-health-note">Marcate come `High`.</div>
       </article>
-      <article class="gantt-health-card teal">
-        <div class="gantt-health-label">Non assegnate</div>
-        <div class="gantt-health-value">{{ project_summary.unassigned_tasks }}</div>
-        <div class="gantt-health-note">Elementi ancora senza responsabile operativo.</div>
+      <article class="g-health-card teal">
+        <div class="g-health-label">Non assegnate</div>
+        <div class="g-health-value">{{ project_summary.unassigned_tasks }}</div>
+        <div class="g-health-note">Senza responsabile.</div>
       </article>
     </div>
-  </section>
+  </div>
 
-  <section class="ts-panel">
-    <div class="ts-panel-head"><div class="ts-panel-title-wrap"><h2 class="ts-panel-title">Opzioni vista</h2><p class="ts-panel-subtitle">Regola finestra, zoom, colonne e comportamento di drag senza uscire dal progetto.</p></div></div>
-    <div class="ts-panel-body">
-      <div class="gantt-instruction-grid">
-        <article class="gantt-instruction"><strong>Drag timeline</strong><span>Trascina una barra attiva per spostare la task nel calendario.</span></article>
-        <article class="gantt-instruction"><strong>Quick edit</strong><span>Clicca una riga del Gantt per aprire la modifica rapida sotto alla griglia.</span></article>
-        <article class="gantt-instruction"><strong>Segnali visivi</strong><span>Rosso per assenze e range non validi, amber per task in corso, blu per task chiuse.</span></article>
+  {# ── Pannello Gantt ── #}
+  <section class="ts-panel" style="overflow:visible;">
+    <div class="ts-panel-head">
+      <div class="ts-panel-title-wrap">
+        <h2 class="ts-panel-title">Diagramma Gantt</h2>
+        <p class="ts-panel-subtitle">
+          {% if can_edit_schedule %}Drag barre per spostare date. Clic riga per quick edit.{% else %}Vista sola lettura.{% endif %}
+          Assenze in rosso con X.
+        </p>
       </div>
-      <form method="get" class="gantt-options">
-        <div class="ts-field"><label for="id_window_days">Finestra timeline</label><select id="id_window_days" name="window_days" class="input">{% for value, label in gantt_window_choices %}<option value="{{ value }}" {% if value == gantt_option_window_days %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
-        <div class="ts-field"><label for="id_cell_size">Larghezza giorni</label><select id="id_cell_size" name="cell_size" class="input">{% for value, label in gantt_cell_choices %}<option value="{{ value }}" {% if value == gantt_option_cell_size %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
-        <div class="ts-field"><label for="id_name_width">Larghezza nome attivita</label><select id="id_name_width" name="name_width" class="input">{% for value, label in gantt_name_width_choices %}<option value="{{ value }}" {% if value == gantt_option_name_width %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
-        <div class="ts-field"><label for="id_day_width_live">Zoom giorni</label><input id="id_day_width_live" class="input-range" type="range" min="18" max="58" step="1" value="{{ gantt_day_cell_px }}"></div>
-        <div class="ts-field"><label for="id_day_height_live">Altezza righe</label><input id="id_day_height_live" class="input-range" type="range" min="16" max="58" step="1" value="28"></div>
-        <div class="ts-field"><label for="id_day_height_value">Valori attuali</label><div id="id_day_height_value" class="ts-note-box" style="padding:10px 12px;"></div></div>
-        <div class="flag-row">
-          <input type="hidden" name="show_wbs" value="0"><label class="flag"><input type="checkbox" name="show_wbs" value="1" {% if gantt_show_wbs %}checked{% endif %}>WBS</label>
-          <input type="hidden" name="show_duration" value="0"><label class="flag"><input type="checkbox" name="show_duration" value="1" {% if gantt_show_duration %}checked{% endif %}>Durata</label>
-          <input type="hidden" name="show_start" value="0"><label class="flag"><input type="checkbox" name="show_start" value="1" {% if gantt_show_start %}checked{% endif %}>Inizio</label>
-          <input type="hidden" name="show_end" value="0"><label class="flag"><input type="checkbox" name="show_end" value="1" {% if gantt_show_end %}checked{% endif %}>Fine</label>
-          {% if can_edit_schedule %}<label class="flag" title="Quando sposti una barra, sposta anche tutte le task successive"><input type="checkbox" id="id_cascade_shift" checked>Sposta a cascata</label>{% endif %}
-        </div>
-        <div class="actions"><button type="submit" class="btn btn-sm">Applica vista</button><a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_gantt' project.id %}">Reset</a></div>
-      </form>
+      <div class="ts-panel-meta">
+        <span class="ts-chip soft">{{ gantt_days|length }}gg</span>
+      </div>
     </div>
-  </section>
 
-  <section class="ts-panel">
-    <div class="ts-panel-head"><div class="ts-panel-title-wrap"><h2 class="ts-panel-title">Diagramma Gantt</h2><p class="ts-panel-subtitle">Le assenze in conflitto sono evidenziate in rosso con una X. {% if can_edit_schedule %}Puoi trascinare una barra attiva per spostare la task e usare il quick edit per modifiche puntuali.{% else %}La vista e disponibile in sola lettura.{% endif %}</p></div></div>
-    <div class="ts-panel-body">
+    {# Toolbar opzioni #}
+    <form method="get">
+    <div class="g-toolbar">
+      <div class="ts-field">
+        <label for="id_window_days">Finestra</label>
+        <select id="id_window_days" name="window_days" class="input">
+          {% for value, label in gantt_window_choices %}
+            <option value="{{ value }}" {% if value == gantt_option_window_days %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="ts-field">
+        <label for="id_cell_size">Densita giorni</label>
+        <select id="id_cell_size" name="cell_size" class="input">
+          {% for value, label in gantt_cell_choices %}
+            <option value="{{ value }}" {% if value == gantt_option_cell_size %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="ts-field">
+        <label for="id_name_width">Larghezza nome</label>
+        <select id="id_name_width" name="name_width" class="input">
+          {% for value, label in gantt_name_width_choices %}
+            <option value="{{ value }}" {% if value == gantt_option_name_width %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="g-toolbar-sep"></div>
+
+      <div class="g-range-group">
+        <span class="g-range-label">Zoom giorni</span>
+        <div class="g-range-row">
+          <input id="id_day_width_live" class="input-range" type="range" min="18" max="58" step="1" value="{{ gantt_day_cell_px }}">
+          <span class="g-range-val" id="id_width_val">{{ gantt_day_cell_px }}px</span>
+        </div>
+      </div>
+
+      <div class="g-range-group">
+        <span class="g-range-label">Altezza righe</span>
+        <div class="g-range-row">
+          <input id="id_day_height_live" class="input-range" type="range" min="16" max="58" step="1" value="28">
+          <span class="g-range-val" id="id_height_val">28px</span>
+        </div>
+      </div>
+
+      <div class="g-toolbar-sep"></div>
+
+      <div class="g-toolbar-group">
+        <input type="hidden" name="show_wbs" value="0">
+        <label class="g-flag"><input type="checkbox" name="show_wbs" value="1" {% if gantt_show_wbs %}checked{% endif %}> WBS</label>
+        <input type="hidden" name="show_duration" value="0">
+        <label class="g-flag"><input type="checkbox" name="show_duration" value="1" {% if gantt_show_duration %}checked{% endif %}> Durata</label>
+        <input type="hidden" name="show_start" value="0">
+        <label class="g-flag"><input type="checkbox" name="show_start" value="1" {% if gantt_show_start %}checked{% endif %}> Inizio</label>
+        <input type="hidden" name="show_end" value="0">
+        <label class="g-flag"><input type="checkbox" name="show_end" value="1" {% if gantt_show_end %}checked{% endif %}> Fine</label>
+        {% if can_edit_schedule %}
+          <label class="g-flag" title="Sposta anche le attivita successive">
+            <input type="checkbox" id="id_cascade_shift" checked> Cascata
+          </label>
+        {% endif %}
+      </div>
+
+      <div class="g-toolbar-sep"></div>
+
+      <button type="submit" class="btn btn-sm">Applica</button>
+      <a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_gantt' project.id %}">Reset</a>
+
+      {# campo invisibile per sincronizzare il valueLabel legacy #}
+      <div id="id_day_height_value" style="display:none;"></div>
+    </div>
+    </form>
+
+    {% if can_edit_schedule and gantt_rows %}
+    <div class="g-hint-bar">
+      <span class="g-hint"><span class="g-hint-key">drag</span> barra per spostare date</span>
+      <span class="g-hint" style="opacity:.5;margin:0 2px;">·</span>
+      <span class="g-hint"><span class="g-hint-key">clic</span> riga per quick edit</span>
+      <span class="g-hint" style="opacity:.5;margin:0 2px;">·</span>
+      <span class="g-hint"><span class="g-hint-key">drag</span> header per ridimensionare colonne</span>
+    </div>
+    {% endif %}
+
+    <div class="ts-panel-body no-pad">
       {% if gantt_rows %}
         <div class="gantt-table-wrap">
-          <table class="gantt-table" role="table" data-project-id="{{ project.id }}" data-can-shift="{% if can_edit_schedule %}1{% else %}0{% endif %}">
+          <table class="gantt-table" role="table"
+                 data-project-id="{{ project.id }}"
+                 data-can-shift="{% if can_edit_schedule %}1{% else %}0{% endif %}"
+                 data-total-days="{{ gantt_days|length }}">
             <thead>
               <tr>
-                {% if gantt_show_wbs %}<th class="left-head col-wbs resizable-col" data-resize-var="--wbs-col-w" data-min-width="48" rowspan="3">WBS<span class="col-resizer" aria-hidden="true"></span></th>{% endif %}
-                <th class="left-head col-name resizable-col" data-resize-var="--name-col-w" data-min-width="220" rowspan="3">Nome attivita<span class="col-resizer" aria-hidden="true"></span></th>
-                {% if gantt_show_duration %}<th class="left-head col-days resizable-col" data-resize-var="--dur-col-w" data-min-width="92" rowspan="3">Durata<span class="col-resizer" aria-hidden="true"></span></th>{% endif %}
-                {% if gantt_show_start %}<th class="left-head col-date-start resizable-col" data-resize-var="--start-col-w" data-min-width="96" rowspan="3">Inizio<span class="col-resizer" aria-hidden="true"></span></th>{% endif %}
-                {% if gantt_show_end %}<th class="left-head col-date-end resizable-col" data-resize-var="--end-col-w" data-min-width="96" rowspan="3">Fine<span class="col-resizer" aria-hidden="true"></span></th>{% endif %}
+                {% if gantt_show_wbs %}
+                  <th class="left-head col-wbs resizable-col" data-resize-var="--wbs-col-w" data-min-width="48" rowspan="3">
+                    WBS<span class="col-resizer" aria-hidden="true"></span>
+                  </th>
+                {% endif %}
+                <th class="left-head col-name resizable-col" data-resize-var="--name-col-w" data-min-width="220" rowspan="3">
+                  Nome attivita<span class="col-resizer" aria-hidden="true"></span>
+                </th>
+                {% if gantt_show_duration %}
+                  <th class="left-head col-days resizable-col" data-resize-var="--dur-col-w" data-min-width="92" rowspan="3">
+                    Durata<span class="col-resizer" aria-hidden="true"></span>
+                  </th>
+                {% endif %}
+                {% if gantt_show_start %}
+                  <th class="left-head col-date-start resizable-col" data-resize-var="--start-col-w" data-min-width="96" rowspan="3">
+                    Inizio<span class="col-resizer" aria-hidden="true"></span>
+                  </th>
+                {% endif %}
+                {% if gantt_show_end %}
+                  <th class="left-head col-date-end resizable-col" data-resize-var="--end-col-w" data-min-width="96" rowspan="3">
+                    Fine<span class="col-resizer" aria-hidden="true"></span>
+                  </th>
+                {% endif %}
                 <th colspan="{{ gantt_days|length }}">Timeline giornaliera</th>
               </tr>
-              <tr>{% for month in gantt_month_spans %}<th class="month-head" colspan="{{ month.span }}">{{ month.label }}</th>{% endfor %}</tr>
-              <tr>{% for day in gantt_days %}<th class="day-head{% if day.is_weekend %} is-weekend{% endif %}{% if day.is_holiday %} is-holiday{% endif %}{% if day.is_today %} is-today{% endif %}">{{ day.date|date:"d" }}</th>{% endfor %}</tr>
+              <tr>
+                {% for month in gantt_month_spans %}
+                  <th class="month-head" colspan="{{ month.span }}">{{ month.label }}</th>
+                {% endfor %}
+              </tr>
+              <tr>
+                {% for day in gantt_days %}
+                  <th class="day-head{% if day.is_weekend %} is-weekend{% endif %}{% if day.is_holiday %} is-holiday{% endif %}{% if day.is_today %} is-today{% endif %}">{{ day.date|date:"d" }}</th>
+                {% endfor %}
+              </tr>
             </thead>
             <tbody>
               {% for row in gantt_rows %}
-                <tr class="task-row" data-task-id="{{ row.task.id }}" data-start-index="{{ row.start_index }}" data-end-index="{{ row.end_index }}" data-shift-url="{% url 'tasks:project_gantt_shift_task' project.id row.task.id %}">
+                <tr class="task-row"
+                    data-task-id="{{ row.task.id }}"
+                    data-start-index="{{ row.start_index }}"
+                    data-end-index="{{ row.end_index }}"
+                    data-prev-end-index="{{ row.prev_end_index }}"
+                    data-shift-url="{% url 'tasks:project_gantt_shift_task' project.id row.task.id %}">
                   {% if gantt_show_wbs %}<td class="col-wbs">{{ row.wbs }}</td>{% endif %}
                   <td class="col-name">
                     <a class="gantt-task-link" href="{% url 'tasks:detail' row.task.id %}">{{ row.task.title }}</a>
                     <div class="gantt-meta">
-                      <span>{{ row.task.get_status_display }}</span><span>Prio: {{ row.task.get_priority_display }}</span><span>{% if row.task.assigned_to %}{{ row.task.assigned_to.get_full_name|default:row.task.assigned_to.username }}{% else %}Non assegnata{% endif %}</span>
-                      {% if row.invalid_range %}<span style="color:#b91c1c;font-weight:800;">Range non valido (fine <= inizio)</span>{% endif %}
-                      {% if row.has_absence_conflicts %}<span style="color:#b91c1c;font-weight:800;">Assenze: {{ row.absence_days }} gg</span>{% endif %}
+                      <span>{{ row.task.get_status_display }}</span>
+                      <span>{{ row.task.get_priority_display }}</span>
+                      <span>{% if row.task.assigned_to %}{{ row.task.assigned_to.get_full_name|default:row.task.assigned_to.username }}{% else %}—{% endif %}</span>
+                      {% if row.invalid_range %}<span style="color:#b91c1c;font-weight:900;">Range non valido</span>{% endif %}
+                      {% if row.has_absence_conflicts %}<span style="color:#b91c1c;font-weight:900;">Assenze: {{ row.absence_days }}gg</span>{% endif %}
                     </div>
                   </td>
-                  {% if gantt_show_duration %}<td class="col-days" title="{{ row.duration_days }} giorni calendario">{{ row.duration_working_days }} gg</td>{% endif %}
+                  {% if gantt_show_duration %}<td class="col-days" title="{{ row.duration_days }} giorni calendario">{{ row.duration_working_days }}gg</td>{% endif %}
                   {% if gantt_show_start %}<td class="col-date-start">{{ row.start|date:"d/m/Y" }}</td>{% endif %}
                   {% if gantt_show_end %}<td class="col-date-end">{{ row.end|date:"d/m/Y" }}</td>{% endif %}
-                  {% for cell in row.cells %}<td class="g-cell{% if cell.classes %} {{ cell.classes }}{% endif %}" data-day-index="{{ forloop.counter0 }}" {% if cell.title %}title="{{ cell.title }}"{% endif %}>{% if cell.marker %}<span class="absence-x">{{ cell.marker }}</span>{% endif %}</td>{% endfor %}
+                  {% for cell in row.cells %}
+                    <td class="g-cell{% if cell.classes %} {{ cell.classes }}{% endif %}"
+                        data-day-index="{{ forloop.counter0 }}"
+                        {% if cell.title %}title="{{ cell.title }}"{% endif %}>
+                      {% if cell.marker %}<span class="absence-x">{{ cell.marker }}</span>{% endif %}
+                    </td>
+                  {% endfor %}
                 </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
-        {% if can_edit_schedule %}<div class="ts-note-box">Drag colonne: usa il bordo destro degli header. Drag timeline: trascina una cella attiva della task per spostare le date.</div>{% endif %}
-        <div class="legend">
-          <span class="legend-item"><span class="legend-dot todo"></span>To do</span><span class="legend-item"><span class="legend-dot in_progress"></span>In progress</span><span class="legend-item"><span class="legend-dot done"></span>Done</span><span class="legend-item"><span class="legend-dot canceled"></span>Canceled</span>
-          <span class="legend-item"><span class="legend-dot" style="background:repeating-linear-gradient(135deg,#fca5a5 0,#fca5a5 5px,#ef4444 5px,#ef4444 10px);"></span>Range non valido</span><span class="legend-item"><span class="legend-dot" style="background:#fee2e2;border:1px solid #fca5a5;"></span>Assenza assegnatario</span><span class="legend-item"><span class="legend-dot" style="background:#f0f4f8;border:1px solid #cbd5e1;"></span>Weekend</span><span class="legend-item"><span class="legend-dot holiday"></span>Festivita</span><span class="legend-item" style="font-style:italic;">Durata espressa in giorni lavorativi</span>
+
+        <div class="g-legend">
+          <span class="g-legend-item"><span class="g-legend-dot todo"></span>To do</span>
+          <span class="g-legend-item"><span class="g-legend-dot in_progress"></span>In progress</span>
+          <span class="g-legend-item"><span class="g-legend-dot done"></span>Done</span>
+          <span class="g-legend-item"><span class="g-legend-dot canceled"></span>Canceled</span>
+          <span class="g-legend-item"><span class="g-legend-dot invalid"></span>Range non valido</span>
+          <span class="g-legend-item"><span class="g-legend-dot absence"></span>Assenza assegnatario</span>
+          <span class="g-legend-item"><span class="g-legend-dot weekend"></span>Weekend</span>
+          <span class="g-legend-item"><span class="g-legend-dot holiday"></span>Festivita</span>
+          <span class="g-legend-item" style="font-style:italic;">Durata in giorni lavorativi</span>
         </div>
       {% else %}
-        <div class="ts-empty"><strong>Nessuna task nel progetto.</strong><div>Puoi iniziare aggiungendo la prima task direttamente da questa vista.</div>{% if tasks_shell_can_create %}<div class="ts-actions"><a class="btn btn-sm" href="{% url 'tasks:create' %}?project={{ project.id }}">Aggiungi task</a></div>{% endif %}</div>
+        <div class="ts-empty" style="margin:16px;">
+          <strong>Nessuna attivita nel kickoff.</strong>
+          <div>Aggiungi la prima attivita direttamente da questa vista.</div>
+          {% if tasks_shell_can_create %}
+            <div class="ts-actions">
+              <a class="btn btn-sm" href="{% url 'tasks:create' %}?project={{ project.id %}">Aggiungi attivita</a>
+            </div>
+          {% endif %}
+        </div>
       {% endif %}
     </div>
   </section>
 
+  {# ── Quick edit ── #}
   {% if can_edit_schedule and gantt_rows %}
     <section class="ts-panel">
-      <div class="ts-panel-head"><div class="ts-panel-title-wrap"><h2 class="ts-panel-title">Modifica rapida timeline</h2><p class="ts-panel-subtitle">Seleziona una task nel Gantt per aggiornare date e stato senza uscire dalla pianificazione.</p></div></div>
+      <div class="ts-panel-head">
+        <div class="ts-panel-title-wrap">
+          <h2 class="ts-panel-title">Modifica rapida</h2>
+          <p class="ts-panel-subtitle">Clicca una riga del Gantt per modificare date e stato qui.</p>
+        </div>
+      </div>
       <div class="ts-panel-body">
         <div class="quick-edit-grid">
-          <div class="quick-edit-placeholder" id="quick-edit-placeholder">Clicca una task nel diagramma per modificarla qui.</div>
+          <div class="quick-edit-placeholder" id="quick-edit-placeholder">
+            Clicca un'attivita nel diagramma per aprire il form di modifica rapida.
+          </div>
           {% for row in gantt_rows %}
             {% if row.update_form %}
-              <form class="quick-edit-item" data-task-id="{{ row.task.id }}" method="post" action="{% url 'tasks:project_gantt_update_task' project.id row.task.id %}">
-                {% csrf_token %}<input type="hidden" name="return_qs" value="{{ gantt_return_qs }}">
-                <div class="quick-edit-head"><a href="{% url 'tasks:detail' row.task.id %}">{{ row.task.title }}</a><span class="ts-badge ts-badge--{{ row.task.status|lower }}">{{ row.task.get_status_display }}</span></div>
+              <form class="quick-edit-item" data-task-id="{{ row.task.id }}"
+                    method="post"
+                    action="{% url 'tasks:project_gantt_update_task' project.id row.task.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="return_qs" value="{{ gantt_return_qs }}">
+                <div class="quick-edit-head">
+                  <a href="{% url 'tasks:detail' row.task.id %}">{{ row.task.title }}</a>
+                  <span class="ts-badge ts-badge--{{ row.task.status|lower }}">{{ row.task.get_status_display }}</span>
+                </div>
                 <div class="quick-edit-row">
-                  <div class="ts-field"><label for="{{ row.update_form.next_step_due.id_for_label }}">Data inizio</label>{{ row.update_form.next_step_due }}</div>
-                  <div class="ts-field"><label for="{{ row.update_form.due_date.id_for_label }}">Data richiesta fine</label>{{ row.update_form.due_date }}</div>
-                  <div class="ts-field"><label for="{{ row.update_form.status.id_for_label }}">Stato</label>{{ row.update_form.status }}</div>
-                  <div class="ts-field"><button type="submit" class="btn btn-sm">Salva</button></div>
+                  <div class="ts-field">
+                    <label for="{{ row.update_form.next_step_due.id_for_label }}">Data inizio</label>
+                    {{ row.update_form.next_step_due }}
+                  </div>
+                  <div class="ts-field">
+                    <label for="{{ row.update_form.due_date.id_for_label }}">Data fine</label>
+                    {{ row.update_form.due_date }}
+                  </div>
+                  <div class="ts-field">
+                    <label for="{{ row.update_form.status.id_for_label }}">Stato</label>
+                    {{ row.update_form.status }}
+                  </div>
+                  <div class="ts-field">
+                    <button type="submit" class="btn btn-sm">Salva</button>
+                  </div>
                 </div>
               </form>
             {% endif %}
@@ -323,28 +1130,62 @@
     </section>
   {% endif %}
 
+  {# ── Commenti kickoff ── #}
   <section class="ts-panel">
-    <div class="ts-panel-head"><div class="ts-panel-title-wrap"><h2 class="ts-panel-title">Commenti progetto</h2><p class="ts-panel-subtitle">Thread condiviso per coordinare pianificazione, scostamenti e passaggi di consegna.</p></div><div class="ts-panel-meta"><span class="ts-chip soft">{{ project.comments.all|length }} commenti</span></div></div>
+    <div class="ts-panel-head">
+      <div class="ts-panel-title-wrap">
+        <h2 class="ts-panel-title">Commenti kickoff</h2>
+        <p class="ts-panel-subtitle">Coordinamento, scostamenti e passaggi di consegna.</p>
+      </div>
+      <div class="ts-panel-meta">
+        <span class="ts-chip soft">{{ project.comments.all|length }} commenti</span>
+      </div>
+    </div>
     <div class="ts-panel-body">
       {% if can_comment %}
         <form method="post" action="{% url 'tasks:add_project_comment' project.id %}" class="ts-stack">
-          {% csrf_token %}<input type="hidden" name="return_qs" value="{{ gantt_return_qs }}">
-          <div class="ts-field"><label for="{{ project_comment_form.body.id_for_label }}">Nuovo commento progetto</label>{{ project_comment_form.body }}</div>
-          <div class="ts-field"><label for="{{ project_comment_form.target_user.id_for_label }}">Notifica utente (opzionale)</label>{{ project_comment_form.target_user }}</div>
-          <div class="ts-field-actions"><button type="submit" class="btn btn-sm">Aggiungi commento</button></div>
+          {% csrf_token %}
+          <input type="hidden" name="return_qs" value="{{ gantt_return_qs }}">
+          <div class="ts-field">
+            <label for="{{ project_comment_form.body.id_for_label }}">Nuovo commento</label>
+            {{ project_comment_form.body }}
+          </div>
+          <div class="ts-field">
+            <label for="{{ project_comment_form.target_user.id_for_label }}">Notifica utente (opzionale)</label>
+            {{ project_comment_form.target_user }}
+          </div>
+          <div class="ts-field-actions">
+            <button type="submit" class="btn btn-sm">Aggiungi</button>
+          </div>
         </form>
       {% endif %}
+
       {% if project.comments.all %}
         <ul class="comment-list">
           {% for comment in project.comments.all %}
-            <li class="comment-item"><div class="ts-card-meta" style="margin-bottom:6px;"><span>{{ comment.author.get_full_name|default:comment.author.username }}</span><span>{{ comment.created_at|date:"d/m/Y H:i" }}</span></div><div style="white-space:pre-wrap;">{{ comment.body }}</div>{% if comment.target_user %}<div class="ts-card-text" style="margin-top:8px;">Notifica a: {{ comment.target_user.get_full_name|default:comment.target_user.username }}</div>{% endif %}</li>
+            <li class="comment-item">
+              <div class="ts-card-meta" style="margin-bottom:6px;">
+                <strong style="color:#0f172a;">{{ comment.author.get_full_name|default:comment.author.username }}</strong>
+                <span style="color:#94a3b8;">{{ comment.created_at|date:"d/m/Y H:i" }}</span>
+              </div>
+              <div style="white-space:pre-wrap;font-size:13px;color:#1e293b;line-height:1.6;">{{ comment.body }}</div>
+              {% if comment.target_user %}
+                <div class="ts-card-text" style="margin-top:8px;">
+                  Notifica a: {{ comment.target_user.get_full_name|default:comment.target_user.username }}
+                </div>
+              {% endif %}
+            </li>
           {% endfor %}
         </ul>
       {% else %}
-        <div class="ts-empty"><strong>Nessun commento progetto.</strong><div>Usa questa sezione per lasciare note di coordinamento o spiegare variazioni al piano.</div></div>
+        <div class="ts-empty">
+          <strong>Nessun commento.</strong>
+          <div>Usa questa sezione per note di coordinamento o variazioni al piano.</div>
+        </div>
       {% endif %}
     </div>
   </section>
+
 </div>
 {% endblock %}
 
@@ -358,16 +1199,33 @@
   const layoutKey = "tasks.gantt.layout." + projectId;
   const widthRange = document.getElementById("id_day_width_live");
   const heightRange = document.getElementById("id_day_height_live");
-  const valueLabel = document.getElementById("id_day_height_value");
+  const valueLabel = document.getElementById("id_day_height_value"); /* compat */
+  const widthVal = document.getElementById("id_width_val");
+  const heightVal = document.getElementById("id_height_val");
+
   function parsePx(value, fallback) { const numeric = parseInt(String(value || "").replace("px", "").trim(), 10); return Number.isFinite(numeric) ? numeric : fallback; }
   function getVar(name, fallback) { return parsePx(getComputedStyle(table).getPropertyValue(name), fallback); }
   function setVar(name, value) { table.style.setProperty(name, Math.round(value) + "px"); }
-  function updateValueLabel() { if (!valueLabel) return; valueLabel.textContent = "giorni " + getVar("--day-cell-w", 30) + "px - altezza " + getVar("--day-cell-h", 28) + "px"; }
-  function syncRangesFromVars() { if (widthRange) widthRange.value = String(getVar("--day-cell-w", 30)); if (heightRange) heightRange.value = String(getVar("--day-cell-h", 28)); updateValueLabel(); }
+
+  function updateValueLabel() {
+    const w = getVar("--day-cell-w", 30);
+    const h = getVar("--day-cell-h", 28);
+    if (valueLabel) valueLabel.textContent = "giorni " + w + "px - altezza " + h + "px";
+    if (widthVal) widthVal.textContent = w + "px";
+    if (heightVal) heightVal.textContent = h + "px";
+  }
+
+  function syncRangesFromVars() {
+    if (widthRange) widthRange.value = String(getVar("--day-cell-w", 30));
+    if (heightRange) heightRange.value = String(getVar("--day-cell-h", 28));
+    updateValueLabel();
+  }
+
   function saveLayout() {
     const payload = { wbs:getVar("--wbs-col-w",58), name:getVar("--name-col-w",360), dur:getVar("--dur-col-w",110), start:getVar("--start-col-w",110), end:getVar("--end-col-w",110), dayW:getVar("--day-cell-w",30), dayH:getVar("--day-cell-h",28), rowH:getVar("--row-content-h",46) };
     try { window.localStorage.setItem(layoutKey, JSON.stringify(payload)); } catch (error) { console.warn("Gantt layout non salvato", error); }
   }
+
   function loadLayout() {
     try {
       const raw = window.localStorage.getItem(layoutKey);
@@ -384,7 +1242,9 @@
       if (parsed.rowH) setVar("--row-content-h", parsed.rowH); else if (parsed.dayH) setVar("--row-content-h", Math.max(36, parsed.dayH + 18));
     } catch (error) { console.warn("Gantt layout non caricato", error); }
   }
+
   function isNonWorking(cell) { return cell.classList.contains("is-weekend") || cell.classList.contains("is-holiday"); }
+
   function renderBars() {
     table.querySelectorAll("tr.task-row").forEach(function (row) {
       const cells = Array.from(row.querySelectorAll("td.g-cell"));
@@ -397,12 +1257,14 @@
       }
     });
   }
+
   function applyStickyOffsets() {
     const hasWbs = !!table.querySelector("th.col-wbs");
     const wbsW = hasWbs ? getVar("--wbs-col-w", 58) : 0;
     if (hasWbs) table.querySelectorAll(".col-wbs").forEach(function (element) { element.style.left = "0px"; });
     table.querySelectorAll(".col-name").forEach(function (element) { element.style.left = wbsW + "px"; });
   }
+
   function bindRangeControls() {
     if (widthRange) widthRange.addEventListener("input", function () { setVar("--day-cell-w", parseInt(widthRange.value, 10)); updateValueLabel(); saveLayout(); });
     if (heightRange) heightRange.addEventListener("input", function () {
@@ -413,6 +1275,7 @@
       saveLayout();
     });
   }
+
   function bindColumnResizers() {
     table.querySelectorAll("th.resizable-col[data-resize-var]").forEach(function (header) {
       const handle = header.querySelector(".col-resizer");
@@ -443,6 +1306,7 @@
       });
     });
   }
+
   function getCookie(name) {
     const parts = document.cookie ? document.cookie.split(";") : [];
     for (let index = 0; index < parts.length; index += 1) {
@@ -451,48 +1315,82 @@
     }
     return "";
   }
+
   function clearRowPreview(row) {
     row.classList.remove("is-dragging");
-    row.querySelectorAll(".g-cell.is-drag-preview").forEach(function (cell) { cell.classList.remove("is-drag-preview"); });
+    row.querySelectorAll(".g-cell").forEach(function (cell) {
+      cell.classList.remove("is-drag-preview", "is-drag-bar-start", "is-drag-bar-end");
+    });
   }
+
   function paintRowPreview(row, startIndex, endIndex) {
     clearRowPreview(row);
     row.classList.add("is-dragging");
+    var firstPreviewCell = null, lastPreviewCell = null;
     row.querySelectorAll(".g-cell").forEach(function (cell) {
       const dayIndex = parseInt(cell.dataset.dayIndex || "-1", 10);
-      if (dayIndex >= startIndex && dayIndex <= endIndex) cell.classList.add("is-drag-preview");
+      if (dayIndex >= startIndex && dayIndex <= endIndex) {
+        cell.classList.add("is-drag-preview");
+        if (!firstPreviewCell) firstPreviewCell = cell;
+        lastPreviewCell = cell;
+      }
     });
+    if (firstPreviewCell) firstPreviewCell.classList.add("is-drag-bar-start");
+    if (lastPreviewCell) lastPreviewCell.classList.add("is-drag-bar-end");
   }
+
   function bindTaskDragShift() {
     if (!canShift) return;
     const tbody = table.querySelector("tbody");
     if (!tbody) return;
     const tableWrap = table.closest(".gantt-table-wrap");
     const csrfToken = getCookie("csrftoken");
+    const totalDays = parseInt(table.dataset.totalDays || "0", 10);
+    let gesture = null;
     let shiftRequestPending = false;
-    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+
+    /* Calcola in quale colonna-giorno si trova il cursore leggendo la posizione
+       della prima cella della timeline (BoundingClientRect aggiornata ad ogni frame,
+       quindi corretta anche dopo lo scroll automatico). */
+    function dayIndexAt(clientX) {
+      const firstCell = table.querySelector("td.g-cell");
+      if (!firstCell) return 0;
+      const dayWidth = Math.max(4, getVar("--day-cell-w", 30));
+      const raw = Math.floor((clientX - firstCell.getBoundingClientRect().left) / dayWidth);
+      return Math.max(0, totalDays > 0 ? Math.min(totalDays - 1, raw) : raw);
+    }
+
     function autoScrollWrap(clientX) {
       if (!tableWrap) return;
       const rect = tableWrap.getBoundingClientRect();
-      const edgeSize = 56;
-      let delta = 0;
-      if (clientX < rect.left + edgeSize) delta = -Math.ceil((rect.left + edgeSize - clientX) / 7);
-      else if (clientX > rect.right - edgeSize) delta = Math.ceil((clientX - (rect.right - edgeSize)) / 7);
-      if (delta !== 0) tableWrap.scrollLeft += delta;
+      const edge = 56;
+      if (clientX < rect.left + edge) tableWrap.scrollLeft -= Math.ceil((rect.left + edge - clientX) / 7);
+      else if (clientX > rect.right - edge) tableWrap.scrollLeft += Math.ceil((clientX - (rect.right - edge)) / 7);
     }
-    function resolveHoverCell(row, clientX, clientY) {
-      const pointed = document.elementFromPoint(clientX, clientY);
-      const pointedCell = pointed ? pointed.closest("td.g-cell") : null;
-      if (pointedCell && pointedCell.closest("tr.task-row") === row) return pointedCell;
-      const rowCells = row.querySelectorAll("td.g-cell");
-      if (!rowCells.length) return null;
-      const firstRect = rowCells[0].getBoundingClientRect();
-      const dayWidth = Math.max(8, getVar("--day-cell-w", 30));
-      const rawIndex = Math.floor((clientX - firstRect.left) / dayWidth);
-      return rowCells[clamp(rawIndex, 0, rowCells.length - 1)];
+
+    /* Applica il vincolo predecessore: il task non puo iniziare prima della fine
+       del task precedente (WBS order). prevEndIndex == -1 significa nessun vincolo. */
+    function clampDelta(rawDelta, startIndex, endIndex, prevEndIndex) {
+      let d = rawDelta;
+      d = Math.max(d, -startIndex);                                         // non prima del giorno 0
+      if (totalDays > 0) d = Math.min(d, totalDays - 1 - endIndex);        // non oltre l'ultimo giorno
+      if (prevEndIndex >= 0) d = Math.max(d, prevEndIndex + 1 - startIndex); // vincolo predecessore
+      return d;
     }
+
+    /* Stile cursore globale durante il drag */
+    var dragStyle = null;
+    function setCursorGrabbing() {
+      dragStyle = document.createElement("style");
+      dragStyle.textContent = "* { cursor: grabbing !important; }";
+      document.head.appendChild(dragStyle);
+    }
+    function clearCursorGrabbing() {
+      if (dragStyle) { dragStyle.remove(); dragStyle = null; }
+    }
+
     tbody.addEventListener("pointerdown", function (event) {
-      if (shiftRequestPending || event.button !== 0) return;
+      if (gesture || shiftRequestPending || event.button !== 0) return;
       const cell = event.target.closest("td.g-cell.is-active");
       if (!cell) return;
       const row = cell.closest("tr.task-row");
@@ -500,60 +1398,66 @@
       const startIndex = parseInt(row.dataset.startIndex || "-1", 10);
       const endIndex = parseInt(row.dataset.endIndex || "-1", 10);
       if (startIndex < 0 || endIndex < startIndex) return;
-      const anchorDayIndex = parseInt(cell.dataset.dayIndex || "-1", 10);
-      if (anchorDayIndex < 0) return;
-      const pointerId = event.pointerId;
-      let delta = 0;
+      const anchorDayIndex = parseInt(cell.dataset.dayIndex || "0", 10);
+      const prevEndIndex = parseInt(row.dataset.prevEndIndex || "-1", 10);
+
       event.preventDefault();
+      gesture = { row, pointerId: event.pointerId, anchorDayIndex, startIndex, endIndex, prevEndIndex, delta: 0 };
       paintRowPreview(row, startIndex, endIndex);
-      if (typeof cell.setPointerCapture === "function") { try { cell.setPointerCapture(pointerId); } catch (error) { console.warn("Pointer capture non disponibile", error); } }
-      function onPointerMove(moveEvent) {
-        if (moveEvent.pointerId !== pointerId) return;
-        autoScrollWrap(moveEvent.clientX);
-        const hoveredCell = resolveHoverCell(row, moveEvent.clientX, moveEvent.clientY);
-        if (!hoveredCell) return;
-        const hoveredIndex = parseInt(hoveredCell.dataset.dayIndex || "-1", 10);
-        if (hoveredIndex < 0) return;
-        const nextDelta = hoveredIndex - anchorDayIndex;
-        if (nextDelta === delta) return;
-        delta = nextDelta;
-        paintRowPreview(row, startIndex + delta, endIndex + delta);
-      }
-      async function finishDrag(shouldSubmit) {
-        document.removeEventListener("pointermove", onPointerMove);
-        document.removeEventListener("pointerup", onPointerUp);
-        document.removeEventListener("pointercancel", onPointerCancel);
-        if (typeof cell.releasePointerCapture === "function") { try { cell.releasePointerCapture(pointerId); } catch (error) {} }
-        if (!shouldSubmit || delta === 0) { clearRowPreview(row); return; }
-        shiftRequestPending = true;
-        try {
-          const cascadeCheckbox = document.getElementById("id_cascade_shift");
-          const doCascade = (!cascadeCheckbox || cascadeCheckbox.checked) ? "1" : "0";
-          const body = new URLSearchParams();
-          body.set("shift_days", String(delta));
-          body.set("cascade", doCascade);
-          const response = await fetch(row.dataset.shiftUrl, {
-            method: "POST",
-            credentials: "same-origin",
-            headers: { "Content-Type": "application/x-www-form-urlencoded", "X-CSRFToken": csrfToken, "X-Requested-With": "XMLHttpRequest" },
-            body: body.toString()
-          });
-          const payload = await response.json().catch(function () { return {}; });
-          if (!response.ok || !payload.ok) throw new Error(payload.error || "shift_failed");
-          window.location.reload();
-        } catch (error) {
-          clearRowPreview(row);
-          alert("Spostamento task non riuscito.");
-          console.error("Gantt shift error", error);
-        } finally { shiftRequestPending = false; }
-      }
-      function onPointerUp(upEvent) { if (upEvent.pointerId !== pointerId) return; finishDrag(true); }
-      function onPointerCancel(cancelEvent) { if (cancelEvent.pointerId !== pointerId) return; finishDrag(false); }
+      setCursorGrabbing();
       document.addEventListener("pointermove", onPointerMove);
       document.addEventListener("pointerup", onPointerUp);
       document.addEventListener("pointercancel", onPointerCancel);
     });
+
+    function onPointerMove(moveEvent) {
+      if (!gesture || moveEvent.pointerId !== gesture.pointerId) return;
+      autoScrollWrap(moveEvent.clientX);
+      const { anchorDayIndex, startIndex, endIndex, prevEndIndex, row } = gesture;
+      const hoveredDay = dayIndexAt(moveEvent.clientX);
+      const delta = clampDelta(hoveredDay - anchorDayIndex, startIndex, endIndex, prevEndIndex);
+      if (delta !== gesture.delta) {
+        gesture.delta = delta;
+        paintRowPreview(row, startIndex + delta, endIndex + delta);
+      }
+    }
+
+    async function finishDrag(shouldSubmit) {
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp);
+      document.removeEventListener("pointercancel", onPointerCancel);
+      clearCursorGrabbing();
+      if (!gesture) return;
+      const { row, delta } = gesture;
+      gesture = null;
+      if (!shouldSubmit || delta === 0) { clearRowPreview(row); return; }
+      shiftRequestPending = true;
+      try {
+        const cascadeCheckbox = document.getElementById("id_cascade_shift");
+        const doCascade = (!cascadeCheckbox || cascadeCheckbox.checked) ? "1" : "0";
+        const body = new URLSearchParams();
+        body.set("shift_days", String(delta));
+        body.set("cascade", doCascade);
+        const response = await fetch(row.dataset.shiftUrl, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/x-www-form-urlencoded", "X-CSRFToken": csrfToken, "X-Requested-With": "XMLHttpRequest" },
+          body: body.toString()
+        });
+        const payload = await response.json().catch(function () { return {}; });
+        if (!response.ok || !payload.ok) throw new Error(payload.error || "shift_failed");
+        window.location.reload();
+      } catch (error) {
+        clearRowPreview(row);
+        alert("Spostamento task non riuscito.");
+        console.error("Gantt shift error", error);
+      } finally { shiftRequestPending = false; }
+    }
+
+    function onPointerUp(e) { if (!gesture || e.pointerId !== gesture.pointerId) return; finishDrag(true); }
+    function onPointerCancel(e) { if (!gesture || e.pointerId !== gesture.pointerId) return; finishDrag(false); }
   }
+
   function bindQuickEditAccordion() {
     const placeholder = document.getElementById("quick-edit-placeholder");
     const forms = document.querySelectorAll(".quick-edit-item[data-task-id]");
@@ -576,6 +1480,7 @@
       }
     });
   }
+
   loadLayout();
   syncRangesFromVars();
   renderBars();

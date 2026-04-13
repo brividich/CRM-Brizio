@@ -27,6 +27,7 @@ from core.audit import log_action
 from core.graph_utils import acquire_graph_token, is_placeholder_value
 from core.legacy_utils import get_legacy_user, legacy_table_columns, legacy_table_has_column
 from core.models import AuditLog
+from core.module_branding import get_module_branding_context, handle_module_branding_post
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ _COLOR_CACHE_KEY_GLOBAL = "assenze:colors:global:v1"
 _COLOR_CACHE_KEY_USER_PREFIX = "assenze:colors:user:v1:"
 _COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 _SELECT_RE = re.compile(r"^\s*SELECT\s", re.IGNORECASE)
+_SELECT_DISTINCT_RE = re.compile(r"^\s*SELECT\s+DISTINCT\s", re.IGNORECASE)
 _DEFAULT_COLORS = {
     "tipo_ferie": "#10b981",
     "tipo_permesso": "#3b82f6",
@@ -381,6 +383,10 @@ def _select_limited(base_sql: str, order_by_sql: str, limit: int) -> str:
     limit = max(1, int(limit))
     if _db_vendor() == "sqlite":
         return f"{base_sql} {order_by_sql} LIMIT {limit}"
+    if _SELECT_DISTINCT_RE.search(base_sql):
+        # SQL Server: SELECT DISTINCT TOP N ... (TOP must come after DISTINCT)
+        sql_with_top = _SELECT_DISTINCT_RE.sub(lambda m: f"{m.group(0)}TOP {limit} ", base_sql, count=1)
+        return f"{sql_with_top} {order_by_sql}"
     if _SELECT_RE.search(base_sql):
         sql_with_top = _SELECT_RE.sub(lambda m: f"{m.group(0)}TOP {limit} ", base_sql, count=1)
         return f"{sql_with_top} {order_by_sql}"
@@ -2834,6 +2840,20 @@ def richiesta_assenze(request):
 @login_required
 @ensure_csrf_cookie
 def gestione_assenze(request):
+    can_manage_branding = user_can_modulo_action(request, "assenze", "admin_assenze")
+    if request.method == "POST":
+        if not can_manage_branding:
+            return HttpResponseForbidden("Permessi insufficienti: branding modulo non consentito.")
+        branding_response = handle_module_branding_post(
+            request,
+            module_key="assenze",
+            redirect_to="assenze_gestione",
+            audit_module="assenze",
+            fallback_label="Assenze",
+        )
+        if branding_response is not None:
+            return branding_response
+
     name, email, legacy_id = _legacy_identity(request)
     if _sync_on_page_load_enabled():
         _maybe_pull(force=False)
@@ -2864,6 +2884,8 @@ def gestione_assenze(request):
             "summary_personali": _summarize_personal_requests(richieste_personali),
             "summary_da_approvare": _summarize_pending_requests(richieste_da_approvare),
             "ruolo_corrente": "",
+            "can_manage_module_branding": can_manage_branding,
+            **get_module_branding_context("assenze", fallback_label="Assenze"),
             **_template_perm_context(request),
         },
     )

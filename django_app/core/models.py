@@ -738,3 +738,86 @@ class UserUiPreference(models.Model):
 
     def __str__(self) -> str:
         return f"UserUiPreference(user={self.user_id}, nav={self.nav_mode}, scale={self.font_scale})"
+
+
+class UserOnboarding(models.Model):
+    """Traccia il completamento del wizard di primo accesso per-utente.
+
+    Il wizard raccoglie email di contatto, cellulare e preferenze notifiche.
+    Può essere resettato da un admin per far riapparire il wizard all'utente.
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="onboarding",
+    )
+    completed = models.BooleanField(default=False)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    skipped = models.BooleanField(
+        default=False,
+        help_text="Se True, il wizard non viene mostrato (utente esentato dall'admin).",
+    )
+    reset_at = models.DateTimeField(null=True, blank=True)
+    reset_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
+
+    # Dati raccolti dal wizard
+    email_contatto = models.EmailField(blank=True, default="")
+    cellulare_contatto = models.CharField(max_length=50, blank=True, default="")
+    # Preferenze notifiche: dict tipo → bool, es. {"assenze": True, "comunicazioni": False}
+    # Tipi standard: "assenze", "comunicazioni", "scadenzari", "ticket"
+    # Aggiungere nuovi tipi qui non richiede migration, solo il toggle nel wizard.
+    notifiche_config = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Preferenze notifiche email per tipo. Es: {\"assenze\": true, \"ticket\": false}",
+    )
+
+    class Meta:
+        db_table = "core_useronboarding"
+        verbose_name = "Onboarding utente"
+        verbose_name_plural = "Onboarding utenti"
+
+    def __str__(self) -> str:
+        stato = "completato" if self.completed else ("esentato" if self.skipped else "pending")
+        return f"UserOnboarding(user={self.user_id}, stato={stato})"
+
+    @classmethod
+    def get_or_create_for(cls, user):
+        obj, _ = cls.objects.get_or_create(user=user)
+        return obj
+
+    def is_done(self) -> bool:
+        """True se l'utente non deve più vedere il wizard."""
+        return self.completed or self.skipped
+
+    def get_notifica(self, tipo: str, default: bool = True) -> bool:
+        """Restituisce la preferenza per un tipo di notifica (default True se non impostato)."""
+        cfg = self.notifiche_config if isinstance(self.notifiche_config, dict) else {}
+        return bool(cfg.get(tipo, default))
+
+    @classmethod
+    def should_send_email(cls, user, tipo: str, default: bool = True) -> bool:
+        """Controlla se inviare un'email di tipo `tipo` all'utente Django dato.
+
+        Restituisce True (invia) se:
+        - non esiste un record UserOnboarding per l'utente (fail-open)
+        - l'onboarding non è stato completato (l'utente non ha espresso preferenze)
+        - la preferenza per `tipo` è True o non impostata
+
+        Restituisce False (non inviare) solo se l'utente ha esplicitamente
+        disabilitato quel tipo di notifica durante il wizard.
+        """
+        try:
+            onb = cls.objects.filter(user=user).first()
+            if onb is None or not onb.completed:
+                return default
+            return onb.get_notifica(tipo, default)
+        except Exception:
+            return default  # fail-open: in caso di errore DB, invia sempre

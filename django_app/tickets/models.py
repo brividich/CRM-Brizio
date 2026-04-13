@@ -227,6 +227,9 @@ class Ticket(models.Model):
                             help_text="Tecnico/manutentore che ha risolto il ticket")
     ricorrente          = models.BooleanField(default=False,
                             help_text="Il problema si è già verificato in passato")
+    data_prevista_risoluzione = models.DateField(
+                            null=True, blank=True,
+                            help_text="Data prevista risoluzione (valorizzata quando il ticket è IN_ATTESA)")
     ticket_origine      = models.ForeignKey(
                             "self",
                             null=True, blank=True,
@@ -436,6 +439,18 @@ class TicketIntervento(models.Model):
     def label_esito(self) -> str:
         return dict(EsitoIntervento.choices).get(self.esito, self.esito)
 
+    costo_manodopera_eur = models.DecimalField(
+                              max_digits=10, decimal_places=2,
+                              null=True, blank=True,
+                              help_text="Costo manodopera per questa sessione (€)")
+    materiali_costo_eur  = models.DecimalField(
+                              max_digits=10, decimal_places=2,
+                              null=True, blank=True,
+                              help_text="Costo materiali/ricambi per questa sessione (€)")
+    numero_rapportino    = models.CharField(
+                              max_length=50, blank=True,
+                              help_text="Numero rapportino fornitore (opzionale)")
+
     @property
     def durata_ore(self):
         """Ore calcolate da inizio/fine se ore_lavorate non è impostato."""
@@ -444,4 +459,48 @@ class TicketIntervento(models.Model):
         if self.data_fine and self.data_inizio:
             delta = self.data_fine - self.data_inizio
             return round(delta.total_seconds() / 3600, 2)
+        return None
+
+    @property
+    def costo_totale_eur(self):
+        """Somma manodopera + materiali se almeno uno è valorizzato."""
+        m = float(self.costo_manodopera_eur or 0)
+        r = float(self.materiali_costo_eur or 0)
+        if m or r:
+            return round(m + r, 2)
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Componenti sostituiti (dettaglio ricambi per sessione di intervento)
+# ---------------------------------------------------------------------------
+
+class TicketComponenteSostituito(models.Model):
+    intervento      = models.ForeignKey(
+                          TicketIntervento,
+                          on_delete=models.CASCADE,
+                          related_name="componenti_sostituiti",
+                      )
+    nome            = models.CharField(max_length=200, help_text="Nome componente/ricambio")
+    codice_parte    = models.CharField(max_length=100, blank=True, help_text="Codice parte / P/N")
+    quantita        = models.PositiveIntegerField(default=1)
+    costo_unitario_eur = models.DecimalField(
+                          max_digits=10, decimal_places=2,
+                          null=True, blank=True,
+                          help_text="Costo unitario (€)")
+    note            = models.CharField(max_length=300, blank=True)
+    created_at      = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        verbose_name = "Componente sostituito"
+        verbose_name_plural = "Componenti sostituiti"
+
+    def __str__(self):
+        return f"{self.nome} x{self.quantita} (intervento #{self.intervento_id})"
+
+    @property
+    def costo_totale_eur(self):
+        if self.costo_unitario_eur is not None:
+            return round(float(self.costo_unitario_eur) * self.quantita, 2)
         return None

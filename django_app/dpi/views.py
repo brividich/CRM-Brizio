@@ -13,6 +13,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.audit import log_action
+from core.contact_people import parse_contact_people, primary_contact, serialize_contact_people
 from core.legacy_utils import is_legacy_admin
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
@@ -507,8 +508,11 @@ def impostazioni(request):
     impost = DPIImpostazioni.get_singleton()
 
     if request.method == "POST" and request.POST.get("action") == "save_impostazioni":
-        impost.responsabile_nome = request.POST.get("responsabile_nome", "").strip()
-        impost.responsabile_email = request.POST.get("responsabile_email", "").strip()
+        responsabili = parse_contact_people(request.POST.get("responsabili_raw", ""))
+        primary = primary_contact(responsabili)
+        impost.responsabili = responsabili
+        impost.responsabile_nome = primary["nome"]
+        impost.responsabile_email = primary["email"]
         impost.note_generali = request.POST.get("note_generali", "").strip()
         impost.notifica_nuova_richiesta = bool(request.POST.get("notifica_nuova_richiesta"))
         impost.notifica_email_extra = request.POST.get("notifica_email_extra", "").strip()
@@ -522,6 +526,11 @@ def impostazioni(request):
     return render(request, "dpi/pages/impostazioni.html", {
         "impost": impost,
         "categorie": categorie,
+        "responsabili_raw": serialize_contact_people(
+            impost.responsabili,
+            fallback_name=impost.responsabile_nome,
+            fallback_email=impost.responsabile_email,
+        ),
     })
 
 
@@ -583,10 +592,16 @@ def categoria_edit(request, pk: int | None = None):
 
         return redirect("dpi:impostazioni")
 
+    impost = DPIImpostazioni.get_singleton()
     return render(request, "dpi/pages/impostazioni.html", {
-        "impost": DPIImpostazioni.get_singleton(),
+        "impost": impost,
         "categorie": CategoriaDPI.objects.all().order_by("order_index", "nome"),
         "cat_edit": cat,
+        "responsabili_raw": serialize_contact_people(
+            impost.responsabili,
+            fallback_name=impost.responsabile_nome,
+            fallback_email=impost.responsabile_email,
+        ),
     })
 
 

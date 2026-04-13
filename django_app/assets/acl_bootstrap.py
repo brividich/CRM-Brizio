@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from core.acl_bootstrap_base import run_bootstrap
 
-_BOOTSTRAP_CACHE_KEY = "assets_acl_bootstrap_v3"
+_BOOTSTRAP_CACHE_KEY = "assets_acl_bootstrap_v4"
 
 _PULSANTI_DEFINITIONS = [
     {"modulo": "assets", "codice": "assets_list", "label": "Assets - Lista asset", "url": "/assets/", "hide": False},
@@ -23,6 +23,7 @@ _PULSANTI_DEFINITIONS = [
     {"modulo": "assets", "codice": "assets_maintenance_rules_edit", "label": "Assets - Modifica regola manutenzione", "url": "/assets/manutenzione/regole/edit/", "hide": True},
     {"modulo": "assets", "codice": "assets_maintenance_schedule", "label": "Assets - Prossime manutenzioni", "url": "/assets/manutenzione/prossime/", "hide": True},
     {"modulo": "assets", "codice": "assets_assistance_contracts", "label": "Assets - Contratti assistenza", "url": "/assets/manutenzione/contratti/", "hide": True},
+    {"modulo": "assets", "codice": "assets_software_licenses", "label": "Assets - Licenze software", "url": "/assets/licenze/", "hide": True},
     {"modulo": "assets", "codice": "assets_asset_maintenance_rules", "label": "Assets - Regole manutenzione asset", "url": "/assets/manutenzione/asset-rules/", "hide": True},
     {"modulo": "assets", "codice": "assets_asset_maintenance_overrides_new", "label": "Assets - Nuovo override regola asset", "url": "/assets/manutenzione/asset-rule-overrides/new/", "hide": True},
     {"modulo": "assets", "codice": "assets_asset_maintenance_overrides_edit", "label": "Assets - Modifica override regola asset", "url": "/assets/manutenzione/asset-rule-overrides/edit/", "hide": True},
@@ -32,9 +33,9 @@ _PULSANTI_DEFINITIONS = [
     {"modulo": "assets", "codice": "assets_wm_map", "label": "Assets - Mappa planimetrica", "url": "/assets/work-machines/map/", "hide": True},
     {"modulo": "assets", "codice": "assets_workorders", "label": "Assets - Work orders", "url": "/assets/workorders/", "hide": False},
     {"modulo": "assets", "codice": "assets_wo_new", "label": "Assets - Nuovo work order", "url": "/assets/workorders/new/", "hide": True},
-    {"modulo": "assets", "codice": "assets_verifiche", "label": "Assets - Verifiche periodiche", "url": "/assets/verifiche-periodiche/", "hide": False},
+    {"modulo": "assets", "codice": "assets_verifiche", "label": "Assets - Manutenzione periodica", "url": "/assets/manutenzione/verifiche/", "hide": False},
     {"modulo": "assets", "codice": "assets_reports", "label": "Assets - Reports", "url": "/assets/reports/", "hide": True},
-    {"modulo": "assets", "codice": "assets_gestione", "label": "Assets - Gestione admin", "url": "/assets/gestione/", "hide": True},
+    {"modulo": "assets", "codice": "assets_gestione", "label": "Assets - Impostazioni", "url": "/assets/impostazioni/", "hide": True},
     {"modulo": "assets", "codice": "assets_labels", "label": "Assets - Label designer", "url": "/assets/labels/", "hide": True},
     {"modulo": "assets", "codice": "assets_bulk_update", "label": "Assets - Bulk update", "url": "/assets/bulk-update/", "hide": True},
     {"modulo": "assets", "codice": "assets_wm_map_editor", "label": "Assets - Editor planimetria", "url": "/assets/work-machines/map/editor/", "hide": True},

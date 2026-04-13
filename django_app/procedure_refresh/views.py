@@ -17,6 +17,7 @@ from django.views.decorators.http import require_POST
 
 from core.audit import log_action
 from core.legacy_utils import is_legacy_admin
+from core.module_branding import get_module_branding_context, handle_module_branding_post
 
 from .models import (
     AssignmentStatus,
@@ -166,6 +167,17 @@ def admin_dashboard(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("procedure_refresh:my_assignments")
 
+    if request.method == "POST":
+        branding_response = handle_module_branding_post(
+            request,
+            module_key="procedure_refresh",
+            redirect_to="procedure_refresh:admin_dashboard",
+            audit_module="procedure_refresh",
+            fallback_label="Procedure Refresh",
+        )
+        if branding_response is not None:
+            return branding_response
+
     n_documents = ProcedureDocument.objects.filter(is_active=True).count()
     n_campaigns = ProcedureCampaign.objects.count()
     n_published = ProcedureCampaign.objects.filter(status=CampaignStatus.PUBLISHED).count()
@@ -192,6 +204,7 @@ def admin_dashboard(request):
         "n_overdue": n_overdue,
         "recent_campaigns": recent_campaigns,
         "CampaignStatus": CampaignStatus,
+        **get_module_branding_context("procedure_refresh", fallback_label="Procedure Refresh"),
     })
 
 

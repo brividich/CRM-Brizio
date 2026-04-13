@@ -1,11 +1,13 @@
 from django.urls import path
+from django.views.generic import RedirectView
 
 from . import views
 
 app_name = "assets"
 
 urlpatterns = [
-    path("assets/", views.asset_list, name="asset_list"),
+    path("assets/", views.asset_dashboard, name="asset_dashboard"),
+    path("assets/lista/", views.asset_list, name="asset_list"),
     path("assets/componenti/", views.asset_component_list, name="asset_component_list"),
     path("assets/componenti/new/", views.asset_component_create, name="asset_component_create"),
     path("assets/componenti/edit/<int:id>/", views.asset_component_edit, name="asset_component_edit"),
@@ -28,6 +30,7 @@ urlpatterns = [
     path("assets/manutenzione/regole/edit/<int:id>/", views.maintenance_rule_edit, name="maintenance_rule_edit"),
     path("assets/manutenzione/prossime/", views.maintenance_schedule, name="maintenance_schedule"),
     path("assets/manutenzione/contratti/", views.assistance_contract_list, name="assistance_contract_list"),
+    path("assets/licenze/", views.software_license_list, name="software_license_list"),
     path("assets/work-machines/", views.work_machine_list, name="work_machine_list"),
     path("assets/work-machines/dashboard/", views.work_machine_dashboard, name="work_machine_dashboard"),
     path("assets/work-machines/map/", views.plant_layout_map, name="plant_layout_map"),
@@ -73,7 +76,11 @@ urlpatterns = [
     path("assets/workorders/view/<int:id>/", views.workorder_detail, name="wo_view"),
     path("assets/workorders/close/", views.workorder_close, name="wo_close"),
     path("assets/workorders/close/<int:id>/", views.workorder_close, name="wo_close"),
-    path("assets/verifiche-periodiche/", views.periodic_verification_list, name="periodic_verifications"),
+    path("assets/manutenzione/verifiche/", views.periodic_verification_list, name="periodic_verifications"),
+    path(
+        "assets/verifiche-periodiche/",
+        RedirectView.as_view(pattern_name="assets:periodic_verifications", permanent=False),
+    ),
     path("assets/reports/", views.reports_dashboard, name="reports"),
     path("assets/reports/manage/", views.report_template_admin, name="report_template_admin"),
     path(
@@ -81,6 +88,9 @@ urlpatterns = [
         views.work_machine_maintenance_month_pdf,
         name="work_machine_maintenance_month_pdf",
     ),
-    path("assets/gestione/", views.gestione_admin, name="gestione_admin"),
+    path("assets/impostazioni/", views.gestione_admin, name="gestione_admin"),
+    path("assets/gestione/", RedirectView.as_view(pattern_name="assets:gestione_admin", permanent=False)),
     path("assets/bulk-update/", views.asset_bulk_update, name="asset_bulk_update"),
+    path("assets/dashboard/", RedirectView.as_view(pattern_name="assets:asset_dashboard", permanent=False)),
+    path("api/assets/dashboard/config/", views.api_asset_dashboard_save_config, name="api_dashboard_save_config"),
 ]

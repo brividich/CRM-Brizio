@@ -1,0 +1,566 @@
+{% extends "assets/base_shell.html" %}
+{% load assets_extras %}
+
+{% block assets_shell_head %}
+<style>
+/* ── Layout principale ──────────────────────────────────────────────── */
+.ad-wrap   { max-width: 1300px; margin: 0 auto; padding: 18px 16px 40px; }
+
+/* ── Barra categorie in cima ────────────────────────────────────────── */
+.ad-cats        { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 22px; align-items: center; }
+.ad-cats-label  { font-size: var(--fs-xs); text-transform: uppercase; color: #8ea2bf; font-weight: 700; letter-spacing:.06em; flex-shrink:0; }
+.ad-cat         { display: inline-flex; align-items: center; gap: 5px; padding: 5px 13px; border-radius: 999px;
+                  background: #f0f6ff; border: 1px solid #c7d9f5; color: #1d4ed8; font-size: var(--fs-sm);
+                  font-weight: 700; text-decoration: none; transition: background .13s, border-color .13s; }
+.ad-cat:hover   { background: #dce9fb; border-color: #93b8f0; }
+.ad-cat.all     { background: #1f64d8; color: #fff; border-color: #1750b8; }
+.ad-cat.all:hover { background: #1750b8; }
+.ad-cat-count   { background: rgba(0,0,0,.1); border-radius: 999px; padding: 0 5px; font-size: var(--fs-2xs); line-height: 1.6; }
+.ad-cat.all .ad-cat-count { background: rgba(255,255,255,.25); }
+
+/* ── Header sezione ─────────────────────────────────────────────────── */
+.ad-head        { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.ad-title       { font-size: var(--fs-xl); font-weight: 800; color: #0f172a; margin: 0; }
+.ad-head-actions{ display: flex; gap: 8px; align-items: center; }
+.ad-btn         { display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border-radius: 8px;
+                  font-size: var(--fs-sm); font-weight: 600; cursor: pointer; border: 1px solid #d1dae8;
+                  background: #fff; color: #374151; text-decoration: none; }
+.ad-btn:hover   { background: #f0f5ff; border-color: #93b8f0; color: #1f64d8; }
+.ad-btn svg     { flex-shrink: 0; }
+
+/* ── Griglia widget ─────────────────────────────────────────────────── */
+.ad-grid        { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 24px; }
+.ad-grid.compact{ grid-template-columns: repeat(3, 1fr); }
+.ad-widget      { background: #fff; border: 1px solid #dbe3f0; border-radius: 13px; padding: 16px 18px;
+                  box-shadow: 0 2px 8px rgba(15,23,42,.05); cursor: grab; position: relative;
+                  transition: box-shadow .15s, border-color .15s; user-select: none; }
+.ad-widget:hover{ box-shadow: 0 4px 16px rgba(15,23,42,.09); border-color: #c5d4ef; }
+.ad-widget.dragging { opacity: .45; box-shadow: 0 8px 24px rgba(15,23,42,.15); border-color: #1f64d8; }
+.ad-widget.drag-over{ border-color: #1f64d8; background: #f0f6ff; }
+
+.ad-w-icon      { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; flex-shrink:0; }
+.ad-w-icon.blue   { background: #dbeafe; color: #1d4ed8; }
+.ad-w-icon.green  { background: #dcfce7; color: #15803d; }
+.ad-w-icon.orange { background: #ffedd5; color: #c2410c; }
+.ad-w-icon.red    { background: #fee2e2; color: #b91c1c; }
+.ad-w-icon.yellow { background: #fef9c3; color: #854d0e; }
+.ad-w-icon.slate  { background: #e2e8f0; color: #475569; }
+
+.ad-w-label     { font-size: var(--fs-xs); text-transform: uppercase; color: #7e94b2; font-weight: 700; letter-spacing:.05em; }
+.ad-w-val       { font-size: var(--fs-display-2xl); font-weight: 800; color: #0f172a; line-height: 1; margin-top: 4px; }
+.ad-w-val.danger{ color: #b91c1c; }
+.ad-w-val.warn  { color: #92400e; }
+.ad-w-val.ok    { color: #15803d; }
+.ad-w-sub       { font-size: var(--fs-xs); color: #94a3b8; margin-top: 3px; }
+.ad-w-remove    { position: absolute; top: 8px; right: 8px; opacity: 0; border: none; background: none;
+                  color: #94a3b8; cursor: pointer; transition: opacity .15s, color .13s; padding: 2px; border-radius: 4px; }
+.ad-widget:hover .ad-w-remove { opacity: 1; }
+.ad-w-remove:hover { color: #dc2626; background: #fee2e2; }
+.ad-w-link      { display: block; margin-top: 8px; font-size: var(--fs-xs); color: #1d4ed8; text-decoration: none; font-weight: 600; }
+.ad-w-link:hover{ text-decoration: underline; }
+
+/* ── Widget espanso (lista) ─────────────────────────────────────────── */
+.ad-widget.wide { grid-column: span 2; }
+.ad-list        { margin: 8px 0 0; list-style: none; padding: 0; display: grid; gap: 4px; }
+.ad-list-item   { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 5px 0;
+                  border-bottom: 1px solid #f0f4fa; font-size: var(--fs-sm); }
+.ad-list-item:last-child { border-bottom: none; }
+.ad-list-name   { color: #1e293b; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-list-date   { color: #64748b; font-size: var(--fs-xs); flex-shrink: 0; }
+.ad-list-tag    { font-size: var(--fs-xs); color: #94a3b8; }
+.ad-list-badge  { font-size: var(--fs-xs); font-weight: 700; border-radius: 999px; padding: 1px 7px; flex-shrink:0; }
+.ad-list-badge.red  { background: #fee2e2; color: #b91c1c; }
+.ad-list-badge.yellow { background: #fef9c3; color: #854d0e; }
+.ad-list-badge.green  { background: #dcfce7; color: #15803d; }
+.ad-list-badge.slate  { background: #e2e8f0; color: #475569; }
+
+/* Widget barra (per/stato per/cat) */
+.ad-bars        { margin: 10px 0 0; display: grid; gap: 7px; }
+.ad-bar-row     { display: flex; align-items: center; gap: 8px; font-size: var(--fs-xs); }
+.ad-bar-label   { width: 110px; color: #374151; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
+.ad-bar-track   { flex: 1; height: 7px; background: #e5ecf6; border-radius: 4px; overflow: hidden; }
+.ad-bar-fill    { height: 100%; border-radius: 4px; transition: width .4s ease; }
+.ad-bar-count   { width: 28px; text-align: right; color: #64748b; font-weight: 700; flex-shrink: 0; }
+.fill-blue      { background: #3b82f6; }
+.fill-green     { background: #22c55e; }
+.fill-orange    { background: #f97316; }
+.fill-slate     { background: #94a3b8; }
+.fill-violet    { background: #8b5cf6; }
+.fill-teal      { background: #14b8a6; }
+.fill-rose      { background: #f43f5e; }
+
+/* ── Modale personalizza ────────────────────────────────────────────── */
+.ad-overlay     { display: none; position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 2000;
+                  align-items: center; justify-content: center; }
+.ad-overlay.open{ display: flex; }
+.ad-modal       { background: #fff; border-radius: 16px; width: min(520px, 96vw); max-height: 90vh;
+                  display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; box-shadow: 0 20px 60px rgba(15,23,42,.25); }
+.ad-modal-head  { padding: 18px 20px 14px; border-bottom: 1px solid #e5ecf6; display: flex; justify-content: space-between; align-items: center; }
+.ad-modal-title { font-size: var(--fs-lg); font-weight: 800; color: #0f172a; margin: 0; }
+.ad-modal-close { border: none; background: none; cursor: pointer; color: #94a3b8; padding: 4px; border-radius: 6px; }
+.ad-modal-close:hover { background: #f1f5f9; color: #374151; }
+.ad-modal-body  { padding: 16px 20px; overflow-y: auto; }
+.ad-modal-foot  { padding: 14px 20px; border-top: 1px solid #e5ecf6; display: flex; justify-content: flex-end; gap: 8px; }
+
+.ad-wlist       { display: grid; gap: 8px; }
+.ad-witem       { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #dbe3f0;
+                  border-radius: 10px; cursor: pointer; transition: background .12s, border-color .12s; }
+.ad-witem:hover { background: #f8fbff; border-color: #93b8f0; }
+.ad-witem.active{ background: #f0f6ff; border-color: #3b82f6; }
+.ad-witem-icon  { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.ad-witem-name  { flex: 1; font-size: var(--fs-base); font-weight: 600; color: #1e293b; }
+.ad-witem-toggle{ width: 22px; height: 22px; border-radius: 6px; border: 2px solid #d1d9e8; background: #fff;
+                  display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background .12s, border-color .12s; }
+.ad-witem.active .ad-witem-toggle { background: #1f64d8; border-color: #1f64d8; color: #fff; }
+
+.ad-btn-primary { background: #1f64d8; color: #fff; border-color: #1f64d8; }
+.ad-btn-primary:hover { background: #1750b8; }
+
+/* Refresh ──────────────────────────────────────────────────────────── */
+.ad-refresh-ts  { font-size: var(--fs-xs); color: #94a3b8; }
+
+@media (max-width: 700px) {
+  .ad-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .ad-widget.wide { grid-column: span 2; }
+}
+@media (max-width: 500px) {
+  .ad-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .ad-widget.wide { grid-column: span 1; }
+  .ad-bar-label { width: 80px; }
+}
+</style>
+{% endblock %}
+
+{% block assets_shell_content %}
+<div class="ad-wrap">
+
+  {# ── Barra categorie ──────────────────────────────────────────────── #}
+  <div class="ad-cats">
+    <span class="ad-cats-label">Categorie</span>
+    <a href="{% url 'assets:asset_list' %}" class="ad-cat all">
+      Tutti gli asset
+    </a>
+    {% for cat in categories %}
+    <a href="{% url 'assets:asset_list' %}?category={{ cat.id }}" class="ad-cat">
+      {{ cat.label }}
+      {% with cnt=kpis.asset_per_categoria %}
+        {% for item in cnt %}{% if item.id == cat.id %}<span class="ad-cat-count">{{ item.count }}</span>{% endif %}{% endfor %}
+      {% endwith %}
+    </a>
+    {% empty %}
+    <span style="color:#94a3b8;font-size:var(--fs-sm);">Nessuna categoria configurata</span>
+    {% endfor %}
+  </div>
+
+  {# ── Header ───────────────────────────────────────────────────────── #}
+  <div class="ad-head">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <h1 class="ad-title">Dashboard</h1>
+      <span class="ad-refresh-ts" id="ad-ts">Aggiornato ora</span>
+    </div>
+    <div class="ad-head-actions">
+      <button class="ad-btn" id="ad-refresh-btn" onclick="adRefresh()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        Aggiorna
+      </button>
+      <button class="ad-btn" id="ad-customize-btn" onclick="adOpenCustomize()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Personalizza
+      </button>
+    </div>
+  </div>
+
+  {# ── Griglia widget ───────────────────────────────────────────────── #}
+  <div class="ad-grid" id="ad-grid">
+
+    {% for wcode in enabled_widgets %}
+
+    {# == totale_asset ================================================ #}
+    {% if wcode == "totale_asset" %}
+    <div class="ad-widget" draggable="true" data-widget="totale_asset">
+      <button class="ad-w-remove" onclick="adRemoveWidget('totale_asset')" title="Rimuovi">✕</button>
+      <div class="ad-w-icon blue">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+      </div>
+      <div class="ad-w-label">Totale asset attivi</div>
+      <div class="ad-w-val">{{ kpis.totale_asset }}</div>
+      <a href="{% url 'assets:asset_list' %}" class="ad-w-link">Vedi inventario →</a>
+    </div>
+
+    {# == asset_in_uso ================================================ #}
+    {% elif wcode == "asset_in_uso" %}
+    <div class="ad-widget" draggable="true" data-widget="asset_in_uso">
+      <button class="ad-w-remove" onclick="adRemoveWidget('asset_in_uso')" title="Rimuovi">✕</button>
+      <div class="ad-w-icon green">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div class="ad-w-label">In uso</div>
+      <div class="ad-w-val ok">{{ kpis.asset_in_uso }}</div>
+      <a href="{% url 'assets:asset_list' %}?status=IN_USE" class="ad-w-link">Filtra →</a>
+    </div>
+
+    {# == asset_in_riparazione ======================================== #}
+    {% elif wcode == "asset_in_riparazione" %}
+    <div class="ad-widget" draggable="true" data-widget="asset_in_riparazione">
+      <button class="ad-w-remove" onclick="adRemoveWidget('asset_in_riparazione')" title="Rimuovi">✕</button>
+      <div class="ad-w-icon orange">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+      </div>
+      <div class="ad-w-label">In riparazione</div>
+      <div class="ad-w-val {% if kpis.asset_in_riparazione > 0 %}warn{% endif %}">{{ kpis.asset_in_riparazione }}</div>
+      <a href="{% url 'assets:asset_list' %}?status=IN_REPAIR" class="ad-w-link">Filtra →</a>
+    </div>
+
+    {# == scadenze_scadute ============================================= #}
+    {% elif wcode == "scadenze_scadute" %}
+    <div class="ad-widget {% if kpis.scadenze_scadute > 0 %}wide{% endif %}" draggable="true" data-widget="scadenze_scadute">
+      <button class="ad-w-remove" onclick="adRemoveWidget('scadenze_scadute')" title="Rimuovi">✕</button>
+      <div class="ad-w-icon red">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <div class="ad-w-label">Scadenze scadute</div>
+      <div class="ad-w-val {% if kpis.scadenze_scadute > 0 %}danger{% endif %}">{{ kpis.scadenze_scadute }}</div>
+      {% if kpis.scadenze_arretrate %}
+      <ul class="ad-list">
+        {% for dl in kpis.scadenze_arretrate %}
+        <li class="ad-list-item">
+          <a href="{% url 'assets:asset_view' dl.asset_id %}" class="ad-list-name" title="{{ dl.title }}">{{ dl.title|truncatechars:36 }}</a>
+          <span class="ad-list-tag">{{ dl.asset.asset_tag }}</span>
+          <span class="ad-list-date ad-list-badge red">{{ dl.due_date|date:"d/m/Y" }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      <a href="{% url 'assets:asset_administrative_deadline_list' %}" class="ad-w-link">Gestisci scadenze →</a>
+      {% endif %}
+    </div>
+
+    {# == scadenze_30gg =============================================== #}
+    {% elif wcode == "scadenze_30gg" %}
+    <div class="ad-widget {% if kpis.prossime_scadenze %}wide{% endif %}" draggable="true" data-widget="scadenze_30gg">
+      <button class="ad-w-remove" onclick="adRemoveWidget('scadenze_30gg')" title="Rimuovi">✕</button>
+      <div class="ad-w-icon yellow">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <div class="ad-w-label">Scadenze nei prossimi 30 gg</div>
+      <div class="ad-w-val {% if kpis.scadenze_30gg > 0 %}warn{% endif %}">{{ kpis.scadenze_30gg }}</div>
+      {% if kpis.prossime_scadenze %}
+      <ul class="ad-list">
+        {% for dl in kpis.prossime_scadenze %}
+        <li class="ad-list-item">
+          <a href="{% url 'assets:asset_view' dl.asset_id %}" class="ad-list-name" title="{{ dl.title }}">{{ dl.title|truncatechars:36 }}</a>
+          <span class="ad-list-tag">{{ dl.asset.asset_tag }}</span>
+          <span class="ad-list-date ad-list-badge yellow">{{ dl.due_date|date:"d/m/Y" }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      <a href="{% url 'assets:asset_administrative_deadline_list' %}" class="ad-w-link">Gestisci scadenze →</a>
+      {% endif %}
+    </div>
+
+    {# == scadenze_90gg =============================================== #}
+    {% elif wcode == "scadenze_90gg" %}
+    <div class="ad-widget" draggable="true" data-widget="scadenze_90gg">
+      <button class="ad-w-remove" onclick="adRemoveWidget('scadenze_90gg')" title="Rimuovi">✕</button>
+      <div class="ad-w-icon slate">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </div>
+      <div class="ad-w-label">Scadenze 31–90 gg</div>
+      <div class="ad-w-val">{{ kpis.scadenze_90gg }}</div>
+      <a href="{% url 'assets:asset_administrative_deadline_list' %}" class="ad-w-link">Vedi scadenzario →</a>
+    </div>
+
+    {# == wo_aperte =================================================== #}
+    {% elif wcode == "wo_aperte" %}
+    <div class="ad-widget" draggable="true" data-widget="wo_aperte">
+      <button class="ad-w-remove" onclick="adRemoveWidget('wo_aperte')" title="Rimuovi">✕</button>
+      <div class="ad-w-icon blue">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      </div>
+      <div class="ad-w-label">Ordini di lavoro aperti</div>
+      <div class="ad-w-val {% if kpis.wo_aperte > 0 %}warn{% endif %}">{{ kpis.wo_aperte }}</div>
+      <a href="{% url 'assets:wo_list' %}?status=OPEN" class="ad-w-link">Vedi OdL →</a>
+    </div>
+
+    {# == wo_chiuse_mese ============================================== #}
+    {% elif wcode == "wo_chiuse_mese" %}
+    <div class="ad-widget" draggable="true" data-widget="wo_chiuse_mese">
+      <button class="ad-w-remove" onclick="adRemoveWidget('wo_chiuse_mese')" title="Rimuovi">✕</button>
+      <div class="ad-w-icon green">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      </div>
+      <div class="ad-w-label">OdL chiuse questo mese</div>
+      <div class="ad-w-val ok">{{ kpis.wo_chiuse_mese }}</div>
+      <a href="{% url 'assets:wo_list' %}?status=DONE" class="ad-w-link">Vedi OdL →</a>
+    </div>
+
+    {# == verifiche_scadute =========================================== #}
+    {% elif wcode == "verifiche_scadute" %}
+    <div class="ad-widget {% if kpis.verifiche_scadute > 0 %}wide{% endif %}" draggable="true" data-widget="verifiche_scadute">
+      <button class="ad-w-remove" onclick="adRemoveWidget('verifiche_scadute')" title="Rimuovi">✕</button>
+      <div class="ad-w-icon red">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <div class="ad-w-label">Verifiche periodiche scadute</div>
+      <div class="ad-w-val {% if kpis.verifiche_scadute > 0 %}danger{% endif %}">{{ kpis.verifiche_scadute }}</div>
+      <a href="{% url 'assets:periodic_verifications' %}" class="ad-w-link">Gestisci verifiche →</a>
+    </div>
+
+    {# == verifiche_30gg ============================================== #}
+    {% elif wcode == "verifiche_30gg" %}
+    <div class="ad-widget {% if kpis.prossime_verifiche %}wide{% endif %}" draggable="true" data-widget="verifiche_30gg">
+      <button class="ad-w-remove" onclick="adRemoveWidget('verifiche_30gg')" title="Rimuovi">✕</button>
+      <div class="ad-w-icon yellow">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+      </div>
+      <div class="ad-w-label">Verifiche nei prossimi 30 gg</div>
+      <div class="ad-w-val {% if kpis.verifiche_30gg > 0 %}warn{% endif %}">{{ kpis.verifiche_30gg }}</div>
+      {% if kpis.prossime_verifiche %}
+      <ul class="ad-list">
+        {% for pv in kpis.prossime_verifiche %}
+        <li class="ad-list-item">
+          <span class="ad-list-name">{{ pv.name|truncatechars:40 }}</span>
+          <span class="ad-list-date ad-list-badge yellow">{{ pv.next_verification_date|date:"d/m/Y" }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      <a href="{% url 'assets:periodic_verifications' %}" class="ad-w-link">Vedi tutte →</a>
+      {% endif %}
+    </div>
+
+    {# == asset_per_stato ============================================= #}
+    {% elif wcode == "asset_per_stato" %}
+    <div class="ad-widget wide" draggable="true" data-widget="asset_per_stato">
+      <button class="ad-w-remove" onclick="adRemoveWidget('asset_per_stato')" title="Rimuovi">✕</button>
+      <div class="ad-w-label">Asset per stato</div>
+      {% with total=kpis.totale_asset fills="fill-green fill-blue fill-orange fill-slate fill-violet" %}
+      <div class="ad-bars">
+        {% for row in kpis.asset_per_stato %}
+        <div class="ad-bar-row">
+          <span class="ad-bar-label">{{ row.label }}</span>
+          <div class="ad-bar-track">
+            <div class="ad-bar-fill {% cycle 'fill-green' 'fill-blue' 'fill-orange' 'fill-slate' 'fill-violet' %}"
+                 style="width:{% if total %}{% widthratio row.count total 100 %}%{% else %}0%{% endif %}"></div>
+          </div>
+          <span class="ad-bar-count">{{ row.count }}</span>
+        </div>
+        {% empty %}
+        <span style="color:#94a3b8;font-size:var(--fs-sm);">Nessun dato</span>
+        {% endfor %}
+      </div>
+      {% endwith %}
+    </div>
+
+    {# == asset_per_categoria ========================================= #}
+    {% elif wcode == "asset_per_categoria" %}
+    <div class="ad-widget wide" draggable="true" data-widget="asset_per_categoria">
+      <button class="ad-w-remove" onclick="adRemoveWidget('asset_per_categoria')" title="Rimuovi">✕</button>
+      <div class="ad-w-label">Asset per categoria</div>
+      {% with fills="fill-blue fill-teal fill-violet fill-green fill-orange fill-rose fill-slate" %}
+      <div class="ad-bars">
+        {% for row in kpis.asset_per_categoria %}
+        {% if row.count > 0 %}
+        <div class="ad-bar-row">
+          <span class="ad-bar-label">
+            {% if row.id %}<a href="{% url 'assets:asset_list' %}?category={{ row.id }}" style="color:inherit;text-decoration:none;">{{ row.label }}</a>{% else %}{{ row.label }}{% endif %}
+          </span>
+          <div class="ad-bar-track">
+            <div class="ad-bar-fill {% cycle 'fill-blue' 'fill-teal' 'fill-violet' 'fill-green' 'fill-orange' 'fill-rose' 'fill-slate' %}"
+                 style="width:{% if kpis.totale_asset %}{% widthratio row.count kpis.totale_asset 100 %}%{% else %}0%{% endif %}"></div>
+          </div>
+          <span class="ad-bar-count">{{ row.count }}</span>
+        </div>
+        {% endif %}
+        {% empty %}
+        <span style="color:#94a3b8;font-size:var(--fs-sm);">Nessun dato</span>
+        {% endfor %}
+      </div>
+      {% endwith %}
+      <a href="{% url 'assets:asset_list' %}" class="ad-w-link">Vedi inventario →</a>
+    </div>
+
+    {% endif %}
+    {% empty %}
+    <div style="grid-column:1/-1;text-align:center;padding:40px;color:#94a3b8;">
+      <p>Nessun widget abilitato. <button class="ad-btn" onclick="adOpenCustomize()" style="margin-top:8px;">Aggiungi widget</button></p>
+    </div>
+    {% endfor %}
+
+  </div>{# /ad-grid #}
+
+  {# Pulsante "Aggiungi widget" a piede griglia #}
+  <div style="text-align:center;margin-top:8px;">
+    <button class="ad-btn" onclick="adOpenCustomize()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Aggiungi / rimuovi widget
+    </button>
+  </div>
+
+</div>{# /ad-wrap #}
+
+{# ── Modale personalizza ─────────────────────────────────────────────── #}
+<div class="ad-overlay" id="ad-overlay" onclick="adOverlayClick(event)">
+  <div class="ad-modal" role="dialog" aria-modal="true" aria-labelledby="ad-modal-title">
+    <div class="ad-modal-head">
+      <h2 class="ad-modal-title" id="ad-modal-title">Personalizza dashboard</h2>
+      <button class="ad-modal-close" onclick="adCloseCustomize()" aria-label="Chiudi">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="ad-modal-body">
+      <p style="font-size:var(--fs-sm);color:#64748b;margin:0 0 12px;">
+        Attiva o disattiva i widget. L'ordine può essere modificato trascinando i widget nella dashboard.
+      </p>
+      <div class="ad-wlist" id="ad-wlist">
+        {% for w in widgets_all %}
+        <div class="ad-witem {% if w.enabled %}active{% endif %}" data-code="{{ w.code }}" onclick="adToggleWidget('{{ w.code }}')">
+          <div class="ad-witem-icon ad-w-icon {{ w.color }}">
+            {# icona inline semplificata #}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="5"/></svg>
+          </div>
+          <span class="ad-witem-name">{{ w.label }}</span>
+          <div class="ad-witem-toggle" aria-label="{% if w.enabled %}attivo{% else %}disattivo{% endif %}">
+            {% if w.enabled %}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="ad-modal-foot">
+      <button class="ad-btn" onclick="adCloseCustomize()">Annulla</button>
+      <button class="ad-btn ad-btn-primary" id="ad-save-btn" onclick="adSaveConfig()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Salva e applica
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+// ── Stato locale ─────────────────────────────────────────────────────
+const AD_SAVE_URL = "{% url 'assets:api_dashboard_save_config' %}";
+let adEnabled = {{ enabled_widgets_json }};
+
+// ── Personalizzazione modale ─────────────────────────────────────────
+function adOpenCustomize() {
+  document.getElementById('ad-overlay').classList.add('open');
+}
+function adCloseCustomize() {
+  document.getElementById('ad-overlay').classList.remove('open');
+}
+function adOverlayClick(e) {
+  if (e.target === document.getElementById('ad-overlay')) adCloseCustomize();
+}
+function adToggleWidget(code) {
+  const item = document.querySelector(`.ad-witem[data-code="${code}"]`);
+  if (!item) return;
+  const active = item.classList.toggle('active');
+  const toggle = item.querySelector('.ad-witem-toggle');
+  toggle.innerHTML = active
+    ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>'
+    : '';
+  toggle.setAttribute('aria-label', active ? 'attivo' : 'disattivo');
+}
+
+// ── Rimuovi dalla griglia (shortcut pulsante X) ──────────────────────
+function adRemoveWidget(code) {
+  adEnabled = adEnabled.filter(w => w !== code);
+  adSaveConfig(true /* skipReload: no, reload after */);
+}
+
+// ── Salva configurazione ─────────────────────────────────────────────
+async function adSaveConfig(fromRemove = false) {
+  let toSave;
+  if (fromRemove === true) {
+    toSave = adEnabled;
+  } else {
+    const items = document.querySelectorAll('.ad-witem');
+    toSave = Array.from(items)
+      .filter(el => el.classList.contains('active'))
+      .map(el => el.dataset.code);
+  }
+
+  const btn = document.getElementById('ad-save-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Salvataggio…'; }
+
+  try {
+    const resp = await fetch(AD_SAVE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': adCsrf() },
+      body: JSON.stringify({ widgets: toSave }),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      window.location.reload();
+    } else {
+      alert('Errore nel salvataggio: ' + (data.error || 'Sconosciuto'));
+    }
+  } catch (e) {
+    alert('Errore di rete: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Salva e applica'; }
+  }
+}
+
+function adCsrf() {
+  const el = document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='));
+  return el ? el.split('=')[1].trim() : '';
+}
+
+// ── Aggiorna (reload) ────────────────────────────────────────────────
+function adRefresh() {
+  window.location.reload();
+}
+
+// ── Drag & drop riordino ─────────────────────────────────────────────
+(function() {
+  const grid = document.getElementById('ad-grid');
+  if (!grid) return;
+  let dragged = null;
+
+  grid.addEventListener('dragstart', e => {
+    dragged = e.target.closest('.ad-widget');
+    if (!dragged) return;
+    dragged.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  grid.addEventListener('dragend', e => {
+    if (dragged) dragged.classList.remove('dragging');
+    grid.querySelectorAll('.ad-widget.drag-over').forEach(el => el.classList.remove('drag-over'));
+    dragged = null;
+    // Salva nuovo ordine
+    const newOrder = Array.from(grid.querySelectorAll('.ad-widget[data-widget]')).map(el => el.dataset.widget);
+    adEnabled = newOrder;
+    adSaveOrder(newOrder);
+  });
+  grid.addEventListener('dragover', e => {
+    e.preventDefault();
+    const target = e.target.closest('.ad-widget');
+    if (!target || target === dragged) return;
+    grid.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    target.classList.add('drag-over');
+    const rect = target.getBoundingClientRect();
+    const after = e.clientX > rect.left + rect.width / 2;
+    if (after) grid.insertBefore(dragged, target.nextSibling);
+    else grid.insertBefore(dragged, target);
+  });
+  grid.addEventListener('dragleave', e => {
+    const target = e.target.closest('.ad-widget');
+    if (target) target.classList.remove('drag-over');
+  });
+
+  async function adSaveOrder(order) {
+    try {
+      await fetch(AD_SAVE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': adCsrf() },
+        body: JSON.stringify({ widgets: order }),
+      });
+    } catch (_) {}
+  }
+})();
+</script>
+{% endblock %}

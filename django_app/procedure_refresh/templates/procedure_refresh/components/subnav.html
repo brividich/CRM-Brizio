@@ -6,8 +6,8 @@
   </a>
   {% if is_manager %}
     <a href="{% url 'procedure_refresh:admin_dashboard' %}"
-       class="pr-subnav-link{% if 'admin' in request.path and request.resolver_match.url_name == 'admin_dashboard' %} active{% endif %}">
-      Dashboard admin
+       class="pr-subnav-link{% if request.resolver_match.url_name == 'admin_dashboard' %} active{% endif %}">
+      Impostazioni
     </a>
     <a href="{% url 'procedure_refresh:document_list' %}"
        class="pr-subnav-link{% if 'documenti' in request.path %} active{% endif %}">

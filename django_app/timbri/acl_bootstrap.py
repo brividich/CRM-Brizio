@@ -18,8 +18,8 @@ _PULSANTI_DEFINITIONS = [
     {"modulo": "timbri", "codice": "timbri_home", "label": "Timbri - Elenco", "url": "/timbri/", "hide": False},
     {"modulo": "timbri", "codice": "timbri_view", "label": "Timbri - Scheda operatore", "url": "/timbri/operatori", "hide": True},
     {"modulo": "timbri", "codice": "timbri_edit", "label": "Timbri - Modifica", "url": "/timbri/record", "hide": True},
-    {"modulo": "timbri", "codice": "timbri_config", "label": "Timbri - Configurazione", "url": "/timbri/configurazione", "hide": True},
-    {"modulo": "timbri", "codice": "timbri_import", "label": "Timbri - Import SharePoint", "url": "/timbri/configurazione/import", "hide": True},
+    {"modulo": "timbri", "codice": "timbri_config", "label": "Timbri - Impostazioni", "url": "/timbri/impostazioni/", "hide": True},
+    {"modulo": "timbri", "codice": "timbri_import", "label": "Timbri - Import SharePoint", "url": "/timbri/impostazioni/?tab=import", "hide": True},
     {"modulo": "timbri", "codice": "timbri_export", "label": "Timbri - Export CSV", "url": "/timbri/export-csv", "hide": True},
 ]
 

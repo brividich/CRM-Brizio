@@ -74,9 +74,9 @@
       {% if verification_field_names %}
         <div style="grid-column:1/-1;border-top:1px solid #e2e8f0;padding-top:12px;margin-top:2px;">
           <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-            <h3 class="as-section-title">Verifiche periodiche</h3>
+            <h3 class="as-section-title">Manutenzione periodica</h3>
             {% if asset %}
-              <a class="btn" href="{% url 'assets:periodic_verifications' %}?asset={{ asset.id }}">Gestisci verifiche</a>
+              <a class="btn" href="{% url 'assets:periodic_verifications' %}?asset={{ asset.id }}">Gestisci manutenzione</a>
             {% endif %}
           </div>
           <div class="as-form-grid-3">

@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 import json
 import logging
 import re
 import traceback
+from types import SimpleNamespace
 from typing import Any
 
+import requests
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.mail import EmailMultiAlternatives
@@ -28,6 +30,7 @@ from .models import (
     AutomationRunLogStatus,
     DashboardMetricValue,
 )
+from .source_registry import get_action_mapping_fields, get_source_definition, get_source_fields
 
 
 _UNCASTABLE = object()
@@ -870,11 +873,214 @@ def _create_action_log(
 def _render_action_value(raw_value: Any, payload: Any) -> Any:
     if raw_value is None:
         return None
+    if isinstance(raw_value, dict):
+        return {str(key): _render_action_value(item, payload) for key, item in raw_value.items()}
     if isinstance(raw_value, (list, tuple, set)):
         return [_render_action_value(item, payload) for item in raw_value]
     if isinstance(raw_value, (bool, int, float, Decimal)):
         return raw_value
     return render_template_string(str(raw_value), payload if isinstance(payload, dict) else {})
+
+
+def _source_field_map(source_code: str | None, *, include_virtual: bool = False) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    for field in get_source_fields(source_code):
+        field_name = str(field.get("name") or "").strip()
+        if not field_name:
+            continue
+        if not include_virtual and (field.get("is_virtual") or not field.get("db_column")):
+            continue
+        result[field_name] = field
+    return result
+
+
+def _resolve_action_run_if(config: dict[str, Any], payload: Any, old_payload: Any = None) -> tuple[bool, str]:
+    run_if = config.get("run_if")
+    if not isinstance(run_if, dict) or not run_if:
+        return True, ""
+
+    condition = SimpleNamespace(
+        field_name=str(run_if.get("field_name") or "").strip(),
+        operator=str(run_if.get("operator") or "").strip(),
+        expected_value=str(run_if.get("expected_value") or ""),
+        value_type=str(run_if.get("value_type") or ""),
+        compare_with_old=bool(run_if.get("compare_with_old")),
+    )
+    matched = evaluate_condition(condition, payload, old_payload=old_payload)
+    negate = bool(run_if.get("negate"))
+    if negate:
+        matched = not matched
+
+    description = f"{condition.field_name} {condition.operator}".strip()
+    expected_value = str(condition.expected_value or "").strip()
+    if expected_value:
+        description = f"{description} {expected_value}"
+    if negate:
+        description = f"NOT ({description})"
+    return matched, description or "run_if"
+
+
+def _resolve_source_pk_for_action(
+    *,
+    source_definition: dict[str, Any] | None,
+    payload: Any,
+    queue_event: dict[str, Any] | None = None,
+) -> Any:
+    if queue_event and queue_event.get("source_pk") not in {None, ""}:
+        return queue_event.get("source_pk")
+    if not isinstance(payload, dict):
+        return None
+    pk_field = str((source_definition or {}).get("pk_field") or "id").strip() or "id"
+    return safe_get_payload_value(payload, pk_field)
+
+
+def _validate_source_update_fields(source_code: str | None, update_fields: dict[str, Any]) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    source_definition = get_source_definition(source_code)
+    if source_definition is None:
+        raise ValueError("Sorgente non valida per update_trigger_record.")
+    if not isinstance(update_fields, dict) or not update_fields:
+        raise ValueError("update_trigger_record richiede update_fields non vuoto.")
+
+    field_map = {
+        str(field["name"]): field
+        for field in get_action_mapping_fields(source_code)
+        if field.get("db_column") and not field.get("is_virtual")
+    }
+    pk_field = str(source_definition.get("pk_field") or "id")
+    invalid_fields = sorted(
+        field_name
+        for field_name in update_fields.keys()
+        if str(field_name).strip() not in field_map or str(field_name).strip() == pk_field
+    )
+    if invalid_fields:
+        raise ValueError(
+            "Campi non aggiornabili sul record triggerante: " + ", ".join(invalid_fields) + "."
+        )
+    return source_definition, field_map
+
+
+def _execute_update_trigger_record(
+    *,
+    source_code: str | None,
+    payload_context: Any,
+    queue_event: dict[str, Any] | None,
+    update_fields: dict[str, Any],
+) -> dict[str, Any]:
+    source_definition, field_map = _validate_source_update_fields(source_code, update_fields)
+    source_pk = _resolve_source_pk_for_action(
+        source_definition=source_definition,
+        payload=payload_context,
+        queue_event=queue_event,
+    )
+    if source_pk in {None, ""}:
+        raise ValueError("Impossibile determinare la PK del record triggerante.")
+
+    rendered_update_fields = {
+        str(field_name).strip(): _render_action_value(raw_value, payload_context)
+        for field_name, raw_value in update_fields.items()
+    }
+    assignments = ", ".join(
+        f"{connection.ops.quote_name(str(field_map[field_name]['db_column']))} = %s"
+        for field_name in rendered_update_fields.keys()
+    )
+    quoted_table = connection.ops.quote_name(str(source_definition.get("table_name") or ""))
+    pk_field_name = str(source_definition.get("pk_field") or "id")
+    pk_meta = _source_field_map(source_code, include_virtual=False).get(pk_field_name, {"db_column": pk_field_name})
+    quoted_pk = connection.ops.quote_name(str(pk_meta.get("db_column") or pk_field_name))
+    params = [rendered_update_fields[field_name] for field_name in rendered_update_fields.keys()] + [source_pk]
+    sql = f"UPDATE {quoted_table} SET {assignments} WHERE {quoted_pk} = %s"
+
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute(sql, params)
+            return {
+                "rowcount": cursor.rowcount if cursor.rowcount is not None else 0,
+                "source_pk": source_pk,
+                "sql": sql,
+                "params": params,
+                "columns": list(rendered_update_fields.keys()),
+            }
+
+
+def _coerce_timeout_seconds(raw_value: Any, *, default: int = 20) -> int:
+    try:
+        timeout = int(raw_value)
+    except (TypeError, ValueError):
+        timeout = default
+    return max(timeout, 1)
+
+
+def _render_delay_until(raw_value: Any, payload_context: Any) -> datetime:
+    rendered = str(_render_action_value(raw_value, payload_context) or "").strip()
+    if not rendered:
+        raise ValueError("delay_schedule richiede until_template valorizzato.")
+
+    parsed_datetime = _parse_datetime(rendered)
+    if parsed_datetime is _UNCASTABLE:
+        parsed_date = _parse_date(rendered)
+        if parsed_date in {_UNCASTABLE, None}:
+            raise ValueError("until_template non produce una data/ora ISO valida.")
+        parsed_datetime = datetime.combine(parsed_date, datetime.min.time())
+    elif parsed_datetime is None:
+        raise ValueError("until_template non produce una data/ora valida.")
+
+    if timezone.is_naive(parsed_datetime):
+        parsed_datetime = timezone.make_aware(parsed_datetime, timezone.get_current_timezone())
+    return parsed_datetime
+
+
+def _http_request_payload(config: dict[str, Any], payload_context: Any) -> tuple[str, str, dict[str, str], Any, int, list[int]]:
+    method = str(config.get("method") or "").strip().upper()
+    url = str(_render_action_value(config.get("url_template"), payload_context) or "").strip()
+    headers_raw = _render_action_value(config.get("headers"), payload_context)
+    headers = {
+        str(key).strip(): str(value).strip()
+        for key, value in (headers_raw.items() if isinstance(headers_raw, dict) else [])
+        if str(key).strip()
+    }
+    body = _render_action_value(config.get("body_template"), payload_context)
+    timeout_seconds = _coerce_timeout_seconds(config.get("timeout_seconds"), default=20)
+    expected_statuses = [
+        int(status)
+        for status in (config.get("expected_statuses") or [])
+        if str(status).strip()
+    ]
+    return method, url, headers, body, timeout_seconds, expected_statuses
+
+
+def _perform_http_request(
+    *,
+    method: str,
+    url: str,
+    headers: dict[str, str],
+    body: Any,
+    timeout_seconds: int,
+) -> requests.Response:
+    request_kwargs: dict[str, Any] = {
+        "method": method,
+        "url": url,
+        "headers": headers or None,
+        "timeout": timeout_seconds,
+    }
+
+    if body is not None and body != "":
+        content_type = str((headers or {}).get("Content-Type") or (headers or {}).get("content-type") or "").lower()
+        if isinstance(body, (dict, list)):
+            request_kwargs["json"] = body
+        elif "application/json" in content_type:
+            try:
+                request_kwargs["json"] = json.loads(str(body))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                request_kwargs["data"] = str(body)
+        else:
+            request_kwargs["data"] = str(body)
+
+    return requests.request(**request_kwargs)
+
+
+def _normalize_teams_theme_color(raw_value: Any) -> str:
+    normalized = str(raw_value or "").strip().lstrip("#")
+    return normalized or "2563EB"
 
 
 def _parse_email_recipients(raw_value: Any, payload: Any, field_name: str) -> list[str]:
@@ -901,6 +1107,57 @@ def _parse_email_recipients(raw_value: Any, payload: Any, field_name: str) -> li
             raise ValueError(f"Indirizzo email non valido in {field_name}: {email}.") from exc
         emails.append(email)
     return emails
+
+
+def _filter_recipients_by_notifica_pref(
+    to: list[str],
+    cc: list[str],
+    bcc: list[str],
+    notifica_tipo: str,
+) -> tuple[list[str], list[str], list[str]]:
+    """Rimuove da to/cc/bcc gli indirizzi di utenti che hanno disabilitato notifica_tipo.
+
+    La lookup avviene tramite User.email. Se un indirizzo non corrisponde ad alcun
+    utente Django, viene mantenuto (fail-open: meglio inviare che perdere una notifica).
+    """
+    from django.contrib.auth import get_user_model
+    from core.models import UserOnboarding
+
+    all_emails = set(to + cc + bcc)
+    if not all_emails:
+        return to, cc, bcc
+
+    User = get_user_model()
+    try:
+        # Mappa email -> user per tutti i destinatari in un'unica query
+        users_by_email = {
+            u.email.lower(): u
+            for u in User.objects.filter(email__in=list(all_emails)).only("id", "email")
+            if u.email
+        }
+        # Onboarding completato per gli utenti trovati, in un'unica query
+        user_ids = [u.id for u in users_by_email.values()]
+        onb_map = {
+            o.user_id: o
+            for o in UserOnboarding.objects.filter(user_id__in=user_ids, completed=True)
+        }
+    except Exception:
+        return to, cc, bcc  # fail-open in caso di errore DB
+
+    def keep(email: str) -> bool:
+        user = users_by_email.get(email.lower())
+        if user is None:
+            return True  # indirizzo sconosciuto: non filtrare
+        onb = onb_map.get(user.id)
+        if onb is None:
+            return True  # utente senza onboarding: fail-open
+        return onb.get_notifica(notifica_tipo, default=True)
+
+    return (
+        [e for e in to if keep(e)],
+        [e for e in cc if keep(e)],
+        [e for e in bcc if keep(e)],
+    )
 
 
 def _validate_sender_email(raw_value: Any, payload: Any) -> str:
@@ -1268,15 +1525,57 @@ def execute_action(
 ) -> dict[str, Any]:
     config = action.config_json if isinstance(action.config_json, dict) else {}
     payload_context = payload if isinstance(payload, dict) else {}
+    source_code = (
+        str((queue_event or {}).get("source_code") or "").strip()
+        or str(getattr(run_log, "source_code", "") or "").strip()
+        or str(getattr(getattr(action, "rule", None), "source_code", "") or "").strip()
+    )
+    source_definition = get_source_definition(source_code)
 
     try:
+        should_run, run_if_description = _resolve_action_run_if(config, payload_context, old_payload=old_payload)
+        if not should_run:
+            result_message = (
+                f"Action saltata: branch non soddisfatto ({run_if_description})."
+                if run_if_description else
+                "Action saltata: branch non soddisfatto."
+            )
+            action_log = _create_action_log(
+                run_log=run_log,
+                action=action,
+                status=AutomationActionLogStatus.SKIPPED,
+                result_message=result_message,
+            )
+            return {"status": AutomationActionLogStatus.SKIPPED, "result_message": result_message, "action_log": action_log}
+
         if action.action_type == AutomationActionType.SEND_EMAIL:
             to = _parse_email_recipients(config.get("to"), payload_context, "to")
             cc = _parse_email_recipients(config.get("cc"), payload_context, "cc")
             bcc = _parse_email_recipients(config.get("bcc"), payload_context, "bcc")
             reply_to = _parse_email_recipients(config.get("reply_to"), payload_context, "reply_to")
+
+            # Filtra destinatari che hanno disabilitato questo tipo di notifica.
+            # notifica_tipo è opzionale: se assente, nessun filtro viene applicato.
+            notifica_tipo = (config.get("notifica_tipo") or "").strip()
+            if notifica_tipo:
+                to, cc, bcc = _filter_recipients_by_notifica_pref(to, cc, bcc, notifica_tipo)
+
             if not any([to, cc, bcc]):
-                raise ValueError("send_email richiede almeno un destinatario in to, cc o bcc.")
+                # Tutti i destinatari hanno disabilitato la notifica: skip silenzioso.
+                skipped_msg = (
+                    f"Email skippata: tutti i destinatari hanno disabilitato "
+                    f"le notifiche di tipo '{notifica_tipo}'."
+                    if notifica_tipo else
+                    "send_email richiede almeno un destinatario in to, cc o bcc."
+                )
+                if notifica_tipo:
+                    action_log = _create_action_log(
+                        run_log=run_log, action=action,
+                        status=AutomationActionLogStatus.SUCCESS,
+                        result_message=skipped_msg,
+                    )
+                    return {"status": AutomationActionLogStatus.SUCCESS, "result_message": skipped_msg, "action_log": action_log}
+                raise ValueError(skipped_msg)
 
             from_email = _validate_sender_email(config.get("from_email"), payload_context)
             subject = render_template_string(config.get("subject_template"), payload_context).strip()
@@ -1423,24 +1722,76 @@ def execute_action(
             )
             return {"status": AutomationActionLogStatus.SUCCESS, "result_message": result_message, "action_log": action_log}
 
+        if action.action_type == AutomationActionType.UPDATE_TRIGGER_RECORD:
+            update_fields = config.get("update_fields")
+            result = _execute_update_trigger_record(
+                source_code=source_code,
+                payload_context=payload_context,
+                queue_event=queue_event,
+                update_fields=update_fields if isinstance(update_fields, dict) else {},
+            )
+            columns = ", ".join(result.get("columns") or [])
+            result_message = (
+                f"Record triggerante {source_code}#{result['source_pk']} aggiornato"
+                f" con colonne [{columns}]. Record aggiornati={result['rowcount']}."
+            )
+            action_log = _create_action_log(
+                run_log=run_log,
+                action=action,
+                status=AutomationActionLogStatus.SUCCESS,
+                result_message=result_message,
+            )
+            return {"status": AutomationActionLogStatus.SUCCESS, "result_message": result_message, "action_log": action_log}
+
         if action.action_type == AutomationActionType.DELAY_SCHEDULE:
-            giorni = int((action.config_json or {}).get("giorni", 1))
-            from django.utils import timezone as tz
-            import datetime
-            execute_after = tz.now() + datetime.timedelta(days=giorni)
+            mode = str(config.get("mode") or "").strip().lower() or "relative"
+            now = timezone.now()
+            if mode == "until":
+                execute_after = _render_delay_until(config.get("until_template"), payload_context)
+                if execute_after <= now:
+                    raise ValueError("delay_schedule richiede una data/ora futura.")
+            else:
+                unit = str(config.get("unit") or "").strip().lower() or "days"
+                raw_value = config.get("value_template", config.get("giorni", 1))
+                rendered_value = str(_render_action_value(raw_value, payload_context) or "").strip()
+                if not rendered_value:
+                    raise ValueError("delay_schedule richiede value_template valorizzato.")
+                try:
+                    amount = Decimal(rendered_value)
+                except (InvalidOperation, TypeError, ValueError) as exc:
+                    raise ValueError("delay_schedule richiede un valore numerico valido.") from exc
+                if amount <= 0:
+                    raise ValueError("delay_schedule richiede un valore positivo.")
+                if unit == "minutes":
+                    execute_after = now + timedelta(minutes=float(amount))
+                elif unit == "hours":
+                    execute_after = now + timedelta(hours=float(amount))
+                else:
+                    execute_after = now + timedelta(days=float(amount))
+
             event = queue_event or {}
             import json as _json
             payload_json_str = event.get("payload_json") or _json.dumps(payload if isinstance(payload, dict) else {})
+            if not isinstance(payload_json_str, str):
+                payload_json_str = _json.dumps(payload_json_str, ensure_ascii=False, default=str)
+            source_pk = _resolve_source_pk_for_action(
+                source_definition=source_definition,
+                payload=payload_context,
+                queue_event=queue_event,
+            )
+            event_code = event.get("event_code")
+            if not event_code and getattr(action, "rule_id", None):
+                event_code = _build_trigger_event_label(action.rule)
             _schedule_queue_event(
-                source_code=event.get("source_code", ""),
-                source_table=event.get("source_table", ""),
-                source_pk=event.get("source_pk"),
-                operation_type=event.get("operation_type", ""),
-                event_code=event.get("event_code"),
+                source_code=source_code,
+                source_table=event.get("source_table", "") or str((source_definition or {}).get("table_name") or ""),
+                source_pk=source_pk,
+                operation_type=event.get("operation_type", "") or str(getattr(run_log, "operation_type", "") or "") or str(getattr(getattr(action, "rule", None), "operation_type", "") or ""),
+                event_code=event_code,
                 payload_json=payload_json_str,
                 execute_after=execute_after,
             )
-            result_msg = f"Evento schedulato tra {giorni} giorno/i ({execute_after.isoformat()})"
+            result_msg = f"Evento schedulato per {execute_after.isoformat()}."
             action_log = _create_action_log(
                 run_log=run_log,
                 action=action,
@@ -1448,6 +1799,91 @@ def execute_action(
                 result_message=result_msg,
             )
             return {"status": AutomationActionLogStatus.SUCCESS, "result_message": result_msg, "action_log": action_log}
+
+        if action.action_type == AutomationActionType.HTTP_REQUEST:
+            method, url, headers, body, timeout_seconds, expected_statuses = _http_request_payload(config, payload_context)
+            if not method:
+                raise ValueError("http_request richiede method.")
+            if not url:
+                raise ValueError("http_request richiede url_template.")
+            if _PLACEHOLDER_PATTERN.search(url):
+                raise ValueError("url_template non produce un URL valido.")
+
+            response = _perform_http_request(
+                method=method,
+                url=url,
+                headers=headers,
+                body=body,
+                timeout_seconds=timeout_seconds,
+            )
+            if expected_statuses:
+                ok = response.status_code in expected_statuses
+            else:
+                ok = bool(response.ok)
+            if not ok:
+                raise ValueError(f"HTTP {response.status_code} ricevuto da {url}.")
+
+            body_preview = str(getattr(response, "text", "") or "").replace("\r", " ").replace("\n", " ").strip()
+            if len(body_preview) > 140:
+                body_preview = body_preview[:137].rstrip() + "..."
+            result_message = f"HTTP {method} {url} -> {response.status_code}."
+            if body_preview:
+                result_message = f"{result_message} Body: {body_preview}"
+            action_log = _create_action_log(
+                run_log=run_log,
+                action=action,
+                status=AutomationActionLogStatus.SUCCESS,
+                result_message=result_message,
+            )
+            return {"status": AutomationActionLogStatus.SUCCESS, "result_message": result_message, "action_log": action_log}
+
+        if action.action_type == AutomationActionType.TEAMS_WEBHOOK:
+            webhook_url = str(_render_action_value(config.get("webhook_url"), payload_context) or "").strip()
+            if not webhook_url:
+                raise ValueError("teams_webhook richiede webhook_url.")
+            if _PLACEHOLDER_PATTERN.search(webhook_url):
+                raise ValueError("webhook_url non produce un URL valido.")
+
+            title = str(_render_action_value(config.get("title_template"), payload_context) or "").strip()
+            summary = str(_render_action_value(config.get("summary_template"), payload_context) or "").strip()
+            text = str(_render_action_value(config.get("text_template"), payload_context) or "").strip()
+            facts_raw = _render_action_value(config.get("facts"), payload_context)
+            facts = [
+                {"name": str(key).strip(), "value": str(value).strip()}
+                for key, value in (facts_raw.items() if isinstance(facts_raw, dict) else [])
+                if str(key).strip()
+            ]
+            card_payload: dict[str, Any] = {
+                "@type": "MessageCard",
+                "@context": "http://schema.org/extensions",
+                "summary": summary or title or "Automazione Portale",
+                "themeColor": _normalize_teams_theme_color(_render_action_value(config.get("theme_color"), payload_context)),
+            }
+            if title:
+                card_payload["title"] = title
+            if text:
+                card_payload["text"] = text
+            if facts:
+                card_payload["sections"] = [{"facts": facts}]
+
+            response = _perform_http_request(
+                method="POST",
+                url=webhook_url,
+                headers={"Content-Type": "application/json"},
+                body=card_payload,
+                timeout_seconds=20,
+            )
+            if not response.ok:
+                raise ValueError(f"Teams webhook ha risposto con HTTP {response.status_code}.")
+
+            result_message = f"Teams webhook inviato -> {response.status_code} ({title or summary or 'card'})."
+            action_log = _create_action_log(
+                run_log=run_log,
+                action=action,
+                status=AutomationActionLogStatus.SUCCESS,
+                result_message=result_message,
+            )
+            return {"status": AutomationActionLogStatus.SUCCESS, "result_message": result_message, "action_log": action_log}
 
         raise NotImplementedError(f"Action type '{action.action_type}' non ancora implementato in fase 4B.")
     except Exception as exc:

@@ -24,7 +24,9 @@ from django.contrib import messages
 
 from config.env_config import get_first_env_value
 from core.audit import log_action
+from core.contact_people import parse_contact_people, primary_contact, serialize_contact_people
 from core.legacy_utils import get_legacy_user, is_legacy_admin
+from core.module_branding import get_module_branding_context, handle_module_branding_post
 
 from .models import RegistroRifiuti, RentriImpostazioni
 
@@ -1035,14 +1037,38 @@ def impostazioni(request):
     cfg = RentriImpostazioni.get_singleton()
 
     if request.method == "POST":
+        branding_response = handle_module_branding_post(
+            request,
+            module_key="rentri",
+            redirect_to="rentri_impostazioni",
+            audit_module="rentri",
+            fallback_label="RENTRI",
+        )
+        if branding_response is not None:
+            return branding_response
+        responsabili = parse_contact_people(request.POST.get("responsabili_raw", ""))
+        primary = primary_contact(responsabili)
         cfg.codice_iscrizione_rentri = request.POST.get("codice_iscrizione_rentri", "").strip()
         cfg.ragione_sociale = request.POST.get("ragione_sociale", "").strip()
-        cfg.responsabile_nome = request.POST.get("responsabile_nome", "").strip()
-        cfg.responsabile_email = request.POST.get("responsabile_email", "").strip()
+        cfg.responsabili = responsabili
+        cfg.responsabile_nome = primary["nome"]
+        cfg.responsabile_email = primary["email"]
         cfg.note_generali = request.POST.get("note_generali", "").strip()
         cfg.save()
         log_action(request, "modifica", "rentri", "Aggiornate impostazioni Rentri")
         messages.success(request, "Impostazioni salvate.")
         return redirect("rentri_impostazioni")
 
-    return render(request, "rentri/impostazioni.html", {"cfg": cfg})
+    return render(
+        request,
+        "rentri/pages/impostazioni.html",
+        {
+            "cfg": cfg,
+            "responsabili_raw": serialize_contact_people(
+                cfg.responsabili,
+                fallback_name=cfg.responsabile_nome,
+                fallback_email=cfg.responsabile_email,
+            ),
+            **get_module_branding_context("rentri", fallback_label="RENTRI"),
+        },
+    )

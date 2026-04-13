@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import RedirectView
 
 from . import views
 
@@ -16,7 +17,8 @@ urlpatterns = [
     path("timbri/operatori/<int:operatore_id>/nuovo/", views.registro_create, name="registro_create"),
     path("timbri/anagrafica/<int:legacy_id>/nuovo/", views.registro_create_by_legacy, name="registro_create_by_legacy"),
     path("timbri/record/<int:record_id>/modifica/", views.registro_edit, name="registro_edit"),
-    path("timbri/configurazione/", views.configurazione_page, name="configurazione"),
+    path("timbri/impostazioni/", views.configurazione_page, name="configurazione"),
+    path("timbri/configurazione/", RedirectView.as_view(pattern_name="timbri:configurazione", permanent=False)),
     path("timbri/export-csv", views.export_csv, name="export_csv"),
     path("timbri/immagine/<int:image_id>/", views.serve_timbri_image, name="serve_image"),
 ]

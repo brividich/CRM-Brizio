@@ -2,8 +2,20 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import IntegrityError, models, transaction
+from django.db.models import Max
 from django.utils import timezone
+
+
+def _next_kickoff_number() -> int:
+    max_number = Project.objects.aggregate(max_number=Max("kickoff_number")).get("max_number") or 0
+    return int(max_number) + 1
+
+
+class VRFDocStatus(models.TextChoices):
+    PENDING      = "PENDING",      "Da caricare"
+    UPLOADED     = "UPLOADED",     "Caricato"
+    NOT_REQUIRED = "NOT_REQUIRED", "Non richiesto"
 
 
 class TaskStatus(models.TextChoices):
@@ -30,6 +42,13 @@ class TaskEventType(models.TextChoices):
 
 
 class Project(models.Model):
+    kickoff_number = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        unique=True,
+        db_index=True,
+        editable=False,
+    )
     name = models.CharField(max_length=180)
     description = models.TextField(blank=True, default="")
     client_name = models.CharField(max_length=180, blank=True, default="")
@@ -56,6 +75,18 @@ class Project(models.Model):
     )
     control_method = models.CharField(max_length=180, blank=True, default="")
     part_number = models.CharField(max_length=120, blank=True, default="")
+    revisione = models.CharField(max_length=60, blank=True, default="")
+    versione = models.CharField(max_length=60, blank=True, default="")
+    vrf_status = models.CharField(
+        max_length=20, choices=VRFDocStatus.choices, default=VRFDocStatus.PENDING,
+        verbose_name="Stato documento VRF",
+    )
+    vrf_file = models.FileField(upload_to="tasks_vrf/%Y/%m/", null=True, blank=True)
+    vrf_original_name = models.CharField(max_length=255, blank=True, default="")
+    vrf_uploaded_at = models.DateTimeField(null=True, blank=True)
+    vrf_quote_number = models.CharField(max_length=120, blank=True, default="", verbose_name="Preventivo n°")
+    vrf_description = models.CharField(max_length=500, blank=True, default="", verbose_name="Descrizione VRF")
+    vrf_esp = models.CharField(max_length=120, blank=True, default="", verbose_name="Esp")
     similar_project = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,
@@ -74,6 +105,29 @@ class Project(models.Model):
 
     class Meta:
         ordering = ["-updated_at", "-id"]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            if self.kickoff_number and not self.name:
+                self.name = f"KICK-OFF {self.kickoff_number}"
+            return super().save(*args, **kwargs)
+
+        if self.kickoff_number:
+            if not self.name:
+                self.name = f"KICK-OFF {self.kickoff_number}"
+            return super().save(*args, **kwargs)
+
+        max_attempts = 5
+        for attempt in range(max_attempts):
+            self.kickoff_number = _next_kickoff_number()
+            self.name = f"KICK-OFF {self.kickoff_number}"
+            try:
+                with transaction.atomic():
+                    return super().save(*args, **kwargs)
+            except IntegrityError:
+                self.kickoff_number = None
+                if not self._state.adding or attempt == max_attempts - 1:
+                    raise
 
     def __str__(self) -> str:
         return self.name
@@ -289,16 +343,26 @@ class TaskImpostazioni(models.Model):
         verbose_name="Giorni preavviso scadenza",
     )
     note_generali = models.TextField(blank=True, default="", verbose_name="Note generali")
+    vrf_reminder_days = models.PositiveSmallIntegerField(
+        default=7,
+        verbose_name="Giorni avviso VRF",
+        help_text="Mostra un avviso giallo dopo N giorni dalla creazione del progetto senza documento VRF caricato.",
+    )
+    vrf_blocking_days = models.PositiveSmallIntegerField(
+        default=30,
+        verbose_name="Giorni blocco VRF",
+        help_text="Blocca la creazione/modifica di VRF su quel progetto dopo N giorni senza documento VRF.",
+    )
 
     class Meta:
-        verbose_name = "Impostazioni Task"
-        verbose_name_plural = "Impostazioni Task"
+        verbose_name = "Impostazioni KICK-OFF"
+        verbose_name_plural = "Impostazioni KICK-OFF"
         constraints = [
             models.CheckConstraint(check=models.Q(pk=1), name="taskimpostazioni_singleton"),
         ]
 
     def __str__(self) -> str:
-        return "Impostazioni Task"
+        return "Impostazioni KICK-OFF"
 
     @classmethod
     def get_singleton(cls) -> "TaskImpostazioni":

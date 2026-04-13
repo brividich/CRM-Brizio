@@ -1,22 +1,220 @@
 {% extends "tasks/base_shell.html" %}
 
-{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">Tasks / Progetti</span>{% endblock %}
+{% block tasks_shell_head %}
+<style>
+  /* ── Portfolio card grid ── */
+  .pf-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 12px;
+  }
 
-{% block tasks_shell_title %}Vista progetti{% endblock %}
+  .pf-card {
+    border: 1px solid var(--ts-border);
+    border-radius: var(--ts-radius-lg);
+    background: #fff;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 2px 8px rgba(15,23,42,.04);
+    transition: box-shadow .15s ease, transform .15s ease;
+  }
+
+  .pf-card:hover {
+    box-shadow: 0 8px 28px rgba(15,23,42,.1);
+    transform: translateY(-2px);
+  }
+
+  /* top accent strip - color by VRF status */
+  .pf-card-strip {
+    height: 3px;
+    background: linear-gradient(90deg, var(--ts-primary) 0%, var(--ts-primary-mid) 100%);
+  }
+
+  .pf-card-strip.ok      { background: linear-gradient(90deg, #22c55e, #16a34a); }
+  .pf-card-strip.warn    { background: linear-gradient(90deg, #f59e0b, #d97706); }
+  .pf-card-strip.blocked { background: linear-gradient(90deg, #f87171, #dc2626); }
+  .pf-card-strip.na      { background: linear-gradient(90deg, #94a3b8, #64748b); }
+  .pf-card-strip.pending { background: linear-gradient(90deg, var(--ts-primary), var(--ts-primary-mid)); }
+
+  .pf-card-body {
+    padding: 16px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .pf-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .pf-name-link {
+    font-size: 16px;
+    font-weight: 900;
+    color: #0f172a;
+    text-decoration: none;
+    line-height: 1.2;
+    letter-spacing: -.02em;
+  }
+
+  .pf-name-link:hover { color: #1d4ed8; }
+
+  .pf-ko-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 6px;
+    background: rgba(45,82,130,.08);
+    color: var(--ts-primary-mid);
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: .06em;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .pf-chips {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+  }
+
+  .pf-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+
+  .pf-chip .lbl {
+    font-weight: 900;
+    font-size: 9px;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    opacity: .7;
+  }
+
+  .pf-chip.pn      { background: #eef2ff; border-color: #c7d2fe; color: #3730a3; }
+  .pf-chip.rev     { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+  .pf-chip.ver     { background: #fff7ed; border-color: #fed7aa; color: #9a3412; }
+  .pf-chip.client  { background: #f8fafc; border-color: #e2e8f0; color: #475569; }
+
+  /* ── Progress bar ── */
+  .pf-progress {
+    display: grid;
+    gap: 5px;
+  }
+
+  .pf-progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 700;
+  }
+
+  .pf-progress-bar {
+    height: 6px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    overflow: hidden;
+  }
+
+  .pf-progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #22c55e, #16a34a);
+    transition: width .4s ease;
+  }
+
+  .pf-task-counts {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .pf-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .pf-count-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+
+  .pf-count-dot.total { background: #94a3b8; }
+  .pf-count-dot.open  { background: #3b82f6; }
+  .pf-count-dot.done  { background: #22c55e; }
+
+  /* ── VRF ── */
+  .pf-vrf-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--ts-border);
+    background: #f8fafc;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .pf-vrf-label { color: #64748b; }
+
+  /* ── Card footer ── */
+  .pf-card-footer {
+    padding: 10px 16px;
+    border-top: 1px solid var(--ts-border);
+    background: linear-gradient(180deg, #f8fbff 0%, #f1f5f9 100%);
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  @media (max-width: 860px) {
+    .pf-grid { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Portfolio</span>{% endblock %}
+{% block tasks_shell_title %}Portfolio kickoff{% endblock %}
 
 {% block tasks_shell_subtitle %}
-  Elenco dei progetti visibili nel tuo scope con accesso diretto al diagramma Gantt e al backlog delle task collegate.
+  Vista sintetica dei kickoff nel tuo scope — P/N, cliente, avanzamento e stato documento VRF.
 {% endblock %}
 
 {% block tasks_shell_meta %}
-  <span class="ts-hero-pill">{{ projects|length }} progetti</span>
+  <span class="ts-hero-pill">{{ projects|length }} kickoff</span>
   <span class="ts-hero-pill">{% if is_scope_admin %}Scope completo{% else %}Scope personale{% endif %}</span>
 {% endblock %}
 
 {% block tasks_shell_actions %}
-  <a class="ts-hero-action" href="{% url 'tasks:list' %}">Dashboard task</a>
+  <a class="ts-hero-action" href="{% url 'tasks:list' %}">Dashboard attivita</a>
   {% if tasks_shell_can_create %}
-    <a class="ts-hero-action primary" href="{% url 'tasks:create' %}">Nuova task</a>
+    <a class="ts-hero-action" href="{% url 'tasks:import_excel' %}">Import Excel</a>
+    <a class="ts-hero-action primary" href="{% url 'tasks:create' %}">+ Nuova attivita</a>
   {% endif %}
 {% endblock %}
 
@@ -24,53 +222,112 @@
 <section class="ts-panel">
   <div class="ts-panel-head">
     <div class="ts-panel-title-wrap">
-      <h2 class="ts-panel-title">Portfolio progetti</h2>
-      <p class="ts-panel-subtitle">Ogni card sintetizza volume task, stato di avanzamento e principali riferimenti del progetto.</p>
+      <h2 class="ts-panel-title">Elenco kickoff</h2>
+      <p class="ts-panel-subtitle">Ogni card rappresenta un kickoff con identita P/N, avanzamento attivita e stato VRF.</p>
     </div>
     <div class="ts-panel-meta">
-      <a class="ts-chip soft" href="{% url 'tasks:list' %}?status=IN_PROGRESS">Task in corso</a>
-      <a class="ts-chip soft" href="{% url 'tasks:list' %}?overdue=on">Task overdue</a>
+      <a class="ts-chip soft" style="text-decoration:none;font-size:11px;" href="{% url 'tasks:list' %}?status=IN_PROGRESS">Attivita in corso</a>
+      <a class="ts-chip soft" style="text-decoration:none;font-size:11px;" href="{% url 'tasks:list' %}?overdue=on">Attivita overdue</a>
     </div>
   </div>
   <div class="ts-panel-body">
     {% if projects %}
-      <div class="ts-card-grid">
+      <div class="pf-grid">
         {% for project in projects %}
-          <article class="ts-card">
-            <a class="ts-card-link" href="{% url 'tasks:project_gantt' project.id %}">
-              <h3 class="ts-card-title">{{ project.name }}</h3>
-            </a>
-            {% if project.description %}
-              <div class="ts-card-text" style="margin-top:8px;">{{ project.description|truncatechars:160 }}</div>
-            {% endif %}
-            <div class="ts-card-meta" style="margin-top:12px;">
-              <span class="ts-chip soft">Task totali: {{ project.task_total }}</span>
-              <span class="ts-chip info">Aperte: {{ project.task_open }}</span>
-              <span class="ts-chip ok">Chiuse: {{ project.task_done }}</span>
+          {% with d=project.vrf_detail %}
+          <div class="pf-card">
+            <div class="pf-card-strip {{ d.status|default:'pending' }}"></div>
+            <div class="pf-card-body">
+
+              <div class="pf-card-top">
+                <a class="pf-name-link" href="{% url 'tasks:project_gantt' project.id %}">{{ project.name }}</a>
+                {% if project.kickoff_number %}
+                  <span class="pf-ko-number">KO-{{ project.kickoff_number }}</span>
+                {% endif %}
+              </div>
+
+              <div class="pf-chips">
+                {% if project.client_name %}
+                  <span class="pf-chip client">{{ project.client_name }}</span>
+                {% endif %}
+                {% if project.part_number %}
+                  <span class="pf-chip pn"><span class="lbl">P/N</span>{{ project.part_number }}</span>
+                {% endif %}
+                {% if project.revisione %}
+                  <span class="pf-chip rev"><span class="lbl">Rev</span>{{ project.revisione }}</span>
+                {% endif %}
+                {% if project.versione %}
+                  <span class="pf-chip ver"><span class="lbl">Ver</span>{{ project.versione }}</span>
+                {% endif %}
+              </div>
+
+              <div class="pf-progress">
+                <div class="pf-progress-header">
+                  <span>Avanzamento attivita</span>
+                  <span>
+                    {% if project.task_total > 0 %}
+                      {% widthratio project.task_done project.task_total 100 %}%
+                    {% else %}
+                      —
+                    {% endif %}
+                  </span>
+                </div>
+                <div class="pf-progress-bar">
+                  {% if project.task_total > 0 %}
+                    <div class="pf-progress-fill" style="width:{% widthratio project.task_done project.task_total 100 %}%"></div>
+                  {% else %}
+                    <div class="pf-progress-fill" style="width:0%"></div>
+                  {% endif %}
+                </div>
+                <div class="pf-task-counts">
+                  <span class="pf-count"><span class="pf-count-dot total"></span>{{ project.task_total }} totali</span>
+                  <span class="pf-count"><span class="pf-count-dot open"></span>{{ project.task_open }} aperte</span>
+                  <span class="pf-count"><span class="pf-count-dot done"></span>{{ project.task_done }} chiuse</span>
+                </div>
+              </div>
+
+              <div class="pf-vrf-row">
+                <span class="pf-vrf-label">Documento VRF</span>
+                {% if d.status == 'ok' %}
+                  <span class="ts-chip ok" style="font-size:10px;">Caricato</span>
+                {% elif d.status == 'na' %}
+                  <span class="ts-chip soft" style="font-size:10px;">N/A</span>
+                {% elif d.status == 'blocked' %}
+                  <a href="{% url 'tasks:project_vrf_upload' project.id %}" class="ts-chip danger" style="font-size:10px;text-decoration:none;" title="{{ d.label }}">Bloccato</a>
+                {% elif d.status == 'warning' %}
+                  <a href="{% url 'tasks:project_vrf_upload' project.id %}" class="ts-chip warn" style="font-size:10px;text-decoration:none;" title="{{ d.label }}">{{ d.days_pending }}gg</a>
+                {% else %}
+                  <a href="{% url 'tasks:project_vrf_upload' project.id %}" class="ts-chip soft" style="font-size:10px;text-decoration:none;" title="{{ d.label }}">Da caricare</a>
+                {% endif %}
+              </div>
+
             </div>
-            <div class="ts-card-meta" style="margin-top:10px;">
-              <span>Owner: {{ project.created_by.get_full_name|default:project.created_by.username }}</span>
-              {% if project.client_name %}<span>Cliente: {{ project.client_name }}</span>{% endif %}
-              {% if project.project_manager %}<span>PM: {{ project.project_manager.get_full_name|default:project.project_manager.username }}</span>{% endif %}
-              {% if project.capo_commessa %}<span>Capocommessa: {{ project.capo_commessa.get_full_name|default:project.capo_commessa.username }}</span>{% endif %}
-              {% if project.programmer %}<span>Programmatore: {{ project.programmer.get_full_name|default:project.programmer.username }}</span>{% endif %}
-              {% if project.part_number %}<span>P/N: {{ project.part_number }}</span>{% endif %}
-              {% if project.control_method %}<span>Controllo: {{ project.control_method }}</span>{% endif %}
+            <div class="pf-card-footer">
+              <a class="btn btn-secondary btn-sm" href="{% url 'tasks:list' %}?project={{ project.id }}">Attivita</a>
+              <a class="btn btn-sm" href="{% url 'tasks:project_gantt' project.id %}">Gantt</a>
+              {% if tasks_shell_can_create %}
+                <form method="post" action="{% url 'tasks:copy_project_with_vrf' project.id %}" style="margin:0;">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-secondary btn-sm">Copia VRF</button>
+                </form>
+                <form method="post" action="{% url 'tasks:copy_project_with_vrf_without_pn' project.id %}" style="margin:0;">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-secondary btn-sm">Copia senza P/N</button>
+                </form>
+              {% endif %}
             </div>
-            <div class="ts-actions" style="margin-top:14px;">
-              <a class="btn btn-sm" href="{% url 'tasks:project_gantt' project.id %}">Apri Gantt</a>
-              <a class="btn btn-secondary btn-sm" href="{% url 'tasks:list' %}?project={{ project.id }}">Vedi task</a>
-            </div>
-          </article>
+          </div>
+          {% endwith %}
         {% endfor %}
       </div>
     {% else %}
       <div class="ts-empty">
-        <strong>Nessun progetto disponibile nel tuo scope.</strong>
-        <div>Puoi iniziare creando una task collegata a un nuovo progetto oppure lavorare su task singole.</div>
+        <strong>Nessun kickoff disponibile nel tuo scope.</strong>
+        <div>Inizia creando un'attivita collegata a un nuovo kickoff oppure importa da Excel.</div>
         {% if tasks_shell_can_create %}
           <div class="ts-actions">
-            <a class="btn btn-sm" href="{% url 'tasks:create' %}">Crea task di progetto</a>
+            <a class="btn btn-secondary btn-sm" href="{% url 'tasks:import_excel' %}">Import da Excel</a>
+            <a class="btn btn-sm" href="{% url 'tasks:create' %}">Crea attivita in kickoff</a>
           </div>
         {% endif %}
       </div>

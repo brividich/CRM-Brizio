@@ -1,6 +1,6 @@
 {% extends "assets/base_shell.html" %}
 
-{% block title %}Verifiche periodiche{% endblock %}
+{% block title %}Manutenzione periodica{% endblock %}
 
 {% block assets_shell_head %}
 <style>
@@ -294,16 +294,16 @@
 </style>
 {% endblock %}
 
-{% block assets_shell_title %}Verifiche periodiche{% endblock %}
+{% block assets_shell_title %}Manutenzione periodica{% endblock %}
 {% block assets_shell_subtitle %}
-<p>Gestisci verifiche ricorrenti, fornitore responsabile, cadenza e asset coinvolti.</p>
+<p>Gestisci i piani ricorrenti come categoria della manutenzione assets, con fornitore, cadenza e asset coinvolti.</p>
 {% endblock %}
 {% block assets_shell_toolbar %}
   {% if selected_asset %}
     <a class="btn" href="{% url 'assets:asset_view' selected_asset.id %}">Torna all'asset</a>
   {% endif %}
   {% if is_edit %}
-    <a class="btn btn-secondary" href="{% if selected_asset %}{% url 'assets:periodic_verifications' %}?asset={{ selected_asset.id }}{% else %}{% url 'assets:periodic_verifications' %}{% endif %}">Nuova verifica</a>
+    <a class="btn btn-secondary" href="{% if selected_asset %}{% url 'assets:periodic_verifications' %}?asset={{ selected_asset.id }}{% else %}{% url 'assets:periodic_verifications' %}{% endif %}">Nuovo piano</a>
   {% endif %}
 {% endblock %}
 
@@ -311,14 +311,14 @@
 <section class="pv-page">
   <section class="pv-kpis">
     <article class="pv-kpi">
-      <div class="pv-kpi-label">Totale verifiche</div>
+      <div class="pv-kpi-label">Totale piani</div>
       <div class="pv-kpi-value">{{ verification_total }}</div>
-      <div class="pv-kpi-meta">Configurazioni presenti nel modulo asset</div>
+      <div class="pv-kpi-meta">Piani registrati nella categoria manutenzione</div>
     </article>
     <article class="pv-kpi">
-      <div class="pv-kpi-label">Verifiche attive</div>
+      <div class="pv-kpi-label">Piani attivi</div>
       <div class="pv-kpi-value">{{ active_verification_count }}</div>
-      <div class="pv-kpi-meta">Programmi attualmente monitorati</div>
+      <div class="pv-kpi-meta">Piani attualmente monitorati</div>
     </article>
     <article class="pv-kpi">
       <div class="pv-kpi-label">In scadenza / scadute</div>
@@ -334,7 +334,7 @@
         {{ selected_asset.asset_tag }} - {{ selected_asset.name }}
         {% if selected_asset.reparto %} | {{ selected_asset.reparto }}{% endif %}
       </div>
-      <div class="pv-banner-note">Verifiche collegate a questo asset: {{ selected_asset_linked_count }}. Le nuove verifiche partono gia con questo asset preselezionato.</div>
+      <div class="pv-banner-note">Piani collegati a questo asset: {{ selected_asset_linked_count }}. Le nuove manutenzioni periodiche partono gia con questo asset preselezionato.</div>
     </article>
   {% endif %}
 
@@ -343,7 +343,7 @@
       <article class="pv-card">
         <div class="pv-card-head">
           <div>
-            <h2>{% if is_edit %}Modifica verifica{% else %}Nuova verifica{% endif %}</h2>
+            <h2>{% if is_edit %}Modifica piano{% else %}Nuovo piano{% endif %}</h2>
             <p>Form piu compatto: il layout della scheda resta salvato sul browser.</p>
           </div>
           <div class="pv-card-head-tools">
@@ -437,7 +437,7 @@
             </div>
 
             <div class="pv-form-actions">
-              <button class="btn btn-primary" type="submit">{% if is_edit %}Salva modifica{% else %}Crea verifica{% endif %}</button>
+              <button class="btn btn-primary" type="submit">{% if is_edit %}Salva modifica{% else %}Crea piano{% endif %}</button>
               {% if is_edit %}
                 <a class="btn" href="{% if selected_asset %}{% url 'assets:periodic_verifications' %}?asset={{ selected_asset.id }}{% else %}{% url 'assets:periodic_verifications' %}{% endif %}">Annulla</a>
               {% endif %}
@@ -450,9 +450,9 @@
     <article class="pv-card">
       <div class="pv-card-head">
         <div>
-          <h2>Verifiche registrate</h2>
+          <h2>Piani registrati</h2>
           <p>
-            Ogni asset puo comparire in piu verifiche diverse.
+            Ogni asset puo comparire in piu piani di manutenzione periodica.
             {% if can_manage_outlook_calendar and not selected_asset %}
               Per creare eventi Outlook filtra prima la pagina su un singolo asset.
             {% endif %}
@@ -497,7 +497,7 @@
               {% if can_manage_periodic_verifications %}
                 <div class="pv-inline-actions">
                   <a class="btn btn-secondary" href="{{ row.edit_url }}">Modifica</a>
-                  <form class="pv-delete-form" method="post" onsubmit="return confirm('Eliminare questa verifica periodica?');">
+                  <form class="pv-delete-form" method="post" onsubmit="return confirm('Eliminare questa manutenzione periodica?');">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="delete_periodic_verification">
                     <input type="hidden" name="verification_id" value="{{ row.verification.id }}">
@@ -530,7 +530,7 @@
                     <div class="pv-inline-note">Nessun utente con mailbox disponibile per la sincronizzazione calendario.</div>
                   {% endif %}
                 {% elif row.is_selected_asset_linked %}
-                  <div class="pv-inline-note">Questa verifica non ha ancora una prossima data calendarizzabile.</div>
+                  <div class="pv-inline-note">Questa manutenzione periodica non ha ancora una prossima data calendarizzabile.</div>
                 {% endif %}
               {% endif %}
               {% if row.calendar_event_rows %}
@@ -549,7 +549,7 @@
               {% endif %}
             </article>
           {% empty %}
-            <div class="pv-empty">Nessuna verifica periodica ancora configurata.</div>
+            <div class="pv-empty">Nessuna manutenzione periodica ancora configurata.</div>
           {% endfor %}
         </div>
       </div>

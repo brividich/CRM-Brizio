@@ -106,13 +106,13 @@
 
 {% block assets_shell_title %}Scadenze amministrative{% endblock %}
 {% block assets_shell_subtitle %}
-<p>Scadenze amministrative o tecniche manuali, distinte dalle verifiche periodiche ricorrenti.</p>
+<p>Scadenze amministrative o tecniche manuali, distinte dalla manutenzione periodica ricorrente.</p>
 {% endblock %}
 {% block assets_shell_toolbar %}
   {% if selected_asset %}
     <a class="btn" href="{% url 'assets:asset_view' selected_asset.id %}">Torna all'asset</a>
   {% endif %}
-  <a class="btn" href="{{ periodic_verification_url }}">Verifiche periodiche</a>
+  <a class="btn" href="{{ periodic_verification_url }}">Manutenzione periodica</a>
 {% endblock %}
 
 {% block assets_shell_content %}
@@ -128,7 +128,7 @@
         {% if selected_component %}
           Filtro attivo anche sul componente: {{ selected_component.name }}{% if selected_component.code %} ({{ selected_component.code }}){% endif %}.
         {% else %}
-          Questa pagina non sostituisce le verifiche periodiche: qui gestisci scadenze manuali amministrative o tecniche.
+          Questa pagina non sostituisce la manutenzione periodica: qui gestisci scadenze manuali amministrative o tecniche.
         {% endif %}
       </div>
     </article>

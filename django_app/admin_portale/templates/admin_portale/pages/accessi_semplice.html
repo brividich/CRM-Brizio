@@ -70,11 +70,12 @@
 {% endblock %}
 
 {% block content %}
-  {% include "admin_portale/components/page_header.html" with page_title="Accessi Semplificati" page_subtitle="Una sola schermata per gestire ruoli, permessi modulo e pulsanti attivi." %}
+  {% include "admin_portale/components/page_header.html" with page_title="Accessi Semplificati" page_subtitle="Un solo toggle per modulo: accesso, grant canonici e menu del ruolo seguono la stessa scelta." %}
   {% include "admin_portale/components/flash_messages.html" %}
 
   <div style="margin-bottom:10px;">
     <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:accessi_avanzati' %}">Apri Accessi Avanzati</a>
+    <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:gestione_accessi' %}">Apri Dettaglio Legacy</a>
   </div>
 
   <div class="card">
@@ -96,7 +97,8 @@
         </div>
       </form>
       <div class="notice" style="margin-top:10px;">
-        <strong>Come usarla:</strong> spunta i moduli che il ruolo deve vedere e quelli con pulsanti attivi, poi salva.
+        <strong>Come usarla:</strong> spunta solo i moduli che il ruolo deve poter usare.
+        Il salvataggio sincronizza insieme permessi legacy, grant canonici v2 e voci menu del ruolo.
       </div>
     </div>
   </div>
@@ -109,7 +111,7 @@
     <div class="card">
       <div class="card-head">
         <div>
-          <div class="card-title">2) Regole rapide modulo per ruolo</div>
+          <div class="card-title">2) Toggle unico per modulo</div>
           <div class="cell-muted" style="font-size:12px;margin-top:2px;">
             Ruolo corrente:
             <strong>{% if selected_role %}{{ selected_role.nome }} (#{{ selected_role.id }}){% else %}#{{ selected_role_id }}{% endif %}</strong>
@@ -120,10 +122,8 @@
         {% if module_rows %}
         <div class="simple-toolbar" style="padding:10px 12px;">
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button type="button" class="btn btn-sm" id="all-role-on">Accessi ruolo ON</button>
-            <button type="button" class="btn btn-secondary btn-sm" id="all-role-off">Accessi ruolo OFF</button>
-            <button type="button" class="btn btn-sm" id="all-ui-on">Pulsanti ON</button>
-            <button type="button" class="btn btn-secondary btn-sm" id="all-ui-off">Pulsanti OFF</button>
+            <button type="button" class="btn btn-sm" id="all-simple-on">Tutti ON</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="all-simple-off">Tutti OFF</button>
           </div>
           <div class="cell-muted">{{ module_rows|length }} moduli</div>
         </div>
@@ -131,8 +131,8 @@
           <thead>
             <tr>
               <th>Modulo</th>
-              <th class="tick-col">Accesso Ruolo</th>
-              <th class="tick-col">Pulsanti Attivi</th>
+              <th class="tick-col">Accesso + Menu</th>
+              <th class="tick-col">Copertura</th>
               <th class="act-col">Azioni Avanzate</th>
             </tr>
           </thead>
@@ -140,42 +140,81 @@
             {% for row in module_rows %}
             <tr>
               <td>
-                <div class="module-name">{{ row.modulo|capfirst }}</div>
+                <div class="module-name">{{ row.display_label }}</div>
+                <div class="sample"><code>{{ row.modulo }}</code></div>
                 <div class="sample">
-                  {{ row.pulsanti_count }} pulsanti
+                  legacy: {{ row.pulsanti_count }}
+                  {% if row.canonical_permissions_count %} | canonical: {{ row.canonical_permissions_count }}{% endif %}
+                  {% if row.navigation_items_count %} | menu: {{ row.navigation_items_count }}{% endif %}
                   {% if row.sample_labels %} | es: {{ row.sample_labels|join:", " }}{% endif %}
                 </div>
               </td>
               <td class="tick-col">
                 <label class="row-check">
                   <input type="checkbox"
-                         class="role-module-check"
-                         name="role_modules"
+                         class="simple-module-check"
+                         name="simple_modules"
                          value="{{ row.modulo }}"
-                         {% if row.role_enabled %}checked{% endif %}>
+                         data-partial="{% if row.simple_partial %}1{% else %}0{% endif %}"
+                         {% if row.simple_enabled %}checked{% endif %}>
                   <span>Abilitato</span>
                 </label>
-                {% if row.role_partial %}
+                {% if row.simple_partial %}
                   <div style="margin-top:4px;"><span class="helper-chip">Parziale</span></div>
                 {% endif %}
               </td>
               <td class="tick-col">
-                <label class="row-check">
-                  <input type="checkbox"
-                         class="ui-module-check"
-                         name="enabled_modules"
-                         value="{{ row.modulo }}"
-                         {% if row.buttons_enabled %}checked{% endif %}>
-                  <span>Attivi</span>
-                </label>
-                {% if row.buttons_partial %}
-                  <div style="margin-top:4px;"><span class="helper-chip">Parziale</span></div>
-                {% endif %}
+                <div class="sample">
+                  legacy:
+                  {% if row.legacy_role_partial %}
+                    <span class="helper-chip">Parziale</span>
+                  {% elif row.legacy_role_enabled %}
+                    ON
+                  {% else %}
+                    OFF
+                  {% endif %}
+                </div>
+                <div class="sample">
+                  canonical:
+                  {% if row.canonical_permissions_count %}
+                    {% if row.canonical_partial %}
+                      <span class="helper-chip">Parziale</span>
+                    {% elif row.canonical_enabled %}
+                      ON
+                    {% else %}
+                      OFF
+                    {% endif %}
+                  {% else %}
+                    n/d
+                  {% endif %}
+                </div>
+                <div class="sample">
+                  menu:
+                  {% if row.navigation_items_count %}
+                    {% if row.navigation_partial %}
+                      <span class="helper-chip">Parziale</span>
+                    {% elif row.navigation_enabled %}
+                      ON
+                    {% else %}
+                      OFF
+                    {% endif %}
+                  {% else %}
+                    n/d
+                  {% endif %}
+                </div>
               </td>
               <td class="act-col">
                 <a class="btn btn-secondary btn-sm"
                    href="{% url 'admin_portale:permessi' %}?target_type=role&ruolo_id={{ selected_role_id }}">
                   Permessi dettagli
+                </a>
+                <a class="btn btn-secondary btn-sm"
+                   href="{% url 'admin_portale:acl_canonico' %}?role_id={{ selected_role_id }}&tab=grants">
+                  ACL canonico
+                </a>
+                <a class="btn btn-secondary btn-sm"
+                   href="{% url 'admin_portale:mappa_permessi_navigazione' %}?legacy_role_id={{ selected_role_id }}&q={{ row.modulo|urlencode }}">
+                  Mappa route/menu
                 </a>
                 <a class="btn btn-secondary btn-sm"
                    href="{% url 'admin_portale:pulsanti' %}?modulo={{ row.modulo|urlencode }}">
@@ -208,13 +247,18 @@
   "use strict";
 
   function setAll(selector, checked) {
-    document.querySelectorAll(selector).forEach(function (el) { el.checked = checked; });
+    document.querySelectorAll(selector).forEach(function (el) {
+      el.checked = checked;
+      el.indeterminate = false;
+    });
   }
 
-  document.getElementById("all-role-on")?.addEventListener("click", function () { setAll(".role-module-check", true); });
-  document.getElementById("all-role-off")?.addEventListener("click", function () { setAll(".role-module-check", false); });
-  document.getElementById("all-ui-on")?.addEventListener("click", function () { setAll(".ui-module-check", true); });
-  document.getElementById("all-ui-off")?.addEventListener("click", function () { setAll(".ui-module-check", false); });
+  document.querySelectorAll(".simple-module-check[data-partial='1']").forEach(function (el) {
+    el.indeterminate = true;
+  });
+
+  document.getElementById("all-simple-on")?.addEventListener("click", function () { setAll(".simple-module-check", true); });
+  document.getElementById("all-simple-off")?.addEventListener("click", function () { setAll(".simple-module-check", false); });
 })();
 </script>
 {% endblock %}

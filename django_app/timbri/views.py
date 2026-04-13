@@ -29,6 +29,7 @@ from core.graph_utils import acquire_graph_token, is_placeholder_value
 from core.legacy_anagrafica import ensure_anagrafica_schema
 from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_table_columns
 from core.models import AuditLog
+from core.module_branding import get_module_branding_context, handle_module_branding_post
 
 from .forms import RegistroTimbroForm, save_variant_image
 from .models import OperatoreTimbri, RegistroTimbro, RegistroTimbroImmagine, TimbriImportIssue
@@ -807,6 +808,7 @@ def _base_context(request, **extra):
         "can_edit_timbri": _can_edit_timbri(request),
         "can_copy_timbri": _can_copy_timbri(request),
         "can_manage_timbri_config": _can_manage_timbri_config(request),
+        **get_module_branding_context("timbri", fallback_label="Timbri"),
     }
     base.update(extra)
     return base
@@ -1342,6 +1344,15 @@ def configurazione_page(request):
     if request.method == "POST":
         action = str(request.POST.get("action") or "").strip()
         redirect_url = f"{reverse('timbri:configurazione')}?tab={tab}"
+        branding_response = handle_module_branding_post(
+            request,
+            module_key="timbri",
+            redirect_to=redirect_url,
+            audit_module="timbri",
+            fallback_label="Timbri",
+        )
+        if branding_response is not None:
+            return branding_response
         if action == "save_sharepoint_config":
             try:
                 updates: dict[str, str] = {}

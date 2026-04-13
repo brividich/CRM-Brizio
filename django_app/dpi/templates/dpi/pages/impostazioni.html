@@ -82,12 +82,9 @@
         <input type="hidden" name="action" value="save_impostazioni">
 
         <div class="dpi-field">
-          <label>Responsabile (nome)</label>
-          <input type="text" name="responsabile_nome" value="{{ impost.responsabile_nome }}">
-        </div>
-        <div class="dpi-field">
-          <label>Email responsabile</label>
-          <input type="email" name="responsabile_email" value="{{ impost.responsabile_email }}">
+          <label>Responsabili modulo</label>
+          <textarea name="responsabili_raw" rows="4" placeholder="Mario Rossi | mario.rossi@azienda.it&#10;Lucia Bianchi | lucia.bianchi@azienda.it">{{ responsabili_raw }}</textarea>
+          <div style="font-size:11px; color:#94a3b8; margin-top:4px;">Una persona per riga. Formati accettati: <code>Nome | email</code>, <code>Nome &lt;email&gt;</code> oppure solo nome/email.</div>
         </div>
         <div class="dpi-field">
           <label>Note generali</label>
@@ -95,7 +92,7 @@
         </div>
         <div class="dpi-field" style="display:flex; align-items:center;">
           <input type="checkbox" name="notifica_nuova_richiesta" id="notif" value="1"{% if impost.notifica_nuova_richiesta %} checked{% endif %}>
-          <label for="notif" style="text-transform:none; font-size:13px; font-weight:600; margin:0; cursor:pointer;">Email al responsabile per ogni nuova richiesta</label>
+          <label for="notif" style="text-transform:none; font-size:13px; font-weight:600; margin:0; cursor:pointer;">Email al referente principale per ogni nuova richiesta</label>
         </div>
         <div class="dpi-field">
           <label>Email notifiche aggiuntive (una per riga)</label>

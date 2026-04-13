@@ -1,0 +1,797 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Benvenuto | Configurazione profilo{% endblock %}
+
+{% block subnav %}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .onb-wrap {
+    max-width: 760px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+  }
+  .onb-stepper {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    margin-bottom: 2rem;
+  }
+  .onb-step {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+  }
+  .onb-step:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    top: 15px;
+    left: 50%;
+    width: 100%;
+    height: 2px;
+    background: var(--color-border, #e2e8f0);
+    transition: background .2s ease;
+    z-index: 0;
+  }
+  .onb-step.done:not(:last-child)::after {
+    background: var(--color-green, #22c55e);
+  }
+  .onb-step-dot {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-border, #e2e8f0);
+    color: var(--color-muted, #94a3b8);
+    font-size: .82rem;
+    font-weight: 700;
+    position: relative;
+    z-index: 1;
+    transition: background .2s ease, color .2s ease;
+  }
+  .onb-step.active .onb-step-dot {
+    background: var(--color-accent, #3b82f6);
+    color: #fff;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, .15);
+  }
+  .onb-step.done .onb-step-dot {
+    background: var(--color-green, #22c55e);
+    color: #fff;
+  }
+  .onb-step-label {
+    margin-top: .45rem;
+    font-size: .75rem;
+    color: var(--color-muted, #94a3b8);
+    text-align: center;
+    white-space: nowrap;
+  }
+  .onb-step.active .onb-step-label {
+    color: var(--color-accent, #3b82f6);
+    font-weight: 600;
+  }
+  .onb-step.done .onb-step-label {
+    color: var(--color-green, #16a34a);
+  }
+
+  .onb-panel { display: none; }
+  .onb-panel.active { display: block; }
+
+  .onb-hero {
+    text-align: center;
+    padding: 1.5rem 0 1rem;
+  }
+  .onb-hero-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: .4rem;
+  }
+  .onb-hero-sub {
+    color: var(--color-muted, #64748b);
+    font-size: .95rem;
+  }
+  .onb-kv {
+    margin-top: 1.2rem;
+    padding: .85rem 1rem;
+    background: var(--color-bg, #f8fafc);
+    border-radius: 10px;
+  }
+
+  .onb-field { margin-bottom: 1.2rem; }
+  .onb-field label {
+    display: block;
+    margin-bottom: .35rem;
+    font-size: .92rem;
+    font-weight: 600;
+  }
+  .onb-field input[type="email"],
+  .onb-field input[type="tel"],
+  .onb-field input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: .55rem .8rem;
+    border: 1.5px solid var(--color-border, #e2e8f0);
+    border-radius: 8px;
+    font-size: .95rem;
+    background: var(--color-bg-card, #fff);
+    color: var(--color-text, #1e293b);
+  }
+  .onb-field input:focus {
+    outline: none;
+    border-color: var(--color-accent, #3b82f6);
+  }
+  .onb-hint {
+    margin-top: .3rem;
+    font-size: .8rem;
+    color: var(--color-muted, #94a3b8);
+  }
+
+  .onb-section {
+    margin-bottom: 1.25rem;
+  }
+  .onb-section-title {
+    margin-bottom: .7rem;
+    font-size: .92rem;
+    font-weight: 700;
+  }
+  .onb-choice-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: .8rem;
+  }
+  .onb-choice {
+    display: block;
+    border: 1.5px solid var(--color-border, #e2e8f0);
+    border-radius: 12px;
+    padding: .95rem 1rem;
+    cursor: pointer;
+    background: var(--color-bg-card, #fff);
+    transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
+  }
+  .onb-choice input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .onb-choice.selected {
+    border-color: var(--color-accent, #3b82f6);
+    background: rgba(59, 130, 246, .05);
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, .08);
+  }
+  .onb-choice-title {
+    font-size: .93rem;
+    font-weight: 700;
+    margin-bottom: .2rem;
+  }
+  .onb-choice-sub {
+    font-size: .82rem;
+    color: var(--color-muted, #64748b);
+  }
+  .onb-sidebar-block[hidden] {
+    display: none;
+  }
+
+  .onb-toggle-list {
+    display: grid;
+    gap: .75rem;
+  }
+  .onb-toggle-row {
+    display: flex;
+    align-items: flex-start;
+    gap: .85rem;
+    padding: .9rem 1rem;
+    border-radius: 10px;
+    border: 1.5px solid var(--color-border, #e2e8f0);
+    cursor: pointer;
+    background: var(--color-bg-card, #fff);
+    transition: border-color .15s ease, background .15s ease;
+  }
+  .onb-toggle-row:hover {
+    border-color: var(--color-accent, #3b82f6);
+  }
+  .onb-toggle-row input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .onb-toggle-row.checked {
+    border-color: var(--color-accent, #3b82f6);
+    background: rgba(59, 130, 246, .05);
+  }
+  .onb-toggle-switch {
+    width: 40px;
+    height: 22px;
+    border-radius: 999px;
+    background: var(--color-border, #e2e8f0);
+    position: relative;
+    flex-shrink: 0;
+    margin-top: 1px;
+    transition: background .2s ease;
+  }
+  .onb-toggle-switch::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    transition: left .2s ease;
+  }
+  .onb-toggle-row.checked .onb-toggle-switch {
+    background: var(--color-accent, #3b82f6);
+  }
+  .onb-toggle-row.checked .onb-toggle-switch::after {
+    left: 21px;
+  }
+  .onb-toggle-copy {
+    flex: 1;
+  }
+  .onb-toggle-copy strong {
+    display: block;
+    font-size: .92rem;
+    margin-bottom: .15rem;
+  }
+  .onb-toggle-copy span {
+    display: block;
+    font-size: .82rem;
+    color: var(--color-muted, #64748b);
+  }
+  .onb-chip-line {
+    margin-top: .35rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+  }
+  .onb-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: .15rem .55rem;
+    border-radius: 999px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: .72rem;
+    font-weight: 600;
+  }
+  .onb-empty {
+    padding: .9rem 1rem;
+    border: 1px dashed var(--color-border, #cbd5e1);
+    border-radius: 10px;
+    color: var(--color-muted, #64748b);
+    font-size: .9rem;
+    background: var(--color-bg, #f8fafc);
+  }
+
+  .onb-summary-box {
+    background: var(--color-bg, #f8fafc);
+    border-radius: 10px;
+    padding: .5rem 1rem;
+  }
+  .onb-summary-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .58rem 0;
+    border-bottom: 1px solid var(--color-border, #f1f5f9);
+    font-size: .9rem;
+  }
+  .onb-summary-row:last-child {
+    border-bottom: none;
+  }
+  .onb-summary-row .label {
+    color: var(--color-muted, #64748b);
+  }
+  .onb-summary-row .value {
+    font-weight: 600;
+    text-align: right;
+  }
+  .onb-summary-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: .4rem;
+  }
+  .onb-summary-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: .2rem .55rem;
+    border-radius: 999px;
+    background: #dcfce7;
+    color: #166534;
+    font-size: .76rem;
+    font-weight: 600;
+  }
+  .onb-summary-badge.off {
+    background: #f1f5f9;
+    color: #64748b;
+  }
+
+  .onb-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1.8rem;
+  }
+  .onb-btn {
+    padding: .6rem 1.4rem;
+    border-radius: 8px;
+    border: none;
+    font-size: .9rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .onb-btn-primary {
+    background: var(--color-accent, #3b82f6);
+    color: #fff;
+  }
+  .onb-btn-ghost {
+    background: transparent;
+    color: var(--color-muted, #64748b);
+    border: 1.5px solid var(--color-border, #e2e8f0);
+  }
+
+  @media (max-width: 680px) {
+    .onb-step-label {
+      white-space: normal;
+      font-size: .7rem;
+      max-width: 72px;
+    }
+    .onb-summary-row {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .onb-summary-row .value,
+    .onb-summary-list {
+      text-align: left;
+      justify-content: flex-start;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="onb-wrap">
+  {% if messages %}
+    {% for msg in messages %}
+      <div class="alert-banner">
+        <div class="alert-left">{{ msg }}</div>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="onb-stepper">
+    <div class="onb-step active" id="step-1">
+      <div class="onb-step-dot">1</div>
+      <div class="onb-step-label">Benvenuto</div>
+    </div>
+    <div class="onb-step" id="step-2">
+      <div class="onb-step-dot">2</div>
+      <div class="onb-step-label">Contatti</div>
+    </div>
+    <div class="onb-step" id="step-3">
+      <div class="onb-step-dot">3</div>
+      <div class="onb-step-label">Interfaccia</div>
+    </div>
+    <div class="onb-step" id="step-4">
+      <div class="onb-step-dot">4</div>
+      <div class="onb-step-label">Notifiche</div>
+    </div>
+    <div class="onb-step" id="step-5">
+      <div class="onb-step-dot">5</div>
+      <div class="onb-step-label">Riepilogo</div>
+    </div>
+  </div>
+
+  <form method="post" id="onb-form">
+    {% csrf_token %}
+
+    <div class="card onb-panel active" id="panel-1">
+      <div class="card-body">
+        <div class="onb-hero">
+          <div class="onb-hero-title">Benvenuto, {{ request.user.first_name|default:request.user.username }}!</div>
+          <div class="onb-hero-sub">
+            Completa il setup iniziale del tuo profilo.<br>
+            Troverai subito contatti, preferenze interfaccia e notifiche coerenti con il tuo ruolo.
+          </div>
+        </div>
+        <div class="onb-kv">
+          <div class="onb-summary-row">
+            <span class="label">Username</span>
+            <span class="value">{{ request.user.username }}</span>
+          </div>
+          {% if request.user.first_name or request.user.last_name %}
+          <div class="onb-summary-row">
+            <span class="label">Nome</span>
+            <span class="value">{{ request.user.get_full_name }}</span>
+          </div>
+          {% endif %}
+        </div>
+        <div class="onb-nav">
+          <span></span>
+          <button type="button" class="onb-btn onb-btn-primary" onclick="goStep(2)">Inizia</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card onb-panel" id="panel-2">
+      <div class="card-head"><div class="card-title">Dati di contatto</div></div>
+      <div class="card-body">
+        <p class="page-sub" style="margin-bottom:1.2rem;">
+          Inserisci i recapiti che vuoi usare per ricevere comunicazioni importanti dal portale.
+        </p>
+        <div class="onb-field">
+          <label for="email_contatto">Email di contatto</label>
+          <input
+            type="email"
+            name="email_contatto"
+            id="email_contatto"
+            value="{{ prefill_email }}"
+            placeholder="es. nome.cognome@gmail.com"
+            autocomplete="email">
+          <div class="onb-hint">Puoi usare un indirizzo diverso dall'email aziendale.</div>
+        </div>
+        <div class="onb-field">
+          <label for="cellulare_contatto">Cellulare</label>
+          <input
+            type="tel"
+            name="cellulare_contatto"
+            id="cellulare_contatto"
+            value="{{ prefill_cellulare }}"
+            placeholder="es. +39 333 1234567"
+            autocomplete="tel">
+          <div class="onb-hint">Opzionale. Usato solo per comunicazioni urgenti.</div>
+        </div>
+        <div class="onb-nav">
+          <button type="button" class="onb-btn onb-btn-ghost" onclick="goStep(1)">Indietro</button>
+          <button type="button" class="onb-btn onb-btn-primary" onclick="goStep(3)">Avanti</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card onb-panel" id="panel-3">
+      <div class="card-head"><div class="card-title">Preferenze interfaccia</div></div>
+      <div class="card-body">
+        <p class="page-sub" style="margin-bottom:1.2rem;">
+          Scegli come vuoi usare il portale fin dal primo accesso. Potrai comunque cambiare tutto in seguito dal profilo.
+        </p>
+
+        <div class="onb-section">
+          <div class="onb-section-title">Menu principale</div>
+          <div class="onb-choice-grid">
+            <label class="onb-choice{% if ui_prefs_current.nav_mode == 'side' %} selected{% endif %}">
+              <input type="radio" name="nav_mode" value="side" {% if ui_prefs_current.nav_mode == 'side' %}checked{% endif %}>
+              <div class="onb-choice-title">Barra laterale</div>
+              <div class="onb-choice-sub">Sidebar sinistra con scorciatoie sempre raggiungibili.</div>
+            </label>
+            <label class="onb-choice{% if ui_prefs_current.nav_mode == 'top' %} selected{% endif %}">
+              <input type="radio" name="nav_mode" value="top" {% if ui_prefs_current.nav_mode == 'top' %}checked{% endif %}>
+              <div class="onb-choice-title">Barra superiore</div>
+              <div class="onb-choice-sub">Navigazione classica in alto, piu essenziale.</div>
+            </label>
+          </div>
+        </div>
+
+        <div class="onb-section">
+          <div class="onb-section-title">Dimensione caratteri</div>
+          <div class="onb-choice-grid">
+            <label class="onb-choice{% if ui_prefs_current.font_scale == 'small' %} selected{% endif %}">
+              <input type="radio" name="font_scale" value="small" {% if ui_prefs_current.font_scale == 'small' %}checked{% endif %}>
+              <div class="onb-choice-title">Piccolo</div>
+              <div class="onb-choice-sub">Layout piu compatto.</div>
+            </label>
+            <label class="onb-choice{% if ui_prefs_current.font_scale == 'normal' %} selected{% endif %}">
+              <input type="radio" name="font_scale" value="normal" {% if ui_prefs_current.font_scale == 'normal' %}checked{% endif %}>
+              <div class="onb-choice-title">Normale</div>
+              <div class="onb-choice-sub">Equilibrio consigliato.</div>
+            </label>
+            <label class="onb-choice{% if ui_prefs_current.font_scale == 'large' %} selected{% endif %}">
+              <input type="radio" name="font_scale" value="large" {% if ui_prefs_current.font_scale == 'large' %}checked{% endif %}>
+              <div class="onb-choice-title">Grande</div>
+              <div class="onb-choice-sub">Leggibilita aumentata.</div>
+            </label>
+            <label class="onb-choice{% if ui_prefs_current.font_scale == 'xl' %} selected{% endif %}">
+              <input type="radio" name="font_scale" value="xl" {% if ui_prefs_current.font_scale == 'xl' %}checked{% endif %}>
+              <div class="onb-choice-title">Extra grande</div>
+              <div class="onb-choice-sub">Massima accessibilita.</div>
+            </label>
+          </div>
+        </div>
+
+        <div class="onb-sidebar-block" id="onb-sidebar-block"{% if ui_prefs_current.nav_mode != 'side' %} hidden{% endif %}>
+          <div class="onb-section">
+            <div class="onb-section-title">Sidebar all'apertura</div>
+            <div class="onb-choice-grid">
+              <label class="onb-choice{% if not ui_prefs_current.sidebar_collapsed %} selected{% endif %}">
+                <input type="radio" name="sidebar_collapsed" value="0" {% if not ui_prefs_current.sidebar_collapsed %}checked{% endif %}>
+                <div class="onb-choice-title">Espansa</div>
+                <div class="onb-choice-sub">Etichette visibili e contesto completo.</div>
+              </label>
+              <label class="onb-choice{% if ui_prefs_current.sidebar_collapsed %} selected{% endif %}">
+                <input type="radio" name="sidebar_collapsed" value="1" {% if ui_prefs_current.sidebar_collapsed %}checked{% endif %}>
+                <div class="onb-choice-title">Compressa</div>
+                <div class="onb-choice-sub">Solo icone, piu spazio al contenuto.</div>
+              </label>
+            </div>
+          </div>
+
+          <div class="onb-section">
+            <div class="onb-section-title">Scorciatoie nel footer sidebar</div>
+            <div class="onb-toggle-list">
+              {% for action in sidebar_footer_catalog %}
+              <label class="onb-toggle-row{% if action.key in ui_prefs_current.sidebar_footer_actions %} checked{% endif %}">
+                <input
+                  type="checkbox"
+                  name="sidebar_footer_actions"
+                  value="{{ action.key }}"
+                  data-label="{{ action.label }}"
+                  {% if action.key in ui_prefs_current.sidebar_footer_actions %}checked{% endif %}>
+                <div class="onb-toggle-switch"></div>
+                <div class="onb-toggle-copy">
+                  <strong>{{ action.label }}</strong>
+                  <span>{{ action.hint }}</span>
+                </div>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <div class="onb-nav">
+          <button type="button" class="onb-btn onb-btn-ghost" onclick="goStep(2)">Indietro</button>
+          <button type="button" class="onb-btn onb-btn-primary" onclick="goStep(4)">Avanti</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card onb-panel" id="panel-4">
+      <div class="card-head"><div class="card-title">Preferenze notifiche</div></div>
+      <div class="card-body">
+        <p class="page-sub" style="margin-bottom:1.2rem;">
+          Mostriamo solo i moduli che il tuo ruolo vede davvero, cosi le preferenze email restano chiare e non fuorvianti.
+        </p>
+
+        {% if visible_notification_options %}
+        <div class="onb-toggle-list">
+          {% for option in visible_notification_options %}
+          <label class="onb-toggle-row onb-notification{% if option.enabled %} checked{% endif %}">
+            <input
+              type="checkbox"
+              name="notifiche_{{ option.key }}"
+              value="1"
+              data-label="{{ option.label }}"
+              {% if option.enabled %}checked{% endif %}>
+            <div class="onb-toggle-switch"></div>
+            <div class="onb-toggle-copy">
+              <strong>{{ option.label }}</strong>
+              <span>{{ option.description }}</span>
+              {% if option.visible_module_labels %}
+              <div class="onb-chip-line">
+                {% for module_label in option.visible_module_labels %}
+                <span class="onb-chip">{{ module_label }}</span>
+                {% endfor %}
+              </div>
+              {% endif %}
+            </div>
+          </label>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="onb-empty">Nessun modulo con notifiche email configurabili e visibile per il tuo ruolo.</div>
+        {% endif %}
+
+        <div class="onb-nav">
+          <button type="button" class="onb-btn onb-btn-ghost" onclick="goStep(3)">Indietro</button>
+          <button type="button" class="onb-btn onb-btn-primary" onclick="goStep(5)">Avanti</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card onb-panel" id="panel-5">
+      <div class="card-head"><div class="card-title">Riepilogo</div></div>
+      <div class="card-body">
+        <p class="page-sub" style="margin-bottom:1.2rem;">
+          Controlla le scelte prima di entrare nel portale.
+        </p>
+        <div class="onb-summary-box">
+          <div class="onb-summary-row">
+            <span class="label">Email contatto</span>
+            <span class="value" id="sum-email">-</span>
+          </div>
+          <div class="onb-summary-row">
+            <span class="label">Cellulare</span>
+            <span class="value" id="sum-cellulare">-</span>
+          </div>
+          <div class="onb-summary-row">
+            <span class="label">Menu</span>
+            <span class="value" id="sum-nav-mode">-</span>
+          </div>
+          <div class="onb-summary-row">
+            <span class="label">Testo</span>
+            <span class="value" id="sum-font-scale">-</span>
+          </div>
+          <div class="onb-summary-row">
+            <span class="label">Sidebar</span>
+            <span class="value" id="sum-sidebar-default">-</span>
+          </div>
+          <div class="onb-summary-row">
+            <span class="label">Footer sidebar</span>
+            <span class="value" id="sum-sidebar-footer">-</span>
+          </div>
+          <div class="onb-summary-row">
+            <span class="label">Notifiche email</span>
+            <div class="onb-summary-list" id="sum-notifications"></div>
+          </div>
+        </div>
+        <div class="onb-nav">
+          <button type="button" class="onb-btn onb-btn-ghost" onclick="goStep(4)">Indietro</button>
+          <button type="submit" class="onb-btn onb-btn-primary">Conferma e accedi</button>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+{{ visible_notification_options|json_script:"onb-notification-options" }}
+<script>
+(function () {
+  var current = 1;
+  var total = 5;
+  var notificationOptionsNode = document.getElementById("onb-notification-options");
+  var notificationOptions = [];
+
+  if (notificationOptionsNode) {
+    try {
+      notificationOptions = JSON.parse(notificationOptionsNode.textContent || "[]");
+    } catch (e) {
+      notificationOptions = [];
+    }
+  }
+
+  function stepEl(number) {
+    return document.getElementById("step-" + number);
+  }
+
+  function panelEl(number) {
+    return document.getElementById("panel-" + number);
+  }
+
+  function setChoiceState(input) {
+    var choice = input.closest(".onb-choice");
+    if (!choice) return;
+    var group = document.querySelectorAll('input[name="' + input.name + '"]');
+    Array.prototype.forEach.call(group, function (radio) {
+      var radioChoice = radio.closest(".onb-choice");
+      if (radioChoice) {
+        radioChoice.classList.toggle("selected", radio.checked);
+      }
+    });
+  }
+
+  function setToggleState(input) {
+    var row = input.closest(".onb-toggle-row");
+    if (!row) return;
+    row.classList.toggle("checked", !!input.checked);
+  }
+
+  function selectedRadioValue(name, fallback) {
+    var checked = document.querySelector('input[name="' + name + '"]:checked');
+    return checked ? checked.value : (fallback || "");
+  }
+
+  function escapeHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function toggleSidebarBlock() {
+    var sidebarBlock = document.getElementById("onb-sidebar-block");
+    if (!sidebarBlock) return;
+    sidebarBlock.hidden = selectedRadioValue("nav_mode", "side") !== "side";
+  }
+
+  function updateSummary() {
+    var email = (document.getElementById("email_contatto") || {}).value || "";
+    var cellulare = (document.getElementById("cellulare_contatto") || {}).value || "";
+    var navMode = selectedRadioValue("nav_mode", "side");
+    var fontScale = selectedRadioValue("font_scale", "normal");
+    var sidebarCollapsed = selectedRadioValue("sidebar_collapsed", "0");
+    var footerChecks = document.querySelectorAll('input[name="sidebar_footer_actions"]:checked');
+    var notificationChecks = document.querySelectorAll('.onb-notification input[type="checkbox"]:checked');
+    var notificationsTarget = document.getElementById("sum-notifications");
+    var footerLabels = [];
+
+    document.getElementById("sum-email").textContent = email.trim() || "-";
+    document.getElementById("sum-cellulare").textContent = cellulare.trim() || "-";
+
+    document.getElementById("sum-nav-mode").textContent = navMode === "side" ? "Barra laterale" : "Barra superiore";
+
+    document.getElementById("sum-font-scale").textContent = {
+      small: "Piccolo",
+      normal: "Normale",
+      large: "Grande",
+      xl: "Extra grande"
+    }[fontScale] || fontScale || "-";
+
+    if (navMode !== "side") {
+      document.getElementById("sum-sidebar-default").textContent = "Non applicata";
+      document.getElementById("sum-sidebar-footer").textContent = "Non applicate";
+    } else {
+      document.getElementById("sum-sidebar-default").textContent = sidebarCollapsed === "1" ? "Compressa" : "Espansa";
+      Array.prototype.forEach.call(footerChecks, function (checkbox) {
+        footerLabels.push((checkbox.getAttribute("data-label") || checkbox.value || "").trim());
+      });
+      document.getElementById("sum-sidebar-footer").textContent = footerLabels.length ? footerLabels.join(", ") : "Nessuna";
+    }
+
+    if (notificationsTarget) {
+      notificationsTarget.innerHTML = "";
+      if (!notificationOptions.filter(function (option) { return !!option.visible; }).length) {
+        notificationsTarget.innerHTML = '<span class="onb-summary-badge off">Nessun modulo disponibile</span>';
+      } else if (!notificationChecks.length) {
+        notificationsTarget.innerHTML = '<span class="onb-summary-badge off">Nessuna notifica attiva</span>';
+      } else {
+        Array.prototype.forEach.call(notificationChecks, function (checkbox) {
+          var label = checkbox.getAttribute("data-label") || checkbox.value || "";
+          notificationsTarget.insertAdjacentHTML(
+            "beforeend",
+            '<span class="onb-summary-badge">' + escapeHtml(label) + "</span>"
+          );
+        });
+      }
+    }
+  }
+
+  function goStep(next) {
+    if (next < 1 || next > total || next === current) return;
+    panelEl(current).classList.remove("active");
+    panelEl(next).classList.add("active");
+    for (var i = 1; i <= total; i++) {
+      var step = stepEl(i);
+      if (!step) continue;
+      step.classList.remove("active", "done");
+      if (i < next) step.classList.add("done");
+      if (i === next) step.classList.add("active");
+    }
+    current = next;
+    if (current === total) {
+      updateSummary();
+    }
+  }
+
+  window.goStep = goStep;
+
+  Array.prototype.forEach.call(document.querySelectorAll(".onb-choice input[type='radio']"), function (input) {
+    setChoiceState(input);
+    input.addEventListener("change", function () {
+      setChoiceState(input);
+      if (input.name === "nav_mode") {
+        toggleSidebarBlock();
+      }
+    });
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll(".onb-toggle-row input[type='checkbox']"), function (input) {
+    setToggleState(input);
+    input.addEventListener("change", function () {
+      setToggleState(input);
+    });
+  });
+
+  toggleSidebarBlock();
+
+  document.getElementById("onb-form").addEventListener("submit", function () {
+    updateSummary();
+  });
+})();
+</script>
+{% endblock %}

@@ -50,6 +50,9 @@ target/
 .pybuilder/
 temp/
 .tmp_py/
+.tmp_tests/
+django_app/.tmp_tests/
+.tmp_powerautomate/
 
 # Packaging / installers
 *.manifest

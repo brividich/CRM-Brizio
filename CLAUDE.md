@@ -1,7 +1,7 @@
 # CLAUDE.md - Portale Novicrom
 
 Documento di contesto per AI coding assistant. Aggiornato continuamente con il progetto.
-Versione app corrente: **0.9.9** (2026-04-08)
+Versione app corrente: **0.9.15** (2026-04-10)
 
 ---
 
@@ -13,6 +13,7 @@ Versione app corrente: **0.9.9** (2026-04-08)
 - **Database dev:** SQLite (solo per sviluppo Django-only, senza tabelle legacy)
 - **Auth:** 4 backend in cascata - `AxesStandaloneBackend` -> `SQLServerLegacyBackend` -> `LDAPBackend` (AD `cnovicrom.local`) -> `ModelBackend`
 - **Frontend:** SSR puro con Django templates, nessun framework JS, CSS custom
+- **Layout shared:** `core/base.html` + `core/static/core/css/theme.css` fungono da shell viewport-aware; i root wrapper di modulo/dashboard devono riempire l'altezza disponibile ed evitare sidebar/grid con `align-self: start` o `align-items: start` se questo crea vuoti verticali visibili
 - **Integrazioni:** Microsoft Graph/SharePoint/Outlook Calendar (MSAL), LDAP/AD, SMTP
 
 Hardening sicurezza 0.8.7:
@@ -33,11 +34,11 @@ Hardening sicurezza 0.8.7:
 | `dashboard` | Home page utente e dashboard principale KPI/personalizzabile |
 | `assenze` | Modulo unificato assenze: richieste, gestione, calendario, certificazioni + sync SharePoint |
 | `anomalie` | Segnalazione e gestione anomalie produzione |
-| `assets` | Gestione asset aziendali (macchinari, attrezzature) + scadenzari manutenzioni/scadenze con creazione eventi Outlook sul calendario dell'utente selezionato |
-| `tasks` | Task management interno |
+| `assets` | Gestione asset aziendali (macchinari, attrezzature) + scadenzari manutenzioni/scadenze con creazione eventi Outlook sul calendario dell'utente selezionato; la manutenzione periodica vive come categoria della manutenzione su `/assets/manutenzione/verifiche/` con redirect legacy da `/assets/verifiche-periodiche/`; dashboard KPI personalizzabile per utente su `/assets/dashboard/` con 12 widget (scadenze, OdL, verifiche, ripartizioni) e drag & drop; la lista inventario canonica vive su `/assets/lista/` e i vecchi link filtrati `/assets/?asset_type=...` vengono riallineati automaticamente; licenze software su `/assets/licenze/` assegnabili ad asset o dipendenti anagrafica; categorie asset e campi dinamici si gestiscono nella tab `Categorie asset` di `/assets/impostazioni/`, con rimando rapido anche dallo Studio amministratore inventario |
+| `tasks` | `KICK-OFF`: portfolio kickoff, attivita kickoff, subtask, commenti, allegati, import Excel e upload documento MOD.073 VRF |
 | `automazioni` | Designer visuale automazioni + SQL trigger -> event queue |
 | `admin_portale` | Pannello admin custom (non Django admin) |
-| `anagrafica` | Anagrafica dipendenti (integrata con AD/legacy DB) |
+| `anagrafica` | Anagrafica dipendenti (integrata con AD/legacy DB, fallback automatico `email_notifica` -> `email` quando il dato legacy manca) |
 | `notizie` | Bacheca notizie/comunicazioni |
 | `timbri` | Report timbrature (lettura da DB legacy) |
 | `planimetria` | Wrapper per assets (modelli vuoti, solo reindirizzamento) |
@@ -49,6 +50,16 @@ Hardening sicurezza 0.8.7:
 | `setup_wizard` | Wizard guidato prima configurazione (12 step) |
 | `dpi` | Gestione DPI (Dispositivi Protezione Individuale): richieste con card-picker immagini, approvazione, consegna, storico, KPI |
 | `procedure_refresh` | Presa visione procedure MT/MTSI: anagrafica documenti, revisioni con sorgente SharePoint/file server, campagne, assegnazioni, tracking aperture/conferme, report, export CSV |
+
+Pattern condiviso pagine modulo `Impostazioni`:
+- ogni modulo mantiene una propria pagina dedicata, non esiste una pagina impostazioni centralizzata unica
+- i percorsi canonici sono `/diario-preposto/impostazioni/`, `/rilevazione-incidenti/impostazioni/`, `/timbri/impostazioni/`, `/rentri/impostazioni/`, `/assenze/impostazioni/`, `/notizie/impostazioni/`, `/procedure-refresh/impostazioni/`, `/tasks/impostazioni/`, `/assets/impostazioni/`
+- gli URL legacy tipo `gestione`, `configurazione`, `admin` restano compatibili tramite redirect quando esistevano gia
+- nel modulo `tasks` la pagina canonica `/tasks/impostazioni/` include anche le tab amministrative `Configurazione`, `Riepilogo`, `Record` e `Log attivita`; il vecchio `/tasks/gestione/` reindirizza alla tab `Riepilogo`
+- il branding modulo usa `module_branding.<module>.display_label` e `module_branding.<module>.logo_url` in `SiteConfig`; se presenti, nome e logo possono apparire nelle hero, nelle shell modulo e nei link amministrativi
+- nel modulo `assets` la configurazione categorie/campi dinamici vive nella tab `Categorie asset` della pagina `Impostazioni`; lo Studio amministratore in `/assets/lista/` mantiene solo un rimando rapido per compatibilita e discoverability
+- nel modulo `tasks` (branding utente `KICK-OFF`) il kickoff coincide con il progetto e per i nuovi record riceve nome automatico `KICK-OFF <n>` tramite `kickoff_number`; `VRF` indica solo il documento Excel MOD.073. Il form `Nuova attivita`/`Modifica attivita` distingue esplicitamente tra aggancio a kickoff esistente e creazione nuovo kickoff, non richiede il nome progetto manuale, mostra option label `nome | P/N | Rev | Ver | Cliente` e riusa automaticamente un kickoff gia accessibile con stessa identita `part_number + revisione + versione`, evitando duplicati. `Revisione` e `Versione` non sono valide senza `P/N`, mentre la lista kickoff espone anche le azioni `Copia kickoff e VRF` e `Copia kickoff e VRF tranne P/N`
+- **VRF upload workflow**: alla creazione di un nuovo kickoff, il sistema reindirizza a `/tasks/projects/<id>/vrf/` per caricare il documento MOD.073. La view `project_vrf_upload` analizza il file .xlsx con `openpyxl` (celle fisse: B3=P/N, I3=Descrizione, P3=Esp, O2=Preventivo n°, P2=Versione, B4=Cliente) e mostra un'anteprima prima del commit. Il blocco progressivo e gestito da `_vrf_status_detail()`: `PENDING` diventa warning dopo `vrf_reminder_days` giorni (default 7) e bloccante dopo `vrf_blocking_days` giorni (default 30); questi parametri si configurano in `TaskImpostazioni` dalla tab `Configurazione` di `/tasks/impostazioni/`. Il blocco impedisce creazione e modifica di VRF tramite guard in `task_create` e `task_edit`. `VRFDocStatus` ha tre stati: `PENDING` / `UPLOADED` / `NOT_REQUIRED`. Il portfolio espone una colonna "Documento" con badge colorato per stato. Tutte le azioni (carica, conferma, salta, non richiesto) sono tracciate in AuditLog
 
 ---
 
@@ -71,6 +82,7 @@ Hardening sicurezza 0.8.7:
   6. **solo se binding canonico assente**: fallback ACL legacy
 - Diagnostica strutturata: `resolve_acl_access()` / `diagnose_acl_access()` restituiscono sempre `decision_source`, `reason`, `trace`, blocco `canonical` e blocco `legacy_fallback`.
 - Middleware: `ACLMiddleware` ora usa il resolver v2 e salva il dettaglio in `request.acl_decision`.
+- Compat routing operativo: la landing `/anomalie-menu` resta una pagina contenitore/launcher; se il ruolo ha almeno un permesso operativo del modulo anomalie (`anomalie_aperte` o `inserimento_anomalie`), il resolver puo consentire l'accesso anche quando il grant canonico del contenitore `legacy.dashboard.dashboard_anomalie_menu` e assente o negato.
 
 ### 2. ACL Legacy (fallback compatibilita)
 
@@ -108,6 +120,8 @@ Sidebar nav side: i gruppi aperti devono restare visivamente distinti dal primo 
 
 ### Strumenti diagnostica/gestione ACL (admin)
 
+- `/admin-portale/accessi/`: entrypoint semplice predefinito per i permessi ruolo. Un solo toggle per modulo sincronizza ACL legacy (`permessi.can_view/consentito`), grant canonici v2 (`RolePermissionGrant`) e visibilita menu ruolo (`NavigationRoleAccess`). Le eccezioni restano nei pannelli avanzati.
+- `/admin-portale/gestione-accessi/`: dettaglio storico legacy ruolo -> modulo -> azione.
 - `/admin-portale/acl-canonico/`: gestione operativa del layer v2 (permission code, route/path binding, grant ruolo, override utente, override navigazione utente). Tab: 1. PermissionDefinition, 2. Route Binding, 3. Role Grant, 4. User Override, **5. Nav Override** (nuovo).
 - `/admin-portale/acl-route-coverage/`: report route dedicato con stati `CANONICAL_BOUND`, `LEGACY_FALLBACK`, `UNBOUND`, `COMING_SOON_EXCLUDED`, `REDIRECT_ONLY` e export CSV.
 - `/admin-portale/acl-diagnostica/` (alias compat legacy: `/admin-portale/acl/`): diagnostica combinata legacy + canonical con decisione finale del resolver v2 e trace.
@@ -123,6 +137,10 @@ Questi path bypassano completamente l'`ACLMiddleware`:
 ```
 
 Ogni nuova app che deve essere accessibile senza autenticazione va aggiunta a `MIDDLEWARE_EXEMPT_PREFIXES` in `config/settings/base.py`.
+
+Path auth-only condivisi gestiti direttamente da `ACLMiddleware` (senza grant ACL dedicati):
+- `/onboarding/` per tutti gli utenti autenticati non superuser interessati al primo accesso
+- `/notifiche/` e `/api/notifiche/...` per tutti gli utenti autenticati, cosi il centro notifiche e il popup ack restano sempre disponibili indipendentemente dal ruolo
 
 ### ACL Bootstrap (pattern per nuovi endpoint API)
 
@@ -241,7 +259,8 @@ L'exe e l'artefatto distribuito agli utenti finali: se non viene rigenerato, le 
 - Output: `deployment/dist/SetupWizard.exe` (escluso da git via `.gitignore`)
 - Il bundle del wizard deve escludere sempre `.env`, `.venv`, `.tmp_tests`, database locali, cache, log, media, test suite Python e altri artefatti macchina-specifici da `django_app/`.
 - Nei test Django che scrivono file o `MEDIA_ROOT` su Windows, preferire cartelle sotto `django_app/.tmp_tests` invece di `tempfile.TemporaryDirectory()` di sistema, per evitare `PermissionError` sporadici su creazione o cleanup di directory annidate.
-- Le esclusioni del bundle sono centralizzate in `deployment/setup_wizard_bundle_rules.json`; `SetupWizard.spec` e `tools/release_guard.ps1` devono leggerlo entrambi.
+- Le esclusioni del bundle sono centralizzate in `deployment/setup_wizard_bundle_rules.json`; `SetupWizard.spec`, `tools/release_guard.ps1` e `deployment/scripts/package-release.ps1` devono leggerlo tutti per restare coerenti.
+- `deployment/scripts/package-release.ps1` deve auto-rigenerare `deployment/dist/SetupWizard.exe` se manca o e obsoleto rispetto ai trigger runtime del bundle, prima di eseguire il release guard.
 - `SetupWizard.spec` usa hook custom per `tkinter` e deve continuare a includere `_tcl_data` e `_tk_data`.
 - Il runtime Python del wizard e di `deployment/scripts/setup-environment.ps1` deve essere auto-rilevato in modo robusto (`py`, percorsi standard, registry, `PATH`) e validato come Python 3.11+.
 - Se falliscono `venv`, `pip install`, `collectstatic` o `migrate`, il wizard deve marcare l'errore esplicitamente e non attivare la release/IIS o schedulare task su un ambiente incompleto.
@@ -341,10 +360,10 @@ Percorso: `/admin-portale/hub/` Ã¢â‚¬â€ richiede `is_legacy_admin()`.
 
 | App | Modelli | Note |
 | --- | --- | --- |
-| `core` | 22 | Profile, NavigationItem, NavigationRoleAccess, AuditLog, SiteConfig, Notifica, UserExtraInfo, Checklist*, AnagraficaVoce/Risposta, Dashboard configs, RepartoCapoMapping, OptioneConfig, LoginBanner, LegacyRedirect, NavigationSnapshot |
+| `core` | 23 | Profile, NavigationItem, NavigationRoleAccess, AuditLog, SiteConfig, Notifica, UserExtraInfo, Checklist*, AnagraficaVoce/Risposta, Dashboard configs, RepartoCapoMapping, OptioneConfig, LoginBanner, LegacyRedirect, NavigationSnapshot, UserOnboarding |
 | `core` (legacy, ex-unmanaged) | +5 | Ruolo, UtenteLegacy, AnagraficaDipendente, Pulsante, Permesso Ã¢â‚¬â€ ora `managed=True` sotto `core`, migration 0029 faked |
-| `assets` | 25 | Asset, AssetCategory, AssetITDetails, WorkMachine, WorkOrder, WorkOrderAttachment/Log, PeriodicVerification, AssetEndpoint, PlantLayout/Area/Marker, AssetDocument, AssetLabelTemplate + modelli config UI |
-| `tasks` | 7 | Project, Task, SubTask, TaskComment, ProjectComment, TaskEvent, TaskAttachment |
+| `assets` | 27 | Asset, AssetCategory, AssetITDetails, WorkMachine, WorkOrder, WorkOrderAttachment/Log, PeriodicVerification, SoftwareLicense, AssetEndpoint, PlantLayout/Area/Marker, AssetDocument, AssetLabelTemplate, AssetDashboardConfig (config widget dashboard per utente) + modelli config UI |
+| `tasks` | 7 | Project (+ `kickoff_number`, `revisione`, `versione`, `vrf_status`, `vrf_file`, `vrf_original_name`, `vrf_uploaded_at`, `vrf_quote_number`, `vrf_description`, `vrf_esp`), Task, SubTask, TaskComment, ProjectComment, TaskEvent, TaskAttachment; `TaskImpostazioni` singleton con `vrf_reminder_days` e `vrf_blocking_days` |
 | `automazioni` | 6 | AutomationRule, AutomationCondition, AutomationAction, AutomationRunLog, AutomationActionLog, DashboardMetricValue |
 | `tickets` | 7 | Ticket (+ campi analitici: componente, causa_radice, tipo_fermo, ore_fermo_macchina, data_presa_in_carico, data_primo_intervento, risolto_da_nome, ricorrente, ticket_origine FK), TicketCommento, TicketAllegato, TicketImpostazioni, CategoriaTicket, TicketStatoLog (log cambio stato), TicketIntervento (sessioni lavoro tecnico) |
 | `notizie` | 4 | Notizia, NotiziaAudience, NotiziaAllegato, NotiziaLettura |
@@ -384,6 +403,7 @@ Questi componenti esistono solo sul server di produzione:
 - Designer visuale Ã¢â€ â€™ regole salvate su DB Ã¢â€ â€™ trigger SQL Server Ã¢â€ â€™ inserimento in `automation_event_queue`
 - Management command: `python manage.py process_automation_queue`
 - File principali: `automazioni/models.py`, `automazioni/views.py`, `sql/`
+- Builder classico e designer visuale devono passare cataloghi sorgente e preset al frontend come oggetti Python via `json_script`; non usare `json.dumps` sui valori gia destinati a `json_script`, altrimenti i dropdown trigger/condizioni restano fermi sulla sorgente iniziale.
 
 ---
 
@@ -436,6 +456,23 @@ Le app `dashboard`, `assenze`, `anomalie`, `timbri`, `rentri`, `core`, `planimet
 - La dashboard principale vive in `dashboard` come workspace personale: widget KPI multi-modulo, layout utente e template iniziale globale gestito dagli admin. `scheda-dipendente` resta solo come alias compatibile.
 - Per `assenze`, il punto di ingresso canonico e il modulo `/assenze/`: menu, nuova richiesta, gestione personale, calendario e certificazione presenza.
 - Eventuali route legacy o compatibilita (es. `/richieste`, alias `coming_assenze`) devono puntare al modulo `assenze`, non duplicarne le pagine dentro `dashboard`.
+
+---
+
+## Wizard di primo accesso (Onboarding)
+
+- Modello: `core.UserOnboarding` (OneToOne su Django User) — migration `0043_useronboarding`
+- URL: `/onboarding/` (view `onboarding_wizard`, name `onboarding_wizard`)
+- Intercettazione: `ACLMiddleware` (dopo check autenticazione) → redirect a `/onboarding/` se `UserOnboarding.is_done()` è `False`
+- Accesso pagina: `/onboarding/` resta sempre apribile a qualsiasi utente autenticato, senza grant ACL legacy/canonico dedicati
+- Superusers bypass il check onboarding
+- Reset API: `POST /api/onboarding/<django_user_id>/reset` (name `api_onboarding_reset`) — azioni: `reset` (riproponi wizard) o `skip` (esenta utente); solo admin legacy o superuser
+- Admin UI: scheda utente in Admin Portale → tab Checklist → card "Wizard primo accesso"
+- Step correnti wizard: `Benvenuto` → `Contatti` → `Interfaccia` → `Notifiche` → `Riepilogo`
+- Preferenze UI raccolte: `nav_mode`, `font_scale`, `sidebar_collapsed`, `sidebar_footer_actions` (persistite in `core.UserUiPreference`)
+- Notifiche email: il wizard deve mostrare solo i moduli effettivamente visibili al ruolo corrente; i tipi nascosti vanno persistiti come disabilitati per evitare preferenze fuorvianti
+- Dati raccolti onboarding: `email_contatto`, `cellulare_contatto`, `notifiche_config` (JSON tipo → bool, es. `assenze`, `comunicazioni`, `scadenzari`, `ticket`)
+- Azioni tracciate in AuditLog: `onboarding_completato`, `onboarding_reset`, `onboarding_esentato`
 
 ---
 

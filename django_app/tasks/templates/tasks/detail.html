@@ -115,16 +115,16 @@
 </style>
 {% endblock %}
 
-{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">Tasks / Dettaglio</span>{% endblock %}
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Dettaglio attivita</span>{% endblock %}
 
 {% block tasks_shell_title %}{{ task.title }}{% endblock %}
 
 {% block tasks_shell_subtitle %}
-  Task #{{ task.id }}
+  Attivita kickoff #{{ task.id }}
   {% if task.project %}
-    collegata al progetto {{ task.project.name }} con informazioni operative, pianificazione, commenti, allegati e storico eventi.
+    collegata al kickoff {{ task.project.name }} con informazioni operative, pianificazione, commenti, allegati e storico eventi.
   {% else %}
-    gestita come task singola con tutte le informazioni operative e di avanzamento in un'unica scheda.
+    gestita come attivita singola con tutte le informazioni operative e di avanzamento in un'unica scheda.
   {% endif %}
 {% endblock %}
 
@@ -134,7 +134,7 @@
   {% if task.project %}
     <span class="ts-hero-pill">{{ task.project.name }}</span>
   {% else %}
-    <span class="ts-hero-pill">Task singola</span>
+    <span class="ts-hero-pill">Attivita singola</span>
   {% endif %}
   {% if task.is_overdue %}
     <span class="ts-hero-pill">Overdue</span>
@@ -147,7 +147,7 @@
     <a class="ts-hero-action" href="{% url 'tasks:project_gantt' task.project.id %}">Apri Gantt</a>
   {% endif %}
   {% if can_edit %}
-    <a class="ts-hero-action primary" href="{% url 'tasks:edit' task.id %}">Modifica task</a>
+    <a class="ts-hero-action primary" href="{% url 'tasks:edit' task.id %}">Modifica attivita</a>
   {% endif %}
 {% endblock %}
 
@@ -156,17 +156,17 @@
   <article class="ts-kpi blue">
     <div class="ts-kpi-label">Subtask</div>
     <div class="ts-kpi-value">{{ task.subtasks.all|length }}</div>
-    <div class="ts-kpi-note">Sotto-attivita collegate alla task principale.</div>
+    <div class="ts-kpi-note">Sotto-attivita collegate all'attivita principale.</div>
   </article>
   <article class="ts-kpi amber">
     <div class="ts-kpi-label">Commenti</div>
     <div class="ts-kpi-value">{{ task.comments.all|length }}</div>
-    <div class="ts-kpi-note">Scambi operativi registrati sulla task.</div>
+    <div class="ts-kpi-note">Scambi operativi registrati sull'attivita.</div>
   </article>
   <article class="ts-kpi teal">
-    <div class="ts-kpi-label">Allegati task</div>
+    <div class="ts-kpi-label">Allegati attivita</div>
     <div class="ts-kpi-value">{{ task.attachments.all|length }}</div>
-    <div class="ts-kpi-note">File agganciati direttamente alla task.</div>
+    <div class="ts-kpi-note">File agganciati direttamente all'attivita.</div>
   </article>
   <article class="ts-kpi slate">
     <div class="ts-kpi-label">Eventi</div>
@@ -182,7 +182,7 @@
     <article class="ts-panel">
       <div class="ts-panel-head">
         <div class="ts-panel-title-wrap">
-          <h2 class="ts-panel-title">Panoramica task</h2>
+          <h2 class="ts-panel-title">Panoramica attivita</h2>
           <p class="ts-panel-subtitle">Contesto operativo, persone coinvolte, pianificazione e prossima azione da eseguire.</p>
         </div>
         <div class="ts-panel-meta">
@@ -225,7 +225,7 @@
             {% if task.next_step_due %}{{ task.next_step_due|date:"d/m/Y" }}{% else %}-{% endif %}
           </div>
           <div class="task-detail-meta-item" style="grid-column: 1 / -1;">
-            <strong>Progetto</strong>
+            <strong>Kickoff</strong>
             {% if task.project %}
               <div>{{ task.project.name }}</div>
               <div class="ts-card-meta" style="margin-top:8px;">
@@ -239,7 +239,7 @@
                 {% if task.project.similar_work_note %}<span class="task-meta-chip">Lavorazione simile: {{ task.project.similar_work_note }}</span>{% endif %}
               </div>
             {% else %}
-              Task singola
+              Attivita singola
             {% endif %}
           </div>
           <div class="task-detail-meta-item" style="grid-column: 1 / -1;">
@@ -281,7 +281,7 @@
       <div class="ts-panel-head">
         <div class="ts-panel-title-wrap">
           <h2 class="ts-panel-title">Subtask</h2>
-          <p class="ts-panel-subtitle">Sequenza di lavorazioni collegate alla task principale.</p>
+          <p class="ts-panel-subtitle">Sequenza di lavorazioni collegate all'attivita principale.</p>
         </div>
         <div class="ts-panel-meta">
           <span class="ts-chip soft">{{ task.subtasks.all|length }} elementi</span>
@@ -398,7 +398,7 @@
       <div class="ts-panel-head">
         <div class="ts-panel-title-wrap">
           <h2 class="ts-panel-title">Allegati</h2>
-          <p class="ts-panel-subtitle">File caricati sulla task e, se presente, sul progetto collegato.</p>
+          <p class="ts-panel-subtitle">File caricati sull'attivita e, se presente, sul kickoff collegato.</p>
         </div>
       </div>
       <div class="ts-panel-body">
@@ -421,7 +421,7 @@
 
         <div class="ts-stack">
           <div>
-            <div class="ts-field-label" style="margin-bottom:8px;">Allegati task</div>
+            <div class="ts-field-label" style="margin-bottom:8px;">Allegati attivita</div>
             {% if task.attachments.all %}
               <ul class="task-list-clean">
                 {% for attachment in task.attachments.all %}
@@ -438,14 +438,14 @@
               </ul>
             {% else %}
               <div class="ts-empty" style="padding:18px;">
-                <strong>Nessun allegato task.</strong>
+                <strong>Nessun allegato attivita.</strong>
               </div>
             {% endif %}
           </div>
 
           {% if task.project %}
             <div>
-              <div class="ts-field-label" style="margin-bottom:8px;">Allegati progetto</div>
+              <div class="ts-field-label" style="margin-bottom:8px;">Allegati kickoff</div>
               {% if task.project.attachments.all %}
                 <ul class="task-list-clean">
                   {% for attachment in task.project.attachments.all %}
@@ -462,7 +462,7 @@
                 </ul>
               {% else %}
                 <div class="ts-empty" style="padding:18px;">
-                  <strong>Nessun allegato progetto.</strong>
+                  <strong>Nessun allegato kickoff.</strong>
                 </div>
               {% endif %}
             </div>
@@ -476,7 +476,7 @@
         <div class="ts-panel-head">
           <div class="ts-panel-title-wrap">
             <h2 class="ts-panel-title">Nuova subtask</h2>
-            <p class="ts-panel-subtitle">Aggiungi un elemento operativo secondario con responsabile, data e ordine.</p>
+            <p class="ts-panel-subtitle">Aggiungi un elemento operativo secondario all'attivita con responsabile, data e ordine.</p>
           </div>
         </div>
         <div class="ts-panel-body">

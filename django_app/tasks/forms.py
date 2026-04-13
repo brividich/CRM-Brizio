@@ -11,12 +11,36 @@ from .models import Project, ProjectComment, SubTask, Task, TaskAttachment, Task
 User = get_user_model()
 
 
+def _project_option_label(project: Project) -> str:
+    parts: list[str] = [project.name]
+    if project.part_number:
+        parts.append(f"P/N {project.part_number}")
+    if project.revisione:
+        parts.append(f"Rev {project.revisione}")
+    if project.versione:
+        parts.append(f"Ver {project.versione}")
+    if project.client_name:
+        parts.append(f"Cliente {project.client_name}")
+    return " | ".join(parts)
+
+
+class ProjectChoiceField(forms.ModelChoiceField):
+    def label_from_instance(self, obj):
+        return _project_option_label(obj)
+
+
 class TaskForm(forms.ModelForm):
     TASK_SCOPE_SINGLE = "single"
     TASK_SCOPE_PROJECT = "project"
     TASK_SCOPE_CHOICES = (
-        (TASK_SCOPE_SINGLE, "Task singolo"),
-        (TASK_SCOPE_PROJECT, "Task in progetto"),
+        (TASK_SCOPE_SINGLE, "Attivita singola"),
+        (TASK_SCOPE_PROJECT, "Attivita in kickoff"),
+    )
+    PROJECT_LINK_EXISTING = "existing"
+    PROJECT_LINK_NEW = "new"
+    PROJECT_LINK_MODE_CHOICES = (
+        (PROJECT_LINK_EXISTING, "Aggancia a kickoff esistente"),
+        (PROJECT_LINK_NEW, "Crea nuovo kickoff"),
     )
     ASSIGNMENT_CONFLICT_KEEP = "keep_priority"
     ASSIGNMENT_CONFLICT_RAISE = "raise_to_high"
@@ -32,22 +56,29 @@ class TaskForm(forms.ModelForm):
         widget=forms.RadioSelect(attrs={"class": "input-radio"}),
         label="Contesto lavoro",
     )
-    project_choice = forms.ModelChoiceField(
+    project_link_mode = forms.ChoiceField(
+        required=False,
+        choices=PROJECT_LINK_MODE_CHOICES,
+        initial=PROJECT_LINK_NEW,
+        widget=forms.RadioSelect(attrs={"class": "input-radio"}),
+        label="Gestione kickoff",
+    )
+    project_choice = ProjectChoiceField(
         required=False,
         queryset=Project.objects.none(),
         widget=forms.Select(attrs={"class": "input"}),
-        label="Progetto esistente",
+        label="Kickoff esistente",
     )
     project_new_name = forms.CharField(
         required=False,
         max_length=180,
-        widget=forms.TextInput(attrs={"class": "input", "maxlength": 180, "placeholder": "Nome nuovo progetto"}),
-        label="Nuovo progetto",
+        widget=forms.TextInput(attrs={"class": "input", "maxlength": 180, "placeholder": "Nome kickoff"}),
+        label="Nuovo kickoff",
     )
     project_new_description = forms.CharField(
         required=False,
-        widget=forms.Textarea(attrs={"class": "input", "rows": 2, "placeholder": "Descrizione progetto (opzionale)"}),
-        label="Descrizione nuovo progetto",
+        widget=forms.Textarea(attrs={"class": "input", "rows": 2, "placeholder": "Descrizione kickoff (opzionale)"}),
+        label="Descrizione kickoff",
     )
     project_new_client = forms.CharField(
         required=False,
@@ -85,17 +116,29 @@ class TaskForm(forms.ModelForm):
         widget=forms.TextInput(attrs={"class": "input", "maxlength": 120, "placeholder": "P/N"}),
         label="P/N",
     )
-    project_similar_choice = forms.ModelChoiceField(
+    project_new_revisione = forms.CharField(
+        required=False,
+        max_length=60,
+        widget=forms.TextInput(attrs={"class": "input", "maxlength": 60, "placeholder": "es. A, B, 01"}),
+        label="Revisione",
+    )
+    project_new_versione = forms.CharField(
+        required=False,
+        max_length=60,
+        widget=forms.TextInput(attrs={"class": "input", "maxlength": 60, "placeholder": "es. 1.0, 2.3"}),
+        label="Versione",
+    )
+    project_similar_choice = ProjectChoiceField(
         required=False,
         queryset=Project.objects.none(),
         widget=forms.Select(attrs={"class": "input"}),
-        label="Lavorazione simile (esistente)",
+        label="Attivita simile (esistente)",
     )
     project_similar_new_note = forms.CharField(
         required=False,
         max_length=220,
-        widget=forms.TextInput(attrs={"class": "input", "maxlength": 220, "placeholder": "Inserisci lavorazione simile ex-novo"}),
-        label="Lavorazione simile (nuova)",
+        widget=forms.TextInput(attrs={"class": "input", "maxlength": 220, "placeholder": "Inserisci attivita simile ex-novo"}),
+        label="Attivita simile (nuova)",
     )
     assignment_conflict_action = forms.ChoiceField(
         required=False,
@@ -132,12 +175,17 @@ class TaskForm(forms.ModelForm):
             "subscribers": forms.SelectMultiple(attrs={"class": "input"}),
         }
 
-    def __init__(self, *args, user=None, project_queryset=None, **kwargs):
+    def __init__(self, *args, user=None, project_queryset=None, locked_project=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.assignment_conflicts: list[Task] = []
         self.auto_raised_priority = False
+        self.matched_existing_project = None
+        self.reused_existing_project = None
+        self.reused_existing_project_fields: list[str] = []
+        self.locked_project = locked_project
         users_qs = User.objects.order_by("first_name", "last_name", "username")
         project_qs = project_queryset if project_queryset is not None else Project.objects.order_by("name", "id")
+        self.project_queryset = project_qs
 
         self.fields["assigned_to"].required = False
         self.fields["assigned_to"].queryset = users_qs
@@ -149,56 +197,122 @@ class TaskForm(forms.ModelForm):
         self.fields["project_new_programmer"].queryset = users_qs
         self.fields["project_similar_choice"].queryset = project_qs
 
-        self.fields["project_choice"].label = "Collega a progetto esistente"
-        self.fields["project_new_name"].label = "Nuovo progetto (nome)"
-        self.fields["project_new_description"].label = "Nuovo progetto (descrizione)"
+        self.fields["project_choice"].label = "Collega a kickoff esistente"
+        self.fields["project_link_mode"].label = "Come vuoi lavorare sul kickoff"
+        self.fields["project_new_name"].label = "Nome kickoff"
+        self.fields["project_new_description"].label = "Descrizione kickoff"
         self.fields["project_new_client"].label = "Cliente"
         self.fields["project_new_manager"].label = "Project manager"
         self.fields["project_new_capo_commessa"].label = "Capocommessa"
         self.fields["project_new_programmer"].label = "Programmatore"
         self.fields["project_new_control_method"].label = "Metodo di controllo"
         self.fields["project_new_part_number"].label = "P/N"
-        self.fields["project_similar_choice"].label = "Lavorazione simile (cerca esistente)"
-        self.fields["project_similar_new_note"].label = "Lavorazione simile (inserisci nuova)"
-        self.fields["title"].label = "Titolo attivita"
-        self.fields["description"].label = "Descrizione operativa"
+        self.fields["project_new_revisione"].label = "Revisione"
+        self.fields["project_new_versione"].label = "Versione"
+        self.fields["project_similar_choice"].label = "Attivita simile (cerca esistente)"
+        self.fields["project_similar_new_note"].label = "Attivita simile (inserisci nuova)"
+        self.fields["title"].label = "Titolo attivita kickoff"
+        self.fields["description"].label = "Descrizione attivita"
         self.fields["tags"].label = "Etichette"
-        self.fields["status"].label = "Stato attivita"
+        self.fields["status"].label = "Stato attivita kickoff"
         self.fields["priority"].label = "Priorita"
-        self.fields["due_date"].label = "Data richiesta fine"
+        self.fields["due_date"].label = "Data fine prevista"
         self.fields["next_step_text"].label = "Prossima azione"
         self.fields["next_step_due"].label = "Data inizio"
         self.fields["assigned_to"].label = "Operatore incaricato"
         self.fields["subscribers"].label = "Partecipanti in copia"
         self.fields["assignment_conflict_action"].label = "Se l'operatore ha altri impegni nello stesso periodo"
-        self.fields["due_date"].help_text = "Puoi inserire anche una data passata: la task verra segnalata come overdue."
-        self.fields["next_step_due"].help_text = "Data di inizio attivita (di norma il giorno successivo alla fine della task precedente)."
+        self.fields["due_date"].help_text = "Puoi inserire anche una data passata: l'attivita verra segnalata come overdue."
+        self.fields["next_step_due"].help_text = "Data di inizio attivita (di norma il giorno successivo alla fine dell'attivita precedente)."
         self.fields["tags"].help_text = "Separare le etichette con virgola. Esempio: produzione, urgente."
         self.fields["assignment_conflict_action"].help_text = (
-            "Il sistema controlla eventuali altre task attive assegnate all'operatore nello stesso intervallo date."
+            "Il sistema controlla eventuali altre attivita kickoff attive assegnate all'operatore nello stesso intervallo date."
         )
-        self.fields["project_similar_choice"].help_text = "Seleziona una lavorazione simile gia presente, se disponibile."
-        self.fields["project_similar_new_note"].help_text = "Usa questo campo solo se la lavorazione simile non esiste ancora."
+        self.fields["project_link_mode"].help_text = (
+            "Scegli se collegare l'attivita a un kickoff gia presente oppure se aprire un nuovo kickoff."
+        )
+        self.fields["project_choice"].help_text = (
+            "La lista include nome kickoff, cliente e identificativo P/N per velocizzare l'aggancio corretto."
+        )
+        self.fields["project_similar_choice"].help_text = "Seleziona un'attivita simile gia presente, se disponibile."
+        self.fields["project_similar_new_note"].help_text = "Usa questo campo solo se l'attivita simile non esiste ancora."
 
-        if self.instance and self.instance.pk:
+        if self.locked_project is not None:
+            self.initial["task_scope"] = self.TASK_SCOPE_PROJECT
+            self.initial["project_link_mode"] = self.PROJECT_LINK_EXISTING
+            self.initial["project_choice"] = self.locked_project.pk
+        elif self.instance and self.instance.pk:
             if self.instance.project_id:
                 self.initial.setdefault("task_scope", self.TASK_SCOPE_PROJECT)
+                self.initial.setdefault("project_link_mode", self.PROJECT_LINK_EXISTING)
                 self.initial.setdefault("project_choice", self.instance.project_id)
             else:
                 self.initial.setdefault("task_scope", self.TASK_SCOPE_SINGLE)
         else:
             self.initial.setdefault("task_scope", self.TASK_SCOPE_SINGLE)
+            if self.initial.get("project_choice"):
+                self.initial.setdefault("project_link_mode", self.PROJECT_LINK_EXISTING)
+            else:
+                self.initial.setdefault("project_link_mode", self.PROJECT_LINK_NEW)
+
+    def _matching_projects_for_new_entry(self, *, part_number: str, revisione: str, versione: str):
+        part_number = str(part_number or "").strip()
+        revisione = str(revisione or "").strip()
+        versione = str(versione or "").strip()
+        if not part_number:
+            return self.project_queryset.none()
+        return self.project_queryset.filter(
+            part_number__iexact=part_number,
+            revisione__iexact=revisione,
+            versione__iexact=versione,
+        ).order_by("name", "id")
 
     def clean(self):
         self.assignment_conflicts = []
         self.auto_raised_priority = False
+        self.matched_existing_project = None
         cleaned_data = super().clean()
+        if self.locked_project is not None:
+            cleaned_data["task_scope"] = self.TASK_SCOPE_PROJECT
+            cleaned_data["project_link_mode"] = self.PROJECT_LINK_EXISTING
+            cleaned_data["project_choice"] = self.locked_project
         due_date = cleaned_data.get("due_date")
         next_step_due = cleaned_data.get("next_step_due")
         task_scope = cleaned_data.get("task_scope") or self.TASK_SCOPE_SINGLE
+        raw_project_link_mode = cleaned_data.get("project_link_mode")
         project_choice = cleaned_data.get("project_choice")
-        project_new_name = (cleaned_data.get("project_new_name") or "").strip()
         project_new_description = (cleaned_data.get("project_new_description") or "").strip()
+        project_new_client = (cleaned_data.get("project_new_client") or "").strip()
+        project_new_control_method = (cleaned_data.get("project_new_control_method") or "").strip()
+        project_new_part_number = (cleaned_data.get("project_new_part_number") or "").strip()
+        project_new_revisione = (cleaned_data.get("project_new_revisione") or "").strip()
+        project_new_versione = (cleaned_data.get("project_new_versione") or "").strip()
+        similar_choice = cleaned_data.get("project_similar_choice")
+        similar_new_note = (cleaned_data.get("project_similar_new_note") or "").strip()
+        project_new_fields_present = any(
+            [
+                project_new_description,
+                project_new_client,
+                cleaned_data.get("project_new_manager"),
+                cleaned_data.get("project_new_capo_commessa"),
+                cleaned_data.get("project_new_programmer"),
+                project_new_control_method,
+                project_new_part_number,
+                project_new_revisione,
+                project_new_versione,
+                similar_choice,
+                similar_new_note,
+            ]
+        )
+        if raw_project_link_mode in {self.PROJECT_LINK_EXISTING, self.PROJECT_LINK_NEW}:
+            project_link_mode = raw_project_link_mode
+        elif project_choice:
+            project_link_mode = self.PROJECT_LINK_EXISTING
+        elif project_new_fields_present:
+            project_link_mode = self.PROJECT_LINK_NEW
+        else:
+            project_link_mode = self.PROJECT_LINK_EXISTING
+        cleaned_data["project_link_mode"] = project_link_mode
 
         if due_date and next_step_due and due_date <= next_step_due:
             self.add_error("due_date", "La data richiesta fine deve essere successiva alla data inizio.")
@@ -231,28 +345,21 @@ class TaskForm(forms.ModelForm):
             cleaned_data["project_new_programmer"] = None
             cleaned_data["project_new_control_method"] = ""
             cleaned_data["project_new_part_number"] = ""
+            cleaned_data["project_new_revisione"] = ""
+            cleaned_data["project_new_versione"] = ""
             cleaned_data["project_similar_choice"] = None
             cleaned_data["project_similar_new_note"] = ""
+            cleaned_data["project_link_mode"] = ""
             return cleaned_data
 
-        if project_choice and project_new_name:
-            msg = "Scegli un progetto esistente oppure creane uno nuovo, non entrambi."
-            self.add_error("project_choice", msg)
-            self.add_error("project_new_name", msg)
-        elif not project_choice and not project_new_name:
-            self.add_error("project_choice", "Seleziona un progetto esistente o inserisci il nome di un nuovo progetto.")
-
-        if project_new_description and not project_new_name:
-            self.add_error("project_new_name", "Inserisci il nome del nuovo progetto.")
-
-        similar_choice = cleaned_data.get("project_similar_choice")
-        similar_new_note = (cleaned_data.get("project_similar_new_note") or "").strip()
         if similar_choice and similar_new_note:
-            msg = "Seleziona una lavorazione simile esistente oppure inseriscine una nuova, non entrambe."
+            msg = "Seleziona un'attivita simile esistente oppure inseriscine una nuova, non entrambe."
             self.add_error("project_similar_choice", msg)
             self.add_error("project_similar_new_note", msg)
 
-        if project_choice:
+        if project_link_mode == self.PROJECT_LINK_EXISTING:
+            if not project_choice:
+                self.add_error("project_choice", "Seleziona un kickoff esistente per continuare.")
             cleaned_data["project_new_name"] = ""
             cleaned_data["project_new_description"] = ""
             cleaned_data["project_new_client"] = ""
@@ -261,19 +368,47 @@ class TaskForm(forms.ModelForm):
             cleaned_data["project_new_programmer"] = None
             cleaned_data["project_new_control_method"] = ""
             cleaned_data["project_new_part_number"] = ""
+            cleaned_data["project_new_revisione"] = ""
+            cleaned_data["project_new_versione"] = ""
             cleaned_data["project_similar_choice"] = None
             cleaned_data["project_similar_new_note"] = ""
             return cleaned_data
 
-        cleaned_data["project_new_name"] = project_new_name
+        if (project_new_revisione or project_new_versione) and not project_new_part_number:
+            self.add_error("project_new_part_number", "Compila il P/N prima di usare revisione o versione.")
+
+        matching_projects = self._matching_projects_for_new_entry(
+            part_number=project_new_part_number,
+            revisione=project_new_revisione,
+            versione=project_new_versione,
+        )
+        if matching_projects.exists():
+            if matching_projects.count() == 1:
+                self.matched_existing_project = matching_projects.first()
+            else:
+                msg = (
+                    "Esistono gia piu kickoff con lo stesso P/N / Revisione / Versione. "
+                    "Seleziona il kickoff corretto dalla lista dei kickoff esistenti."
+                )
+                self.add_error("project_new_part_number", msg)
+                self.add_error("project_choice", msg)
+
+        cleaned_data["project_choice"] = None
+        cleaned_data["project_new_name"] = ""
         cleaned_data["project_new_description"] = project_new_description
-        cleaned_data["project_new_client"] = (cleaned_data.get("project_new_client") or "").strip()
-        cleaned_data["project_new_control_method"] = (cleaned_data.get("project_new_control_method") or "").strip()
-        cleaned_data["project_new_part_number"] = (cleaned_data.get("project_new_part_number") or "").strip()
+        cleaned_data["project_new_client"] = project_new_client
+        cleaned_data["project_new_control_method"] = project_new_control_method
+        cleaned_data["project_new_part_number"] = project_new_part_number
+        cleaned_data["project_new_revisione"] = project_new_revisione
+        cleaned_data["project_new_versione"] = project_new_versione
         cleaned_data["project_similar_new_note"] = similar_new_note
         return cleaned_data
 
     def resolve_project(self, created_by):
+        self.new_project_created = False
+        self.reused_existing_project = None
+        self.reused_existing_project_fields = []
+
         if (self.cleaned_data.get("task_scope") or self.TASK_SCOPE_SINGLE) == self.TASK_SCOPE_SINGLE:
             return None
 
@@ -281,12 +416,34 @@ class TaskForm(forms.ModelForm):
         if project:
             return project
 
-        project_name = (self.cleaned_data.get("project_new_name") or "").strip()
-        if not project_name:
-            return None
+        if self.matched_existing_project is not None:
+            project = self.matched_existing_project
+            field_updates = {
+                "description": (self.cleaned_data.get("project_new_description") or "").strip(),
+                "client_name": (self.cleaned_data.get("project_new_client") or "").strip(),
+                "project_manager": self.cleaned_data.get("project_new_manager"),
+                "capo_commessa": self.cleaned_data.get("project_new_capo_commessa"),
+                "programmer": self.cleaned_data.get("project_new_programmer"),
+                "control_method": (self.cleaned_data.get("project_new_control_method") or "").strip(),
+                "similar_project": self.cleaned_data.get("project_similar_choice"),
+                "similar_work_note": (self.cleaned_data.get("project_similar_new_note") or "").strip(),
+            }
+            updated_fields: list[str] = []
+            for field_name, value in field_updates.items():
+                if value in (None, ""):
+                    continue
+                if getattr(project, field_name) != value:
+                    setattr(project, field_name, value)
+                    updated_fields.append(field_name)
+            if updated_fields:
+                project.save()
+            self.reused_existing_project = project
+            self.reused_existing_project_fields = updated_fields
+            return project
 
+        self.new_project_created = True
         return Project.objects.create(
-            name=project_name,
+            name="",
             description=(self.cleaned_data.get("project_new_description") or "").strip(),
             client_name=(self.cleaned_data.get("project_new_client") or "").strip(),
             project_manager=self.cleaned_data.get("project_new_manager"),
@@ -294,6 +451,8 @@ class TaskForm(forms.ModelForm):
             programmer=self.cleaned_data.get("project_new_programmer"),
             control_method=(self.cleaned_data.get("project_new_control_method") or "").strip(),
             part_number=(self.cleaned_data.get("project_new_part_number") or "").strip(),
+            revisione=(self.cleaned_data.get("project_new_revisione") or "").strip(),
+            versione=(self.cleaned_data.get("project_new_versione") or "").strip(),
             similar_project=self.cleaned_data.get("project_similar_choice"),
             similar_work_note=(self.cleaned_data.get("project_similar_new_note") or "").strip(),
             created_by=created_by,
@@ -396,7 +555,7 @@ class TaskFilterForm(forms.Form):
             self.fields["project"].queryset = Project.objects.order_by("name", "id")
         self.fields["unassigned"].label = "Solo non assegnate"
         self.fields["without_due_date"].label = "Senza data prevista"
-        self.fields["without_project"].label = "Task singole (senza progetto)"
+        self.fields["without_project"].label = "Attivita singole (senza kickoff)"
 
     def clean(self):
         cleaned_data = super().clean()
@@ -448,7 +607,7 @@ class ProjectCommentForm(forms.ModelForm):
         model = ProjectComment
         fields = ["body", "target_user"]
         widgets = {
-            "body": forms.Textarea(attrs={"class": "input", "rows": 3, "placeholder": "Scrivi un commento progetto"}),
+            "body": forms.Textarea(attrs={"class": "input", "rows": 3, "placeholder": "Scrivi un commento kickoff"}),
             "target_user": forms.Select(attrs={"class": "input"}),
         }
 
@@ -509,7 +668,7 @@ class TaskAttachmentForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         choices = [(self.TARGET_TASK, "Task corrente")]
         if task and task.project_id:
-            choices.append((self.TARGET_PROJECT, "Progetto collegato"))
+            choices.append((self.TARGET_PROJECT, "Kickoff collegato"))
         self.fields["attach_to"].choices = choices
         self.fields["attach_to"].initial = choices[0][0]
 
@@ -517,7 +676,7 @@ class TaskAttachmentForm(forms.ModelForm):
         cleaned_data = super().clean()
         attach_to = cleaned_data.get("attach_to")
         if attach_to == self.TARGET_PROJECT and (not self.task or not self.task.project_id):
-            self.add_error("attach_to", "La task non e collegata a un progetto.")
+            self.add_error("attach_to", "L'attivita non e collegata a un kickoff.")
         return cleaned_data
 
     def _post_clean(self):
@@ -536,8 +695,8 @@ class ProjectTaskGanttUpdateForm(forms.ModelForm):
         model = Task
         fields = ["next_step_due", "due_date", "status"]
         widgets = {
-            "next_step_due": forms.DateInput(attrs={"class": "input", "type": "date"}),
-            "due_date": forms.DateInput(attrs={"class": "input", "type": "date"}),
+            "next_step_due": forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
+            "due_date": forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
             "status": forms.Select(attrs={"class": "input"}),
         }
 
@@ -545,6 +704,6 @@ class ProjectTaskGanttUpdateForm(forms.ModelForm):
         cleaned_data = super().clean()
         due_date = cleaned_data.get("due_date")
         next_step_due = cleaned_data.get("next_step_due")
-        if due_date and next_step_due and due_date <= next_step_due:
-            self.add_error("due_date", "La data richiesta fine deve essere successiva alla data inizio.")
+        if due_date and next_step_due and due_date < next_step_due:
+            self.add_error("due_date", "La data fine deve essere uguale o successiva alla data inizio.")
         return cleaned_data

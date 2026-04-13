@@ -39,6 +39,13 @@ def _row_text(row: dict, field_name: str) -> str:
     return str(row.get(field_name) or "").strip()
 
 
+def resolve_notification_email(*, email: str = "", email_notifica: str = "") -> str:
+    notification_email = str(email_notifica or "").strip()
+    if notification_email:
+        return notification_email
+    return str(email or "").strip()
+
+
 def _normalized_key(value: str) -> str:
     return "".join(ch for ch in str(value or "").strip().lower() if ch.isalnum())
 
@@ -176,7 +183,15 @@ def fetch_anagrafica_rows(*, ids: list[int] | None = None, deduplicate: bool = F
         headers = [str(col[0]).lower() for col in cur.description]
         rows = [dict(zip(headers, row)) for row in cur.fetchall()]
     if deduplicate:
-        return merge_duplicate_anagrafica_rows(rows)
+        rows = merge_duplicate_anagrafica_rows(rows)
+    for row in rows:
+        email_value = _row_text(row, "email")
+        notification_email = resolve_notification_email(
+            email=email_value,
+            email_notifica=_row_text(row, "email_notifica"),
+        )
+        if notification_email:
+            row["email_notifica"] = notification_email
     return rows
 
 
@@ -395,7 +410,10 @@ def upsert_anagrafica_dipendente(
         "ruolo": str(ruolo or "").strip(),
         "matricola": str(matricola or "").strip(),
         "email": str(email or "").strip(),
-        "email_notifica": str(email_notifica or "").strip(),
+        "email_notifica": resolve_notification_email(
+            email=email,
+            email_notifica=email_notifica,
+        ),
     }
 
     existing = _find_existing_row(

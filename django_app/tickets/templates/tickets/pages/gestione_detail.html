@@ -82,8 +82,49 @@
         <div class="tkt-card">
           <div class="tkt-card-title">Aggiungi aggiornamento</div>
           <div class="tkt-field"><textarea id="commento-testo" rows="4" placeholder="Scrivi un aggiornamento pubblico o una nota interna..."></textarea></div>
-          <div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap;"><button type="button" class="tkt-btn-sm tkt-btn-blue" id="commento-pubbl">Commento pubblico</button><button type="button" class="tkt-btn-sm tkt-btn-gray" id="commento-interno">Nota interna</button><span id="commento-status" style="font-size:12px;color:#64748b;"></span></div>
+          <div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap;"><button type="button" class="tkt-btn-sm tkt-btn-blue" id="commento-invia">Aggiungi commento</button><span id="commento-status" style="font-size:12px;color:#64748b;"></span></div>
         </div>
+
+        {% if ticket.delegato_fornitore %}
+        <div class="tkt-card" id="man-straord-card" style="border:1px solid #bae6fd;background:#f0f9ff;">
+          <div class="tkt-card-title" style="color:#0369a1;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+            <span>Manutenzione straordinaria — {{ ticket.delegato_fornitore.ragione_sociale }}</span>
+            {% if ticket.asset %}<button type="button" class="tkt-btn-sm" id="man-toggle-form" style="background:#0369a1;color:#fff;padding:7px 14px;">+ Apri OdL</button>{% endif %}
+          </div>
+
+          {% if not ticket.asset %}
+          <div style="font-size:13px;color:#64748b;padding:8px 0;">Per aprire un Ordine di Lavoro collega prima un asset dalla tab <strong>Asset e KPI</strong>.</div>
+          {% endif %}
+
+          {% if workorders_generati %}
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;" id="man-wo-list">
+            {% for wo in workorders_generati %}
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;font-size:13px;">
+              <div><span style="font-weight:800;color:#0f172a;">OdL #{{ wo.pk }}</span> — {{ wo.title }}<br><span style="font-size:11px;color:#64748b;">{{ wo.asset.name }} [{{ wo.asset.asset_tag }}] {% if wo.supplier %}| {{ wo.supplier.ragione_sociale }}{% endif %}</span></div>
+              <div style="display:flex;align-items:center;gap:8px;"><span style="padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;{% if wo.status == 'OPEN' %}background:#dbeafe;color:#1e40af;{% elif wo.status == 'DONE' %}background:#d1fae5;color:#065f46;{% else %}background:#f1f5f9;color:#475569;{% endif %}">{% if wo.status == 'OPEN' %}Aperto{% elif wo.status == 'DONE' %}Chiuso{% else %}Annullato{% endif %}</span><a href="{% url 'assets:wo_view' wo.pk %}" style="font-size:12px;font-weight:700;color:#0369a1;text-decoration:none;" target="_blank">Apri</a></div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div id="man-wo-empty" style="font-size:13px;color:#64748b;margin-top:8px;">Nessun OdL collegato a questo ticket.</div>
+          {% endif %}
+
+          {% if ticket.asset %}
+          <div id="man-form" style="display:none;background:#fff;border:1px solid #bae6fd;border-radius:14px;padding:14px;margin-top:14px;">
+            <div style="font-size:12px;font-weight:700;color:#0369a1;margin-bottom:10px;">Nuovo Ordine di Lavoro correttivo</div>
+            <div style="display:grid;grid-template-columns:1fr;gap:10px;">
+              <div class="tkt-field"><label>Titolo OdL</label><input type="text" id="man-title" maxlength="255" value="{{ ticket.titolo }}"></div>
+              <div class="tkt-field"><label>Descrizione</label><textarea id="man-description" rows="3">{{ ticket.descrizione }}</textarea></div>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <button type="button" class="tkt-btn-sm tkt-btn-blue" id="man-save">Crea OdL</button>
+              <button type="button" class="tkt-btn-sm tkt-btn-gray" id="man-cancel">Annulla</button>
+              <span id="man-status" style="font-size:12px;color:#64748b;"></span>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
         {% endif %}
         <div class="tkt-card" style="margin-top:16px;">
           <div class="tkt-card-title">Timeline operativa</div>
@@ -120,14 +161,78 @@
               <div class="tkt-field" style="grid-column:1/-1;"><label>Descrizione lavoro svolto</label><textarea id="if-descrizione" rows="2"></textarea></div>
               <div class="tkt-field" style="grid-column:1/-1;"><label>Azioni svolte / procedura</label><textarea id="if-azioni" rows="2"></textarea></div>
             </div>
+            <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;">
+              <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">Costi intervento</div>
+              <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;">
+                <div class="tkt-field"><label>Costo manodopera (€)</label><input type="number" id="if-costo-manodopera" min="0" step="0.01" placeholder="0.00"></div>
+                <div class="tkt-field"><label>Costo materiali (€)</label><input type="number" id="if-costo-materiali" min="0" step="0.01" placeholder="0.00"></div>
+                <div class="tkt-field"><label>N° rapportino fornitore</label><input type="text" id="if-rapportino" maxlength="50" placeholder="es. RPT-2026-001"></div>
+              </div>
+            </div>
             <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><button type="button" class="tkt-btn-sm tkt-btn-blue" id="if-save">Registra intervento</button><button type="button" class="tkt-btn-sm tkt-btn-gray" id="if-cancel">Annulla</button><span id="if-status" style="font-size:12px;color:#64748b;"></span></div>
           </div>
           {% endif %}
           {% if interventi %}
-          <div id="interventi-list" style="overflow:auto;border:1px solid #e2e8f0;border-radius:14px;"><table style="width:100%;border-collapse:collapse;font-size:13px;background:#fff;"><thead><tr style="background:#f8fafc;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;"><th style="padding:9px 12px;text-align:left;border-bottom:1px solid #e2e8f0;">Tecnico</th><th style="padding:9px 12px;text-align:left;border-bottom:1px solid #e2e8f0;">Inizio</th><th style="padding:9px 12px;text-align:left;border-bottom:1px solid #e2e8f0;">Fine</th><th style="padding:9px 12px;text-align:right;border-bottom:1px solid #e2e8f0;">Ore</th><th style="padding:9px 12px;text-align:left;border-bottom:1px solid #e2e8f0;">Componente</th><th style="padding:9px 12px;text-align:left;border-bottom:1px solid #e2e8f0;">Esito</th>{% if not ticket.is_chiuso %}<th style="padding:9px 12px;border-bottom:1px solid #e2e8f0;"></th>{% endif %}</tr></thead><tbody>
+          <div id="interventi-list" style="overflow:auto;border:1px solid #e2e8f0;border-radius:14px;"><table style="width:100%;border-collapse:collapse;font-size:13px;background:#fff;"><thead><tr style="background:#f8fafc;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;"><th style="padding:9px 12px;text-align:left;border-bottom:1px solid #e2e8f0;">Tecnico</th><th style="padding:9px 12px;text-align:left;border-bottom:1px solid #e2e8f0;">Inizio</th><th style="padding:9px 12px;text-align:left;border-bottom:1px solid #e2e8f0;">Fine</th><th style="padding:9px 12px;text-align:right;border-bottom:1px solid #e2e8f0;">Ore</th><th style="padding:9px 12px;text-align:left;border-bottom:1px solid #e2e8f0;">Componente</th><th style="padding:9px 12px;text-align:right;border-bottom:1px solid #e2e8f0;">Costo (€)</th><th style="padding:9px 12px;text-align:left;border-bottom:1px solid #e2e8f0;">Esito</th>{% if not ticket.is_chiuso %}<th style="padding:9px 12px;border-bottom:1px solid #e2e8f0;"></th>{% endif %}</tr></thead><tbody>
             {% for i in interventi %}
-            <tr data-interv-id="{{ i.pk }}"><td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;font-weight:700;">{{ i.tecnico_nome }}</td><td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;">{{ i.data_inizio|date:"d/m/Y H:i" }}</td><td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;">{% if i.data_fine %}{{ i.data_fine|date:"d/m/Y H:i" }}{% else %}In corso{% endif %}</td><td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700;">{% if i.durata_ore %}{{ i.durata_ore }}h{% else %}-{% endif %}</td><td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;">{{ i.componente_interessato|default:"-" }}</td><td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;"><span class="tkt-badge" style="{% if i.esito == 'COMPLETATO' %}background:#d1fae5;color:#065f46;{% elif i.esito == 'IN_CORSO' %}background:#dbeafe;color:#1e40af;{% elif i.esito == 'SOSPESO' %}background:#fef3c7;color:#92400e;{% else %}background:#fee2e2;color:#991b1b;{% endif %}">{{ i.label_esito }}</span></td>{% if not ticket.is_chiuso %}<td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;"><button type="button" class="interv-delete-btn tkt-btn-sm tkt-btn-gray" style="padding:6px 10px;" data-id="{{ i.pk }}">Elimina</button></td>{% endif %}</tr>
-            {% if i.descrizione_lavoro or i.azioni_svolte %}<tr><td colspan="{% if not ticket.is_chiuso %}7{% else %}6{% endif %}" style="padding:10px 12px;border-bottom:1px solid #f1f5f9;background:#fafafa;font-size:12px;color:#475569;">{% if i.descrizione_lavoro %}<div><strong style="color:#0f172a;">Lavoro:</strong> {{ i.descrizione_lavoro }}</div>{% endif %}{% if i.azioni_svolte %}<div style="margin-top:4px;"><strong style="color:#0f172a;">Azioni:</strong> {{ i.azioni_svolte }}</div>{% endif %}</td></tr>{% endif %}
+            <tr data-interv-id="{{ i.pk }}">
+              <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;font-weight:700;">{{ i.tecnico_nome }}{% if i.numero_rapportino %}<br><span style="font-size:11px;color:#64748b;font-weight:400;">RPT {{ i.numero_rapportino }}</span>{% endif %}</td>
+              <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;">{{ i.data_inizio|date:"d/m/Y H:i" }}</td>
+              <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;">{% if i.data_fine %}{{ i.data_fine|date:"d/m/Y H:i" }}{% else %}In corso{% endif %}</td>
+              <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700;">{% if i.durata_ore %}{{ i.durata_ore }}h{% else %}-{% endif %}</td>
+              <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;">{{ i.componente_interessato|default:"-" }}</td>
+              <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700;">{% if i.costo_totale_eur %}{{ i.costo_totale_eur|floatformat:2 }} €{% else %}-{% endif %}</td>
+              <td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;"><span class="tkt-badge" style="{% if i.esito == 'COMPLETATO' %}background:#d1fae5;color:#065f46;{% elif i.esito == 'IN_CORSO' %}background:#dbeafe;color:#1e40af;{% elif i.esito == 'SOSPESO' %}background:#fef3c7;color:#92400e;{% else %}background:#fee2e2;color:#991b1b;{% endif %}">{{ i.label_esito }}</span></td>
+              {% if not ticket.is_chiuso %}<td style="padding:10px 12px;border-bottom:1px solid #f1f5f9;"><button type="button" class="interv-delete-btn tkt-btn-sm tkt-btn-gray" style="padding:6px 10px;" data-id="{{ i.pk }}">Elimina</button></td>{% endif %}
+            </tr>
+            {% if i.descrizione_lavoro or i.azioni_svolte or i.costo_manodopera_eur or i.materiali_costo_eur %}
+            <tr><td colspan="{% if not ticket.is_chiuso %}8{% else %}7{% endif %}" style="padding:10px 12px;border-bottom:1px solid #f1f5f9;background:#fafafa;font-size:12px;color:#475569;">
+              {% if i.descrizione_lavoro %}<div><strong style="color:#0f172a;">Lavoro:</strong> {{ i.descrizione_lavoro }}</div>{% endif %}
+              {% if i.azioni_svolte %}<div style="margin-top:4px;"><strong style="color:#0f172a;">Azioni:</strong> {{ i.azioni_svolte }}</div>{% endif %}
+              {% if i.costo_manodopera_eur or i.materiali_costo_eur %}
+              <div style="margin-top:6px;display:flex;gap:16px;flex-wrap:wrap;">
+                {% if i.costo_manodopera_eur %}<span><strong style="color:#0f172a;">Manodopera:</strong> {{ i.costo_manodopera_eur|floatformat:2 }} €</span>{% endif %}
+                {% if i.materiali_costo_eur %}<span><strong style="color:#0f172a;">Materiali:</strong> {{ i.materiali_costo_eur|floatformat:2 }} €</span>{% endif %}
+              </div>
+              {% endif %}
+            </td></tr>
+            {% endif %}
+            {% if i.componenti_sostituiti.all %}
+            <tr><td colspan="{% if not ticket.is_chiuso %}8{% else %}7{% endif %}" style="padding:8px 12px 12px;border-bottom:1px solid #f1f5f9;background:#fafff7;">
+              <div style="font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Componenti sostituiti</div>
+              <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                <thead><tr style="color:#64748b;"><th style="padding:4px 8px;text-align:left;">Componente</th><th style="padding:4px 8px;text-align:left;">P/N</th><th style="padding:4px 8px;text-align:right;">Qtà</th><th style="padding:4px 8px;text-align:right;">€/u</th><th style="padding:4px 8px;text-align:right;">Totale</th>{% if not ticket.is_chiuso %}<th style="padding:4px 8px;"></th>{% endif %}</tr></thead>
+                <tbody>
+                  {% for c in i.componenti_sostituiti.all %}
+                  <tr data-comp-id="{{ c.pk }}">
+                    <td style="padding:4px 8px;font-weight:700;">{{ c.nome }}</td>
+                    <td style="padding:4px 8px;color:#64748b;">{{ c.codice_parte|default:"-" }}</td>
+                    <td style="padding:4px 8px;text-align:right;">{{ c.quantita }}</td>
+                    <td style="padding:4px 8px;text-align:right;">{% if c.costo_unitario_eur %}{{ c.costo_unitario_eur|floatformat:2 }} €{% else %}-{% endif %}</td>
+                    <td style="padding:4px 8px;text-align:right;font-weight:700;">{% if c.costo_totale_eur %}{{ c.costo_totale_eur|floatformat:2 }} €{% else %}-{% endif %}</td>
+                    {% if not ticket.is_chiuso %}<td style="padding:4px 8px;"><button type="button" class="comp-delete-btn tkt-btn-sm tkt-btn-gray" style="padding:3px 8px;font-size:11px;" data-id="{{ c.pk }}">✕</button></td>{% endif %}
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </td></tr>
+            {% endif %}
+            {% if not ticket.is_chiuso %}
+            <tr id="comp-add-row-{{ i.pk }}"><td colspan="{% if not ticket.is_chiuso %}8{% else %}7{% endif %}" style="padding:6px 12px 10px;border-bottom:1px solid #e2e8f0;background:#f8fafc;">
+              <details style="font-size:12px;">
+                <summary style="cursor:pointer;color:#0369a1;font-weight:700;user-select:none;">+ Aggiungi componente sostituito</summary>
+                <div style="margin-top:8px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr 2fr auto;gap:8px;align-items:end;">
+                  <div class="tkt-field" style="gap:3px;"><label style="font-size:10px;">Componente *</label><input type="text" class="comp-nome" data-interv="{{ i.pk }}" maxlength="200" placeholder="Es. Inverter XY"></div>
+                  <div class="tkt-field" style="gap:3px;"><label style="font-size:10px;">P/N</label><input type="text" class="comp-pn" data-interv="{{ i.pk }}" maxlength="100" placeholder="Codice"></div>
+                  <div class="tkt-field" style="gap:3px;"><label style="font-size:10px;">Qtà</label><input type="number" class="comp-qty" data-interv="{{ i.pk }}" min="1" value="1"></div>
+                  <div class="tkt-field" style="gap:3px;"><label style="font-size:10px;">€/u</label><input type="number" class="comp-costo" data-interv="{{ i.pk }}" min="0" step="0.01" placeholder="0.00"></div>
+                  <div class="tkt-field" style="gap:3px;"><label style="font-size:10px;">Note</label><input type="text" class="comp-note" data-interv="{{ i.pk }}" maxlength="300"></div>
+                  <button type="button" class="comp-save-btn tkt-btn-sm tkt-btn-blue" data-interv="{{ i.pk }}" style="padding:8px 12px;">Aggiungi</button>
+                </div>
+                <span class="comp-status" data-interv="{{ i.pk }}" style="font-size:11px;color:#64748b;display:block;margin-top:4px;"></span>
+              </details>
+            </td></tr>
+            {% endif %}
             {% endfor %}
           </tbody></table></div>
           <div style="margin-top:10px;font-size:12px;color:#64748b;text-align:right;">Totale ore registrate: <span id="interv-ore-totali" style="font-weight:800;color:#0f172a;">-</span></div>
@@ -136,6 +241,30 @@
       </section>
 
       <section class="tkt-tab-panel" data-panel="asset">
+        {% if costo_totale %}
+        <div class="tkt-card" style="border:1px solid #bbf7d0;background:#f0fdf4;margin-bottom:16px;">
+          <div class="tkt-card-title" style="color:#15803d;">Riepilogo costi intervento</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-top:4px;">
+            <div style="background:#fff;border:1px solid #d1fae5;border-radius:12px;padding:12px 14px;text-align:center;">
+              <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Manodopera</div>
+              <div style="font-size:22px;font-weight:900;color:#15803d;">{{ costo_manodopera_tot|floatformat:2|default:"0.00" }} €</div>
+            </div>
+            <div style="background:#fff;border:1px solid #d1fae5;border-radius:12px;padding:12px 14px;text-align:center;">
+              <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Materiali</div>
+              <div style="font-size:22px;font-weight:900;color:#15803d;">{{ costo_materiali_tot|floatformat:2|default:"0.00" }} €</div>
+            </div>
+            <div style="background:#fff;border:2px solid #6ee7b7;border-radius:12px;padding:12px 14px;text-align:center;">
+              <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Totale</div>
+              <div style="font-size:26px;font-weight:900;color:#065f46;">{{ costo_totale|floatformat:2 }} €</div>
+            </div>
+          </div>
+          {% if workorders_generati %}
+          <div style="margin-top:12px;padding-top:10px;border-top:1px solid #d1fae5;font-size:12px;color:#64748b;">
+            OdL collegati: {% for wo in workorders_generati %}<a href="{% url 'assets:wo_view' wo.pk %}" style="color:#15803d;font-weight:700;text-decoration:none;" target="_blank">OdL #{{ wo.pk }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">
           <div class="tkt-card">
             <div class="tkt-card-title">Asset collegato</div>
@@ -173,7 +302,7 @@
             {% if ticket.stato != 'CHIUSO' %}<button class="tkt-azione-btn tkt-az-chiudi" data-stato="CHIUSO">Chiudi ticket</button>{% endif %}
             <button class="tkt-azione-btn tkt-az-annulla" data-stato="ANNULLATO" id="btn-annulla">Annulla ticket</button>
           </div>
-          <div id="nota-stato-wrap" style="display:none;margin-top:10px;"><div class="tkt-field"><label>Nota cambio stato</label><textarea id="nota-stato" rows="2" placeholder="Motivazione o nota operativa"></textarea></div><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;"><button class="tkt-btn-sm tkt-btn-blue" id="confirm-stato">Conferma</button><button class="tkt-btn-sm tkt-btn-gray" id="cancel-stato">Annulla</button></div></div>
+          <div id="nota-stato-wrap" style="display:none;margin-top:10px;"><div id="data-prevista-wrap" class="tkt-field" style="display:none;margin-bottom:8px;"><label>Data prevista risoluzione</label><input type="date" id="data-prevista-input" style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;width:100%;box-sizing:border-box;"></div><div class="tkt-field"><label>Nota cambio stato</label><textarea id="nota-stato" rows="2" placeholder="Motivazione o nota operativa"></textarea></div><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;"><button class="tkt-btn-sm tkt-btn-blue" id="confirm-stato">Conferma</button><button class="tkt-btn-sm tkt-btn-gray" id="cancel-stato">Annulla</button></div></div>
           <span id="stato-status" style="font-size:12px;color:#64748b;"></span>
         </div>
         <div style="padding-top:14px;margin-top:14px;border-top:1px solid #e2e8f0;">
@@ -196,6 +325,7 @@
           <div class="tkt-meta-item"><span class="tkt-meta-key">Fornitore</span><span class="tkt-meta-val">{% if ticket.delegato_fornitore %}{{ ticket.delegato_fornitore.ragione_sociale }}{% else %}-{% endif %}</span></div>
           <div class="tkt-meta-item"><span class="tkt-meta-key">Apertura</span><span class="tkt-meta-val">{{ ticket.created_at|date:"d/m/Y H:i" }}</span></div>
           {% if ticket.data_presa_in_carico %}<div class="tkt-meta-item"><span class="tkt-meta-key">Presa in carico</span><span class="tkt-meta-val">{{ ticket.data_presa_in_carico|date:"d/m/Y H:i" }}</span></div>{% endif %}
+          {% if ticket.data_prevista_risoluzione %}<div class="tkt-meta-item"><span class="tkt-meta-key">Prevista il</span><span class="tkt-meta-val" style="color:#6b21a8;font-weight:700;">{{ ticket.data_prevista_risoluzione|date:"d/m/Y" }}</span></div>{% endif %}
           {% if ticket.closed_at %}<div class="tkt-meta-item"><span class="tkt-meta-key">Chiusura</span><span class="tkt-meta-val">{{ ticket.closed_at|date:"d/m/Y H:i" }}</span></div>{% endif %}
           {% if ticket.risolto_da_nome %}<div class="tkt-meta-item"><span class="tkt-meta-key">Risolto da</span><span class="tkt-meta-val">{{ ticket.risolto_da_nome }}</span></div>{% endif %}
           {% if ticket.ticket_origine %}<div class="tkt-meta-item"><span class="tkt-meta-key">Ticket origine</span><span class="tkt-meta-val"><a href="{% url 'tickets:gestione_detail' ticket.ticket_origine.pk %}">{{ ticket.ticket_origine.numero_ticket }}</a></span></div>{% endif %}
@@ -205,24 +335,31 @@
   </div>
 </div>
 <script>
-const TICKET_ID={{ ticket.pk }},CSRF="{{ csrf_token }}",API_COMM="{% url 'tickets:api_commento' %}",API_STATO="{% url 'tickets:api_stato' %}",API_ASSEGNA="{% url 'tickets:api_assegna' %}",API_ASSET="{% url 'tickets:api_asset' %}",API_ANALYTICS="{% url 'tickets:api_analytics' %}",API_INTERVENTO="{% url 'tickets:api_intervento' %}",ASSETS={{ assets_list|safe }},DETAIL_TAB_KEY="tickets:gestione-detail:tab";
+const TICKET_ID={{ ticket.pk }},CSRF="{{ csrf_token }}",API_COMM="{% url 'tickets:api_commento' %}",API_STATO="{% url 'tickets:api_stato' %}",API_ASSEGNA="{% url 'tickets:api_assegna' %}",API_ASSET="{% url 'tickets:api_asset' %}",API_ANALYTICS="{% url 'tickets:api_analytics' %}",API_INTERVENTO="{% url 'tickets:api_intervento' %}",API_COMPONENTE="{% url 'tickets:api_componente' %}",API_CREA_WORKORDER="{% url 'tickets:api_crea_workorder' %}",ASSETS={{ assets_list|safe }},DETAIL_TAB_KEY="tickets:gestione-detail:tab";
 function escapeHtml(v){return String(v||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
 function activateTicketTab(t){document.querySelectorAll(".tkt-tab-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===t));document.querySelectorAll(".tkt-tab-panel").forEach(p=>p.classList.toggle("active",p.dataset.panel===t));sessionStorage.setItem(DETAIL_TAB_KEY,t)}
 document.querySelectorAll(".tkt-tab-btn").forEach(btn=>btn.addEventListener("click",()=>activateTicketTab(btn.dataset.tab)));(()=>{const tabs=[...document.querySelectorAll(".tkt-tab-btn")].map(b=>b.dataset.tab),stored=sessionStorage.getItem(DETAIL_TAB_KEY),fallback=tabs.includes("activity")?"activity":tabs[0];activateTicketTab(tabs.includes(stored)?stored:fallback)})();
-function renderActivityComment(d,isInterno){return `<article class="tkt-feed-item tkt-feed-comment${isInterno?" is-internal":""}"><div class="tkt-feed-dot"></div><div class="tkt-feed-body"><div class="tkt-feed-head"><div><span class="tkt-feed-actor">${escapeHtml(d.autore_nome)}</span><span class="tkt-feed-badge">${isInterno?"Interna":"Commento"}</span><div class="tkt-feed-title">${isInterno?"Nota interna":"Commento"}</div></div><div class="tkt-feed-date">${escapeHtml(d.created_at)}</div></div><div class="tkt-feed-copy">${escapeHtml(d.testo).replace(/\n/g,"<br>")}</div></div></article>`}
-async function sendCommento(isInterno){const txt=document.getElementById("commento-testo").value.trim();if(!txt)return;const st=document.getElementById("commento-status");st.textContent="Invio...";try{const r=await fetch(API_COMM,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify({ticket_id:TICKET_ID,testo:txt,is_interno:isInterno})}),d=await r.json();if(d.ok){document.getElementById("commento-testo").value="";st.textContent="Salvato.";document.getElementById("activity-feed")?.insertAdjacentHTML("afterbegin",renderActivityComment(d,isInterno));activateTicketTab("activity")}else st.textContent=d.error||"Errore."}catch(e){st.textContent="Errore di rete."}}
-document.getElementById("commento-pubbl")?.addEventListener("click",()=>sendCommento(false));document.getElementById("commento-interno")?.addEventListener("click",()=>sendCommento(true));
+function renderActivityComment(d){return `<article class="tkt-feed-item tkt-feed-comment"><div class="tkt-feed-dot"></div><div class="tkt-feed-body"><div class="tkt-feed-head"><div><span class="tkt-feed-actor">${escapeHtml(d.autore_nome)}</span><span class="tkt-feed-badge">Commento</span><div class="tkt-feed-title">Commento</div></div><div class="tkt-feed-date">${escapeHtml(d.created_at)}</div></div><div class="tkt-feed-copy">${escapeHtml(d.testo).replace(/\n/g,"<br>")}</div></div></article>`}
+async function sendCommento(){const txt=document.getElementById("commento-testo").value.trim();if(!txt)return;const st=document.getElementById("commento-status");st.textContent="Invio...";try{const r=await fetch(API_COMM,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify({ticket_id:TICKET_ID,testo:txt,is_interno:false})}),d=await r.json();if(d.ok){if(d.auto_in_carico){location.reload();return}document.getElementById("commento-testo").value="";st.textContent="Salvato.";document.getElementById("activity-feed")?.insertAdjacentHTML("afterbegin",renderActivityComment(d));activateTicketTab("activity")}else st.textContent=d.error||"Errore."}catch(e){st.textContent="Errore di rete."}}
+document.getElementById("commento-invia")?.addEventListener("click",()=>sendCommento());
 let _agMode="catalogo",_agSelectedId=null;document.querySelectorAll(".ag-my-chip").forEach(chip=>{chip.addEventListener("click",function(){document.querySelectorAll(".ag-my-chip").forEach(c=>{c.style.background="#f0f9ff";c.style.color="#0e7490"});this.style.background="#0e7490";this.style.color="#fff";_agSelectedId=parseInt(this.dataset.id,10);_agMode="catalogo";if(agSearch)agSearch.value=this.dataset.name;document.getElementById("ag-status").textContent=""})});
 function agToggle(mode){_agMode=mode;_agSelectedId=null;document.getElementById("ag-tog-catalogo").classList.toggle("active",mode==="catalogo");document.getElementById("ag-tog-libero").classList.toggle("active",mode==="libero");document.getElementById("ag-catalogo").style.display=mode==="catalogo"?"":"none";document.getElementById("ag-libero").style.display=mode==="libero"?"":"none"}
 function _scoreAsset(a,q){let s=0;[a.name,a.asset_tag,a.asset_type_label,a.asset_category,a.manufacturer,a.model,a.serial_number,a.reparto].forEach(f=>{if(!f)return;const fl=f.toLowerCase();if(fl===q)s+=100;else if(fl.startsWith(q))s+=50;else if(fl.includes(q))s+=20});return s}
 const agSearch=document.getElementById("ag-search"),agResults=document.getElementById("ag-results");if(agSearch){agSearch.addEventListener("input",function(){const q=this.value.trim().toLowerCase();_agSelectedId=null;if(q.length<2){agResults.style.display="none";return}const matches=ASSETS.map(a=>({a,s:_scoreAsset(a,q)})).filter(x=>x.s>0).sort((x,y)=>y.s-x.s||x.a.name.localeCompare(y.a.name)).slice(0,8);if(!matches.length){agResults.style.display="none";return}agResults.innerHTML=matches.map(({a})=>`<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;" data-id="${a.id}" data-name="${escapeHtml(a.name)} [${escapeHtml(a.asset_tag)}]"><strong>${escapeHtml(a.name)}</strong> <span style="color:#64748b;font-size:11px;">${escapeHtml(a.asset_tag)}</span><br><span style="color:#94a3b8;font-size:11px;">${escapeHtml(a.asset_type_label||a.asset_type||"")} | ${escapeHtml(a.asset_category||a.model||"")}</span></div>`).join("");agResults.style.display="block";agResults.querySelectorAll("[data-id]").forEach(el=>el.addEventListener("click",()=>{_agSelectedId=parseInt(el.dataset.id,10);agSearch.value=el.dataset.name;agResults.style.display="none"}))});document.addEventListener("click",e=>{if(!agSearch.contains(e.target)&&!agResults.contains(e.target))agResults.style.display="none"})}
 document.getElementById("ag-save")?.addEventListener("click",async()=>{const st=document.getElementById("ag-status");st.textContent="Salvataggio...";const payload={ticket_id:TICKET_ID};if(_agMode==="catalogo"){payload.asset_id=_agSelectedId||null;payload.asset_descrizione_libera=""}else{payload.asset_id=null;payload.asset_descrizione_libera=document.getElementById("ag-libero-input").value.trim()}try{const r=await fetch(API_ASSET,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify(payload)}),d=await r.json();if(d.ok){st.textContent="Salvato.";const cur=document.getElementById("asset-current");if(d.asset_id)cur.innerHTML=`<a href="${d.asset_url}" style="color:#0369a1;font-weight:700;text-decoration:none;">${escapeHtml(d.asset_name)} [${escapeHtml(d.asset_tag)}]</a>`;else if(d.asset_lib)cur.innerHTML=`<span style="color:#374151;">${escapeHtml(d.asset_lib)}</span> <span style="color:#94a3b8;font-size:11px;">(testo libero)</span>`;else cur.innerHTML=`<span style="color:#94a3b8;">Nessun asset collegato</span>`}else st.textContent=d.error||"Errore."}catch(e){st.textContent="Errore di rete."}});
 document.getElementById("ag-clear")?.addEventListener("click",async()=>{const st=document.getElementById("ag-status");st.textContent="Rimozione...";try{const r=await fetch(API_ASSET,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify({ticket_id:TICKET_ID,asset_id:null,asset_descrizione_libera:""})}),d=await r.json();if(d.ok){st.textContent="Rimosso.";document.getElementById("asset-current").innerHTML=`<span style="color:#94a3b8;">Nessun asset collegato</span>`;if(agSearch)agSearch.value="";_agSelectedId=null}else st.textContent=d.error||"Errore."}catch(e){st.textContent="Errore di rete."}});
-let pendingStato=null;document.querySelectorAll("[data-stato]").forEach(btn=>btn.addEventListener("click",()=>{pendingStato=btn.dataset.stato;document.getElementById("nota-stato-wrap").style.display="";document.getElementById("nota-stato").placeholder=pendingStato==="ANNULLATO"?"Motivazione annullamento (obbligatoria)...":"Nota operativa (opzionale)..."}));document.getElementById("cancel-stato")?.addEventListener("click",()=>{pendingStato=null;document.getElementById("nota-stato-wrap").style.display="none";document.getElementById("nota-stato").value=""});document.getElementById("confirm-stato")?.addEventListener("click",async()=>{if(!pendingStato)return;const nota=document.getElementById("nota-stato").value.trim();if(pendingStato==="ANNULLATO"&&!nota){alert("Inserisci una motivazione per l'annullamento.");return}const st=document.getElementById("stato-status");st.textContent="Aggiornamento...";try{const r=await fetch(API_STATO,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify({ticket_id:TICKET_ID,stato:pendingStato,nota})}),d=await r.json();if(d.ok)location.reload();else st.textContent=d.error||"Errore."}catch(e){st.textContent="Errore di rete."}});
+let pendingStato=null;document.querySelectorAll("[data-stato]").forEach(btn=>btn.addEventListener("click",()=>{pendingStato=btn.dataset.stato;document.getElementById("nota-stato-wrap").style.display="";document.getElementById("nota-stato").placeholder=pendingStato==="ANNULLATO"?"Motivazione annullamento (obbligatoria)...":"Nota operativa (opzionale)...";const dpWrap=document.getElementById("data-prevista-wrap");if(dpWrap)dpWrap.style.display=pendingStato==="IN_ATTESA"?"":"none"}));document.getElementById("cancel-stato")?.addEventListener("click",()=>{pendingStato=null;document.getElementById("nota-stato-wrap").style.display="none";document.getElementById("nota-stato").value="";const dpWrap=document.getElementById("data-prevista-wrap");if(dpWrap){dpWrap.style.display="none";document.getElementById("data-prevista-input").value=""}});document.getElementById("confirm-stato")?.addEventListener("click",async()=>{if(!pendingStato)return;const nota=document.getElementById("nota-stato").value.trim();if(pendingStato==="ANNULLATO"&&!nota){alert("Inserisci una motivazione per l'annullamento.");return}const dataPrevista=document.getElementById("data-prevista-input")?.value||"";const st=document.getElementById("stato-status");st.textContent="Aggiornamento...";try{const r=await fetch(API_STATO,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify({ticket_id:TICKET_ID,stato:pendingStato,nota,data_prevista:dataPrevista})}),d=await r.json();if(d.ok)location.reload();else st.textContent=d.error||"Errore."}catch(e){st.textContent="Errore di rete."}});
 document.getElementById("assign-submit")?.addEventListener("click",async()=>{const sel=document.getElementById("assign-membro"),opt=sel.options[sel.selectedIndex],nome=opt.value||"",email=opt.dataset.email||"",fornitore=document.getElementById("assign-fornitore").value||null,st=document.getElementById("assign-status");st.textContent="Salvataggio...";try{const r=await fetch(API_ASSEGNA,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify({ticket_id:TICKET_ID,assegnato_a:nome,assegnato_email:email,fornitore_id:fornitore})}),d=await r.json();if(d.ok){st.textContent="Salvato.";document.getElementById("meta-assegnato").textContent=d.assegnato_a||"-";document.getElementById("meta-assegnato-hero").textContent=d.assegnato_a||"Non assegnato"}else st.textContent=d.error||"Errore."}catch(e){st.textContent="Errore di rete."}});
 document.getElementById("an-save")?.addEventListener("click",async()=>{const st=document.getElementById("an-status");st.textContent="Salvataggio...";try{const r=await fetch(API_ANALYTICS,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify({ticket_id:TICKET_ID,componente:document.getElementById("an-componente").value.trim(),tipo_fermo:document.getElementById("an-tipo-fermo").value,ore_fermo_macchina:document.getElementById("an-ore-fermo").value||null,causa_radice:document.getElementById("an-causa-radice").value.trim(),ricorrente:document.getElementById("an-ricorrente").checked})}),d=await r.json();st.textContent=d.ok?"Salvato.":(d.error||"Errore.")}catch(e){st.textContent="Errore di rete."}});
 document.getElementById("interv-toggle-form")?.addEventListener("click",()=>{const f=document.getElementById("interv-form");f.style.display=f.style.display==="none"?"":"none";activateTicketTab("interventi");if(f.style.display!=="none"&&!document.getElementById("if-inizio").value){const now=new Date();now.setSeconds(0,0);document.getElementById("if-inizio").value=now.toISOString().slice(0,16)}});document.getElementById("if-cancel")?.addEventListener("click",()=>{document.getElementById("interv-form").style.display="none"});
-document.getElementById("if-save")?.addEventListener("click",async()=>{const st=document.getElementById("if-status"),inizio=document.getElementById("if-inizio").value;if(!inizio){st.textContent="Inserire data inizio.";return}st.textContent="Salvataggio...";try{const r=await fetch(API_INTERVENTO,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify({ticket_id:TICKET_ID,tecnico_nome:document.getElementById("if-tecnico").value.trim(),data_inizio:inizio,data_fine:document.getElementById("if-fine").value||null,ore_lavorate:document.getElementById("if-ore").value||null,componente_interessato:document.getElementById("if-componente").value.trim(),descrizione_lavoro:document.getElementById("if-descrizione").value.trim(),azioni_svolte:document.getElementById("if-azioni").value.trim(),esito:document.getElementById("if-esito").value})}),d=await r.json();if(d.ok)location.reload();else st.textContent=d.error||"Errore."}catch(e){st.textContent="Errore di rete."}});
+document.getElementById("if-save")?.addEventListener("click",async()=>{const st=document.getElementById("if-status"),inizio=document.getElementById("if-inizio").value;if(!inizio){st.textContent="Inserire data inizio.";return}st.textContent="Salvataggio...";try{const r=await fetch(API_INTERVENTO,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify({ticket_id:TICKET_ID,tecnico_nome:document.getElementById("if-tecnico").value.trim(),data_inizio:inizio,data_fine:document.getElementById("if-fine").value||null,ore_lavorate:document.getElementById("if-ore").value||null,componente_interessato:document.getElementById("if-componente").value.trim(),descrizione_lavoro:document.getElementById("if-descrizione").value.trim(),azioni_svolte:document.getElementById("if-azioni").value.trim(),esito:document.getElementById("if-esito").value,costo_manodopera_eur:document.getElementById("if-costo-manodopera").value||null,materiali_costo_eur:document.getElementById("if-costo-materiali").value||null,numero_rapportino:document.getElementById("if-rapportino").value.trim()})}),d=await r.json();if(d.ok)location.reload();else st.textContent=d.error||"Errore."}catch(e){st.textContent="Errore di rete."}});
+// Manutenzione straordinaria
+document.getElementById("man-toggle-form")?.addEventListener("click",()=>{const f=document.getElementById("man-form");if(f)f.style.display=f.style.display==="none"?"":"none"});
+document.getElementById("man-cancel")?.addEventListener("click",()=>{const f=document.getElementById("man-form");if(f)f.style.display="none"});
+document.getElementById("man-save")?.addEventListener("click",async()=>{const st=document.getElementById("man-status");st.textContent="Creazione OdL...";try{const r=await fetch(API_CREA_WORKORDER,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify({ticket_id:TICKET_ID,title:document.getElementById("man-title").value.trim(),description:document.getElementById("man-description").value.trim()})}),d=await r.json();if(d.ok){st.textContent="OdL creato!";const list=document.getElementById("man-wo-list"),empty=document.getElementById("man-wo-empty");const html=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;font-size:13px;"><div><span style="font-weight:800;color:#0f172a;">OdL #${d.workorder_id}</span> — ${escapeHtml(d.title)}<br><span style="font-size:11px;color:#64748b;">${escapeHtml(d.asset_name)} [${escapeHtml(d.asset_tag)}]</span></div><div><span style="padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;background:#dbeafe;color:#1e40af;">Aperto</span> <a href="${d.workorder_url}" style="font-size:12px;font-weight:700;color:#0369a1;text-decoration:none;" target="_blank">Apri</a></div></div>`;if(list)list.insertAdjacentHTML("beforeend",html);else{const newList=document.createElement("div");newList.id="man-wo-list";newList.setAttribute("style","margin-top:10px;display:flex;flex-direction:column;gap:8px;");newList.innerHTML=html;document.getElementById("man-form").insertAdjacentElement("beforebegin",newList)}if(empty)empty.style.display="none";document.getElementById("man-form").style.display="none"}else st.textContent=d.error||"Errore."}catch(e){st.textContent="Errore di rete."}});
+// Componenti sostituiti
+document.querySelectorAll(".comp-save-btn").forEach(btn=>btn.addEventListener("click",async function(){const iid=parseInt(this.dataset.interv,10),nome=document.querySelector(`.comp-nome[data-interv="${iid}"]`).value.trim(),pn=document.querySelector(`.comp-pn[data-interv="${iid}"]`).value.trim(),qty=document.querySelector(`.comp-qty[data-interv="${iid}"]`).value,costo=document.querySelector(`.comp-costo[data-interv="${iid}"]`).value,note=document.querySelector(`.comp-note[data-interv="${iid}"]`).value.trim(),st=document.querySelector(`.comp-status[data-interv="${iid}"]`);if(!nome){st.textContent="Nome obbligatorio.";return}st.textContent="Salvataggio...";try{const r=await fetch(API_COMPONENTE,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify({intervento_id:iid,nome,codice_parte:pn,quantita:qty||1,costo_unitario_eur:costo||null,note})}),d=await r.json();if(d.ok)location.reload();else st.textContent=d.error||"Errore."}catch(e){st.textContent="Errore di rete."}}));
+document.querySelectorAll(".comp-delete-btn").forEach(btn=>btn.addEventListener("click",async function(){if(!confirm("Eliminare questo componente?"))return;try{const r=await fetch(API_COMPONENTE,{method:"DELETE",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify({id:parseInt(this.dataset.id,10)})}),d=await r.json();if(d.ok)location.reload();else alert(d.error||"Errore.")}catch(e){alert("Errore di rete.")}}));
 document.querySelectorAll(".interv-delete-btn").forEach(btn=>btn.addEventListener("click",async function(){if(!confirm("Eliminare questo intervento?"))return;try{const r=await fetch(API_INTERVENTO,{method:"DELETE",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify({id:parseInt(this.dataset.id,10)})}),d=await r.json();if(d.ok)location.reload();else alert(d.error||"Errore eliminazione.")}catch(e){alert("Errore di rete.")}}));
 (()=>{const rows=document.querySelectorAll("#interventi-list tbody tr[data-interv-id]");let tot=0;rows.forEach(row=>{const oreCell=row.querySelector("td:nth-child(4)");if(oreCell){const v=parseFloat(oreCell.textContent.replace("h","").trim());if(!isNaN(v))tot+=v}});const el=document.getElementById("interv-ore-totali");if(el)el.textContent=tot>0?`${tot.toFixed(2)}h`:"0h"})();
 </script>

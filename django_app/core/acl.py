@@ -362,19 +362,69 @@ def user_can_modulo_action(request, modulo: str, azione: str) -> bool:
     if legacy_user is None:
         from core.legacy_utils import get_legacy_user
         legacy_user = get_legacy_user(request.user)
+    return bool(
+        evaluate_modulo_action_access(
+            legacy_user=legacy_user,
+            modulo=modulo,
+            azione=azione,
+        ).get("allowed", False)
+    )
+
+
+def evaluate_modulo_action_access(*, legacy_user: UtenteLegacy | None, modulo: str, azione: str) -> dict:
+    """Valuta l'accesso legacy per uno specifico modulo+azione."""
+    modulo_norm = str(modulo or "").strip().lower()
+    azione_norm = str(azione or "").strip().lower()
+    result = {
+        "allowed": False,
+        "source": "input",
+        "reason": "",
+        "modulo": modulo_norm,
+        "azione": azione_norm,
+        "role_id": _safe_int(getattr(legacy_user, "ruolo_id", None)) if legacy_user else None,
+        "override": None,
+        "db_error": "",
+    }
     if not legacy_user:
-        return False
+        result["reason"] = "Utente legacy assente."
+        return result
     if is_legacy_admin(legacy_user):
-        return True
-    ruolo_id = getattr(legacy_user, "ruolo_id", None)
-    if not ruolo_id:
-        return False
+        result["allowed"] = True
+        result["source"] = "legacy_admin"
+        result["reason"] = "Utente riconosciuto come admin legacy."
+        return result
+    ruolo_id = result["role_id"]
+    if not ruolo_id or not modulo_norm or not azione_norm:
+        result["reason"] = "Ruolo legacy o coordinate modulo/azione mancanti."
+        return result
     try:
-        override = _get_user_override(int(legacy_user.id), modulo, azione)
+        override = _get_user_override(int(legacy_user.id), modulo_norm, azione_norm)
         if override is not None and override.can_view is not None:
-            return bool(override.can_view)
+            allowed = bool(override.can_view)
+            result["allowed"] = allowed
+            result["source"] = "user_override"
+            result["reason"] = (
+                "Override utente legacy consente accesso."
+                if allowed
+                else "Override utente legacy nega accesso."
+            )
+            result["override"] = {"exists": True, "can_view": allowed}
+            return result
+
         perm_map = get_cached_perm_map(int(ruolo_id))
-        key = (modulo.lower().strip(), azione.lower().strip())
-        return bool(perm_map.get(key, False))
-    except DatabaseError:
-        return False
+        key = (modulo_norm, azione_norm)
+        allowed = bool(perm_map.get(key, False))
+        result["allowed"] = allowed
+        result["source"] = "role_permission"
+        result["reason"] = (
+            "Permesso ruolo legacy consente accesso."
+            if allowed
+            else "Permesso ruolo legacy assente o non abilitato."
+        )
+        result["override"] = {"exists": False, "can_view": None}
+        return result
+    except DatabaseError as exc:
+        result["source"] = "database"
+        result["reason"] = "Errore database durante la verifica modulo/azione legacy."
+        result["db_error"] = str(exc)
+        return result

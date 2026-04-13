@@ -80,7 +80,7 @@ Output atteso:
 - salvataggio in `C:\PortaleNovicrom\shared\packages\` se la cartella esiste
 - altrimenti salvataggio in `.\releases\`
 
-`package-release.ps1` esegue automaticamente `tools/release_guard.ps1` prima di comprimere i file.
+`package-release.ps1` verifica automaticamente `deployment/dist/SetupWizard.exe` prima di comprimere i file: se manca o e obsoleto rispetto ai trigger runtime del bundle, lo rigenera con PyInstaller e poi esegue `tools/release_guard.ps1`.
 
 ### 3. Deploy su server
 
@@ -206,5 +206,5 @@ Il modello a release directory + junction `current` permette di tornare indietro
 - documentare `django-environ` come loader attivo
 - creare una release senza eseguire il release guard
 - considerare `django_app/VERSION` come sorgente primaria
-- modificare `deployment/setup_wizard.py`, `deployment/SetupWizard.spec`, `deployment/setup_wizard_bundle_rules.json`, `deployment/scripts/*`, `deployment/config/*` o file runtime in `django_app/` senza rigenerare `SetupWizard.exe`
+- modificare `deployment/setup_wizard.py`, `deployment/SetupWizard.spec`, `deployment/setup_wizard_bundle_rules.json`, `deployment/scripts/*`, `deployment/config/*` o file runtime in `django_app/` senza rigenerare `SetupWizard.exe` o senza passare da `package-release.ps1`, che ora lo aggiorna automaticamente
 

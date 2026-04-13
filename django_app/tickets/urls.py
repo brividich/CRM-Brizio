@@ -25,4 +25,7 @@ urlpatterns = [
     # Analytics
     path("api/analytics/",           views.api_ticket_analytics,    name="api_analytics"),
     path("api/intervento/",          views.api_intervento,          name="api_intervento"),
+    # Manutenzione straordinaria / costi
+    path("api/componente/",          views.api_componente,          name="api_componente"),
+    path("api/crea-workorder/",      views.api_crea_workorder_da_ticket, name="api_crea_workorder"),
 ]

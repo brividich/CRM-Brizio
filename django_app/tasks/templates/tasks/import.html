@@ -1,0 +1,334 @@
+{% extends "tasks/base_shell.html" %}
+
+{% block tasks_shell_head %}
+<style>
+  .import-upload-area {
+    border: 2px dashed #bfdbfe;
+    border-radius: 16px;
+    background: #f0f7ff;
+    padding: 36px 24px;
+    text-align: center;
+    transition: border-color 0.15s;
+  }
+
+  .import-upload-area:focus-within {
+    border-color: #3b82f6;
+  }
+
+  .import-upload-icon {
+    font-size: 36px;
+    margin-bottom: 12px;
+    opacity: 0.5;
+  }
+
+  .import-upload-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: #1e293b;
+    margin-bottom: 6px;
+  }
+
+  .import-upload-sub {
+    font-size: 13px;
+    color: #64748b;
+    margin-bottom: 18px;
+  }
+
+  .import-preview-grid {
+    overflow-x: auto;
+    border-radius: 10px;
+    border: 1px solid #dbe5ef;
+  }
+
+  .import-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  .import-table thead th {
+    background: #f1f5f9;
+    padding: 8px 12px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #64748b;
+    border-bottom: 1px solid #dbe5ef;
+    white-space: nowrap;
+  }
+
+  .import-table tbody tr:nth-child(even) { background: #f8fbff; }
+  .import-table tbody tr:hover { background: #eff6ff; }
+
+  .import-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    color: #1e293b;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .import-identity-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .import-identity-chips {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .imp-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 10px;
+    border: 1px solid #dbe5ef;
+    background: #fff;
+    color: #475569;
+  }
+
+  .imp-chip .lbl { font-weight: 700; color: #94a3b8; text-transform: uppercase; font-size: 9px; }
+  .imp-chip.pn { border-color: #c7d2fe; background: #eef2ff; color: #3730a3; }
+  .imp-chip.rev { border-color: #bbf7d0; background: #f0fdf4; color: #166534; }
+  .imp-chip.ver { border-color: #fed7aa; background: #fff7ed; color: #9a3412; }
+
+  .import-commit-bar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 16px 20px;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-radius: 12px;
+  }
+
+  .import-commit-bar .commit-text {
+    flex: 1;
+    font-size: 13px;
+    color: #92400e;
+  }
+
+  .import-error-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .import-error-list li {
+    font-size: 12px;
+    color: #b91c1c;
+    padding: 4px 10px;
+    background: #fef2f2;
+    border-radius: 6px;
+    border: 1px solid #fecaca;
+  }
+
+  .import-col-legend {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+  }
+
+  .import-col-item {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 8px 12px;
+    background: #f8fbff;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    font-size: 12px;
+  }
+
+  .import-col-idx {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: #dbeafe;
+    color: #1d4ed8;
+    font-size: 10px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+</style>
+{% endblock %}
+
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Import Excel</span>{% endblock %}
+{% block tasks_shell_title %}Import attivita kickoff da Excel{% endblock %}
+{% block tasks_shell_subtitle %}Carica un foglio .xlsx per creare o aggiornare kickoff e attivita in blocco. L'anteprima ti mostra esattamente cosa verra importato prima di confermare.{% endblock %}
+{% block tasks_shell_meta %}
+  <span class="ts-hero-pill">Import</span>
+  <span class="ts-hero-pill">Bulk</span>
+{% endblock %}
+{% block tasks_shell_actions %}
+  <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Portfolio kickoff</a>
+  <a class="ts-hero-action" href="{% url 'tasks:download_excel_template' %}">Scarica template .xlsx</a>
+  <a class="ts-hero-action primary" href="{% url 'tasks:list' %}">Dashboard attivita</a>
+{% endblock %}
+
+{% block tasks_shell_content %}
+<div class="ts-stack">
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div class="ts-note-box {% if 'error' in msg.tags %}danger{% endif %}">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  {% if not preview_rows %}
+    {# --- STEP 1: form upload --- #}
+    <section class="ts-panel">
+      <div class="ts-panel-head">
+        <div class="ts-panel-title-wrap">
+          <h2 class="ts-panel-title">Carica file Excel</h2>
+          <p class="ts-panel-subtitle">Seleziona il file .xlsx compilato con i dati delle attivita kickoff da importare.</p>
+        </div>
+        <div class="ts-panel-meta">
+          <a class="ts-chip soft" href="{% url 'tasks:download_excel_template' %}">Scarica template vuoto</a>
+        </div>
+      </div>
+      <div class="ts-panel-body">
+        <form method="post" enctype="multipart/form-data" class="ts-stack">
+          {% csrf_token %}
+          <div class="import-upload-area">
+            <div class="import-upload-icon">📂</div>
+            <div class="import-upload-title">Trascina o seleziona il file .xlsx</div>
+            <div class="import-upload-sub">Formato atteso: prima riga intestazioni, dalla seconda riga i dati.</div>
+            <input type="file" name="file" id="id_file" accept=".xlsx,.xls" required
+                   style="display:block;margin:0 auto;max-width:340px;padding:8px;background:#fff;border:1px solid #bfdbfe;border-radius:8px;font-size:13px;">
+          </div>
+          <div class="ts-actions">
+            <button type="submit" class="btn">Anteprima import</button>
+            <a class="btn btn-secondary" href="{% url 'tasks:project_list' %}">Annulla</a>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    {# --- legenda colonne --- #}
+    <section class="ts-panel">
+      <div class="ts-panel-head">
+        <div class="ts-panel-title-wrap">
+          <h2 class="ts-panel-title">Struttura colonne attesa</h2>
+          <p class="ts-panel-subtitle">Il file deve avere queste colonne nell'ordine esatto (scarica il template per una guida pronta).</p>
+        </div>
+      </div>
+      <div class="ts-panel-body">
+        <div class="import-col-legend">
+          {% for col in columns %}
+            <div class="import-col-item">
+              <span class="import-col-idx">{{ forloop.counter }}</span>
+              <span>{{ col }}</span>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+  {% else %}
+    {# --- STEP 2: anteprima + conferma --- #}
+    <section class="ts-panel">
+      <div class="ts-panel-head">
+        <div class="ts-panel-title-wrap">
+          <h2 class="ts-panel-title">Anteprima import</h2>
+          <p class="ts-panel-subtitle">{{ preview_rows|length }} righe pronte per l'import da <strong>{{ filename }}</strong>. Verifica i dati prima di confermare.</p>
+        </div>
+        <div class="ts-panel-meta">
+          <span class="ts-chip soft">{{ preview_rows|length }} attivita</span>
+        </div>
+      </div>
+      <div class="ts-panel-body">
+
+        {% if errors %}
+          <div class="ts-note-box danger" style="margin-bottom:16px;">
+            <strong>{{ errors|length }} riga/righe ignorate</strong>
+            <ul class="import-error-list" style="margin-top:8px;">
+              {% for err in errors %}
+                <li>{{ err }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+
+        <div class="import-preview-grid">
+          <table class="import-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Kickoff / Identita</th>
+                <th>Cliente</th>
+                <th>Titolo attivita</th>
+                <th>Stato</th>
+                <th>Priorita</th>
+                <th>Assegnato a</th>
+                <th>Data inizio</th>
+                <th>Data fine</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in preview_rows %}
+                <tr>
+                  <td style="color:#94a3b8;font-weight:700;">{{ forloop.counter }}</td>
+                  <td>
+                    <div class="import-identity-cell">
+                      <strong>{{ row.progetto|default:"Nome automatico" }}</strong>
+                      <div class="import-identity-chips">
+                        {% if row.part_number %}
+                          <span class="imp-chip pn"><span class="lbl">P/N</span>{{ row.part_number }}</span>
+                        {% endif %}
+                        {% if row.revisione %}
+                          <span class="imp-chip rev"><span class="lbl">Rev</span>{{ row.revisione }}</span>
+                        {% endif %}
+                        {% if row.versione %}
+                          <span class="imp-chip ver"><span class="lbl">Ver</span>{{ row.versione }}</span>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </td>
+                  <td>{{ row.cliente|default:"—" }}</td>
+                  <td title="{{ row.titolo }}">{{ row.titolo }}</td>
+                  <td><span class="ts-badge ts-badge--{{ row.stato|lower }}">{{ row.stato }}</span></td>
+                  <td><span class="ts-badge ts-badge--{{ row.priorita|lower }}">{{ row.priorita }}</span></td>
+                  <td>{{ row.assegnato_username|default:"—" }}</td>
+                  <td>{{ row.data_inizio|default:"—" }}</td>
+                  <td>{{ row.data_fine|default:"—" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <div class="import-commit-bar">
+      <div class="commit-text">
+        <strong>Pronto a importare {{ preview_rows|length }} attivita kickoff.</strong>
+        I kickoff vengono creati o aggiornati. Le attivita vengono sempre create ex-novo.
+      </div>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="confirm" value="1">
+        <button type="submit" class="btn">Conferma import</button>
+      </form>
+      <a class="btn btn-secondary" href="{% url 'tasks:import_excel' %}">Annulla e ricarica</a>
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

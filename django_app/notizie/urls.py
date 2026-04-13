@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django.urls import path
+from django.views.generic import RedirectView
 
 from . import views
 
@@ -13,7 +14,8 @@ urlpatterns = [
     path("dashboard/<int:notizia_id>/modifica/", views.dashboard_edit, name="notizie_dashboard_edit"),
     path("dashboard/<int:notizia_id>/pubblica/", views.dashboard_publish, name="notizie_dashboard_publish"),
     path("dashboard/<int:notizia_id>/archivia/", views.dashboard_archive, name="notizie_dashboard_archive"),
-    path("gestione/", views.gestione_admin, name="notizie_gestione_admin"),
+    path("impostazioni/", views.gestione_admin, name="notizie_gestione_admin"),
+    path("gestione/", RedirectView.as_view(pattern_name="notizie_gestione_admin", permanent=False)),
     path("obbligatorie/", views.obbligatorie, name="notizie_obbligatorie"),
     path("report/", views.report, name="notizie_report"),
     path("report/export-csv/", views.report_csv, name="notizie_report_csv"),

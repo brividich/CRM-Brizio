@@ -54,9 +54,12 @@ class AutomationActionType(models.TextChoices):
     SEND_EMAIL = "send_email", "Send email"
     INSERT_RECORD = "insert_record", "Insert record"
     UPDATE_RECORD = "update_record", "Update record"
+    UPDATE_TRIGGER_RECORD = "update_trigger_record", "Update triggering record"
     UPDATE_DASHBOARD_METRIC = "update_dashboard_metric", "Update dashboard metric"
     WRITE_LOG = "write_log", "Write log"
-    DELAY_SCHEDULE = "delay_schedule", "Delay / Schedule (giorni)"
+    DELAY_SCHEDULE = "delay_schedule", "Delay / Schedule"
+    HTTP_REQUEST = "http_request", "HTTP request"
+    TEAMS_WEBHOOK = "teams_webhook", "Teams webhook"
 
 
 class AutomationRunLogStatus(models.TextChoices):

@@ -2,581 +2,313 @@
 
 {% block tasks_shell_head %}
 <style>
-  .task-form-wrap {
-    max-width: 1180px;
-    margin: 0 auto;
-  }
-
-  .task-form-section {
-    border: 1px solid #dbe5ef;
-    border-radius: 16px;
-    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-    padding: 18px;
-    display: grid;
-    gap: 14px;
-  }
-
-  .task-form-section-title {
-    color: #0f172a;
-    font-size: 14px;
-    font-weight: 900;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-
-  .task-summary-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-  }
-
-  .task-summary-item {
-    border: 1px solid #dbe5ef;
-    border-radius: 16px;
-    background: #fff;
-    padding: 14px 16px;
-  }
-
-  .task-summary-item .lbl {
-    color: #64748b;
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .task-summary-item .val {
-    margin-top: 8px;
-    color: #0f172a;
-    font-size: 14px;
-    font-weight: 800;
-    line-height: 1.5;
-  }
-
-  .task-project-box {
-    border: 1px dashed #bfd3e6;
-    border-radius: 14px;
-    background: #fff;
-    padding: 16px;
-    display: grid;
-    gap: 14px;
-  }
-
-  .date-suggestion-banner {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 14px;
-    border-radius: 12px;
-    border: 1px solid #bfdbfe;
-    background: #eff6ff;
-    color: #1e40af;
-    font-size: 13px;
-    line-height: 1.55;
-  }
-
-  .date-suggestion-banner.override-active {
-    border-color: #fde68a;
-    background: #fffbeb;
-    color: #92400e;
-  }
-
-  .project-info-panel {
-    border: 1px solid #bfdbfe;
-    border-radius: 14px;
-    background: #eff6ff;
-    padding: 16px;
-    display: grid;
-    gap: 14px;
-  }
-
-  .project-info-title {
-    color: #1e3a8a;
-    font-size: 15px;
-    font-weight: 900;
-  }
-
-  .project-info-meta {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
-  }
-
-  .project-info-meta-item .lbl {
-    color: #3b82f6;
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .project-info-meta-item .val {
-    margin-top: 4px;
-    color: #1e3a8a;
-    font-size: 13px;
-    font-weight: 700;
-  }
-
-  .project-tasks-wrap {
-    overflow-x: auto;
-  }
-
-  .project-tasks-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
-    min-width: 620px;
-  }
-
-  .project-tasks-table th {
-    padding: 8px;
-    text-align: left;
-    background: #dbeafe;
-    border-bottom: 2px solid #bfdbfe;
-    color: #1e40af;
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .project-tasks-table td {
-    padding: 8px;
-    border-top: 1px solid #dbeafe;
-    color: #1e3a8a;
-  }
-
-  .status-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 22px;
-    padding: 0 8px;
-    border-radius: 999px;
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    background: #e2e8f0;
-    color: #475569;
-  }
-
-  .status-badge.done { background: #dcfce7; color: #166534; }
-  .status-badge.in_progress { background: #fef3c7; color: #92400e; }
-  .status-badge.todo { background: #eef2ff; color: #3730a3; }
-
-  @media (max-width: 980px) {
-    .task-summary-grid,
-    .project-info-meta {
-      grid-template-columns: 1fr;
-    }
-  }
+  .tf-wrap{max-width:1220px;margin:0 auto;display:grid;gap:14px}
+  .tf-grid{display:grid;gap:14px}
+  .tf-grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .tf-grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  .tf-grid-4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  .tf-intro-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  .tf-intro-card,.tf-panel,.tf-project-info,.tf-preview{border:1px solid rgba(30,58,95,.08);border-radius:18px;background:linear-gradient(180deg,#fff 0%,#f8fafc 100%);box-shadow:0 14px 28px rgba(15,23,42,.06)}
+  .tf-intro-card{padding:16px 18px}
+  .tf-step{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:12px;background:rgba(249,115,22,.12);color:var(--accent);font-size:13px;font-weight:900}
+  .tf-intro-title{margin-top:12px;font-size:15px;font-weight:800;color:var(--text)}
+  .tf-intro-copy{margin-top:6px;font-size:13px;line-height:1.55;color:var(--text-mid)}
+  .tf-panel{padding:22px;display:grid;gap:18px}
+  .tf-panel-accent{background:radial-gradient(circle at top right,rgba(249,115,22,.12),transparent 34%),linear-gradient(180deg,#fff 0%,#fff8f3 100%)}
+  .tf-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+  .tf-kicker{display:inline-flex;align-items:center;min-height:28px;padding:0 10px;border-radius:999px;background:rgba(45,82,130,.08);color:var(--primary-mid);font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+  .tf-title{margin:10px 0 0;font-size:21px;font-weight:900;color:var(--text);letter-spacing:-.02em}
+  .tf-copy{margin:6px 0 0;max-width:820px;font-size:13px;line-height:1.65;color:var(--text-mid)}
+  .tf-aside{max-width:320px;padding:14px 16px;border-radius:16px;border:1px solid rgba(30,58,95,.08);background:rgba(255,255,255,.84);font-size:12px;line-height:1.55;color:var(--text-mid)}
+  .tf-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .tf-choice{position:relative;display:block;cursor:pointer}
+  .tf-choice input{position:absolute;inset:0;opacity:0;pointer-events:none}
+  .tf-choice-body{display:grid;gap:8px;height:100%;padding:18px;border:1px solid rgba(30,58,95,.1);border-radius:18px;background:#fff;transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease}
+  .tf-choice:hover .tf-choice-body{transform:translateY(-1px);border-color:rgba(45,82,130,.28);box-shadow:0 12px 24px rgba(15,23,42,.06)}
+  .tf-choice input:checked + .tf-choice-body{border-color:rgba(249,115,22,.5);background:linear-gradient(180deg,#fff 0%,#fff7f0 100%);box-shadow:0 0 0 4px rgba(249,115,22,.14)}
+  .tf-choice-label{font-size:15px;font-weight:800;color:var(--text)}
+  .tf-choice-copy{font-size:13px;line-height:1.55;color:var(--text-mid)}
+  .tf-project-box{display:grid;gap:14px;padding:16px;border-radius:18px;border:1px solid rgba(30,58,95,.08);background:linear-gradient(180deg,#fff 0%,#f8fafc 100%)}
+  .tf-project-box[hidden],.tf-project-info[hidden],.tf-preview[hidden]{display:none!important}
+  .tf-search{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .tf-search-tag{display:inline-flex;align-items:center;justify-content:center;min-width:46px;min-height:36px;padding:0 10px;border-radius:10px;background:rgba(45,82,130,.08);color:var(--primary-mid);font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+  .tf-search .input{flex:1 1 280px}
+  .tf-project-info{padding:18px;display:grid;gap:14px}
+  .tf-project-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+  .tf-project-name{font-size:18px;font-weight:900;color:var(--text)}
+  .tf-project-sub{margin-top:4px;font-size:13px;color:var(--text-mid)}
+  .tf-id-row{display:flex;gap:8px;flex-wrap:wrap}
+  .tf-id-chip{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 12px;border-radius:999px;border:1px solid rgba(30,58,95,.1);background:#fff;font-size:12px;font-weight:700;color:var(--text-mid)}
+  .tf-id-chip .lbl{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-light)}
+  .tf-id-chip.pn{background:rgba(45,82,130,.08);border-color:rgba(45,82,130,.16);color:var(--primary-mid)}
+  .tf-id-chip.rev{background:rgba(56,161,105,.1);border-color:rgba(56,161,105,.18);color:#2f855a}
+  .tf-id-chip.ver{background:rgba(249,115,22,.12);border-color:rgba(249,115,22,.18);color:#c05621}
+  .tf-meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+  .tf-meta-item{padding:14px 16px;border-radius:16px;border:1px solid rgba(30,58,95,.08);background:rgba(255,255,255,.94)}
+  .tf-meta-item .lbl{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-light)}
+  .tf-meta-item .val{margin-top:6px;font-size:13px;font-weight:700;line-height:1.5;color:var(--text)}
+  .tf-banner{padding:12px 14px;border-radius:14px;border:1px solid rgba(30,58,95,.1);background:rgba(45,82,130,.06);font-size:13px;line-height:1.55;color:var(--primary-mid)}
+  .tf-banner.ok{border-color:rgba(56,161,105,.24);background:rgba(56,161,105,.1);color:#276749}.tf-banner.warning{border-color:rgba(214,158,46,.24);background:rgba(214,158,46,.12);color:#975a16}.tf-banner.blocked{border-color:rgba(229,62,62,.24);background:rgba(229,62,62,.1);color:#c53030}.tf-banner.na{border-color:rgba(148,163,184,.22);background:rgba(248,250,252,.92);color:var(--text-mid)}
+  .tf-table-wrap{overflow-x:auto;border-radius:16px;border:1px solid rgba(30,58,95,.08);background:#fff}
+  .tf-table{width:100%;border-collapse:collapse;font-size:12px;min-width:700px}
+  .tf-table th{padding:10px 12px;text-align:left;background:#f8fafc;border-bottom:1px solid rgba(30,58,95,.08);font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-mid)}
+  .tf-table td{padding:10px 12px;border-top:1px solid rgba(30,58,95,.06);color:var(--text)}
+  .tf-empty{padding:16px;border-radius:14px;border:1px dashed rgba(148,163,184,.6);background:rgba(248,250,252,.8);font-size:13px;color:var(--text-mid)}
+  .tf-preview{padding:16px 18px;display:grid;gap:12px;border-color:rgba(249,115,22,.18);background:linear-gradient(180deg,rgba(255,255,255,.96) 0%,#fff7f0 100%)}
+  .tf-preview-title{font-size:14px;font-weight:800;color:var(--text)}
+  .date-suggestion-banner{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;border-radius:16px;border:1px solid rgba(45,82,130,.14);background:rgba(45,82,130,.06);font-size:13px;line-height:1.6;color:var(--primary-mid)}
+  .date-suggestion-banner.override-active{border-color:rgba(249,115,22,.22);background:rgba(249,115,22,.1);color:#c05621}
+  .status-badge{display:inline-flex;align-items:center;justify-content:center;min-height:24px;padding:0 10px;border-radius:999px;background:#edf2f7;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-mid)}
+  .status-badge.done{background:rgba(56,161,105,.12);color:#2f855a}.status-badge.in_progress{background:rgba(214,158,46,.14);color:#975a16}.status-badge.todo{background:rgba(45,82,130,.1);color:var(--primary-mid)}.status-badge.canceled{background:rgba(148,163,184,.16);color:var(--text-mid)}
+  @media (max-width:1120px){.tf-intro-grid,.tf-meta,.tf-grid-4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (max-width:980px){.tf-choice-grid,.tf-grid-2,.tf-grid-3{grid-template-columns:1fr}}
+  @media (max-width:760px){.tf-panel{padding:18px}.tf-intro-grid,.tf-meta{grid-template-columns:1fr}.date-suggestion-banner{flex-direction:column;align-items:flex-start}}
 </style>
 {% endblock %}
-
-{% block tasks_shell_eyebrow %}
-  <span class="ts-eyebrow">Tasks / {% if mode == "edit" %}Modifica{% else %}Creazione{% endif %}</span>
-{% endblock %}
-
-{% block tasks_shell_title %}
-  {% if mode == "edit" %}Modifica attivita{% else %}Nuova attivita{% endif %}
-{% endblock %}
-
-{% block tasks_shell_subtitle %}
-  {% if mode == "edit" %}
-    Aggiorna contesto, pianificazione e responsabilita mantenendo tutto nella stessa struttura usata nel resto del modulo.
-  {% else %}
-    Crea una nuova task guidando il flusso tra contesto, definizione, pianificazione e responsabilita operative.
-  {% endif %}
-{% endblock %}
-
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / {% if mode == "edit" %}Modifica{% else %}Creazione{% endif %}</span>{% endblock %}
+{% block tasks_shell_title %}{% if mode == "edit" %}Modifica attivita kickoff{% else %}Nuova attivita kickoff{% endif %}{% endblock %}
+{% block tasks_shell_subtitle %}{% if mode == "edit" %}Aggiorna contesto, kickoff e pianificazione mantenendo la scheda coerente con il resto del portale.{% elif locked_project %}Stai creando una nuova attivita direttamente dal kickoff corrente: il collegamento resta fisso su questo kickoff e puoi concentrarti su contenuto, timeline e assegnazioni.{% else %}Inserisci una nuova attivita kickoff con un flusso guidato: prima il contesto, poi il kickoff P/N, quindi pianificazione e responsabilita operative.{% endif %}{% endblock %}
 {% block tasks_shell_meta %}
   <span class="ts-hero-pill">{% if mode == "edit" %}Modalita modifica{% else %}Modalita creazione{% endif %}</span>
-  {% if task and task.project %}
-    <span class="ts-hero-pill">{{ task.project.name }}</span>
-  {% elif suggested_project_id %}
-    <span class="ts-hero-pill">Progetto preselezionato</span>
-  {% else %}
-    <span class="ts-hero-pill">Task singola o progetto</span>
-  {% endif %}
-  {% if task %}
-    <span class="ts-hero-pill">{{ task.get_status_display }}</span>
-  {% endif %}
+  {% if task and task.project %}<span class="ts-hero-pill">{{ task.project.name }}</span>{% if task.project.part_number %}<span class="ts-hero-pill">P/N {{ task.project.part_number }}</span>{% endif %}{% elif locked_project %}<span class="ts-hero-pill">{{ locked_project.name }}</span>{% if locked_project.part_number %}<span class="ts-hero-pill">P/N {{ locked_project.part_number }}</span>{% endif %}{% elif suggested_project_id %}<span class="ts-hero-pill">Kickoff preselezionato</span>{% else %}<span class="ts-hero-pill">Attivita singola o attivita in kickoff</span>{% endif %}
+  {% if task %}<span class="ts-hero-pill">{{ task.get_status_display }}</span>{% endif %}
 {% endblock %}
-
-{% block tasks_shell_actions %}
-  {% if task %}
-    <a class="ts-hero-action" href="{% url 'tasks:detail' task.id %}">Torna al dettaglio</a>
-  {% else %}
-    <a class="ts-hero-action" href="{% url 'tasks:list' %}">Torna alla dashboard</a>
-  {% endif %}
-{% endblock %}
-
+{% block tasks_shell_actions %}{% if task %}<a class="ts-hero-action" href="{% url 'tasks:detail' task.id %}">Torna al dettaglio</a>{% elif locked_project %}<a class="ts-hero-action" href="{% url 'tasks:project_gantt' locked_project.id %}">Torna al Gantt kickoff</a>{% else %}<a class="ts-hero-action" href="{% url 'tasks:list' %}">Torna alla dashboard</a>{% endif %}{% endblock %}
 {% block tasks_shell_content %}
-<div class="task-form-wrap">
-  <section class="ts-panel">
-    <div class="ts-panel-head">
-      <div class="ts-panel-title-wrap">
-        <h2 class="ts-panel-title">{% if mode == "edit" %}Scheda attivita{% else %}Creazione attivita{% endif %}</h2>
-        <p class="ts-panel-subtitle">Una sola struttura, gli stessi componenti del modulo e una compilazione guidata in blocchi operativi.</p>
+<div class="tf-wrap">
+  <div class="tf-intro-grid">
+    <article class="tf-intro-card"><div class="tf-step">1</div><div class="tf-intro-title">{% if locked_project %}Kickoff gia definito{% else %}Scegli il contesto{% endif %}</div><div class="tf-intro-copy">{% if locked_project %}L'attivita nascera gia dentro il kickoff corrente, quindi non serve riselezionare o ricreare l'anagrafica.{% else %}Decidi se stai aprendo un'attivita singola oppure un'attivita agganciata a un kickoff strutturato.{% endif %}</div></article>
+    <article class="tf-intro-card"><div class="tf-step">2</div><div class="tf-intro-title">{% if locked_project %}Dati kickoff fissi{% else %}Lavora per P/N{% endif %}</div><div class="tf-intro-copy">{% if locked_project %}Cliente, P/N, revisione e stato VRF sono quelli del kickoff aperto in questo momento.{% else %}Ricerca i kickoff esistenti per nome, cliente e P/N oppure crea una nuova anagrafica completa.{% endif %}</div></article>
+    <article class="tf-intro-card"><div class="tf-step">3</div><div class="tf-intro-title">Pianifica bene</div><div class="tf-intro-copy">Stabilisci stato, priorita, data inizio, data richiesta fine e prossimo passo.</div></article>
+    <article class="tf-intro-card"><div class="tf-step">4</div><div class="tf-intro-title">Assegna le persone</div><div class="tf-intro-copy">Indica incaricato, partecipanti in copia e gestione delle sovrapposizioni.</div></article>
+  </div>
+
+  <form method="post" class="tf-grid">
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="ts-message danger">{{ form.non_field_errors }}</div>{% endif %}
+
+    {% if locked_project %}
+    <input type="hidden" name="{{ form.task_scope.html_name }}" value="project">
+    <input type="hidden" name="{{ form.project_link_mode.html_name }}" value="existing">
+    <input type="hidden" name="{{ form.project_choice.html_name }}" value="{{ locked_project.id }}">
+
+    <section class="tf-panel tf-panel-accent">
+      <div class="tf-head">
+        <div><span class="tf-kicker">Kickoff di destinazione</span><h2 class="tf-title">Attivita gia collegata al kickoff corrente</h2><p class="tf-copy">Hai aperto questa schermata dal Gantt kickoff: il collegamento e gia fissato su <strong>{{ locked_project.name }}</strong> e non puo essere cambiato da qui.</p></div>
+        <div class="tf-aside">Se vuoi creare un'attivita singola o lavorare su un altro kickoff, usa <strong>Nuova attivita</strong> dalla dashboard oppure rientra dal portfolio kickoff corretto.</div>
       </div>
-    </div>
-    <div class="ts-panel-body">
-      <div class="task-summary-grid">
-        <div class="task-summary-item">
-          <div class="lbl">Contesto</div>
-          <div class="val">Task singola o task collegata a un progetto esistente o nuovo.</div>
+      <div class="tf-project-info">
+        <div class="tf-project-top">
+          <div>
+            <div class="tf-project-name">{{ locked_project.name }}</div>
+            <div class="tf-project-sub">{{ locked_project_task_total }} attivita gia collegate a questo kickoff</div>
+          </div>
+          <div class="tf-id-row">
+            {% if locked_project.part_number %}<span class="tf-id-chip pn"><span class="lbl">P/N</span>{{ locked_project.part_number }}</span>{% endif %}
+            {% if locked_project.revisione %}<span class="tf-id-chip rev"><span class="lbl">Rev</span>{{ locked_project.revisione }}</span>{% endif %}
+            {% if locked_project.versione %}<span class="tf-id-chip ver"><span class="lbl">Ver</span>{{ locked_project.versione }}</span>{% endif %}
+          </div>
         </div>
-        <div class="task-summary-item">
-          <div class="lbl">Pianificazione</div>
-          <div class="val">Stato, priorita, data inizio e data richiesta fine.</div>
-        </div>
-        <div class="task-summary-item">
-          <div class="lbl">Responsabilita</div>
-          <div class="val">Operatore incaricato, partecipanti e gestione conflitti di carico.</div>
+        {% if locked_project_vrf_detail %}<div class="tf-banner {{ locked_project_vrf_detail.status|default:'pending' }}">{{ locked_project_vrf_detail.label }}</div>{% endif %}
+        <div class="tf-meta">
+          <div class="tf-meta-item"><div class="lbl">Cliente</div><div class="val">{{ locked_project.client_name|default:"-" }}</div></div>
+          <div class="tf-meta-item"><div class="lbl">Project manager</div><div class="val">{% if locked_project.project_manager %}{{ locked_project.project_manager.get_full_name|default:locked_project.project_manager.username }}{% else %}-{% endif %}</div></div>
+          <div class="tf-meta-item"><div class="lbl">Capo commessa</div><div class="val">{% if locked_project.capo_commessa %}{{ locked_project.capo_commessa.get_full_name|default:locked_project.capo_commessa.username }}{% else %}-{% endif %}</div></div>
+          <div class="tf-meta-item"><div class="lbl">Programmatore</div><div class="val">{% if locked_project.programmer %}{{ locked_project.programmer.get_full_name|default:locked_project.programmer.username }}{% else %}-{% endif %}</div></div>
         </div>
       </div>
+    </section>
+    {% else %}
+    <section class="tf-panel tf-panel-accent">
+      <div class="tf-head">
+        <div><span class="tf-kicker">Contesto operativo</span><h2 class="tf-title">Come nasce questa attivita</h2><p class="tf-copy">Il modulo distingue in modo piu chiaro tra attivita singola e inserimento dentro un kickoff P/N.</p></div>
+        <div class="tf-aside">Se stai lavorando su una commessa strutturata, scegli <strong>Attivita in kickoff</strong>: il flusso successivo ti guida nella selezione o nella creazione del kickoff.</div>
+      </div>
+      <div class="tf-choice-grid">
+        {% for radio in form.task_scope %}
+          <label class="tf-choice">{{ radio.tag }}<span class="tf-choice-body"><span class="tf-choice-label">{{ radio.choice_label }}</span><span class="tf-choice-copy">{% if forloop.first %}Usa questa opzione per una lavorazione autonoma.{% else %}Usa questa opzione per lavorare su una commessa tracciata per kickoff e P/N.{% endif %}</span></span></label>
+        {% endfor %}
+      </div>
+      {% if form.task_scope.errors %}<div class="ts-field-error">{{ form.task_scope.errors }}</div>{% endif %}
+    </section>
 
-      <form method="post" class="ts-stack">
-        {% csrf_token %}
-        {% if form.non_field_errors %}
-          <div class="ts-message danger">{{ form.non_field_errors }}</div>
-        {% endif %}
+    <section class="tf-panel">
+      <div class="tf-head">
+        <div><span class="tf-kicker">Kickoff</span><h2 class="tf-title">Aggancio e anagrafica kickoff</h2><p class="tf-copy">Scegli se collegarti a un kickoff esistente oppure aprirne uno nuovo. Il focus e sull'identificativo P/N.</p></div>
+        <div class="tf-aside">Quando inserisci una nuova anagrafica con lo stesso P/N, revisione e versione di un kickoff gia esistente, il sistema riusa il kickoff corretto invece di crearne uno duplicato.</div>
+      </div>
 
-        <section class="task-form-section">
-          <div class="task-form-section-title">Contesto e progetto</div>
-          <div class="ts-form-grid-2">
-            <div class="ts-field full">
-              <label>{{ form.task_scope.label }}</label>
-              {{ form.task_scope }}
-              {% if form.task_scope.errors %}<div class="ts-field-error">{{ form.task_scope.errors }}</div>{% endif %}
-              <div class="ts-field-help">Se scegli "Task in progetto", puoi collegarti a un progetto esistente o crearne uno nuovo.</div>
-            </div>
-
-            <div class="ts-field full" id="project-options">
-              <div class="task-project-box">
-                <div class="ts-field">
-                  <label for="{{ form.project_choice.id_for_label }}">{{ form.project_choice.label }}</label>
-                  {{ form.project_choice }}
-                  {% if form.project_choice.errors %}<div class="ts-field-error">{{ form.project_choice.errors }}</div>{% endif %}
-                </div>
-
-                <div id="project-info-panel" class="project-info-panel" style="display:none;" data-info-url="{% url 'tasks:project_info_json' 0 %}"></div>
-
-                <div id="new-project-fields" class="ts-stack">
-                  <div class="ts-note-box">Oppure crea un nuovo progetto compilando i campi seguenti.</div>
-                  <div class="ts-field">
-                    <label for="{{ form.project_new_name.id_for_label }}">{{ form.project_new_name.label }}</label>
-                    {{ form.project_new_name }}
-                    {% if form.project_new_name.errors %}<div class="ts-field-error">{{ form.project_new_name.errors }}</div>{% endif %}
-                  </div>
-                  <div class="ts-field">
-                    <label for="{{ form.project_new_description.id_for_label }}">{{ form.project_new_description.label }}</label>
-                    {{ form.project_new_description }}
-                    {% if form.project_new_description.errors %}<div class="ts-field-error">{{ form.project_new_description.errors }}</div>{% endif %}
-                  </div>
-                  <div class="ts-form-grid-2">
-                    <div class="ts-field">
-                      <label for="{{ form.project_new_client.id_for_label }}">{{ form.project_new_client.label }}</label>
-                      {{ form.project_new_client }}
-                      {% if form.project_new_client.errors %}<div class="ts-field-error">{{ form.project_new_client.errors }}</div>{% endif %}
-                    </div>
-                    <div class="ts-field">
-                      <label for="{{ form.project_new_part_number.id_for_label }}">{{ form.project_new_part_number.label }}</label>
-                      {{ form.project_new_part_number }}
-                      {% if form.project_new_part_number.errors %}<div class="ts-field-error">{{ form.project_new_part_number.errors }}</div>{% endif %}
-                    </div>
-                    <div class="ts-field">
-                      <label for="{{ form.project_new_manager.id_for_label }}">{{ form.project_new_manager.label }}</label>
-                      {{ form.project_new_manager }}
-                      {% if form.project_new_manager.errors %}<div class="ts-field-error">{{ form.project_new_manager.errors }}</div>{% endif %}
-                    </div>
-                    <div class="ts-field">
-                      <label for="{{ form.project_new_capo_commessa.id_for_label }}">{{ form.project_new_capo_commessa.label }}</label>
-                      {{ form.project_new_capo_commessa }}
-                      {% if form.project_new_capo_commessa.errors %}<div class="ts-field-error">{{ form.project_new_capo_commessa.errors }}</div>{% endif %}
-                    </div>
-                    <div class="ts-field">
-                      <label for="{{ form.project_new_programmer.id_for_label }}">{{ form.project_new_programmer.label }}</label>
-                      {{ form.project_new_programmer }}
-                      {% if form.project_new_programmer.errors %}<div class="ts-field-error">{{ form.project_new_programmer.errors }}</div>{% endif %}
-                    </div>
-                    <div class="ts-field">
-                      <label for="{{ form.project_new_control_method.id_for_label }}">{{ form.project_new_control_method.label }}</label>
-                      {{ form.project_new_control_method }}
-                      {% if form.project_new_control_method.errors %}<div class="ts-field-error">{{ form.project_new_control_method.errors }}</div>{% endif %}
-                    </div>
-                    <div class="ts-field">
-                      <label for="{{ form.project_similar_choice.id_for_label }}">{{ form.project_similar_choice.label }}</label>
-                      <input id="project-similar-filter" class="input" type="text" placeholder="Cerca lavorazione simile per nome" style="margin-bottom:6px;">
-                      {{ form.project_similar_choice }}
-                      {% if form.project_similar_choice.errors %}<div class="ts-field-error">{{ form.project_similar_choice.errors }}</div>{% endif %}
-                      {% if form.project_similar_choice.help_text %}<div class="ts-field-help">{{ form.project_similar_choice.help_text }}</div>{% endif %}
-                    </div>
-                    <div class="ts-field">
-                      <label for="{{ form.project_similar_new_note.id_for_label }}">{{ form.project_similar_new_note.label }}</label>
-                      {{ form.project_similar_new_note }}
-                      {% if form.project_similar_new_note.errors %}<div class="ts-field-error">{{ form.project_similar_new_note.errors }}</div>{% endif %}
-                      {% if form.project_similar_new_note.help_text %}<div class="ts-field-help">{{ form.project_similar_new_note.help_text }}</div>{% endif %}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="task-form-section">
-          <div class="task-form-section-title">Definizione attivita</div>
-          <div class="ts-stack">
-            <div class="ts-field">
-              <label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
-              {{ form.title }}
-              {% if form.title.errors %}<div class="ts-field-error">{{ form.title.errors }}</div>{% endif %}
-            </div>
-            <div class="ts-field">
-              <label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>
-              {{ form.description }}
-              {% if form.description.errors %}<div class="ts-field-error">{{ form.description.errors }}</div>{% endif %}
-            </div>
-            <div class="ts-field">
-              <label for="{{ form.tags.id_for_label }}">{{ form.tags.label }}</label>
-              {{ form.tags }}
-              {% if form.tags.errors %}<div class="ts-field-error">{{ form.tags.errors }}</div>{% endif %}
-              {% if form.tags.help_text %}<div class="ts-field-help">{{ form.tags.help_text }}</div>{% endif %}
-            </div>
-          </div>
-        </section>
-
-        <section class="task-form-section">
-          <div class="task-form-section-title">Pianificazione</div>
-          {% if suggested_start_date and not task %}
-            <div id="date-suggestion-banner" class="date-suggestion-banner">
-              <div>
-                Data di inizio suggerita: <strong>{{ suggested_start_date|date:"d/m/Y" }}</strong>.
-                Il sistema ha preso come riferimento il giorno successivo alla chiusura dell'ultima task del progetto.
-              </div>
-              <button type="button" id="date-override-btn" class="btn btn-secondary btn-sm" onclick="enableDateOverride()">Override</button>
-            </div>
-          {% endif %}
-
-          <div class="ts-form-grid-2">
-            <div class="ts-field">
-              <label for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>
-              {{ form.status }}
-              {% if form.status.errors %}<div class="ts-field-error">{{ form.status.errors }}</div>{% endif %}
-            </div>
-            <div class="ts-field">
-              <label for="{{ form.priority.id_for_label }}">{{ form.priority.label }}</label>
-              {{ form.priority }}
-              {% if form.priority.errors %}<div class="ts-field-error">{{ form.priority.errors }}</div>{% endif %}
-            </div>
-            <div class="ts-field">
-              <label for="{{ form.due_date.id_for_label }}">{{ form.due_date.label }}</label>
-              {{ form.due_date }}
-              {% if form.due_date.errors %}<div class="ts-field-error">{{ form.due_date.errors }}</div>{% endif %}
-              {% if form.due_date.help_text %}<div class="ts-field-help">{{ form.due_date.help_text }}</div>{% endif %}
-            </div>
-            <div class="ts-field">
-              <label for="{{ form.next_step_due.id_for_label }}">{{ form.next_step_due.label }}</label>
-              {{ form.next_step_due }}
-              {% if form.next_step_due.errors %}<div class="ts-field-error">{{ form.next_step_due.errors }}</div>{% endif %}
-              {% if form.next_step_due.help_text %}<div class="ts-field-help">{{ form.next_step_due.help_text }}</div>{% endif %}
-            </div>
-            <div class="ts-field full">
-              <label for="{{ form.next_step_text.id_for_label }}">{{ form.next_step_text.label }}</label>
-              {{ form.next_step_text }}
-              {% if form.next_step_text.errors %}<div class="ts-field-error">{{ form.next_step_text.errors }}</div>{% endif %}
-            </div>
-          </div>
-        </section>
-
-        <section class="task-form-section">
-          <div class="task-form-section-title">Responsabilita e visibilita</div>
-          <div class="ts-form-grid-3">
-            <div class="ts-field">
-              <label for="{{ form.assigned_to.id_for_label }}">{{ form.assigned_to.label }}</label>
-              {{ form.assigned_to }}
-              {% if form.assigned_to.errors %}<div class="ts-field-error">{{ form.assigned_to.errors }}</div>{% endif %}
-            </div>
-            <div class="ts-field">
-              <label for="{{ form.assignment_conflict_action.id_for_label }}">{{ form.assignment_conflict_action.label }}</label>
-              {{ form.assignment_conflict_action }}
-              {% if form.assignment_conflict_action.errors %}<div class="ts-field-error">{{ form.assignment_conflict_action.errors }}</div>{% endif %}
-              {% if form.assignment_conflict_action.help_text %}<div class="ts-field-help">{{ form.assignment_conflict_action.help_text }}</div>{% endif %}
-            </div>
-            <div class="ts-field">
-              <label for="{{ form.subscribers.id_for_label }}">{{ form.subscribers.label }}</label>
-              {{ form.subscribers }}
-              {% if form.subscribers.errors %}<div class="ts-field-error">{{ form.subscribers.errors }}</div>{% endif %}
-            </div>
-          </div>
-        </section>
-
-        <div class="ts-field-actions">
-          <button type="submit" class="btn">{% if mode == "edit" %}Salva modifiche{% else %}Crea attivita{% endif %}</button>
-          {% if task %}
-            <a class="btn btn-secondary" href="{% url 'tasks:detail' task.id %}">Annulla</a>
-          {% else %}
-            <a class="btn btn-secondary" href="{% url 'tasks:list' %}">Annulla</a>
-          {% endif %}
+      <div id="project-workspace" class="tf-grid">
+        <div class="tf-choice-grid">
+          {% for radio in form.project_link_mode %}
+            <label class="tf-choice">{{ radio.tag }}<span class="tf-choice-body"><span class="tf-choice-label">{{ radio.choice_label }}</span><span class="tf-choice-copy">{% if forloop.first %}Cerca nell'anagrafica gia esistente per nome kickoff, cliente o P/N.{% else %}Compila cliente, P/N e ruoli del kickoff. Il nome verra assegnato automaticamente e il sistema evita duplicati sull'identita P/N.{% endif %}</span></span></label>
+          {% endfor %}
         </div>
-      </form>
+        {% if form.project_link_mode.errors %}<div class="ts-field-error">{{ form.project_link_mode.errors }}</div>{% endif %}
+        {% if form.project_link_mode.help_text %}<div class="ts-field-help">{{ form.project_link_mode.help_text }}</div>{% endif %}
+
+        <div id="project-existing-panel" class="tf-project-box">
+          <div class="tf-search"><span class="tf-search-tag">P/N</span><input id="project-choice-filter" class="input" type="text" placeholder="Cerca kickoff per nome, cliente, P/N, revisione o versione"></div>
+          <div class="ts-field"><label for="{{ form.project_choice.id_for_label }}">{{ form.project_choice.label }}</label>{{ form.project_choice }}{% if form.project_choice.errors %}<div class="ts-field-error">{{ form.project_choice.errors }}</div>{% endif %}{% if form.project_choice.help_text %}<div class="ts-field-help">{{ form.project_choice.help_text }}</div>{% endif %}</div>
+          <div id="project-info-panel" class="tf-project-info" data-info-url="{% url 'tasks:project_info_json' 0 %}" hidden></div>
+          <div id="project-info-empty" class="tf-empty">Seleziona un kickoff esistente per vedere subito P/N, referenti, stato documento VRF e sequenza delle attivita gia presenti.</div>
+        </div>
+
+        <div id="project-new-panel" class="tf-project-box">
+          <div class="tf-preview" id="project-identity-preview" hidden><div class="tf-preview-title">Anteprima kickoff</div><div class="tf-id-row" id="project-identity-preview-row"></div><div class="tf-copy" id="project-identity-preview-copy"></div></div>
+          <div class="ts-note-box">Il nome del kickoff verra assegnato automaticamente dal sistema nel formato <strong>KICK-OFF &lt;progressivo&gt;</strong>.</div>
+          <div class="tf-grid-2">
+            <div class="ts-field"><label for="{{ form.project_new_client.id_for_label }}">{{ form.project_new_client.label }}</label>{{ form.project_new_client }}{% if form.project_new_client.errors %}<div class="ts-field-error">{{ form.project_new_client.errors }}</div>{% endif %}</div>
+            <div class="ts-field"><label for="{{ form.project_new_control_method.id_for_label }}">{{ form.project_new_control_method.label }}</label>{{ form.project_new_control_method }}{% if form.project_new_control_method.errors %}<div class="ts-field-error">{{ form.project_new_control_method.errors }}</div>{% endif %}</div>
+          </div>
+          <div class="ts-field"><label for="{{ form.project_new_description.id_for_label }}">{{ form.project_new_description.label }}</label>{{ form.project_new_description }}{% if form.project_new_description.errors %}<div class="ts-field-error">{{ form.project_new_description.errors }}</div>{% endif %}</div>
+          <div class="tf-grid-4">
+            <div class="ts-field"><label for="{{ form.project_new_part_number.id_for_label }}">{{ form.project_new_part_number.label }}</label>{{ form.project_new_part_number }}{% if form.project_new_part_number.errors %}<div class="ts-field-error">{{ form.project_new_part_number.errors }}</div>{% endif %}</div>
+            <div class="ts-field"><label for="{{ form.project_new_revisione.id_for_label }}">{{ form.project_new_revisione.label }}</label>{{ form.project_new_revisione }}{% if form.project_new_revisione.errors %}<div class="ts-field-error">{{ form.project_new_revisione.errors }}</div>{% endif %}</div>
+            <div class="ts-field"><label for="{{ form.project_new_versione.id_for_label }}">{{ form.project_new_versione.label }}</label>{{ form.project_new_versione }}{% if form.project_new_versione.errors %}<div class="ts-field-error">{{ form.project_new_versione.errors }}</div>{% endif %}</div>
+            <div class="ts-field"><label for="{{ form.project_similar_new_note.id_for_label }}">{{ form.project_similar_new_note.label }}</label>{{ form.project_similar_new_note }}{% if form.project_similar_new_note.errors %}<div class="ts-field-error">{{ form.project_similar_new_note.errors }}</div>{% endif %}{% if form.project_similar_new_note.help_text %}<div class="ts-field-help">{{ form.project_similar_new_note.help_text }}</div>{% endif %}</div>
+          </div>
+          <div class="tf-grid-3">
+            <div class="ts-field"><label for="{{ form.project_new_manager.id_for_label }}">{{ form.project_new_manager.label }}</label>{{ form.project_new_manager }}{% if form.project_new_manager.errors %}<div class="ts-field-error">{{ form.project_new_manager.errors }}</div>{% endif %}</div>
+            <div class="ts-field"><label for="{{ form.project_new_capo_commessa.id_for_label }}">{{ form.project_new_capo_commessa.label }}</label>{{ form.project_new_capo_commessa }}{% if form.project_new_capo_commessa.errors %}<div class="ts-field-error">{{ form.project_new_capo_commessa.errors }}</div>{% endif %}</div>
+            <div class="ts-field"><label for="{{ form.project_new_programmer.id_for_label }}">{{ form.project_new_programmer.label }}</label>{{ form.project_new_programmer }}{% if form.project_new_programmer.errors %}<div class="ts-field-error">{{ form.project_new_programmer.errors }}</div>{% endif %}</div>
+          </div>
+          <div class="tf-grid-2">
+            <div class="ts-field"><label for="{{ form.project_similar_choice.id_for_label }}">{{ form.project_similar_choice.label }}</label><input id="project-similar-filter" class="input" type="text" placeholder="Cerca attivita simile per nome o P/N" style="margin-bottom:8px;">{{ form.project_similar_choice }}{% if form.project_similar_choice.errors %}<div class="ts-field-error">{{ form.project_similar_choice.errors }}</div>{% endif %}{% if form.project_similar_choice.help_text %}<div class="ts-field-help">{{ form.project_similar_choice.help_text }}</div>{% endif %}</div>
+          </div>
+        </div>
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="tf-panel">
+      <div class="tf-head"><div><span class="tf-kicker">Attivita kickoff</span><h2 class="tf-title">Dettaglio attivita</h2><p class="tf-copy">Definisci l'attivita in modo semplice ma completo, cosi dashboard, dettaglio e Gantt restano leggibili.</p></div></div>
+      <div class="tf-grid">
+        <div class="ts-field"><label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>{{ form.title }}{% if form.title.errors %}<div class="ts-field-error">{{ form.title.errors }}</div>{% endif %}</div>
+        <div class="ts-field"><label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>{{ form.description }}{% if form.description.errors %}<div class="ts-field-error">{{ form.description.errors }}</div>{% endif %}</div>
+        <div class="ts-field"><label for="{{ form.tags.id_for_label }}">{{ form.tags.label }}</label>{{ form.tags }}{% if form.tags.errors %}<div class="ts-field-error">{{ form.tags.errors }}</div>{% endif %}{% if form.tags.help_text %}<div class="ts-field-help">{{ form.tags.help_text }}</div>{% endif %}</div>
+      </div>
+    </section>
+
+    <section class="tf-panel">
+      <div class="tf-head"><div><span class="tf-kicker">Pianificazione</span><h2 class="tf-title">Timeline e avanzamento</h2><p class="tf-copy">Le date sono il riferimento per backlog, Gantt e segnalazioni di sovraccarico.</p></div></div>
+      {% if suggested_start_date and not task %}<div id="date-suggestion-banner" class="date-suggestion-banner"><div>Data di inizio suggerita: <strong>{{ suggested_start_date|date:"d/m/Y" }}</strong>. Il sistema ha preso come riferimento il giorno successivo alla fine dell'ultima attivita del kickoff.</div><button type="button" id="date-override-btn" class="btn btn-secondary btn-sm" onclick="enableDateOverride()">Override</button></div>{% endif %}
+      <div class="tf-grid-2">
+        <div class="ts-field"><label for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>{{ form.status }}{% if form.status.errors %}<div class="ts-field-error">{{ form.status.errors }}</div>{% endif %}</div>
+        <div class="ts-field"><label for="{{ form.priority.id_for_label }}">{{ form.priority.label }}</label>{{ form.priority }}{% if form.priority.errors %}<div class="ts-field-error">{{ form.priority.errors }}</div>{% endif %}</div>
+        <div class="ts-field"><label for="{{ form.next_step_due.id_for_label }}">{{ form.next_step_due.label }}</label>{{ form.next_step_due }}{% if form.next_step_due.errors %}<div class="ts-field-error">{{ form.next_step_due.errors }}</div>{% endif %}{% if form.next_step_due.help_text %}<div class="ts-field-help">{{ form.next_step_due.help_text }}</div>{% endif %}</div>
+        <div class="ts-field"><label for="{{ form.due_date.id_for_label }}">{{ form.due_date.label }}</label>{{ form.due_date }}{% if form.due_date.errors %}<div class="ts-field-error">{{ form.due_date.errors }}</div>{% endif %}{% if form.due_date.help_text %}<div class="ts-field-help">{{ form.due_date.help_text }}</div>{% endif %}</div>
+        <div class="ts-field full"><label for="{{ form.next_step_text.id_for_label }}">{{ form.next_step_text.label }}</label>{{ form.next_step_text }}{% if form.next_step_text.errors %}<div class="ts-field-error">{{ form.next_step_text.errors }}</div>{% endif %}</div>
+      </div>
+    </section>
+
+    <section class="tf-panel">
+      <div class="tf-head"><div><span class="tf-kicker">Persone</span><h2 class="tf-title">Responsabilita e visibilita</h2><p class="tf-copy">L'assegnazione deve essere leggibile subito, anche quando l'attivita cambia mano o viene seguita da piu persone.</p></div></div>
+      <div class="tf-grid-3">
+        <div class="ts-field"><label for="{{ form.assigned_to.id_for_label }}">{{ form.assigned_to.label }}</label>{{ form.assigned_to }}{% if form.assigned_to.errors %}<div class="ts-field-error">{{ form.assigned_to.errors }}</div>{% endif %}</div>
+        <div class="ts-field"><label for="{{ form.assignment_conflict_action.id_for_label }}">{{ form.assignment_conflict_action.label }}</label>{{ form.assignment_conflict_action }}{% if form.assignment_conflict_action.errors %}<div class="ts-field-error">{{ form.assignment_conflict_action.errors }}</div>{% endif %}{% if form.assignment_conflict_action.help_text %}<div class="ts-field-help">{{ form.assignment_conflict_action.help_text }}</div>{% endif %}</div>
+        <div class="ts-field"><label for="{{ form.subscribers.id_for_label }}">{{ form.subscribers.label }}</label>{{ form.subscribers }}{% if form.subscribers.errors %}<div class="ts-field-error">{{ form.subscribers.errors }}</div>{% endif %}</div>
+      </div>
+    </section>
+
+    <div class="ts-field-actions">
+      <button type="submit" class="btn">{% if mode == "edit" %}Salva modifiche{% else %}Crea attivita{% endif %}</button>
+      {% if task %}<a class="btn btn-secondary" href="{% url 'tasks:detail' task.id %}">Annulla</a>{% elif locked_project %}<a class="btn btn-secondary" href="{% url 'tasks:project_gantt' locked_project.id %}">Annulla</a>{% else %}<a class="btn btn-secondary" href="{% url 'tasks:list' %}">Annulla</a>{% endif %}
     </div>
-  </section>
+  </form>
 </div>
 {% endblock %}
-
 {% block tasks_shell_scripts %}
 <script>
-function enableDateOverride() {
-  const banner = document.getElementById("date-suggestion-banner");
-  const btn = document.getElementById("date-override-btn");
-  const nextStepInput = document.getElementById("{{ form.next_step_due.id_for_label }}");
-  const dueDateInput = document.getElementById("{{ form.due_date.id_for_label }}");
-  if (banner) {
-    banner.classList.add("override-active");
-    banner.querySelector("div").innerHTML = "Override attivo: puoi modificare liberamente le date.";
+function enableDateOverride(){const b=document.getElementById("date-suggestion-banner");const t=document.getElementById("date-override-btn");const s=document.getElementById("{{ form.next_step_due.id_for_label }}");const d=document.getElementById("{{ form.due_date.id_for_label }}");if(b){b.classList.add("override-active");const n=b.querySelector("div");if(n){n.innerHTML="Override attivo: puoi modificare liberamente le date dell'attivita kickoff.";}}if(t){t.disabled=true;}if(s){s.readOnly=false;s.style.opacity="";}if(d){d.readOnly=false;d.style.opacity="";}}
+{% if suggested_start_date and not task %}document.addEventListener("DOMContentLoaded",function(){const s=document.getElementById("{{ form.next_step_due.id_for_label }}");const d=document.getElementById("{{ form.due_date.id_for_label }}");if(s){s.readOnly=true;s.style.opacity="0.72";}if(d){d.readOnly=true;d.style.opacity="0.72";}});{% endif %}
+(function(){
+const scopeInputs=document.querySelectorAll("input[name='task_scope']");
+const modeInputs=document.querySelectorAll("input[name='project_link_mode']");
+const workspace=document.getElementById("project-workspace");
+const existingPanel=document.getElementById("project-existing-panel");
+const newPanel=document.getElementById("project-new-panel");
+const projectChoice=document.getElementById("{{ form.project_choice.id_for_label }}");
+const projectFilter=document.getElementById("project-choice-filter");
+const projectInfo=document.getElementById("project-info-panel");
+const projectInfoEmpty=document.getElementById("project-info-empty");
+const similarFilter=document.getElementById("project-similar-filter");
+const similarSelect=document.getElementById("{{ form.project_similar_choice.id_for_label }}");
+const clientInput=document.getElementById("{{ form.project_new_client.id_for_label }}");
+const pnInput=document.getElementById("{{ form.project_new_part_number.id_for_label }}");
+const revInput=document.getElementById("{{ form.project_new_revisione.id_for_label }}");
+const verInput=document.getElementById("{{ form.project_new_versione.id_for_label }}");
+const preview=document.getElementById("project-identity-preview");
+const previewRow=document.getElementById("project-identity-preview-row");
+const previewCopy=document.getElementById("project-identity-preview-copy");
+if(!workspace||!scopeInputs.length||!modeInputs.length){return;}
+function esc(v){return String(v||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#39;");}
+function currentScope(){let v="single";scopeInputs.forEach(function(i){if(i.checked){v=i.value;}});return v;}
+function currentMode(){let v="new";modeInputs.forEach(function(i){if(i.checked){v=i.value;}});return v;}
+function chip(label,value,extra){if(!value){return"";}return '<span class="tf-id-chip '+(extra||"")+'"><span class="lbl">'+esc(label)+'</span>'+esc(value)+'</span>';}
+function toggleWorkspace(){const isProject=currentScope()==="project";const mode=currentMode();workspace.style.display=isProject?"grid":"none";existingPanel.hidden=!isProject||mode!=="existing";newPanel.hidden=!isProject||mode!=="new";if(isProject&&mode==="existing"&&projectChoice){updateProjectInfo(projectChoice.value);}if(isProject&&mode==="new"){renderPreview();}}
+const statusLabels={todo:"Da fare",in_progress:"In corso",done:"Fatto",canceled:"Annullata"};
+function statusBadge(status){const n=String(status||"").toLowerCase();return '<span class="status-badge '+n+'">'+esc(statusLabels[n]||n||"-")+'</span>';}
+function renderInfo(data){
+  const ids=[chip("P/N",data.part_number,"pn"),chip("Rev",data.revisione,"rev"),chip("Ver",data.versione,"ver")].join("");
+  const meta=[["Cliente",data.client_name],["Project manager",data.project_manager],["Capo commessa",data.capo_commessa],["Programmatore",data.programmer]].map(function(item){return '<div class="tf-meta-item"><div class="lbl">'+esc(item[0])+'</div><div class="val">'+esc(item[1]||"-")+'</div></div>';}).join("");
+  let tasksHtml='<div class="tf-empty">Nessuna attivita ancora presente in questo kickoff.</div>';
+  if(data.tasks&&data.tasks.length){
+    const rows=data.tasks.map(function(row){return "<tr>"+'<td style="text-align:center;font-weight:800;color:var(--text-light);">'+esc(row.wbs)+'</td>'+"<td>"+esc(row.title)+"</td>"+"<td>"+statusBadge(row.status)+"</td>"+"<td>"+esc(row.next_step_due||"-")+"</td>"+"<td>"+esc(row.due_date||"-")+"</td>"+"<td>"+esc(row.assignee||"-")+"</td>"+"</tr>";}).join("");
+    tasksHtml='<div class="tf-table-wrap"><table class="tf-table"><thead><tr><th style="width:52px;">WBS</th><th>Attivita</th><th>Stato</th><th>Inizio</th><th>Fine prevista</th><th>Assegnatario</th></tr></thead><tbody>'+rows+"</tbody></table></div>";
   }
-  if (btn) btn.disabled = true;
-  if (nextStepInput) { nextStepInput.readOnly = false; nextStepInput.style.opacity = ""; }
-  if (dueDateInput) { dueDateInput.readOnly = false; dueDateInput.style.opacity = ""; }
+  const action=data.vrf_upload_url?'<div><a class="btn btn-secondary btn-sm" href="'+esc(data.vrf_upload_url)+'">Documento VRF</a></div>':"";
+  projectInfo.innerHTML='<div class="tf-project-top"><div><div class="tf-project-name">'+esc(data.name)+'</div><div class="tf-project-sub">'+esc((data.task_total||0)+" attivita gia collegate")+'</div></div><div class="tf-id-row">'+ids+"</div></div>"+(data.vrf_label?'<div class="tf-banner '+esc(data.vrf_status||"pending")+'">'+esc(data.vrf_label)+"</div>":"")+'<div class="tf-meta">'+meta+"</div>"+action+tasksHtml;
 }
-
-{% if suggested_start_date and not task %}
-document.addEventListener("DOMContentLoaded", function () {
-  const nextStepInput = document.getElementById("{{ form.next_step_due.id_for_label }}");
-  const dueDateInput = document.getElementById("{{ form.due_date.id_for_label }}");
-  if (nextStepInput) { nextStepInput.readOnly = true; nextStepInput.style.opacity = "0.7"; }
-  if (dueDateInput) { dueDateInput.readOnly = true; dueDateInput.style.opacity = "0.7"; }
-});
-{% endif %}
-
-(function () {
-  const projectOptions = document.getElementById("project-options");
-  const scopeInputs = document.querySelectorAll("input[name='task_scope']");
-  const similarFilterInput = document.getElementById("project-similar-filter");
-  const similarSelect = document.getElementById("{{ form.project_similar_choice.id_for_label }}");
-  const projectChoiceSelect = document.getElementById("{{ form.project_choice.id_for_label }}");
-  const infoPanel = document.getElementById("project-info-panel");
-  const newProjectFields = document.getElementById("new-project-fields");
-  if (!projectOptions || !scopeInputs.length) {
-    return;
-  }
-
-  function toggleProjectOptions() {
-    let selected = "single";
-    scopeInputs.forEach(function (input) {
-      if (input.checked) {
-        selected = input.value;
-      }
+function updateProjectInfo(projectId){
+  if(!projectInfo||!projectInfoEmpty){return;}
+  if(!projectId){projectInfo.hidden=true;projectInfo.innerHTML="";projectInfoEmpty.hidden=false;return;}
+  const baseUrl=projectInfo.dataset.infoUrl;
+  const url=baseUrl.replace("/0/","/"+projectId+"/");
+  projectInfo.hidden=false;
+  projectInfoEmpty.hidden=true;
+  projectInfo.innerHTML='<div class="tf-empty">Caricamento anagrafica kickoff...</div>';
+  fetch(url,{headers:{"X-Requested-With":"XMLHttpRequest"}}).then(function(r){return r.json();}).then(function(data){renderInfo(data);}).catch(function(){projectInfo.innerHTML='<div class="tf-empty" style="color:#c53030;">Errore nel caricamento delle informazioni kickoff.</div>';});
+}
+function installFilter(input,select){
+  if(!input||!select){return;}
+  const options=Array.from(select.options).map(function(option){return{value:option.value,text:option.textContent||"",selected:option.selected};});
+  input.addEventListener("input",function(){
+    const needle=(input.value||"").trim().toLowerCase();
+    const currentValue=select.value;
+    select.innerHTML="";
+    options.forEach(function(option){
+      const isPlaceholder=!option.value;
+      const match=isPlaceholder||!needle||option.text.toLowerCase().includes(needle);
+      if(!match){return;}
+      const node=document.createElement("option");
+      node.value=option.value;
+      node.textContent=option.text;
+      if(option.value===currentValue||(!currentValue&&option.selected)){node.selected=true;}
+      select.appendChild(node);
     });
-    projectOptions.style.display = selected === "project" ? "block" : "none";
-    if (selected === "project" && projectChoiceSelect) {
-      updateProjectInfo(projectChoiceSelect.value);
-    }
-  }
-
-  const STATUS_LABELS = { todo: "Da fare", in_progress: "In corso", done: "Fatto" };
-
-  function statusBadge(status) {
-    const label = STATUS_LABELS[status] || status;
-    return '<span class="status-badge ' + status + '">' + label + '</span>';
-  }
-
-  function updateProjectInfo(projectId) {
-    if (!infoPanel) return;
-    if (!projectId) {
-      infoPanel.style.display = "none";
-      if (newProjectFields) newProjectFields.style.display = "";
-      return;
-    }
-    const baseUrl = infoPanel.dataset.infoUrl;
-    const url = baseUrl.replace("/0/", "/" + projectId + "/");
-    infoPanel.style.display = "grid";
-    infoPanel.innerHTML = '<div style="color:#3b82f6;font-size:13px;">Caricamento...</div>';
-    if (newProjectFields) newProjectFields.style.display = "none";
-    fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } })
-      .then(function (response) { return response.json(); })
-      .then(function (data) {
-        let tasksHtml = "";
-        if (data.tasks && data.tasks.length) {
-          const rows = data.tasks.map(function (taskRow) {
-            const start = taskRow.next_step_due || "-";
-            const end = taskRow.due_date || "-";
-            const assignee = taskRow.assignee || "-";
-            return '<tr>'
-              + '<td style="text-align:center;font-weight:700;color:#64748b;">' + taskRow.wbs + '</td>'
-              + '<td>' + taskRow.title + '</td>'
-              + '<td>' + statusBadge(taskRow.status) + '</td>'
-              + '<td>' + start + '</td>'
-              + '<td>' + end + '</td>'
-              + '<td>' + assignee + '</td>'
-              + '</tr>';
-          }).join("");
-          tasksHtml = '<div class="project-tasks-wrap"><table class="project-tasks-table"><thead><tr>'
-            + '<th style="width:40px;">WBS</th><th>Task</th><th>Stato</th><th>Inizio</th><th>Fine prev.</th><th>Assegnatario</th>'
-            + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
-        } else {
-          tasksHtml = '<div style="font-size:13px;color:#64748b;font-style:italic;">Nessuna task ancora in questo progetto.</div>';
-        }
-        infoPanel.innerHTML = ''
-          + '<div class="project-info-title">' + data.name + '</div>'
-          + '<div class="project-info-meta">'
-          + (data.client_name ? '<div class="project-info-meta-item"><div class="lbl">Cliente</div><div class="val">' + data.client_name + '</div></div>' : '')
-          + (data.part_number ? '<div class="project-info-meta-item"><div class="lbl">P/N</div><div class="val">' + data.part_number + '</div></div>' : '')
-          + (data.project_manager ? '<div class="project-info-meta-item"><div class="lbl">Project Manager</div><div class="val">' + data.project_manager + '</div></div>' : '')
-          + (data.capo_commessa ? '<div class="project-info-meta-item"><div class="lbl">Capo commessa</div><div class="val">' + data.capo_commessa + '</div></div>' : '')
-          + (data.programmer ? '<div class="project-info-meta-item"><div class="lbl">Programmatore</div><div class="val">' + data.programmer + '</div></div>' : '')
-          + '</div>'
-          + tasksHtml;
-      })
-      .catch(function () {
-        infoPanel.innerHTML = '<div style="color:#b91c1c;font-size:13px;">Errore nel caricamento info progetto.</div>';
-      });
-  }
-
-  if (projectChoiceSelect) {
-    projectChoiceSelect.addEventListener("change", function () {
-      updateProjectInfo(this.value);
-    });
-  }
-
-  scopeInputs.forEach(function (input) {
-    input.addEventListener("change", toggleProjectOptions);
   });
-  toggleProjectOptions();
-
-  if (similarFilterInput && similarSelect) {
-    const originalOptions = Array.from(similarSelect.options).map(function (option) {
-      return {
-        value: option.value,
-        text: option.textContent || "",
-        selected: option.selected
-      };
-    });
-
-    similarFilterInput.addEventListener("input", function () {
-      const needle = (similarFilterInput.value || "").trim().toLowerCase();
-      const currentValue = similarSelect.value;
-      similarSelect.innerHTML = "";
-      originalOptions.forEach(function (option) {
-        const isPlaceholder = !option.value;
-        const match = isPlaceholder || !needle || option.text.toLowerCase().includes(needle);
-        if (!match) {
-          return;
-        }
-        const node = document.createElement("option");
-        node.value = option.value;
-        node.textContent = option.text;
-        if (option.value === currentValue || (!currentValue && option.selected)) {
-          node.selected = true;
-        }
-        similarSelect.appendChild(node);
-      });
-    });
-  }
+}
+function renderPreview(){
+  if(!preview||!previewRow||!previewCopy){return;}
+  if(currentScope()!=="project"||currentMode()!=="new"){preview.hidden=true;return;}
+  const client=(clientInput&&clientInput.value||"").trim();
+  const pn=(pnInput&&pnInput.value||"").trim();
+  const rev=(revInput&&revInput.value||"").trim();
+  const ver=(verInput&&verInput.value||"").trim();
+  if(!client&&!pn&&!rev&&!ver){preview.hidden=true;previewRow.innerHTML="";previewCopy.textContent="";return;}
+  preview.hidden=false;
+  previewRow.innerHTML=[chip("Kickoff","Nome automatico",""),chip("Cliente",client,""),chip("P/N",pn,"pn"),chip("Rev",rev,"rev"),chip("Ver",ver,"ver")].join("");
+  previewCopy.textContent=pn?"Il sistema usera il P/N con revisione e versione per evitare la creazione di kickoff duplicati.":"Compila il P/N per rendere piu forte l'identificazione del kickoff e il riuso automatico.";
+}
+if(projectChoice){projectChoice.addEventListener("change",function(){updateProjectInfo(this.value);});}
+scopeInputs.forEach(function(i){i.addEventListener("change",toggleWorkspace);});
+modeInputs.forEach(function(i){i.addEventListener("change",toggleWorkspace);});
+[clientInput,pnInput,revInput,verInput].forEach(function(i){if(i){i.addEventListener("input",renderPreview);}});
+installFilter(projectFilter,projectChoice);
+installFilter(similarFilter,similarSelect);
+toggleWorkspace();
+renderPreview();
 })();
 </script>
 {% endblock %}

@@ -230,7 +230,7 @@
     {
       id: {{ n.id }},
       tipo: "{{ n.tipo }}",
-      messaggio: {{ n.messaggio|tojson }},
+      messaggio: "{{ n.messaggio|escapejs }}",
       url: "{{ n.url_azione|escapejs }}"
     }{% if not forloop.last %},{% endif %}
     {% endfor %}

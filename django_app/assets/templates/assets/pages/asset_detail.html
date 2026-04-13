@@ -264,18 +264,24 @@
   <section class="af-sections">
     {% for card in detail_section_cards %}
       <article class="af-card {{ card.size_class }}" data-card-code="{{ card.code|lower }}">
-        <div class="af-card-head">
-          <h2 class="af-card-title">{{ card.title }}</h2>
-          {% if card.code == "MAINTENANCE" %}
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              {% if can_manage_asset_maintenance_rules %}
-                <a class="af-btn af-btn-ghost" href="{{ asset_maintenance_rule_list_url }}">Regole manutenzione</a>
+          <div class="af-card-head">
+            <h2 class="af-card-title">{{ card.title }}</h2>
+            {% if card.code == "MAINTENANCE" %}
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                {% if can_manage_asset_maintenance_rules %}
+                  <a class="af-btn af-btn-ghost" href="{{ asset_maintenance_rule_list_url }}">Regole manutenzione</a>
+                {% endif %}
+                <a class="af-btn af-btn-ghost" href="{{ periodic_verification_manage_url }}">Manutenzione periodica</a>
+                <a class="af-btn af-btn-primary" href="{% url 'assets:wo_create' asset.id %}?kind=CORRECTIVE&source=asset_detail">+ Nuova manutenzione straordinaria</a>
+              </div>
+            {% elif card.code == "PERIODIC" %}
+              <a class="af-btn" href="{{ periodic_verification_manage_url }}">Gestisci manutenzione periodica</a>
+            {% elif card.code == "LICENSES" %}
+              {% if can_manage_licenses %}
+                <a class="af-btn" href="{{ asset_license_manage_url }}">Gestisci licenze</a>
               {% endif %}
-            </div>
-          {% elif card.code == "PERIODIC" %}
-            <a class="af-btn" href="{{ periodic_verification_manage_url }}">Gestisci verifiche</a>
-          {% endif %}
-        </div>
+            {% endif %}
+          </div>
 
         {% if card.code == "SPECS" %}
           <div class="af-card-body">
@@ -494,7 +500,7 @@
                   </div>
                 </div>
               {% empty %}
-                <div class="af-doc-empty">Questo asset non e ancora inserito in alcuna verifica periodica.</div>
+                <div class="af-doc-empty">Questo asset non e ancora inserito in alcun piano di manutenzione periodica.</div>
               {% endfor %}
             </div>
           </div>
@@ -564,6 +570,36 @@
             <div class="af-cust-grid">
               {% for row in assignment_rows %}
                 <div class="af-cust-row"><span>{{ row.label }}</span><span>{{ row.value }}</span></div>
+              {% endfor %}
+            </div>
+          </div>
+        {% elif card.code == "LICENSES" %}
+          <div class="af-card-body">
+            <div class="af-cust-grid">
+              {% for row in asset_license_rows %}
+                <div class="af-cust-row" style="align-items:flex-start;gap:14px;">
+                  <div>
+                    <div class="af-cust-name">{{ row.license.product_name }}{% if row.license.edition %} - {{ row.license.edition }}{% endif %}</div>
+                    <div class="af-cust-sub">
+                      {{ row.license.get_category_display }}
+                      {% if row.license.vendor %} | {{ row.license.vendor }}{% endif %}
+                      {% if row.license.expiry_date %} | scade {{ row.license.expiry_date|date:"d/m/Y" }}{% endif %}
+                    </div>
+                    {% if row.license.assigned_to_display %}
+                      <div class="af-cust-sub">
+                        Assegnata a {{ row.license.assigned_to_display }}
+                      </div>
+                    {% endif %}
+                  </div>
+                  <div style="text-align:right;">
+                    <span class="as-badge as-badge--{{ row.state.badge_class }}">{{ row.state.label }}</span>
+                    {% if row.employee_url %}
+                      <div><a href="{{ row.employee_url }}" style="color:#2563eb;text-decoration:none;">Scheda dipendente</a></div>
+                    {% endif %}
+                  </div>
+                </div>
+              {% empty %}
+                <div class="af-doc-empty">Nessuna licenza software assegnata a questo asset.</div>
               {% endfor %}
             </div>
           </div>

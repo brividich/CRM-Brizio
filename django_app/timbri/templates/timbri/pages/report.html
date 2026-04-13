@@ -175,58 +175,6 @@
     </div>
   </div>
 
-  <!-- ── Asset assegnati ── -->
-  <div class="rpt-section">
-    <div class="rpt-section-head">
-      <div class="rpt-section-title">
-        &#128187; Asset assegnati
-        <span class="rpt-section-count">{{ assets|length }}</span>
-      </div>
-    </div>
-    <div class="rpt-section-body" style="padding:0;">
-      {% if assets %}
-        <table class="rpt-table">
-          <thead>
-            <tr>
-              <th>Tag</th>
-              <th>Nome</th>
-              <th>Categoria</th>
-              <th>Marca / Modello</th>
-              <th>S/N</th>
-              <th>Stato</th>
-              <th>Ubicazione</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for a in assets %}
-            <tr>
-              <td><span class="rpt-asset-tag">{{ a.asset_tag }}</span></td>
-              <td style="font-weight:700;color:#0f172a;">{{ a.name }}</td>
-              <td>{{ a.category_label }}</td>
-              <td>
-                {% if a.manufacturer or a.model %}
-                  {{ a.manufacturer|default:"" }}{% if a.manufacturer and a.model %} / {% endif %}{{ a.model|default:"" }}
-                {% else %}—{% endif %}
-              </td>
-              <td>{{ a.serial_number|default:"—" }}</td>
-              <td>
-                {% if a.status == "IN_USE" %}<span class="rpt-status rpt-status-use">In uso</span>
-                {% elif a.status == "IN_STOCK" %}<span class="rpt-status rpt-status-stock">In magazzino</span>
-                {% elif a.status == "IN_REPAIR" %}<span class="rpt-status rpt-status-repair">In riparazione</span>
-                {% elif a.status == "RETIRED" %}<span class="rpt-status rpt-status-retired">Dismesso</span>
-                {% else %}<span class="rpt-status rpt-status-retired">{{ a.get_status_display }}</span>{% endif %}
-              </td>
-              <td>{{ a.assignment_location|default:"—" }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      {% else %}
-        <div class="rpt-empty">Nessun asset assegnato.</div>
-      {% endif %}
-    </div>
-  </div>
-
   <!-- ── Timbri / Firma / Sigla ── -->
   {% if show_timbri %}
   <div class="rpt-section">

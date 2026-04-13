@@ -15,6 +15,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from core.module_branding import get_module_branding_context, handle_module_branding_post
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 
 from .forms import SegnalazioneForm
@@ -54,6 +55,13 @@ def _can_write(request) -> bool:
     username = request.user.get_username().lower()
     email = (request.user.email or "").lower()
     return any(v.lower() in (username, email) for v in acl)
+
+
+def _can_manage_settings(request) -> bool:
+    if not request.user.is_authenticated:
+        return False
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    return bool(getattr(request.user, "is_superuser", False) or (legacy_user and is_legacy_admin(legacy_user)))
 
 
 def _write_required(view_func):
@@ -118,6 +126,7 @@ def lista(request):
             "filtro_preposto": filtro_preposto,
             "preposti": preposti,
             "can_write": _can_write(request),
+            "can_manage_settings": _can_manage_settings(request),
             "totale": qs.count(),
         },
     )
@@ -493,6 +502,15 @@ def impostazioni(request):
         cfg = DiarioPrepostoImpostazioni.objects.create(pk=1, acl_scrittura=[])
 
     if request.method == "POST":
+        branding_response = handle_module_branding_post(
+            request,
+            module_key="diario_preposto",
+            redirect_to="diario_preposto:impostazioni",
+            audit_module="diario_preposto",
+            fallback_label="Diario Preposto",
+        )
+        if branding_response is not None:
+            return branding_response
         raw = request.POST.get("acl_scrittura", "").strip()
         entries = [e.strip() for e in raw.replace(",", "\n").splitlines() if e.strip()]
         cfg.acl_scrittura = entries
@@ -506,4 +524,5 @@ def impostazioni(request):
     return render(request, "diario_preposto/pages/impostazioni.html", {
         "cfg": cfg,
         "acl_text": acl_text,
+        **get_module_branding_context("diario_preposto", fallback_label="Diario Preposto"),
     })

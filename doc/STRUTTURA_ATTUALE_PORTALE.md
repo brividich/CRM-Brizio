@@ -1,6 +1,6 @@
 # Struttura Attuale - NOVICROM HUB
 
-Data snapshot: 2026-04-08 | Versione: 0.9.9
+Data snapshot: 2026-04-09 | Versione: 0.9.14
 
 ---
 
@@ -39,7 +39,7 @@ Data snapshot: 2026-04-08 | Versione: 0.9.9
 | `tickets` | Sistema ticket interni con allegati, commenti, link ad asset e fornitori | `django_app/tickets/` |
 | `notizie` | Bacheca notizie/comunicazioni con audience e letture tracciate | `django_app/notizie/` |
 | `timbri` | Report timbrature (lettura da DB legacy SQL Server) | `django_app/timbri/` |
-| `tasks` | Task management interno: progetti, task, subtask, commenti, allegati | `django_app/tasks/` |
+| `tasks` | `KICK-OFF`: portfolio kickoff, attivita kickoff, subtask, commenti, allegati, import Excel e flusso P/N/revisione/versione; `VRF` resta il documento Excel MOD.073 | `django_app/tasks/` |
 
 ### Operations e Asset
 
@@ -75,7 +75,7 @@ Data snapshot: 2026-04-08 | Versione: 0.9.9
 | `"assets/"` | `assets.urls` | Inventario, work order, macchine |
 | `"tickets/"` | `tickets.urls` | Ticket interni |
 | `"notizie/"` | `notizie.urls` | Bacheca notizie |
-| `"tasks/"` | `tasks.urls` | Task management |
+| `"tasks/"` | `tasks.urls` | `KICK-OFF` |
 | `"automazioni/"` | `automazioni.urls` | Designer automazioni |
 | `"anagrafica/"` | `anagrafica.urls` | Dipendenti, fornitori |
 | `"diario-preposto/"` | `diario_preposto.urls` | Diario preposto |

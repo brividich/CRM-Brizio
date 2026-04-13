@@ -56,4 +56,7 @@ urlpatterns = [
     path("preferenze/", views.ui_prefs_page, name="ui_prefs_page"),
     path("preferenze/api/ui/", views.api_ui_prefs_save, name="ui_prefs_api_save"),
     path("preferenze/api/sidebar/", views.sidebar_toggle_save, name="ui_sidebar_save"),
+    path("onboarding/", views.onboarding_wizard, name="onboarding_wizard"),
+    path("api/onboarding/email/", views.api_onboarding_email_save, name="api_onboarding_email_save"),
+    path("api/onboarding/<int:user_id>/reset", views.api_onboarding_reset, name="api_onboarding_reset"),
 ]

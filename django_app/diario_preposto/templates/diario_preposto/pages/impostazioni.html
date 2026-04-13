@@ -2,52 +2,51 @@
 
 {% block title %}Impostazioni Diario Preposto{% endblock %}
 
+{% block extra_head %}
+  {% include "core/components/module_settings_styles.html" %}
+{% endblock %}
+
 {% block content %}
-{% include "admin_portale/components/flash_messages.html" %}
+  {% include "admin_portale/components/flash_messages.html" %}
 
-<div class="card" style="margin-bottom:16px;">
-  <div class="card-head">
-    <div class="card-title">⚙️ Impostazioni Diario Preposto</div>
-  </div>
-  <div class="card-body">
-    <form method="post">
-      {% csrf_token %}
+  <div class="ms-page">
+    {% include "core/components/module_settings_hero.html" with settings_title="Impostazioni "|add:module_branding_display_label settings_subtitle="Configura chi puo scrivere segnalazioni e personalizza nome e logo del modulo senza toccare il resto del portale." %}
 
-      <div style="display:grid;gap:16px;">
-
-        <div class="form-group">
-          <label class="form-label">Utenti autorizzati alla scrittura</label>
-          <textarea name="acl_scrittura" class="input" rows="8"
-                    placeholder="uno per riga, oppure separati da virgola&#10;es:&#10;mario.rossi&#10;lucia.bianchi@azienda.it">{{ acl_text }}</textarea>
-          <small class="text-muted">
-            Inserisci <strong>username</strong> o <strong>email</strong> degli utenti che possono creare, modificare
-            ed eliminare segnalazioni nel Diario Preposto.<br>
-            Gli admin legacy hanno sempre accesso completo indipendentemente da questo elenco.
-          </small>
-        </div>
-
-        {% if cfg.acl_scrittura %}
-        <div>
-          <div style="font-size:12px;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em;">
-            Utenti attualmente autorizzati ({{ cfg.acl_scrittura|length }})
-          </div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;">
-            {% for entry in cfg.acl_scrittura %}
-            <span style="background:#e0e7ff;color:#3730a3;border-radius:6px;padding:3px 10px;font-size:12px;font-weight:600;">
-              {{ entry }}
-            </span>
-            {% endfor %}
+    <div class="ms-grid-2">
+      <section class="ms-card">
+        <div class="ms-card-head">
+          <div class="ms-card-title-wrap">
+            <h2 class="ms-card-title">Autorizzazioni scrittura</h2>
+            <p class="ms-card-subtitle">Username o email che possono creare, modificare ed eliminare segnalazioni nel Diario Preposto.</p>
           </div>
         </div>
-        {% endif %}
-
-        <div style="display:flex;justify-content:flex-end;gap:10px;">
-          <a href="{% url 'diario_preposto:lista' %}" class="btn btn-secondary">Annulla</a>
-          <button type="submit" class="btn btn-primary">Salva impostazioni</button>
+        <div class="ms-card-body">
+          <form method="post" class="ms-field-grid">
+            {% csrf_token %}
+            <div class="ms-field">
+              <label for="acl_scrittura">Utenti autorizzati</label>
+              <textarea id="acl_scrittura" name="acl_scrittura" rows="8" placeholder="uno per riga oppure separati da virgola&#10;es:&#10;mario.rossi&#10;lucia.bianchi@azienda.it">{{ acl_text }}</textarea>
+              <span class="ms-field-help">Gli admin legacy mantengono sempre l'accesso completo anche se l'elenco e vuoto.</span>
+            </div>
+            {% if cfg.acl_scrittura %}
+              <div class="ms-field">
+                <label>Accessi attivi</label>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                  {% for entry in cfg.acl_scrittura %}
+                    <span class="ms-pill" style="background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;">{{ entry }}</span>
+                  {% endfor %}
+                </div>
+              </div>
+            {% endif %}
+            <div class="ms-form-actions">
+              <a href="{% url 'diario_preposto:lista' %}" class="btn btn-secondary">Torna all'elenco</a>
+              <button type="submit" class="btn btn-primary">Salva impostazioni</button>
+            </div>
+          </form>
         </div>
+      </section>
 
-      </div>
-    </form>
+      {% include "core/components/module_branding_card.html" %}
+    </div>
   </div>
-</div>
 {% endblock %}

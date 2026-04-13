@@ -296,6 +296,16 @@ def _build_action_suggestions(source_code: str | None) -> dict[str, dict[str, ob
         fallback_index=0,
     )
     title_field = _pick_source_field(source_code, ["tipo_assenza", "title", "titolo", "name", "seriale"], fallback_index=0)
+    source_update_fields = [
+        _string_value(field.get("name"))
+        for field in get_action_mapping_fields(source_code)
+        if field.get("db_column") and not field.get("is_virtual")
+    ]
+    source_pk_field = _string_value((source.get("pk_field") if isinstance(source, dict) else "") or "id")
+    source_update_field = next(
+        (field_name for field_name in source_update_fields if field_name and field_name != source_pk_field),
+        status_field,
+    )
 
     insert_whitelist = get_action_table_whitelist().get(AutomationActionType.INSERT_RECORD, {})
     update_whitelist = get_action_table_whitelist().get(AutomationActionType.UPDATE_RECORD, {})
@@ -432,6 +442,125 @@ def _build_action_suggestions(source_code: str | None) -> dict[str, dict[str, ob
                     "title": "Aggiornamento base",
                     "description": "Precompila target, where e campi modificabili.",
                     "theme": "rose",
+                    "values": {},
+                    "placeholders": {},
+                }
+            ],
+        },
+        AutomationActionType.UPDATE_TRIGGER_RECORD: {
+            "group_title": f"Preset trigger-record per {source_label}",
+            "group_subtitle": "Aggiorna direttamente il record che ha scatenato l'automazione.",
+            "values": {
+                "description": f"Aggiorna il record triggerante di {source_label.lower()}",
+                "trigger_update_fields_text": f"{source_update_field} = {{{status_field}}}",
+            },
+            "placeholders": {},
+            "presets": [
+                {
+                    "key": "default_update_trigger",
+                    "title": "Aggiorna record triggerante",
+                    "description": "Imposta uno o piu' campi sul record sorgente corrente.",
+                    "theme": "green",
+                    "values": {},
+                    "placeholders": {},
+                }
+            ],
+        },
+        AutomationActionType.DELAY_SCHEDULE: {
+            "group_title": f"Preset delay per {source_label}",
+            "group_subtitle": "Rimanda l'elaborazione in stile Power Automate Delay/Delay Until.",
+            "values": {
+                "description": f"Rimanda una nuova esecuzione per {source_label.lower()}",
+                "delay_mode": "relative",
+                "delay_value_template": "1",
+                "delay_unit": "days",
+            },
+            "placeholders": {},
+            "presets": [
+                {
+                    "key": "default_delay_relative",
+                    "title": "Delay semplice",
+                    "description": "Riesegue l'evento dopo un intervallo relativo.",
+                    "theme": "amber",
+                    "values": {},
+                    "placeholders": {},
+                },
+                {
+                    "key": "default_delay_until",
+                    "title": "Delay until",
+                    "description": "Riesegue l'evento a una data/ora precisa.",
+                    "theme": "blue",
+                    "values": {
+                        "delay_mode": "until",
+                        "delay_until_template": "{updated_at}",
+                    },
+                    "placeholders": {},
+                },
+            ],
+        },
+        AutomationActionType.HTTP_REQUEST: {
+            "group_title": f"Preset HTTP per {source_label}",
+            "group_subtitle": "Webhook e chiamate API esterne stile Power Automate HTTP.",
+            "values": {
+                "description": f"Invia una chiamata HTTP per {source_label.lower()}",
+                "http_method": "POST",
+                "http_headers_text": "Content-Type = application/json",
+                "http_body_template": (
+                    "{\n"
+                    f"  \"source\": \"{source_code_value}\",\n"
+                    "  \"id\": \"{id}\",\n"
+                    f"  \"status\": \"{{{status_field}}}\"\n"
+                    "}"
+                ),
+                "http_expected_status_csv": "200,201,202,204",
+            },
+            "placeholders": {
+                "http_url_template": "https://example.local/webhook",
+            },
+            "presets": [
+                {
+                    "key": "default_http_webhook",
+                    "title": "Webhook JSON",
+                    "description": "POST JSON verso un endpoint esterno.",
+                    "theme": "blue",
+                    "values": {},
+                    "placeholders": {},
+                },
+                {
+                    "key": "default_http_patch",
+                    "title": "PATCH esterno",
+                    "description": "Aggiorna una risorsa remota con status e riferimento record.",
+                    "theme": "rose",
+                    "values": {
+                        "http_method": "PATCH",
+                        "http_expected_status_csv": "200,204",
+                    },
+                    "placeholders": {
+                        "http_url_template": "https://example.local/resource/{id}",
+                    },
+                },
+            ],
+        },
+        AutomationActionType.TEAMS_WEBHOOK: {
+            "group_title": f"Preset Teams per {source_label}",
+            "group_subtitle": "Messaggi webhook per canali Teams o connettori compatibili.",
+            "values": {
+                "description": f"Invia card Teams per {source_label.lower()}",
+                "teams_title_template": f"[{source_label}] record #{{id}}",
+                "teams_summary_template": f"{source_label} aggiornata",
+                "teams_text_template": f"{title_field}: {{{title_field}}}\n{status_field}: {{{status_field}}}",
+                "teams_theme_color": "2563EB",
+                "teams_facts_text": f"ID = {{id}}\nStato = {{{status_field}}}",
+            },
+            "placeholders": {
+                "teams_webhook_url": "https://outlook.office.com/webhook/...",
+            },
+            "presets": [
+                {
+                    "key": "default_teams_card",
+                    "title": "Card Teams",
+                    "description": "Invia una card essenziale con facts e riepilogo.",
+                    "theme": "green",
                     "values": {},
                     "placeholders": {},
                 }
@@ -655,6 +784,1391 @@ def _build_action_suggestions(source_code: str | None) -> dict[str, dict[str, ob
                 "placeholders": {},
             },
         ]
+        suggestions[AutomationActionType.DELAY_SCHEDULE]["group_title"] = "Preset delay per Assenze"
+        suggestions[AutomationActionType.DELAY_SCHEDULE]["group_subtitle"] = "Pattern vicini ai flow Power Automate di approvazione e follow-up."
+        suggestions[AutomationActionType.DELAY_SCHEDULE]["presets"] = [
+            {
+                "key": "assenze_delay_reminder",
+                "title": "Sollecito dopo 1 giorno",
+                "description": "Riesegue l'evento dopo 1 giorno per reminder o escalation.",
+                "theme": "amber",
+                "values": {
+                    "description": "Riprogramma reminder assenza",
+                    "delay_mode": "relative",
+                    "delay_value_template": "1",
+                    "delay_unit": "days",
+                },
+                "placeholders": {},
+            },
+            {
+                "key": "assenze_delay_until",
+                "title": "Attendi data fine",
+                "description": "Delay until basato sulla data fine della richiesta.",
+                "theme": "blue",
+                "values": {
+                    "description": "Riprogramma alla data fine richiesta",
+                    "delay_mode": "until",
+                    "delay_until_template": "{data_fine}",
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.UPDATE_TRIGGER_RECORD]["group_title"] = "Preset update record triggerante per Assenze"
+        suggestions[AutomationActionType.UPDATE_TRIGGER_RECORD]["group_subtitle"] = "Aggiornamenti diretti sul record assenza corrente."
+        suggestions[AutomationActionType.UPDATE_TRIGGER_RECORD]["presets"] = [
+            {
+                "key": "assenze_flag_skip_approval",
+                "title": "Forza salta approvazione",
+                "description": "Imposta il flag `salta_approvazione` sul record corrente.",
+                "theme": "green",
+                "values": {
+                    "description": "Imposta salta approvazione sul record corrente",
+                    "trigger_update_fields_text": "salta_approvazione = True",
+                },
+                "placeholders": {},
+            },
+        ]
+
+    elif source_code_value == "tasks":
+        suggestions[AutomationActionType.SEND_EMAIL]["group_title"] = "Preset email per Tasks"
+        suggestions[AutomationActionType.SEND_EMAIL]["group_subtitle"] = "Notifiche pronte per assegnazioni, scadenze e completamenti."
+        suggestions[AutomationActionType.SEND_EMAIL]["presets"] = [
+            {
+                "key": "tasks_assigned_email",
+                "title": "Task assegnato",
+                "description": "Avvisa l'assegnatario quando un task viene assegnato.",
+                "theme": "blue",
+                "values": {
+                    "description": "Notifica assegnazione task",
+                    "email_subject_template": "[KICK-OFF] Task #{id} assegnato a te",
+                    "email_body_text_template": (
+                        "Ti e' stato assegnato il task #{id}.\n"
+                        "Titolo: {title}\n"
+                        "Priorita': {priority}\n"
+                        "Scadenza: {due_date}"
+                    ),
+                    "email_body_html_template": (
+                        "<p>Ti e' stato assegnato il task <strong>#{id}</strong>.</p>"
+                        "<p>Titolo: {title}</p>"
+                        "<p>Priorita': {priority} | Scadenza: {due_date}</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. responsabile@example.com"},
+            },
+            {
+                "key": "tasks_completed_email",
+                "title": "Task completato",
+                "description": "Informa il responsabile del progetto quando un task passa a DONE.",
+                "theme": "green",
+                "values": {
+                    "description": "Notifica completamento task",
+                    "email_subject_template": "[KICK-OFF] Task #{id} completato",
+                    "email_body_text_template": (
+                        "Il task #{id} e' stato completato.\n"
+                        "Titolo: {title}\n"
+                        "Stato: {status}"
+                    ),
+                    "email_body_html_template": (
+                        "<p>Il task <strong>#{id}</strong> e' stato completato.</p>"
+                        "<p>Titolo: {title}</p>"
+                        "<p>Stato: {status}</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. pm@example.com"},
+            },
+            {
+                "key": "tasks_overdue_email",
+                "title": "Reminder scadenza",
+                "description": "Reminder automatico quando la scadenza e' prossima.",
+                "theme": "amber",
+                "values": {
+                    "description": "Reminder scadenza task",
+                    "email_subject_template": "[KICK-OFF] Reminder: Task #{id} in scadenza",
+                    "email_body_text_template": (
+                        "Il task #{id} e' prossimo alla scadenza ({due_date}).\n"
+                        "Titolo: {title}\n"
+                        "Priorita': {priority}"
+                    ),
+                    "email_body_html_template": (
+                        "<p>Il task <strong>#{id}</strong> e' prossimo alla scadenza.</p>"
+                        "<p>Scadenza: {due_date}</p>"
+                        "<p>Titolo: {title} | Priorita': {priority}</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. assegnato@example.com"},
+            },
+        ]
+        suggestions[AutomationActionType.INSERT_RECORD]["group_title"] = "Preset notifiche interne per Tasks"
+        suggestions[AutomationActionType.INSERT_RECORD]["group_subtitle"] = "Notifiche nel portale per assegnazioni e aggiornamenti task."
+        suggestions[AutomationActionType.INSERT_RECORD]["presets"] = [
+            {
+                "key": "tasks_notify_assigned",
+                "title": "Notifica assegnazione",
+                "description": "Crea una notifica interna per l'assegnatario del task.",
+                "theme": "blue",
+                "values": {
+                    "description": "Notifica interna assegnazione task",
+                    "insert_target_table": "core_notifica",
+                    "insert_field_mappings_text": (
+                        "legacy_user_id = {assigned_to_id}\n"
+                        "tipo = tasks_assegnazione\n"
+                        "messaggio = Ti e' stato assegnato il task #{id}: {title}\n"
+                        "letta = 0"
+                    ),
+                },
+                "placeholders": {},
+            },
+            {
+                "key": "tasks_notify_status_change",
+                "title": "Notifica cambio stato",
+                "description": "Notifica interna quando lo stato del task cambia.",
+                "theme": "green",
+                "values": {
+                    "description": "Notifica cambio stato task",
+                    "insert_target_table": "core_notifica",
+                    "insert_field_mappings_text": (
+                        "legacy_user_id = {assigned_to_id}\n"
+                        "tipo = tasks_aggiornamento\n"
+                        "messaggio = Task #{id} aggiornato: {title} - Stato: {status}\n"
+                        "letta = 0"
+                    ),
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.WRITE_LOG]["group_title"] = "Preset log per Tasks"
+        suggestions[AutomationActionType.WRITE_LOG]["group_subtitle"] = "Log operativi per monitoraggio stati e assegnazioni."
+        suggestions[AutomationActionType.WRITE_LOG]["presets"] = [
+            {
+                "key": "tasks_log_status",
+                "title": "Log cambio stato",
+                "description": "Registra il cambio di stato del task nel log.",
+                "theme": "blue",
+                "values": {
+                    "description": "Log cambio stato task",
+                    "write_log_message_template": "Task #{id} '{title}' - stato: {status}, priorita': {priority}, assegnato: {assigned_to_id}",
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["group_title"] = "Preset metriche per Tasks"
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["group_subtitle"] = "Contatori task completati, aperti, in ritardo."
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["presets"] = [
+            {
+                "key": "tasks_metric_completed",
+                "title": "Conta task completati",
+                "description": "Incrementa il contatore dei task completati.",
+                "theme": "green",
+                "values": {
+                    "description": "Conta task completati",
+                    "metric_code": "tasks_completati_oggi",
+                    "metric_operation": "increment",
+                    "metric_value_template": "1",
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.UPDATE_RECORD]["group_title"] = "Preset update per Tasks"
+        suggestions[AutomationActionType.UPDATE_RECORD]["group_subtitle"] = "Aggiorna record task o notifiche collegate."
+        suggestions[AutomationActionType.UPDATE_RECORD]["presets"] = [
+            {
+                "key": "tasks_update_task_status",
+                "title": "Aggiorna stato task",
+                "description": "Modifica lo stato di un task su tasks_task.",
+                "theme": "blue",
+                "values": {
+                    "description": "Aggiorna stato task",
+                    "update_target_table": "tasks_task",
+                    "update_where_field": "id",
+                    "update_where_value_template": "{id}",
+                    "update_fields_text": "status = DONE\npriority = HIGH",
+                },
+                "placeholders": {},
+            },
+        ]
+
+    elif source_code_value == "tickets":
+        suggestions[AutomationActionType.TEAMS_WEBHOOK]["group_title"] = "Preset Teams per Tickets"
+        suggestions[AutomationActionType.TEAMS_WEBHOOK]["group_subtitle"] = "Avvisi rapidi per ticket critici e manutenzione."
+        suggestions[AutomationActionType.TEAMS_WEBHOOK]["presets"] = [
+            {
+                "key": "tickets_teams_critical",
+                "title": "Ticket critico a Teams",
+                "description": "Invia una card Teams con numero ticket, stato e priorita'.",
+                "theme": "green",
+                "values": {
+                    "description": "Invia ticket critico su Teams",
+                    "teams_title_template": "[Ticket] {numero_ticket} - {titolo}",
+                    "teams_summary_template": "Nuovo ticket da verificare",
+                    "teams_text_template": "Tipo: {tipo}\nPriorita': {priorita}\nStato: {stato}\nRichiedente: {richiedente_nome}",
+                    "teams_facts_text": "Ticket = {numero_ticket}\nPriorita' = {priorita}\nStato = {stato}\nAsset = {asset_id}",
+                    "teams_theme_color": "DC2626",
+                },
+                "placeholders": {
+                    "teams_webhook_url": "Webhook Teams reparto manutenzione",
+                },
+            },
+        ]
+        suggestions[AutomationActionType.SEND_EMAIL]["group_title"] = "Preset email per Tickets"
+        suggestions[AutomationActionType.SEND_EMAIL]["group_subtitle"] = "Notifiche pronte per apertura, presa in carico e risoluzione ticket."
+        suggestions[AutomationActionType.SEND_EMAIL]["presets"] = [
+            {
+                "key": "tickets_new_email",
+                "title": "Nuovo ticket aperto",
+                "description": "Avvisa il team quando viene aperto un nuovo ticket.",
+                "theme": "blue",
+                "values": {
+                    "description": "Notifica apertura nuovo ticket",
+                    "email_subject_template": "[Ticket] #{id} aperto: {titolo}",
+                    "email_body_text_template": (
+                        "E' stato aperto un nuovo ticket #{id}.\n"
+                        "Titolo: {titolo}\n"
+                        "Categoria: {categoria}\n"
+                        "Priorita': {priorita}\n"
+                        "Richiedente: {richiedente_legacy_user_id}"
+                    ),
+                    "email_body_html_template": (
+                        "<p>Nuovo ticket <strong>#{id}</strong> aperto.</p>"
+                        "<p>Titolo: {titolo}</p>"
+                        "<p>Categoria: {categoria} | Priorita': {priorita}</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. helpdesk@example.com"},
+            },
+            {
+                "key": "tickets_resolved_email",
+                "title": "Ticket risolto",
+                "description": "Comunica al richiedente che il ticket e' stato risolto.",
+                "theme": "green",
+                "values": {
+                    "description": "Notifica risoluzione ticket",
+                    "email_subject_template": "[Ticket] #{id} risolto",
+                    "email_body_text_template": (
+                        "Il ticket #{id} '{titolo}' e' stato risolto.\n"
+                        "Assegnato a: {assegnato_a}\n"
+                        "Stato: {stato}"
+                    ),
+                    "email_body_html_template": (
+                        "<p>Il ticket <strong>#{id}</strong> e' stato risolto.</p>"
+                        "<p>Titolo: {titolo}</p>"
+                        "<p>Risolto da: {assegnato_a}</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. richiedente@example.com"},
+            },
+            {
+                "key": "tickets_assigned_email",
+                "title": "Ticket assegnato",
+                "description": "Avvisa il tecnico assegnato di prendere in carico il ticket.",
+                "theme": "amber",
+                "values": {
+                    "description": "Notifica assegnazione ticket",
+                    "email_subject_template": "[Ticket] #{id} assegnato a te",
+                    "email_body_text_template": (
+                        "Il ticket #{id} ti e' stato assegnato.\n"
+                        "Titolo: {titolo}\n"
+                        "Priorita': {priorita}\n"
+                        "Categoria: {categoria}"
+                    ),
+                    "email_body_html_template": (
+                        "<p>Il ticket <strong>#{id}</strong> ti e' stato assegnato.</p>"
+                        "<p>Titolo: {titolo} | Priorita': {priorita}</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. tecnico@example.com"},
+            },
+        ]
+        suggestions[AutomationActionType.INSERT_RECORD]["group_title"] = "Preset notifiche interne per Tickets"
+        suggestions[AutomationActionType.INSERT_RECORD]["group_subtitle"] = "Notifiche portale per apertura e aggiornamento ticket."
+        suggestions[AutomationActionType.INSERT_RECORD]["presets"] = [
+            {
+                "key": "tickets_notify_new",
+                "title": "Notifica nuovo ticket",
+                "description": "Crea notifica interna per nuovo ticket aperto.",
+                "theme": "blue",
+                "values": {
+                    "description": "Notifica interna nuovo ticket",
+                    "insert_target_table": "core_notifica",
+                    "insert_field_mappings_text": (
+                        "legacy_user_id = {richiedente_legacy_user_id}\n"
+                        "tipo = ticket_aperto\n"
+                        "messaggio = Ticket #{id} aperto: {titolo} (priorita': {priorita})\n"
+                        "letta = 0"
+                    ),
+                },
+                "placeholders": {},
+            },
+            {
+                "key": "tickets_notify_resolved",
+                "title": "Notifica ticket risolto",
+                "description": "Notifica interna al richiedente quando il ticket viene chiuso.",
+                "theme": "green",
+                "values": {
+                    "description": "Notifica interna risoluzione ticket",
+                    "insert_target_table": "core_notifica",
+                    "insert_field_mappings_text": (
+                        "legacy_user_id = {richiedente_legacy_user_id}\n"
+                        "tipo = ticket_risolto\n"
+                        "messaggio = Il tuo ticket #{id} '{titolo}' e' stato risolto da {assegnato_a}\n"
+                        "letta = 0"
+                    ),
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.WRITE_LOG]["group_title"] = "Preset log per Tickets"
+        suggestions[AutomationActionType.WRITE_LOG]["group_subtitle"] = "Log operativi per tracciamento stati e assegnazioni ticket."
+        suggestions[AutomationActionType.WRITE_LOG]["presets"] = [
+            {
+                "key": "tickets_log_status",
+                "title": "Log cambio stato",
+                "description": "Registra il cambio di stato del ticket.",
+                "theme": "slate",
+                "values": {
+                    "description": "Log stato ticket",
+                    "write_log_message_template": "Ticket #{id} '{titolo}' - stato: {stato}, priorita': {priorita}, assegnato: {assegnato_a}",
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["group_title"] = "Preset metriche per Tickets"
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["group_subtitle"] = "Contatori ticket aperti, risolti, in attesa."
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["presets"] = [
+            {
+                "key": "tickets_metric_open",
+                "title": "Conta ticket aperti",
+                "description": "Incrementa il contatore dei ticket aperti.",
+                "theme": "blue",
+                "values": {
+                    "description": "Conta ticket aperti",
+                    "metric_code": "tickets_aperti",
+                    "metric_operation": "increment",
+                    "metric_value_template": "1",
+                },
+                "placeholders": {},
+            },
+            {
+                "key": "tickets_metric_resolved",
+                "title": "Conta ticket risolti",
+                "description": "Incrementa il contatore dei ticket risolti oggi.",
+                "theme": "green",
+                "values": {
+                    "description": "Conta ticket risolti",
+                    "metric_code": "tickets_risolti_oggi",
+                    "metric_operation": "increment",
+                    "metric_value_template": "1",
+                },
+                "placeholders": {},
+            },
+        ]
+
+    elif source_code_value == "assets":
+        suggestions[AutomationActionType.SEND_EMAIL]["group_title"] = "Preset email per Assets"
+        suggestions[AutomationActionType.SEND_EMAIL]["group_subtitle"] = "Notifiche per scadenze manutenzione, assegnazioni e cambio stato."
+        suggestions[AutomationActionType.SEND_EMAIL]["presets"] = [
+            {
+                "key": "assets_maintenance_due_email",
+                "title": "Scadenza manutenzione",
+                "description": "Avvisa il responsabile della scadenza di manutenzione imminente.",
+                "theme": "amber",
+                "values": {
+                    "description": "Notifica scadenza manutenzione asset",
+                    "email_subject_template": "[Asset] Manutenzione in scadenza: {name} ({asset_tag})",
+                    "email_body_text_template": (
+                        "L'asset {name} (codice: {asset_tag}) ha una manutenzione in scadenza.\n"
+                        "Stato: {status}\n"
+                        "Posizione: {assignment_location}"
+                    ),
+                    "email_body_html_template": (
+                        "<p>Asset <strong>{name}</strong> (codice: {asset_tag}).</p>"
+                        "<p>Manutenzione in scadenza. Stato attuale: {status}</p>"
+                        "<p>Posizione: {assignment_location}</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. manutenzione@example.com"},
+            },
+            {
+                "key": "assets_assigned_email",
+                "title": "Asset assegnato",
+                "description": "Notifica l'assegnatario quando un asset gli viene attribuito.",
+                "theme": "blue",
+                "values": {
+                    "description": "Notifica assegnazione asset",
+                    "email_subject_template": "[Asset] {name} assegnato",
+                    "email_body_text_template": (
+                        "L'asset {name} (codice: {asset_tag}) e' stato assegnato.\n"
+                        "Categoria: {asset_category_id}\n"
+                        "Posizione: {assignment_location}"
+                    ),
+                    "email_body_html_template": (
+                        "<p>Asset <strong>{name}</strong> (codice: {asset_tag}) assegnato.</p>"
+                        "<p>Categoria: {asset_category_id} | Posizione: {assignment_location}</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. utente@example.com"},
+            },
+        ]
+        suggestions[AutomationActionType.INSERT_RECORD]["group_title"] = "Preset notifiche interne per Assets"
+        suggestions[AutomationActionType.INSERT_RECORD]["group_subtitle"] = "Notifiche portale per cambi stato e scadenze asset."
+        suggestions[AutomationActionType.INSERT_RECORD]["presets"] = [
+            {
+                "key": "assets_notify_status_change",
+                "title": "Notifica cambio stato",
+                "description": "Notifica interna quando lo stato di un asset cambia.",
+                "theme": "blue",
+                "values": {
+                    "description": "Notifica cambio stato asset",
+                    "insert_target_table": "core_notifica",
+                    "insert_field_mappings_text": (
+                        "legacy_user_id = {assigned_legacy_user_id}\n"
+                        "tipo = asset_aggiornamento\n"
+                        "messaggio = Asset #{id} '{name}' aggiornato: stato {status}\n"
+                        "letta = 0"
+                    ),
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.WRITE_LOG]["group_title"] = "Preset log per Assets"
+        suggestions[AutomationActionType.WRITE_LOG]["group_subtitle"] = "Log tecnici per tracciamento modifiche e scadenze asset."
+        suggestions[AutomationActionType.WRITE_LOG]["presets"] = [
+            {
+                "key": "assets_log_status",
+                "title": "Log cambio stato",
+                "description": "Registra il cambio di stato dell'asset.",
+                "theme": "slate",
+                "values": {
+                    "description": "Log stato asset",
+                    "write_log_message_template": "Asset #{id} '{name}' (tag: {asset_tag}) - stato: {status}, posizione: {assignment_location}",
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["group_title"] = "Preset metriche per Assets"
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["group_subtitle"] = "Contatori per asset attivi, in manutenzione, dismessi."
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["presets"] = [
+            {
+                "key": "assets_metric_active",
+                "title": "Conta asset attivi",
+                "description": "Incrementa il contatore degli asset attivi.",
+                "theme": "green",
+                "values": {
+                    "description": "Conta asset attivi",
+                    "metric_code": "assets_attivi",
+                    "metric_operation": "increment",
+                    "metric_value_template": "1",
+                },
+                "placeholders": {},
+            },
+        ]
+
+    elif source_code_value == "anomalie":
+        suggestions[AutomationActionType.HTTP_REQUEST]["group_title"] = "Preset HTTP per Anomalie"
+        suggestions[AutomationActionType.HTTP_REQUEST]["group_subtitle"] = "Webhook esterni vicini al flow `GESTIONE ANOMALIE - new OP`."
+        suggestions[AutomationActionType.HTTP_REQUEST]["presets"] = [
+            {
+                "key": "anomalie_http_newop",
+                "title": "Webhook creazione cartella OP",
+                "description": "Invia OP e identificativi a un endpoint che crea la cartella e restituisce il link.",
+                "theme": "blue",
+                "values": {
+                    "description": "Chiama webhook esterno per new OP",
+                    "http_method": "POST",
+                    "http_headers_text": "Content-Type = application/json",
+                    "http_body_template": "{\n  \"op\": \"{ex_op_nominativo}\",\n  \"anomalia_id\": \"{id}\",\n  \"seriale\": \"{seriale}\"\n}",
+                    "http_expected_status_csv": "200,201,202",
+                },
+                "placeholders": {
+                    "http_url_template": "Endpoint che replica la logica new OP",
+                },
+            },
+        ]
+        suggestions[AutomationActionType.SEND_EMAIL]["group_title"] = "Preset email per Anomalie"
+        suggestions[AutomationActionType.SEND_EMAIL]["group_subtitle"] = "Notifiche per nuove anomalie, aggiornamenti e chiusure."
+        suggestions[AutomationActionType.SEND_EMAIL]["presets"] = [
+            {
+                "key": "anomalie_new_email",
+                "title": "Nuova anomalia aperta",
+                "description": "Avvisa il responsabile quando viene segnalata una nuova anomalia.",
+                "theme": "rose",
+                "values": {
+                    "description": "Notifica nuova anomalia",
+                    "email_subject_template": "[Anomalia] #{id} aperta: {ex_op_nominativo}",
+                    "email_body_text_template": (
+                        "E' stata segnalata una nuova anomalia #{id}.\n"
+                        "OP: {ex_op_nominativo}\n"
+                        "PN/Seriale: {seriale}\n"
+                        "Stato: {avanzamento}"
+                    ),
+                    "email_body_html_template": (
+                        "<p>Nuova anomalia <strong>#{id}</strong> segnalata.</p>"
+                        "<p>OP: {ex_op_nominativo} | PN: {seriale}</p>"
+                        "<p>Stato: {avanzamento}</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. responsabile@example.com"},
+            },
+            {
+                "key": "anomalie_closed_email",
+                "title": "Anomalia chiusa",
+                "description": "Comunica la chiusura dell'anomalia al responsabile.",
+                "theme": "green",
+                "values": {
+                    "description": "Notifica chiusura anomalia",
+                    "email_subject_template": "[Anomalia] #{id} chiusa",
+                    "email_body_text_template": (
+                        "L'anomalia #{id} e' stata chiusa.\n"
+                        "OP: {ex_op_nominativo}\n"
+                        "PN: {seriale}\n"
+                        "Stato finale: {avanzamento}"
+                    ),
+                    "email_body_html_template": (
+                        "<p>Anomalia <strong>#{id}</strong> chiusa.</p>"
+                        "<p>OP: {ex_op_nominativo} | PN: {seriale}</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. qualita@example.com"},
+            },
+        ]
+        suggestions[AutomationActionType.INSERT_RECORD]["group_title"] = "Preset notifiche interne per Anomalie"
+        suggestions[AutomationActionType.INSERT_RECORD]["group_subtitle"] = "Notifiche portale per nuove anomalie e aggiornamenti."
+        suggestions[AutomationActionType.INSERT_RECORD]["presets"] = [
+            {
+                "key": "anomalie_notify_new",
+                "title": "Notifica nuova anomalia",
+                "description": "Crea notifica interna al responsabile per anomalia aperta.",
+                "theme": "rose",
+                "values": {
+                    "description": "Notifica interna nuova anomalia",
+                    "insert_target_table": "core_notifica",
+                    "insert_field_mappings_text": (
+                        "legacy_user_id = {created_by}\n"
+                        "tipo = anomalia_aperta\n"
+                        "messaggio = Nuova anomalia #{id}: OP {ex_op_nominativo}, PN {seriale}\n"
+                        "letta = 0"
+                    ),
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.WRITE_LOG]["group_title"] = "Preset log per Anomalie"
+        suggestions[AutomationActionType.WRITE_LOG]["group_subtitle"] = "Log tecnici per audit e tracciamento anomalie produzione."
+        suggestions[AutomationActionType.WRITE_LOG]["presets"] = [
+            {
+                "key": "anomalie_log_status",
+                "title": "Log cambio stato",
+                "description": "Registra il cambio di avanzamento dell'anomalia.",
+                "theme": "slate",
+                "values": {
+                    "description": "Log stato anomalia",
+                    "write_log_message_template": "Anomalia #{id} - OP: {ex_op_nominativo}, PN: {seriale}, stato: {avanzamento}, da_chiudere: {chiudere}",
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["group_title"] = "Preset metriche per Anomalie"
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["group_subtitle"] = "Contatori anomalie aperte, chiuse, in lavorazione."
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["presets"] = [
+            {
+                "key": "anomalie_metric_aperte",
+                "title": "Conta anomalie aperte",
+                "description": "Incrementa il contatore delle anomalie aperte.",
+                "theme": "rose",
+                "values": {
+                    "description": "Conta anomalie aperte",
+                    "metric_code": "anomalie_aperte",
+                    "metric_operation": "increment",
+                    "metric_value_template": "1",
+                },
+                "placeholders": {},
+            },
+            {
+                "key": "anomalie_metric_chiuse",
+                "title": "Conta anomalie chiuse",
+                "description": "Incrementa il contatore delle anomalie chiuse.",
+                "theme": "green",
+                "values": {
+                    "description": "Conta anomalie chiuse",
+                    "metric_code": "anomalie_chiuse_oggi",
+                    "metric_operation": "increment",
+                    "metric_value_template": "1",
+                },
+                "placeholders": {},
+            },
+        ]
+
+    elif source_code_value == "notizie":
+        suggestions[AutomationActionType.SEND_EMAIL]["group_title"] = "Preset email per Notizie"
+        suggestions[AutomationActionType.SEND_EMAIL]["group_subtitle"] = "Notifiche per pubblicazione e aggiornamento comunicazioni."
+        suggestions[AutomationActionType.SEND_EMAIL]["presets"] = [
+            {
+                "key": "notizie_pubblicata_email",
+                "title": "Notizia pubblicata",
+                "description": "Invia email ai destinatari quando una notizia viene pubblicata.",
+                "theme": "blue",
+                "values": {
+                    "description": "Notifica pubblicazione notizia",
+                    "email_subject_template": "[Bacheca] Nuova comunicazione: {titolo}",
+                    "email_body_text_template": (
+                        "E' stata pubblicata una nuova comunicazione.\n"
+                        "Titolo: {titolo}\n"
+                        "Versione: {versione}\n"
+                        "Accedi al portale per leggerla."
+                    ),
+                    "email_body_html_template": (
+                        "<p>E' stata pubblicata una nuova comunicazione.</p>"
+                        "<p><strong>{titolo}</strong> (versione {versione})</p>"
+                        "<p>Accedi al portale per leggerla.</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. tutti@example.com o destinatario specifico"},
+            },
+            {
+                "key": "notizie_obbligatoria_email",
+                "title": "Comunicazione obbligatoria",
+                "description": "Avvisa i destinatari di una comunicazione che richiede conferma.",
+                "theme": "rose",
+                "values": {
+                    "description": "Avviso comunicazione obbligatoria",
+                    "email_subject_template": "[IMPORTANTE] Comunicazione obbligatoria: {titolo}",
+                    "email_body_text_template": (
+                        "E' stata pubblicata una comunicazione obbligatoria che richiede la tua conferma.\n"
+                        "Titolo: {titolo}\n"
+                        "Versione: {versione}\n"
+                        "Accedi al portale e confermala entro i termini previsti."
+                    ),
+                    "email_body_html_template": (
+                        "<p><strong>Attenzione:</strong> comunicazione obbligatoria pubblicata.</p>"
+                        "<p><strong>{titolo}</strong> (versione {versione})</p>"
+                        "<p>Accedi al portale e conferma la lettura.</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. destinatario specifico"},
+            },
+        ]
+        suggestions[AutomationActionType.INSERT_RECORD]["group_title"] = "Preset notifiche interne per Notizie"
+        suggestions[AutomationActionType.INSERT_RECORD]["group_subtitle"] = "Notifiche portale per pubblicazioni e aggiornamenti bacheca."
+        suggestions[AutomationActionType.INSERT_RECORD]["presets"] = [
+            {
+                "key": "notizie_notify_pubblicata",
+                "title": "Notifica pubblicazione",
+                "description": "Crea notifica interna quando una notizia viene pubblicata.",
+                "theme": "blue",
+                "values": {
+                    "description": "Notifica interna pubblicazione notizia",
+                    "insert_target_table": "core_notifica",
+                    "insert_field_mappings_text": (
+                        "tipo = notizia_pubblicata\n"
+                        "messaggio = Nuova comunicazione: {titolo} (v{versione})\n"
+                        "letta = 0"
+                    ),
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.WRITE_LOG]["group_title"] = "Preset log per Notizie"
+        suggestions[AutomationActionType.WRITE_LOG]["presets"] = [
+            {
+                "key": "notizie_log_pubblicata",
+                "title": "Log pubblicazione",
+                "description": "Registra la pubblicazione della notizia nel log operativo.",
+                "theme": "slate",
+                "values": {
+                    "description": "Log pubblicazione notizia",
+                    "write_log_message_template": "Notizia #{id} pubblicata: '{titolo}' (v{versione}), obbligatoria={obbligatoria}",
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["group_title"] = "Preset metriche per Notizie"
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["presets"] = [
+            {
+                "key": "notizie_metric_pubblicata",
+                "title": "Conta notizie pubblicate",
+                "description": "Incrementa il contatore delle notizie pubblicate.",
+                "theme": "blue",
+                "values": {
+                    "description": "Conta notizie pubblicate",
+                    "metric_code": "notizie_pubblicate",
+                    "metric_operation": "increment",
+                    "metric_value_template": "1",
+                },
+                "placeholders": {},
+            },
+        ]
+
+    elif source_code_value == "diario_preposto":
+        suggestions[AutomationActionType.SEND_EMAIL]["group_title"] = "Preset email per Diario Preposto"
+        suggestions[AutomationActionType.SEND_EMAIL]["group_subtitle"] = "Notifiche per nuove segnalazioni sicurezza del preposto."
+        suggestions[AutomationActionType.SEND_EMAIL]["presets"] = [
+            {
+                "key": "diario_preposto_nuova_email",
+                "title": "Nuova segnalazione",
+                "description": "Avvisa il responsabile sicurezza di una nuova segnalazione.",
+                "theme": "rose",
+                "values": {
+                    "description": "Notifica nuova segnalazione preposto",
+                    "email_subject_template": "[Sicurezza] Nuova segnalazione preposto: {codice_identificativo}",
+                    "email_body_text_template": (
+                        "E' stata inserita una nuova segnalazione preposto.\n"
+                        "Codice: {codice_identificativo}\n"
+                        "Titolo: {titolo}\n"
+                        "Preposto: {preposto}\n"
+                        "Segnalato da: {chi_segnala}\n"
+                        "Data: {data_segnalazione}"
+                    ),
+                    "email_body_html_template": (
+                        "<p>Nuova segnalazione preposto <strong>{codice_identificativo}</strong>.</p>"
+                        "<p>Titolo: {titolo}</p>"
+                        "<p>Preposto: {preposto} | Segnalato da: {chi_segnala}</p>"
+                        "<p>Data: {data_segnalazione}</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. rspp@example.com"},
+            },
+        ]
+        suggestions[AutomationActionType.INSERT_RECORD]["group_title"] = "Preset notifiche interne per Diario Preposto"
+        suggestions[AutomationActionType.INSERT_RECORD]["presets"] = [
+            {
+                "key": "diario_preposto_notify_new",
+                "title": "Notifica nuova segnalazione",
+                "description": "Notifica interna al responsabile sicurezza.",
+                "theme": "rose",
+                "values": {
+                    "description": "Notifica interna nuova segnalazione preposto",
+                    "insert_target_table": "core_notifica",
+                    "insert_field_mappings_text": (
+                        "tipo = diario_preposto_segnalazione\n"
+                        "messaggio = Nuova segnalazione preposto {codice_identificativo}: {titolo}\n"
+                        "letta = 0"
+                    ),
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.WRITE_LOG]["group_title"] = "Preset log per Diario Preposto"
+        suggestions[AutomationActionType.WRITE_LOG]["presets"] = [
+            {
+                "key": "diario_preposto_log",
+                "title": "Log nuova segnalazione",
+                "description": "Registra la segnalazione nel log operativo.",
+                "theme": "slate",
+                "values": {
+                    "description": "Log segnalazione preposto",
+                    "write_log_message_template": "Segnalazione preposto #{id} '{codice_identificativo}': {titolo}, preposto={preposto}, chi_segnala={chi_segnala}",
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["group_title"] = "Preset metriche per Diario Preposto"
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["presets"] = [
+            {
+                "key": "diario_preposto_metric",
+                "title": "Conta segnalazioni",
+                "description": "Incrementa il contatore delle segnalazioni.",
+                "theme": "rose",
+                "values": {
+                    "description": "Conta segnalazioni preposto",
+                    "metric_code": "segnalazioni_preposto",
+                    "metric_operation": "increment",
+                    "metric_value_template": "1",
+                },
+                "placeholders": {},
+            },
+        ]
+
+    elif source_code_value == "rilevazione_incidenti":
+        suggestions[AutomationActionType.SEND_EMAIL]["group_title"] = "Preset email per Incidenti / Sicurezza"
+        suggestions[AutomationActionType.SEND_EMAIL]["group_subtitle"] = "Notifiche per apertura, approvazione RLS e chiusura RSPP."
+        suggestions[AutomationActionType.SEND_EMAIL]["presets"] = [
+            {
+                "key": "incidenti_nuova_email",
+                "title": "Nuovo incidente segnalato",
+                "description": "Avvisa il RSPP e il responsabile di una nuova rilevazione.",
+                "theme": "rose",
+                "values": {
+                    "description": "Notifica nuovo incidente",
+                    "email_subject_template": "[Sicurezza] Nuova rilevazione: {tipologia_scheda} - {reparto}",
+                    "email_body_text_template": (
+                        "E' stata registrata una nuova rilevazione sicurezza.\n"
+                        "Tipologia: {tipologia_scheda}\n"
+                        "Reparto: {reparto}\n"
+                        "Nominativo: {nominativo}\n"
+                        "Data segnalazione: {data_segnalazione}\n"
+                        "Persone coinvolte: {persone_coinvolte}"
+                    ),
+                    "email_body_html_template": (
+                        "<p>Nuova rilevazione sicurezza registrata.</p>"
+                        "<p>Tipologia: <strong>{tipologia_scheda}</strong> | Reparto: {reparto}</p>"
+                        "<p>Nominativo: {nominativo} | Data: {data_segnalazione}</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. rspp@example.com"},
+            },
+            {
+                "key": "incidenti_chiusa_rspp_email",
+                "title": "Incidente chiuso RSPP",
+                "description": "Notifica la chiusura dell'incidente da parte del RSPP.",
+                "theme": "green",
+                "values": {
+                    "description": "Notifica chiusura RSPP",
+                    "email_subject_template": "[Sicurezza] Incidente #{id} chiuso da RSPP",
+                    "email_body_text_template": (
+                        "L'incidente #{id} e' stato chiuso dal RSPP.\n"
+                        "Tipologia: {tipologia_scheda}\n"
+                        "Nominativo: {nominativo}\n"
+                        "Data chiusura: {data_chiusura_rspp}"
+                    ),
+                    "email_body_html_template": (
+                        "<p>Incidente <strong>#{id}</strong> chiuso dal RSPP.</p>"
+                        "<p>Tipologia: {tipologia_scheda} | Data chiusura: {data_chiusura_rspp}</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. responsabile@example.com"},
+            },
+        ]
+        suggestions[AutomationActionType.INSERT_RECORD]["group_title"] = "Preset notifiche interne per Incidenti"
+        suggestions[AutomationActionType.INSERT_RECORD]["presets"] = [
+            {
+                "key": "incidenti_notify_new",
+                "title": "Notifica nuovo incidente",
+                "description": "Crea notifica interna al RSPP per nuova rilevazione.",
+                "theme": "rose",
+                "values": {
+                    "description": "Notifica interna nuovo incidente",
+                    "insert_target_table": "core_notifica",
+                    "insert_field_mappings_text": (
+                        "tipo = incidente_segnalato\n"
+                        "messaggio = Nuova rilevazione #{id}: {tipologia_scheda} in {reparto} - {nominativo}\n"
+                        "letta = 0"
+                    ),
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.WRITE_LOG]["group_title"] = "Preset log per Incidenti"
+        suggestions[AutomationActionType.WRITE_LOG]["presets"] = [
+            {
+                "key": "incidenti_log",
+                "title": "Log rilevazione",
+                "description": "Registra la rilevazione nel log operativo.",
+                "theme": "slate",
+                "values": {
+                    "description": "Log rilevazione incidente",
+                    "write_log_message_template": "Incidente #{id}: {tipologia_scheda}, reparto={reparto}, nominativo={nominativo}, chiusura_rspp={chiusura_rspp}",
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["group_title"] = "Preset metriche per Incidenti"
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["presets"] = [
+            {
+                "key": "incidenti_metric_aperti",
+                "title": "Conta incidenti",
+                "description": "Incrementa il contatore degli incidenti registrati.",
+                "theme": "rose",
+                "values": {
+                    "description": "Conta incidenti registrati",
+                    "metric_code": "incidenti_registrati",
+                    "metric_operation": "increment",
+                    "metric_value_template": "1",
+                },
+                "placeholders": {},
+            },
+        ]
+
+    elif source_code_value == "rentri":
+        suggestions[AutomationActionType.SEND_EMAIL]["group_title"] = "Preset email per RENTRI / Rifiuti"
+        suggestions[AutomationActionType.SEND_EMAIL]["group_subtitle"] = "Notifiche per carichi, scarichi e movimenti da trasmettere a RENTRI."
+        suggestions[AutomationActionType.SEND_EMAIL]["presets"] = [
+            {
+                "key": "rentri_carico_email",
+                "title": "Nuovo carico rifiuti",
+                "description": "Notifica la registrazione di un nuovo carico rifiuti.",
+                "theme": "amber",
+                "values": {
+                    "description": "Notifica nuovo carico rifiuti",
+                    "email_subject_template": "[RENTRI] Nuovo carico registrato: {id_registrazione}",
+                    "email_body_text_template": (
+                        "E' stato registrato un nuovo movimento rifiuti.\n"
+                        "ID registrazione: {id_registrazione}\n"
+                        "Tipo: {tipo}\n"
+                        "Codice rifiuto: {codice}\n"
+                        "Quantita': {quantita}\n"
+                        "Inserito da: {inserito_da}"
+                    ),
+                    "email_body_html_template": (
+                        "<p>Nuovo movimento rifiuti registrato.</p>"
+                        "<p>ID: <strong>{id_registrazione}</strong> | Tipo: {tipo}</p>"
+                        "<p>Codice: {codice} | Quantita': {quantita}</p>"
+                        "<p>Inserito da: {inserito_da}</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. rentri@example.com"},
+            },
+            {
+                "key": "rentri_da_trasmettere_email",
+                "title": "Movimento da trasmettere RENTRI",
+                "description": "Avvisa quando un movimento e' flaggato per trasmissione RENTRI.",
+                "theme": "rose",
+                "values": {
+                    "description": "Avviso movimento RENTRI",
+                    "email_subject_template": "[RENTRI] Movimento {id_registrazione} da trasmettere",
+                    "email_body_text_template": (
+                        "Il movimento {id_registrazione} richiede trasmissione a RENTRI.\n"
+                        "Tipo: {tipo}\n"
+                        "Codice rifiuto: {codice}\n"
+                        "Quantita': {quantita}\n"
+                        "Data: {data}"
+                    ),
+                    "email_body_html_template": (
+                        "<p>Movimento <strong>{id_registrazione}</strong> da trasmettere a RENTRI.</p>"
+                        "<p>Tipo: {tipo} | Codice: {codice} | Data: {data}</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. responsabile_ambientale@example.com"},
+            },
+        ]
+        suggestions[AutomationActionType.WRITE_LOG]["group_title"] = "Preset log per RENTRI"
+        suggestions[AutomationActionType.WRITE_LOG]["presets"] = [
+            {
+                "key": "rentri_log_movimento",
+                "title": "Log movimento",
+                "description": "Registra il movimento rifiuti nel log operativo.",
+                "theme": "slate",
+                "values": {
+                    "description": "Log movimento rifiuti",
+                    "write_log_message_template": "Movimento RENTRI #{id}: {id_registrazione}, tipo={tipo}, codice={codice}, quantita={quantita}, rentri={rentri_si_no}",
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.INSERT_RECORD]["group_title"] = "Preset notifiche interne per RENTRI"
+        suggestions[AutomationActionType.INSERT_RECORD]["presets"] = [
+            {
+                "key": "rentri_notify_movimento",
+                "title": "Notifica nuovo movimento",
+                "description": "Notifica interna per nuovo carico/scarico rifiuti.",
+                "theme": "amber",
+                "values": {
+                    "description": "Notifica interna movimento rifiuti",
+                    "insert_target_table": "core_notifica",
+                    "insert_field_mappings_text": (
+                        "tipo = rentri_movimento\n"
+                        "messaggio = Nuovo movimento RENTRI {id_registrazione}: {tipo} - codice {codice} - {quantita} unita'\n"
+                        "letta = 0"
+                    ),
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["group_title"] = "Preset metriche per RENTRI"
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["presets"] = [
+            {
+                "key": "rentri_metric_movimenti",
+                "title": "Conta movimenti",
+                "description": "Incrementa il contatore dei movimenti registrati.",
+                "theme": "amber",
+                "values": {
+                    "description": "Conta movimenti RENTRI",
+                    "metric_code": "rentri_movimenti",
+                    "metric_operation": "increment",
+                    "metric_value_template": "1",
+                },
+                "placeholders": {},
+            },
+        ]
+
+    elif source_code_value == "dpi":
+        suggestions[AutomationActionType.SEND_EMAIL]["group_title"] = "Preset email per DPI"
+        suggestions[AutomationActionType.SEND_EMAIL]["group_subtitle"] = "Notifiche per approvazione, rifiuto e consegna DPI."
+        suggestions[AutomationActionType.SEND_EMAIL]["presets"] = [
+            {
+                "key": "dpi_approvata_email",
+                "title": "Richiesta DPI approvata",
+                "description": "Avvisa il richiedente che la richiesta DPI e' stata approvata.",
+                "theme": "green",
+                "values": {
+                    "description": "Notifica approvazione richiesta DPI",
+                    "email_subject_template": "[DPI] Richiesta {numero} approvata",
+                    "email_body_text_template": (
+                        "La tua richiesta DPI {numero} e' stata approvata.\n"
+                        "Reparto: {richiedente_reparto}\n"
+                        "Quantita': {quantita}\n"
+                        "{note_gestione}"
+                    ),
+                    "email_body_html_template": (
+                        "<p>La richiesta DPI <strong>{numero}</strong> e' stata approvata.</p>"
+                        "<p>Reparto: {richiedente_reparto} | Quantita': {quantita}</p>"
+                        "<p>Note: {note_gestione}</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "{richiedente_email}"},
+            },
+            {
+                "key": "dpi_rifiutata_email",
+                "title": "Richiesta DPI rifiutata",
+                "description": "Comunica al richiedente il rifiuto della richiesta DPI.",
+                "theme": "rose",
+                "values": {
+                    "description": "Notifica rifiuto richiesta DPI",
+                    "email_subject_template": "[DPI] Richiesta {numero} non approvata",
+                    "email_body_text_template": (
+                        "La tua richiesta DPI {numero} non e' stata approvata.\n"
+                        "Motivazione: {motivazione}\n"
+                        "Note gestione: {note_gestione}\n"
+                        "Contatta il tuo responsabile per ulteriori informazioni."
+                    ),
+                    "email_body_html_template": (
+                        "<p>La richiesta DPI <strong>{numero}</strong> non e' stata approvata.</p>"
+                        "<p>Note: {note_gestione}</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "{richiedente_email}"},
+            },
+            {
+                "key": "dpi_nuova_richiesta_email",
+                "title": "Nuova richiesta DPI",
+                "description": "Avvisa il gestore DPI di una nuova richiesta da processare.",
+                "theme": "blue",
+                "values": {
+                    "description": "Notifica nuova richiesta DPI",
+                    "email_subject_template": "[DPI] Nuova richiesta da {richiedente_nome}: {numero}",
+                    "email_body_text_template": (
+                        "E' arrivata una nuova richiesta DPI.\n"
+                        "Numero: {numero}\n"
+                        "Richiedente: {richiedente_nome} ({richiedente_reparto})\n"
+                        "Quantita': {quantita}\n"
+                        "Motivazione: {motivazione}"
+                    ),
+                    "email_body_html_template": (
+                        "<p>Nuova richiesta DPI <strong>{numero}</strong>.</p>"
+                        "<p>Richiedente: {richiedente_nome} ({richiedente_reparto})</p>"
+                        "<p>Quantita': {quantita}</p>"
+                        "<p>Motivazione: {motivazione}</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. magazzino@example.com"},
+            },
+        ]
+        suggestions[AutomationActionType.INSERT_RECORD]["group_title"] = "Preset notifiche interne per DPI"
+        suggestions[AutomationActionType.INSERT_RECORD]["group_subtitle"] = "Notifiche portale per workflow approvazione/rifiuto/consegna DPI."
+        suggestions[AutomationActionType.INSERT_RECORD]["presets"] = [
+            {
+                "key": "dpi_notify_richiedente",
+                "title": "Notifica richiedente",
+                "description": "Notifica interna al richiedente DPI per cambio stato.",
+                "theme": "blue",
+                "values": {
+                    "description": "Notifica interna richiedente DPI",
+                    "insert_target_table": "core_notifica",
+                    "insert_field_mappings_text": (
+                        "legacy_user_id = {richiedente_legacy_id}\n"
+                        "tipo = dpi_aggiornamento\n"
+                        "messaggio = Richiesta DPI {numero}: stato aggiornato a {stato}\n"
+                        "letta = 0"
+                    ),
+                },
+                "placeholders": {},
+            },
+            {
+                "key": "dpi_notify_gestore",
+                "title": "Notifica gestore",
+                "description": "Notifica interna al gestore per nuova richiesta DPI.",
+                "theme": "amber",
+                "values": {
+                    "description": "Notifica interna gestore DPI",
+                    "insert_target_table": "core_notifica",
+                    "insert_field_mappings_text": (
+                        "tipo = dpi_nuova_richiesta\n"
+                        "messaggio = Nuova richiesta DPI {numero} da {richiedente_nome} ({richiedente_reparto})\n"
+                        "letta = 0"
+                    ),
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.WRITE_LOG]["group_title"] = "Preset log per DPI"
+        suggestions[AutomationActionType.WRITE_LOG]["presets"] = [
+            {
+                "key": "dpi_log_stato",
+                "title": "Log cambio stato",
+                "description": "Registra il cambio di stato della richiesta DPI.",
+                "theme": "slate",
+                "values": {
+                    "description": "Log stato richiesta DPI",
+                    "write_log_message_template": "Richiesta DPI {numero} - stato: {stato}, richiedente: {richiedente_nome} ({richiedente_reparto}), quantita': {quantita}",
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["group_title"] = "Preset metriche per DPI"
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["presets"] = [
+            {
+                "key": "dpi_metric_richieste",
+                "title": "Conta richieste DPI",
+                "description": "Incrementa il contatore delle richieste DPI.",
+                "theme": "blue",
+                "values": {
+                    "description": "Conta richieste DPI",
+                    "metric_code": "dpi_richieste",
+                    "metric_operation": "increment",
+                    "metric_value_template": "1",
+                },
+                "placeholders": {},
+            },
+        ]
+
+    elif source_code_value == "procedure_campagne":
+        suggestions[AutomationActionType.SEND_EMAIL]["group_title"] = "Preset email per Campagne Procedure"
+        suggestions[AutomationActionType.SEND_EMAIL]["group_subtitle"] = "Notifiche per lancio, scadenza e chiusura campagne MT/MTSI."
+        suggestions[AutomationActionType.SEND_EMAIL]["presets"] = [
+            {
+                "key": "procedure_campagna_pubblicata_email",
+                "title": "Campagna pubblicata",
+                "description": "Avvisa i destinatari del lancio di una nuova campagna presa visione.",
+                "theme": "blue",
+                "values": {
+                    "description": "Notifica lancio campagna procedure",
+                    "email_subject_template": "[Procedure] Campagna avviata: {name}",
+                    "email_body_text_template": (
+                        "E' stata avviata una nuova campagna di presa visione procedure.\n"
+                        "Campagna: {name}\n"
+                        "Inizio: {start_date}\n"
+                        "Scadenza: {due_date}\n"
+                        "Accedi al portale per consultare i documenti assegnati."
+                    ),
+                    "email_body_html_template": (
+                        "<p>Nuova campagna presa visione avviata.</p>"
+                        "<p><strong>{name}</strong></p>"
+                        "<p>Inizio: {start_date} | Scadenza: {due_date}</p>"
+                        "<p>Accedi al portale per i documenti assegnati.</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. tutti@example.com"},
+            },
+            {
+                "key": "procedure_campagna_chiusa_email",
+                "title": "Campagna chiusa",
+                "description": "Notifica la chiusura della campagna ai responsabili.",
+                "theme": "green",
+                "values": {
+                    "description": "Notifica chiusura campagna procedure",
+                    "email_subject_template": "[Procedure] Campagna chiusa: {name}",
+                    "email_body_text_template": (
+                        "La campagna di presa visione '{name}' e' stata chiusa.\n"
+                        "Periodo: {start_date} - {due_date}\n"
+                        "Chiusa il: {closed_at}"
+                    ),
+                    "email_body_html_template": (
+                        "<p>Campagna <strong>{name}</strong> chiusa.</p>"
+                        "<p>Periodo: {start_date} - {due_date}</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. responsabile@example.com"},
+            },
+        ]
+        suggestions[AutomationActionType.INSERT_RECORD]["group_title"] = "Preset notifiche interne per Campagne"
+        suggestions[AutomationActionType.INSERT_RECORD]["presets"] = [
+            {
+                "key": "procedure_campagna_notify",
+                "title": "Notifica lancio campagna",
+                "description": "Notifica interna per nuovo lancio campagna procedure.",
+                "theme": "blue",
+                "values": {
+                    "description": "Notifica interna lancio campagna",
+                    "insert_target_table": "core_notifica",
+                    "insert_field_mappings_text": (
+                        "tipo = procedure_campagna\n"
+                        "messaggio = Nuova campagna presa visione: {name} (scadenza: {due_date})\n"
+                        "letta = 0"
+                    ),
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.WRITE_LOG]["group_title"] = "Preset log per Campagne"
+        suggestions[AutomationActionType.WRITE_LOG]["presets"] = [
+            {
+                "key": "procedure_campagna_log",
+                "title": "Log cambio stato campagna",
+                "description": "Registra il cambio di stato della campagna.",
+                "theme": "slate",
+                "values": {
+                    "description": "Log stato campagna procedure",
+                    "write_log_message_template": "Campagna procedure #{id} '{name}': stato={status}, inizio={start_date}, scadenza={due_date}",
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["group_title"] = "Preset metriche per Campagne"
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["presets"] = [
+            {
+                "key": "procedure_metric_campagna",
+                "title": "Conta campagne attive",
+                "description": "Incrementa il contatore delle campagne pubblicate.",
+                "theme": "blue",
+                "values": {
+                    "description": "Conta campagne procedure",
+                    "metric_code": "procedure_campagne_attive",
+                    "metric_operation": "increment",
+                    "metric_value_template": "1",
+                },
+                "placeholders": {},
+            },
+        ]
+
+    elif source_code_value == "procedure_assegnazioni":
+        suggestions[AutomationActionType.SEND_EMAIL]["group_title"] = "Preset email per Assegnazioni Procedure"
+        suggestions[AutomationActionType.SEND_EMAIL]["group_subtitle"] = "Reminder e notifiche per assegnazioni, aperture e conferme lettura."
+        suggestions[AutomationActionType.SEND_EMAIL]["presets"] = [
+            {
+                "key": "procedure_assegnata_email",
+                "title": "Procedura assegnata",
+                "description": "Avvisa l'utente dell'assegnazione di una procedura da leggere.",
+                "theme": "blue",
+                "values": {
+                    "description": "Notifica assegnazione procedura",
+                    "email_subject_template": "[Procedure] Hai una procedura da leggere entro {due_date}",
+                    "email_body_text_template": (
+                        "Ti e' stata assegnata una procedura da leggere e confermare.\n"
+                        "Scadenza: {due_date}\n"
+                        "Accedi al portale per consultare il documento assegnato."
+                    ),
+                    "email_body_html_template": (
+                        "<p>Ti e' stata assegnata una procedura da leggere.</p>"
+                        "<p>Scadenza: <strong>{due_date}</strong></p>"
+                        "<p>Accedi al portale per il documento assegnato.</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. utente@example.com"},
+            },
+            {
+                "key": "procedure_reminder_email",
+                "title": "Reminder scadenza lettura",
+                "description": "Reminder automatico prima della scadenza di lettura.",
+                "theme": "amber",
+                "values": {
+                    "description": "Reminder scadenza lettura procedura",
+                    "email_subject_template": "[REMINDER] Procedura non ancora confermata - scadenza {due_date}",
+                    "email_body_text_template": (
+                        "Reminder: hai una procedura assegnata non ancora confermata.\n"
+                        "Scadenza: {due_date}\n"
+                        "Aperta: {open_count} volte | Prima apertura: {first_opened_at}\n"
+                        "Accedi al portale e conferma la lettura."
+                    ),
+                    "email_body_html_template": (
+                        "<p>Reminder: procedura non ancora confermata.</p>"
+                        "<p>Scadenza: <strong>{due_date}</strong></p>"
+                        "<p>Aperture: {open_count}</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. utente@example.com"},
+            },
+            {
+                "key": "procedure_confermata_email",
+                "title": "Lettura confermata",
+                "description": "Notifica il responsabile quando l'utente conferma la lettura.",
+                "theme": "green",
+                "values": {
+                    "description": "Notifica conferma lettura procedura",
+                    "email_subject_template": "[Procedure] Lettura confermata da utente #{user_id}",
+                    "email_body_text_template": (
+                        "L'assegnazione #{id} e' stata confermata.\n"
+                        "Utente: #{user_id}\n"
+                        "Confermato il: {read_confirmed_at}\n"
+                        "Numero aperture: {open_count}"
+                    ),
+                    "email_body_html_template": (
+                        "<p>Lettura procedura confermata.</p>"
+                        "<p>Utente #{user_id} | Confermato: {read_confirmed_at}</p>"
+                        "<p>Aperture totali: {open_count}</p>"
+                    ),
+                },
+                "placeholders": {"email_to": "es. responsabile@example.com"},
+            },
+        ]
+        suggestions[AutomationActionType.INSERT_RECORD]["group_title"] = "Preset notifiche interne per Assegnazioni"
+        suggestions[AutomationActionType.INSERT_RECORD]["presets"] = [
+            {
+                "key": "procedure_assegnata_notify",
+                "title": "Notifica assegnazione",
+                "description": "Notifica interna all'utente per nuova procedura assegnata.",
+                "theme": "blue",
+                "values": {
+                    "description": "Notifica interna assegnazione procedura",
+                    "insert_target_table": "core_notifica",
+                    "insert_field_mappings_text": (
+                        "legacy_user_id = {user_id}\n"
+                        "tipo = procedura_assegnata\n"
+                        "messaggio = Nuova procedura assegnata da leggere entro {due_date}\n"
+                        "letta = 0"
+                    ),
+                },
+                "placeholders": {},
+            },
+            {
+                "key": "procedure_scaduta_notify",
+                "title": "Notifica scadenza",
+                "description": "Notifica interna quando la procedura non e' confermata in tempo.",
+                "theme": "rose",
+                "values": {
+                    "description": "Notifica scadenza lettura procedura",
+                    "insert_target_table": "core_notifica",
+                    "insert_field_mappings_text": (
+                        "legacy_user_id = {user_id}\n"
+                        "tipo = procedura_scaduta\n"
+                        "messaggio = Procedura assegnata #{id} scaduta il {due_date}: lettura non ancora confermata\n"
+                        "letta = 0"
+                    ),
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.WRITE_LOG]["group_title"] = "Preset log per Assegnazioni"
+        suggestions[AutomationActionType.WRITE_LOG]["presets"] = [
+            {
+                "key": "procedure_assegnazione_log",
+                "title": "Log cambio stato assegnazione",
+                "description": "Registra il cambio di stato dell'assegnazione procedura.",
+                "theme": "slate",
+                "values": {
+                    "description": "Log stato assegnazione procedura",
+                    "write_log_message_template": "Assegnazione procedura #{id}: utente={user_id}, campagna={campaign_id}, stato={status}, aperture={open_count}, confermato={read_confirmed_flag}",
+                },
+                "placeholders": {},
+            },
+        ]
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["group_title"] = "Preset metriche per Assegnazioni"
+        suggestions[AutomationActionType.UPDATE_DASHBOARD_METRIC]["presets"] = [
+            {
+                "key": "procedure_metric_confermate",
+                "title": "Conta letture confermate",
+                "description": "Incrementa il contatore delle letture confermate.",
+                "theme": "green",
+                "values": {
+                    "description": "Conta conferme lettura procedure",
+                    "metric_code": "procedure_confermate",
+                    "metric_operation": "increment",
+                    "metric_value_template": "1",
+                },
+                "placeholders": {},
+            },
+            {
+                "key": "procedure_metric_scadute",
+                "title": "Conta assegnazioni scadute",
+                "description": "Incrementa il contatore delle assegnazioni overdue.",
+                "theme": "rose",
+                "values": {
+                    "description": "Conta assegnazioni scadute",
+                    "metric_code": "procedure_scadute",
+                    "metric_operation": "increment",
+                    "metric_value_template": "1",
+                },
+                "placeholders": {},
+            },
+        ]
+
     return suggestions
 
 
@@ -765,6 +2279,623 @@ def _build_condition_suggestions(source_code: str | None) -> dict[str, dict[str,
                 },
             },
         ]
+    elif source_code_value == "tasks":
+        suggestions["base"]["group_title"] = "Preset condizioni per Tasks"
+        suggestions["base"]["group_subtitle"] = "Preset per stato, priorita' e assegnazioni task."
+        suggestions["base"]["values"]["field_name"] = "status"
+        suggestions["base"]["values"]["expected_value"] = "DONE"
+        suggestions["base"]["values"]["value_type"] = AutomationConditionValueType.STRING
+        suggestions["base"]["presets"] = [
+            {
+                "key": "tasks_status_done",
+                "title": "Task completato",
+                "description": "Reagisce quando lo stato del task passa a DONE.",
+                "theme": "green",
+                "values": {
+                    "field_name": "status",
+                    "operator": AutomationConditionOperator.CHANGED_TO,
+                    "expected_value": "DONE",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": True,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "tasks_priority_high",
+                "title": "Priorita' alta",
+                "description": "Filtra solo i task con priorita' HIGH o CRITICAL.",
+                "theme": "rose",
+                "values": {
+                    "field_name": "priority",
+                    "operator": AutomationConditionOperator.IN_CSV,
+                    "expected_value": "HIGH,CRITICAL",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": False,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "tasks_assigned",
+                "title": "Assegnato presente",
+                "description": "Verifica che il task abbia un assegnatario.",
+                "theme": "blue",
+                "values": {
+                    "field_name": "assigned_to_id",
+                    "operator": AutomationConditionOperator.IS_NOT_EMPTY,
+                    "expected_value": "",
+                    "value_type": AutomationConditionValueType.INT,
+                    "compare_with_old": False,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "tasks_status_changed",
+                "title": "Stato cambiato",
+                "description": "Verifica che lo stato del task sia effettivamente cambiato.",
+                "theme": "amber",
+                "values": {
+                    "field_name": "status",
+                    "operator": AutomationConditionOperator.CHANGED,
+                    "expected_value": "",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": True,
+                    "is_enabled": True,
+                },
+            },
+        ]
+
+    elif source_code_value == "tickets":
+        suggestions["base"]["group_title"] = "Preset condizioni per Tickets"
+        suggestions["base"]["group_subtitle"] = "Preset per stato, priorita' e apertura ticket."
+        suggestions["base"]["values"]["field_name"] = "stato"
+        suggestions["base"]["values"]["expected_value"] = "aperto"
+        suggestions["base"]["values"]["value_type"] = AutomationConditionValueType.STRING
+        suggestions["base"]["presets"] = [
+            {
+                "key": "tickets_stato_aperto",
+                "title": "Ticket aperto",
+                "description": "Reagisce quando un ticket viene aperto.",
+                "theme": "blue",
+                "values": {
+                    "field_name": "stato",
+                    "operator": AutomationConditionOperator.EQUALS,
+                    "expected_value": "aperto",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": False,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "tickets_priorita_alta",
+                "title": "Priorita' alta",
+                "description": "Filtra solo i ticket con priorita' alta o urgente.",
+                "theme": "rose",
+                "values": {
+                    "field_name": "priorita",
+                    "operator": AutomationConditionOperator.IN_CSV,
+                    "expected_value": "alta,urgente",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": False,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "tickets_stato_changed",
+                "title": "Stato cambiato",
+                "description": "Verifica che lo stato del ticket sia cambiato.",
+                "theme": "amber",
+                "values": {
+                    "field_name": "stato",
+                    "operator": AutomationConditionOperator.CHANGED,
+                    "expected_value": "",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": True,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "tickets_assegnato_presente",
+                "title": "Assegnato presente",
+                "description": "Verifica che il ticket abbia un assegnatario.",
+                "theme": "slate",
+                "values": {
+                    "field_name": "assegnato_a",
+                    "operator": AutomationConditionOperator.IS_NOT_EMPTY,
+                    "expected_value": "",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": False,
+                    "is_enabled": True,
+                },
+            },
+        ]
+
+    elif source_code_value == "assets":
+        suggestions["base"]["group_title"] = "Preset condizioni per Assets"
+        suggestions["base"]["group_subtitle"] = "Preset per stato, categoria e assegnazione asset."
+        suggestions["base"]["values"]["field_name"] = "status"
+        suggestions["base"]["values"]["expected_value"] = "active"
+        suggestions["base"]["values"]["value_type"] = AutomationConditionValueType.STRING
+        suggestions["base"]["presets"] = [
+            {
+                "key": "assets_status_changed",
+                "title": "Stato cambiato",
+                "description": "Reagisce quando lo stato dell'asset cambia.",
+                "theme": "blue",
+                "values": {
+                    "field_name": "status",
+                    "operator": AutomationConditionOperator.CHANGED,
+                    "expected_value": "",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": True,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "assets_assigned",
+                "title": "Assegnatario presente",
+                "description": "Verifica che l'asset abbia un assegnatario.",
+                "theme": "amber",
+                "values": {
+                    "field_name": "assigned_legacy_user_id",
+                    "operator": AutomationConditionOperator.IS_NOT_EMPTY,
+                    "expected_value": "",
+                    "value_type": AutomationConditionValueType.INT,
+                    "compare_with_old": False,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "assets_tag_valorizzato",
+                "title": "Codice asset valorizzato",
+                "description": "Verifica che l'asset abbia un codice (asset_tag).",
+                "theme": "slate",
+                "values": {
+                    "field_name": "asset_tag",
+                    "operator": AutomationConditionOperator.IS_NOT_EMPTY,
+                    "expected_value": "",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": False,
+                    "is_enabled": True,
+                },
+            },
+        ]
+
+    elif source_code_value == "anomalie":
+        suggestions["base"]["group_title"] = "Preset condizioni per Anomalie"
+        suggestions["base"]["group_subtitle"] = "Preset per avanzamento, chiusura e identificazione anomalie."
+        suggestions["base"]["values"]["field_name"] = "avanzamento"
+        suggestions["base"]["values"]["expected_value"] = "chiusa"
+        suggestions["base"]["values"]["value_type"] = AutomationConditionValueType.STRING
+        suggestions["base"]["presets"] = [
+            {
+                "key": "anomalie_chiusa",
+                "title": "Anomalia chiusa",
+                "description": "Reagisce quando l'avanzamento passa a 'chiusa'.",
+                "theme": "green",
+                "values": {
+                    "field_name": "avanzamento",
+                    "operator": AutomationConditionOperator.CHANGED_TO,
+                    "expected_value": "chiusa",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": True,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "anomalie_da_chiudere",
+                "title": "Da chiudere",
+                "description": "Verifica che il flag 'chiudere' sia attivo.",
+                "theme": "rose",
+                "values": {
+                    "field_name": "chiudere",
+                    "operator": AutomationConditionOperator.EQUALS,
+                    "expected_value": "True",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": False,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "anomalie_stato_changed",
+                "title": "Avanzamento cambiato",
+                "description": "Reagisce quando l'avanzamento dell'anomalia cambia.",
+                "theme": "amber",
+                "values": {
+                    "field_name": "avanzamento",
+                    "operator": AutomationConditionOperator.CHANGED,
+                    "expected_value": "",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": True,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "anomalie_op_presente",
+                "title": "OP valorizzato",
+                "description": "Verifica che l'ordine di produzione sia valorizzato.",
+                "theme": "slate",
+                "values": {
+                    "field_name": "ex_op_nominativo",
+                    "operator": AutomationConditionOperator.IS_NOT_EMPTY,
+                    "expected_value": "",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": False,
+                    "is_enabled": True,
+                },
+            },
+        ]
+
+    elif source_code_value == "notizie":
+        suggestions["base"]["group_title"] = "Preset condizioni per Notizie"
+        suggestions["base"]["group_subtitle"] = "Preset per stato pubblicazione e obbligatorietà."
+        suggestions["base"]["values"]["field_name"] = "stato"
+        suggestions["base"]["values"]["expected_value"] = "pubblicata"
+        suggestions["base"]["values"]["value_type"] = AutomationConditionValueType.STRING
+        suggestions["base"]["presets"] = [
+            {
+                "key": "notizie_pubblicata",
+                "title": "Notizia pubblicata",
+                "description": "Reagisce quando la notizia passa allo stato 'pubblicata'.",
+                "theme": "blue",
+                "values": {
+                    "field_name": "stato",
+                    "operator": AutomationConditionOperator.CHANGED_TO,
+                    "expected_value": "pubblicata",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": True,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "notizie_obbligatoria",
+                "title": "Obbligatoria",
+                "description": "Filtra solo le notizie con conferma obbligatoria.",
+                "theme": "rose",
+                "values": {
+                    "field_name": "obbligatoria",
+                    "operator": AutomationConditionOperator.EQUALS,
+                    "expected_value": "True",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": False,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "notizie_stato_changed",
+                "title": "Stato cambiato",
+                "description": "Reagisce a qualsiasi cambio di stato della notizia.",
+                "theme": "amber",
+                "values": {
+                    "field_name": "stato",
+                    "operator": AutomationConditionOperator.CHANGED,
+                    "expected_value": "",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": True,
+                    "is_enabled": True,
+                },
+            },
+        ]
+
+    elif source_code_value == "diario_preposto":
+        suggestions["base"]["group_title"] = "Preset condizioni per Diario Preposto"
+        suggestions["base"]["group_subtitle"] = "Preset per identificare nuove segnalazioni e responsabili."
+        suggestions["base"]["values"]["field_name"] = "codice_identificativo"
+        suggestions["base"]["values"]["expected_value"] = ""
+        suggestions["base"]["values"]["value_type"] = AutomationConditionValueType.STRING
+        suggestions["base"]["presets"] = [
+            {
+                "key": "diario_preposto_codice_presente",
+                "title": "Codice valorizzato",
+                "description": "Verifica che la segnalazione abbia un codice identificativo.",
+                "theme": "blue",
+                "values": {
+                    "field_name": "codice_identificativo",
+                    "operator": AutomationConditionOperator.IS_NOT_EMPTY,
+                    "expected_value": "",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": False,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "diario_preposto_preposto_presente",
+                "title": "Preposto valorizzato",
+                "description": "Verifica che il preposto sia indicato nella segnalazione.",
+                "theme": "amber",
+                "values": {
+                    "field_name": "preposto",
+                    "operator": AutomationConditionOperator.IS_NOT_EMPTY,
+                    "expected_value": "",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": False,
+                    "is_enabled": True,
+                },
+            },
+        ]
+
+    elif source_code_value == "rilevazione_incidenti":
+        suggestions["base"]["group_title"] = "Preset condizioni per Incidenti / Sicurezza"
+        suggestions["base"]["group_subtitle"] = "Preset per tipologia, stato approvazione e chiusura RSPP."
+        suggestions["base"]["values"]["field_name"] = "chiusura_rspp"
+        suggestions["base"]["values"]["expected_value"] = "True"
+        suggestions["base"]["values"]["value_type"] = AutomationConditionValueType.STRING
+        suggestions["base"]["presets"] = [
+            {
+                "key": "incidenti_chiuso_rspp",
+                "title": "Chiuso RSPP",
+                "description": "Reagisce quando l'incidente viene chiuso dal RSPP.",
+                "theme": "green",
+                "values": {
+                    "field_name": "chiusura_rspp",
+                    "operator": AutomationConditionOperator.CHANGED_TO,
+                    "expected_value": "True",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": True,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "incidenti_tipologia_accident",
+                "title": "Tipologia Accident",
+                "description": "Filtra solo gli eventi di tipo Accident (più gravi).",
+                "theme": "rose",
+                "values": {
+                    "field_name": "tipologia_scheda",
+                    "operator": AutomationConditionOperator.EQUALS,
+                    "expected_value": "Accident",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": False,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "incidenti_approvazione_rls",
+                "title": "RLS approvato",
+                "description": "Verifica che l'approvazione RLS sia valorizzata.",
+                "theme": "blue",
+                "values": {
+                    "field_name": "approvazione_rls",
+                    "operator": AutomationConditionOperator.IS_NOT_EMPTY,
+                    "expected_value": "",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": False,
+                    "is_enabled": True,
+                },
+            },
+        ]
+
+    elif source_code_value == "rentri":
+        suggestions["base"]["group_title"] = "Preset condizioni per RENTRI / Rifiuti"
+        suggestions["base"]["group_subtitle"] = "Preset per tipo movimento e flag trasmissione RENTRI."
+        suggestions["base"]["values"]["field_name"] = "rentri_si_no"
+        suggestions["base"]["values"]["expected_value"] = "True"
+        suggestions["base"]["values"]["value_type"] = AutomationConditionValueType.STRING
+        suggestions["base"]["presets"] = [
+            {
+                "key": "rentri_da_trasmettere",
+                "title": "Da trasmettere RENTRI",
+                "description": "Filtra solo i movimenti flaggati per trasmissione RENTRI.",
+                "theme": "amber",
+                "values": {
+                    "field_name": "rentri_si_no",
+                    "operator": AutomationConditionOperator.EQUALS,
+                    "expected_value": "True",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": False,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "rentri_tipo_carico",
+                "title": "Tipo carico (C)",
+                "description": "Filtra solo i movimenti di tipo carico.",
+                "theme": "blue",
+                "values": {
+                    "field_name": "tipo",
+                    "operator": AutomationConditionOperator.EQUALS,
+                    "expected_value": "C",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": False,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "rentri_codice_valorizzato",
+                "title": "Codice rifiuto valorizzato",
+                "description": "Verifica che il codice CER sia valorizzato.",
+                "theme": "slate",
+                "values": {
+                    "field_name": "codice",
+                    "operator": AutomationConditionOperator.IS_NOT_EMPTY,
+                    "expected_value": "",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": False,
+                    "is_enabled": True,
+                },
+            },
+        ]
+
+    elif source_code_value == "dpi":
+        suggestions["base"]["group_title"] = "Preset condizioni per DPI"
+        suggestions["base"]["group_subtitle"] = "Preset per stato richiesta e workflow approvazione/consegna."
+        suggestions["base"]["values"]["field_name"] = "stato"
+        suggestions["base"]["values"]["expected_value"] = "APPROVATA"
+        suggestions["base"]["values"]["value_type"] = AutomationConditionValueType.STRING
+        suggestions["base"]["presets"] = [
+            {
+                "key": "dpi_stato_approvata",
+                "title": "Richiesta approvata",
+                "description": "Reagisce quando la richiesta DPI passa ad APPROVATA.",
+                "theme": "green",
+                "values": {
+                    "field_name": "stato",
+                    "operator": AutomationConditionOperator.CHANGED_TO,
+                    "expected_value": "APPROVATA",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": True,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "dpi_stato_rifiutata",
+                "title": "Richiesta rifiutata",
+                "description": "Reagisce quando la richiesta DPI viene rifiutata.",
+                "theme": "rose",
+                "values": {
+                    "field_name": "stato",
+                    "operator": AutomationConditionOperator.CHANGED_TO,
+                    "expected_value": "RIFIUTATA",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": True,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "dpi_stato_consegnata",
+                "title": "DPI consegnato",
+                "description": "Reagisce quando la richiesta DPI passa a CONSEGNATA.",
+                "theme": "blue",
+                "values": {
+                    "field_name": "stato",
+                    "operator": AutomationConditionOperator.CHANGED_TO,
+                    "expected_value": "CONSEGNATA",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": True,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "dpi_stato_changed",
+                "title": "Stato cambiato",
+                "description": "Reagisce a qualsiasi cambio di stato della richiesta DPI.",
+                "theme": "amber",
+                "values": {
+                    "field_name": "stato",
+                    "operator": AutomationConditionOperator.CHANGED,
+                    "expected_value": "",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": True,
+                    "is_enabled": True,
+                },
+            },
+        ]
+
+    elif source_code_value == "procedure_campagne":
+        suggestions["base"]["group_title"] = "Preset condizioni per Campagne Procedure"
+        suggestions["base"]["group_subtitle"] = "Preset per pubblicazione, chiusura e scadenza campagne."
+        suggestions["base"]["values"]["field_name"] = "status"
+        suggestions["base"]["values"]["expected_value"] = "published"
+        suggestions["base"]["values"]["value_type"] = AutomationConditionValueType.STRING
+        suggestions["base"]["presets"] = [
+            {
+                "key": "procedure_campagna_pubblicata",
+                "title": "Campagna pubblicata",
+                "description": "Reagisce quando la campagna viene pubblicata.",
+                "theme": "blue",
+                "values": {
+                    "field_name": "status",
+                    "operator": AutomationConditionOperator.CHANGED_TO,
+                    "expected_value": "published",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": True,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "procedure_campagna_chiusa",
+                "title": "Campagna chiusa",
+                "description": "Reagisce quando la campagna viene chiusa.",
+                "theme": "green",
+                "values": {
+                    "field_name": "status",
+                    "operator": AutomationConditionOperator.CHANGED_TO,
+                    "expected_value": "closed",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": True,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "procedure_campagna_scadenza_valorizzata",
+                "title": "Scadenza valorizzata",
+                "description": "Verifica che la campagna abbia una data di scadenza.",
+                "theme": "amber",
+                "values": {
+                    "field_name": "due_date",
+                    "operator": AutomationConditionOperator.IS_NOT_EMPTY,
+                    "expected_value": "",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": False,
+                    "is_enabled": True,
+                },
+            },
+        ]
+
+    elif source_code_value == "procedure_assegnazioni":
+        suggestions["base"]["group_title"] = "Preset condizioni per Assegnazioni Procedure"
+        suggestions["base"]["group_subtitle"] = "Preset per stato lettura, conferma e scadenza."
+        suggestions["base"]["values"]["field_name"] = "status"
+        suggestions["base"]["values"]["expected_value"] = "read_confirmed"
+        suggestions["base"]["values"]["value_type"] = AutomationConditionValueType.STRING
+        suggestions["base"]["presets"] = [
+            {
+                "key": "procedure_confermata",
+                "title": "Lettura confermata",
+                "description": "Reagisce quando l'utente conferma la lettura della procedura.",
+                "theme": "green",
+                "values": {
+                    "field_name": "status",
+                    "operator": AutomationConditionOperator.CHANGED_TO,
+                    "expected_value": "read_confirmed",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": True,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "procedure_overdue",
+                "title": "Scaduta (overdue)",
+                "description": "Reagisce quando l'assegnazione diventa overdue.",
+                "theme": "rose",
+                "values": {
+                    "field_name": "status",
+                    "operator": AutomationConditionOperator.CHANGED_TO,
+                    "expected_value": "overdue",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": True,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "procedure_non_ancora_confermata",
+                "title": "Non ancora confermata",
+                "description": "Verifica che la lettura non sia ancora stata confermata.",
+                "theme": "amber",
+                "values": {
+                    "field_name": "read_confirmed_flag",
+                    "operator": AutomationConditionOperator.EQUALS,
+                    "expected_value": "False",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": False,
+                    "is_enabled": True,
+                },
+            },
+            {
+                "key": "procedure_scadenza_valorizzata",
+                "title": "Scadenza valorizzata",
+                "description": "Verifica che l'assegnazione abbia una data di scadenza.",
+                "theme": "slate",
+                "values": {
+                    "field_name": "due_date",
+                    "operator": AutomationConditionOperator.IS_NOT_EMPTY,
+                    "expected_value": "",
+                    "value_type": AutomationConditionValueType.STRING,
+                    "compare_with_old": False,
+                    "is_enabled": True,
+                },
+            },
+        ]
+
     else:
         suggestions["base"]["presets"].append(
             {
@@ -896,45 +3027,91 @@ def _describe_action_values(
 
 def _build_action_preview_from_form(form) -> list[str]:
     action_type = _string_value(_bound_or_instance_value(form, "action_type"))
+    preview_lines: list[str]
     if action_type == AutomationActionType.SEND_EMAIL:
         recipients = _truncate_text(_bound_or_instance_value(form, "email_to"), 80) or "-"
         subject = _truncate_text(_bound_or_instance_value(form, "email_subject_template"), 80) or "-"
         body = _truncate_text(_bound_or_instance_value(form, "email_body_text_template"), 90) or "-"
-        return [
+        preview_lines = [
             f"Destinatari: {recipients}",
             f"Subject: {subject}",
             f"Body: {body}",
         ]
-    if action_type == AutomationActionType.WRITE_LOG:
-        return [f"Messaggio: {_truncate_text(_bound_or_instance_value(form, 'write_log_message_template'), 120) or '-'}"]
-    if action_type == AutomationActionType.UPDATE_DASHBOARD_METRIC:
+    elif action_type == AutomationActionType.WRITE_LOG:
+        preview_lines = [f"Messaggio: {_truncate_text(_bound_or_instance_value(form, 'write_log_message_template'), 120) or '-'}"]
+    elif action_type == AutomationActionType.UPDATE_DASHBOARD_METRIC:
         metric_code = _truncate_text(_bound_or_instance_value(form, "metric_code"), 80) or "-"
         operation = _truncate_text(_bound_or_instance_value(form, "metric_operation"), 80) or "-"
         value_template = _truncate_text(_bound_or_instance_value(form, "metric_value_template"), 80) or "-"
-        return [
+        preview_lines = [
             f"Metrica: {metric_code}",
             f"Operazione: {operation}",
             f"Valore: {value_template}",
         ]
-    if action_type == AutomationActionType.INSERT_RECORD:
+    elif action_type == AutomationActionType.INSERT_RECORD:
         target_table = _truncate_text(_bound_or_instance_value(form, "insert_target_table"), 80) or "-"
         mappings_text = _string_value(_bound_or_instance_value(form, "insert_field_mappings_text"))
         mappings_count = len([line for line in mappings_text.splitlines() if _string_value(line)])
-        return [
+        preview_lines = [
             f"Tabella: {target_table}",
             f"Field mappings: {mappings_count}",
         ]
-    if action_type == AutomationActionType.UPDATE_RECORD:
+    elif action_type == AutomationActionType.UPDATE_RECORD:
         target_table = _truncate_text(_bound_or_instance_value(form, "update_target_table"), 80) or "-"
         where_field = _truncate_text(_bound_or_instance_value(form, "update_where_field"), 80) or "-"
         update_fields_text = _string_value(_bound_or_instance_value(form, "update_fields_text"))
         update_fields_count = len([line for line in update_fields_text.splitlines() if _string_value(line)])
-        return [
+        preview_lines = [
             f"Tabella: {target_table}",
             f"Where field: {where_field}",
             f"Update fields: {update_fields_count}",
         ]
-    return ["Configurazione non disponibile."]
+    elif action_type == AutomationActionType.UPDATE_TRIGGER_RECORD:
+        update_fields_text = _string_value(_bound_or_instance_value(form, "trigger_update_fields_text"))
+        update_fields_count = len([line for line in update_fields_text.splitlines() if _string_value(line)])
+        preview_lines = [
+            "Target: record triggerante",
+            f"Update fields: {update_fields_count}",
+        ]
+    elif action_type == AutomationActionType.DELAY_SCHEDULE:
+        delay_mode = _string_value(_bound_or_instance_value(form, "delay_mode")) or "relative"
+        if delay_mode == "until":
+            preview_lines = [f"Fino a: {_truncate_text(_bound_or_instance_value(form, 'delay_until_template'), 100) or '-'}"]
+        else:
+            delay_value = _truncate_text(_bound_or_instance_value(form, "delay_value_template"), 80) or "-"
+            delay_unit = _truncate_text(_bound_or_instance_value(form, "delay_unit"), 80) or "-"
+            preview_lines = [f"Delay: {delay_value} {delay_unit}"]
+    elif action_type == AutomationActionType.HTTP_REQUEST:
+        method = _truncate_text(_bound_or_instance_value(form, "http_method"), 30) or "-"
+        url = _truncate_text(_bound_or_instance_value(form, "http_url_template"), 100) or "-"
+        expected = _truncate_text(_bound_or_instance_value(form, "http_expected_status_csv"), 80) or "2xx"
+        preview_lines = [
+            f"HTTP: {method} {url}",
+            f"Status attesi: {expected}",
+        ]
+    elif action_type == AutomationActionType.TEAMS_WEBHOOK:
+        title = _truncate_text(_bound_or_instance_value(form, "teams_title_template"), 100) or "-"
+        summary = _truncate_text(_bound_or_instance_value(form, "teams_summary_template"), 100) or "-"
+        preview_lines = [
+            f"Teams title: {title}",
+            f"Summary: {summary}",
+        ]
+    else:
+        preview_lines = ["Configurazione non disponibile."]
+
+    run_if_field = _string_value(_bound_or_instance_value(form, "run_if_field_name"))
+    run_if_operator = _string_value(_bound_or_instance_value(form, "run_if_operator"))
+    run_if_expected = _truncate_text(_bound_or_instance_value(form, "run_if_expected_value"), 80)
+    run_if_negate = _bool_value(_bound_or_instance_value(form, "run_if_negate"))
+    if any([run_if_field, run_if_operator, run_if_expected, run_if_negate]):
+        branch_line = "Branch: "
+        if run_if_negate:
+            branch_line += "NOT "
+        branch_line += f"{run_if_field or 'campo'} {run_if_operator or 'operatore'}"
+        if run_if_expected:
+            branch_line += f" {run_if_expected}"
+        preview_lines.append(branch_line)
+    return preview_lines
 
 
 def _build_condition_entries(condition_formset, *, source_code: str) -> list[dict[str, object]]:
@@ -990,6 +3167,9 @@ def _build_action_entries(action_formset) -> list[dict[str, object]]:
         action_type = _string_value(_bound_or_instance_value(form, "action_type"))
         is_enabled = _bool_value(_bound_or_instance_value(form, "is_enabled"))
         description = _string_value(_bound_or_instance_value(form, "description"))
+        run_if_field = _string_value(_bound_or_instance_value(form, "run_if_field_name"))
+        run_if_operator = _string_value(_bound_or_instance_value(form, "run_if_operator"))
+        run_if_negate = _bool_value(_bound_or_instance_value(form, "run_if_negate"))
         preview_lines = _build_action_preview_from_form(form)
         descriptor = _describe_action_values(
             order=order,
@@ -1011,6 +3191,7 @@ def _build_action_entries(action_formset) -> list[dict[str, object]]:
                 "meta_rows": [
                     ("Order", order or "-"),
                     ("action_type", action_type or "-"),
+                    ("branch", "Si" if any([run_if_field, run_if_operator, run_if_negate]) else "No"),
                     ("is_enabled", "Si" if is_enabled else "No"),
                 ],
             }
@@ -1061,6 +3242,23 @@ def _extract_ordered_ids(request) -> list[int]:
         return [int(value) for value in raw_ids]
     except (TypeError, ValueError):
         raise ValueError("Identificativi ordine non validi.")
+
+
+def _build_all_source_fields_json() -> dict[str, object]:
+    result: dict[str, object] = {}
+    for source in get_registered_sources():
+        code = str(source["code"])
+        result[code] = {
+            "trigger": [
+                {"name": str(f["name"]), "label": f"{f['label']} ({f['name']})"}
+                for f in get_trigger_fields(code)
+            ],
+            "condition": [
+                {"name": str(f["name"]), "label": f"{f['label']} ({f['name']})"}
+                for f in get_condition_fields(code)
+            ],
+        }
+    return result
 
 
 def _build_source_catalog_context(selected_source_code: str | None) -> dict[str, object]:
@@ -1137,6 +3335,7 @@ def _build_rule_form_context(
         "page_subtitle": page_subtitle,
         "submit_label": submit_label,
         "rule": rule,
+        "source_fields_json": _build_all_source_fields_json(),
     }
 
 
@@ -1179,8 +3378,9 @@ def _build_rule_designer_context(
         "human_rule_summary": _build_human_rule_summary(trigger_descriptor, condition_entries, action_entries),
         "source_definition": get_source_definition(source_code),
         "sample_payload_json": _build_example_payload(source_code),
-        "condition_suggestions_json": json.dumps(_build_condition_suggestions(source_code), ensure_ascii=False),
-        "action_suggestions_json": json.dumps(_build_action_suggestions(source_code), ensure_ascii=False),
+        "condition_suggestions_json": _build_condition_suggestions(source_code),
+        "action_suggestions_json": _build_action_suggestions(source_code),
+        "source_fields_json": _build_all_source_fields_json(),
     }
 
 
@@ -1476,6 +3676,7 @@ def rule_create_page(request):
             request.POST,
             instance=rule,
             prefix="actions",
+            form_kwargs={"source_code": selected_source_code},
         )
         if rule_form.is_valid() and condition_formset.is_valid() and action_formset.is_valid():
             with transaction.atomic():
@@ -1496,7 +3697,11 @@ def rule_create_page(request):
             prefix="conditions",
             form_kwargs={"source_code": selected_source_code},
         )
-        action_formset = AutomationActionFormSet(instance=rule, prefix="actions")
+        action_formset = AutomationActionFormSet(
+            instance=rule,
+            prefix="actions",
+            form_kwargs={"source_code": selected_source_code},
+        )
 
     context = _build_rule_form_context(
         rule_form=rule_form,
@@ -1529,6 +3734,7 @@ def rule_edit_page(request, rule_id: int):
             request.POST,
             instance=rule,
             prefix="actions",
+            form_kwargs={"source_code": selected_source_code},
         )
         if rule_form.is_valid() and condition_formset.is_valid() and action_formset.is_valid():
             with transaction.atomic():
@@ -1548,7 +3754,11 @@ def rule_edit_page(request, rule_id: int):
             prefix="conditions",
             form_kwargs={"source_code": selected_source_code},
         )
-        action_formset = AutomationActionFormSet(instance=rule, prefix="actions")
+        action_formset = AutomationActionFormSet(
+            instance=rule,
+            prefix="actions",
+            form_kwargs={"source_code": selected_source_code},
+        )
 
     context = _build_rule_form_context(
         rule_form=rule_form,
@@ -1581,6 +3791,7 @@ def rule_designer_create_page(request):
             request.POST,
             instance=rule,
             prefix="actions",
+            form_kwargs={"source_code": selected_source_code},
         )
         if rule_form.is_valid() and condition_formset.is_valid() and action_formset.is_valid():
             with transaction.atomic():
@@ -1601,7 +3812,11 @@ def rule_designer_create_page(request):
             prefix="conditions",
             form_kwargs={"source_code": selected_source_code},
         )
-        action_formset = AutomationActionFormSet(instance=rule, prefix="actions")
+        action_formset = AutomationActionFormSet(
+            instance=rule,
+            prefix="actions",
+            form_kwargs={"source_code": selected_source_code},
+        )
 
     context = _build_rule_designer_context(
         rule=rule,
@@ -1631,6 +3846,7 @@ def rule_designer_page(request, rule_id: int):
             request.POST,
             instance=rule,
             prefix="actions",
+            form_kwargs={"source_code": selected_source_code},
         )
         if rule_form.is_valid() and condition_formset.is_valid() and action_formset.is_valid():
             with transaction.atomic():
@@ -1650,7 +3866,11 @@ def rule_designer_page(request, rule_id: int):
             prefix="conditions",
             form_kwargs={"source_code": selected_source_code},
         )
-        action_formset = AutomationActionFormSet(instance=rule, prefix="actions")
+        action_formset = AutomationActionFormSet(
+            instance=rule,
+            prefix="actions",
+            form_kwargs={"source_code": selected_source_code},
+        )
 
     context = _build_rule_designer_context(
         rule=rule,

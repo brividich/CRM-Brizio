@@ -7,6 +7,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import connections, transaction
 from werkzeug.security import generate_password_hash
 
+from core.legacy_anagrafica import resolve_notification_email
 from core.legacy_models import Ruolo, UtenteLegacy
 from core.legacy_utils import legacy_table_columns
 
@@ -179,6 +180,10 @@ class Command(BaseCommand):
                     email_value = username_norm
                 elif email_domain:
                     email_value = f"{alias}@{email_domain}"
+                email_notifica = resolve_notification_email(
+                    email=email_value,
+                    email_notifica=email_notifica,
+                )
 
                 utente_id: int | None = None
                 if sync_legacy_users and email_value:

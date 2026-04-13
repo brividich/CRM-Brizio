@@ -262,7 +262,7 @@
           <div class="tkt-field-row">
             <div class="tkt-field">
               <label>Categoria <span class="req">*</span></label>
-              <select name="categoria" required>
+              <select name="categoria" id="tkt-categoria-select" required>
                 <option value="">-- Seleziona --</option>
                 {% if tipo == "IT" %}
                   {% for val,lbl in categorie_it %}
@@ -381,6 +381,23 @@ const INITIAL_ASSET = { id: {{ initial_asset.pk }}, name: "{{ initial_asset.name
 {% else %}
 const INITIAL_ASSET = null;
 {% endif %}
+
+// Mapping categoria ticket → asset_type per filtrare il catalogo
+const CAT_ASSET_TYPE_MAP = {
+  'PC':         ['PC','NOTEBOOK'],
+  'SERVER':     ['SERVER','FIREWALL'],
+  'STAMPANTE':  ['STAMPANTE'],
+  'RETE':       ['SWITCH','ROUTER','FIREWALL','RETE'],
+  'TELEFONIA':  ['TELEFONIA','PHONE'],
+  'CNC':        ['CNC'],
+  'MACCHINARIO':['WORK_MACHINE'],
+};
+let _catFilter = null;  // null = nessun filtro, array = filtro per tipo
+
+function getFilteredAssets() {
+  if (!_catFilter || _catFilter.length === 0) return ASSETS;
+  return ASSETS.filter(a => _catFilter.includes(a.asset_type));
+}
 
 const sicNo = document.getElementById('sic-no');
 const sicSi = document.getElementById('sic-si');
@@ -595,15 +612,70 @@ function scoreAssetMatch(asset, query) {
   return bestScore;
 }
 
+// Categoria → filtro asset + suggerimenti automatici
+const catSelect = document.getElementById('tkt-categoria-select');
+if (catSelect) {
+  catSelect.addEventListener('change', function() {
+    const cat = this.value;
+    _catFilter = CAT_ASSET_TYPE_MAP[cat] || null;
+    // Mostra suggerimenti filtrati se non c'è testo in ricerca
+    if (assetSearch) {
+      const q = normalizeSearchValue(assetSearch.value);
+      if (q.length < 2 && _catFilter && _catFilter.length > 0) {
+        // Suggerimenti automatici per la categoria selezionata
+        const suggestions = getFilteredAssets().slice(0, 12);
+        if (suggestions.length > 0) {
+          showAssetResults(suggestions, '');
+          showCatalogoMode();
+        }
+      } else if (q.length >= 2) {
+        assetSearch.dispatchEvent(new Event('input'));
+      }
+    }
+  });
+}
+
+function showAssetResults(list, q) {
+  if (!assetRes || !list.length) { if (assetRes) assetRes.style.display = 'none'; return; }
+  assetRes.innerHTML = list.map(a => {
+    const tag    = a.asset_tag ? `<span style="color:#64748b;font-size:11px;background:#f1f5f9;padding:1px 5px;border-radius:4px;">${escapeHtmlN(a.asset_tag)}</span>` : '';
+    const meta   = [a.asset_type_label || a.asset_type, a.asset_category, a.reparto].filter(Boolean).join(' · ');
+    return `<div style="padding:9px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;" data-id="${a.id}" data-name="${escapeHtmlN(a.name)} [${escapeHtmlN(a.asset_tag)}]">
+      <strong style="font-size:13px;">${escapeHtmlN(a.name)}</strong> ${tag}
+      ${meta ? `<div style="color:#94a3b8;font-size:11px;margin-top:1px;">${escapeHtmlN(meta)}</div>` : ''}
+    </div>`;
+  }).join('');
+  assetRes.style.display = 'block';
+  assetRes.querySelectorAll('[data-id]').forEach(el => {
+    el.addEventListener('click', () => {
+      const id   = el.dataset.id;
+      const name = el.dataset.name;
+      assetHidden.value = id;
+      if (assetSearch) assetSearch.value = name;
+      assetRes.style.display = 'none';
+      _setAssetLabel(name);
+    });
+  });
+}
+
+function escapeHtmlN(v) {
+  return String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 if (assetSearch) {
   assetSearch.addEventListener('input', function() {
     const q = normalizeSearchValue(this.value);
     if (q.length < 2) {
-      assetRes.style.display = 'none';
+      // Se c'è un filtro categoria attivo mostra i suggerimenti della categoria
+      if (_catFilter && _catFilter.length > 0) {
+        showAssetResults(getFilteredAssets().slice(0, 12), '');
+      } else {
+        assetRes.style.display = 'none';
+      }
       return;
     }
 
-    const matches = ASSETS
+    const matches = getFilteredAssets()
       .map(asset => ({ asset, score: scoreAssetMatch(asset, q) }))
       .filter(entry => entry.score >= 0)
       .sort((left, right) => right.score - left.score || (left.asset.name || '').localeCompare(right.asset.name || ''))

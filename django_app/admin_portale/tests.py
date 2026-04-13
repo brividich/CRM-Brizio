@@ -1471,6 +1471,172 @@ class AdminPortalePermissionNavigationMapTests(TestCase):
             ).exists()
         )
 
+
+@override_settings(
+    LEGACY_AUTH_ENABLED=False,
+    SECURE_SSL_REDIRECT=False,
+)
+class AdminPortaleSimpleAccessTests(TestCase):
+    def setUp(self):
+        _ensure_utenti_table()
+        _ensure_ruoli_table()
+        _ensure_pulsanti_table()
+        _ensure_permessi_table()
+        _clear_acl_navigation_seed_tables()
+
+        self.admin_user = User.objects.create_superuser(
+            username="admin-portale-simple-access",
+            email="admin.simple.access@test.local",
+            password="pass12345",
+        )
+        self.admin_legacy = UtenteLegacy.objects.create(
+            nome="Admin Simple Access",
+            email="admin.simple.access@test.local",
+            password="*AD_MANAGED*",
+            ruolo="admin",
+            ruolo_id=1,
+            attivo=True,
+            deve_cambiare_password=False,
+        )
+        Ruolo.objects.create(id=1, nome="admin")
+        Ruolo.objects.create(id=2, nome="operatore")
+
+        Pulsante.objects.create(
+            codice="dashboard_home",
+            nome_visibile="Dashboard",
+            icona="home",
+            modulo="dashboard",
+            url="/dashboard",
+        )
+        PermissionDefinition.objects.create(
+            code="dashboard.home.view",
+            label="Dashboard Home",
+            module="dashboard",
+            is_active=True,
+        )
+        self.nav_item = NavigationItem.objects.create(
+            code="dashboard-simple",
+            label="Dashboard",
+            section="topbar",
+            route_name="dashboard_home",
+            order=10,
+            is_visible=True,
+            is_enabled=True,
+        )
+
+    def _as_admin_get(self, url, params=None):
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            return self.client.get(url, params or {})
+
+    def _as_admin_post(self, url, data):
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            return self.client.post(url, data)
+
+    def test_accessi_route_points_to_simple_page(self):
+        response = self._as_admin_get(
+            reverse("admin_portale:accessi"),
+            {"ruolo_id": "2"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Accessi Semplificati", html=False)
+        self.assertContains(response, "grant canonici", html=False)
+        self.assertContains(response, 'name="simple_modules"', html=False)
+
+    def test_accessi_semplice_post_enables_legacy_canonical_and_navigation_together(self):
+        response = self._as_admin_post(
+            reverse("admin_portale:accessi"),
+            {
+                "ruolo_id": "2",
+                "simple_modules": ["dashboard"],
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            Permesso.objects.filter(
+                ruolo_id=2,
+                modulo="dashboard",
+                azione="dashboard_home",
+                can_view=1,
+                consentito=1,
+            ).exists()
+        )
+        self.assertTrue(
+            RolePermissionGrant.objects.filter(
+                legacy_role_id=2,
+                permission_id="dashboard.home.view",
+                enabled=True,
+            ).exists()
+        )
+        self.assertTrue(
+            NavigationRoleAccess.objects.filter(
+                item=self.nav_item,
+                legacy_role_id=2,
+                can_view=True,
+            ).exists()
+        )
+
+    def test_accessi_semplice_post_can_disable_navigation_and_grants_together(self):
+        Permesso.objects.create(
+            ruolo_id=2,
+            modulo="dashboard",
+            azione="dashboard_home",
+            can_view=1,
+            consentito=1,
+        )
+        RolePermissionGrant.objects.create(
+            legacy_role_id=2,
+            permission_id="dashboard.home.view",
+            enabled=True,
+        )
+        NavigationRoleAccess.objects.create(
+            item=self.nav_item,
+            legacy_role_id=2,
+            can_view=True,
+        )
+
+        response = self._as_admin_post(
+            reverse("admin_portale:accessi"),
+            {
+                "ruolo_id": "2",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            Permesso.objects.filter(
+                ruolo_id=2,
+                modulo="dashboard",
+                azione="dashboard_home",
+                can_view=0,
+                consentito=0,
+            ).exists()
+        )
+        self.assertTrue(
+            RolePermissionGrant.objects.filter(
+                legacy_role_id=2,
+                permission_id="dashboard.home.view",
+                enabled=False,
+            ).exists()
+        )
+        self.assertTrue(
+            NavigationRoleAccess.objects.filter(
+                item=self.nav_item,
+                legacy_role_id=2,
+                can_view=False,
+            ).exists()
+        )
+
+
 class AdminPortaleFormSecurityTests(TestCase):
     """Testa la validazione di sicurezza nei form admin."""
 

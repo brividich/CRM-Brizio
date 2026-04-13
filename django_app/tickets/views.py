@@ -9,6 +9,7 @@ from io import BytesIO
 from datetime import datetime, timezone as dt_timezone
 from functools import wraps
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q, Case, When, Value, IntegerField
 from django.contrib.auth.views import redirect_to_login
@@ -26,6 +27,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_LEFT
 
 from core.legacy_utils import get_legacy_user, is_legacy_admin
+from core.audit import log_action
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
 from .models import (
@@ -228,6 +230,13 @@ def _tickets_gestione_required(view_func):
 
 def _json_err(msg: str, status: int = 400) -> JsonResponse:
     return JsonResponse({"ok": False, "error": msg}, status=status)
+
+
+def _int_or_none(value) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _get_user_reparto(legacy_id) -> str:
@@ -1116,6 +1125,17 @@ def ticket_gestione_detail(request, pk: int):
     reparto          = _get_user_reparto(legacy_id)
     my_assets, my_assets_label = _get_my_assets(legacy_id, name, reparto, ticket.tipo)
 
+    # Workorder generati da questo ticket
+    workorders_generati = ticket.workorders_generati.select_related("asset", "supplier").all()
+
+    # Costi totali interventi
+    costo_manodopera_tot = sum(
+        float(i.costo_manodopera_eur) for i in interventi if i.costo_manodopera_eur
+    )
+    costo_materiali_tot = sum(
+        float(i.materiali_costo_eur) for i in interventi if i.materiali_costo_eur
+    )
+
     ctx = {
         "ticket":           ticket,
         "commenti":         commenti,
@@ -1135,6 +1155,11 @@ def ticket_gestione_detail(request, pk: int):
         "activity_feed":    _build_ticket_activity_feed(ticket),
         "tipo_fermo_choices": TipoFermo.choices,
         "esito_intervento_choices": EsitoIntervento.choices,
+        # Manutenzione / costi
+        "workorders_generati":   workorders_generati,
+        "costo_manodopera_tot":  round(costo_manodopera_tot, 2) if costo_manodopera_tot else None,
+        "costo_materiali_tot":   round(costo_materiali_tot, 2) if costo_materiali_tot else None,
+        "costo_totale":          round(costo_manodopera_tot + costo_materiali_tot, 2) if (costo_manodopera_tot or costo_materiali_tot) else None,
     }
     return render(request, "tickets/pages/gestione_detail.html", ctx)
 
@@ -1149,6 +1174,70 @@ def ticket_impostazioni(request):
     if not (legacy_user and is_legacy_admin(legacy_user)):
         return render(request, "core/pages/forbidden.html", status=403)
 
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip()
+        redirect_target = redirect("tickets:impostazioni")
+
+        if action in {"add_categoria_ticket", "toggle_categoria_ticket", "delete_categoria_ticket"}:
+            if action == "add_categoria_ticket":
+                tipo = (request.POST.get("cat_tipo") or "").strip()
+                codice = (request.POST.get("cat_codice") or "").strip().upper().replace(" ", "_")[:30]
+                etichetta = (request.POST.get("cat_etichetta") or "").strip()[:100]
+                ordine = _int_or_none(request.POST.get("cat_ordine")) or 0
+                if tipo in (TipoTicket.IT, TipoTicket.MAN) and codice and etichetta:
+                    _, created = CategoriaTicket.objects.get_or_create(
+                        codice=codice,
+                        defaults={
+                            "tipo": tipo,
+                            "etichetta": etichetta,
+                            "ordine": ordine,
+                            "attivo": True,
+                        },
+                    )
+                    if created:
+                        log_action(request, "add_categoria_ticket", "tickets", {"tipo": tipo, "codice": codice})
+                        messages.success(request, f"Categoria '{etichetta}' aggiunta.")
+                    else:
+                        messages.warning(request, f"Codice '{codice}' gia esistente.")
+                else:
+                    messages.error(request, "Dati categoria mancanti o non validi.")
+                return redirect_target
+
+            cat_id = _int_or_none(request.POST.get("cat_id"))
+            cat = CategoriaTicket.objects.filter(pk=cat_id).first() if cat_id else None
+            if cat is None:
+                messages.error(request, "Categoria ticket non trovata.")
+                return redirect_target
+
+            if action == "toggle_categoria_ticket":
+                cat.attivo = not cat.attivo
+                cat.save(update_fields=["attivo"])
+                log_action(
+                    request,
+                    "toggle_categoria_ticket",
+                    "tickets",
+                    {"id": cat.pk, "attivo": cat.attivo},
+                )
+                messages.success(
+                    request,
+                    f"Categoria '{cat.etichetta}' {'attivata' if cat.attivo else 'disattivata'}.",
+                )
+                return redirect_target
+
+            in_use = Ticket.objects.filter(categoria=cat.codice).exists()
+            if in_use:
+                messages.error(
+                    request,
+                    f"Impossibile eliminare '{cat.etichetta}': e usata da ticket esistenti. Disattivala.",
+                )
+                return redirect_target
+            cat_label = cat.etichetta
+            cat_id_value = cat.pk
+            cat.delete()
+            log_action(request, "delete_categoria_ticket", "tickets", {"id": cat_id_value})
+            messages.success(request, f"Categoria '{cat_label}' eliminata.")
+            return redirect_target
+
     cfg_it  = TicketImpostazioni.get_or_create_for(TipoTicket.IT)
     cfg_man = TicketImpostazioni.get_or_create_for(TipoTicket.MAN)
 
@@ -1158,6 +1247,12 @@ def ticket_impostazioni(request):
         "tipi":    TipoTicket.choices,
         "categorie_it":  get_categorie(TipoTicket.IT),
         "categorie_man": get_categorie(TipoTicket.MAN),
+        "categorie_ticket_it": list(
+            CategoriaTicket.objects.filter(tipo=TipoTicket.IT).order_by("ordine", "etichetta")
+        ),
+        "categorie_ticket_man": list(
+            CategoriaTicket.objects.filter(tipo=TipoTicket.MAN).order_by("ordine", "etichetta")
+        ),
     }
     return render(request, "tickets/pages/impostazioni.html", ctx)
 
@@ -1275,6 +1370,39 @@ def api_commento(request):
         testo=testo,
         is_interno=is_interno,
     )
+
+    # Auto presa in carico: se il gestore commenta su un ticket ancora APERTA,
+    # lo porta automaticamente in IN_CARICO (prima risposta operativa)
+    auto_in_carico = False
+    if ticket.stato == StatoTicket.APERTA and (is_gestore or is_admin):
+        now = tz_now()
+        ticket.stato = StatoTicket.IN_CARICO
+        upd = ["stato", "updated_at"]
+        if not ticket.data_presa_in_carico:
+            ticket.data_presa_in_carico = now
+            upd.append("data_presa_in_carico")
+        ticket.save(update_fields=upd)
+        TicketStatoLog.objects.create(
+            ticket=ticket,
+            da_stato=StatoTicket.APERTA,
+            a_stato=StatoTicket.IN_CARICO,
+            utente_nome=name,
+            utente_email=email,
+            nota="Preso in carico automaticamente alla prima risposta operativa",
+        )
+        TicketCommento.objects.create(
+            ticket=ticket,
+            autore_nome=name,
+            autore_email=email,
+            testo="Stato aggiornato: Aperta → In carico",
+            is_interno=True,
+        )
+        auto_in_carico = True
+        try:
+            _update_ticket_sharepoint(ticket)
+        except Exception:
+            pass
+
     return JsonResponse({
         "ok": True,
         "commento_id": c.pk,
@@ -1282,6 +1410,7 @@ def api_commento(request):
         "testo": c.testo,
         "is_interno": c.is_interno,
         "created_at": c.created_at.strftime("%d/%m/%Y %H:%M"),
+        "auto_in_carico": auto_in_carico,
     })
 
 
@@ -1348,6 +1477,7 @@ def api_stato(request):
         ticket_id = int(payload.get("ticket_id") or 0)
         nuovo_stato = (payload.get("stato") or "").strip().upper()
         nota        = (payload.get("nota") or "").strip()
+        data_prevista = (payload.get("data_prevista") or "").strip()
     except (json.JSONDecodeError, ValueError):
         return _json_err("Dati non validi")
 
@@ -1372,6 +1502,14 @@ def api_stato(request):
     if nuovo_stato == StatoTicket.IN_CARICO and not ticket.data_presa_in_carico:
         ticket.data_presa_in_carico = now
         update_fields.append("data_presa_in_carico")
+
+    # Data prevista risoluzione quando messo IN_ATTESA
+    if nuovo_stato == StatoTicket.IN_ATTESA and data_prevista:
+        try:
+            ticket.data_prevista_risoluzione = datetime.strptime(data_prevista, "%Y-%m-%d").date()
+            update_fields.append("data_prevista_risoluzione")
+        except ValueError:
+            pass
 
     # Analytics: chi ha risolto
     if nuovo_stato == StatoTicket.RISOLTO and not ticket.risolto_da_nome:
@@ -2101,6 +2239,15 @@ def _api_intervento_create(request):
     tecnico_nome  = (payload.get("tecnico_nome") or name).strip()[:200]
     tecnico_email = (payload.get("tecnico_email") or email).strip()[:200]
 
+    def _decimal_or_none(val):
+        if val in (None, ""):
+            return None
+        try:
+            v = float(val)
+            return v if v >= 0 else None
+        except (TypeError, ValueError):
+            return None
+
     interv = TicketIntervento.objects.create(
         ticket=ticket,
         tecnico_nome=tecnico_nome,
@@ -2113,6 +2260,9 @@ def _api_intervento_create(request):
         azioni_svolte=(payload.get("azioni_svolte") or "").strip(),
         esito=esito,
         note=(payload.get("note") or "").strip(),
+        costo_manodopera_eur=_decimal_or_none(payload.get("costo_manodopera_eur")),
+        materiali_costo_eur=_decimal_or_none(payload.get("materiali_costo_eur")),
+        numero_rapportino=(payload.get("numero_rapportino") or "").strip()[:50],
     )
 
     # Aggiorna data_primo_intervento sul ticket se è il primo
@@ -2164,10 +2314,20 @@ def _api_intervento_update(request):
         interv.esito = esito
         update_fields.append("esito")
 
-    for campo in ("descrizione_lavoro", "componente_interessato", "azioni_svolte", "note"):
+    for campo in ("descrizione_lavoro", "componente_interessato", "azioni_svolte", "note", "numero_rapportino"):
         if campo in payload:
             setattr(interv, campo, (payload[campo] or "").strip())
             update_fields.append(campo)
+
+    for campo in ("costo_manodopera_eur", "materiali_costo_eur"):
+        if campo in payload:
+            val = payload[campo]
+            try:
+                setattr(interv, campo, float(val) if val not in (None, "") else None)
+            except (TypeError, ValueError):
+                pass
+            else:
+                update_fields.append(campo)
 
     interv.save(update_fields=update_fields)
     return JsonResponse({"ok": True, "durata_ore": interv.durata_ore, "label_esito": interv.label_esito})
@@ -2190,3 +2350,117 @@ def _api_intervento_delete(request):
     ticket.save(update_fields=["data_primo_intervento", "updated_at"])
 
     return JsonResponse({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# API: CRUD componenti sostituiti (ricambi per sessione di intervento)
+# ---------------------------------------------------------------------------
+
+@_tickets_gestione_required
+def api_componente(request):
+    if request.method == "POST":
+        return _api_componente_create(request)
+    if request.method == "DELETE":
+        return _api_componente_delete(request)
+    return _json_err("Metodo non supportato", status=405)
+
+
+def _api_componente_create(request):
+    from .models import TicketComponenteSostituito
+    try:
+        payload       = json.loads(request.body)
+        intervento_id = int(payload.get("intervento_id") or 0)
+    except (json.JSONDecodeError, ValueError):
+        return _json_err("Dati non validi")
+
+    interv = get_object_or_404(TicketIntervento, pk=intervento_id)
+    nome   = (payload.get("nome") or "").strip()[:200]
+    if not nome:
+        return _json_err("Nome componente obbligatorio")
+
+    def _dec(val):
+        if val in (None, ""):
+            return None
+        try:
+            v = float(val)
+            return v if v >= 0 else None
+        except (TypeError, ValueError):
+            return None
+
+    comp = TicketComponenteSostituito.objects.create(
+        intervento=interv,
+        nome=nome,
+        codice_parte=(payload.get("codice_parte") or "").strip()[:100],
+        quantita=max(1, int(payload.get("quantita") or 1)),
+        costo_unitario_eur=_dec(payload.get("costo_unitario_eur")),
+        note=(payload.get("note") or "").strip()[:300],
+    )
+    return JsonResponse({
+        "ok": True,
+        "id": comp.pk,
+        "nome": comp.nome,
+        "codice_parte": comp.codice_parte,
+        "quantita": comp.quantita,
+        "costo_unitario_eur": float(comp.costo_unitario_eur) if comp.costo_unitario_eur is not None else None,
+        "costo_totale_eur": comp.costo_totale_eur,
+        "note": comp.note,
+    })
+
+
+def _api_componente_delete(request):
+    from .models import TicketComponenteSostituito
+    try:
+        payload = json.loads(request.body)
+        comp_id = int(payload.get("id") or 0)
+    except (json.JSONDecodeError, ValueError):
+        return _json_err("Dati non validi")
+
+    comp = get_object_or_404(TicketComponenteSostituito, pk=comp_id)
+    comp.delete()
+    return JsonResponse({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# API: Crea WorkOrder (manutenzione straordinaria) da ticket
+# ---------------------------------------------------------------------------
+
+@_tickets_gestione_required
+def api_crea_workorder_da_ticket(request):
+    if request.method != "POST":
+        return _json_err("Metodo non supportato", status=405)
+
+    try:
+        payload   = json.loads(request.body)
+        ticket_id = int(payload.get("ticket_id") or 0)
+    except (json.JSONDecodeError, ValueError):
+        return _json_err("Dati non validi")
+
+    ticket = get_object_or_404(Ticket, pk=ticket_id)
+
+    if not ticket.asset_id:
+        return _json_err("Il ticket non ha un asset collegato. Collegare prima l'asset dalla tab 'Asset e KPI'.")
+
+    from assets.models import WorkOrder
+
+    title       = (payload.get("title") or ticket.titolo).strip()[:255]
+    description = (payload.get("description") or ticket.descrizione).strip()
+
+    wo = WorkOrder.objects.create(
+        asset=ticket.asset,
+        ticket=ticket,
+        supplier=ticket.delegato_fornitore,
+        kind=WorkOrder.KIND_CORRECTIVE,
+        title=title,
+        description=description,
+    )
+
+    wo_url = reverse("assets:wo_view", args=[wo.pk])
+    return JsonResponse({
+        "ok": True,
+        "workorder_id": wo.pk,
+        "workorder_url": wo_url,
+        "numero": wo.pk,
+        "title": wo.title,
+        "asset_name": ticket.asset.name,
+        "asset_tag": ticket.asset.asset_tag,
+    })

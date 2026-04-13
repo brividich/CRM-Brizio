@@ -749,6 +749,62 @@ def dipendente_detail(request, legacy_id: int):
     except Exception:
         logger.exception("Errore caricamento DPI per dipendente %s", legacy_id)
 
+    software_licenses = []
+    try:
+        from assets.models import SoftwareLicense
+
+        legacy_user_id = int(dip.get("utente_id") or 0)
+        license_qs = SoftwareLicense.objects.filter(
+            Q(assigned_anagrafica_id=legacy_id)
+            | (Q(assigned_legacy_user_id=legacy_user_id) if legacy_user_id else Q())
+        ).select_related("asset").order_by("category", "vendor", "product_name", "id")
+        software_licenses = list(license_qs)
+    except Exception:
+        logger.exception("Errore caricamento licenze software per dipendente %s", legacy_id)
+
+    # Asset assegnati al dipendente e asset del reparto (se caporeparto)
+    assets_assegnati: list = []
+    assets_reparto: list = []
+    reparti_capo: list = []
+    try:
+        from assets.models import Asset
+        from core.models import RepartoCapoMapping
+
+        utente_id_asset = int(dip.get("utente_id") or 0)
+        if utente_id_asset:
+            assets_assegnati = list(
+                Asset.objects.filter(assigned_legacy_user_id=utente_id_asset)
+                .exclude(status=Asset.STATUS_RETIRED)
+                .select_related("asset_category")
+                .order_by("name")
+            )
+
+        # Verifica se è caporeparto: cerca RepartoCapoMapping dove caporeparto
+        # corrisponde a email, id numerico o nome dell'utente legacy
+        capo_user = UtenteLegacy.objects.filter(id=utente_id_asset).first() if utente_id_asset else None
+        if capo_user:
+            capo_email = str(getattr(capo_user, "email", "") or "").strip().lower()
+            capo_nome = str(getattr(capo_user, "nome", "") or "").strip()
+            capo_filters = Q(caporeparto=str(utente_id_asset))
+            if capo_email:
+                capo_filters |= Q(caporeparto__iexact=capo_email)
+            if capo_nome:
+                capo_filters |= Q(caporeparto__iexact=capo_nome)
+            reparti_capo = list(
+                RepartoCapoMapping.objects.filter(capo_filters, is_active=True)
+                .values_list("reparto", flat=True)
+                .distinct()
+            )
+            if reparti_capo:
+                assets_reparto = list(
+                    Asset.objects.filter(assignment_reparto__in=reparti_capo)
+                    .exclude(status=Asset.STATUS_RETIRED)
+                    .select_related("asset_category")
+                    .order_by("assignment_reparto", "name")
+                )
+    except Exception:
+        logger.exception("Errore caricamento asset per dipendente %s", legacy_id)
+
     return render(request, "anagrafica/pages/dipendente_detail.html", {
         "dip": dip,
         "legacy_id": legacy_id,
@@ -766,6 +822,10 @@ def dipendente_detail(request, legacy_id: int):
         "oggi_plus60": oggi + timedelta(days=60),
         "dpi_richieste": dpi_richieste,
         "dpi_consegnati": dpi_consegnati,
+        "software_licenses": software_licenses,
+        "assets_assegnati": assets_assegnati,
+        "assets_reparto": assets_reparto,
+        "reparti_capo": reparti_capo,
     })
 
 

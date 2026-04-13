@@ -178,6 +178,9 @@
       <a href="{% url 'rilevazione_incidenti:export_csv' %}" class="sic-btn-outline">&#128196; Export CSV</a>
       {% endif %}
       <a href="{% url 'rilevazione_incidenti:statistiche' %}" class="sic-btn-outline">&#128200; Statistiche</a>
+      {% if can_manage_settings %}
+      <a href="{% url 'rilevazione_incidenti:impostazioni' %}" class="sic-btn-outline">&#9881; Impostazioni</a>
+      {% endif %}
       {% if can_create %}
       <a href="{% url 'rilevazione_incidenti:nuovo' %}" class="sic-btn-primary">+ Nuova rilevazione</a>
       {% endif %}

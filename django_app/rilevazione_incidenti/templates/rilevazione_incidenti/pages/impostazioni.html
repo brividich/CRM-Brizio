@@ -3,6 +3,7 @@
 {% block title %}Impostazioni Sicurezza | Portale Applicativo{% endblock %}
 
 {% block extra_head %}
+{% include "core/components/module_settings_styles.html" %}
 <style>
 #sic-root { display:flex; flex-direction:column; gap:20px; }
 .sic-hero {
@@ -102,11 +103,31 @@
 
   <div class="sic-hero">
     <div class="sic-breadcrumb"><a href="{% url 'rilevazione_incidenti:lista' %}">&#8592; Rilevazioni Sicurezza</a></div>
-    <div class="sic-hero-title">&#9881; Impostazioni</div>
+    <div class="sic-hero-title">Impostazioni {{ module_branding_display_label }}</div>
     <div class="sic-hero-sub">Configurazione modulo Sicurezza — Solo amministratori</div>
   </div>
 
   {% if error %}<div class="sic-error-box">&#9888; {{ error }}</div>{% endif %}
+
+  <div class="ms-grid-2">
+    <section class="ms-card">
+      <div class="ms-card-head">
+        <div class="ms-card-title-wrap">
+          <h2 class="ms-card-title">Stato modulo</h2>
+          <p class="ms-card-subtitle">Verifica rapida di backend attivo, volume locale e contesto della pagina.</p>
+        </div>
+      </div>
+      <div class="ms-card-body">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          <span class="ms-pill" style="background:#ecfeff;border-color:#99f6e4;color:#0f766e;">Storage {{ storage_mode }}</span>
+          <span class="ms-pill" style="background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;">{{ n_record_db }} record locali</span>
+          <span class="ms-pill" style="background:#f8fafc;border-color:#e2e8f0;color:#475569;">Tab attiva: {{ active_tab }}</span>
+        </div>
+        <div class="ms-field-help">La struttura della pagina segue il pattern impostazioni condiviso, mantenendo pero i contenuti tecnici specifici del modulo.</div>
+      </div>
+    </section>
+    {% include "core/components/module_branding_card.html" %}
+  </div>
 
   <!-- Tab nav -->
   <div class="sic-tabs-nav">

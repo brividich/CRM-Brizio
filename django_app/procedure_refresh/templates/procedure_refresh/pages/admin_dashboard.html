@@ -1,171 +1,141 @@
 {% extends "core/base.html" %}
 
-{% block title %}Admin Presa Visione | Portale{% endblock %}
+{% block title %}Impostazioni Procedure | Portale{% endblock %}
 
 {% block extra_head %}
-<style>
-#pr-root { display:flex; flex-direction:column; gap:20px; }
-.pr-subnav { display:flex; gap:4px; flex-wrap:wrap; }
-.pr-subnav-link { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; color:#475569; background:#f1f5f9; transition:all .15s; }
-.pr-subnav-link:hover { background:#e2e8f0; color:#0f172a; }
-.pr-subnav-link.active { background:#1d4ed8; color:#fff; }
-
-.pr-hero {
-  background:linear-gradient(135deg,#1e3a8a 0%,#1d4ed8 60%,#3b82f6 100%);
-  border-radius:16px; padding:28px 32px;
-  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; color:#fff;
-}
-.pr-hero-title { font-size:26px; font-weight:900; letter-spacing:-.03em; }
-.pr-hero-sub { font-size:13px; opacity:.7; margin-top:3px; }
-.pr-hero-actions { display:flex; gap:8px; flex-wrap:wrap; }
-.pr-hbtn {
-  display:inline-flex; align-items:center; gap:6px; padding:9px 18px;
-  border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; transition:all .15s;
-}
-.pr-hbtn-white { background:#fff; color:#1e3a8a; }
-.pr-hbtn-white:hover { background:#dbeafe; }
-.pr-hbtn-outline { background:rgba(255,255,255,.15); color:#fff; border:1px solid rgba(255,255,255,.3); }
-.pr-hbtn-outline:hover { background:rgba(255,255,255,.28); }
-
-.pr-kpi-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; }
-.pr-kpi {
-  background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 20px;
-  display:flex; flex-direction:column; gap:4px;
-}
-.pr-kpi-val { font-size:32px; font-weight:900; line-height:1; color:#0f172a; }
-.pr-kpi-lbl { font-size:11px; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
-.pr-kpi-blue .pr-kpi-val { color:#1d4ed8; }
-.pr-kpi-green .pr-kpi-val { color:#15803d; }
-.pr-kpi-orange .pr-kpi-val { color:#d97706; }
-.pr-kpi-red .pr-kpi-val { color:#dc2626; }
-
-.pr-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px 24px; }
-.pr-card-title { font-size:15px; font-weight:700; color:#0f172a; margin-bottom:12px; }
-.pr-table { width:100%; border-collapse:collapse; font-size:13px; }
-.pr-table th { background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px; text-align:left; font-weight:700; color:#475569; }
-.pr-table td { padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#0f172a; vertical-align:middle; }
-.pr-table tr:last-child td { border-bottom:none; }
-
-.pr-badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
-.pr-badge-draft { background:#f1f5f9; color:#475569; }
-.pr-badge-published { background:#dbeafe; color:#1d4ed8; }
-.pr-badge-closed { background:#dcfce7; color:#15803d; }
-.pr-badge-archived { background:#e2e8f0; color:#64748b; }
-
-.pr-quick-links { display:flex; gap:10px; flex-wrap:wrap; }
-.pr-ql {
-  display:inline-flex; align-items:center; gap:6px; padding:10px 18px;
-  background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;
-  font-size:13px; font-weight:600; text-decoration:none; color:#0f172a; transition:all .15s;
-}
-.pr-ql:hover { background:#e2e8f0; }
-</style>
+  {% include "core/components/module_settings_styles.html" %}
+  <style>
+    #pr-root { display:flex; flex-direction:column; gap:20px; }
+    .pr-subnav { display:flex; gap:4px; flex-wrap:wrap; }
+    .pr-subnav-link { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; color:#475569; background:#f1f5f9; transition:all .15s; }
+    .pr-subnav-link:hover { background:#e2e8f0; color:#0f172a; }
+    .pr-subnav-link.active { background:#1d4ed8; color:#fff; }
+    .pr-kpi-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; }
+    .pr-kpi { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; gap:4px; }
+    .pr-kpi-val { font-size:32px; font-weight:900; line-height:1; color:#0f172a; }
+    .pr-kpi-lbl { font-size:11px; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
+    .pr-kpi-blue .pr-kpi-val { color:#1d4ed8; }
+    .pr-kpi-green .pr-kpi-val { color:#15803d; }
+    .pr-kpi-orange .pr-kpi-val { color:#d97706; }
+    .pr-kpi-red .pr-kpi-val { color:#dc2626; }
+    .pr-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:20px 24px; }
+    .pr-card-title { font-size:15px; font-weight:700; color:#0f172a; margin-bottom:12px; }
+    .pr-table { width:100%; border-collapse:collapse; font-size:13px; }
+    .pr-table th { background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:8px 12px; text-align:left; font-weight:700; color:#475569; }
+    .pr-table td { padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#0f172a; vertical-align:middle; }
+    .pr-table tr:last-child td { border-bottom:none; }
+    .pr-badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
+    .pr-badge-draft { background:#f1f5f9; color:#475569; }
+    .pr-badge-published { background:#dbeafe; color:#1d4ed8; }
+    .pr-badge-closed { background:#dcfce7; color:#15803d; }
+    .pr-badge-archived { background:#e2e8f0; color:#64748b; }
+    .pr-quick-links { display:flex; gap:10px; flex-wrap:wrap; }
+    .pr-ql { display:inline-flex; align-items:center; gap:6px; padding:10px 18px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; font-size:13px; font-weight:600; text-decoration:none; color:#0f172a; transition:all .15s; }
+    .pr-ql:hover { background:#e2e8f0; }
+  </style>
 {% endblock %}
 
 {% block content %}
-<div id="pr-root">
-  {% include "procedure_refresh/components/subnav.html" with is_manager=True %}
+  <div id="pr-root">
+    {% include "procedure_refresh/components/subnav.html" with is_manager=True %}
 
-  {% if messages %}
-    {% for msg in messages %}
-      <div style="padding:12px 16px;border-radius:10px;background:{% if 'error' in msg.tags %}#fee2e2{% else %}#dcfce7{% endif %};color:{% if 'error' in msg.tags %}#dc2626{% else %}#15803d{% endif %};font-size:13px;font-weight:600;">{{ msg }}</div>
-    {% endfor %}
-  {% endif %}
-
-  <div class="pr-hero">
-    <div>
-      <div class="pr-hero-title">Presa Visione Procedure</div>
-      <div class="pr-hero-sub">Dashboard amministrativa — MT / MTSI</div>
-    </div>
-    <div class="pr-hero-actions">
-      <a href="{% url 'procedure_refresh:campaign_create' %}" class="pr-hbtn pr-hbtn-white">+ Nuova campagna</a>
-      <a href="{% url 'procedure_refresh:document_create' %}" class="pr-hbtn pr-hbtn-outline">+ Nuovo documento</a>
-    </div>
-  </div>
-
-  <div class="pr-kpi-row">
-    <div class="pr-kpi pr-kpi-blue">
-      <div class="pr-kpi-val">{{ n_documents }}</div>
-      <div class="pr-kpi-lbl">Documenti attivi</div>
-    </div>
-    <div class="pr-kpi pr-kpi-blue">
-      <div class="pr-kpi-val">{{ n_campaigns }}</div>
-      <div class="pr-kpi-lbl">Campagne totali</div>
-    </div>
-    <div class="pr-kpi pr-kpi-blue">
-      <div class="pr-kpi-val">{{ n_published }}</div>
-      <div class="pr-kpi-lbl">Campagne attive</div>
-    </div>
-    <div class="pr-kpi">
-      <div class="pr-kpi-val">{{ n_assignments }}</div>
-      <div class="pr-kpi-lbl">Assegnazioni totali</div>
-    </div>
-    <div class="pr-kpi pr-kpi-green">
-      <div class="pr-kpi-val">{{ n_confirmed }}</div>
-      <div class="pr-kpi-lbl">Confermate</div>
-    </div>
-    <div class="pr-kpi pr-kpi-orange">
-      <div class="pr-kpi-val">{{ n_pending }}</div>
-      <div class="pr-kpi-lbl">In attesa</div>
-    </div>
-    <div class="pr-kpi pr-kpi-red">
-      <div class="pr-kpi-val">{{ n_overdue }}</div>
-      <div class="pr-kpi-lbl">Scadute</div>
-    </div>
-  </div>
-
-  <div class="pr-card">
-    <div class="pr-card-title">Accesso rapido</div>
-    <div class="pr-quick-links">
-      <a href="{% url 'procedure_refresh:document_list' %}" class="pr-ql">📄 Gestione documenti</a>
-      <a href="{% url 'procedure_refresh:campaign_list' %}" class="pr-ql">📋 Gestione campagne</a>
-      <a href="{% url 'procedure_refresh:report_user' %}" class="pr-ql">👤 Report per utente</a>
-      <a href="{% url 'procedure_refresh:report_document' %}" class="pr-ql">📑 Report per documento</a>
-      <a href="{% url 'procedure_refresh:report_campaign' %}" class="pr-ql">📊 Report per campagna</a>
-      <a href="{% url 'procedure_refresh:export_csv' %}?type=assignments" class="pr-ql">⬇ Export CSV assegnazioni</a>
-      <a href="{% url 'procedure_refresh:export_csv' %}?type=campaigns" class="pr-ql">⬇ Export CSV campagne</a>
-    </div>
-  </div>
-
-  <div class="pr-card">
-    <div class="pr-card-title">Ultime campagne</div>
-    {% if recent_campaigns %}
-      <table class="pr-table">
-        <thead>
-          <tr>
-            <th>Nome</th>
-            <th>Stato</th>
-            <th>Inizio</th>
-            <th>Scadenza</th>
-            <th>Creata da</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for camp in recent_campaigns %}
-            <tr>
-              <td><strong>{{ camp.name }}</strong></td>
-              <td>
-                {% if camp.status == 'draft' %}<span class="pr-badge pr-badge-draft">Bozza</span>
-                {% elif camp.status == 'published' %}<span class="pr-badge pr-badge-published">Pubblicata</span>
-                {% elif camp.status == 'closed' %}<span class="pr-badge pr-badge-closed">Chiusa</span>
-                {% else %}<span class="pr-badge pr-badge-archived">{{ camp.get_status_display }}</span>
-                {% endif %}
-              </td>
-              <td>{{ camp.start_date|date:"d/m/Y" }}</td>
-              <td>{{ camp.due_date|date:"d/m/Y" }}</td>
-              <td>{{ camp.created_by.get_full_name|default:camp.created_by.username|default:"—" }}</td>
-              <td>
-                <a href="{% url 'procedure_refresh:campaign_detail' pk=camp.pk %}"
-                   style="font-size:12px;color:#1d4ed8;text-decoration:none;font-weight:600;">Dettaglio →</a>
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% else %}
-      <p style="color:#64748b;font-size:13px;">Nessuna campagna ancora.</p>
+    {% if messages %}
+      <div style="display:grid;gap:8px;">
+        {% for message in messages %}
+          <div class="pr-card" style="padding:12px 16px;border-color:{% if 'error' in message.tags or 'danger' in message.tags %}#fecaca{% elif 'warning' in message.tags %}#fde68a{% else %}#bbf7d0{% endif %};background:{% if 'error' in message.tags or 'danger' in message.tags %}#fef2f2{% elif 'warning' in message.tags %}#fffbeb{% else %}#f0fdf4{% endif %};color:{% if 'error' in message.tags or 'danger' in message.tags %}#991b1b{% elif 'warning' in message.tags %}#92400e{% else %}#166534{% endif %};">
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
     {% endif %}
+
+    {% include "core/components/module_settings_hero.html" with settings_title="Impostazioni "|add:module_branding_display_label settings_subtitle="KPI, accessi rapidi, campagne recenti e branding del modulo procedure MT / MTSI." %}
+
+    <div class="pr-kpi-row">
+      <div class="pr-kpi pr-kpi-blue">
+        <div class="pr-kpi-val">{{ n_documents }}</div>
+        <div class="pr-kpi-lbl">Documenti attivi</div>
+      </div>
+      <div class="pr-kpi pr-kpi-blue">
+        <div class="pr-kpi-val">{{ n_campaigns }}</div>
+        <div class="pr-kpi-lbl">Campagne totali</div>
+      </div>
+      <div class="pr-kpi pr-kpi-blue">
+        <div class="pr-kpi-val">{{ n_published }}</div>
+        <div class="pr-kpi-lbl">Campagne attive</div>
+      </div>
+      <div class="pr-kpi">
+        <div class="pr-kpi-val">{{ n_assignments }}</div>
+        <div class="pr-kpi-lbl">Assegnazioni totali</div>
+      </div>
+      <div class="pr-kpi pr-kpi-green">
+        <div class="pr-kpi-val">{{ n_confirmed }}</div>
+        <div class="pr-kpi-lbl">Confermate</div>
+      </div>
+      <div class="pr-kpi pr-kpi-orange">
+        <div class="pr-kpi-val">{{ n_pending }}</div>
+        <div class="pr-kpi-lbl">In attesa</div>
+      </div>
+      <div class="pr-kpi pr-kpi-red">
+        <div class="pr-kpi-val">{{ n_overdue }}</div>
+        <div class="pr-kpi-lbl">Scadute</div>
+      </div>
+    </div>
+
+    <div class="ms-grid-2">
+      <div class="pr-card">
+        <div class="pr-card-title">Accesso rapido</div>
+        <div class="pr-quick-links">
+          <a href="{% url 'procedure_refresh:document_list' %}" class="pr-ql">Documenti</a>
+          <a href="{% url 'procedure_refresh:campaign_list' %}" class="pr-ql">Campagne</a>
+          <a href="{% url 'procedure_refresh:report_user' %}" class="pr-ql">Report per utente</a>
+          <a href="{% url 'procedure_refresh:report_document' %}" class="pr-ql">Report per documento</a>
+          <a href="{% url 'procedure_refresh:report_campaign' %}" class="pr-ql">Report per campagna</a>
+          <a href="{% url 'procedure_refresh:export_csv' %}?type=assignments" class="pr-ql">Export CSV assegnazioni</a>
+          <a href="{% url 'procedure_refresh:export_csv' %}?type=campaigns" class="pr-ql">Export CSV campagne</a>
+        </div>
+      </div>
+      {% include "core/components/module_branding_card.html" %}
+    </div>
+
+    <div class="pr-card">
+      <div class="pr-card-title">Ultime campagne</div>
+      {% if recent_campaigns %}
+        <table class="pr-table">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Stato</th>
+              <th>Inizio</th>
+              <th>Scadenza</th>
+              <th>Creata da</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for camp in recent_campaigns %}
+              <tr>
+                <td><strong>{{ camp.name }}</strong></td>
+                <td>
+                  {% if camp.status == 'draft' %}<span class="pr-badge pr-badge-draft">Bozza</span>
+                  {% elif camp.status == 'published' %}<span class="pr-badge pr-badge-published">Pubblicata</span>
+                  {% elif camp.status == 'closed' %}<span class="pr-badge pr-badge-closed">Chiusa</span>
+                  {% else %}<span class="pr-badge pr-badge-archived">{{ camp.get_status_display }}</span>
+                  {% endif %}
+                </td>
+                <td>{{ camp.start_date|date:"d/m/Y" }}</td>
+                <td>{{ camp.due_date|date:"d/m/Y" }}</td>
+                <td>{{ camp.created_by.get_full_name|default:camp.created_by.username|default:"-" }}</td>
+                <td>
+                  <a href="{% url 'procedure_refresh:campaign_detail' pk=camp.pk %}" style="font-size:12px;color:#1d4ed8;text-decoration:none;font-weight:600;">Dettaglio</a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p style="color:#64748b;font-size:13px;">Nessuna campagna ancora.</p>
+      {% endif %}
+    </div>
   </div>
-</div>
 {% endblock %}

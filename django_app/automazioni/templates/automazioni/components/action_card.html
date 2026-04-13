@@ -94,6 +94,18 @@
         </div>
       </div>
 
+      <div class="designer-editor-panel" style="margin-top:12px;">
+        <div class="designer-editor-panel-title">Branch leggero / run_if</div>
+        <div class="designer-trigger-copy">
+          <div class="designer-field">{{ entry.form.run_if_field_name.label_tag }}{{ entry.form.run_if_field_name }}{% if entry.form.run_if_field_name.errors %}<ul class="designer-errors">{% for error in entry.form.run_if_field_name.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.run_if_operator.label_tag }}{{ entry.form.run_if_operator }}{% if entry.form.run_if_operator.errors %}<ul class="designer-errors">{% for error in entry.form.run_if_operator.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.run_if_value_type.label_tag }}{{ entry.form.run_if_value_type }}{% if entry.form.run_if_value_type.errors %}<ul class="designer-errors">{% for error in entry.form.run_if_value_type.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field designer-field-compact-toggle">{{ entry.form.run_if_compare_with_old.label_tag }}<div class="designer-toggle-wrap">{{ entry.form.run_if_compare_with_old }}</div>{% if entry.form.run_if_compare_with_old.errors %}<ul class="designer-errors">{% for error in entry.form.run_if_compare_with_old.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field designer-field-compact-toggle">{{ entry.form.run_if_negate.label_tag }}<div class="designer-toggle-wrap">{{ entry.form.run_if_negate }}</div>{% if entry.form.run_if_negate.errors %}<ul class="designer-errors">{% for error in entry.form.run_if_negate.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field designer-field-wide">{{ entry.form.run_if_expected_value.label_tag }}{{ entry.form.run_if_expected_value }}{% if entry.form.run_if_expected_value.help_text %}<div class="designer-help">{{ entry.form.run_if_expected_value.help_text }}</div>{% endif %}{% if entry.form.run_if_expected_value.errors %}<ul class="designer-errors">{% for error in entry.form.run_if_expected_value.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+        </div>
+      </div>
+
       <div class="designer-editor-panel" data-action-config="send_email" style="margin-top:12px;">
         <div class="designer-editor-panel-title">Email essenziale</div>
         <div class="designer-trigger-copy">
@@ -155,6 +167,52 @@
             {% if entry.form.update_fields_text.help_text %}<div class="designer-help">{{ entry.form.update_fields_text.help_text }}</div>{% endif %}
             {% if entry.form.update_fields_text.errors %}<ul class="designer-errors">{% for error in entry.form.update_fields_text.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
           </div>
+        </div>
+      </div>
+
+      <div class="designer-editor-panel" data-action-config="update_trigger_record" style="margin-top:12px;">
+        <div class="designer-editor-panel-title">Aggiornamento record triggerante</div>
+        <div class="designer-trigger-copy">
+          <div class="designer-field designer-field-wide">
+            {{ entry.form.trigger_update_fields_text.label_tag }}
+            {{ entry.form.trigger_update_fields_text }}
+            {% if entry.form.trigger_update_fields_text.help_text %}<div class="designer-help">{{ entry.form.trigger_update_fields_text.help_text }}</div>{% endif %}
+            {% if entry.form.trigger_update_fields_text.errors %}<ul class="designer-errors">{% for error in entry.form.trigger_update_fields_text.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="designer-editor-panel" data-action-config="delay_schedule" style="margin-top:12px;">
+        <div class="designer-editor-panel-title">Delay / Schedule</div>
+        <div class="designer-trigger-copy">
+          <div class="designer-field">{{ entry.form.delay_mode.label_tag }}{{ entry.form.delay_mode }}{% if entry.form.delay_mode.errors %}<ul class="designer-errors">{% for error in entry.form.delay_mode.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.delay_value_template.label_tag }}{{ entry.form.delay_value_template }}{% if entry.form.delay_value_template.errors %}<ul class="designer-errors">{% for error in entry.form.delay_value_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.delay_unit.label_tag }}{{ entry.form.delay_unit }}{% if entry.form.delay_unit.errors %}<ul class="designer-errors">{% for error in entry.form.delay_unit.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field designer-field-wide">{{ entry.form.delay_until_template.label_tag }}{{ entry.form.delay_until_template }}{% if entry.form.delay_until_template.help_text %}<div class="designer-help">{{ entry.form.delay_until_template.help_text }}</div>{% endif %}{% if entry.form.delay_until_template.errors %}<ul class="designer-errors">{% for error in entry.form.delay_until_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+        </div>
+      </div>
+
+      <div class="designer-editor-panel" data-action-config="http_request" style="margin-top:12px;">
+        <div class="designer-editor-panel-title">HTTP request</div>
+        <div class="designer-trigger-copy">
+          <div class="designer-field">{{ entry.form.http_method.label_tag }}{{ entry.form.http_method }}{% if entry.form.http_method.errors %}<ul class="designer-errors">{% for error in entry.form.http_method.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field designer-field-wide">{{ entry.form.http_url_template.label_tag }}{{ entry.form.http_url_template }}{% if entry.form.http_url_template.errors %}<ul class="designer-errors">{% for error in entry.form.http_url_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.http_timeout_seconds.label_tag }}{{ entry.form.http_timeout_seconds }}{% if entry.form.http_timeout_seconds.errors %}<ul class="designer-errors">{% for error in entry.form.http_timeout_seconds.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.http_expected_status_csv.label_tag }}{{ entry.form.http_expected_status_csv }}{% if entry.form.http_expected_status_csv.help_text %}<div class="designer-help">{{ entry.form.http_expected_status_csv.help_text }}</div>{% endif %}{% if entry.form.http_expected_status_csv.errors %}<ul class="designer-errors">{% for error in entry.form.http_expected_status_csv.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field designer-field-wide">{{ entry.form.http_headers_text.label_tag }}{{ entry.form.http_headers_text }}{% if entry.form.http_headers_text.help_text %}<div class="designer-help">{{ entry.form.http_headers_text.help_text }}</div>{% endif %}{% if entry.form.http_headers_text.errors %}<ul class="designer-errors">{% for error in entry.form.http_headers_text.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field designer-field-wide">{{ entry.form.http_body_template.label_tag }}{{ entry.form.http_body_template }}{% if entry.form.http_body_template.errors %}<ul class="designer-errors">{% for error in entry.form.http_body_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+        </div>
+      </div>
+
+      <div class="designer-editor-panel" data-action-config="teams_webhook" style="margin-top:12px;">
+        <div class="designer-editor-panel-title">Teams webhook</div>
+        <div class="designer-trigger-copy">
+          <div class="designer-field designer-field-wide">{{ entry.form.teams_webhook_url.label_tag }}{{ entry.form.teams_webhook_url }}{% if entry.form.teams_webhook_url.errors %}<ul class="designer-errors">{% for error in entry.form.teams_webhook_url.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.teams_title_template.label_tag }}{{ entry.form.teams_title_template }}{% if entry.form.teams_title_template.errors %}<ul class="designer-errors">{% for error in entry.form.teams_title_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.teams_summary_template.label_tag }}{{ entry.form.teams_summary_template }}{% if entry.form.teams_summary_template.errors %}<ul class="designer-errors">{% for error in entry.form.teams_summary_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.teams_theme_color.label_tag }}{{ entry.form.teams_theme_color }}{% if entry.form.teams_theme_color.errors %}<ul class="designer-errors">{% for error in entry.form.teams_theme_color.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field designer-field-wide">{{ entry.form.teams_text_template.label_tag }}{{ entry.form.teams_text_template }}{% if entry.form.teams_text_template.errors %}<ul class="designer-errors">{% for error in entry.form.teams_text_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field designer-field-wide">{{ entry.form.teams_facts_text.label_tag }}{{ entry.form.teams_facts_text }}{% if entry.form.teams_facts_text.help_text %}<div class="designer-help">{{ entry.form.teams_facts_text.help_text }}</div>{% endif %}{% if entry.form.teams_facts_text.errors %}<ul class="designer-errors">{% for error in entry.form.teams_facts_text.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
         </div>
       </div>
     </div>

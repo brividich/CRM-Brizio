@@ -49,6 +49,7 @@ class CategoriaDPI(models.Model):
 class DPIImpostazioni(models.Model):
     responsabile_nome = models.CharField(max_length=200, blank=True, default="")
     responsabile_email = models.EmailField(blank=True, default="")
+    responsabili = models.JSONField(blank=True, default=list)
     note_generali = models.TextField(blank=True, default="")
     notifica_nuova_richiesta = models.BooleanField(
         default=False, help_text="Invia email al responsabile per ogni nuova richiesta"

@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 import json
 import shutil
-import tempfile
+from contextlib import contextmanager
 from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
@@ -25,7 +25,7 @@ from PIL import Image
 
 from anagrafica.models import Fornitore, FornitoreDocumento
 from core.legacy_models import Pulsante, UtenteLegacy
-from core.models import UserDashboardLayout
+from core.models import UserDashboardLayout, UserOnboarding
 from core.upload_mime import UploadMimeValidationError
 from tickets.models import PrioritaTicket, StatoTicket, Ticket, TipoTicket
 
@@ -66,6 +66,7 @@ from .models import (
     PlantLayout,
     PlantLayoutArea,
     PlantLayoutMarker,
+    SoftwareLicense,
     WorkMachine,
     WorkOrder,
     WorkOrderAttachment,
@@ -80,6 +81,26 @@ def _make_workspace_tempdir(prefix: str) -> Path:
     target = root / f"{prefix}{uuid4().hex}"
     target.mkdir(parents=True, exist_ok=False)
     return target
+
+
+@contextmanager
+def _workspace_temporary_directory(prefix: str):
+    target = _make_workspace_tempdir(prefix)
+    try:
+        yield str(target)
+    finally:
+        shutil.rmtree(target, ignore_errors=True)
+
+
+def _complete_onboarding(user) -> None:
+    UserOnboarding.objects.update_or_create(
+        user=user,
+        defaults={
+            "completed": True,
+            "skipped": False,
+            "completed_at": timezone.now(),
+        },
+    )
 
 
 def _valid_png_upload(name: str = "planimetria.png") -> SimpleUploadedFile:
@@ -124,6 +145,55 @@ def _ensure_legacy_pulsanti_table() -> None:
                 )
                 """
             )
+
+
+def _ensure_anagrafica_table() -> None:
+    from core.legacy_anagrafica import ensure_anagrafica_schema
+
+    vendor = connection.vendor
+    with connection.cursor() as cursor:
+        if vendor == "sqlite":
+            cursor.execute("DROP TABLE IF EXISTS anagrafica_dipendenti")
+            cursor.execute(
+                """
+                CREATE TABLE anagrafica_dipendenti (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    aliasusername VARCHAR(200) NULL,
+                    nome VARCHAR(200) NULL,
+                    cognome VARCHAR(200) NULL,
+                    mansione VARCHAR(200) NULL,
+                    reparto VARCHAR(200) NULL,
+                    ruolo VARCHAR(200) NULL,
+                    matricola VARCHAR(100) NULL,
+                    attivo INTEGER NULL,
+                    email VARCHAR(200) NULL,
+                    email_notifica VARCHAR(200) NULL,
+                    utente_id INTEGER NULL
+                )
+                """
+            )
+        else:
+            cursor.execute(
+                """
+                IF OBJECT_ID('anagrafica_dipendenti', 'U') IS NOT NULL
+                    DROP TABLE anagrafica_dipendenti
+                CREATE TABLE anagrafica_dipendenti (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    aliasusername NVARCHAR(200) NULL,
+                    nome NVARCHAR(200) NULL,
+                    cognome NVARCHAR(200) NULL,
+                    mansione NVARCHAR(200) NULL,
+                    reparto NVARCHAR(200) NULL,
+                    ruolo NVARCHAR(200) NULL,
+                    matricola NVARCHAR(100) NULL,
+                    attivo BIT NULL,
+                    email NVARCHAR(200) NULL,
+                    email_notifica NVARCHAR(200) NULL,
+                    utente_id INT NULL
+                )
+                """
+            )
+    ensure_anagrafica_schema()
 
 
 def _build_workbook(path: Path, sheet_name: str = "LAN A 203.0.113.x") -> None:
@@ -253,6 +323,7 @@ def _label_template_payload(*, preview_asset_id: int | None = None, **overrides)
 class AssetsRoutingTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="asset-user", password="pass12345")
+        _complete_onboarding(self.user)
         self.factory = RequestFactory()
         self._config_tmpdir = _make_workspace_tempdir("assets-config-")
         self._config_path = self._config_tmpdir / ".env"
@@ -392,6 +463,35 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(response, "192.0.2.10")
         self.assertContains(response, "23")
 
+    def test_asset_dashboard_redirects_legacy_filtered_list_urls(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("assets:asset_dashboard"),
+            {"asset_type": Asset.TYPE_FIREWALL, "rows": 25},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response["Location"],
+            f"{reverse('assets:asset_list')}?asset_type={Asset.TYPE_FIREWALL}&rows=25",
+        )
+
+    def test_default_sidebar_seed_rows_use_canonical_asset_list_routes(self):
+        targets_by_code = {
+            row["code"]: row["target_url"]
+            for row in asset_views._default_sidebar_seed_rows()
+        }
+
+        self.assertEqual(
+            targets_by_code["dashboard"],
+            "django:assets:asset_list?rows={rows}",
+        )
+        self.assertEqual(
+            targets_by_code["networking"],
+            "django:assets:asset_list?asset_type=FIREWALL&rows={rows}",
+        )
+
     def test_work_machine_list_200_when_logged(self):
         asset = Asset.objects.create(
             name="Tornio parallelo",
@@ -493,6 +593,20 @@ class AssetsRoutingTests(TestCase):
         self.assertContains(response, "Bilanciata")
         self.assertContains(response, "Ampia")
         self.assertContains(response, "Seleziona visibili")
+
+    def test_legacy_periodic_verification_url_redirects_to_maintenance_route(self):
+        admin = User.objects.create_superuser(
+            username="asset-periodic-legacy-admin",
+            email="asset-periodic-legacy-admin@test.local",
+            password="pass12345",
+        )
+        self.client.force_login(admin)
+        response = self.client.get("/assets/verifiche-periodiche/")
+        self.assertRedirects(
+            response,
+            reverse("assets:periodic_verifications"),
+            fetch_redirect_response=False,
+        )
 
     def test_asset_edit_can_assign_multiple_periodic_verifications(self):
         asset = Asset.objects.create(
@@ -704,7 +818,7 @@ class AssetsRoutingTests(TestCase):
         WorkMachine.objects.create(asset=asset, source_key="manual-wm-layout-editor", cnc_controlled=True)
 
         self.client.force_login(admin)
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with _workspace_temporary_directory("assets-layout-") as tmpdir:
             with override_settings(MEDIA_ROOT=Path(tmpdir)):
                 with patch("admin_portale.decorators.get_legacy_user", return_value=SimpleNamespace(id=1, ruolo_id=1)):
                     with patch("admin_portale.decorators.is_legacy_admin", return_value=True):
@@ -758,7 +872,7 @@ class AssetsRoutingTests(TestCase):
 
     def test_work_machine_create_form_creates_asset_and_profile(self):
         self.client.force_login(self.user)
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with _workspace_temporary_directory("assets-work-machine-form-") as tmpdir:
             manual_file = SimpleUploadedFile("manuale.pdf", b"%PDF-1.4 test", content_type="application/pdf")
             with override_settings(MEDIA_ROOT=Path(tmpdir)):
                 with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
@@ -1072,7 +1186,7 @@ class AssetsRoutingTests(TestCase):
             content_type="image/png",
         )
         self.client.force_login(admin)
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with _workspace_temporary_directory("assets-label-logo-") as tmpdir:
             with override_settings(MEDIA_ROOT=Path(tmpdir)):
                 response = self.client.post(
                     reverse("assets:asset_label_designer"),
@@ -1205,6 +1319,107 @@ class AssetsRoutingTests(TestCase):
         self.assertIn("assets-sidebar-active-match-options", content)
         self.assertIn("django:assets:reports", content)
         self.assertIn("asset_type=SERVER", content)
+
+    def test_gestione_admin_shows_asset_category_management_tab(self):
+        category = AssetCategory.objects.create(
+            code="sistema-allarme",
+            label="Sistema allarme",
+            base_asset_type=Asset.TYPE_OTHER,
+            is_active=True,
+        )
+        AssetCategoryField.objects.create(
+            category=category,
+            code="matricola_centrale",
+            label="Matricola centrale",
+            field_type=AssetCategoryField.TYPE_TEXT,
+            detail_section=AssetDetailField.SECTION_SPECS,
+            detail_value_format=AssetDetailField.FORMAT_TEXT,
+            show_in_form=True,
+            show_in_detail=True,
+            is_active=True,
+        )
+
+        request = self.factory.get(reverse("assets:gestione_admin"), {"tab": "categorie"})
+        _attach_session(request)
+        request.user = self.user
+        request.legacy_user = None
+        setattr(request, "_messages", FallbackStorage(request))
+
+        response = asset_views.gestione_admin.__wrapped__(request)
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode("utf-8")
+        self.assertIn("Categorie asset e campi dinamici", content)
+        self.assertIn("Campi dinamici di categoria", content)
+        self.assertIn("Sistema allarme", content)
+        self.assertIn("Matricola centrale", content)
+
+    def test_gestione_admin_can_create_asset_category_from_categories_tab(self):
+        request = self.factory.post(
+            reverse("assets:gestione_admin"),
+            {
+                "action": "create_asset_category",
+                "label": "Pompa di calore",
+                "base_asset_type": Asset.TYPE_OTHER,
+                "description": "Impianto termico",
+                "detail_specs_title": "Scheda impianto",
+                "sort_order": "15",
+                "is_active": "1",
+            },
+        )
+        _attach_session(request)
+        request.user = self.user
+        request.legacy_user = None
+        setattr(request, "_messages", FallbackStorage(request))
+
+        response = asset_views.gestione_admin.__wrapped__(request)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], f"{reverse('assets:gestione_admin')}?tab=categorie")
+        self.assertTrue(
+            AssetCategory.objects.filter(
+                label="Pompa di calore",
+                detail_specs_title="Scheda impianto",
+            ).exists()
+        )
+
+    def test_gestione_admin_can_create_asset_category_field_from_categories_tab(self):
+        category = AssetCategory.objects.create(
+            code="tvcc",
+            label="TVCC",
+            base_asset_type=Asset.TYPE_OTHER,
+            is_active=True,
+        )
+        request = self.factory.post(
+            reverse("assets:gestione_admin"),
+            {
+                "action": "create_asset_category_field",
+                "category_id": str(category.id),
+                "label": "NVR principale",
+                "field_type": AssetCategoryField.TYPE_TEXT,
+                "detail_section": AssetDetailField.SECTION_SPECS,
+                "detail_value_format": AssetDetailField.FORMAT_TEXT,
+                "sort_order": "20",
+                "show_in_form": "1",
+                "show_in_detail": "1",
+                "is_active": "1",
+            },
+        )
+        _attach_session(request)
+        request.user = self.user
+        request.legacy_user = None
+        setattr(request, "_messages", FallbackStorage(request))
+
+        response = asset_views.gestione_admin.__wrapped__(request)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], f"{reverse('assets:gestione_admin')}?tab=categorie")
+        self.assertTrue(
+            AssetCategoryField.objects.filter(
+                category=category,
+                label="NVR principale",
+            ).exists()
+        )
 
     def test_gestione_admin_can_seed_sidebar_buttons(self):
         AssetSidebarButton.objects.all().delete()
@@ -1728,7 +1943,7 @@ class AssetsRoutingTests(TestCase):
             content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
 
-        with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+        with _workspace_temporary_directory("assets-report-template-") as media_root, override_settings(MEDIA_ROOT=media_root):
             response = self.client.post(
                 reverse("assets:report_template_admin"),
                 {
@@ -1767,7 +1982,7 @@ class AssetsRoutingTests(TestCase):
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
-        with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+        with _workspace_temporary_directory("assets-report-template-custom-") as media_root, override_settings(MEDIA_ROOT=media_root):
             response = self.client.post(
                 reverse("assets:report_template_admin"),
                 {
@@ -2152,6 +2367,128 @@ class AssetsRoutingTests(TestCase):
         self.assertNotContains(response, "Potenza termica")
 
 
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class SoftwareLicenseTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username="asset-license-admin",
+            email="asset-license-admin@test.local",
+            password="pass12345",
+        )
+        self.category = AssetCategory.objects.create(
+            code="license-category",
+            label="Categoria Licenze",
+            base_asset_type=Asset.TYPE_PC,
+            sort_order=10,
+        )
+        self.asset = Asset.objects.create(
+            name="PC Licenze",
+            asset_type=Asset.TYPE_PC,
+            asset_category=self.category,
+            reparto="IT",
+            source_key="asset-license-main",
+        )
+
+    def test_software_license_list_renders(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("assets:software_license_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Licenze software")
+
+    def test_software_license_list_creates_for_asset(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("assets:software_license_list") + f"?asset={self.asset.id}",
+            {
+                "asset_id": str(self.asset.id),
+                "action": "create_software_license",
+                "category": SoftwareLicense.CATEGORY_SOFTWARE,
+                "vendor": "Microsoft",
+                "product_name": "Office 365",
+                "edition": "Business Standard",
+                "license_reference": "MS-001",
+                "account_email": "it@example.local",
+                "seats_total": "10",
+                "seats_used": "5",
+                "purchase_date": "2026-01-01",
+                "renewal_date": "2026-12-01",
+                "expiry_date": "2026-12-31",
+                "auto_renew": "on",
+                "is_active": "on",
+                "notes": "Licenza asset",
+                "assigned_employee_id": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        license_row = SoftwareLicense.objects.get(license_reference="MS-001")
+        self.assertEqual(license_row.asset, self.asset)
+
+    def test_software_license_list_creates_for_employee(self):
+        _ensure_anagrafica_table()
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO anagrafica_dipendenti
+                    (aliasusername, nome, cognome, reparto, email, attivo)
+                VALUES
+                    (%s, %s, %s, %s, %s, %s)
+                """,
+                ["a.rossi", "Alessia", "Rossi", "IT", "a.rossi@example.local", 1],
+            )
+            cursor.execute(
+                """
+                SELECT id
+                FROM anagrafica_dipendenti
+                WHERE aliasusername = %s
+                """,
+                ["a.rossi"],
+            )
+            row = cursor.fetchone()
+
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("assets:software_license_list") + f"?anagrafica={int(row[0])}",
+            {
+                "anagrafica_id": str(int(row[0])),
+                "action": "create_software_license",
+                "category": SoftwareLicense.CATEGORY_ANTIVIRUS,
+                "vendor": "Eset",
+                "product_name": "Endpoint Security",
+                "edition": "",
+                "license_reference": "AV-200",
+                "account_email": "security@example.local",
+                "seats_total": "1",
+                "seats_used": "1",
+                "purchase_date": "",
+                "renewal_date": "",
+                "expiry_date": "",
+                "auto_renew": "",
+                "is_active": "on",
+                "notes": "",
+                "assigned_employee_id": str(int(row[0])),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        license_row = SoftwareLicense.objects.get(license_reference="AV-200")
+        self.assertEqual(license_row.assigned_anagrafica_id, int(row[0]))
+        self.assertIn("Rossi", license_row.assigned_to_display)
+
+    def test_asset_detail_shows_software_license(self):
+        SoftwareLicense.objects.create(
+            category=SoftwareLicense.CATEGORY_OFFICE,
+            vendor="Microsoft",
+            product_name="Office 365",
+            asset=self.asset,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("assets:asset_view", kwargs={"id": self.asset.id}))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Office 365")
+
+
 class SeedAssetsACLTests(TestCase):
     def setUp(self):
         _ensure_legacy_pulsanti_table()
@@ -2169,7 +2506,7 @@ class SeedAssetsACLTests(TestCase):
 
 class ImportAssetsExcelTests(TestCase):
     def test_dry_run_does_not_write(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with _workspace_temporary_directory("assets-import-") as tmpdir:
             file_path = Path(tmpdir) / "assets.xlsx"
             _build_workbook(file_path)
             before_assets = Asset.objects.count()
@@ -2182,7 +2519,7 @@ class ImportAssetsExcelTests(TestCase):
             self.assertEqual(Asset.objects.count(), before_assets)
 
     def test_import_creates_asset_endpoint_and_details(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with _workspace_temporary_directory("assets-import-") as tmpdir:
             file_path = Path(tmpdir) / "assets.xlsx"
             _build_workbook(file_path)
             call_command(
@@ -2209,7 +2546,7 @@ class ImportAssetsExcelTests(TestCase):
             self.assertTrue(details.bios_pwd_set)
 
     def test_import_creates_custom_fields_for_unknown_columns(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with _workspace_temporary_directory("assets-import-extra-") as tmpdir:
             file_path = Path(tmpdir) / "assets-extra.xlsx"
             _build_workbook_custom(
                 file_path,
@@ -2232,7 +2569,7 @@ class ImportAssetsExcelTests(TestCase):
             self.assertEqual(asset.extra_columns.get(codice_field.code), "INT-001")
 
     def test_import_sensitive_columns_store_presence_only(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with _workspace_temporary_directory("assets-import-sensitive-") as tmpdir:
             file_path = Path(tmpdir) / "assets-sensitive.xlsx"
             _build_workbook_custom(
                 file_path,
@@ -2253,7 +2590,7 @@ class ImportAssetsExcelTests(TestCase):
             self.assertNotIn("1234", [str(v) for v in asset.extra_columns.values()])
 
     def test_import_fuzzy_sheet_name_matching(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with _workspace_temporary_directory("assets-import-fuzzy-") as tmpdir:
             file_path = Path(tmpdir) / "assets-sim.xlsx"
             _build_workbook_custom(
                 file_path,
@@ -2274,7 +2611,7 @@ class ImportAssetsExcelTests(TestCase):
 
 class ImportWorkMachinesExcelTests(TestCase):
     def test_import_creates_assets_and_work_machines(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with _workspace_temporary_directory("assets-work-machines-import-") as tmpdir:
             file_path = Path(tmpdir) / "macchine.xlsx"
             _build_work_machine_workbook(
                 file_path,
@@ -2303,7 +2640,7 @@ class ImportWorkMachinesExcelTests(TestCase):
             self.assertEqual(newer_machine.accuracy_from, "0.010")
 
     def test_import_updates_existing_machine_without_duplicate_assets(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with _workspace_temporary_directory("assets-work-machines-import-") as tmpdir:
             file_path = Path(tmpdir) / "macchine.xlsx"
             _build_work_machine_workbook(
                 file_path,
@@ -2359,7 +2696,7 @@ class WorkOrderFlowTests(TestCase):
         self.client.force_login(self.user)
 
         upload = SimpleUploadedFile("report.pdf", b"%PDF-1.4 test", content_type="application/pdf")
-        with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+        with _workspace_temporary_directory("assets-wo-attachments-") as media_root, override_settings(MEDIA_ROOT=media_root):
             with patch("assets.views.validate_extension_and_mime", return_value="application/pdf"):
                 response = self.client.post(
                     reverse("assets:wo_create", args=[self.asset.id]),
@@ -2677,6 +3014,7 @@ class WorkOrderFlowTests(TestCase):
 class AssetAdministrativeStepOneTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="asset-step-one", password="pass12345")
+        _complete_onboarding(self.user)
         self.asset = Asset.objects.create(
             name="Carroponte reparto A",
             asset_type=Asset.TYPE_HW,
@@ -2911,7 +3249,7 @@ class AssetMaintenanceStepTwoTests(TestCase):
         self.assertContains(response, "Non ci sono template manutenzione attivi.")
         self.assertContains(response, reverse("assets:maintenance_template_list") + f"?category={self.category.id}")
         self.assertContains(response, reverse("assets:maintenance_template_create") + f"?category={self.category.id}")
-        self.assertContains(response, reverse("assets:asset_list") + "#admin-asset-categories")
+        self.assertContains(response, reverse("assets:gestione_admin") + "?tab=categorie")
         self.assertContains(response, 'aria-disabled="true"', html=False)
 
     def test_maintenance_rule_create_view_warns_when_selected_category_has_no_compatible_templates(self):

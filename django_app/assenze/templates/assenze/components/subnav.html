@@ -3,7 +3,7 @@
   <a class="sub-a{% if current == 'assenze_menu' %} active{% endif %}" href="{% url 'assenze_menu' %}">Menu</a>
   <div class="sub-sep"></div>
   <a class="sub-a{% if current == 'assenze_richiesta' %} active{% endif %}" href="{% url 'assenze_richiesta' %}">Nuova richiesta</a>
-  <a class="sub-a{% if current == 'assenze_gestione' %} active{% endif %}" href="{% url 'assenze_gestione' %}">Gestione</a>
+  <a class="sub-a{% if current == 'assenze_gestione' %} active{% endif %}" href="{% url 'assenze_gestione' %}">Impostazioni</a>
   {% if assenze_can_view_calendar %}
     <a class="sub-a{% if current == 'assenze_calendario' %} active{% endif %}" href="{% url 'assenze_calendario' %}">Calendario</a>
   {% endif %}

@@ -6,8 +6,8 @@
 {% block extra_head %}
 <style>
 .content { padding: 0 !important; max-width: none !important; width: 100% !important; margin: 0 !important; }
-.dash { display: grid; grid-template-columns: 230px 1fr; align-items: start; border: 1px solid #dbe3f0; border-radius: 0; overflow: hidden; background: #f4f7fc; }
-.side { align-self: start; background: #f8fbff; border-right: 1px solid #dbe3f0; padding: 14px; display: grid; grid-template-rows: auto 1fr auto; gap: 12px; }
+.dash { display: grid; grid-template-columns: 230px 1fr; align-items: stretch; border: 1px solid #dbe3f0; border-radius: 0; overflow: hidden; background: #f4f7fc; }
+.side { align-self: stretch; background: #f8fbff; border-right: 1px solid #dbe3f0; padding: 14px; display: grid; grid-template-rows: auto 1fr auto; gap: 12px; }
 .brand { display: flex; align-items: center; gap: 10px; }
 .logo { width: 34px; height: 34px; border-radius: 9px; background: #1f64d8; color: #fff; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
 .logo img { width: 100%; height: 100%; object-fit: cover; border-radius: 9px; }
@@ -140,6 +140,10 @@
 .admin-checks .ok { color:#15803d; font-size: var(--fs-sm); font-weight:700; }
 .admin-checks .warn { color:#92400e; font-size: var(--fs-sm); }
 .admin-ops { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+#admin-asset-categories > .admin-form:not(:first-of-type),
+#admin-asset-categories > .admin-list {
+  display: none;
+}
 #admin-sidebar-buttons .admin-form { gap: 6px; }
 #admin-sidebar-buttons .admin-row,
 #admin-sidebar-buttons .admin-item-row {
@@ -254,7 +258,7 @@ body.admin-studio-open { overflow: hidden; }
       {% endfor %}
     </nav>
     {% if can_gestione_admin %}
-    <a class="ma" href="{% url 'assets:gestione_admin' %}" style="background:#eef2ff;color:#1f64d8;font-weight:700;">&#9881; Gestione Admin</a>
+    <a class="ma" href="{% url 'assets:gestione_admin' %}" style="background:#eef2ff;color:#1f64d8;font-weight:700;">&#9881; Impostazioni</a>
     {% endif %}
     <div class="user"><span class="av">{{ request.user.username|slice:":1"|upper }}</span><div><div class="text-base font-bold" style="color:#1e2f4f;">{{ request.user.get_full_name|default:request.user.username }}</div><div class="text-xs" style="color:#7f92af;">Amministratore sistema</div></div></div>
   </aside>
@@ -849,6 +853,16 @@ body.admin-studio-open { overflow: hidden; }
 
             <details id="admin-asset-categories" class="admin-section">
               <summary style="cursor:pointer;font-weight:700;">Gestione categorie asset e campi dinamici</summary>
+              <div class="admin-form" style="margin-top:10px;">
+                <div class="admin-hint">
+                  La gestione canonica di categorie asset e campi dinamici e ora disponibile anche in
+                  <strong>Impostazioni &rarr; Categorie asset</strong>, cosi resta insieme alle altre configurazioni del modulo.
+                </div>
+                <div class="inline-actions">
+                  <a class="btn btn-primary btn-sm" href="{% url 'assets:gestione_admin' %}?tab=categorie">Apri tab categorie</a>
+                  <a class="btn btn-secondary btn-sm" href="{% url 'assets:gestione_admin' %}?tab=categorie#asset-category-fields">Apri campi categoria</a>
+                </div>
+              </div>
               <div class="admin-form">
                 <form method="post" class="admin-row">
                   {% csrf_token %}
@@ -1446,7 +1460,7 @@ body.admin-studio-open { overflow: hidden; }
                 <div><strong>1) Campi</strong>: crea colonne extra per asset (tipo testo/numero/data/si-no). Puoi modificare o disattivare quelle esistenti.</div>
                 <div><strong>2) Liste</strong>: imposta i valori suggeriti per i campi standard (reparto, produttore, assegnazione...).</div>
                 <div><strong>3) Pulsanti Azione</strong>: controlla i bottoni nella pagina dettaglio asset (intestazione + azioni rapide), con ordine, stile e URL dinamico.</div>
-                <div><strong>4) Categorie asset</strong>: crea nuove categorie business come allarme, TVCC o pompe di calore, definisci la famiglia tecnica di base e aggiungi i campi dedicati senza toccare il codice.</div>
+                <div><strong>4) Categorie asset</strong>: la gestione canonica vive ora in <strong>Impostazioni &rarr; Categorie asset</strong>; da li crei categorie business come allarme, TVCC o pompe di calore e aggiungi i campi dedicati senza toccare il codice.</div>
                 <div><strong>5) Dettaglio asset</strong>: scegli quali dati mostrare nelle metriche, specifiche, profilo e responsabile attuale, con ordine e ambito per tipo asset.</div>
                 <div><strong>5) Menu laterale</strong>: aggiungi/rimuovi voci, mettile come sottovoce e decidi se visibili o nascoste.</div>
                 <div><strong>Segnaposto utili</strong>: `{rows}` nel menu laterale; `{asset_id}`, `{asset_tag}`, `{asset_name}` nei pulsanti azione.</div>

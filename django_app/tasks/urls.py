@@ -11,6 +11,16 @@ urlpatterns = [
     path("tasks/projects/", views.project_list, name="project_list"),
     path("tasks/projects/<int:project_id>/gantt/", views.project_gantt, name="project_gantt"),
     path(
+        "tasks/projects/<int:project_id>/copy/",
+        views.copy_project_with_vrf,
+        name="copy_project_with_vrf",
+    ),
+    path(
+        "tasks/projects/<int:project_id>/copy-without-pn/",
+        views.copy_project_with_vrf_without_pn,
+        name="copy_project_with_vrf_without_pn",
+    ),
+    path(
         "tasks/projects/<int:project_id>/gantt/tasks/<int:task_id>/update/",
         views.project_gantt_update_task,
         name="project_gantt_update_task",
@@ -37,4 +47,7 @@ urlpatterns = [
         views.edit_subtask_status,
         name="edit_subtask_status",
     ),
+    path("tasks/projects/<int:project_id>/vrf/", views.project_vrf_upload, name="project_vrf_upload"),
+    path("tasks/import/", views.import_excel, name="import_excel"),
+    path("tasks/import/template/", views.download_excel_template, name="download_excel_template"),
 ]

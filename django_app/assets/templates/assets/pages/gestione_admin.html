@@ -2,6 +2,7 @@
 {% load assets_extras %}
 
 {% block assets_shell_head %}
+{% include "core/components/module_settings_styles.html" %}
 <style>
 .ga-wrap { max-width: 1200px; margin: 0 auto; padding: 18px 16px; }
 .ga-header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
@@ -57,6 +58,17 @@
 .chip-soft.green { background:#dcfce7; color:#166534; }
 .chip-soft.slate { background:#e2e8f0; color:#475569; }
 .inline-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.field { display:grid; gap:6px; min-width:0; }
+.field label { font-size: var(--fs-xs); color: #6b7280; font-weight: 600; text-transform: uppercase; }
+.checkline { display:inline-flex; align-items:center; gap:6px; font-size: var(--fs-base); color:#0f172a; text-transform:none; }
+.checkline input { margin:0; }
+.admin-form { display: grid; gap: 8px; border: 1px solid #dbe3f0; border-radius: 10px; padding: 10px; background: #f8fbff; }
+.admin-row { display: grid; grid-template-columns: 1fr 150px 110px 110px 120px; gap: 8px; align-items: end; }
+.admin-list { display: grid; gap: 8px; }
+.admin-item { border: 1px solid #e1e8f3; border-radius: 10px; padding: 8px; background: #fff; display: grid; gap: 8px; }
+.admin-item-row { display: grid; grid-template-columns: 1fr 140px 95px 90px 105px auto auto; gap: 8px; align-items: end; }
+.admin-hint { font-size: var(--fs-sm); color: #64748b; }
+.admin-item + form { margin-top: -6px; }
 .sidebar-shell { display:grid; gap:14px; }
 .sidebar-editor { border:1px solid #dbe3f0; border-radius:11px; padding:12px; display:grid; gap:10px; }
 .sidebar-editor-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
@@ -71,7 +83,9 @@
 .sidebar-editor-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 @media (max-width: 1000px) {
   .sidebar-editor-grid.meta,
-  .sidebar-editor-grid.routes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sidebar-editor-grid.routes,
+  .admin-row,
+  .admin-item-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 800px) {
   .section-grid { grid-template-columns: 1fr; }
@@ -79,14 +93,16 @@
 }
 @media (max-width: 640px) {
   .sidebar-editor-grid.meta,
-  .sidebar-editor-grid.routes { grid-template-columns: 1fr; }
+  .sidebar-editor-grid.routes,
+  .admin-row,
+  .admin-item-row { grid-template-columns: 1fr; }
   .sidebar-editor-footer { align-items:stretch; }
   .sidebar-editor-actions { width:100%; }
 }
 </style>
 {% endblock %}
 
-{% block assets_shell_title %}Gestione Assets <span class="ga-badge">Admin</span>{% endblock %}
+{% block assets_shell_title %}Impostazioni {{ module_branding_display_label }} <span class="ga-badge">Admin</span>{% endblock %}
 {% block assets_shell_toolbar %}
 <a class="as-backlink" href="{% url 'assets:asset_list' %}" onclick="if (window.history.length > 1) { window.history.back(); return false; }">&larr; Inventario</a>
 {% endblock %}
@@ -96,6 +112,7 @@
   <div class="ga-tabs">
     <a href="?tab=riepilogo" class="ga-tab {% if tab == 'riepilogo' %}active{% endif %}">Riepilogo</a>
     <a href="?tab=config" class="ga-tab {% if tab == 'config' %}active{% endif %}">Configurazione</a>
+    <a href="?tab=categorie" class="ga-tab {% if tab == 'categorie' %}active{% endif %}">Categorie asset</a>
     <a href="?tab=record" class="ga-tab {% if tab == 'record' %}active{% endif %}">Record</a>
     <a href="?tab=ticket" class="ga-tab {% if tab == 'ticket' %}active{% endif %}">Categorie Ticket</a>
     <a href="?tab=log" class="ga-tab {% if tab == 'log' %}active{% endif %}">Log attivit&agrave;</a>
@@ -154,6 +171,28 @@
 
   {# ========== TAB CONFIGURAZIONE ========== #}
   {% if tab == 'config' %}
+  <div class="ms-grid-2" style="margin-bottom:14px;">
+    <section class="ms-card">
+      <div class="ms-card-head">
+        <div class="ms-card-title-wrap">
+          <h2 class="ms-card-title">Quick links modulo</h2>
+          <p class="ms-card-subtitle">Collegamenti rapidi alle aree operative piu usate del modulo asset.</p>
+        </div>
+      </div>
+      <div class="ms-card-body">
+        <div class="inline-actions">
+          <a href="{% url 'assets:asset_list' %}" class="btn btn-secondary btn-sm">Inventario</a>
+          <a href="{% url 'assets:gestione_admin' %}?tab=categorie" class="btn btn-secondary btn-sm">Categorie asset</a>
+          <a href="{% url 'assets:maintenance_template_list' %}" class="btn btn-secondary btn-sm">Template manutenzione</a>
+          <a href="{% url 'assets:maintenance_rule_list' %}" class="btn btn-secondary btn-sm">Regole manutenzione</a>
+          <a href="{% url 'assets:reports' %}" class="btn btn-secondary btn-sm">Report</a>
+        </div>
+        <div class="muted-note">La pagina impostazioni mantiene qui dentro anche le configurazioni tecniche, i template e il log amministrativo.</div>
+      </div>
+    </section>
+    {% include "core/components/module_branding_card.html" %}
+  </div>
+
   <div class="card" style="margin-bottom:14px;">
     <div class="card-head"><h3 class="card-title">Etichette QR stampabili</h3></div>
     <div class="card-body" style="display:grid;gap:14px;">
@@ -715,6 +754,355 @@
 
   {% endif %}
 
+  {# ========== TAB CATEGORIE ASSET ========== #}
+  {% if tab == 'categorie' %}
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="kpi-label">Categorie totali</div>
+      <div class="kpi-val">{{ asset_categories|length }}</div>
+      <div class="kpi-sub">Business categories configurate</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Categorie attive</div>
+      <div class="kpi-val">{{ asset_categories_active_count }}</div>
+      <div class="kpi-sub">Disponibili nei form asset</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Campi dinamici</div>
+      <div class="kpi-val">{{ asset_category_fields|length }}</div>
+      <div class="kpi-sub">Campi legati alle categorie</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Campi attivi</div>
+      <div class="kpi-val">{{ asset_category_fields_active_count }}</div>
+      <div class="kpi-sub">Usati in form e dettaglio</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-body" style="display:grid;gap:10px;">
+      <div>
+        <div class="text-heading" style="font-size:var(--fs-lg);font-weight:800;">Categorie asset e campi dinamici</div>
+        <div class="muted-note">Questo e il punto canonico per configurare categorie business come TVCC, allarmi o pompe di calore e i campi dedicati senza passare dallo studio amministratore dell'inventario.</div>
+      </div>
+      <div class="inline-actions">
+        <a href="{% url 'assets:asset_list' %}" class="btn btn-secondary btn-sm">Apri inventario</a>
+        <a href="{% url 'assets:maintenance_rule_list' %}" class="btn btn-secondary btn-sm">Regole manutenzione</a>
+        <a href="#asset-category-fields" class="btn btn-secondary btn-sm">Vai ai campi dinamici</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-head">
+      <h3 class="card-title">Categorie asset</h3>
+      <span class="chip-soft blue">{{ asset_categories|length }} totali</span>
+    </div>
+    <div class="card-body" style="display:grid;gap:14px;">
+      <div class="admin-form">
+        <form method="post" class="admin-row">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create_asset_category">
+          <div class="field">
+            <label>Nome categoria</label>
+            <input class="input" type="text" name="label" placeholder="Es. Sistema allarme" required>
+          </div>
+          <div class="field">
+            <label>Famiglia tecnica</label>
+            <select class="input" name="base_asset_type">
+              {% for type_code, type_label in asset_category_type_choices %}
+                <option value="{{ type_code }}">{{ type_label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Ordine</label>
+            <input class="input" type="number" name="sort_order" value="100">
+          </div>
+          <div class="field">
+            <label>Attiva</label>
+            <label class="checkline"><input type="checkbox" name="is_active" value="1" checked> S&igrave;</label>
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>Descrizione</label>
+            <textarea class="input" name="description" rows="2" placeholder="Nota interna per l'uso della categoria."></textarea>
+          </div>
+          <div class="field">
+            <label>Titolo specifiche</label>
+            <input class="input" type="text" name="detail_specs_title" placeholder="Es. Dati impianto">
+          </div>
+          <div class="field">
+            <label>Titolo profilo</label>
+            <input class="input" type="text" name="detail_profile_title" placeholder="Es. Profilo impianto">
+          </div>
+          <div class="field">
+            <label>Titolo responsabile</label>
+            <input class="input" type="text" name="detail_assignment_title" placeholder="Es. Referente interno">
+          </div>
+          <div class="field">
+            <label>Titolo timeline</label>
+            <input class="input" type="text" name="detail_timeline_title" placeholder="Es. Storico impianto">
+          </div>
+          <div class="field">
+            <label>Titolo manutenzione</label>
+            <input class="input" type="text" name="detail_maintenance_title" placeholder="Es. Registro interventi">
+          </div>
+          <div>
+            <button class="btn btn-primary btn-sm" type="submit">Aggiungi categoria</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="admin-list">
+        {% for category_item in asset_categories %}
+          <form method="post" class="admin-item">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update_asset_category">
+            <input type="hidden" name="category_id" value="{{ category_item.id }}">
+            <div class="admin-item-row">
+              <div class="field">
+                <label>Nome categoria</label>
+                <input class="input" type="text" name="label" value="{{ category_item.label }}" required>
+              </div>
+              <div class="field">
+                <label>Famiglia tecnica</label>
+                <select class="input" name="base_asset_type">
+                  {% for type_code, type_label in asset_category_type_choices %}
+                    <option value="{{ type_code }}" {% if category_item.base_asset_type == type_code %}selected{% endif %}>{{ type_label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="field">
+                <label>Ordine</label>
+                <input class="input" type="number" name="sort_order" value="{{ category_item.sort_order }}">
+              </div>
+              <div class="field">
+                <label>Attiva</label>
+                <label class="checkline"><input type="checkbox" name="is_active" value="1" {% if category_item.is_active %}checked{% endif %}> S&igrave;</label>
+              </div>
+              <div class="field" style="grid-column:1/-1;">
+                <label>Descrizione</label>
+                <textarea class="input" name="description" rows="2">{{ category_item.description }}</textarea>
+              </div>
+              <div class="field">
+                <label>Titolo specifiche</label>
+                <input class="input" type="text" name="detail_specs_title" value="{{ category_item.detail_specs_title }}">
+              </div>
+              <div class="field">
+                <label>Titolo profilo</label>
+                <input class="input" type="text" name="detail_profile_title" value="{{ category_item.detail_profile_title }}">
+              </div>
+              <div class="field">
+                <label>Titolo responsabile</label>
+                <input class="input" type="text" name="detail_assignment_title" value="{{ category_item.detail_assignment_title }}">
+              </div>
+              <div class="field">
+                <label>Titolo timeline</label>
+                <input class="input" type="text" name="detail_timeline_title" value="{{ category_item.detail_timeline_title }}">
+              </div>
+              <div class="field">
+                <label>Titolo manutenzione</label>
+                <input class="input" type="text" name="detail_maintenance_title" value="{{ category_item.detail_maintenance_title }}">
+              </div>
+              <div>
+                <button class="btn btn-primary btn-sm" type="submit">Salva</button>
+              </div>
+            </div>
+          </form>
+          <form method="post" onsubmit="return confirm('Eliminare la categoria {{ category_item.label|escapejs }}?');">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="delete_asset_category">
+            <input type="hidden" name="category_id" value="{{ category_item.id }}">
+            <button class="btn btn-secondary btn-sm" type="submit">Elimina categoria</button>
+          </form>
+        {% empty %}
+          <div class="admin-hint">Nessuna categoria asset configurata.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="asset-category-fields" style="margin-bottom:14px;">
+    <div class="card-head">
+      <h3 class="card-title">Campi dinamici di categoria</h3>
+      <span class="chip-soft blue">{{ asset_category_fields|length }} totali</span>
+    </div>
+    <div class="card-body" style="display:grid;gap:14px;">
+      <div class="admin-form">
+        <form method="post" class="admin-row">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create_asset_category_field">
+          <div class="field">
+            <label>Categoria</label>
+            <select class="input" name="category_id">
+              {% for category_item in asset_categories %}
+                <option value="{{ category_item.id }}">{{ category_item.label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Nome campo</label>
+            <input class="input" type="text" name="label" placeholder="Es. Matricola centrale" required>
+          </div>
+          <div class="field">
+            <label>Tipo input</label>
+            <select class="input" name="field_type">
+              {% for type_code, type_label in asset_category_field_type_choices %}
+                <option value="{{ type_code }}">{{ type_label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Sezione dettaglio</label>
+            <select class="input" name="detail_section">
+              {% for section_code, section_label in detail_section_choices %}
+                <option value="{{ section_code }}">{{ section_label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Formato dettaglio</label>
+            <select class="input" name="detail_value_format">
+              {% for format_code, format_label in detail_format_choices %}
+                <option value="{{ format_code }}">{{ format_label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Ordine</label>
+            <input class="input" type="number" name="sort_order" value="100">
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>Placeholder</label>
+            <input class="input" type="text" name="placeholder" placeholder="Testo guida nel form">
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>Help text</label>
+            <input class="input" type="text" name="help_text" placeholder="Nota visibile sotto al campo">
+          </div>
+          <div class="field">
+            <label>Obbligatorio</label>
+            <label class="checkline"><input type="checkbox" name="is_required" value="1"> S&igrave;</label>
+          </div>
+          <div class="field">
+            <label>Mostra nel form</label>
+            <label class="checkline"><input type="checkbox" name="show_in_form" value="1" checked> S&igrave;</label>
+          </div>
+          <div class="field">
+            <label>Mostra nel dettaglio</label>
+            <label class="checkline"><input type="checkbox" name="show_in_detail" value="1" checked> S&igrave;</label>
+          </div>
+          <div class="field">
+            <label>Mostra se vuoto</label>
+            <label class="checkline"><input type="checkbox" name="show_if_empty" value="1"> S&igrave;</label>
+          </div>
+          <div class="field">
+            <label>Attivo</label>
+            <label class="checkline"><input type="checkbox" name="is_active" value="1" checked> S&igrave;</label>
+          </div>
+          <div>
+            <button class="btn btn-primary btn-sm" type="submit" {% if not asset_categories %}disabled{% endif %}>Aggiungi campo categoria</button>
+          </div>
+        </form>
+        {% if not asset_categories %}
+          <div class="admin-hint">Crea prima almeno una categoria asset per poter aggiungere campi dinamici.</div>
+        {% endif %}
+      </div>
+
+      <div class="admin-list">
+        {% for category_field in asset_category_fields %}
+          <form method="post" class="admin-item">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update_asset_category_field">
+            <input type="hidden" name="category_field_id" value="{{ category_field.id }}">
+            <div class="admin-item-row">
+              <div class="field">
+                <label>Categoria</label>
+                <select class="input" name="category_id">
+                  {% for category_item in asset_categories %}
+                    <option value="{{ category_item.id }}" {% if category_field.category_id == category_item.id %}selected{% endif %}>{{ category_item.label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="field">
+                <label>Nome campo</label>
+                <input class="input" type="text" name="label" value="{{ category_field.label }}" required>
+              </div>
+              <div class="field">
+                <label>Tipo input</label>
+                <select class="input" name="field_type">
+                  {% for type_code, type_label in asset_category_field_type_choices %}
+                    <option value="{{ type_code }}" {% if category_field.field_type == type_code %}selected{% endif %}>{{ type_label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="field">
+                <label>Sezione dettaglio</label>
+                <select class="input" name="detail_section">
+                  {% for section_code, section_label in detail_section_choices %}
+                    <option value="{{ section_code }}" {% if category_field.detail_section == section_code %}selected{% endif %}>{{ section_label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="field">
+                <label>Formato dettaglio</label>
+                <select class="input" name="detail_value_format">
+                  {% for format_code, format_label in detail_format_choices %}
+                    <option value="{{ format_code }}" {% if category_field.detail_value_format == format_code %}selected{% endif %}>{{ format_label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="field">
+                <label>Ordine</label>
+                <input class="input" type="number" name="sort_order" value="{{ category_field.sort_order }}">
+              </div>
+              <div class="field" style="grid-column:1/-1;">
+                <label>Placeholder</label>
+                <input class="input" type="text" name="placeholder" value="{{ category_field.placeholder }}">
+              </div>
+              <div class="field" style="grid-column:1/-1;">
+                <label>Help text</label>
+                <input class="input" type="text" name="help_text" value="{{ category_field.help_text }}">
+              </div>
+              <div class="field">
+                <label>Obbligatorio</label>
+                <label class="checkline"><input type="checkbox" name="is_required" value="1" {% if category_field.is_required %}checked{% endif %}> S&igrave;</label>
+              </div>
+              <div class="field">
+                <label>Mostra nel form</label>
+                <label class="checkline"><input type="checkbox" name="show_in_form" value="1" {% if category_field.show_in_form %}checked{% endif %}> S&igrave;</label>
+              </div>
+              <div class="field">
+                <label>Mostra nel dettaglio</label>
+                <label class="checkline"><input type="checkbox" name="show_in_detail" value="1" {% if category_field.show_in_detail %}checked{% endif %}> S&igrave;</label>
+              </div>
+              <div class="field">
+                <label>Mostra se vuoto</label>
+                <label class="checkline"><input type="checkbox" name="show_if_empty" value="1" {% if category_field.show_if_empty %}checked{% endif %}> S&igrave;</label>
+              </div>
+              <div class="field">
+                <label>Attivo</label>
+                <label class="checkline"><input type="checkbox" name="is_active" value="1" {% if category_field.is_active %}checked{% endif %}> S&igrave;</label>
+              </div>
+              <div>
+                <button class="btn btn-primary btn-sm" type="submit">Salva</button>
+              </div>
+            </div>
+          </form>
+          <form method="post" onsubmit="return confirm('Eliminare il campo {{ category_field.label|escapejs }}?');">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="delete_asset_category_field">
+            <input type="hidden" name="category_field_id" value="{{ category_field.id }}">
+            <button class="btn btn-secondary btn-sm" type="submit">Elimina campo</button>
+          </form>
+        {% empty %}
+          <div class="admin-hint">Nessun campo categoria configurato.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   {# ========== TAB RECORD ========== #}
   {% if tab == 'record' %}
   <div class="card" style="margin-bottom:14px;">
@@ -798,6 +1186,16 @@
 
   {# ========== TAB CATEGORIE TICKET ========== #}
   {% if tab == 'ticket' %}
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-body" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <div>
+        <div class="text-heading" style="font-size:var(--fs-lg);font-weight:800;">Categorie ticket</div>
+        <div class="muted-note">La stessa configurazione e ora disponibile anche nella pagina dedicata Ticket.</div>
+      </div>
+      <a href="{% url 'tickets:impostazioni' %}" class="btn btn-primary">Apri impostazioni Ticket</a>
+    </div>
+  </div>
+
   <div class="card" style="margin-bottom:14px;">
     <div class="card-head">
       <h3 class="card-title">Categorie Ticket IT</h3>

@@ -8,7 +8,7 @@ def add_nav_item(apps, schema_editor):
     NavigationItem.objects.get_or_create(
         code="tasks",
         defaults={
-            "label": "Task",
+            "label": "VRF - Kick Off",
             "section": "topbar",
             "order": 45,
             "route_name": "tasks:list",
@@ -16,7 +16,7 @@ def add_nav_item(apps, schema_editor):
             "is_visible": True,
             "is_enabled": True,
             "open_in_new_tab": False,
-            "description": "Task management",
+            "description": "VRF - Kick Off",
         },
     )
 

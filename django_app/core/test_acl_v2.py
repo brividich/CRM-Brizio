@@ -242,6 +242,60 @@ class ACLV2ResolverTests(TestCase):
         self.assertEqual(decision["decision_source"], "canonical")
         self.assertFalse(decision["canonical"]["role_grant"]["exists"])
 
+    def test_anomalie_menu_allows_operational_roles_even_without_container_grant(self):
+        PermissionDefinition.objects.create(
+            code="legacy.dashboard.dashboard_anomalie_menu",
+            label="Menu anomalie",
+            module="dashboard",
+            is_active=True,
+        )
+        RoutePermissionBinding.objects.create(
+            route_name="anomalie_menu",
+            path_pattern="",
+            match_strategy=RoutePermissionBinding.MATCH_EXACT,
+            permission_id="legacy.dashboard.dashboard_anomalie_menu",
+            source_app="dashboard",
+            is_active=True,
+        )
+        Permesso.objects.create(
+            modulo="anomalie",
+            azione="anomalie_aperte",
+            ruolo_id=6,
+            can_view=1,
+            consentito=1,
+        )
+        self._refresh_legacy_cache()
+
+        decision = resolve_acl_access(path="/anomalie-menu", legacy_user=self.legacy_user, django_user=self.user)
+
+        self.assertTrue(decision["allowed"])
+        self.assertEqual(decision["decision_source"], "compat_anomalie_menu")
+        self.assertTrue(decision["canonical"]["binding_found"])
+        self.assertIn("anomalie_aperte", decision["reason"])
+
+    def test_anomalie_menu_still_denies_when_no_operational_permission_exists(self):
+        PermissionDefinition.objects.create(
+            code="legacy.dashboard.dashboard_anomalie_menu",
+            label="Menu anomalie",
+            module="dashboard",
+            is_active=True,
+        )
+        RoutePermissionBinding.objects.create(
+            route_name="anomalie_menu",
+            path_pattern="",
+            match_strategy=RoutePermissionBinding.MATCH_EXACT,
+            permission_id="legacy.dashboard.dashboard_anomalie_menu",
+            source_app="dashboard",
+            is_active=True,
+        )
+        self._refresh_legacy_cache()
+
+        decision = resolve_acl_access(path="/anomalie-menu", legacy_user=self.legacy_user, django_user=self.user)
+
+        self.assertFalse(decision["allowed"])
+        self.assertEqual(decision["decision_source"], "canonical")
+        self.assertFalse(decision["canonical"]["role_grant"]["exists"])
+
     def test_user_override_canonical_has_precedence_over_role_grant(self):
         permission_code = self._create_canonical_binding(enabled=False)
         UserPermissionGrant.objects.create(

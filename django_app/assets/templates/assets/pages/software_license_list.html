@@ -1,0 +1,300 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Licenze software{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.sl-page { display:grid; gap:14px; }
+.sl-grid { display:grid; gap:14px; grid-template-columns:minmax(0, 1.2fr) minmax(320px, .8fr); align-items:start; }
+.sl-kpis { display:grid; gap:10px; grid-template-columns:repeat(5, minmax(0, 1fr)); }
+.sl-kpi, .sl-card {
+  border:1px solid #dbe1ea;
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 10px 24px rgba(15, 23, 42, .05);
+}
+.sl-kpi { padding:14px 16px; }
+.sl-kpi-label { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.08em; color:#64748b; font-weight:800; }
+.sl-kpi-value { margin-top:8px; font-size:var(--fs-display-lg); font-weight:800; color:#0f172a; }
+.sl-card-head {
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:flex-start;
+  padding:16px 18px;
+  border-bottom:1px solid #e5e7eb;
+  flex-wrap:wrap;
+}
+.sl-card-head h2 { margin:0; font-size:var(--fs-heading); color:#0f172a; }
+.sl-card-head p { margin:4px 0 0; color:#64748b; }
+.sl-card-body { padding:18px; }
+.sl-banner {
+  padding:14px 16px;
+  border:1px solid #d8e5f5;
+  border-radius:14px;
+  background:linear-gradient(135deg, #f7fbff 0%, #ffffff 100%);
+  color:#1e3a5f;
+}
+.sl-filters, .sl-form-grid { display:grid; gap:12px; grid-template-columns:repeat(4, minmax(0, 1fr)); align-items:end; }
+.sl-field { display:grid; gap:6px; }
+.sl-field--full { grid-column:1/-1; }
+.sl-field label { font-weight:700; color:#24364f; }
+.sl-field :is(input, select, textarea) {
+  width:100%;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  padding:10px 12px;
+  font:inherit;
+  background:#fff;
+}
+.sl-field textarea { min-height:100px; resize:vertical; }
+.sl-actions { display:flex; gap:8px; flex-wrap:wrap; grid-column:1/-1; }
+.sl-table-wrap { overflow:auto; }
+.sl-table { width:100%; border-collapse:collapse; }
+.sl-table th {
+  text-align:left;
+  padding:10px 8px;
+  border-bottom:1px solid #e5e7eb;
+  color:#64748b;
+  font-size:var(--fs-sm);
+  text-transform:uppercase;
+}
+.sl-table td {
+  padding:12px 8px;
+  border-bottom:1px solid #f1f5f9;
+  color:#0f172a;
+  vertical-align:top;
+}
+.sl-meta { color:#64748b; font-size:var(--fs-sm); line-height:1.5; }
+.sl-row-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.sl-empty { color:#64748b; }
+@media (max-width: 1220px) {
+  .sl-grid { grid-template-columns:1fr; }
+  .sl-kpis { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 820px) {
+  .sl-kpis,
+  .sl-filters,
+  .sl-form-grid { grid-template-columns:1fr; }
+}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Licenze software{% endblock %}
+{% block assets_shell_subtitle %}
+<p>Archivio licenze software assegnabili a asset o dipendenti anagrafica.</p>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="sl-page">
+  {% if selected_asset %}
+    <div class="sl-banner">
+      Vista filtrata su <strong>{{ selected_asset.asset_tag }}</strong> - {{ selected_asset.name }}.
+      {% if selected_asset.asset_category %}Categoria {{ selected_asset.asset_category.label }}.{% endif %}
+    </div>
+  {% endif %}
+  {% if selected_employee %}
+    <div class="sl-banner">
+      Vista filtrata su <strong>{{ selected_employee.display_name }}</strong>
+      {% if selected_employee.reparto %} ({{ selected_employee.reparto }}){% endif %}.
+    </div>
+  {% endif %}
+
+  <section class="sl-kpis">
+    <article class="sl-kpi"><div class="sl-kpi-label">Licenze visibili</div><div class="sl-kpi-value">{{ license_total }}</div></article>
+    <article class="sl-kpi"><div class="sl-kpi-label">Attive</div><div class="sl-kpi-value">{{ active_count }}</div></article>
+    <article class="sl-kpi"><div class="sl-kpi-label">In scadenza</div><div class="sl-kpi-value">{{ expiring_count }}</div></article>
+    <article class="sl-kpi"><div class="sl-kpi-label">Scadute</div><div class="sl-kpi-value">{{ expired_count }}</div></article>
+    <article class="sl-kpi"><div class="sl-kpi-label">Da assegnare</div><div class="sl-kpi-value">{{ unassigned_count }}</div></article>
+  </section>
+
+  <article class="sl-card">
+    <div class="sl-card-head">
+      <div>
+        <h2>Filtri</h2>
+        <p>Filtra per categoria, stato, assegnazione o ricerca libera.</p>
+      </div>
+    </div>
+    <div class="sl-card-body">
+      <form method="get" class="sl-filters">
+        {% if selected_asset %}<input type="hidden" name="asset" value="{{ selected_asset.id }}">{% endif %}
+        {% if selected_anagrafica_id %}<input type="hidden" name="anagrafica" value="{{ selected_anagrafica_id }}">{% endif %}
+        <div class="sl-field">
+          <label for="id_category">Categoria</label>
+          <select id="id_category" name="category">
+            {% for code, label in category_choices %}
+              <option value="{{ code }}" {% if category_filter == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="sl-field">
+          <label for="id_status">Stato</label>
+          <select id="id_status" name="status">
+            {% for code, label in status_choices %}
+              <option value="{{ code }}" {% if status_filter == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="sl-field">
+          <label for="id_assignee">Assegnazione</label>
+          <select id="id_assignee" name="assignee">
+            {% for code, label in assignee_choices %}
+              <option value="{{ code }}" {% if assignee_filter == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="sl-field">
+          <label for="id_q">Ricerca</label>
+          <input id="id_q" type="text" name="q" value="{{ q }}" placeholder="Prodotto, vendor, codice">
+        </div>
+        <div class="sl-actions">
+          <button type="submit" class="btn btn-primary">Applica</button>
+          <a class="btn" href="{{ clear_filters_url }}">Reset</a>
+        </div>
+      </form>
+    </div>
+  </article>
+
+  <section class="sl-grid">
+    <article class="sl-card">
+      <div class="sl-card-head">
+        <div>
+          <h2>Elenco licenze</h2>
+          <p>Stato, assegnazione e scadenze restano visibili a colpo d'occhio.</p>
+        </div>
+      </div>
+      <div class="sl-card-body">
+        {% if license_rows %}
+          <div class="sl-table-wrap">
+            <table class="sl-table">
+              <thead>
+                <tr>
+                  <th>Licenza</th>
+                  <th>Categoria</th>
+                  <th>Assegnazione</th>
+                  <th>Scadenza</th>
+                  <th>Azioni</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in license_rows %}
+                  <tr>
+                    <td>
+                      <strong>{{ row.license.product_name }}</strong>
+                      {% if row.license.edition %}<br><span class="sl-meta">{{ row.license.edition }}</span>{% endif %}
+                      {% if row.license.vendor %}<br><span class="sl-meta">{{ row.license.vendor }}</span>{% endif %}
+                      {% if row.license.license_reference %}<br><span class="sl-meta">{{ row.license.license_reference }}</span>{% endif %}
+                    </td>
+                    <td>
+                      {{ row.license.get_category_display }}
+                      <br><span class="as-badge as-badge--{{ row.state.badge_class }}">{{ row.state.label }}</span>
+                    </td>
+                    <td>
+                      {% if row.license.asset %}
+                        <a href="{{ row.asset_url }}">{{ row.license.asset.asset_tag }}</a>
+                      {% elif row.license.assigned_to_display %}
+                        {% if row.employee_url %}
+                          <a href="{{ row.employee_url }}">{{ row.license.assigned_to_display }}</a>
+                        {% else %}
+                          {{ row.license.assigned_to_display }}
+                        {% endif %}
+                      {% else %}
+                        <span class="sl-meta">Da assegnare</span>
+                      {% endif %}
+                      {% if row.license.assigned_reparto %}
+                        <div class="sl-meta">{{ row.license.assigned_reparto }}</div>
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if row.license.expiry_date %}
+                        <strong>{{ row.license.expiry_date|date:"d/m/Y" }}</strong><br>
+                        <span class="sl-meta">{{ row.state.days_label }}</span>
+                      {% else %}
+                        <span class="sl-meta">Non impostata</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <div class="sl-row-actions">
+                        {% if can_manage_licenses %}
+                          <a class="btn" href="{{ row.edit_url }}">Modifica</a>
+                          <form method="post">
+                            {% csrf_token %}
+                            {% if selected_asset %}<input type="hidden" name="asset_id" value="{{ selected_asset.id }}">{% endif %}
+                            {% if selected_anagrafica_id %}<input type="hidden" name="anagrafica_id" value="{{ selected_anagrafica_id }}">{% endif %}
+                            <input type="hidden" name="action" value="delete_software_license">
+                            <input type="hidden" name="license_id" value="{{ row.license.id }}">
+                            <button type="submit" class="btn" onclick="return confirm('Eliminare questa licenza software?');">Elimina</button>
+                          </form>
+                        {% else %}
+                          <a class="btn" href="{{ row.edit_url }}">Dettaglio</a>
+                        {% endif %}
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="sl-empty">Nessuna licenza trovata con i filtri correnti.</p>
+        {% endif %}
+      </div>
+    </article>
+
+    {% if can_manage_licenses %}
+      <article class="sl-card">
+        <div class="sl-card-head">
+          <div>
+            <h2>{% if is_edit %}Modifica licenza{% else %}Nuova licenza{% endif %}</h2>
+            <p>Compila i dati essenziali e scegli se assegnare ad asset o dipendente.</p>
+          </div>
+        </div>
+        <div class="sl-card-body">
+          {% if selected_asset and not is_edit %}
+            <div class="sl-banner" style="margin-bottom:14px;">
+              Stai creando una licenza per questo asset: <strong>{{ selected_asset.asset_tag }}</strong> - {{ selected_asset.name }}.
+            </div>
+          {% endif %}
+          {% if selected_employee and not is_edit %}
+            <div class="sl-banner" style="margin-bottom:14px;">
+              Stai creando una licenza per <strong>{{ selected_employee.display_name }}</strong>.
+            </div>
+          {% endif %}
+          <form method="post" style="display:grid;gap:12px;">
+            {% csrf_token %}
+            {% if selected_asset %}<input type="hidden" name="asset_id" value="{{ selected_asset.id }}">{% endif %}
+            {% if selected_anagrafica_id %}<input type="hidden" name="anagrafica_id" value="{{ selected_anagrafica_id }}">{% endif %}
+            {% if is_edit and edit_license %}<input type="hidden" name="edit_id" value="{{ edit_license.id }}">{% endif %}
+            <input type="hidden" name="action" value="{% if is_edit %}update_software_license{% else %}create_software_license{% endif %}">
+
+            {% if form.non_field_errors %}
+              <div class="sl-banner">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <div class="sl-form-grid">
+              {% for field in form %}
+                {% if field.is_hidden %}
+                  {{ field }}
+                {% else %}
+                  <div class="sl-field {% if field.name == 'notes' %}sl-field--full{% endif %}">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.help_text %}<div class="sl-meta">{{ field.help_text }}</div>{% endif %}
+                    {% if field.errors %}<div class="as-error">{{ field.errors }}</div>{% endif %}
+                  </div>
+                {% endif %}
+              {% endfor %}
+              <div class="sl-actions">
+                {% if is_edit %}
+                  <a class="btn" href="{{ clear_filters_url }}">Annulla modifica</a>
+                {% endif %}
+                <button type="submit" class="btn btn-primary">{% if is_edit %}Salva licenza{% else %}Crea licenza{% endif %}</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </article>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}

@@ -4,63 +4,57 @@
 
 {% block subnav %}{% include "rentri/components/subnav.html" %}{% endblock %}
 
+{% block extra_head %}
+  {% include "core/components/module_settings_styles.html" %}
+{% endblock %}
+
 {% block content %}
-{% include "admin_portale/components/flash_messages.html" %}
+  {% include "admin_portale/components/flash_messages.html" %}
 
-<div class="card" style="margin-bottom:16px;">
-  <div class="card-head">
-    <div class="card-title">⚙️ Impostazioni RENTRI</div>
+  <div class="ms-page">
+    {% include "core/components/module_settings_hero.html" with settings_title="Impostazioni "|add:module_branding_display_label settings_subtitle="Raccogli i riferimenti dell'ente, i referenti operativi e il branding del modulo in una vista coerente con le altre aree amministrative." %}
+
+    <div class="ms-grid-2">
+      <section class="ms-card">
+        <div class="ms-card-head">
+          <div class="ms-card-title-wrap">
+            <h2 class="ms-card-title">Dati ente e referenti</h2>
+            <p class="ms-card-subtitle">Queste informazioni vengono usate come base operativa per il modulo RENTRI e possono includere piu persone di riferimento.</p>
+          </div>
+        </div>
+        <div class="ms-card-body">
+          <form method="post" class="ms-field-grid">
+            {% csrf_token %}
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
+              <div class="ms-field">
+                <label for="codice_iscrizione_rentri">Codice iscrizione RENTRI</label>
+                <input id="codice_iscrizione_rentri" type="text" name="codice_iscrizione_rentri" value="{{ cfg.codice_iscrizione_rentri }}" placeholder="es. IT-XXXXXXXX">
+                <span class="ms-field-help">Codice rilasciato dal sistema RENTRI all'iscrizione.</span>
+              </div>
+              <div class="ms-field">
+                <label for="ragione_sociale">Ragione sociale</label>
+                <input id="ragione_sociale" type="text" name="ragione_sociale" value="{{ cfg.ragione_sociale }}" placeholder="es. Costruzioni Novicrom S.r.l.">
+              </div>
+            </div>
+            <div class="ms-field">
+              <label for="responsabili_raw">Referenti operativi</label>
+              <textarea id="responsabili_raw" name="responsabili_raw" rows="4" placeholder="Mario Rossi | mario.rossi@azienda.it&#10;Lucia Bianchi | lucia.bianchi@azienda.it">{{ responsabili_raw }}</textarea>
+              <span class="ms-field-help">Una persona per riga. Formati accettati: <code>Nome | email</code>, <code>Nome &lt;email&gt;</code> oppure solo nome/email.</span>
+            </div>
+            <div class="ms-field">
+              <label for="note_generali">Note operative</label>
+              <textarea id="note_generali" name="note_generali" rows="4" placeholder="Note interne, istruzioni operative, riferimenti normativi...">{{ cfg.note_generali }}</textarea>
+            </div>
+            <div class="ms-form-actions">
+              <a href="{% url 'rentri_menu' %}" class="btn btn-secondary">Torna al menu</a>
+              <a href="{% url 'rentri_elenco' %}" class="btn btn-secondary">Apri registro</a>
+              <button type="submit" class="btn btn-primary">Salva impostazioni</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      {% include "core/components/module_branding_card.html" %}
+    </div>
   </div>
-  <div class="card-body">
-    <form method="post">
-      {% csrf_token %}
-
-      <div style="display:grid;gap:14px;">
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <div class="form-group">
-            <label class="form-label">Codice iscrizione RENTRI</label>
-            <input type="text" name="codice_iscrizione_rentri" class="input"
-                   value="{{ cfg.codice_iscrizione_rentri }}"
-                   placeholder="es. IT-XXXXXXXX">
-            <small class="text-muted">Codice rilasciato dal sistema RENTRI all'iscrizione.</small>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Ragione sociale</label>
-            <input type="text" name="ragione_sociale" class="input"
-                   value="{{ cfg.ragione_sociale }}"
-                   placeholder="es. Costruzioni Novicrom S.r.l.">
-          </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <div class="form-group">
-            <label class="form-label">Responsabile</label>
-            <input type="text" name="responsabile_nome" class="input"
-                   value="{{ cfg.responsabile_nome }}"
-                   placeholder="Nome e cognome">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Email responsabile</label>
-            <input type="email" name="responsabile_email" class="input"
-                   value="{{ cfg.responsabile_email }}"
-                   placeholder="es. responsabile@azienda.it">
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Note operative</label>
-          <textarea name="note_generali" class="input" rows="4"
-                    placeholder="Note interne, istruzioni operative, riferimenti normativi...">{{ cfg.note_generali }}</textarea>
-        </div>
-
-        <div style="display:flex;justify-content:flex-end;gap:10px;">
-          <a href="{% url 'rentri_menu' %}" class="btn btn-secondary">Annulla</a>
-          <button type="submit" class="btn btn-primary">Salva impostazioni</button>
-        </div>
-
-      </div>
-    </form>
-  </div>
-</div>
 {% endblock %}

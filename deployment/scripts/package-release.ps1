@@ -35,6 +35,169 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 . "$PSScriptRoot\_lib.ps1"
 
+function Test-IsExcludedByWizardBundleRules {
+    param(
+        [string]$BaseDir,
+        [System.IO.FileInfo]$File,
+        [string[]]$ExcludeDirNames,
+        [string[]]$ExcludeFilePatterns
+    )
+
+    $normalizedBaseDir = [System.IO.Path]::GetFullPath($BaseDir).TrimEnd('\', '/')
+    $normalizedFilePath = [System.IO.Path]::GetFullPath($File.FullName)
+    if ($normalizedFilePath.StartsWith($normalizedBaseDir, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $relativePath = $normalizedFilePath.Substring($normalizedBaseDir.Length).TrimStart('\', '/')
+    } else {
+        $relativePath = $File.Name
+    }
+    $pathSegments = $relativePath -split '[\\/]'
+
+    if ($pathSegments.Count -gt 1) {
+        $lastDirectoryIndex = $pathSegments.Count - 2
+        foreach ($segment in $pathSegments[0..$lastDirectoryIndex]) {
+            if ($ExcludeDirNames -contains $segment) {
+                return $true
+            }
+        }
+    }
+
+    foreach ($pattern in $ExcludeFilePatterns) {
+        if ($File.Name -like $pattern) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Resolve-SetupWizardBuildPython {
+    param([string]$RootPath)
+
+    foreach ($candidate in @(
+        (Join-Path $RootPath ".venv\Scripts\python.exe"),
+        (Join-Path $RootPath "venv\Scripts\python.exe")
+    )) {
+        if (Test-Path -LiteralPath $candidate) {
+            return $candidate
+        }
+    }
+
+    if (Get-Command python -ErrorAction SilentlyContinue) {
+        return "python"
+    }
+
+    return $null
+}
+
+function Get-SetupWizardNewestTrigger {
+    param([string]$RootPath)
+
+    $bundleRulesPath = Join-Path $RootPath "deployment\setup_wizard_bundle_rules.json"
+    if (-not (Test-Path -LiteralPath $bundleRulesPath)) {
+        throw "setup_wizard_bundle_rules.json non trovato: $bundleRulesPath"
+    }
+
+    $bundleRules = Get-Content -LiteralPath $bundleRulesPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $excludeDirNames = @($bundleRules.exclude_dir_names | ForEach-Object { [string]$_ })
+    $excludeFilePatterns = @($bundleRules.exclude_file_patterns | ForEach-Object { [string]$_ })
+
+    $triggerFiles = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
+    foreach ($path in @(
+        (Join-Path $RootPath "VERSION"),
+        (Join-Path $RootPath "deployment\setup_wizard.py"),
+        (Join-Path $RootPath "deployment\SetupWizard.spec"),
+        $bundleRulesPath
+    )) {
+        if (Test-Path -LiteralPath $path) {
+            $triggerFiles.Add((Get-Item -LiteralPath $path))
+        }
+    }
+
+    foreach ($directory in @(
+        (Join-Path $RootPath "deployment\scripts"),
+        (Join-Path $RootPath "deployment\config")
+    )) {
+        if (Test-Path -LiteralPath $directory) {
+            foreach ($file in (Get-ChildItem -LiteralPath $directory -File -Recurse)) {
+                $triggerFiles.Add($file)
+            }
+        }
+    }
+
+    $djangoAppDir = Join-Path $RootPath "django_app"
+    if (Test-Path -LiteralPath $djangoAppDir) {
+        $djangoFiles = Get-ChildItem -LiteralPath $djangoAppDir -File -Recurse | Where-Object {
+            -not (Test-IsExcludedByWizardBundleRules -BaseDir $djangoAppDir -File $_ -ExcludeDirNames $excludeDirNames -ExcludeFilePatterns $excludeFilePatterns)
+        }
+        foreach ($file in $djangoFiles) {
+            $triggerFiles.Add($file)
+        }
+    }
+
+    if ($triggerFiles.Count -eq 0) {
+        throw "Nessun trigger valido trovato per SetupWizard.exe"
+    }
+
+    return $triggerFiles | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+}
+
+function Invoke-SetupWizardRebuildIfNeeded {
+    param([string]$RootPath)
+
+    $wizardExePath = Join-Path $RootPath "deployment\dist\SetupWizard.exe"
+    $newestTrigger = Get-SetupWizardNewestTrigger -RootPath $RootPath
+    $wizardFreshnessGrace = [TimeSpan]::FromMinutes(2)
+    $shouldBuild = $false
+
+    if (-not (Test-Path -LiteralPath $wizardExePath)) {
+        Write-Log "SetupWizard.exe mancante: avvio build automatica." "WARN"
+        $shouldBuild = $true
+    } else {
+        $wizardExeInfo = Get-Item -LiteralPath $wizardExePath
+        $wizardStaleness = $newestTrigger.LastWriteTimeUtc - $wizardExeInfo.LastWriteTimeUtc
+        if ($wizardStaleness -gt $wizardFreshnessGrace) {
+            Write-Log (
+                "SetupWizard.exe obsoleto rispetto a $($newestTrigger.FullName) " +
+                "(exe=$($wizardExeInfo.LastWriteTimeUtc.ToString('u')), trigger=$($newestTrigger.LastWriteTimeUtc.ToString('u')))."
+            ) "WARN"
+            $shouldBuild = $true
+        } else {
+            Write-Log "SetupWizard.exe gia allineato ai trigger del bundle." "INFO"
+        }
+    }
+
+    if (-not $shouldBuild) {
+        return
+    }
+
+    $pythonExe = Resolve-SetupWizardBuildPython -RootPath $RootPath
+    if (-not $pythonExe) {
+        Write-Log "Python non trovato: impossibile rigenerare SetupWizard.exe." "ERROR"
+        exit 1
+    }
+
+    $deploymentDir = Join-Path $RootPath "deployment"
+    Write-Log "Rigenerazione automatica di SetupWizard.exe..." "STEP"
+    Push-Location $deploymentDir
+    try {
+        & $pythonExe -m PyInstaller SetupWizard.spec --noconfirm
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log "Build di SetupWizard.exe fallita con exit code $LASTEXITCODE." "ERROR"
+            exit 1
+        }
+    } finally {
+        Pop-Location
+    }
+
+    if (-not (Test-Path -LiteralPath $wizardExePath)) {
+        Write-Log "Build completata ma SetupWizard.exe non e stato generato." "ERROR"
+        exit 1
+    }
+
+    $rebuiltWizard = Get-Item -LiteralPath $wizardExePath
+    Write-Log "SetupWizard.exe rigenerato: $($rebuiltWizard.LastWriteTimeUtc.ToString('u'))" "SUCCESS"
+}
+
 # ---------------------------------------------------------------------------
 # Risolvi SourcePath (root del repository)
 # ---------------------------------------------------------------------------
@@ -45,6 +208,13 @@ if (-not $SourcePath) {
         Write-Log "Impossibile determinare la root del progetto. Specifica -SourcePath." "ERROR"
         exit 1
     }
+} else {
+    $resolvedSourcePath = Resolve-Path $SourcePath -ErrorAction SilentlyContinue
+    if (-not $resolvedSourcePath) {
+        Write-Log "SourcePath non valido: $SourcePath" "ERROR"
+        exit 1
+    }
+    $SourcePath = $resolvedSourcePath.Path
 }
 Write-Log "Source path: $SourcePath" "INFO"
 
@@ -102,6 +272,11 @@ if (-not $version) {
     Write-Log "Versione non rilevata automaticamente: uso fallback 'unknown'." "WARN"
 }
 Write-Log "Versione: $version" "INFO"
+
+# ---------------------------------------------------------------------------
+# SetupWizard.exe - rebuild automatico se mancante/obsoleto
+# ---------------------------------------------------------------------------
+Invoke-SetupWizardRebuildIfNeeded -RootPath $SourcePath
 
 # ---------------------------------------------------------------------------
 # Release guard (documentazione, versioni, wizard, smoke ACL)

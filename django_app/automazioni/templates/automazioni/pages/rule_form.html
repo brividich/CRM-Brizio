@@ -139,6 +139,23 @@
                 <div class="auto-field auto-wide">{{ form.description.label_tag }}{{ form.description }}{% if form.description.errors %}<ul class="auto-errors">{% for error in form.description.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
               </div>
 
+              <div class="auto-config-group">
+                <div class="auto-inline-title">Branch leggero / run_if</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field">{{ form.run_if_field_name.label_tag }}{{ form.run_if_field_name }}{% if form.run_if_field_name.errors %}<ul class="auto-errors">{% for error in form.run_if_field_name.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field">{{ form.run_if_operator.label_tag }}{{ form.run_if_operator }}{% if form.run_if_operator.errors %}<ul class="auto-errors">{% for error in form.run_if_operator.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field">{{ form.run_if_value_type.label_tag }}{{ form.run_if_value_type }}{% if form.run_if_value_type.errors %}<ul class="auto-errors">{% for error in form.run_if_value_type.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field">{{ form.run_if_compare_with_old.label_tag }}{{ form.run_if_compare_with_old }}{% if form.run_if_compare_with_old.errors %}<ul class="auto-errors">{% for error in form.run_if_compare_with_old.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field">{{ form.run_if_negate.label_tag }}{{ form.run_if_negate }}{% if form.run_if_negate.errors %}<ul class="auto-errors">{% for error in form.run_if_negate.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field auto-wide">
+                    {{ form.run_if_expected_value.label_tag }}
+                    {{ form.run_if_expected_value }}
+                    {% if form.run_if_expected_value.help_text %}<div class="auto-help">{{ form.run_if_expected_value.help_text }}</div>{% endif %}
+                    {% if form.run_if_expected_value.errors %}<ul class="auto-errors">{% for error in form.run_if_expected_value.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                  </div>
+                </div>
+              </div>
+
               <div class="auto-config-group" data-action-config="send_email">
                 <div class="auto-inline-title">Configurazione send_email</div>
                 <div class="auto-form-grid">
@@ -203,6 +220,67 @@
                   </div>
                 </div>
               </div>
+
+              <div class="auto-config-group" data-action-config="update_trigger_record">
+                <div class="auto-inline-title">Configurazione update_trigger_record</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field auto-wide">
+                    {{ form.trigger_update_fields_text.label_tag }}
+                    {{ form.trigger_update_fields_text }}
+                    {% if form.trigger_update_fields_text.help_text %}<div class="auto-help">{{ form.trigger_update_fields_text.help_text }}</div>{% endif %}
+                    {% if form.trigger_update_fields_text.errors %}<ul class="auto-errors">{% for error in form.trigger_update_fields_text.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                  </div>
+                </div>
+              </div>
+
+              <div class="auto-config-group" data-action-config="delay_schedule">
+                <div class="auto-inline-title">Configurazione delay_schedule</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field">{{ form.delay_mode.label_tag }}{{ form.delay_mode }}{% if form.delay_mode.errors %}<ul class="auto-errors">{% for error in form.delay_mode.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field">{{ form.delay_value_template.label_tag }}{{ form.delay_value_template }}{% if form.delay_value_template.errors %}<ul class="auto-errors">{% for error in form.delay_value_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field">{{ form.delay_unit.label_tag }}{{ form.delay_unit }}{% if form.delay_unit.errors %}<ul class="auto-errors">{% for error in form.delay_unit.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field auto-wide">
+                    {{ form.delay_until_template.label_tag }}
+                    {{ form.delay_until_template }}
+                    {% if form.delay_until_template.help_text %}<div class="auto-help">{{ form.delay_until_template.help_text }}</div>{% endif %}
+                    {% if form.delay_until_template.errors %}<ul class="auto-errors">{% for error in form.delay_until_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                  </div>
+                </div>
+              </div>
+
+              <div class="auto-config-group" data-action-config="http_request">
+                <div class="auto-inline-title">Configurazione http_request</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field">{{ form.http_method.label_tag }}{{ form.http_method }}{% if form.http_method.errors %}<ul class="auto-errors">{% for error in form.http_method.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field auto-wide">{{ form.http_url_template.label_tag }}{{ form.http_url_template }}{% if form.http_url_template.errors %}<ul class="auto-errors">{% for error in form.http_url_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field">{{ form.http_timeout_seconds.label_tag }}{{ form.http_timeout_seconds }}{% if form.http_timeout_seconds.errors %}<ul class="auto-errors">{% for error in form.http_timeout_seconds.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field">{{ form.http_expected_status_csv.label_tag }}{{ form.http_expected_status_csv }}{% if form.http_expected_status_csv.help_text %}<div class="auto-help">{{ form.http_expected_status_csv.help_text }}</div>{% endif %}{% if form.http_expected_status_csv.errors %}<ul class="auto-errors">{% for error in form.http_expected_status_csv.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field auto-wide">
+                    {{ form.http_headers_text.label_tag }}
+                    {{ form.http_headers_text }}
+                    {% if form.http_headers_text.help_text %}<div class="auto-help">{{ form.http_headers_text.help_text }}</div>{% endif %}
+                    {% if form.http_headers_text.errors %}<ul class="auto-errors">{% for error in form.http_headers_text.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                  </div>
+                  <div class="auto-field auto-wide">{{ form.http_body_template.label_tag }}{{ form.http_body_template }}{% if form.http_body_template.errors %}<ul class="auto-errors">{% for error in form.http_body_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                </div>
+              </div>
+
+              <div class="auto-config-group" data-action-config="teams_webhook">
+                <div class="auto-inline-title">Configurazione teams_webhook</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field auto-wide">{{ form.teams_webhook_url.label_tag }}{{ form.teams_webhook_url }}{% if form.teams_webhook_url.errors %}<ul class="auto-errors">{% for error in form.teams_webhook_url.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field">{{ form.teams_title_template.label_tag }}{{ form.teams_title_template }}{% if form.teams_title_template.errors %}<ul class="auto-errors">{% for error in form.teams_title_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field">{{ form.teams_summary_template.label_tag }}{{ form.teams_summary_template }}{% if form.teams_summary_template.errors %}<ul class="auto-errors">{% for error in form.teams_summary_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field">{{ form.teams_theme_color.label_tag }}{{ form.teams_theme_color }}{% if form.teams_theme_color.errors %}<ul class="auto-errors">{% for error in form.teams_theme_color.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field auto-wide">{{ form.teams_text_template.label_tag }}{{ form.teams_text_template }}{% if form.teams_text_template.errors %}<ul class="auto-errors">{% for error in form.teams_text_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field auto-wide">
+                    {{ form.teams_facts_text.label_tag }}
+                    {{ form.teams_facts_text }}
+                    {% if form.teams_facts_text.help_text %}<div class="auto-help">{{ form.teams_facts_text.help_text }}</div>{% endif %}
+                    {% if form.teams_facts_text.errors %}<ul class="auto-errors">{% for error in form.teams_facts_text.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                  </div>
+                </div>
+              </div>
             </div>
           {% endfor %}
         </div>
@@ -219,14 +297,55 @@
 {% endblock %}
 
 {% block extra_scripts %}
+{{ source_fields_json|json_script:"form-source-fields" }}
 <script>
 (function() {
+  function parseJsonScript(scriptId) {
+    var node = document.getElementById(scriptId);
+    if (!node) return {};
+    try {
+      var parsed = JSON.parse(node.textContent);
+      if (typeof parsed === 'string') {
+        parsed = JSON.parse(parsed);
+      }
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  var sourceFieldsMap = parseJsonScript('form-source-fields');
+
+  function rebuildSelectOptions(selectEl, options, currentValue) {
+    if (!selectEl) return;
+    selectEl.innerHTML = '<option value="">---------</option>';
+    options.forEach(function(f) {
+      var opt = document.createElement('option');
+      opt.value = f.name;
+      opt.textContent = f.label;
+      if (f.name === currentValue) opt.selected = true;
+      selectEl.appendChild(opt);
+    });
+  }
+
   function syncSourceCatalog() {
     var select = document.getElementById('id_source_code');
     if (!select) return;
     var value = select.value;
     document.querySelectorAll('[data-source-catalog]').forEach(function(panel) {
       panel.hidden = panel.getAttribute('data-source-catalog') !== value;
+    });
+
+    var sourceData = sourceFieldsMap[value];
+    if (!sourceData) return;
+
+    var watchedSelect = document.getElementById('id_watched_field');
+    if (watchedSelect) {
+      rebuildSelectOptions(watchedSelect, sourceData.trigger, watchedSelect.value);
+    }
+
+    document.querySelectorAll('select[name$="-field_name"]').forEach(function(condSelect) {
+      rebuildSelectOptions(condSelect, sourceData.condition, condSelect.value);
     });
   }
 

@@ -30,6 +30,7 @@ from .models import (
     PlantLayout,
     PlantLayoutArea,
     PlantLayoutMarker,
+    SoftwareLicense,
     WorkMachine,
     WorkOrder,
 )
@@ -231,7 +232,7 @@ class AssetForm(AssetCategoryFieldMixin, forms.ModelForm):
     periodic_verification_ids = forms.ModelMultipleChoiceField(
         required=False,
         queryset=PeriodicVerification.objects.none(),
-        label="Verifiche periodiche",
+        label="Manutenzione periodica",
         widget=forms.SelectMultiple(attrs={"size": 6}),
     )
 
@@ -391,7 +392,7 @@ class AssetForm(AssetCategoryFieldMixin, forms.ModelForm):
         )
         self._setup_category_fields(work_machine_only=False)
         self.fields["periodic_verification_ids"].queryset = PeriodicVerification.objects.order_by("name", "id")
-        self.fields["periodic_verification_ids"].help_text = "Ogni asset puo appartenere a piu verifiche periodiche."
+        self.fields["periodic_verification_ids"].help_text = "Ogni asset puo appartenere a piu piani di manutenzione periodica."
         if self.instance and self.instance.pk:
             self.initial["periodic_verification_ids"] = list(
                 self.instance.periodic_verifications.order_by("name", "id").values_list("id", flat=True)
@@ -1062,7 +1063,7 @@ class WorkMachineAssetForm(AssetCategoryFieldMixin, forms.ModelForm):
     periodic_verification_ids = forms.ModelMultipleChoiceField(
         required=False,
         queryset=PeriodicVerification.objects.none(),
-        label="Verifiche periodiche",
+        label="Manutenzione periodica",
         widget=forms.SelectMultiple(attrs={"size": 6}),
     )
 
@@ -1263,7 +1264,7 @@ class WorkMachineAssetForm(AssetCategoryFieldMixin, forms.ModelForm):
         self.fields["sharepoint_folder_url"].help_text = "Link completo alla cartella macchina su SharePoint."
         self.fields["sharepoint_folder_path"].help_text = "Percorso relativo per sync file, es. Macchine/CN5/ML-000001."
         self.fields["periodic_verification_ids"].queryset = PeriodicVerification.objects.order_by("name", "id")
-        self.fields["periodic_verification_ids"].help_text = "Collega la macchina a una o piu verifiche periodiche."
+        self.fields["periodic_verification_ids"].help_text = "Collega la macchina a uno o piu piani di manutenzione periodica."
         if self.instance and self.instance.pk:
             self.initial["periodic_verification_ids"] = list(
                 self.instance.periodic_verifications.order_by("name", "id").values_list("id", flat=True)
@@ -1351,12 +1352,12 @@ class PeriodicVerificationForm(forms.ModelForm):
             "notes",
         ]
         labels = {
-            "name": "Nome verifica",
-            "supplier": "Azienda fornitore",
+            "name": "Nome piano",
+            "supplier": "Fornitore manutenzione",
             "frequency_months": "Cadenza (mesi)",
             "last_verification_date": "Ultima verifica",
             "next_verification_date": "Prossima verifica",
-            "is_active": "Verifica attiva",
+            "is_active": "Piano attivo",
             "notes": "Note",
         }
         widgets = {
@@ -1372,7 +1373,7 @@ class PeriodicVerificationForm(forms.ModelForm):
         self.actor = actor
         self.fields["asset_ids"].queryset = Asset.objects.order_by("reparto", "name", "asset_tag")
         self.fields["frequency_months"].help_text = "Esempi: 1, 2, 3, 6, 12."
-        self.fields["asset_ids"].help_text = "Puoi collegare piu asset alla stessa verifica."
+        self.fields["asset_ids"].help_text = "Puoi collegare piu asset allo stesso piano di manutenzione periodica."
         self.fields["asset_ids"].widget.attrs["data-pv-asset-select"] = "1"
         if self.instance and self.instance.pk:
             self.initial["asset_ids"] = list(self.instance.assets.order_by("reparto", "name", "asset_tag").values_list("id", flat=True))
@@ -1532,6 +1533,215 @@ class AssistanceContractForm(forms.ModelForm):
         if document is not None and supplier is not None and document.fornitore_id != supplier.id:
             self.add_error("document", "Il documento selezionato appartiene a un fornitore diverso.")
         return cleaned_data
+
+
+class SoftwareLicenseForm(forms.ModelForm):
+    assigned_employee_id = forms.ChoiceField(required=False, label="Dipendente anagrafica")
+
+    class Meta:
+        model = SoftwareLicense
+        fields = [
+            "category",
+            "vendor",
+            "product_name",
+            "edition",
+            "license_reference",
+            "account_email",
+            "asset",
+            "seats_total",
+            "seats_used",
+            "purchase_date",
+            "renewal_date",
+            "expiry_date",
+            "auto_renew",
+            "is_active",
+            "notes",
+        ]
+        labels = {
+            "category": "Categoria",
+            "vendor": "Vendor / fornitore",
+            "product_name": "Prodotto",
+            "edition": "Edizione / piano",
+            "license_reference": "Codice licenza",
+            "account_email": "Account / tenant",
+            "asset": "Asset",
+            "seats_total": "Posti acquistati",
+            "seats_used": "Posti utilizzati",
+            "purchase_date": "Data acquisto",
+            "renewal_date": "Data rinnovo",
+            "expiry_date": "Data scadenza",
+            "auto_renew": "Rinnovo automatico",
+            "is_active": "Licenza attiva",
+            "notes": "Note",
+        }
+        widgets = {
+            "purchase_date": forms.DateInput(attrs={"type": "date"}),
+            "renewal_date": forms.DateInput(attrs={"type": "date"}),
+            "expiry_date": forms.DateInput(attrs={"type": "date"}),
+            "notes": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        locked_asset = kwargs.pop("locked_asset", None)
+        locked_employee_id = str(kwargs.pop("locked_employee_id", "") or "").strip()
+        employee_choices = list(kwargs.pop("employee_choices", []) or [])
+        employee_details = dict(kwargs.pop("employee_details", {}) or {})
+        super().__init__(*args, **kwargs)
+
+        if self.instance and self.instance.pk and locked_asset is None:
+            locked_asset = self.instance.asset
+        current_employee_id = str(getattr(self.instance, "assigned_anagrafica_id", "") or "").strip()
+        if not current_employee_id and getattr(self.instance, "assigned_legacy_user_id", None):
+            for choice_id, payload in employee_details.items():
+                if str(payload.get("legacy_user_id") or "").strip() == str(self.instance.assigned_legacy_user_id):
+                    current_employee_id = str(choice_id)
+                    break
+
+        self.locked_asset = locked_asset
+        self.locked_employee_id = locked_employee_id
+        self.employee_details = employee_details
+
+        selected_employee_id = ""
+        if self.is_bound:
+            selected_employee_id = (
+                self.data.get(self.add_prefix("assigned_employee_id"))
+                or self.data.get("assigned_employee_id")
+                or ""
+            ).strip()
+        elif locked_employee_id:
+            selected_employee_id = locked_employee_id
+        else:
+            selected_employee_id = current_employee_id
+
+        self.fields["asset"].required = False
+        self.fields["asset"].queryset = Asset.objects.order_by("name", "asset_tag", "id")
+        if self.locked_asset is not None:
+            self.fields["asset"].queryset = Asset.objects.filter(pk=self.locked_asset.pk)
+            self.initial["asset"] = self.locked_asset.pk
+            self.fields["asset"].widget = forms.HiddenInput()
+
+        if current_employee_id and current_employee_id not in {choice_id for choice_id, _ in employee_choices}:
+            current_label = (
+                (self.instance.assigned_to_display or "").strip()
+                or f"Dipendente #{current_employee_id}"
+            )
+            employee_choices.append((current_employee_id, current_label))
+
+        self.fields["assigned_employee_id"].choices = [("", "Non assegnata a dipendente"), *employee_choices]
+        self.initial["assigned_employee_id"] = selected_employee_id
+        if locked_employee_id:
+            self.fields["assigned_employee_id"].widget = forms.HiddenInput()
+
+        self.fields["asset"].help_text = "Opzionale: collega la licenza a un asset fisico."
+        self.fields["assigned_employee_id"].help_text = (
+            "Alternativa all'asset: assegna direttamente la licenza a un dipendente in anagrafica."
+        )
+        self.fields["account_email"].help_text = "Email, tenant o account di riferimento usato per la licenza."
+        self.fields["license_reference"].help_text = "Seriale, contratto, product key o codice interno."
+        self.fields["seats_used"].help_text = "Puoi lasciare 0 per licenze a stock non ancora assegnate."
+        self.order_fields(
+            [
+                "category",
+                "vendor",
+                "product_name",
+                "edition",
+                "license_reference",
+                "account_email",
+                "asset",
+                "assigned_employee_id",
+                "seats_total",
+                "seats_used",
+                "purchase_date",
+                "renewal_date",
+                "expiry_date",
+                "auto_renew",
+                "is_active",
+                "notes",
+            ]
+        )
+        _attach_input_css(self)
+        self.fields["auto_renew"].widget.attrs["class"] = ""
+        self.fields["is_active"].widget.attrs["class"] = ""
+        if isinstance(self.fields["asset"].widget, forms.HiddenInput):
+            self.fields["asset"].widget.attrs.pop("class", None)
+        if isinstance(self.fields["assigned_employee_id"].widget, forms.HiddenInput):
+            self.fields["assigned_employee_id"].widget.attrs.pop("class", None)
+
+    def clean_vendor(self):
+        return (self.cleaned_data.get("vendor") or "").strip()
+
+    def clean_product_name(self):
+        return (self.cleaned_data.get("product_name") or "").strip()
+
+    def clean_edition(self):
+        return (self.cleaned_data.get("edition") or "").strip()
+
+    def clean_license_reference(self):
+        return (self.cleaned_data.get("license_reference") or "").strip()
+
+    def clean_account_email(self):
+        return (self.cleaned_data.get("account_email") or "").strip()
+
+    def clean_notes(self):
+        return (self.cleaned_data.get("notes") or "").strip()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        asset = self.locked_asset or cleaned_data.get("asset")
+        selected_employee_id = (self.locked_employee_id or cleaned_data.get("assigned_employee_id") or "").strip()
+        employee_payload = self.employee_details.get(selected_employee_id) if selected_employee_id else None
+
+        if self.locked_asset is not None:
+            cleaned_data["asset"] = self.locked_asset
+        if self.locked_employee_id:
+            cleaned_data["assigned_employee_id"] = self.locked_employee_id
+            selected_employee_id = self.locked_employee_id
+            employee_payload = self.employee_details.get(selected_employee_id) if selected_employee_id else None
+
+        if asset is not None and selected_employee_id:
+            self.add_error("assigned_employee_id", "Scegli un asset oppure un dipendente, non entrambi.")
+        if selected_employee_id and employee_payload is None:
+            self.add_error("assigned_employee_id", "Seleziona un dipendente anagrafica valido.")
+
+        seats_total = cleaned_data.get("seats_total")
+        seats_used = cleaned_data.get("seats_used")
+        if seats_total is not None and seats_used is not None and seats_used > seats_total:
+            self.add_error("seats_used", "I posti utilizzati non possono superare i posti acquistati.")
+
+        cleaned_data["_assigned_employee_payload"] = employee_payload or {}
+        return cleaned_data
+
+    @transaction.atomic
+    def save(self, commit=True):
+        instance: SoftwareLicense = super().save(commit=False)
+        employee_payload = dict(self.cleaned_data.get("_assigned_employee_payload") or {})
+        selected_employee_id = str(self.cleaned_data.get("assigned_employee_id") or self.locked_employee_id or "").strip()
+
+        if selected_employee_id and employee_payload:
+            instance.asset = None
+            instance.assigned_anagrafica_id = int(selected_employee_id)
+            instance.assigned_legacy_user_id = (
+                int(employee_payload["legacy_user_id"])
+                if str(employee_payload.get("legacy_user_id") or "").strip()
+                else None
+            )
+            instance.assigned_to_display = str(employee_payload.get("display_name") or "").strip()
+            instance.assigned_reparto = str(employee_payload.get("reparto") or "").strip()
+        elif instance.asset_id:
+            instance.assigned_anagrafica_id = None
+            instance.assigned_legacy_user_id = None
+            instance.assigned_to_display = ""
+            instance.assigned_reparto = ""
+        else:
+            instance.assigned_anagrafica_id = None
+            instance.assigned_legacy_user_id = None
+            instance.assigned_to_display = ""
+            instance.assigned_reparto = ""
+
+        if commit:
+            instance.full_clean()
+            instance.save()
+        return instance
 
 
 class PlantLayoutForm(forms.ModelForm):
@@ -1916,7 +2126,7 @@ def _validate_workorder_relations(
 
     if verification is not None and asset is not None:
         if not verification.assets.filter(pk=asset.pk).exists():
-            add_error("periodic_verification", "La verifica selezionata non appartiene a questo asset.")
+            add_error("periodic_verification", "Il piano di manutenzione periodica selezionato non appartiene a questo asset.")
         elif resolved_supplier is None and verification.supplier_id:
             resolved_supplier = verification.supplier
 
@@ -1955,7 +2165,7 @@ class WorkOrderForm(forms.ModelForm):
             "cost_eur",
         ]
         labels = {
-            "periodic_verification": "Verifica periodica collegata",
+            "periodic_verification": "Manutenzione periodica collegata",
             "maintenance_rule": "Regola manutenzione",
             "supplier": "Fornitore",
             "assistance_contract": "Contratto assistenza",
@@ -1998,14 +2208,14 @@ class WorkOrderForm(forms.ModelForm):
             "id",
         )
         self.fields["supplier"].required = False
-        self.fields["supplier"].help_text = "Se colleghi una verifica periodica il fornitore viene proposto automaticamente."
+        self.fields["supplier"].help_text = "Se colleghi una manutenzione periodica il fornitore viene proposto automaticamente."
         self.fields["status"].required = False
         self.fields["status"].widget = forms.HiddenInput()
         self.fields["status"].initial = WorkOrder.STATUS_OPEN
         self.initial["status"] = WorkOrder.STATUS_OPEN
         verification_field = self.fields["periodic_verification"]
         verification_field.required = False
-        verification_field.help_text = "Seleziona la verifica periodica collegata per proporre il fornitore."
+        verification_field.help_text = "Seleziona il piano di manutenzione periodica collegato per proporre il fornitore."
         verification_qs = PeriodicVerification.objects.none()
         if self.asset is not None:
             verification_qs = (

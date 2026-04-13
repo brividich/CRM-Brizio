@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import RedirectView
 
 from . import views
 
@@ -10,7 +11,8 @@ urlpatterns = [
     path("<int:pk>/", views.assignment_detail, name="assignment_detail"),
 
     # ── Admin — dashboard ───────────────────────────────────────────────────
-    path("admin/", views.admin_dashboard, name="admin_dashboard"),
+    path("impostazioni/", views.admin_dashboard, name="admin_dashboard"),
+    path("admin/", RedirectView.as_view(pattern_name="procedure_refresh:admin_dashboard", permanent=False)),
 
     # ── Admin — documenti ───────────────────────────────────────────────────
     path("admin/documenti/", views.document_list, name="document_list"),

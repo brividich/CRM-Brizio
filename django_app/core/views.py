@@ -22,15 +22,178 @@ from core.context_processors import (
     compact_sidebar_footer_actions,
     get_default_sidebar_footer_actions,
     get_sidebar_footer_catalog,
+    legacy_nav,
     normalize_sidebar_footer_actions,
 )
 from core.impersonation import clear_impersonation_state, display_name_for_user, get_impersonation_state, is_impersonation_stop_path
 from core.legacy_models import AnagraficaDipendente, UtenteLegacy
 from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_table_columns
+from core.module_registry import get_registered_modules, resolve_module_label
 from core.models import OptioneConfig, UserExtraInfo, UserUiPreference
 
 
 _SAFE_HTTP_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
+_MODULE_REGISTRY = get_registered_modules()
+_NAV_CODE_TO_MODULE_KEY: dict[str, str] = {}
+for _module_key, _definition in _MODULE_REGISTRY.items():
+    for _nav_code in _definition.navigation_codes:
+        _normalized_code = str(_nav_code or "").strip().lower()
+        if _normalized_code:
+            _NAV_CODE_TO_MODULE_KEY[_normalized_code] = _module_key
+
+_ONBOARDING_NOTIFICATION_SPECS: tuple[dict[str, object], ...] = (
+    {
+        "key": "assenze",
+        "label": "Assenze e presenze",
+        "description": "Aggiornamenti sulle tue richieste di assenza, approvazioni e rifiuti.",
+        "default": True,
+        "module_keys": {"assenze"},
+    },
+    {
+        "key": "comunicazioni",
+        "label": "Comunicazioni aziendali",
+        "description": "Notizie, avvisi e comunicazioni dalla direzione.",
+        "default": True,
+        "module_keys": {"notizie"},
+    },
+    {
+        "key": "scadenzari",
+        "label": "Scadenzari e manutenzioni",
+        "description": "Promemoria per scadenze, DPI, verifiche periodiche e procedure assegnate.",
+        "default": True,
+        "module_keys": {"assets", "dpi", "procedure_refresh", "rentri"},
+    },
+    {
+        "key": "ticket",
+        "label": "Ticket e segnalazioni",
+        "description": "Aggiornamenti sui ticket aperti o assegnati a te.",
+        "default": False,
+        "module_keys": {"tickets"},
+    },
+)
+
+
+def _ui_prefs_session_payload(prefs: UserUiPreference) -> dict:
+    return {
+        "nav_mode": prefs.nav_mode,
+        "font_scale": prefs.font_scale,
+        "sidebar_collapsed": prefs.sidebar_collapsed,
+        "sidebar_footer_actions": normalize_sidebar_footer_actions(
+            prefs.sidebar_footer_actions, fallback_to_default=True
+        ),
+    }
+
+
+def _get_current_ui_prefs_for_user(user) -> dict:
+    prefs = UserUiPreference.objects.filter(user=user).first()
+    if prefs:
+        return _ui_prefs_session_payload(prefs)
+    return {
+        "nav_mode": _UI_PREFS_DEFAULTS["nav_mode"],
+        "font_scale": _UI_PREFS_DEFAULTS["font_scale"],
+        "sidebar_collapsed": _UI_PREFS_DEFAULTS["sidebar_collapsed"],
+        "sidebar_footer_actions": get_default_sidebar_footer_actions(),
+    }
+
+
+def _save_user_ui_preferences(
+    request,
+    *,
+    nav_mode: str = "",
+    font_scale: str = "",
+    sidebar_collapsed_raw: str | None = None,
+    sidebar_footer_actions_raw=None,
+) -> tuple[UserUiPreference, dict]:
+    prefs, _ = UserUiPreference.objects.get_or_create(
+        user=request.user,
+        defaults={
+            "nav_mode": "side",
+            "font_scale": "normal",
+            "sidebar_collapsed": False,
+            "sidebar_footer_actions": None,
+        },
+    )
+
+    changed = False
+    if nav_mode in _VALID_NAV_MODES and prefs.nav_mode != nav_mode:
+        prefs.nav_mode = nav_mode
+        changed = True
+    if font_scale in _VALID_FONT_SCALES and prefs.font_scale != font_scale:
+        prefs.font_scale = font_scale
+        changed = True
+    if sidebar_collapsed_raw in {"0", "1"}:
+        collapsed = sidebar_collapsed_raw == "1"
+        if prefs.sidebar_collapsed != collapsed:
+            prefs.sidebar_collapsed = collapsed
+            changed = True
+    if sidebar_footer_actions_raw is not None:
+        compact_actions = compact_sidebar_footer_actions(sidebar_footer_actions_raw)
+        if prefs.sidebar_footer_actions != compact_actions:
+            prefs.sidebar_footer_actions = compact_actions
+            changed = True
+
+    if changed:
+        prefs.save()
+
+    session_data = _ui_prefs_session_payload(prefs)
+    try:
+        request.session[_UI_PREFS_SESSION_KEY] = session_data
+    except Exception:
+        pass
+    return prefs, session_data
+
+
+def _module_key_from_nav_item(item) -> str:
+    modulo = str(getattr(item, "modulo", "") or "").strip().lower()
+    if modulo in _MODULE_REGISTRY:
+        return modulo
+    codice = str(getattr(item, "codice", "") or "").strip().lower()
+    return _NAV_CODE_TO_MODULE_KEY.get(codice, "")
+
+
+def _visible_module_keys_for_request(request) -> set[str]:
+    try:
+        nav_items = list((legacy_nav(request) or {}).get("nav_items") or [])
+    except Exception:
+        nav_items = []
+    visible: set[str] = set()
+    for item in nav_items:
+        module_key = _module_key_from_nav_item(item)
+        if module_key:
+            visible.add(module_key)
+    return visible
+
+
+def _build_onboarding_notification_options(request, onboarding=None) -> list[dict[str, object]]:
+    visible_module_keys = _visible_module_keys_for_request(request)
+    saved_config = onboarding.notifiche_config if onboarding and isinstance(onboarding.notifiche_config, dict) else {}
+    options: list[dict[str, object]] = []
+    for spec in _ONBOARDING_NOTIFICATION_SPECS:
+        key = str(spec["key"])
+        label = str(spec["label"])
+        default_enabled = bool(spec.get("default", True))
+        module_keys = {str(value).strip().lower() for value in spec.get("module_keys", set()) if str(value).strip()}
+        visible = bool(visible_module_keys.intersection(module_keys))
+        enabled = bool(saved_config.get(key, default_enabled if visible else False))
+        visible_labels = sorted(
+            {
+                resolve_module_label(module_key, fallback=module_key.replace("_", " ").title(), surface="menu")
+                for module_key in module_keys
+                if module_key in visible_module_keys
+            }
+        )
+        options.append(
+            {
+                "key": key,
+                "label": label,
+                "description": str(spec["description"]),
+                "default": default_enabled,
+                "visible": visible,
+                "enabled": enabled,
+                "visible_module_labels": visible_labels,
+            }
+        )
+    return options
 
 
 def _csrf_recovery_target(request, login_path: str) -> str:
@@ -322,12 +485,26 @@ def profilo(request):
     if legacy_user:
         extra_info = UserExtraInfo.objects.filter(legacy_user_id=legacy_user.id).first()
 
+    from core.models import UserOnboarding
+    onboarding = UserOnboarding.objects.filter(user=request.user).first()
+
+    # Lista (label, abilitato) per il template — nessuna logica nel template
+    onboarding_notifiche = []
+    if onboarding and onboarding.completed:
+        onboarding_notifiche = [
+            (option["label"], option["enabled"])
+            for option in _build_onboarding_notification_options(request, onboarding=onboarding)
+            if option["visible"]
+        ]
+
     return render(request, "core/pages/profilo.html", {
         "page_title": "Profilo",
         "legacy_user": legacy_user,
         "profile": profile,
         "anagrafica_row": anagrafica_row,
         "extra_info": extra_info,
+        "onboarding": onboarding,
+        "onboarding_notifiche": onboarding_notifiche,
         "can_manage_team_assignments": _can_manage_team_assignments(legacy_user),
     })
 
@@ -691,59 +868,20 @@ _VALID_FONT_SCALES = {"small", "normal", "large", "xl"}
 @login_required
 def ui_prefs_page(request):
     if request.method == "POST":
-        prefs, _ = UserUiPreference.objects.get_or_create(
-            user=request.user,
-            defaults={
-                "nav_mode": "side",
-                "font_scale": "normal",
-                "sidebar_collapsed": False,
-                "sidebar_footer_actions": None,
-            },
-        )
         nav_mode = request.POST.get("nav_mode", "").strip()
         font_scale = request.POST.get("font_scale", "").strip()
         sidebar_collapsed_raw = request.POST.get("sidebar_collapsed", "0").strip()
         sidebar_footer_actions_raw = request.POST.get("sidebar_footer_actions") if "sidebar_footer_actions" in request.POST else None
-
-        changed = False
-        if nav_mode in _VALID_NAV_MODES:
-            prefs.nav_mode = nav_mode
-            changed = True
-        if font_scale in _VALID_FONT_SCALES:
-            prefs.font_scale = font_scale
-            changed = True
-        if sidebar_collapsed_raw in {"0", "1"}:
-            prefs.sidebar_collapsed = sidebar_collapsed_raw == "1"
-            changed = True
-        if sidebar_footer_actions_raw is not None:
-            compact_actions = compact_sidebar_footer_actions(sidebar_footer_actions_raw)
-            if prefs.sidebar_footer_actions != compact_actions:
-                prefs.sidebar_footer_actions = compact_actions
-                changed = True
-        if changed:
-            prefs.save()
-            try:
-                request.session[_UI_PREFS_SESSION_KEY] = {
-                    "nav_mode": prefs.nav_mode,
-                    "font_scale": prefs.font_scale,
-                    "sidebar_collapsed": prefs.sidebar_collapsed,
-                    "sidebar_footer_actions": normalize_sidebar_footer_actions(
-                        prefs.sidebar_footer_actions, fallback_to_default=True
-                    ),
-                }
-            except Exception:
-                pass
+        _prefs, _session_data = _save_user_ui_preferences(
+            request,
+            nav_mode=nav_mode,
+            font_scale=font_scale,
+            sidebar_collapsed_raw=sidebar_collapsed_raw,
+            sidebar_footer_actions_raw=sidebar_footer_actions_raw,
+        )
         return redirect(reverse("ui_prefs_page") + "?saved=1")
 
-    prefs = UserUiPreference.objects.filter(user=request.user).first()
-    current = {
-        "nav_mode": prefs.nav_mode if prefs else _UI_PREFS_DEFAULTS["nav_mode"],
-        "font_scale": prefs.font_scale if prefs else _UI_PREFS_DEFAULTS["font_scale"],
-        "sidebar_collapsed": prefs.sidebar_collapsed if prefs else _UI_PREFS_DEFAULTS["sidebar_collapsed"],
-        "sidebar_footer_actions": normalize_sidebar_footer_actions(
-            getattr(prefs, "sidebar_footer_actions", None), fallback_to_default=True
-        ) if prefs else get_default_sidebar_footer_actions(),
-    }
+    current = _get_current_ui_prefs_for_user(request.user)
     sidebar_footer_catalog = get_sidebar_footer_catalog()
     return render(request, "core/pages/ui_prefs.html", {
         "page_title": "Preferenze interfaccia",
@@ -761,49 +899,13 @@ def api_ui_prefs_save(request):  # route: ui_prefs_api_save
     sidebar_collapsed_raw = request.POST.get("sidebar_collapsed", "").strip()
     sidebar_footer_actions_raw = request.POST.get("sidebar_footer_actions") if "sidebar_footer_actions" in request.POST else None
 
-    # Recupera o crea il record (solo qui avviene la creazione del record)
-    prefs, _ = UserUiPreference.objects.get_or_create(
-        user=request.user,
-        defaults={
-            "nav_mode": "side",
-            "font_scale": "normal",
-            "sidebar_collapsed": False,
-            "sidebar_footer_actions": None,
-        },
+    _prefs, session_data = _save_user_ui_preferences(
+        request,
+        nav_mode=nav_mode,
+        font_scale=font_scale,
+        sidebar_collapsed_raw=sidebar_collapsed_raw,
+        sidebar_footer_actions_raw=sidebar_footer_actions_raw,
     )
-
-    changed = False
-    if nav_mode in _VALID_NAV_MODES:
-        prefs.nav_mode = nav_mode
-        changed = True
-    if font_scale in _VALID_FONT_SCALES:
-        prefs.font_scale = font_scale
-        changed = True
-    if sidebar_collapsed_raw in {"0", "1"}:
-        prefs.sidebar_collapsed = sidebar_collapsed_raw == "1"
-        changed = True
-    if sidebar_footer_actions_raw is not None:
-        compact_actions = compact_sidebar_footer_actions(sidebar_footer_actions_raw)
-        if prefs.sidebar_footer_actions != compact_actions:
-            prefs.sidebar_footer_actions = compact_actions
-            changed = True
-
-    if changed:
-        prefs.save()
-
-    # Aggiorna la cache di sessione per evitare un DB hit alla prossima request
-    session_data = {
-        "nav_mode": prefs.nav_mode,
-        "font_scale": prefs.font_scale,
-        "sidebar_collapsed": prefs.sidebar_collapsed,
-        "sidebar_footer_actions": normalize_sidebar_footer_actions(
-            prefs.sidebar_footer_actions, fallback_to_default=True
-        ),
-    }
-    try:
-        request.session[_UI_PREFS_SESSION_KEY] = session_data
-    except Exception:
-        pass
 
     return JsonResponse({"ok": True, "prefs": session_data})
 
@@ -864,3 +966,177 @@ def sidebar_toggle_save(request):
         pass
 
     return JsonResponse({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Onboarding wizard (primo accesso)
+# ---------------------------------------------------------------------------
+
+@login_required
+def onboarding_wizard(request):
+    """Wizard di primo accesso: raccoglie contatti, UI prefs e preferenze notifiche."""
+    from core.models import UserOnboarding
+
+    onboarding = UserOnboarding.get_or_create_for(request.user)
+
+    # Se già completato/esentato, vai alla dashboard
+    if onboarding.is_done():
+        return redirect("dashboard_home")
+
+    notification_options = _build_onboarding_notification_options(request, onboarding=onboarding)
+    visible_notification_options = [option for option in notification_options if option["visible"]]
+
+    if request.method == "POST":
+        email_contatto = request.POST.get("email_contatto", "").strip()
+        cellulare_contatto = request.POST.get("cellulare_contatto", "").strip()
+
+        # Raccoglie tutti i toggle "notifiche_*" dal POST in modo dinamico —
+        # aggiungere nuovi moduli al wizard non richiede modifiche qui.
+        nav_mode = request.POST.get("nav_mode", "").strip()
+        font_scale = request.POST.get("font_scale", "").strip()
+        sidebar_collapsed_raw = request.POST.get("sidebar_collapsed", "0").strip()
+        sidebar_footer_actions_raw = request.POST.getlist("sidebar_footer_actions")
+
+        existing_config = onboarding.notifiche_config if isinstance(onboarding.notifiche_config, dict) else {}
+        known_keys = {str(spec["key"]) for spec in _ONBOARDING_NOTIFICATION_SPECS}
+        notifiche_config = {
+            key: bool(value)
+            for key, value in existing_config.items()
+            if key not in known_keys
+        }
+        for option in notification_options:
+            key = str(option["key"])
+            if option["visible"]:
+                notifiche_config[key] = request.POST.get(f"notifiche_{key}") == "1"
+            else:
+                notifiche_config[key] = False
+
+        _prefs, _session_data = _save_user_ui_preferences(
+            request,
+            nav_mode=nav_mode,
+            font_scale=font_scale,
+            sidebar_collapsed_raw=sidebar_collapsed_raw,
+            sidebar_footer_actions_raw=sidebar_footer_actions_raw,
+        )
+
+        onboarding.email_contatto = email_contatto
+        onboarding.cellulare_contatto = cellulare_contatto
+        onboarding.notifiche_config = notifiche_config
+        onboarding.completed = True
+        onboarding.completed_at = timezone.now()
+        onboarding.save()
+
+        try:
+            log_action(
+                request,
+                "onboarding_completato",
+                "core",
+                {
+                    "wizard": "primo_accesso",
+                    "email_contatto": email_contatto,
+                    "ui_nav_mode": nav_mode,
+                },
+            )
+        except Exception:
+            pass
+
+        messages.success(request, "Profilo configurato. Benvenuto nel portale!")
+        return redirect("dashboard_home")
+
+    # Prefill: usa email django user se disponibile, cellulare da UserExtraInfo se presente
+    prefill_email = onboarding.email_contatto or request.user.email or ""
+    prefill_cellulare = onboarding.cellulare_contatto
+    if not prefill_cellulare:
+        try:
+            from core.legacy_utils import get_legacy_user as _glu
+            lu = _glu(request.user)
+            if lu:
+                extra = UserExtraInfo.objects.filter(legacy_user_id=lu.id).first()
+                if extra:
+                    prefill_cellulare = extra.cellulare or ""
+        except Exception:
+            pass
+    ui_prefs_current = _get_current_ui_prefs_for_user(request.user)
+
+    return render(request, "core/pages/onboarding_wizard.html", {
+        "page_title": "Benvenuto",
+        "prefill_email": prefill_email,
+        "prefill_cellulare": prefill_cellulare,
+        "onboarding": onboarding,
+        "notification_options": notification_options,
+        "visible_notification_options": visible_notification_options,
+        "sidebar_footer_catalog": get_sidebar_footer_catalog(),
+        "ui_prefs_current": ui_prefs_current,
+    })
+
+
+@require_POST
+@login_required
+def api_onboarding_email_save(request):
+    """Salva solo l'email di contatto dell'onboarding per l'utente corrente."""
+    from core.models import UserOnboarding
+    import re
+
+    email = request.POST.get("email_contatto", "").strip()
+    if email and not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
+        return JsonResponse({"ok": False, "reason": "email_invalida"}, status=400)
+
+    onboarding = UserOnboarding.get_or_create_for(request.user)
+    onboarding.email_contatto = email
+    onboarding.save(update_fields=["email_contatto"])
+    return JsonResponse({"ok": True, "email_contatto": email})
+
+
+@require_POST
+@login_required
+def api_onboarding_reset(request, user_id: int):
+    """Resetta il wizard di onboarding per un utente specifico (solo admin)."""
+    from core.models import UserOnboarding
+
+    if not (request.user.is_superuser or is_legacy_admin(get_legacy_user(request.user))):
+        return JsonResponse({"ok": False, "reason": "forbidden"}, status=403)
+
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    try:
+        target_user = User.objects.get(pk=user_id)
+    except User.DoesNotExist:
+        return JsonResponse({"ok": False, "reason": "user_not_found"}, status=404)
+
+    onboarding, _ = UserOnboarding.objects.get_or_create(user=target_user)
+    action = request.POST.get("action", "reset")
+
+    if action == "skip":
+        onboarding.skipped = True
+        onboarding.completed = False
+        onboarding.reset_at = timezone.now()
+        onboarding.reset_by = request.user
+        onboarding.save(update_fields=["skipped", "completed", "reset_at", "reset_by"])
+        try:
+            log_action(
+                request,
+                "onboarding_esentato",
+                "core",
+                {"target_username": target_user.username, "action": "skip"},
+            )
+        except Exception:
+            pass
+        return JsonResponse({"ok": True, "stato": "esentato"})
+    else:
+        # reset: rimanda il wizard
+        onboarding.completed = False
+        onboarding.skipped = False
+        onboarding.completed_at = None
+        onboarding.reset_at = timezone.now()
+        onboarding.reset_by = request.user
+        onboarding.save(update_fields=["completed", "skipped", "completed_at", "reset_at", "reset_by"])
+        try:
+            log_action(
+                request,
+                "onboarding_reset",
+                "core",
+                {"target_username": target_user.username, "action": "reset"},
+            )
+        except Exception:
+            pass
+        return JsonResponse({"ok": True, "stato": "reset"})
