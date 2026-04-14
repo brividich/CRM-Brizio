@@ -36,4 +36,13 @@ urlpatterns = [
     path("queue/<int:queue_id>/retry/", views.queue_retry_view, name="automazioni_queue_retry"),
     path("run-log/", views.run_log_list_page, name="automazioni_run_log_list"),
     path("run-log/<int:run_log_id>/", views.run_log_detail_page, name="automazioni_run_log_detail"),
+    path("api/table-configs/", views.api_table_config_list, name="automazioni_api_table_config_list"),
+    path("api/table-configs/save/", views.api_table_config_save, name="automazioni_api_table_config_save"),
+    path("api/table-configs/<int:config_id>/delete/", views.api_table_config_delete, name="automazioni_api_table_config_delete"),
+    path("api/sorgenti/<str:source_code>/record-recenti/", views.api_recent_records, name="automazioni_api_recent_records"),
+    path("api/sorgenti/<str:source_code>/record/<str:record_id>/payload/", views.api_record_payload, name="automazioni_api_record_payload"),
+    path("api/regole/<int:rule_id>/test-ajax/", views.api_test_rule_ajax, name="automazioni_api_test_rule_ajax"),
+    # Approval decision (no login required, token-based)
+    path("approvazione/<uuid:token>/", views.approval_status_page, name="automazioni_approval_status"),
+    path("approvazione/<uuid:token>/<str:decision>/", views.approval_decision_page, name="automazioni_approval_decision"),
 ]

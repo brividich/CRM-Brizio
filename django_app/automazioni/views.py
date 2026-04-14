@@ -32,12 +32,15 @@ from .models import (
     AutomationRuleTriggerScope,
     AutomationRunLog,
     AutomationRunLogStatus,
+    AutomationTableConfig,
 )
 from .services import (
     count_queue_by_status,
+    discover_module_tables,
     get_action_table_whitelist,
     get_queue_event_detail,
     list_queue_events,
+    process_approval_decision,
     process_single_queue_event_by_id,
     reset_queue_event_to_pending,
     run_rule,
@@ -45,6 +48,7 @@ from .services import (
 from .package_importer import (
     PackageImportError,
     analyze_package_bytes,
+    build_example_payload,
     build_example_payload_json,
     import_analyzed_package,
     list_recent_source_records,
@@ -269,11 +273,96 @@ def _bound_or_instance_value(form, field_name: str, *, default=""):
 
 
 def _build_example_payload(source_code: str | None) -> str:
-    payload = {}
-    for field in get_source_fields(source_code):
-        data_type = _string_value(field.get("data_type"))
-        payload[_string_value(field.get("name"))] = SAMPLE_VALUE_BY_TYPE.get(data_type, "esempio")
-    return json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True)
+    return json.dumps(
+        build_example_payload(source_code),
+        indent=2,
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+
+
+def _mutate_example_value(value, data_type: str):
+    normalized_type = _string_value(data_type)
+    if normalized_type == "bool":
+        if isinstance(value, bool):
+            return not value
+        return False
+    if normalized_type == "int":
+        try:
+            return int(value) + 1
+        except (TypeError, ValueError):
+            return 1
+    if normalized_type == "float":
+        try:
+            return float(value) + 0.5
+        except (TypeError, ValueError):
+            return 1.5
+    if normalized_type == "date":
+        return "2026-03-10"
+    if normalized_type == "datetime":
+        return "2026-03-10T08:30:00"
+    text = _string_value(value)
+    return f"{text} (prima)" if text else "valore precedente"
+
+
+def _build_example_old_payload(rule: AutomationRule | None) -> dict[str, object] | None:
+    if not rule or rule.operation_type != AutomationRuleOperationType.UPDATE:
+        return None
+
+    payload = build_example_payload(rule.source_code)
+    if not payload:
+        return None
+
+    field_map = {
+        _string_value(field.get("name")): field
+        for field in get_source_fields(rule.source_code)
+    }
+    candidate_fields = [
+        _string_value(rule.watched_field),
+        _pick_source_field(rule.source_code, ["moderation_status", "status", "stato"], fallback_index=None),
+        _pick_source_field(rule.source_code, ["assigned_to_id", "assegnato_a", "priorita", "priority"], fallback_index=None),
+    ]
+    candidate_fields = [field_name for field_name in candidate_fields if field_name]
+
+    changed = False
+    for field_name in candidate_fields:
+        if field_name not in payload or field_name not in field_map:
+            continue
+        payload[field_name] = _mutate_example_value(payload.get(field_name), _string_value(field_map[field_name].get("data_type")))
+        changed = True
+        if _string_value(rule.watched_field):
+            break
+
+    if not changed:
+        first_field_name = next(iter(field_map.keys()), "")
+        if first_field_name and first_field_name in payload:
+            payload[first_field_name] = _mutate_example_value(
+                payload.get(first_field_name),
+                _string_value(field_map[first_field_name].get("data_type")),
+            )
+
+    return payload
+
+
+def _serialize_source_field_detail(field: dict[str, object], *, sample_value=None) -> dict[str, object]:
+    field_name = _string_value(field.get("name"))
+    data_type = _string_value(field.get("data_type"))
+    return {
+        "name": field_name,
+        "label": _string_value(field.get("label")) or field_name,
+        "full_label": f"{_string_value(field.get('label')) or field_name} ({field_name})",
+        "data_type": data_type,
+        "description": _string_value(field.get("description")),
+        "placeholder": f"{{{field_name}}}",
+        "sample_value": sample_value if sample_value is not None else SAMPLE_VALUE_BY_TYPE.get(data_type, "esempio"),
+        "aliases": [str(alias) for alias in (field.get("aliases") or []) if str(alias).strip()],
+        "db_column": _string_value(field.get("db_column")),
+        "is_virtual": bool(field.get("is_virtual")),
+        "usable_in_trigger": bool(field.get("usable_in_trigger")),
+        "usable_in_condition": bool(field.get("usable_in_condition")),
+        "usable_in_template": bool(field.get("usable_in_template")),
+        "usable_in_action_mapping": bool(field.get("usable_in_action_mapping")),
+    }
 
 
 def _pick_source_field(source_code: str | None, preferred_names: list[str], *, fallback_index: int | None = None) -> str:
@@ -3249,15 +3338,39 @@ def _build_all_source_fields_json() -> dict[str, object]:
     result: dict[str, object] = {}
     for source in get_registered_sources():
         code = str(source["code"])
+        example_payload = build_example_payload(code)
+        all_fields = get_source_fields(code)
+        trigger_fields = get_trigger_fields(code)
+        condition_fields = get_condition_fields(code)
+        template_fields = get_template_fields(code)
+        action_mapping_fields = get_action_mapping_fields(code)
         result[code] = {
+            "code": code,
+            "label": _string_value(source.get("label")),
+            "description": _string_value(source.get("description")),
+            "supported_operations": [str(value) for value in (source.get("supported_operations") or [])],
             "trigger": [
                 {"name": str(f["name"]), "label": f"{f['label']} ({f['name']})"}
-                for f in get_trigger_fields(code)
+                for f in trigger_fields
             ],
             "condition": [
                 {"name": str(f["name"]), "label": f"{f['label']} ({f['name']})"}
-                for f in get_condition_fields(code)
+                for f in condition_fields
             ],
+            "all": [
+                _serialize_source_field_detail(field, sample_value=example_payload.get(_string_value(field.get("name"))))
+                for field in all_fields
+            ],
+            "template": [
+                _serialize_source_field_detail(field, sample_value=example_payload.get(_string_value(field.get("name"))))
+                for field in template_fields
+            ],
+            "action_mapping": [
+                _serialize_source_field_detail(field, sample_value=example_payload.get(_string_value(field.get("name"))))
+                for field in action_mapping_fields
+            ],
+            "placeholder_examples": [f"{{{_string_value(field.get('name'))}}}" for field in template_fields],
+            "example_payload": example_payload,
         }
     return result
 
@@ -3270,6 +3383,7 @@ def _build_source_catalog_context(selected_source_code: str | None) -> dict[str,
         panels.append(
             {
                 **source,
+                "all_fields": get_source_fields(code),
                 "trigger_fields": get_trigger_fields(code),
                 "condition_fields": get_condition_fields(code),
                 "template_fields": get_template_fields(code),
@@ -3360,9 +3474,11 @@ def _build_rule_designer_context(
     )
     condition_entries = _build_condition_entries(condition_formset, source_code=source_code)
     action_entries = _build_action_entries(action_formset)
+    flow_nodes = _build_flow_nodes(rule, trigger_descriptor, condition_entries, action_entries)
     return {
         **_base_context(),
         **_build_source_catalog_context(source_code),
+        "enable_smart_field_panel": True,
         "rule": rule,
         "is_new_rule": not bool(getattr(rule, "pk", None)),
         "rule_form": rule_form,
@@ -3379,10 +3495,202 @@ def _build_rule_designer_context(
         "human_rule_summary": _build_human_rule_summary(trigger_descriptor, condition_entries, action_entries),
         "source_definition": get_source_definition(source_code),
         "sample_payload_json": _build_example_payload(source_code),
+        "sample_old_payload_json": json.dumps(_build_example_old_payload(rule) or {}, indent=2, ensure_ascii=False, sort_keys=True),
+        "rule_is_update": getattr(rule, "operation_type", "") == AutomationRuleOperationType.UPDATE,
         "condition_suggestions_json": _build_condition_suggestions(source_code),
         "action_suggestions_json": _build_action_suggestions(source_code),
         "source_fields_json": _build_all_source_fields_json(),
+        "flow_nodes_json": flow_nodes,
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Flow Diagram helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+_ACTION_NODE_STYLES: dict[str, dict[str, str]] = {
+    "send_email":            {"icon": "✉️",  "color": "#2563eb", "bg": "#eff6ff", "app": "Email"},
+    "insert_record":         {"icon": "➕",  "color": "#16a34a", "bg": "#f0fdf4", "app": "Database"},
+    "update_record":         {"icon": "✏️",  "color": "#0d9488", "bg": "#f0fdfa", "app": "Database"},
+    "update_trigger_record": {"icon": "🔄",  "color": "#0d9488", "bg": "#f0fdfa", "app": "Database"},
+    "update_dashboard_metric":{"icon": "📊", "color": "#7c3aed", "bg": "#f5f3ff", "app": "Dashboard"},
+    "write_log":             {"icon": "📝",  "color": "#475569", "bg": "#f8fafc", "app": "Log"},
+    "delay_schedule":        {"icon": "⏰",  "color": "#d97706", "bg": "#fffbeb", "app": "Scheduler"},
+    "http_request":          {"icon": "🌐",  "color": "#0369a1", "bg": "#f0f9ff", "app": "HTTP"},
+    "teams_webhook":         {"icon": "💬",  "color": "#5b5fc7", "bg": "#eef2ff", "app": "Teams"},
+    "send_approval":         {"icon": "✅",  "color": "#9333ea", "bg": "#faf5ff", "app": "Approvazione"},
+    "do_until":              {"icon": "🔁",  "color": "#0891b2", "bg": "#ecfeff", "app": "Loop"},
+    "for_each":              {"icon": "🔂",  "color": "#4f46e5", "bg": "#eef2ff", "app": "Iterazione"},
+    "branch":                {"icon": "🔀",  "color": "#ea580c", "bg": "#fff7ed", "app": "Condizione"},
+}
+_DEFAULT_NODE_STYLE = {"icon": "⚡", "color": "#64748b", "bg": "#f8fafc", "app": "Azione"}
+
+
+def _build_flow_nodes(rule, trigger_descriptor: dict, condition_entries: list, action_entries: list) -> list[dict]:
+    """Costruisce la lista di nodi per il diagramma di flusso Power Automate-style."""
+    nodes: list[dict] = []
+
+    # ── Nodo Trigger ──
+    source_label = str((trigger_descriptor or {}).get("source_label") or "")
+    trigger_summary_lines = list((trigger_descriptor or {}).get("summary_lines") or [])
+    nodes.append({
+        "id": "trigger",
+        "type": "trigger",
+        "title": "Quando questo accade…",
+        "subtitle": source_label,
+        "description": " · ".join(str(l) for l in trigger_summary_lines if l),
+        "icon": "⚡",
+        "color": "#2563eb",
+        "bg": "#eff6ff",
+        "app": "Trigger",
+        "edit_anchor": "trigger-section",
+    })
+
+    # ── Nodo Condizioni (se presenti) ──
+    existing_conditions = [e for e in condition_entries if e.get("is_existing")]
+    if existing_conditions:
+        cond_items = []
+        for ce in existing_conditions:
+            d = ce.get("descriptor") or {}
+            field = str(d.get("field_name") or ce.get("field_name") or "?")
+            op = str(d.get("operator_label") or d.get("operator") or "")
+            val = str(d.get("expected_value") or "")
+            enabled = bool(ce.get("is_existing"))
+            cond_items.append({"label": f"{field} {op} {val}".strip(), "enabled": enabled})
+        nodes.append({
+            "id": "conditions",
+            "type": "conditions",
+            "title": "Condizioni (AND)",
+            "subtitle": f"{len(existing_conditions)} condizione{'i' if len(existing_conditions) > 1 else ''}",
+            "items": cond_items,
+            "icon": "🔍",
+            "color": "#d97706",
+            "bg": "#fffbeb",
+            "app": "Filtro",
+            "edit_anchor": "conditions-section",
+        })
+
+    # ── Nodi Azioni ──
+    for entry in action_entries:
+        if not entry.get("is_existing"):
+            continue
+        descriptor = entry.get("descriptor") or {}
+        action_type = str(descriptor.get("action_type") or "")
+        item_id = str(descriptor.get("item_id") or "")
+        order_val = int(descriptor.get("order_value") or 0)
+        badges: list[str] = list(descriptor.get("badges") or [])
+        enabled = "da eliminare" not in badges
+        preview_lines: list[str] = [str(l) for l in (descriptor.get("preview_lines") or []) if l]
+        config = {}
+        # Retrieve config from formset for branch/approval/loop info
+        form = entry.get("form")
+        if form is not None:
+            try:
+                cfg_raw = form["config_json"].value()
+                if isinstance(cfg_raw, str):
+                    import ast
+                    try:
+                        config = json.loads(cfg_raw)
+                    except Exception:
+                        config = {}
+                elif isinstance(cfg_raw, dict):
+                    config = cfg_raw
+            except Exception:
+                pass
+
+        style = _ACTION_NODE_STYLES.get(action_type, _DEFAULT_NODE_STYLE)
+        node: dict = {
+            "id": f"action-{item_id}",
+            "type": action_type if action_type in ("send_approval", "do_until", "for_each", "branch") else "action",
+            "action_type": action_type,
+            "title": str(descriptor.get("action_label") or action_type),
+            "subtitle": str(descriptor.get("summary") or ""),
+            "preview": preview_lines[:3],
+            "enabled": enabled,
+            "order": order_val,
+            "edit_anchor": f"action-card-{item_id}",
+            **style,
+        }
+
+        # Azioni speciali: aggiungi rami/loop
+        if action_type == "send_approval":
+            approved_count = len(config.get("approved_actions") or [])
+            rejected_count = len(config.get("rejected_actions") or [])
+            node["branches"] = {
+                "approved": {
+                    "label": str(config.get("approve_label") or "Approvato"),
+                    "color": "#16a34a",
+                    "bg": "#f0fdf4",
+                    "actions": _inline_action_nodes(config.get("approved_actions") or []),
+                    "count": approved_count,
+                },
+                "rejected": {
+                    "label": str(config.get("reject_label") or "Rifiutato"),
+                    "color": "#dc2626",
+                    "bg": "#fef2f2",
+                    "actions": _inline_action_nodes(config.get("rejected_actions") or []),
+                    "count": rejected_count,
+                },
+            }
+        elif action_type == "do_until":
+            node["loop"] = {
+                "check_field": str(config.get("check_field") or ""),
+                "check_operator": str(config.get("check_operator") or "equals"),
+                "check_value": str(config.get("check_value") or ""),
+                "max_iterations": int(config.get("max_iterations") or 10),
+                "retry_delay": f"{config.get('retry_delay_value', 24)} {config.get('retry_delay_unit', 'hours')}",
+                "loop_actions": _inline_action_nodes(config.get("loop_actions") or []),
+                "on_success_actions": _inline_action_nodes(config.get("on_success_actions") or []),
+                "on_timeout_actions": _inline_action_nodes(config.get("on_timeout_actions") or []),
+            }
+        elif action_type == "for_each":
+            node["each"] = {
+                "source_code": str(config.get("source_code") or ""),
+                "filter_field": str(config.get("filter_field") or ""),
+                "max_items": int(config.get("max_items") or 50),
+                "each_actions": _inline_action_nodes(config.get("each_actions") or []),
+            }
+        elif action_type == "branch":
+            node["if_else"] = {
+                "condition_field": str(config.get("condition_field") or ""),
+                "condition_operator": str(config.get("condition_operator") or "equals"),
+                "condition_value": str(config.get("condition_value") or ""),
+                "if_true_actions": _inline_action_nodes(config.get("if_true_actions") or []),
+                "if_false_actions": _inline_action_nodes(config.get("if_false_actions") or []),
+            }
+
+        nodes.append(node)
+
+    # ── Nodo Fine ──
+    nodes.append({
+        "id": "end",
+        "type": "end",
+        "title": "Fine flusso",
+        "subtitle": "",
+        "icon": "🏁",
+        "color": "#64748b",
+        "bg": "#f8fafc",
+        "app": "",
+    })
+
+    return nodes
+
+
+def _inline_action_nodes(actions: list) -> list[dict]:
+    """Converte una lista di config dict inline in nodi leggeri per il diagramma."""
+    nodes = []
+    for cfg in (actions or []):
+        if not isinstance(cfg, dict):
+            continue
+        at = str(cfg.get("action_type") or "")
+        style = _ACTION_NODE_STYLES.get(at, _DEFAULT_NODE_STYLE)
+        nodes.append({
+            "action_type": at,
+            "title": str(cfg.get("description") or at),
+            "icon": style["icon"],
+            "color": style["color"],
+        })
+    return nodes
 
 
 @legacy_admin_required
@@ -3928,6 +4236,12 @@ def rule_action_reorder_view(request, rule_id: int):
 def rule_test_page(request, rule_id: int):
     rule = get_object_or_404(AutomationRule, pk=rule_id)
     run_log = None
+    example_payload_json = _build_example_payload(rule.source_code)
+    example_old_payload = _build_example_old_payload(rule)
+    example_old_payload_json = (
+        json.dumps(example_old_payload, indent=2, ensure_ascii=False, sort_keys=True)
+        if isinstance(example_old_payload, dict) else ""
+    )
 
     if request.method == "POST":
         form = AutomationRuleTestForm(request.POST)
@@ -3947,8 +4261,8 @@ def rule_test_page(request, rule_id: int):
     else:
         form = AutomationRuleTestForm(
             initial={
-                "payload_json": json.dumps({}, indent=2),
-                "old_payload_json": "",
+                "payload_json": example_payload_json,
+                "old_payload_json": example_old_payload_json,
                 "is_test": True,
             }
         )
@@ -3956,9 +4270,14 @@ def rule_test_page(request, rule_id: int):
     context = {
         **_base_context(),
         **_build_source_catalog_context(rule.source_code),
+        "enable_smart_field_panel": True,
         "rule": rule,
         "form": form,
         "run_log": run_log,
+        "selected_source_code": rule.source_code,
+        "source_fields_json": _build_all_source_fields_json(),
+        "sample_payload_json": example_payload_json,
+        "sample_old_payload_json": example_old_payload_json,
     }
     return render(request, "automazioni/pages/rule_test.html", context)
 
@@ -4146,3 +4465,188 @@ def run_log_detail_page(request, run_log_id: int):
         "old_payload_pretty": _json_pretty(run_log.old_payload_json),
     }
     return render(request, "automazioni/pages/run_log_detail.html", context)
+
+
+# ---------------------------------------------------------------------------
+# API: gestione whitelist tabelle (AutomationTableConfig)
+# ---------------------------------------------------------------------------
+
+@legacy_admin_required
+@require_GET
+def api_table_config_list(request):
+    """GET /automazioni/api/table-configs/ — lista configs + tabelle disponibili per il picker."""
+    configs = list(
+        AutomationTableConfig.objects.values("id", "action_type", "table_name", "allowed_fields", "where_fields", "notes")
+    )
+    available = discover_module_tables()
+    return JsonResponse({"ok": True, "configs": configs, "available": available})
+
+
+@legacy_admin_required
+@require_POST
+def api_table_config_save(request):
+    """POST /automazioni/api/table-configs/ — crea o aggiorna una voce."""
+    try:
+        body = json.loads(request.body)
+    except Exception:
+        return JsonResponse({"ok": False, "error": "JSON non valido"}, status=400)
+
+    action_type = str(body.get("action_type") or "").strip()
+    table_name = str(body.get("table_name") or "").strip()
+    allowed_fields = body.get("allowed_fields") or []
+    where_fields = body.get("where_fields") or []
+    notes = str(body.get("notes") or "")
+
+    if action_type not in ("insert_record", "update_record"):
+        return JsonResponse({"ok": False, "error": "action_type non valido"}, status=400)
+    if not table_name:
+        return JsonResponse({"ok": False, "error": "table_name obbligatorio"}, status=400)
+
+    obj, created = AutomationTableConfig.objects.update_or_create(
+        action_type=action_type,
+        table_name=table_name,
+        defaults={"allowed_fields": list(allowed_fields), "where_fields": list(where_fields), "notes": notes},
+    )
+    return JsonResponse({"ok": True, "id": obj.pk, "created": created})
+
+
+@legacy_admin_required
+@require_POST
+def api_table_config_delete(request, config_id: int):
+    """POST /automazioni/api/table-configs/<id>/delete/ — elimina una voce."""
+    deleted, _ = AutomationTableConfig.objects.filter(pk=config_id).delete()
+    return JsonResponse({"ok": True, "deleted": deleted})
+
+
+@legacy_admin_required
+@require_GET
+def api_recent_records(request, source_code: str):
+    """GET /api/sorgenti/<source_code>/record-recenti/ — record recenti per il picker del test live."""
+    records = list_recent_source_records(source_code, limit=20)
+    return JsonResponse({"ok": True, "records": records})
+
+
+@legacy_admin_required
+@require_GET
+def api_record_payload(request, source_code: str, record_id: str):
+    """GET /api/sorgenti/<source_code>/record/<record_id>/payload/ — payload completo di un record."""
+    payload = load_source_record_payload(source_code, record_id)
+    if payload is None:
+        return JsonResponse({"ok": False, "message": "Record non disponibile per questa sorgente."}, status=404)
+    return JsonResponse({"ok": True, "payload": payload})
+
+
+@legacy_admin_required
+@require_POST
+def api_test_rule_ajax(request, rule_id: int):
+    """POST /api/regole/<rule_id>/test-ajax/ — esegue un test della regola e restituisce i risultati JSON."""
+    rule = get_object_or_404(AutomationRule, pk=rule_id)
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({"ok": False, "message": "Body JSON non valido."}, status=400)
+    payload_data = body.get("payload") or {}
+    old_payload_data = body.get("old_payload") or None
+    if not isinstance(payload_data, dict):
+        return JsonResponse({"ok": False, "message": "Il campo 'payload' deve essere un oggetto JSON."}, status=400)
+    run_log = run_rule(
+        rule,
+        payload_data,
+        old_payload=old_payload_data,
+        queue_event_id=None,
+        initiated_by=request.user,
+        is_test=True,
+    )
+    action_logs = []
+    for alog in AutomationActionLog.objects.filter(run_log=run_log).order_by("id").select_related("action"):
+        action_type = str(getattr(alog.action, "action_type", "") or "")
+        action_desc = str(getattr(alog.action, "description", "") or "")
+        action_logs.append({
+            "status": str(alog.status or ""),
+            "result_message": str(alog.result_message or ""),
+            "error_trace": str(alog.error_trace or ""),
+            "action_type": action_type,
+            "action_desc": action_desc,
+        })
+    return JsonResponse({
+        "ok": True,
+        "run_log_id": run_log.id,
+        "status": str(run_log.status or ""),
+        "result_message": str(run_log.result_message or ""),
+        "error_trace": str(run_log.error_trace or ""),
+        "execution_ms": run_log.execution_ms,
+        "action_logs": action_logs,
+        "trigger_event_label": str(run_log.trigger_event_label or ""),
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Approval Decision Views (accessibili senza login, protetti da token UUID)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def approval_decision_page(request, token: str, decision: str):
+    """
+    Pagina di approvazione/rifiuto accessibile tramite link email.
+    Non richiede login: il token UUID è la credenziale.
+    decision deve essere 'approva' o 'rifiuta'.
+    """
+    from .models import AutomationApproval
+
+    normalized = "approved" if decision == "approva" else "rejected" if decision == "rifiuta" else None
+    if normalized is None:
+        return render(request, "automazioni/pages/approval_decision.html", {
+            "error": "Azione non valida.",
+            "token": token,
+        })
+
+    try:
+        approval = AutomationApproval.objects.select_related("run_log__rule").get(token=token)
+    except AutomationApproval.DoesNotExist:
+        return render(request, "automazioni/pages/approval_decision.html", {
+            "error": "Richiesta di approvazione non trovata o link non valido.",
+            "token": token,
+        })
+
+    # Mostra form di conferma su GET; processa su POST
+    if request.method == "GET":
+        return render(request, "automazioni/pages/approval_decision.html", {
+            "approval": approval,
+            "decision": normalized,
+            "decision_label": "Approvare" if normalized == "approved" else "Rifiutare",
+            "decision_verb": "approva" if normalized == "approved" else "rifiuta",
+            "token": token,
+            "is_expired": approval.is_expired(),
+            "already_decided": approval.status != AutomationApproval.Status.PENDING,
+        })
+
+    # POST: esegui la decisione
+    decided_by = ""
+    if request.user.is_authenticated:
+        decided_by = str(getattr(request.user, "email", "") or request.user.username or "")
+
+    result = process_approval_decision(str(token), normalized, decided_by_email=decided_by)
+    return render(request, "automazioni/pages/approval_decision.html", {
+        "approval": approval,
+        "decision": normalized,
+        "token": token,
+        "result": result,
+        "already_decided": not result.get("ok") and "già" in str(result.get("message") or ""),
+    })
+
+
+def approval_status_page(request, token: str):
+    """Stato attuale di una richiesta di approvazione (link publico tramite token)."""
+    from .models import AutomationApproval
+
+    try:
+        approval = AutomationApproval.objects.select_related("run_log__rule").get(token=token)
+    except AutomationApproval.DoesNotExist:
+        return render(request, "automazioni/pages/approval_decision.html", {
+            "error": "Richiesta non trovata.",
+            "token": token,
+        })
+    return render(request, "automazioni/pages/approval_decision.html", {
+        "approval": approval,
+        "token": token,
+        "status_only": True,
+    })

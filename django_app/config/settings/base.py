@@ -334,6 +334,7 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
     "/setup/",
     "/admin-portale/hub/",
     "/monitoring/report-problem/",
+    "/automazioni/approvazione/",  # token-based, no login required
 )
 
 AUTHENTICATION_BACKENDS = [

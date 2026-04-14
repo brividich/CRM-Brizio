@@ -3,7 +3,7 @@
 
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![Django 5.2](https://img.shields.io/badge/Django-5.2-0C4B33?logo=django&logoColor=white)
-![Version 0.9.15](https://img.shields.io/badge/version-0.9.15-F97316)
+![Version 0.9.16](https://img.shields.io/badge/version-0.9.16-F97316)
 ![Database SQLite or SQL Server](https://img.shields.io/badge/DB-SQLite%20%7C%20SQL%20Server-1E3A5F)
 
 Repository di riferimento del software **NOVICROM HUB**. I nomi storici come
@@ -62,7 +62,7 @@ Dal wizard di primo accesso (`/onboarding/`) l'utente appena creato configura su
 
 La `dashboard` resta il cruscotto KPI cross-modulo e i workflow di dominio vivono dentro i rispettivi moduli. Per `assenze` il punto di ingresso unico e `/assenze/`, che raccoglie menu modulo, nuova richiesta, gestione personale, calendario e certificazione presenza.
 
-Nel modulo `automazioni`, sia il builder classico sia il designer visuale tengono ora allineati i dropdown di trigger e condizioni con la sorgente selezionata, cosi il catalogo colonne riflette davvero la tabella attiva invece di restare fermo sulla prima sorgente caricata.
+Nel modulo `automazioni`, sia il builder classico sia il designer visuale tengono ora allineati i dropdown di trigger e condizioni con la sorgente selezionata, cosi il catalogo colonne riflette davvero la tabella attiva invece di restare fermo sulla prima sorgente caricata. Il designer visuale espone anche un browser campi con ricerca, filtri e inserimento intelligente nel target attivo (trigger, condizioni, template, mapping), mentre la pagina test offre un composer guidato current/old payload sincronizzato col JSON raw.
 
 Le pagine `Impostazioni` restano separate per modulo ma seguono ora un pattern condiviso per hero, KPI/quick links e branding nome/logo modulo. I percorsi canonici sono `/diario-preposto/impostazioni/`, `/rilevazione-incidenti/impostazioni/`, `/timbri/impostazioni/`, `/rentri/impostazioni/`, `/assenze/impostazioni/`, `/notizie/impostazioni/`, `/procedure-refresh/impostazioni/`, `/tasks/impostazioni/` e `/assets/impostazioni/`; gli URL storici (`gestione`, `configurazione`, `admin`) restano compatibili come redirect legacy. Nel modulo `tasks`, `/tasks/impostazioni/` raccoglie ora anche le tab amministrative `Configurazione`, `Riepilogo`, `Record` e `Log attivita`, mentre il vecchio `/tasks/gestione/` reindirizza alla tab `Riepilogo`.
 

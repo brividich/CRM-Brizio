@@ -107,15 +107,39 @@
       </div>
 
       <div class="designer-editor-panel" data-action-config="send_email" style="margin-top:12px;">
-        <div class="designer-editor-panel-title">Email essenziale</div>
+        <div class="designer-editor-panel-title" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>Email</span>
+          <button type="button" class="email-preview-toggle-btn" data-email-preview-btn title="Mostra anteprima email live">Anteprima</button>
+        </div>
         <div class="designer-trigger-copy">
           <div class="designer-field">{{ entry.form.email_from_email.label_tag }}{{ entry.form.email_from_email }}{% if entry.form.email_from_email.errors %}<ul class="designer-errors">{% for error in entry.form.email_from_email.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
           <div class="designer-field designer-field-wide">{{ entry.form.email_to.label_tag }}{{ entry.form.email_to }}{% if entry.form.email_to.errors %}<ul class="designer-errors">{% for error in entry.form.email_to.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
           <div class="designer-field designer-field-wide">{{ entry.form.email_subject_template.label_tag }}{{ entry.form.email_subject_template }}{% if entry.form.email_subject_template.errors %}<ul class="designer-errors">{% for error in entry.form.email_subject_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
           <div class="designer-field designer-field-wide">{{ entry.form.email_body_text_template.label_tag }}{{ entry.form.email_body_text_template }}{% if entry.form.email_body_text_template.errors %}<ul class="designer-errors">{% for error in entry.form.email_body_text_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
         </div>
+        {# ── Anteprima email live ── #}
+        <div class="email-preview-card" data-email-preview hidden>
+          <div class="email-preview-header">
+            <div class="email-preview-row">
+              <span class="email-preview-label">Da</span>
+              <span data-preview-from class="email-preview-value">—</span>
+            </div>
+            <div class="email-preview-row">
+              <span class="email-preview-label">A</span>
+              <span data-preview-to class="email-preview-value">—</span>
+            </div>
+            <div class="email-preview-row email-preview-subject-row">
+              <span class="email-preview-label">Oggetto</span>
+              <strong data-preview-subject class="email-preview-subject-value">—</strong>
+            </div>
+          </div>
+          <div class="email-preview-body" data-preview-body>(corpo non compilato)</div>
+          <div class="email-preview-footer">
+            <span class="email-preview-ph-hint">I <span class="email-ph">{placeholder}</span> verranno sostituiti dai valori reali a runtime.</span>
+          </div>
+        </div>
         <details class="designer-subeditor">
-          <summary class="designer-subeditor-summary">Opzioni email avanzate</summary>
+          <summary class="designer-subeditor-summary">Opzioni avanzate (CC, BCC, HTML)</summary>
           <div class="designer-trigger-copy" style="margin-top:12px;">
             <div class="designer-field">{{ entry.form.email_cc.label_tag }}{{ entry.form.email_cc }}{% if entry.form.email_cc.errors %}<ul class="designer-errors">{% for error in entry.form.email_cc.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
             <div class="designer-field">{{ entry.form.email_bcc.label_tag }}{{ entry.form.email_bcc }}{% if entry.form.email_bcc.errors %}<ul class="designer-errors">{% for error in entry.form.email_bcc.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
@@ -215,6 +239,247 @@
           <div class="designer-field designer-field-wide">{{ entry.form.teams_facts_text.label_tag }}{{ entry.form.teams_facts_text }}{% if entry.form.teams_facts_text.help_text %}<div class="designer-help">{{ entry.form.teams_facts_text.help_text }}</div>{% endif %}{% if entry.form.teams_facts_text.errors %}<ul class="designer-errors">{% for error in entry.form.teams_facts_text.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
         </div>
       </div>
+      {# ── SEND_APPROVAL ─────────────────────────────────────────────────── #}
+      <div class="designer-editor-panel" data-action-config="send_approval" style="margin-top:12px;">
+        <div class="designer-editor-panel-title" style="display:flex;align-items:center;gap:8px;">
+          <span>✅ Richiedi Approvazione</span>
+          <span class="designer-pill designer-pill-primary" style="font-size:11px;">flusso si mette in pausa</span>
+        </div>
+        <div class="designer-help" style="margin-bottom:10px;">
+          Invia email agli approvatori con link Approva/Rifiuta. Dopo la decisione vengono eseguite le azioni del ramo corrispondente.
+        </div>
+        <div class="designer-trigger-copy">
+          <div class="designer-field designer-field-wide">
+            <label>Email approvatori (template, virgola-separati)</label>
+            <input type="text" name="{{ entry.form.prefix }}-approval_to_template"
+                   class="auto-config-field" data-config-key="to_template"
+                   placeholder="{capo_email} oppure manager@azienda.com">
+          </div>
+          <div class="designer-field designer-field-wide">
+            <label>Oggetto email</label>
+            <input type="text" name="{{ entry.form.prefix }}-approval_subject"
+                   class="auto-config-field" data-config-key="subject_template"
+                   placeholder="Approvazione richiesta #{id}">
+          </div>
+          <div class="designer-field designer-field-wide">
+            <label>Testo del messaggio</label>
+            <textarea name="{{ entry.form.prefix }}-approval_message" rows="4"
+                      class="auto-config-field" data-config-key="message_template"
+                      placeholder="Si richiede la tua approvazione per la richiesta #{id} di {dipendente_id}..."></textarea>
+          </div>
+          <div class="designer-field">
+            <label>Scadenza (giorni)</label>
+            <input type="number" min="1" max="365" name="{{ entry.form.prefix }}-approval_expiry"
+                   class="auto-config-field" data-config-key="expiry_days" value="7">
+          </div>
+          <div class="designer-field">
+            <label>Label bottone "Approva"</label>
+            <input type="text" name="{{ entry.form.prefix }}-approval_approve_label"
+                   class="auto-config-field" data-config-key="approve_label" value="Approva">
+          </div>
+          <div class="designer-field">
+            <label>Label bottone "Rifiuta"</label>
+            <input type="text" name="{{ entry.form.prefix }}-approval_reject_label"
+                   class="auto-config-field" data-config-key="reject_label" value="Rifiuta">
+          </div>
+        </div>
+        <details class="designer-subeditor" style="margin-top:14px;">
+          <summary class="designer-subeditor-summary">Azioni se APPROVATO (JSON)</summary>
+          <div style="margin-top:10px;">
+            <div class="designer-help" style="margin-bottom:6px;">
+              Lista JSON di azioni inline: <code>[{"action_type":"send_email","description":"...","config_json":{...}}]</code>
+            </div>
+            <textarea name="{{ entry.form.prefix }}-approval_approved_actions" rows="6"
+                      class="auto-config-field font-mono" data-config-key="approved_actions" data-config-json-array="true"
+                      style="width:100%;font-family:monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#0f172a;color:#e2e8f0;"
+                      placeholder='[{"action_type":"send_email","description":"Notifica approvazione","config_json":{"to":"{dipendente_email}","subject_template":"Richiesta approvata","body_text_template":"La tua richiesta è stata approvata."}}]'>[]</textarea>
+          </div>
+        </details>
+        <details class="designer-subeditor" style="margin-top:8px;">
+          <summary class="designer-subeditor-summary">Azioni se RIFIUTATO (JSON)</summary>
+          <div style="margin-top:10px;">
+            <textarea name="{{ entry.form.prefix }}-approval_rejected_actions" rows="6"
+                      class="auto-config-field font-mono" data-config-key="rejected_actions" data-config-json-array="true"
+                      style="width:100%;font-family:monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#0f172a;color:#e2e8f0;"
+                      placeholder='[{"action_type":"send_email","description":"Notifica rifiuto","config_json":{"to":"{dipendente_email}","subject_template":"Richiesta rifiutata","body_text_template":"La tua richiesta è stata rifiutata."}}]'>[]</textarea>
+          </div>
+        </details>
+      </div>
+
+      {# ── DO_UNTIL ──────────────────────────────────────────────────────── #}
+      <div class="designer-editor-panel" data-action-config="do_until" style="margin-top:12px;">
+        <div class="designer-editor-panel-title" style="display:flex;align-items:center;gap:8px;">
+          <span>🔁 Do Until — Ripeti fino a condizione</span>
+        </div>
+        <div class="designer-help" style="margin-bottom:10px;">
+          Esegue le azioni del "corpo loop" e riprogramma l'esecuzione finché la condizione di uscita non è soddisfatta o si raggiunge il massimo di iterazioni.
+        </div>
+        <div class="designer-trigger-copy">
+          <div class="designer-field">
+            <label>Campo da controllare</label>
+            <input type="text" class="auto-config-field" data-config-key="check_field" placeholder="status">
+          </div>
+          <div class="designer-field">
+            <label>Operatore</label>
+            <select class="auto-config-field" data-config-key="check_operator">
+              <option value="equals">equals</option>
+              <option value="not_equals">not_equals</option>
+              <option value="gt">gt (>)</option>
+              <option value="gte">gte (≥)</option>
+              <option value="lt">lt (<)</option>
+              <option value="lte">lte (≤)</option>
+              <option value="is_not_empty">is_not_empty</option>
+              <option value="is_true">is_true</option>
+            </select>
+          </div>
+          <div class="designer-field">
+            <label>Valore atteso</label>
+            <input type="text" class="auto-config-field" data-config-key="check_value" placeholder="APPROVED">
+          </div>
+          <div class="designer-field">
+            <label>Tipo valore</label>
+            <select class="auto-config-field" data-config-key="check_value_type">
+              <option value="string">string</option>
+              <option value="int">int</option>
+              <option value="bool">bool</option>
+            </select>
+          </div>
+          <div class="designer-field">
+            <label>Ritardo retry</label>
+            <input type="number" min="1" class="auto-config-field" data-config-key="retry_delay_value" value="24">
+          </div>
+          <div class="designer-field">
+            <label>Unità ritardo</label>
+            <select class="auto-config-field" data-config-key="retry_delay_unit">
+              <option value="hours">Ore</option>
+              <option value="minutes">Minuti</option>
+              <option value="days">Giorni</option>
+            </select>
+          </div>
+          <div class="designer-field">
+            <label>Max iterazioni</label>
+            <input type="number" min="1" max="100" class="auto-config-field" data-config-key="max_iterations" value="10">
+          </div>
+        </div>
+        <details class="designer-subeditor" style="margin-top:14px;">
+          <summary class="designer-subeditor-summary">Azioni corpo loop (ogni iterazione)</summary>
+          <div style="margin-top:10px;">
+            <textarea rows="5" class="auto-config-field" data-config-key="loop_actions" data-config-json-array="true"
+                      style="width:100%;font-family:monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#0f172a;color:#e2e8f0;"
+                      placeholder='[{"action_type":"send_email","description":"Reminder","config_json":{...}}]'>[]</textarea>
+          </div>
+        </details>
+        <details class="designer-subeditor" style="margin-top:6px;">
+          <summary class="designer-subeditor-summary">Azioni se condizione soddisfatta (successo)</summary>
+          <div style="margin-top:10px;">
+            <textarea rows="5" class="auto-config-field" data-config-key="on_success_actions" data-config-json-array="true"
+                      style="width:100%;font-family:monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#0f172a;color:#e2e8f0;"
+                      placeholder='[]'>[]</textarea>
+          </div>
+        </details>
+        <details class="designer-subeditor" style="margin-top:6px;">
+          <summary class="designer-subeditor-summary">Azioni se max iterazioni raggiunto (timeout)</summary>
+          <div style="margin-top:10px;">
+            <textarea rows="5" class="auto-config-field" data-config-key="on_timeout_actions" data-config-json-array="true"
+                      style="width:100%;font-family:monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#0f172a;color:#e2e8f0;"
+                      placeholder='[{"action_type":"write_log","config_json":{"message_template":"Timeout do_until per record #{id}"}}]'>[]</textarea>
+          </div>
+        </details>
+      </div>
+
+      {# ── FOR_EACH ──────────────────────────────────────────────────────── #}
+      <div class="designer-editor-panel" data-action-config="for_each" style="margin-top:12px;">
+        <div class="designer-editor-panel-title">🔂 Per Ogni Elemento (For Each)</div>
+        <div class="designer-help" style="margin-bottom:10px;">
+          Interroga una sorgente con un filtro opzionale ed esegue le azioni su ogni record trovato.
+        </div>
+        <div class="designer-trigger-copy">
+          <div class="designer-field">
+            <label>Sorgente dati</label>
+            <input type="text" class="auto-config-field" data-config-key="source_code" placeholder="assenze">
+          </div>
+          <div class="designer-field">
+            <label>Campo filtro (opzionale)</label>
+            <input type="text" class="auto-config-field" data-config-key="filter_field" placeholder="moderation_status">
+          </div>
+          <div class="designer-field">
+            <label>Valore filtro (template)</label>
+            <input type="text" class="auto-config-field" data-config-key="filter_value_template" placeholder="0 o {campo}">
+          </div>
+          <div class="designer-field">
+            <label>Max elementi</label>
+            <input type="number" min="1" max="500" class="auto-config-field" data-config-key="max_items" value="50">
+          </div>
+        </div>
+        <details class="designer-subeditor" style="margin-top:14px;">
+          <summary class="designer-subeditor-summary">Azioni per ogni record</summary>
+          <div style="margin-top:10px;">
+            <textarea rows="6" class="auto-config-field" data-config-key="each_actions" data-config-json-array="true"
+                      style="width:100%;font-family:monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#0f172a;color:#e2e8f0;"
+                      placeholder='[{"action_type":"send_email","description":"Email a ogni dipendente","config_json":{"to":"{dipendente_email}","subject_template":"Promemoria #{id}","body_text_template":"..."}}]'>[]</textarea>
+          </div>
+        </details>
+      </div>
+
+      {# ── BRANCH / IF-ELSE ─────────────────────────────────────────────── #}
+      <div class="designer-editor-panel" data-action-config="branch" style="margin-top:12px;">
+        <div class="designer-editor-panel-title">🔀 Branch / Condizione If-Else</div>
+        <div class="designer-help" style="margin-bottom:10px;">
+          Se la condizione è vera esegue le azioni "Se Vero", altrimenti le azioni "Se Falso". Estende il run_if con un ramo else completo.
+        </div>
+        <div class="designer-trigger-copy">
+          <div class="designer-field">
+            <label>Campo</label>
+            <input type="text" class="auto-config-field" data-config-key="condition_field" placeholder="status">
+          </div>
+          <div class="designer-field">
+            <label>Operatore</label>
+            <select class="auto-config-field" data-config-key="condition_operator">
+              <option value="equals">equals</option>
+              <option value="not_equals">not_equals</option>
+              <option value="contains">contains</option>
+              <option value="gt">gt (>)</option>
+              <option value="gte">gte (≥)</option>
+              <option value="lt">lt (<)</option>
+              <option value="lte">lte (≤)</option>
+              <option value="is_true">is_true</option>
+              <option value="is_false">is_false</option>
+              <option value="is_empty">is_empty</option>
+              <option value="is_not_empty">is_not_empty</option>
+              <option value="changed_to">changed_to</option>
+            </select>
+          </div>
+          <div class="designer-field">
+            <label>Valore</label>
+            <input type="text" class="auto-config-field" data-config-key="condition_value" placeholder="PENDING">
+          </div>
+          <div class="designer-field">
+            <label>Tipo valore</label>
+            <select class="auto-config-field" data-config-key="condition_value_type">
+              <option value="string">string</option>
+              <option value="int">int</option>
+              <option value="bool">bool</option>
+            </select>
+          </div>
+        </div>
+        <details class="designer-subeditor" style="margin-top:14px;">
+          <summary class="designer-subeditor-summary">✅ Azioni Se Vero (if_true)</summary>
+          <div style="margin-top:10px;">
+            <textarea rows="5" class="auto-config-field" data-config-key="if_true_actions" data-config-json-array="true"
+                      style="width:100%;font-family:monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#0f172a;color:#e2e8f0;"
+                      placeholder='[{"action_type":"send_email","config_json":{...}}]'>[]</textarea>
+          </div>
+        </details>
+        <details class="designer-subeditor" style="margin-top:6px;">
+          <summary class="designer-subeditor-summary">❌ Azioni Se Falso (if_false)</summary>
+          <div style="margin-top:10px;">
+            <textarea rows="5" class="auto-config-field" data-config-key="if_false_actions" data-config-json-array="true"
+                      style="width:100%;font-family:monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#0f172a;color:#e2e8f0;"
+                      placeholder='[]'>[]</textarea>
+          </div>
+        </details>
+      </div>
+
     </div>
   </details>
 </article>

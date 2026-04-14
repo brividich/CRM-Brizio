@@ -179,6 +179,15 @@ class SourceRegistryFieldFilterTests(SimpleTestCase):
         self.assertEqual(payload["moderation_status"], 0)
         self.assertTrue(payload["salta_approvazione"])
 
+    def test_runtime_old_fields_are_exposed_for_tasks_and_tickets(self):
+        ticket_template_fields = [field["name"] for field in get_template_fields("tickets")]
+        task_template_fields = [field["name"] for field in get_template_fields("tasks")]
+
+        self.assertIn("old_stato", ticket_template_fields)
+        self.assertIn("old_assegnato_a", ticket_template_fields)
+        self.assertIn("old_status", task_template_fields)
+        self.assertIn("old_assigned_to_id", task_template_fields)
+
 
 @override_settings(
     LEGACY_AUTH_ENABLED=False,
@@ -305,6 +314,8 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertContains(response, matching_rule.code)
         self.assertContains(response, reverse("admin_portale:automazioni_rule_designer", args=[matching_rule.id]))
         self.assertContains(response, reverse("admin_portale:automazioni_rule_designer_create"))
+        self.assertContains(response, "Nuova regola guidata")
+        self.assertContains(response, "Builder classico")
         self.assertNotContains(response, other_rule.code)
 
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
@@ -819,6 +830,29 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertContains(response, f"Run log #{run_log.id}")
         self.assertEqual(run_log.payload_json["id"], 777)
         self.assertTrue(run_log.is_test)
+
+    @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
+    @patch("admin_portale.decorators.get_legacy_user")
+    def test_rule_test_page_prefills_example_payload_and_smart_builder(self, mock_get_legacy_user, _mock_is_admin):
+        mock_get_legacy_user.return_value = self.legacy_admin
+        rule = AutomationRule.objects.create(
+            code="builder-test-page-smart",
+            name="Builder test page smart",
+            source_code="tickets",
+            operation_type=AutomationRuleOperationType.UPDATE,
+            trigger_scope=AutomationRuleTriggerScope.ALL_UPDATES,
+            is_active=True,
+            is_draft=False,
+        )
+
+        response = self.client.get(reverse("admin_portale:automazioni_rule_test", args=[rule.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["enable_smart_field_panel"])
+        self.assertIn("all", response.context["source_fields_json"]["tickets"])
+        self.assertContains(response, "Composer guidato del payload")
+        self.assertContains(response, 'data-json-builder="payload_json"', html=False)
+        self.assertContains(response, "Ticket di esempio")
 
     @patch("automazioni.views.count_queue_by_status")
     @patch("automazioni.views.list_queue_events")

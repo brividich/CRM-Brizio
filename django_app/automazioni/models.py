@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -60,6 +62,11 @@ class AutomationActionType(models.TextChoices):
     DELAY_SCHEDULE = "delay_schedule", "Delay / Schedule"
     HTTP_REQUEST = "http_request", "HTTP request"
     TEAMS_WEBHOOK = "teams_webhook", "Teams webhook"
+    # Controllo flusso
+    SEND_APPROVAL = "send_approval", "Richiedi Approvazione"
+    DO_UNTIL = "do_until", "Do Until (Ripeti fino a condizione)"
+    FOR_EACH = "for_each", "Per Ogni Elemento (For Each)"
+    BRANCH = "branch", "Branch / Condizione If-Else"
 
 
 class AutomationRunLogStatus(models.TextChoices):
@@ -67,6 +74,7 @@ class AutomationRunLogStatus(models.TextChoices):
     ERROR = "error", "Error"
     SKIPPED = "skipped", "Skipped"
     TEST = "test", "Test"
+    WAITING_APPROVAL = "waiting_approval", "In attesa approvazione"
 
 
 class AutomationActionLogStatus(models.TextChoices):
@@ -273,3 +281,115 @@ class DashboardMetricValue(models.Model):
 
     def __str__(self) -> str:
         return f"{self.label} [{self.metric_code}]"
+
+
+class AutomationTableConfig(models.Model):
+    """Whitelist dinamica delle tabelle accessibili dalle azioni insert_record / update_record."""
+
+    ACTION_TYPE_CHOICES = [
+        ("insert_record", "Insert record"),
+        ("update_record", "Update record"),
+    ]
+
+    action_type = models.CharField(max_length=50, choices=ACTION_TYPE_CHOICES)
+    table_name = models.CharField(max_length=200)
+    allowed_fields = models.JSONField(default=list, help_text="Campi scrivibili (lista stringhe)")
+    where_fields = models.JSONField(default=list, help_text="Campi usabili nel WHERE (solo update_record)")
+    notes = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("action_type", "table_name")]
+        ordering = ["action_type", "table_name"]
+
+    def __str__(self) -> str:
+        return f"{self.action_type} → {self.table_name}"
+
+
+class AutomationApproval(models.Model):
+    """
+    Richiesta di approvazione umana generata dall'azione send_approval.
+    Il flusso si mette in pausa finché l'approvatore decide.
+    Dopo la decisione, vengono eseguite le azioni del ramo approvato o rifiutato.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "In attesa"
+        APPROVED = "approved", "Approvato"
+        REJECTED = "rejected", "Rifiutato"
+        EXPIRED = "expired", "Scaduto"
+
+    run_log = models.ForeignKey(
+        AutomationRunLog,
+        on_delete=models.CASCADE,
+        related_name="approvals",
+        help_text="Run log che ha generato questa richiesta.",
+    )
+    action = models.ForeignKey(
+        AutomationAction,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approval_requests",
+        help_text="Azione send_approval che ha originato la richiesta.",
+    )
+    token = models.UUIDField(
+        default=uuid.uuid4,
+        unique=True,
+        db_index=True,
+        help_text="Token univoco usato negli URL di approvazione/rifiuto.",
+    )
+    approver_emails = models.JSONField(
+        default=list,
+        help_text="Lista email degli approvatori a cui è stata inviata la richiesta.",
+    )
+    subject = models.CharField(max_length=512, help_text="Oggetto dell'email di approvazione.")
+    message = models.TextField(blank=True, default="", help_text="Corpo del messaggio inviato all'approvatore.")
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+    decided_by_email = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Email di chi ha preso la decisione.",
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True, help_text="Scadenza della richiesta.")
+    resume_payload = models.JSONField(
+        default=dict,
+        help_text="Payload originale da usare per eseguire le azioni post-decisione.",
+    )
+    resume_old_payload = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Old payload originale.",
+    )
+    # Azioni da eseguire dopo la decisione, serializzate come lista di {action_type, config_json, description}
+    approved_actions = models.JSONField(
+        default=list,
+        help_text="Azioni da eseguire se la richiesta viene approvata.",
+    )
+    rejected_actions = models.JSONField(
+        default=list,
+        help_text="Azioni da eseguire se la richiesta viene rifiutata.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["status", "expires_at"], name="autom_approval_status_exp_idx"),
+        ]
+
+    def __str__(self) -> str:
+        rule_code = getattr(getattr(self.run_log, "rule", None), "code", "?") if self.run_log_id else "?"
+        return f"Approval<{rule_code}:{self.status}:{self.token}>"
+
+    def is_expired(self) -> bool:
+        if self.expires_at is None:
+            return False
+        return timezone.now() > self.expires_at

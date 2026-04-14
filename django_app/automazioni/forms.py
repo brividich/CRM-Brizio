@@ -67,6 +67,29 @@ def _field_choices_from_registry(source_code: str | None, *, mode: str) -> list[
     return [("", "---------"), *[(field["name"], f"{field['label']} ({field['name']})") for field in fields]]
 
 
+def _set_widget_attr(field: forms.Field | None, key: str, value: str) -> None:
+    if field is None:
+        return
+    field.widget.attrs[key] = value
+
+
+def _mark_smart_target(
+    field: forms.Field | None,
+    *,
+    mode: str,
+    role: str = "",
+    source_role: str = "",
+) -> None:
+    if field is None:
+        return
+    _set_widget_attr(field, "data-smart-target", "1")
+    _set_widget_attr(field, "data-smart-mode", mode)
+    if role:
+        _set_widget_attr(field, "data-smart-role", role)
+    if source_role:
+        _set_widget_attr(field, "data-smart-source-role", source_role)
+
+
 def _serialize_mapping_for_textarea(value: Any) -> str:
     if not isinstance(value, dict):
         return ""
@@ -227,6 +250,7 @@ class AutomationRuleForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         self.fields["source_code"].choices = get_source_choices()
+        _mark_smart_target(self.fields.get("watched_field"), mode="field-select", role="watched-field", source_role="trigger")
 
         if not self.is_bound and not self.instance.pk:
             self.initial.setdefault("source_code", _get_default_source_code())
@@ -283,6 +307,7 @@ class AutomationConditionForm(forms.ModelForm):
     def __init__(self, *args, source_code: str | None = None, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["order"].required = False
+        _mark_smart_target(self.fields.get("field_name"), mode="field-select", role="condition-field", source_role="condition")
         if not self.instance.pk:
             self.fields["order"].initial = ""
             self.fields["is_enabled"].initial = False
@@ -441,6 +466,31 @@ class AutomationActionForm(forms.ModelForm):
         self.fields["insert_target_table"].choices = [("", "---------"), *[(table, table) for table in insert_tables]]
         self.fields["update_target_table"].choices = [("", "---------"), *[(table, table) for table in update_tables]]
         self.fields["run_if_field_name"].choices = _field_choices_from_registry(self._effective_source_code, mode="condition")
+        _mark_smart_target(self.fields.get("run_if_field_name"), mode="field-select", role="run-if-field", source_role="condition")
+        _mark_smart_target(self.fields.get("email_from_email"), mode="template-input", role="email-from", source_role="template")
+        _mark_smart_target(self.fields.get("email_to"), mode="template-input", role="email-to", source_role="template")
+        _mark_smart_target(self.fields.get("email_cc"), mode="template-input", role="email-cc", source_role="template")
+        _mark_smart_target(self.fields.get("email_bcc"), mode="template-input", role="email-bcc", source_role="template")
+        _mark_smart_target(self.fields.get("email_reply_to"), mode="template-input", role="email-reply-to", source_role="template")
+        _mark_smart_target(self.fields.get("email_subject_template"), mode="template-input", role="email-subject", source_role="template")
+        _mark_smart_target(self.fields.get("email_body_text_template"), mode="template-input", role="email-body-text", source_role="template")
+        _mark_smart_target(self.fields.get("email_body_html_template"), mode="template-input", role="email-body-html", source_role="template")
+        _mark_smart_target(self.fields.get("write_log_message_template"), mode="template-input", role="write-log-message", source_role="template")
+        _mark_smart_target(self.fields.get("metric_value_template"), mode="template-input", role="metric-value", source_role="template")
+        _mark_smart_target(self.fields.get("insert_field_mappings_text"), mode="mapping-input", role="insert-mapping", source_role="template")
+        _mark_smart_target(self.fields.get("update_where_value_template"), mode="template-input", role="update-where-value", source_role="template")
+        _mark_smart_target(self.fields.get("update_fields_text"), mode="mapping-input", role="update-fields", source_role="template")
+        _mark_smart_target(self.fields.get("trigger_update_fields_text"), mode="mapping-input", role="trigger-update-fields", source_role="template")
+        _mark_smart_target(self.fields.get("delay_value_template"), mode="template-input", role="delay-value", source_role="template")
+        _mark_smart_target(self.fields.get("delay_until_template"), mode="template-input", role="delay-until", source_role="template")
+        _mark_smart_target(self.fields.get("http_url_template"), mode="template-input", role="http-url", source_role="template")
+        _mark_smart_target(self.fields.get("http_headers_text"), mode="mapping-input", role="http-headers", source_role="template")
+        _mark_smart_target(self.fields.get("http_body_template"), mode="template-input", role="http-body", source_role="template")
+        _mark_smart_target(self.fields.get("teams_webhook_url"), mode="template-input", role="teams-webhook-url", source_role="template")
+        _mark_smart_target(self.fields.get("teams_title_template"), mode="template-input", role="teams-title", source_role="template")
+        _mark_smart_target(self.fields.get("teams_summary_template"), mode="template-input", role="teams-summary", source_role="template")
+        _mark_smart_target(self.fields.get("teams_text_template"), mode="template-input", role="teams-text", source_role="template")
+        _mark_smart_target(self.fields.get("teams_facts_text"), mode="mapping-input", role="teams-facts", source_role="template")
         self.fields["run_if_expected_value"].help_text = (
             "Per `changed_from_to` usa `vecchio|nuovo`. Se spunti `inverti risultato`, il branch diventa un ELSE."
         )
@@ -761,6 +811,11 @@ class AutomationRuleTestForm(forms.Form):
         help_text="La pagina salva comunque il run log in modalita' test.",
     )
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _mark_smart_target(self.fields.get("payload_json"), mode="json-editor", role="payload-json", source_role="template")
+        _mark_smart_target(self.fields.get("old_payload_json"), mode="json-editor", role="old-payload-json", source_role="template")
+
     def clean_payload_json(self):
         raw_value = self.cleaned_data["payload_json"]
         try:
@@ -914,7 +969,7 @@ AutomationConditionFormSet = inlineformset_factory(
     AutomationCondition,
     form=AutomationConditionForm,
     formset=_AutomationOrderedInlineFormSet,
-    extra=2,
+    extra=0,
     can_delete=True,
 )
 
@@ -924,6 +979,6 @@ AutomationActionFormSet = inlineformset_factory(
     AutomationAction,
     form=AutomationActionForm,
     formset=_AutomationOrderedInlineFormSet,
-    extra=2,
+    extra=0,
     can_delete=True,
 )

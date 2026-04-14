@@ -6,6 +6,23 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ---
 
+## 0.9.16 - 2026-04-14 (in corso)
+
+### Added (2026-04-14)
+
+- **AUTOMAZIONI — FEAT — Controllo flusso avanzato: send_approval, do_until, for_each, branch** (`django_app/automazioni/models.py`, `django_app/automazioni/services.py`, `django_app/automazioni/views.py`, `django_app/automazioni/urls.py`, `django_app/automazioni/migrations/0008_approval_and_flow_actions.py`): quattro nuovi tipi di azione che portano le automazioni a livello Power Automate. `send_approval` pausa il flusso e attende decisione umana via link email; `do_until` esegue un loop fino a condizione; `for_each` itera su una sorgente; `branch` implementa un pieno if/else con ramo else.
+- **AUTOMAZIONI — UX — Diagramma di flusso Power Automate-style** (`django_app/automazioni/templates/automazioni/pages/rule_designer.html`, `django_app/automazioni/views.py`): il designer visuale espone un bottone "🔀 Diagramma di flusso" che mostra la regola come diagramma verticale con nodi colorati, connettori freccia, rami approvazione/branch, corpo loop e iterazione for_each. Renderizzato lato client da `flow_nodes_json`.
+- **AUTOMAZIONI — MODEL — `AutomationApproval`** (`django_app/automazioni/migrations/0008_approval_and_flow_actions.py`): nuovo modello per tracciare richieste di approvazione umana con token UUID, stati `pending/approved/rejected/expired` e azioni da eseguire post-decisione.
+- **AUTOMAZIONI — PAGE — Pagine approvazione pubblica** (`/automazioni/approvazione/<token>/approva|rifiuta/`): accessibili senza login tramite token UUID; `process_approval_decision()` esegue le azioni del ramo corrispondente.
+
+### Changed (2026-04-13)
+
+- **[AUTOMAZIONI][UX][DESIGNER] Designer visuale piu' guidato e dinamico** (`django_app/automazioni/templates/automazioni/pages/rule_designer.html`, `django_app/automazioni/templates/automazioni/components/source_catalog_panel.html`, `django_app/automazioni/forms.py`, `django_app/automazioni/views.py`, `django_app/automazioni/tests.py`): il designer ora usa un browser campi smart con ricerca, filtri per ambito (`trigger`, `condition`, `template`, `action_mapping`) e inserimento contestuale nel target attivo. I campi template/mapping/select sono marcati a livello form per permettere inserimento placeholder con un click, mentre il pannello laterale mostra il target attivo e lavora in stile piu' vicino a Power Automate.
+
+- **[AUTOMAZIONI][UX][TEST] Pagina test regola trasformata in composer guidato current/old payload** (`django_app/automazioni/templates/automazioni/pages/rule_test.html`, `django_app/automazioni/forms.py`, `django_app/automazioni/views.py`, `django_app/automazioni/tests.py`): la pagina test non parte piu' da due textarea vuote ma da payload di esempio coerenti con la sorgente, con builder visuale sincronizzato ai textarea JSON raw, azioni rapide (`usa esempio`, `duplica current in old`, `formatta JSON`, `svuota old`) e diff sintetico dei campi cambiati.
+
+- **[AUTOMAZIONI][SORGENTI] Campi runtime `old_*` esposti nel catalogo per tickets e tasks** (`django_app/automazioni/source_registry.py`, `django_app/automazioni/tests.py`): i payload update che includono valori precedenti direttamente nel JSON corrente (`old_stato`, `old_assegnato_a`, `old_status`, `old_assigned_to_id`, `old_due_date`) vengono ora dichiarati come campi virtuali nel source registry, cosi compaiono in catalogo, preset, test manuale e template email/HTML.
+
 ## 0.9.15 - 2026-04-10 (in corso)
 
 ### Fixed (2026-04-10)

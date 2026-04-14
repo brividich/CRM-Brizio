@@ -1,5 +1,29 @@
 ﻿# Changelog
 
+## 0.9.16 - 2026-04-14
+
+### Modulo Automazioni — Controllo flusso avanzato + Diagramma Power Automate-style
+
+- **[feat] Diagramma di flusso visuale** (`🔀 Diagramma di flusso`): bottone nel designer visuale che apre una visualizzazione verticale stile Power Automate con nodi colorati per tipo (trigger, condizioni, azioni), connettori freccia, rami approvazione/branch, corpo loop do_until e iterazione for_each. Ogni nodo ha un pulsante "Modifica ↓" che scrolla al form corrispondente. Renderizzato lato client senza librerie esterne da `flow_nodes_json` calcolato da `_build_flow_nodes()` in `views.py`.
+- **[feat] `send_approval` — Approvazione umana nel flusso**: nuova azione che pausa l'automazione, invia email agli approvatori con link `Approva`/`Rifiuta` e crea un record `AutomationApproval`. Quando l'approvatore clicca, vengono eseguite le azioni del ramo `approved_actions` o `rejected_actions`. Path `/automazioni/approvazione/<token>/approva|rifiuta/` senza login (token UUID). Run log passa in status `waiting_approval`.
+- **[feat] `do_until` — Loop fino a condizione**: esegue `loop_actions` e si richiama tramite la coda eventi finché `check_field/operator/value` non è soddisfatto o si raggiunge `max_iterations`. Delay configurabile (minuti/ore/giorni). All'uscita: `on_success_actions` o `on_timeout_actions`.
+- **[feat] `for_each` — Iterazione su sorgente**: interroga una sorgente registrata con filtro opzionale (campo + valore template) ed esegue `each_actions` su ogni record risultante (max `max_items`, default 50, massimo 500).
+- **[feat] `branch` — If/Else completo**: valuta una condizione e sceglie tra `if_true_actions` e `if_false_actions`. Complementa il `run_if` (branch leggero) con pieno ramo else.
+- **[model] `AutomationApproval`** (migration 0008): token UUID, approver_emails, approved/rejected_actions, status `pending/approved/rejected/expired`, expires_at, decided_by_email.
+- **[api] Pagine approvazione**: `GET /automazioni/approvazione/<token>/` (stato), `GET/POST /automazioni/approvazione/<token>/approva|rifiuta/` (decision). Esenti da ACL (aggiunti a `MIDDLEWARE_EXEMPT_PREFIXES`).
+
+### Modulo Automazioni - Test live e anteprima email
+
+- **[feat] Test live inline nel designer**: il pannello laterale del designer visuale include ora un test AJAX completo con due modalita — "Dati campione" (payload auto-generato) e "Record reale" (picker AJAX degli ultimi 20 record dalla sorgente). Il pulsante "Esegui test" manda un POST a `/api/regole/<id>/test-ajax/` e mostra i risultati azione per azione (status, messaggio, traccia errore, link al run log) senza abbandonare la pagina.
+- **[feat] Anteprima email live**: le card azione di tipo `send_email` espongono un pulsante "Anteprima" che apre un pannello visivo — stile client email — che riflette live i campi Da/A/Oggetto/Corpo con evidenziazione dei `{placeholder}` in blu.
+- **[api] Nuovi endpoint automazioni**: `GET /api/sorgenti/<code>/record-recenti/`, `GET /api/sorgenti/<code>/record/<id>/payload/`, `POST /api/regole/<id>/test-ajax/` — tutti protetti da `@legacy_admin_required`.
+
+### Modulo Automazioni - UX smart designer/test precedente
+
+- **[ux] `rule_designer.html` piu guidata**: il designer visuale usa ora un browser campi smart con ricerca, filtri per ambito e inserimento contestuale nel target attivo (select trigger/condizione, template, mapping, JSON). I widget dei form vengono marcati con attributi dedicati per rendere robusto il supporto frontend.
+- **[ux] `rule_test.html` riscritta come composer**: la pagina test espone un builder current/old payload sincronizzato con i textarea JSON raw, pulsanti rapidi per sample/clone/format e diff sintetico dei campi cambiati, cosi la simulazione non parte piu da textarea vuote.
+- **[registry] campi runtime `old_*` visibili**: `tickets` e `tasks` dichiarano ora nel source registry i campi virtuali `old_stato`, `old_assegnato_a`, `old_status`, `old_assigned_to_id`, `old_due_date`, utili nei template e nel test manuale.
+
 ## 0.9.15 - 2026-04-10
 
 ### Modulo KICK-OFF — redesign interfaccia

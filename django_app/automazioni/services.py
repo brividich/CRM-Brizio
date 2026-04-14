@@ -52,23 +52,86 @@ class QueueEventStatus:
 logger = logging.getLogger(__name__)
 
 
+# App moduli principali — usate per il picker "aggiungi tabella"
+_MODULE_APPS = {
+    "anagrafica", "assets", "assenze", "anomalie", "tasks", "tickets",
+    "notizie", "timbri", "rentri", "dpi", "procedure_refresh",
+    "diario_preposto", "rilevazione_incidenti", "automazioni", "core",
+}
+
+
+def discover_module_tables() -> dict[str, dict[str, list[str]]]:
+    """
+    Restituisce tutte le tabelle dei modelli Django appartenenti ai moduli principali.
+    Formato: { "app_label.ModelName (db_table)": {"table": str, "fields": [...], "all_fields": [...]} }
+    Usato dal picker UI per selezionare tabelle da aggiungere alla whitelist.
+    """
+    from django.apps import apps
+    from django.db.models import AutoField, BigAutoField, SmallAutoField
+
+    result: dict[str, dict] = {}
+    for model in apps.get_models():
+        if not model._meta.managed:
+            continue
+        if model._meta.app_label not in _MODULE_APPS:
+            continue
+        table = model._meta.db_table
+        editable: list[str] = []
+        all_cols: list[str] = []
+        for f in model._meta.get_fields():
+            if not hasattr(f, "column") or not f.column:
+                continue
+            all_cols.append(f.column)
+            if not isinstance(f, (AutoField, BigAutoField, SmallAutoField)):
+                editable.append(f.column)
+        label = f"{model._meta.app_label}.{model.__name__} ({table})"
+        result[table] = {
+            "label": label,
+            "table": table,
+            "fields": sorted(editable),
+            "all_fields": sorted(all_cols),
+        }
+    return dict(sorted(result.items()))
+
+
 def get_action_table_whitelist() -> dict[str, dict[str, dict[str, set[str]]]]:
+    """
+    Whitelist tabelle per INSERT_RECORD e UPDATE_RECORD.
+    Legge da AutomationTableConfig (DB). Fallback hardcoded se la tabella è vuota.
+    """
+    from .models import AutomationTableConfig
+
+    try:
+        db_entries = list(AutomationTableConfig.objects.all())
+    except Exception:
+        db_entries = []
+
+    insert_tables: dict[str, dict[str, set[str]]] = {}
+    update_tables: dict[str, dict[str, set[str]]] = {}
+
+    for entry in db_entries:
+        row: dict[str, set[str]] = {
+            "fields": set(entry.allowed_fields or []),
+            "where_fields": set(entry.where_fields or []),
+        }
+        if entry.action_type == AutomationActionType.INSERT_RECORD:
+            insert_tables[entry.table_name] = row
+        elif entry.action_type == AutomationActionType.UPDATE_RECORD:
+            update_tables[entry.table_name] = row
+
+    # Fallback hardcoded se il DB è ancora vuoto
+    if not insert_tables and not update_tables:
+        insert_tables = {
+            "core_notifica": {"fields": {"legacy_user_id", "tipo", "messaggio", "url_azione", "letta"}, "where_fields": set()},
+        }
+        update_tables = {
+            "core_notifica": {"fields": {"tipo", "messaggio", "url_azione", "letta"}, "where_fields": {"id", "legacy_user_id", "tipo"}},
+            "tasks_task": {"fields": {"status", "priority", "next_step_text", "next_step_due", "due_date", "assigned_to_id"}, "where_fields": {"id", "project_id", "assigned_to_id"}},
+        }
+
     return {
-        AutomationActionType.INSERT_RECORD: {
-            "core_notifica": {
-                "fields": {"legacy_user_id", "tipo", "messaggio", "url_azione", "letta"},
-            },
-        },
-        AutomationActionType.UPDATE_RECORD: {
-            "core_notifica": {
-                "fields": {"tipo", "messaggio", "url_azione", "letta"},
-                "where_fields": {"id", "legacy_user_id", "tipo"},
-            },
-            "tasks_task": {
-                "fields": {"status", "priority", "next_step_text", "next_step_due", "due_date", "assigned_to_id"},
-                "where_fields": {"id", "project_id", "assigned_to_id"},
-            },
-        },
+        AutomationActionType.INSERT_RECORD: insert_tables,
+        AutomationActionType.UPDATE_RECORD: update_tables,
     }
 
 
@@ -1526,6 +1589,148 @@ def _schedule_queue_event(
                              event_code, payload_json, execute_after_str])
 
 
+# ────────────────────────────────────────────────────────────────────────────
+# Helpers per azioni di controllo flusso (branch, do_until, for_each, approval)
+# ────────────────────────────────────────────────────────────────────────────
+
+def _check_simple_condition(
+    field_name: str,
+    operator: str,
+    expected_value: str,
+    value_type: str,
+    payload: dict[str, Any],
+    old_payload: dict[str, Any] | None = None,
+) -> bool:
+    """Valuta una condizione semplice senza richiedere un modello AutomationCondition."""
+    from .models import AutomationConditionOperator, AutomationConditionValueType
+    condition = SimpleNamespace(
+        field_name=field_name,
+        operator=operator or AutomationConditionOperator.EQUALS,
+        expected_value=expected_value or "",
+        value_type=value_type or AutomationConditionValueType.STRING,
+        compare_with_old=False,
+        is_enabled=True,
+    )
+    try:
+        return evaluate_condition(condition, payload, old_payload=old_payload)
+    except Exception:
+        return False
+
+
+def _execute_inline_action(
+    child_config: dict[str, Any],
+    payload: Any,
+    old_payload: Any = None,
+    run_log: Any = None,
+    parent_action: Any = None,
+) -> dict[str, Any]:
+    """
+    Esegue un'azione inline definita come dizionario (embedded in config_json).
+    Crea un oggetto SimpleNamespace compatibile con execute_action.
+    """
+    if not isinstance(child_config, dict):
+        return {"status": AutomationActionLogStatus.SKIPPED, "result_message": "child_config non valido."}
+    action_type = str(child_config.get("action_type") or "").strip()
+    if not action_type:
+        return {"status": AutomationActionLogStatus.SKIPPED, "result_message": "action_type mancante nell'azione inline."}
+
+    inline_action = SimpleNamespace(
+        id=None,
+        pk=None,
+        action_type=action_type,
+        config_json=dict(child_config.get("config_json") or {}),
+        description=str(child_config.get("description") or ""),
+        is_enabled=True,
+        order=0,
+        rule=getattr(parent_action, "rule", None),
+    )
+    return execute_action(inline_action, payload, old_payload=old_payload, run_log=run_log)
+
+
+def _query_source_for_each(
+    source_code: str,
+    filter_field: str | None,
+    filter_value: Any,
+    max_items: int = 50,
+) -> list[dict[str, Any]]:
+    """
+    Interroga una sorgente registrata per restituire i record da iterare in for_each.
+    Valida table_name e filter_field contro il source registry.
+    """
+    from .source_registry import get_source_definition, get_source_fields
+
+    source = get_source_definition(source_code)
+    if not source:
+        raise ValueError(f"Sorgente '{source_code}' non trovata nel source registry.")
+    table_name = str(source.get("table_name") or "").strip()
+    if not table_name:
+        raise ValueError(f"Sorgente '{source_code}' non ha una tabella DB definita (non supportata per for_each).")
+
+    valid_fields = {f["name"] for f in get_source_fields(source_code)}
+
+    if filter_field and filter_field not in valid_fields:
+        raise ValueError(f"Il campo filtro '{filter_field}' non è esposto dalla sorgente '{source_code}'.")
+
+    max_items = max(1, min(int(max_items or 50), 500))
+
+    from django.db import connections
+    vendor = str(connections["default"].vendor or "").lower()
+    is_mssql = "microsoft" in vendor or "mssql" in vendor
+
+    try:
+        with connections["default"].cursor() as cursor:
+            if filter_field and filter_value is not None:
+                if is_mssql:
+                    sql = f"SELECT TOP {max_items} * FROM {table_name} WHERE {filter_field} = ?"
+                    cursor.execute(sql, [filter_value])
+                else:
+                    sql = f"SELECT * FROM {table_name} WHERE {filter_field} = ? LIMIT {max_items}"
+                    cursor.execute(sql, [filter_value])
+            else:
+                if is_mssql:
+                    sql = f"SELECT TOP {max_items} * FROM {table_name}"
+                    cursor.execute(sql)
+                else:
+                    sql = f"SELECT * FROM {table_name} LIMIT {max_items}"
+                    cursor.execute(sql)
+            return _cursor_fetch_dicts(cursor)
+    except Exception as exc:
+        raise ValueError(f"Errore durante la query for_each su '{table_name}': {exc}") from exc
+
+
+def _insert_loop_reschedule_event(
+    rule: Any,
+    payload: dict[str, Any],
+    delay_value: int,
+    delay_unit: str,
+) -> None:
+    """
+    Inserisce un nuovo evento in coda per rischedulare un'iterazione do_until.
+    Il payload include il contatore _loop_iteration aggiornato.
+    """
+    _unit_map = {"minutes": timedelta(minutes=1), "hours": timedelta(hours=1), "days": timedelta(days=1)}
+    unit_delta = _unit_map.get(delay_unit, timedelta(hours=1))
+    execute_after = timezone.now() + unit_delta * int(delay_value or 1)
+
+    source_code = str(getattr(rule, "source_code", "") or "")
+    operation_type = str(getattr(rule, "operation_type", "update") or "update")
+    source = get_source_definition(source_code) if source_code else None
+    source_table = str((source or {}).get("table_name") or source_code)
+    pk_field = str((source or {}).get("pk_field") or "id")
+    source_pk = str(payload.get(pk_field) or "0")
+    event_code = f"do_until_loop_rule_{getattr(rule, 'pk', 0)}"
+
+    _insert_scheduled_queue_event(
+        source_code=source_code,
+        source_table=source_table,
+        source_pk=source_pk,
+        operation_type=operation_type,
+        event_code=event_code,
+        payload_json=json.dumps(payload, ensure_ascii=False, default=str),
+        execute_after=execute_after,
+    )
+
+
 def execute_action(
     action: AutomationAction,
     payload: Any,
@@ -1605,7 +1810,26 @@ def execute_action(
             if body_html:
                 message.attach_alternative(body_html, "text/html")
 
-            sent_count = message.send(fail_silently=fail_silently)
+            try:
+                sent_count = message.send(fail_silently=fail_silently)
+            except Exception as smtp_exc:
+                import smtplib
+                exc_type = type(smtp_exc).__name__
+                if isinstance(smtp_exc, smtplib.SMTPServerDisconnected):
+                    from django.conf import settings as _s
+                    raise ValueError(
+                        f"SMTP: il server ha chiuso la connessione prima del completamento "
+                        f"({exc_type}: {smtp_exc}). "
+                        f"Verificare che SMTP AUTH sia abilitato per la casella '{getattr(_s, 'EMAIL_HOST_USER', '?')}' "
+                        f"su {getattr(_s, 'EMAIL_HOST', '?')}:{getattr(_s, 'EMAIL_PORT', '?')}, "
+                        f"che la porta sia raggiungibile dal server e che le credenziali siano corrette."
+                    ) from smtp_exc
+                elif isinstance(smtp_exc, smtplib.SMTPAuthenticationError):
+                    raise ValueError(
+                        f"SMTP: autenticazione fallita ({exc_type}: {smtp_exc}). "
+                        f"Verificare utente e password SMTP."
+                    ) from smtp_exc
+                raise
             if sent_count < 1:
                 raise ValueError("Il backend email non ha confermato l'invio del messaggio.")
 
@@ -1895,6 +2119,222 @@ def execute_action(
             )
             return {"status": AutomationActionLogStatus.SUCCESS, "result_message": result_message, "action_log": action_log}
 
+        # ── SEND_APPROVAL ──────────────────────────────────────────────────────
+        if action.action_type == AutomationActionType.SEND_APPROVAL:
+            from .models import AutomationApproval
+
+            to_raw = render_template_string(config.get("to_template") or "", payload_context)
+            approver_emails = [e.strip().lower() for e in to_raw.split(",") if e.strip()]
+            if not approver_emails:
+                raise ValueError("send_approval: nessun approvatore specificato (to_template vuoto o senza email).")
+
+            subject = render_template_string(
+                config.get("subject_template") or "Richiesta di approvazione", payload_context
+            ).strip()
+            message_body = render_template_string(config.get("message_template") or "", payload_context)
+            expiry_days = max(1, int(config.get("expiry_days") or 7))
+            approved_actions = list(config.get("approved_actions") or [])
+            rejected_actions = list(config.get("rejected_actions") or [])
+
+            approval = AutomationApproval.objects.create(
+                run_log=run_log,
+                action=action if getattr(action, "pk", None) else None,
+                approver_emails=approver_emails,
+                subject=subject,
+                message=message_body,
+                expires_at=timezone.now() + timedelta(days=expiry_days),
+                resume_payload=payload_context,
+                resume_old_payload=old_payload if isinstance(old_payload, dict) else None,
+                approved_actions=approved_actions,
+                rejected_actions=rejected_actions,
+            )
+
+            # Costruiamo gli URL di approvazione/rifiuto
+            try:
+                from django.conf import settings as _s
+                site_url = str(getattr(_s, "SITE_URL", "") or "").rstrip("/")
+            except Exception:
+                site_url = ""
+            approve_url = f"{site_url}/automazioni/approvazione/{approval.token}/approva/"
+            reject_url = f"{site_url}/automazioni/approvazione/{approval.token}/rifiuta/"
+
+            approve_label = str(config.get("approve_label") or "Approva")
+            reject_label = str(config.get("reject_label") or "Rifiuta")
+
+            html_body = (
+                f"<p>{message_body}</p>"
+                f"<p>"
+                f'<a href="{approve_url}" style="display:inline-block;padding:10px 24px;background:#16a34a;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;margin-right:12px;">{approve_label}</a>'
+                f'<a href="{reject_url}" style="display:inline-block;padding:10px 24px;background:#dc2626;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">{reject_label}</a>'
+                f"</p>"
+                f'<p style="font-size:12px;color:#64748b;">Questa richiesta scade il {approval.expires_at.strftime("%d/%m/%Y %H:%M") if approval.expires_at else "N/D"}.</p>'
+            )
+
+            text_body = (
+                f"{message_body}\n\n"
+                f"{approve_label}: {approve_url}\n"
+                f"{reject_label}: {reject_url}\n"
+            )
+
+            from django.core.mail import EmailMultiAlternatives as _EMA
+            from_email = str(getattr(settings, "DEFAULT_FROM_EMAIL", "") or "")
+            for approver_email in approver_emails:
+                msg = _EMA(subject=subject, body=text_body, from_email=from_email, to=[approver_email])
+                msg.attach_alternative(html_body, "text/html")
+                msg.send(fail_silently=False)
+
+            # Il run_log attende l'approvazione
+            if run_log is not None:
+                run_log.status = AutomationRunLogStatus.WAITING_APPROVAL
+                run_log.save(update_fields=["status"])
+
+            result_message = (
+                f"Richiesta approvazione inviata a {', '.join(approver_emails)}. "
+                f"Token: {approval.token}. Scade: {expiry_days} giorni."
+            )
+            action_log = _create_action_log(
+                run_log=run_log, action=action,
+                status=AutomationActionLogStatus.SUCCESS,
+                result_message=result_message,
+            )
+            return {"status": AutomationActionLogStatus.SUCCESS, "result_message": result_message, "action_log": action_log}
+
+        # ── DO_UNTIL ────────────────────────────────────────────────────────
+        if action.action_type == AutomationActionType.DO_UNTIL:
+            check_field = str(config.get("check_field") or "").strip()
+            check_operator = str(config.get("check_operator") or "equals").strip()
+            check_value = str(config.get("check_value") or "").strip()
+            check_value_type = str(config.get("check_value_type") or "string").strip()
+            max_iterations = max(1, int(config.get("max_iterations") or 10))
+            current_iteration = int(payload_context.get("_loop_iteration") or 0)
+            retry_delay_value = max(1, int(config.get("retry_delay_value") or 24))
+            retry_delay_unit = str(config.get("retry_delay_unit") or "hours").strip()
+            loop_actions = list(config.get("loop_actions") or [])
+            on_success_actions = list(config.get("on_success_actions") or [])
+            on_timeout_actions = list(config.get("on_timeout_actions") or [])
+
+            condition_met = (
+                _check_simple_condition(check_field, check_operator, check_value, check_value_type, payload_context)
+                if check_field else False
+            )
+
+            if condition_met:
+                # Condizione soddisfatta → esegui azioni di successo
+                for child_cfg in on_success_actions:
+                    _execute_inline_action(child_cfg, payload_context, old_payload=old_payload, run_log=run_log, parent_action=action)
+                result_message = f"Do Until: condizione soddisfatta all'iterazione {current_iteration}. Azioni success eseguite: {len(on_success_actions)}."
+            elif current_iteration >= max_iterations:
+                # Timeout → esegui azioni di timeout
+                for child_cfg in on_timeout_actions:
+                    _execute_inline_action(child_cfg, payload_context, old_payload=old_payload, run_log=run_log, parent_action=action)
+                result_message = (
+                    f"Do Until: max iterazioni ({max_iterations}) raggiunto senza soddisfare la condizione. "
+                    f"Azioni timeout eseguite: {len(on_timeout_actions)}."
+                )
+            else:
+                # Esegui loop body e rischiedulamla
+                for child_cfg in loop_actions:
+                    _execute_inline_action(child_cfg, payload_context, old_payload=old_payload, run_log=run_log, parent_action=action)
+                new_payload = {**payload_context, "_loop_iteration": current_iteration + 1}
+                try:
+                    rule_ref = getattr(action, "rule", None)
+                    if rule_ref is not None:
+                        _insert_loop_reschedule_event(rule_ref, new_payload, retry_delay_value, retry_delay_unit)
+                        reschedule_note = f"Rischedulato tra {retry_delay_value} {retry_delay_unit}."
+                    else:
+                        reschedule_note = "Impossibile rischedulare: rule non disponibile."
+                except Exception as _re:
+                    reschedule_note = f"Rischedulazione fallita: {_re}."
+                result_message = (
+                    f"Do Until iter {current_iteration + 1}/{max_iterations}: condizione non soddisfatta. "
+                    f"Azioni loop eseguite: {len(loop_actions)}. {reschedule_note}"
+                )
+
+            action_log = _create_action_log(
+                run_log=run_log, action=action,
+                status=AutomationActionLogStatus.SUCCESS,
+                result_message=result_message,
+            )
+            return {"status": AutomationActionLogStatus.SUCCESS, "result_message": result_message, "action_log": action_log}
+
+        # ── FOR_EACH ────────────────────────────────────────────────────────
+        if action.action_type == AutomationActionType.FOR_EACH:
+            foreach_source = str(config.get("source_code") or source_code or "").strip()
+            filter_field = str(config.get("filter_field") or "").strip() or None
+            filter_value_raw = config.get("filter_value_template")
+            filter_value = render_template_string(str(filter_value_raw or ""), payload_context) if filter_value_raw else None
+            max_items = max(1, int(config.get("max_items") or 50))
+            each_actions = list(config.get("each_actions") or [])
+
+            if not foreach_source:
+                raise ValueError("for_each: source_code non specificato.")
+
+            records = _query_source_for_each(foreach_source, filter_field, filter_value, max_items)
+            processed = 0
+            errors = 0
+            for record in records:
+                record_payload = {**payload_context, **record}
+                for child_cfg in each_actions:
+                    res = _execute_inline_action(
+                        child_cfg, record_payload, old_payload=old_payload, run_log=run_log, parent_action=action
+                    )
+                    if res.get("status") == AutomationActionLogStatus.ERROR:
+                        errors += 1
+                processed += 1
+
+            result_message = (
+                f"For Each: {processed} record da '{foreach_source}'. "
+                f"Azioni per record: {len(each_actions)}. Errori totali: {errors}."
+            )
+            final_status = AutomationActionLogStatus.ERROR if errors else AutomationActionLogStatus.SUCCESS
+            action_log = _create_action_log(
+                run_log=run_log, action=action,
+                status=final_status,
+                result_message=result_message,
+            )
+            return {"status": final_status, "result_message": result_message, "action_log": action_log}
+
+        # ── BRANCH (If/Else) ────────────────────────────────────────────────
+        if action.action_type == AutomationActionType.BRANCH:
+            condition_field = str(config.get("condition_field") or "").strip()
+            condition_operator = str(config.get("condition_operator") or "equals").strip()
+            condition_value = str(config.get("condition_value") or "").strip()
+            condition_value_type = str(config.get("condition_value_type") or "string").strip()
+            compare_with_old = bool(config.get("compare_with_old"))
+            if_true_actions = list(config.get("if_true_actions") or [])
+            if_false_actions = list(config.get("if_false_actions") or [])
+
+            condition_met = (
+                _check_simple_condition(
+                    condition_field, condition_operator, condition_value,
+                    condition_value_type, payload_context,
+                    old_payload=old_payload if compare_with_old else None,
+                )
+                if condition_field else False
+            )
+
+            branch_actions = if_true_actions if condition_met else if_false_actions
+            branch_label = "if_true" if condition_met else "if_false"
+            errors = 0
+            for child_cfg in branch_actions:
+                res = _execute_inline_action(
+                    child_cfg, payload_context, old_payload=old_payload, run_log=run_log, parent_action=action
+                )
+                if res.get("status") == AutomationActionLogStatus.ERROR:
+                    errors += 1
+
+            result_message = (
+                f"Branch: eseguito ramo '{branch_label}' "
+                f"({len(branch_actions)} azioni, {errors} errori)."
+            )
+            final_status = AutomationActionLogStatus.ERROR if errors else AutomationActionLogStatus.SUCCESS
+            action_log = _create_action_log(
+                run_log=run_log, action=action,
+                status=final_status,
+                result_message=result_message,
+            )
+            return {"status": final_status, "result_message": result_message, "action_log": action_log}
+
         raise NotImplementedError(f"Action type '{action.action_type}' non ancora implementato in fase 4B.")
     except Exception as exc:
         logger.warning(
@@ -1996,3 +2436,79 @@ def run_rule(
         run_log.save()
 
     return run_log
+
+
+def process_approval_decision(token: str, decision: str, decided_by_email: str = "") -> dict[str, Any]:
+    """
+    Processa una decisione di approvazione (approved/rejected).
+    Esegue le azioni del ramo corrispondente e aggiorna il run_log originale.
+
+    Args:
+        token: UUID del token di approvazione.
+        decision: "approved" o "rejected".
+        decided_by_email: email di chi ha preso la decisione.
+
+    Returns:
+        dict con: ok, approval_id, decision, actions_run, message
+    """
+    from .models import AutomationApproval, AutomationRunLogStatus
+
+    try:
+        approval = AutomationApproval.objects.select_related("run_log", "action__rule").get(token=token)
+    except AutomationApproval.DoesNotExist:
+        return {"ok": False, "message": "Richiesta di approvazione non trovata."}
+
+    if approval.status != AutomationApproval.Status.PENDING:
+        return {
+            "ok": False,
+            "message": f"La richiesta è già in stato '{approval.status}'. Non è possibile decidere nuovamente.",
+            "current_status": approval.status,
+        }
+
+    if approval.is_expired():
+        approval.status = AutomationApproval.Status.EXPIRED
+        approval.save(update_fields=["status"])
+        return {"ok": False, "message": "La richiesta di approvazione è scaduta."}
+
+    if decision not in ("approved", "rejected"):
+        return {"ok": False, "message": f"Decisione '{decision}' non valida. Usare 'approved' o 'rejected'."}
+
+    # Aggiorna approval
+    approval.status = decision
+    approval.decided_by_email = decided_by_email or ""
+    approval.decided_at = timezone.now()
+    approval.save(update_fields=["status", "decided_by_email", "decided_at"])
+
+    # Recupera il run_log originale e aggiorna il suo status
+    run_log = approval.run_log
+    run_log.status = AutomationRunLogStatus.SUCCESS if decision == "approved" else AutomationRunLogStatus.SKIPPED
+    run_log.result_message = (
+        f"Approvazione ricevuta: {decision} da '{decided_by_email or 'N/D'}' il {approval.decided_at.strftime('%d/%m/%Y %H:%M')}."
+    )
+    run_log.save(update_fields=["status", "result_message"])
+
+    # Esegui le azioni del ramo corrispondente
+    branch_actions = approval.approved_actions if decision == "approved" else approval.rejected_actions
+    payload = approval.resume_payload if isinstance(approval.resume_payload, dict) else {}
+    old_payload = approval.resume_old_payload if isinstance(approval.resume_old_payload, dict) else None
+
+    actions_run = 0
+    actions_errors = 0
+    for child_cfg in (branch_actions or []):
+        parent_action = approval.action
+        res = _execute_inline_action(child_cfg, payload, old_payload=old_payload, run_log=run_log, parent_action=parent_action)
+        actions_run += 1
+        if res.get("status") == AutomationActionLogStatus.ERROR:
+            actions_errors += 1
+
+    return {
+        "ok": True,
+        "approval_id": approval.pk,
+        "decision": decision,
+        "actions_run": actions_run,
+        "actions_errors": actions_errors,
+        "message": (
+            f"Decisione '{decision}' elaborata. "
+            f"Azioni eseguite: {actions_run} (errori: {actions_errors})."
+        ),
+    }

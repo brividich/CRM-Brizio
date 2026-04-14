@@ -82,12 +82,16 @@
       </div>
 
       <div class="card">
-        <div class="card-head"><div class="card-title">Condizioni (AND)</div></div>
+        <div class="card-head" style="display:flex;justify-content:space-between;align-items:center;">
+          <div class="card-title">Condizioni (AND)</div>
+          <button type="button" class="btn btn-light" id="add-condition-btn" style="font-size:13px;padding:5px 12px;">+ Nuova condizione</button>
+        </div>
         <div class="card-body auto-section-stack">
           {{ condition_formset.management_form }}
           {% if condition_formset.non_form_errors %}
             <ul class="auto-errors">{% for error in condition_formset.non_form_errors %}<li>{{ error }}</li>{% endfor %}</ul>
           {% endif %}
+          <div id="condition-formset-container">
           {% for form in condition_formset %}
             <div class="auto-inline-card">
               {% for hidden_field in form.hidden_fields %}{{ hidden_field }}{% endfor %}
@@ -112,16 +116,41 @@
               </div>
             </div>
           {% endfor %}
+          </div>
+          <div id="empty-condition-form" hidden>
+            <div class="auto-inline-card">
+              {% for hidden_field in condition_formset.empty_form.hidden_fields %}{{ hidden_field }}{% endfor %}
+              <div class="auto-inline-head">
+                <div class="auto-inline-title">Nuova condizione</div>
+                <label class="auto-delete">{{ condition_formset.empty_form.DELETE }} Elimina</label>
+              </div>
+              <div class="auto-form-grid">
+                {% for field in condition_formset.empty_form.visible_fields %}
+                  {% if field.name != 'DELETE' %}
+                    <div class="auto-field{% if field.name == 'expected_value' %} auto-wide{% endif %}">
+                      {{ field.label_tag }}
+                      {{ field }}
+                      {% if field.help_text %}<div class="auto-help">{{ field.help_text }}</div>{% endif %}
+                    </div>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-head"><div class="card-title">Azioni in sequenza</div></div>
+        <div class="card-head" style="display:flex;justify-content:space-between;align-items:center;">
+          <div class="card-title">Azioni in sequenza</div>
+          <button type="button" class="btn btn-light" id="add-action-btn" style="font-size:13px;padding:5px 12px;">+ Nuova azione</button>
+        </div>
         <div class="card-body auto-section-stack">
           {{ action_formset.management_form }}
           {% if action_formset.non_form_errors %}
             <ul class="auto-errors">{% for error in action_formset.non_form_errors %}<li>{{ error }}</li>{% endfor %}</ul>
           {% endif %}
+          <div id="action-formset-container">
           {% for form in action_formset %}
             <div class="auto-inline-card auto-action-card" data-action-card>
               {% for hidden_field in form.hidden_fields %}{{ hidden_field }}{% endfor %}
@@ -196,7 +225,14 @@
               <div class="auto-config-group" data-action-config="insert_record">
                 <div class="auto-inline-title">Configurazione insert_record</div>
                 <div class="auto-form-grid">
-                  <div class="auto-field">{{ form.insert_target_table.label_tag }}{{ form.insert_target_table }}{% if form.insert_target_table.errors %}<ul class="auto-errors">{% for error in form.insert_target_table.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field" style="display:flex;flex-direction:column;gap:6px;">
+                    {{ form.insert_target_table.label_tag }}
+                    <div style="display:flex;gap:8px;align-items:center;">
+                      {{ form.insert_target_table }}
+                      <button type="button" class="btn btn-light" style="white-space:nowrap;font-size:12px;padding:4px 10px;" onclick="openTableConfigModal('insert_record')">+ Tabella</button>
+                    </div>
+                    {% if form.insert_target_table.errors %}<ul class="auto-errors">{% for error in form.insert_target_table.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                  </div>
                   <div class="auto-field auto-wide">
                     {{ form.insert_field_mappings_text.label_tag }}
                     {{ form.insert_field_mappings_text }}
@@ -209,7 +245,14 @@
               <div class="auto-config-group" data-action-config="update_record">
                 <div class="auto-inline-title">Configurazione update_record</div>
                 <div class="auto-form-grid">
-                  <div class="auto-field">{{ form.update_target_table.label_tag }}{{ form.update_target_table }}{% if form.update_target_table.errors %}<ul class="auto-errors">{% for error in form.update_target_table.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field" style="display:flex;flex-direction:column;gap:6px;">
+                    {{ form.update_target_table.label_tag }}
+                    <div style="display:flex;gap:8px;align-items:center;">
+                      {{ form.update_target_table }}
+                      <button type="button" class="btn btn-light" style="white-space:nowrap;font-size:12px;padding:4px 10px;" onclick="openTableConfigModal('update_record')">+ Tabella</button>
+                    </div>
+                    {% if form.update_target_table.errors %}<ul class="auto-errors">{% for error in form.update_target_table.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                  </div>
                   <div class="auto-field">{{ form.update_where_field.label_tag }}{{ form.update_where_field }}{% if form.update_where_field.errors %}<ul class="auto-errors">{% for error in form.update_where_field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
                   <div class="auto-field">{{ form.update_where_value_template.label_tag }}{{ form.update_where_value_template }}{% if form.update_where_value_template.errors %}<ul class="auto-errors">{% for error in form.update_where_value_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
                   <div class="auto-field auto-wide">
@@ -283,6 +326,138 @@
               </div>
             </div>
           {% endfor %}
+          </div>
+          {% with ef=action_formset.empty_form %}
+          <div id="empty-action-form" hidden>
+            <div class="auto-inline-card auto-action-card" data-action-card>
+              {% for hidden_field in ef.hidden_fields %}{{ hidden_field }}{% endfor %}
+              <div class="auto-inline-head">
+                <div class="auto-inline-title">Nuova azione</div>
+                <label class="auto-delete">{{ ef.DELETE }} Elimina</label>
+              </div>
+              <div class="auto-form-grid">
+                <div class="auto-field">{{ ef.order.label_tag }}{{ ef.order }}</div>
+                <div class="auto-field">{{ ef.action_type.label_tag }}{{ ef.action_type }}</div>
+                <div class="auto-field">{{ ef.is_enabled.label_tag }}{{ ef.is_enabled }}</div>
+                <div class="auto-field auto-wide">{{ ef.description.label_tag }}{{ ef.description }}</div>
+              </div>
+
+              <div class="auto-config-group">
+                <div class="auto-inline-title">Branch leggero / run_if</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field">{{ ef.run_if_field_name.label_tag }}{{ ef.run_if_field_name }}</div>
+                  <div class="auto-field">{{ ef.run_if_operator.label_tag }}{{ ef.run_if_operator }}</div>
+                  <div class="auto-field">{{ ef.run_if_value_type.label_tag }}{{ ef.run_if_value_type }}</div>
+                  <div class="auto-field">{{ ef.run_if_compare_with_old.label_tag }}{{ ef.run_if_compare_with_old }}</div>
+                  <div class="auto-field">{{ ef.run_if_negate.label_tag }}{{ ef.run_if_negate }}</div>
+                  <div class="auto-field auto-wide">{{ ef.run_if_expected_value.label_tag }}{{ ef.run_if_expected_value }}{% if ef.run_if_expected_value.help_text %}<div class="auto-help">{{ ef.run_if_expected_value.help_text }}</div>{% endif %}</div>
+                </div>
+              </div>
+
+              <div class="auto-config-group" data-action-config="send_email">
+                <div class="auto-inline-title">Configurazione send_email</div>
+                <div class="auto-form-grid">
+                  {% for field in ef %}
+                    {% if field.name == 'email_from_email' or field.name == 'email_to' or field.name == 'email_cc' or field.name == 'email_bcc' or field.name == 'email_reply_to' or field.name == 'email_subject_template' or field.name == 'email_body_text_template' or field.name == 'email_body_html_template' or field.name == 'email_fail_silently' %}
+                      <div class="auto-field{% if field.name == 'email_body_text_template' or field.name == 'email_body_html_template' %} auto-wide{% endif %}">
+                        {{ field.label_tag }}{{ field }}
+                        {% if field.help_text %}<div class="auto-help">{{ field.help_text }}</div>{% endif %}
+                      </div>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+
+              <div class="auto-config-group" data-action-config="write_log">
+                <div class="auto-inline-title">Configurazione write_log</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field auto-wide">{{ ef.write_log_message_template.label_tag }}{{ ef.write_log_message_template }}{% if ef.write_log_message_template.help_text %}<div class="auto-help">{{ ef.write_log_message_template.help_text }}</div>{% endif %}</div>
+                </div>
+              </div>
+
+              <div class="auto-config-group" data-action-config="update_dashboard_metric">
+                <div class="auto-inline-title">Configurazione update_dashboard_metric</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field">{{ ef.metric_code.label_tag }}{{ ef.metric_code }}</div>
+                  <div class="auto-field">{{ ef.metric_operation.label_tag }}{{ ef.metric_operation }}</div>
+                  <div class="auto-field">{{ ef.metric_value_template.label_tag }}{{ ef.metric_value_template }}</div>
+                </div>
+              </div>
+
+              <div class="auto-config-group" data-action-config="insert_record">
+                <div class="auto-inline-title">Configurazione insert_record</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field" style="display:flex;flex-direction:column;gap:6px;">
+                    {{ ef.insert_target_table.label_tag }}
+                    <div style="display:flex;gap:8px;align-items:center;">
+                      {{ ef.insert_target_table }}
+                      <button type="button" class="btn btn-light" style="white-space:nowrap;font-size:12px;padding:4px 10px;" onclick="openTableConfigModal('insert_record')">+ Tabella</button>
+                    </div>
+                  </div>
+                  <div class="auto-field auto-wide">{{ ef.insert_field_mappings_text.label_tag }}{{ ef.insert_field_mappings_text }}{% if ef.insert_field_mappings_text.help_text %}<div class="auto-help">{{ ef.insert_field_mappings_text.help_text }}</div>{% endif %}</div>
+                </div>
+              </div>
+
+              <div class="auto-config-group" data-action-config="update_record">
+                <div class="auto-inline-title">Configurazione update_record</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field" style="display:flex;flex-direction:column;gap:6px;">
+                    {{ ef.update_target_table.label_tag }}
+                    <div style="display:flex;gap:8px;align-items:center;">
+                      {{ ef.update_target_table }}
+                      <button type="button" class="btn btn-light" style="white-space:nowrap;font-size:12px;padding:4px 10px;" onclick="openTableConfigModal('update_record')">+ Tabella</button>
+                    </div>
+                  </div>
+                  <div class="auto-field">{{ ef.update_where_field.label_tag }}{{ ef.update_where_field }}</div>
+                  <div class="auto-field">{{ ef.update_where_value_template.label_tag }}{{ ef.update_where_value_template }}</div>
+                  <div class="auto-field auto-wide">{{ ef.update_fields_text.label_tag }}{{ ef.update_fields_text }}{% if ef.update_fields_text.help_text %}<div class="auto-help">{{ ef.update_fields_text.help_text }}</div>{% endif %}</div>
+                </div>
+              </div>
+
+              <div class="auto-config-group" data-action-config="update_trigger_record">
+                <div class="auto-inline-title">Configurazione update_trigger_record</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field auto-wide">{{ ef.trigger_update_fields_text.label_tag }}{{ ef.trigger_update_fields_text }}{% if ef.trigger_update_fields_text.help_text %}<div class="auto-help">{{ ef.trigger_update_fields_text.help_text }}</div>{% endif %}</div>
+                </div>
+              </div>
+
+              <div class="auto-config-group" data-action-config="delay_schedule">
+                <div class="auto-inline-title">Configurazione delay_schedule</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field">{{ ef.delay_mode.label_tag }}{{ ef.delay_mode }}</div>
+                  <div class="auto-field">{{ ef.delay_value_template.label_tag }}{{ ef.delay_value_template }}</div>
+                  <div class="auto-field">{{ ef.delay_unit.label_tag }}{{ ef.delay_unit }}</div>
+                  <div class="auto-field auto-wide">{{ ef.delay_until_template.label_tag }}{{ ef.delay_until_template }}{% if ef.delay_until_template.help_text %}<div class="auto-help">{{ ef.delay_until_template.help_text }}</div>{% endif %}</div>
+                </div>
+              </div>
+
+              <div class="auto-config-group" data-action-config="http_request">
+                <div class="auto-inline-title">Configurazione http_request</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field">{{ ef.http_method.label_tag }}{{ ef.http_method }}</div>
+                  <div class="auto-field auto-wide">{{ ef.http_url_template.label_tag }}{{ ef.http_url_template }}</div>
+                  <div class="auto-field">{{ ef.http_timeout_seconds.label_tag }}{{ ef.http_timeout_seconds }}</div>
+                  <div class="auto-field">{{ ef.http_expected_status_csv.label_tag }}{{ ef.http_expected_status_csv }}{% if ef.http_expected_status_csv.help_text %}<div class="auto-help">{{ ef.http_expected_status_csv.help_text }}</div>{% endif %}</div>
+                  <div class="auto-field auto-wide">{{ ef.http_headers_text.label_tag }}{{ ef.http_headers_text }}{% if ef.http_headers_text.help_text %}<div class="auto-help">{{ ef.http_headers_text.help_text }}</div>{% endif %}</div>
+                  <div class="auto-field auto-wide">{{ ef.http_body_template.label_tag }}{{ ef.http_body_template }}</div>
+                </div>
+              </div>
+
+              <div class="auto-config-group" data-action-config="teams_webhook">
+                <div class="auto-inline-title">Configurazione teams_webhook</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field auto-wide">{{ ef.teams_webhook_url.label_tag }}{{ ef.teams_webhook_url }}</div>
+                  <div class="auto-field">{{ ef.teams_title_template.label_tag }}{{ ef.teams_title_template }}</div>
+                  <div class="auto-field">{{ ef.teams_summary_template.label_tag }}{{ ef.teams_summary_template }}</div>
+                  <div class="auto-field">{{ ef.teams_theme_color.label_tag }}{{ ef.teams_theme_color }}</div>
+                  <div class="auto-field auto-wide">{{ ef.teams_text_template.label_tag }}{{ ef.teams_text_template }}</div>
+                  <div class="auto-field auto-wide">{{ ef.teams_facts_text.label_tag }}{{ ef.teams_facts_text }}{% if ef.teams_facts_text.help_text %}<div class="auto-help">{{ ef.teams_facts_text.help_text }}</div>{% endif %}</div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+          {% endwith %}
         </div>
       </div>
 
@@ -382,6 +557,254 @@
   syncSourceCatalog();
   syncWatchedField();
   syncActionCards();
+
+  // ---------- Aggiungi condizione / azione ----------
+  function addFormsetRow(prefix, emptyFormId, containerId) {
+    var totalInput = document.querySelector('[name="' + prefix + '-TOTAL_FORMS"]');
+    if (!totalInput) return;
+    var index = parseInt(totalInput.value, 10);
+    var emptyTemplate = document.getElementById(emptyFormId);
+    if (!emptyTemplate) return;
+    var newHtml = emptyTemplate.innerHTML.replace(/__prefix__/g, String(index));
+    var container = document.getElementById(containerId);
+    if (!container) return;
+    var wrapper = document.createElement('div');
+    wrapper.innerHTML = newHtml;
+    var newCard = wrapper.firstElementChild;
+    newCard.setAttribute('data-new-row', '1');
+    // Inserisci in cima al container
+    container.insertBefore(newCard, container.firstChild);
+    totalInput.value = String(index + 1);
+    syncSourceCatalog();
+    syncActionCards();
+  }
+
+  // ---------- Elimina live ----------
+  // Per righe nuove (data-new-row): rimuove la card dal DOM e decrementa TOTAL_FORMS
+  // Per righe esistenti (hanno un campo id con valore): spunta DELETE e nasconde la card
+  document.addEventListener('change', function(e) {
+    var label = e.target.closest('label.auto-delete');
+    if (!label) return;
+    var checkbox = label.querySelector('input[type="checkbox"]');
+    if (!checkbox || !checkbox.name.includes('-DELETE')) return;
+    var card = checkbox.closest('.auto-inline-card');
+    if (!card) return;
+
+    if (card.hasAttribute('data-new-row')) {
+      // Riga nuova non ancora salvata: rimuovi dal DOM e aggiorna contatore
+      var prefixMatch = checkbox.name.match(/^(\w+)-\d+-DELETE$/);
+      if (prefixMatch) {
+        var prefix = prefixMatch[1];
+        var totalInput = document.querySelector('[name="' + prefix + '-TOTAL_FORMS"]');
+        if (totalInput) {
+          totalInput.value = String(Math.max(0, parseInt(totalInput.value, 10) - 1));
+        }
+      }
+      card.remove();
+    } else {
+      // Riga esistente: nascondi e lascia che Django gestisca la cancellazione al submit
+      if (checkbox.checked) {
+        card.style.opacity = '0.4';
+        card.style.pointerEvents = 'none';
+        card.style.outline = '2px dashed #fca5a5';
+      } else {
+        card.style.opacity = '';
+        card.style.pointerEvents = '';
+        card.style.outline = '';
+      }
+    }
+  });
+
+  var addCondBtn = document.getElementById('add-condition-btn');
+  if (addCondBtn) {
+    addCondBtn.addEventListener('click', function() {
+      addFormsetRow('conditions', 'empty-condition-form', 'condition-formset-container');
+    });
+  }
+
+  var addActBtn = document.getElementById('add-action-btn');
+  if (addActBtn) {
+    addActBtn.addEventListener('click', function() {
+      addFormsetRow('actions', 'empty-action-form', 'action-formset-container');
+    });
+  }
+})();
+</script>
+
+<!-- Modal: gestione whitelist tabelle -->
+<div id="table-config-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.5);overflow-y:auto;">
+  <div style="background:#fff;border-radius:16px;max-width:820px;margin:40px auto;padding:28px 32px;position:relative;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <strong style="font-size:17px;">Tabelle consentite — <span id="tcm-action-label"></span></strong>
+      <button type="button" onclick="closeTableConfigModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#64748b;line-height:1;">✕</button>
+    </div>
+    <div style="margin-bottom:20px;">
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b;margin-bottom:8px;">Tabelle già configurate</div>
+      <div id="tcm-list" style="display:grid;gap:8px;"></div>
+    </div>
+    <hr style="margin:20px 0;border-color:#e2e8f0;">
+    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b;margin-bottom:12px;">Aggiungi / modifica tabella</div>
+    <div style="display:grid;gap:12px;">
+      <div>
+        <label style="font-size:12px;font-weight:700;color:#475569;display:block;margin-bottom:4px;">TABELLA</label>
+        <select id="tcm-table-select" style="width:100%;padding:9px 10px;border:1px solid #cbd5e1;border-radius:10px;">
+          <option value="">— seleziona —</option>
+        </select>
+      </div>
+      <div id="tcm-fields-wrap" hidden>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div>
+            <label style="font-size:12px;font-weight:700;color:#475569;display:block;margin-bottom:6px;">CAMPI SCRIVIBILI <button type="button" onclick="tcmSelectAll('fields')" style="font-size:11px;margin-left:6px;background:none;border:none;color:#3b82f6;cursor:pointer;">tutti</button></label>
+            <div id="tcm-fields-list" style="max-height:200px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:10px;padding:8px;display:grid;gap:4px;"></div>
+          </div>
+          <div id="tcm-where-col">
+            <label style="font-size:12px;font-weight:700;color:#475569;display:block;margin-bottom:6px;">CAMPI WHERE <button type="button" onclick="tcmSelectAll('where')" style="font-size:11px;margin-left:6px;background:none;border:none;color:#3b82f6;cursor:pointer;">tutti</button></label>
+            <div id="tcm-where-list" style="max-height:200px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:10px;padding:8px;display:grid;gap:4px;"></div>
+          </div>
+        </div>
+        <div style="margin-top:10px;">
+          <label style="font-size:12px;font-weight:700;color:#475569;display:block;margin-bottom:4px;">NOTE (opzionale)</label>
+          <input id="tcm-notes" type="text" style="width:100%;padding:7px 10px;border:1px solid #cbd5e1;border-radius:10px;">
+        </div>
+      </div>
+      <div><button type="button" class="btn" onclick="saveTableConfig()">Salva tabella</button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var _tcmActionType = '';
+  var _tcmAvailable = {};
+  var _tcmConfigs = [];
+  var _apiBase = '{% url "admin_portale:automazioni_api_table_config_list" %}';
+  var _apiSave = '{% url "admin_portale:automazioni_api_table_config_save" %}';
+
+  window.openTableConfigModal = function(actionType) {
+    _tcmActionType = actionType;
+    document.getElementById('tcm-action-label').textContent = actionType;
+    document.getElementById('tcm-where-col').style.display = actionType === 'update_record' ? '' : 'none';
+    fetch(_apiBase)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        _tcmAvailable = data.available || {};
+        _tcmConfigs = data.configs || [];
+        _renderTcmList();
+        _populateTcmTableSelect();
+        document.getElementById('table-config-modal').style.display = 'block';
+      })
+      .catch(function() { alert('Errore caricamento dati'); });
+  };
+
+  window.closeTableConfigModal = function() {
+    document.getElementById('table-config-modal').style.display = 'none';
+    document.getElementById('tcm-fields-wrap').hidden = true;
+    document.getElementById('tcm-table-select').value = '';
+    document.getElementById('tcm-notes').value = '';
+  };
+
+  function _renderTcmList() {
+    var list = document.getElementById('tcm-list');
+    var relevant = _tcmConfigs.filter(function(c) { return c.action_type === _tcmActionType; });
+    if (!relevant.length) {
+      list.innerHTML = '<div style="color:#94a3b8;font-size:13px;">Nessuna tabella configurata.</div>';
+      return;
+    }
+    list.innerHTML = relevant.map(function(c) {
+      return '<div style="display:flex;justify-content:space-between;align-items:center;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px;">'
+        + '<div><strong style="font-size:14px;">' + c.table_name + '</strong>'
+        + ' <span style="font-size:12px;color:#64748b;">(' + (c.allowed_fields || []).length + ' campi)</span>'
+        + (c.notes ? '<div style="font-size:12px;color:#94a3b8;">' + c.notes + '</div>' : '')
+        + '</div>'
+        + '<button type="button" onclick="deleteTableConfig(' + c.id + ')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:13px;font-weight:700;">Rimuovi</button>'
+        + '</div>';
+    }).join('');
+  }
+
+  function _populateTcmTableSelect() {
+    var sel = document.getElementById('tcm-table-select');
+    sel.innerHTML = '<option value="">— seleziona —</option>';
+    Object.keys(_tcmAvailable).sort().forEach(function(table) {
+      var opt = document.createElement('option');
+      opt.value = table;
+      opt.textContent = _tcmAvailable[table].label || table;
+      sel.appendChild(opt);
+    });
+  }
+
+  document.getElementById('tcm-table-select').addEventListener('change', function() {
+    var table = this.value;
+    var wrap = document.getElementById('tcm-fields-wrap');
+    if (!table) { wrap.hidden = true; return; }
+    var info = _tcmAvailable[table] || {};
+    var fields = info.fields || [];
+    var allFields = info.all_fields || fields;
+
+    // Cerca config esistente per pre-selezionare
+    var existing = _tcmConfigs.find(function(c) { return c.action_type === _tcmActionType && c.table_name === table; });
+    var preFields = existing ? (existing.allowed_fields || []) : fields;
+    var preWhere = existing ? (existing.where_fields || []) : allFields;
+    if (existing) document.getElementById('tcm-notes').value = existing.notes || '';
+
+    function renderCheckboxes(containerId, fieldList, preSelected) {
+      var el = document.getElementById(containerId);
+      el.innerHTML = fieldList.map(function(f) {
+        var chk = preSelected.indexOf(f) !== -1 ? ' checked' : '';
+        return '<label style="display:flex;align-items:center;gap:6px;font-size:13px;">'
+          + '<input type="checkbox" value="' + f + '"' + chk + '> ' + f + '</label>';
+      }).join('');
+    }
+    renderCheckboxes('tcm-fields-list', fields, preFields);
+    renderCheckboxes('tcm-where-list', allFields, preWhere);
+    wrap.hidden = false;
+  });
+
+  window.tcmSelectAll = function(which) {
+    var containerId = which === 'fields' ? 'tcm-fields-list' : 'tcm-where-list';
+    document.querySelectorAll('#' + containerId + ' input[type=checkbox]').forEach(function(cb) { cb.checked = true; });
+  };
+
+  window.saveTableConfig = function() {
+    var table = document.getElementById('tcm-table-select').value;
+    if (!table) { alert('Seleziona una tabella'); return; }
+    var allowedFields = Array.from(document.querySelectorAll('#tcm-fields-list input:checked')).map(function(cb) { return cb.value; });
+    var whereFields = Array.from(document.querySelectorAll('#tcm-where-list input:checked')).map(function(cb) { return cb.value; });
+    var notes = document.getElementById('tcm-notes').value;
+
+    fetch(_apiSave, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': window.getCsrfToken ? getCsrfToken() : ''},
+      body: JSON.stringify({action_type: _tcmActionType, table_name: table, allowed_fields: allowedFields, where_fields: whereFields, notes: notes})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) { alert('Errore: ' + (data.error || 'sconosciuto')); return; }
+      // Ricarica la pagina per aggiornare i dropdown
+      window.location.reload();
+    })
+    .catch(function() { alert('Errore di rete'); });
+  };
+
+  window.deleteTableConfig = function(id) {
+    if (!confirm('Rimuovere questa tabella dalla whitelist?')) return;
+    // _apiBase = .../api/table-configs/  →  .../api/table-configs/<id>/delete/
+    var deleteUrl = _apiBase.replace(/\/+$/, '') + '/' + id + '/delete/';
+    fetch(deleteUrl, {
+      method: 'POST',
+      headers: {'X-CSRFToken': getCsrfToken()},
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.ok) window.location.reload();
+    });
+  };
+
+  // Helper CSRF
+  function getCsrfToken() {
+    var el = document.querySelector('[name=csrfmiddlewaretoken]');
+    return el ? el.value : '';
+  }
+  window.getCsrfToken = getCsrfToken;
 })();
 </script>
 {% endblock %}

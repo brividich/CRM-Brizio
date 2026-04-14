@@ -170,6 +170,32 @@ def _compiled_items_for_role(*, role_id: int | None, is_admin: bool, section: st
                 "category_order": (item.category.order if item.category_id and item.category else 0),
             }
         )
+    # ── Dedup guard ───────────────────────────────────────────────────────────
+    # Se esistono più NavigationItem con lo stesso target (route_name o url_path)
+    # nella stessa sezione (es. da bootstrap legacy eseguito più volte), teniamo
+    # solo il primo incontrato (ordine asc → id asc) e logghiamo un warning.
+    seen_targets: set[str] = set()
+    deduped: list[dict] = []
+    for node in compiled:
+        target = (node.get("route_name") or "").strip() or (node.get("url_path") or "").strip()
+        if not target:
+            deduped.append(node)
+            continue
+        if target in seen_targets:
+            logger.warning(
+                "navigation_registry: voce duplicata ignorata (section=%s target=%s code=%s id=%s) "
+                "— eseguire 'python manage.py deduplicate_nav' per rimuovere i duplicati dal DB.",
+                section,
+                target,
+                node.get("code"),
+                node.get("id"),
+            )
+            continue
+        seen_targets.add(target)
+        deduped.append(node)
+    compiled = deduped
+    # ── Fine dedup guard ──────────────────────────────────────────────────────
+
     cache.set(cache_key, compiled, timeout=_NAV_CACHE_TTL)
     return compiled
 
