@@ -59,4 +59,5 @@ urlpatterns = [
     path("onboarding/", views.onboarding_wizard, name="onboarding_wizard"),
     path("api/onboarding/email/", views.api_onboarding_email_save, name="api_onboarding_email_save"),
     path("api/onboarding/<int:user_id>/reset", views.api_onboarding_reset, name="api_onboarding_reset"),
+    path("api/search/", views.api_global_search, name="api_global_search"),
 ]

@@ -969,7 +969,14 @@ def analyze_package_dict(package_data: dict[str, Any], *, filename: str) -> dict
 
     source_definition = get_source_definition(source_code)
     if source_definition is None:
-        package_errors.append(f"Sorgente package non supportata dal portale: `{source_code or '<vuota>'}`.")
+        if source_code == "generic":
+            package_warnings.append(
+                "Il converter non ha identificato una sorgente portale specifica per questo flow "
+                "(sorgente `generic`). Le regole importate verranno create come draft; "
+                "seleziona la sorgente corretta nel designer prima dell'attivazione."
+            )
+        else:
+            package_errors.append(f"Sorgente package non supportata dal portale: `{source_code or '<vuota>'}`.")
 
     if _compatibility_is_blocking(compatibility):
         package_errors.append("Il package segnala una compatibilita' bloccante o incompatibile.")
@@ -1044,6 +1051,10 @@ def analyze_package_dict(package_data: dict[str, Any], *, filename: str) -> dict
             rule_errors.append(
                 f"source_code regola `{rule_source_code}` diverso dalla sorgente package `{source_code}`."
             )
+        if rule_source_code == "generic":
+            rule_warnings.append(
+                "Sorgente `generic`: seleziona una sorgente portale specifica nel designer prima dell'attivazione."
+            )
 
         operation_type = _string(raw_rule.get("operation_type")).lower()
         if operation_type not in SUPPORTED_OPERATIONS:
@@ -1060,7 +1071,14 @@ def analyze_package_dict(package_data: dict[str, Any], *, filename: str) -> dict
         )
         watched_field = _resolve_source_field_name(watched_field_raw, alias_map) if watched_field_raw else ""
         if watched_field_raw and not watched_field:
-            rule_errors.append(f"watched_field non risolto sulla sorgente portale: `{watched_field_raw}`.")
+            if source_code == "generic":
+                watched_field = watched_field_raw
+                rule_warnings.append(
+                    f"watched_field `{watched_field_raw}` non verificabile su sorgente generica: "
+                    "controllare nel designer dopo aver selezionato la sorgente."
+                )
+            else:
+                rule_errors.append(f"watched_field non risolto sulla sorgente portale: `{watched_field_raw}`.")
         elif watched_field_raw and watched_field and watched_field != watched_field_raw:
             rule_warnings.append(f"watched_field mappato da `{watched_field_raw}` a `{watched_field}`.")
 
@@ -1104,7 +1122,14 @@ def analyze_package_dict(package_data: dict[str, Any], *, filename: str) -> dict
             if value_type not in SUPPORTED_CONDITION_VALUE_TYPES:
                 condition_errors.append(f"value_type non supportato: `{value_type or '<vuoto>'}`.")
             if source_field_name and not field_name:
-                condition_errors.append(f"Campo condizione non risolto sulla sorgente portale: `{source_field_name}`.")
+                if source_code == "generic":
+                    field_name = source_field_name
+                    condition_warnings.append(
+                        f"Campo condizione `{source_field_name}` non verificabile su sorgente generica: "
+                        "controllare nel designer dopo aver selezionato la sorgente."
+                    )
+                else:
+                    condition_errors.append(f"Campo condizione non risolto sulla sorgente portale: `{source_field_name}`.")
             elif source_field_name and field_name != source_field_name:
                 condition_warnings.append(f"Campo condizione mappato da `{source_field_name}` a `{field_name}`.")
 
@@ -1398,15 +1423,15 @@ def _create_imported_rule(
 ) -> AutomationRule:
     rule = AutomationRule.objects.create(
         code=final_code,
-        name=rule_plan["name"],
+        name=rule_plan.get("name") or final_code,
         description=rule_plan.get("description", ""),
-        source_code=rule_plan["source_code"],
+        source_code=rule_plan.get("source_code") or "",
         import_flow_name=flow_name,
-        import_source_rule_code=rule_plan["source_rule_code"],
+        import_source_rule_code=rule_plan.get("source_rule_code") or "",
         import_source_package_version=package_version,
-        operation_type=rule_plan["operation_type"],
-        watched_field=rule_plan["watched_field"] or None,
-        trigger_scope=rule_plan["trigger_scope"],
+        operation_type=rule_plan.get("operation_type") or AutomationRuleOperationType.UPDATE,
+        watched_field=rule_plan.get("watched_field") or None,
+        trigger_scope=rule_plan.get("trigger_scope") or AutomationRuleTriggerScope.ALL_UPDATES,
         is_active=bool(activate_rule),
         is_draft=not bool(activate_rule),
         stop_on_first_failure=bool(rule_plan.get("stop_on_first_failure")),
@@ -1437,6 +1462,43 @@ def _create_imported_rule(
         )
 
     return rule
+
+
+def create_rule_draft_from_analysis(
+    analysis: dict[str, Any],
+    *,
+    created_by: Any,
+    rule_index: int,
+) -> AutomationRule:
+    if analysis.get("status") == "blocked":
+        raise PackageImportError("Il package e' bloccato e non puo' aprire regole nel designer.")
+
+    target_rule = None
+    for position, rule_plan in enumerate(analysis.get("rules", []), start=1):
+        explicit_index = int(rule_plan.get("index") or 0)
+        if explicit_index == int(rule_index) or (explicit_index <= 0 and position == int(rule_index)):
+            target_rule = rule_plan
+            break
+
+    if target_rule is None:
+        raise PackageImportError("La regola richiesta non esiste nell'analisi corrente.")
+    if not target_rule.get("is_importable"):
+        raise PackageImportError("La regola richiesta non e' importabile nel designer.")
+
+    normalized_rule = deepcopy(target_rule)
+    if not _string(normalized_rule.get("source_code")):
+        normalized_rule["source_code"] = _string(analysis.get("source_code"))
+
+    final_code = generate_available_rule_code(normalized_rule["portal_code"])
+    with transaction.atomic():
+        return _create_imported_rule(
+            normalized_rule,
+            flow_name=analysis.get("flow_name") or "",
+            package_version=analysis.get("package_version") or "",
+            created_by=created_by,
+            final_code=final_code,
+            activate_rule=False,
+        )
 
 
 def import_analyzed_package(

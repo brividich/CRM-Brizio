@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from core.acl_bootstrap_base import run_bootstrap
 
-_BOOTSTRAP_CACHE_KEY = "automazioni_acl_bootstrap_v3"
+_BOOTSTRAP_CACHE_KEY = "automazioni_acl_bootstrap_v4"
 
 _PULSANTI_DEFINITIONS = [
     {"modulo": "automazioni", "codice": "automazioni_regole", "label": "Automazioni - Lista regole", "url": "/automazioni/regole/", "hide": False},
@@ -11,6 +11,7 @@ _PULSANTI_DEFINITIONS = [
     {"modulo": "automazioni", "codice": "automazioni_queue", "label": "Automazioni - Coda esecuzione", "url": "/automazioni/queue/", "hide": True},
     {"modulo": "automazioni", "codice": "automazioni_run_log", "label": "Automazioni - Log esecuzione", "url": "/automazioni/run-log/", "hide": True},
     {"modulo": "automazioni", "codice": "automazioni_rule_create", "label": "Automazioni - Nuova regola", "url": "/automazioni/regole/nuova/", "hide": True},
+    {"modulo": "automazioni", "codice": "automazioni_rule_power_automate_convert", "label": "Automazioni - Converti Power Automate", "url": "/automazioni/regole/converti-power-automate/", "hide": True},
     {"modulo": "automazioni", "codice": "automazioni_rule_import", "label": "Automazioni - Importa package", "url": "/automazioni/regole/importa-package/", "hide": True},
     {"modulo": "automazioni", "codice": "automazioni_rule_import_result", "label": "Automazioni - Risultato importazione", "url": "/automazioni/regole/importa-package/risultato/", "hide": True},
 ]

@@ -47,6 +47,7 @@
 {% endblock %}
 
 {% block content %}
+  {% url 'admin_portale:automazioni_rule_power_automate_convert' as power_automate_convert_url %}
   {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Importa Package" page_subtitle="Import guidato in due step con analisi package, dry-run isolato e creazione finale solo in bozza." %}
   {% include "admin_portale/components/flash_messages.html" %}
   {% include "automazioni/components/subnav.html" %}
@@ -82,6 +83,7 @@
           {% endfor %}
           <div class="auto-actions">
             <button class="btn" type="submit">Analizza package</button>
+            <a class="btn btn-light" href="{{ power_automate_convert_url }}">Converti da Power Automate</a>
             {% if analysis %}
               <button class="btn btn-light" type="submit" formaction="{% url 'admin_portale:automazioni_rule_import_package' %}" formmethod="post" name="action" value="reset">Reset workflow</button>
             {% endif %}

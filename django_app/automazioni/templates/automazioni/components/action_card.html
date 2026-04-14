@@ -1,4 +1,5 @@
-<article class="designer-meta-card{% if entry.is_existing %} designer-action-card{% endif %}"
+<article {% if entry.is_existing %}id="action-card-{{ entry.descriptor.item_id }}"{% endif %}
+  class="designer-meta-card{% if entry.is_existing %} designer-action-card{% endif %}"
   data-action-card
   data-is-existing="{% if entry.is_existing %}true{% else %}false{% endif %}"
   {% if entry.is_existing %}data-sortable-item data-item-id="{{ entry.descriptor.item_id }}" draggable="true"{% endif %}>
@@ -284,6 +285,39 @@
           </div>
         </div>
         <details class="designer-subeditor" style="margin-top:14px;">
+          <summary class="designer-subeditor-summary">💬 Notifica anche su Teams (opzionale)</summary>
+          <div class="designer-trigger-copy" style="margin-top:10px;">
+            <div class="designer-field designer-field-wide">
+              <label>Canale Teams</label>
+              <select name="{{ entry.form.prefix }}-approval_teams_preset_id"
+                      class="auto-config-field" data-config-key="teams_preset_id">
+                <option value="">— non inviare su Teams —</option>
+                {% for preset in teams_presets %}
+                  <option value="{{ preset.pk }}">{{ preset.name }}{% if preset.description %} — {{ preset.description }}{% endif %}</option>
+                {% endfor %}
+              </select>
+              {% if not teams_presets %}
+                <div class="designer-help" style="color:#92400e;">
+                  Nessun canale configurato.
+                  <a href="{% url 'admin_portale:automazioni_teams_presets' %}" target="_blank">Aggiungi un canale Teams</a>
+                </div>
+              {% endif %}
+            </div>
+            <div class="designer-field designer-field-wide">
+              <label>Titolo card Teams</label>
+              <input type="text" name="{{ entry.form.prefix }}-approval_teams_title"
+                     class="auto-config-field" data-config-key="teams_title_template"
+                     placeholder="Approvazione richiesta #{id} — {dipendente_nome}">
+            </div>
+            <div class="designer-field designer-field-wide">
+              <label>Fatti (una riga: <code>Etichetta | {valore}</code>)</label>
+              <textarea name="{{ entry.form.prefix }}-approval_teams_facts" rows="4"
+                        class="auto-config-field" data-config-key="teams_facts_inline"
+                        placeholder="Tipo | {tipo_assenza}&#10;Inizio | {data_inizio}&#10;Fine | {data_fine}"></textarea>
+            </div>
+          </div>
+        </details>
+        <details class="designer-subeditor" style="margin-top:6px;">
           <summary class="designer-subeditor-summary">Azioni se APPROVATO (JSON)</summary>
           <div style="margin-top:10px;">
             <div class="designer-help" style="margin-bottom:6px;">

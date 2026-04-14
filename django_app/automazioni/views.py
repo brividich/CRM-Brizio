@@ -6,8 +6,10 @@ from django.contrib import messages
 from django.db.models import Count
 from django.db import connection, transaction
 from django.db.utils import ProgrammingError as DjangoProgrammingError
-from django.http import Http404, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.text import slugify
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from admin_portale.decorators import legacy_admin_required
@@ -19,6 +21,7 @@ from .forms import (
     AutomationPackageUploadForm,
     AutomationRuleForm,
     AutomationRuleTestForm,
+    PowerAutomateFlowUploadForm,
 )
 from .models import (
     AutomationAction,
@@ -47,13 +50,19 @@ from .services import (
 )
 from .package_importer import (
     PackageImportError,
+    analyze_package_dict,
     analyze_package_bytes,
     build_example_payload,
     build_example_payload_json,
+    create_rule_draft_from_analysis,
     import_analyzed_package,
     list_recent_source_records,
     load_source_record_payload,
     run_package_dry_run,
+)
+from .power_automate_bridge import (
+    analyze_power_automate_flow_upload,
+    apply_power_automate_recommended_remediation,
 )
 from .source_registry import (
     AUTOMAZIONI_ACL_ACTIONS,
@@ -82,6 +91,7 @@ SAMPLE_VALUE_BY_TYPE = {
 }
 PACKAGE_IMPORT_SESSION_KEY = "automazioni_package_import_state"
 PACKAGE_IMPORT_RESULT_SESSION_KEY = "automazioni_package_import_result"
+POWER_AUTOMATE_CONVERTER_SESSION_KEY = "automazioni_power_automate_converter_state"
 
 
 def _base_context() -> dict[str, object]:
@@ -150,6 +160,106 @@ def _pop_package_import_result(request) -> dict[str, object] | None:
     if result is not None:
         request.session.modified = True
     return result if isinstance(result, dict) else None
+
+
+def _get_power_automate_converter_state(request) -> dict[str, object]:
+    state = request.session.get(POWER_AUTOMATE_CONVERTER_SESSION_KEY)
+    return state if isinstance(state, dict) else {}
+
+
+def _set_power_automate_converter_state(request, state: dict[str, object]) -> None:
+    request.session[POWER_AUTOMATE_CONVERTER_SESSION_KEY] = state
+    request.session.modified = True
+
+
+def _clear_power_automate_converter_state(request) -> None:
+    if POWER_AUTOMATE_CONVERTER_SESSION_KEY in request.session:
+        del request.session[POWER_AUTOMATE_CONVERTER_SESSION_KEY]
+        request.session.modified = True
+
+
+def _build_power_automate_target_table_choices() -> list[tuple[str, str]]:
+    catalog = discover_module_tables()
+    return [(table_name, str(meta.get("label") or table_name)) for table_name, meta in catalog.items()]
+
+
+def _build_power_automate_upload_form(*args, **kwargs) -> PowerAutomateFlowUploadForm:
+    return PowerAutomateFlowUploadForm(
+        *args,
+        target_table_choices=_build_power_automate_target_table_choices(),
+        **kwargs,
+    )
+
+
+def _build_power_automate_target_context(table_name: str) -> dict[str, object] | None:
+    normalized_table = _string_value(table_name)
+    if not normalized_table:
+        return None
+
+    table_catalog = discover_module_tables()
+    table_meta = table_catalog.get(normalized_table)
+    if not table_meta:
+        return None
+
+    all_fields = list(table_meta.get("all_fields") or table_meta.get("fields") or [])
+    if "." in normalized_table:
+        schema_name, short_table_name = normalized_table.split(".", 1)
+        full_name = normalized_table
+    else:
+        schema_name = ""
+        short_table_name = normalized_table
+        full_name = normalized_table
+
+    return {
+        "db_type": connection.vendor,
+        "server": "",
+        "database": str(connection.settings_dict.get("NAME") or ""),
+        "schema": schema_name,
+        "table": short_table_name,
+        "full_name": full_name,
+        "columns": [
+            {
+                "name": field_name,
+                "data_type": "",
+                "is_nullable": True,
+                "ordinal_position": index,
+                "is_primary_key": False,
+            }
+            for index, field_name in enumerate(all_fields, start=1)
+        ],
+    }
+
+
+def _power_automate_package_filename(record: dict[str, object], *, fallback_name: str = "power-automate") -> str:
+    package = record.get("package") if isinstance(record, dict) else {}
+    package = package if isinstance(package, dict) else {}
+    input_meta = package.get("input") if isinstance(package.get("input"), dict) else {}
+    input_meta = input_meta if isinstance(input_meta, dict) else {}
+    base_name = _string_value(input_meta.get("flow_slug")) or slugify(_string_value(input_meta.get("flow_name")))
+    base_name = base_name or slugify(fallback_name) or "power-automate"
+    return f"{base_name}.automation_package.json"
+
+
+def _prepare_power_automate_diagram(converter_record: dict[str, object] | None) -> dict[str, object]:
+    if not converter_record:
+        return {}
+    normalized = converter_record.get("normalized")
+    if not isinstance(normalized, dict):
+        return {}
+    raw_diagram = normalized.get("diagram")
+    if not isinstance(raw_diagram, dict):
+        return {}
+
+    diagram = json.loads(json.dumps(raw_diagram))
+    for node in diagram.get("nodes", []):
+        width = int(node.get("width") or 0)
+        height = int(node.get("height") or 0)
+        node["icon_y"] = (height // 2) + 4
+        node["issue_rect_x"] = width - 54
+        node["issue_rect_y"] = height - 24
+        node["issue_text_x"] = width - 30
+        node["issue_text_y"] = height - 12
+    return diagram
 
 
 def _build_package_record_choices(source_code: str | None) -> list[tuple[str, str]]:
@@ -3451,7 +3561,14 @@ def _build_rule_form_context(
         "submit_label": submit_label,
         "rule": rule,
         "source_fields_json": _build_all_source_fields_json(),
+        "teams_presets": _get_active_teams_presets(),
     }
+
+
+def _get_active_teams_presets():
+    """Restituisce la lista dei TeamsWebhookPreset attivi per i template."""
+    from .models import TeamsWebhookPreset
+    return list(TeamsWebhookPreset.objects.filter(is_active=True).order_by("name"))
 
 
 def _build_rule_designer_context(
@@ -3500,7 +3617,9 @@ def _build_rule_designer_context(
         "condition_suggestions_json": _build_condition_suggestions(source_code),
         "action_suggestions_json": _build_action_suggestions(source_code),
         "source_fields_json": _build_all_source_fields_json(),
+        "diagram_action_choices": _build_diagram_action_choices(),
         "flow_nodes_json": flow_nodes,
+        "teams_presets": _get_active_teams_presets(),
     }
 
 
@@ -3524,6 +3643,24 @@ _ACTION_NODE_STYLES: dict[str, dict[str, str]] = {
     "branch":                {"icon": "🔀",  "color": "#ea580c", "bg": "#fff7ed", "app": "Condizione"},
 }
 _DEFAULT_NODE_STYLE = {"icon": "⚡", "color": "#64748b", "bg": "#f8fafc", "app": "Azione"}
+
+
+def _build_diagram_action_choices() -> list[dict[str, str]]:
+    """Espone le azioni del flow picker gia' renderizzabili lato server."""
+    items: list[dict[str, str]] = []
+    for action_type, label in AutomationActionType.choices:
+        style = _ACTION_NODE_STYLES.get(action_type, _DEFAULT_NODE_STYLE)
+        items.append(
+            {
+                "value": str(action_type),
+                "label": str(label),
+                "icon": str(style.get("icon") or _DEFAULT_NODE_STYLE["icon"]),
+                "color": str(style.get("color") or _DEFAULT_NODE_STYLE["color"]),
+                "bg": str(style.get("bg") or _DEFAULT_NODE_STYLE["bg"]),
+                "app": str(style.get("app") or _DEFAULT_NODE_STYLE["app"]),
+            }
+        )
+    return items
 
 
 def _build_flow_nodes(rule, trigger_descriptor: dict, condition_entries: list, action_entries: list) -> list[dict]:
@@ -3750,6 +3887,188 @@ def rule_list_page(request):
         "boolean_filter_choices": RULE_BOOLEAN_FILTER_CHOICES,
     }
     return render(request, "automazioni/pages/rule_list.html", context)
+
+
+def _build_power_automate_converter_context(
+    *,
+    upload_form: PowerAutomateFlowUploadForm,
+    converter_record: dict[str, object] | None,
+    analysis: dict[str, object] | None,
+) -> dict[str, object]:
+    return {
+        **_base_context(),
+        "upload_form": upload_form,
+        "converter_record": converter_record,
+        "converter_diagram": _prepare_power_automate_diagram(converter_record),
+        "analysis": analysis,
+        "package_pretty": _json_pretty((converter_record or {}).get("package")) if converter_record else "",
+        "status_label_map": {
+            "ready": "Pronto all'import",
+            "partial": "Import parziale",
+            "blocked": "Bloccato",
+            "ok": "OK",
+            "error": "Errore",
+            "skipped": "Saltata",
+        },
+    }
+
+
+@legacy_admin_required
+def rule_power_automate_convert_page(request):
+    state = _get_power_automate_converter_state(request)
+    converter_record = state.get("record") if isinstance(state.get("record"), dict) else None
+    analysis = state.get("analysis") if isinstance(state.get("analysis"), dict) else None
+    selected_target_table = _string_value(state.get("selected_target_table"))
+    upload_form = _build_power_automate_upload_form(initial={"target_table": selected_target_table})
+
+    if request.method == "POST":
+        action = _string_value(request.POST.get("action"))
+
+        if action == "reset":
+            _clear_power_automate_converter_state(request)
+            messages.success(request, "Workflow conversione Power Automate azzerato.")
+            return redirect("admin_portale:automazioni_rule_power_automate_convert")
+
+        if action == "analyze":
+            upload_form = _build_power_automate_upload_form(request.POST, request.FILES)
+            if upload_form.is_valid():
+                uploaded_file = upload_form.cleaned_data["flow_file"]
+                selected_target_table = _string_value(upload_form.cleaned_data.get("target_table"))
+                target_context = _build_power_automate_target_context(selected_target_table)
+
+                try:
+                    converter_record = analyze_power_automate_flow_upload(
+                        str(uploaded_file.name),
+                        uploaded_file.read(),
+                        target_context=target_context,
+                    )
+                    analysis = analyze_package_dict(
+                        converter_record["package"],
+                        filename=_power_automate_package_filename(converter_record, fallback_name=str(uploaded_file.name)),
+                    )
+                except PackageImportError as exc:
+                    upload_form.add_error("flow_file", str(exc))
+                    converter_record = None
+                    analysis = None
+                except Exception as exc:
+                    upload_form.add_error("flow_file", f"Analisi Power Automate fallita: {exc}")
+                    converter_record = None
+                    analysis = None
+                else:
+                    _set_power_automate_converter_state(
+                        request,
+                        {
+                            "record": converter_record,
+                            "analysis": analysis,
+                            "selected_target_table": selected_target_table,
+                        },
+                    )
+                    messages.success(
+                        request,
+                        "Flow Power Automate analizzato. Puoi rivedere diagramma, remediation e poi passare all'import guidato.",
+                    )
+                    return redirect("admin_portale:automazioni_rule_power_automate_convert")
+
+        elif action == "apply_remediation":
+            if not converter_record:
+                messages.error(request, "Analizza prima un export Power Automate.")
+                return redirect("admin_portale:automazioni_rule_power_automate_convert")
+            try:
+                converter_record = apply_power_automate_recommended_remediation(converter_record)
+                analysis = analyze_package_dict(
+                    converter_record["package"],
+                    filename=_power_automate_package_filename(converter_record),
+                )
+            except PackageImportError as exc:
+                messages.error(request, str(exc))
+            else:
+                _set_power_automate_converter_state(
+                    request,
+                    {
+                        "record": converter_record,
+                        "analysis": analysis,
+                        "selected_target_table": selected_target_table,
+                    },
+                )
+                messages.success(request, "Remediation consigliata applicata al package convertito.")
+                return redirect("admin_portale:automazioni_rule_power_automate_convert")
+
+        elif action == "handoff_import":
+            if not analysis:
+                messages.error(request, "Analizza prima un export Power Automate.")
+                return redirect("admin_portale:automazioni_rule_power_automate_convert")
+            _set_package_import_state(
+                request,
+                {
+                    "analysis": analysis,
+                    "dry_run_completed_hash": "",
+                    "dry_run_activation_state": {},
+                },
+            )
+            messages.success(
+                request,
+                "Package convertito trasferito all'import guidato. Ora puoi eseguire dry-run e conferma finale.",
+            )
+            return redirect("admin_portale:automazioni_rule_import_package")
+
+        elif action == "open_designer":
+            if not analysis:
+                messages.error(request, "Analizza prima un export Power Automate.")
+                return redirect("admin_portale:automazioni_rule_power_automate_convert")
+
+            try:
+                rule_index = int(request.POST.get("rule_index") or 0)
+            except (TypeError, ValueError):
+                messages.error(request, "Regola richiesta non valida per l'apertura nel designer.")
+                return redirect("admin_portale:automazioni_rule_power_automate_convert")
+
+            try:
+                created_rule = create_rule_draft_from_analysis(
+                    analysis,
+                    created_by=request.user,
+                    rule_index=rule_index,
+                )
+            except PackageImportError as exc:
+                messages.error(request, str(exc))
+                return redirect("admin_portale:automazioni_rule_power_automate_convert")
+
+            messages.success(
+                request,
+                (
+                    "Bozza creata dal converter Power Automate e aperta nel designer visuale. "
+                    "La regola resta draft e disattiva finche' non la pubblichi."
+                ),
+            )
+            return redirect("admin_portale:automazioni_rule_designer", rule_id=created_rule.id)
+
+    context = _build_power_automate_converter_context(
+        upload_form=upload_form,
+        converter_record=converter_record,
+        analysis=analysis,
+    )
+    return render(request, "automazioni/pages/power_automate_convert.html", context)
+
+
+@legacy_admin_required
+@require_GET
+def rule_power_automate_package_download(request):
+    state = _get_power_automate_converter_state(request)
+    converter_record = state.get("record") if isinstance(state.get("record"), dict) else None
+    if not converter_record:
+        messages.info(request, "Nessun package convertito disponibile per il download.")
+        return redirect("admin_portale:automazioni_rule_power_automate_convert")
+
+    package_content = json.dumps(
+        converter_record.get("package") or {},
+        indent=2,
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    response = HttpResponse(package_content, content_type="application/json; charset=utf-8")
+    response["Content-Disposition"] = (
+        f'attachment; filename="{_power_automate_package_filename(converter_record)}"'
+    )
+    return response
 
 
 def _build_package_import_context(
@@ -4584,16 +4903,30 @@ def api_test_rule_ajax(request, rule_id: int):
 # Approval Decision Views (accessibili senza login, protetti da token UUID)
 # ─────────────────────────────────────────────────────────────────────────────
 
+@csrf_exempt
 def approval_decision_page(request, token: str, decision: str):
     """
-    Pagina di approvazione/rifiuto accessibile tramite link email.
+    Pagina di approvazione/rifiuto accessibile tramite link email o Teams Actionable Message.
     Non richiede login: il token UUID è la credenziale.
     decision deve essere 'approva' o 'rifiuta'.
+
+    Quando chiamata da Teams (POST con Content-Type: application/json), risponde con
+    HTTP 200 e l'header CARD-ACTION-STATUS che Teams mostra al posto dei bottoni.
     """
     from .models import AutomationApproval
 
+    # Rileva chiamata Teams / API: POST con body JSON, senza form browser
+    is_teams_call = (
+        request.method == "POST"
+        and "application/json" in (request.content_type or "").lower()
+    )
+
     normalized = "approved" if decision == "approva" else "rejected" if decision == "rifiuta" else None
     if normalized is None:
+        if is_teams_call:
+            resp = HttpResponse("Azione non valida.", status=400, content_type="text/plain")
+            resp["CARD-ACTION-STATUS"] = "Azione non valida."
+            return resp
         return render(request, "automazioni/pages/approval_decision.html", {
             "error": "Azione non valida.",
             "token": token,
@@ -4602,6 +4935,10 @@ def approval_decision_page(request, token: str, decision: str):
     try:
         approval = AutomationApproval.objects.select_related("run_log__rule").get(token=token)
     except AutomationApproval.DoesNotExist:
+        if is_teams_call:
+            resp = HttpResponse("Richiesta non trovata.", status=404, content_type="text/plain")
+            resp["CARD-ACTION-STATUS"] = "Richiesta di approvazione non trovata."
+            return resp
         return render(request, "automazioni/pages/approval_decision.html", {
             "error": "Richiesta di approvazione non trovata o link non valido.",
             "token": token,
@@ -4620,11 +4957,25 @@ def approval_decision_page(request, token: str, decision: str):
         })
 
     # POST: esegui la decisione
-    decided_by = ""
-    if request.user.is_authenticated:
-        decided_by = str(getattr(request.user, "email", "") or request.user.username or "")
+    if is_teams_call:
+        # La decisione è nell'URL; il body JSON di Teams non è necessario
+        decided_by = "Teams"
+    else:
+        decided_by = ""
+        if request.user.is_authenticated:
+            decided_by = str(getattr(request.user, "email", "") or request.user.username or "")
 
     result = process_approval_decision(str(token), normalized, decided_by_email=decided_by)
+
+    if is_teams_call:
+        if result.get("ok"):
+            status_msg = "Approvato con successo." if normalized == "approved" else "Rifiutato con successo."
+        else:
+            status_msg = str(result.get("message") or "Impossibile processare la richiesta.")
+        resp = HttpResponse("1", content_type="text/plain", status=200)
+        resp["CARD-ACTION-STATUS"] = status_msg
+        return resp
+
     return render(request, "automazioni/pages/approval_decision.html", {
         "approval": approval,
         "decision": normalized,
@@ -4650,3 +5001,70 @@ def approval_status_page(request, token: str):
         "token": token,
         "status_only": True,
     })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Canali Teams — gestione TeamsWebhookPreset
+# ─────────────────────────────────────────────────────────────────────────────
+
+@legacy_admin_required
+def teams_presets_page(request):
+    from .models import TeamsWebhookPreset
+    presets = TeamsWebhookPreset.objects.all()
+    return render(request, "automazioni/pages/teams_presets.html", {
+        **_base_context(),
+        "presets": presets,
+    })
+
+
+@legacy_admin_required
+def teams_preset_create(request):
+    from .models import TeamsWebhookPreset
+    from .forms import TeamsWebhookPresetForm
+    if request.method == "POST":
+        form = TeamsWebhookPresetForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Canale Teams creato.")
+            return redirect("admin_portale:automazioni_teams_presets")
+    else:
+        form = TeamsWebhookPresetForm()
+    return render(request, "automazioni/pages/teams_presets.html", {
+        **_base_context(),
+        "presets": list(TeamsWebhookPreset.objects.all()),
+        "form": form,
+        "form_mode": "create",
+    })
+
+
+@legacy_admin_required
+def teams_preset_edit(request, pk: int):
+    from .models import TeamsWebhookPreset
+    from .forms import TeamsWebhookPresetForm
+    preset = get_object_or_404(TeamsWebhookPreset, pk=pk)
+    if request.method == "POST":
+        form = TeamsWebhookPresetForm(request.POST, instance=preset)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"Canale '{preset.name}' aggiornato.")
+            return redirect("admin_portale:automazioni_teams_presets")
+    else:
+        form = TeamsWebhookPresetForm(instance=preset)
+    return render(request, "automazioni/pages/teams_presets.html", {
+        **_base_context(),
+        "presets": list(TeamsWebhookPreset.objects.all()),
+        "form": form,
+        "form_mode": "edit",
+        "edit_preset": preset,
+    })
+
+
+@legacy_admin_required
+@require_POST
+def teams_preset_delete(request, pk: int):
+    from .models import TeamsWebhookPreset
+    preset = get_object_or_404(TeamsWebhookPreset, pk=pk)
+    name = preset.name
+    preset.delete()
+    messages.success(request, f"Canale '{name}' eliminato.")
+    return redirect("admin_portale:automazioni_teams_presets")

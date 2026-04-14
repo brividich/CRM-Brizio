@@ -130,5 +130,166 @@ window.portalReadJsonResponse = async function (response, opts) {
   });
 })();
 </script>
+
+{% if user.is_authenticated %}
+<!-- ── Global Search Overlay (Ctrl+K) ──────────────────────────────────── -->
+<div id="gs-overlay" class="gs-overlay" role="dialog" aria-modal="true" aria-label="Ricerca globale">
+  <div class="gs-modal" id="gs-modal">
+    <div class="gs-input-wrap">
+      <span class="gs-icon" aria-hidden="true">&#128269;</span>
+      <input
+        type="text"
+        id="gs-input"
+        class="gs-input"
+        placeholder="Cerca dipendenti, asset, ticket, task…"
+        autocomplete="off"
+        spellcheck="false"
+        aria-autocomplete="list"
+        aria-controls="gs-results"
+        aria-label="Campo ricerca globale"
+      >
+      <kbd class="gs-kbd">Esc</kbd>
+    </div>
+    <div id="gs-results" class="gs-results" role="listbox"></div>
+    <div class="gs-footer">
+      <span class="gs-footer-key"><span>&#9650;</span><span>&#9660;</span> naviga</span>
+      <span class="gs-footer-key"><span>&#9166;</span> apri</span>
+      <span class="gs-footer-key"><span>Esc</span> chiudi</span>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var API_URL = "{% url 'api_global_search' %}";
+  var overlay = document.getElementById('gs-overlay');
+  var modal   = document.getElementById('gs-modal');
+  var input   = document.getElementById('gs-input');
+  var results = document.getElementById('gs-results');
+
+  if (!overlay || !input) return;
+
+  var _timer = null;
+  var _sel   = -1;
+  var _items = [];
+  var _lastQ = '';
+
+  var ICONS = {
+    dipendente:'&#128100;', asset:'&#128421;', ticket:'&#127914;',
+    kickoff:'&#128203;', task:'&#9989;', procedura:'&#128196;'
+  };
+  var LABELS = {
+    dipendente:'Dipendenti', asset:'Asset', ticket:'Ticket',
+    kickoff:'Kickoff', task:'Attività', procedura:'Procedure'
+  };
+
+  function openOverlay() {
+    overlay.classList.add('gs-open');
+    input.focus();
+    input.select();
+  }
+  function closeOverlay() {
+    overlay.classList.remove('gs-open');
+    input.value = '';
+    results.innerHTML = '';
+    _sel = -1; _items = []; _lastQ = '';
+  }
+
+  function _esc(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function setSelected(idx) {
+    _items.forEach(function(el){ el.classList.remove('gs-selected'); });
+    _sel = idx;
+    if (idx >= 0 && idx < _items.length) {
+      _items[idx].classList.add('gs-selected');
+      _items[idx].scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  function renderResults(data) {
+    results.innerHTML = '';
+    _items = []; _sel = -1;
+    if (!data.results || !data.results.length) {
+      if (data.query && data.query.length >= 2) {
+        var empty = document.createElement('div');
+        empty.className = 'gs-empty';
+        empty.textContent = 'Nessun risultato per "' + data.query + '"';
+        results.appendChild(empty);
+      }
+      return;
+    }
+    var groups = {}, order = [];
+    data.results.forEach(function(r) {
+      if (!groups[r.tipo]) { groups[r.tipo] = []; order.push(r.tipo); }
+      groups[r.tipo].push(r);
+    });
+    order.forEach(function(tipo) {
+      var lbl = document.createElement('div');
+      lbl.className = 'gs-group-label';
+      lbl.innerHTML = (ICONS[tipo]||'&#128269;') + ' ' + (LABELS[tipo]||tipo);
+      results.appendChild(lbl);
+      groups[tipo].forEach(function(r) {
+        var el = document.createElement('a');
+        el.className = 'gs-item gs-tipo-' + r.tipo;
+        el.href = r.url;
+        el.setAttribute('role', 'option');
+        el.innerHTML =
+          '<span class="gs-item-icon" aria-hidden="true">' + (ICONS[r.tipo]||'&#128269;') + '</span>' +
+          '<span class="gs-item-body">' +
+            '<span class="gs-item-label">' + _esc(r.label) + '</span>' +
+            (r.sub ? '<span class="gs-item-sub">' + _esc(r.sub) + '</span>' : '') +
+          '</span>' +
+          '<span class="gs-item-arrow" aria-hidden="true">&#8594;</span>';
+        el.addEventListener('click', function(){ closeOverlay(); });
+        results.appendChild(el);
+        _items.push(el);
+      });
+    });
+  }
+
+  function doSearch(q) {
+    if (q === _lastQ) return;
+    _lastQ = q;
+    if (q.length < 2) { results.innerHTML = ''; _items = []; return; }
+    fetch(API_URL + '?q=' + encodeURIComponent(q), {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function(r){ return r.json(); }).then(renderResults).catch(function(){});
+  }
+
+  input.addEventListener('input', function() {
+    clearTimeout(_timer);
+    var q = input.value.trim();
+    _timer = setTimeout(function(){ doSearch(q); }, 220);
+  });
+
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowDown')       { e.preventDefault(); setSelected(Math.min(_sel+1, _items.length-1)); }
+    else if (e.key === 'ArrowUp')    { e.preventDefault(); setSelected(Math.max(_sel-1, 0)); }
+    else if (e.key === 'Enter' && _sel >= 0 && _items[_sel]) { closeOverlay(); window.location.href = _items[_sel].href; }
+    else if (e.key === 'Escape')     { closeOverlay(); }
+  });
+
+  /* Click fuori dal modal → chiudi */
+  overlay.addEventListener('click', function(e) {
+    if (!modal.contains(e.target)) closeOverlay();
+  });
+
+  /* Delegato: qualsiasi pulsante con data-gs-open apre la ricerca */
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('[data-gs-open]')) { e.stopPropagation(); openOverlay(); }
+  });
+
+  /* Ctrl+K / Cmd+K globale */
+  document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      overlay.classList.contains('gs-open') ? closeOverlay() : openOverlay();
+    }
+    if (e.key === 'Escape' && overlay.classList.contains('gs-open')) closeOverlay();
+  });
+})();
+</script>
+{% endif %}
 </body>
 </html>

@@ -1140,3 +1140,156 @@ def api_onboarding_reset(request, user_id: int):
         except Exception:
             pass
         return JsonResponse({"ok": True, "stato": "reset"})
+
+
+@login_required
+def api_global_search(request):
+    """
+    GET /api/search/?q=<query>
+    Ricerca globale su Dipendenti, Asset, Ticket, Kickoff/Task, Procedure.
+    Restituisce risultati raggruppati per tipo, max 5 per gruppo.
+    """
+    q = (request.GET.get("q") or "").strip()
+    if len(q) < 2:
+        return JsonResponse({"results": [], "query": q})
+
+    results = []
+
+    # ── Dipendenti ──────────────────────────────────────────────────────────
+    try:
+        dips = AnagraficaDipendente.objects.filter(
+            Q(nome__icontains=q)
+            | Q(cognome__icontains=q)
+            | Q(aliasusername__icontains=q)
+            | Q(email__icontains=q)
+            | Q(mansione__icontains=q)
+            | Q(reparto__icontains=q)
+        ).order_by("cognome", "nome")[:5]
+        for d in dips:
+            try:
+                url = reverse("anagrafica:dipendente_detail", args=[d.id])
+            except Exception:
+                url = "/anagrafica/dipendenti/"
+            results.append({
+                "tipo": "dipendente",
+                "label": f"{d.cognome} {d.nome}".strip(),
+                "sub": d.mansione or d.reparto or "",
+                "url": url,
+            })
+    except Exception:
+        pass
+
+    # ── Asset ────────────────────────────────────────────────────────────────
+    try:
+        from assets.models import Asset as AssetModel
+        assets_qs = AssetModel.objects.filter(
+            Q(name__icontains=q)
+            | Q(asset_tag__icontains=q)
+            | Q(serial_number__icontains=q)
+            | Q(manufacturer__icontains=q)
+            | Q(model__icontains=q)
+        ).order_by("name")[:5]
+        for a in assets_qs:
+            try:
+                url = reverse("assets:asset_view", args=[a.id])
+            except Exception:
+                url = "/assets/lista/"
+            results.append({
+                "tipo": "asset",
+                "label": a.name or a.asset_tag,
+                "sub": f"{a.asset_tag} · {a.get_asset_type_display() if hasattr(a, 'get_asset_type_display') else ''}".strip(" ·"),
+                "url": url,
+            })
+    except Exception:
+        pass
+
+    # ── Ticket ───────────────────────────────────────────────────────────────
+    try:
+        from tickets.models import Ticket
+        tickets_qs = Ticket.objects.filter(
+            Q(numero_ticket__icontains=q)
+            | Q(titolo__icontains=q)
+            | Q(descrizione__icontains=q)
+            | Q(richiedente_nome__icontains=q)
+        ).order_by("-data_apertura")[:5]
+        for t in tickets_qs:
+            try:
+                url = reverse("tickets:detail", args=[t.pk])
+            except Exception:
+                url = "/tickets/"
+            results.append({
+                "tipo": "ticket",
+                "label": t.titolo or t.numero_ticket,
+                "sub": f"{t.numero_ticket} · {t.get_stato_display() if hasattr(t, 'get_stato_display') else t.stato}",
+                "url": url,
+            })
+    except Exception:
+        pass
+
+    # ── Kickoff / Progetto ───────────────────────────────────────────────────
+    try:
+        from tasks.models import Project
+        projects_qs = Project.objects.filter(
+            Q(name__icontains=q)
+            | Q(part_number__icontains=q)
+            | Q(client_name__icontains=q)
+            | Q(description__icontains=q)
+            | Q(vrf_description__icontains=q)
+        ).order_by("-id")[:5]
+        for p in projects_qs:
+            url = f"/tasks/projects/"
+            results.append({
+                "tipo": "kickoff",
+                "label": p.name or f"KICK-OFF {p.kickoff_number}",
+                "sub": " · ".join(filter(None, [p.part_number, p.client_name])),
+                "url": url,
+            })
+    except Exception:
+        pass
+
+    # ── Task / Attività ──────────────────────────────────────────────────────
+    try:
+        from tasks.models import Task
+        tasks_qs = Task.objects.filter(
+            Q(title__icontains=q)
+            | Q(description__icontains=q)
+            | Q(tags__icontains=q)
+        ).select_related("project").order_by("-id")[:5]
+        for t in tasks_qs:
+            try:
+                url = reverse("tasks:detail", args=[t.pk])
+            except Exception:
+                url = "/tasks/"
+            results.append({
+                "tipo": "task",
+                "label": t.title,
+                "sub": t.project.name if t.project else "",
+                "url": url,
+            })
+    except Exception:
+        pass
+
+    # ── Procedure / Documenti ────────────────────────────────────────────────
+    try:
+        from procedure_refresh.models import ProcedureDocument
+        docs_qs = ProcedureDocument.objects.filter(
+            Q(code__icontains=q)
+            | Q(title__icontains=q)
+            | Q(description__icontains=q)
+            | Q(owner_department__icontains=q)
+        ).filter(is_active=True).order_by("code")[:5]
+        for d in docs_qs:
+            try:
+                url = reverse("procedure_refresh:document_edit", args=[d.pk])
+            except Exception:
+                url = "/procedure-refresh/admin/documenti/"
+            results.append({
+                "tipo": "procedura",
+                "label": d.title,
+                "sub": d.code or "",
+                "url": url,
+            })
+    except Exception:
+        pass
+
+    return JsonResponse({"results": results, "query": q})

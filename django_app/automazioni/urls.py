@@ -7,6 +7,16 @@ urlpatterns = [
     path("sorgenti/", views.sorgenti_page, name="automazioni_sorgenti"),
     path("contenuti/", views.contenuti_page, name="automazioni_contenuti"),
     path("regole/", views.rule_list_page, name="automazioni_rule_list"),
+    path(
+        "regole/converti-power-automate/",
+        views.rule_power_automate_convert_page,
+        name="automazioni_rule_power_automate_convert",
+    ),
+    path(
+        "regole/converti-power-automate/package.json",
+        views.rule_power_automate_package_download,
+        name="automazioni_rule_power_automate_package_download",
+    ),
     path("regole/importa-package/", views.rule_package_import_page, name="automazioni_rule_import_package"),
     path(
         "regole/importa-package/risultato/",
@@ -42,6 +52,11 @@ urlpatterns = [
     path("api/sorgenti/<str:source_code>/record-recenti/", views.api_recent_records, name="automazioni_api_recent_records"),
     path("api/sorgenti/<str:source_code>/record/<str:record_id>/payload/", views.api_record_payload, name="automazioni_api_record_payload"),
     path("api/regole/<int:rule_id>/test-ajax/", views.api_test_rule_ajax, name="automazioni_api_test_rule_ajax"),
+    # Canali Teams (preset webhook riutilizzabili)
+    path("canali-teams/", views.teams_presets_page, name="automazioni_teams_presets"),
+    path("canali-teams/crea/", views.teams_preset_create, name="automazioni_teams_preset_create"),
+    path("canali-teams/<int:pk>/modifica/", views.teams_preset_edit, name="automazioni_teams_preset_edit"),
+    path("canali-teams/<int:pk>/elimina/", views.teams_preset_delete, name="automazioni_teams_preset_delete"),
     # Approval decision (no login required, token-based)
     path("approvazione/<uuid:token>/", views.approval_status_page, name="automazioni_approval_status"),
     path("approvazione/<uuid:token>/<str:decision>/", views.approval_decision_page, name="automazioni_approval_decision"),

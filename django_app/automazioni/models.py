@@ -393,3 +393,21 @@ class AutomationApproval(models.Model):
         if self.expires_at is None:
             return False
         return timezone.now() > self.expires_at
+
+
+class TeamsWebhookPreset(models.Model):
+    """Canale Teams riutilizzabile: salva webhook URL una volta, selezionalo in qualsiasi send_approval."""
+
+    name = models.CharField(max_length=100, unique=True, verbose_name="Nome canale")
+    webhook_url = models.TextField(verbose_name="Webhook URL")
+    description = models.CharField(max_length=255, blank=True, verbose_name="Descrizione")
+    is_active = models.BooleanField(default=True, verbose_name="Attivo")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "Preset webhook Teams"
+        verbose_name_plural = "Preset webhook Teams"
+
+    def __str__(self) -> str:
+        return self.name

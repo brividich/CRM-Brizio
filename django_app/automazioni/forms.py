@@ -14,6 +14,7 @@ from .models import (
     AutomationConditionValueType,
     AutomationRule,
     AutomationRuleTriggerScope,
+    TeamsWebhookPreset,
 )
 from .services import get_action_table_whitelist
 from .source_registry import (
@@ -436,6 +437,43 @@ class AutomationActionForm(forms.ModelForm):
         help_text="Un mapping per riga: `Etichetta = valore template`. Supportato anche JSON object.",
     )
 
+    # ── SEND_APPROVAL (usati solo nel designer) ────────────────────────────
+    approval_to_template = forms.CharField(
+        required=False, label="Email approvatori",
+        widget=forms.TextInput(attrs={"placeholder": "{capo_email} oppure manager@azienda.com"}),
+    )
+    approval_subject_template = forms.CharField(
+        required=False, label="Oggetto email",
+        widget=forms.TextInput(attrs={"placeholder": "Approvazione richiesta #{id}"}),
+    )
+    approval_message_template = forms.CharField(
+        required=False, label="Testo del messaggio",
+        widget=forms.Textarea(attrs={"rows": 3, "placeholder": "Si richiede la tua approvazione per la richiesta #{id}..."}),
+    )
+    approval_expiry_days = forms.IntegerField(
+        required=False, min_value=1, max_value=365, label="Scadenza (giorni)", initial=7,
+    )
+    approval_approve_label = forms.CharField(
+        required=False, label='Label "Approva"',
+        widget=forms.TextInput(attrs={"placeholder": "Approva"}),
+    )
+    approval_reject_label = forms.CharField(
+        required=False, label='Label "Rifiuta"',
+        widget=forms.TextInput(attrs={"placeholder": "Rifiuta"}),
+    )
+    approval_teams_preset_id = forms.ChoiceField(
+        required=False, label="Canale Teams",
+        choices=[("", "— non inviare su Teams —")],
+    )
+    approval_teams_title_template = forms.CharField(
+        required=False, label="Titolo card Teams",
+        widget=forms.TextInput(attrs={"placeholder": "Approvazione richiesta #{id} — {dipendente_nome}"}),
+    )
+    approval_teams_facts_inline = forms.CharField(
+        required=False, label="Fatti (una riga: Etichetta | {valore})",
+        widget=forms.Textarea(attrs={"rows": 4, "placeholder": "Tipo | {tipo_assenza}\nInizio | {data_inizio}\nFine | {data_fine}"}),
+    )
+
     class Meta:
         model = AutomationAction
         fields = [
@@ -500,6 +538,16 @@ class AutomationActionForm(forms.ModelForm):
         self.fields["delay_value_template"].help_text = "Numero o placeholder, es. `1`, `4`, `{giorni}`."
         self.fields["delay_until_template"].help_text = "Data/ora ISO o placeholder, es. `2026-04-10T15:30:00`."
 
+        # Populate approval_teams_preset_id choices from DB
+        try:
+            preset_choices = [("", "— non inviare su Teams —")] + [
+                (str(p.pk), p.name + (f" — {p.description}" if p.description else ""))
+                for p in TeamsWebhookPreset.objects.filter(is_active=True).order_by("name")
+            ]
+        except Exception:
+            preset_choices = [("", "— non inviare su Teams —")]
+        self.fields["approval_teams_preset_id"].choices = preset_choices
+
         config = self.instance.config_json if self.instance.pk and isinstance(self.instance.config_json, dict) else {}
         if config:
             run_if = config.get("run_if") if isinstance(config.get("run_if"), dict) else {}
@@ -553,6 +601,16 @@ class AutomationActionForm(forms.ModelForm):
             self.initial.setdefault("teams_text_template", config.get("text_template", ""))
             self.initial.setdefault("teams_theme_color", config.get("theme_color", ""))
             self.initial.setdefault("teams_facts_text", _serialize_mapping_for_textarea(config.get("facts")))
+            # send_approval fields
+            self.initial.setdefault("approval_to_template", config.get("to_template", ""))
+            self.initial.setdefault("approval_subject_template", config.get("subject_template", ""))
+            self.initial.setdefault("approval_message_template", config.get("message_template", ""))
+            self.initial.setdefault("approval_expiry_days", config.get("expiry_days", 7))
+            self.initial.setdefault("approval_approve_label", config.get("approve_label", "Approva"))
+            self.initial.setdefault("approval_reject_label", config.get("reject_label", "Rifiuta"))
+            self.initial.setdefault("approval_teams_preset_id", str(config.get("teams_preset_id") or ""))
+            self.initial.setdefault("approval_teams_title_template", config.get("teams_title_template", ""))
+            self.initial.setdefault("approval_teams_facts_inline", config.get("teams_facts_inline", ""))
 
     def clean(self):
         cleaned_data = super().clean()
@@ -779,6 +837,23 @@ class AutomationActionForm(forms.ModelForm):
                     "Compila almeno titolo, summary, testo o facts per la card Teams.",
                 )
 
+        elif action_type == AutomationActionType.SEND_APPROVAL:
+            preset_id_raw = str(cleaned_data.get("approval_teams_preset_id") or "").strip()
+            config_json = {
+                "to_template": str(cleaned_data.get("approval_to_template") or "").strip(),
+                "subject_template": str(cleaned_data.get("approval_subject_template") or "").strip(),
+                "message_template": str(cleaned_data.get("approval_message_template") or "").strip(),
+                "expiry_days": cleaned_data.get("approval_expiry_days") or 7,
+                "approve_label": str(cleaned_data.get("approval_approve_label") or "Approva").strip() or "Approva",
+                "reject_label": str(cleaned_data.get("approval_reject_label") or "Rifiuta").strip() or "Rifiuta",
+            }
+            if preset_id_raw:
+                config_json["teams_preset_id"] = preset_id_raw
+                config_json["teams_title_template"] = str(cleaned_data.get("approval_teams_title_template") or "").strip()
+                config_json["teams_facts_inline"] = str(cleaned_data.get("approval_teams_facts_inline") or "").strip()
+            if not config_json["to_template"]:
+                self.add_error("approval_to_template", "Specifica almeno un'email approvatore.")
+
         if run_if_config:
             config_json["run_if"] = run_if_config
         self._config_json = config_json
@@ -851,6 +926,34 @@ class AutomationPackageUploadForm(forms.Form):
         filename = str(getattr(uploaded_file, "name", "") or "").strip().lower()
         if not (filename.endswith(".automation_package.json") or filename.endswith(".json")):
             raise forms.ValidationError("Carica un file `.automation_package.json` o `.json` compatibile.")
+        return uploaded_file
+
+
+class PowerAutomateFlowUploadForm(forms.Form):
+    flow_file = forms.FileField(
+        label="Export Power Automate",
+        help_text="Accetta export `.zip` e definition `.json` di Power Automate.",
+        widget=forms.ClearableFileInput(attrs={"accept": ".zip,.json"}),
+    )
+    target_table = forms.ChoiceField(
+        label="Tabella target modulo",
+        required=False,
+        choices=(("", "Nessuna tabella target (solo runtime portale)"),),
+        help_text="Opzionale. Se selezionata, il converter suggerisce anche mapping verso una tabella Django del portale.",
+    )
+
+    def __init__(self, *args, target_table_choices: list[tuple[str, str]] | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["target_table"].choices = [
+            ("", "Nessuna tabella target (solo runtime portale)"),
+            *(target_table_choices or []),
+        ]
+
+    def clean_flow_file(self):
+        uploaded_file = self.cleaned_data["flow_file"]
+        filename = str(getattr(uploaded_file, "name", "") or "").strip().lower()
+        if not (filename.endswith(".zip") or filename.endswith(".json")):
+            raise forms.ValidationError("Carica un export Power Automate `.zip` oppure un file `.json`.")
         return uploaded_file
 
 
@@ -982,3 +1085,19 @@ AutomationActionFormSet = inlineformset_factory(
     extra=0,
     can_delete=True,
 )
+
+
+class TeamsWebhookPresetForm(forms.ModelForm):
+    class Meta:
+        model = TeamsWebhookPreset
+        fields = ["name", "webhook_url", "description", "is_active"]
+        widgets = {
+            "webhook_url": forms.Textarea(attrs={"rows": 3, "placeholder": "https://cnovicrom.webhook.office.com/..."}),
+            "description": forms.TextInput(attrs={"placeholder": "es. Canale IT, HR - Assenze..."}),
+        }
+        labels = {
+            "name": "Nome canale",
+            "webhook_url": "Webhook URL",
+            "description": "Descrizione",
+            "is_active": "Attivo",
+        }

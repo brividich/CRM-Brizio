@@ -71,6 +71,13 @@
     {% endfor %}
   </nav>
 
+  <div class="sb-search-wrap">
+    <button type="button" class="sb-item sb-search-btn" data-gs-open aria-label="Ricerca globale (Ctrl+K)" title="Ricerca globale (Ctrl+K)">
+      <span class="sb-icon" aria-hidden="true">&#128269;</span>
+      <span class="sb-label">Cerca… <kbd class="sb-search-kbd">Ctrl K</kbd></span>
+    </button>
+  </div>
+
   <div class="sb-footer">
     {% if user.is_authenticated %}
       {% firstof user.get_full_name legacy_user.nome user.username as display_name %}

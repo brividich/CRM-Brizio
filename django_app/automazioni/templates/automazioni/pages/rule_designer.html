@@ -193,6 +193,7 @@
   .flow-node-end-btn { display: flex; align-items: center; padding: 4px 10px; border-radius: 8px; background: transparent; border: 1px solid #e2e8f0; color: #64748b; font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: background .1s; }
   .flow-node-end-btn:hover { background: #f1f5f9; }
   .flow-node-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; align-self: center; }
+  .flow-node--editing { border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59,130,246,.18), 0 4px 20px rgba(15,23,42,.12); }
 
   /* Tipi speciali */
   .flow-node--trigger { border-color: #93c5fd; }
@@ -260,8 +261,19 @@
   .flow-diagram-add-row { display: flex; flex-direction: column; align-items: center; }
   .flow-diagram-add-btn { display: flex; align-items: center; gap: 7px; padding: 9px 22px; border-radius: 999px; border: 2px dashed #cbd5e1; background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 800; cursor: pointer; transition: border-color .15s, color .15s, background .15s; }
   .flow-diagram-add-btn:hover { border-color: #3b82f6; color: #1d4ed8; background: #eff6ff; }
+  .flow-inline-editor { display: grid; gap: 14px; width: 100%; padding: 18px 20px 22px; border-top: 1px solid #dbeafe; background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); }
+  .flow-inline-editor[hidden] { display: none !important; }
+  .flow-inline-editor-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  .flow-inline-editor-title { font-size: 18px; font-weight: 900; color: #0f172a; }
+  .flow-inline-editor-body { display: grid; gap: 12px; }
+  .flow-inline-editor .designer-meta-card { margin: 0; border-color: #bfdbfe; box-shadow: 0 10px 28px rgba(15,23,42,.08); }
+  .flow-inline-editor .designer-actions [data-move] { display: none; }
+  .flow-inline-editor [data-card-details] { margin-top: 0 !important; border-top: 0; padding-top: 0; }
+  .flow-inline-editor [data-card-details] > summary { display: none; }
+  .flow-inline-editor-placeholder { padding: 14px; border-radius: 14px; border: 1px dashed #cbd5e1; background: #f8fafc; color: #64748b; font-size: 13px; }
   /* Modal */
   .diagram-modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.5); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .diagram-modal-overlay[hidden] { display: none !important; }
   .diagram-modal-box { background: #fff; border-radius: 18px; box-shadow: 0 24px 64px rgba(15,23,42,.22); width: 100%; max-width: 560px; overflow: hidden; }
   .diagram-modal-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px 14px; border-bottom: 1px solid #f1f5f9; }
   .diagram-modal-title { font-size: 15px; font-weight: 900; color: #0f172a; }
@@ -269,7 +281,7 @@
   .diagram-modal-close:hover { background: #f1f5f9; color: #475569; }
   .diagram-modal-body { padding: 16px 22px 22px; }
   .diagram-action-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-  .diagram-action-item { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 14px 8px 10px; border-radius: 12px; border: 2px solid #e2e8f0; background: #fff; cursor: pointer; transition: border-color .12s, box-shadow .12s, transform .1s; }
+  .diagram-action-item { width: 100%; appearance: none; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 14px 8px 10px; border-radius: 12px; border: 2px solid #e2e8f0; background: #fff; cursor: pointer; transition: border-color .12s, box-shadow .12s, transform .1s; font: inherit; text-align: center; }
   .diagram-action-item:hover { border-color: var(--ac, #3b82f6); box-shadow: 0 4px 16px rgba(0,0,0,.1); transform: translateY(-2px); }
   .diagram-action-item-icon { font-size: 22px; width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
   .diagram-action-item-label { font-size: 11px; font-weight: 800; color: #334155; text-align: center; line-height: 1.3; }
@@ -308,6 +320,20 @@
                 <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_create' %}">Builder classico</a>
                 <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_list' %}">Lista regole</a>
               {% endif %}
+              <div class="flow-inline-editor" id="flowNodeEditorPanel" hidden>
+                <div class="flow-inline-editor-head">
+                  <div>
+                    <div class="designer-summary-kicker">Editor inline</div>
+                    <div class="flow-inline-editor-title" id="flowNodeEditorTitle">Seleziona un'azione dal diagramma</div>
+                    <div class="designer-section-subtitle" id="flowNodeEditorSubtitle">Click sul nodo per modificare direttamente la card qui, senza scendere al form completo.</div>
+                  </div>
+                  <div class="designer-actions">
+                    <button type="button" class="btn btn-light" id="flowNodeEditorCardBtn">Apri card completa</button>
+                    <button type="button" class="btn btn-light" onclick="closeFlowNodeEditor()">Chiudi</button>
+                  </div>
+                </div>
+                <div class="flow-inline-editor-body" id="flowNodeEditorMount"></div>
+              </div>
             </div>
           </div>
 
@@ -346,7 +372,7 @@
             <div class="flow-diagram-shell">
               <div class="flow-diagram-topbar">
                 <span class="flow-diagram-label">🔀 Diagramma di flusso</span>
-                <span class="flow-diagram-hint">Trascina le azioni per riordinarle · ＋ per aggiungere · ✕ sul nodo per rimuovere</span>
+                <span class="flow-diagram-hint">Trascina per riordinare · click sul nodo per modificare · ＋ per aggiungere · ✕ per rimuovere</span>
                 <button type="button" class="btn btn-light btn-sm" id="flowDiagramPngBtn" onclick="downloadDiagramPng()" title="Scarica come immagine PNG">⬇ PNG</button>
                 <button type="button" class="btn btn-light btn-sm" onclick="toggleFlowDiagram()">✕ Chiudi</button>
               </div>
@@ -817,6 +843,64 @@
           <div class="designer-field designer-field-wide">{{ ef.teams_facts_text.label_tag }}{{ ef.teams_facts_text }}</div>
         </div>
       </div>
+      <div class="designer-editor-panel" data-action-config="send_approval" style="margin-top:12px;">
+        <div class="designer-editor-panel-title" style="display:flex;align-items:center;gap:8px;">
+          <span>✅ Richiedi Approvazione</span>
+          <span class="designer-pill designer-pill-primary" style="font-size:11px;">flusso si mette in pausa</span>
+        </div>
+        <div class="designer-help" style="margin-bottom:10px;">
+          Invia email agli approvatori con link Approva/Rifiuta. Opzionalmente invia anche una card Teams con bottoni nativi.
+        </div>
+        <div class="designer-trigger-copy">
+          <div class="designer-field designer-field-wide">
+            <label>Email approvatori (template, virgola-separati)</label>
+            {{ ef.approval_to_template }}
+          </div>
+          <div class="designer-field designer-field-wide">
+            <label>Oggetto email</label>
+            {{ ef.approval_subject_template }}
+          </div>
+          <div class="designer-field designer-field-wide">
+            <label>Testo del messaggio</label>
+            {{ ef.approval_message_template }}
+          </div>
+          <div class="designer-field">
+            <label>Scadenza (giorni)</label>
+            {{ ef.approval_expiry_days }}
+          </div>
+          <div class="designer-field">
+            <label>Label "Approva"</label>
+            {{ ef.approval_approve_label }}
+          </div>
+          <div class="designer-field">
+            <label>Label "Rifiuta"</label>
+            {{ ef.approval_reject_label }}
+          </div>
+        </div>
+        <details class="designer-subeditor" style="margin-top:12px;">
+          <summary class="designer-subeditor-summary">💬 Notifica anche su Teams (opzionale)</summary>
+          <div class="designer-trigger-copy" style="margin-top:10px;">
+            <div class="designer-field designer-field-wide">
+              <label>Canale Teams</label>
+              {{ ef.approval_teams_preset_id }}
+              {% if not teams_presets %}
+                <div class="designer-help" style="color:#92400e;margin-top:4px;">
+                  Nessun canale configurato.
+                  <a href="{% url 'admin_portale:automazioni_teams_presets' %}" target="_blank">Aggiungi un canale Teams</a>
+                </div>
+              {% endif %}
+            </div>
+            <div class="designer-field designer-field-wide">
+              <label>Titolo card Teams</label>
+              {{ ef.approval_teams_title_template }}
+            </div>
+            <div class="designer-field designer-field-wide">
+              <label>Fatti (una riga: <code>Etichetta | {valore}</code>)</label>
+              {{ ef.approval_teams_facts_inline }}
+            </div>
+          </div>
+        </details>
+      </div>
     </div>
   </details>
 </article>
@@ -832,7 +916,23 @@
     </div>
     <div class="diagram-modal-body">
       <div class="diagram-action-grid" id="diagramActionGrid">
-        {# popolato da JS #}
+        {% if diagram_action_choices %}
+          {% for choice in diagram_action_choices %}
+          <button
+            class="diagram-action-item"
+            type="button"
+            style="--ac:{{ choice.color }};"
+            data-action-type="{{ choice.value }}"
+            onclick="diagramAddAction('{{ choice.value|escapejs }}')"
+          >
+            <div class="diagram-action-item-icon" style="background:{{ choice.bg }};">{{ choice.icon }}</div>
+            <div class="diagram-action-item-label">{{ choice.label }}</div>
+            <div class="diagram-action-item-app">{{ choice.app }}</div>
+          </button>
+          {% endfor %}
+        {% else %}
+          <div class="designer-empty" style="grid-column:1 / -1;">Nessuna azione disponibile nel picker del diagramma.</div>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -844,6 +944,7 @@
 {{ condition_suggestions_json|json_script:"designer-condition-suggestions" }}
 {{ action_suggestions_json|json_script:"designer-action-suggestions" }}
 {{ source_fields_json|json_script:"designer-source-fields" }}
+{{ diagram_action_choices|json_script:"diagram-action-choices" }}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
 (function() {
@@ -2187,11 +2288,254 @@
     'branch':                 {icon:'🔀',  color:'#ea580c', bg:'#fff7ed', label:'Branch / If-Else',      app:'Condizione'},
   };
 
+  function getDiagramActionChoices() {
+    var el = document.getElementById('diagram-action-choices');
+    if (!el) return [];
+    try {
+      var parsed = JSON.parse(el.textContent || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  getDiagramActionChoices().forEach(function(choice) {
+    if (!choice || !choice.value) return;
+    _DIAG_STYLES[String(choice.value)] = {
+      icon: choice.icon || '⚡',
+      color: choice.color || '#64748b',
+      bg: choice.bg || '#f8fafc',
+      label: choice.label || choice.value,
+      app: choice.app || 'Azione'
+    };
+  });
+
+  var _flowNodeEditorState = null;
+  var _diagramSyncQueue = [];
+  var _diagramSyncTimer = null;
+
+  function _cardField(card, fieldName) {
+    return card ? card.querySelector('[name$="-' + fieldName + '"]') : null;
+  }
+
+  function _findDiagramNode(nodeId) {
+    for (var index = 0; index < _diagramNodes.length; index += 1) {
+      if (_diagramNodes[index] && _diagramNodes[index].id === nodeId) return _diagramNodes[index];
+    }
+    return null;
+  }
+
+  function _findDiagramNodeForCard(card) {
+    if (!card) return null;
+    var itemId = String(card.getAttribute('data-item-id') || '');
+    for (var index = 0; index < _diagramNodes.length; index += 1) {
+      var node = _diagramNodes[index];
+      if (!node) continue;
+      if (itemId && String(node.itemId || '') === itemId) return node;
+      if (node._formCard === card) return node;
+    }
+    return null;
+  }
+
+  function _getCardForDiagramNode(node) {
+    if (!node) return null;
+    if (node._formCard && document.body.contains(node._formCard)) return node._formCard;
+    if (node.itemId) return document.querySelector('[data-item-id="' + String(node.itemId) + '"]');
+    return null;
+  }
+
+  function _collectCardPreview(card) {
+    var previewNode = card ? card.querySelector('[data-action-preview]') : null;
+    if (!previewNode) return [];
+    var lines = [];
+    var blocks = previewNode.querySelectorAll('div');
+    if (blocks && blocks.length) {
+      for (var index = 0; index < blocks.length; index += 1) {
+        var text = String(blocks[index].textContent || '').trim();
+        if (text) lines.push(text);
+      }
+      return lines;
+    }
+    var rawText = String(previewNode.textContent || '').trim();
+    return rawText ? [rawText] : [];
+  }
+
+  function _getActionTypeNodeKind(actionType) {
+    return /^(send_approval|do_until|for_each|branch)$/.test(String(actionType || '')) ? String(actionType || '') : 'action';
+  }
+
+  function _highlightActiveEditorNode() {
+    var canvas = document.getElementById('flowDiagramCanvas');
+    if (canvas) {
+      var activeNodes = canvas.querySelectorAll('.flow-node--editing');
+      for (var index = 0; index < activeNodes.length; index += 1) {
+        activeNodes[index].classList.remove('flow-node--editing');
+      }
+    }
+    if (!_flowNodeEditorState || !_flowNodeEditorState.nodeId) return;
+    var active = document.getElementById('fd-' + _flowNodeEditorState.nodeId);
+    if (active) active.classList.add('flow-node--editing');
+  }
+
+  function _updateFlowNodeEditorHeader(node, card) {
+    var titleNode = document.getElementById('flowNodeEditorTitle');
+    var subtitleNode = document.getElementById('flowNodeEditorSubtitle');
+    if (titleNode) titleNode.textContent = node && node.title ? node.title : 'Editor azione';
+    if (subtitleNode) {
+      subtitleNode.textContent = node && node.subtitle
+        ? 'Modifica inline: ' + node.subtitle
+        : 'Modifica direttamente la card qui, senza scendere al form completo.';
+    }
+
+    var cardBtn = document.getElementById('flowNodeEditorCardBtn');
+    if (!cardBtn) return;
+    cardBtn.onclick = function() {
+      if (node && node.edit_anchor) {
+        scrollToAnchor(node.edit_anchor);
+        return;
+      }
+      if (card && card.scrollIntoView) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+  }
+
+  function _restoreFlowNodeEditorCard() {
+    if (!_flowNodeEditorState) return;
+    var state = _flowNodeEditorState;
+    var panel = document.getElementById('flowNodeEditorPanel');
+    var mount = document.getElementById('flowNodeEditorMount');
+    var card = state.card;
+    if (card) {
+      card.classList.remove('flow-inline-editor-card');
+      if (state.placeholder && state.placeholder.parentNode) {
+        state.placeholder.parentNode.replaceChild(card, state.placeholder);
+      } else if (state.parentNode) {
+        state.parentNode.insertBefore(card, state.nextSibling && state.nextSibling.parentNode === state.parentNode ? state.nextSibling : null);
+      }
+      var details = card.querySelector('[data-card-details]');
+      if (details) details.open = !!state.detailsWasOpen;
+    }
+    if (mount) mount.innerHTML = '';
+    if (panel) panel.hidden = true;
+    _flowNodeEditorState = null;
+    _highlightActiveEditorNode();
+  }
+
+  window.closeFlowNodeEditor = function() {
+    _restoreFlowNodeEditorCard();
+  };
+
+  function _openFlowNodeEditor(nodeId) {
+    var node = _findDiagramNode(nodeId);
+    if (!node) return;
+    var card = _getCardForDiagramNode(node);
+    if (!card) {
+      if (node.edit_anchor) scrollToAnchor(node.edit_anchor);
+      return;
+    }
+    if (_flowNodeEditorState && _flowNodeEditorState.nodeId === nodeId) {
+      var existingPanel = document.getElementById('flowNodeEditorPanel');
+      if (existingPanel) existingPanel.hidden = false;
+      _highlightActiveEditorNode();
+      return;
+    }
+
+    _restoreFlowNodeEditorCard();
+
+    var panel = document.getElementById('flowNodeEditorPanel');
+    var mount = document.getElementById('flowNodeEditorMount');
+    if (!panel || !mount || !card.parentNode) return;
+
+    var placeholder = document.createElement('div');
+    placeholder.className = 'flow-inline-editor-placeholder';
+    placeholder.textContent = 'Editor aperto nel diagramma. Chiudi il pannello per riportare la card qui.';
+    card.parentNode.insertBefore(placeholder, card);
+
+    var details = card.querySelector('[data-card-details]');
+    var previousOpen = details ? !!details.open : false;
+    if (details) details.open = true;
+
+    _flowNodeEditorState = {
+      nodeId: nodeId,
+      card: card,
+      placeholder: placeholder,
+      parentNode: placeholder.parentNode,
+      nextSibling: placeholder.nextSibling,
+      detailsWasOpen: previousOpen
+    };
+
+    card.classList.add('flow-inline-editor-card');
+    mount.appendChild(card);
+    panel.hidden = false;
+    _updateFlowNodeEditorHeader(node, card);
+    _highlightActiveEditorNode();
+    if (panel.scrollIntoView) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    var focusTarget = card.querySelector('textarea:not([disabled]), input[type="text"]:not([disabled]), input[type="email"]:not([disabled]), select:not([disabled])');
+    if (focusTarget && focusTarget.focus) focusTarget.focus();
+  }
+
+  function _syncDiagramNodeFromCard(card, shouldRerender) {
+    var node = _findDiagramNodeForCard(card);
+    if (!node) return;
+
+    var actionTypeField = _cardField(card, 'action_type');
+    var descriptionField = _cardField(card, 'description');
+    var enabledField = _cardField(card, 'is_enabled');
+    var deleteField = _cardField(card, 'DELETE');
+    var actionType = actionTypeField ? String(actionTypeField.value || '').trim() : '';
+    var selectedOption = actionTypeField && actionTypeField.options ? actionTypeField.options[actionTypeField.selectedIndex] : null;
+    var actionLabel = selectedOption ? String(selectedOption.text || '').trim() : (actionType || 'Azione');
+    var description = descriptionField ? String(descriptionField.value || '').trim() : '';
+    var style = _DIAG_STYLES[actionType] || { icon: 'âš¡', color: '#64748b', bg: '#f8fafc', app: 'Azione' };
+
+    node.action_type = actionType;
+    node.type = _getActionTypeNodeKind(actionType);
+    node.title = actionLabel || actionType || 'Azione';
+    node.subtitle = description || actionLabel || 'Configura l\'azione';
+    node.preview = _collectCardPreview(card);
+    node.enabled = !(deleteField && deleteField.checked) && !!(!enabledField || enabledField.checked);
+    node.icon = style.icon;
+    node.color = style.color;
+    node.bg = style.bg;
+    node.app = style.app;
+
+    var itemId = String(card.getAttribute('data-item-id') || '');
+    if (itemId) {
+      node.itemId = itemId;
+      node.edit_anchor = 'action-card-' + itemId;
+    }
+
+    if (_flowNodeEditorState && _flowNodeEditorState.nodeId === node.id) {
+      _updateFlowNodeEditorHeader(node, card);
+    }
+
+    if (shouldRerender && _diagramOpen) {
+      _renderDiagramFromState();
+      _initDiagramEvents();
+      _highlightActiveEditorNode();
+    }
+  }
+
+  function _scheduleDiagramNodeSync(card) {
+    if (!card) return;
+    if (_diagramSyncQueue.indexOf(card) === -1) _diagramSyncQueue.push(card);
+    if (_diagramSyncTimer) return;
+    _diagramSyncTimer = window.setTimeout(function() {
+      var queue = _diagramSyncQueue.slice();
+      _diagramSyncQueue = [];
+      _diagramSyncTimer = null;
+      for (var index = 0; index < queue.length; index += 1) {
+        _syncDiagramNodeFromCard(queue[index], true);
+      }
+    }, 80);
+  }
+
   window.toggleFlowDiagram = function() {
     var panel = document.getElementById('flowDiagramPanel');
     var btn   = document.getElementById('flowDiagramToggleBtn');
     if (!panel) return;
     _diagramOpen = !_diagramOpen;
+    if (!_diagramOpen) closeFlowNodeEditor();
     panel.hidden = !_diagramOpen;
     if (btn) {
       btn.style.background = _diagramOpen ? '#dbeafe' : '';
@@ -2434,6 +2778,10 @@
       + '<button class="flow-diagram-add-btn" type="button" onclick="openDiagramAddModal()">＋ Aggiungi azione</button>'
       + '</div>';
     canvas.innerHTML = html;
+    canvas.querySelectorAll('.flow-node-end-btn').forEach(function(button) {
+      button.textContent = 'Apri editor';
+    });
+    _highlightActiveEditorNode();
   }
 
   // Alias retrocompatibile
@@ -2496,10 +2844,30 @@
 
     // Delete delegato
     canvas.addEventListener('click', function(e) {
+      var editBtn = e.target.closest ? e.target.closest('.flow-node-end-btn') : null;
+      if (editBtn) {
+        e.preventDefault();
+        var editNode = _closestNodeEl(editBtn);
+        if (editNode) _openFlowNodeEditor(editNode.getAttribute('data-node-id'));
+        return;
+      }
+
       var btn = e.target.closest ? e.target.closest('[data-delete-node]') : null;
-      if (!btn) return;
-      var nodeId = btn.getAttribute('data-delete-node');
-      if (nodeId) _diagramDeleteNode(nodeId);
+      if (btn) {
+        var deleteNodeId = btn.getAttribute('data-delete-node');
+        if (deleteNodeId) _diagramDeleteNode(deleteNodeId);
+        return;
+      }
+
+      if (e.target.closest && e.target.closest('button')) return;
+      if (e.target.closest && e.target.closest('.flow-node-drag-handle')) return;
+
+      var nodeEl = _closestNodeEl(e.target);
+      if (!nodeEl) return;
+      var nodeId = nodeEl.getAttribute('data-node-id');
+      var node = _findDiagramNode(nodeId);
+      if (!node || node.type === 'trigger' || node.type === 'conditions' || node.type === 'end') return;
+      _openFlowNodeEditor(nodeId);
     });
   }
 
@@ -2540,6 +2908,7 @@
     var node = null;
     _diagramNodes.forEach(function(n) { if (n.id === nodeId) node = n; });
     if (!node) return;
+    if (_flowNodeEditorState && _flowNodeEditorState.nodeId === nodeId) closeFlowNodeEditor();
 
     if (!node.isPending && node.itemId) {
       // Azione esistente: spunta DELETE sul form corrispondente
@@ -2648,10 +3017,11 @@
       isPending: true,
       _formCard: newCard,
     });
+    if (newCard) _syncDiagramNodeFromCard(newCard, false);
     _renderDiagramFromState();
     _initDiagramEvents();
     _syncDiagramOrderToForms();
-    if (newCard) newCard.scrollIntoView({behavior: 'smooth', block: 'center'});
+    if (newCard) _openFlowNodeEditor(pendingId);
   };
 
   // Chiudi modal su click overlay o ESC
@@ -2665,6 +3035,15 @@
       if (modal && !modal.hidden) closeDiagramAddModal();
     }
   });
+  function _handleDiagramCardEvent(event) {
+    var target = event.target;
+    var card = target && target.closest ? target.closest('[data-action-card]') : null;
+    if (!card) return;
+    _scheduleDiagramNodeSync(card);
+  }
+
+  document.addEventListener('input', _handleDiagramCardEvent);
+  document.addEventListener('change', _handleDiagramCardEvent);
 
   // ── PNG download ──────────────────────────────────────────────────────────
   window.downloadDiagramPng = function() {

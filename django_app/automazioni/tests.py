@@ -433,6 +433,7 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertIsInstance(response.context["source_fields_json"], dict)
         self.assertIsInstance(response.context["condition_suggestions_json"], dict)
         self.assertIsInstance(response.context["action_suggestions_json"], dict)
+        self.assertIsInstance(response.context["diagram_action_choices"], list)
         self.assertIn("assenze", response.context["source_fields_json"])
 
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
@@ -668,7 +669,14 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertContains(response, "Designer visuale")
         self.assertContains(response, "Nuova regola")
         self.assertContains(response, "Contenuti / Colonne disponibili")
-        self.assertContains(response, "Campi suggeriti")
+        self.assertContains(response, 'id="diagramActionGrid"', html=False)
+        self.assertContains(response, ".diagram-modal-overlay[hidden] { display: none !important; }", html=False)
+        self.assertContains(response, 'data-action-type="send_email"', html=False)
+        self.assertContains(response, 'data-action-type="send_approval"', html=False)
+        self.assertContains(response, 'data-action-type="branch"', html=False)
+        self.assertContains(response, "diagram-action-choices")
+        self.assertContains(response, 'id="flowNodeEditorPanel"', html=False)
+        self.assertContains(response, 'id="flowNodeEditorMount"', html=False)
 
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
@@ -1192,6 +1200,14 @@ class AutomationPackageImportTests(TestCase):
             email="package-import@test.local",
             password="pass12345",
         )
+        UserOnboarding.objects.update_or_create(
+            user=self.user,
+            defaults={
+                "completed": True,
+                "skipped": False,
+                "completed_at": timezone.now(),
+            },
+        )
         self.client.force_login(self.user)
         self.legacy_admin = SimpleNamespace(id=7, ruolo_id=1, nome="Admin Import Package")
         self.get_legacy_user_patcher = patch("admin_portale.decorators.get_legacy_user", return_value=self.legacy_admin)
@@ -1279,6 +1295,104 @@ class AutomationPackageImportTests(TestCase):
             follow=True,
         )
 
+    def _power_automate_converter_record(self):
+        package = self._base_package()
+        package["issues"] = [
+            {
+                "code": "approval-delegated-to-portal",
+                "severity": "medium",
+                "title": "Approval da delegare al portale",
+                "detail": "Il flow usa approval che devono diventare regole basate su moderation_status.",
+                "remediation": "Usa remediation automatica e poi importa nel builder SSR.",
+            }
+        ]
+        return {
+            "record_id": "pa-demo-001",
+            "created_at": "2026-04-14T10:00:00+00:00",
+            "target_context": {},
+            "remediations_applied": [],
+            "normalized": {
+                "diagram": {
+                    "width": 820,
+                    "height": 360,
+                    "lanes": [
+                        {"x": 24, "y": 24, "width": 772, "height": 300, "fill": "#fffdf8", "stroke": "#d6d3d1", "label": "Main"},
+                    ],
+                    "edges": [
+                        {"x1": 180, "y1": 110, "label_x": 280, "y2": 110, "x2": 380, "label_y": 110, "label": ""},
+                    ],
+                    "nodes": [
+                        {
+                            "x": 56,
+                            "y": 72,
+                            "width": 220,
+                            "height": 76,
+                            "fill": "#eff6ff",
+                            "stroke": "#2563eb",
+                            "icon": "TRG",
+                            "lines": ["Trigger", "When an item changes"],
+                            "issue_badge": "",
+                        },
+                        {
+                            "x": 360,
+                            "y": 72,
+                            "width": 260,
+                            "height": 76,
+                            "fill": "#fff7ed",
+                            "stroke": "#f97316",
+                            "icon": "ACT",
+                            "lines": ["Create approval", "Delegare al portale"],
+                            "issue_badge": "ISSUE",
+                        },
+                    ],
+                },
+            },
+            "package": package,
+        }
+
+    def _power_automate_converter_analysis(self):
+        return {
+            "package_hash": "pa-hash-001",
+            "filename": "assenze-approval.automation_package.json",
+            "flow_name": "Assenze Approval Flow",
+            "package_version": "1.0",
+            "source_code": "tasks",
+            "source_candidate": {"source_code": "tasks", "label": "Tasks"},
+            "source_supported": True,
+            "compatibility_lines": ["status: partial"],
+            "compatibility_pretty": '{"status":"partial"}',
+            "issues_lines": ["approval-delegated-to-portal"],
+            "issues_pretty": '[{"code":"approval-delegated-to-portal"}]',
+            "target_context_pretty": "",
+            "target_context": {},
+            "mapping_source": "runtime_catalog",
+            "mapping_rows": [
+                {"source_field": "Task Status", "target_field": "status", "status_label": "approvato"},
+            ],
+            "status": "partial",
+            "status_label": "import parziale",
+            "warnings": ["Una regola richiede remediation."],
+            "errors": [],
+            "rules": [
+                {
+                    "name": "Task log importata",
+                    "source_rule_code": "pa-task-log",
+                    "portal_code": "pa-task-log",
+                    "description": "Regola proposta dal converter",
+                    "operation_type": "update",
+                    "trigger_scope": "specific_field",
+                    "conditions": [{"field_name": "status", "operator": "equals", "expected_value": "DONE"}],
+                    "actions": [{"action_type": "write_log", "description": "Scrive log"}],
+                    "errors": [],
+                    "warnings": [],
+                    "is_importable": True,
+                }
+            ],
+            "rule_count": 1,
+            "importable_rule_count": 1,
+            "skipped_rule_count": 0,
+        }
+
     def test_upload_valid_package_shows_preview(self):
         response = self._upload_package(self._base_package(), follow=True)
 
@@ -1287,6 +1401,83 @@ class AutomationPackageImportTests(TestCase):
         self.assertContains(response, "Task Import Flow")
         self.assertContains(response, "pronto all&#x27;import", html=False)
         self.assertContains(response, "Task log importata")
+
+    def test_power_automate_converter_page_renders(self):
+        response = self.client.get(reverse("admin_portale:automazioni_rule_power_automate_convert"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Converti Power Automate")
+        self.assertContains(response, "Analizza flow")
+
+    @patch("automazioni.views.analyze_package_dict")
+    @patch("automazioni.views.analyze_power_automate_flow_upload")
+    def test_power_automate_converter_analyze_flow_stores_state(
+        self,
+        mock_analyze_flow_upload,
+        mock_analyze_package_dict,
+    ):
+        mock_analyze_flow_upload.return_value = self._power_automate_converter_record()
+        mock_analyze_package_dict.return_value = self._power_automate_converter_analysis()
+        upload = SimpleUploadedFile("sample.zip", b"PK\x03\x04demo", content_type="application/zip")
+
+        response = self.client.post(
+            reverse("admin_portale:automazioni_rule_power_automate_convert"),
+            {"action": "analyze", "flow_file": upload, "target_table": ""},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Diagramma del Flusso Power Automate")
+        self.assertContains(response, "Apri import guidato")
+        session_state = self.client.session.get("automazioni_power_automate_converter_state")
+        self.assertIsNotNone(session_state)
+        self.assertEqual(session_state["analysis"]["flow_name"], "Assenze Approval Flow")
+
+    def test_power_automate_converter_handoff_import_reuses_package_import_workflow(self):
+        session = self.client.session
+        session["automazioni_power_automate_converter_state"] = {
+            "record": self._power_automate_converter_record(),
+            "analysis": self._power_automate_converter_analysis(),
+            "selected_target_table": "",
+        }
+        session.save()
+
+        response = self.client.post(
+            reverse("admin_portale:automazioni_rule_power_automate_convert"),
+            {"action": "handoff_import"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("admin_portale:automazioni_rule_import_package"))
+        package_state = self.client.session.get("automazioni_package_import_state")
+        self.assertIsNotNone(package_state)
+        self.assertEqual(package_state["analysis"]["flow_name"], "Assenze Approval Flow")
+
+    def test_power_automate_converter_open_designer_creates_draft_rule(self):
+        session = self.client.session
+        session["automazioni_power_automate_converter_state"] = {
+            "record": self._power_automate_converter_record(),
+            "analysis": self._power_automate_converter_analysis(),
+            "selected_target_table": "",
+        }
+        session.save()
+
+        response = self.client.post(
+            reverse("admin_portale:automazioni_rule_power_automate_convert"),
+            {"action": "open_designer", "rule_index": "1"},
+        )
+
+        created_rule = AutomationRule.objects.get(code="pa-task-log")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response.url,
+            reverse("admin_portale:automazioni_rule_designer", args=[created_rule.id]),
+        )
+        self.assertTrue(created_rule.is_draft)
+        self.assertFalse(created_rule.is_active)
+        self.assertEqual(created_rule.import_flow_name, "Assenze Approval Flow")
+        self.assertEqual(created_rule.conditions.count(), 1)
+        self.assertEqual(created_rule.actions.count(), 1)
 
     def test_invalid_package_is_rejected(self):
         response = self._upload_package(

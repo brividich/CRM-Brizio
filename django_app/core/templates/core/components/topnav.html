@@ -81,6 +81,10 @@
         </button>
       {% endif %}
 
+      <button type="button" class="nav-search-btn" data-gs-open aria-label="Ricerca globale (Ctrl+K)" title="Ricerca globale (Ctrl+K)">
+        <span aria-hidden="true">&#128269;</span>
+      </button>
+
       <a href="{% url 'notifiche' %}" class="nav-icon" title="Notifiche" aria-label="Notifiche{% if notifiche_count %}: {{ notifiche_count }} non lette{% endif %}">
         <span aria-hidden="true">&#128276;</span>
         {% if notifiche_count %}

@@ -364,7 +364,7 @@ Percorso: `/admin-portale/hub/` Ã¢â‚¬â€ richiede `is_legacy_admin()`.
 | `core` (legacy, ex-unmanaged) | +5 | Ruolo, UtenteLegacy, AnagraficaDipendente, Pulsante, Permesso Ã¢â‚¬â€ ora `managed=True` sotto `core`, migration 0029 faked |
 | `assets` | 27 | Asset, AssetCategory, AssetITDetails, WorkMachine, WorkOrder, WorkOrderAttachment/Log, PeriodicVerification, SoftwareLicense, AssetEndpoint, PlantLayout/Area/Marker, AssetDocument, AssetLabelTemplate, AssetDashboardConfig (config widget dashboard per utente) + modelli config UI |
 | `tasks` | 7 | Project (+ `kickoff_number`, `revisione`, `versione`, `vrf_status`, `vrf_file`, `vrf_original_name`, `vrf_uploaded_at`, `vrf_quote_number`, `vrf_description`, `vrf_esp`), Task, SubTask, TaskComment, ProjectComment, TaskEvent, TaskAttachment; `TaskImpostazioni` singleton con `vrf_reminder_days` e `vrf_blocking_days` |
-| `automazioni` | 7 | AutomationRule, AutomationCondition, AutomationAction, AutomationRunLog, AutomationActionLog, DashboardMetricValue, AutomationApproval |
+| `automazioni` | 8 | AutomationRule, AutomationCondition, AutomationAction, AutomationRunLog, AutomationActionLog, DashboardMetricValue, AutomationApproval, TeamsWebhookPreset |
 | `tickets` | 7 | Ticket (+ campi analitici: componente, causa_radice, tipo_fermo, ore_fermo_macchina, data_presa_in_carico, data_primo_intervento, risolto_da_nome, ricorrente, ticket_origine FK), TicketCommento, TicketAllegato, TicketImpostazioni, CategoriaTicket, TicketStatoLog (log cambio stato), TicketIntervento (sessioni lavoro tecnico) |
 | `notizie` | 4 | Notizia, NotiziaAudience, NotiziaAllegato, NotiziaLettura |
 | `anagrafica` | 9 | Fornitore, FornitoreDocumento/Ordine/Valutazione/Asset, RuoloOperativo, DipendenteRuoloOperativo, DipendenteStatLayout, AnagraficaStatPermission |
@@ -407,15 +407,34 @@ Questi componenti esistono solo sul server di produzione:
 - Designer visuale e pagina test espongono ora un browser campi smart con ricerca, filtri per ambito (`trigger`, `condition`, `template`, `action_mapping`) e inserimento contestuale nel target attivo (select, template o JSON raw).
 - La pagina test manuale usa un composer guidato per `payload_json` e `old_payload_json`, sincronizzato con i textarea raw e con diff sintetico dei campi cambiati.
 - Le sorgenti che in update aggiungono campi runtime `old_*` direttamente nel payload (es. `tickets`, `tasks`) devono dichiararli nel `source_registry` come campi virtuali per renderli disponibili a catalogo, preset, test e template.
+- Il converter Power Automate integrato vive su `admin_portale:automazioni_rule_power_automate_convert`: riusa i servizi della cartella spostata `django_app/powerautomate-to-django-automations/app` tramite `automazioni/power_automate_bridge.py`, non tramite una seconda webapp standalone.
+- La pagina `Converti Power Automate` deve restare agganciata al workflow SSR di `Importa Package`: upload `.zip/.json`, analisi, remediation opzionale, diagramma del flow originale, download package e handoff diretto alla sessione di import esistente. Se una singola regola e' gia importabile, il converter puo' anche creare una bozza draft/disattiva e aprirla subito nel designer visuale. Non creare un importer parallelo.
+- La tabella target nel converter integrato e' opzionale e va popolata dal catalogo tabelle del portale (`discover_module_tables()`), non dal vecchio wizard SQL Server standalone. Se manca il target, il package deve restare convertibile per il solo runtime portale.
 - Il designer visuale espone un **test live inline** nel pannello laterale: modalita "Dati campione" e "Record reale" (AJAX picker ultimi 20 record), esecuzione via `POST /api/regole/<id>/test-ajax/` con risultati azione per azione. Endpoint aggiuntivi: `GET /api/sorgenti/<code>/record-recenti/` e `GET /api/sorgenti/<code>/record/<id>/payload/`.
 - Le card azione `send_email` hanno un pulsante "Anteprima" che mostra un pannello email renderizzato live (Da/A/Oggetto/Corpo) con highlight automatico dei `{placeholder}`, aggiornato su ogni keystroke senza submit.
 - **Azioni di controllo flusso** (migration 0008): `send_approval`, `do_until`, `for_each`, `branch` — tutte con azioni figlie embedded in `config_json` come lista `[{action_type, config_json, description}]`.
-  - `send_approval`: pausa il flusso, invia email con link Approva/Rifiuta, crea `AutomationApproval`. Dopo la decisione umana vengono eseguite le azioni del ramo `approved_actions` o `rejected_actions`. URL decision: `/automazioni/approvazione/<token>/approva|rifiuta/` (no login, token-based). `process_approval_decision()` in `services.py`.
+  - `send_approval`: pausa il flusso, invia email con link Approva/Rifiuta, crea `AutomationApproval`. Dopo la decisione umana vengono eseguite le azioni del ramo `approved_actions` o `rejected_actions`. URL decision: `/automazioni/approvazione/<token>/approva|rifiuta/` (no login, token-based, `@csrf_exempt`). `process_approval_decision()` in `services.py`. Supporta anche **Teams Actionable Message**: se `teams_webhook_url` è valorizzato nella config, invia una `MessageCard` con bottoni nativi al webhook Teams. L'endpoint decision rileva POST JSON (chiamate Teams) e risponde con header `CARD-ACTION-STATUS` invece di HTML. Campi config Teams: `teams_webhook_url` (template), `teams_title_template`, `teams_facts` (lista `{name, value_template}`), `teams_theme_color` (default `1a56db`).
   - `do_until`: esegue `loop_actions` ogni iterazione e si richiama tramite `_insert_loop_reschedule_event()`; esce quando la condizione (`check_field/operator/value`) è soddisfatta o si raggiunge `max_iterations`. Tiene il contatore in `payload._loop_iteration`.
   - `for_each`: interroga una sorgente registrata con filtro opzionale, esegue `each_actions` su ogni record (max `max_items`). Solo sorgenti con `table_name` definito nel registry; `filter_field` validato contro i campi esposti.
   - `branch`: valuta una condizione e esegue `if_true_actions` o `if_false_actions`. Simile a `run_if` ma con pieno ramo else.
 - **Diagramma di flusso Power Automate-style**: bottone "🔀 Diagramma di flusso" nel designer visuale. Visualizzazione verticale con nodi colorati, connettori freccia, rami approvazione/branch, corpo loop do_until e iterazione for_each. Renderizzato lato client da `flow_nodes_json` iniettato nel contesto via `_build_flow_nodes()` in `views.py`. Pulsante "Modifica ↓" su ogni nodo scrolla al form corrispondente.
+- Il modal del diagramma "Aggiungi azione al flusso" deve renderizzare le card azione gia' lato server e usare la stessa lista serializzata anche nel JS del diagramma; non affidare il picker a un popolamento solo client-side. Inoltre il CSS del modal deve rispettare esplicitamente `[hidden]`, altrimenti puo comparire da solo al load o non sparire davvero in chiusura.
+- Nel diagramma, l'editing inline delle azioni deve riusare la card reale del formset invece di creare un secondo editor separato: in questo modo il salvataggio resta SSR, non si sdoppiano gli stati dei campi e il nodo puo' riallinearsi live con preview, titolo e stato della card.
 - `AutomationApproval` (migration 0008): token UUID univoco, approver_emails, approved/rejected_actions, status `pending/approved/rejected/expired`, expires_at, decided_by_email. Path `/automazioni/approvazione/` esente da ACL (`MIDDLEWARE_EXEMPT_PREFIXES`).
+- `TeamsWebhookPreset` (migration 0009): webhook URL riutilizzabile con nome, descrizione, is_active. Gestito su `/automazioni/canali-teams/`. Il campo `teams_preset_id` in `config_json` di `send_approval` fa lookup del URL da DB; fallback su `teams_webhook_url` raw (retrocompat). I fatti sono specificati come `Etichetta | {valore}` per riga in `teams_facts_inline` (alternativa alla lista JSON legacy `teams_facts`). Nel designer e in `action_card.html` il dropdown "Canale Teams" mostra solo preset attivi. Se nessun preset è configurato, appare un link a `/automazioni/canali-teams/`.
+
+---
+
+## Ricerca Globale (Ctrl+K)
+
+- Endpoint: `GET /api/search/?q=<query>` → `core/views.py:api_global_search` → `core/urls.py`
+- Attivazione: `Ctrl+K` (o `Cmd+K` su Mac) oppure click sull'icona 🔍 nella topbar
+- Modelli interrogati (max 5 risultati per gruppo): `AnagraficaDipendente`, `Asset`, `Ticket`, `Project`, `Task`, `ProcedureDocument`
+- I modelli di altre app vanno importati localmente dentro la funzione per evitare import circolari
+- Risposta: `{"results": [{tipo, label, sub, url}, ...], "query": "..."}` con risultati raggruppati per tipo
+- UI: overlay spotlight in `topnav.html` con navigazione da tastiera (frecce, Enter, Esc), debounce 220ms
+- CSS: classi `.gs-*` in `theme.css`; ogni tipo di risultato ha la sua classe colore `.gs-tipo-<tipo>`
+- Query minima: 2 caratteri; gestione errori per app non disponibili tramite `try/except` silenzioso
 
 ---
 

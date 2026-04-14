@@ -2183,6 +2183,93 @@ def execute_action(
                 msg.attach_alternative(html_body, "text/html")
                 msg.send(fail_silently=False)
 
+            # --- Teams Webhook opzionale (MessageCard con bottoni Approva/Rifiuta) ------
+            # Priorità: 1) preset salvato per ID, 2) URL raw in config (retrocompat)
+            teams_preset_id = config.get("teams_preset_id")
+            teams_webhook_url_raw = str(config.get("teams_webhook_url") or "").strip()
+            if teams_preset_id:
+                try:
+                    from .models import TeamsWebhookPreset as _TWP
+                    _preset = _TWP.objects.get(pk=teams_preset_id, is_active=True)
+                    teams_webhook_url_raw = _preset.webhook_url
+                except Exception:
+                    pass  # preset non trovato: fallback su URL raw o nessun invio
+
+            if teams_webhook_url_raw:
+                try:
+                    import json as _json
+                    import urllib.request as _urllib_req
+
+                    teams_webhook_url = render_template_string(teams_webhook_url_raw, payload_context)
+                    teams_title = render_template_string(
+                        config.get("teams_title_template") or subject, payload_context
+                    ).strip()
+                    teams_theme_color = str(config.get("teams_theme_color") or "1a56db").strip()
+                    # Fatti: supporta sia il formato inline "Etichetta | {valore}" (per riga)
+                    # sia il formato legacy list [{name, value_template}] (retrocompat)
+                    facts_inline = str(config.get("teams_facts_inline") or "").strip()
+                    facts = []
+                    if facts_inline:
+                        for _line in facts_inline.splitlines():
+                            _parts = _line.split("|", 1)
+                            if len(_parts) == 2:
+                                _fact_name = _parts[0].strip()
+                                _fact_val = render_template_string(_parts[1].strip(), payload_context)
+                                if _fact_name:
+                                    facts.append({"name": _fact_name, "value": _fact_val})
+                    else:
+                        facts_config = list(config.get("teams_facts") or [])
+                        for fact_cfg in facts_config:
+                            fact_name = str(fact_cfg.get("name") or "").strip()
+                            fact_value = render_template_string(
+                                str(fact_cfg.get("value_template") or ""), payload_context
+                            )
+                            if fact_name:
+                                facts.append({"name": fact_name, "value": fact_value})
+
+                    card_payload = {
+                        "@type": "MessageCard",
+                        "@context": "http://schema.org/extensions",
+                        "themeColor": teams_theme_color,
+                        "summary": teams_title,
+                        "title": teams_title,
+                        "sections": [{
+                            "activitySubtitle": message_body,
+                            "facts": facts,
+                            "markdown": True,
+                        }],
+                        "potentialAction": [
+                            {
+                                "@type": "HttpPOST",
+                                "name": approve_label,
+                                "target": approve_url,
+                                "body": '{"action":"approve"}',
+                                "bodyContentType": "application/json",
+                            },
+                            {
+                                "@type": "HttpPOST",
+                                "name": reject_label,
+                                "target": reject_url,
+                                "body": '{"action":"reject"}',
+                                "bodyContentType": "application/json",
+                            },
+                        ],
+                    }
+
+                    card_data = _json.dumps(card_payload).encode("utf-8")
+                    teams_req = _urllib_req.Request(
+                        teams_webhook_url,
+                        data=card_data,
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    with _urllib_req.urlopen(teams_req, timeout=10) as teams_resp:
+                        _teams_http_status = teams_resp.status
+                    result_message += f" Teams webhook inviato (HTTP {_teams_http_status})."
+                except Exception as _e_teams:
+                    logger.warning("send_approval: Teams webhook error: %s", _e_teams)
+                    result_message += " Teams webhook non inviato (errore)."
+
             # Il run_log attende l'approvazione
             if run_log is not None:
                 run_log.status = AutomationRunLogStatus.WAITING_APPROVAL
