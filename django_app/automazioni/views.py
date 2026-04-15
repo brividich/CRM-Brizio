@@ -15,6 +15,7 @@ from django.views.decorators.http import require_GET, require_POST
 from admin_portale.decorators import legacy_admin_required
 
 from .forms import (
+    AutomationDeliveryEndpointForm,
     AutomationActionFormSet,
     AutomationConditionFormSet,
     AutomationPackageDryRunForm,
@@ -22,6 +23,7 @@ from .forms import (
     AutomationRuleForm,
     AutomationRuleTestForm,
     PowerAutomateFlowUploadForm,
+    TeamsWebhookPresetForm,
 )
 from .models import (
     AutomationAction,
@@ -30,12 +32,17 @@ from .models import (
     AutomationCondition,
     AutomationConditionOperator,
     AutomationConditionValueType,
+    AUTOMATION_DELIVERY_ENDPOINT_UNAVAILABLE_MESSAGE,
     AutomationRule,
     AutomationRuleOperationType,
     AutomationRuleTriggerScope,
     AutomationRunLog,
     AutomationRunLogStatus,
+    AutomationDeliveryEndpoint,
+    AutomationDeliveryEndpointType,
     AutomationTableConfig,
+    TeamsWebhookPreset,
+    list_teams_flow_endpoints,
 )
 from .services import (
     count_queue_by_status,
@@ -3296,6 +3303,17 @@ def _build_action_preview_from_form(form) -> list[str]:
             f"Teams title: {title}",
             f"Summary: {summary}",
         ]
+    elif action_type == AutomationActionType.SEND_APPROVAL:
+        delivery_mode = _string_value(_bound_or_instance_value(form, "approval_delivery_mode")) or "email"
+        email_to = _truncate_text(_bound_or_instance_value(form, "approval_to_template"), 80) or "-"
+        teams_recipient = _truncate_text(_bound_or_instance_value(form, "approval_teams_recipient_email_template"), 80) or "-"
+        subject = _truncate_text(_bound_or_instance_value(form, "approval_subject_template"), 90) or "-"
+        preview_lines = [
+            f"Recapito: {delivery_mode}",
+            f"Email approvatori: {email_to}",
+            f"Destinatario Teams: {teams_recipient}",
+            f"Oggetto: {subject}",
+        ]
     else:
         preview_lines = ["Configurazione non disponibile."]
 
@@ -3550,6 +3568,7 @@ def _build_rule_form_context(
     selected_source_code: str,
     rule: AutomationRule | None = None,
 ):
+    teams_flow_endpoints, teams_flow_endpoints_warning = _get_teams_flow_endpoints_context(active_only=True)
     return {
         **_base_context(),
         **_build_source_catalog_context(selected_source_code),
@@ -3562,13 +3581,52 @@ def _build_rule_form_context(
         "rule": rule,
         "source_fields_json": _build_all_source_fields_json(),
         "teams_presets": _get_active_teams_presets(),
+        "teams_flow_endpoints": teams_flow_endpoints,
+        "teams_flow_endpoints_warning": teams_flow_endpoints_warning,
     }
 
 
 def _get_active_teams_presets():
     """Restituisce la lista dei TeamsWebhookPreset attivi per i template."""
-    from .models import TeamsWebhookPreset
     return list(TeamsWebhookPreset.objects.filter(is_active=True).order_by("name"))
+
+
+def _get_active_teams_flow_endpoints():
+    """Restituisce la lista degli endpoint Teams Flow attivi per i template."""
+    endpoints, _warning = _get_teams_flow_endpoints_context(active_only=True)
+    return endpoints
+
+
+def _get_teams_flow_endpoints_context(*, active_only: bool | None = None) -> tuple[list[AutomationDeliveryEndpoint], str]:
+    endpoints, unavailable = list_teams_flow_endpoints(active_only=active_only)
+    return (
+        endpoints,
+        AUTOMATION_DELIVERY_ENDPOINT_UNAVAILABLE_MESSAGE if unavailable else "",
+    )
+
+
+def _build_teams_delivery_context(
+    *,
+    preset_form=None,
+    preset_form_mode: str = "",
+    edit_preset: TeamsWebhookPreset | None = None,
+    flow_form=None,
+    flow_form_mode: str = "",
+    edit_flow_endpoint: AutomationDeliveryEndpoint | None = None,
+) -> dict[str, object]:
+    flow_endpoints, flow_endpoints_warning = _get_teams_flow_endpoints_context(active_only=None)
+    return {
+        **_base_context(),
+        "presets": list(TeamsWebhookPreset.objects.order_by("name")),
+        "flow_endpoints": flow_endpoints,
+        "flow_endpoints_warning": flow_endpoints_warning,
+        "preset_form": preset_form,
+        "preset_form_mode": preset_form_mode,
+        "edit_preset": edit_preset,
+        "flow_form": flow_form,
+        "flow_form_mode": flow_form_mode,
+        "edit_flow_endpoint": edit_flow_endpoint,
+    }
 
 
 def _build_rule_designer_context(
@@ -3592,6 +3650,7 @@ def _build_rule_designer_context(
     condition_entries = _build_condition_entries(condition_formset, source_code=source_code)
     action_entries = _build_action_entries(action_formset)
     flow_nodes = _build_flow_nodes(rule, trigger_descriptor, condition_entries, action_entries)
+    teams_flow_endpoints, teams_flow_endpoints_warning = _get_teams_flow_endpoints_context(active_only=True)
     return {
         **_base_context(),
         **_build_source_catalog_context(source_code),
@@ -3620,6 +3679,8 @@ def _build_rule_designer_context(
         "diagram_action_choices": _build_diagram_action_choices(),
         "flow_nodes_json": flow_nodes,
         "teams_presets": _get_active_teams_presets(),
+        "teams_flow_endpoints": teams_flow_endpoints,
+        "teams_flow_endpoints_warning": teams_flow_endpoints_warning,
     }
 
 
@@ -3722,14 +3783,16 @@ def _build_flow_nodes(rule, trigger_descriptor: dict, condition_entries: list, a
         # Retrieve config from formset for branch/approval/loop info
         form = entry.get("form")
         if form is not None:
+            instance_config = getattr(getattr(form, "instance", None), "config_json", None)
+            if isinstance(instance_config, dict):
+                config = instance_config
             try:
                 cfg_raw = form["config_json"].value()
                 if isinstance(cfg_raw, str):
-                    import ast
                     try:
                         config = json.loads(cfg_raw)
                     except Exception:
-                        config = {}
+                        pass
                 elif isinstance(cfg_raw, dict):
                     config = cfg_raw
             except Exception:
@@ -5009,18 +5072,11 @@ def approval_status_page(request, token: str):
 
 @legacy_admin_required
 def teams_presets_page(request):
-    from .models import TeamsWebhookPreset
-    presets = TeamsWebhookPreset.objects.all()
-    return render(request, "automazioni/pages/teams_presets.html", {
-        **_base_context(),
-        "presets": presets,
-    })
+    return render(request, "automazioni/pages/teams_presets.html", _build_teams_delivery_context())
 
 
 @legacy_admin_required
 def teams_preset_create(request):
-    from .models import TeamsWebhookPreset
-    from .forms import TeamsWebhookPresetForm
     if request.method == "POST":
         form = TeamsWebhookPresetForm(request.POST)
         if form.is_valid():
@@ -5029,18 +5085,15 @@ def teams_preset_create(request):
             return redirect("admin_portale:automazioni_teams_presets")
     else:
         form = TeamsWebhookPresetForm()
-    return render(request, "automazioni/pages/teams_presets.html", {
-        **_base_context(),
-        "presets": list(TeamsWebhookPreset.objects.all()),
-        "form": form,
-        "form_mode": "create",
-    })
+    return render(
+        request,
+        "automazioni/pages/teams_presets.html",
+        _build_teams_delivery_context(preset_form=form, preset_form_mode="create"),
+    )
 
 
 @legacy_admin_required
 def teams_preset_edit(request, pk: int):
-    from .models import TeamsWebhookPreset
-    from .forms import TeamsWebhookPresetForm
     preset = get_object_or_404(TeamsWebhookPreset, pk=pk)
     if request.method == "POST":
         form = TeamsWebhookPresetForm(request.POST, instance=preset)
@@ -5050,21 +5103,91 @@ def teams_preset_edit(request, pk: int):
             return redirect("admin_portale:automazioni_teams_presets")
     else:
         form = TeamsWebhookPresetForm(instance=preset)
-    return render(request, "automazioni/pages/teams_presets.html", {
-        **_base_context(),
-        "presets": list(TeamsWebhookPreset.objects.all()),
-        "form": form,
-        "form_mode": "edit",
-        "edit_preset": preset,
-    })
+    return render(
+        request,
+        "automazioni/pages/teams_presets.html",
+        _build_teams_delivery_context(
+            preset_form=form,
+            preset_form_mode="edit",
+            edit_preset=preset,
+        ),
+    )
 
 
 @legacy_admin_required
 @require_POST
 def teams_preset_delete(request, pk: int):
-    from .models import TeamsWebhookPreset
     preset = get_object_or_404(TeamsWebhookPreset, pk=pk)
     name = preset.name
     preset.delete()
     messages.success(request, f"Canale '{name}' eliminato.")
+    return redirect("admin_portale:automazioni_teams_presets")
+
+
+@legacy_admin_required
+def teams_flow_endpoint_create(request):
+    _flow_endpoints, flow_endpoints_warning = _get_teams_flow_endpoints_context(active_only=None)
+    if flow_endpoints_warning:
+        messages.warning(request, flow_endpoints_warning)
+        return redirect("admin_portale:automazioni_teams_presets")
+    if request.method == "POST":
+        form = AutomationDeliveryEndpointForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Endpoint Teams Flow creato.")
+            return redirect("admin_portale:automazioni_teams_presets")
+    else:
+        form = AutomationDeliveryEndpointForm()
+    return render(
+        request,
+        "automazioni/pages/teams_presets.html",
+        _build_teams_delivery_context(flow_form=form, flow_form_mode="create"),
+    )
+
+
+@legacy_admin_required
+def teams_flow_endpoint_edit(request, pk: int):
+    _flow_endpoints, flow_endpoints_warning = _get_teams_flow_endpoints_context(active_only=None)
+    if flow_endpoints_warning:
+        messages.warning(request, flow_endpoints_warning)
+        return redirect("admin_portale:automazioni_teams_presets")
+    endpoint = get_object_or_404(
+        AutomationDeliveryEndpoint,
+        pk=pk,
+        endpoint_type=AutomationDeliveryEndpointType.TEAMS_FLOW_WEBHOOK,
+    )
+    if request.method == "POST":
+        form = AutomationDeliveryEndpointForm(request.POST, instance=endpoint)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"Endpoint '{endpoint.name}' aggiornato.")
+            return redirect("admin_portale:automazioni_teams_presets")
+    else:
+        form = AutomationDeliveryEndpointForm(instance=endpoint)
+    return render(
+        request,
+        "automazioni/pages/teams_presets.html",
+        _build_teams_delivery_context(
+            flow_form=form,
+            flow_form_mode="edit",
+            edit_flow_endpoint=endpoint,
+        ),
+    )
+
+
+@legacy_admin_required
+@require_POST
+def teams_flow_endpoint_delete(request, pk: int):
+    _flow_endpoints, flow_endpoints_warning = _get_teams_flow_endpoints_context(active_only=None)
+    if flow_endpoints_warning:
+        messages.warning(request, flow_endpoints_warning)
+        return redirect("admin_portale:automazioni_teams_presets")
+    endpoint = get_object_or_404(
+        AutomationDeliveryEndpoint,
+        pk=pk,
+        endpoint_type=AutomationDeliveryEndpointType.TEAMS_FLOW_WEBHOOK,
+    )
+    name = endpoint.name
+    endpoint.delete()
+    messages.success(request, f"Endpoint '{name}' eliminato.")
     return redirect("admin_portale:automazioni_teams_presets")

@@ -1,4 +1,4 @@
-<article {% if entry.is_existing %}id="action-card-{{ entry.descriptor.item_id }}"{% endif %}
+﻿<article {% if entry.is_existing %}id="action-card-{{ entry.descriptor.item_id }}"{% endif %}
   class="designer-meta-card{% if entry.is_existing %} designer-action-card{% endif %}"
   data-action-card
   data-is-existing="{% if entry.is_existing %}true{% else %}false{% endif %}"
@@ -118,20 +118,20 @@
           <div class="designer-field designer-field-wide">{{ entry.form.email_subject_template.label_tag }}{{ entry.form.email_subject_template }}{% if entry.form.email_subject_template.errors %}<ul class="designer-errors">{% for error in entry.form.email_subject_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
           <div class="designer-field designer-field-wide">{{ entry.form.email_body_text_template.label_tag }}{{ entry.form.email_body_text_template }}{% if entry.form.email_body_text_template.errors %}<ul class="designer-errors">{% for error in entry.form.email_body_text_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
         </div>
-        {# ── Anteprima email live ── #}
+        {# â”€â”€ Anteprima email live â”€â”€ #}
         <div class="email-preview-card" data-email-preview hidden>
           <div class="email-preview-header">
             <div class="email-preview-row">
               <span class="email-preview-label">Da</span>
-              <span data-preview-from class="email-preview-value">—</span>
+              <span data-preview-from class="email-preview-value">â€”</span>
             </div>
             <div class="email-preview-row">
               <span class="email-preview-label">A</span>
-              <span data-preview-to class="email-preview-value">—</span>
+              <span data-preview-to class="email-preview-value">â€”</span>
             </div>
             <div class="email-preview-row email-preview-subject-row">
               <span class="email-preview-label">Oggetto</span>
-              <strong data-preview-subject class="email-preview-subject-value">—</strong>
+              <strong data-preview-subject class="email-preview-subject-value">â€”</strong>
             </div>
           </div>
           <div class="email-preview-body" data-preview-body>(corpo non compilato)</div>
@@ -240,113 +240,67 @@
           <div class="designer-field designer-field-wide">{{ entry.form.teams_facts_text.label_tag }}{{ entry.form.teams_facts_text }}{% if entry.form.teams_facts_text.help_text %}<div class="designer-help">{{ entry.form.teams_facts_text.help_text }}</div>{% endif %}{% if entry.form.teams_facts_text.errors %}<ul class="designer-errors">{% for error in entry.form.teams_facts_text.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
         </div>
       </div>
-      {# ── SEND_APPROVAL ─────────────────────────────────────────────────── #}
+      {# â”€â”€ SEND_APPROVAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ #}
       <div class="designer-editor-panel" data-action-config="send_approval" style="margin-top:12px;">
         <div class="designer-editor-panel-title" style="display:flex;align-items:center;gap:8px;">
-          <span>✅ Richiedi Approvazione</span>
+          <span>Richiedi approvazione</span>
           <span class="designer-pill designer-pill-primary" style="font-size:11px;">flusso si mette in pausa</span>
         </div>
         <div class="designer-help" style="margin-bottom:10px;">
-          Invia email agli approvatori con link Approva/Rifiuta. Dopo la decisione vengono eseguite le azioni del ramo corrispondente.
+          Il portale crea la richiesta, genera i link Approva/Rifiuta e resta la source of truth. Puoi consegnarla via email, webhook Teams legacy o Teams chat flow verso il singolo utente.
         </div>
         <div class="designer-trigger-copy">
-          <div class="designer-field designer-field-wide">
-            <label>Email approvatori (template, virgola-separati)</label>
-            <input type="text" name="{{ entry.form.prefix }}-approval_to_template"
-                   class="auto-config-field" data-config-key="to_template"
-                   placeholder="{capo_email} oppure manager@azienda.com">
-          </div>
-          <div class="designer-field designer-field-wide">
-            <label>Oggetto email</label>
-            <input type="text" name="{{ entry.form.prefix }}-approval_subject"
-                   class="auto-config-field" data-config-key="subject_template"
-                   placeholder="Approvazione richiesta #{id}">
-          </div>
-          <div class="designer-field designer-field-wide">
-            <label>Testo del messaggio</label>
-            <textarea name="{{ entry.form.prefix }}-approval_message" rows="4"
-                      class="auto-config-field" data-config-key="message_template"
-                      placeholder="Si richiede la tua approvazione per la richiesta #{id} di {dipendente_id}..."></textarea>
-          </div>
-          <div class="designer-field">
-            <label>Scadenza (giorni)</label>
-            <input type="number" min="1" max="365" name="{{ entry.form.prefix }}-approval_expiry"
-                   class="auto-config-field" data-config-key="expiry_days" value="7">
-          </div>
-          <div class="designer-field">
-            <label>Label bottone "Approva"</label>
-            <input type="text" name="{{ entry.form.prefix }}-approval_approve_label"
-                   class="auto-config-field" data-config-key="approve_label" value="Approva">
-          </div>
-          <div class="designer-field">
-            <label>Label bottone "Rifiuta"</label>
-            <input type="text" name="{{ entry.form.prefix }}-approval_reject_label"
-                   class="auto-config-field" data-config-key="reject_label" value="Rifiuta">
-          </div>
+          <div class="designer-field">{{ entry.form.approval_delivery_mode.label_tag }}{{ entry.form.approval_delivery_mode }}{% if entry.form.approval_delivery_mode.errors %}<ul class="designer-errors">{% for error in entry.form.approval_delivery_mode.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field designer-field-wide">{{ entry.form.approval_to_template.label_tag }}{{ entry.form.approval_to_template }}{% if entry.form.approval_to_template.errors %}<ul class="designer-errors">{% for error in entry.form.approval_to_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field designer-field-wide">{{ entry.form.approval_subject_template.label_tag }}{{ entry.form.approval_subject_template }}{% if entry.form.approval_subject_template.errors %}<ul class="designer-errors">{% for error in entry.form.approval_subject_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field designer-field-wide">{{ entry.form.approval_message_template.label_tag }}{{ entry.form.approval_message_template }}{% if entry.form.approval_message_template.errors %}<ul class="designer-errors">{% for error in entry.form.approval_message_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.approval_expiry_days.label_tag }}{{ entry.form.approval_expiry_days }}{% if entry.form.approval_expiry_days.errors %}<ul class="designer-errors">{% for error in entry.form.approval_expiry_days.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.approval_approve_label.label_tag }}{{ entry.form.approval_approve_label }}{% if entry.form.approval_approve_label.errors %}<ul class="designer-errors">{% for error in entry.form.approval_approve_label.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.approval_reject_label.label_tag }}{{ entry.form.approval_reject_label }}{% if entry.form.approval_reject_label.errors %}<ul class="designer-errors">{% for error in entry.form.approval_reject_label.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
         </div>
         <details class="designer-subeditor" style="margin-top:14px;">
-          <summary class="designer-subeditor-summary">💬 Notifica anche su Teams (opzionale)</summary>
+          <summary class="designer-subeditor-summary">Recapito Teams</summary>
           <div class="designer-trigger-copy" style="margin-top:10px;">
-            <div class="designer-field designer-field-wide">
-              <label>Canale Teams</label>
-              <select name="{{ entry.form.prefix }}-approval_teams_preset_id"
-                      class="auto-config-field" data-config-key="teams_preset_id">
-                <option value="">— non inviare su Teams —</option>
-                {% for preset in teams_presets %}
-                  <option value="{{ preset.pk }}">{{ preset.name }}{% if preset.description %} — {{ preset.description }}{% endif %}</option>
-                {% endfor %}
-              </select>
-              {% if not teams_presets %}
-                <div class="designer-help" style="color:#92400e;">
-                  Nessun canale configurato.
-                  <a href="{% url 'admin_portale:automazioni_teams_presets' %}" target="_blank">Aggiungi un canale Teams</a>
-                </div>
-              {% endif %}
-            </div>
-            <div class="designer-field designer-field-wide">
-              <label>Titolo card Teams</label>
-              <input type="text" name="{{ entry.form.prefix }}-approval_teams_title"
-                     class="auto-config-field" data-config-key="teams_title_template"
-                     placeholder="Approvazione richiesta #{id} — {dipendente_nome}">
-            </div>
-            <div class="designer-field designer-field-wide">
-              <label>Fatti (una riga: <code>Etichetta | {valore}</code>)</label>
-              <textarea name="{{ entry.form.prefix }}-approval_teams_facts" rows="4"
-                        class="auto-config-field" data-config-key="teams_facts_inline"
-                        placeholder="Tipo | {tipo_assenza}&#10;Inizio | {data_inizio}&#10;Fine | {data_fine}"></textarea>
-            </div>
+            <div class="designer-field designer-field-wide">{{ entry.form.approval_teams_preset_id.label_tag }}{{ entry.form.approval_teams_preset_id }}{% if entry.form.approval_teams_preset_id.errors %}<ul class="designer-errors">{% for error in entry.form.approval_teams_preset_id.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+            <div class="designer-field designer-field-wide">{{ entry.form.approval_teams_flow_endpoint_id.label_tag }}{{ entry.form.approval_teams_flow_endpoint_id }}{% if entry.form.approval_teams_flow_endpoint_id.errors %}<ul class="designer-errors">{% for error in entry.form.approval_teams_flow_endpoint_id.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+            <div class="designer-field designer-field-wide">{{ entry.form.approval_teams_recipient_email_template.label_tag }}{{ entry.form.approval_teams_recipient_email_template }}{% if entry.form.approval_teams_recipient_email_template.errors %}<ul class="designer-errors">{% for error in entry.form.approval_teams_recipient_email_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+            <div class="designer-field designer-field-wide">{{ entry.form.approval_teams_title_template.label_tag }}{{ entry.form.approval_teams_title_template }}{% if entry.form.approval_teams_title_template.errors %}<ul class="designer-errors">{% for error in entry.form.approval_teams_title_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+            <div class="designer-field designer-field-wide">{{ entry.form.approval_teams_facts_inline.label_tag }}{{ entry.form.approval_teams_facts_inline }}{% if entry.form.approval_teams_facts_inline.errors %}<ul class="designer-errors">{% for error in entry.form.approval_teams_facts_inline.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+            <div class="designer-field designer-field-wide designer-field-compact-toggle">{{ entry.form.approval_strict_teams_flow.label_tag }}<div class="designer-toggle-wrap">{{ entry.form.approval_strict_teams_flow }}</div>{% if entry.form.approval_strict_teams_flow.help_text %}<div class="designer-help">{{ entry.form.approval_strict_teams_flow.help_text }}</div>{% endif %}{% if entry.form.approval_strict_teams_flow.errors %}<ul class="designer-errors">{% for error in entry.form.approval_strict_teams_flow.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+            {% if teams_flow_endpoints_warning %}
+              <div class="designer-help designer-field-wide" style="color:#92400e;">
+                {{ teams_flow_endpoints_warning }} Vai su <a href="{% url 'admin_portale:automazioni_teams_presets' %}" target="_blank">Canali Teams</a> dopo aver applicato <code>python manage.py migrate automazioni</code>.
+              </div>
+            {% elif not teams_presets or not teams_flow_endpoints %}
+              <div class="designer-help designer-field-wide" style="color:#92400e;">
+                Configura prima i recapiti Teams da <a href="{% url 'admin_portale:automazioni_teams_presets' %}" target="_blank">Canali Teams</a>.
+              </div>
+            {% endif %}
           </div>
         </details>
         <details class="designer-subeditor" style="margin-top:6px;">
-          <summary class="designer-subeditor-summary">Azioni se APPROVATO (JSON)</summary>
+          <summary class="designer-subeditor-summary">Azioni se approvato</summary>
           <div style="margin-top:10px;">
-            <div class="designer-help" style="margin-bottom:6px;">
-              Lista JSON di azioni inline: <code>[{"action_type":"send_email","description":"...","config_json":{...}}]</code>
-            </div>
-            <textarea name="{{ entry.form.prefix }}-approval_approved_actions" rows="6"
-                      class="auto-config-field font-mono" data-config-key="approved_actions" data-config-json-array="true"
-                      style="width:100%;font-family:monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#0f172a;color:#e2e8f0;"
-                      placeholder='[{"action_type":"send_email","description":"Notifica approvazione","config_json":{"to":"{dipendente_email}","subject_template":"Richiesta approvata","body_text_template":"La tua richiesta è stata approvata."}}]'>[]</textarea>
+            {{ entry.form.approval_approved_actions_json }}
+            {% if entry.form.approval_approved_actions_json.help_text %}<div class="designer-help">{{ entry.form.approval_approved_actions_json.help_text }}</div>{% endif %}
+            {% if entry.form.approval_approved_actions_json.errors %}<ul class="designer-errors">{% for error in entry.form.approval_approved_actions_json.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
           </div>
         </details>
         <details class="designer-subeditor" style="margin-top:8px;">
-          <summary class="designer-subeditor-summary">Azioni se RIFIUTATO (JSON)</summary>
+          <summary class="designer-subeditor-summary">Azioni se rifiutato</summary>
           <div style="margin-top:10px;">
-            <textarea name="{{ entry.form.prefix }}-approval_rejected_actions" rows="6"
-                      class="auto-config-field font-mono" data-config-key="rejected_actions" data-config-json-array="true"
-                      style="width:100%;font-family:monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#0f172a;color:#e2e8f0;"
-                      placeholder='[{"action_type":"send_email","description":"Notifica rifiuto","config_json":{"to":"{dipendente_email}","subject_template":"Richiesta rifiutata","body_text_template":"La tua richiesta è stata rifiutata."}}]'>[]</textarea>
+            {{ entry.form.approval_rejected_actions_json }}
+            {% if entry.form.approval_rejected_actions_json.help_text %}<div class="designer-help">{{ entry.form.approval_rejected_actions_json.help_text }}</div>{% endif %}
+            {% if entry.form.approval_rejected_actions_json.errors %}<ul class="designer-errors">{% for error in entry.form.approval_rejected_actions_json.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
           </div>
         </details>
       </div>
-
-      {# ── DO_UNTIL ──────────────────────────────────────────────────────── #}
       <div class="designer-editor-panel" data-action-config="do_until" style="margin-top:12px;">
         <div class="designer-editor-panel-title" style="display:flex;align-items:center;gap:8px;">
-          <span>🔁 Do Until — Ripeti fino a condizione</span>
+          <span>ðŸ” Do Until â€” Ripeti fino a condizione</span>
         </div>
         <div class="designer-help" style="margin-bottom:10px;">
-          Esegue le azioni del "corpo loop" e riprogramma l'esecuzione finché la condizione di uscita non è soddisfatta o si raggiunge il massimo di iterazioni.
+          Esegue le azioni del "corpo loop" e riprogramma l'esecuzione finchÃ© la condizione di uscita non Ã¨ soddisfatta o si raggiunge il massimo di iterazioni.
         </div>
         <div class="designer-trigger-copy">
           <div class="designer-field">
@@ -359,9 +313,9 @@
               <option value="equals">equals</option>
               <option value="not_equals">not_equals</option>
               <option value="gt">gt (>)</option>
-              <option value="gte">gte (≥)</option>
+              <option value="gte">gte (â‰¥)</option>
               <option value="lt">lt (<)</option>
-              <option value="lte">lte (≤)</option>
+              <option value="lte">lte (â‰¤)</option>
               <option value="is_not_empty">is_not_empty</option>
               <option value="is_true">is_true</option>
             </select>
@@ -383,7 +337,7 @@
             <input type="number" min="1" class="auto-config-field" data-config-key="retry_delay_value" value="24">
           </div>
           <div class="designer-field">
-            <label>Unità ritardo</label>
+            <label>UnitÃ  ritardo</label>
             <select class="auto-config-field" data-config-key="retry_delay_unit">
               <option value="hours">Ore</option>
               <option value="minutes">Minuti</option>
@@ -421,9 +375,9 @@
         </details>
       </div>
 
-      {# ── FOR_EACH ──────────────────────────────────────────────────────── #}
+      {# â”€â”€ FOR_EACH â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ #}
       <div class="designer-editor-panel" data-action-config="for_each" style="margin-top:12px;">
-        <div class="designer-editor-panel-title">🔂 Per Ogni Elemento (For Each)</div>
+        <div class="designer-editor-panel-title">ðŸ”‚ Per Ogni Elemento (For Each)</div>
         <div class="designer-help" style="margin-bottom:10px;">
           Interroga una sorgente con un filtro opzionale ed esegue le azioni su ogni record trovato.
         </div>
@@ -455,11 +409,11 @@
         </details>
       </div>
 
-      {# ── BRANCH / IF-ELSE ─────────────────────────────────────────────── #}
+      {# â”€â”€ BRANCH / IF-ELSE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ #}
       <div class="designer-editor-panel" data-action-config="branch" style="margin-top:12px;">
-        <div class="designer-editor-panel-title">🔀 Branch / Condizione If-Else</div>
+        <div class="designer-editor-panel-title">ðŸ”€ Branch / Condizione If-Else</div>
         <div class="designer-help" style="margin-bottom:10px;">
-          Se la condizione è vera esegue le azioni "Se Vero", altrimenti le azioni "Se Falso". Estende il run_if con un ramo else completo.
+          Se la condizione Ã¨ vera esegue le azioni "Se Vero", altrimenti le azioni "Se Falso". Estende il run_if con un ramo else completo.
         </div>
         <div class="designer-trigger-copy">
           <div class="designer-field">
@@ -473,9 +427,9 @@
               <option value="not_equals">not_equals</option>
               <option value="contains">contains</option>
               <option value="gt">gt (>)</option>
-              <option value="gte">gte (≥)</option>
+              <option value="gte">gte (â‰¥)</option>
               <option value="lt">lt (<)</option>
-              <option value="lte">lte (≤)</option>
+              <option value="lte">lte (â‰¤)</option>
               <option value="is_true">is_true</option>
               <option value="is_false">is_false</option>
               <option value="is_empty">is_empty</option>
@@ -497,7 +451,7 @@
           </div>
         </div>
         <details class="designer-subeditor" style="margin-top:14px;">
-          <summary class="designer-subeditor-summary">✅ Azioni Se Vero (if_true)</summary>
+          <summary class="designer-subeditor-summary">âœ… Azioni Se Vero (if_true)</summary>
           <div style="margin-top:10px;">
             <textarea rows="5" class="auto-config-field" data-config-key="if_true_actions" data-config-json-array="true"
                       style="width:100%;font-family:monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#0f172a;color:#e2e8f0;"
@@ -505,7 +459,7 @@
           </div>
         </details>
         <details class="designer-subeditor" style="margin-top:6px;">
-          <summary class="designer-subeditor-summary">❌ Azioni Se Falso (if_false)</summary>
+          <summary class="designer-subeditor-summary">âŒ Azioni Se Falso (if_false)</summary>
           <div style="margin-top:10px;">
             <textarea rows="5" class="auto-config-field" data-config-key="if_false_actions" data-config-json-array="true"
                       style="width:100%;font-family:monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#0f172a;color:#e2e8f0;"
@@ -517,3 +471,4 @@
     </div>
   </details>
 </article>
+

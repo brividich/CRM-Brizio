@@ -9,12 +9,17 @@ from django.forms import BaseInlineFormSet, inlineformset_factory
 from .models import (
     AutomationAction,
     AutomationActionType,
+    ApprovalDeliveryMode,
+    AUTOMATION_DELIVERY_ENDPOINT_UNAVAILABLE_MESSAGE,
+    AutomationDeliveryEndpoint,
+    AutomationDeliveryEndpointType,
     AutomationCondition,
     AutomationConditionOperator,
     AutomationConditionValueType,
     AutomationRule,
     AutomationRuleTriggerScope,
     TeamsWebhookPreset,
+    list_teams_flow_endpoints,
 )
 from .services import get_action_table_whitelist
 from .source_registry import (
@@ -74,6 +79,13 @@ def _set_widget_attr(field: forms.Field | None, key: str, value: str) -> None:
     field.widget.attrs[key] = value
 
 
+def _append_help_text(field: forms.Field | None, extra_text: str) -> None:
+    if field is None or not extra_text:
+        return
+    existing = str(getattr(field, "help_text", "") or "").strip()
+    field.help_text = f"{existing} {extra_text}".strip() if existing else extra_text
+
+
 def _mark_smart_target(
     field: forms.Field | None,
     *,
@@ -98,6 +110,52 @@ def _serialize_mapping_for_textarea(value: Any) -> str:
     for key, item_value in value.items():
         lines.append(f"{key} = {item_value}")
     return "\n".join(lines)
+
+
+def _serialize_approval_facts_inline(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    if not isinstance(value, list):
+        return ""
+
+    lines: list[str] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        fact_name = str(item.get("name") or "").strip()
+        fact_value = str(item.get("value_template") or item.get("value") or "").strip()
+        if fact_name:
+            lines.append(f"{fact_name} | {fact_value}")
+    return "\n".join(lines)
+
+
+def _infer_approval_delivery_mode(config: dict[str, Any]) -> str:
+    explicit_mode = str(config.get("delivery_mode") or "").strip()
+    if explicit_mode:
+        return explicit_mode
+
+    has_flow = any(
+        [
+            str(config.get("teams_flow_endpoint_id") or "").strip(),
+            str(config.get("teams_flow_url") or "").strip(),
+            str(config.get("teams_recipient_email_template") or "").strip(),
+        ]
+    )
+    has_legacy = any(
+        [
+            str(config.get("teams_preset_id") or "").strip(),
+            str(config.get("teams_webhook_url") or "").strip(),
+        ]
+    )
+    has_email = bool(str(config.get("to_template") or "").strip())
+
+    if has_flow and has_email:
+        return ApprovalDeliveryMode.EMAIL_AND_TEAMS_CHAT_FLOW
+    if has_flow:
+        return ApprovalDeliveryMode.TEAMS_CHAT_FLOW
+    if has_legacy:
+        return ApprovalDeliveryMode.TEAMS_WEBHOOK_LEGACY
+    return ApprovalDeliveryMode.EMAIL
 
 
 def _parse_mapping_text(raw_value: str, *, field_label: str) -> dict[str, Any]:
@@ -130,6 +188,27 @@ def _parse_mapping_text(raw_value: str, *, field_label: str) -> dict[str, Any]:
             raise forms.ValidationError(f"{field_label}: riga {index} senza nome campo.")
         result[key] = value
     return result
+
+
+def _parse_json_array_text(raw_value: str, *, field_label: str) -> list[dict[str, Any]]:
+    text = str(raw_value or "").strip()
+    if not text:
+        return []
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise forms.ValidationError(f"{field_label}: JSON non valido.") from exc
+    if not isinstance(parsed, list):
+        raise forms.ValidationError(f"{field_label}: il JSON deve essere un array.")
+    if not all(isinstance(item, dict) for item in parsed):
+        raise forms.ValidationError(f"{field_label}: ogni elemento deve essere un oggetto JSON.")
+    return parsed
+
+
+def _serialize_json_array_text(raw_value: Any) -> str:
+    if not isinstance(raw_value, list):
+        return ""
+    return json.dumps(raw_value, indent=2, ensure_ascii=False)
 
 
 def _build_whitelist_help(action_type: str) -> str:
@@ -438,6 +517,12 @@ class AutomationActionForm(forms.ModelForm):
     )
 
     # ── SEND_APPROVAL (usati solo nel designer) ────────────────────────────
+    approval_delivery_mode = forms.ChoiceField(
+        required=False,
+        label="Modalita' recapito approvazione",
+        choices=ApprovalDeliveryMode.choices,
+        initial=ApprovalDeliveryMode.EMAIL,
+    )
     approval_to_template = forms.CharField(
         required=False, label="Email approvatori",
         widget=forms.TextInput(attrs={"placeholder": "{capo_email} oppure manager@azienda.com"}),
@@ -462,8 +547,18 @@ class AutomationActionForm(forms.ModelForm):
         widget=forms.TextInput(attrs={"placeholder": "Rifiuta"}),
     )
     approval_teams_preset_id = forms.ChoiceField(
-        required=False, label="Canale Teams",
+        required=False, label="Canale Teams legacy",
         choices=[("", "— non inviare su Teams —")],
+    )
+    approval_teams_flow_endpoint_id = forms.ChoiceField(
+        required=False,
+        label="Endpoint Teams Flow",
+        choices=[("", "â€” seleziona endpoint Flow â€”")],
+    )
+    approval_teams_recipient_email_template = forms.CharField(
+        required=False,
+        label="Email destinatario Teams",
+        widget=forms.TextInput(attrs={"placeholder": "{capo_email} oppure utente@azienda.it"}),
     )
     approval_teams_title_template = forms.CharField(
         required=False, label="Titolo card Teams",
@@ -472,6 +567,23 @@ class AutomationActionForm(forms.ModelForm):
     approval_teams_facts_inline = forms.CharField(
         required=False, label="Fatti (una riga: Etichetta | {valore})",
         widget=forms.Textarea(attrs={"rows": 4, "placeholder": "Tipo | {tipo_assenza}\nInizio | {data_inizio}\nFine | {data_fine}"}),
+    )
+    approval_strict_teams_flow = forms.BooleanField(
+        required=False,
+        label="Errore se Teams Flow fallisce",
+        help_text="Usato solo per `email_and_teams_chat_flow`: se attivo, email inviata ma Teams KO rende l'action in errore.",
+    )
+    approval_approved_actions_json = forms.CharField(
+        required=False,
+        label="Azioni se approvato (JSON array)",
+        widget=forms.Textarea(attrs={"rows": 6}),
+        help_text='Lista JSON di azioni inline, es. [{"action_type":"write_log","config_json":{"message_template":"OK"}}].',
+    )
+    approval_rejected_actions_json = forms.CharField(
+        required=False,
+        label="Azioni se rifiutato (JSON array)",
+        widget=forms.Textarea(attrs={"rows": 6}),
+        help_text='Lista JSON di azioni inline, es. [{"action_type":"write_log","config_json":{"message_template":"KO"}}].',
     )
 
     class Meta:
@@ -529,6 +641,14 @@ class AutomationActionForm(forms.ModelForm):
         _mark_smart_target(self.fields.get("teams_summary_template"), mode="template-input", role="teams-summary", source_role="template")
         _mark_smart_target(self.fields.get("teams_text_template"), mode="template-input", role="teams-text", source_role="template")
         _mark_smart_target(self.fields.get("teams_facts_text"), mode="mapping-input", role="teams-facts", source_role="template")
+        _mark_smart_target(self.fields.get("approval_to_template"), mode="template-input", role="approval-email-to", source_role="template")
+        _mark_smart_target(self.fields.get("approval_subject_template"), mode="template-input", role="approval-subject", source_role="template")
+        _mark_smart_target(self.fields.get("approval_message_template"), mode="template-input", role="approval-message", source_role="template")
+        _mark_smart_target(self.fields.get("approval_teams_recipient_email_template"), mode="template-input", role="approval-teams-recipient", source_role="template")
+        _mark_smart_target(self.fields.get("approval_teams_title_template"), mode="template-input", role="approval-teams-title", source_role="template")
+        _mark_smart_target(self.fields.get("approval_teams_facts_inline"), mode="template-input", role="approval-teams-facts", source_role="template")
+        _mark_smart_target(self.fields.get("approval_approved_actions_json"), mode="json-editor", role="approval-approved-actions", source_role="template")
+        _mark_smart_target(self.fields.get("approval_rejected_actions_json"), mode="json-editor", role="approval-rejected-actions", source_role="template")
         self.fields["run_if_expected_value"].help_text = (
             "Per `changed_from_to` usa `vecchio|nuovo`. Se spunti `inverti risultato`, il branch diventa un ELSE."
         )
@@ -537,6 +657,8 @@ class AutomationActionForm(forms.ModelForm):
         self.fields["trigger_update_fields_text"].help_text = _build_source_update_help(self._effective_source_code)
         self.fields["delay_value_template"].help_text = "Numero o placeholder, es. `1`, `4`, `{giorni}`."
         self.fields["delay_until_template"].help_text = "Data/ora ISO o placeholder, es. `2026-04-10T15:30:00`."
+
+        config = self.instance.config_json if self.instance.pk and isinstance(self.instance.config_json, dict) else {}
 
         # Populate approval_teams_preset_id choices from DB
         try:
@@ -548,7 +670,33 @@ class AutomationActionForm(forms.ModelForm):
             preset_choices = [("", "— non inviare su Teams —")]
         self.fields["approval_teams_preset_id"].choices = preset_choices
 
-        config = self.instance.config_json if self.instance.pk and isinstance(self.instance.config_json, dict) else {}
+        try:
+            endpoint_choices = [("", "â€” seleziona endpoint Flow â€”")] + [
+                (str(endpoint.pk), endpoint.name + (f" â€” {endpoint.description}" if endpoint.description else ""))
+                for endpoint in AutomationDeliveryEndpoint.objects.filter(
+                    endpoint_type=AutomationDeliveryEndpointType.TEAMS_FLOW_WEBHOOK,
+                    is_active=True,
+                ).order_by("name")
+            ]
+        except Exception:
+            endpoint_choices = [("", "â€” seleziona endpoint Flow â€”")]
+        endpoint_choices = [(value, str(label).replace("Ã¢â‚¬â€", "--")) for value, label in endpoint_choices]
+        self.fields["approval_teams_flow_endpoint_id"].choices = endpoint_choices
+
+        flow_endpoints, self._teams_flow_endpoints_unavailable = list_teams_flow_endpoints(active_only=True)
+        self.fields["approval_teams_flow_endpoint_id"].choices = [
+            ("", "-- seleziona endpoint Flow --"),
+            *[
+                (str(endpoint.pk), endpoint.name + (f" -- {endpoint.description}" if endpoint.description else ""))
+                for endpoint in flow_endpoints
+            ],
+        ]
+        if self._teams_flow_endpoints_unavailable:
+            _append_help_text(
+                self.fields.get("approval_teams_flow_endpoint_id"),
+                AUTOMATION_DELIVERY_ENDPOINT_UNAVAILABLE_MESSAGE,
+            )
+
         if config:
             run_if = config.get("run_if") if isinstance(config.get("run_if"), dict) else {}
             self.initial.setdefault("run_if_field_name", run_if.get("field_name", ""))
@@ -602,6 +750,7 @@ class AutomationActionForm(forms.ModelForm):
             self.initial.setdefault("teams_theme_color", config.get("theme_color", ""))
             self.initial.setdefault("teams_facts_text", _serialize_mapping_for_textarea(config.get("facts")))
             # send_approval fields
+            self.initial.setdefault("approval_delivery_mode", _infer_approval_delivery_mode(config))
             self.initial.setdefault("approval_to_template", config.get("to_template", ""))
             self.initial.setdefault("approval_subject_template", config.get("subject_template", ""))
             self.initial.setdefault("approval_message_template", config.get("message_template", ""))
@@ -609,8 +758,16 @@ class AutomationActionForm(forms.ModelForm):
             self.initial.setdefault("approval_approve_label", config.get("approve_label", "Approva"))
             self.initial.setdefault("approval_reject_label", config.get("reject_label", "Rifiuta"))
             self.initial.setdefault("approval_teams_preset_id", str(config.get("teams_preset_id") or ""))
+            self.initial.setdefault("approval_teams_flow_endpoint_id", str(config.get("teams_flow_endpoint_id") or ""))
+            self.initial.setdefault("approval_teams_recipient_email_template", config.get("teams_recipient_email_template", ""))
             self.initial.setdefault("approval_teams_title_template", config.get("teams_title_template", ""))
-            self.initial.setdefault("approval_teams_facts_inline", config.get("teams_facts_inline", ""))
+            self.initial.setdefault(
+                "approval_teams_facts_inline",
+                _serialize_approval_facts_inline(config.get("teams_facts_inline") or config.get("teams_facts")),
+            )
+            self.initial.setdefault("approval_strict_teams_flow", bool(config.get("strict_teams_flow")))
+            self.initial.setdefault("approval_approved_actions_json", _serialize_json_array_text(config.get("approved_actions")))
+            self.initial.setdefault("approval_rejected_actions_json", _serialize_json_array_text(config.get("rejected_actions")))
 
     def clean(self):
         cleaned_data = super().clean()
@@ -838,21 +995,106 @@ class AutomationActionForm(forms.ModelForm):
                 )
 
         elif action_type == AutomationActionType.SEND_APPROVAL:
+            existing_config = self.instance.config_json if isinstance(getattr(self.instance, "config_json", None), dict) else {}
+            delivery_mode = str(cleaned_data.get("approval_delivery_mode") or ApprovalDeliveryMode.EMAIL).strip()
             preset_id_raw = str(cleaned_data.get("approval_teams_preset_id") or "").strip()
+            flow_endpoint_id_raw = str(cleaned_data.get("approval_teams_flow_endpoint_id") or "").strip()
+            teams_flow_endpoints_unavailable = bool(getattr(self, "_teams_flow_endpoints_unavailable", False))
+            teams_recipient_email_template = str(
+                cleaned_data.get("approval_teams_recipient_email_template") or ""
+            ).strip()
+            try:
+                approved_actions = _parse_json_array_text(
+                    cleaned_data.get("approval_approved_actions_json", ""),
+                    field_label="Azioni se approvato",
+                )
+            except forms.ValidationError as exc:
+                approved_actions = []
+                self.add_error("approval_approved_actions_json", exc)
+            try:
+                rejected_actions = _parse_json_array_text(
+                    cleaned_data.get("approval_rejected_actions_json", ""),
+                    field_label="Azioni se rifiutato",
+                )
+            except forms.ValidationError as exc:
+                rejected_actions = []
+                self.add_error("approval_rejected_actions_json", exc)
             config_json = {
+                "delivery_mode": delivery_mode or ApprovalDeliveryMode.EMAIL,
                 "to_template": str(cleaned_data.get("approval_to_template") or "").strip(),
                 "subject_template": str(cleaned_data.get("approval_subject_template") or "").strip(),
                 "message_template": str(cleaned_data.get("approval_message_template") or "").strip(),
                 "expiry_days": cleaned_data.get("approval_expiry_days") or 7,
                 "approve_label": str(cleaned_data.get("approval_approve_label") or "Approva").strip() or "Approva",
                 "reject_label": str(cleaned_data.get("approval_reject_label") or "Rifiuta").strip() or "Rifiuta",
+                "teams_title_template": str(cleaned_data.get("approval_teams_title_template") or "").strip(),
+                "teams_facts_inline": str(cleaned_data.get("approval_teams_facts_inline") or "").strip(),
+                "approved_actions": approved_actions,
+                "rejected_actions": rejected_actions,
             }
-            if preset_id_raw:
+            if delivery_mode == ApprovalDeliveryMode.EMAIL:
+                if not config_json["to_template"]:
+                    self.add_error("approval_to_template", "Per la consegna email serve almeno un'email approvatore.")
+            elif delivery_mode == ApprovalDeliveryMode.TEAMS_WEBHOOK_LEGACY:
+                if not config_json["to_template"]:
+                    self.add_error("approval_to_template", "Per il recapito legacy serve almeno un'email approvatore.")
+                if preset_id_raw:
+                    config_json["teams_preset_id"] = preset_id_raw
+                elif str(existing_config.get("teams_webhook_url") or "").strip():
+                    config_json["teams_webhook_url"] = str(existing_config.get("teams_webhook_url") or "").strip()
+                else:
+                    self.add_error(
+                        "approval_teams_preset_id",
+                        "Per `teams_webhook_legacy` seleziona un canale Teams legacy.",
+                    )
+            elif delivery_mode == ApprovalDeliveryMode.TEAMS_CHAT_FLOW:
+                if not teams_recipient_email_template:
+                    self.add_error(
+                        "approval_teams_recipient_email_template",
+                        "Per `teams_chat_flow` l'email destinatario Teams e' obbligatoria.",
+                    )
+                if teams_flow_endpoints_unavailable:
+                    self.add_error(
+                        "approval_teams_flow_endpoint_id",
+                        AUTOMATION_DELIVERY_ENDPOINT_UNAVAILABLE_MESSAGE,
+                    )
+                elif not flow_endpoint_id_raw:
+                    self.add_error(
+                        "approval_teams_flow_endpoint_id",
+                        "Per `teams_chat_flow` seleziona un endpoint Teams Flow.",
+                    )
+                if teams_recipient_email_template:
+                    config_json["teams_recipient_email_template"] = teams_recipient_email_template
+                if flow_endpoint_id_raw:
+                    config_json["teams_flow_endpoint_id"] = flow_endpoint_id_raw
+            elif delivery_mode == ApprovalDeliveryMode.EMAIL_AND_TEAMS_CHAT_FLOW:
+                if not config_json["to_template"]:
+                    self.add_error("approval_to_template", "Per `email_and_teams_chat_flow` serve almeno un'email approvatore.")
+                if not teams_recipient_email_template:
+                    self.add_error(
+                        "approval_teams_recipient_email_template",
+                        "Per `email_and_teams_chat_flow` l'email destinatario Teams e' obbligatoria.",
+                    )
+                if teams_flow_endpoints_unavailable:
+                    self.add_error(
+                        "approval_teams_flow_endpoint_id",
+                        AUTOMATION_DELIVERY_ENDPOINT_UNAVAILABLE_MESSAGE,
+                    )
+                elif not flow_endpoint_id_raw:
+                    self.add_error(
+                        "approval_teams_flow_endpoint_id",
+                        "Per `email_and_teams_chat_flow` seleziona un endpoint Teams Flow.",
+                    )
+                if teams_recipient_email_template:
+                    config_json["teams_recipient_email_template"] = teams_recipient_email_template
+                if flow_endpoint_id_raw:
+                    config_json["teams_flow_endpoint_id"] = flow_endpoint_id_raw
+                config_json["strict_teams_flow"] = bool(cleaned_data.get("approval_strict_teams_flow"))
+            else:
+                self.add_error("approval_delivery_mode", "Modalita' recapito non valida.")
+
+            if preset_id_raw and delivery_mode == ApprovalDeliveryMode.TEAMS_WEBHOOK_LEGACY:
                 config_json["teams_preset_id"] = preset_id_raw
-                config_json["teams_title_template"] = str(cleaned_data.get("approval_teams_title_template") or "").strip()
-                config_json["teams_facts_inline"] = str(cleaned_data.get("approval_teams_facts_inline") or "").strip()
-            if not config_json["to_template"]:
-                self.add_error("approval_to_template", "Specifica almeno un'email approvatore.")
 
         if run_if_config:
             config_json["run_if"] = run_if_config
@@ -1101,3 +1343,34 @@ class TeamsWebhookPresetForm(forms.ModelForm):
             "description": "Descrizione",
             "is_active": "Attivo",
         }
+
+
+class AutomationDeliveryEndpointForm(forms.ModelForm):
+    class Meta:
+        model = AutomationDeliveryEndpoint
+        fields = ["code", "name", "endpoint_type", "endpoint_url", "description", "is_active"]
+        widgets = {
+            "code": forms.TextInput(attrs={"placeholder": "teams-flow-assenze"}),
+            "name": forms.TextInput(attrs={"placeholder": "Teams Flow - Assenze"}),
+            "endpoint_type": forms.HiddenInput(),
+            "endpoint_url": forms.Textarea(attrs={"rows": 3, "placeholder": "https://prod-00.westeurope.logic.azure.com/..."}),
+            "description": forms.TextInput(attrs={"placeholder": "Webhook Power Automate / Teams Workflow per recapito al singolo utente"}),
+        }
+        labels = {
+            "code": "Codice",
+            "name": "Nome endpoint",
+            "endpoint_type": "Tipo endpoint",
+            "endpoint_url": "Endpoint URL",
+            "description": "Descrizione",
+            "is_active": "Attivo",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["endpoint_type"].initial = AutomationDeliveryEndpointType.TEAMS_FLOW_WEBHOOK
+        self.fields["endpoint_type"].required = False
+
+    def clean(self):
+        cleaned_data = super().clean()
+        cleaned_data["endpoint_type"] = AutomationDeliveryEndpointType.TEAMS_FLOW_WEBHOOK
+        return cleaned_data

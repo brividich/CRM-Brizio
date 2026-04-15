@@ -21,19 +21,25 @@ from tasks.models import Task
 
 from .forms import AutomationActionForm
 from .models import (
+    ApprovalDeliveryMode,
+    AUTOMATION_DELIVERY_ENDPOINT_UNAVAILABLE_MESSAGE,
     AutomationAction,
     AutomationActionLog,
     AutomationActionLogStatus,
     AutomationActionType,
     AutomationCondition,
+    AutomationApproval,
     AutomationConditionOperator,
     AutomationConditionValueType,
+    AutomationDeliveryEndpoint,
+    AutomationDeliveryEndpointType,
     AutomationRule,
     AutomationRuleOperationType,
     AutomationRuleTriggerScope,
     AutomationRunLog,
     AutomationRunLogStatus,
     DashboardMetricValue,
+    TeamsWebhookPreset,
 )
 from .services import (
     execute_action,
@@ -41,6 +47,7 @@ from .services import (
     execute_safe_update,
     find_matching_rules,
     evaluate_condition,
+    process_approval_decision,
     process_pending_queue_events,
     process_queue_event,
     render_template_string,
@@ -677,6 +684,54 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertContains(response, "diagram-action-choices")
         self.assertContains(response, 'id="flowNodeEditorPanel"', html=False)
         self.assertContains(response, 'id="flowNodeEditorMount"', html=False)
+        self.assertContains(response, 'class="flow-workspace-shell"', html=False)
+        self.assertContains(response, 'id="flowWorkspaceEmptyState"', html=False)
+
+    @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
+    @patch("admin_portale.decorators.get_legacy_user")
+    def test_teams_presets_page_renders_legacy_and_flow_sections(self, mock_get_legacy_user, _mock_is_admin):
+        mock_get_legacy_user.return_value = self.legacy_admin
+        TeamsWebhookPreset.objects.create(
+            name="HR Legacy",
+            webhook_url="https://outlook.office.com/webhook/hr",
+            description="Canale HR",
+            is_active=True,
+        )
+        AutomationDeliveryEndpoint.objects.create(
+            code="teams-flow-hr",
+            name="Teams Flow HR",
+            endpoint_type=AutomationDeliveryEndpointType.TEAMS_FLOW_WEBHOOK,
+            endpoint_url="https://flow.example.com/hr",
+            description="Flow HR",
+            is_active=True,
+        )
+
+        response = self.client.get(reverse("admin_portale:automazioni_teams_presets"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Canali Teams legacy")
+        self.assertContains(response, "Endpoint Teams Flow")
+        self.assertContains(response, "HR Legacy")
+        self.assertContains(response, "Teams Flow HR")
+
+    @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
+    @patch("admin_portale.decorators.get_legacy_user")
+    def test_teams_presets_page_warns_when_flow_endpoint_table_is_unavailable(self, mock_get_legacy_user, _mock_is_admin):
+        mock_get_legacy_user.return_value = self.legacy_admin
+        TeamsWebhookPreset.objects.create(
+            name="HR Legacy",
+            webhook_url="https://outlook.office.com/webhook/hr",
+            description="Canale HR",
+            is_active=True,
+        )
+
+        with patch("automazioni.views.list_teams_flow_endpoints", return_value=([], True)):
+            response = self.client.get(reverse("admin_portale:automazioni_teams_presets"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, AUTOMATION_DELIVERY_ENDPOINT_UNAVAILABLE_MESSAGE, html=False)
+        self.assertContains(response, "HR Legacy")
+        self.assertContains(response, "Canali Teams legacy")
 
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
@@ -2812,6 +2867,262 @@ class AutomationEmailExecutorTests(TestCase):
         self.assertIn("Indirizzo email non valido", result["result_message"])
 
 
+@override_settings(DEFAULT_FROM_EMAIL="noreply@test.local", SITE_URL="https://hub.test.local")
+class AutomationApprovalExecutorTests(TestCase):
+    def setUp(self):
+        self.rule = AutomationRule.objects.create(
+            code="approval-runtime",
+            name="Approval runtime",
+            source_code="assenze",
+            operation_type=AutomationRuleOperationType.UPDATE,
+            trigger_scope=AutomationRuleTriggerScope.ALL_UPDATES,
+        )
+        self.payload = {
+            "id": 77,
+            "capo_email": "manager@test.local",
+            "dipendente_email": "employee@test.local",
+            "dipendente_nome": "Mario Rossi",
+            "tipo_assenza": "Ferie",
+            "data_inizio": "2026-04-20",
+            "data_fine": "2026-04-22",
+        }
+        self.old_payload = {**self.payload, "tipo_assenza": "Permesso"}
+
+    def _create_flow_endpoint(self, suffix: str = "default") -> AutomationDeliveryEndpoint:
+        return AutomationDeliveryEndpoint.objects.create(
+            code=f"teams-flow-{suffix}",
+            name=f"Teams Flow {suffix}",
+            endpoint_type=AutomationDeliveryEndpointType.TEAMS_FLOW_WEBHOOK,
+            endpoint_url=f"https://flow.example.com/{suffix}",
+        )
+
+    def _create_send_approval_action(self, **config_overrides) -> AutomationAction:
+        config = {
+            "delivery_mode": ApprovalDeliveryMode.EMAIL,
+            "to_template": "{capo_email}",
+            "subject_template": "Approvazione richiesta #{id}",
+            "message_template": "Richiesta {tipo_assenza} per {dipendente_nome}",
+            "expiry_days": 3,
+            "approve_label": "Approva",
+            "reject_label": "Rifiuta",
+            "approved_actions": [],
+            "rejected_actions": [],
+        }
+        config.update(config_overrides)
+        return AutomationAction.objects.create(
+            rule=self.rule,
+            order=1,
+            action_type=AutomationActionType.SEND_APPROVAL,
+            config_json=config,
+        )
+
+    @patch("automazioni.services.EmailMultiAlternatives")
+    def test_send_approval_email_sets_waiting_status(self, mock_email_class):
+        email_message = MagicMock()
+        email_message.send.return_value = 1
+        mock_email_class.return_value = email_message
+        self._create_send_approval_action()
+
+        run_log = run_rule(self.rule, self.payload, old_payload=self.old_payload)
+
+        approval = AutomationApproval.objects.get()
+        self.assertEqual(run_log.status, AutomationRunLogStatus.WAITING_APPROVAL)
+        self.assertEqual(approval.approver_emails, ["manager@test.local"])
+        self.assertIn("Email approvazione inviata a manager@test.local.", run_log.result_message)
+        kwargs = mock_email_class.call_args.kwargs
+        self.assertEqual(kwargs["to"], ["manager@test.local"])
+        self.assertEqual(kwargs["subject"], "Approvazione richiesta #77")
+
+    @patch("automazioni.services.requests.post")
+    def test_send_approval_teams_chat_flow_posts_payload(self, mock_post):
+        endpoint = self._create_flow_endpoint("chat")
+        response = MagicMock()
+        response.ok = True
+        response.status_code = 202
+        mock_post.return_value = response
+        self._create_send_approval_action(
+            delivery_mode=ApprovalDeliveryMode.TEAMS_CHAT_FLOW,
+            to_template="",
+            teams_flow_endpoint_id=str(endpoint.pk),
+            teams_recipient_email_template="{capo_email}",
+            teams_title_template="Teams approval #{id}",
+            teams_facts_inline="Richiesta | {tipo_assenza}\nDipendente | {dipendente_nome}",
+        )
+
+        run_log = run_rule(self.rule, self.payload, old_payload=self.old_payload)
+
+        approval = AutomationApproval.objects.get()
+        self.assertEqual(run_log.status, AutomationRunLogStatus.WAITING_APPROVAL)
+        self.assertEqual(mock_post.call_args.args[0], endpoint.endpoint_url)
+        self.assertEqual(mock_post.call_args.kwargs["timeout"], 10)
+        payload = mock_post.call_args.kwargs["json"]
+        self.assertEqual(payload["approval_id"], approval.pk)
+        self.assertEqual(payload["token"], str(approval.token))
+        self.assertEqual(payload["recipient_email"], "manager@test.local")
+        self.assertEqual(payload["subject"], "Teams approval #77")
+        self.assertEqual(payload["message"], "Richiesta Ferie per Mario Rossi")
+        self.assertTrue(payload["approve_url"].endswith(f"/automazioni/approvazione/{approval.token}/approva/"))
+        self.assertTrue(payload["reject_url"].endswith(f"/automazioni/approvazione/{approval.token}/rifiuta/"))
+        self.assertTrue(payload["expires_at"].endswith("Z"))
+        self.assertEqual(payload["facts"][0]["value"], "Ferie")
+        self.assertIn("Teams chat flow inviato a manager@test.local (HTTP 202).", run_log.result_message)
+
+    @patch("automazioni.services.requests.post")
+    @patch("automazioni.services.EmailMultiAlternatives")
+    def test_send_approval_email_and_teams_chat_flow_accumulates_result_message(
+        self,
+        mock_email_class,
+        mock_post,
+    ):
+        endpoint = self._create_flow_endpoint("combo")
+        email_message = MagicMock()
+        email_message.send.return_value = 1
+        mock_email_class.return_value = email_message
+        response = MagicMock()
+        response.ok = True
+        response.status_code = 200
+        mock_post.return_value = response
+        self._create_send_approval_action(
+            delivery_mode=ApprovalDeliveryMode.EMAIL_AND_TEAMS_CHAT_FLOW,
+            teams_flow_endpoint_id=str(endpoint.pk),
+            teams_recipient_email_template="{dipendente_email}",
+        )
+
+        run_log = run_rule(self.rule, self.payload, old_payload=self.old_payload)
+
+        approval = AutomationApproval.objects.get()
+        self.assertEqual(run_log.status, AutomationRunLogStatus.WAITING_APPROVAL)
+        self.assertEqual(
+            approval.approver_emails,
+            ["manager@test.local", "employee@test.local"],
+        )
+        self.assertIn("Richiesta approvazione creata per manager@test.local, employee@test.local.", run_log.result_message)
+        self.assertIn("Email approvazione inviata a manager@test.local.", run_log.result_message)
+        self.assertIn("Teams chat flow inviato a employee@test.local (HTTP 200).", run_log.result_message)
+
+    @patch("automazioni.services.requests.post")
+    @patch("automazioni.services.EmailMultiAlternatives")
+    def test_send_approval_email_and_teams_chat_flow_warns_on_flow_failure_by_default(
+        self,
+        mock_email_class,
+        mock_post,
+    ):
+        endpoint = self._create_flow_endpoint("warn")
+        email_message = MagicMock()
+        email_message.send.return_value = 1
+        mock_email_class.return_value = email_message
+        response = MagicMock()
+        response.ok = False
+        response.status_code = 500
+        mock_post.return_value = response
+        self._create_send_approval_action(
+            delivery_mode=ApprovalDeliveryMode.EMAIL_AND_TEAMS_CHAT_FLOW,
+            teams_flow_endpoint_id=str(endpoint.pk),
+            teams_recipient_email_template="{dipendente_email}",
+        )
+
+        run_log = run_rule(self.rule, self.payload, old_payload=self.old_payload)
+
+        self.assertEqual(run_log.status, AutomationRunLogStatus.WAITING_APPROVAL)
+        self.assertEqual(AutomationApproval.objects.count(), 1)
+        self.assertIn("Email approvazione inviata a manager@test.local.", run_log.result_message)
+        self.assertIn("Teams chat flow non inviato (Teams chat flow ha risposto con HTTP 500.).", run_log.result_message)
+
+    @patch("automazioni.services.requests.post")
+    def test_send_approval_teams_chat_flow_returns_error_when_flow_fails(self, mock_post):
+        endpoint = self._create_flow_endpoint("fail")
+        response = MagicMock()
+        response.ok = False
+        response.status_code = 500
+        mock_post.return_value = response
+        self._create_send_approval_action(
+            delivery_mode=ApprovalDeliveryMode.TEAMS_CHAT_FLOW,
+            to_template="",
+            teams_flow_endpoint_id=str(endpoint.pk),
+            teams_recipient_email_template="{capo_email}",
+        )
+
+        run_log = run_rule(self.rule, self.payload, old_payload=self.old_payload)
+
+        self.assertEqual(run_log.status, AutomationRunLogStatus.ERROR)
+        self.assertEqual(AutomationApproval.objects.count(), 0)
+        self.assertEqual(run_log.action_logs.first().status, AutomationActionLogStatus.ERROR)
+
+    @patch("automazioni.services.get_teams_flow_endpoint_by_id", return_value=(None, True))
+    def test_send_approval_teams_chat_flow_returns_clear_error_when_endpoint_table_is_unavailable(
+        self,
+        _mock_get_endpoint,
+    ):
+        self._create_send_approval_action(
+            delivery_mode=ApprovalDeliveryMode.TEAMS_CHAT_FLOW,
+            to_template="",
+            teams_flow_endpoint_id="123",
+            teams_recipient_email_template="{capo_email}",
+        )
+
+        run_log = run_rule(self.rule, self.payload, old_payload=self.old_payload)
+
+        self.assertEqual(run_log.status, AutomationRunLogStatus.ERROR)
+        self.assertEqual(AutomationApproval.objects.count(), 0)
+        action_log = run_log.action_logs.first()
+        self.assertEqual(action_log.status, AutomationActionLogStatus.ERROR)
+        self.assertIn(AUTOMATION_DELIVERY_ENDPOINT_UNAVAILABLE_MESSAGE, action_log.result_message)
+
+    @patch("automazioni.services.EmailMultiAlternatives")
+    def test_process_approval_decision_runs_approved_branch(self, mock_email_class):
+        email_message = MagicMock()
+        email_message.send.return_value = 1
+        mock_email_class.return_value = email_message
+        self._create_send_approval_action(
+            approved_actions=[
+                {
+                    "action_type": AutomationActionType.WRITE_LOG,
+                    "description": "Log approvato",
+                    "config_json": {"message_template": "approved {id}"},
+                }
+            ],
+        )
+
+        run_log = run_rule(self.rule, self.payload, old_payload=self.old_payload)
+        approval = AutomationApproval.objects.get()
+        result = process_approval_decision(str(approval.token), "approved", decided_by_email="boss@test.local")
+
+        approval.refresh_from_db()
+        run_log.refresh_from_db()
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["actions_run"], 1)
+        self.assertEqual(approval.status, AutomationApproval.Status.APPROVED)
+        self.assertEqual(run_log.status, AutomationRunLogStatus.SUCCESS)
+        self.assertIn("Approvazione ricevuta: approved", run_log.result_message)
+        self.assertTrue(run_log.action_logs.filter(result_message="approved 77").exists())
+
+    @patch("automazioni.services.EmailMultiAlternatives")
+    def test_process_approval_decision_runs_rejected_branch(self, mock_email_class):
+        email_message = MagicMock()
+        email_message.send.return_value = 1
+        mock_email_class.return_value = email_message
+        self._create_send_approval_action(
+            rejected_actions=[
+                {
+                    "action_type": AutomationActionType.WRITE_LOG,
+                    "description": "Log rifiutato",
+                    "config_json": {"message_template": "rejected {id}"},
+                }
+            ],
+        )
+
+        run_log = run_rule(self.rule, self.payload, old_payload=self.old_payload)
+        approval = AutomationApproval.objects.get()
+        result = process_approval_decision(str(approval.token), "rejected", decided_by_email="boss@test.local")
+
+        approval.refresh_from_db()
+        run_log.refresh_from_db()
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["actions_run"], 1)
+        self.assertEqual(approval.status, AutomationApproval.Status.REJECTED)
+        self.assertEqual(run_log.status, AutomationRunLogStatus.SKIPPED)
+        self.assertTrue(run_log.action_logs.filter(result_message="rejected 77").exists())
+
 class AutomationActionFormExtendedTests(TestCase):
     def test_update_trigger_record_form_accepts_source_fields_and_run_if(self):
         form = AutomationActionForm(
@@ -2854,6 +3165,72 @@ class AutomationActionFormExtendedTests(TestCase):
 
         self.assertFalse(form.is_valid())
         self.assertIn("trigger_update_fields_text", form.errors)
+
+    def test_send_approval_form_requires_teams_recipient_email_for_chat_flow(self):
+        endpoint = AutomationDeliveryEndpoint.objects.create(
+            code="teams-flow-form-recipient",
+            name="Teams Flow Form Recipient",
+            endpoint_type=AutomationDeliveryEndpointType.TEAMS_FLOW_WEBHOOK,
+            endpoint_url="https://flow.example.com/hook",
+        )
+        form = AutomationActionForm(
+            data={
+                "order": "1",
+                "action_type": AutomationActionType.SEND_APPROVAL,
+                "description": "Approvazione Teams",
+                "approval_delivery_mode": ApprovalDeliveryMode.TEAMS_CHAT_FLOW,
+                "approval_subject_template": "Approval {id}",
+                "approval_message_template": "Body {id}",
+                "approval_teams_flow_endpoint_id": str(endpoint.pk),
+            },
+            source_code="assenze",
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("approval_teams_recipient_email_template", form.errors)
+
+    def test_send_approval_form_requires_flow_endpoint_for_chat_flow(self):
+        form = AutomationActionForm(
+            data={
+                "order": "1",
+                "action_type": AutomationActionType.SEND_APPROVAL,
+                "description": "Approvazione Teams",
+                "approval_delivery_mode": ApprovalDeliveryMode.TEAMS_CHAT_FLOW,
+                "approval_subject_template": "Approval {id}",
+                "approval_message_template": "Body {id}",
+                "approval_teams_recipient_email_template": "{capo_email}",
+            },
+            source_code="assenze",
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("approval_teams_flow_endpoint_id", form.errors)
+
+    @patch("automazioni.forms.list_teams_flow_endpoints", return_value=([], True))
+    def test_send_approval_form_warns_when_flow_endpoint_table_is_unavailable(self, _mock_list_endpoints):
+        form = AutomationActionForm(
+            data={
+                "order": "1",
+                "action_type": AutomationActionType.SEND_APPROVAL,
+                "description": "Approvazione Teams",
+                "approval_delivery_mode": ApprovalDeliveryMode.TEAMS_CHAT_FLOW,
+                "approval_subject_template": "Approval {id}",
+                "approval_message_template": "Body {id}",
+                "approval_teams_recipient_email_template": "{capo_email}",
+            },
+            source_code="assenze",
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("approval_teams_flow_endpoint_id", form.errors)
+        self.assertIn(
+            AUTOMATION_DELIVERY_ENDPOINT_UNAVAILABLE_MESSAGE,
+            form.errors["approval_teams_flow_endpoint_id"],
+        )
+        self.assertIn(
+            AUTOMATION_DELIVERY_ENDPOINT_UNAVAILABLE_MESSAGE,
+            str(form.fields["approval_teams_flow_endpoint_id"].help_text),
+        )
 
 
 class AutomationExtendedActionExecutorTests(TestCase):

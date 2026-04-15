@@ -1,6 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal, InvalidOperation
 import json
 import logging
@@ -23,6 +23,8 @@ from .models import (
     AutomationActionLog,
     AutomationActionLogStatus,
     AutomationActionType,
+    ApprovalDeliveryMode,
+    AUTOMATION_DELIVERY_ENDPOINT_UNAVAILABLE_MESSAGE,
     AutomationCondition,
     AutomationConditionOperator,
     AutomationConditionValueType,
@@ -30,6 +32,7 @@ from .models import (
     AutomationRunLog,
     AutomationRunLogStatus,
     DashboardMetricValue,
+    get_teams_flow_endpoint_by_id,
 )
 from .source_registry import get_action_mapping_fields, get_source_definition, get_source_fields
 
@@ -52,7 +55,7 @@ class QueueEventStatus:
 logger = logging.getLogger(__name__)
 
 
-# App moduli principali — usate per il picker "aggiungi tabella"
+# App moduli principali â€” usate per il picker "aggiungi tabella"
 _MODULE_APPS = {
     "anagrafica", "assets", "assenze", "anomalie", "tasks", "tickets",
     "notizie", "timbri", "rentri", "dpi", "procedure_refresh",
@@ -97,7 +100,7 @@ def discover_module_tables() -> dict[str, dict[str, list[str]]]:
 def get_action_table_whitelist() -> dict[str, dict[str, dict[str, set[str]]]]:
     """
     Whitelist tabelle per INSERT_RECORD e UPDATE_RECORD.
-    Legge da AutomationTableConfig (DB). Fallback hardcoded se la tabella è vuota.
+    Legge da AutomationTableConfig (DB). Fallback hardcoded se la tabella Ã¨ vuota.
     """
     from .models import AutomationTableConfig
 
@@ -119,7 +122,7 @@ def get_action_table_whitelist() -> dict[str, dict[str, dict[str, set[str]]]]:
         elif entry.action_type == AutomationActionType.UPDATE_RECORD:
             update_tables[entry.table_name] = row
 
-    # Fallback hardcoded se il DB è ancora vuoto
+    # Fallback hardcoded se il DB Ã¨ ancora vuoto
     if not insert_tables and not update_tables:
         insert_tables = {
             "core_notifica": {"fields": {"legacy_user_id", "tipo", "messaggio", "url_azione", "letta"}, "where_fields": set()},
@@ -915,7 +918,7 @@ def evaluate_condition(condition: AutomationCondition, payload: Any, old_payload
         return False
     except Exception:
         logger.warning(
-            "evaluate_condition: eccezione durante la valutazione di field=%s operator=%s — condizione considerata False",
+            "evaluate_condition: eccezione durante la valutazione di field=%s operator=%s â€” condizione considerata False",
             getattr(condition, "field_name", "?"),
             getattr(condition, "operator", "?"),
             exc_info=True,
@@ -926,7 +929,7 @@ def evaluate_condition(condition: AutomationCondition, payload: Any, old_payload
 def _create_action_log(
     *,
     run_log: AutomationRunLog | None,
-    action: AutomationAction,
+    action: Any,
     status: str,
     result_message: str,
     error_trace: str = "",
@@ -936,7 +939,7 @@ def _create_action_log(
 
     return AutomationActionLog.objects.create(
         run_log=run_log,
-        action=action,
+        action=action if isinstance(action, AutomationAction) else None,
         status=status,
         result_message=result_message,
         error_trace=error_trace or None,
@@ -1243,6 +1246,303 @@ def _validate_sender_email(raw_value: Any, payload: Any) -> str:
     except ValidationError as exc:
         raise ValueError(f"Indirizzo from_email non valido: {from_email}.") from exc
     return from_email
+
+
+def _dedupe_emails(emails: list[str]) -> list[str]:
+    seen: set[str] = set()
+    unique_emails: list[str] = []
+    for email in emails:
+        normalized = str(email or "").strip().lower()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        unique_emails.append(normalized)
+    return unique_emails
+
+
+def _resolve_approval_delivery_mode(config: dict[str, Any]) -> str:
+    explicit_mode = str(config.get("delivery_mode") or "").strip()
+    if explicit_mode:
+        return explicit_mode
+
+    has_flow = any(
+        [
+            str(config.get("teams_flow_endpoint_id") or "").strip(),
+            str(config.get("teams_flow_url") or "").strip(),
+            str(config.get("teams_recipient_email_template") or "").strip(),
+        ]
+    )
+    has_legacy = any(
+        [
+            str(config.get("teams_preset_id") or "").strip(),
+            str(config.get("teams_webhook_url") or "").strip(),
+        ]
+    )
+    has_email = bool(str(config.get("to_template") or "").strip())
+
+    if has_flow and has_email:
+        return ApprovalDeliveryMode.EMAIL_AND_TEAMS_CHAT_FLOW
+    if has_flow:
+        return ApprovalDeliveryMode.TEAMS_CHAT_FLOW
+    if has_legacy:
+        return ApprovalDeliveryMode.TEAMS_WEBHOOK_LEGACY
+    return ApprovalDeliveryMode.EMAIL
+
+
+def _create_approval_record(
+    *,
+    action: AutomationAction,
+    run_log: AutomationRunLog | None,
+    approver_emails: list[str],
+    subject: str,
+    message_body: str,
+    expiry_days: int,
+    payload_context: dict[str, Any],
+    old_payload: Any,
+    approved_actions: list[dict[str, Any]],
+    rejected_actions: list[dict[str, Any]],
+):
+    from .models import AutomationApproval
+
+    return AutomationApproval.objects.create(
+        run_log=run_log,
+        action=action if getattr(action, "pk", None) else None,
+        approver_emails=approver_emails,
+        subject=subject,
+        message=message_body,
+        expires_at=timezone.now() + timedelta(days=expiry_days),
+        resume_payload=payload_context,
+        resume_old_payload=old_payload if isinstance(old_payload, dict) else None,
+        approved_actions=approved_actions,
+        rejected_actions=rejected_actions,
+    )
+
+
+def _build_approval_links(approval: Any) -> tuple[str, str]:
+    site_url = str(getattr(settings, "SITE_URL", "") or "").rstrip("/")
+    approve_url = f"{site_url}/automazioni/approvazione/{approval.token}/approva/"
+    reject_url = f"{site_url}/automazioni/approvazione/{approval.token}/rifiuta/"
+    return approve_url, reject_url
+
+
+def _send_approval_email(
+    *,
+    approver_emails: list[str],
+    subject: str,
+    message_body: str,
+    approve_url: str,
+    reject_url: str,
+    approve_label: str,
+    reject_label: str,
+    expires_at: datetime | None,
+) -> str:
+    from_email = _validate_sender_email("", {})
+    expires_label = expires_at.strftime("%d/%m/%Y %H:%M") if expires_at else "N/D"
+    html_body = (
+        f"<p>{message_body}</p>"
+        f"<p>"
+        f'<a href="{approve_url}" style="display:inline-block;padding:10px 24px;background:#16a34a;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;margin-right:12px;">{approve_label}</a>'
+        f'<a href="{reject_url}" style="display:inline-block;padding:10px 24px;background:#dc2626;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">{reject_label}</a>'
+        f"</p>"
+        f'<p style="font-size:12px;color:#64748b;">Questa richiesta scade il {expires_label}.</p>'
+    )
+    text_body = (
+        f"{message_body}\n\n"
+        f"{approve_label}: {approve_url}\n"
+        f"{reject_label}: {reject_url}\n"
+    )
+
+    for approver_email in approver_emails:
+        message = EmailMultiAlternatives(
+            subject=subject,
+            body=text_body,
+            from_email=from_email,
+            to=[approver_email],
+        )
+        message.attach_alternative(html_body, "text/html")
+        message.send(fail_silently=False)
+
+    return f"Email approvazione inviata a {', '.join(approver_emails)}."
+
+
+def _parse_approval_facts(config: dict[str, Any], payload_context: dict[str, Any]) -> list[dict[str, str]]:
+    facts: list[dict[str, str]] = []
+    facts_inline = str(config.get("teams_facts_inline") or "").strip()
+    if facts_inline:
+        for raw_line in facts_inline.splitlines():
+            line = str(raw_line or "").strip()
+            if not line or "|" not in line:
+                continue
+            fact_name, fact_value_template = line.split("|", 1)
+            fact_name = fact_name.strip()
+            if not fact_name:
+                continue
+            facts.append(
+                {
+                    "name": fact_name,
+                    "value": render_template_string(fact_value_template.strip(), payload_context),
+                }
+            )
+        return facts
+
+    for fact_cfg in list(config.get("teams_facts") or []):
+        if not isinstance(fact_cfg, dict):
+            continue
+        fact_name = str(fact_cfg.get("name") or "").strip()
+        if not fact_name:
+            continue
+        facts.append(
+            {
+                "name": fact_name,
+                "value": render_template_string(str(fact_cfg.get("value_template") or ""), payload_context),
+            }
+        )
+    return facts
+
+
+def _resolve_approval_teams_webhook_legacy_url(config: dict[str, Any], payload_context: dict[str, Any]) -> str:
+    teams_webhook_url_raw = str(config.get("teams_webhook_url") or "").strip()
+    teams_preset_id = config.get("teams_preset_id")
+
+    if teams_preset_id:
+        from .models import TeamsWebhookPreset
+
+        preset = TeamsWebhookPreset.objects.get(pk=teams_preset_id, is_active=True)
+        teams_webhook_url_raw = str(preset.webhook_url or "").strip()
+
+    teams_webhook_url = render_template_string(teams_webhook_url_raw, payload_context).strip()
+    if not teams_webhook_url:
+        raise ValueError("Webhook Teams legacy mancante.")
+    return teams_webhook_url
+
+
+def _send_approval_teams_webhook_legacy(
+    *,
+    config: dict[str, Any],
+    payload_context: dict[str, Any],
+    subject: str,
+    message_body: str,
+    approve_url: str,
+    reject_url: str,
+    approve_label: str,
+    reject_label: str,
+) -> str:
+    teams_webhook_url = _resolve_approval_teams_webhook_legacy_url(config, payload_context)
+    teams_title = render_template_string(config.get("teams_title_template") or subject, payload_context).strip() or subject
+    teams_theme_color = str(config.get("teams_theme_color") or "1a56db").strip()
+    facts = _parse_approval_facts(config, payload_context)
+    card_payload = {
+        "@type": "MessageCard",
+        "@context": "http://schema.org/extensions",
+        "themeColor": teams_theme_color,
+        "summary": teams_title,
+        "title": teams_title,
+        "sections": [
+            {
+                "activitySubtitle": message_body,
+                "facts": facts,
+                "markdown": True,
+            }
+        ],
+        "potentialAction": [
+            {
+                "@type": "HttpPOST",
+                "name": approve_label,
+                "target": approve_url,
+                "body": '{"action":"approve"}',
+                "bodyContentType": "application/json",
+            },
+            {
+                "@type": "HttpPOST",
+                "name": reject_label,
+                "target": reject_url,
+                "body": '{"action":"reject"}',
+                "bodyContentType": "application/json",
+            },
+        ],
+    }
+    response = _perform_http_request(
+        method="POST",
+        url=teams_webhook_url,
+        headers={"Content-Type": "application/json"},
+        body=card_payload,
+        timeout_seconds=10,
+    )
+    if not response.ok:
+        raise ValueError(f"Teams webhook legacy ha risposto con HTTP {response.status_code}.")
+    return f"Teams webhook legacy inviato (HTTP {response.status_code})."
+
+
+def _render_required_email(raw_template: Any, payload_context: dict[str, Any], *, field_label: str) -> str:
+    email_value = render_template_string(str(raw_template or ""), payload_context).strip().lower()
+    if not email_value:
+        raise ValueError(f"{field_label} vuota.")
+    try:
+        validate_email(email_value)
+    except ValidationError as exc:
+        raise ValueError(f"{field_label} non valida: {email_value}.") from exc
+    return email_value
+
+
+def _resolve_approval_teams_flow_endpoint_url(config: dict[str, Any]) -> str:
+    endpoint_id = str(config.get("teams_flow_endpoint_id") or "").strip()
+    raw_url = str(config.get("teams_flow_url") or "").strip()
+    if endpoint_id:
+        endpoint, unavailable = get_teams_flow_endpoint_by_id(endpoint_id, active_only=True)
+        if unavailable:
+            raise ValueError(AUTOMATION_DELIVERY_ENDPOINT_UNAVAILABLE_MESSAGE)
+        if endpoint is not None:
+            raw_url = str(endpoint.endpoint_url or "").strip()
+    if not raw_url:
+        raise ValueError("Endpoint Teams Flow mancante o non attivo.")
+    return raw_url
+
+
+def _format_approval_expires_at(expires_at: datetime | None) -> str:
+    if not expires_at:
+        return ""
+    normalized = expires_at
+    if timezone.is_naive(normalized):
+        normalized = timezone.make_aware(normalized, dt_timezone.utc)
+    return normalized.astimezone(dt_timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _send_approval_teams_chat_flow(
+    *,
+    config: dict[str, Any],
+    approval: Any,
+    payload_context: dict[str, Any],
+    subject: str,
+    message_body: str,
+    approve_url: str,
+    reject_url: str,
+) -> dict[str, Any]:
+    recipient_email = _render_required_email(
+        config.get("teams_recipient_email_template"),
+        payload_context,
+        field_label="recipient_email",
+    )
+    endpoint_url = _resolve_approval_teams_flow_endpoint_url(config)
+    teams_subject = render_template_string(config.get("teams_title_template") or subject, payload_context).strip() or subject
+    payload = {
+        "approval_id": approval.pk,
+        "token": str(approval.token),
+        "recipient_email": recipient_email,
+        "subject": teams_subject,
+        "message": message_body,
+        "approve_url": approve_url,
+        "reject_url": reject_url,
+        "expires_at": _format_approval_expires_at(approval.expires_at),
+        "facts": _parse_approval_facts(config, payload_context),
+    }
+    response = requests.post(endpoint_url, json=payload, timeout=10)
+    if not response.ok:
+        raise ValueError(f"Teams chat flow ha risposto con HTTP {response.status_code}.")
+    return {
+        "recipient_email": recipient_email,
+        "payload": payload,
+        "result_message": f"Teams chat flow inviato a {recipient_email} (HTTP {response.status_code}).",
+    }
 
 
 def validate_target_table_and_fields(
@@ -1589,9 +1889,9 @@ def _schedule_queue_event(
                              event_code, payload_json, execute_after_str])
 
 
-# ────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Helpers per azioni di controllo flusso (branch, do_until, for_each, approval)
-# ────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _check_simple_condition(
     field_name: str,
@@ -1669,7 +1969,7 @@ def _query_source_for_each(
     valid_fields = {f["name"] for f in get_source_fields(source_code)}
 
     if filter_field and filter_field not in valid_fields:
-        raise ValueError(f"Il campo filtro '{filter_field}' non è esposto dalla sorgente '{source_code}'.")
+        raise ValueError(f"Il campo filtro '{filter_field}' non Ã¨ esposto dalla sorgente '{source_code}'.")
 
     max_items = max(1, min(int(max_items or 50), 500))
 
@@ -1770,7 +2070,7 @@ def execute_action(
             reply_to = _parse_email_recipients(config.get("reply_to"), payload_context, "reply_to")
 
             # Filtra destinatari che hanno disabilitato questo tipo di notifica.
-            # notifica_tipo è opzionale: se assente, nessun filtro viene applicato.
+            # notifica_tipo Ã¨ opzionale: se assente, nessun filtro viene applicato.
             notifica_tipo = (config.get("notifica_tipo") or "").strip()
             if notifica_tipo:
                 to, cc, bcc = _filter_recipients_by_notifica_pref(to, cc, bcc, notifica_tipo)
@@ -1835,6 +2135,143 @@ def execute_action(
 
             recipients = ", ".join(to + cc + bcc)
             result_message = f"Email inviata a [{recipients}] con subject='{subject[:120]}'."
+            action_log = _create_action_log(
+                run_log=run_log,
+                action=action,
+                status=AutomationActionLogStatus.SUCCESS,
+                result_message=result_message,
+            )
+            return {"status": AutomationActionLogStatus.SUCCESS, "result_message": result_message, "action_log": action_log}
+
+        if action.action_type == AutomationActionType.SEND_APPROVAL:
+            delivery_mode = _resolve_approval_delivery_mode(config)
+            subject = render_template_string(
+                config.get("subject_template") or "Richiesta di approvazione", payload_context
+            ).strip() or "Richiesta di approvazione"
+            message_body = render_template_string(config.get("message_template") or "", payload_context)
+            expiry_days = max(1, int(config.get("expiry_days") or 7))
+            approved_actions = list(config.get("approved_actions") or [])
+            rejected_actions = list(config.get("rejected_actions") or [])
+            approve_label = str(config.get("approve_label") or "Approva")
+            reject_label = str(config.get("reject_label") or "Rifiuta")
+
+            email_delivery_modes = {
+                ApprovalDeliveryMode.EMAIL,
+                ApprovalDeliveryMode.TEAMS_WEBHOOK_LEGACY,
+                ApprovalDeliveryMode.EMAIL_AND_TEAMS_CHAT_FLOW,
+            }
+            flow_delivery_modes = {
+                ApprovalDeliveryMode.TEAMS_CHAT_FLOW,
+                ApprovalDeliveryMode.EMAIL_AND_TEAMS_CHAT_FLOW,
+            }
+
+            email_approver_emails: list[str] = []
+            if delivery_mode in email_delivery_modes:
+                email_approver_emails = _parse_email_recipients(config.get("to_template"), payload_context, "to_template")
+                if not email_approver_emails:
+                    raise ValueError("send_approval: nessun approvatore email specificato.")
+
+            flow_recipient_email = ""
+            if delivery_mode in flow_delivery_modes:
+                flow_recipient_email = _render_required_email(
+                    config.get("teams_recipient_email_template"),
+                    payload_context,
+                    field_label="recipient_email",
+                )
+
+            approver_emails = _dedupe_emails(email_approver_emails + ([flow_recipient_email] if flow_recipient_email else []))
+            if not approver_emails:
+                raise ValueError("send_approval: nessun approvatore risolto per il recapito richiesto.")
+
+            approval = _create_approval_record(
+                action=action,
+                run_log=run_log,
+                approver_emails=approver_emails,
+                subject=subject,
+                message_body=message_body,
+                expiry_days=expiry_days,
+                payload_context=payload_context,
+                old_payload=old_payload,
+                approved_actions=approved_actions,
+                rejected_actions=rejected_actions,
+            )
+            approve_url, reject_url = _build_approval_links(approval)
+
+            result_message_parts = [
+                f"Richiesta approvazione creata per {', '.join(approver_emails)}.",
+                f"Token: {approval.token}.",
+                f"Scadenza: {expiry_days} giorni.",
+            ]
+            delivery_success = False
+            strict_teams_flow = bool(config.get("strict_teams_flow"))
+
+            try:
+                if delivery_mode in email_delivery_modes:
+                    result_message_parts.append(
+                        _send_approval_email(
+                            approver_emails=email_approver_emails,
+                            subject=subject,
+                            message_body=message_body,
+                            approve_url=approve_url,
+                            reject_url=reject_url,
+                            approve_label=approve_label,
+                            reject_label=reject_label,
+                            expires_at=approval.expires_at,
+                        )
+                    )
+                    delivery_success = True
+
+                if delivery_mode == ApprovalDeliveryMode.TEAMS_WEBHOOK_LEGACY:
+                    try:
+                        result_message_parts.append(
+                            _send_approval_teams_webhook_legacy(
+                                config=config,
+                                payload_context=payload_context,
+                                subject=subject,
+                                message_body=message_body,
+                                approve_url=approve_url,
+                                reject_url=reject_url,
+                                approve_label=approve_label,
+                                reject_label=reject_label,
+                            )
+                        )
+                    except Exception as teams_legacy_exc:
+                        logger.warning("send_approval: Teams webhook legacy error: %s", teams_legacy_exc)
+                        result_message_parts.append(f"Teams webhook legacy non inviato ({teams_legacy_exc}).")
+
+                if delivery_mode in flow_delivery_modes:
+                    try:
+                        flow_result = _send_approval_teams_chat_flow(
+                            config=config,
+                            approval=approval,
+                            payload_context=payload_context,
+                            subject=subject,
+                            message_body=message_body,
+                            approve_url=approve_url,
+                            reject_url=reject_url,
+                        )
+                        result_message_parts.append(flow_result["result_message"])
+                        delivery_success = True
+                    except Exception as teams_flow_exc:
+                        logger.warning("send_approval: Teams chat flow error: %s", teams_flow_exc)
+                        if delivery_mode == ApprovalDeliveryMode.TEAMS_CHAT_FLOW or strict_teams_flow:
+                            raise
+                        result_message_parts.append(f"Teams chat flow non inviato ({teams_flow_exc}).")
+            except Exception:
+                if not delivery_success:
+                    approval.delete()
+                raise
+
+            if not delivery_success:
+                approval.delete()
+                raise ValueError("Nessun recapito approvazione riuscito.")
+
+            result_message = " ".join(part for part in result_message_parts if part)
+            if run_log is not None:
+                run_log.status = AutomationRunLogStatus.WAITING_APPROVAL
+                run_log.result_message = result_message
+                run_log.save(update_fields=["status", "result_message"])
+
             action_log = _create_action_log(
                 run_log=run_log,
                 action=action,
@@ -2119,174 +2556,7 @@ def execute_action(
             )
             return {"status": AutomationActionLogStatus.SUCCESS, "result_message": result_message, "action_log": action_log}
 
-        # ── SEND_APPROVAL ──────────────────────────────────────────────────────
-        if action.action_type == AutomationActionType.SEND_APPROVAL:
-            from .models import AutomationApproval
-
-            to_raw = render_template_string(config.get("to_template") or "", payload_context)
-            approver_emails = [e.strip().lower() for e in to_raw.split(",") if e.strip()]
-            if not approver_emails:
-                raise ValueError("send_approval: nessun approvatore specificato (to_template vuoto o senza email).")
-
-            subject = render_template_string(
-                config.get("subject_template") or "Richiesta di approvazione", payload_context
-            ).strip()
-            message_body = render_template_string(config.get("message_template") or "", payload_context)
-            expiry_days = max(1, int(config.get("expiry_days") or 7))
-            approved_actions = list(config.get("approved_actions") or [])
-            rejected_actions = list(config.get("rejected_actions") or [])
-
-            approval = AutomationApproval.objects.create(
-                run_log=run_log,
-                action=action if getattr(action, "pk", None) else None,
-                approver_emails=approver_emails,
-                subject=subject,
-                message=message_body,
-                expires_at=timezone.now() + timedelta(days=expiry_days),
-                resume_payload=payload_context,
-                resume_old_payload=old_payload if isinstance(old_payload, dict) else None,
-                approved_actions=approved_actions,
-                rejected_actions=rejected_actions,
-            )
-
-            # Costruiamo gli URL di approvazione/rifiuto
-            try:
-                from django.conf import settings as _s
-                site_url = str(getattr(_s, "SITE_URL", "") or "").rstrip("/")
-            except Exception:
-                site_url = ""
-            approve_url = f"{site_url}/automazioni/approvazione/{approval.token}/approva/"
-            reject_url = f"{site_url}/automazioni/approvazione/{approval.token}/rifiuta/"
-
-            approve_label = str(config.get("approve_label") or "Approva")
-            reject_label = str(config.get("reject_label") or "Rifiuta")
-
-            html_body = (
-                f"<p>{message_body}</p>"
-                f"<p>"
-                f'<a href="{approve_url}" style="display:inline-block;padding:10px 24px;background:#16a34a;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;margin-right:12px;">{approve_label}</a>'
-                f'<a href="{reject_url}" style="display:inline-block;padding:10px 24px;background:#dc2626;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">{reject_label}</a>'
-                f"</p>"
-                f'<p style="font-size:12px;color:#64748b;">Questa richiesta scade il {approval.expires_at.strftime("%d/%m/%Y %H:%M") if approval.expires_at else "N/D"}.</p>'
-            )
-
-            text_body = (
-                f"{message_body}\n\n"
-                f"{approve_label}: {approve_url}\n"
-                f"{reject_label}: {reject_url}\n"
-            )
-
-            from django.core.mail import EmailMultiAlternatives as _EMA
-            from_email = str(getattr(settings, "DEFAULT_FROM_EMAIL", "") or "")
-            for approver_email in approver_emails:
-                msg = _EMA(subject=subject, body=text_body, from_email=from_email, to=[approver_email])
-                msg.attach_alternative(html_body, "text/html")
-                msg.send(fail_silently=False)
-
-            # --- Teams Webhook opzionale (MessageCard con bottoni Approva/Rifiuta) ------
-            # Priorità: 1) preset salvato per ID, 2) URL raw in config (retrocompat)
-            teams_preset_id = config.get("teams_preset_id")
-            teams_webhook_url_raw = str(config.get("teams_webhook_url") or "").strip()
-            if teams_preset_id:
-                try:
-                    from .models import TeamsWebhookPreset as _TWP
-                    _preset = _TWP.objects.get(pk=teams_preset_id, is_active=True)
-                    teams_webhook_url_raw = _preset.webhook_url
-                except Exception:
-                    pass  # preset non trovato: fallback su URL raw o nessun invio
-
-            if teams_webhook_url_raw:
-                try:
-                    import json as _json
-                    import urllib.request as _urllib_req
-
-                    teams_webhook_url = render_template_string(teams_webhook_url_raw, payload_context)
-                    teams_title = render_template_string(
-                        config.get("teams_title_template") or subject, payload_context
-                    ).strip()
-                    teams_theme_color = str(config.get("teams_theme_color") or "1a56db").strip()
-                    # Fatti: supporta sia il formato inline "Etichetta | {valore}" (per riga)
-                    # sia il formato legacy list [{name, value_template}] (retrocompat)
-                    facts_inline = str(config.get("teams_facts_inline") or "").strip()
-                    facts = []
-                    if facts_inline:
-                        for _line in facts_inline.splitlines():
-                            _parts = _line.split("|", 1)
-                            if len(_parts) == 2:
-                                _fact_name = _parts[0].strip()
-                                _fact_val = render_template_string(_parts[1].strip(), payload_context)
-                                if _fact_name:
-                                    facts.append({"name": _fact_name, "value": _fact_val})
-                    else:
-                        facts_config = list(config.get("teams_facts") or [])
-                        for fact_cfg in facts_config:
-                            fact_name = str(fact_cfg.get("name") or "").strip()
-                            fact_value = render_template_string(
-                                str(fact_cfg.get("value_template") or ""), payload_context
-                            )
-                            if fact_name:
-                                facts.append({"name": fact_name, "value": fact_value})
-
-                    card_payload = {
-                        "@type": "MessageCard",
-                        "@context": "http://schema.org/extensions",
-                        "themeColor": teams_theme_color,
-                        "summary": teams_title,
-                        "title": teams_title,
-                        "sections": [{
-                            "activitySubtitle": message_body,
-                            "facts": facts,
-                            "markdown": True,
-                        }],
-                        "potentialAction": [
-                            {
-                                "@type": "HttpPOST",
-                                "name": approve_label,
-                                "target": approve_url,
-                                "body": '{"action":"approve"}',
-                                "bodyContentType": "application/json",
-                            },
-                            {
-                                "@type": "HttpPOST",
-                                "name": reject_label,
-                                "target": reject_url,
-                                "body": '{"action":"reject"}',
-                                "bodyContentType": "application/json",
-                            },
-                        ],
-                    }
-
-                    card_data = _json.dumps(card_payload).encode("utf-8")
-                    teams_req = _urllib_req.Request(
-                        teams_webhook_url,
-                        data=card_data,
-                        headers={"Content-Type": "application/json"},
-                        method="POST",
-                    )
-                    with _urllib_req.urlopen(teams_req, timeout=10) as teams_resp:
-                        _teams_http_status = teams_resp.status
-                    result_message += f" Teams webhook inviato (HTTP {_teams_http_status})."
-                except Exception as _e_teams:
-                    logger.warning("send_approval: Teams webhook error: %s", _e_teams)
-                    result_message += " Teams webhook non inviato (errore)."
-
-            # Il run_log attende l'approvazione
-            if run_log is not None:
-                run_log.status = AutomationRunLogStatus.WAITING_APPROVAL
-                run_log.save(update_fields=["status"])
-
-            result_message = (
-                f"Richiesta approvazione inviata a {', '.join(approver_emails)}. "
-                f"Token: {approval.token}. Scade: {expiry_days} giorni."
-            )
-            action_log = _create_action_log(
-                run_log=run_log, action=action,
-                status=AutomationActionLogStatus.SUCCESS,
-                result_message=result_message,
-            )
-            return {"status": AutomationActionLogStatus.SUCCESS, "result_message": result_message, "action_log": action_log}
-
-        # ── DO_UNTIL ────────────────────────────────────────────────────────
+        # â”€â”€ DO_UNTIL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if action.action_type == AutomationActionType.DO_UNTIL:
             check_field = str(config.get("check_field") or "").strip()
             check_operator = str(config.get("check_operator") or "equals").strip()
@@ -2306,12 +2576,12 @@ def execute_action(
             )
 
             if condition_met:
-                # Condizione soddisfatta → esegui azioni di successo
+                # Condizione soddisfatta â†’ esegui azioni di successo
                 for child_cfg in on_success_actions:
                     _execute_inline_action(child_cfg, payload_context, old_payload=old_payload, run_log=run_log, parent_action=action)
                 result_message = f"Do Until: condizione soddisfatta all'iterazione {current_iteration}. Azioni success eseguite: {len(on_success_actions)}."
             elif current_iteration >= max_iterations:
-                # Timeout → esegui azioni di timeout
+                # Timeout â†’ esegui azioni di timeout
                 for child_cfg in on_timeout_actions:
                     _execute_inline_action(child_cfg, payload_context, old_payload=old_payload, run_log=run_log, parent_action=action)
                 result_message = (
@@ -2344,7 +2614,7 @@ def execute_action(
             )
             return {"status": AutomationActionLogStatus.SUCCESS, "result_message": result_message, "action_log": action_log}
 
-        # ── FOR_EACH ────────────────────────────────────────────────────────
+        # â”€â”€ FOR_EACH â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if action.action_type == AutomationActionType.FOR_EACH:
             foreach_source = str(config.get("source_code") or source_code or "").strip()
             filter_field = str(config.get("filter_field") or "").strip() or None
@@ -2381,7 +2651,7 @@ def execute_action(
             )
             return {"status": final_status, "result_message": result_message, "action_log": action_log}
 
-        # ── BRANCH (If/Else) ────────────────────────────────────────────────
+        # â”€â”€ BRANCH (If/Else) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if action.action_type == AutomationActionType.BRANCH:
             condition_field = str(config.get("condition_field") or "").strip()
             condition_operator = str(config.get("condition_operator") or "equals").strip()
@@ -2498,6 +2768,9 @@ def run_rule(
                 run_log.status = AutomationRunLogStatus.ERROR
                 if not run_log.result_message or run_log.result_message == "Esecuzione avviata.":
                     run_log.result_message = f"Esecuzione completata con {action_errors} action in errore."
+            elif run_log.status == AutomationRunLogStatus.WAITING_APPROVAL:
+                if not run_log.result_message or run_log.result_message == "Esecuzione avviata.":
+                    run_log.result_message = f"In attesa di approvazione. Azioni elaborate: {action_count}."
             else:
                 run_log.status = AutomationRunLogStatus.TEST if is_test else AutomationRunLogStatus.SUCCESS
                 run_log.result_message = f"Regola eseguita con successo. Azioni elaborate: {action_count}."
@@ -2548,14 +2821,14 @@ def process_approval_decision(token: str, decision: str, decided_by_email: str =
     if approval.status != AutomationApproval.Status.PENDING:
         return {
             "ok": False,
-            "message": f"La richiesta è già in stato '{approval.status}'. Non è possibile decidere nuovamente.",
+            "message": f"La richiesta Ã¨ giÃ  in stato '{approval.status}'. Non Ã¨ possibile decidere nuovamente.",
             "current_status": approval.status,
         }
 
     if approval.is_expired():
         approval.status = AutomationApproval.Status.EXPIRED
         approval.save(update_fields=["status"])
-        return {"ok": False, "message": "La richiesta di approvazione è scaduta."}
+        return {"ok": False, "message": "La richiesta di approvazione Ã¨ scaduta."}
 
     if decision not in ("approved", "rejected"):
         return {"ok": False, "message": f"Decisione '{decision}' non valida. Usare 'approved' o 'rejected'."}

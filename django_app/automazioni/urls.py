@@ -57,6 +57,17 @@ urlpatterns = [
     path("canali-teams/crea/", views.teams_preset_create, name="automazioni_teams_preset_create"),
     path("canali-teams/<int:pk>/modifica/", views.teams_preset_edit, name="automazioni_teams_preset_edit"),
     path("canali-teams/<int:pk>/elimina/", views.teams_preset_delete, name="automazioni_teams_preset_delete"),
+    path("canali-teams/flow-endpoint/crea/", views.teams_flow_endpoint_create, name="automazioni_teams_flow_endpoint_create"),
+    path(
+        "canali-teams/flow-endpoint/<int:pk>/modifica/",
+        views.teams_flow_endpoint_edit,
+        name="automazioni_teams_flow_endpoint_edit",
+    ),
+    path(
+        "canali-teams/flow-endpoint/<int:pk>/elimina/",
+        views.teams_flow_endpoint_delete,
+        name="automazioni_teams_flow_endpoint_delete",
+    ),
     # Approval decision (no login required, token-based)
     path("approvazione/<uuid:token>/", views.approval_status_page, name="automazioni_approval_status"),
     path("approvazione/<uuid:token>/<str:decision>/", views.approval_decision_page, name="automazioni_approval_decision"),

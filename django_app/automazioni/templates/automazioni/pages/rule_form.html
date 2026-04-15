@@ -324,6 +324,36 @@
                   </div>
                 </div>
               </div>
+
+              <div class="auto-config-group" data-action-config="send_approval">
+                <div class="auto-inline-title">Configurazione send_approval</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field">{{ form.approval_delivery_mode.label_tag }}{{ form.approval_delivery_mode }}{% if form.approval_delivery_mode.errors %}<ul class="auto-errors">{% for error in form.approval_delivery_mode.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field auto-wide">{{ form.approval_to_template.label_tag }}{{ form.approval_to_template }}{% if form.approval_to_template.errors %}<ul class="auto-errors">{% for error in form.approval_to_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field auto-wide">{{ form.approval_subject_template.label_tag }}{{ form.approval_subject_template }}{% if form.approval_subject_template.errors %}<ul class="auto-errors">{% for error in form.approval_subject_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field auto-wide">{{ form.approval_message_template.label_tag }}{{ form.approval_message_template }}{% if form.approval_message_template.errors %}<ul class="auto-errors">{% for error in form.approval_message_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field">{{ form.approval_expiry_days.label_tag }}{{ form.approval_expiry_days }}{% if form.approval_expiry_days.errors %}<ul class="auto-errors">{% for error in form.approval_expiry_days.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field">{{ form.approval_approve_label.label_tag }}{{ form.approval_approve_label }}{% if form.approval_approve_label.errors %}<ul class="auto-errors">{% for error in form.approval_approve_label.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field">{{ form.approval_reject_label.label_tag }}{{ form.approval_reject_label }}{% if form.approval_reject_label.errors %}<ul class="auto-errors">{% for error in form.approval_reject_label.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field auto-wide">{{ form.approval_teams_preset_id.label_tag }}{{ form.approval_teams_preset_id }}{% if form.approval_teams_preset_id.errors %}<ul class="auto-errors">{% for error in form.approval_teams_preset_id.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field auto-wide">{{ form.approval_teams_flow_endpoint_id.label_tag }}{{ form.approval_teams_flow_endpoint_id }}{% if form.approval_teams_flow_endpoint_id.errors %}<ul class="auto-errors">{% for error in form.approval_teams_flow_endpoint_id.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field auto-wide">{{ form.approval_teams_recipient_email_template.label_tag }}{{ form.approval_teams_recipient_email_template }}{% if form.approval_teams_recipient_email_template.errors %}<ul class="auto-errors">{% for error in form.approval_teams_recipient_email_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field auto-wide">{{ form.approval_teams_title_template.label_tag }}{{ form.approval_teams_title_template }}{% if form.approval_teams_title_template.errors %}<ul class="auto-errors">{% for error in form.approval_teams_title_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field auto-wide">{{ form.approval_teams_facts_inline.label_tag }}{{ form.approval_teams_facts_inline }}{% if form.approval_teams_facts_inline.errors %}<ul class="auto-errors">{% for error in form.approval_teams_facts_inline.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field auto-wide">{{ form.approval_strict_teams_flow.label_tag }}{{ form.approval_strict_teams_flow }}{% if form.approval_strict_teams_flow.help_text %}<div class="auto-help">{{ form.approval_strict_teams_flow.help_text }}</div>{% endif %}{% if form.approval_strict_teams_flow.errors %}<ul class="auto-errors">{% for error in form.approval_strict_teams_flow.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field auto-wide">{{ form.approval_approved_actions_json.label_tag }}{{ form.approval_approved_actions_json }}{% if form.approval_approved_actions_json.help_text %}<div class="auto-help">{{ form.approval_approved_actions_json.help_text }}</div>{% endif %}{% if form.approval_approved_actions_json.errors %}<ul class="auto-errors">{% for error in form.approval_approved_actions_json.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  <div class="auto-field auto-wide">{{ form.approval_rejected_actions_json.label_tag }}{{ form.approval_rejected_actions_json }}{% if form.approval_rejected_actions_json.help_text %}<div class="auto-help">{{ form.approval_rejected_actions_json.help_text }}</div>{% endif %}{% if form.approval_rejected_actions_json.errors %}<ul class="auto-errors">{% for error in form.approval_rejected_actions_json.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+                  {% if teams_flow_endpoints_warning %}
+                  <div class="auto-field auto-wide">
+                    <div class="auto-help" style="color:#92400e;">{{ teams_flow_endpoints_warning }} Vai su <a href="{% url 'admin_portale:automazioni_teams_presets' %}" target="_blank">Canali Teams</a> dopo aver applicato <code>python manage.py migrate automazioni</code>.</div>
+                  </div>
+                  {% elif not teams_presets or not teams_flow_endpoints %}
+                  <div class="auto-field auto-wide">
+                    <div class="auto-help">Configura i recapiti Teams da <a href="{% url 'admin_portale:automazioni_teams_presets' %}" target="_blank">Canali Teams</a>.</div>
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
             </div>
           {% endfor %}
           </div>
@@ -452,6 +482,36 @@
                   <div class="auto-field">{{ ef.teams_theme_color.label_tag }}{{ ef.teams_theme_color }}</div>
                   <div class="auto-field auto-wide">{{ ef.teams_text_template.label_tag }}{{ ef.teams_text_template }}</div>
                   <div class="auto-field auto-wide">{{ ef.teams_facts_text.label_tag }}{{ ef.teams_facts_text }}{% if ef.teams_facts_text.help_text %}<div class="auto-help">{{ ef.teams_facts_text.help_text }}</div>{% endif %}</div>
+                </div>
+              </div>
+
+              <div class="auto-config-group" data-action-config="send_approval">
+                <div class="auto-inline-title">Configurazione send_approval</div>
+                <div class="auto-form-grid">
+                  <div class="auto-field">{{ ef.approval_delivery_mode.label_tag }}{{ ef.approval_delivery_mode }}</div>
+                  <div class="auto-field auto-wide">{{ ef.approval_to_template.label_tag }}{{ ef.approval_to_template }}</div>
+                  <div class="auto-field auto-wide">{{ ef.approval_subject_template.label_tag }}{{ ef.approval_subject_template }}</div>
+                  <div class="auto-field auto-wide">{{ ef.approval_message_template.label_tag }}{{ ef.approval_message_template }}</div>
+                  <div class="auto-field">{{ ef.approval_expiry_days.label_tag }}{{ ef.approval_expiry_days }}</div>
+                  <div class="auto-field">{{ ef.approval_approve_label.label_tag }}{{ ef.approval_approve_label }}</div>
+                  <div class="auto-field">{{ ef.approval_reject_label.label_tag }}{{ ef.approval_reject_label }}</div>
+                  <div class="auto-field auto-wide">{{ ef.approval_teams_preset_id.label_tag }}{{ ef.approval_teams_preset_id }}</div>
+                  <div class="auto-field auto-wide">{{ ef.approval_teams_flow_endpoint_id.label_tag }}{{ ef.approval_teams_flow_endpoint_id }}</div>
+                  <div class="auto-field auto-wide">{{ ef.approval_teams_recipient_email_template.label_tag }}{{ ef.approval_teams_recipient_email_template }}</div>
+                  <div class="auto-field auto-wide">{{ ef.approval_teams_title_template.label_tag }}{{ ef.approval_teams_title_template }}</div>
+                  <div class="auto-field auto-wide">{{ ef.approval_teams_facts_inline.label_tag }}{{ ef.approval_teams_facts_inline }}</div>
+                  <div class="auto-field auto-wide">{{ ef.approval_strict_teams_flow.label_tag }}{{ ef.approval_strict_teams_flow }}{% if ef.approval_strict_teams_flow.help_text %}<div class="auto-help">{{ ef.approval_strict_teams_flow.help_text }}</div>{% endif %}</div>
+                  <div class="auto-field auto-wide">{{ ef.approval_approved_actions_json.label_tag }}{{ ef.approval_approved_actions_json }}{% if ef.approval_approved_actions_json.help_text %}<div class="auto-help">{{ ef.approval_approved_actions_json.help_text }}</div>{% endif %}</div>
+                  <div class="auto-field auto-wide">{{ ef.approval_rejected_actions_json.label_tag }}{{ ef.approval_rejected_actions_json }}{% if ef.approval_rejected_actions_json.help_text %}<div class="auto-help">{{ ef.approval_rejected_actions_json.help_text }}</div>{% endif %}</div>
+                  {% if teams_flow_endpoints_warning %}
+                  <div class="auto-field auto-wide">
+                    <div class="auto-help" style="color:#92400e;">{{ teams_flow_endpoints_warning }} Vai su <a href="{% url 'admin_portale:automazioni_teams_presets' %}" target="_blank">Canali Teams</a> dopo aver applicato <code>python manage.py migrate automazioni</code>.</div>
+                  </div>
+                  {% elif not teams_presets or not teams_flow_endpoints %}
+                  <div class="auto-field auto-wide">
+                    <div class="auto-help">Configura i recapiti Teams da <a href="{% url 'admin_portale:automazioni_teams_presets' %}" target="_blank">Canali Teams</a>.</div>
+                  </div>
+                  {% endif %}
                 </div>
               </div>
 

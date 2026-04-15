@@ -1,4 +1,4 @@
-{% extends "core/base.html" %}
+﻿{% extends "core/base.html" %}
 
 {% block title %}Automazioni - Designer Visuale | Admin Portale{% endblock %}
 
@@ -55,7 +55,7 @@
   .designer-editor-shell { border-top:1px dashed #cbd5e1; padding-top:12px; }
   .designer-editor-summary { cursor:pointer; font-weight:800; color:#0f172a; list-style:none; display:flex; align-items:center; gap:8px; }
   .designer-editor-summary::-webkit-details-marker { display:none; }
-  .designer-editor-summary::before { content:"▾"; color:#0f766e; font-size:14px; transition:transform .18s ease; }
+  .designer-editor-summary::before { content:"â–¾"; color:#0f766e; font-size:14px; transition:transform .18s ease; }
   .designer-editor-shell:not([open]) .designer-editor-summary::before { transform:rotate(-90deg); }
   .designer-editor-stack { display:grid; gap:12px; }
   .designer-editor-panel { padding:14px; border:1px solid #e2e8f0; border-radius:16px; background:linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); }
@@ -64,7 +64,7 @@
   .designer-subeditor-summary { cursor:pointer; font-size:13px; font-weight:700; color:#334155; list-style:none; }
   .designer-subeditor-summary::-webkit-details-marker { display:none; }
   .designer-subeditor-summary::before { content:"+"; display:inline-flex; width:18px; justify-content:center; color:#1d4ed8; font-weight:900; }
-  .designer-subeditor[open] .designer-subeditor-summary::before { content:"−"; }
+  .designer-subeditor[open] .designer-subeditor-summary::before { content:"âˆ’"; }
   .designer-field-compact-toggle { align-content:start; }
   .designer-toggle-wrap { min-height:44px; display:flex; align-items:center; padding:0 2px; }
   .designer-toggle-wrap input[type="checkbox"] { width:18px; height:18px; }
@@ -136,7 +136,7 @@
     .designer-flow { grid-template-columns:1fr; }
     .designer-flow-card::after { display:none; }
   }
-  /* ── Live test panel ── */
+  /* â”€â”€ Live test panel â”€â”€ */
   .livetest-tabs { display:flex; gap:3px; padding:4px; background:#f1f5f9; border-radius:12px; }
   .livetest-tab { flex:1; padding:7px 10px; border:0; border-radius:9px; background:transparent; font-size:12px; font-weight:700; color:#475569; cursor:pointer; transition:background .12s,color .12s; }
   .livetest-tab.is-active { background:#fff; color:#0f172a; box-shadow:0 1px 4px rgba(15,23,42,.1); }
@@ -149,7 +149,7 @@
   .livetest-result-body { flex:1; min-width:0; }
   .livetest-result-type { font-weight:800; color:#0f172a; margin-bottom:2px; font-size:10px; text-transform:uppercase; letter-spacing:.07em; }
   .livetest-result-msg { color:#475569; word-break:break-word; line-height:1.4; }
-  /* ── Email preview card ── */
+  /* â”€â”€ Email preview card â”€â”€ */
   .email-preview-card { border:1px solid #bfdbfe; border-radius:14px; overflow:hidden; margin-top:12px; box-shadow:0 2px 12px rgba(37,99,235,.06); }
   .email-preview-header { padding:12px 14px; background:linear-gradient(180deg,#eff6ff 0%,#f8fafc 100%); border-bottom:1px solid #bfdbfe; display:grid; gap:5px; }
   .email-preview-row { display:flex; gap:8px; align-items:flex-start; }
@@ -165,12 +165,30 @@
   .email-preview-toggle-btn.is-on { background:#dbeafe; border-color:#93c5fd; color:#1d4ed8; }
   .email-preview-ph-hint { font-size:11px; color:#94a3b8; }
 
-  /* ─── Flow Diagram ─────────────────────────────────────────────────────── */
-  .flow-diagram-shell { background: linear-gradient(160deg, #f8fafc 0%, #eff6ff 100%); border: 1px solid #bfdbfe; border-radius: 20px; overflow: hidden; margin-bottom: 4px; }
+  /* â”€â”€â”€ Flow Diagram â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  .flow-workspace-overlay { position: fixed; inset: 0; z-index: 950; background: rgba(15,23,42,.38); padding: 18px; }
+  .flow-workspace-overlay[hidden] { display: none !important; }
+  .flow-workspace-shell { width: 100%; height: calc(100vh - 36px); display: grid; grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); border-radius: 24px; overflow: hidden; background: #f8fafc; box-shadow: 0 26px 80px rgba(15,23,42,.24); }
+  .flow-workspace-side { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); border-right: 1px solid #dbeafe; }
+  .flow-workspace-side-head { padding: 18px 20px 16px; border-bottom: 1px solid #dbeafe; background: rgba(255,255,255,.86); backdrop-filter: blur(8px); display: grid; gap: 12px; }
+  .flow-workspace-kicker { font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color: #1d4ed8; }
+  .flow-workspace-title { font-size: 22px; font-weight: 900; color: #0f172a; }
+  .flow-workspace-copy { color: #475569; font-size: 13px; line-height: 1.5; }
+  .flow-workspace-side-scroll { min-height: 0; overflow: auto; padding: 18px 20px 22px; display: grid; gap: 16px; }
+  .flow-workspace-summary { display: grid; gap: 8px; padding: 14px 16px; border-radius: 18px; border: 1px solid #dbeafe; background: linear-gradient(160deg, #eff6ff 0%, #ffffff 100%); }
+  .flow-workspace-summary-line { font-size: 13px; font-weight: 700; color: #1e3a8a; }
+  .flow-workspace-nav { display: grid; gap: 8px; }
+  .flow-workspace-nav-btn { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 11px 13px; border-radius: 12px; border: 1px solid #dbeafe; background: #fff; color: #0f172a; font-size: 13px; font-weight: 800; cursor: pointer; transition: border-color .14s ease, transform .12s ease, box-shadow .14s ease; }
+  .flow-workspace-nav-btn:hover { border-color: #93c5fd; transform: translateY(-1px); box-shadow: 0 8px 22px rgba(59,130,246,.12); }
+  .flow-workspace-nav-btn span:last-child { color: #64748b; font-size: 11px; font-weight: 700; }
+  .flow-workspace-empty { display: grid; gap: 10px; padding: 16px; border-radius: 18px; border: 1px dashed #cbd5e1; background: #fff; color: #475569; }
+  .flow-workspace-empty-title { font-size: 15px; font-weight: 900; color: #0f172a; }
+  .flow-workspace-main { min-width: 0; min-height: 0; display: grid; }
+  .flow-diagram-shell { height: 100%; background: linear-gradient(160deg, #f8fafc 0%, #eff6ff 100%); overflow: hidden; margin-bottom: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
   .flow-diagram-topbar { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: rgba(255,255,255,.7); border-bottom: 1px solid #dbeafe; }
   .flow-diagram-label { font-size: 13px; font-weight: 800; color: #1e40af; }
   .flow-diagram-hint { flex: 1; font-size: 12px; color: #64748b; }
-  .flow-diagram-canvas { display: flex; flex-direction: column; align-items: center; padding: 28px 20px 40px; gap: 0; overflow-x: auto; }
+  .flow-diagram-canvas { display: flex; flex-direction: column; align-items: center; padding: 28px 24px 44px; gap: 0; overflow: auto; min-height: 0; background-image: radial-gradient(circle at 1px 1px, rgba(148,163,184,.28) 1px, transparent 0); background-size: 24px 24px; }
   .flow-diagram-loading { padding: 40px; color: #64748b; font-size: 14px; }
 
   /* Connettore verticale */
@@ -247,7 +265,7 @@
   .flow-each-body { margin: 0 24px; border: 2px dashed #a5b4fc; border-top: none; border-radius: 0 0 12px 12px; padding: 8px 12px 12px; background: rgba(238,242,255,.4); }
   .flow-each-header { font-size: 11px; font-weight: 700; color: #4338ca; background: #eef2ff; padding: 5px 10px; border-radius: 7px; border: 1px solid #c7d2fe; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
 
-  /* ── Interattivo Diagramma ─────────────────────────────────────────── */
+  /* â”€â”€ Interattivo Diagramma â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   .flow-node[data-draggable] { cursor: grab; }
   .flow-node[data-draggable]:active { cursor: grabbing; }
   .flow-node--drag-over { outline: 3px solid #3b82f6 !important; outline-offset: 3px; transform: none !important; }
@@ -261,7 +279,7 @@
   .flow-diagram-add-row { display: flex; flex-direction: column; align-items: center; }
   .flow-diagram-add-btn { display: flex; align-items: center; gap: 7px; padding: 9px 22px; border-radius: 999px; border: 2px dashed #cbd5e1; background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 800; cursor: pointer; transition: border-color .15s, color .15s, background .15s; }
   .flow-diagram-add-btn:hover { border-color: #3b82f6; color: #1d4ed8; background: #eff6ff; }
-  .flow-inline-editor { display: grid; gap: 14px; width: 100%; padding: 18px 20px 22px; border-top: 1px solid #dbeafe; background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); }
+  .flow-inline-editor { display: grid; gap: 14px; width: 100%; padding: 0; border-top: 0; background: transparent; }
   .flow-inline-editor[hidden] { display: none !important; }
   .flow-inline-editor-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
   .flow-inline-editor-title { font-size: 18px; font-weight: 900; color: #0f172a; }
@@ -286,6 +304,19 @@
   .diagram-action-item-icon { font-size: 22px; width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
   .diagram-action-item-label { font-size: 11px; font-weight: 800; color: #334155; text-align: center; line-height: 1.3; }
   .diagram-action-item-app { font-size: 10px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  body.flow-workspace-open { overflow: hidden; }
+  @media (max-width: 1180px) {
+    .flow-workspace-overlay { padding: 8px; }
+    .flow-workspace-shell { height: calc(100vh - 16px); grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); border-radius: 20px; }
+    .flow-workspace-side { border-right: 0; border-bottom: 1px solid #dbeafe; }
+    .flow-workspace-side-scroll { max-height: 42vh; }
+  }
+  @media (max-width: 720px) {
+    .flow-workspace-overlay { padding: 0; }
+    .flow-workspace-shell { height: 100vh; border-radius: 0; }
+    .flow-diagram-topbar { flex-wrap: wrap; }
+    .flow-diagram-canvas { padding: 18px 10px 28px; }
+  }
 </style>
 {% endblock %}
 
@@ -306,12 +337,12 @@
         <div class="designer-section-body">
           <div class="designer-header">
             <div>
-              <div class="designer-summary-kicker">Designer visuale affiancato {% if is_new_rule %}· Nuova regola{% else %}· Regola {{ rule.id }}{% endif %}</div>
+              <div class="designer-summary-kicker">Designer visuale affiancato {% if is_new_rule %}Â· Nuova regola{% else %}Â· Regola {{ rule.id }}{% endif %}</div>
               <div class="designer-section-title">{{ rule_name_value }}</div>
               <div class="designer-section-subtitle">Questa pagina non sostituisce il builder classico: e' una vista piu' leggibile sugli stessi dati e sugli stessi servizi runtime.</div>
             </div>
             <div class="designer-actions">
-              <button type="button" class="btn btn-light" id="flowDiagramToggleBtn" onclick="toggleFlowDiagram()">🔀 Diagramma di flusso</button>
+              <button type="button" class="btn btn-light" id="flowDiagramToggleBtn" onclick="toggleFlowDiagram()">ðŸ”€ Diagramma di flusso</button>
               {% if not is_new_rule %}
                 <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_detail' rule.id %}">Dettaglio</a>
                 <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_edit' rule.id %}">Builder classico</a>
@@ -320,20 +351,6 @@
                 <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_create' %}">Builder classico</a>
                 <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_list' %}">Lista regole</a>
               {% endif %}
-              <div class="flow-inline-editor" id="flowNodeEditorPanel" hidden>
-                <div class="flow-inline-editor-head">
-                  <div>
-                    <div class="designer-summary-kicker">Editor inline</div>
-                    <div class="flow-inline-editor-title" id="flowNodeEditorTitle">Seleziona un'azione dal diagramma</div>
-                    <div class="designer-section-subtitle" id="flowNodeEditorSubtitle">Click sul nodo per modificare direttamente la card qui, senza scendere al form completo.</div>
-                  </div>
-                  <div class="designer-actions">
-                    <button type="button" class="btn btn-light" id="flowNodeEditorCardBtn">Apri card completa</button>
-                    <button type="button" class="btn btn-light" onclick="closeFlowNodeEditor()">Chiudi</button>
-                  </div>
-                </div>
-                <div class="flow-inline-editor-body" id="flowNodeEditorMount"></div>
-              </div>
             </div>
           </div>
 
@@ -367,18 +384,75 @@
             </div>
           </div>
 
-          {# ── Flow Diagram Panel ──────────────────────────────────────────── #}
-          <div id="flowDiagramPanel" hidden>
-            <div class="flow-diagram-shell">
+          {# â”€â”€ Flow Diagram Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ #}
+          <div id="flowDiagramPanel" class="flow-workspace-overlay" hidden>
+            <div class="flow-workspace-shell" role="dialog" aria-modal="true" aria-label="Workspace diagramma di flusso">
+              <aside class="flow-workspace-side">
+                <div class="flow-workspace-side-head">
+                  <div class="flow-workspace-kicker">Workspace flow</div>
+                  <div class="flow-workspace-title">{{ rule_name_value }}</div>
+                  <div class="flow-workspace-copy">Canvas a destra, inspector a sinistra. Il diagramma resta visibile mentre modifichi la card selezionata.</div>
+                  <div class="designer-pill-row">
+                    <span class="designer-pill designer-pill-primary">{{ trigger_descriptor.operation_label }}</span>
+                    <span class="designer-pill">{{ existing_condition_entries|length }} condizioni</span>
+                    <span class="designer-pill designer-pill-success">{{ existing_action_entries|length }} azioni</span>
+                  </div>
+                  <div class="designer-actions">
+                    <button class="btn" type="submit">Salva designer</button>
+                    <button type="button" class="btn btn-light" onclick="toggleFlowDiagram()">Chiudi workspace</button>
+                  </div>
+                </div>
+                <div class="flow-workspace-side-scroll">
+                  <div class="flow-workspace-summary">
+                    <div class="designer-summary-kicker">Riepilogo rapido</div>
+                    <div class="flow-workspace-summary-line">{{ human_rule_summary.when }}</div>
+                    <div class="flow-workspace-summary-line">{{ human_rule_summary.scope }}</div>
+                    <div class="flow-workspace-summary-line">{{ human_rule_summary.condition_line }}</div>
+                  </div>
+                  <div class="flow-workspace-nav">
+                    <button type="button" class="flow-workspace-nav-btn" onclick="scrollToAnchor('trigger-section')">
+                      <span>Apri trigger completo</span><span>pagina</span>
+                    </button>
+                    <button type="button" class="flow-workspace-nav-btn" onclick="scrollToAnchor('conditions-section')">
+                      <span>Apri condizioni complete</span><span>pagina</span>
+                    </button>
+                    <button type="button" class="flow-workspace-nav-btn" onclick="scrollToAnchor('actions-section')">
+                      <span>Apri lista azioni</span><span>pagina</span>
+                    </button>
+                  </div>
+                  <div class="flow-workspace-empty" id="flowWorkspaceEmptyState">
+                    <div class="flow-workspace-empty-title">Seleziona un nodo azione</div>
+                    <div>Click su un'azione nel canvas per aprire qui l'editor fissato. In questo modo lavori sul flow senza dover scorrere avanti e indietro tutta la pagina.</div>
+                  </div>
+                  <div class="flow-inline-editor" id="flowNodeEditorPanel" hidden>
+                    <div class="flow-inline-editor-head">
+                      <div>
+                        <div class="designer-summary-kicker">Editor inline</div>
+                        <div class="flow-inline-editor-title" id="flowNodeEditorTitle">Seleziona un'azione dal diagramma</div>
+                        <div class="designer-section-subtitle" id="flowNodeEditorSubtitle">Click sul nodo per modificare direttamente la card qui, senza scendere al form completo.</div>
+                      </div>
+                      <div class="designer-actions">
+                        <button type="button" class="btn btn-light" id="flowNodeEditorCardBtn">Apri card completa</button>
+                        <button type="button" class="btn btn-light" onclick="closeFlowNodeEditor()">Chiudi</button>
+                      </div>
+                    </div>
+                    <div class="flow-inline-editor-body" id="flowNodeEditorMount"></div>
+                  </div>
+                </div>
+              </aside>
+              <section class="flow-workspace-main">
+                <div class="flow-diagram-shell">
               <div class="flow-diagram-topbar">
-                <span class="flow-diagram-label">🔀 Diagramma di flusso</span>
-                <span class="flow-diagram-hint">Trascina per riordinare · click sul nodo per modificare · ＋ per aggiungere · ✕ per rimuovere</span>
-                <button type="button" class="btn btn-light btn-sm" id="flowDiagramPngBtn" onclick="downloadDiagramPng()" title="Scarica come immagine PNG">⬇ PNG</button>
-                <button type="button" class="btn btn-light btn-sm" onclick="toggleFlowDiagram()">✕ Chiudi</button>
+                <span class="flow-diagram-label">ðŸ”€ Diagramma di flusso</span>
+                <span class="flow-diagram-hint">Trascina per riordinare Â· click sul nodo per modificare Â· ï¼‹ per aggiungere Â· âœ• per rimuovere</span>
+                <button type="button" class="btn btn-light btn-sm" id="flowDiagramPngBtn" onclick="downloadDiagramPng()" title="Scarica come immagine PNG">â¬‡ PNG</button>
+                <button type="button" class="btn btn-light btn-sm" onclick="toggleFlowDiagram()">âœ• Chiudi</button>
               </div>
               <div class="flow-diagram-canvas" id="flowDiagramCanvas">
-                <div class="flow-diagram-loading">Generazione diagramma…</div>
+                <div class="flow-diagram-loading">Generazione diagrammaâ€¦</div>
               </div>
+                </div>
+              </section>
             </div>
           </div>
 
@@ -430,9 +504,11 @@
       </div>
 
       <div class="designer-sections">
-        {% include "automazioni/components/trigger_card.html" %}
+        <div id="trigger-section">
+          {% include "automazioni/components/trigger_card.html" %}
+        </div>
 
-        <section class="designer-section-card">
+        <section class="designer-section-card" id="conditions-section">
           <div class="designer-section-head">
             <div>
               <div class="designer-section-title">Condizioni</div>
@@ -471,7 +547,7 @@
           </div>
         </section>
 
-        <section class="designer-section-card">
+        <section class="designer-section-card" id="actions-section">
           <div class="designer-section-head">
             <div>
               <div class="designer-section-title">Azioni</div>
@@ -519,16 +595,16 @@
 
     <aside class="designer-side">
 
-      {# ── Test live panel ── #}
+      {# â”€â”€ Test live panel â”€â”€ #}
       {% if not is_new_rule %}
       <div class="designer-section-card" id="livetest-panel">
         <div class="designer-section-head">
           <div>
             <div class="designer-section-title" style="display:flex;align-items:center;gap:8px;">
               Test live
-              <span class="designer-pill designer-pill-success" style="font-size:10px;padding:3px 8px;">▶ Pronto</span>
+              <span class="designer-pill designer-pill-success" style="font-size:10px;padding:3px 8px;">â–¶ Pronto</span>
             </div>
-            <div class="designer-section-subtitle">Esegui con dati campione o un record reale — risultati azione per azione.</div>
+            <div class="designer-section-subtitle">Esegui con dati campione o un record reale â€” risultati azione per azione.</div>
           </div>
         </div>
         <div class="designer-section-body">
@@ -539,7 +615,7 @@
             <button class="livetest-tab" type="button" data-livetest-tab="real">Record reale</button>
           </div>
 
-          {# ── Tab: Dati campione ── #}
+          {# â”€â”€ Tab: Dati campione â”€â”€ #}
           <div data-livetest-panel="sample">
             <div class="designer-field" style="margin-top:10px;">
               <label style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#64748b;">Payload ({{ trigger_descriptor.source_label }})</label>
@@ -553,13 +629,13 @@
             {% endif %}
           </div>
 
-          {# ── Tab: Record reale ── #}
+          {# â”€â”€ Tab: Record reale â”€â”€ #}
           <div data-livetest-panel="real" hidden>
             <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
               <div class="designer-field" style="flex:1;min-width:130px;">
                 <label style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#64748b;">Record {{ trigger_descriptor.source_label }}</label>
                 <select id="livetest-record-select" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;">
-                  <option value="">— premi Carica —</option>
+                  <option value="">â€” premi Carica â€”</option>
                 </select>
               </div>
               <button type="button" class="btn btn-light" id="livetest-load-records-btn"
@@ -569,7 +645,7 @@
             <button type="button" class="btn btn-light" id="livetest-use-record-btn"
                     data-payload-url-template="{% url 'admin_portale:automazioni_api_record_payload' source_code=rule.source_code record_id='RECORD_ID' %}"
                     disabled style="margin-top:8px;width:100%;">
-              Usa come payload →
+              Usa come payload â†’
             </button>
             <div class="designer-field" style="margin-top:10px;">
               <label style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#64748b;">Payload caricato</label>
@@ -589,7 +665,7 @@
                     data-test-url="{% url 'admin_portale:automazioni_api_test_rule_ajax' rule_id=rule.id %}"
                     data-is-update="{{ rule_is_update|yesno:'true,false' }}"
                     data-run-log-base="{% url 'admin_portale:automazioni_run_log_list' %}">
-              ▶ Esegui test
+              â–¶ Esegui test
             </button>
             <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_test' rule.id %}">Test completo</a>
           </div>
@@ -614,7 +690,7 @@
       <div class="designer-section-card">
         <div class="designer-section-body">
           <div class="designer-summary-kicker">Test live</div>
-          <div class="designer-note" style="margin-top:8px;">Il test live sarà disponibile dopo il primo salvataggio della regola.</div>
+          <div class="designer-note" style="margin-top:8px;">Il test live sarÃ  disponibile dopo il primo salvataggio della regola.</div>
           <div style="margin-top:10px;">
             <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#64748b;margin-bottom:6px;">Payload campione</div>
             <pre style="margin:0;padding:12px;border-radius:10px;background:#0f172a;color:#e2e8f0;font-size:11px;max-height:160px;overflow:auto;">{{ sample_payload_json }}</pre>
@@ -628,15 +704,15 @@
   </form>
   </div>
 
-{# ── Hidden empty-form templates per clonazione JS ── #}
+{# â”€â”€ Hidden empty-form templates per clonazione JS â”€â”€ #}
 <div id="empty-condition-card" hidden>
 {% with ef=condition_formset.empty_form %}
 <article class="designer-meta-card" data-condition-card data-is-existing="false">
   {% for hf in ef.hidden_fields %}{{ hf }}{% endfor %}
   <div class="designer-header">
     <div>
-      <div class="designer-summary-kicker">Condizione <span data-order-badge>—</span></div>
-      <div class="designer-summary-line" style="font-size:15px;" data-condition-summary>—</div>
+      <div class="designer-summary-kicker">Condizione <span data-order-badge>â€”</span></div>
+      <div class="designer-summary-line" style="font-size:15px;" data-condition-summary>â€”</div>
       <div class="designer-section-subtitle" data-condition-human-summary>Nuova condizione</div>
     </div>
     <div class="designer-actions">
@@ -683,7 +759,7 @@
   {% for hf in ef.hidden_fields %}{{ hf }}{% endfor %}
   <div class="designer-header">
     <div>
-      <div class="designer-summary-kicker">Azione <span data-order-badge>—</span></div>
+      <div class="designer-summary-kicker">Azione <span data-order-badge>â€”</span></div>
       <div class="designer-summary-line" style="font-size:15px;" data-action-label>-</div>
       <div class="designer-section-subtitle" data-action-summary>Nuova azione</div>
     </div>
@@ -749,15 +825,15 @@
           <div class="email-preview-header">
             <div class="email-preview-row">
               <span class="email-preview-label">Da</span>
-              <span data-preview-from class="email-preview-value">—</span>
+              <span data-preview-from class="email-preview-value">â€”</span>
             </div>
             <div class="email-preview-row">
               <span class="email-preview-label">A</span>
-              <span data-preview-to class="email-preview-value">—</span>
+              <span data-preview-to class="email-preview-value">â€”</span>
             </div>
             <div class="email-preview-row email-preview-subject-row">
               <span class="email-preview-label">Oggetto</span>
-              <strong data-preview-subject class="email-preview-subject-value">—</strong>
+              <strong data-preview-subject class="email-preview-subject-value">â€”</strong>
             </div>
           </div>
           <div class="email-preview-body" data-preview-body>(corpo non compilato)</div>
@@ -845,59 +921,53 @@
       </div>
       <div class="designer-editor-panel" data-action-config="send_approval" style="margin-top:12px;">
         <div class="designer-editor-panel-title" style="display:flex;align-items:center;gap:8px;">
-          <span>✅ Richiedi Approvazione</span>
+          <span>Richiedi approvazione</span>
           <span class="designer-pill designer-pill-primary" style="font-size:11px;">flusso si mette in pausa</span>
         </div>
         <div class="designer-help" style="margin-bottom:10px;">
-          Invia email agli approvatori con link Approva/Rifiuta. Opzionalmente invia anche una card Teams con bottoni nativi.
+          Il portale crea la richiesta, genera i link Approva/Rifiuta e resta la source of truth. Puoi consegnarla via email, webhook Teams legacy o Teams chat flow verso il singolo utente.
         </div>
         <div class="designer-trigger-copy">
-          <div class="designer-field designer-field-wide">
-            <label>Email approvatori (template, virgola-separati)</label>
-            {{ ef.approval_to_template }}
-          </div>
-          <div class="designer-field designer-field-wide">
-            <label>Oggetto email</label>
-            {{ ef.approval_subject_template }}
-          </div>
-          <div class="designer-field designer-field-wide">
-            <label>Testo del messaggio</label>
-            {{ ef.approval_message_template }}
-          </div>
-          <div class="designer-field">
-            <label>Scadenza (giorni)</label>
-            {{ ef.approval_expiry_days }}
-          </div>
-          <div class="designer-field">
-            <label>Label "Approva"</label>
-            {{ ef.approval_approve_label }}
-          </div>
-          <div class="designer-field">
-            <label>Label "Rifiuta"</label>
-            {{ ef.approval_reject_label }}
-          </div>
+          <div class="designer-field">{{ ef.approval_delivery_mode.label_tag }}{{ ef.approval_delivery_mode }}</div>
+          <div class="designer-field designer-field-wide">{{ ef.approval_to_template.label_tag }}{{ ef.approval_to_template }}</div>
+          <div class="designer-field designer-field-wide">{{ ef.approval_subject_template.label_tag }}{{ ef.approval_subject_template }}</div>
+          <div class="designer-field designer-field-wide">{{ ef.approval_message_template.label_tag }}{{ ef.approval_message_template }}</div>
+          <div class="designer-field">{{ ef.approval_expiry_days.label_tag }}{{ ef.approval_expiry_days }}</div>
+          <div class="designer-field">{{ ef.approval_approve_label.label_tag }}{{ ef.approval_approve_label }}</div>
+          <div class="designer-field">{{ ef.approval_reject_label.label_tag }}{{ ef.approval_reject_label }}</div>
         </div>
         <details class="designer-subeditor" style="margin-top:12px;">
-          <summary class="designer-subeditor-summary">💬 Notifica anche su Teams (opzionale)</summary>
+          <summary class="designer-subeditor-summary">Recapito Teams</summary>
           <div class="designer-trigger-copy" style="margin-top:10px;">
-            <div class="designer-field designer-field-wide">
-              <label>Canale Teams</label>
-              {{ ef.approval_teams_preset_id }}
-              {% if not teams_presets %}
-                <div class="designer-help" style="color:#92400e;margin-top:4px;">
-                  Nessun canale configurato.
-                  <a href="{% url 'admin_portale:automazioni_teams_presets' %}" target="_blank">Aggiungi un canale Teams</a>
-                </div>
-              {% endif %}
-            </div>
-            <div class="designer-field designer-field-wide">
-              <label>Titolo card Teams</label>
-              {{ ef.approval_teams_title_template }}
-            </div>
-            <div class="designer-field designer-field-wide">
-              <label>Fatti (una riga: <code>Etichetta | {valore}</code>)</label>
-              {{ ef.approval_teams_facts_inline }}
-            </div>
+            <div class="designer-field designer-field-wide">{{ ef.approval_teams_preset_id.label_tag }}{{ ef.approval_teams_preset_id }}</div>
+            <div class="designer-field designer-field-wide">{{ ef.approval_teams_flow_endpoint_id.label_tag }}{{ ef.approval_teams_flow_endpoint_id }}</div>
+            <div class="designer-field designer-field-wide">{{ ef.approval_teams_recipient_email_template.label_tag }}{{ ef.approval_teams_recipient_email_template }}</div>
+            <div class="designer-field designer-field-wide">{{ ef.approval_teams_title_template.label_tag }}{{ ef.approval_teams_title_template }}</div>
+            <div class="designer-field designer-field-wide">{{ ef.approval_teams_facts_inline.label_tag }}{{ ef.approval_teams_facts_inline }}</div>
+            <div class="designer-field designer-field-wide designer-field-compact-toggle">{{ ef.approval_strict_teams_flow.label_tag }}<div class="designer-toggle-wrap">{{ ef.approval_strict_teams_flow }}</div>{% if ef.approval_strict_teams_flow.help_text %}<div class="designer-help">{{ ef.approval_strict_teams_flow.help_text }}</div>{% endif %}</div>
+            {% if teams_flow_endpoints_warning %}
+              <div class="designer-help designer-field-wide" style="color:#92400e;">
+                {{ teams_flow_endpoints_warning }} Vai su <a href="{% url 'admin_portale:automazioni_teams_presets' %}" target="_blank">Canali Teams</a> dopo aver applicato <code>python manage.py migrate automazioni</code>.
+              </div>
+            {% elif not teams_presets or not teams_flow_endpoints %}
+              <div class="designer-help designer-field-wide" style="color:#92400e;">
+                Configura prima i recapiti Teams da <a href="{% url 'admin_portale:automazioni_teams_presets' %}" target="_blank">Canali Teams</a>.
+              </div>
+            {% endif %}
+          </div>
+        </details>
+        <details class="designer-subeditor" style="margin-top:6px;">
+          <summary class="designer-subeditor-summary">Azioni se approvato</summary>
+          <div style="margin-top:10px;">
+            {{ ef.approval_approved_actions_json }}
+            {% if ef.approval_approved_actions_json.help_text %}<div class="designer-help">{{ ef.approval_approved_actions_json.help_text }}</div>{% endif %}
+          </div>
+        </details>
+        <details class="designer-subeditor" style="margin-top:8px;">
+          <summary class="designer-subeditor-summary">Azioni se rifiutato</summary>
+          <div style="margin-top:10px;">
+            {{ ef.approval_rejected_actions_json }}
+            {% if ef.approval_rejected_actions_json.help_text %}<div class="designer-help">{{ ef.approval_rejected_actions_json.help_text }}</div>{% endif %}
           </div>
         </details>
       </div>
@@ -907,12 +977,12 @@
 {% endwith %}
 </div>
 
-{# ── Modal aggiunta azione dal diagramma ── #}
+{# â”€â”€ Modal aggiunta azione dal diagramma â”€â”€ #}
 <div id="diagramAddModal" class="diagram-modal-overlay" hidden aria-modal="true" role="dialog">
   <div class="diagram-modal-box">
     <div class="diagram-modal-head">
       <span class="diagram-modal-title">Aggiungi azione al flusso</span>
-      <button class="diagram-modal-close" type="button" onclick="closeDiagramAddModal()" aria-label="Chiudi">✕</button>
+      <button class="diagram-modal-close" type="button" onclick="closeDiagramAddModal()" aria-label="Chiudi">âœ•</button>
     </div>
     <div class="diagram-modal-body">
       <div class="diagram-action-grid" id="diagramActionGrid">
@@ -1294,7 +1364,7 @@
       summaryNode.textContent = (fieldRaw || 'campo') + ' ' + (operatorRaw || 'operatore') + (expectedValue ? ' ' + expectedValue : '');
     }
     if (humanNode) {
-      humanNode.textContent = fieldLabel + ' • ' + operatorLabel;
+      humanNode.textContent = fieldLabel + ' â€¢ ' + operatorLabel;
     }
   }
 
@@ -2003,7 +2073,7 @@
   forEachNode(document.querySelectorAll('[data-sortable-list]'), enableSortable);
   focusFirstSmartTarget();
 
-  // ── Live test panel ────────────────────────────────────────────────────
+  // â”€â”€ Live test panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   (function() {
     var livetestCurrentTab = 'sample';
     var livetestIsRunning = false;
@@ -2049,7 +2119,7 @@
               }
               var records = data.records || [];
               recordSelect.innerHTML = records.length
-                ? '<option value="">— seleziona —</option>'
+                ? '<option value="">â€” seleziona â€”</option>'
                 : '<option value="">Nessun record trovato</option>';
               records.forEach(function(rec) {
                 var opt = document.createElement('option');
@@ -2071,7 +2141,7 @@
         recordSelect.addEventListener('change', function() { useRecordBtn.disabled = !recordSelect.value; });
       }
 
-      // Use record → fetch full payload
+      // Use record â†’ fetch full payload
       if (useRecordBtn) {
         useRecordBtn.addEventListener('click', function() {
           var recordId = recordSelect ? recordSelect.value : '';
@@ -2124,7 +2194,7 @@
 
         livetestIsRunning = true;
         runBtn.disabled = true;
-        runBtn.textContent = '⟳ Esecuzione...';
+        runBtn.textContent = 'âŸ³ Esecuzione...';
 
         var body = { payload: payload };
         if (oldPayload) body.old_payload = oldPayload;
@@ -2136,11 +2206,11 @@
         })
           .then(function(r) { return r.json(); })
           .then(function(data) {
-            livetestIsRunning = false; runBtn.disabled = false; runBtn.textContent = '▶ Esegui test';
+            livetestIsRunning = false; runBtn.disabled = false; runBtn.textContent = 'â–¶ Esegui test';
             renderLivetestResults(data, runLogBase);
           })
           .catch(function(err) {
-            livetestIsRunning = false; runBtn.disabled = false; runBtn.textContent = '▶ Esegui test';
+            livetestIsRunning = false; runBtn.disabled = false; runBtn.textContent = 'â–¶ Esegui test';
             renderLivetestResults({ ok: false, status: 'error', result_message: 'Errore di rete: ' + String(err.message || err) }, runLogBase);
           });
       });
@@ -2157,10 +2227,10 @@
       resultsEl.hidden = false;
 
       var statusMap = {
-        success: { label: 'SUCCESSO', cls: 'designer-pill-success', icon: '✓' },
-        error:   { label: 'ERRORE',   cls: 'designer-pill',         icon: '✗' },
-        skipped: { label: 'SALTATA',  cls: 'designer-pill-warning', icon: '—' },
-        test:    { label: 'TEST OK',  cls: 'designer-pill-success', icon: '✓' },
+        success: { label: 'SUCCESSO', cls: 'designer-pill-success', icon: 'âœ“' },
+        error:   { label: 'ERRORE',   cls: 'designer-pill',         icon: 'âœ—' },
+        skipped: { label: 'SALTATA',  cls: 'designer-pill-warning', icon: 'â€”' },
+        test:    { label: 'TEST OK',  cls: 'designer-pill-success', icon: 'âœ“' },
       };
       var s = String(data.status || '').toLowerCase();
       var si = statusMap[s] || { label: String(data.status || 'N/D').toUpperCase(), cls: '', icon: '?' };
@@ -2186,7 +2256,7 @@
           var ai = statusMap[as] || { label: as.toUpperCase(), cls: '', icon: '?' };
           var stepCls = as === 'success' ? 'success' : (as === 'error' ? 'error' : 'skipped');
           var aType = alog.action_type ? alog.action_type.replace(/_/g, ' ') : ('azione ' + (i + 1));
-          var aDesc = alog.action_desc ? ' — ' + alog.action_desc : '';
+          var aDesc = alog.action_desc ? ' â€” ' + alog.action_desc : '';
           var div = document.createElement('div');
           div.className = 'livetest-result-step ' + stepCls;
           div.innerHTML =
@@ -2206,7 +2276,7 @@
         if (hasGlobal) errorTrace.textContent = data.error_trace || '';
       }
       if (linkEl && data.run_log_id && runLogBase) {
-        linkEl.innerHTML = '<a href="' + runLogBase + data.run_log_id + '/" style="color:#1d4ed8;">Apri run log #' + data.run_log_id + ' →</a>';
+        linkEl.innerHTML = '<a href="' + runLogBase + data.run_log_id + '/" style="color:#1d4ed8;">Apri run log #' + data.run_log_id + ' â†’</a>';
       }
       if (resultsEl.scrollIntoView) resultsEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
@@ -2214,7 +2284,7 @@
     initLivetest();
   }());
 
-  // ── Email live preview ─────────────────────────────────────────────────
+  // â”€â”€ Email live preview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   (function() {
     function highlightPh(text) {
       return String(text || '')
@@ -2233,9 +2303,9 @@
       var toNode   = preview.querySelector('[data-preview-to]');
       var subNode  = preview.querySelector('[data-preview-subject]');
       var bodyNode = preview.querySelector('[data-preview-body]');
-      if (fromNode) fromNode.textContent = (fromEl && fromEl.value) || '—';
-      if (toNode)   toNode.textContent   = (toEl   && toEl.value)   || '—';
-      if (subNode)  subNode.innerHTML    = highlightPh((subEl  && subEl.value)  || '—');
+      if (fromNode) fromNode.textContent = (fromEl && fromEl.value) || 'â€”';
+      if (toNode)   toNode.textContent   = (toEl   && toEl.value)   || 'â€”';
+      if (subNode)  subNode.innerHTML    = highlightPh((subEl  && subEl.value)  || 'â€”');
       if (bodyNode) bodyNode.innerHTML   = highlightPh((bodyEl && bodyEl.value) || '(corpo non compilato)');
     }
 
@@ -2262,7 +2332,7 @@
 
 })();
 
-// ── Flow Diagram ────────────────────────────────────────────────────────────
+// â”€â”€ Flow Diagram â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 (function() {
   'use strict';
 
@@ -2271,21 +2341,21 @@
   var _diagramNodes   = [];   // stato corrente nodi (arricchiti)
   var _dragNodeId     = null; // nodo attualmente in drag
 
-  // Stili azioni — specchio di _ACTION_NODE_STYLES in views.py
+  // Stili azioni â€” specchio di _ACTION_NODE_STYLES in views.py
   var _DIAG_STYLES = {
-    'send_email':             {icon:'✉️',  color:'#2563eb', bg:'#eff6ff', label:'Send email',           app:'Email'},
-    'insert_record':          {icon:'➕',  color:'#16a34a', bg:'#f0fdf4', label:'Insert record',         app:'Database'},
-    'update_record':          {icon:'✏️',  color:'#0d9488', bg:'#f0fdfa', label:'Update record',         app:'Database'},
-    'update_trigger_record':  {icon:'🔄',  color:'#0d9488', bg:'#f0fdfa', label:'Update trigger record', app:'Database'},
-    'update_dashboard_metric':{icon:'📊',  color:'#7c3aed', bg:'#f5f3ff', label:'Update metric',         app:'Dashboard'},
-    'write_log':              {icon:'📝',  color:'#475569', bg:'#f8fafc', label:'Write log',             app:'Log'},
-    'delay_schedule':         {icon:'⏰',  color:'#d97706', bg:'#fffbeb', label:'Delay / Schedule',      app:'Scheduler'},
-    'http_request':           {icon:'🌐',  color:'#0369a1', bg:'#f0f9ff', label:'HTTP request',          app:'HTTP'},
-    'teams_webhook':          {icon:'💬',  color:'#5b5fc7', bg:'#eef2ff', label:'Teams webhook',         app:'Teams'},
-    'send_approval':          {icon:'✅',  color:'#9333ea', bg:'#faf5ff', label:'Richiedi Approvazione', app:'Approvazione'},
-    'do_until':               {icon:'🔁',  color:'#0891b2', bg:'#ecfeff', label:'Do Until',              app:'Loop'},
-    'for_each':               {icon:'🔂',  color:'#4f46e5', bg:'#eef2ff', label:'Per Ogni Elemento',     app:'Iterazione'},
-    'branch':                 {icon:'🔀',  color:'#ea580c', bg:'#fff7ed', label:'Branch / If-Else',      app:'Condizione'},
+    'send_email':             {icon:'âœ‰ï¸',  color:'#2563eb', bg:'#eff6ff', label:'Send email',           app:'Email'},
+    'insert_record':          {icon:'âž•',  color:'#16a34a', bg:'#f0fdf4', label:'Insert record',         app:'Database'},
+    'update_record':          {icon:'âœï¸',  color:'#0d9488', bg:'#f0fdfa', label:'Update record',         app:'Database'},
+    'update_trigger_record':  {icon:'ðŸ”„',  color:'#0d9488', bg:'#f0fdfa', label:'Update trigger record', app:'Database'},
+    'update_dashboard_metric':{icon:'ðŸ“Š',  color:'#7c3aed', bg:'#f5f3ff', label:'Update metric',         app:'Dashboard'},
+    'write_log':              {icon:'ðŸ“',  color:'#475569', bg:'#f8fafc', label:'Write log',             app:'Log'},
+    'delay_schedule':         {icon:'â°',  color:'#d97706', bg:'#fffbeb', label:'Delay / Schedule',      app:'Scheduler'},
+    'http_request':           {icon:'ðŸŒ',  color:'#0369a1', bg:'#f0f9ff', label:'HTTP request',          app:'HTTP'},
+    'teams_webhook':          {icon:'ðŸ’¬',  color:'#5b5fc7', bg:'#eef2ff', label:'Teams webhook',         app:'Teams'},
+    'send_approval':          {icon:'âœ…',  color:'#9333ea', bg:'#faf5ff', label:'Richiedi Approvazione', app:'Approvazione'},
+    'do_until':               {icon:'ðŸ”',  color:'#0891b2', bg:'#ecfeff', label:'Do Until',              app:'Loop'},
+    'for_each':               {icon:'ðŸ”‚',  color:'#4f46e5', bg:'#eef2ff', label:'Per Ogni Elemento',     app:'Iterazione'},
+    'branch':                 {icon:'ðŸ”€',  color:'#ea580c', bg:'#fff7ed', label:'Branch / If-Else',      app:'Condizione'},
   };
 
   function getDiagramActionChoices() {
@@ -2302,7 +2372,7 @@
   getDiagramActionChoices().forEach(function(choice) {
     if (!choice || !choice.value) return;
     _DIAG_STYLES[String(choice.value)] = {
-      icon: choice.icon || '⚡',
+      icon: choice.icon || 'âš¡',
       color: choice.color || '#64748b',
       bg: choice.bg || '#f8fafc',
       label: choice.label || choice.value,
@@ -2313,6 +2383,55 @@
   var _flowNodeEditorState = null;
   var _diagramSyncQueue = [];
   var _diagramSyncTimer = null;
+
+  function _setFlowWorkspaceBodyLock(isLocked) {
+    if (!document.body) return;
+    document.body.classList.toggle('flow-workspace-open', !!isLocked);
+  }
+
+  function _setFlowDiagramToggleState(isOpen) {
+    var btn = document.getElementById('flowDiagramToggleBtn');
+    if (!btn) return;
+    btn.style.background = isOpen ? '#dbeafe' : '';
+    btn.style.color = isOpen ? '#1d4ed8' : '';
+    btn.style.border = isOpen ? '1px solid #93c5fd' : '';
+  }
+
+  function _syncFlowWorkspaceEmptyState() {
+    var emptyState = document.getElementById('flowWorkspaceEmptyState');
+    var panel = document.getElementById('flowNodeEditorPanel');
+    if (!emptyState || !panel) return;
+    emptyState.hidden = !panel.hidden;
+  }
+
+  function _closeFlowDiagramWorkspace() {
+    var panel = document.getElementById('flowDiagramPanel');
+    if (!panel) return;
+    if (typeof closeDiagramAddModal === 'function') closeDiagramAddModal();
+    closeFlowNodeEditor();
+    panel.hidden = true;
+    _diagramOpen = false;
+    _setFlowWorkspaceBodyLock(false);
+    _setFlowDiagramToggleState(false);
+  }
+
+  function _openFlowDiagramWorkspace() {
+    var panel = document.getElementById('flowDiagramPanel');
+    if (!panel) return;
+    panel.hidden = false;
+    _diagramOpen = true;
+    _setFlowWorkspaceBodyLock(true);
+    _setFlowDiagramToggleState(true);
+    if (!_diagramRendered) {
+      _initDiagramState();
+      _diagramRendered = true;
+    } else {
+      _renderDiagramFromState();
+      _initDiagramEvents();
+      _highlightActiveEditorNode();
+    }
+    _syncFlowWorkspaceEmptyState();
+  }
 
   function _cardField(card, fieldName) {
     return card ? card.querySelector('[name$="-' + fieldName + '"]') : null;
@@ -2417,6 +2536,7 @@
     if (mount) mount.innerHTML = '';
     if (panel) panel.hidden = true;
     _flowNodeEditorState = null;
+    _syncFlowWorkspaceEmptyState();
     _highlightActiveEditorNode();
   }
 
@@ -2435,6 +2555,7 @@
     if (_flowNodeEditorState && _flowNodeEditorState.nodeId === nodeId) {
       var existingPanel = document.getElementById('flowNodeEditorPanel');
       if (existingPanel) existingPanel.hidden = false;
+      _syncFlowWorkspaceEmptyState();
       _highlightActiveEditorNode();
       return;
     }
@@ -2466,6 +2587,7 @@
     card.classList.add('flow-inline-editor-card');
     mount.appendChild(card);
     panel.hidden = false;
+    _syncFlowWorkspaceEmptyState();
     _updateFlowNodeEditorHeader(node, card);
     _highlightActiveEditorNode();
     if (panel.scrollIntoView) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -2486,7 +2608,7 @@
     var selectedOption = actionTypeField && actionTypeField.options ? actionTypeField.options[actionTypeField.selectedIndex] : null;
     var actionLabel = selectedOption ? String(selectedOption.text || '').trim() : (actionType || 'Azione');
     var description = descriptionField ? String(descriptionField.value || '').trim() : '';
-    var style = _DIAG_STYLES[actionType] || { icon: 'âš¡', color: '#64748b', bg: '#f8fafc', app: 'Azione' };
+    var style = _DIAG_STYLES[actionType] || { icon: 'Ã¢Å¡Â¡', color: '#64748b', bg: '#f8fafc', app: 'Azione' };
 
     node.action_type = actionType;
     node.type = _getActionTypeNodeKind(actionType);
@@ -2531,21 +2653,11 @@
   }
 
   window.toggleFlowDiagram = function() {
-    var panel = document.getElementById('flowDiagramPanel');
-    var btn   = document.getElementById('flowDiagramToggleBtn');
-    if (!panel) return;
-    _diagramOpen = !_diagramOpen;
-    if (!_diagramOpen) closeFlowNodeEditor();
-    panel.hidden = !_diagramOpen;
-    if (btn) {
-      btn.style.background = _diagramOpen ? '#dbeafe' : '';
-      btn.style.color      = _diagramOpen ? '#1d4ed8' : '';
-      btn.style.border     = _diagramOpen ? '1px solid #93c5fd' : '';
+    if (_diagramOpen) {
+      _closeFlowDiagramWorkspace();
+      return;
     }
-    if (_diagramOpen && !_diagramRendered) {
-      _initDiagramState();
-      _diagramRendered = true;
-    }
+    _openFlowDiagramWorkspace();
   };
 
   function getFlowNodes() {
@@ -2568,7 +2680,7 @@
   function makeInlineActionNode(a) {
     return '<div class="flow-branch-inner-node" style="border-left:3px solid ' + esc(a.color || '#64748b') + ';">'
       + '<div class="flow-branch-inner-node-inner">'
-      + '<span class="flow-branch-inner-icon">' + esc(a.icon || '⚡') + '</span>'
+      + '<span class="flow-branch-inner-icon">' + esc(a.icon || 'âš¡') + '</span>'
       + '<span class="flow-branch-inner-title">' + esc(a.title || a.action_type) + '</span>'
       + '</div></div>';
   }
@@ -2596,7 +2708,7 @@
     var type       = node.type || 'action';
     var accentColor = node.color || '#64748b';
     var bgColor     = node.bg || '#f8fafc';
-    var icon        = node.icon || '⚡';
+    var icon        = node.icon || 'âš¡';
     var app         = node.app || '';
     var title       = node.title || '';
     var subtitle    = node.subtitle || '';
@@ -2616,7 +2728,7 @@
 
     // Accent bar + inner
     html += '<div style="display:flex;">';
-    if (isInteractive) html += '<div class="flow-node-drag-handle" title="Trascina per riordinare">⠿</div>';
+    if (isInteractive) html += '<div class="flow-node-drag-handle" title="Trascina per riordinare">â ¿</div>';
     html += '<div class="flow-node-accent" style="background:' + accentColor + ';"></div>';
     html += '<div class="flow-node-inner" style="flex:1;">';
 
@@ -2643,10 +2755,10 @@
 
     // Pills per tipo speciale
     if (type === 'send_approval') {
-      html += '<span class="flow-pill flow-pill-blue">⏸ Pausa flusso</span><span class="flow-pill flow-pill-orange">Attende decisione umana</span>';
+      html += '<span class="flow-pill flow-pill-blue">â¸ Pausa flusso</span><span class="flow-pill flow-pill-orange">Attende decisione umana</span>';
     } else if (type === 'do_until') {
       var loop = node.loop || {};
-      html += '<span class="flow-pill flow-pill-blue">🔁 max ' + esc(loop.max_iterations || '10') + ' iter.</span>';
+      html += '<span class="flow-pill flow-pill-blue">ðŸ” max ' + esc(loop.max_iterations || '10') + ' iter.</span>';
       if (loop.retry_delay) html += '<span class="flow-pill flow-pill-gray">ogni ' + esc(loop.retry_delay) + '</span>';
     } else if (type === 'for_each') {
       var each = node.each || {};
@@ -2668,8 +2780,8 @@
     // Azioni nodo: delete + modifica
     if (type !== 'trigger' && type !== 'end' && type !== 'conditions') {
       html += '<div class="flow-node-actions">';
-      html += '<button class="flow-node-delete-btn" data-delete-node="' + esc(node.id) + '" title="Rimuovi azione" type="button">✕</button>';
-      if (anchor) html += '<button class="flow-node-end-btn" onclick="scrollToAnchor(\'' + esc(anchor) + '\')" type="button">Modifica ↓</button>';
+      html += '<button class="flow-node-delete-btn" data-delete-node="' + esc(node.id) + '" title="Rimuovi azione" type="button">âœ•</button>';
+      if (anchor) html += '<button class="flow-node-end-btn" onclick="scrollToAnchor(\'' + esc(anchor) + '\')" type="button">Modifica â†“</button>';
       html += '</div>';
     }
 
@@ -2677,7 +2789,7 @@
     html += '</div>'; // accent+inner flex
     html += '</div>'; // .flow-node
 
-    // ── Sezioni speciali (branch, loop, each) ────────────────────────────
+    // â”€â”€ Sezioni speciali (branch, loop, each) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (type === 'send_approval' && node.branches) {
       var br = node.branches;
       html += '<div class="flow-branch-wrap">';
@@ -2698,8 +2810,8 @@
       html += '<div class="flow-branch-split">';
       html += '<div style="flex:1;height:2px;background:#cbd5e1;margin-top:20px;"></div>';
       html += '<div style="display:flex;gap:24px;">';
-      html += makeBranchColumn({label:'✅ Se Vero', actions: ie.if_true_actions}, 'flow-branch-pill--true');
-      html += makeBranchColumn({label:'❌ Se Falso', actions: ie.if_false_actions}, 'flow-branch-pill--false');
+      html += makeBranchColumn({label:'âœ… Se Vero', actions: ie.if_true_actions}, 'flow-branch-pill--true');
+      html += makeBranchColumn({label:'âŒ Se Falso', actions: ie.if_false_actions}, 'flow-branch-pill--false');
       html += '</div>';
       html += '<div style="flex:1;height:2px;background:#cbd5e1;margin-top:20px;"></div>';
       html += '</div>';
@@ -2709,7 +2821,7 @@
       var lp = node.loop;
       html += '<div class="flow-loop-wrap">';
       html += '<div class="flow-loop-body">';
-      html += '<div class="flow-loop-header"><span>🔁</span><span class="flow-loop-header-text">Corpo del loop (eseguito ogni iterazione)</span></div>';
+      html += '<div class="flow-loop-header"><span>ðŸ”</span><span class="flow-loop-header-text">Corpo del loop (eseguito ogni iterazione)</span></div>';
       if (lp.check_field) {
         html += '<div class="flow-loop-condition">Uscita quando: <strong>' + esc(lp.check_field) + ' ' + esc(lp.check_operator) + ' ' + esc(lp.check_value) + '</strong></div>';
       }
@@ -2722,7 +2834,7 @@
           html += makeInlineActionNode(a);
         });
       }
-      html += '<div class="flow-loop-back">↩ Ricontrolla condizione dopo ' + esc(lp.retry_delay || '24 hours') + '</div>';
+      html += '<div class="flow-loop-back">â†© Ricontrolla condizione dopo ' + esc(lp.retry_delay || '24 hours') + '</div>';
       html += '</div>';
       html += '<div class="flow-merge-line"><div class="flow-merge-line-v"></div></div>';
       html += '</div>';
@@ -2730,7 +2842,7 @@
       var ea = node.each;
       html += '<div class="flow-each-wrap">';
       html += '<div class="flow-each-body">';
-      html += '<div class="flow-each-header"><span>🔂</span><span>Per ogni record in &ldquo;' + esc(ea.source_code || '?') + '&rdquo;</span></div>';
+      html += '<div class="flow-each-header"><span>ðŸ”‚</span><span>Per ogni record in &ldquo;' + esc(ea.source_code || '?') + '&rdquo;</span></div>';
       var eachActions = ea.each_actions || [];
       if (eachActions.length === 0) {
         html += '<div class="flow-branch-empty">Nessuna azione per elemento</div>';
@@ -2748,7 +2860,7 @@
     return html;
   }
 
-  // ── Stato diagramma ──────────────────────────────────────────────────────
+  // â”€â”€ Stato diagramma â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function _initDiagramState() {
     var rawNodes = getFlowNodes();
     _diagramNodes = rawNodes.map(function(n) {
@@ -2758,6 +2870,7 @@
     _renderDiagramFromState();
     _initDiagramEvents();
     _initDiagramAddModal();
+    _syncFlowWorkspaceEmptyState();
   }
 
   function _renderDiagramFromState() {
@@ -2772,10 +2885,10 @@
       if (idx > 0) html += makeConnector();
       html += nodeHtml(node);
     });
-    // Pulsante "＋ Aggiungi azione" in fondo
+    // Pulsante "ï¼‹ Aggiungi azione" in fondo
     html += makeConnector();
     html += '<div class="flow-diagram-add-row">'
-      + '<button class="flow-diagram-add-btn" type="button" onclick="openDiagramAddModal()">＋ Aggiungi azione</button>'
+      + '<button class="flow-diagram-add-btn" type="button" onclick="openDiagramAddModal()">ï¼‹ Aggiungi azione</button>'
       + '</div>';
     canvas.innerHTML = html;
     canvas.querySelectorAll('.flow-node-end-btn').forEach(function(button) {
@@ -2787,7 +2900,7 @@
   // Alias retrocompatibile
   function renderFlowDiagram() { _initDiagramState(); }
 
-  // ── Drag & Drop ───────────────────────────────────────────────────────────
+  // â”€â”€ Drag & Drop â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function _initDiagramEvents() {
     var canvas = document.getElementById('flowDiagramCanvas');
     if (!canvas) return;
@@ -2903,7 +3016,7 @@
     _syncDiagramOrderToForms();
   }
 
-  // ── Elimina nodo ──────────────────────────────────────────────────────────
+  // â”€â”€ Elimina nodo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function _diagramDeleteNode(nodeId) {
     var node = null;
     _diagramNodes.forEach(function(n) { if (n.id === nodeId) node = n; });
@@ -2936,7 +3049,7 @@
     if (typeof syncAllOrderFields === 'function') syncAllOrderFields();
   }
 
-  // ── Sync ordine → formset ────────────────────────────────────────────────
+  // â”€â”€ Sync ordine â†’ formset â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function _syncDiagramOrderToForms() {
     var orderIdx = 0;
     _diagramNodes.forEach(function(node) {
@@ -2954,10 +3067,10 @@
     if (typeof syncAllOrderFields === 'function') syncAllOrderFields();
   }
 
-  // ── Modal aggiunta azione ─────────────────────────────────────────────────
+  // â”€â”€ Modal aggiunta azione â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function _initDiagramAddModal() {
     var grid = document.getElementById('diagramActionGrid');
-    if (!grid || grid.querySelector('.diagram-action-item')) return; // già popolato
+    if (!grid || grid.querySelector('.diagram-action-item')) return; // giÃ  popolato
     var html = '';
     Object.keys(_DIAG_STYLES).forEach(function(type) {
       var s = _DIAG_STYLES[type];
@@ -2971,7 +3084,7 @@
   }
 
   window.openDiagramAddModal = function() {
-    _initDiagramAddModal(); // garantisce griglia popolata anche se il diagramma non è stato ancora aperto
+    _initDiagramAddModal(); // garantisce griglia popolata anche se il diagramma non Ã¨ stato ancora aperto
     var modal = document.getElementById('diagramAddModal');
     if (modal) modal.hidden = false;
   };
@@ -2998,14 +3111,14 @@
     }
 
     // Nodo pending nel diagramma
-    var style = _DIAG_STYLES[actionType] || {icon:'⚡', color:'#64748b', bg:'#f8fafc', label: actionType, app:'Azione'};
+    var style = _DIAG_STYLES[actionType] || {icon:'âš¡', color:'#64748b', bg:'#f8fafc', label: actionType, app:'Azione'};
     var pendingId = 'pending-' + Date.now();
     _diagramNodes.push({
       id: pendingId,
       type: 'action',
       action_type: actionType,
       title: style.label,
-      subtitle: 'Nuova azione — compila il form e salva',
+      subtitle: 'Nuova azione â€” compila il form e salva',
       icon: style.icon,
       color: style.color,
       bg: style.bg,
@@ -3026,13 +3139,22 @@
 
   // Chiudi modal su click overlay o ESC
   document.addEventListener('click', function(e) {
+    var workspace = document.getElementById('flowDiagramPanel');
+    if (workspace && !workspace.hidden && e.target === workspace) {
+      _closeFlowDiagramWorkspace();
+      return;
+    }
     var modal = document.getElementById('diagramAddModal');
     if (modal && !modal.hidden && e.target === modal) closeDiagramAddModal();
   });
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
       var modal = document.getElementById('diagramAddModal');
-      if (modal && !modal.hidden) closeDiagramAddModal();
+      if (modal && !modal.hidden) {
+        closeDiagramAddModal();
+        return;
+      }
+      if (_diagramOpen) _closeFlowDiagramWorkspace();
     }
   });
   function _handleDiagramCardEvent(event) {
@@ -3045,15 +3167,15 @@
   document.addEventListener('input', _handleDiagramCardEvent);
   document.addEventListener('change', _handleDiagramCardEvent);
 
-  // ── PNG download ──────────────────────────────────────────────────────────
+  // â”€â”€ PNG download â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   window.downloadDiagramPng = function() {
     var canvas = document.getElementById('flowDiagramCanvas');
     if (!canvas) return;
     var btn = document.getElementById('flowDiagramPngBtn');
-    if (btn) { btn.textContent = '…'; btn.disabled = true; }
+    if (btn) { btn.textContent = 'â€¦'; btn.disabled = true; }
     if (typeof html2canvas === 'undefined') {
       alert('html2canvas non disponibile. Ricarica la pagina e riprova.');
-      if (btn) { btn.textContent = '⬇ PNG'; btn.disabled = false; }
+      if (btn) { btn.textContent = 'â¬‡ PNG'; btn.disabled = false; }
       return;
     }
     html2canvas(canvas, {backgroundColor: '#ffffff', scale: 2, useCORS: true, logging: false})
@@ -3070,17 +3192,12 @@
         alert('Errore durante la generazione del PNG.');
       })
       .finally(function() {
-        if (btn) { btn.textContent = '⬇ PNG'; btn.disabled = false; }
+        if (btn) { btn.textContent = 'â¬‡ PNG'; btn.disabled = false; }
       });
   };
 
   window.scrollToAnchor = function(anchor) {
-    // Chiudi il diagramma, scrolla all'anchor nel form
-    var panel = document.getElementById('flowDiagramPanel');
-    if (panel) panel.hidden = true;
-    _diagramOpen = false;
-    var btn = document.getElementById('flowDiagramToggleBtn');
-    if (btn) { btn.style.background=''; btn.style.color=''; btn.style.border=''; }
+    _closeFlowDiagramWorkspace();
 
     // Cerca l'anchor nel DOM
     var target = document.getElementById(anchor);
@@ -3105,3 +3222,4 @@
 }());
 </script>
 {% endblock %}
+
