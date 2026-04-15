@@ -496,6 +496,258 @@ class AutomationApproval(models.Model):
         return timezone.now() > self.expires_at
 
 
+class ApprovalEmailTemplateDeliveryMode(models.TextChoices):
+    PORTAL_LINKS = "portal_links", "Link portale (HTTP)"
+    MAIL_REPLY = "mail_reply", "Risposta email (mailto:)"
+    HYBRID = "hybrid", "Ibrido (link portale + mailto:)"
+
+
+class ApprovalEmailTemplate(models.Model):
+    """
+    Template riutilizzabile per le email di approvazione generate da `send_approval`.
+    Supporta tre modalità di consegna:
+    - portal_links: CTA con link HTTP al portale (comportamento classico)
+    - mail_reply: CTA con link mailto: verso una mailbox tecnica interna
+    - hybrid: entrambi
+    """
+
+    code = models.SlugField(max_length=120, unique=True, verbose_name="Codice univoco")
+    name = models.CharField(max_length=255, verbose_name="Nome")
+    description = models.TextField(blank=True, default="", verbose_name="Descrizione")
+    is_enabled = models.BooleanField(default=True, db_index=True, verbose_name="Abilitato")
+    delivery_mode = models.CharField(
+        max_length=20,
+        choices=ApprovalEmailTemplateDeliveryMode.choices,
+        default=ApprovalEmailTemplateDeliveryMode.PORTAL_LINKS,
+        verbose_name="Modalità recapito",
+    )
+
+    # ── Contenuto email ──────────────────────────────────────────────────────
+    subject_template = models.CharField(
+        max_length=512,
+        default="Richiesta di approvazione #{id}",
+        verbose_name="Oggetto email",
+        help_text="Supporta placeholder {campo}.",
+    )
+    title_template = models.CharField(
+        max_length=512,
+        blank=True,
+        default="",
+        verbose_name="Titolo / intestazione mail",
+        help_text="Titolo grande visualizzato in cima al corpo email.",
+    )
+    intro_template = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="Testo introduttivo",
+        help_text="Paragrafo introduttivo sopra i facts. Supporta placeholder.",
+    )
+    body_template = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="Corpo libero (HTML)",
+        help_text=(
+            "Corpo HTML opzionale a sostituzione completa di intro+facts. "
+            "Se compilato, intro_template e facts vengono ignorati."
+        ),
+    )
+
+    # ── Facts ────────────────────────────────────────────────────────────────
+    include_facts = models.BooleanField(
+        default=True,
+        verbose_name="Includi facts / riepilogo",
+        help_text="Se attivo, mostra una tabella facts nella mail (ignorato se body_template è compilato).",
+    )
+    facts_lines = models.TextField(
+        blank=True,
+        default="",
+        verbose_name="Righe facts",
+        help_text="Una riga per fatto: Etichetta | {placeholder}",
+    )
+
+    # ── Bottoni CTA ──────────────────────────────────────────────────────────
+    approval_label = models.CharField(max_length=100, default="Approva", verbose_name='Label "Approva"')
+    rejection_label = models.CharField(max_length=100, default="Rifiuta", verbose_name='Label "Rifiuta"')
+
+    # ── Azioni mailto: ───────────────────────────────────────────────────────
+    include_mailto_actions = models.BooleanField(
+        default=False,
+        verbose_name="Includi CTA mailto:",
+        help_text=(
+            "Genera link mailto: verso la mailbox tecnica. "
+            "Attivo solo per delivery_mode mail_reply o hybrid."
+        ),
+    )
+    mailto_mailbox = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        verbose_name="Mailbox tecnica approvazioni",
+        help_text="Es. approvazioni@cnovicrom.local — sovrascrive il default globale se compilato.",
+    )
+    approval_mailto_subject_template = models.CharField(
+        max_length=512,
+        blank=True,
+        default="CMD APPROVO RID {approval_token}",
+        verbose_name="Oggetto mailto Approva",
+        help_text="Deterministic subject per il parser. Usa {approval_token} come identificatore univoco.",
+    )
+    approval_mailto_body_template = models.TextField(
+        blank=True,
+        default="CMD: APPROVO\nRID: {approval_token}",
+        verbose_name="Corpo mailto Approva",
+    )
+    rejection_mailto_subject_template = models.CharField(
+        max_length=512,
+        blank=True,
+        default="CMD RIFIUTO RID {approval_token}",
+        verbose_name="Oggetto mailto Rifiuta",
+        help_text="Deterministic subject per il parser. Usa {approval_token} come identificatore univoco.",
+    )
+    rejection_mailto_body_template = models.TextField(
+        blank=True,
+        default="CMD: RIFIUTO\nRID: {approval_token}\nMOTIVO: ",
+        verbose_name="Corpo mailto Rifiuta",
+    )
+
+    # ── Audit ────────────────────────────────────────────────────────────────
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approval_email_templates_created",
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approval_email_templates_updated",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "Template email approvazione"
+        verbose_name_plural = "Template email approvazioni"
+
+    def __str__(self) -> str:
+        return f"{self.name} [{self.code}]"
+
+    def uses_mailto(self) -> bool:
+        return self.delivery_mode in (
+            ApprovalEmailTemplateDeliveryMode.MAIL_REPLY,
+            ApprovalEmailTemplateDeliveryMode.HYBRID,
+        )
+
+    def uses_portal_links(self) -> bool:
+        return self.delivery_mode in (
+            ApprovalEmailTemplateDeliveryMode.PORTAL_LINKS,
+            ApprovalEmailTemplateDeliveryMode.HYBRID,
+        )
+
+    @staticmethod
+    def _subject_has_command(template_value: str, *markers: str) -> bool:
+        normalized = str(template_value or "").upper()
+        return any(marker in normalized for marker in markers)
+
+    def clean(self) -> None:
+        super().clean()
+
+        errors: dict[str, list[str]] = {}
+
+        if (
+            self.include_mailto_actions
+            and self.delivery_mode == ApprovalEmailTemplateDeliveryMode.PORTAL_LINKS
+        ):
+            errors.setdefault("include_mailto_actions", []).append(
+                "Le azioni mailto: sono disponibili solo per le modalita 'mail_reply' o 'hybrid'."
+            )
+
+        if self.uses_mailto():
+            approval_subject = str(self.approval_mailto_subject_template or "")
+            rejection_subject = str(self.rejection_mailto_subject_template or "")
+
+            if "{approval_token}" not in approval_subject:
+                errors.setdefault("approval_mailto_subject_template", []).append(
+                    "Il subject mailto Approva deve contenere {approval_token}."
+                )
+            if not self._subject_has_command(approval_subject, "CMD APPROVO", "CMD: APPROVO"):
+                errors.setdefault("approval_mailto_subject_template", []).append(
+                    "Il subject mailto Approva deve contenere il comando CMD APPROVO."
+                )
+
+            if "{approval_token}" not in rejection_subject:
+                errors.setdefault("rejection_mailto_subject_template", []).append(
+                    "Il subject mailto Rifiuta deve contenere {approval_token}."
+                )
+            if not self._subject_has_command(rejection_subject, "CMD RIFIUTO", "CMD: RIFIUTO"):
+                errors.setdefault("rejection_mailto_subject_template", []).append(
+                    "Il subject mailto Rifiuta deve contenere il comando CMD RIFIUTO."
+                )
+
+        if errors:
+            raise ValidationError(errors)
+
+
+# ── Schema drift helpers per ApprovalEmailTemplate ──────────────────────────
+APPROVAL_EMAIL_TEMPLATE_TABLE_NAME = "automazioni_approvalemailtemplate"
+APPROVAL_EMAIL_TEMPLATE_UNAVAILABLE_MESSAGE = (
+    "Template email approvazioni non disponibili: applicare la migration "
+    "`automazioni.0011_approvalemailtemplate`."
+)
+
+
+def _is_approval_template_table_missing(exc: Exception) -> bool:
+    message = _db_exception_text(exc)
+    return (
+        APPROVAL_EMAIL_TEMPLATE_TABLE_NAME in message
+        and any(
+            marker in message
+            for marker in ("42s02", "no such table", "invalid object name", "nome di oggetto", "non è valido")
+        )
+    )
+
+
+def list_approval_email_templates(*, enabled_only: bool = True) -> tuple[list["ApprovalEmailTemplate"], bool]:
+    """Ritorna (lista_template, tabella_mancante). Safe rispetto a schema drift."""
+    qs = ApprovalEmailTemplate.objects.all()
+    if enabled_only:
+        qs = qs.filter(is_enabled=True)
+    try:
+        return list(qs.order_by("name")), False
+    except (OperationalError, ProgrammingError) as exc:
+        if _is_approval_template_table_missing(exc):
+            return [], True
+        raise
+
+
+def get_approval_email_template(
+    *,
+    template_id: object = None,
+    template_code: object = None,
+    enabled_only: bool = True,
+) -> tuple["ApprovalEmailTemplate | None", bool]:
+    """Risolve un template per ID o code. Ritorna (template | None, tabella_mancante)."""
+    id_raw = str(template_id or "").strip()
+    code_raw = str(template_code or "").strip()
+    if not id_raw and not code_raw:
+        return None, False
+    try:
+        qs = ApprovalEmailTemplate.objects.all()
+        if enabled_only:
+            qs = qs.filter(is_enabled=True)
+        if id_raw:
+            return qs.filter(pk=id_raw).first(), False
+        return qs.filter(code=code_raw).first(), False
+    except (OperationalError, ProgrammingError) as exc:
+        if _is_approval_template_table_missing(exc):
+            return None, True
+        raise
+
+
 class TeamsWebhookPreset(models.Model):
     """Canale Teams riutilizzabile: salva webhook URL una volta, selezionalo in qualsiasi send_approval."""
 
@@ -512,3 +764,84 @@ class TeamsWebhookPreset(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+
+# ── Tracking messaggi mailbox approvazioni (Graph / IMAP) ───────────────────
+
+class ApprovalMailboxMessageStatus(models.TextChoices):
+    PENDING = "pending", "In attesa"
+    PROCESSED = "processed", "Processato"
+    IGNORED = "ignored", "Ignorato"
+    ERROR = "error", "Errore"
+
+
+class ApprovalMailboxMessage(models.Model):
+    """
+    Tracking persistente di ogni messaggio letto dalla mailbox approvazioni.
+    Chiave di deduplica: `internet_message_id` (header RFC 2822 Message-ID).
+    Garantisce idempotenza forte: lo stesso messaggio non viene elaborato due volte
+    anche se il polling viene rieseguito più volte prima della marcatura come letto.
+    """
+
+    internet_message_id = models.CharField(
+        max_length=512,
+        unique=True,
+        db_index=True,
+        help_text="Header RFC 2822 Message-ID. Chiave di deduplica globale.",
+    )
+    graph_message_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="ID opaco Graph API (usato per PATCH mark-as-read, move, ecc.).",
+    )
+    mailbox = models.CharField(
+        max_length=255,
+        db_index=True,
+        help_text="Indirizzo mailbox letta (es. avviso@costruzioninovicrom.it).",
+    )
+    folder_name = models.CharField(max_length=255, blank=True, default="", help_text="Cartella di provenienza.")
+    subject_raw = models.TextField(blank=True, default="", help_text="Oggetto grezzo del messaggio.")
+    from_email = models.CharField(max_length=255, blank=True, default="", help_text="Indirizzo mittente estratto.")
+    received_at = models.DateTimeField(null=True, blank=True, db_index=True, help_text="Data/ora ricezione.")
+    command_detected = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        help_text="Comando rilevato: 'approvo', 'rifiuto' oppure vuoto se nessuno.",
+    )
+    token_found = models.CharField(
+        max_length=36,
+        blank=True,
+        default="",
+        help_text="UUID token approvazione estratto dal messaggio.",
+    )
+    processing_status = models.CharField(
+        max_length=20,
+        choices=ApprovalMailboxMessageStatus.choices,
+        default=ApprovalMailboxMessageStatus.PENDING,
+        db_index=True,
+    )
+    processing_error = models.TextField(blank=True, default="", help_text="Dettaglio errore se status=error.")
+    excerpt = models.TextField(blank=True, default="", help_text="Estratto body (max 500 car.) per diagnostica.")
+    linked_approval = models.ForeignKey(
+        AutomationApproval,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="mailbox_messages",
+        help_text="Approvazione collegata, se il messaggio è stato processato con successo.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-received_at", "-created_at"]
+        verbose_name = "Messaggio mailbox approvazione"
+        verbose_name_plural = "Messaggi mailbox approvazione"
+        indexes = [
+            models.Index(fields=["processing_status", "received_at"], name="autom_mbmsg_status_rcv_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"MailboxMsg<{self.from_email}:{self.command_detected}:{self.processing_status}>"

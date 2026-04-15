@@ -1,5 +1,52 @@
 ﻿# Changelog
 
+## 0.9.17 - 2026-04-15
+
+### Modulo Assenze
+
+- **[fix] Salvataggio locale richieste senza conflitti FK su `capi_reparto`**: `assenze/views.py` risolve ora `capo_reparto_id` verso il record locale reale di `capi_reparto`, invece di usare l'id dell'utente legacy. Il form accetta quindi sia email sia lookup SharePoint del capo reparto senza far fallire l'`INSERT` su SQL Server.
+- **[test] Copertura regressione mapping capo reparto**: aggiunti test mirati per la risoluzione `form value -> capi_reparto.id`, sia nel caso di capo collegato a un `legacy_user_id` sia nel fallback da lookup numerico SharePoint.
+
+### Hub Tools
+
+- **[fix] Icone corrotte nel catalogo guide nascoste invece di comparire come testo sporco**: `hub_tools/views.py` svuota ora le icone con encoding sospetto e i template `guide_list.html` / `guide_view.html` renderizzano l'icona solo se valida, evitando prefissi tipo `ðŸ...` davanti ai titoli delle card e del visualizzatore.
+
+### Modulo Automazioni
+
+- **[fix] Queue automazioni compatibile con schema legacy senza `execute_after`**: `process_automation_queue` non va piu in crash sui database dove `dbo.automation_event_queue` non e' ancora stata riallineata. Il fetch degli eventi `pending` degrada automaticamente senza il filtro schedulato, cosi trigger `INSERT`/`UPDATE` come quelli di `assenze` tornano processabili.
+- **[fix] `assenze -> send_approval` riallineato a `capi_reparto.id`**: l'arricchimento runtime del payload automazioni risolve ora `capo_email` prima dal record locale `capi_reparto` (campo `indirizzo_email`, con fallback `utente_id`), invece di trattare sempre `capo_reparto_id` come `utenti.id`. Le regole di approvazione sulle nuove richieste assenza tornano quindi a inviare l'email al responsabile corretto.
+- **[feat] Queue admin con interventi manuali `Stoppa` / `Elimina`**: la vista `/admin-portale/automazioni/queue/` e il dettaglio evento espongono ora pulsanti operativi per bloccare un evento `pending` senza eseguirlo oppure eliminarlo quando e' ancora `pending/error` e non ha run log collegati. L'obiettivo e' permettere bonifiche autonome su duplicati o code sporche senza passare da shell/SQL.
+- **[ops] Riallineamento idempotente della queue SQL Server**: `sql/automation_event_queue.sql` aggiunge ora la colonna `execute_after` se manca gia su ambienti esistenti, evitando di dover ricreare la tabella tecnica.
+- **[guardrail] Errore esplicito sulle azioni schedulate**: quando una regola prova a schedulare un evento futuro (`delay`, `do_until`, ecc.) e la colonna `execute_after` non e' ancora presente, il runtime restituisce ora un messaggio di remediation chiaro invece di un generico errore SQL.
+- **[test] Copertura regressione queue schema drift**: aggiunti test mirati per il fetch della queue con e senza colonna `execute_after`.
+
+## 0.9.16 - 2026-04-15
+
+### Modulo Automazioni — Impostazioni IMAP approvazioni
+
+- **[feat] Nuova pagina `/admin-portale/automazioni/impostazioni/`**: il modulo espone una superficie amministrativa dedicata per vedere lo stato runtime IMAP delle approvazioni, salvare la mailbox tecnica globale `automazioni_approval_mailbox` in `SiteConfig` e lanciare subito `poll_approval_mailbox` dal portale con pulsante `Esegui ora`.
+- **[feat] Pannello IMAP riusato anche in `Config SRV`**: la card `Configurazione SMTP` di `/admin-portale/ldap/` mostra ora anche il riepilogo `APPROVAL_IMAP_*`, il pulsante di esecuzione immediata del polling mailbox e un link rapido verso le impostazioni automazioni, cosi SMTP e mailbox approvazioni si gestiscono nello stesso hub.
+- **[fix] Config IMAP davvero editabile da UI**: sia `/admin-portale/automazioni/impostazioni/` sia il pannello IMAP dentro `Config SRV` espongono ora i campi `APPROVAL_IMAP_*` con salvataggio in `.env`, mantenimento password se il campo resta vuoto e refresh del runtime corrente per poter testare subito il polling senza dover riaprire la shell.
+- **[test] Copertura mirata admin/runtime**: aggiunti test per rendering pagina impostazioni automazioni, salvataggio mailbox tecnica, trigger manuale del polling e parsing del riepilogo runtime del comando.
+
+### Tooling sviluppo
+
+- **[fix] `django_app/avvia_server.bat` non usa piu `Get-CimInstance Win32_Process` per cercare i `runserver` attivi**: su alcune macchine Windows la query CIM/WMI resta bloccata e il batch sembrava fermarsi su `Chiudo tutte le istanze Django runserver attive...`. Lo script ora libera solo il listener `LISTENING` sulla porta `8000`, stampa esplicitamente se non trova nulla e prosegue subito con l'avvio del server dev.
+
+### Modulo Automazioni — Template Email Approvazioni
+
+- **[feat] `ApprovalEmailTemplate` — template riutilizzabili per le mail di approvazione**: nuovo modello (migration 0011) che permette di definire oggetto, titolo, intro, corpo libero HTML, facts/riepilogo, label CTA e modalità di consegna per le email generate da `send_approval`. I template sono gestibili da `/automazioni/template-approvazioni/` (voce "Template approvazioni" nella subnav del modulo).
+- **[feat] Tre modalità di consegna per le CTA**: `portal_links` (link HTTP al portale, default), `mail_reply` (link `mailto:` verso mailbox tecnica interna — ideale per reti non esposte), `hybrid` (entrambi). In `mail_reply`/`hybrid` vengono generati link `mailto:` deterministici con subject strutturato `CMD APPROVO|RIFIUTO RID {approval_token}` per supportare parsing automatico.
+- **[feat] Mailbox tecnica configurabile**: l'indirizzo target dei `mailto:` è configurabile per template (campo `mailto_mailbox`) oppure tramite `SiteConfig` (chiave `automazioni_approval_mailbox`) oppure `settings.AUTOMAZIONI_APPROVAL_MAILBOX`.
+- **[feat] Preview e test rapido**: pagina `/automazioni/template-approvazioni/<pk>/preview/` mostra rendering HTML in iframe con dati mock caso-assenze, visualizza i placeholder non risolti e permette override con payload JSON personalizzato.
+- **[feat] Clona template**: bottone "Clona" nelle viste list e form — crea una copia disabilitata con nuovo codice UUID-suffissato per personalizzazione sicura.
+- **[feat] Integrazione nel designer `send_approval`**: nuova sezione "Template email approvazione" nel pannello del designer visuale con dropdown di selezione template abilitati. Il template sovrascrive l'HTML della mail; se non selezionato, comportamento identico al precedente (fallback retro-compatibile).
+- **[retro] Fallback garantito**: se il template referenziato non esiste, è disabilitato o la tabella non è ancora migrata, `send_approval` degrada silenziosamente al comportamento standard senza interrompere il flusso.
+- **[model] `approval_email_templates.py`**: service layer isolato per rendering, mailto, context building e preview — nessuna logica di invio duplicata.
+- **[test] 30+ test automatici** su rendering (SimpleTestCase, senza DB), model DB, fallback e integrazione `send_approval` con template valido/invalido.
+- **[feat] `poll_approval_mailbox` management command**: comando `python manage.py poll_approval_mailbox` che legge la casella IMAP configurata, cerca email con subject/corpo strutturato (`CMD APPROVO|RIFIUTO RID <uuid>`) e chiama `process_approval_decision()`. Supporta `--dry-run`, `--folder`, `--limit`, `--no-mark-read`. Configurato tramite variabili `.env`: `APPROVAL_IMAP_HOST`, `APPROVAL_IMAP_PORT`, `APPROVAL_IMAP_USER`, `APPROVAL_IMAP_PASSWORD`, `APPROVAL_IMAP_SSL`, `APPROVAL_IMAP_FOLDER`.
+- **[test] Test parser IMAP**: 15+ test `SimpleTestCase` senza DB per `_parse_approval_command` e `_get_text_parts` — coprono parsing da subject, parsing da corpo (fallback), priorità subject > body, messaggi multipart MIME, assenza UUID, assenza keyword.
+
 ## 0.9.16 - 2026-04-14
 
 ### Modulo Automazioni - Conversione Power Automate integrata
@@ -12,6 +59,7 @@
 
 - **[fix] Modal "Aggiungi azione al flusso" stabile e non piu visibile al load**: il picker del diagramma nel designer non si affida piu esclusivamente al popolamento JS. Le azioni disponibili vengono serializzate dalla view e stampate direttamente nel modal, mentre lo script del diagramma riusa la stessa lista per stili e inserimento dei nodi. In piu il CSS del modal rispetta esplicitamente `[hidden]`, evitando che la finestra compaia da sola all'apertura della pagina o resti appesa dopo la chiusura.
 - **[ux] Editor inline azioni nel diagramma**: il flow diagram del designer permette ora di cliccare un nodo azione e modificare direttamente la card reale del form dentro un pannello inline, senza aprire un editor separato e senza perdere il comportamento SSR del formset. Il nodo resta sincronizzato live con titolo, stato e preview della card mentre si scrive.
+- **[ux] Workspace split-view stile Power Automate per il diagramma**: aprendo `Diagramma di flusso`, il designer entra ora in una vista a pieno viewport con inspector laterale fisso e canvas del flow separato, cosi non serve piu scorrere tutta la pagina mentre si modifica una singola azione. Il backdrop e `Esc` chiudono la workspace, lo scroll del body viene congelato finche la vista e aperta e i pulsanti interni permettono di tornare alle sezioni trigger/condizioni/azioni del form solo quando serve.
 - **[feat] Diagramma di flusso visuale** (`🔀 Diagramma di flusso`): bottone nel designer visuale che apre una visualizzazione verticale stile Power Automate con nodi colorati per tipo (trigger, condizioni, azioni), connettori freccia, rami approvazione/branch, corpo loop do_until e iterazione for_each. Ogni nodo ha un pulsante "Modifica ↓" che scrolla al form corrispondente. Renderizzato lato client senza librerie esterne da `flow_nodes_json` calcolato da `_build_flow_nodes()` in `views.py`.
 - **[feat] `send_approval` — Approvazione umana nel flusso**: nuova azione che pausa l'automazione, invia email agli approvatori con link `Approva`/`Rifiuta` e crea un record `AutomationApproval`. Quando l'approvatore clicca, vengono eseguite le azioni del ramo `approved_actions` o `rejected_actions`. Path `/automazioni/approvazione/<token>/approva|rifiuta/` senza login (token UUID). Run log passa in status `waiting_approval`.
 - **[feat] `do_until` — Loop fino a condizione**: esegue `loop_actions` e si richiama tramite la coda eventi finché `check_field/operator/value` non è soddisfatto o si raggiunge `max_iterations`. Delay configurabile (minuti/ore/giorni). All'uscita: `on_success_actions` o `on_timeout_actions`.

@@ -4,9 +4,12 @@ from datetime import timedelta
 from decimal import Decimal
 import io
 import json
+from pathlib import Path
+import tempfile
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -16,7 +19,7 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from core.models import UserOnboarding
+from core.models import SiteConfig, UserOnboarding
 from tasks.models import Task
 
 from .forms import AutomationActionForm
@@ -45,6 +48,9 @@ from .services import (
     execute_action,
     execute_safe_insert,
     execute_safe_update,
+    enrich_payload_for_source,
+    fetch_pending_queue_events,
+    fetch_pending_queue_event_snapshots,
     find_matching_rules,
     evaluate_condition,
     process_approval_decision,
@@ -287,6 +293,89 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertContains(response, "{capo_email}")
         self.assertIn("sources", response.context)
         self.assertEqual(response.context["sources"][0]["code"], "assenze")
+
+    @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
+    @patch("admin_portale.decorators.get_legacy_user")
+    def test_settings_page_renders(self, mock_get_legacy_user, _mock_is_admin):
+        mock_get_legacy_user.return_value = self.legacy_admin
+
+        response = self.client.get(reverse("admin_portale:automazioni_settings"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Impostazioni Automazioni")
+        self.assertContains(response, "Polling mailbox approvazioni")
+        self.assertContains(response, "Mailbox tecnica globale")
+
+    @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
+    @patch("admin_portale.decorators.get_legacy_user")
+    @patch("automazioni.views.run_approval_imap_poll_now")
+    def test_settings_page_can_run_imap_poll(self, mock_run_poll, mock_get_legacy_user, _mock_is_admin):
+        mock_get_legacy_user.return_value = self.legacy_admin
+        mock_run_poll.return_value = {
+            "ok": True,
+            "message": "Polling mailbox completato: 1 processate, 1 approvate, 0 rifiutate, 0 ignorate, 0 errori.",
+            "output": "[run] Completato - processed=1 approved=1 rejected=0 skipped=0 error=0",
+            "stats": {"processed": 1, "approved": 1, "rejected": 0, "skipped": 0, "error": 0},
+        }
+
+        response = self.client.post(
+            reverse("admin_portale:automazioni_settings"),
+            {"action": "run_approval_imap_poll"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Polling mailbox completato")
+        mock_run_poll.assert_called_once_with()
+
+    @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
+    @patch("admin_portale.decorators.get_legacy_user")
+    def test_settings_page_can_save_default_mailbox(self, mock_get_legacy_user, _mock_is_admin):
+        mock_get_legacy_user.return_value = self.legacy_admin
+
+        response = self.client.post(
+            reverse("admin_portale:automazioni_settings"),
+            {
+                "action": "save_default_approval_mailbox",
+                "approval_mailbox": "approvazioni@test.local",
+            },
+        )
+
+        self.assertRedirects(response, reverse("admin_portale:automazioni_settings"))
+        self.assertEqual(SiteConfig.get("automazioni_approval_mailbox"), "approvazioni@test.local")
+
+    @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
+    @patch("admin_portale.decorators.get_legacy_user")
+    @patch("automazioni.views.save_approval_imap_settings")
+    def test_settings_page_can_save_imap_config(self, mock_save_imap, mock_get_legacy_user, _mock_is_admin):
+        mock_get_legacy_user.return_value = self.legacy_admin
+        mock_save_imap.return_value = (
+            True,
+            "Configurazione IMAP salvata in .env e aggiornata nel runtime corrente.",
+        )
+
+        response = self.client.post(
+            reverse("admin_portale:automazioni_settings"),
+            {
+                "action": "save_approval_imap_config",
+                "approval_imap_host": "imap.changed.local",
+                "approval_imap_port": "995",
+                "approval_imap_user": "approvazioni-changed@test.local",
+                "approval_imap_password": "nuova-password",
+                "approval_imap_folder": "Approvazioni",
+                "approval_imap_use_ssl": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Configurazione IMAP salvata")
+        mock_save_imap.assert_called_once_with(
+            host="imap.changed.local",
+            port=995,
+            user="approvazioni-changed@test.local",
+            password="nuova-password",
+            use_ssl=True,
+            folder="Approvazioni",
+        )
 
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
@@ -919,12 +1008,14 @@ class AutomazioniAdminPageTests(TestCase):
 
     @patch("automazioni.views.count_queue_by_status")
     @patch("automazioni.views.list_queue_events")
+    @patch("automazioni.views._queue_table_exists", return_value=True)
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
     def test_queue_list_page_renders_with_filters(
         self,
         mock_get_legacy_user,
         _mock_is_admin,
+        _mock_queue_table_exists,
         mock_list_queue_events,
         mock_count_queue_by_status,
     ):
@@ -981,6 +1072,44 @@ class AutomazioniAdminPageTests(TestCase):
             limit=200,
         )
         mock_count_queue_by_status.assert_called_once_with(source_code="assenze", operation_type="update")
+
+    @patch("automazioni.views.count_queue_by_status")
+    @patch("automazioni.views.list_queue_events")
+    @patch("automazioni.views._queue_table_exists", return_value=True)
+    @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
+    @patch("admin_portale.decorators.get_legacy_user")
+    def test_queue_list_page_shows_stop_and_delete_for_pending_events_without_logs(
+        self,
+        mock_get_legacy_user,
+        _mock_is_admin,
+        _mock_queue_table_exists,
+        mock_list_queue_events,
+        mock_count_queue_by_status,
+    ):
+        mock_get_legacy_user.return_value = self.legacy_admin
+        mock_list_queue_events.return_value = [
+            {
+                "id": 102,
+                "source_code": "assenze",
+                "source_table": "assenze",
+                "source_pk": "102",
+                "operation_type": "UPDATE",
+                "event_code": "assenze_update",
+                "status": "pending",
+                "retry_count": 0,
+                "error_message": "",
+                "created_at": timezone.now(),
+                "picked_at": None,
+                "processed_at": None,
+            }
+        ]
+        mock_count_queue_by_status.return_value = {"pending": 1, "processing": 0, "done": 0, "error": 0}
+
+        response = self.client.get(reverse("admin_portale:automazioni_queue_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("admin_portale:automazioni_queue_stop", args=[102]))
+        self.assertContains(response, reverse("admin_portale:automazioni_queue_delete", args=[102]))
 
     @patch("automazioni.views.get_queue_event_detail")
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
@@ -1048,6 +1177,40 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertContains(response, "Run OK")
         self.assertContains(response, "Action OK")
         self.assertContains(response, "runtime error")
+
+    @patch("automazioni.views.get_queue_event_detail")
+    @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
+    @patch("admin_portale.decorators.get_legacy_user")
+    def test_queue_detail_page_shows_stop_and_delete_for_pending_event_without_logs(
+        self,
+        mock_get_legacy_user,
+        _mock_is_admin,
+        mock_get_queue_event_detail,
+    ):
+        mock_get_legacy_user.return_value = self.legacy_admin
+        mock_get_queue_event_detail.return_value = {
+            "id": 78,
+            "source_code": "assenze",
+            "source_table": "assenze",
+            "source_pk": "78",
+            "operation_type": "UPDATE",
+            "event_code": "assenze_update",
+            "watched_field": None,
+            "payload_json": '{"id": 78}',
+            "old_payload_json": "{}",
+            "status": "pending",
+            "retry_count": 0,
+            "error_message": "",
+            "created_at": timezone.now(),
+            "picked_at": None,
+            "processed_at": None,
+        }
+
+        response = self.client.get(reverse("admin_portale:automazioni_queue_detail", args=[78]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("admin_portale:automazioni_queue_stop", args=[78]))
+        self.assertContains(response, reverse("admin_portale:automazioni_queue_delete", args=[78]))
 
     @patch("automazioni.views.reset_queue_event_to_pending", return_value=True)
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
@@ -1128,6 +1291,86 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse("admin_portale:automazioni_queue_detail", args=[91]))
         mock_process_single_queue_event_by_id.assert_called_once_with(91)
+
+    @patch("automazioni.views.log_action")
+    @patch("automazioni.views.stop_queue_event", return_value=True)
+    @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
+    @patch("admin_portale.decorators.get_legacy_user")
+    def test_queue_stop_view_stops_pending_event(
+        self,
+        mock_get_legacy_user,
+        _mock_is_admin,
+        mock_stop_queue_event,
+        mock_log_action,
+    ):
+        mock_get_legacy_user.return_value = self.legacy_admin
+
+        response = self.client.post(reverse("admin_portale:automazioni_queue_stop", args=[92]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("admin_portale:automazioni_queue_detail", args=[92]))
+        mock_stop_queue_event.assert_called_once_with(92)
+        mock_log_action.assert_called_once()
+
+    @patch("automazioni.views.log_action")
+    @patch("automazioni.views.stop_queue_event", return_value=False)
+    @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
+    @patch("admin_portale.decorators.get_legacy_user")
+    def test_queue_stop_view_handles_incompatible_status(
+        self,
+        mock_get_legacy_user,
+        _mock_is_admin,
+        mock_stop_queue_event,
+        mock_log_action,
+    ):
+        mock_get_legacy_user.return_value = self.legacy_admin
+
+        response = self.client.post(reverse("admin_portale:automazioni_queue_stop", args=[93]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("admin_portale:automazioni_queue_detail", args=[93]))
+        mock_stop_queue_event.assert_called_once_with(93)
+        mock_log_action.assert_not_called()
+
+    @patch("automazioni.views.log_action")
+    @patch("automazioni.views.delete_queue_event", return_value=True)
+    @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
+    @patch("admin_portale.decorators.get_legacy_user")
+    def test_queue_delete_view_removes_pending_event_without_logs(
+        self,
+        mock_get_legacy_user,
+        _mock_is_admin,
+        mock_delete_queue_event,
+        mock_log_action,
+    ):
+        mock_get_legacy_user.return_value = self.legacy_admin
+
+        response = self.client.post(reverse("admin_portale:automazioni_queue_delete", args=[94]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("admin_portale:automazioni_queue_list"))
+        mock_delete_queue_event.assert_called_once_with(94)
+        mock_log_action.assert_called_once()
+
+    @patch("automazioni.views.log_action")
+    @patch("automazioni.views.delete_queue_event", return_value=False)
+    @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
+    @patch("admin_portale.decorators.get_legacy_user")
+    def test_queue_delete_view_blocks_events_with_logs_or_invalid_status(
+        self,
+        mock_get_legacy_user,
+        _mock_is_admin,
+        mock_delete_queue_event,
+        mock_log_action,
+    ):
+        mock_get_legacy_user.return_value = self.legacy_admin
+
+        response = self.client.post(reverse("admin_portale:automazioni_queue_delete", args=[95]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("admin_portale:automazioni_queue_list"))
+        mock_delete_queue_event.assert_called_once_with(95)
+        mock_log_action.assert_not_called()
 
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
@@ -2383,7 +2626,7 @@ class DashboardMetricValueModelTests(TestCase):
             )
 
 
-class AutomationServiceHelperTests(SimpleTestCase):
+class AutomationServiceHelperTests(TestCase):
     def test_safe_get_payload_value_supports_simple_and_nested_fields(self):
         payload = {"id": 1, "utente": {"email": "a@b.it", "reparto": {"nome": "HR"}}}
 
@@ -2400,6 +2643,72 @@ class AutomationServiceHelperTests(SimpleTestCase):
         self.assertEqual(render_template_string("Richiesta {id}", {"id": 5}), "Richiesta 5")
         self.assertEqual(render_template_string("Richiesta {missing}", {"id": 5}), "Richiesta {missing}")
         self.assertEqual(render_template_string(None, {"id": 5}), "")
+
+    @patch("automazioni.services._fetch_assenza_runtime_details", return_value={})
+    @patch("automazioni.services._resolve_caporeparto_email_from_local_id", return_value="capo@example.com")
+    def test_enrich_payload_for_source_assenze_resolves_capo_email_from_local_caporeparto_id(
+        self,
+        _mock_resolve_local_capo_email,
+        _mock_runtime_details,
+    ):
+        enriched = enrich_payload_for_source("assenze", {"id": 4060, "capo_reparto_id": 7})
+        self.assertEqual(enriched["capo_email"], "capo@example.com")
+
+    @patch("automazioni.services.connection.cursor")
+    @patch("automazioni.services._queue_table_has_column", return_value=False)
+    def test_fetch_pending_queue_events_skips_execute_after_when_column_missing(
+        self,
+        _mock_has_column,
+        mock_connection_cursor,
+    ):
+        cursor = MagicMock()
+        cursor.description = [("id",), ("status",)]
+        cursor.fetchall.return_value = []
+        mock_connection_cursor.return_value.__enter__.return_value = cursor
+
+        fetch_pending_queue_events(limit=5, source_code="assenze")
+
+        sql = cursor.execute.call_args.args[0]
+        params = cursor.execute.call_args.args[1]
+        self.assertNotIn("execute_after", sql)
+        self.assertIn("source_code = %s", sql)
+        self.assertEqual(params, ["pending", "assenze", "processing"])
+
+    @patch("automazioni.services.connection.cursor")
+    @patch("automazioni.services._queue_table_has_column", return_value=True)
+    def test_fetch_pending_queue_events_uses_execute_after_when_column_available(
+        self,
+        _mock_has_column,
+        mock_connection_cursor,
+    ):
+        cursor = MagicMock()
+        cursor.description = [("id",), ("status",)]
+        cursor.fetchall.return_value = []
+        mock_connection_cursor.return_value.__enter__.return_value = cursor
+
+        fetch_pending_queue_events(limit=5, source_code="assenze")
+
+        sql = cursor.execute.call_args.args[0]
+        self.assertIn("execute_after", sql)
+
+    @patch("automazioni.services.connection.cursor")
+    @patch("automazioni.services._queue_table_has_column", return_value=False)
+    def test_fetch_pending_queue_event_snapshots_skip_execute_after_when_column_missing(
+        self,
+        _mock_has_column,
+        mock_connection_cursor,
+    ):
+        cursor = MagicMock()
+        cursor.description = [("id",), ("status",)]
+        cursor.fetchall.return_value = []
+        mock_connection_cursor.return_value.__enter__.return_value = cursor
+
+        fetch_pending_queue_event_snapshots(limit=5, source_code="assenze")
+
+        sql = cursor.execute.call_args.args[0]
+        params = cursor.execute.call_args.args[1]
+        self.assertNotIn("execute_after", sql)
+        self.assertEqual(params, ["pending", "assenze"])
 
 
 class AutomationConditionEvaluationTests(TestCase):
@@ -3839,6 +4148,32 @@ class AutomationQueueProcessorTests(TestCase):
         self.assertEqual(payload["capo_email"], "capo@example.com")
         self.assertEqual(old_payload["capo_email"], "capo@example.com")
 
+    @patch("automazioni.services._resolve_caporeparto_email_from_local_id", return_value="capo-local@example.com")
+    @patch("automazioni.services.mark_queue_done")
+    @patch("automazioni.services.run_rule")
+    def test_process_queue_event_enriches_assenze_payload_with_capo_email_from_local_caporeparto_id(
+        self,
+        mock_run_rule,
+        mock_mark_done,
+        _mock_resolve_local_email,
+    ):
+        mock_run_rule.return_value = SimpleNamespace(status=AutomationRunLogStatus.SUCCESS)
+
+        result = process_queue_event(
+            {
+                "id": 32,
+                "source_code": "assenze",
+                "operation_type": "update",
+                "payload_json": '{"id": 4060, "capo_reparto_id": 7, "moderation_status": 2}',
+                "old_payload_json": '{"id": 4060, "capo_reparto_id": 7, "moderation_status": 1}',
+            }
+        )
+
+        self.assertEqual(result["status"], "done")
+        mock_mark_done.assert_called_once_with(32)
+        payload = mock_run_rule.call_args.args[1]
+        self.assertEqual(payload["capo_email"], "capo-local@example.com")
+
     @patch(
         "automazioni.services._fetch_assenza_runtime_details",
         return_value={"dipendente_email": "dipendente@example.com", "salta_approvazione": True},
@@ -3919,7 +4254,7 @@ class AutomationQueueCommandTests(SimpleTestCase):
         }
         stdout = io.StringIO()
 
-        call_command("process_automation_queue", "--limit=5", "--source-code=assenze", stdout=stdout)
+        call_command("process_automation_queue", "--limit=5", "--source-code=assenze", "--no-monitoring", stdout=stdout)
 
         mock_process.assert_called_once_with(limit=5, source_code="assenze", dry_run=False)
         self.assertIn("fetched=1 done=1 error=0 rule_runs=2", stdout.getvalue())
@@ -3935,7 +4270,7 @@ class AutomationQueueCommandTests(SimpleTestCase):
         }
         stdout = io.StringIO()
 
-        call_command("process_automation_queue", "--dry-run", stdout=stdout)
+        call_command("process_automation_queue", "--dry-run", "--no-monitoring", stdout=stdout)
 
         mock_process.assert_called_once_with(limit=50, source_code=None, dry_run=True)
         self.assertIn("candidate_rules=rule-a", stdout.getvalue())
@@ -4129,3 +4464,1394 @@ class ProcessQueueEventCandidateRulesTests(TestCase):
         self.assertEqual(result["status"], "error")
         self.assertIn("candidate_rule_codes", result)
         self.assertIn(self.rule.code, result["candidate_rule_codes"])
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test: ApprovalEmailTemplate — rendering, mailto, fallback
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class ApprovalEmailTemplateRenderingTests(SimpleTestCase):
+    """Test rendering del template email approvazione senza DB."""
+
+    def _make_template(self, **kwargs):
+        from types import SimpleNamespace as _NS
+        defaults = dict(
+            code="test-tpl",
+            name="Test",
+            delivery_mode="portal_links",
+            subject_template="Approva richiesta #{id}",
+            title_template="Titolo: {dipendente_nome}",
+            intro_template="Hai una richiesta di {tipo_assenza}.",
+            body_template="",
+            include_facts=True,
+            facts_lines="Tipo | {tipo_assenza}\nDal | {data_inizio}",
+            approval_label="Approva",
+            rejection_label="Rifiuta",
+            include_mailto_actions=False,
+            mailto_mailbox="",
+            approval_mailto_subject_template="CMD APPROVO RID {approval_token}",
+            approval_mailto_body_template="CMD: APPROVO\nRID: {approval_token}",
+            rejection_mailto_subject_template="CMD RIFIUTO RID {approval_token}",
+            rejection_mailto_body_template="CMD: RIFIUTO\nRID: {approval_token}\nMOTIVO: ",
+        )
+        defaults.update(kwargs)
+        ns = _NS(**defaults)
+        ns.uses_portal_links = lambda: ns.delivery_mode in ("portal_links", "hybrid")
+        ns.uses_mailto = lambda: ns.delivery_mode in ("mail_reply", "hybrid")
+        return ns
+
+    def test_subject_rendered(self):
+        from .approval_email_templates import render_approval_email
+        tpl = self._make_template()
+        ctx = {"id": "ABS-001", "tipo_assenza": "Ferie", "data_inizio": "2026-06-01", "dipendente_nome": "Mario"}
+        result = render_approval_email(tpl, ctx, approve_url="http://example.com/approva/", reject_url="http://example.com/rifiuta/")
+        self.assertEqual(result["subject"], "Approva richiesta #ABS-001")
+
+    def test_html_contains_intro_and_title(self):
+        from .approval_email_templates import render_approval_email
+        tpl = self._make_template()
+        ctx = {"id": "ABS-001", "tipo_assenza": "Ferie", "data_inizio": "2026-06-01", "dipendente_nome": "Mario"}
+        result = render_approval_email(tpl, ctx, approve_url="http://ex.com/a/", reject_url="http://ex.com/r/")
+        self.assertIn("Titolo: Mario", result["html_body"])
+        self.assertIn("Hai una richiesta di Ferie", result["html_body"])
+
+    def test_html_contains_facts_table(self):
+        from .approval_email_templates import render_approval_email
+        tpl = self._make_template()
+        ctx = {"tipo_assenza": "Ferie", "data_inizio": "2026-06-01"}
+        result = render_approval_email(tpl, ctx, approve_url="#a", reject_url="#r")
+        self.assertIn("<table", result["html_body"])
+        self.assertIn("Ferie", result["html_body"])
+        self.assertIn("2026-06-01", result["html_body"])
+
+    def test_html_contains_portal_cta_buttons(self):
+        from .approval_email_templates import render_approval_email
+        tpl = self._make_template(delivery_mode="portal_links")
+        ctx = {}
+        result = render_approval_email(tpl, ctx, approve_url="http://ex.com/a/", reject_url="http://ex.com/r/")
+        self.assertIn("http://ex.com/a/", result["html_body"])
+        self.assertIn("http://ex.com/r/", result["html_body"])
+
+    def test_body_template_overrides_intro_and_facts(self):
+        from .approval_email_templates import render_approval_email
+        tpl = self._make_template(body_template="<strong>Corpo libero {tipo_assenza}</strong>")
+        ctx = {"tipo_assenza": "Malattia"}
+        result = render_approval_email(tpl, ctx, approve_url="#a", reject_url="#r")
+        self.assertIn("<strong>Corpo libero Malattia</strong>", result["html_body"])
+        self.assertNotIn("Hai una richiesta di", result["html_body"])
+
+    def test_unresolved_placeholder_stays_in_output(self):
+        from .approval_email_templates import render_approval_email, find_unresolved_placeholders
+        tpl = self._make_template(subject_template="Richiesta #{id} da {dipendente_nome}")
+        ctx = {"id": "ABS-001"}
+        result = render_approval_email(tpl, ctx, approve_url="#a", reject_url="#r")
+        self.assertIn("{dipendente_nome}", result["subject"])
+        unresolved = find_unresolved_placeholders(result["subject"])
+        self.assertIn("dipendente_nome", unresolved)
+        self.assertNotIn("id", unresolved)
+
+    def test_no_portal_cta_when_delivery_mode_mail_reply(self):
+        from .approval_email_templates import render_approval_email
+        tpl = self._make_template(delivery_mode="mail_reply")
+        ctx = {}
+        result = render_approval_email(tpl, ctx, approve_url="http://ex.com/a/", reject_url="http://ex.com/r/")
+        self.assertNotIn("http://ex.com/a/", result["html_body"])
+
+    def test_mailto_cta_present_when_mail_reply_and_include_mailto(self):
+        from .approval_email_templates import render_approval_email
+        tpl = self._make_template(
+            delivery_mode="mail_reply",
+            include_mailto_actions=True,
+            mailto_mailbox="approvazioni@cnovicrom.local",
+        )
+        ctx = {"approval_token": "abc-token-123"}
+        result = render_approval_email(tpl, ctx, approve_url="#a", reject_url="#r")
+        self.assertIn("mailto:approvazioni@cnovicrom.local", result["html_body"])
+        self.assertIn("abc-token-123", result["html_body"])
+
+    def test_mailto_links_contain_token(self):
+        from .approval_email_templates import build_mailto_approve_link, build_mailto_reject_link
+        tpl = self._make_template(
+            delivery_mode="mail_reply",
+            include_mailto_actions=True,
+            mailto_mailbox="approvazioni@test.local",
+        )
+        ctx = {"approval_token": "UNIQUE-TOKEN-XYZ"}
+        approve_link = build_mailto_approve_link(tpl, ctx)
+        reject_link = build_mailto_reject_link(tpl, ctx)
+        self.assertIn("mailto:approvazioni@test.local", approve_link)
+        self.assertIn("UNIQUE-TOKEN-XYZ", approve_link)
+        self.assertIn("UNIQUE-TOKEN-XYZ", reject_link)
+
+    def test_mailto_empty_when_no_mailbox(self):
+        from .approval_email_templates import build_mailto_approve_link
+        tpl = self._make_template(delivery_mode="mail_reply", include_mailto_actions=True, mailto_mailbox="")
+        ctx = {"approval_token": "TOKEN"}
+        link = build_mailto_approve_link(tpl, ctx)
+        self.assertEqual(link, "")
+
+    def test_hybrid_has_both_portal_and_mailto_cta(self):
+        from .approval_email_templates import render_approval_email
+        tpl = self._make_template(
+            delivery_mode="hybrid",
+            include_mailto_actions=True,
+            mailto_mailbox="approvazioni@test.local",
+        )
+        ctx = {"approval_token": "TOK"}
+        result = render_approval_email(tpl, ctx, approve_url="http://ex.com/a/", reject_url="http://ex.com/r/")
+        self.assertIn("http://ex.com/a/", result["html_body"])
+        self.assertIn("mailto:approvazioni@test.local", result["html_body"])
+
+    def test_text_body_not_empty(self):
+        from .approval_email_templates import render_approval_email
+        tpl = self._make_template()
+        ctx = {"tipo_assenza": "Ferie", "data_inizio": "2026-06-01"}
+        result = render_approval_email(tpl, ctx, approve_url="#a", reject_url="#r")
+        self.assertTrue(len(result["text_body"]) > 0)
+
+    def test_demo_payload_preview(self):
+        from .approval_email_templates import render_approval_email_preview
+        tpl = self._make_template()
+        result = render_approval_email_preview(tpl)
+        self.assertIn("subject", result)
+        self.assertIn("html_body", result)
+        self.assertIn("text_body", result)
+        self.assertTrue(result["subject"])
+
+    def test_build_template_context_injects_approval_fields(self):
+        from .approval_email_templates import build_template_context
+        from types import SimpleNamespace as _NS
+        approval = _NS(token="TOKEN-UUID", pk=42)
+        ctx = build_template_context({"id": "ABS-001"}, approval=approval, approve_url="/a/", reject_url="/r/")
+        self.assertEqual(ctx["approval_token"], "TOKEN-UUID")
+        self.assertEqual(ctx["approval_id"], "42")
+        self.assertEqual(ctx["approve_url"], "/a/")
+        self.assertEqual(ctx["reject_url"], "/r/")
+
+    def test_parse_facts_lines(self):
+        from .approval_email_templates import _parse_facts_lines
+        facts = _parse_facts_lines(
+            "Tipo | {tipo_assenza}\nDal | {data_inizio}\n  |  \n",
+            {"tipo_assenza": "Ferie", "data_inizio": "2026-06-01"},
+        )
+        self.assertEqual(len(facts), 2)
+        self.assertEqual(facts[0]["name"], "Tipo")
+        self.assertEqual(facts[0]["value"], "Ferie")
+        self.assertEqual(facts[1]["value"], "2026-06-01")
+
+
+class ApprovalEmailTemplateDBTests(TestCase):
+    """Test model + helper DB (usa SQLite)."""
+
+    def _make_tpl(self, **kwargs):
+        from .models import ApprovalEmailTemplate
+        defaults = dict(
+            code="tpl-db-test",
+            name="DB Test Template",
+            delivery_mode="portal_links",
+            subject_template="Approva #{id}",
+        )
+        defaults.update(kwargs)
+        return ApprovalEmailTemplate.objects.create(**defaults)
+
+    def test_create_and_retrieve(self):
+        from .models import ApprovalEmailTemplate
+        tpl = self._make_tpl()
+        fetched = ApprovalEmailTemplate.objects.get(pk=tpl.pk)
+        self.assertEqual(fetched.code, "tpl-db-test")
+        self.assertTrue(fetched.is_enabled)
+
+    def test_unique_code_raises_integrity_error(self):
+        from django.db import IntegrityError as DjIntegrityError
+        self._make_tpl()
+        with self.assertRaises(DjIntegrityError):
+            self._make_tpl()
+
+    def test_list_approval_email_templates_enabled_only(self):
+        from .models import list_approval_email_templates
+        self._make_tpl(code="tpl-enabled", is_enabled=True)
+        self._make_tpl(code="tpl-disabled", is_enabled=False)
+        enabled, missing = list_approval_email_templates(enabled_only=True)
+        codes = [t.code for t in enabled]
+        self.assertIn("tpl-enabled", codes)
+        self.assertNotIn("tpl-disabled", codes)
+        self.assertFalse(missing)
+
+    def test_get_approval_email_template_by_id(self):
+        from .models import get_approval_email_template
+        tpl = self._make_tpl()
+        found, missing = get_approval_email_template(template_id=tpl.pk)
+        self.assertIsNotNone(found)
+        self.assertEqual(found.pk, tpl.pk)
+        self.assertFalse(missing)
+
+    def test_get_approval_email_template_by_code(self):
+        from .models import get_approval_email_template
+        self._make_tpl()
+        found, missing = get_approval_email_template(template_code="tpl-db-test")
+        self.assertIsNotNone(found)
+        self.assertEqual(found.code, "tpl-db-test")
+
+    def test_get_approval_email_template_not_found(self):
+        from .models import get_approval_email_template
+        found, missing = get_approval_email_template(template_id=99999)
+        self.assertIsNone(found)
+        self.assertFalse(missing)
+
+    def test_uses_mailto(self):
+        from .models import ApprovalEmailTemplate, ApprovalEmailTemplateDeliveryMode
+        tpl = self._make_tpl(delivery_mode=ApprovalEmailTemplateDeliveryMode.MAIL_REPLY)
+        self.assertTrue(tpl.uses_mailto())
+        self.assertFalse(tpl.uses_portal_links())
+
+    def test_uses_portal_links(self):
+        from .models import ApprovalEmailTemplateDeliveryMode
+        tpl = self._make_tpl(delivery_mode=ApprovalEmailTemplateDeliveryMode.PORTAL_LINKS)
+        self.assertFalse(tpl.uses_mailto())
+        self.assertTrue(tpl.uses_portal_links())
+
+    def test_uses_hybrid(self):
+        from .models import ApprovalEmailTemplateDeliveryMode
+        tpl = self._make_tpl(delivery_mode=ApprovalEmailTemplateDeliveryMode.HYBRID)
+        self.assertTrue(tpl.uses_mailto())
+        self.assertTrue(tpl.uses_portal_links())
+
+    def test_mail_reply_full_clean_rejects_unparseable_subject(self):
+        from .models import ApprovalEmailTemplate, ApprovalEmailTemplateDeliveryMode
+
+        tpl = ApprovalEmailTemplate(
+            code="tpl-db-invalid-mailreply",
+            name="DB Invalid Mail Reply",
+            delivery_mode=ApprovalEmailTemplateDeliveryMode.MAIL_REPLY,
+            subject_template="Approva #{id}",
+            approval_mailto_subject_template="APPROVA SENZA TOKEN",
+            rejection_mailto_subject_template="CMD RIFIUTO RID {approval_token}",
+        )
+
+        with self.assertRaises(ValidationError) as ctx:
+            tpl.full_clean()
+
+        self.assertIn("approval_mailto_subject_template", ctx.exception.message_dict)
+
+
+class ApprovalEmailTemplateFallbackTests(TestCase):
+    """Test che il fallback in send_approval sia sicuro se il template manca."""
+
+    def _build_rule_and_action(self, config_override=None):
+        User = get_user_model()
+        User.objects.filter(username="test-approval-tpl").delete()
+        rule = AutomationRule.objects.create(
+            code="test-rule-tpl-fallback",
+            name="Test fallback",
+            source_code="assenze",
+            operation_type=AutomationRuleOperationType.UPDATE,
+            trigger_scope=AutomationRuleTriggerScope.ANY_CHANGE,
+            is_active=True,
+            is_draft=False,
+        )
+        config = {
+            "delivery_mode": "email",
+            "to_template": "admin@test.local",
+            "subject_template": "Approva",
+            "message_template": "Ciao",
+            "expiry_days": 7,
+            "approve_label": "Approva",
+            "reject_label": "Rifiuta",
+        }
+        if config_override:
+            config.update(config_override)
+        action = AutomationAction.objects.create(
+            rule=rule,
+            order=1,
+            action_type=AutomationActionType.SEND_APPROVAL,
+            is_enabled=True,
+            config_json=config,
+        )
+        run_log = AutomationRunLog.objects.create(
+            rule=rule,
+            source_code="assenze",
+            operation_type=AutomationRuleOperationType.UPDATE,
+            status=AutomationRunLogStatus.SUCCESS,
+        )
+        return action, run_log
+
+    @patch("automazioni.services.EmailMultiAlternatives")
+    def test_send_approval_fallback_no_template(self, mock_email_cls):
+        """send_approval senza template deve funzionare come prima."""
+        mock_msg = MagicMock()
+        mock_msg.send.return_value = 1
+        mock_email_cls.return_value = mock_msg
+        action, run_log = self._build_rule_and_action()
+        payload_context = {"id": "ABS-001"}
+        result = execute_action(
+            action=action,
+            payload=payload_context,
+            old_payload=None,
+            run_log=run_log,
+        )
+        self.assertEqual(result["status"], AutomationActionLogStatus.SUCCESS)
+        mock_email_cls.assert_called_once()
+
+    @patch("automazioni.services.EmailMultiAlternatives")
+    def test_send_approval_invalid_template_id_falls_back(self, mock_email_cls):
+        """Template ID inesistente deve degradare silenziosamente."""
+        mock_msg = MagicMock()
+        mock_msg.send.return_value = 1
+        mock_email_cls.return_value = mock_msg
+        action, run_log = self._build_rule_and_action(
+            config_override={"approval_email_template_id": "99999"}
+        )
+        result = execute_action(
+            action=action,
+            payload={"id": "ABS-001"},
+            old_payload=None,
+            run_log=run_log,
+        )
+        self.assertEqual(result["status"], AutomationActionLogStatus.SUCCESS)
+
+    @patch("automazioni.services.EmailMultiAlternatives")
+    def test_send_approval_with_valid_template_uses_rendered_body(self, mock_email_cls):
+        """Con template valido l'HTML deve contenere il corpo reso dal template."""
+        from .models import ApprovalEmailTemplate
+        tpl = ApprovalEmailTemplate.objects.create(
+            code="tpl-test-send",
+            name="Test Send",
+            delivery_mode="portal_links",
+            subject_template="SUBJ #{id}",
+            intro_template="INTRO_CONTENT {id}",
+            include_facts=False,
+        )
+        mock_msg = MagicMock()
+        mock_msg.send.return_value = 1
+        mock_email_cls.return_value = mock_msg
+        action, run_log = self._build_rule_and_action(
+            config_override={"approval_email_template_id": str(tpl.pk)}
+        )
+        result = execute_action(
+            action=action,
+            payload={"id": "ABS-TMPL"},
+            old_payload=None,
+            run_log=run_log,
+        )
+        self.assertEqual(result["status"], AutomationActionLogStatus.SUCCESS)
+        attach_calls = mock_msg.attach_alternative.call_args_list
+        self.assertTrue(len(attach_calls) > 0)
+        html_arg = attach_calls[0][0][0]
+        self.assertIn("INTRO_CONTENT ABS-TMPL", html_arg)
+
+
+class ApprovalEmailTemplateFormTests(TestCase):
+    """Test form ApprovalEmailTemplateForm."""
+
+    def _base_data(self, **overrides):
+        data = {
+            "code": "tpl-form-valid",
+            "name": "Form Valid",
+            "description": "",
+            "is_enabled": True,
+            "delivery_mode": "portal_links",
+            "subject_template": "Approva #{id}",
+            "title_template": "",
+            "intro_template": "",
+            "body_template": "",
+            "include_facts": True,
+            "facts_lines": "Tipo | {tipo_assenza}",
+            "approval_label": "Approva",
+            "rejection_label": "Rifiuta",
+            "include_mailto_actions": False,
+            "mailto_mailbox": "",
+            "approval_mailto_subject_template": "CMD APPROVO RID {approval_token}",
+            "approval_mailto_body_template": "CMD: APPROVO",
+            "rejection_mailto_subject_template": "CMD RIFIUTO RID {approval_token}",
+            "rejection_mailto_body_template": "CMD: RIFIUTO",
+        }
+        data.update(overrides)
+        return data
+
+    def test_valid_form(self):
+        from .forms import ApprovalEmailTemplateForm
+        data = self._base_data()
+        form = ApprovalEmailTemplateForm(data)
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_invalid_code_with_spaces(self):
+        from .forms import ApprovalEmailTemplateForm
+        data = {
+            "code": "invalid code",
+            "name": "Test",
+            "delivery_mode": "portal_links",
+            "subject_template": "S",
+            "approval_label": "A",
+            "rejection_label": "R",
+        }
+        form = ApprovalEmailTemplateForm(data)
+        self.assertFalse(form.is_valid())
+        self.assertIn("code", form.errors)
+
+    def test_include_mailto_portal_only_invalid(self):
+        from .forms import ApprovalEmailTemplateForm
+        data = self._base_data(
+            code="tpl-form-mailto",
+            name="Form Mailto Portal",
+            delivery_mode="portal_links",
+            subject_template="S",
+            approval_label="A",
+            rejection_label="R",
+            include_mailto_actions=True,
+            approval_mailto_subject_template="S",
+            approval_mailto_body_template="B",
+            rejection_mailto_subject_template="S",
+            rejection_mailto_body_template="B",
+        )
+        form = ApprovalEmailTemplateForm(data)
+        self.assertFalse(form.is_valid())
+        self.assertIn("include_mailto_actions", form.errors)
+
+    def test_mail_reply_template_valid_custom_parseable_subjects(self):
+        from .forms import ApprovalEmailTemplateForm
+
+        data = self._base_data(
+            code="tpl-mailreply-valid",
+            delivery_mode="mail_reply",
+            include_mailto_actions=True,
+            approval_mailto_subject_template="Re: CMD APPROVO RID {approval_token}",
+            rejection_mailto_subject_template="Re: CMD RIFIUTO RID {approval_token}",
+        )
+        form = ApprovalEmailTemplateForm(data)
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_mail_reply_template_requires_approval_token(self):
+        from .forms import ApprovalEmailTemplateForm
+
+        data = self._base_data(
+            code="tpl-mailreply-no-token",
+            delivery_mode="mail_reply",
+            include_mailto_actions=True,
+            approval_mailto_subject_template="CMD APPROVO RID fisso",
+        )
+        form = ApprovalEmailTemplateForm(data)
+        self.assertFalse(form.is_valid())
+        self.assertIn("approval_mailto_subject_template", form.errors)
+
+    def test_mail_reply_template_requires_command_keyword(self):
+        from .forms import ApprovalEmailTemplateForm
+
+        data = self._base_data(
+            code="tpl-mailreply-no-command",
+            delivery_mode="mail_reply",
+            include_mailto_actions=True,
+            rejection_mailto_subject_template="Richiesta {approval_token}",
+        )
+        form = ApprovalEmailTemplateForm(data)
+        self.assertFalse(form.is_valid())
+        self.assertIn("rejection_mailto_subject_template", form.errors)
+
+
+# ── Test: poll_approval_mailbox — parser IMAP ─────────────────────────────────
+
+class PollApprovalMailboxParserTests(SimpleTestCase):
+    """
+    Test per le funzioni helper del comando poll_approval_mailbox.
+    Non richiedono DB né connessione IMAP reale.
+    """
+
+    def _parse(self, subject: str, body: str) -> tuple:
+        from .management.commands.poll_approval_mailbox import _parse_approval_command
+        return _parse_approval_command(subject, [body])
+
+    # ── subject-based parsing ─────────────────────────────────────────────────
+
+    def test_subject_approvo_uppercase(self):
+        token, decision = self._parse(
+            "CMD APPROVO RID aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", ""
+        )
+        self.assertEqual(token, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        self.assertEqual(decision, "approved")
+
+    def test_subject_rifiuto_uppercase(self):
+        token, decision = self._parse(
+            "CMD RIFIUTO RID aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", ""
+        )
+        self.assertEqual(token, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        self.assertEqual(decision, "rejected")
+
+    def test_subject_cmd_colon_approvo(self):
+        token, decision = self._parse(
+            "Re: CMD: APPROVO RID 12345678-1234-1234-1234-123456789abc", ""
+        )
+        self.assertEqual(token, "12345678-1234-1234-1234-123456789abc")
+        self.assertEqual(decision, "approved")
+
+    def test_subject_cmd_colon_rifiuto(self):
+        token, decision = self._parse(
+            "CMD: RIFIUTO RID 12345678-1234-1234-1234-123456789abc", ""
+        )
+        self.assertEqual(token, "12345678-1234-1234-1234-123456789abc")
+        self.assertEqual(decision, "rejected")
+
+    def test_subject_case_insensitive(self):
+        token, decision = self._parse(
+            "cmd approvo rid aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", ""
+        )
+        self.assertEqual(decision, "approved")
+
+    def test_subject_no_uuid_returns_none(self):
+        token, decision = self._parse("CMD APPROVO RID mancante", "")
+        self.assertIsNone(token)
+        self.assertIsNone(decision)
+
+    # ── body-based parsing (fallback) ────────────────────────────────────────
+
+    def test_body_cmd_approvo_with_rid_line(self):
+        body = "CMD: APPROVO\nRID: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\n"
+        token, decision = self._parse("Risposta automatica", body)
+        self.assertEqual(token, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        self.assertEqual(decision, "approved")
+
+    def test_body_cmd_rifiuto_with_rid_line(self):
+        body = "CMD: RIFIUTO\nRID: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\nMOTIVO: Ferie bloccate"
+        token, decision = self._parse("RE: Approvazione richiesta", body)
+        self.assertEqual(token, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        self.assertEqual(decision, "rejected")
+
+    def test_body_fallback_uuid_without_rid_prefix(self):
+        """Se RID: manca ma c'è solo un UUID nel corpo, viene comunque estratto."""
+        body = "CMD: APPROVO\nToken: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\n"
+        token, decision = self._parse("Risposta", body)
+        self.assertEqual(token, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        self.assertEqual(decision, "approved")
+
+    def test_body_no_command_keyword_returns_none(self):
+        body = "Ciao, ho letto la richiesta. aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        token, decision = self._parse("Nessun comando", body)
+        self.assertIsNone(token)
+        self.assertIsNone(decision)
+
+    def test_body_no_uuid_returns_none(self):
+        body = "CMD: APPROVO\nNessun UUID qui"
+        token, decision = self._parse("Approvazione", body)
+        self.assertIsNone(token)
+        self.assertIsNone(decision)
+
+    def test_subject_takes_priority_over_body(self):
+        """Il subject viene valutato per primo; il body viene ignorato se il subject è valido."""
+        subject_token = "11111111-2222-3333-4444-555555555555"
+        body_token = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        token, decision = self._parse(
+            f"CMD APPROVO RID {subject_token}",
+            f"CMD: RIFIUTO\nRID: {body_token}",
+        )
+        self.assertEqual(token, subject_token)
+        self.assertEqual(decision, "approved")
+
+    # ── _get_text_parts ───────────────────────────────────────────────────────
+
+    def test_get_text_parts_simple_plaintext(self):
+        import email as email_lib
+        from .management.commands.poll_approval_mailbox import _get_text_parts
+        raw = b"From: test@example.com\r\nSubject: Test\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nHello world"
+        msg = email_lib.message_from_bytes(raw)
+        parts = _get_text_parts(msg)
+        self.assertEqual(len(parts), 1)
+        self.assertIn("Hello world", parts[0])
+
+    def test_get_text_parts_multipart(self):
+        import email as email_lib
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+        from .management.commands.poll_approval_mailbox import _get_text_parts
+        outer = MIMEMultipart("alternative")
+        outer.attach(MIMEText("Testo plain CMD: APPROVO", "plain", "utf-8"))
+        outer.attach(MIMEText("<b>HTML</b>", "html", "utf-8"))
+        msg = email_lib.message_from_bytes(outer.as_bytes())
+        parts = _get_text_parts(msg)
+        self.assertEqual(len(parts), 1)
+        self.assertIn("Testo plain CMD: APPROVO", parts[0])
+
+    def test_get_text_parts_non_text_returns_empty(self):
+        import email as email_lib
+        from email.mime.base import MIMEBase
+        from .management.commands.poll_approval_mailbox import _get_text_parts
+        raw = b"From: t@t.it\r\nContent-Type: application/octet-stream\r\n\r\nbinary"
+        msg = email_lib.message_from_bytes(raw)
+        parts = _get_text_parts(msg)
+        self.assertEqual(parts, [])
+
+
+@override_settings(
+    APPROVAL_IMAP_HOST="imap.test.local",
+    APPROVAL_IMAP_PORT="993",
+    APPROVAL_IMAP_USER="approvazioni@test.local",
+    APPROVAL_IMAP_PASSWORD="secret",
+    APPROVAL_IMAP_SSL="1",
+    APPROVAL_IMAP_FOLDER="INBOX",
+)
+class ApprovalMailboxRuntimeTests(SimpleTestCase):
+    def test_get_approval_imap_status_marks_runtime_ready(self):
+        from .approval_mailbox_runtime import get_approval_imap_status
+
+        status = get_approval_imap_status()
+
+        self.assertTrue(status["is_ready"])
+        self.assertEqual(status["host"], "imap.test.local")
+        self.assertEqual(status["user"], "approvazioni@test.local")
+        self.assertTrue(status["password_configured"])
+        self.assertEqual(status["folder"], "INBOX")
+
+    @patch("automazioni.approval_mailbox_runtime.call_command")
+    def test_run_approval_imap_poll_now_parses_command_summary(self, mock_call_command):
+        from .approval_mailbox_runtime import run_approval_imap_poll_now
+
+        def _fake_call_command(*args, **kwargs):
+            kwargs["stdout"].write(
+                "[run] Completato - processed=2 approved=1 rejected=1 skipped=0 error=0"
+            )
+
+        mock_call_command.side_effect = _fake_call_command
+
+        result = run_approval_imap_poll_now()
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(
+            result["stats"],
+            {"processed": 2, "approved": 1, "rejected": 1, "skipped": 0, "error": 0},
+        )
+        self.assertIn("1 approvate", result["message"])
+
+    def test_save_approval_imap_settings_updates_env_and_runtime(self):
+        from .approval_mailbox_runtime import get_approval_imap_form_defaults, save_approval_imap_settings
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            env_path = Path(tmpdir) / ".env"
+            ok, message = save_approval_imap_settings(
+                host="imap.changed.local",
+                port=995,
+                user="approvazioni-changed@test.local",
+                password="",
+                use_ssl=False,
+                folder="Approvazioni",
+                dotenv_path=env_path,
+            )
+            env_text = env_path.read_text(encoding="utf-8")
+
+        self.assertTrue(ok)
+        self.assertIn("Configurazione IMAP salvata", message)
+        self.assertIn("APPROVAL_IMAP_HOST=imap.changed.local", env_text)
+        self.assertIn("APPROVAL_IMAP_PORT=995", env_text)
+        self.assertIn("APPROVAL_IMAP_USER=approvazioni-changed@test.local", env_text)
+        self.assertIn("APPROVAL_IMAP_PASSWORD=secret", env_text)
+        self.assertIn("APPROVAL_IMAP_SSL=0", env_text)
+        self.assertIn("APPROVAL_IMAP_FOLDER=Approvazioni", env_text)
+        self.assertEqual(str(getattr(settings, "APPROVAL_IMAP_HOST", "")), "imap.changed.local")
+        self.assertEqual(str(getattr(settings, "APPROVAL_IMAP_PORT", "")), "995")
+        self.assertEqual(str(getattr(settings, "APPROVAL_IMAP_SSL", "")), "0")
+        form_defaults = get_approval_imap_form_defaults()
+        self.assertEqual(form_defaults["host"], "imap.changed.local")
+        self.assertEqual(form_defaults["port"], 995)
+        self.assertFalse(form_defaults["use_ssl"])
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Test suite: Graph mailbox backend
+# ─────────────────────────────────────────────────────────────────────────────
+
+class GraphMailboxParsingTests(SimpleTestCase):
+    """Test del parser comandi per il backend Graph (nessun DB richiesto)."""
+
+    def _parse(self, subject: str, body: str):
+        from .mailbox_graph import parse_approval_command
+        return parse_approval_command(subject, body)
+
+    # ── Parsing soggetto APPROVO ──────────────────────────────────────────────
+    def test_parse_subject_approvo_uuid(self):
+        token = "550e8400-e29b-41d4-a716-446655440000"
+        cmd, t, reason = self._parse(f"CMD APPROVO RID {token}", "")
+        self.assertEqual(cmd, "approvo")
+        self.assertEqual(t, token)
+        self.assertIsNone(reason)
+
+    def test_parse_subject_approvo_with_colon(self):
+        token = "550e8400-e29b-41d4-a716-446655440000"
+        cmd, t, _ = self._parse(f"CMD: APPROVO RID {token}", "")
+        self.assertEqual(cmd, "approvo")
+        self.assertEqual(t, token)
+
+    # ── Parsing soggetto RIFIUTO ──────────────────────────────────────────────
+    def test_parse_subject_rifiuto_uuid(self):
+        token = "123e4567-e89b-12d3-a456-426614174000"
+        cmd, t, _ = self._parse(f"CMD RIFIUTO RID {token}", "")
+        self.assertEqual(cmd, "rifiuto")
+        self.assertEqual(t, token)
+
+    def test_parse_subject_rifiuto_with_reason_in_body(self):
+        token = "123e4567-e89b-12d3-a456-426614174000"
+        body = f"CMD RIFIUTO RID {token}\nMOTIVO: Non autorizzato"
+        cmd, t, reason = self._parse(f"CMD RIFIUTO RID {token}", body)
+        self.assertEqual(cmd, "rifiuto")
+        self.assertEqual(reason, "Non autorizzato")
+
+    # ── Fallback body ─────────────────────────────────────────────────────────
+    def test_parse_body_fallback_approvo(self):
+        token = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        body = f"CMD: APPROVO\nRID: {token}"
+        cmd, t, _ = self._parse("Re: Richiesta approvazione", body)
+        self.assertEqual(cmd, "approvo")
+        self.assertEqual(t, token)
+
+    def test_parse_body_fallback_rifiuto(self):
+        token = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        body = f"CMD: RIFIUTO\nRID: {token}\nMOTIVO: Budget insufficiente"
+        cmd, t, reason = self._parse("Re: Richiesta approvazione", body)
+        self.assertEqual(cmd, "rifiuto")
+        self.assertEqual(t, token)
+        self.assertEqual(reason, "Budget insufficiente")
+
+    def test_parse_body_fallback_accepts_token_label(self):
+        token = "bbbbbbbb-cccc-dddd-eeee-ffffffffffff"
+        body = f"CMD: APPROVO\nTOKEN: {token}"
+        cmd, t, _ = self._parse("Re: Richiesta approvazione", body)
+        self.assertEqual(cmd, "approvo")
+        self.assertEqual(t, token)
+
+    def test_parse_body_fallback_ignores_unlabeled_uuid(self):
+        token = "bbbbbbbb-cccc-dddd-eeee-ffffffffffff"
+        body = f"CMD: APPROVO\nToken libero nel testo {token}"
+        cmd, t, _ = self._parse("Re: Richiesta approvazione", body)
+        self.assertEqual(cmd, "approvo")
+        self.assertIsNone(t)
+
+    def test_parse_body_fallback_uses_only_labeled_uuid_when_multiple_present(self):
+        labeled_token = "bbbbbbbb-cccc-dddd-eeee-ffffffffffff"
+        other_token = "11111111-2222-3333-4444-555555555555"
+        body = (
+            f"CMD: RIFIUTO\n"
+            f"Thread precedente {other_token}\n"
+            f"RID: {labeled_token}\n"
+            "MOTIVO: Non approvato"
+        )
+        cmd, t, reason = self._parse("Re: Richiesta approvazione", body)
+        self.assertEqual(cmd, "rifiuto")
+        self.assertEqual(t, labeled_token)
+        self.assertEqual(reason, "Non approvato")
+
+    # ── Nessun comando ────────────────────────────────────────────────────────
+    def test_parse_no_command(self):
+        cmd, t, reason = self._parse("Riunione di domani", "Ciao a tutti")
+        self.assertIsNone(cmd)
+        self.assertIsNone(t)
+        self.assertIsNone(reason)
+
+    def test_parse_command_without_uuid(self):
+        cmd, t, _ = self._parse("CMD APPROVO RID senza-uuid", "nessun uuid qui")
+        # soggetto matchato ma UUID non trovato
+        self.assertIsNone(t)
+
+    def test_parse_uppercase_insensitive(self):
+        token = "550e8400-e29b-41d4-a716-446655440000"
+        cmd, t, _ = self._parse(f"cmd approvo rid {token}", "")
+        self.assertEqual(cmd, "approvo")
+        self.assertEqual(t, token)
+
+
+class GraphMailboxNormalizeTests(SimpleTestCase):
+    """Test di normalize_message() su payload raw Graph (nessun DB)."""
+
+    def _make_raw(self, **overrides):
+        token = "550e8400-e29b-41d4-a716-446655440000"
+        base = {
+            "id": "GRAPH123",
+            "internetMessageId": f"<msg.{token}@mail.example.com>",
+            "subject": f"CMD APPROVO RID {token}",
+            "from": {"emailAddress": {"address": "mario.rossi@costruzioninovicrom.it"}},
+            "receivedDateTime": "2026-04-15T10:30:00Z",
+            "bodyPreview": "CMD APPROVO RID ...",
+            "body": {"contentType": "text", "content": f"CMD: APPROVO\nRID: {token}"},
+            "isRead": False,
+        }
+        base.update(overrides)
+        return base
+
+    def test_normalize_basic(self):
+        from .mailbox_graph import normalize_message
+        raw = self._make_raw()
+        msg = normalize_message(raw)
+        self.assertEqual(msg.graph_id, "GRAPH123")
+        self.assertEqual(msg.from_email, "mario.rossi@costruzioninovicrom.it")
+        self.assertEqual(msg.command, "approvo")
+        self.assertEqual(msg.token, "550e8400-e29b-41d4-a716-446655440000")
+        self.assertFalse(msg.is_read)
+
+    def test_normalize_html_body_strips_tags(self):
+        from .mailbox_graph import normalize_message
+        token = "550e8400-e29b-41d4-a716-446655440000"
+        raw = self._make_raw(body={
+            "contentType": "html",
+            "content": f"<html><body><b>CMD APPROVO</b> RID {token}</body></html>",
+        })
+        msg = normalize_message(raw)
+        self.assertNotIn("<b>", msg.body_text)
+        self.assertEqual(msg.command, "approvo")
+
+    def test_normalize_missing_from(self):
+        from .mailbox_graph import normalize_message
+        raw = self._make_raw()
+        raw["from"] = {}
+        msg = normalize_message(raw)
+        self.assertEqual(msg.from_email, "")
+
+    def test_normalize_invalid_date(self):
+        from .mailbox_graph import normalize_message
+        raw = self._make_raw(receivedDateTime="not-a-date")
+        msg = normalize_message(raw)
+        self.assertIsNone(msg.received_at)
+
+
+class GraphMailboxDeduplicationTests(TestCase):
+    """Test deduplica su DB."""
+
+    def test_is_already_processed_false_for_new(self):
+        from .mailbox_graph import is_already_processed
+        self.assertFalse(is_already_processed("<nuovo-msg-id@example.com>"))
+
+    def test_save_message_record_persists_graph_and_internet_ids(self):
+        from .mailbox_graph import save_message_record, normalize_message
+        from .models import ApprovalMailboxMessage
+
+        token = "550e8400-e29b-41d4-a716-446655440000"
+        raw = {
+            "id": "GID1",
+            "internetMessageId": "<dedup-test@example.com>",
+            "subject": f"CMD APPROVO RID {token}",
+            "from": {"emailAddress": {"address": "test@example.com"}},
+            "receivedDateTime": "2026-04-15T10:30:00Z",
+            "bodyPreview": "",
+            "body": {"contentType": "text", "content": ""},
+            "isRead": False,
+        }
+        msg = normalize_message(raw)
+
+        with override_settings(APPROVAL_MAILBOX_ADDRESS="test@example.com", APPROVAL_MAILBOX_FOLDER="Inbox"):
+            save_message_record(msg, status="processed")
+
+        record = ApprovalMailboxMessage.objects.get(
+            internet_message_id="<dedup-test@example.com>"
+        )
+        self.assertEqual(record.internet_message_id, "<dedup-test@example.com>")
+        self.assertEqual(record.graph_message_id, "GID1")
+
+    def test_is_already_processed_true_after_save(self):
+        from .mailbox_graph import is_already_processed, save_message_record, normalize_message
+
+        token = "550e8400-e29b-41d4-a716-446655440000"
+        raw = {
+            "id": "GID1",
+            "internetMessageId": "<dedup-test@example.com>",
+            "subject": f"CMD APPROVO RID {token}",
+            "from": {"emailAddress": {"address": "test@example.com"}},
+            "receivedDateTime": "2026-04-15T10:30:00Z",
+            "bodyPreview": "",
+            "body": {"contentType": "text", "content": ""},
+            "isRead": False,
+        }
+        msg = normalize_message(raw)
+
+        with override_settings(APPROVAL_MAILBOX_ADDRESS="test@example.com", APPROVAL_MAILBOX_FOLDER="Inbox"):
+            save_message_record(msg, status="processed")
+
+        self.assertTrue(is_already_processed("<dedup-test@example.com>"))
+
+    def test_save_message_record_update_or_create_idempotent(self):
+        from .mailbox_graph import save_message_record, normalize_message
+        from .models import ApprovalMailboxMessage
+
+        token = "550e8400-e29b-41d4-a716-446655440001"
+        raw = {
+            "id": "GID2",
+            "internetMessageId": "<idempotent-test@example.com>",
+            "subject": f"CMD RIFIUTO RID {token}",
+            "from": {"emailAddress": {"address": "utente@example.com"}},
+            "receivedDateTime": "2026-04-15T11:00:00Z",
+            "bodyPreview": "",
+            "body": {"contentType": "text", "content": ""},
+            "isRead": False,
+        }
+        msg = normalize_message(raw)
+
+        with override_settings(APPROVAL_MAILBOX_ADDRESS="mb@example.com", APPROVAL_MAILBOX_FOLDER="Inbox"):
+            save_message_record(msg, status="ignored", error="test")
+            save_message_record(msg, status="processed")  # seconda chiamata — deve fare update
+
+        count = ApprovalMailboxMessage.objects.filter(
+            internet_message_id="<idempotent-test@example.com>"
+        ).count()
+        self.assertEqual(count, 1)
+        record = ApprovalMailboxMessage.objects.get(internet_message_id="<idempotent-test@example.com>")
+        self.assertEqual(record.processing_status, "processed")
+        self.assertEqual(record.graph_message_id, "GID2")
+
+
+class GraphMailboxValidateSenderTests(TestCase):
+    """Test validazione mittente."""
+
+    def _make_approval(self, approver_emails=None, status="pending"):
+        rule = AutomationRule.objects.create(
+            name="ValidateSenderRule",
+            source_code="assenze",
+            code=f"validate_sender_rule_{AutomationRule.objects.count() + 1}",
+            operation_type=AutomationRuleOperationType.INSERT,
+            trigger_scope=AutomationRuleTriggerScope.ALL_INSERTS,
+            is_draft=False,
+        )
+        run_log = AutomationRunLog.objects.create(
+            rule=rule,
+            source_code=rule.source_code,
+            operation_type=rule.operation_type,
+            status=AutomationRunLogStatus.WAITING_APPROVAL,
+            payload_json={"id": 1},
+        )
+        approval = AutomationApproval.objects.create(
+            run_log=run_log,
+            subject="Test",
+            approver_emails=approver_emails if approver_emails is not None else [],
+            status=status,
+        )
+        return approval
+
+    def test_validate_sender_authorized_with_normalization(self):
+        from .mailbox_graph import _validate_sender
+        approval = self._make_approval(approver_emails=[" Responsabile@example.com "])
+        error = _validate_sender(str(approval.token), "  RESPONSABILE@example.com ")
+        self.assertIsNone(error)
+
+    def test_validate_sender_unauthorized(self):
+        from .mailbox_graph import _validate_sender
+        approval = self._make_approval(approver_emails=["responsabile@example.com"])
+        error = _validate_sender(str(approval.token), "estraneo@example.com")
+        self.assertIsNotNone(error)
+        self.assertIn("non nella lista", error)
+
+    def test_validate_sender_rejects_if_approver_list_empty(self):
+        """Se approver_emails è vuoto, qualsiasi mittente è accettato."""
+        from .mailbox_graph import _validate_sender
+        approval = self._make_approval(approver_emails=[])
+        error = _validate_sender(str(approval.token), "chiunque@example.com")
+        self.assertIsNotNone(error)
+        self.assertIn("Nessun approvatore configurato", error)
+
+    def test_validate_sender_already_decided(self):
+        from .mailbox_graph import _validate_sender
+        approval = self._make_approval(
+            approver_emails=["responsabile@example.com"],
+            status="approved",
+        )
+        error = _validate_sender(str(approval.token), "chiunque@example.com")
+        self.assertIsNotNone(error)
+        self.assertIn("già in stato", error)
+
+    def test_validate_sender_invalid_token(self):
+        from .mailbox_graph import _validate_sender
+        error = _validate_sender("non-un-uuid", "chiunque@example.com")
+        self.assertIsNotNone(error)
+        self.assertIn("UUID non valido", error)
+
+    def test_validate_sender_token_not_found(self):
+        from .mailbox_graph import _validate_sender
+        error = _validate_sender("00000000-0000-0000-0000-000000000000", "chiunque@example.com")
+        self.assertIsNotNone(error)
+        self.assertIn("non trovato", error)
+
+    def test_validate_sender_fails_closed_on_unexpected_exception(self):
+        from .mailbox_graph import _validate_sender
+
+        with patch("automazioni.models.AutomationApproval.objects.get", side_effect=RuntimeError("db down")):
+            error = _validate_sender("00000000-0000-0000-0000-000000000001", "chiunque@example.com")
+
+        self.assertIsNotNone(error)
+        self.assertIn("Validazione mittente non disponibile", error)
+
+
+class GraphMailboxPollIntegrationTests(TestCase):
+    """Test del poll_graph_mailbox con Graph mockato."""
+
+    def _build_raw_message(self, token: str, command: str = "approvo", from_email: str = "approver@example.com") -> dict:
+        subject_cmd = "APPROVO" if command == "approvo" else "RIFIUTO"
+        return {
+            "id": f"GMSG_{token[:8]}",
+            "internetMessageId": f"<{token}@mail.example.com>",
+            "subject": f"CMD {subject_cmd} RID {token}",
+            "from": {"emailAddress": {"address": from_email}},
+            "receivedDateTime": "2026-04-15T10:00:00Z",
+            "bodyPreview": "",
+            "body": {"contentType": "text", "content": f"CMD: {subject_cmd}\nRID: {token}"},
+            "isRead": False,
+        }
+
+    def _make_approval(self, approver_emails=None, status="pending"):
+        rule = AutomationRule.objects.create(
+            name="PollTestRule",
+            source_code="assenze",
+            code=f"poll_test_rule_{AutomationRule.objects.count() + 1}",
+            operation_type=AutomationRuleOperationType.INSERT,
+            trigger_scope=AutomationRuleTriggerScope.ALL_INSERTS,
+            is_draft=False,
+        )
+        run_log = AutomationRunLog.objects.create(
+            rule=rule,
+            source_code=rule.source_code,
+            operation_type=rule.operation_type,
+            status=AutomationRunLogStatus.WAITING_APPROVAL,
+            payload_json={"id": 1},
+        )
+        approval = AutomationApproval.objects.create(
+            run_log=run_log,
+            subject="Test approval",
+            approver_emails=approver_emails if approver_emails is not None else ["approver@example.com"],
+            status=status,
+        )
+        return approval
+
+    @override_settings(
+        GRAPH_TENANT_ID="tenant123",
+        GRAPH_CLIENT_ID="client123",
+        GRAPH_CLIENT_SECRET="secret123",
+        APPROVAL_MAILBOX_ADDRESS="approvals@example.com",
+        APPROVAL_MAILBOX_FOLDER="Inbox",
+        APPROVAL_GRAPH_ONLY_UNREAD="1",
+        APPROVAL_GRAPH_PAGE_SIZE="10",
+        APPROVAL_GRAPH_MARK_READ="0",
+        APPROVAL_MAILBOX_BACKEND="graph",
+    )
+    @patch("automazioni.mailbox_graph.fetch_messages")
+    @patch("automazioni.mailbox_graph.mark_message_as_read")
+    @patch("automazioni.mailbox_graph._validate_sender")
+    @patch("automazioni.services.process_approval_decision")
+    def test_poll_processes_approvo(
+        self, mock_process, mock_validate, mock_mark, mock_fetch
+    ):
+        """Un messaggio APPROVO valido viene processato correttamente."""
+        approval = self._make_approval(approver_emails=["approver@example.com"])
+        token_str = str(approval.token)
+
+        mock_fetch.return_value = [self._build_raw_message(token_str, "approvo")]
+        mock_validate.return_value = None  # autorizzato
+        mock_process.return_value = {"ok": True, "approval_id": approval.pk, "actions_run": 0}
+
+        from .mailbox_graph import poll_graph_mailbox
+        result = poll_graph_mailbox(limit=10, dry_run=False, mark_read=False)
+
+        self.assertEqual(result.read, 1)
+        self.assertEqual(result.processed, 1)
+        self.assertEqual(result.approved, 1)
+        self.assertEqual(result.error, 0)
+        mock_process.assert_called_once()
+
+    @override_settings(
+        GRAPH_TENANT_ID="t", GRAPH_CLIENT_ID="c", GRAPH_CLIENT_SECRET="s",
+        APPROVAL_MAILBOX_ADDRESS="mb@example.com",
+        APPROVAL_MAILBOX_FOLDER="Inbox",
+        APPROVAL_GRAPH_ONLY_UNREAD="1",
+        APPROVAL_GRAPH_PAGE_SIZE="10",
+        APPROVAL_GRAPH_MARK_READ="0",
+        APPROVAL_MAILBOX_BACKEND="graph",
+    )
+    @patch("automazioni.mailbox_graph.fetch_messages")
+    def test_poll_ignores_no_command(self, mock_fetch):
+        """Messaggio senza comando viene ignorato e tracciato."""
+        msg_id = "<nocommand@example.com>"
+        mock_fetch.return_value = [{
+            "id": "GID_NO_CMD",
+            "internetMessageId": msg_id,
+            "subject": "Riunione domani mattina",
+            "from": {"emailAddress": {"address": "someone@example.com"}},
+            "receivedDateTime": "2026-04-15T09:00:00Z",
+            "bodyPreview": "Ciao",
+            "body": {"contentType": "text", "content": "Ciao a tutti"},
+            "isRead": False,
+        }]
+
+        from .mailbox_graph import poll_graph_mailbox
+        result = poll_graph_mailbox(limit=10, dry_run=False, mark_read=False)
+
+        self.assertEqual(result.ignored, 1)
+        self.assertEqual(result.processed, 0)
+
+    @override_settings(
+        GRAPH_TENANT_ID="t", GRAPH_CLIENT_ID="c", GRAPH_CLIENT_SECRET="s",
+        APPROVAL_MAILBOX_ADDRESS="mb@example.com",
+        APPROVAL_MAILBOX_FOLDER="Inbox",
+        APPROVAL_GRAPH_ONLY_UNREAD="1",
+        APPROVAL_GRAPH_PAGE_SIZE="10",
+        APPROVAL_GRAPH_MARK_READ="0",
+        APPROVAL_MAILBOX_BACKEND="graph",
+    )
+    @patch("automazioni.mailbox_graph.fetch_messages")
+    def test_poll_deduplicates_already_processed(self, mock_fetch):
+        """Messaggio già presente in DB come 'processed' viene saltato."""
+        from .models import ApprovalMailboxMessage, ApprovalMailboxMessageStatus
+        from .mailbox_graph import poll_graph_mailbox
+
+        mid = "<already-done@example.com>"
+        ApprovalMailboxMessage.objects.create(
+            internet_message_id=mid,
+            mailbox="mb@example.com",
+            processing_status=ApprovalMailboxMessageStatus.PROCESSED,
+        )
+        token = "550e8400-e29b-41d4-a716-446655440002"
+        mock_fetch.return_value = [{
+            "id": "GID_DEDUP",
+            "internetMessageId": mid,
+            "subject": f"CMD APPROVO RID {token}",
+            "from": {"emailAddress": {"address": "someone@example.com"}},
+            "receivedDateTime": "2026-04-15T09:00:00Z",
+            "bodyPreview": "",
+            "body": {"contentType": "text", "content": ""},
+            "isRead": False,
+        }]
+
+        result = poll_graph_mailbox(limit=10, dry_run=False, mark_read=False)
+        self.assertEqual(result.deduped, 1)
+        self.assertEqual(result.processed, 0)
+
+    @override_settings(
+        GRAPH_TENANT_ID="t", GRAPH_CLIENT_ID="c", GRAPH_CLIENT_SECRET="s",
+        APPROVAL_MAILBOX_ADDRESS="mb@example.com",
+        APPROVAL_MAILBOX_FOLDER="Inbox",
+        APPROVAL_GRAPH_ONLY_UNREAD="1",
+        APPROVAL_GRAPH_PAGE_SIZE="10",
+        APPROVAL_GRAPH_MARK_READ="0",
+        APPROVAL_MAILBOX_BACKEND="graph",
+    )
+    @patch("automazioni.mailbox_graph.fetch_messages")
+    @patch("automazioni.mailbox_graph._validate_sender")
+    def test_poll_unauthorized_sender_ignored(self, mock_validate, mock_fetch):
+        """Messaggio da mittente non autorizzato viene ignorato."""
+        token = "550e8400-e29b-41d4-a716-446655440003"
+        mock_fetch.return_value = [self._build_raw_message(token, "approvo", "hacker@evil.com")]
+        mock_validate.return_value = "'hacker@evil.com' non nella lista approvatori"
+
+        from .mailbox_graph import poll_graph_mailbox
+        result = poll_graph_mailbox(limit=10, dry_run=False, mark_read=False)
+
+        self.assertEqual(result.ignored, 1)
+        self.assertEqual(result.processed, 0)
+
+    @override_settings(
+        GRAPH_TENANT_ID="t", GRAPH_CLIENT_ID="c", GRAPH_CLIENT_SECRET="s",
+        APPROVAL_MAILBOX_ADDRESS="mb@example.com",
+        APPROVAL_MAILBOX_FOLDER="Inbox",
+        APPROVAL_GRAPH_ONLY_UNREAD="1",
+        APPROVAL_GRAPH_PAGE_SIZE="10",
+        APPROVAL_GRAPH_MARK_READ="1",
+        APPROVAL_MAILBOX_BACKEND="graph",
+    )
+    @patch("automazioni.mailbox_graph.fetch_messages")
+    @patch("automazioni.mailbox_graph.mark_message_as_read")
+    @patch("automazioni.mailbox_graph._validate_sender")
+    @patch("automazioni.services.process_approval_decision")
+    def test_poll_marks_read_on_success_path(
+        self, mock_process, mock_validate, mock_mark, mock_fetch
+    ):
+        approval = self._make_approval(approver_emails=["approver@example.com"])
+        token_str = str(approval.token)
+        mock_fetch.return_value = [self._build_raw_message(token_str, "approvo")]
+        mock_validate.return_value = None
+        mock_process.return_value = {"ok": True, "approval_id": approval.pk, "actions_run": 0}
+
+        from .mailbox_graph import poll_graph_mailbox
+        result = poll_graph_mailbox(limit=10, dry_run=False, mark_read=True)
+
+        self.assertEqual(result.processed, 1)
+        mock_mark.assert_called_once_with(
+            mailbox="mb@example.com",
+            graph_message_id=f"GMSG_{token_str[:8]}",
+        )
+
+    @override_settings(
+        GRAPH_TENANT_ID="t", GRAPH_CLIENT_ID="c", GRAPH_CLIENT_SECRET="s",
+        APPROVAL_MAILBOX_ADDRESS="mb@example.com",
+        APPROVAL_MAILBOX_FOLDER="Inbox",
+        APPROVAL_GRAPH_ONLY_UNREAD="1",
+        APPROVAL_GRAPH_PAGE_SIZE="10",
+        APPROVAL_GRAPH_MARK_READ="1",
+        APPROVAL_MAILBOX_BACKEND="graph",
+    )
+    @patch("automazioni.mailbox_graph.fetch_messages")
+    @patch("automazioni.mailbox_graph.mark_message_as_read")
+    @patch("automazioni.mailbox_graph._validate_sender")
+    def test_poll_does_not_mark_read_on_validation_error(
+        self, mock_validate, mock_mark, mock_fetch
+    ):
+        token = "550e8400-e29b-41d4-a716-446655440004"
+        mock_fetch.return_value = [self._build_raw_message(token, "approvo", "hacker@evil.com")]
+        mock_validate.return_value = "'hacker@evil.com' non nella lista approvatori"
+
+        from .mailbox_graph import poll_graph_mailbox
+        result = poll_graph_mailbox(limit=10, dry_run=False, mark_read=True)
+
+        self.assertEqual(result.ignored, 1)
+        mock_mark.assert_not_called()
+
+    @override_settings(
+        GRAPH_TENANT_ID="t", GRAPH_CLIENT_ID="c", GRAPH_CLIENT_SECRET="s",
+        APPROVAL_MAILBOX_ADDRESS="mb@example.com",
+        APPROVAL_MAILBOX_FOLDER="Inbox",
+        APPROVAL_GRAPH_ONLY_UNREAD="1",
+        APPROVAL_GRAPH_PAGE_SIZE="10",
+        APPROVAL_GRAPH_MARK_READ="1",
+        APPROVAL_MAILBOX_BACKEND="graph",
+    )
+    @patch("automazioni.mailbox_graph.fetch_messages")
+    @patch("automazioni.mailbox_graph.mark_message_as_read")
+    @patch("automazioni.mailbox_graph._validate_sender")
+    @patch("automazioni.services.process_approval_decision")
+    def test_poll_does_not_mark_read_on_process_exception(
+        self, mock_process, mock_validate, mock_mark, mock_fetch
+    ):
+        approval = self._make_approval(approver_emails=["approver@example.com"])
+        token_str = str(approval.token)
+        mock_fetch.return_value = [self._build_raw_message(token_str, "approvo")]
+        mock_validate.return_value = None
+        mock_process.side_effect = RuntimeError("boom")
+
+        from .mailbox_graph import poll_graph_mailbox
+        result = poll_graph_mailbox(limit=10, dry_run=False, mark_read=True)
+
+        self.assertEqual(result.error, 1)
+        mock_mark.assert_not_called()
+
+    @override_settings(
+        GRAPH_TENANT_ID="t", GRAPH_CLIENT_ID="c", GRAPH_CLIENT_SECRET="s",
+        APPROVAL_MAILBOX_ADDRESS="mb@example.com",
+        APPROVAL_MAILBOX_FOLDER="Inbox",
+        APPROVAL_GRAPH_ONLY_UNREAD="1",
+        APPROVAL_GRAPH_PAGE_SIZE="10",
+        APPROVAL_GRAPH_MARK_READ="1",
+        APPROVAL_MAILBOX_BACKEND="graph",
+    )
+    @patch("automazioni.mailbox_graph.fetch_messages")
+    @patch("automazioni.mailbox_graph.mark_message_as_read")
+    @patch("automazioni.mailbox_graph._validate_sender")
+    @patch("automazioni.services.process_approval_decision")
+    def test_poll_does_not_mark_read_on_process_error_result(
+        self, mock_process, mock_validate, mock_mark, mock_fetch
+    ):
+        approval = self._make_approval(approver_emails=["approver@example.com"])
+        token_str = str(approval.token)
+        mock_fetch.return_value = [self._build_raw_message(token_str, "approvo")]
+        mock_validate.return_value = None
+        mock_process.return_value = {"ok": False, "message": "boom"}
+
+        from .mailbox_graph import poll_graph_mailbox
+        result = poll_graph_mailbox(limit=10, dry_run=False, mark_read=True)
+
+        self.assertEqual(result.error, 1)
+        mock_mark.assert_not_called()
+
+    @override_settings(
+        GRAPH_TENANT_ID="t", GRAPH_CLIENT_ID="c", GRAPH_CLIENT_SECRET="s",
+        APPROVAL_MAILBOX_ADDRESS="mb@example.com",
+        APPROVAL_MAILBOX_FOLDER="Inbox",
+        APPROVAL_GRAPH_ONLY_UNREAD="1",
+        APPROVAL_GRAPH_PAGE_SIZE="10",
+        APPROVAL_GRAPH_MARK_READ="0",
+        APPROVAL_MAILBOX_BACKEND="graph",
+    )
+    @patch("automazioni.mailbox_graph.fetch_messages")
+    def test_poll_first_valid_decision_wins_in_same_batch(self, mock_fetch):
+        approval = self._make_approval(approver_emails=["approver@example.com"])
+        token_str = str(approval.token)
+        newer_reject = self._build_raw_message(token_str, "rifiuto")
+        newer_reject["id"] = "GMSG_NEWER"
+        newer_reject["internetMessageId"] = "<newer@example.com>"
+        newer_reject["receivedDateTime"] = "2026-04-15T10:05:00Z"
+
+        older_approve = self._build_raw_message(token_str, "approvo")
+        older_approve["id"] = "GMSG_OLDER"
+        older_approve["internetMessageId"] = "<older@example.com>"
+        older_approve["receivedDateTime"] = "2026-04-15T10:00:00Z"
+
+        mock_fetch.return_value = [newer_reject, older_approve]
+
+        from .mailbox_graph import poll_graph_mailbox
+        result = poll_graph_mailbox(limit=10, dry_run=False, mark_read=False)
+
+        approval.refresh_from_db()
+        self.assertEqual(approval.status, AutomationApproval.Status.APPROVED)
+        self.assertEqual(result.processed, 1)
+        self.assertEqual(result.approved, 1)
+        self.assertEqual(result.rejected, 0)
+        self.assertEqual(result.ignored, 1)
+        self.assertEqual(result.messages[0]["outcome"], "processed_approved")
+        self.assertEqual(result.messages[1]["outcome"], "ignored_already_decided")
+
+
+class GraphMailboxRuntimeTests(SimpleTestCase):
+    """Test del modulo approval_mailbox_runtime per Graph."""
+
+    def test_get_approval_mailbox_backend_default_graph(self):
+        from .approval_mailbox_runtime import get_approval_mailbox_backend, MAILBOX_BACKEND_GRAPH
+        with override_settings(APPROVAL_MAILBOX_BACKEND="graph"):
+            self.assertEqual(get_approval_mailbox_backend(), MAILBOX_BACKEND_GRAPH)
+
+    def test_get_approval_mailbox_backend_imap(self):
+        from .approval_mailbox_runtime import get_approval_mailbox_backend, MAILBOX_BACKEND_IMAP
+        with override_settings(APPROVAL_MAILBOX_BACKEND="imap"):
+            self.assertEqual(get_approval_mailbox_backend(), MAILBOX_BACKEND_IMAP)
+
+    def test_save_approval_graph_settings_writes_env(self):
+        import tempfile
+        from .approval_mailbox_runtime import save_approval_graph_settings
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            env_path = Path(tmpdir) / ".env"
+            ok, message = save_approval_graph_settings(
+                mailbox="approvals@costruzioninovicrom.it",
+                folder="Inbox",
+                only_unread=True,
+                page_size=20,
+                mark_read=True,
+                dotenv_path=env_path,
+            )
+            env_text = env_path.read_text(encoding="utf-8")
+
+        self.assertTrue(ok)
+        self.assertIn("APPROVAL_MAILBOX_ADDRESS=approvals@costruzioninovicrom.it", env_text)
+        self.assertIn("APPROVAL_MAILBOX_FOLDER=Inbox", env_text)
+        self.assertIn("APPROVAL_GRAPH_PAGE_SIZE=20", env_text)
+        self.assertIn("APPROVAL_MAILBOX_BACKEND=graph", env_text)
+
+
+class GraphMailboxManagementCommandTests(TestCase):
+    """Test del management command process_approval_mailbox."""
+
+    @override_settings(
+        GRAPH_TENANT_ID="",
+        GRAPH_CLIENT_ID="",
+        GRAPH_CLIENT_SECRET="",
+        APPROVAL_MAILBOX_ADDRESS="",
+        APPROVAL_MAILBOX_BACKEND="graph",
+    )
+    def test_command_fails_if_not_configured(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        with self.assertRaises(CommandError) as ctx:
+            call_command("process_approval_mailbox")
+        self.assertIn("Configurazione Graph mailbox incompleta", str(ctx.exception))
+
+    @override_settings(
+        GRAPH_TENANT_ID="t", GRAPH_CLIENT_ID="c", GRAPH_CLIENT_SECRET="s",
+        APPROVAL_MAILBOX_ADDRESS="mb@example.com",
+        APPROVAL_MAILBOX_FOLDER="Inbox",
+        APPROVAL_GRAPH_ONLY_UNREAD="1",
+        APPROVAL_GRAPH_PAGE_SIZE="5",
+        APPROVAL_GRAPH_MARK_READ="0",
+        APPROVAL_MAILBOX_BACKEND="graph",
+    )
+    @patch("automazioni.mailbox_graph.fetch_messages", return_value=[])
+    def test_command_dry_run_empty_mailbox(self, mock_fetch):
+        out = io.StringIO()
+        call_command("process_approval_mailbox", "--dry-run", stdout=out)
+        output = out.getvalue()
+        self.assertIn("read=0", output)
+        self.assertIn("processed=0", output)

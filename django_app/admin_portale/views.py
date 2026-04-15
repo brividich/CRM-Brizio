@@ -33,6 +33,12 @@ from django.views.decorators.http import require_GET, require_POST
 from werkzeug.security import generate_password_hash
 
 from config.env_config import get_first_env_value, load_env_file_values, update_env_file_values
+from automazioni.approval_mailbox_runtime import (
+    get_approval_imap_form_defaults,
+    get_approval_imap_status,
+    run_approval_imap_poll_now,
+    save_approval_imap_settings,
+)
 from core.acl import diagnose_permesso_for_context
 from core.acl_v2 import diagnose_acl_access, normalize_binding_path_pattern, normalize_permission_code, validate_permission_code
 from core.audit import log_action
@@ -1091,6 +1097,10 @@ LDAP_DIAG_FIELDS: tuple[dict[str, object], ...] = (
 
 def _dotenv_path() -> Path:
     return Path(settings.BASE_DIR) / ".env"
+
+
+def _config_ini_path() -> Path:
+    return Path(settings.BASE_DIR).parent / "config.ini"
 
 
 def _load_dotenv_values(dotenv_path: Path | None = None) -> dict[str, str]:
@@ -2497,10 +2507,13 @@ def ldap_diagnostica(request):
     }
     ldap_diag_rows, ldap_runtime_has_pending_restart, ldap_runtime_has_env_override = _ldap_diag_runtime_rows(runtime_cfg)
     smtp_defaults = _smtp_diag_defaults()
+    approval_imap_status = get_approval_imap_status()
+    approval_imap_form = get_approval_imap_form_defaults()
     result_connect = None
     result_bind = None
     result_service = None
     result_smtp = None
+    result_approval_imap = None
     sync_result = None
     bind_username = ""
 
@@ -2632,6 +2645,44 @@ def ldap_diagnostica(request):
                 )
                 result_smtp = {"ok": ok, "message": msg}
                 (messages.success if ok else messages.error)(request, msg)
+        elif action == "save_approval_imap_config":
+            posted_port = (request.POST.get("approval_imap_port") or "").strip()
+            try:
+                parsed_port = max(int(posted_port or approval_imap_form["port"]), 1)
+            except (TypeError, ValueError):
+                parsed_port = int(approval_imap_form["port"])
+
+            approval_imap_form = {
+                "host": (request.POST.get("approval_imap_host") or "").strip(),
+                "port": parsed_port,
+                "user": (request.POST.get("approval_imap_user") or "").strip(),
+                "password": "",
+                "folder": (request.POST.get("approval_imap_folder") or "").strip() or "INBOX",
+                "use_ssl": _bool_from_any(request.POST.get("approval_imap_use_ssl")),
+                "password_configured": bool((request.POST.get("approval_imap_password") or "").strip())
+                or bool(approval_imap_form.get("password_configured")),
+            }
+            ok, msg = save_approval_imap_settings(
+                host=str(approval_imap_form["host"]),
+                port=int(approval_imap_form["port"]),
+                user=str(approval_imap_form["user"]),
+                password=(request.POST.get("approval_imap_password") or "").strip(),
+                use_ssl=bool(approval_imap_form["use_ssl"]),
+                folder=str(approval_imap_form["folder"]),
+                dotenv_path=_dotenv_path(),
+            )
+            result_approval_imap = {"ok": ok, "message": msg, "output": "", "stats": {}}
+            approval_imap_status = get_approval_imap_status()
+            if ok:
+                approval_imap_form = get_approval_imap_form_defaults()
+            (messages.success if ok else messages.error)(request, msg)
+        elif action == "run_approval_imap_poll":
+            result_approval_imap = run_approval_imap_poll_now()
+            approval_imap_status = get_approval_imap_status()
+            (messages.success if result_approval_imap.get("ok") else messages.error)(
+                request,
+                str(result_approval_imap.get("message") or "Polling mailbox fallito."),
+            )
         elif action == "save_ldap_config":
             enabled = _bool_from_any(request.POST.get("enabled"))
             defaults["enabled"] = enabled
@@ -2736,10 +2787,13 @@ def ldap_diagnostica(request):
             "ldap_effective_sync_missing": ldap_effective_sync_missing,
             "ldap_sync_cfg": ldap_sync_cfg,
             "smtp_cfg": smtp_defaults,
+            "approval_imap_status": approval_imap_status,
+            "approval_imap_form": approval_imap_form,
             "result_connect": result_connect,
             "result_bind": result_bind,
             "result_service": result_service,
             "result_smtp": result_smtp,
+            "result_approval_imap": result_approval_imap,
             "bind_username": bind_username,
             "sync_result": sync_result,
         },

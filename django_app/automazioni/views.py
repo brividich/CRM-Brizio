@@ -5,7 +5,7 @@ import json
 from django.contrib import messages
 from django.db.models import Count
 from django.db import connection, transaction
-from django.db.utils import ProgrammingError as DjangoProgrammingError
+from django.db.utils import OperationalError as DjangoOperationalError, ProgrammingError as DjangoProgrammingError
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.text import slugify
@@ -13,8 +13,10 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from admin_portale.decorators import legacy_admin_required
+from core.audit import log_action
 
 from .forms import (
+    ApprovalEmailTemplateForm,
     AutomationDeliveryEndpointForm,
     AutomationActionFormSet,
     AutomationConditionFormSet,
@@ -26,6 +28,9 @@ from .forms import (
     TeamsWebhookPresetForm,
 )
 from .models import (
+    ApprovalEmailTemplate,
+    ApprovalEmailTemplateDeliveryMode,
+    APPROVAL_EMAIL_TEMPLATE_UNAVAILABLE_MESSAGE,
     AutomationAction,
     AutomationActionLog,
     AutomationActionType,
@@ -43,6 +48,21 @@ from .models import (
     AutomationTableConfig,
     TeamsWebhookPreset,
     list_teams_flow_endpoints,
+    list_approval_email_templates,
+)
+from .approval_mailbox_runtime import (
+    get_approval_graph_form_defaults,
+    get_approval_graph_status,
+    get_approval_imap_form_defaults,
+    get_approval_imap_status,
+    get_approval_mailbox_backend,
+    get_default_approval_mailbox_details,
+    run_approval_poll_now,
+    run_approval_imap_poll_now,
+    save_approval_graph_settings,
+    save_approval_imap_settings,
+    MAILBOX_BACKEND_GRAPH,
+    MAILBOX_BACKEND_IMAP,
 )
 from .services import (
     count_queue_by_status,
@@ -51,9 +71,11 @@ from .services import (
     get_queue_event_detail,
     list_queue_events,
     process_approval_decision,
+    delete_queue_event,
     process_single_queue_event_by_id,
     reset_queue_event_to_pending,
     run_rule,
+    stop_queue_event,
 )
 from .package_importer import (
     PackageImportError,
@@ -3629,6 +3651,39 @@ def _build_teams_delivery_context(
     }
 
 
+def _build_automation_settings_context(
+    *,
+    poll_result=None,
+    approval_imap_form=None,
+    approval_graph_form=None,
+) -> dict[str, object]:
+    from .approval_email_templates import APPROVAL_MAILBOX_SITE_CONFIG_KEY
+
+    mailbox_details = get_default_approval_mailbox_details()
+    active_backend = get_approval_mailbox_backend()
+    return {
+        **_base_context(),
+        # ── Graph (nuovo backend) ──────────────────────────────────────────
+        "approval_graph_status": get_approval_graph_status(),
+        "approval_graph_form": approval_graph_form or get_approval_graph_form_defaults(),
+        # ── IMAP (retrocompat) ────────────────────────────────────────────
+        "approval_imap_status": get_approval_imap_status(),
+        "approval_imap_form": approval_imap_form or get_approval_imap_form_defaults(),
+        # ── Backend attivo ────────────────────────────────────────────────
+        "approval_mailbox_backend": active_backend,
+        "approval_mailbox_backend_is_graph": active_backend == MAILBOX_BACKEND_GRAPH,
+        "approval_mailbox_backend_is_imap": active_backend == MAILBOX_BACKEND_IMAP,
+        # ── Risultato ultimo poll ─────────────────────────────────────────
+        # Separati per evitare che il risultato di un backend appaia nel pannello dell'altro.
+        "approval_graph_result": poll_result if active_backend == MAILBOX_BACKEND_GRAPH else None,
+        "approval_imap_result": poll_result if active_backend == MAILBOX_BACKEND_IMAP else None,
+        "approval_mailbox_site_config_key": APPROVAL_MAILBOX_SITE_CONFIG_KEY,
+        "approval_mailbox_site_config_value": (
+            str(mailbox_details["value"] or "") if mailbox_details.get("source") == "site_config" else ""
+        ),
+    }
+
+
 def _build_rule_designer_context(
     *,
     rule: AutomationRule | None,
@@ -4666,10 +4721,11 @@ def rule_test_page(request, rule_id: int):
 
 def _queue_table_exists() -> bool:
     try:
+        table_name = "automation_event_queue" if connection.vendor == "sqlite" else "dbo.automation_event_queue"
         with connection.cursor() as cursor:
-            cursor.execute("SELECT TOP 1 id FROM dbo.automation_event_queue WHERE 1=0;")
+            cursor.execute(f"SELECT 1 FROM {table_name} WHERE 1=0;")
         return True
-    except DjangoProgrammingError:
+    except (DjangoProgrammingError, DjangoOperationalError):
         return False
 
 
@@ -4712,6 +4768,8 @@ def queue_list_page(request):
         event["error_message_short"] = str(event.get("error_message") or "")[:180]
         event["can_reset"] = event.get("status") == "error"
         event["can_retry"] = event.get("status") in {"error", "pending"}
+        event["can_stop"] = event.get("status") == "pending"
+        event["can_delete"] = event.get("status") in {"pending", "error"} and event["run_log_count"] == 0
 
     context = {
         **_base_context(),
@@ -4756,6 +4814,9 @@ def queue_detail_page(request, queue_id: int):
     queue_event["old_payload_pretty"] = _json_pretty(queue_event.get("old_payload_json"))
     queue_event["can_reset"] = queue_event.get("status") == "error"
     queue_event["can_retry"] = queue_event.get("status") in {"error", "pending"}
+    queue_event["run_log_count"] = len(run_logs)
+    queue_event["can_stop"] = queue_event.get("status") == "pending"
+    queue_event["can_delete"] = queue_event.get("status") in {"pending", "error"} and not run_logs
 
     context = {
         **_base_context(),
@@ -4788,6 +4849,47 @@ def queue_retry_view(request, queue_id: int):
     else:
         messages.error(request, f"Retry fallito per evento queue {queue_id}: {result['message']}")
     return redirect("admin_portale:automazioni_queue_detail", queue_id=queue_id)
+
+
+@legacy_admin_required
+@require_POST
+def queue_stop_view(request, queue_id: int):
+    if stop_queue_event(queue_id):
+        log_action(
+            request,
+            "queue_stop",
+            "automazioni",
+            {"queue_event_id": int(queue_id), "source": "queue_admin"},
+        )
+        messages.success(request, f"Evento queue {queue_id} stoppato manualmente.")
+    else:
+        messages.error(
+            request,
+            f"Stop non consentito per l'evento queue {queue_id}. Sono stoppabili solo eventi ancora pending.",
+        )
+    return redirect("admin_portale:automazioni_queue_detail", queue_id=queue_id)
+
+
+@legacy_admin_required
+@require_POST
+def queue_delete_view(request, queue_id: int):
+    if delete_queue_event(queue_id):
+        log_action(
+            request,
+            "queue_delete",
+            "automazioni",
+            {"queue_event_id": int(queue_id), "source": "queue_admin"},
+        )
+        messages.success(request, f"Evento queue {queue_id} eliminato.")
+    else:
+        messages.error(
+            request,
+            (
+                f"Eliminazione non consentita per l'evento queue {queue_id}. "
+                "Puoi eliminare solo eventi pending/error senza run log collegati."
+            ),
+        )
+    return redirect("admin_portale:automazioni_queue_list")
 
 
 @legacy_admin_required
@@ -5071,8 +5173,148 @@ def approval_status_page(request, token: str):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @legacy_admin_required
+def settings_page(request):
+    from core.models import SiteConfig
+
+    poll_result = None
+    approval_imap_form = get_approval_imap_form_defaults()
+    approval_graph_form = get_approval_graph_form_defaults()
+
+    if request.method == "POST":
+        action = _string_value(request.POST.get("action"))
+
+        if action == "save_default_approval_mailbox":
+            from .approval_email_templates import APPROVAL_MAILBOX_SITE_CONFIG_KEY
+
+            mailbox_value = _string_value(request.POST.get("approval_mailbox"))
+            saved = SiteConfig.set(
+                APPROVAL_MAILBOX_SITE_CONFIG_KEY,
+                mailbox_value,
+                "Mailbox tecnica globale usata dai template approvazione mail_reply/hybrid.",
+            )
+            if saved:
+                messages.success(request, "Mailbox tecnica predefinita aggiornata.")
+            else:
+                messages.error(request, "Impossibile salvare la mailbox tecnica in SiteConfig.")
+            return redirect("admin_portale:automazioni_settings")
+
+        # ── Azioni Graph backend ──────────────────────────────────────────────
+        if action == "save_approval_graph_config":
+            try:
+                posted_page_size = max(1, min(int(_string_value(request.POST.get("approval_graph_page_size")) or "25"), 50))
+            except (TypeError, ValueError):
+                posted_page_size = 25
+
+            approval_graph_form = {
+                "mailbox": _string_value(request.POST.get("approval_graph_mailbox")),
+                "folder": _string_value(request.POST.get("approval_graph_folder")) or "Inbox",
+                "only_unread": _bool_value(request.POST.get("approval_graph_only_unread")),
+                "page_size": posted_page_size,
+                "mark_read": _bool_value(request.POST.get("approval_graph_mark_read")),
+            }
+            ok, message = save_approval_graph_settings(
+                mailbox=str(approval_graph_form["mailbox"]),
+                folder=str(approval_graph_form["folder"]),
+                only_unread=bool(approval_graph_form["only_unread"]),
+                page_size=int(approval_graph_form["page_size"]),
+                mark_read=bool(approval_graph_form["mark_read"]),
+            )
+            poll_result = {"ok": ok, "message": message, "output": "", "stats": {}}
+            if ok:
+                approval_graph_form = get_approval_graph_form_defaults()
+                messages.success(request, message)
+            else:
+                messages.error(request, message)
+
+        if action == "run_approval_graph_poll":
+            poll_result = run_approval_poll_now(limit=25)
+            if poll_result.get("ok"):
+                messages.success(request, str(poll_result.get("message") or "Polling Graph completato."))
+            else:
+                messages.error(request, str(poll_result.get("message") or "Polling Graph fallito."))
+
+        # ── Azioni IMAP backend (retrocompat) ────────────────────────────────
+        if action == "save_approval_imap_config":
+            posted_port = _string_value(request.POST.get("approval_imap_port"))
+            try:
+                parsed_port = max(int(posted_port or approval_imap_form["port"]), 1)
+            except (TypeError, ValueError):
+                parsed_port = int(approval_imap_form["port"])
+
+            approval_imap_form = {
+                "host": _string_value(request.POST.get("approval_imap_host")),
+                "port": parsed_port,
+                "user": _string_value(request.POST.get("approval_imap_user")),
+                "password": "",
+                "folder": _string_value(request.POST.get("approval_imap_folder")) or "INBOX",
+                "use_ssl": _bool_value(request.POST.get("approval_imap_use_ssl")),
+                "password_configured": bool(_string_value(request.POST.get("approval_imap_password")))
+                or bool(approval_imap_form.get("password_configured")),
+            }
+            ok, message = save_approval_imap_settings(
+                host=str(approval_imap_form["host"]),
+                port=int(approval_imap_form["port"]),
+                user=str(approval_imap_form["user"]),
+                password=_string_value(request.POST.get("approval_imap_password")),
+                use_ssl=bool(approval_imap_form["use_ssl"]),
+                folder=str(approval_imap_form["folder"]),
+            )
+            poll_result = {"ok": ok, "message": message, "output": "", "stats": {}}
+            if ok:
+                approval_imap_form = get_approval_imap_form_defaults()
+                messages.success(request, message)
+            else:
+                messages.error(request, message)
+
+        if action == "run_approval_imap_poll":
+            poll_result = run_approval_imap_poll_now()
+            if poll_result.get("ok"):
+                messages.success(request, str(poll_result.get("message") or "Polling IMAP completato."))
+            else:
+                messages.error(request, str(poll_result.get("message") or "Polling IMAP fallito."))
+
+    return render(
+        request,
+        "automazioni/pages/impostazioni.html",
+        _build_automation_settings_context(
+            poll_result=poll_result,
+            approval_imap_form=approval_imap_form,
+            approval_graph_form=approval_graph_form,
+        ),
+    )
+
+
+@legacy_admin_required
 def teams_presets_page(request):
     return render(request, "automazioni/pages/teams_presets.html", _build_teams_delivery_context())
+
+
+@legacy_admin_required
+def approval_mailbox_log_page(request):
+    """Diagnostica: ultimi messaggi letti dalla mailbox approvazioni."""
+    from .models import ApprovalMailboxMessage
+
+    page_size = 40
+    try:
+        qs = ApprovalMailboxMessage.objects.select_related("linked_approval").order_by(
+            "-received_at", "-created_at"
+        )[:page_size]
+        log_entries = list(qs)
+        table_missing = False
+    except Exception:
+        log_entries = []
+        table_missing = True
+
+    return render(
+        request,
+        "automazioni/pages/approval_mailbox_log.html",
+        {
+            **_base_context(),
+            "log_entries": log_entries,
+            "table_missing": table_missing,
+            "graph_status": None,  # lazy — caricato nella template se necessario
+        },
+    )
 
 
 @legacy_admin_required
@@ -5191,3 +5433,165 @@ def teams_flow_endpoint_delete(request, pk: int):
     endpoint.delete()
     messages.success(request, f"Endpoint '{name}' eliminato.")
     return redirect("admin_portale:automazioni_teams_presets")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Template Email Approvazioni — CRUD + Preview + Clone
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _get_approval_templates_context() -> dict:
+    """Contesto comune: lista template + warning schema drift."""
+    templates, unavailable = list_approval_email_templates(enabled_only=False)
+    return {
+        "approval_templates": templates,
+        "approval_templates_unavailable": APPROVAL_EMAIL_TEMPLATE_UNAVAILABLE_MESSAGE if unavailable else "",
+    }
+
+
+@legacy_admin_required
+def approval_templates_list_page(request):
+    ctx = _get_approval_templates_context()
+    return render(request, "automazioni/pages/approval_template_list.html", ctx)
+
+
+@legacy_admin_required
+def approval_template_create_page(request):
+    from .approval_email_templates import get_default_approval_mailbox
+
+    if request.method == "POST":
+        form = ApprovalEmailTemplateForm(request.POST)
+        if form.is_valid():
+            tpl = form.save(commit=False)
+            tpl.created_by = request.user
+            tpl.updated_by = request.user
+            tpl.save()
+            messages.success(request, f"Template '{tpl.name}' creato.")
+            return redirect("admin_portale:automazioni_approval_template_edit", pk=tpl.pk)
+    else:
+        form = ApprovalEmailTemplateForm(
+            initial={"mailto_mailbox": get_default_approval_mailbox()}
+        )
+
+    _placeholders = ["id", "dipendente_nome", "tipo_assenza", "data_inizio", "data_fine", "note", "reparto", "capo_email", "approval_token", "approval_id", "approve_url", "reject_url"]
+    return render(request, "automazioni/pages/approval_template_form.html", {
+        "form": form,
+        "is_create": True,
+        "page_title": "Crea template email approvazione",
+        "available_placeholders": _placeholders,
+    })
+
+
+@legacy_admin_required
+def approval_template_edit_page(request, pk: int):
+    tpl = get_object_or_404(ApprovalEmailTemplate, pk=pk)
+    if request.method == "POST":
+        form = ApprovalEmailTemplateForm(request.POST, instance=tpl)
+        if form.is_valid():
+            tpl = form.save(commit=False)
+            tpl.updated_by = request.user
+            tpl.save()
+            messages.success(request, f"Template '{tpl.name}' aggiornato.")
+            return redirect("admin_portale:automazioni_approval_template_edit", pk=tpl.pk)
+    else:
+        form = ApprovalEmailTemplateForm(instance=tpl)
+
+    _placeholders = ["id", "dipendente_nome", "tipo_assenza", "data_inizio", "data_fine", "note", "reparto", "capo_email", "approval_token", "approval_id", "approve_url", "reject_url"]
+    return render(request, "automazioni/pages/approval_template_form.html", {
+        "form": form,
+        "template": tpl,
+        "is_create": False,
+        "page_title": f"Modifica — {tpl.name}",
+        "available_placeholders": _placeholders,
+    })
+
+
+@legacy_admin_required
+@require_POST
+def approval_template_delete_page(request, pk: int):
+    tpl = get_object_or_404(ApprovalEmailTemplate, pk=pk)
+    name = tpl.name
+    tpl.delete()
+    messages.success(request, f"Template '{name}' eliminato.")
+    return redirect("admin_portale:automazioni_approval_templates")
+
+
+@legacy_admin_required
+@require_POST
+def approval_template_clone_page(request, pk: int):
+    """Clona un template esistente con nuovo code/name."""
+    import uuid as _uuid
+    source = get_object_or_404(ApprovalEmailTemplate, pk=pk)
+    new_code_base = f"{source.code}-copia"
+    suffix = str(_uuid.uuid4())[:6]
+    new_code = f"{new_code_base}-{suffix}"
+
+    clone = ApprovalEmailTemplate(
+        code=new_code,
+        name=f"{source.name} (copia)",
+        description=source.description,
+        is_enabled=False,
+        delivery_mode=source.delivery_mode,
+        subject_template=source.subject_template,
+        title_template=source.title_template,
+        intro_template=source.intro_template,
+        body_template=source.body_template,
+        include_facts=source.include_facts,
+        facts_lines=source.facts_lines,
+        approval_label=source.approval_label,
+        rejection_label=source.rejection_label,
+        include_mailto_actions=source.include_mailto_actions,
+        mailto_mailbox=source.mailto_mailbox,
+        approval_mailto_subject_template=source.approval_mailto_subject_template,
+        approval_mailto_body_template=source.approval_mailto_body_template,
+        rejection_mailto_subject_template=source.rejection_mailto_subject_template,
+        rejection_mailto_body_template=source.rejection_mailto_body_template,
+        created_by=request.user,
+        updated_by=request.user,
+    )
+    clone.save()
+    messages.success(request, f"Template clonato come '{clone.name}' (disabilitato, codice: {clone.code}).")
+    return redirect("admin_portale:automazioni_approval_template_edit", pk=clone.pk)
+
+
+@legacy_admin_required
+def approval_template_preview_page(request, pk: int):
+    """
+    Preview HTML del template con dati mock o payload custom via GET params.
+    Supporta ?raw=1 per restituire solo il corpo HTML (iframe-friendly).
+    """
+    from .approval_email_templates import (
+        DEMO_PAYLOAD,
+        find_unresolved_placeholders,
+        render_approval_email_preview,
+    )
+
+    tpl = get_object_or_404(ApprovalEmailTemplate, pk=pk)
+
+    # Payload personalizzato opzionale via query string (JSON encoded)
+    custom_payload_raw = request.GET.get("payload", "")
+    custom_payload: dict = {}
+    payload_error = ""
+    if custom_payload_raw:
+        try:
+            parsed = json.loads(custom_payload_raw)
+            if isinstance(parsed, dict):
+                custom_payload = parsed
+            else:
+                payload_error = "Il payload deve essere un oggetto JSON."
+        except Exception:
+            payload_error = "JSON non valido nel parametro 'payload'."
+
+    rendered = render_approval_email_preview(tpl, custom_payload or None)
+    unresolved = find_unresolved_placeholders(rendered["html_body"] + rendered["subject"])
+
+    if request.GET.get("raw") == "1":
+        return HttpResponse(rendered["html_body"], content_type="text/html; charset=utf-8")
+
+    return render(request, "automazioni/pages/approval_template_preview.html", {
+        "template": tpl,
+        "rendered": rendered,
+        "unresolved": unresolved,
+        "demo_payload": DEMO_PAYLOAD,
+        "custom_payload_raw": custom_payload_raw,
+        "payload_error": payload_error,
+    })

@@ -321,12 +321,17 @@ def _humanize_guide_title(stem: str) -> str:
     return title
 
 
+def _sanitize_guide_icon(icon: str | None) -> str:
+    value = (icon or "").strip()
+    if not value:
+        return ""
+    if any(marker in value for marker in ("ð", "â", "œ", "ž")):
+        return ""
+    return value
+
+
 def _guide_icon_for_suffix(suffix: str) -> str:
-    if suffix == ".pdf":
-        return "ðŸ“•"
-    if suffix == ".md":
-        return "ðŸ“"
-    return "ðŸ“„"
+    return ""
 
 
 def _guide_catalog_key(source_key: str, path: Path) -> str:
@@ -361,7 +366,7 @@ def _build_guide_entry(source_key: str, path: Path, repo_root: Path, used_slugs:
     return {
         "slug": slug,
         "title": metadata.get("title") or _humanize_guide_title(path.stem),
-        "icon": metadata.get("icon") or _guide_icon_for_suffix(suffix),
+        "icon": _sanitize_guide_icon(metadata.get("icon") or _guide_icon_for_suffix(suffix)),
         "desc": metadata.get("desc") or f"Documento {suffix[1:].upper()} disponibile in {_GUIDE_SOURCE_LABELS.get(source_key, source_key)}.",
         "format": suffix[1:].upper(),
         "file_name": path.name,

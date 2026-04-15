@@ -190,6 +190,67 @@ def _resolve_legacy_user_email(legacy_user_id: Any) -> str:
     return str(getattr(legacy_user, "email", "") or "").strip().lower()
 
 
+def _resolve_caporeparto_email_from_local_id(local_id: Any) -> str:
+    resolved_id = _coerce_int(local_id)
+    if resolved_id is None:
+        return ""
+
+    try:
+        from core.legacy_utils import legacy_table_columns
+
+        cols = set(legacy_table_columns("capi_reparto"))
+    except Exception:
+        logger.warning(
+            "_resolve_caporeparto_email_from_local_id: impossibile leggere metadata per capi_reparto id=%s",
+            resolved_id,
+            exc_info=True,
+        )
+        cols = set()
+
+    select_cols: list[str] = []
+    if "indirizzo_email" in cols:
+        select_cols.append("indirizzo_email")
+    if "utente_id" in cols:
+        select_cols.append("utente_id")
+    if not select_cols:
+        return ""
+
+    try:
+        with connection.cursor() as cursor:
+            if connection.vendor == "sqlite":
+                cursor.execute(
+                    f"SELECT {', '.join(select_cols)} FROM capi_reparto WHERE id = %s ORDER BY id DESC LIMIT 1",
+                    [resolved_id],
+                )
+            else:
+                cursor.execute(
+                    f"SELECT TOP 1 {', '.join(select_cols)} FROM capi_reparto WHERE id = %s ORDER BY id DESC",
+                    [resolved_id],
+                )
+            row = cursor.fetchone()
+    except Exception:
+        logger.warning(
+            "_resolve_caporeparto_email_from_local_id: impossibile risolvere email per capi_reparto.id=%s",
+            resolved_id,
+            exc_info=True,
+        )
+        row = None
+
+    if not row:
+        return ""
+
+    offset = 0
+    if "indirizzo_email" in cols:
+        email = str(row[offset] or "").strip().lower()
+        if email:
+            return email
+        offset += 1
+
+    if "utente_id" in cols:
+        return _resolve_legacy_user_email(row[offset])
+    return ""
+
+
 def _resolve_caporeparto_email_from_lookup(lookup_id: Any) -> str:
     resolved_id = _coerce_int(lookup_id)
     if resolved_id is None:
@@ -275,6 +336,8 @@ def _enrich_assenze_payload(payload: Any) -> Any:
 
     capo_email = str(enriched.get("capo_email") or "").strip().lower()
     if not capo_email:
+        capo_email = _resolve_caporeparto_email_from_local_id(enriched.get("capo_reparto_id"))
+    if not capo_email:
         capo_email = _resolve_legacy_user_email(enriched.get("capo_reparto_id"))
     if not capo_email:
         capo_email = _resolve_caporeparto_email_from_lookup(enriched.get("capo_reparto_lookup_id"))
@@ -315,6 +378,34 @@ def enrich_payload_for_source(source_code: str | None, payload: Any) -> Any:
 def _cursor_fetch_dicts(cursor) -> list[dict[str, Any]]:
     columns = [column[0] for column in cursor.description or []]
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+
+def _queue_table_has_column(column_name: str) -> bool:
+    normalized = str(column_name or "").strip()
+    if not normalized:
+        return False
+
+    vendor = str(getattr(connection, "vendor", "") or "").lower()
+
+    try:
+        with connection.cursor() as cursor:
+            if vendor == "sqlite":
+                cursor.execute("PRAGMA table_info(automation_event_queue)")
+                rows = cursor.fetchall() or []
+                return any(str(row[1]) == normalized for row in rows if len(row) > 1)
+
+            cursor.execute(
+                """
+SELECT 1
+FROM sys.columns
+WHERE object_id = OBJECT_ID(N'dbo.automation_event_queue', N'U')
+  AND name = %s
+""",
+                [normalized],
+            )
+            return bool(cursor.fetchone())
+    except DjangoProgrammingError:
+        return False
 
 
 def _build_queue_source_filter(source_code: str | None) -> tuple[str, list[Any]]:
@@ -394,12 +485,15 @@ def _did_payload_change(payload: Any, old_payload: Any) -> bool:
 def fetch_pending_queue_events(limit: int = 50, source_code: str | None = None) -> list[dict[str, Any]]:
     batch_limit = max(int(limit or 0), 1)
     source_filter_sql, source_filter_params = _build_queue_source_filter(source_code)
+    execute_after_filter_sql = ""
+    if _queue_table_has_column("execute_after"):
+        execute_after_filter_sql = "\n    AND (execute_after IS NULL OR execute_after <= GETUTCDATE())"
     sql = f"""
 WITH picked AS (
     SELECT TOP ({batch_limit}) id
     FROM dbo.automation_event_queue WITH (READPAST, UPDLOCK, ROWLOCK)
     WHERE status = %s
-    AND (execute_after IS NULL OR execute_after <= GETUTCDATE())
+    {execute_after_filter_sql}
     {source_filter_sql}
     ORDER BY id ASC
 )
@@ -437,6 +531,9 @@ INNER JOIN picked
 def fetch_pending_queue_event_snapshots(limit: int = 50, source_code: str | None = None) -> list[dict[str, Any]]:
     batch_limit = max(int(limit or 0), 1)
     source_filter_sql, source_filter_params = _build_queue_source_filter(source_code)
+    execute_after_filter_sql = ""
+    if _queue_table_has_column("execute_after"):
+        execute_after_filter_sql = "\nAND (execute_after IS NULL OR execute_after <= GETUTCDATE())"
     sql = f"""
 SELECT TOP ({batch_limit})
     id,
@@ -456,7 +553,7 @@ SELECT TOP ({batch_limit})
     processed_at
 FROM dbo.automation_event_queue
 WHERE status = %s
-AND (execute_after IS NULL OR execute_after <= GETUTCDATE())
+{execute_after_filter_sql}
 {source_filter_sql}
 ORDER BY id ASC;
 """
@@ -574,6 +671,40 @@ WHERE id = %s
   AND retry_count < %s
 """,
             [QueueEventStatus.PENDING, int(queue_id), QueueEventStatus.ERROR, MAX_QUEUE_EVENT_RETRY_COUNT],
+        )
+        return bool(cursor.rowcount)
+
+
+def stop_queue_event(queue_id: int, *, reason: str | None = None) -> bool:
+    stop_reason = reason or "Evento stoppato manualmente dall'operatore."
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+UPDATE dbo.automation_event_queue
+SET
+    status = %s,
+    error_message = %s,
+    processed_at = SYSUTCDATETIME()
+WHERE id = %s
+  AND status = %s
+""",
+            [QueueEventStatus.ERROR, _normalize_queue_error_message(stop_reason), int(queue_id), QueueEventStatus.PENDING],
+        )
+        return bool(cursor.rowcount)
+
+
+def delete_queue_event(queue_id: int) -> bool:
+    if AutomationRunLog.objects.filter(queue_event_id=int(queue_id)).exists():
+        return False
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+DELETE FROM dbo.automation_event_queue
+WHERE id = %s
+  AND status IN (%s, %s)
+""",
+            [int(queue_id), QueueEventStatus.PENDING, QueueEventStatus.ERROR],
         )
         return bool(cursor.rowcount)
 
@@ -1335,22 +1466,34 @@ def _send_approval_email(
     approve_label: str,
     reject_label: str,
     expires_at: datetime | None,
+    html_body_override: str | None = None,
+    text_body_override: str | None = None,
 ) -> str:
+    """
+    Invia l'email di approvazione.
+    Se html_body_override / text_body_override sono valorizzati (rendering da ApprovalEmailTemplate),
+    vengono usati direttamente. Altrimenti viene generato il corpo inline (comportamento legacy).
+    """
     from_email = _validate_sender_email("", {})
     expires_label = expires_at.strftime("%d/%m/%Y %H:%M") if expires_at else "N/D"
-    html_body = (
-        f"<p>{message_body}</p>"
-        f"<p>"
-        f'<a href="{approve_url}" style="display:inline-block;padding:10px 24px;background:#16a34a;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;margin-right:12px;">{approve_label}</a>'
-        f'<a href="{reject_url}" style="display:inline-block;padding:10px 24px;background:#dc2626;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">{reject_label}</a>'
-        f"</p>"
-        f'<p style="font-size:12px;color:#64748b;">Questa richiesta scade il {expires_label}.</p>'
-    )
-    text_body = (
-        f"{message_body}\n\n"
-        f"{approve_label}: {approve_url}\n"
-        f"{reject_label}: {reject_url}\n"
-    )
+
+    if html_body_override is not None and text_body_override is not None:
+        html_body = html_body_override
+        text_body = text_body_override
+    else:
+        html_body = (
+            f"<p>{message_body}</p>"
+            f"<p>"
+            f'<a href="{approve_url}" style="display:inline-block;padding:10px 24px;background:#16a34a;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;margin-right:12px;">{approve_label}</a>'
+            f'<a href="{reject_url}" style="display:inline-block;padding:10px 24px;background:#dc2626;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">{reject_label}</a>'
+            f"</p>"
+            f'<p style="font-size:12px;color:#64748b;">Questa richiesta scade il {expires_label}.</p>'
+        )
+        text_body = (
+            f"{message_body}\n\n"
+            f"{approve_label}: {approve_url}\n"
+            f"{reject_label}: {reject_url}\n"
+        )
 
     for approver_email in approver_emails:
         message = EmailMultiAlternatives(
@@ -1363,6 +1506,34 @@ def _send_approval_email(
         message.send(fail_silently=False)
 
     return f"Email approvazione inviata a {', '.join(approver_emails)}."
+
+
+def _resolve_approval_email_template(config: dict[str, Any]) -> Any | None:
+    """
+    Risolve l'ApprovalEmailTemplate referenziato nel config di send_approval.
+    Ritorna il template o None se non specificato / non trovato / tabella mancante.
+    Degrada silenziosamente: mai sollevare eccezioni qui.
+    """
+    template_id = config.get("approval_email_template_id")
+    template_code = config.get("approval_email_template_code")
+    if not template_id and not template_code:
+        return None
+    try:
+        from .models import get_approval_email_template
+        template, table_missing = get_approval_email_template(
+            template_id=template_id,
+            template_code=template_code,
+            enabled_only=True,
+        )
+        if table_missing:
+            logger.warning(
+                "_resolve_approval_email_template: tabella ApprovalEmailTemplate non trovata. "
+                "Eseguire `migrate automazioni`."
+            )
+        return template
+    except Exception:
+        logger.warning("_resolve_approval_email_template: errore nel caricamento template.", exc_info=True)
+        return None
 
 
 def _parse_approval_facts(config: dict[str, Any], payload_context: dict[str, Any]) -> list[dict[str, str]]:
@@ -1869,6 +2040,11 @@ def _schedule_queue_event(
     """Inserisce un nuovo evento in coda con una data di esecuzione futura."""
     from django.db import connections
     vendor = str(connections["default"].vendor or "").lower()
+    if not _queue_table_has_column("execute_after"):
+        raise RuntimeError(
+            "La tabella dbo.automation_event_queue non espone la colonna 'execute_after'. "
+            "Riallinea lo schema rieseguendo sql/automation_event_queue.sql."
+        )
     execute_after_str = execute_after.strftime("%Y-%m-%d %H:%M:%S")
     if "microsoft" in vendor or "mssql" in vendor:
         sql = """
@@ -2183,6 +2359,9 @@ def execute_action(
             if not approver_emails:
                 raise ValueError("send_approval: nessun approvatore risolto per il recapito richiesto.")
 
+            # ── Risolvi template email (opzionale, non bloccante) ─────────────
+            email_template = _resolve_approval_email_template(config)
+
             approval = _create_approval_record(
                 action=action,
                 run_log=run_log,
@@ -2197,11 +2376,52 @@ def execute_action(
             )
             approve_url, reject_url = _build_approval_links(approval)
 
+            # ── Se presente un template, rende il corpo HTML/text e opzionalmente
+            #    sovrascrive subject se non è stato valorizzato esplicitamente
+            html_body_override: str | None = None
+            text_body_override: str | None = None
+            if email_template is not None:
+                try:
+                    from .approval_email_templates import build_template_context, render_approval_email
+                    tpl_context = build_template_context(
+                        payload_context,
+                        approval=approval,
+                        approve_url=approve_url,
+                        reject_url=reject_url,
+                    )
+                    # Aggiunge expires_at nel context per il rendering del template
+                    if approval.expires_at:
+                        tpl_context["expires_at"] = approval.expires_at.strftime("%d/%m/%Y %H:%M")
+                    rendered = render_approval_email(
+                        email_template,
+                        tpl_context,
+                        approve_url=approve_url,
+                        reject_url=reject_url,
+                    )
+                    # Usa il subject del template solo se non è stato esplicitamente
+                    # configurato nella regola (config ha subject_template vuoto/default)
+                    raw_rule_subject = str(config.get("subject_template") or "").strip()
+                    if not raw_rule_subject or raw_rule_subject == "Richiesta di approvazione":
+                        subject = rendered["subject"] or subject
+                    html_body_override = rendered["html_body"]
+                    text_body_override = rendered["text_body"]
+                except Exception:
+                    logger.warning(
+                        "send_approval: errore rendering ApprovalEmailTemplate id=%s. "
+                        "Fallback al comportamento standard.",
+                        getattr(email_template, "pk", "?"),
+                        exc_info=True,
+                    )
+                    html_body_override = None
+                    text_body_override = None
+
             result_message_parts = [
                 f"Richiesta approvazione creata per {', '.join(approver_emails)}.",
                 f"Token: {approval.token}.",
                 f"Scadenza: {expiry_days} giorni.",
             ]
+            if email_template is not None:
+                result_message_parts.append(f"Template email: {email_template.name}.")
             delivery_success = False
             strict_teams_flow = bool(config.get("strict_teams_flow"))
 
@@ -2217,6 +2437,8 @@ def execute_action(
                             approve_label=approve_label,
                             reject_label=reject_label,
                             expires_at=approval.expires_at,
+                            html_body_override=html_body_override,
+                            text_body_override=text_body_override,
                         )
                     )
                     delivery_success = True

@@ -1,7 +1,7 @@
 # CLAUDE.md - Portale Novicrom
 
 Documento di contesto per AI coding assistant. Aggiornato continuamente con il progetto.
-Versione app corrente: **0.9.16** (2026-04-14)
+Versione app corrente: **0.9.17** (2026-04-15)
 
 ---
 
@@ -32,11 +32,11 @@ Hardening sicurezza 0.8.7:
 | --- | ----- |
 | `core` | Middleware ACL, navigation registry, legacy models, auth backends, context processors |
 | `dashboard` | Home page utente e dashboard principale KPI/personalizzabile |
-| `assenze` | Modulo unificato assenze: richieste, gestione, calendario, certificazioni + sync SharePoint |
+| `assenze` | Modulo unificato assenze: richieste, gestione, calendario, certificazioni + sync SharePoint; il submit locale risolve `capo_reparto_id` verso la FK reale `capi_reparto.id` (non `utenti.id`), cosi email e lookup SharePoint del form non generano piu conflitti FK su SQL Server |
 | `anomalie` | Segnalazione e gestione anomalie produzione |
 | `assets` | Gestione asset aziendali (macchinari, attrezzature) + scadenzari manutenzioni/scadenze con creazione eventi Outlook sul calendario dell'utente selezionato; la manutenzione periodica vive come categoria della manutenzione su `/assets/manutenzione/verifiche/` con redirect legacy da `/assets/verifiche-periodiche/`; dashboard KPI personalizzabile per utente su `/assets/dashboard/` con 12 widget (scadenze, OdL, verifiche, ripartizioni) e drag & drop; la lista inventario canonica vive su `/assets/lista/` e i vecchi link filtrati `/assets/?asset_type=...` vengono riallineati automaticamente; licenze software su `/assets/licenze/` assegnabili ad asset o dipendenti anagrafica; categorie asset e campi dinamici si gestiscono nella tab `Categorie asset` di `/assets/impostazioni/`, con rimando rapido anche dallo Studio amministratore inventario |
 | `tasks` | `KICK-OFF`: portfolio kickoff, attivita kickoff, subtask, commenti, allegati, import Excel e upload documento MOD.073 VRF |
-| `automazioni` | Designer visuale automazioni + workspace flow split-view + SQL trigger -> event queue |
+| `automazioni` | Designer visuale automazioni + workspace flow split-view + SQL trigger -> event queue; la queue admin in `/admin-portale/automazioni/queue/` espone anche le azioni manuali `Stoppa` (porta un evento `pending` in `error` senza eseguirlo) ed `Elimina` (solo per eventi `pending/error` senza run log collegati) per interventi operativi sicuri; il polling Graph delle reply approvative processa ora i messaggi in ordine cronologico crescente (`first valid decision wins`), valida sempre il mittente in fail-closed, deduplica in modo persistente su `internet_message_id` e marca come lette solo le reply terminali/non riprocessabili |
 | `admin_portale` | Pannello admin custom (non Django admin) |
 | `anagrafica` | Anagrafica dipendenti (integrata con AD/legacy DB, fallback automatico `email_notifica` -> `email` quando il dato legacy manca) |
 | `notizie` | Bacheca notizie/comunicazioni |
@@ -355,6 +355,7 @@ Percorso: `/admin-portale/hub/` Ã¢â‚¬â€ richiede `is_legacy_admin()`.
 - `/admin-portale/hub/guide/` non usa piu un catalogo hardcoded: scopre automaticamente i documenti supportati (`.html`, `.pdf`, `.md`) nelle directory sorgente del progetto dedicate alla documentazione.
 - `guide_serve` risolve i documenti per `slug` (con fallback legacy sul filename), serve `html` e `pdf` nativamente e incapsula i `md` in un viewer HTML integrato per mantenerli consultabili anche dentro l'iframe dell'Hub.
 - La vista singola guida usa CTA topbar compatti (`Nuova scheda`, `Lista guide`) per non sottrarre spazio verticale/orizzontale al documento.
+- Se una guida porta un'icona con encoding corrotto (mojibake tipo `ðŸ...`), il catalogo la deve omettere del tutto invece di mostrare caratteri rotti davanti al titolo.
 
 ### Schema DB Ã¢â‚¬â€ riepilogo modelli per app
 
@@ -391,7 +392,7 @@ Questi componenti esistono solo sul server di produzione:
 
 - Tabelle legacy SQL Server: `utenti`, `ruoli`, `pulsanti`, `permessi`, `anagrafica_dipendenti` Ã¢â‚¬â€ DDL non nel repo, migration Django `0029_legacy_managed` presente ma applicata con `--fake` (tabelle preesistenti)
 - Trigger SQL Server per assenze (`sql/`): `trg_assenze_automation_after_insert`, `trg_assenze_automation_after_update`
-- Tabella `automation_event_queue` (`sql/automation_event_queue.sql`)
+- Tabella `automation_event_queue` (`sql/automation_event_queue.sql`) con riallineamento idempotente delle colonne nuove (es. `execute_after`) senza ricreazione della tabella
 - SharePoint/Graph data (credenziali `GRAPH_*` nel `.env`)
 - `media/fotocard`, `media/timbri`, `media/firme`
 - `django_app/.env` runtime (solo `.example` nel repo)
@@ -403,6 +404,8 @@ Questi componenti esistono solo sul server di produzione:
 - Designer visuale Ã¢â€ â€™ regole salvate su DB Ã¢â€ â€™ trigger SQL Server Ã¢â€ â€™ inserimento in `automation_event_queue`
 - Management command: `python manage.py process_automation_queue`
 - File principali: `automazioni/models.py`, `automazioni/views.py`, `sql/`
+- Compatibilita schema queue: il fetch degli eventi `pending` deve degradare se `dbo.automation_event_queue` non ha ancora `execute_after`, cosi le regole `insert/update` continuano a funzionare; le azioni che schedulano eventi futuri devono invece restituire un errore funzionale chiaro finche il DDL non viene riallineato
+- Sorgente `assenze`: l'enrichment runtime di `capo_email` deve risolvere prima `capo_reparto_id` come FK locale `capi_reparto.id` leggendo `indirizzo_email` (e in fallback `utente_id`), non come `utenti.id`; solo dopo sono ammessi i fallback legacy/sharepoint
 - Builder classico e designer visuale devono passare cataloghi sorgente e preset al frontend come oggetti Python via `json_script`; non usare `json.dumps` sui valori gia destinati a `json_script`, altrimenti i dropdown trigger/condizioni restano fermi sulla sorgente iniziale.
 - Designer visuale e pagina test espongono ora un browser campi smart con ricerca, filtri per ambito (`trigger`, `condition`, `template`, `action_mapping`) e inserimento contestuale nel target attivo (select, template o JSON raw).
 - La pagina test manuale usa un composer guidato per `payload_json` e `old_payload_json`, sincronizzato con i textarea raw e con diff sintetico dei campi cambiati.
@@ -429,6 +432,12 @@ Questi componenti esistono solo sul server di produzione:
 - `TeamsWebhookPreset` (migration 0009): webhook URL legacy riutilizzabile con nome, descrizione, is_active. Gestito su `/automazioni/canali-teams/`. Il campo `teams_preset_id` in `config_json` di `send_approval` fa lookup del URL da DB; fallback su `teams_webhook_url` raw (retrocompat). I fatti sono specificati come `Etichetta | {valore}` per riga in `teams_facts_inline` (alternativa alla lista JSON legacy `teams_facts`). Nel designer e in `action_card.html` il dropdown Teams legacy mostra solo preset attivi.
 - `AutomationDeliveryEndpoint` (migration 0010): endpoint generico riutilizzabile per recapiti automazione, con `endpoint_type` (`teams_webhook_legacy`, `teams_flow_webhook`), URL, flag `is_active`, codice e descrizione. La pagina `/automazioni/canali-teams/` gestisce ora sia i preset legacy sia gli endpoint Teams Flow; `send_approval` usa `teams_flow_endpoint_id` per risolvere l'URL del Power Automate / Teams Workflow, con fallback compatibile su eventuale `teams_flow_url` raw in `config_json`.
 - Schema drift difensivo: se il codice gira su un database dove la migration `automazioni.0010_automationdeliveryendpoint` non e' ancora applicata, pagina `Canali Teams`, builder classico, designer visuale e form `SEND_APPROVAL` non devono andare in 500. I lookup verso `AutomationDeliveryEndpoint` degradano a lista vuota con warning UI esplicito e il runtime `teams_chat_flow` restituisce un errore funzionale chiaro; il rimedio operativo resta `python django_app/manage.py migrate automazioni`.
+- **Template Email Approvazioni** (migration 0011): `ApprovalEmailTemplate` — template riutilizzabili per le mail generate da `send_approval`. Gestiti su `/automazioni/template-approvazioni/` (voce "Template approvazioni" in subnav). Tre `delivery_mode`: `portal_links` (link HTTP, default), `mail_reply` (mailto: verso mailbox tecnica — per reti non esposte), `hybrid`. La mailbox tecnica si configura per-template (`mailto_mailbox`) o tramite `SiteConfig` chiave `automazioni_approval_mailbox`. Service layer in `automazioni/approval_email_templates.py`: rendering, context building, build mailto links, preview. Il `config_json` di `send_approval` referenzia il template con `approval_email_template_id` (PK) o `approval_email_template_code`; se assente/non trovato: fallback silenzioso. Schema drift: lookup safe se migration non applicata. La preview su `/automazioni/template-approvazioni/<pk>/preview/` mostra HTML renderizzato con dati mock e rileva placeholder non risolti.
+- **Polling mailbox approvazioni via Microsoft Graph** (migration 0012, backend default): management command `python manage.py process_approval_mailbox [--dry-run] [--folder <cartella>] [--limit N] [--since-hours N] [--only-unread] [--no-mark-read]`. Legge la mailbox via Graph API (autenticazione moderna, compatibile con Microsoft 365 / Exchange Online dove Basic Auth è bloccata). Riusa le credenziali `GRAPH_TENANT_ID/CLIENT_ID/CLIENT_SECRET` già presenti nel `.env`. Service layer in `automazioni/mailbox_graph.py`: `fetch_messages()`, `normalize_message()`, `parse_approval_command()`, `poll_graph_mailbox()`, `_validate_sender()`. Configurazione via `APPROVAL_MAILBOX_BACKEND=graph`, `APPROVAL_MAILBOX_ADDRESS`, `APPROVAL_MAILBOX_FOLDER`, `APPROVAL_GRAPH_ONLY_UNREAD`, `APPROVAL_GRAPH_PAGE_SIZE`, `APPROVAL_GRAPH_MARK_READ`. Tracking idempotente su `ApprovalMailboxMessage` (dedup su `internet_message_id` RFC 2822). Permessi app registration richiesti: `Mail.ReadWrite` Application permission + Admin Consent su tenant Entra ID.
+- **Tracking messaggi mailbox** (`ApprovalMailboxMessage`, migration 0012): record per ogni messaggio letto. Campi: `internet_message_id` (dedup key univoco), `graph_message_id`, `mailbox`, `folder_name`, `from_email`, `received_at`, `command_detected`, `token_found`, `processing_status` (pending/processed/ignored/error), `processing_error`, `excerpt`, `linked_approval` FK, `processed_at`. Diagnostica: `/automazioni/mailbox-log/` (voce "Log mailbox" visibile dalle Impostazioni Automazioni).
+- **Backend IMAP legacy** (`poll_approval_mailbox`): mantenuto per retrocompat con ambienti che usano IMAP Basic Auth classico (non M365). Configurazione in `.env`: `APPROVAL_IMAP_*`. Non funziona su Microsoft 365 con Basic Auth bloccata: usare `process_approval_mailbox` (Graph).
+- **Dispatcher unificato**: `run_approval_poll_now()` in `automazioni/approval_mailbox_runtime.py` smista a Graph o IMAP in base a `APPROVAL_MAILBOX_BACKEND`. La pagina `/admin-portale/automazioni/impostazioni/` mostra il pannello Graph come primario e quello IMAP come sezione collassabile legacy. Il salvataggio da UI scrive `APPROVAL_MAILBOX_BACKEND=graph` nel `.env`.
+- **Impostazioni Automazioni**: la pagina admin `/admin-portale/automazioni/impostazioni/` espone stato runtime del backend attivo (Graph/IMAP), editing parametri, pulsante `Esegui ora`, quick link a template/canali Teams/log mailbox e salvataggio della mailbox tecnica globale `automazioni_approval_mailbox` in `SiteConfig`. Lo stesso pannello IMAP e' visibile anche in `/admin-portale/ldap/` dentro `Configurazione SMTP`.
 
 ---
 
@@ -439,7 +448,7 @@ Questi componenti esistono solo sul server di produzione:
 - Modelli interrogati (max 5 risultati per gruppo): `AnagraficaDipendente`, `Asset`, `Ticket`, `Project`, `Task`, `ProcedureDocument`
 - I modelli di altre app vanno importati localmente dentro la funzione per evitare import circolari
 - Risposta: `{"results": [{tipo, label, sub, url}, ...], "query": "..."}` con risultati raggruppati per tipo
-- UI: overlay spotlight in `topnav.html` con navigazione da tastiera (frecce, Enter, Esc), debounce 220ms
+- UI: overlay spotlight in `topnav.html` con navigazione da tastiera (frecce, Enter, Esc), debounce 220ms; in modalita sidebar il trigger rapido vive anche in `core/components/sidebar.html` come card scura integrata con hint `Ctrl+K` e resa icon-only quando `sb-collapsed` e attivo
 - CSS: classi `.gs-*` in `theme.css`; ogni tipo di risultato ha la sua classe colore `.gs-tipo-<tipo>`
 - Query minima: 2 caratteri; gestione errori per app non disponibili tramite `try/except` silenzioso
 
@@ -564,6 +573,8 @@ python django_app/manage.py test
 python django_app/manage.py runserver --settings=config.settings.dev
 # oppure: avvia_server.bat
 ```
+
+Nota dev tooling: `django_app/avvia_server.bat` evita intenzionalmente una scansione CIM/WMI globale dei processi Python. Su alcune postazioni Windows `Get-CimInstance Win32_Process` puo restare bloccato; per questo il batch pulisce solo il listener `LISTENING` sulla porta `8000` prima di lanciare `runserver`.
 
 **Requisiti sistema:** Python 3.11+, SQL Server con schema legacy popolato, un driver ODBC SQL Server installato (`18`, `17`, `13`, `SQL Server Native Client 11.0` o `SQL Server`).
 

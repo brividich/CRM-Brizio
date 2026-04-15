@@ -930,13 +930,56 @@ def _resolve_capo_lookup_id(capo_value: str | None) -> int | None:
     return _resolve_legacy_capo_lookup_by_raw_value(raw)
 
 
+def _find_local_capo_id_by_column(column_name: str, value) -> int | None:
+    if value is None:
+        return None
+    sql = _select_limited(
+        f"SELECT id FROM capi_reparto WHERE {column_name} = %s",
+        "ORDER BY id DESC",
+        1,
+    )
+    rows = _fetch_all_dict(sql, [value])
+    if not rows:
+        return None
+    return _as_int(rows[0].get("id"))
+
+
 def _resolve_capo_local_id(capo_value: str | None) -> int | None:
     raw = str(capo_value or "").strip()
     if not raw:
         return None
+    if not _legacy_capi_table_exists():
+        return None
+
+    cols = legacy_table_columns("capi_reparto")
+    if "id" not in cols:
+        return None
+
     legacy_user = _resolve_local_capo_legacy_user(raw)
-    if legacy_user is not None:
-        return _as_int(getattr(legacy_user, "id", None))
+    legacy_user_id = _as_int(getattr(legacy_user, "id", None)) if legacy_user is not None else None
+    if legacy_user_id is not None and "utente_id" in cols:
+        capo_id = _find_local_capo_id_by_column("utente_id", int(legacy_user_id))
+        if capo_id is not None:
+            return capo_id
+
+    if "@" in raw and "indirizzo_email" in cols:
+        capo_id = _find_local_capo_id_by_column("indirizzo_email", raw)
+        if capo_id is not None:
+            return capo_id
+
+    if "title" in cols:
+        capo_id = _find_local_capo_id_by_column("title", raw)
+        if capo_id is not None:
+            return capo_id
+
+    numeric = _as_int(raw)
+    if numeric is not None and "sharepoint_item_id" in cols:
+        capo_id = _find_local_capo_id_by_column("sharepoint_item_id", int(numeric))
+        if capo_id is not None:
+            return capo_id
+
+    if numeric is not None:
+        return _find_local_capo_id_by_column("id", int(numeric))
     return None
 
 

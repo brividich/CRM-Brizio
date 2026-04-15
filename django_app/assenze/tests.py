@@ -21,6 +21,7 @@ from .views import (
     _motivazione_for_storage,
     _norm_tipo,
     _owned_capo_ids_for_legacy_user,
+    _resolve_capo_local_id,
     _reconcile_pending_item_ids_with_sharepoint,
     _resolve_request_display_name,
     _sp_fields_from_row,
@@ -730,6 +731,57 @@ class AssenzeCaporepartoLocalSourceTests(TestCase):
 
         self.assertEqual(local_ids, {77})
         self.assertEqual(lookup_ids, set())
+
+    @patch("assenze.views._find_local_capo_id_by_column")
+    @patch("assenze.views._resolve_local_capo_legacy_user")
+    @patch("assenze.views.legacy_table_columns")
+    @patch("assenze.views._legacy_capi_table_exists", return_value=True)
+    def test_resolve_capo_local_id_uses_capi_reparto_row_linked_to_legacy_user(
+        self,
+        _mock_table_exists,
+        mock_columns,
+        mock_resolve_legacy_user,
+        mock_find_local_capo,
+    ):
+        mock_columns.return_value = {"id", "utente_id", "indirizzo_email", "title", "sharepoint_item_id"}
+        mock_resolve_legacy_user.return_value = SimpleNamespace(id=77)
+
+        def _fake_find(column_name, value):
+            if column_name == "utente_id" and value == 77:
+                return 12
+            return None
+
+        mock_find_local_capo.side_effect = _fake_find
+
+        resolved = _resolve_capo_local_id("capo@example.com")
+
+        self.assertEqual(resolved, 12)
+        self.assertEqual(mock_find_local_capo.call_args_list[0].args, ("utente_id", 77))
+
+    @patch("assenze.views._find_local_capo_id_by_column")
+    @patch("assenze.views._resolve_local_capo_legacy_user", return_value=None)
+    @patch("assenze.views.legacy_table_columns")
+    @patch("assenze.views._legacy_capi_table_exists", return_value=True)
+    def test_resolve_capo_local_id_falls_back_to_sharepoint_lookup_id(
+        self,
+        _mock_table_exists,
+        mock_columns,
+        _mock_resolve_legacy_user,
+        mock_find_local_capo,
+    ):
+        mock_columns.return_value = {"id", "sharepoint_item_id"}
+
+        def _fake_find(column_name, value):
+            if column_name == "sharepoint_item_id" and value == 456:
+                return 34
+            return None
+
+        mock_find_local_capo.side_effect = _fake_find
+
+        resolved = _resolve_capo_local_id("456")
+
+        self.assertEqual(resolved, 34)
+        self.assertEqual(mock_find_local_capo.call_args_list[0].args, ("sharepoint_item_id", 456))
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

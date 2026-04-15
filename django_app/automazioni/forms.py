@@ -11,6 +11,7 @@ from .models import (
     AutomationActionType,
     ApprovalDeliveryMode,
     AUTOMATION_DELIVERY_ENDPOINT_UNAVAILABLE_MESSAGE,
+    APPROVAL_EMAIL_TEMPLATE_UNAVAILABLE_MESSAGE,
     AutomationDeliveryEndpoint,
     AutomationDeliveryEndpointType,
     AutomationCondition,
@@ -20,6 +21,7 @@ from .models import (
     AutomationRuleTriggerScope,
     TeamsWebhookPreset,
     list_teams_flow_endpoints,
+    list_approval_email_templates,
 )
 from .services import get_action_table_whitelist
 from .source_registry import (
@@ -390,7 +392,7 @@ class AutomationConditionForm(forms.ModelForm):
         _mark_smart_target(self.fields.get("field_name"), mode="field-select", role="condition-field", source_role="condition")
         if not self.instance.pk:
             self.fields["order"].initial = ""
-            self.fields["is_enabled"].initial = False
+            self.fields["is_enabled"].initial = True
         effective_source_code = source_code or getattr(getattr(self.instance, "rule", None), "source_code", None)
         self.fields["field_name"].choices = _field_choices_from_registry(effective_source_code, mode="condition")
         self.fields["expected_value"].help_text = (
@@ -573,6 +575,15 @@ class AutomationActionForm(forms.ModelForm):
         label="Errore se Teams Flow fallisce",
         help_text="Usato solo per `email_and_teams_chat_flow`: se attivo, email inviata ma Teams KO rende l'action in errore.",
     )
+    approval_email_template_id = forms.ChoiceField(
+        required=False,
+        label="Template email approvazione",
+        choices=[("", "— nessun template (comportamento standard) —")],
+        help_text=(
+            "Seleziona un template per personalizzare il contenuto della mail. "
+            "Se lasciato vuoto, viene usato il corpo base definito direttamente nella regola."
+        ),
+    )
     approval_approved_actions_json = forms.CharField(
         required=False,
         label="Azioni se approvato (JSON array)",
@@ -605,7 +616,7 @@ class AutomationActionForm(forms.ModelForm):
         if not self.instance.pk:
             if not self.is_bound:
                 self.fields["order"].initial = ""
-                self.fields["is_enabled"].initial = False
+                self.fields["is_enabled"].initial = True
                 self.fields["delay_mode"].initial = "relative"
                 self.fields["delay_unit"].initial = "days"
                 self.fields["http_method"].initial = "POST"
@@ -697,6 +708,24 @@ class AutomationActionForm(forms.ModelForm):
                 AUTOMATION_DELIVERY_ENDPOINT_UNAVAILABLE_MESSAGE,
             )
 
+        # Popola scelte template email approvazione
+        approval_templates, self._approval_templates_unavailable = list_approval_email_templates(enabled_only=True)
+        self.fields["approval_email_template_id"].choices = [
+            ("", "— nessun template (comportamento standard) —"),
+            *[
+                (
+                    str(tpl.pk),
+                    tpl.name + (f" [{tpl.get_delivery_mode_display()}]" if tpl.delivery_mode else ""),
+                )
+                for tpl in approval_templates
+            ],
+        ]
+        if self._approval_templates_unavailable:
+            _append_help_text(
+                self.fields.get("approval_email_template_id"),
+                APPROVAL_EMAIL_TEMPLATE_UNAVAILABLE_MESSAGE,
+            )
+
         if config:
             run_if = config.get("run_if") if isinstance(config.get("run_if"), dict) else {}
             self.initial.setdefault("run_if_field_name", run_if.get("field_name", ""))
@@ -768,6 +797,7 @@ class AutomationActionForm(forms.ModelForm):
             self.initial.setdefault("approval_strict_teams_flow", bool(config.get("strict_teams_flow")))
             self.initial.setdefault("approval_approved_actions_json", _serialize_json_array_text(config.get("approved_actions")))
             self.initial.setdefault("approval_rejected_actions_json", _serialize_json_array_text(config.get("rejected_actions")))
+            self.initial.setdefault("approval_email_template_id", str(config.get("approval_email_template_id") or ""))
 
     def clean(self):
         cleaned_data = super().clean()
@@ -1096,6 +1126,11 @@ class AutomationActionForm(forms.ModelForm):
             if preset_id_raw and delivery_mode == ApprovalDeliveryMode.TEAMS_WEBHOOK_LEGACY:
                 config_json["teams_preset_id"] = preset_id_raw
 
+            # Template email approvazione (opzionale)
+            tpl_id_raw = str(cleaned_data.get("approval_email_template_id") or "").strip()
+            if tpl_id_raw:
+                config_json["approval_email_template_id"] = tpl_id_raw
+
         if run_if_config:
             config_json["run_if"] = run_if_config
         self._config_json = config_json
@@ -1343,6 +1378,66 @@ class TeamsWebhookPresetForm(forms.ModelForm):
             "description": "Descrizione",
             "is_active": "Attivo",
         }
+
+
+class ApprovalEmailTemplateForm(forms.ModelForm):
+    """Form per creare / modificare un ApprovalEmailTemplate."""
+
+    class Meta:
+        from .models import ApprovalEmailTemplate
+        model = ApprovalEmailTemplate
+        fields = [
+            "code", "name", "description", "is_enabled", "delivery_mode",
+            "subject_template", "title_template", "intro_template", "body_template",
+            "include_facts", "facts_lines",
+            "approval_label", "rejection_label",
+            "include_mailto_actions", "mailto_mailbox",
+            "approval_mailto_subject_template", "approval_mailto_body_template",
+            "rejection_mailto_subject_template", "rejection_mailto_body_template",
+        ]
+        widgets = {
+            "code": forms.TextInput(attrs={"placeholder": "assenze-approvazione-ferie"}),
+            "name": forms.TextInput(attrs={"placeholder": "Approvazione Ferie — Standard"}),
+            "description": forms.Textarea(attrs={"rows": 2, "placeholder": "Breve descrizione dell'utilizzo previsto..."}),
+            "subject_template": forms.TextInput(attrs={"placeholder": "Approvazione richiesta #{id} — {dipendente_nome}"}),
+            "title_template": forms.TextInput(attrs={"placeholder": "Richiesta Approvazione Ferie"}),
+            "intro_template": forms.Textarea(attrs={"rows": 3, "placeholder": "È pervenuta una richiesta di {tipo_assenza} da {dipendente_nome}..."}),
+            "body_template": forms.Textarea(attrs={"rows": 6, "placeholder": "HTML libero. Se compilato, intro e facts vengono ignorati."}),
+            "facts_lines": forms.Textarea(attrs={
+                "rows": 5,
+                "placeholder": "Tipo | {tipo_assenza}\nDal | {data_inizio}\nAl | {data_fine}\nDipendente | {dipendente_nome}\nReparto | {reparto}",
+            }),
+            "mailto_mailbox": forms.TextInput(attrs={"placeholder": "approvazioni@cnovicrom.local"}),
+            "approval_mailto_subject_template": forms.TextInput(attrs={"placeholder": "CMD APPROVO RID {approval_token}"}),
+            "approval_mailto_body_template": forms.Textarea(attrs={"rows": 3}),
+            "rejection_mailto_subject_template": forms.TextInput(attrs={"placeholder": "CMD RIFIUTO RID {approval_token}"}),
+            "rejection_mailto_body_template": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def clean_code(self):
+        from django.utils.text import slugify
+        code = str(self.cleaned_data.get("code") or "").strip()
+        if not code:
+            raise forms.ValidationError("Il codice è obbligatorio.")
+        slugified = slugify(code)
+        if slugified != code:
+            raise forms.ValidationError(
+                f"Il codice deve essere uno slug valido (lettere minuscole, numeri, trattini). "
+                f"Suggerimento: '{slugified}'."
+            )
+        return code
+
+    def clean(self):
+        cleaned = super().clean()
+        delivery_mode = cleaned.get("delivery_mode", "")
+        include_mailto = cleaned.get("include_mailto_actions", False)
+        from .models import ApprovalEmailTemplateDeliveryMode
+        if include_mailto and delivery_mode == ApprovalEmailTemplateDeliveryMode.PORTAL_LINKS:
+            self.add_error(
+                "include_mailto_actions",
+                "Le azioni mailto: sono disponibili solo per le modalità 'mail_reply' o 'hybrid'.",
+            )
+        return cleaned
 
 
 class AutomationDeliveryEndpointForm(forms.ModelForm):

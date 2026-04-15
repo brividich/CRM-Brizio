@@ -41,6 +41,14 @@ END;
 GO
 
 IF OBJECT_ID(N'dbo.automation_event_queue', N'U') IS NOT NULL
+    AND COL_LENGTH(N'dbo.automation_event_queue', N'execute_after') IS NULL
+BEGIN
+    ALTER TABLE dbo.automation_event_queue
+    ADD execute_after DATETIME2 NULL;
+END;
+GO
+
+IF OBJECT_ID(N'dbo.automation_event_queue', N'U') IS NOT NULL
     AND NOT EXISTS (
         SELECT 1
         FROM sys.indexes

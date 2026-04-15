@@ -46,11 +46,8 @@
   {% include "admin_portale/components/admin_subnav.html" %}
 {% endblock %}
 
-{% block module_subnav %}
-  {% include "automazioni/components/subnav.html" %}
-{% endblock %}
-
 {% block content %}
+  {% include "automazioni/components/subnav.html" %}
 <div class="page-header" style="margin-bottom:20px;">
   <h1 class="page-title">Canali Teams</h1>
   <p class="page-subtitle">Gestisci sia i webhook legacy di canale sia gli endpoint Power Automate / Teams Workflow usati per recapitare richieste di approvazione al singolo utente.</p>

@@ -1,0 +1,96 @@
+{% with imap=approval_imap_status %}
+  {% if approval_imap_edit_action and approval_imap_form %}
+    <form method="post" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:16px;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="{{ approval_imap_edit_action }}">
+      <label style="display:grid;gap:6px;">
+        <span style="font-size:12px;font-weight:700;color:#334155;">Server IMAP</span>
+        <input class="input" type="text" name="approval_imap_host" value="{{ approval_imap_form.host }}" placeholder="mail.azienda.local">
+      </label>
+      <label style="display:grid;gap:6px;">
+        <span style="font-size:12px;font-weight:700;color:#334155;">Porta</span>
+        <input class="input" type="number" min="1" name="approval_imap_port" value="{{ approval_imap_form.port|default:993 }}">
+      </label>
+      <label style="display:grid;gap:6px;">
+        <span style="font-size:12px;font-weight:700;color:#334155;">Username IMAP</span>
+        <input class="input" type="text" name="approval_imap_user" value="{{ approval_imap_form.user }}" autocomplete="off">
+      </label>
+      <label style="display:grid;gap:6px;">
+        <span style="font-size:12px;font-weight:700;color:#334155;">Password IMAP</span>
+        <input class="input" type="password" name="approval_imap_password" value="" autocomplete="new-password">
+        <span class="cell-muted">
+          {% if approval_imap_form.password_configured %}
+            Lascia vuoto per mantenere la password attuale.
+          {% else %}
+            Inserisci la password della mailbox tecnica.
+          {% endif %}
+        </span>
+      </label>
+      <label style="display:grid;gap:6px;">
+        <span style="font-size:12px;font-weight:700;color:#334155;">Cartella</span>
+        <input class="input" type="text" name="approval_imap_folder" value="{{ approval_imap_form.folder|default:'INBOX' }}">
+      </label>
+      <div style="display:grid;align-content:end;gap:8px;">
+        <label class="checkline"><input type="checkbox" name="approval_imap_use_ssl" {% if approval_imap_form.use_ssl %}checked{% endif %}> SSL attivo</label>
+      </div>
+      <div style="grid-column:1 / -1;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <button class="btn btn-primary" type="submit">Salva IMAP in .env</button>
+        <span class="cell-muted">Il salvataggio aggiorna <code>.env</code> e riallinea il processo corrente.</span>
+      </div>
+    </form>
+  {% endif %}
+
+  {% if imap.is_ready %}
+    <div class="notice notice-success" style="margin-bottom:12px;">
+      {{ imap.readiness_message }}
+    </div>
+  {% else %}
+    <div class="notice notice-warning" style="margin-bottom:12px;">
+      {{ imap.readiness_message }}
+    </div>
+  {% endif %}
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px;">
+    {% for row in imap.rows %}
+      <div style="border:1px solid #dbe5ef;border-radius:12px;padding:12px 14px;background:#fff;">
+        <div style="font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#64748b;">{{ row.label }}</div>
+        <div style="margin-top:6px;font-size:14px;font-weight:800;color:#0f172a;">
+          <code>{{ row.value }}</code>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="notice" style="margin-bottom:12px;">
+    <strong>Mailbox tecnica predefinita:</strong>
+    <code>{% if imap.mailbox.value %}{{ imap.mailbox.value }}{% else %}(non configurata){% endif %}</code>
+    <span class="cell-muted">da {{ imap.mailbox.source_label }}</span>.
+    {{ imap.mailbox_message }}
+  </div>
+
+  {% if approval_imap_action %}
+    <form method="post" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="{{ approval_imap_action }}">
+      <button class="btn btn-secondary" type="submit">{{ approval_imap_button_label|default:"Esegui ora" }}</button>
+      {% if approval_imap_settings_url %}
+        <a href="{{ approval_imap_settings_url }}" class="btn btn-primary">Apri impostazioni automazioni</a>
+      {% endif %}
+      <span class="cell-muted">Il pulsante esegue subito <code>poll_approval_mailbox</code> con il runtime corrente.</span>
+    </form>
+  {% endif %}
+
+  <div class="cell-muted">
+    Scheduling consigliato:
+    <code>{{ imap.suggested_schedule }}</code>
+  </div>
+
+  {% if approval_imap_result %}
+    <div class="notice{% if approval_imap_result.ok %} notice-success{% else %} notice-danger{% endif %}" style="margin-top:12px;">
+      {{ approval_imap_result.message }}
+      {% if approval_imap_result.output %}
+        <pre style="margin-top:10px;white-space:pre-wrap;font-size:12px;">{{ approval_imap_result.output }}</pre>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endwith %}

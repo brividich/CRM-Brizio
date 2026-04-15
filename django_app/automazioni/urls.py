@@ -4,6 +4,7 @@ from . import views
 
 
 urlpatterns = [
+    path("impostazioni/", views.settings_page, name="automazioni_settings"),
     path("sorgenti/", views.sorgenti_page, name="automazioni_sorgenti"),
     path("contenuti/", views.contenuti_page, name="automazioni_contenuti"),
     path("regole/", views.rule_list_page, name="automazioni_rule_list"),
@@ -44,6 +45,8 @@ urlpatterns = [
     path("queue/<int:queue_id>/", views.queue_detail_page, name="automazioni_queue_detail"),
     path("queue/<int:queue_id>/reset/", views.queue_reset_view, name="automazioni_queue_reset"),
     path("queue/<int:queue_id>/retry/", views.queue_retry_view, name="automazioni_queue_retry"),
+    path("queue/<int:queue_id>/stop/", views.queue_stop_view, name="automazioni_queue_stop"),
+    path("queue/<int:queue_id>/delete/", views.queue_delete_view, name="automazioni_queue_delete"),
     path("run-log/", views.run_log_list_page, name="automazioni_run_log_list"),
     path("run-log/<int:run_log_id>/", views.run_log_detail_page, name="automazioni_run_log_detail"),
     path("api/table-configs/", views.api_table_config_list, name="automazioni_api_table_config_list"),
@@ -71,4 +74,13 @@ urlpatterns = [
     # Approval decision (no login required, token-based)
     path("approvazione/<uuid:token>/", views.approval_status_page, name="automazioni_approval_status"),
     path("approvazione/<uuid:token>/<str:decision>/", views.approval_decision_page, name="automazioni_approval_decision"),
+    # Log diagnostica mailbox approvazioni
+    path("mailbox-log/", views.approval_mailbox_log_page, name="automazioni_mailbox_log"),
+    # Template Email Approvazioni
+    path("template-approvazioni/", views.approval_templates_list_page, name="automazioni_approval_templates"),
+    path("template-approvazioni/crea/", views.approval_template_create_page, name="automazioni_approval_template_create"),
+    path("template-approvazioni/<int:pk>/modifica/", views.approval_template_edit_page, name="automazioni_approval_template_edit"),
+    path("template-approvazioni/<int:pk>/elimina/", views.approval_template_delete_page, name="automazioni_approval_template_delete"),
+    path("template-approvazioni/<int:pk>/clona/", views.approval_template_clone_page, name="automazioni_approval_template_clone"),
+    path("template-approvazioni/<int:pk>/preview/", views.approval_template_preview_page, name="automazioni_approval_template_preview"),
 ]

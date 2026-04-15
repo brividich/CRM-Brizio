@@ -1,0 +1,125 @@
+{% with graph=approval_graph_status %}
+  {% if approval_graph_edit_action and approval_graph_form %}
+    <form method="post" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:16px;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="{{ approval_graph_edit_action }}">
+      <label style="display:grid;gap:6px;grid-column:1/-1;">
+        <span style="font-size:12px;font-weight:700;color:#334155;">Mailbox target (APPROVAL_MAILBOX_ADDRESS)</span>
+        <input class="input" type="email" name="approval_graph_mailbox" value="{{ approval_graph_form.mailbox }}"
+          placeholder="avviso@costruzioninovicrom.it"
+          style="max-width:380px;">
+        <span class="cell-muted">Deve corrispondere alla mailbox per cui l'app ha i permessi <code>Mail.ReadWrite</code>.</span>
+      </label>
+      <label style="display:grid;gap:6px;">
+        <span style="font-size:12px;font-weight:700;color:#334155;">Cartella</span>
+        <input class="input" type="text" name="approval_graph_folder" value="{{ approval_graph_form.folder|default:'Inbox' }}">
+      </label>
+      <label style="display:grid;gap:6px;">
+        <span style="font-size:12px;font-weight:700;color:#334155;">Page size</span>
+        <input class="input" type="number" min="1" max="50" name="approval_graph_page_size" value="{{ approval_graph_form.page_size|default:25 }}">
+      </label>
+      <div style="display:grid;align-content:start;gap:10px;padding-top:6px;">
+        <label class="checkline">
+          <input type="checkbox" name="approval_graph_only_unread" {% if approval_graph_form.only_unread %}checked{% endif %}>
+          Solo messaggi non letti
+        </label>
+        <label class="checkline">
+          <input type="checkbox" name="approval_graph_mark_read" {% if approval_graph_form.mark_read %}checked{% endif %}>
+          Marca come letti dopo il processing
+        </label>
+      </div>
+      <div style="grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <button class="btn btn-primary" type="submit">Salva configurazione Graph</button>
+        <span class="cell-muted">Scrive <code>APPROVAL_MAILBOX_ADDRESS</code>, <code>APPROVAL_MAILBOX_BACKEND=graph</code> e i parametri correlati in <code>.env</code>.</span>
+      </div>
+    </form>
+  {% endif %}
+
+  {% if graph.is_ready %}
+    <div class="notice notice-success" style="margin-bottom:12px;">
+      {{ graph.readiness_message }}
+    </div>
+  {% else %}
+    <div class="notice notice-warning" style="margin-bottom:12px;">
+      {{ graph.readiness_message }}
+    </div>
+  {% endif %}
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px;">
+    {% for row in graph.rows %}
+      <div style="border:1px solid {% if row.is_configured %}#bbf7d0{% else %}#fecaca{% endif %};border-radius:12px;padding:12px 14px;background:#fff;">
+        <div style="font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#64748b;">{{ row.label }}</div>
+        <div style="margin-top:6px;font-size:14px;font-weight:800;color:{% if row.is_configured %}#166534{% else %}#991b1b{% endif %};">
+          <code>{{ row.value }}</code>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="notice" style="margin-bottom:12px;">
+    <strong>Credenziali Graph:</strong>
+    Le variabili <code>GRAPH_TENANT_ID</code>, <code>GRAPH_CLIENT_ID</code> e <code>GRAPH_CLIENT_SECRET</code>
+    sono condivise con gli altri moduli (SharePoint, Outlook Calendar).
+    Configurarle una volta sola nel <code>.env</code> è sufficiente.
+    Per aggiungere il permesso mailbox servono i passi indicati nella documentazione (Admin Consent su <code>Mail.ReadWrite</code>).
+  </div>
+
+  {# ── Pulsante esegui ora ───────────────────────────────────────────────── #}
+  {% if approval_graph_action %}
+    <form method="post" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="{{ approval_graph_action }}">
+      <button class="btn btn-secondary" type="submit">{{ approval_graph_button_label|default:"Esegui ora" }}</button>
+      <span class="cell-muted">Esegue subito <code>process_approval_mailbox</code> con il runtime corrente.</span>
+    </form>
+  {% endif %}
+
+  {# ── Comandi da terminale ──────────────────────────────────────────────── #}
+  <details style="margin-top:4px;margin-bottom:12px;">
+    <summary style="cursor:pointer;user-select:none;font-size:12px;font-weight:700;color:#64748b;padding:6px 0;list-style:none;">
+      ▶ Comandi da terminale / Task Scheduler
+    </summary>
+    <div style="margin-top:10px;display:grid;gap:8px;">
+
+      <div style="background:#0f172a;border-radius:10px;padding:14px 16px;overflow-x:auto;">
+        <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:8px;">POLLING NORMALE</div>
+        <pre style="margin:0;color:#e2e8f0;font-size:12px;line-height:1.6;white-space:pre-wrap;">python django_app/manage.py process_approval_mailbox --settings=config.settings.prod</pre>
+      </div>
+
+      <div style="background:#0f172a;border-radius:10px;padding:14px 16px;overflow-x:auto;">
+        <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:8px;">DRY-RUN (nessuna scrittura DB, nessun mark-read)</div>
+        <pre style="margin:0;color:#e2e8f0;font-size:12px;line-height:1.6;white-space:pre-wrap;">python django_app/manage.py process_approval_mailbox --dry-run</pre>
+      </div>
+
+      <div style="background:#0f172a;border-radius:10px;padding:14px 16px;overflow-x:auto;">
+        <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:8px;">CON FILTRI (ultime 12 ore, max 50 messaggi)</div>
+        <pre style="margin:0;color:#e2e8f0;font-size:12px;line-height:1.6;white-space:pre-wrap;">python django_app/manage.py process_approval_mailbox --limit 50 --since-hours 12</pre>
+      </div>
+
+      <div style="background:#0f172a;border-radius:10px;padding:14px 16px;overflow-x:auto;">
+        <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:8px;">SENZA MARK-READ (dedup solo via DB)</div>
+        <pre style="margin:0;color:#e2e8f0;font-size:12px;line-height:1.6;white-space:pre-wrap;">python django_app/manage.py process_approval_mailbox --no-mark-read</pre>
+      </div>
+
+      <div style="background:#0f172a;border-radius:10px;padding:14px 16px;overflow-x:auto;">
+        <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:8px;">PRIMA ESECUZIONE — applica migration</div>
+        <pre style="margin:0;color:#e2e8f0;font-size:12px;line-height:1.6;white-space:pre-wrap;">python django_app/manage.py migrate automazioni --settings=config.settings.prod</pre>
+      </div>
+
+      <div class="cell-muted" style="font-size:12px;padding:4px 2px;">
+        Scheduling Task Scheduler / cron consigliato: ogni <strong>5 minuti</strong>.
+        Comando completo: <code>{{ graph.suggested_schedule }}</code>
+      </div>
+    </div>
+  </details>
+
+  {# ── Risultato ultimo poll ─────────────────────────────────────────────── #}
+  {% if approval_graph_result %}
+    <div class="notice{% if approval_graph_result.ok %} notice-success{% else %} notice-danger{% endif %}" style="margin-top:12px;">
+      {{ approval_graph_result.message }}
+      {% if approval_graph_result.output %}
+        <pre style="margin-top:10px;white-space:pre-wrap;font-size:12px;">{{ approval_graph_result.output }}</pre>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endwith %}

@@ -219,6 +219,15 @@
         from <code>{{ smtp_cfg.default_from_email|default:"(non configurato)" }}</code>
       </div>
 
+      <div style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:14px;">
+        <div style="font-size:14px;font-weight:800;color:#0f172a;margin-bottom:6px;">Polling IMAP approvazioni</div>
+        <div class="cell-muted" style="margin-bottom:10px;">
+          Runtime usato da <code>poll_approval_mailbox</code> per leggere le risposte email alle approvazioni del modulo automazioni.
+        </div>
+        {% url 'admin_portale:automazioni_settings' as automazioni_settings_url %}
+        {% include "automazioni/components/approval_imap_panel.html" with approval_imap_status=approval_imap_status approval_imap_form=approval_imap_form approval_imap_result=result_approval_imap approval_imap_edit_action="save_approval_imap_config" approval_imap_action="run_approval_imap_poll" approval_imap_button_label="Esegui ora" approval_imap_settings_url=automazioni_settings_url %}
+      </div>
+
       {% if result_smtp %}
         <div class="notice{% if result_smtp.ok %} notice-success{% else %} notice-danger{% endif %}" style="margin-top:10px;">
           {{ result_smtp.message }}

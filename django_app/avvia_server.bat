@@ -11,17 +11,16 @@ if /I "%~1"=="--dry-run" set "DRY_RUN=1"
 if /I "%~2"=="--dry-run" set "DRY_RUN=1"
 
 echo Chiudo tutte le istanze Django runserver attive...
-for /f "usebackq delims=" %%P in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^python(\\.exe)?$' -and $_.CommandLine -match '\\brunserver\\b' -and $_.CommandLine -match 'manage\\.py' } | Select-Object -ExpandProperty ProcessId"`) do (
+echo Verifico eventuali listener residui sulla porta %PORT%...
+set "FOUND_PORT_PID="
+for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":%PORT%" ^| findstr "LISTENING"') do (
     echo   - stop PID %%P
     taskkill /F /PID %%P >nul 2>&1
+    set "FOUND_PORT_PID=1"
 )
+if not defined FOUND_PORT_PID echo   - nessun listener attivo trovato sulla porta %PORT%...
 
-echo Chiudo eventuali listener residui sulla porta %PORT%...
-for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":%PORT%" ^| findstr "LISTENING"') do (
-    taskkill /F /PID %%P >nul 2>&1
-)
-
-timeout /t 1 /nobreak >nul
+ping -n 2 127.0.0.1 >nul 2>&1
 
 if not exist "%VENV_PY%" (
     echo ERRORE: interpreter non trovato: %VENV_PY%

@@ -11,6 +11,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from core.models import ModuleCategory, NavigationItem, SiteConfig
+from hub_tools.views import _sanitize_guide_icon
 
 
 class HubCategorieViewTests(TestCase):
@@ -315,6 +316,12 @@ class HubGuideCatalogTests(TestCase):
         self.assertTrue(any(path.endswith("doc/GUIDA_BETA.md") for path in relative_paths))
         self.assertTrue(any(path.endswith("deployment/MANUALE_RELEASE.pdf") for path in relative_paths))
         self.assertTrue(any(path.endswith("assets/README.md") for path in relative_paths))
+
+    def test_sanitize_guide_icon_blanks_mojibake_sequences(self):
+        self.assertEqual(_sanitize_guide_icon("\u00f0broken"), "")
+        self.assertEqual(_sanitize_guide_icon("\u00e2broken"), "")
+        self.assertEqual(_sanitize_guide_icon(""), "")
+        self.assertEqual(_sanitize_guide_icon("DOC"), "DOC")
 
     def test_guide_serve_renders_markdown_and_pdf_from_catalog(self):
         with self._admin_access():

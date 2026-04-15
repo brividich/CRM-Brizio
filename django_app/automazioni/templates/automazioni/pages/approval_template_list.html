@@ -1,0 +1,151 @@
+{% extends "core/base.html" %}
+
+{% block title %}Template Email Approvazioni | Automazioni | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .at-layout { display:grid; gap:20px; }
+  .at-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden; }
+  .at-card-head { padding:18px 20px; border-bottom:1px solid #e2e8f0; background:#f8fafc; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .at-card-title { font-size:15px; font-weight:800; color:#0f172a; }
+  .at-card-subtitle { font-size:13px; color:#64748b; margin-top:3px; }
+  .at-table-wrap { overflow:auto; }
+  .at-table { width:100%; border-collapse:collapse; font-size:14px; }
+  .at-table th, .at-table td { padding:10px 14px; border-bottom:1px solid #e2e8f0; text-align:left; vertical-align:top; }
+  .at-table th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; background:#f8fafc; }
+  .at-badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; }
+  .at-badge-on { background:#dcfce7; color:#166534; }
+  .at-badge-off { background:#e2e8f0; color:#64748b; }
+  .at-badge-mode { background:#eff6ff; color:#1d4ed8; }
+  .at-badge-mailto { background:#fef3c7; color:#92400e; }
+  .at-badge-hybrid { background:#f3e8ff; color:#6b21a8; }
+  .at-actions { display:flex; gap:6px; flex-wrap:wrap; }
+  .at-btn { display:inline-flex; align-items:center; gap:5px; padding:6px 12px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; border:none; text-decoration:none; }
+  .at-btn-primary { background:#3b82f6; color:#fff; }
+  .at-btn-primary:hover { background:#2563eb; }
+  .at-btn-edit { background:#f1f5f9; color:#334155; }
+  .at-btn-edit:hover { background:#e2e8f0; }
+  .at-btn-preview { background:#eff6ff; color:#1d4ed8; }
+  .at-btn-preview:hover { background:#dbeafe; }
+  .at-btn-danger { background:#fef2f2; color:#dc2626; }
+  .at-btn-danger:hover { background:#fee2e2; }
+  .at-code { font-size:12px; color:#475569; font-family:monospace; background:#f1f5f9; padding:2px 6px; border-radius:4px; }
+  .at-empty { text-align:center; color:#94a3b8; padding:32px; font-size:14px; }
+  .at-help { background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:14px 16px; font-size:13px; color:#1e40af; line-height:1.6; margin-bottom:16px; }
+  .at-warn { background:#fff7ed; border:1px solid #fdba74; border-radius:12px; padding:14px 16px; font-size:13px; color:#9a3412; margin-bottom:16px; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "automazioni/components/subnav.html" %}
+<div class="page-header" style="margin-bottom:20px;">
+  <h1 class="page-title">Template Email Approvazioni</h1>
+  <p class="page-subtitle">
+    Gestisci template riutilizzabili per le email di approvazione generate dall'azione <code>send_approval</code>.
+    Ogni template può usare link portale (HTTP), link mailto: verso la mailbox tecnica, o entrambi.
+  </p>
+</div>
+
+{% if messages %}
+  {% for message in messages %}
+  <div class="alert alert-{{ message.tags }}" style="margin-bottom:16px;">{{ message }}</div>
+  {% endfor %}
+{% endif %}
+
+{% if approval_templates_unavailable %}
+<div class="at-warn">
+  <strong>Template non disponibili.</strong><br>
+  {{ approval_templates_unavailable }}
+</div>
+{% else %}
+
+<div class="at-help">
+  <strong>portal_links</strong>: CTA con link HTTP al portale — funziona solo se il portale è raggiungibile dalla client dell'approvatore.<br>
+  <strong>mail_reply</strong>: CTA con link <code>mailto:</code> verso la mailbox tecnica interna — ideale per reti isolate / Outlook desktop.<br>
+  <strong>hybrid</strong>: entrambi — mostra prima i link portale, poi i mailto: come alternativa.<br>
+  I workflow esistenti senza template continuano a funzionare senza modifiche.
+</div>
+
+<div class="at-layout">
+  <div class="at-card">
+    <div class="at-card-head">
+      <div>
+        <div class="at-card-title">Template configurati</div>
+        <div class="at-card-subtitle">{{ approval_templates|length }} template{% if approval_templates|length != 1 %}s{% endif %} disponibil{% if approval_templates|length == 1 %}e{% else %}i{% endif %}</div>
+      </div>
+      <a href="{% url 'admin_portale:automazioni_approval_template_create' %}" class="at-btn at-btn-primary">+ Nuovo template</a>
+    </div>
+    <div class="at-table-wrap">
+      <table class="at-table">
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>Codice</th>
+            <th>Modalità</th>
+            <th>Stato</th>
+            <th>Aggiornato</th>
+            <th>Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tpl in approval_templates %}
+          <tr>
+            <td>
+              <strong>{{ tpl.name }}</strong>
+              {% if tpl.description %}
+                <div style="font-size:12px;color:#64748b;margin-top:2px;">{{ tpl.description|truncatechars:60 }}</div>
+              {% endif %}
+            </td>
+            <td><span class="at-code">{{ tpl.code }}</span></td>
+            <td>
+              {% if tpl.delivery_mode == 'portal_links' %}
+                <span class="at-badge at-badge-mode">Link portale</span>
+              {% elif tpl.delivery_mode == 'mail_reply' %}
+                <span class="at-badge at-badge-mailto">mailto:</span>
+              {% elif tpl.delivery_mode == 'hybrid' %}
+                <span class="at-badge at-badge-hybrid">Hybrid</span>
+              {% endif %}
+              {% if tpl.include_mailto_actions %}
+                <span class="at-badge at-badge-mailto" style="margin-left:4px;">mailto: CTA</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if tpl.is_enabled %}
+                <span class="at-badge at-badge-on">Attivo</span>
+              {% else %}
+                <span class="at-badge at-badge-off">Disabilitato</span>
+              {% endif %}
+            </td>
+            <td style="font-size:12px;color:#64748b;white-space:nowrap;">{{ tpl.updated_at|date:"d/m/Y H:i" }}</td>
+            <td>
+              <div class="at-actions">
+                <a href="{% url 'admin_portale:automazioni_approval_template_edit' tpl.pk %}" class="at-btn at-btn-edit">Modifica</a>
+                <a href="{% url 'admin_portale:automazioni_approval_template_preview' tpl.pk %}" class="at-btn at-btn-preview" target="_blank">Preview</a>
+                <form method="post" action="{% url 'admin_portale:automazioni_approval_template_clone' tpl.pk %}" style="display:inline;">
+                  {% csrf_token %}
+                  <button type="submit" class="at-btn at-btn-edit">Clona</button>
+                </form>
+                <form method="post" action="{% url 'admin_portale:automazioni_approval_template_delete' tpl.pk %}"
+                      style="display:inline;"
+                      onsubmit="return confirm('Eliminare il template \'{{ tpl.name|escapejs }}\'? L\'operazione non è reversibile.');">
+                  {% csrf_token %}
+                  <button type="submit" class="at-btn at-btn-danger">Elimina</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="at-empty">Nessun template configurato. <a href="{% url 'admin_portale:automazioni_approval_template_create' %}">Crea il primo template.</a></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}

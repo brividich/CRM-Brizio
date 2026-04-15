@@ -247,10 +247,12 @@
   {% url 'admin_portale:acl_diagnostica'          as acl_diag_url %}
   {% url 'admin_portale:ldap_diagnostica'         as ldap_diag_url %}
   {% url 'admin_portale:automazioni_rule_list'    as automazioni_rule_url %}
+  {% url 'admin_portale:automazioni_settings'     as automazioni_settings_url %}
   {% url 'admin_portale:automazioni_sorgenti'     as automazioni_sorgenti_url %}
   {% url 'admin_portale:automazioni_contenuti'    as automazioni_contenuti_url %}
   {% url 'admin_portale:automazioni_queue_list'   as automazioni_queue_url %}
   {% url 'admin_portale:automazioni_run_log_list' as automazioni_run_log_url %}
+  {% url 'admin_portale:automazioni_teams_presets' as automazioni_teams_url %}
   {% url 'monitoring_admin:dashboard'             as monitoring_dashboard_url %}
   {% url 'monitoring_admin:issue_list'            as monitoring_issue_list_url %}
   {% url 'monitoring_admin:automation_list'       as monitoring_automation_list_url %}
@@ -411,9 +413,18 @@
     <div class="ap-section-head">
       <div class="ap-section-icon">🤖</div>
       <div class="ap-section-title">Automazioni</div>
-      <span class="ap-section-count">5 strumenti</span>
+      <span class="ap-section-count">6 strumenti</span>
     </div>
     <div class="modules-grid">
+      {% if automazioni_settings_url %}
+      <a class="mod" href="{{ automazioni_settings_url }}">
+        <div class="mod-icon">&#9881;</div>
+        <div>
+          <div class="mod-name">Impostazioni Automazioni</div>
+          <div class="mod-sub">Mailbox tecnica, stato IMAP runtime e lancio manuale del polling approvazioni</div>
+        </div>
+      </a>
+      {% endif %}
       <a class="mod" href="{{ automazioni_rule_url }}">
         <div class="mod-icon">⚡</div>
         <div>
@@ -745,6 +756,21 @@
         <div class="ap-mod-card-links">
           <a href="{{ tickets_gestione_url }}" class="ap-mod-link gestione">Gestione</a>
           {% if tickets_impostazioni_url %}<a href="{{ tickets_impostazioni_url }}" class="ap-mod-link impostazioni">Impostazioni</a>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Automazioni -->
+      {% if automazioni_settings_url or automazioni_teams_url %}
+      <div class="ap-mod-card">
+        <div class="ap-mod-card-head">
+          <div class="ap-mod-card-icon">&#129302;</div>
+          <div class="ap-mod-card-name">Automazioni</div>
+        </div>
+        <div class="ap-mod-card-links">
+          {% if automazioni_settings_url %}<a href="{{ automazioni_settings_url }}" class="ap-mod-link impostazioni">Impostazioni</a>{% endif %}
+          {% if automazioni_rule_url %}<a href="{{ automazioni_rule_url }}" class="ap-mod-link gestione">Regole</a>{% endif %}
+          {% if automazioni_teams_url %}<a href="{{ automazioni_teams_url }}" class="ap-mod-link gestione">Canali Teams</a>{% endif %}
         </div>
       </div>
       {% endif %}

@@ -799,9 +799,9 @@
           <div class="designer-field designer-field-wide">{{ ef.description.label_tag }}{{ ef.description }}</div>
         </div>
       </div>
-      <div class="designer-editor-panel" style="margin-top:12px;">
-        <div class="designer-editor-panel-title">Branch leggero / run_if</div>
-        <div class="designer-trigger-copy">
+      <details class="designer-subeditor" style="margin-top:12px;">
+        <summary class="designer-subeditor-summary">Branch leggero / run_if <span class="designer-help" style="font-weight:normal;font-size:11px;margin-left:6px;">(esegui solo se...)</span></summary>
+        <div class="designer-trigger-copy" style="margin-top:10px;">
           <div class="designer-field">{{ ef.run_if_field_name.label_tag }}{{ ef.run_if_field_name }}</div>
           <div class="designer-field">{{ ef.run_if_operator.label_tag }}{{ ef.run_if_operator }}</div>
           <div class="designer-field">{{ ef.run_if_value_type.label_tag }}{{ ef.run_if_value_type }}</div>
@@ -809,7 +809,7 @@
           <div class="designer-field designer-field-compact-toggle">{{ ef.run_if_negate.label_tag }}<div class="designer-toggle-wrap">{{ ef.run_if_negate }}</div></div>
           <div class="designer-field designer-field-wide">{{ ef.run_if_expected_value.label_tag }}{{ ef.run_if_expected_value }}</div>
         </div>
-      </div>
+      </details>
       <div class="designer-editor-panel" data-action-config="send_email" style="margin-top:12px;">
         <div class="designer-editor-panel-title" style="display:flex;justify-content:space-between;align-items:center;">
           <span>Email</span>
@@ -937,6 +937,23 @@
           <div class="designer-field">{{ ef.approval_reject_label.label_tag }}{{ ef.approval_reject_label }}</div>
         </div>
         <details class="designer-subeditor" style="margin-top:12px;">
+          <summary class="designer-subeditor-summary">Template email approvazione</summary>
+          <div class="designer-trigger-copy" style="margin-top:10px;">
+            <div class="designer-field designer-field-wide">
+              {{ ef.approval_email_template_id.label_tag }}
+              {{ ef.approval_email_template_id }}
+              {% if ef.approval_email_template_id.help_text %}
+                <div class="designer-help">{{ ef.approval_email_template_id.help_text }}</div>
+              {% endif %}
+            </div>
+            <div class="designer-help designer-field-wide" style="color:#1e40af;">
+              Il template sovrascrive l'HTML della mail di approvazione (oggetto, corpo, facts, CTA).
+              Lascia vuoto per usare il comportamento standard (testo e bottoni base).
+              <a href="{% url 'admin_portale:automazioni_approval_templates' %}" target="_blank">Gestisci template &rarr;</a>
+            </div>
+          </div>
+        </details>
+        <details class="designer-subeditor" style="margin-top:6px;">
           <summary class="designer-subeditor-summary">Recapito Teams</summary>
           <div class="designer-trigger-copy" style="margin-top:10px;">
             <div class="designer-field designer-field-wide">{{ ef.approval_teams_preset_id.label_tag }}{{ ef.approval_teams_preset_id }}</div>

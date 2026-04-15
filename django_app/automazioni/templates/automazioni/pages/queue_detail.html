@@ -52,6 +52,18 @@
               <button class="btn" type="submit">Retry singolo evento</button>
             </form>
           {% endif %}
+          {% if queue_event.can_stop %}
+            <form method="post" action="{% url 'admin_portale:automazioni_queue_stop' queue_event.id %}" onsubmit="return confirm('Stoppare questo evento queue? Rimarra in errore finche non lo resetti manualmente.');">
+              {% csrf_token %}
+              <button class="btn btn-light" type="submit">Stoppa</button>
+            </form>
+          {% endif %}
+          {% if queue_event.can_delete %}
+            <form method="post" action="{% url 'admin_portale:automazioni_queue_delete' queue_event.id %}" onsubmit="return confirm('Eliminare definitivamente questo evento queue?');">
+              {% csrf_token %}
+              <button class="btn btn-secondary" type="submit">Elimina</button>
+            </form>
+          {% endif %}
         </div>
 
         <div class="auto-meta">

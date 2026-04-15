@@ -606,6 +606,67 @@ class AdminPortaleConfigSrvSmtpTests(TestCase):
         connection_factory.assert_not_called()
         email_factory.assert_not_called()
 
+    def test_config_srv_can_run_approval_imap_poll(self):
+        self.client.force_login(self.admin_user)
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ), patch("admin_portale.views.run_approval_imap_poll_now") as poll_runner:
+            poll_runner.return_value = {
+                "ok": True,
+                "message": "Polling mailbox completato: 1 processate, 1 approvate, 0 rifiutate, 0 ignorate, 0 errori.",
+                "output": "[run] Completato - processed=1 approved=1 rejected=0 skipped=0 error=0",
+                "stats": {"processed": 1, "approved": 1, "rejected": 0, "skipped": 0, "error": 0},
+            }
+            response = self.client.post(
+                self.url,
+                {
+                    "action": "run_approval_imap_poll",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Polling IMAP approvazioni")
+        self.assertContains(response, "Polling mailbox completato")
+        poll_runner.assert_called_once_with()
+
+    def test_config_srv_can_save_approval_imap_config(self):
+        self.client.force_login(self.admin_user)
+
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ), patch("admin_portale.views.save_approval_imap_settings") as save_imap:
+            save_imap.return_value = (
+                True,
+                "Configurazione IMAP salvata in .env e aggiornata nel runtime corrente.",
+            )
+            response = self.client.post(
+                self.url,
+                {
+                    "action": "save_approval_imap_config",
+                    "approval_imap_host": "imap.changed.local",
+                    "approval_imap_port": "995",
+                    "approval_imap_user": "approvazioni-changed@test.local",
+                    "approval_imap_password": "nuova-password",
+                    "approval_imap_folder": "Archivio",
+                    "approval_imap_use_ssl": "on",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Configurazione IMAP salvata")
+        save_imap.assert_called_once_with(
+            host="imap.changed.local",
+            port=995,
+            user="approvazioni-changed@test.local",
+            password="nuova-password",
+            use_ssl=True,
+            folder="Archivio",
+            dotenv_path=ANY,
+        )
+
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class AdminPortaleConfigSrvLdapTests(TestCase):
