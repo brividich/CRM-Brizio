@@ -1,5 +1,19 @@
 ﻿# Changelog
 
+## 0.9.18 - 2026-04-16
+
+### Modulo Automazioni
+
+- **[feat] Endpoint approvazione per Entra Application Proxy**: aggiunti `GET /approval-actions/approve/<token>/` e `GET /approval-actions/reject/<token>/` — endpoint one-click ottimizzati per essere pubblicati selettivamente dietro Entra Application Proxy. Riusano `process_approval_decision()` senza duplicare logica. L'identità dell'approvatore viene estratta (in ordine) da sessione Django, header `X-MS-CLIENT-PRINCIPAL-NAME` (Entra proxy) o `X-Forwarded-Email`. Ogni decisione è tracciata in AuditLog con `via=entra_proxy`. La route è in `MIDDLEWARE_EXEMPT_PREFIXES` (token UUID come credenziale, analoga a `/automazioni/approvazione/`).
+- **[security] Validazione attore approvazione condivisa tra canale web e mailbox Graph**: introdotto `automazioni/approval_security.py` con `validate_approval_actor(token_str, actor_email) -> ApprovalActorValidation`. Fail-closed: verifica in ordine identità non vuota → token valido → approval esistente → stato PENDING → non scaduta → approver_emails configurata → attore nella lista. Il canale web (`_handle_approval_proxy`) ora usa lo stesso helper del canale mailbox Graph (`_validate_sender`), eliminando il gap di sicurezza pregresso. La pagina esito distingue `no_identity`, `not_found`, `already_decided`, `expired`, `unauthorized`, `no_approvers`. Denial tracciate in AuditLog con azione `approval_proxy_denied`.
+- **[fix] `log_action` non crasha più con `AnonymousUser`**: `display_name_for_user` in `core/impersonation.py` ora guarda `is_authenticated` prima di chiamare `get_full_name()`, evitando l'`AttributeError` sui path esenti da login.
+- **[test] 28 test approvazione proxy + 11 unit test `ApprovalSecurityTests`**: coprono happy path, estrazione identità (sessione/header/priorità), tutti i blocchi di sicurezza (unauthorized, no_identity, expired, already_decided, not_found, no_approvers), audit log per approval e denial, retrocompatibilità `_validate_sender` mailbox Graph.
+
+- **[feat] Monitor salute del poller nella queue admin**: la vista `/admin-portale/automazioni/queue/` e il dettaglio evento mostrano ora una card con task Windows locale `Portale Hub Polling Mail`, stato dell'ultimo job monitorato `automazioni_process_queue`, alert `missing/stuck`, ultimo messaggio runtime e freshness del log `django_app/logs/automation_queue.log`. L'obiettivo e' permettere diagnosi autonome quando gli eventi restano `pending`.
+- **[ops] Script locale `register-local-polling-mail.ps1`**: aggiunto in `deployment/scripts/` uno script ripetibile per registrare/aggiornare il task schedulato locale del repository, senza dipendere dalla struttura deploy `C:\\PortaleNovicrom\\prod|test`.
+- **[ops] Poller queue Windows eseguito in modalita silent**: i task registrati da `register-local-polling-mail.ps1` e `schedule-automation-queue.ps1` usano ora il wrapper `run-automation-queue-poller.ps1`, che avvia `process_automation_queue` senza finestre console visibili e continua a scrivere nel log `automation_queue.log`.
+- **[test] Queue admin isolata dal Task Scheduler reale**: i test SSR della queue patchano ora il nuovo snapshot salute del poller, cosi restano verdi e indipendenti dalla macchina Windows o dai task registrati localmente.
+
 ## 0.9.17 - 2026-04-15
 
 ### Modulo Assenze

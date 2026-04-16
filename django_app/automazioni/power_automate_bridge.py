@@ -33,11 +33,13 @@ def analyze_power_automate_flow_upload(
     payload: bytes,
     *,
     target_context: dict[str, Any] | None = None,
+    approval_template: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return _conversion_service_module().analyze_flow_upload(
         filename,
         payload,
         target_context=target_context,
+        approval_template=approval_template,
     )
 
 

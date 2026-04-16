@@ -1,15 +1,17 @@
 <#
 .SYNOPSIS
-    Registra (o aggiorna) il Task Scheduler Windows per process_automation_queue.
+    Registra o aggiorna il Task Scheduler Windows per process_automation_queue.
 
 .DESCRIPTION
-    Crea un'attività pianificata che esegue process_automation_queue ogni minuto
+    Crea un'attivita pianificata che esegue process_automation_queue ogni minuto
     per ciascun ambiente specificato (test e/o prod).
 
-    L'attività usa il venv dell'ambiente e il settings prod (come da convenzione
-    wizard/deploy). Il log viene scritto in <env>\logs\automation_queue.log.
+    L'attivita usa il venv dell'ambiente, i settings prod e un runner PowerShell
+    hidden che mantiene il polling silent e continua a scrivere il log in
+    <env>\logs\automation_queue.log.
 
-    Per aggiornare un'attività esistente rieseguire lo script: sovrascrive silenziosamente.
+    Per aggiornare un'attivita esistente rieseguire lo script: sovrascrive in
+    modo idempotente.
 
 .PARAMETER Environment
     Ambiente target: "test", "prod" oppure "all" (default).
@@ -37,7 +39,7 @@ $ErrorActionPreference = "Stop"
 
 Assert-Admin
 
-$TASK_FOLDER    = "\PortaleNovicrom"
+$TASK_FOLDER = "\PortaleNovicrom"
 $TASK_BASE_NAME = "AutomationQueue"
 
 function Get-TaskName([string]$Env) {
@@ -45,83 +47,90 @@ function Get-TaskName([string]$Env) {
 }
 
 function Remove-AutomationTask([string]$Env) {
-    $taskName = Get-TaskName $Env
-    $existing = Get-ScheduledTask -TaskPath $TASK_FOLDER -TaskName "${TASK_BASE_NAME}_$($Env.ToUpper())" -ErrorAction SilentlyContinue
+    $shortTaskName = "${TASK_BASE_NAME}_$($Env.ToUpper())"
+    $existing = Get-ScheduledTask -TaskPath $TASK_FOLDER -TaskName $shortTaskName -ErrorAction SilentlyContinue
     if ($existing) {
-        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
-        Write-Log "Task rimosso: $taskName" "SUCCESS"
+        Unregister-ScheduledTask -TaskPath $TASK_FOLDER -TaskName $shortTaskName -Confirm:$false
+        Write-Log ("Task rimosso: {0}" -f (Get-TaskName $Env)) "SUCCESS"
     } else {
-        Write-Log "Task non trovato (già rimosso?): $taskName" "WARN"
+        Write-Log ("Task non trovato (gia rimosso?): {0}" -f (Get-TaskName $Env)) "WARN"
     }
 }
 
 function Register-AutomationTask([string]$Env) {
-    $paths    = Get-EnvPaths -Env $Env
+    $paths = Get-EnvPaths -Env $Env
     $taskName = Get-TaskName $Env
+    $shortTaskName = "${TASK_BASE_NAME}_$($Env.ToUpper())"
+    $runnerScript = Join-Path $PSScriptRoot "run-automation-queue-poller.ps1"
 
     if (-not (Test-Path $paths.Venv)) {
-        Write-Log "Venv non trovato per ambiente '$Env': $($paths.Venv) — task non registrato." "WARN"
+        Write-Log ("Venv non trovato per ambiente {0}: {1} -- task non registrato." -f $Env, $paths.Venv) "WARN"
+        return
+    }
+    if (-not (Test-Path $runnerScript)) {
+        Write-Log ("Runner silent non trovato: {0} -- task non registrato." -f $runnerScript) "WARN"
         return
     }
 
-    $pythonExe  = "$($paths.Venv)\Scripts\python.exe"
-    $managepy   = "$($paths.DjangoApp)\..\django_app\manage.py"
+    $pythonExe = Join-Path $paths.Venv "Scripts\python.exe"
+    $managepy = Join-Path $paths.DjangoApp "manage.py"
+    $logFile = Join-Path $paths.Logs "automation_queue.log"
 
-    # manage.py canonico: DjangoApp = <env>\current\django_app
-    $managepy = "$($paths.DjangoApp)\manage.py"
-    $logFile  = "$($paths.Logs)\automation_queue.log"
-
-    # Crea la cartella logs se non esiste
     if (-not (Test-Path $paths.Logs)) {
         New-Item -ItemType Directory -Path $paths.Logs -Force | Out-Null
     }
 
-    # Il wrapper cmd redirige stdout+stderr al log e aggiunge timestamp riga
-    # Viene usato cmd /c per compatibilità con il runner di Task Scheduler
-    $cmdAction = "cmd /c `"(`"$pythonExe`" `"$managepy`" process_automation_queue --settings=config.settings.prod >> `"$logFile`" 2>&1)`""
+    $runnerArguments = @(
+        "-NoProfile"
+        "-NonInteractive"
+        "-WindowStyle Hidden"
+        "-ExecutionPolicy Bypass"
+        ("-File ""{0}""" -f $runnerScript)
+        ("-PythonExe ""{0}""" -f $pythonExe)
+        ("-ManagePy ""{0}""" -f $managepy)
+        ("-SettingsModule ""{0}""" -f "config.settings.prod")
+        ("-LogFile ""{0}""" -f $logFile)
+    ) -join " "
 
-    $action    = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c `"(`"$pythonExe`" `"$managepy`" process_automation_queue --settings=config.settings.prod >> `"$logFile`" 2>&1)`""
-    $trigger   = New-ScheduledTaskTrigger -RepetitionInterval (New-TimeSpan -Minutes 1) -Once -At (Get-Date)
-    $settings  = New-ScheduledTaskSettingsSet `
-                    -ExecutionTimeLimit (New-TimeSpan -Minutes 2) `
-                    -MultipleInstances IgnoreNew `
-                    -StartWhenAvailable `
-                    -RunOnlyIfNetworkAvailable:$false
+    $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $runnerArguments
+    $trigger = New-ScheduledTaskTrigger -RepetitionInterval (New-TimeSpan -Minutes 1) -Once -At (Get-Date)
+    $settings = New-ScheduledTaskSettingsSet `
+        -ExecutionTimeLimit (New-TimeSpan -Minutes 2) `
+        -MultipleInstances IgnoreNew `
+        -StartWhenAvailable `
+        -RunOnlyIfNetworkAvailable:$false
 
-    # Esegui come SYSTEM per evitare dipendenza da utente interattivo
     $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
 
     $taskParams = @{
-        TaskName    = "${TASK_BASE_NAME}_$($Env.ToUpper())"
-        TaskPath    = $TASK_FOLDER
-        Action      = $action
-        Trigger     = $trigger
-        Settings    = $settings
-        Principal   = $principal
-        Description = "Portale Novicrom — Processa automation_event_queue ogni minuto ($Env). Gestito da schedule-automation-queue.ps1."
-        Force       = $true
+        TaskName = $shortTaskName
+        TaskPath = $TASK_FOLDER
+        Action = $action
+        Trigger = $trigger
+        Settings = $settings
+        Principal = $principal
+        Description = "Portale Novicrom - Processa automation_event_queue ogni minuto ($Env) in modalita silent. Gestito da schedule-automation-queue.ps1."
+        Force = $true
     }
 
     Register-ScheduledTask @taskParams | Out-Null
-    Write-Log "Task registrato: $taskName" "SUCCESS"
-    Write-Log "  Python:    $pythonExe" "INFO"
-    Write-Log "  manage.py: $managepy" "INFO"
-    Write-Log "  Log:       $logFile" "INFO"
+    Write-Log ("Task registrato: {0}" -f $taskName) "SUCCESS"
+    Write-Log ("  Python:    {0}" -f $pythonExe) "INFO"
+    Write-Log ("  manage.py: {0}" -f $managepy) "INFO"
+    Write-Log ("  Runner:    {0}" -f $runnerScript) "INFO"
+    Write-Log ("  Log:       {0}" -f $logFile) "INFO"
     Write-Log "  Intervallo: ogni 1 minuto" "INFO"
 }
 
-# ---------------------------------------------------------------------------
-# Risolvi ambienti target
-# ---------------------------------------------------------------------------
 $targetEnvs = if ($Environment -eq "all") { @("test", "prod") } else { @($Environment) }
 
 Write-LogSeparator
-$action = if ($Unregister) { "RIMOZIONE" } else { "REGISTRAZIONE" }
-Write-Log "TASK SCHEDULER AUTOMATION QUEUE — $action" "STEP"
+$actionLabel = if ($Unregister) { "RIMOZIONE" } else { "REGISTRAZIONE" }
+Write-Log ("TASK SCHEDULER AUTOMATION QUEUE - {0}" -f $actionLabel) "STEP"
 Write-LogSeparator
 
 foreach ($env in $targetEnvs) {
-    Write-Log "Ambiente: $($env.ToUpper())" "STEP"
+    Write-Log ("Ambiente: {0}" -f $env.ToUpper()) "STEP"
     if ($Unregister) {
         Remove-AutomationTask $env
     } else {
@@ -135,9 +144,9 @@ Write-Log "Operazione completata." "SUCCESS"
 if (-not $Unregister) {
     Write-Log "" "INFO"
     Write-Log "Per verificare i task registrati:" "INFO"
-    Write-Log "  Get-ScheduledTask -TaskPath '$TASK_FOLDER'" "INFO"
+    Write-Log ("  Get-ScheduledTask -TaskPath {0}" -f $TASK_FOLDER) "INFO"
     Write-Log "Per eseguire manualmente:" "INFO"
     foreach ($env in $targetEnvs) {
-        Write-Log "  Start-ScheduledTask -TaskName '$(Get-TaskName $env)'" "INFO"
+        Write-Log ("  Start-ScheduledTask -TaskName {0}" -f (Get-TaskName $env)) "INFO"
     }
 }

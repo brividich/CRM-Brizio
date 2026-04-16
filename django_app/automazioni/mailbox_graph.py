@@ -705,43 +705,12 @@ def _validate_sender(token_str: str, from_email: str) -> str | None:
     """
     Verifica che il mittente sia nella lista approvatori attesi.
     Ritorna None se ok, stringa di errore se non autorizzato.
-    Chiamata prima di process_approval_decision per un early-exit sicuro.
+
+    Delegato a validate_approval_actor() in approval_security.py.
+    Mantenuto per retrocompatibilità con poll_graph_mailbox().
     """
-    normalized_from_email = _normalize_email_address(from_email)
-    if not normalized_from_email:
-        return "Mittente mancante"
-    try:
-        import uuid as _uuid
-        from .models import AutomationApproval
-
-        token_uuid = _uuid.UUID(str(token_str))
-        try:
-            approval = AutomationApproval.objects.get(token=token_uuid)
-        except AutomationApproval.DoesNotExist:
-            return f"Token {token_str} non trovato"
-
-        if approval.status != AutomationApproval.Status.PENDING:
-            return f"Approvazione già in stato '{approval.status}'"
-
-        if approval.is_expired():
-            return "Approvazione scaduta"
-
-        # Controlla lista approvatori (se configurata)
-        approver_emails = approval.approver_emails or []
-        normalized = [
-            _normalize_email_address(email_value)
-            for email_value in approver_emails
-            if _normalize_email_address(email_value)
-        ]
-        if not normalized:
-            return "Nessun approvatore configurato per la richiesta"
-        if normalized_from_email not in normalized:
-            return f"{normalized_from_email!r} non nella lista approvatori"
-
+    from .approval_security import validate_approval_actor
+    result = validate_approval_actor(token_str, from_email)
+    if result.allowed:
         return None
-
-    except ValueError:
-        return f"Token UUID non valido: {token_str!r}"
-    except Exception as exc:
-        logger.warning("_validate_sender fallito per token=%s: %s", token_str, exc)
-        return "Validazione mittente non disponibile"
+    return result.error_message

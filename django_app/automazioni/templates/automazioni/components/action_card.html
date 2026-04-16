@@ -299,19 +299,41 @@
           </div>
         </details>
         <details class="designer-subeditor" style="margin-top:6px;">
-          <summary class="designer-subeditor-summary">Azioni se approvato</summary>
-          <div style="margin-top:10px;">
-            {{ entry.form.approval_approved_actions_json }}
-            {% if entry.form.approval_approved_actions_json.help_text %}<div class="designer-help">{{ entry.form.approval_approved_actions_json.help_text }}</div>{% endif %}
-            {% if entry.form.approval_approved_actions_json.errors %}<ul class="designer-errors">{% for error in entry.form.approval_approved_actions_json.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+          <summary class="designer-subeditor-summary" style="color:#16a34a;">Se approvato</summary>
+          <div style="margin-top:10px;display:grid;gap:8px;">
+            <div class="designer-field designer-field-wide">
+              {{ entry.form.approval_approved_update_fields_text.label_tag }}
+              {{ entry.form.approval_approved_update_fields_text }}
+              {% if entry.form.approval_approved_update_fields_text.help_text %}<div class="designer-help">{{ entry.form.approval_approved_update_fields_text.help_text }}</div>{% endif %}
+              {% if entry.form.approval_approved_update_fields_text.errors %}<ul class="designer-errors">{% for error in entry.form.approval_approved_update_fields_text.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            </div>
+            <details style="margin-top:2px;">
+              <summary style="font-size:12px;color:#64748b;cursor:pointer;user-select:none;">Azioni aggiuntive (avanzato)</summary>
+              <div style="margin-top:6px;">
+                {{ entry.form.approval_approved_actions_json }}
+                {% if entry.form.approval_approved_actions_json.help_text %}<div class="designer-help">{{ entry.form.approval_approved_actions_json.help_text }}</div>{% endif %}
+                {% if entry.form.approval_approved_actions_json.errors %}<ul class="designer-errors">{% for error in entry.form.approval_approved_actions_json.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+              </div>
+            </details>
           </div>
         </details>
         <details class="designer-subeditor" style="margin-top:8px;">
-          <summary class="designer-subeditor-summary">Azioni se rifiutato</summary>
-          <div style="margin-top:10px;">
-            {{ entry.form.approval_rejected_actions_json }}
-            {% if entry.form.approval_rejected_actions_json.help_text %}<div class="designer-help">{{ entry.form.approval_rejected_actions_json.help_text }}</div>{% endif %}
-            {% if entry.form.approval_rejected_actions_json.errors %}<ul class="designer-errors">{% for error in entry.form.approval_rejected_actions_json.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+          <summary class="designer-subeditor-summary" style="color:#dc2626;">Se rifiutato</summary>
+          <div style="margin-top:10px;display:grid;gap:8px;">
+            <div class="designer-field designer-field-wide">
+              {{ entry.form.approval_rejected_update_fields_text.label_tag }}
+              {{ entry.form.approval_rejected_update_fields_text }}
+              {% if entry.form.approval_rejected_update_fields_text.help_text %}<div class="designer-help">{{ entry.form.approval_rejected_update_fields_text.help_text }}</div>{% endif %}
+              {% if entry.form.approval_rejected_update_fields_text.errors %}<ul class="designer-errors">{% for error in entry.form.approval_rejected_update_fields_text.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            </div>
+            <details style="margin-top:2px;">
+              <summary style="font-size:12px;color:#64748b;cursor:pointer;user-select:none;">Azioni aggiuntive (avanzato)</summary>
+              <div style="margin-top:6px;">
+                {{ entry.form.approval_rejected_actions_json }}
+                {% if entry.form.approval_rejected_actions_json.help_text %}<div class="designer-help">{{ entry.form.approval_rejected_actions_json.help_text }}</div>{% endif %}
+                {% if entry.form.approval_rejected_actions_json.errors %}<ul class="designer-errors">{% for error in entry.form.approval_rejected_actions_json.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+              </div>
+            </details>
           </div>
         </details>
       </div>

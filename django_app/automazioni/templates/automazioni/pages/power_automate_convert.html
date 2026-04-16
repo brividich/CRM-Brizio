@@ -136,6 +136,17 @@
               <ul class="auto-list">{% for item in analysis.warnings %}<li>{{ item }}</li>{% endfor %}</ul>
             </div>
           {% endif %}
+          {% if approval_conversion %}
+            <div class="notice">
+              <strong>Conversione approval:</strong>
+              <ul class="auto-list">
+                <li>Strategia: <code>{{ approval_conversion.strategy|default:"-" }}</code></li>
+                <li>Template: <code>{{ approval_conversion.template_code|default:"-" }}</code> {% if approval_conversion.template_delivery_mode %}({{ approval_conversion.template_delivery_mode }}){% endif %}</li>
+                <li>Approvatore: <code>{{ approval_conversion.approver_template|default:"-" }}</code></li>
+                <li>Branch supportati: approvato {{ approval_conversion.approved_branch_supported_count|default:0 }}, rifiutato {{ approval_conversion.rejected_branch_supported_count|default:0 }}</li>
+              </ul>
+            </div>
+          {% endif %}
 
           <div class="auto-grid-2">
             <div>

@@ -335,6 +335,7 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
     "/admin-portale/hub/",
     "/monitoring/report-problem/",
     "/automazioni/approvazione/",  # token-based, no login required
+    "/approval-actions/",          # token-based, Entra Application Proxy frontend
 )
 
 AUTHENTICATION_BACKENDS = [

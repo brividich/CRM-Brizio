@@ -1186,15 +1186,21 @@ def _execute_update_trigger_record(
         str(field_name).strip(): _render_action_value(raw_value, payload_context)
         for field_name, raw_value in update_fields.items()
     }
+    # Coercizione di tipo: SQL Server rifiuta stringhe su colonne tinyint/int.
+    # Applichiamo una conversione best-effort in base al data_type del campo.
+    coerced_update_fields: dict[str, Any] = {}
+    for field_name, value in rendered_update_fields.items():
+        data_type = str(field_map.get(field_name, {}).get("data_type") or "").strip().lower()
+        coerced_update_fields[field_name] = _coerce_db_value(value, data_type)
     assignments = ", ".join(
         f"{connection.ops.quote_name(str(field_map[field_name]['db_column']))} = %s"
-        for field_name in rendered_update_fields.keys()
+        for field_name in coerced_update_fields.keys()
     )
     quoted_table = connection.ops.quote_name(str(source_definition.get("table_name") or ""))
     pk_field_name = str(source_definition.get("pk_field") or "id")
     pk_meta = _source_field_map(source_code, include_virtual=False).get(pk_field_name, {"db_column": pk_field_name})
     quoted_pk = connection.ops.quote_name(str(pk_meta.get("db_column") or pk_field_name))
-    params = [rendered_update_fields[field_name] for field_name in rendered_update_fields.keys()] + [source_pk]
+    params = [coerced_update_fields[field_name] for field_name in coerced_update_fields.keys()] + [source_pk]
     sql = f"UPDATE {quoted_table} SET {assignments} WHERE {quoted_pk} = %s"
 
     with transaction.atomic():
@@ -1205,8 +1211,43 @@ def _execute_update_trigger_record(
                 "source_pk": source_pk,
                 "sql": sql,
                 "params": params,
-                "columns": list(rendered_update_fields.keys()),
+                "columns": list(coerced_update_fields.keys()),
             }
+
+
+def _coerce_db_value(value: Any, data_type: str) -> Any:
+    """Converte un valore renderizzato nel tipo Python corretto per il DB.
+
+    SQL Server rifiuta nvarchar su colonne tinyint/int: i campi bool vanno
+    mappati a 0/1, i campi int vanno forzati a int.  Restituisce il valore
+    originale se la conversione non e' applicabile o fallisce.
+    """
+    if value is None:
+        return None
+    if data_type == "bool":
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, int):
+            return value
+        str_val = str(value).strip().lower()
+        if str_val in {"1", "true", "yes", "si", "sì", "t", "vero"}:
+            return 1
+        return 0
+    if data_type == "int":
+        if isinstance(value, int):
+            return value
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return value  # lascia che SQL Server generi un errore descrittivo
+    if data_type == "float":
+        if isinstance(value, (int, float)):
+            return value
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return value
+    return value
 
 
 def _coerce_timeout_seconds(raw_value: Any, *, default: int = 20) -> int:

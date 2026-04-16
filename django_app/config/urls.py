@@ -39,6 +39,9 @@ urlpatterns = [
     path("admin-portale/", include(("admin_portale.urls", "admin_portale"), namespace="admin_portale")),
     path("admin-portale/hub/", include(("hub_tools.urls", "hub_tools"), namespace="hub_tools")),
     path("automazioni/", include(("automazioni.urls", "automazioni"), namespace="automazioni")),
+    # Approval proxy — endpoint GET per Entra Application Proxy.
+    # Pubblicare SOLO /approval-actions/* nell'Application Proxy (non /automazioni/).
+    path("approval-actions/", include(("automazioni.approval_proxy_urls", "approval_proxy"), namespace="approval_proxy")),
     path("monitoring/", include(("monitoring.urls", "monitoring"), namespace="monitoring")),
     path("anagrafica/", include(("anagrafica.urls", "anagrafica"), namespace="anagrafica")),
     path("", include(("timbri.urls", "timbri"), namespace="timbri")),

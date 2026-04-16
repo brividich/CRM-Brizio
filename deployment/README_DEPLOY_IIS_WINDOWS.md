@@ -1,7 +1,7 @@
 # Deployment Guide - NOVICROM HUB su Windows Server + IIS
 
 > Versione guida: **2.1**  
-> Versione repo: **0.9.15**  
+> Versione repo: **0.9.18**  
 > Aggiornata: **2026-04-13**
 
 Questa guida descrive il flusso di deploy reale supportato oggi dal repository. La priorita e evitare drift tra documentazione, settings, wizard e packaging.
@@ -81,6 +81,16 @@ Output atteso:
 - altrimenti salvataggio in `.\releases\`
 
 `package-release.ps1` verifica automaticamente `deployment/dist/SetupWizard.exe` prima di comprimere i file: se manca o e obsoleto rispetto ai trigger runtime del bundle, lo rigenera con PyInstaller e poi esegue `tools/release_guard.ps1`.
+
+### Repo locale senza `C:\PortaleNovicrom`
+
+Se stai eseguendo il portale direttamente dalla working copy del repository su Windows, senza la struttura deploy `C:\PortaleNovicrom\test|prod`, puoi registrare il poller queue locale con:
+
+```powershell
+.\deployment\scripts\register-local-polling-mail.ps1 -StartNow
+```
+
+Lo script crea o aggiorna il task schedulato `Portale Hub Polling Mail`, usa il `.venv` del repo, lancia `process_automation_queue --settings=config.settings.prod` ogni minuto e scrive il log in `django_app\logs\automation_queue.log`. Il task usa un wrapper PowerShell hidden, quindi il polling resta silent e non apre finestre `cmd` o `powershell` a ogni esecuzione.
 
 ### 3. Deploy su server
 

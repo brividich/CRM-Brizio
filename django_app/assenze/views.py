@@ -1604,6 +1604,9 @@ def _maybe_pull(force: bool = False) -> dict:
         if result.get("ok"):
             cache.set(_SYNC_PULL_LAST_TS_KEY, now_ts, timeout=None)
         return result
+    except Exception as exc:
+        logger.exception("_maybe_pull: errore durante sync pull da SharePoint")
+        return {"ok": False, "error": str(exc), "mode": "sharepoint_to_db_pull"}
     finally:
         cache.delete(_SYNC_PULL_LOCK_KEY)
 

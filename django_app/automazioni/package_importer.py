@@ -699,6 +699,29 @@ def _normalize_action_config(raw_action: dict[str, Any], action_type: str) -> di
             "update_fields": update_fields if isinstance(update_fields, dict) else {},
         }
 
+    if action_type == AutomationActionType.SEND_APPROVAL:
+        approved_actions = pick("approved_actions", default=[])
+        rejected_actions = pick("rejected_actions", default=[])
+        return {
+            "delivery_mode": _string(pick("delivery_mode", "approval_delivery_mode", default="email")).lower() or "email",
+            "to_template": pick("to_template", "approval_to_template", "to"),
+            "subject_template": pick("subject_template", "approval_subject_template", "subject"),
+            "message_template": pick("message_template", "approval_message_template", "message"),
+            "expiry_days": pick("expiry_days", "approval_expiry_days", default=7),
+            "approve_label": pick("approve_label", "approval_approve_label", default="Approva"),
+            "reject_label": pick("reject_label", "approval_reject_label", default="Rifiuta"),
+            "approval_email_template_code": pick("approval_email_template_code"),
+            "approval_email_template_id": pick("approval_email_template_id"),
+            "teams_preset_id": pick("teams_preset_id"),
+            "teams_flow_endpoint_id": pick("teams_flow_endpoint_id"),
+            "teams_recipient_email_template": pick("teams_recipient_email_template"),
+            "teams_title_template": pick("teams_title_template"),
+            "teams_facts_inline": pick("teams_facts_inline"),
+            "strict_teams_flow": _bool(pick("strict_teams_flow")),
+            "approved_actions": approved_actions if isinstance(approved_actions, list) else [],
+            "rejected_actions": rejected_actions if isinstance(rejected_actions, list) else [],
+        }
+
     if isinstance(raw_config, dict) and raw_config:
         return deepcopy(raw_config)
 
@@ -744,6 +767,88 @@ def _validate_email_list(emails: list[str], *, field_name: str) -> list[str]:
         except ValidationError:
             errors.append(f"{field_name}: indirizzo non valido `{email}`.")
     return errors
+
+
+def _build_embedded_action_plan(raw_action: dict[str, Any], *, fallback_order: int = 1) -> dict[str, Any]:
+    action_type = _string(raw_action.get("action_type") or raw_action.get("type")).lower()
+    return {
+        "order": int(raw_action.get("order") or fallback_order),
+        "action_type": action_type,
+        "description": _string(raw_action.get("description") or raw_action.get("name") or action_type),
+        "config_json": _normalize_action_config(raw_action, action_type),
+        "is_enabled": True if raw_action.get("is_enabled") in {None, ""} else _bool(raw_action.get("is_enabled")),
+    }
+
+
+def _resolve_local_approval_template_preview(config_json: dict[str, Any]) -> dict[str, str | bool]:
+    template_id = _string(config_json.get("approval_email_template_id"))
+    template_code = _string(config_json.get("approval_email_template_code"))
+    if not template_id and not template_code:
+        return {"exists": False, "code": "", "delivery_mode": "", "label": ""}
+    try:
+        from .models import get_approval_email_template
+
+        template, unavailable = get_approval_email_template(
+            template_id=template_id or None,
+            template_code=template_code or None,
+            enabled_only=True,
+        )
+        if unavailable:
+            return {
+                "exists": False,
+                "code": template_code,
+                "delivery_mode": "",
+                "label": "tabella template non disponibile",
+            }
+        if template is None:
+            return {
+                "exists": False,
+                "code": template_code,
+                "delivery_mode": "",
+                "label": "template non trovato localmente",
+            }
+        return {
+            "exists": True,
+            "code": _string(getattr(template, "code", "")),
+            "delivery_mode": _string(getattr(template, "delivery_mode", "")),
+            "label": str(template),
+        }
+    except Exception:
+        return {
+            "exists": False,
+            "code": template_code,
+            "delivery_mode": "",
+            "label": "lookup template non disponibile",
+        }
+
+
+def _validate_embedded_action_list(
+    raw_actions: Any,
+    *,
+    source_code: str,
+    branch_label: str,
+) -> tuple[list[dict[str, Any]], list[str], list[str]]:
+    normalized_actions: list[dict[str, Any]] = []
+    errors: list[str] = []
+    warnings: list[str] = []
+    if raw_actions in (None, "", []):
+        return normalized_actions, errors, warnings
+    if not isinstance(raw_actions, list):
+        return normalized_actions, [f"Le azioni del ramo `{branch_label}` devono essere un array JSON."], warnings
+
+    for index, raw_action in enumerate(raw_actions, start=1):
+        if not isinstance(raw_action, dict):
+            errors.append(f"Il ramo `{branch_label}` contiene un'azione non valida alla posizione {index}.")
+            continue
+        action_plan = _build_embedded_action_plan(raw_action, fallback_order=index)
+        if action_plan["action_type"] == AutomationActionType.SEND_APPROVAL:
+            errors.append(f"Il ramo `{branch_label}` non puo' contenere un'altra `send_approval`.")
+            continue
+        action_errors, action_warnings = _validate_action_structure(action_plan, source_code=source_code)
+        normalized_actions.append(action_plan)
+        errors.extend([f"{branch_label}: {error}" for error in action_errors])
+        warnings.extend([f"{branch_label}: {warning}" for warning in action_warnings])
+    return normalized_actions, errors, warnings
 
 
 def _validate_action_structure(
@@ -839,7 +944,74 @@ def _validate_action_structure(
         if not _string(config_json.get("where_value_template")):
             errors.append("update_record richiede where_value_template valorizzato.")
 
+    elif action_type == AutomationActionType.SEND_APPROVAL:
+        delivery_mode = _string(config_json.get("delivery_mode")).lower() or "email"
+        valid_delivery_modes = {"email", "teams_webhook_legacy", "teams_chat_flow", "email_and_teams_chat_flow"}
+        if delivery_mode not in valid_delivery_modes:
+            errors.append("send_approval richiede delivery_mode valido.")
+        if delivery_mode in {"email", "teams_webhook_legacy", "email_and_teams_chat_flow"} and not _string(
+            config_json.get("to_template")
+        ):
+            errors.append("send_approval richiede `to_template` valorizzato per i recapiti email.")
+        if delivery_mode in {"teams_chat_flow", "email_and_teams_chat_flow"} and not _string(
+            config_json.get("teams_recipient_email_template")
+        ):
+            errors.append("send_approval richiede `teams_recipient_email_template` per i recapiti Teams Flow.")
+        if delivery_mode in {"teams_chat_flow", "email_and_teams_chat_flow"} and not _string(
+            config_json.get("teams_flow_endpoint_id")
+        ):
+            errors.append("send_approval richiede `teams_flow_endpoint_id` per i recapiti Teams Flow.")
+        if not _string(config_json.get("subject_template")):
+            warnings.append("send_approval senza subject_template valorizzato.")
+        if not _string(config_json.get("message_template")):
+            warnings.append("send_approval senza message_template valorizzato.")
+
+        template_preview = _resolve_local_approval_template_preview(config_json)
+        if _string(config_json.get("approval_email_template_code")) and not bool(template_preview.get("exists")):
+            warnings.append(
+                f"Template approval locale non risolto: `{_string(config_json.get('approval_email_template_code'))}`."
+            )
+
+        for branch_key, branch_label in (
+            ("approved_actions", "approvato"),
+            ("rejected_actions", "rifiutato"),
+        ):
+            _, branch_errors, branch_warnings = _validate_embedded_action_list(
+                config_json.get(branch_key),
+                source_code=source_code,
+                branch_label=branch_label,
+            )
+            errors.extend(branch_errors)
+            warnings.extend(branch_warnings)
+
     return errors, warnings
+
+
+def _simulate_embedded_action_list(
+    raw_actions: Any,
+    *,
+    payload: dict[str, Any],
+) -> tuple[list[str], list[str], list[str]]:
+    previews: list[str] = []
+    errors: list[str] = []
+    missing: list[str] = []
+    if not isinstance(raw_actions, list):
+        return previews, errors, missing
+
+    for index, raw_action in enumerate(raw_actions, start=1):
+        if not isinstance(raw_action, dict):
+            errors.append(f"Azione inline non valida alla posizione {index}.")
+            continue
+        action_plan = _build_embedded_action_plan(raw_action, fallback_order=index)
+        if action_plan["action_type"] == AutomationActionType.SEND_APPROVAL:
+            errors.append("Le azioni inline non possono contenere un'altra `send_approval`.")
+            continue
+        simulation = _simulate_action(action_plan, payload=payload)
+        if simulation["preview"]:
+            previews.append(simulation["preview"])
+        errors.extend(simulation["errors"])
+        missing.extend(simulation["missing_payload_placeholders"])
+    return previews, errors, missing
 
 
 def _simulate_action(
@@ -918,6 +1090,44 @@ def _simulate_action(
             f" set {json.dumps(rendered_fields, ensure_ascii=False, sort_keys=True)}"
         )
 
+    elif action_type == AutomationActionType.SEND_APPROVAL:
+        delivery_mode = _string(config_json.get("delivery_mode")).lower() or "email"
+        approvers = _render_recipient_list(config_json.get("to_template"), payload)
+        rendered_subject = render_template_string(_serialize_text(config_json.get("subject_template")), payload).strip()
+        if delivery_mode in {"email", "teams_webhook_legacy", "email_and_teams_chat_flow"} and not approvers:
+            errors.append("Nessun approvatore email risolto nel dry-run.")
+        errors.extend(_validate_email_list(approvers, field_name="approvatore"))
+
+        template_preview = _resolve_local_approval_template_preview(config_json)
+        approved_previews, approved_errors, approved_missing = _simulate_embedded_action_list(
+            config_json.get("approved_actions"),
+            payload=payload,
+        )
+        rejected_previews, rejected_errors, rejected_missing = _simulate_embedded_action_list(
+            config_json.get("rejected_actions"),
+            payload=payload,
+        )
+        errors.extend(approved_errors)
+        errors.extend(rejected_errors)
+        missing_payload_placeholders.extend(approved_missing)
+        missing_payload_placeholders.extend(rejected_missing)
+
+        template_label = template_preview.get("code") or "-"
+        if template_preview.get("label") and not template_preview.get("exists"):
+            template_label = f"{template_label} ({template_preview.get('label')})".strip()
+        preview = (
+            f"Approval dry-run -> to={', '.join(approvers) or '-'} "
+            f"subject={rendered_subject or '-'} "
+            f"template={template_label} "
+            f"mode={template_preview.get('delivery_mode') or delivery_mode or '-'} "
+            f"approved_actions={len(config_json.get('approved_actions') or [])} "
+            f"rejected_actions={len(config_json.get('rejected_actions') or [])}"
+        )
+        if approved_previews:
+            preview += f" | approved: {approved_previews[0]}"
+        if rejected_previews:
+            preview += f" | rejected: {rejected_previews[0]}"
+
     status = "error" if errors or missing_payload_placeholders else "ok"
     return {
         "status": status,
@@ -965,6 +1175,7 @@ def analyze_package_dict(package_data: dict[str, Any], *, filename: str) -> dict
     compatibility = package_data.get("compatibility")
     issues = package_data.get("issues")
     target_context = package_data.get("target_context")
+    approval_conversion = package_data.get("approval_conversion")
     package_version = _string(package_data.get("package_version")) or "n/d"
 
     source_definition = get_source_definition(source_code)
@@ -1275,6 +1486,8 @@ def analyze_package_dict(package_data: dict[str, Any], *, filename: str) -> dict
         "issues_pretty": _pretty_json(issues),
         "target_context_pretty": _pretty_json(target_context),
         "target_context": deepcopy(target_context),
+        "approval_conversion_pretty": _pretty_json(approval_conversion),
+        "approval_conversion": deepcopy(approval_conversion),
         "mapping_source": mapping_source,
         "mapping_rows": mapping_rows,
         "status": status,

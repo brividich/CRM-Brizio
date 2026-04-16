@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+from datetime import datetime, timedelta
+from pathlib import Path
 
 from django.contrib import messages
 from django.db.models import Count
@@ -8,12 +12,15 @@ from django.db import connection, transaction
 from django.db.utils import OperationalError as DjangoOperationalError, ProgrammingError as DjangoProgrammingError
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from admin_portale.decorators import legacy_admin_required
 from core.audit import log_action
+from monitoring.models import AutomationJob, AutomationExecution
+from monitoring.services import detect_missed_jobs, detect_stuck_jobs
 
 from .forms import (
     ApprovalEmailTemplateForm,
@@ -121,6 +128,9 @@ SAMPLE_VALUE_BY_TYPE = {
 PACKAGE_IMPORT_SESSION_KEY = "automazioni_package_import_state"
 PACKAGE_IMPORT_RESULT_SESSION_KEY = "automazioni_package_import_result"
 POWER_AUTOMATE_CONVERTER_SESSION_KEY = "automazioni_power_automate_converter_state"
+QUEUE_POLLER_JOB_CODE = "automazioni_process_queue"
+QUEUE_POLLER_TASK_NAME = "Portale Hub Polling Mail"
+QUEUE_POLLER_LOG_PATH = Path(__file__).resolve().parents[1] / "logs" / "automation_queue.log"
 
 
 def _base_context() -> dict[str, object]:
@@ -212,10 +222,63 @@ def _build_power_automate_target_table_choices() -> list[tuple[str, str]]:
     return [(table_name, str(meta.get("label") or table_name)) for table_name, meta in catalog.items()]
 
 
-def _build_power_automate_upload_form(*args, **kwargs) -> PowerAutomateFlowUploadForm:
+def _build_power_automate_approval_template_state() -> dict[str, object]:
+    templates, templates_unavailable = list_approval_email_templates(enabled_only=True)
+    template_choices: list[tuple[str, str]] = []
+    templates_by_code: dict[str, dict[str, str]] = {}
+    default_template_code = ""
+    fallback_template_code = ""
+
+    for template in templates:
+        code = _string_value(getattr(template, "code", ""))
+        delivery_mode = _string_value(getattr(template, "delivery_mode", ""))
+        if not code:
+            continue
+        template_choices.append(
+            (
+                code,
+                f"{template.name} [{template.get_delivery_mode_display()}]" if delivery_mode else template.name,
+            )
+        )
+        templates_by_code[code] = {
+            "code": code,
+            "name": _string_value(getattr(template, "name", "")),
+            "delivery_mode": delivery_mode,
+        }
+        if not default_template_code and delivery_mode == ApprovalEmailTemplateDeliveryMode.HYBRID:
+            default_template_code = code
+        if not fallback_template_code and delivery_mode == ApprovalEmailTemplateDeliveryMode.MAIL_REPLY:
+            fallback_template_code = code
+
+    warning_message = ""
+    if templates_unavailable:
+        warning_message = APPROVAL_EMAIL_TEMPLATE_UNAVAILABLE_MESSAGE
+    elif not default_template_code and not fallback_template_code:
+        warning_message = (
+            "Nessun template approval attivo con delivery_mode `hybrid` o `mail_reply`: "
+            "i flow con approval verranno analizzati ma non potranno generare `send_approval`."
+        )
+
+    return {
+        "choices": template_choices,
+        "templates_by_code": templates_by_code,
+        "default_code": default_template_code or fallback_template_code,
+        "warning_message": warning_message,
+    }
+
+
+def _build_power_automate_upload_form(
+    *args,
+    approval_template_state: dict[str, object] | None = None,
+    **kwargs,
+) -> PowerAutomateFlowUploadForm:
+    approval_state = approval_template_state or _build_power_automate_approval_template_state()
     return PowerAutomateFlowUploadForm(
         *args,
         target_table_choices=_build_power_automate_target_table_choices(),
+        approval_template_choices=list(approval_state.get("choices") or []),
+        default_approval_template_code=_string_value(approval_state.get("default_code")),
+        approval_template_warning=_string_value(approval_state.get("warning_message")),
         **kwargs,
     )
 
@@ -4018,6 +4081,7 @@ def _build_power_automate_converter_context(
         "upload_form": upload_form,
         "converter_record": converter_record,
         "converter_diagram": _prepare_power_automate_diagram(converter_record),
+        "approval_conversion": ((converter_record or {}).get("package") or {}).get("approval_conversion") if converter_record else None,
         "analysis": analysis,
         "package_pretty": _json_pretty((converter_record or {}).get("package")) if converter_record else "",
         "status_label_map": {
@@ -4033,11 +4097,19 @@ def _build_power_automate_converter_context(
 
 @legacy_admin_required
 def rule_power_automate_convert_page(request):
+    approval_template_state = _build_power_automate_approval_template_state()
     state = _get_power_automate_converter_state(request)
     converter_record = state.get("record") if isinstance(state.get("record"), dict) else None
     analysis = state.get("analysis") if isinstance(state.get("analysis"), dict) else None
     selected_target_table = _string_value(state.get("selected_target_table"))
-    upload_form = _build_power_automate_upload_form(initial={"target_table": selected_target_table})
+    selected_approval_template_code = _string_value(state.get("selected_approval_template_code"))
+    upload_form = _build_power_automate_upload_form(
+        initial={
+            "target_table": selected_target_table,
+            "approval_email_template_code": selected_approval_template_code or _string_value(approval_template_state.get("default_code")),
+        },
+        approval_template_state=approval_template_state,
+    )
 
     if request.method == "POST":
         action = _string_value(request.POST.get("action"))
@@ -4048,17 +4120,28 @@ def rule_power_automate_convert_page(request):
             return redirect("admin_portale:automazioni_rule_power_automate_convert")
 
         if action == "analyze":
-            upload_form = _build_power_automate_upload_form(request.POST, request.FILES)
+            upload_form = _build_power_automate_upload_form(
+                request.POST,
+                request.FILES,
+                approval_template_state=approval_template_state,
+            )
             if upload_form.is_valid():
                 uploaded_file = upload_form.cleaned_data["flow_file"]
                 selected_target_table = _string_value(upload_form.cleaned_data.get("target_table"))
+                selected_approval_template_code = _string_value(
+                    upload_form.cleaned_data.get("approval_email_template_code")
+                ) or _string_value(approval_template_state.get("default_code"))
                 target_context = _build_power_automate_target_context(selected_target_table)
+                selected_approval_template = (
+                    approval_template_state.get("templates_by_code", {}) or {}
+                ).get(selected_approval_template_code)
 
                 try:
                     converter_record = analyze_power_automate_flow_upload(
                         str(uploaded_file.name),
                         uploaded_file.read(),
                         target_context=target_context,
+                        approval_template=selected_approval_template,
                     )
                     analysis = analyze_package_dict(
                         converter_record["package"],
@@ -4079,6 +4162,7 @@ def rule_power_automate_convert_page(request):
                             "record": converter_record,
                             "analysis": analysis,
                             "selected_target_table": selected_target_table,
+                            "selected_approval_template_code": selected_approval_template_code,
                         },
                     )
                     messages.success(
@@ -4102,12 +4186,13 @@ def rule_power_automate_convert_page(request):
             else:
                 _set_power_automate_converter_state(
                     request,
-                    {
-                        "record": converter_record,
-                        "analysis": analysis,
-                        "selected_target_table": selected_target_table,
-                    },
-                )
+                        {
+                            "record": converter_record,
+                            "analysis": analysis,
+                            "selected_target_table": selected_target_table,
+                            "selected_approval_template_code": selected_approval_template_code,
+                        },
+                    )
                 messages.success(request, "Remediation consigliata applicata al package convertito.")
                 return redirect("admin_portale:automazioni_rule_power_automate_convert")
 
@@ -4719,6 +4804,244 @@ def rule_test_page(request, rule_id: int):
     return render(request, "automazioni/pages/rule_test.html", context)
 
 
+def _format_display_datetime(value) -> str:
+    if not value:
+        return "-"
+    parsed = value
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return "-"
+        try:
+            parsed = datetime.fromisoformat(raw)
+        except ValueError:
+            return raw
+    if isinstance(parsed, datetime):
+        if parsed.year < 1901:
+            return "-"
+        if timezone.is_aware(parsed):
+            parsed = timezone.localtime(parsed)
+        return parsed.strftime("%d/%m/%Y %H:%M:%S")
+    return str(parsed)
+
+
+def _run_powershell_json(script: str) -> dict[str, object]:
+    if os.name != "nt":
+        return {"ok": False, "error": "Task Scheduler disponibile solo su Windows."}
+    try:
+        completed = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
+            capture_output=True,
+            text=True,
+            timeout=8,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"ok": False, "error": str(exc)}
+
+    stdout = (completed.stdout or "").strip()
+    stderr = (completed.stderr or "").strip()
+    if completed.returncode != 0:
+        return {"ok": False, "error": stderr or stdout or f"exit code {completed.returncode}"}
+    if not stdout:
+        return {"ok": False, "error": "Il comando non ha restituito output JSON."}
+    try:
+        data = json.loads(stdout)
+    except json.JSONDecodeError as exc:
+        return {"ok": False, "error": f"JSON non valido dal comando PowerShell: {exc}"}
+    return {"ok": True, "data": data if isinstance(data, dict) else {}}
+
+
+def _build_queue_poller_task_snapshot() -> dict[str, object]:
+    snapshot = {
+        "task_name": QUEUE_POLLER_TASK_NAME,
+        "task_path": "\\",
+        "task_exists": False,
+        "task_state": "missing",
+        "task_state_label": "Non registrato",
+        "task_last_run_label": "-",
+        "task_next_run_label": "-",
+        "task_last_result_label": "-",
+        "task_message": "Il task Windows locale non e registrato.",
+    }
+    escaped_name = QUEUE_POLLER_TASK_NAME.replace("'", "''")
+    ps_query = f"""
+$task = Get-ScheduledTask -TaskName '{escaped_name}' -ErrorAction SilentlyContinue
+if ($null -eq $task) {{
+  [pscustomobject]@{{
+    exists = $false
+    task_name = '{escaped_name}'
+    task_path = '\\'
+    state = 'missing'
+    description = ''
+    last_run_time = ''
+    next_run_time = ''
+    last_task_result = ''
+  }} | ConvertTo-Json -Compress
+  exit 0
+}}
+$info = Get-ScheduledTaskInfo -TaskName '{escaped_name}' -ErrorAction SilentlyContinue
+[pscustomobject]@{{
+  exists = $true
+  task_name = [string]$task.TaskName
+  task_path = [string]$task.TaskPath
+  state = [string]$task.State
+  description = [string]$task.Description
+  last_run_time = $(if ($info -and $info.LastRunTime -gt [datetime]'1900-01-01') {{ $info.LastRunTime.ToString('o') }} else {{ '' }})
+  next_run_time = $(if ($info -and $info.NextRunTime -gt [datetime]'1900-01-01') {{ $info.NextRunTime.ToString('o') }} else {{ '' }})
+  last_task_result = $(if ($info) {{ [string]$info.LastTaskResult }} else {{ '' }})
+}} | ConvertTo-Json -Compress
+"""
+    ps_result = _run_powershell_json(ps_query)
+    if not ps_result.get("ok"):
+        snapshot["task_state"] = "unknown"
+        snapshot["task_state_label"] = "Stato non leggibile"
+        snapshot["task_message"] = str(ps_result.get("error") or "Impossibile interrogare Task Scheduler.")
+        return snapshot
+
+    data = ps_result.get("data") or {}
+    state_code = str(data.get("state") or "missing").strip().lower()
+    state_labels = {
+        "missing": "Non registrato",
+        "ready": "Pronto",
+        "running": "In esecuzione",
+        "queued": "In coda",
+        "disabled": "Disabilitato",
+        "unknown": "Sconosciuto",
+    }
+    last_result = str(data.get("last_task_result") or "").strip()
+    snapshot.update(
+        {
+            "task_name": str(data.get("task_name") or QUEUE_POLLER_TASK_NAME),
+            "task_path": str(data.get("task_path") or "\\"),
+            "task_exists": bool(data.get("exists")),
+            "task_state": state_code,
+            "task_state_label": state_labels.get(state_code, state_code.upper() or "Sconosciuto"),
+            "task_last_run_label": _format_display_datetime(data.get("last_run_time")),
+            "task_next_run_label": _format_display_datetime(data.get("next_run_time")),
+            "task_last_result_label": "0 (ultimo avvio ok)" if last_result == "0" else (last_result or "-"),
+        }
+    )
+    if snapshot["task_exists"]:
+        snapshot["task_message"] = (
+            "Task registrato localmente."
+            if snapshot["task_state"] in {"ready", "running", "queued"}
+            else "Task presente ma non in stato operativo."
+        )
+    return snapshot
+
+
+def _build_queue_poller_log_snapshot() -> dict[str, object]:
+    exists = QUEUE_POLLER_LOG_PATH.exists()
+    size_label = "-"
+    last_write_label = "-"
+    if exists:
+        stat = QUEUE_POLLER_LOG_PATH.stat()
+        size_kb = stat.st_size / 1024 if stat.st_size else 0
+        size_label = f"{size_kb:.1f} KB"
+        last_write_label = _format_display_datetime(datetime.fromtimestamp(stat.st_mtime))
+    return {
+        "log_path": str(QUEUE_POLLER_LOG_PATH),
+        "log_exists": exists,
+        "log_size_label": size_label,
+        "log_last_write_label": last_write_label,
+    }
+
+
+def _build_queue_poller_health_snapshot() -> dict[str, object]:
+    now = timezone.now()
+    task_snapshot = _build_queue_poller_task_snapshot()
+    log_snapshot = _build_queue_poller_log_snapshot()
+    job = AutomationJob.objects.filter(code=QUEUE_POLLER_JOB_CODE).first()
+    executions = list(job.executions.order_by("-started_at", "-id")[:10]) if job else []
+    last_execution = executions[0] if executions else None
+    consecutive_failures = 0
+    for execution in executions:
+        if execution.status != AutomationExecution.Status.FAILED:
+            break
+        consecutive_failures += 1
+
+    missing_alert = None
+    stuck_alert = None
+    next_expected_at_label = "-"
+    if job is not None:
+        missing_alert = {
+            item["job"].pk: item for item in detect_missed_jobs(now=now, create_issues=False)
+        }.get(job.pk)
+        stuck_alert = {
+            item["job"].pk: item for item in detect_stuck_jobs(now=now, create_issues=False)
+        }.get(job.pk)
+        if job.expected_max_interval_minutes:
+            reference_time = last_execution.started_at if last_execution else job.created_at
+            next_expected_at_label = _format_display_datetime(
+                reference_time + timedelta(minutes=int(job.expected_max_interval_minutes))
+            )
+
+    summary_state = "healthy"
+    summary_label = "Attivo"
+    summary_message = "Task registrato e job monitorato nei tempi attesi."
+    if not task_snapshot["task_exists"]:
+        summary_state = "error"
+        summary_label = "Task mancante"
+        summary_message = (
+            "Gli eventi possono restare pending perche il consumatore automatico non e registrato sul server."
+        )
+    elif task_snapshot["task_state"] == "disabled":
+        summary_state = "error"
+        summary_label = "Task disabilitato"
+        summary_message = "Il task Windows esiste ma e disabilitato, quindi la queue non viene consumata."
+    elif stuck_alert:
+        summary_state = "error"
+        summary_label = "Worker bloccato"
+        summary_message = "L'ultima esecuzione risulta oltre la durata massima attesa."
+    elif missing_alert:
+        overdue_minutes = int(missing_alert.get("overdue_minutes") or 0)
+        summary_state = "warning"
+        summary_label = "In ritardo"
+        summary_message = f"Il job non risulta eseguito nei tempi attesi ed e in ritardo di {overdue_minutes} minuti."
+    elif last_execution is None:
+        summary_state = "warning"
+        summary_label = "Mai eseguito"
+        summary_message = "Il task esiste ma non risultano ancora esecuzioni monitorate del queue processor."
+    elif last_execution.status == AutomationExecution.Status.FAILED:
+        summary_state = "warning"
+        summary_label = "Ultimo run fallito"
+        summary_message = "Il task parte, ma l'ultima esecuzione monitorata del queue processor e fallita."
+    elif task_snapshot["task_state"] not in {"ready", "running", "queued"}:
+        summary_state = "warning"
+        summary_label = "Stato task anomalo"
+        summary_message = "Il task esiste ma non risulta pronto o in esecuzione."
+
+    return {
+        **task_snapshot,
+        **log_snapshot,
+        "summary_state": summary_state,
+        "summary_label": summary_label,
+        "summary_message": summary_message,
+        "job_exists": job is not None,
+        "job_id": getattr(job, "pk", None),
+        "job_code": QUEUE_POLLER_JOB_CODE,
+        "job_name": getattr(job, "name", "Processo queue automazioni"),
+        "job_last_execution_label": _format_display_datetime(getattr(last_execution, "started_at", None)),
+        "job_status_label": getattr(last_execution, "get_status_display", lambda: "-")(),
+        "job_status_code": str(getattr(last_execution, "status", "") or "").lower(),
+        "job_trigger_type_label": getattr(last_execution, "get_trigger_type_display", lambda: "-")(),
+        "job_message": str(getattr(last_execution, "message", "") or "").strip() or "-",
+        "job_consecutive_failures": consecutive_failures,
+        "job_next_expected_label": next_expected_at_label,
+        "job_missing_alert": bool(missing_alert),
+        "job_missing_detail": (
+            f"In ritardo di {int(missing_alert.get('overdue_minutes') or 0)} minuti."
+            if missing_alert else "-"
+        ),
+        "job_stuck_alert": bool(stuck_alert),
+        "job_stuck_detail": (
+            f"Oltre soglia di {int(stuck_alert.get('delay_seconds') or 0)} secondi."
+            if stuck_alert else "-"
+        ),
+    }
+
+
 def _queue_table_exists() -> bool:
     try:
         table_name = "automation_event_queue" if connection.vendor == "sqlite" else "dbo.automation_event_queue"
@@ -4735,11 +5058,13 @@ def queue_list_page(request):
     status = _get_filter_value(request, "status")
     source_code = _get_filter_value(request, "source_code")
     operation_type = _get_filter_value(request, "operation_type")
+    poller_health = _build_queue_poller_health_snapshot()
 
     if not _queue_table_exists():
         context = {
             **_base_context(),
             "queue_table_missing": True,
+            "poller_health": poller_health,
             "queue_events": [],
             "queue_counts": {},
             "filters": {"status": status, "source_code": source_code, "operation_type": operation_type},
@@ -4774,6 +5099,7 @@ def queue_list_page(request):
     context = {
         **_base_context(),
         "queue_table_missing": False,
+        "poller_health": poller_health,
         "queue_events": queue_events,
         "queue_counts": count_queue_by_status(
             source_code=source_code or None,
@@ -4797,6 +5123,7 @@ def queue_detail_page(request, queue_id: int):
     queue_event = get_queue_event_detail(queue_id)
     if queue_event is None:
         raise Http404("Evento queue non trovato.")
+    poller_health = _build_queue_poller_health_snapshot()
 
     run_logs = list(
         AutomationRunLog.objects.filter(queue_event_id=queue_id)
@@ -4820,6 +5147,7 @@ def queue_detail_page(request, queue_id: int):
 
     context = {
         **_base_context(),
+        "poller_health": poller_health,
         "queue_event": queue_event,
         "run_logs": run_logs,
         "action_logs": action_logs,
@@ -5165,6 +5493,136 @@ def approval_status_page(request, token: str):
         "approval": approval,
         "token": token,
         "status_only": True,
+    })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Approval Proxy — endpoint GET ottimizzati per Entra Application Proxy
+#
+# Sicurezza: prima di chiamare process_approval_decision(), l'endpoint
+# valida l'attore tramite validate_approval_actor() (approval_security.py),
+# lo stesso helper usato dal canale mailbox Graph. Fail-closed.
+#
+# Identità approvatore (ordine di priorità):
+#   1. request.user.email / username  (sessione Django / SSO passthrough)
+#   2. HTTP_X_MS_CLIENT_PRINCIPAL_NAME  (Entra Application Proxy)
+#   3. HTTP_X_FORWARDED_EMAIL           (altri proxy compatibili)
+#   4. stringa vuota → bloccato con NO_IDENTITY
+# ─────────────────────────────────────────────────────────────────────────────
+
+import logging as _logging
+
+_proxy_logger = _logging.getLogger(__name__)
+
+
+def _extract_approver_identity(request) -> str:
+    """Restituisce l'email dell'approvatore dal contesto della request."""
+    if getattr(request, "user", None) and request.user.is_authenticated:
+        return str(
+            getattr(request.user, "email", "") or getattr(request.user, "username", "") or ""
+        ).strip()
+    # Entra Application Proxy standard headers
+    for header in ("HTTP_X_MS_CLIENT_PRINCIPAL_NAME", "HTTP_X_FORWARDED_EMAIL"):
+        value = request.META.get(header, "").strip()
+        if value:
+            return value
+    return ""
+
+
+@require_GET
+def approval_proxy_approve(request, token):
+    """GET /approval-actions/approve/<token>/ — approva immediatamente (Entra Proxy)."""
+    return _handle_approval_proxy(request, token, "approved")
+
+
+@require_GET
+def approval_proxy_reject(request, token):
+    """GET /approval-actions/reject/<token>/ — rifiuta immediatamente (Entra Proxy)."""
+    return _handle_approval_proxy(request, token, "rejected")
+
+
+def _handle_approval_proxy(request, token, decision: str):
+    """
+    Gestisce una decisione di approvazione via GET (Entra Application Proxy).
+
+    Pipeline:
+      1. Estrai identità approvatore (sessione → Entra headers → vuota)
+      2. Valida identità e token via validate_approval_actor()  ← fail-closed
+      3. Solo se validazione ok: chiama process_approval_decision()
+      4. Scrivi AuditLog con identità effettiva
+      5. Ritorna pagina esito con stato distinto per ogni tipo di errore
+    """
+    from .approval_security import validate_approval_actor, ErrorCode
+
+    token_str = str(token)
+    decided_by = _extract_approver_identity(request)
+
+    # ── Validazione attore (fail-closed) ─────────────────────────────────────
+    validation = validate_approval_actor(token_str, decided_by)
+
+    if not validation.allowed:
+        _proxy_logger.warning(
+            "approval_proxy: validazione fallita token=%s decision=%s code=%s actor=%r reason=%s",
+            token_str, decision, validation.error_code, decided_by or "(vuoto)", validation.error_message,
+        )
+        log_action(
+            request,
+            "approval_proxy_denied",
+            "automazioni",
+            {
+                "token": token_str,
+                "decision": decision,
+                "actor": decided_by or "(vuoto)",
+                "error_code": validation.error_code,
+                "message": validation.error_message,
+                "via": "entra_proxy",
+            },
+        )
+        return render(request, "automazioni/pages/approval_proxy_result.html", {
+            "denied": True,
+            "error_code": validation.error_code,
+            "error_message": validation.error_message,
+            "decision": decision,
+            "token": token_str,
+            "decided_by": decided_by,
+            # Flag distinti per il template
+            "is_no_identity":     validation.error_code == ErrorCode.NO_IDENTITY,
+            "is_not_found":       validation.error_code == ErrorCode.NOT_FOUND,
+            "is_already_decided": validation.error_code == ErrorCode.ALREADY_DECIDED,
+            "is_expired":         validation.error_code == ErrorCode.EXPIRED,
+            "is_unauthorized":    validation.error_code == ErrorCode.UNAUTHORIZED,
+            "is_no_approvers":    validation.error_code == ErrorCode.NO_APPROVERS,
+        })
+
+    # ── Decisione (validazione passata) ──────────────────────────────────────
+    result = process_approval_decision(token_str, decision, decided_by_email=decided_by)
+
+    log_action(
+        request,
+        "approval_proxy_decision",
+        "automazioni",
+        {
+            "token": token_str,
+            "decision": decision,
+            "actor": decided_by,
+            "ok": result.get("ok"),
+            "approval_id": result.get("approval_id"),
+            "message": result.get("message"),
+            "via": "entra_proxy",
+        },
+    )
+
+    if not result.get("ok"):
+        _proxy_logger.warning(
+            "approval_proxy: process_approval_decision ko token=%s decision=%s reason=%s",
+            token_str, decision, result.get("message"),
+        )
+
+    return render(request, "automazioni/pages/approval_proxy_result.html", {
+        "result": result,
+        "decision": decision,
+        "token": token_str,
+        "decided_by": decided_by,
     })
 
 

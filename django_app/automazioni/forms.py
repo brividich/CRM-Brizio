@@ -213,6 +213,71 @@ def _serialize_json_array_text(raw_value: Any) -> str:
     return json.dumps(raw_value, indent=2, ensure_ascii=False)
 
 
+def _split_approval_branch_actions(actions: Any) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """
+    Divide la lista azioni di un ramo approval in:
+    - update_fields: dict estratto dall'eventuale azione update_trigger_record
+    - remaining: lista delle azioni non-update_trigger_record
+    """
+    update_fields: dict[str, Any] = {}
+    remaining: list[dict[str, Any]] = []
+    for act in (actions or []):
+        if isinstance(act, dict) and act.get("action_type") == "update_trigger_record":
+            update_fields.update((act.get("config_json") or {}).get("update_fields") or {})
+        else:
+            remaining.append(act)
+    return update_fields, remaining
+
+
+def _build_approval_branch_actions(
+    form_instance: Any,
+    *,
+    update_fields_key: str,
+    extra_json_key: str,
+    branch_label: str,
+    source_code: str | None,
+    cleaned_data: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """
+    Costruisce la lista azioni inline per un ramo approval (approved/rejected).
+    Antepone un'azione update_trigger_record se il campo `campo = valore` è valorizzato,
+    poi concatena le eventuali azioni JSON aggiuntive.
+    """
+    actions: list[dict[str, Any]] = []
+
+    update_text = str(cleaned_data.get(update_fields_key) or "").strip()
+    if update_text:
+        allowed_fields = _get_source_update_allowed_fields(source_code)
+        try:
+            update_fields = _parse_mapping_text(update_text, field_label=f"Aggiorna record ({branch_label})")
+        except forms.ValidationError as exc:
+            form_instance.add_error(update_fields_key, exc)
+            update_fields = {}
+        if update_fields:
+            invalid = sorted(set(update_fields.keys()) - allowed_fields) if allowed_fields else []
+            if invalid:
+                form_instance.add_error(
+                    update_fields_key,
+                    "Campi non aggiornabili sulla sorgente selezionata: " + ", ".join(invalid) + ".",
+                )
+            else:
+                actions.append({
+                    "action_type": "update_trigger_record",
+                    "description": f"Aggiorna record ({branch_label})",
+                    "config_json": {"update_fields": update_fields},
+                })
+
+    extra_text = str(cleaned_data.get(extra_json_key) or "").strip()
+    if extra_text:
+        try:
+            extra = _parse_json_array_text(extra_text, field_label=f"Azioni aggiuntive ({branch_label})")
+            actions.extend(extra)
+        except forms.ValidationError as exc:
+            form_instance.add_error(extra_json_key, exc)
+
+    return actions
+
+
 def _build_whitelist_help(action_type: str) -> str:
     whitelist = get_action_table_whitelist().get(action_type, {})
     if not whitelist:
@@ -255,6 +320,18 @@ def _get_source_update_allowed_fields(source_code: str | None) -> set[str]:
         for field in get_action_mapping_fields(source_code)
         if field.get("db_column") and not field.get("is_virtual") and str(field.get("name")) != pk_field
     }
+
+
+def _select_approval_template_from_choices(
+    raw_value: str,
+    *,
+    by_id: dict[str, Any],
+    by_code: dict[str, Any],
+):
+    selector = str(raw_value or "").strip()
+    if not selector:
+        return None
+    return by_id.get(selector) or by_code.get(selector)
 
 
 def _normalize_run_if_config(cleaned_data: dict[str, Any]) -> dict[str, Any]:
@@ -584,17 +661,29 @@ class AutomationActionForm(forms.ModelForm):
             "Se lasciato vuoto, viene usato il corpo base definito direttamente nella regola."
         ),
     )
+    approval_approved_update_fields_text = forms.CharField(
+        required=False,
+        label="Aggiorna record (se approvato)",
+        widget=forms.Textarea(attrs={"rows": 4}),
+        help_text="Un mapping per riga: `campo = valore template`. Aggiorna il record che ha avviato il flusso.",
+    )
+    approval_rejected_update_fields_text = forms.CharField(
+        required=False,
+        label="Aggiorna record (se rifiutato)",
+        widget=forms.Textarea(attrs={"rows": 4}),
+        help_text="Un mapping per riga: `campo = valore template`. Aggiorna il record che ha avviato il flusso.",
+    )
     approval_approved_actions_json = forms.CharField(
         required=False,
-        label="Azioni se approvato (JSON array)",
-        widget=forms.Textarea(attrs={"rows": 6}),
-        help_text='Lista JSON di azioni inline, es. [{"action_type":"write_log","config_json":{"message_template":"OK"}}].',
+        label="Azioni aggiuntive (JSON array)",
+        widget=forms.Textarea(attrs={"rows": 4}),
+        help_text='Altre azioni inline oltre all\'aggiornamento record, es. [{"action_type":"write_log","config_json":{"message_template":"OK"}}].',
     )
     approval_rejected_actions_json = forms.CharField(
         required=False,
-        label="Azioni se rifiutato (JSON array)",
-        widget=forms.Textarea(attrs={"rows": 6}),
-        help_text='Lista JSON di azioni inline, es. [{"action_type":"write_log","config_json":{"message_template":"KO"}}].',
+        label="Azioni aggiuntive (JSON array)",
+        widget=forms.Textarea(attrs={"rows": 4}),
+        help_text='Altre azioni inline oltre all\'aggiornamento record, es. [{"action_type":"write_log","config_json":{"message_template":"KO"}}].',
     )
 
     class Meta:
@@ -658,8 +747,13 @@ class AutomationActionForm(forms.ModelForm):
         _mark_smart_target(self.fields.get("approval_teams_recipient_email_template"), mode="template-input", role="approval-teams-recipient", source_role="template")
         _mark_smart_target(self.fields.get("approval_teams_title_template"), mode="template-input", role="approval-teams-title", source_role="template")
         _mark_smart_target(self.fields.get("approval_teams_facts_inline"), mode="template-input", role="approval-teams-facts", source_role="template")
+        _mark_smart_target(self.fields.get("approval_approved_update_fields_text"), mode="mapping-input", role="approval-approved-update-fields", source_role="template")
+        _mark_smart_target(self.fields.get("approval_rejected_update_fields_text"), mode="mapping-input", role="approval-rejected-update-fields", source_role="template")
         _mark_smart_target(self.fields.get("approval_approved_actions_json"), mode="json-editor", role="approval-approved-actions", source_role="template")
         _mark_smart_target(self.fields.get("approval_rejected_actions_json"), mode="json-editor", role="approval-rejected-actions", source_role="template")
+        source_update_help = _build_source_update_help(self._effective_source_code)
+        self.fields["approval_approved_update_fields_text"].help_text = source_update_help or self.fields["approval_approved_update_fields_text"].help_text
+        self.fields["approval_rejected_update_fields_text"].help_text = source_update_help or self.fields["approval_rejected_update_fields_text"].help_text
         self.fields["run_if_expected_value"].help_text = (
             "Per `changed_from_to` usa `vecchio|nuovo`. Se spunti `inverti risultato`, il branch diventa un ELSE."
         )
@@ -669,7 +763,7 @@ class AutomationActionForm(forms.ModelForm):
         self.fields["delay_value_template"].help_text = "Numero o placeholder, es. `1`, `4`, `{giorni}`."
         self.fields["delay_until_template"].help_text = "Data/ora ISO o placeholder, es. `2026-04-10T15:30:00`."
 
-        config = self.instance.config_json if self.instance.pk and isinstance(self.instance.config_json, dict) else {}
+        config = self.instance.config_json if isinstance(getattr(self.instance, "config_json", None), dict) else {}
 
         # Populate approval_teams_preset_id choices from DB
         try:
@@ -710,6 +804,8 @@ class AutomationActionForm(forms.ModelForm):
 
         # Popola scelte template email approvazione
         approval_templates, self._approval_templates_unavailable = list_approval_email_templates(enabled_only=True)
+        self._approval_templates_by_id = {str(tpl.pk): tpl for tpl in approval_templates}
+        self._approval_templates_by_code = {str(tpl.code): tpl for tpl in approval_templates}
         self.fields["approval_email_template_id"].choices = [
             ("", "— nessun template (comportamento standard) —"),
             *[
@@ -795,9 +891,25 @@ class AutomationActionForm(forms.ModelForm):
                 _serialize_approval_facts_inline(config.get("teams_facts_inline") or config.get("teams_facts")),
             )
             self.initial.setdefault("approval_strict_teams_flow", bool(config.get("strict_teams_flow")))
-            self.initial.setdefault("approval_approved_actions_json", _serialize_json_array_text(config.get("approved_actions")))
-            self.initial.setdefault("approval_rejected_actions_json", _serialize_json_array_text(config.get("rejected_actions")))
-            self.initial.setdefault("approval_email_template_id", str(config.get("approval_email_template_id") or ""))
+            approved_update, approved_extra = _split_approval_branch_actions(config.get("approved_actions"))
+            rejected_update, rejected_extra = _split_approval_branch_actions(config.get("rejected_actions"))
+            self.initial.setdefault("approval_approved_update_fields_text", _serialize_mapping_for_textarea(approved_update))
+            self.initial.setdefault("approval_rejected_update_fields_text", _serialize_mapping_for_textarea(rejected_update))
+            self.initial.setdefault("approval_approved_actions_json", _serialize_json_array_text(approved_extra))
+            self.initial.setdefault("approval_rejected_actions_json", _serialize_json_array_text(rejected_extra))
+            template_initial = ""
+            template_code = str(config.get("approval_email_template_code") or "").strip()
+            template_id = str(config.get("approval_email_template_id") or "").strip()
+            if template_code and template_code in self._approval_templates_by_code:
+                template_initial = str(self._approval_templates_by_code[template_code].pk)
+            elif template_id and template_id in self._approval_templates_by_id:
+                template_initial = template_id
+            elif template_code:
+                _append_help_text(
+                    self.fields.get("approval_email_template_id"),
+                    f"Template salvato non disponibile localmente: `{template_code}`.",
+                )
+            self.initial.setdefault("approval_email_template_id", template_initial)
 
     def clean(self):
         cleaned_data = super().clean()
@@ -1033,22 +1145,22 @@ class AutomationActionForm(forms.ModelForm):
             teams_recipient_email_template = str(
                 cleaned_data.get("approval_teams_recipient_email_template") or ""
             ).strip()
-            try:
-                approved_actions = _parse_json_array_text(
-                    cleaned_data.get("approval_approved_actions_json", ""),
-                    field_label="Azioni se approvato",
-                )
-            except forms.ValidationError as exc:
-                approved_actions = []
-                self.add_error("approval_approved_actions_json", exc)
-            try:
-                rejected_actions = _parse_json_array_text(
-                    cleaned_data.get("approval_rejected_actions_json", ""),
-                    field_label="Azioni se rifiutato",
-                )
-            except forms.ValidationError as exc:
-                rejected_actions = []
-                self.add_error("approval_rejected_actions_json", exc)
+            approved_actions = _build_approval_branch_actions(
+                self,
+                update_fields_key="approval_approved_update_fields_text",
+                extra_json_key="approval_approved_actions_json",
+                branch_label="approvato",
+                source_code=self._effective_source_code,
+                cleaned_data=cleaned_data,
+            )
+            rejected_actions = _build_approval_branch_actions(
+                self,
+                update_fields_key="approval_rejected_update_fields_text",
+                extra_json_key="approval_rejected_actions_json",
+                branch_label="rifiutato",
+                source_code=self._effective_source_code,
+                cleaned_data=cleaned_data,
+            )
             config_json = {
                 "delivery_mode": delivery_mode or ApprovalDeliveryMode.EMAIL,
                 "to_template": str(cleaned_data.get("approval_to_template") or "").strip(),
@@ -1126,10 +1238,23 @@ class AutomationActionForm(forms.ModelForm):
             if preset_id_raw and delivery_mode == ApprovalDeliveryMode.TEAMS_WEBHOOK_LEGACY:
                 config_json["teams_preset_id"] = preset_id_raw
 
-            # Template email approvazione (opzionale)
-            tpl_id_raw = str(cleaned_data.get("approval_email_template_id") or "").strip()
-            if tpl_id_raw:
-                config_json["approval_email_template_id"] = tpl_id_raw
+            # Template email approvazione (opzionale): persisti sempre il code.
+            tpl_selector_raw = str(cleaned_data.get("approval_email_template_id") or "").strip()
+            selected_template = _select_approval_template_from_choices(
+                tpl_selector_raw,
+                by_id=getattr(self, "_approval_templates_by_id", {}),
+                by_code=getattr(self, "_approval_templates_by_code", {}),
+            )
+            if selected_template is not None:
+                config_json["approval_email_template_code"] = str(selected_template.code)
+                config_json["approval_email_template_id"] = str(selected_template.pk)
+            elif not tpl_selector_raw:
+                existing_template_code = str(existing_config.get("approval_email_template_code") or "").strip()
+                existing_template_id = str(existing_config.get("approval_email_template_id") or "").strip()
+                if existing_template_code:
+                    config_json["approval_email_template_code"] = existing_template_code
+                if existing_template_id:
+                    config_json["approval_email_template_id"] = existing_template_id
 
         if run_if_config:
             config_json["run_if"] = run_if_config
@@ -1218,13 +1343,39 @@ class PowerAutomateFlowUploadForm(forms.Form):
         choices=(("", "Nessuna tabella target (solo runtime portale)"),),
         help_text="Opzionale. Se selezionata, il converter suggerisce anche mapping verso una tabella Django del portale.",
     )
+    approval_email_template_code = forms.ChoiceField(
+        label="Template approvazione",
+        required=False,
+        choices=(("", "Nessun template approval selezionato"),),
+        help_text=(
+            "Usato quando il flow contiene approval Power Automate. "
+            "Per la conversione approval via mail servono template attivi `hybrid` o `mail_reply`."
+        ),
+    )
 
-    def __init__(self, *args, target_table_choices: list[tuple[str, str]] | None = None, **kwargs):
+    def __init__(
+        self,
+        *args,
+        target_table_choices: list[tuple[str, str]] | None = None,
+        approval_template_choices: list[tuple[str, str]] | None = None,
+        default_approval_template_code: str = "",
+        approval_template_warning: str = "",
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self.fields["target_table"].choices = [
             ("", "Nessuna tabella target (solo runtime portale)"),
             *(target_table_choices or []),
         ]
+        self.fields["approval_email_template_code"].choices = [
+            ("", "Nessun template approval selezionato"),
+            *(approval_template_choices or []),
+        ]
+        if default_approval_template_code and not self.is_bound:
+            self.initial.setdefault("approval_email_template_code", default_approval_template_code)
+        if approval_template_warning:
+            existing_help = str(self.fields["approval_email_template_code"].help_text or "").strip()
+            self.fields["approval_email_template_code"].help_text = f"{existing_help} {approval_template_warning}".strip()
 
     def clean_flow_file(self):
         uploaded_file = self.cleaned_data["flow_file"]

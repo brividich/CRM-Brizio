@@ -219,6 +219,36 @@ class AutomazioniAdminPageTests(TestCase):
         self.client.force_login(self.user)
         self.legacy_admin = SimpleNamespace(id=1, ruolo_id=1, nome="Admin Automazioni")
 
+    def _build_queue_poller_health_snapshot(self, **overrides):
+        snapshot = {
+            "summary_state": "healthy",
+            "summary_label": "Attivo",
+            "summary_message": "Task registrato e job monitorato nei tempi attesi.",
+            "task_name": "Portale Hub Polling Mail",
+            "task_state_label": "Pronto",
+            "task_last_run_label": "15/04/2026 12:30:00",
+            "task_next_run_label": "15/04/2026 12:31:00",
+            "task_last_result_label": "0 (ultimo avvio ok)",
+            "job_id": 12,
+            "job_name": "Processo queue automazioni",
+            "job_last_execution_label": "15/04/2026 12:30:00",
+            "job_status_label": "Success",
+            "job_trigger_type_label": "Scheduler",
+            "job_message": "[run] fetched=1 done=1 error=0 rule_runs=1",
+            "job_consecutive_failures": 0,
+            "job_missing_alert": False,
+            "job_missing_detail": "-",
+            "job_stuck_alert": False,
+            "job_stuck_detail": "-",
+            "job_next_expected_label": "15/04/2026 12:35:00",
+            "log_exists": True,
+            "log_path": "C:\\Dev\\Portale Novicrom\\django_app\\logs\\automation_queue.log",
+            "log_last_write_label": "15/04/2026 12:30:10",
+            "log_size_label": "2.0 KB",
+        }
+        snapshot.update(overrides)
+        return snapshot
+
     def _build_rule_create_post_data(self, **overrides):
         data = {
             "code": "assenze-approvate-builder",
@@ -1008,6 +1038,7 @@ class AutomazioniAdminPageTests(TestCase):
 
     @patch("automazioni.views.count_queue_by_status")
     @patch("automazioni.views.list_queue_events")
+    @patch("automazioni.views._build_queue_poller_health_snapshot")
     @patch("automazioni.views._queue_table_exists", return_value=True)
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
@@ -1016,10 +1047,12 @@ class AutomazioniAdminPageTests(TestCase):
         mock_get_legacy_user,
         _mock_is_admin,
         _mock_queue_table_exists,
+        mock_build_queue_poller_health_snapshot,
         mock_list_queue_events,
         mock_count_queue_by_status,
     ):
         mock_get_legacy_user.return_value = self.legacy_admin
+        mock_build_queue_poller_health_snapshot.return_value = self._build_queue_poller_health_snapshot()
         rule = AutomationRule.objects.create(
             code="queue-list-rule",
             name="Queue list rule",
@@ -1062,6 +1095,8 @@ class AutomazioniAdminPageTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Automazioni - Queue Operativa")
+        self.assertContains(response, "Poller automatico queue")
+        self.assertContains(response, "Portale Hub Polling Mail")
         self.assertContains(response, "#101")
         self.assertContains(response, "retry failed")
         self.assertContains(response, "1 log")
@@ -1075,6 +1110,7 @@ class AutomazioniAdminPageTests(TestCase):
 
     @patch("automazioni.views.count_queue_by_status")
     @patch("automazioni.views.list_queue_events")
+    @patch("automazioni.views._build_queue_poller_health_snapshot")
     @patch("automazioni.views._queue_table_exists", return_value=True)
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
@@ -1083,10 +1119,12 @@ class AutomazioniAdminPageTests(TestCase):
         mock_get_legacy_user,
         _mock_is_admin,
         _mock_queue_table_exists,
+        mock_build_queue_poller_health_snapshot,
         mock_list_queue_events,
         mock_count_queue_by_status,
     ):
         mock_get_legacy_user.return_value = self.legacy_admin
+        mock_build_queue_poller_health_snapshot.return_value = self._build_queue_poller_health_snapshot()
         mock_list_queue_events.return_value = [
             {
                 "id": 102,
@@ -1112,15 +1150,21 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertContains(response, reverse("admin_portale:automazioni_queue_delete", args=[102]))
 
     @patch("automazioni.views.get_queue_event_detail")
+    @patch("automazioni.views._build_queue_poller_health_snapshot")
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
     def test_queue_detail_page_renders_payload_and_linked_logs(
         self,
         mock_get_legacy_user,
         _mock_is_admin,
+        mock_build_queue_poller_health_snapshot,
         mock_get_queue_event_detail,
     ):
         mock_get_legacy_user.return_value = self.legacy_admin
+        mock_build_queue_poller_health_snapshot.return_value = self._build_queue_poller_health_snapshot(
+            summary_label="In ritardo",
+            summary_state="warning",
+        )
         rule = AutomationRule.objects.create(
             code="queue-detail-rule",
             name="Queue detail rule",
@@ -1173,21 +1217,26 @@ class AutomazioniAdminPageTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Automazioni - Dettaglio Queue")
+        self.assertContains(response, "Portale Hub Polling Mail")
+        self.assertContains(response, "In ritardo")
         self.assertContains(response, "moderation_status")
         self.assertContains(response, "Run OK")
         self.assertContains(response, "Action OK")
         self.assertContains(response, "runtime error")
 
     @patch("automazioni.views.get_queue_event_detail")
+    @patch("automazioni.views._build_queue_poller_health_snapshot")
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
     def test_queue_detail_page_shows_stop_and_delete_for_pending_event_without_logs(
         self,
         mock_get_legacy_user,
         _mock_is_admin,
+        mock_build_queue_poller_health_snapshot,
         mock_get_queue_event_detail,
     ):
         mock_get_legacy_user.return_value = self.legacy_admin
+        mock_build_queue_poller_health_snapshot.return_value = self._build_queue_poller_health_snapshot()
         mock_get_queue_event_detail.return_value = {
             "id": 78,
             "source_code": "assenze",
@@ -1597,13 +1646,25 @@ class AutomationPackageImportTests(TestCase):
         package = self._base_package()
         package["issues"] = [
             {
-                "code": "approval-delegated-to-portal",
+                "code": "approval-branch-manual-review",
                 "severity": "medium",
-                "title": "Approval da delegare al portale",
-                "detail": "Il flow usa approval che devono diventare regole basate su moderation_status.",
-                "remediation": "Usa remediation automatica e poi importa nel builder SSR.",
+                "title": "Branch approval da rifinire",
+                "detail": "Il flow usa approval convertita in send_approval con qualche step rimasto fuori dai branch.",
+                "remediation": "Rifinisci i branch nel designer dopo l'import.",
             }
         ]
+        package["approval_conversion"] = {
+            "detected": True,
+            "strategy": "send_approval",
+            "template_code": "tpl-approval-hybrid",
+            "template_delivery_mode": "hybrid",
+            "approver_template": "{capo_email}",
+            "subject_template": "Approvazione richiesta #{id}",
+            "message_template": "Body approval {id}",
+            "approved_branch_supported_count": 1,
+            "rejected_branch_supported_count": 1,
+            "unsupported_branch_actions": [{"name": "Until_1", "type": "Until", "parent": ""}],
+        }
         return {
             "record_id": "pa-demo-001",
             "created_at": "2026-04-14T10:00:00+00:00",
@@ -1706,6 +1767,7 @@ class AutomationPackageImportTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Converti Power Automate")
         self.assertContains(response, "Analizza flow")
+        self.assertContains(response, "Template approvazione")
 
     @patch("automazioni.views.analyze_package_dict")
     @patch("automazioni.views.analyze_power_automate_flow_upload")
@@ -1714,13 +1776,26 @@ class AutomationPackageImportTests(TestCase):
         mock_analyze_flow_upload,
         mock_analyze_package_dict,
     ):
+        from .models import ApprovalEmailTemplate
+
+        ApprovalEmailTemplate.objects.create(
+            code="tpl-approval-hybrid",
+            name="Template Approval Hybrid",
+            delivery_mode="hybrid",
+            subject_template="Approval {id}",
+        )
         mock_analyze_flow_upload.return_value = self._power_automate_converter_record()
         mock_analyze_package_dict.return_value = self._power_automate_converter_analysis()
         upload = SimpleUploadedFile("sample.zip", b"PK\x03\x04demo", content_type="application/zip")
 
         response = self.client.post(
             reverse("admin_portale:automazioni_rule_power_automate_convert"),
-            {"action": "analyze", "flow_file": upload, "target_table": ""},
+            {
+                "action": "analyze",
+                "flow_file": upload,
+                "target_table": "",
+                "approval_email_template_code": "tpl-approval-hybrid",
+            },
             follow=True,
         )
 
@@ -1730,6 +1805,12 @@ class AutomationPackageImportTests(TestCase):
         session_state = self.client.session.get("automazioni_power_automate_converter_state")
         self.assertIsNotNone(session_state)
         self.assertEqual(session_state["analysis"]["flow_name"], "Assenze Approval Flow")
+        self.assertEqual(session_state["selected_approval_template_code"], "tpl-approval-hybrid")
+        mock_analyze_flow_upload.assert_called_once()
+        self.assertEqual(
+            mock_analyze_flow_upload.call_args.kwargs["approval_template"]["code"],
+            "tpl-approval-hybrid",
+        )
 
     def test_power_automate_converter_handoff_import_reuses_package_import_workflow(self):
         session = self.client.session
@@ -1737,6 +1818,7 @@ class AutomationPackageImportTests(TestCase):
             "record": self._power_automate_converter_record(),
             "analysis": self._power_automate_converter_analysis(),
             "selected_target_table": "",
+            "selected_approval_template_code": "tpl-approval-hybrid",
         }
         session.save()
 
@@ -1757,6 +1839,7 @@ class AutomationPackageImportTests(TestCase):
             "record": self._power_automate_converter_record(),
             "analysis": self._power_automate_converter_analysis(),
             "selected_target_table": "",
+            "selected_approval_template_code": "tpl-approval-hybrid",
         }
         session.save()
 
@@ -1847,6 +1930,78 @@ class AutomationPackageImportTests(TestCase):
         self.assertEqual(AutomationActionLog.objects.count(), 0)
         self.assertEqual(DashboardMetricValue.objects.count(), 0)
         mock_email_class.assert_not_called()
+
+    def test_dry_run_supports_send_approval_preview_with_template_code(self):
+        from .models import ApprovalEmailTemplate
+
+        template = ApprovalEmailTemplate.objects.create(
+            code="tpl-dry-run-approval",
+            name="Template Dry Run Approval",
+            delivery_mode="hybrid",
+            subject_template="Subject {id}",
+        )
+        package = {
+            "package_version": "2026.03",
+            "input": {"flow_name": "Assenze Approval Dry Run"},
+            "source_candidate": {"source_code": "assenze", "label": "Assenze"},
+            "compatibility": {"compatible": True, "status": "ok"},
+            "issues": [],
+            "target_context": {"module": "automazioni", "source": "assenze"},
+            "approved_field_mapping": {
+                "EmailDipendente": "dipendente_email",
+                "CAR": "capo_email",
+                "Tipoassenza": "tipo_assenza",
+                "Data_x0020_inizio": "data_inizio",
+                "Datafine": "data_fine",
+            },
+            "proposed_rules": [
+                {
+                    "code": "pa-assenze-send-approval-dry-run",
+                    "name": "Assenze approval dry run",
+                    "source_code": "assenze",
+                    "operation_type": "insert",
+                    "trigger_scope": "all_inserts",
+                    "is_active": False,
+                    "is_draft": True,
+                    "actions": [
+                        {
+                            "action_type": "send_approval",
+                            "config_json": {
+                                "delivery_mode": "email",
+                                "to_template": "{capo_email}",
+                                "subject_template": "Approval {id}",
+                                "message_template": "Body {tipo_assenza}",
+                                "approval_email_template_code": template.code,
+                                "approved_actions": [
+                                    {
+                                        "action_type": "update_trigger_record",
+                                        "config_json": {"update_fields": {"moderation_status": 0}},
+                                    }
+                                ],
+                                "rejected_actions": [
+                                    {
+                                        "action_type": "write_log",
+                                        "config_json": {"message_template": "KO {id}"},
+                                    }
+                                ],
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+        self._analyze_package(package)
+
+        response = self._run_dry_run(
+            sample_mode="json",
+            payload=build_example_payload("assenze"),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Approval dry-run")
+        self.assertContains(response, template.code)
+        self.assertContains(response, "approved_actions=1")
+        self.assertContains(response, "rejected_actions=1")
 
     def test_import_creates_draft_rules_and_metadata(self):
         package = self._base_package(
@@ -3541,6 +3696,65 @@ class AutomationActionFormExtendedTests(TestCase):
             str(form.fields["approval_teams_flow_endpoint_id"].help_text),
         )
 
+    def test_send_approval_form_prefills_template_selector_from_saved_code(self):
+        from .models import ApprovalEmailTemplate
+
+        template = ApprovalEmailTemplate.objects.create(
+            code="tpl-approval-form-code",
+            name="Template Approval Form",
+            delivery_mode="hybrid",
+            subject_template="Subject {id}",
+        )
+        rule = AutomationRule.objects.create(
+            code="form-template-prefill",
+            name="Form template prefill",
+            source_code="assenze",
+            operation_type=AutomationRuleOperationType.INSERT,
+            trigger_scope=AutomationRuleTriggerScope.ALL_INSERTS,
+        )
+        action = AutomationAction(
+            rule=rule,
+            action_type=AutomationActionType.SEND_APPROVAL,
+            config_json={
+                "delivery_mode": ApprovalDeliveryMode.EMAIL,
+                "to_template": "{capo_email}",
+                "subject_template": "Approval {id}",
+                "message_template": "Body {id}",
+                "approval_email_template_code": template.code,
+            },
+        )
+
+        form = AutomationActionForm(instance=action, source_code="assenze")
+
+        self.assertEqual(form.initial["approval_email_template_id"], str(template.pk))
+
+    def test_send_approval_form_persists_template_code_when_selected(self):
+        from .models import ApprovalEmailTemplate
+
+        template = ApprovalEmailTemplate.objects.create(
+            code="tpl-approval-form-save",
+            name="Template Approval Save",
+            delivery_mode="mail_reply",
+            subject_template="Subject {id}",
+        )
+        form = AutomationActionForm(
+            data={
+                "order": "1",
+                "action_type": AutomationActionType.SEND_APPROVAL,
+                "description": "Approvazione mail",
+                "approval_delivery_mode": ApprovalDeliveryMode.EMAIL,
+                "approval_to_template": "{capo_email}",
+                "approval_subject_template": "Approval {id}",
+                "approval_message_template": "Body {id}",
+                "approval_email_template_id": str(template.pk),
+            },
+            source_code="assenze",
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form._config_json["approval_email_template_code"], template.code)
+        self.assertEqual(form._config_json["approval_email_template_id"], str(template.pk))
+
 
 class AutomationExtendedActionExecutorTests(TestCase):
     def setUp(self):
@@ -4793,13 +5007,13 @@ class ApprovalEmailTemplateFallbackTests(TestCase):
         mock_email_cls.assert_called_once()
 
     @patch("automazioni.services.EmailMultiAlternatives")
-    def test_send_approval_invalid_template_id_falls_back(self, mock_email_cls):
-        """Template ID inesistente deve degradare silenziosamente."""
+    def test_send_approval_invalid_template_code_falls_back(self, mock_email_cls):
+        """Template code inesistente deve degradare silenziosamente."""
         mock_msg = MagicMock()
         mock_msg.send.return_value = 1
         mock_email_cls.return_value = mock_msg
         action, run_log = self._build_rule_and_action(
-            config_override={"approval_email_template_id": "99999"}
+            config_override={"approval_email_template_code": "missing-template-code"}
         )
         result = execute_action(
             action=action,
@@ -4825,7 +5039,7 @@ class ApprovalEmailTemplateFallbackTests(TestCase):
         mock_msg.send.return_value = 1
         mock_email_cls.return_value = mock_msg
         action, run_log = self._build_rule_and_action(
-            config_override={"approval_email_template_id": str(tpl.pk)}
+            config_override={"approval_email_template_code": tpl.code}
         )
         result = execute_action(
             action=action,
@@ -5854,4 +6068,379 @@ class GraphMailboxManagementCommandTests(TestCase):
         call_command("process_approval_mailbox", "--dry-run", stdout=out)
         output = out.getvalue()
         self.assertIn("read=0", output)
-        self.assertIn("processed=0", output)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ApprovalSecurityTests — unit test per approval_security.validate_approval_actor
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ApprovalSecurityTests(TestCase):
+    """
+    Unit test per validate_approval_actor() in approval_security.py.
+    Verifica tutte le condizioni di deny e il caso allowed.
+    """
+
+    from automazioni.approval_security import ErrorCode as _EC
+
+    def _make_approval(self, *, status="pending", expired=False, approver_emails=None):
+        from django.utils import timezone as tz
+        rule = AutomationRule.objects.create(
+            code=f"sec-rule-{id(self)}-{status}",
+            name="Security test rule",
+            source_code="assenze",
+            operation_type=AutomationRuleOperationType.UPDATE,
+            trigger_scope=AutomationRuleTriggerScope.ALL_UPDATES,
+        )
+        action = AutomationAction.objects.create(
+            rule=rule, order=1,
+            action_type=AutomationActionType.SEND_APPROVAL, config_json={},
+        )
+        run_log = AutomationRunLog.objects.create(
+            rule=rule, status=AutomationRunLogStatus.WAITING_APPROVAL,
+            payload_json={}, result_message="",
+        )
+        expires_at = (tz.now() - timedelta(hours=1)) if expired else None
+        return AutomationApproval.objects.create(
+            run_log=run_log, action=action,
+            subject="Test", message="",
+            status=status,
+            approved_actions=[], rejected_actions=[], resume_payload={},
+            approver_emails=approver_emails if approver_emails is not None else [],
+            expires_at=expires_at,
+        )
+
+    def _validate(self, token_str, actor):
+        from automazioni.approval_security import validate_approval_actor
+        return validate_approval_actor(str(token_str), actor)
+
+    def test_allowed_when_actor_in_approver_emails(self):
+        approval = self._make_approval(approver_emails=["manager@example.com"])
+        result = self._validate(approval.token, "manager@example.com")
+        self.assertTrue(result.allowed)
+        self.assertEqual(result.approval_id, approval.pk)
+
+    def test_allowed_case_insensitive(self):
+        approval = self._make_approval(approver_emails=["Manager@Example.COM"])
+        result = self._validate(approval.token, "manager@example.com")
+        self.assertTrue(result.allowed)
+
+    def test_deny_no_identity(self):
+        approval = self._make_approval(approver_emails=["m@example.com"])
+        result = self._validate(approval.token, "")
+        self.assertFalse(result.allowed)
+        self.assertEqual(result.error_code, "no_identity")
+
+    def test_deny_invalid_uuid(self):
+        from automazioni.approval_security import validate_approval_actor
+        result = validate_approval_actor("not-a-uuid", "m@example.com")
+        self.assertFalse(result.allowed)
+        self.assertEqual(result.error_code, "invalid_token")
+
+    def test_deny_not_found(self):
+        result = self._validate("00000000-0000-0000-0000-000000000000", "m@example.com")
+        self.assertFalse(result.allowed)
+        self.assertEqual(result.error_code, "not_found")
+
+    def test_deny_already_decided(self):
+        approval = self._make_approval(status="approved", approver_emails=["m@example.com"])
+        result = self._validate(approval.token, "m@example.com")
+        self.assertFalse(result.allowed)
+        self.assertEqual(result.error_code, "already_decided")
+        self.assertEqual(result.approval_id, approval.pk)
+
+    def test_deny_expired(self):
+        approval = self._make_approval(expired=True, approver_emails=["m@example.com"])
+        result = self._validate(approval.token, "m@example.com")
+        self.assertFalse(result.allowed)
+        self.assertEqual(result.error_code, "expired")
+
+    def test_deny_no_approvers_configured(self):
+        approval = self._make_approval(approver_emails=[])
+        result = self._validate(approval.token, "m@example.com")
+        self.assertFalse(result.allowed)
+        self.assertEqual(result.error_code, "no_approvers")
+
+    def test_deny_unauthorized_actor(self):
+        approval = self._make_approval(approver_emails=["allowed@example.com"])
+        result = self._validate(approval.token, "intruder@example.com")
+        self.assertFalse(result.allowed)
+        self.assertEqual(result.error_code, "unauthorized")
+
+    def test_mailbox_graph_validate_sender_retrocompat(self):
+        """_validate_sender in mailbox_graph delega a validate_approval_actor."""
+        from automazioni.mailbox_graph import _validate_sender
+        approval = self._make_approval(approver_emails=["sender@example.com"])
+        # Authorized sender → None (no error)
+        self.assertIsNone(_validate_sender(str(approval.token), "sender@example.com"))
+        # Unauthorized sender → error string
+        err = _validate_sender(str(approval.token), "intruder@example.com")
+        self.assertIsNotNone(err)
+        self.assertIn("intruder@example.com", err)
+        # Missing sender → error string
+        err2 = _validate_sender(str(approval.token), "")
+        self.assertIsNotNone(err2)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Approval Proxy endpoint tests (/approval-actions/approve|reject/<token>/)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ApprovalProxyEndpointTests(TestCase):
+    """
+    Test degli endpoint GET /approval-actions/approve|reject/<token>/.
+
+    L'endpoint ora valida l'attore via validate_approval_actor() prima di
+    chiamare process_approval_decision(). Fail-closed:
+      - identità vuota → NO_IDENTITY (bloccato)
+      - attore non in approver_emails → UNAUTHORIZED (bloccato)
+      - approval già decisa / scaduta → bloccato prima del processing
+    """
+
+    ACTOR = "approver@example.com"
+
+    def _make_approval(self, *, status="pending", expired=False, approver_emails=None):
+        from django.utils import timezone as tz
+        rule = AutomationRule.objects.create(
+            code=f"proxy-ep-rule-{id(self)}-{status}",
+            name="Proxy endpoint test rule",
+            source_code="assenze",
+            operation_type=AutomationRuleOperationType.UPDATE,
+            trigger_scope=AutomationRuleTriggerScope.ALL_UPDATES,
+        )
+        action = AutomationAction.objects.create(
+            rule=rule, order=1,
+            action_type=AutomationActionType.SEND_APPROVAL, config_json={},
+        )
+        run_log = AutomationRunLog.objects.create(
+            rule=rule, status=AutomationRunLogStatus.WAITING_APPROVAL,
+            payload_json={}, result_message="",
+        )
+        expires_at = (tz.now() - timedelta(hours=1)) if expired else None
+        return AutomationApproval.objects.create(
+            run_log=run_log, action=action,
+            subject="Test approval", message="",
+            status=status,
+            approved_actions=[], rejected_actions=[], resume_payload={},
+            approver_emails=approver_emails if approver_emails is not None else [self.ACTOR],
+            expires_at=expires_at,
+        )
+
+    # ── Happy path: attore autorizzato ───────────────────────────────────────
+
+    def test_approve_authorized_actor_succeeds(self):
+        approval = self._make_approval()
+        response = self.client.get(
+            f"/approval-actions/approve/{approval.token}/",
+            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Richiesta Approvata")
+        approval.refresh_from_db()
+        self.assertEqual(approval.status, "approved")
+
+    def test_reject_authorized_actor_succeeds(self):
+        approval = self._make_approval()
+        response = self.client.get(
+            f"/approval-actions/reject/{approval.token}/",
+            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Richiesta Rifiutata")
+        approval.refresh_from_db()
+        self.assertEqual(approval.status, "rejected")
+
+    # ── Estrazione identità ──────────────────────────────────────────────────
+
+    def test_identity_from_django_session(self):
+        user = User.objects.create_user(
+            username="proxy.user", email=self.ACTOR, password="test"
+        )
+        approval = self._make_approval()
+        self.client.force_login(user)
+        self.client.get(f"/approval-actions/approve/{approval.token}/")
+        approval.refresh_from_db()
+        self.assertEqual(approval.decided_by_email, self.ACTOR)
+
+    def test_identity_from_entra_principal_header(self):
+        approval = self._make_approval()
+        self.client.get(
+            f"/approval-actions/approve/{approval.token}/",
+            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
+        )
+        approval.refresh_from_db()
+        self.assertEqual(approval.decided_by_email, self.ACTOR)
+
+    def test_identity_from_forwarded_email_header(self):
+        approval = self._make_approval()
+        self.client.get(
+            f"/approval-actions/approve/{approval.token}/",
+            HTTP_X_FORWARDED_EMAIL=self.ACTOR,
+        )
+        approval.refresh_from_db()
+        self.assertEqual(approval.decided_by_email, self.ACTOR)
+
+    def test_session_identity_takes_priority_over_entra_header(self):
+        user = User.objects.create_user(
+            username="session.user", email=self.ACTOR, password="test"
+        )
+        approval = self._make_approval()
+        self.client.force_login(user)
+        self.client.get(
+            f"/approval-actions/approve/{approval.token}/",
+            HTTP_X_MS_CLIENT_PRINCIPAL_NAME="entra.ignored@corp.local",
+        )
+        approval.refresh_from_db()
+        self.assertEqual(approval.decided_by_email, self.ACTOR)
+
+    # ── Blocchi di sicurezza: approval status ────────────────────────────────
+
+    def test_not_found_token_shows_denied_page(self):
+        fake_token = "00000000-0000-0000-0000-000000000000"
+        response = self.client.get(
+            f"/approval-actions/approve/{fake_token}/",
+            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Link non valido")
+        self.assertIn(b'data-error-code="not_found"', response.content)
+
+    def test_already_decided_shows_denied_page(self):
+        approval = self._make_approval(status="approved")
+        response = self.client.get(
+            f"/approval-actions/approve/{approval.token}/",
+            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Richiesta già elaborata")
+        self.assertIn(b'data-error-code="already_decided"', response.content)
+
+    def test_expired_shows_denied_page(self):
+        approval = self._make_approval(expired=True)
+        response = self.client.get(
+            f"/approval-actions/approve/{approval.token}/",
+            HTTP_X_MS_CLIENT_PRINCIPAL_NAME=self.ACTOR,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Richiesta scaduta")
+        self.assertIn(b'data-error-code="expired"', response.content)
+
+    # ── Blocchi di sicurezza: identità / autorizzazione ──────────────────────
+
+    def test_empty_identity_blocked_with_no_identity_page(self):
+        """Nessuna sessione, nessun header → NO_IDENTITY, approval non toccata."""
+        approval = self._make_approval()
+        response = self.client.get(f"/approval-actions/approve/{approval.token}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Identità non disponibile")
+        self.assertIn(b'data-error-code="no_identity"', response.content)
+        approval.refresh_from_db()
+        self.assertEqual(approval.status, "pending")  # immutato
+
+    def test_unauthorized_actor_blocked(self):
+        """Attore presente ma non in approver_emails → UNAUTHORIZED, approval non toccata."""
+        approval = self._make_approval(approver_emails=["allowed@example.com"])
+        response = self.client.get(
+            f"/approval-actions/approve/{approval.token}/",
+            HTTP_X_MS_CLIENT_PRINCIPAL_NAME="intruder@example.com",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Utente non autorizzato")
+        self.assertIn(b'data-error-code="unauthorized"', response.content)
+        approval.refresh_from_db()
+        self.assertEqual(approval.status, "pending")  # immutato
+
+    def test_no_approvers_configured_blocks_any_actor(self):
+        """approver_emails vuota → NO_APPROVERS (fail-closed), anche con attore valido."""
+        approval = self._make_approval(approver_emails=[])
+        response = self.client.get(
+            f"/approval-actions/approve/{approval.token}/",
+            HTTP_X_MS_CLIENT_PRINCIPAL_NAME="anyone@example.com",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Configurazione non valida")
+        self.assertIn(b'data-error-code="no_approvers"', response.content)
+        approval.refresh_from_db()
+        self.assertEqual(approval.status, "pending")
+
+    # ── POST method not allowed ──────────────────────────────────────────────
+
+    def test_post_method_not_allowed(self):
+        approval = self._make_approval()
+        response = self.client.post(f"/approval-actions/approve/{approval.token}/")
+        self.assertEqual(response.status_code, 405)
+
+    # ── Audit log ────────────────────────────────────────────────────────────
+
+    def test_audit_log_written_on_successful_approve(self):
+        from core.models import AuditLog
+        user = User.objects.create_user(
+            username="audit.approve", email=self.ACTOR, password="test"
+        )
+        approval = self._make_approval()
+        self.client.force_login(user)
+        self.client.get(f"/approval-actions/approve/{approval.token}/")
+
+        entry = AuditLog.objects.filter(azione="approval_proxy_decision", modulo="automazioni").last()
+        self.assertIsNotNone(entry)
+        self.assertEqual(entry.dettaglio["decision"], "approved")
+        self.assertEqual(entry.dettaglio["via"], "entra_proxy")
+        self.assertTrue(entry.dettaglio["ok"])
+
+    def test_audit_log_written_on_successful_reject(self):
+        from core.models import AuditLog
+        user = User.objects.create_user(
+            username="audit.reject", email=self.ACTOR, password="test"
+        )
+        approval = self._make_approval()
+        self.client.force_login(user)
+        self.client.get(f"/approval-actions/reject/{approval.token}/")
+
+        entry = AuditLog.objects.filter(azione="approval_proxy_decision", modulo="automazioni").last()
+        self.assertIsNotNone(entry)
+        self.assertEqual(entry.dettaglio["decision"], "rejected")
+        self.assertTrue(entry.dettaglio["ok"])
+
+    def test_audit_denial_logged_when_not_found(self):
+        """Token non trovato → azione 'approval_proxy_denied' con error_code not_found."""
+        from core.models import AuditLog
+        user = User.objects.create_user(
+            username="audit.denied", email=self.ACTOR, password="test"
+        )
+        fake_token = "ffffffff-ffff-ffff-ffff-ffffffffffff"
+        self.client.force_login(user)
+        self.client.get(f"/approval-actions/approve/{fake_token}/")
+
+        entry = AuditLog.objects.filter(azione="approval_proxy_denied", modulo="automazioni").last()
+        self.assertIsNotNone(entry)
+        self.assertEqual(entry.dettaglio["error_code"], "not_found")
+        self.assertEqual(entry.dettaglio["via"], "entra_proxy")
+
+    def test_audit_denial_logged_when_unauthorized(self):
+        """Attore non autorizzato → azione 'approval_proxy_denied' con error_code unauthorized."""
+        from core.models import AuditLog
+        approval = self._make_approval(approver_emails=["allowed@example.com"])
+        user = User.objects.create_user(
+            username="audit.unauth", email="intruder@example.com", password="test"
+        )
+        self.client.force_login(user)
+        self.client.get(f"/approval-actions/approve/{approval.token}/")
+
+        entry = AuditLog.objects.filter(azione="approval_proxy_denied", modulo="automazioni").last()
+        self.assertIsNotNone(entry)
+        self.assertEqual(entry.dettaglio["error_code"], "unauthorized")
+
+    def test_audit_log_works_with_anonymous_entra_header(self):
+        """
+        Nessuna sessione Django, identità da header Entra:
+        log_action non deve crashare (display_name_for_user ora gestisce AnonymousUser).
+        """
+        from core.models import AuditLog
+        approval = self._make_approval(approver_emails=["entra.ok@corp.local"])
+        self.client.get(
+            f"/approval-actions/approve/{approval.token}/",
+            HTTP_X_MS_CLIENT_PRINCIPAL_NAME="entra.ok@corp.local",
+        )
+        entry = AuditLog.objects.filter(azione="approval_proxy_decision", modulo="automazioni").last()
+        self.assertIsNotNone(entry)
+        self.assertTrue(entry.dettaglio["ok"])
+        self.assertEqual(entry.dettaglio["actor"], "entra.ok@corp.local")

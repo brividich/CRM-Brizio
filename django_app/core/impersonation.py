@@ -41,7 +41,7 @@ def display_name_for_user(*, django_user=None, legacy_user: UtenteLegacy | None 
         value = str(getattr(legacy_user, "nome", "") or getattr(legacy_user, "email", "") or "").strip()
         if value:
             return value
-    if django_user is not None:
+    if django_user is not None and getattr(django_user, "is_authenticated", False):
         value = str(django_user.get_full_name() or django_user.get_username() or "").strip()
         if value:
             return value

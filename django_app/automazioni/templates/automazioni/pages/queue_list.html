@@ -22,6 +22,18 @@
   .auto-badge-processing { background:#dbeafe; color:#1d4ed8; }
   .auto-badge-done { background:#dcfce7; color:#166534; }
   .auto-badge-error { background:#fee2e2; color:#991b1b; }
+  .auto-poller { border:1px solid #e2e8f0; border-radius:16px; padding:18px; background:linear-gradient(135deg, #f8fafc 0%, #ffffff 100%); }
+  .auto-poller-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap; }
+  .auto-poller-summary { display:grid; gap:8px; }
+  .auto-poller-badge { display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+  .auto-poller-badge-healthy { background:#dcfce7; color:#166534; }
+  .auto-poller-badge-warning { background:#fef3c7; color:#92400e; }
+  .auto-poller-badge-error { background:#fee2e2; color:#991b1b; }
+  .auto-poller-grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); margin-top:16px; }
+  .auto-poller-box { border:1px solid #dbe4f0; border-radius:14px; padding:14px; background:#fff; display:grid; gap:6px; }
+  .auto-poller-label { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; font-weight:700; }
+  .auto-poller-value { font-size:15px; color:#0f172a; font-weight:700; word-break:break-word; }
+  .auto-poller-meta { font-size:13px; color:#475569; line-height:1.5; }
   .auto-actions { display:flex; gap:8px; flex-wrap:wrap; }
   .auto-actions form { margin:0; }
   .auto-preline { white-space:pre-line; }
@@ -51,6 +63,69 @@ python manage.py apply_sql_triggers</pre>
   </div>
   {% else %}
   <div class="auto-grid">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Poller automatico queue</div>
+      </div>
+      <div class="card-body">
+        <div class="auto-poller">
+          <div class="auto-poller-head">
+            <div class="auto-poller-summary">
+              <span class="auto-poller-badge auto-poller-badge-{{ poller_health.summary_state }}">{{ poller_health.summary_label }}</span>
+              <div><strong>{{ poller_health.summary_message }}</strong></div>
+            </div>
+            {% if poller_health.job_id %}
+              <a class="btn btn-light" href="{% url 'monitoring_admin:automation_detail' poller_health.job_id %}">Apri monitor job</a>
+            {% endif %}
+          </div>
+          <div class="auto-poller-grid">
+            <div class="auto-poller-box">
+              <div class="auto-poller-label">Task Windows</div>
+              <div class="auto-poller-value">{{ poller_health.task_name }}</div>
+              <div class="auto-poller-meta">Stato: {{ poller_health.task_state_label }}</div>
+              <div class="auto-poller-meta">Ultimo avvio: {{ poller_health.task_last_run_label }}</div>
+              <div class="auto-poller-meta">Prossimo avvio: {{ poller_health.task_next_run_label }}</div>
+              <div class="auto-poller-meta">Esito task: {{ poller_health.task_last_result_label }}</div>
+            </div>
+            <div class="auto-poller-box">
+              <div class="auto-poller-label">Job Django</div>
+              <div class="auto-poller-value">{{ poller_health.job_name }}</div>
+              <div class="auto-poller-meta">Ultima esecuzione: {{ poller_health.job_last_execution_label }}</div>
+              <div class="auto-poller-meta">Stato: {{ poller_health.job_status_label }}</div>
+              <div class="auto-poller-meta">Trigger: {{ poller_health.job_trigger_type_label }}</div>
+              <div class="auto-poller-meta">Prossimo atteso: {{ poller_health.job_next_expected_label }}</div>
+            </div>
+            <div class="auto-poller-box">
+              <div class="auto-poller-label">Alert runtime</div>
+              <div class="auto-poller-value">
+                {% if poller_health.job_stuck_alert %}
+                  Worker bloccato
+                {% elif poller_health.job_missing_alert %}
+                  Job in ritardo
+                {% elif poller_health.job_consecutive_failures %}
+                  {{ poller_health.job_consecutive_failures }} fallimenti consecutivi
+                {% else %}
+                  Nessun alert
+                {% endif %}
+              </div>
+              <div class="auto-poller-meta">Ritardo: {{ poller_health.job_missing_detail }}</div>
+              <div class="auto-poller-meta">Stuck: {{ poller_health.job_stuck_detail }}</div>
+              <div class="auto-poller-meta">Messaggio ultimo run: {{ poller_health.job_message }}</div>
+            </div>
+            <div class="auto-poller-box">
+              <div class="auto-poller-label">Log locale</div>
+              <div class="auto-poller-value">
+                {% if poller_health.log_exists %}Presente{% else %}Assente{% endif %}
+              </div>
+              <div class="auto-poller-meta">Path: <code>{{ poller_health.log_path }}</code></div>
+              <div class="auto-poller-meta">Ultima scrittura: {{ poller_health.log_last_write_label }}</div>
+              <div class="auto-poller-meta">Dimensione: {{ poller_health.log_size_label }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-head">
         <div class="card-title">Riepilogo stati queue</div>
