@@ -6,6 +6,22 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ---
 
+## 1.0.0 - 2026-04-18 (hardening)
+
+### Security / Hardening (2026-04-18)
+
+- **[SQL][DEFENSE-IN-DEPTH] Allowlist esplicita su `_count_car_pending`** (`django_app/core/context_processors.py`): la query raw ora valida ogni frammento SQL contro `_CAR_PENDING_ALLOWED_CLAUSES` / `_CAR_PENDING_ALLOWED_JOINS` prima dell'esecuzione. Il comportamento runtime è invariato (valori già via bind `%s`); la barriera serve a bloccare future regressioni che introducessero predicati dinamici non letterali.
+- **[GRAPH][CACHE] Token MSAL cross-process su Django cache** (`django_app/core/graph_utils.py`): il dict in-process `_TOKEN_CACHE` è stato sostituito da `django.core.cache`. In prod (DatabaseCache SQL Server) il token è ora condiviso tra i worker IIS, evitando acquisizioni duplicate e rate-limit Azure AD. La chiave cache è un digest SHA-256 delle credenziali (mai scritte in chiaro). Aggiunta `invalidate_graph_token_cache()` per gestire 401/403 dal backend.
+- **[DEPLOY][WIZARD] FinishPage mostra stato reale dell'installazione** (`deployment/setup_wizard.py`): `_run_impl()` espone `cfg.install_errors` e `cfg.install_blocking` (venv/pip/migrate/collectstatic/waitress). `FinishPage` ora cambia titolo (`Installazione Incompleta`), banner rosso e countdown 60s quando la release NON è stata attivata, invece di mostrare sempre "Installazione Completata!" con auto-close. Il titolo della classe `Page` espone `title_label` per modifiche runtime.
+- **[GIT][SECRETS] Pre-commit hook anti-leak** (`tools/git-hooks/pre-commit`, `tools/install-git-hooks.ps1`): hook bash che blocca commit di file `.env*`, chiavi (`.pem/.key/.pfx/.p12/.jks`) e pattern ad alta confidenza (AWS keys, `SECRET_KEY` inline, `PRIVATE KEY` blocks, Slack `xox*`, GitHub `ghp_*/gho_*`). Installazione: `powershell tools\install-git-hooks.ps1`. Bypass possibile solo con `--no-verify` (sconsigliato).
+- **[ACL][V2] Governance migrazione legacy→canonico** (`django_app/config/settings/base.py`, `django_app/core/middleware.py`, `django_app/.env.example`, `django_app/core/management/commands/acl_fallback_report.py`): nuova coppia di setting `ACL_LOG_LEGACY_FALLBACK` (default on) e `ACL_STRICT_CANONICAL` (default off). Il middleware emette un warning throttled (5m per route) ogni volta che il resolver cade in `legacy_fallback`, anche in allow, permettendo di misurare l'uso residuo. `ACL_STRICT_CANONICAL=1` nega l'accesso alle route senza `RoutePermissionBinding` canonico — da attivare prima in test/UAT. Aggiunto management command `acl_fallback_report [--only-unbound] [--app X] [--format json]` per report statico della coverage bindings.
+
+### Notes (2026-04-18)
+
+- Stato corrente ACL v2 (`acl_fallback_report`): **472 RoutePermissionBinding** contro **887 route nominate**. Il debito residuo è concentrato sulle route ancora non coperte da binding canonico, che viaggiano sul fallback legacy. Prossimo cutover: attivare `ACL_STRICT_CANONICAL=1` in test dopo aver completato il bootstrap dei binding per le app con più traffico.
+
+---
+
 ## 1.0.0 - 2026-04-17
 
 ### Added (2026-04-17)

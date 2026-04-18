@@ -133,6 +133,17 @@ SESSION_IDLE_TIMEOUT_SECONDS = int(env("SESSION_IDLE_TIMEOUT_SECONDS", "3600") o
 SESSION_EXPIRE_AT_BROWSER_CLOSE = env_bool("SESSION_EXPIRE_AT_BROWSER_CLOSE", True)
 LEGACY_ACL_CACHE_TTL = int(env("LEGACY_ACL_CACHE_TTL", "120") or "120")
 LEGACY_NAV_CACHE_TTL = int(env("LEGACY_NAV_CACHE_TTL", "120") or "120")
+# ACL v2 — governance migrazione legacy → canonico.
+# ACL_STRICT_CANONICAL=True nega l'accesso quando il resolver cadrebbe nel
+# fallback legacy (no RoutePermissionBinding per il path). Abilitare in
+# staging/UAT per scovare le route ancora non coperte da binding canonico
+# prima di attivarlo in prod. Default False per compat durante la migrazione.
+ACL_STRICT_CANONICAL = env_bool("ACL_STRICT_CANONICAL", False)
+# ACL_LOG_LEGACY_FALLBACK=True emette un warning throttled (5m) per ogni
+# route che risolve via fallback legacy, anche quando l'accesso è consentito.
+# Permette di misurare l'uso effettivo del fallback e decidere quando
+# attivare ACL_STRICT_CANONICAL in prod. Default True in ambiente test/UAT.
+ACL_LOG_LEGACY_FALLBACK = env_bool("ACL_LOG_LEGACY_FALLBACK", True)
 ASSENZE_SP_PULL_INTERVAL_SECONDS = int(env("ASSENZE_SP_PULL_INTERVAL_SECONDS", "300") or "300")
 ASSENZE_SYNC_ON_PAGE_LOAD = env_bool("ASSENZE_SYNC_ON_PAGE_LOAD", False)
 ASSENZE_CALENDAR_MAX_EVENTS = int(env("ASSENZE_CALENDAR_MAX_EVENTS", "1500") or "1500")

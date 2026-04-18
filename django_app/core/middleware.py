@@ -145,6 +145,44 @@ class ACLMiddleware:
             include_legacy_diagnostic=True,
         )
         request.acl_decision = decision
+
+        # Governance migrazione ACL v2: osserva e/o blocca il fallback legacy.
+        # Vedi settings ACL_STRICT_CANONICAL e ACL_LOG_LEGACY_FALLBACK.
+        if decision.get("decision_source") == "legacy_fallback":
+            path_norm = decision.get("path_normalized")
+            route_name = decision.get("route_name") or ""
+            if getattr(settings, "ACL_LOG_LEGACY_FALLBACK", True):
+                _log_acl_once(
+                    level="info" if decision.get("allowed") else "warning",
+                    cache_key=f"fallback:{'allow' if decision.get('allowed') else 'deny'}:{path_norm}",
+                    message=(
+                        "ACL legacy fallback in uso: la route non ha un "
+                        "RoutePermissionBinding canonico."
+                    ),
+                    path=path_norm,
+                    route_name=route_name,
+                    allowed=bool(decision.get("allowed")),
+                    user_id=getattr(getattr(request, "user", None), "id", None),
+                    legacy_user_id=(decision.get("legacy_user") or {}).get("id"),
+                )
+            if getattr(settings, "ACL_STRICT_CANONICAL", False) and bool(decision.get("allowed")):
+                # In strict-mode neghiamo anche se il fallback legacy consentirebbe:
+                # forziamo la migrazione delle route residue a binding canonico.
+                decision["allowed"] = False
+                decision["decision_source"] = "legacy_fallback_denied_by_strict"
+                decision["decision_kind"] = "deny"
+                decision["reason"] = (
+                    "ACL_STRICT_CANONICAL attivo: route senza RoutePermissionBinding "
+                    "canonico — creane uno in /admin-portale/acl-canonico/."
+                )
+                _log_acl_once(
+                    level="warning",
+                    cache_key=f"strict_deny:{path_norm}",
+                    message="ACL strict: deny su route in fallback legacy.",
+                    path=path_norm,
+                    route_name=route_name,
+                )
+
         if bool(decision.get("allowed", False)):
             return self.get_response(request)
 
