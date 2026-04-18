@@ -41,6 +41,18 @@ CACHES = {
     }
 }
 
+# Cache-busting automatico: appende hash contenuto al nome file (es. theme.abc123.css).
+# Quando un file statico cambia, l'URL cambia → il browser scarica sempre la versione aggiornata.
+# Richiede che i template usino {% static %} (già fatto in base.html).
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.ManifestStaticFilesStorage",
+    },
+}
+
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # Forzare HTTPS e HSTS. Commentare se il reverse proxy gestisce già il redirect.

@@ -42,9 +42,7 @@ $startInfo.UseShellExecute = $false
 $startInfo.CreateNoWindow = $true
 $startInfo.RedirectStandardOutput = $true
 $startInfo.RedirectStandardError = $true
-$null = $startInfo.ArgumentList.Add($ManagePy)
-$null = $startInfo.ArgumentList.Add("process_automation_queue")
-$null = $startInfo.ArgumentList.Add("--settings=$SettingsModule")
+$startInfo.Arguments = "`"$ManagePy`" process_automation_queue --settings=$SettingsModule"
 
 $process = New-Object System.Diagnostics.Process
 $process.StartInfo = $startInfo

@@ -7,6 +7,9 @@ from django.core.management import call_command
 from django.http import HttpResponse
 from django.test import Client, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
+
+from core.models import UserOnboarding
 
 from .views import (
     _build_submit_token,
@@ -221,11 +224,11 @@ class AssenzeTipoMappingTests(SimpleTestCase):
     def test_legacy_infortunio_is_still_rendered_as_flessibilita(self):
         self.assertEqual(_norm_tipo("Infortunio"), "Flessibilità")
 
-    def test_storage_maps_certifica_presenza_to_altro_with_marker(self):
-        self.assertEqual(_tipo_for_storage("Certifica presenza"), "Altro")
+    def test_storage_persists_certifica_presenza_as_real_type(self):
+        self.assertEqual(_tipo_for_storage("Certifica presenza"), "Certifica presenza")
         self.assertEqual(
             _motivazione_for_storage("Certifica presenza", "Turno mattina"),
-            "[CERTIFICA_PRESENZA] Turno mattina",
+            "Turno mattina",
         )
 
     def test_display_recovers_certifica_presenza_from_marker(self):
@@ -237,7 +240,7 @@ class AssenzeTipoMappingTests(SimpleTestCase):
             {
                 "copia_nome": "Mario Rossi",
                 "email_esterna": "mario@example.com",
-                "tipo_assenza": "Altro",
+                "tipo_assenza": "Certifica presenza",
                 "motivazione_richiesta": "[CERTIFICA_PRESENZA] Turno mattina",
                 "salta_approvazione": True,
                 "consenso": "Approvato",
@@ -599,6 +602,7 @@ class AssenzeSubmitTokenTests(TestCase):
 class AssenzeLegacyTipoSubmitMappingTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="assenze-submit-mapping-user", password="pass12345")
+        UserOnboarding.objects.create(user=self.user, completed=True, completed_at=timezone.now())
         self.client.force_login(self.user)
 
     @patch("assenze.views._render_richiesta", return_value=HttpResponse("ok"))
@@ -694,8 +698,8 @@ class AssenzeLegacyTipoSubmitMappingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = mock_insert.call_args.args[0]
-        self.assertEqual(payload["tipo_assenza"], "Altro")
-        self.assertEqual(payload["motivazione_richiesta"], "[CERTIFICA_PRESENZA] Turno mattina")
+        self.assertEqual(payload["tipo_assenza"], "Certifica presenza")
+        self.assertEqual(payload["motivazione_richiesta"], "Turno mattina")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -1048,7 +1052,7 @@ class AssenzeAllineaTipoFlessibilitaCommandTests(SimpleTestCase):
     @patch("assenze.management.commands.allinea_tipo_assenza_flessibilita.connections")
     def test_dry_run_reports_counts_without_altering_constraint(self, mock_connections):
         cursor = MagicMock()
-        cursor.fetchone.side_effect = [("dbo",), (4,), (1,)]
+        cursor.fetchone.side_effect = [("dbo",), (4,), (1,), (2,)]
         cursor_manager = MagicMock()
         cursor_manager.__enter__.return_value = cursor
         connection = MagicMock()
@@ -1064,12 +1068,12 @@ class AssenzeAllineaTipoFlessibilitaCommandTests(SimpleTestCase):
         self.assertIn("Dry-run: nessuna modifica applicata", output)
         executed_sql = "\n".join(call.args[0] for call in cursor.execute.call_args_list)
         self.assertNotIn("DROP CONSTRAINT", executed_sql)
-        self.assertEqual(cursor.execute.call_count, 3)
+        self.assertEqual(cursor.execute.call_count, 4)
 
     @patch("assenze.management.commands.allinea_tipo_assenza_flessibilita.connections")
     def test_command_rebuilds_check_constraint_with_flessibilita(self, mock_connections):
         cursor = MagicMock()
-        cursor.fetchone.side_effect = [("dbo",), (2,), (0,)]
+        cursor.fetchone.side_effect = [("dbo",), (2,), (0,), (3,)]
         cursor_manager = MagicMock()
         cursor_manager.__enter__.return_value = cursor
         connection = MagicMock()
@@ -1085,5 +1089,8 @@ class AssenzeAllineaTipoFlessibilitaCommandTests(SimpleTestCase):
         self.assertIn("SET [tipo_assenza] = N'Flessibilità'", executed_sql)
         self.assertIn("WHERE [tipo_assenza] = N'Infortunio'", executed_sql)
         self.assertIn("([tipo_assenza]=N'Flessibilità')", executed_sql)
+        self.assertIn("SET [tipo_assenza] = N'Certifica presenza'", executed_sql)
+        self.assertIn("WHERE [tipo_assenza] = N'Altro'", executed_sql)
+        self.assertIn("([tipo_assenza]=N'Certifica presenza')", executed_sql)
         self.assertNotIn("([tipo_assenza]=N'Infortunio')", executed_sql)
         self.assertIn("riallineato", stdout.getvalue())

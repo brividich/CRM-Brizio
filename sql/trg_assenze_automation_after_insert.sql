@@ -33,7 +33,8 @@ BEGIN
         (
             SELECT
                 i.id,
-                i.dipendente_id,
+                i.nome_lookup_id AS dipendente_id,
+                i.copia_nome AS dipendente_nome,
                 i.data_inizio,
                 i.data_fine,
                 i.tipo_assenza,

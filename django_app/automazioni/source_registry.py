@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from copy import deepcopy
 
+from assenze.constants import TIPI_ASSENZA_UI
+
 
 AUTOMAZIONI_MODULE_CODE = "automazioni"
 AUTOMAZIONI_ACL_ACTIONS = (
@@ -27,6 +29,9 @@ def _field(
     usable_in_template: bool = True,
     usable_in_action_mapping: bool = True,
     visible_in_admin: bool = True,
+    allowed_values: list[str] | tuple[str, ...] | None = None,
+    value_source_label: str = "",
+    ui_control: str = "",
 ) -> dict[str, object]:
     return {
         "name": name,
@@ -42,6 +47,9 @@ def _field(
         "db_column": None if is_virtual else (db_column or name),
         "is_virtual": is_virtual,
         "aliases": list(aliases or []),
+        "allowed_values": [str(value) for value in (allowed_values or []) if str(value).strip()],
+        "value_source_label": str(value_source_label or "").strip(),
+        "ui_control": str(ui_control or "").strip(),
     }
 
 
@@ -67,6 +75,14 @@ _SOURCE_REGISTRY: dict[str, dict[str, object]] = {
                 aliases=["utente_id", "employee_id"],
             ),
             _field(
+                name="dipendente_nome",
+                label="Dipendente",
+                data_type="string",
+                description="Nome visualizzato del dipendente associato alla richiesta assenza.",
+                is_virtual=True,
+                aliases=["dipendente", "employee_name", "copia_nome", "richiedente_nome"],
+            ),
+            _field(
                 name="data_inizio",
                 label="Data inizio",
                 data_type="datetime",
@@ -86,6 +102,9 @@ _SOURCE_REGISTRY: dict[str, dict[str, object]] = {
                 data_type="string",
                 description="Categoria assenza: ferie, permesso, malattia, ecc.",
                 aliases=["Tipoassenza", "tipo", "category"],
+                allowed_values=TIPI_ASSENZA_UI,
+                value_source_label="Form richieste assenze - dropdown 'Tipo assenza'",
+                ui_control="select",
             ),
             _field(
                 name="motivazione_richiesta",

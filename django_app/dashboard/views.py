@@ -1059,16 +1059,16 @@ def _board_data_assenze_future(legacy_user: Any, params: dict) -> list[dict]:
             cols_desc = [c[0] for c in cursor.description]
             rows = [dict(zip(cols_desc, r)) for r in cursor.fetchall()]
 
-        from assenze.views import _norm_tipo, _status_from_moderation, _dt_label
+        from assenze.views import _dt_label, _status_from_moderation, _strip_tipo_metadata_from_motivazione, _tipo_for_display
         out = []
         for row in rows:
             _, label = _status_from_moderation(row.get("moderation_status"), default_pending=True)
             out.append({
-                "tipo": _norm_tipo(row.get("tipo_assenza")),
+                "tipo": _tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta")),
                 "inizio": _dt_label(row.get("data_inizio")),
                 "fine": _dt_label(row.get("data_fine")),
                 "stato": label,
-                "motivazione": str(row.get("motivazione_richiesta") or ""),
+                "motivazione": _strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta")),
             })
         return out
     except Exception:

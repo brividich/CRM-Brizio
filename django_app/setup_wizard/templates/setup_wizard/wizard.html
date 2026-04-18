@@ -729,9 +729,8 @@ input[type=checkbox]{width:17px;height:17px;cursor:pointer;accent-color:var(--pr
 
       <div class="alert alert-info hidden" id="postInstallEl">
         <strong>✓ Installazione completata!</strong><br><br>
-        <strong>Se usi SQL Server legacy,</strong> applica gli script in <code>sql/</code> prima del primo accesso:<br>
-        <code>sql/automation_event_queue.sql</code><br>
-        <code>sql/trg_assenze_automation_*.sql</code><br><br>
+        I flussi supportati del wizard applicano automaticamente i trigger SQL automazioni e riallineano la queue tecnica.<br>
+        Se hai eseguito una copia manuale della release fuori dal wizard, riesegui <code>python django_app/manage.py apply_sql_triggers</code> prima del primo accesso.<br><br>
         Reindirizzamento al login in corso...
       </div>
 

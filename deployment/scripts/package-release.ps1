@@ -180,7 +180,31 @@ function Invoke-SetupWizardRebuildIfNeeded {
     Write-Log "Rigenerazione automatica di SetupWizard.exe..." "STEP"
     Push-Location $deploymentDir
     try {
-        & $pythonExe -m PyInstaller SetupWizard.spec --noconfirm
+        $pyInstallerBootstrapDir = Join-Path $RootPath "deployment\pyinstaller_bootstrap"
+        if (-not (Test-Path -LiteralPath $pyInstallerBootstrapDir)) {
+            Write-Log "Bootstrap PyInstaller non trovato: $pyInstallerBootstrapDir" "ERROR"
+            exit 1
+        }
+
+        # On some Windows 11 workstations, Python 3.13's platform.system()
+        # stalls inside a Win32_Processor WMI lookup. PyInstaller imports
+        # platform during startup. Inject a local sitecustomize so parent and
+        # child interpreters all fall back to environment variables instead.
+        $previousPythonPath = $env:PYTHONPATH
+        try {
+            if ([string]::IsNullOrWhiteSpace($previousPythonPath)) {
+                $env:PYTHONPATH = $pyInstallerBootstrapDir
+            } else {
+                $env:PYTHONPATH = "$pyInstallerBootstrapDir;$previousPythonPath"
+            }
+            & $pythonExe -m PyInstaller SetupWizard.spec --noconfirm
+        } finally {
+            if ($null -eq $previousPythonPath) {
+                Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue
+            } else {
+                $env:PYTHONPATH = $previousPythonPath
+            }
+        }
         if ($LASTEXITCODE -ne 0) {
             Write-Log "Build di SetupWizard.exe fallita con exit code $LASTEXITCODE." "ERROR"
             exit 1

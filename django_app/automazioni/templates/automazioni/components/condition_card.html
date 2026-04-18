@@ -74,11 +74,31 @@
         {{ entry.form.value_type }}
         {% if entry.form.value_type.errors %}<ul class="designer-errors">{% for error in entry.form.value_type.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
       </div>
-      <div class="designer-field designer-field-wide">
-        {{ entry.form.expected_value.label_tag }}
-        {{ entry.form.expected_value }}
-        {% if entry.form.expected_value.help_text %}<div class="designer-help">{{ entry.form.expected_value.help_text }}</div>{% endif %}
-        {% if entry.form.expected_value.errors %}<ul class="designer-errors">{% for error in entry.form.expected_value.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+      <div class="designer-field-choice-grid">
+        <div class="designer-field">
+          {{ entry.form.expected_value.label_tag }}
+          {{ entry.form.expected_value }}
+          {% if entry.form.expected_value.help_text %}<div class="designer-help">{{ entry.form.expected_value.help_text }}</div>{% endif %}
+          {% if entry.form.expected_value.errors %}<ul class="designer-errors">{% for error in entry.form.expected_value.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+        </div>
+        <aside class="designer-choice-helper" data-condition-choice-helper hidden>
+          <div class="designer-choice-helper-head">
+            <div>
+              <div class="designer-summary-kicker">Valori disponibili</div>
+              <div class="designer-help" data-condition-choice-source></div>
+            </div>
+            <button class="btn btn-light" type="button" data-open-condition-choice-modal>Scegli</button>
+          </div>
+          <div class="designer-choice-section" data-condition-choice-static-section hidden>
+            <div class="designer-choice-section-title">Valori noti</div>
+            <div class="designer-choice-chip-row" data-condition-choice-static-row></div>
+          </div>
+          <div class="designer-choice-section" data-condition-choice-db-section hidden>
+            <div class="designer-choice-section-title">Valori presenti in colonna</div>
+            <div class="designer-choice-chip-row" data-condition-choice-db-row></div>
+          </div>
+          <div class="designer-help" data-condition-choice-status></div>
+        </aside>
       </div>
       <div class="designer-field">
         {{ entry.form.compare_with_old.label_tag }}

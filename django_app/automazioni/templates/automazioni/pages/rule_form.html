@@ -231,6 +231,7 @@
                       {{ form.insert_target_table }}
                       <button type="button" class="btn btn-light" style="white-space:nowrap;font-size:12px;padding:4px 10px;" onclick="openTableConfigModal('insert_record')">+ Tabella</button>
                     </div>
+                    {% if form.insert_target_table.help_text %}<div class="auto-help">{{ form.insert_target_table.help_text }}</div>{% endif %}
                     {% if form.insert_target_table.errors %}<ul class="auto-errors">{% for error in form.insert_target_table.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
                   </div>
                   <div class="auto-field auto-wide">
@@ -251,6 +252,7 @@
                       {{ form.update_target_table }}
                       <button type="button" class="btn btn-light" style="white-space:nowrap;font-size:12px;padding:4px 10px;" onclick="openTableConfigModal('update_record')">+ Tabella</button>
                     </div>
+                    {% if form.update_target_table.help_text %}<div class="auto-help">{{ form.update_target_table.help_text }}</div>{% endif %}
                     {% if form.update_target_table.errors %}<ul class="auto-errors">{% for error in form.update_target_table.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
                   </div>
                   <div class="auto-field">{{ form.update_where_field.label_tag }}{{ form.update_where_field }}{% if form.update_where_field.errors %}<ul class="auto-errors">{% for error in form.update_where_field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>

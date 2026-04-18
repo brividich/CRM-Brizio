@@ -29,6 +29,8 @@ from core.legacy_utils import get_legacy_user, legacy_table_columns, legacy_tabl
 from core.models import AuditLog
 from core.module_branding import get_module_branding_context, handle_module_branding_post
 
+from .constants import TIPI_ASSENZA_STORAGE, TIPI_ASSENZA_UI
+
 logger = logging.getLogger(__name__)
 
 _SYNC_PULL_LOCK_KEY = "assenze:sync_pull:lock"
@@ -49,6 +51,7 @@ _DEFAULT_COLORS = {
     "tipo_permesso": "#3b82f6",
     "tipo_malattia": "#ef4444",
     "tipo_infortunio": "#f97316",
+    "tipo_certifica_presenza": "#14b8a6",
     "tipo_altro": "#8b5cf6",
     "stato_in_attesa": "#60a5fa",
     "stato_rifiutato": "#94a3b8",
@@ -56,8 +59,8 @@ _DEFAULT_COLORS = {
 }
 _COLOR_KEYS = set(_DEFAULT_COLORS.keys())
 
-_TIPI_UI = {"Ferie", "Permesso", "Malattia", "Flessibilità", "Certifica presenza", "Altro"}
-_TIPI_STORAGE = {"Ferie", "Permesso", "Malattia", "Flessibilità", "Altro"}
+_TIPI_UI = set(TIPI_ASSENZA_UI)
+_TIPI_STORAGE = set(TIPI_ASSENZA_STORAGE)
 _CERTIFICA_PRESENZA_MARKER = "[CERTIFICA_PRESENZA]"
 _CONSENSI = {"In attesa", "Approvato", "Rifiutato", "Bozza", "Programmato"}
 _MOD_TO_CONSENSO = {"0": "Approvato", "1": "Rifiutato", "2": "In attesa", "3": "Bozza", "4": "Programmato"}
@@ -299,8 +302,6 @@ def _strip_tipo_metadata_from_motivazione(motivazione) -> str:
 
 def _motivazione_for_storage(tipo, motivazione) -> str:
     clean = _strip_tipo_metadata_from_motivazione(motivazione)
-    if _norm_tipo(tipo) == "Certifica presenza":
-        return f"{_CERTIFICA_PRESENZA_MARKER} {clean}".strip()
     return clean
 
 
@@ -312,18 +313,12 @@ def _tipo_for_display(value, motivazione="") -> str:
 
 def _tipo_for_storage(value) -> str:
     tipo_ui = _norm_tipo(value)
-    if tipo_ui == "Certifica presenza":
-        return "Altro"
     return tipo_ui if tipo_ui in _TIPI_STORAGE else "Altro"
 
 
 def _tipo_for_graph(value, motivazione="") -> str:
     tipo_ui = _tipo_for_display(value, motivazione)
-    if tipo_ui == "Flessibilità":
-        return "Flessibilità"
-    if tipo_ui == "Certifica presenza":
-        return "Certifica presenza"
-    return tipo_ui if tipo_ui in {"Ferie", "Permesso", "Malattia", "Altro"} else "Altro"
+    return tipo_ui if tipo_ui in _TIPI_STORAGE else "Altro"
 
 
 def _norm_consenso(value) -> str:
@@ -944,12 +939,26 @@ def _find_local_capo_id_by_column(column_name: str, value) -> int | None:
     return _as_int(rows[0].get("id"))
 
 
+def _resolve_capo_local_id_from_option_config(raw: str) -> int | None:
+    try:
+        from core.models import OptioneConfig
+    except Exception:
+        return None
+    raw_lower = raw.strip().casefold()
+    for option in OptioneConfig.objects.filter(tipo__iexact="caporeparto", is_active=True):
+        if str(option.valore or "").strip().casefold() == raw_lower:
+            legacy_user_id = _as_int(getattr(option, "legacy_user_id", None))
+            if legacy_user_id is not None:
+                return legacy_user_id
+    return None
+
+
 def _resolve_capo_local_id(capo_value: str | None) -> int | None:
     raw = str(capo_value or "").strip()
     if not raw:
         return None
     if not _legacy_capi_table_exists():
-        return None
+        return _resolve_capo_local_id_from_option_config(raw)
 
     cols = legacy_table_columns("capi_reparto")
     if "id" not in cols:
@@ -1820,6 +1829,7 @@ def _event_color(tipo: str, consenso: str, colors: dict[str, str], moderation_st
         "Permesso": "tipo_permesso",
         "Malattia": "tipo_malattia",
         "Flessibilità": "tipo_infortunio",
+        "Certifica presenza": "tipo_certifica_presenza",
         "Altro": "tipo_altro",
     }.get(_norm_tipo(tipo), "stato_approvato")
     return colors.get(tipo_key, _DEFAULT_COLORS["stato_approvato"])
@@ -2829,7 +2839,7 @@ def _render_richiesta(request, success: str = "", error: str = "", form_data: di
         request,
         "assenze/pages/richiesta_assenze.html",
         {
-            "tipi": ["Ferie", "Permesso", "Malattia", "Flessibilità", "Certifica presenza", "Altro"],
+            "tipi": list(TIPI_ASSENZA_UI),
             "nome": display_name,
             "capi": capi,
             "motivazioni": motivazioni,

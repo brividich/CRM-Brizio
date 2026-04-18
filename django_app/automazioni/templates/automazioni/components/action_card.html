@@ -170,7 +170,15 @@
       <div class="designer-editor-panel" data-action-config="insert_record" style="margin-top:12px;">
         <div class="designer-editor-panel-title">Inserimento record</div>
         <div class="designer-trigger-copy">
-          <div class="designer-field">{{ entry.form.insert_target_table.label_tag }}{{ entry.form.insert_target_table }}{% if entry.form.insert_target_table.errors %}<ul class="designer-errors">{% for error in entry.form.insert_target_table.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">
+            {{ entry.form.insert_target_table.label_tag }}
+            <div style="display:flex;gap:8px;align-items:center;">
+              {{ entry.form.insert_target_table }}
+              <button type="button" class="btn btn-light" style="white-space:nowrap;font-size:12px;padding:4px 10px;" onclick="openTableConfigModal('insert_record')">+ Tabella</button>
+            </div>
+            {% if entry.form.insert_target_table.help_text %}<div class="designer-help">{{ entry.form.insert_target_table.help_text }}</div>{% endif %}
+            {% if entry.form.insert_target_table.errors %}<ul class="designer-errors">{% for error in entry.form.insert_target_table.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+          </div>
           <div class="designer-field designer-field-wide">
             {{ entry.form.insert_field_mappings_text.label_tag }}
             {{ entry.form.insert_field_mappings_text }}
@@ -183,7 +191,15 @@
       <div class="designer-editor-panel" data-action-config="update_record" style="margin-top:12px;">
         <div class="designer-editor-panel-title">Aggiornamento record</div>
         <div class="designer-trigger-copy">
-          <div class="designer-field">{{ entry.form.update_target_table.label_tag }}{{ entry.form.update_target_table }}{% if entry.form.update_target_table.errors %}<ul class="designer-errors">{% for error in entry.form.update_target_table.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">
+            {{ entry.form.update_target_table.label_tag }}
+            <div style="display:flex;gap:8px;align-items:center;">
+              {{ entry.form.update_target_table }}
+              <button type="button" class="btn btn-light" style="white-space:nowrap;font-size:12px;padding:4px 10px;" onclick="openTableConfigModal('update_record')">+ Tabella</button>
+            </div>
+            {% if entry.form.update_target_table.help_text %}<div class="designer-help">{{ entry.form.update_target_table.help_text }}</div>{% endif %}
+            {% if entry.form.update_target_table.errors %}<ul class="designer-errors">{% for error in entry.form.update_target_table.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+          </div>
           <div class="designer-field">{{ entry.form.update_where_field.label_tag }}{{ entry.form.update_where_field }}{% if entry.form.update_where_field.errors %}<ul class="designer-errors">{% for error in entry.form.update_where_field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
           <div class="designer-field">{{ entry.form.update_where_value_template.label_tag }}{{ entry.form.update_where_value_template }}{% if entry.form.update_where_value_template.errors %}<ul class="designer-errors">{% for error in entry.form.update_where_value_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
           <div class="designer-field designer-field-wide">
@@ -339,178 +355,250 @@
       </div>
       <div class="designer-editor-panel" data-action-config="do_until" style="margin-top:12px;">
         <div class="designer-editor-panel-title" style="display:flex;align-items:center;gap:8px;">
-          <span>ðŸ” Do Until â€” Ripeti fino a condizione</span>
+          <span>Do Until - Ripeti fino a condizione</span>
         </div>
         <div class="designer-help" style="margin-bottom:10px;">
-          Esegue le azioni del "corpo loop" e riprogramma l'esecuzione finchÃ© la condizione di uscita non Ã¨ soddisfatta o si raggiunge il massimo di iterazioni.
+          Esegue le azioni del corpo loop e riprogramma l'esecuzione finche' la condizione di uscita non e' soddisfatta o si raggiunge il massimo di iterazioni.
         </div>
         <div class="designer-trigger-copy">
-          <div class="designer-field">
-            <label>Campo da controllare</label>
-            <input type="text" class="auto-config-field" data-config-key="check_field" placeholder="status">
-          </div>
-          <div class="designer-field">
-            <label>Operatore</label>
-            <select class="auto-config-field" data-config-key="check_operator">
-              <option value="equals">equals</option>
-              <option value="not_equals">not_equals</option>
-              <option value="gt">gt (>)</option>
-              <option value="gte">gte (â‰¥)</option>
-              <option value="lt">lt (<)</option>
-              <option value="lte">lte (â‰¤)</option>
-              <option value="is_not_empty">is_not_empty</option>
-              <option value="is_true">is_true</option>
-            </select>
-          </div>
-          <div class="designer-field">
-            <label>Valore atteso</label>
-            <input type="text" class="auto-config-field" data-config-key="check_value" placeholder="APPROVED">
-          </div>
-          <div class="designer-field">
-            <label>Tipo valore</label>
-            <select class="auto-config-field" data-config-key="check_value_type">
-              <option value="string">string</option>
-              <option value="int">int</option>
-              <option value="bool">bool</option>
-            </select>
-          </div>
-          <div class="designer-field">
-            <label>Ritardo retry</label>
-            <input type="number" min="1" class="auto-config-field" data-config-key="retry_delay_value" value="24">
-          </div>
-          <div class="designer-field">
-            <label>UnitÃ  ritardo</label>
-            <select class="auto-config-field" data-config-key="retry_delay_unit">
-              <option value="hours">Ore</option>
-              <option value="minutes">Minuti</option>
-              <option value="days">Giorni</option>
-            </select>
-          </div>
-          <div class="designer-field">
-            <label>Max iterazioni</label>
-            <input type="number" min="1" max="100" class="auto-config-field" data-config-key="max_iterations" value="10">
-          </div>
+          <div class="designer-field">{{ entry.form.loop_check_field.label_tag }}{{ entry.form.loop_check_field }}{% if entry.form.loop_check_field.errors %}<ul class="designer-errors">{% for error in entry.form.loop_check_field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.loop_check_operator.label_tag }}{{ entry.form.loop_check_operator }}{% if entry.form.loop_check_operator.errors %}<ul class="designer-errors">{% for error in entry.form.loop_check_operator.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.loop_check_value_type.label_tag }}{{ entry.form.loop_check_value_type }}{% if entry.form.loop_check_value_type.errors %}<ul class="designer-errors">{% for error in entry.form.loop_check_value_type.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.loop_check_value.label_tag }}{{ entry.form.loop_check_value }}{% if entry.form.loop_check_value.errors %}<ul class="designer-errors">{% for error in entry.form.loop_check_value.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.loop_retry_delay_value.label_tag }}{{ entry.form.loop_retry_delay_value }}{% if entry.form.loop_retry_delay_value.errors %}<ul class="designer-errors">{% for error in entry.form.loop_retry_delay_value.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.loop_retry_delay_unit.label_tag }}{{ entry.form.loop_retry_delay_unit }}{% if entry.form.loop_retry_delay_unit.errors %}<ul class="designer-errors">{% for error in entry.form.loop_retry_delay_unit.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.loop_max_iterations.label_tag }}{{ entry.form.loop_max_iterations }}{% if entry.form.loop_max_iterations.errors %}<ul class="designer-errors">{% for error in entry.form.loop_max_iterations.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
         </div>
-        <details class="designer-subeditor" style="margin-top:14px;">
-          <summary class="designer-subeditor-summary">Azioni corpo loop (ogni iterazione)</summary>
-          <div style="margin-top:10px;">
-            <textarea rows="5" class="auto-config-field" data-config-key="loop_actions" data-config-json-array="true"
-                      style="width:100%;font-family:monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#0f172a;color:#e2e8f0;"
-                      placeholder='[{"action_type":"send_email","description":"Reminder","config_json":{...}}]'>[]</textarea>
-          </div>
-        </details>
-        <details class="designer-subeditor" style="margin-top:6px;">
-          <summary class="designer-subeditor-summary">Azioni se condizione soddisfatta (successo)</summary>
-          <div style="margin-top:10px;">
-            <textarea rows="5" class="auto-config-field" data-config-key="on_success_actions" data-config-json-array="true"
-                      style="width:100%;font-family:monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#0f172a;color:#e2e8f0;"
-                      placeholder='[]'>[]</textarea>
-          </div>
-        </details>
-        <details class="designer-subeditor" style="margin-top:6px;">
-          <summary class="designer-subeditor-summary">Azioni se max iterazioni raggiunto (timeout)</summary>
-          <div style="margin-top:10px;">
-            <textarea rows="5" class="auto-config-field" data-config-key="on_timeout_actions" data-config-json-array="true"
-                      style="width:100%;font-family:monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#0f172a;color:#e2e8f0;"
-                      placeholder='[{"action_type":"write_log","config_json":{"message_template":"Timeout do_until per record #{id}"}}]'>[]</textarea>
-          </div>
-        </details>
+        <div class="designer-inline-builder-grid" style="margin-top:14px;">
+          <section class="designer-branch-column designer-inline-builder-column--loop"
+            data-inline-json-builder
+            data-inline-json-target="loop_loop_actions_json"
+            data-inline-json-branch-label="Corpo loop">
+            <div class="designer-branch-head">
+              <div>
+                <div class="designer-branch-title">Corpo loop</div>
+                <div class="designer-help">Azioni eseguite ad ogni iterazione prima del nuovo controllo.</div>
+              </div>
+              <span class="designer-branch-badge" data-inline-json-status>Nessuna azione</span>
+            </div>
+            <div class="designer-inline-toolbar">
+              <button class="btn btn-light" type="button" data-inline-json-add="write_log">+ Log</button>
+              <button class="btn btn-light" type="button" data-inline-json-add="delay_schedule">+ Delay</button>
+              <button class="btn btn-light" type="button" data-inline-json-add="send_email">+ Email</button>
+              <button class="btn btn-light" type="button" data-inline-json-clear>Svuota</button>
+            </div>
+            <div class="designer-inline-warning" data-inline-json-warning hidden></div>
+            <div class="designer-inline-list" data-inline-json-list hidden></div>
+            <div class="designer-inline-empty" data-inline-json-empty>
+              Nessuna azione nel corpo loop. Aggiungi almeno un promemoria o un controllo operativo.
+            </div>
+            <details class="designer-inline-json-advanced">
+              <summary class="designer-subeditor-summary">JSON avanzato</summary>
+              <div class="designer-field designer-field-wide" style="margin-top:10px;">
+                {{ entry.form.loop_loop_actions_json.label_tag }}
+                {{ entry.form.loop_loop_actions_json }}
+                {% if entry.form.loop_loop_actions_json.help_text %}<div class="designer-help">{{ entry.form.loop_loop_actions_json.help_text }}</div>{% endif %}
+                {% if entry.form.loop_loop_actions_json.errors %}<ul class="designer-errors">{% for error in entry.form.loop_loop_actions_json.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+              </div>
+            </details>
+          </section>
+
+          <section class="designer-branch-column designer-inline-builder-column--success"
+            data-inline-json-builder
+            data-inline-json-target="loop_on_success_actions_json"
+            data-inline-json-branch-label="Successo loop">
+            <div class="designer-branch-head">
+              <div>
+                <div class="designer-branch-title">Se completato</div>
+                <div class="designer-help">Azioni finali eseguite quando la condizione di uscita viene soddisfatta.</div>
+              </div>
+              <span class="designer-branch-badge" data-inline-json-status>Nessuna azione</span>
+            </div>
+            <div class="designer-inline-toolbar">
+              <button class="btn btn-light" type="button" data-inline-json-add="write_log">+ Log</button>
+              <button class="btn btn-light" type="button" data-inline-json-add="send_email">+ Email</button>
+              <button class="btn btn-light" type="button" data-inline-json-clear>Svuota</button>
+            </div>
+            <div class="designer-inline-warning" data-inline-json-warning hidden></div>
+            <div class="designer-inline-list" data-inline-json-list hidden></div>
+            <div class="designer-inline-empty" data-inline-json-empty>
+              Nessuna azione di chiusura. Puoi lasciare vuoto oppure aggiungere una notifica finale.
+            </div>
+            <details class="designer-inline-json-advanced">
+              <summary class="designer-subeditor-summary">JSON avanzato</summary>
+              <div class="designer-field designer-field-wide" style="margin-top:10px;">
+                {{ entry.form.loop_on_success_actions_json.label_tag }}
+                {{ entry.form.loop_on_success_actions_json }}
+                {% if entry.form.loop_on_success_actions_json.help_text %}<div class="designer-help">{{ entry.form.loop_on_success_actions_json.help_text }}</div>{% endif %}
+                {% if entry.form.loop_on_success_actions_json.errors %}<ul class="designer-errors">{% for error in entry.form.loop_on_success_actions_json.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+              </div>
+            </details>
+          </section>
+
+          <section class="designer-branch-column designer-inline-builder-column--timeout"
+            data-inline-json-builder
+            data-inline-json-target="loop_on_timeout_actions_json"
+            data-inline-json-branch-label="Timeout loop">
+            <div class="designer-branch-head">
+              <div>
+                <div class="designer-branch-title">Se timeout</div>
+                <div class="designer-help">Azioni eseguite quando il loop raggiunge il massimo di iterazioni.</div>
+              </div>
+              <span class="designer-branch-badge" data-inline-json-status>Nessuna azione</span>
+            </div>
+            <div class="designer-inline-toolbar">
+              <button class="btn btn-light" type="button" data-inline-json-add="write_log">+ Log</button>
+              <button class="btn btn-light" type="button" data-inline-json-add="send_email">+ Email</button>
+              <button class="btn btn-light" type="button" data-inline-json-clear>Svuota</button>
+            </div>
+            <div class="designer-inline-warning" data-inline-json-warning hidden></div>
+            <div class="designer-inline-list" data-inline-json-list hidden></div>
+            <div class="designer-inline-empty" data-inline-json-empty>
+              Nessuna azione di timeout. Conviene almeno tracciare un log o inviare un'escalation.
+            </div>
+            <details class="designer-inline-json-advanced">
+              <summary class="designer-subeditor-summary">JSON avanzato</summary>
+              <div class="designer-field designer-field-wide" style="margin-top:10px;">
+                {{ entry.form.loop_on_timeout_actions_json.label_tag }}
+                {{ entry.form.loop_on_timeout_actions_json }}
+                {% if entry.form.loop_on_timeout_actions_json.help_text %}<div class="designer-help">{{ entry.form.loop_on_timeout_actions_json.help_text }}</div>{% endif %}
+                {% if entry.form.loop_on_timeout_actions_json.errors %}<ul class="designer-errors">{% for error in entry.form.loop_on_timeout_actions_json.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+              </div>
+            </details>
+          </section>
+        </div>
       </div>
 
       {# â”€â”€ FOR_EACH â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ #}
       <div class="designer-editor-panel" data-action-config="for_each" style="margin-top:12px;">
-        <div class="designer-editor-panel-title">ðŸ”‚ Per Ogni Elemento (For Each)</div>
+        <div class="designer-editor-panel-title">Per Ogni Elemento (For Each)</div>
         <div class="designer-help" style="margin-bottom:10px;">
           Interroga una sorgente con un filtro opzionale ed esegue le azioni su ogni record trovato.
         </div>
         <div class="designer-trigger-copy">
-          <div class="designer-field">
-            <label>Sorgente dati</label>
-            <input type="text" class="auto-config-field" data-config-key="source_code" placeholder="assenze">
-          </div>
-          <div class="designer-field">
-            <label>Campo filtro (opzionale)</label>
-            <input type="text" class="auto-config-field" data-config-key="filter_field" placeholder="moderation_status">
-          </div>
-          <div class="designer-field">
-            <label>Valore filtro (template)</label>
-            <input type="text" class="auto-config-field" data-config-key="filter_value_template" placeholder="0 o {campo}">
-          </div>
-          <div class="designer-field">
-            <label>Max elementi</label>
-            <input type="number" min="1" max="500" class="auto-config-field" data-config-key="max_items" value="50">
-          </div>
+          <div class="designer-field">{{ entry.form.each_source_code.label_tag }}{{ entry.form.each_source_code }}{% if entry.form.each_source_code.errors %}<ul class="designer-errors">{% for error in entry.form.each_source_code.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.each_filter_field.label_tag }}{{ entry.form.each_filter_field }}{% if entry.form.each_filter_field.errors %}<ul class="designer-errors">{% for error in entry.form.each_filter_field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.each_filter_value_template.label_tag }}{{ entry.form.each_filter_value_template }}{% if entry.form.each_filter_value_template.errors %}<ul class="designer-errors">{% for error in entry.form.each_filter_value_template.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.each_max_items.label_tag }}{{ entry.form.each_max_items }}{% if entry.form.each_max_items.errors %}<ul class="designer-errors">{% for error in entry.form.each_max_items.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
         </div>
-        <details class="designer-subeditor" style="margin-top:14px;">
-          <summary class="designer-subeditor-summary">Azioni per ogni record</summary>
-          <div style="margin-top:10px;">
-            <textarea rows="6" class="auto-config-field" data-config-key="each_actions" data-config-json-array="true"
-                      style="width:100%;font-family:monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#0f172a;color:#e2e8f0;"
-                      placeholder='[{"action_type":"send_email","description":"Email a ogni dipendente","config_json":{"to":"{dipendente_email}","subject_template":"Promemoria #{id}","body_text_template":"..."}}]'>[]</textarea>
+        <section class="designer-branch-column designer-inline-builder-column--each" style="margin-top:14px;"
+          data-inline-json-builder
+          data-inline-json-target="each_actions_json"
+          data-inline-json-branch-label="Azioni per record">
+          <div class="designer-branch-head">
+            <div>
+              <div class="designer-branch-title">Azioni per ogni record</div>
+              <div class="designer-help">Queste azioni vengono eseguite per ogni elemento trovato dalla query.</div>
+            </div>
+            <span class="designer-branch-badge" data-inline-json-status>Nessuna azione</span>
           </div>
-        </details>
+          <div class="designer-inline-toolbar">
+            <button class="btn btn-light" type="button" data-inline-json-add="write_log">+ Log</button>
+            <button class="btn btn-light" type="button" data-inline-json-add="send_email">+ Email</button>
+            <button class="btn btn-light" type="button" data-inline-json-add="delay_schedule">+ Delay</button>
+            <button class="btn btn-light" type="button" data-inline-json-clear>Svuota</button>
+          </div>
+          <div class="designer-inline-warning" data-inline-json-warning hidden></div>
+          <div class="designer-inline-list" data-inline-json-list hidden></div>
+          <div class="designer-inline-empty" data-inline-json-empty>
+            Nessuna azione definita per i record trovati. Aggiungi almeno un'azione operativa o di notifica.
+          </div>
+          <details class="designer-inline-json-advanced">
+            <summary class="designer-subeditor-summary">JSON avanzato</summary>
+            <div class="designer-field designer-field-wide" style="margin-top:10px;">
+              {{ entry.form.each_actions_json.label_tag }}
+              {{ entry.form.each_actions_json }}
+              {% if entry.form.each_actions_json.help_text %}<div class="designer-help">{{ entry.form.each_actions_json.help_text }}</div>{% endif %}
+              {% if entry.form.each_actions_json.errors %}<ul class="designer-errors">{% for error in entry.form.each_actions_json.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            </div>
+          </details>
+        </section>
       </div>
 
       {# â”€â”€ BRANCH / IF-ELSE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ #}
       <div class="designer-editor-panel" data-action-config="branch" style="margin-top:12px;">
-        <div class="designer-editor-panel-title">ðŸ”€ Branch / Condizione If-Else</div>
+        <div class="designer-editor-panel-title">Branch / Condizione If-Else</div>
         <div class="designer-help" style="margin-bottom:10px;">
-          Se la condizione Ã¨ vera esegue le azioni "Se Vero", altrimenti le azioni "Se Falso". Estende il run_if con un ramo else completo.
+          Se la condizione e' vera esegue le azioni Se Vero, altrimenti le azioni Se Falso. Estende il run_if con un ramo else completo.
         </div>
         <div class="designer-trigger-copy">
-          <div class="designer-field">
-            <label>Campo</label>
-            <input type="text" class="auto-config-field" data-config-key="condition_field" placeholder="status">
-          </div>
-          <div class="designer-field">
-            <label>Operatore</label>
-            <select class="auto-config-field" data-config-key="condition_operator">
-              <option value="equals">equals</option>
-              <option value="not_equals">not_equals</option>
-              <option value="contains">contains</option>
-              <option value="gt">gt (>)</option>
-              <option value="gte">gte (â‰¥)</option>
-              <option value="lt">lt (<)</option>
-              <option value="lte">lte (â‰¤)</option>
-              <option value="is_true">is_true</option>
-              <option value="is_false">is_false</option>
-              <option value="is_empty">is_empty</option>
-              <option value="is_not_empty">is_not_empty</option>
-              <option value="changed_to">changed_to</option>
-            </select>
-          </div>
-          <div class="designer-field">
-            <label>Valore</label>
-            <input type="text" class="auto-config-field" data-config-key="condition_value" placeholder="PENDING">
-          </div>
-          <div class="designer-field">
-            <label>Tipo valore</label>
-            <select class="auto-config-field" data-config-key="condition_value_type">
-              <option value="string">string</option>
-              <option value="int">int</option>
-              <option value="bool">bool</option>
-            </select>
-          </div>
+          <div class="designer-field">{{ entry.form.branch_condition_field.label_tag }}{{ entry.form.branch_condition_field }}{% if entry.form.branch_condition_field.errors %}<ul class="designer-errors">{% for error in entry.form.branch_condition_field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.branch_condition_operator.label_tag }}{{ entry.form.branch_condition_operator }}{% if entry.form.branch_condition_operator.errors %}<ul class="designer-errors">{% for error in entry.form.branch_condition_operator.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.branch_condition_value_type.label_tag }}{{ entry.form.branch_condition_value_type }}{% if entry.form.branch_condition_value_type.errors %}<ul class="designer-errors">{% for error in entry.form.branch_condition_value_type.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field">{{ entry.form.branch_condition_value.label_tag }}{{ entry.form.branch_condition_value }}{% if entry.form.branch_condition_value.errors %}<ul class="designer-errors">{% for error in entry.form.branch_condition_value.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
+          <div class="designer-field designer-field-compact-toggle">{{ entry.form.branch_compare_with_old.label_tag }}<div class="designer-toggle-wrap">{{ entry.form.branch_compare_with_old }}</div>{% if entry.form.branch_compare_with_old.errors %}<ul class="designer-errors">{% for error in entry.form.branch_compare_with_old.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}</div>
         </div>
-        <details class="designer-subeditor" style="margin-top:14px;">
-          <summary class="designer-subeditor-summary">âœ… Azioni Se Vero (if_true)</summary>
-          <div style="margin-top:10px;">
-            <textarea rows="5" class="auto-config-field" data-config-key="if_true_actions" data-config-json-array="true"
-                      style="width:100%;font-family:monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#0f172a;color:#e2e8f0;"
-                      placeholder='[{"action_type":"send_email","config_json":{...}}]'>[]</textarea>
-          </div>
-        </details>
-        <details class="designer-subeditor" style="margin-top:6px;">
-          <summary class="designer-subeditor-summary">âŒ Azioni Se Falso (if_false)</summary>
-          <div style="margin-top:10px;">
-            <textarea rows="5" class="auto-config-field" data-config-key="if_false_actions" data-config-json-array="true"
-                      style="width:100%;font-family:monospace;font-size:12px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:#0f172a;color:#e2e8f0;"
-                      placeholder='[]'>[]</textarea>
-          </div>
-        </details>
+        <div class="designer-branch-grid" style="margin-top:14px;">
+          <section class="designer-branch-column designer-branch-column--true"
+            data-inline-json-builder
+            data-inline-json-target="branch_if_true_actions_json"
+            data-inline-json-other-target="branch_if_false_actions_json"
+            data-inline-json-branch-label="Se Vero">
+            <div class="designer-branch-head">
+              <div>
+                <div class="designer-branch-title">Se Vero (IF)</div>
+                <div class="designer-help">Questo ramo parte quando la condizione del branch risulta vera.</div>
+              </div>
+              <span class="designer-branch-badge" data-inline-json-status>Nessuna azione</span>
+            </div>
+            <div class="designer-inline-toolbar">
+              <button class="btn btn-light" type="button" data-inline-json-add="write_log">+ Log</button>
+              <button class="btn btn-light" type="button" data-inline-json-add="delay_schedule">+ Delay</button>
+              <button class="btn btn-light" type="button" data-inline-json-copy-other>Copia da Se Falso</button>
+              <button class="btn btn-light" type="button" data-inline-json-clear>Svuota</button>
+            </div>
+            <div class="designer-inline-warning" data-inline-json-warning hidden></div>
+            <div class="designer-inline-list" data-inline-json-list hidden></div>
+            <div class="designer-inline-empty" data-inline-json-empty>
+              Nessuna azione nel ramo vero. Usa i pulsanti rapidi oppure apri il JSON avanzato.
+            </div>
+            <details class="designer-inline-json-advanced">
+              <summary class="designer-subeditor-summary">JSON avanzato</summary>
+              <div class="designer-field designer-field-wide" style="margin-top:10px;">
+                {{ entry.form.branch_if_true_actions_json.label_tag }}
+                {{ entry.form.branch_if_true_actions_json }}
+                {% if entry.form.branch_if_true_actions_json.help_text %}<div class="designer-help">{{ entry.form.branch_if_true_actions_json.help_text }}</div>{% endif %}
+                {% if entry.form.branch_if_true_actions_json.errors %}<ul class="designer-errors">{% for error in entry.form.branch_if_true_actions_json.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+              </div>
+            </details>
+          </section>
+
+          <section class="designer-branch-column designer-branch-column--false"
+            data-inline-json-builder
+            data-inline-json-target="branch_if_false_actions_json"
+            data-inline-json-other-target="branch_if_true_actions_json"
+            data-inline-json-branch-label="Se Falso">
+            <div class="designer-branch-head">
+              <div>
+                <div class="designer-branch-title">Se Falso (ELSE)</div>
+                <div class="designer-help">Questo ramo parte quando la condizione del branch non e' soddisfatta.</div>
+              </div>
+              <span class="designer-branch-badge" data-inline-json-status>Nessuna azione</span>
+            </div>
+            <div class="designer-inline-toolbar">
+              <button class="btn btn-light" type="button" data-inline-json-add="write_log">+ Log</button>
+              <button class="btn btn-light" type="button" data-inline-json-add="delay_schedule">+ Delay</button>
+              <button class="btn btn-light" type="button" data-inline-json-copy-other>Copia da Se Vero</button>
+              <button class="btn btn-light" type="button" data-inline-json-clear>Svuota</button>
+            </div>
+            <div class="designer-inline-warning" data-inline-json-warning hidden></div>
+            <div class="designer-inline-list" data-inline-json-list hidden></div>
+            <div class="designer-inline-empty" data-inline-json-empty>
+              Nessuna azione nel ramo falso. Usalo come ELSE esplicito oppure lascialo vuoto.
+            </div>
+            <details class="designer-inline-json-advanced">
+              <summary class="designer-subeditor-summary">JSON avanzato</summary>
+              <div class="designer-field designer-field-wide" style="margin-top:10px;">
+                {{ entry.form.branch_if_false_actions_json.label_tag }}
+                {{ entry.form.branch_if_false_actions_json }}
+                {% if entry.form.branch_if_false_actions_json.help_text %}<div class="designer-help">{{ entry.form.branch_if_false_actions_json.help_text }}</div>{% endif %}
+                {% if entry.form.branch_if_false_actions_json.errors %}<ul class="designer-errors">{% for error in entry.form.branch_if_false_actions_json.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+              </div>
+            </details>
+          </section>
+        </div>
       </div>
 
     </div>
   </details>
 </article>
-

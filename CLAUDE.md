@@ -1,7 +1,7 @@
 # CLAUDE.md - Portale Novicrom
 
 Documento di contesto per AI coding assistant. Aggiornato continuamente con il progetto.
-Versione app corrente: **0.9.18** (2026-04-16)
+Versione app corrente: **1.0.0** (2026-04-17)
 
 ---
 
@@ -36,7 +36,7 @@ Hardening sicurezza 0.8.7:
 | `anomalie` | Segnalazione e gestione anomalie produzione |
 | `assets` | Gestione asset aziendali (macchinari, attrezzature) + scadenzari manutenzioni/scadenze con creazione eventi Outlook sul calendario dell'utente selezionato; la manutenzione periodica vive come categoria della manutenzione su `/assets/manutenzione/verifiche/` con redirect legacy da `/assets/verifiche-periodiche/`; dashboard KPI personalizzabile per utente su `/assets/dashboard/` con 12 widget (scadenze, OdL, verifiche, ripartizioni) e drag & drop; la lista inventario canonica vive su `/assets/lista/` e i vecchi link filtrati `/assets/?asset_type=...` vengono riallineati automaticamente; licenze software su `/assets/licenze/` assegnabili ad asset o dipendenti anagrafica; categorie asset e campi dinamici si gestiscono nella tab `Categorie asset` di `/assets/impostazioni/`, con rimando rapido anche dallo Studio amministratore inventario |
 | `tasks` | `KICK-OFF`: portfolio kickoff, attivita kickoff, subtask, commenti, allegati, import Excel e upload documento MOD.073 VRF |
-| `automazioni` | Designer visuale automazioni + workspace flow split-view + SQL trigger -> event queue; la queue admin in `/admin-portale/automazioni/queue/` espone le azioni manuali `Stoppa` (porta un evento `pending` in `error` senza eseguirlo) ed `Elimina` (solo per eventi `pending/error` senza run log collegati), oltre a una card salute del poller che mostra task Windows locale `Portale Hub Polling Mail`, ultimo job monitorato e log `django_app/logs/automation_queue.log`; il polling Graph delle reply approvative processa ora i messaggi in ordine cronologico crescente (`first valid decision wins`), valida sempre il mittente in fail-closed, deduplica in modo persistente su `internet_message_id` e marca come lette solo le reply terminali/non riprocessabili |
+| `automazioni` | Designer visuale automazioni + workspace flow split-view + SQL trigger -> event queue; la queue admin in `/admin-portale/automazioni/queue/` espone le azioni manuali `Stoppa` (porta un evento `pending` in `error` senza eseguirlo) ed `Elimina` (solo per eventi `pending/error` senza run log collegati), oltre a una card salute del poller che mostra task Windows locale `Portale Hub Polling Mail`, ultimo job monitorato e log `django_app/logs/automation_queue.log`; i timestamp della card vengono normalizzati nella timezone corrente del progetto (default `Europe/Rome`) e la UI espone il fuso usato; il polling Graph delle reply approvative processa ora i messaggi in ordine cronologico crescente (`first valid decision wins`), valida sempre il mittente in fail-closed, deduplica in modo persistente su `internet_message_id` e marca come lette solo le reply terminali/non riprocessabili; nel designer condizioni `expected_value` espone anche `Valori disponibili` con picker generico da source registry/DB e il pannello destro resta scrollabile in autonomia |
 | `admin_portale` | Pannello admin custom (non Django admin) |
 | `anagrafica` | Anagrafica dipendenti (integrata con AD/legacy DB, fallback automatico `email_notifica` -> `email` quando il dato legacy manca) |
 | `notizie` | Bacheca notizie/comunicazioni |
@@ -229,19 +229,38 @@ Questo aggiornamento ÃƒÂ¨ parte integrante di ogni task, non un'attivitÃƒ�
 
 ## Bump di versione - checklist obbligatoria
 
-Ad ogni bump di versione (es. `0.7.3 -> 0.7.4`) aggiornare tutti questi punti, senza eccezioni:
+Ad ogni bump di versione (es. `0.7.3 -> 0.7.4`) aggiornare TUTTI questi file, senza eccezioni. Il release guard (`tools/release_guard.ps1`) verifica ognuno di essi e blocca il packaging se uno solo e fuori allineamento.
 
-1. `VERSION` (root repo) - single source of truth (`X.Y.Z`)
-2. `CLAUDE.md` riga 4 - `Versione app corrente: **X.Y.Z**`
-3. `.env` locale runtime - `APP_VERSION=X.Y.Z` + tutte le `APP_VERSION_*` se presenti
-4. `django_app/.env.example` - aggiornare `APP_VERSION` e tutte le `APP_VERSION_*`
-5. `CHANGELOG.md` - aggiungere sezione `## X.Y.Z - YYYY-MM-DD`
+### File codice (hardcode da aggiornare)
 
-I default codice leggono da `VERSION` tramite `config/app_version.py`; evitare hardcode diretti in altri file.
+1. `VERSION` (root repo) — single source of truth (`X.Y.Z`)
+2. `django_app/VERSION` — mirror di compatibilita, deve combaciare con root `VERSION`
+3. `django_app/config/app_version.py` — riga `DEFAULT_APP_VERSION = "X.Y.Z"`
+4. `deployment/setup_wizard.py` — riga `_DEFAULT_APP_VERSION = "X.Y.Z"`
 
-Se esiste `django_app/VERSION`, trattarlo solo come mirror di compatibilita: non e una source of truth indipendente e va mantenuto allineato al file root.
+### File configurazione
 
-Il file `.env` ha precedenza sui default nel codice: se non viene aggiornato, UI e wizard continueranno a mostrare il valore precedente.
+1. `django_app/.env.example` — `APP_VERSION=X.Y.Z` + tutte le `APP_VERSION_*`
+2. `config\test\.env` e `config\prod\.env` — `APP_VERSION=X.Y.Z` (source of truth runtime deploy)
+
+### File documentazione (tutti devono mostrare la versione nel frontmatter/header)
+
+1. `CLAUDE.md` riga 4 — `Versione app corrente: **X.Y.Z** (YYYY-MM-DD)`
+2. `CHANGELOG.md` — aggiungere sezione `## X.Y.Z - YYYY-MM-DD`
+3. `README.md` — badge `![Version X.Y.Z](https://img.shields.io/badge/version-X.Y.Z-F97316)`
+4. `doc/README.md` — `> Versione documentazione: **X.Y.Z**`
+5. `doc/START_HERE.md` — `> Versione documentazione: **X.Y.Z**`
+6. `doc/TESTING.md` — `> Versione documentazione: **X.Y.Z**`
+7. `doc/ARCHITETTURA_TARGET_E_DISMISSIONE_LEGACY.md` — `> Versione documentazione: **X.Y.Z**`
+8. `doc/STRUTTURA_ATTUALE_PORTALE.md` — `Data snapshot: YYYY-MM-DD | Versione: X.Y.Z`
+9. `deployment/README_DEPLOY_IIS_WINDOWS.md` — `> Versione repo: **X.Y.Z**`
+10. `tools/MANUALE_ADMIN_NAVIGAZIONE_PERMESSI.md` — `> NOVICROM HUB · Aggiornato: YYYY-MM-DD (vX.Y.Z)`
+
+### Regole operative
+
+- I default codice leggono da `VERSION` tramite `config/app_version.py`; evitare ulteriori hardcode.
+- Il file `.env` runtime ha precedenza sui default nel codice: se non viene aggiornato, UI e wizard mostrano il valore precedente.
+- Dopo ogni modifica a `setup_wizard.py` rigenerare `deployment/dist/SetupWizard.exe` (vedi sezione Setup Wizard).
 
 ---
 
@@ -251,8 +270,11 @@ Dopo ogni modifica a `deployment/setup_wizard.py` rigenerare sempre `deployment/
 
 Comando da eseguire dalla root del repo:
 
-```bash
-cd "c:/Dev/Portale Novicrom/deployment" && python -m PyInstaller SetupWizard.spec --noconfirm
+```powershell
+$env:PYTHONPATH = "C:\Dev\Portale Novicrom\deployment\pyinstaller_bootstrap"
+Set-Location "C:\Dev\Portale Novicrom\deployment"
+python -m PyInstaller SetupWizard.spec --noconfirm
+Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue
 ```
 
 Output atteso finale: `Build complete! The results are available in: .../deployment/dist`
@@ -268,6 +290,15 @@ L'exe e l'artefatto distribuito agli utenti finali: se non viene rigenerato, le 
 - `SetupWizard.spec` usa hook custom per `tkinter` e deve continuare a includere `_tcl_data` e `_tk_data`.
 - Il runtime Python del wizard e di `deployment/scripts/setup-environment.ps1` deve essere auto-rilevato in modo robusto (`py`, percorsi standard, registry, `PATH`) e validato come Python 3.11+.
 - Se falliscono `venv`, `pip install`, `collectstatic` o `migrate`, il wizard deve marcare l'errore esplicitamente e non attivare la release/IIS o schedulare task su un ambiente incompleto.
+
+### Selezione moduli (ModulesPage — step 11)
+
+- `MODULE_REGISTRY` (costante di modulo in `setup_wizard.py`): lista di dict con campi `key`, `label`, `description`, `app_label`, `required`, `default`, `depends_on`, `has_migrations`, `tier`.
+- Tre tier: `system` (obbligatori, checkbox disabilitato), `standard` (pre-selezionati), `optional` (disattivati per default — futuro licensing).
+- `cfg.selected_modules`: lista di key salvata nel `Config` e passata al migrate selettivo.
+- `_run_selective_migrate()` presente sia in `InstallPage` che in `ReleaseRunPage` (non ereditano): migra nell'ordine `_DJANGO_BUILTIN_MIGRATE_LABELS` → moduli `required` → moduli opzionali selezionati.
+- La dipendenza automatica tra moduli (es. `tickets` → `assets`, `anagrafica`) è gestita in UI via `depends_on`: attivare un modulo auto-attiva le sue dipendenze; disattivarlo auto-disattiva i moduli che dipendono da esso.
+- Totale step wizard installazione: **14** (aggiunto "Moduli" tra "Utente Admin" e "Riepilogo").
 
 ### Discovery SQL Server (DatabasePage)
 
@@ -413,6 +444,8 @@ Questi componenti esistono solo sul server di produzione:
 - Sorgente `assenze`: l'enrichment runtime di `capo_email` deve risolvere prima `capo_reparto_id` come FK locale `capi_reparto.id` leggendo `indirizzo_email` (e in fallback `utente_id`), non come `utenti.id`; solo dopo sono ammessi i fallback legacy/sharepoint
 - Builder classico e designer visuale devono passare cataloghi sorgente e preset al frontend come oggetti Python via `json_script`; non usare `json.dumps` sui valori gia destinati a `json_script`, altrimenti i dropdown trigger/condizioni restano fermi sulla sorgente iniziale.
 - Designer visuale e pagina test espongono ora un browser campi smart con ricerca, filtri per ambito (`trigger`, `condition`, `template`, `action_mapping`) e inserimento contestuale nel target attivo (select, template o JSON raw).
+- Il `source_registry` puo dichiarare per ogni campo metadata UI come `allowed_values`, `value_source_label` e `ui_control`; il designer condizioni deve riusarli per mostrare accanto a `expected_value` il riquadro `Valori disponibili` e, per i campi mappati a colonna fisica, completarlo via endpoint `/admin-portale/automazioni/api/sorgenti/<source>/campi/<field>/valori/` con valori distinti reali dal DB. Il comportamento deve restare generico per qualsiasi campo queryable, non hardcoded a `tipo_assenza`; per `assenze.tipo_assenza` i valori canonici vanno condivisi con il modulo assenze, non duplicati in JS/template.
+- Il pannello laterale `Contenuti / Colonne disponibili` del designer deve restare sticky e con scroll autonomo rispetto alla pagina, anche nella workspace del diagramma, per evitare di perdere il contesto mentre si cercano campi o si compongono condizioni/template/mapping.
 - La pagina test manuale usa un composer guidato per `payload_json` e `old_payload_json`, sincronizzato con i textarea raw e con diff sintetico dei campi cambiati.
 - Le sorgenti che in update aggiungono campi runtime `old_*` direttamente nel payload (es. `tickets`, `tasks`) devono dichiararli nel `source_registry` come campi virtuali per renderli disponibili a catalogo, preset, test e template.
 - Il converter Power Automate integrato vive su `admin_portale:automazioni_rule_power_automate_convert`: riusa i servizi della cartella spostata `django_app/powerautomate-to-django-automations/app` tramite `automazioni/power_automate_bridge.py`, non tramite una seconda webapp standalone.
@@ -421,6 +454,7 @@ Questi componenti esistono solo sul server di produzione:
 - Per i flow con approval, il converter deve mostrare un selettore di `ApprovalEmailTemplate` attivi, con default sul primo `hybrid` e fallback sul primo `mail_reply`; il package deve salvare il riferimento portabile `approval_email_template_code` e una sezione top-level `approval_conversion`, non dipendere dal solo PK locale.
 - La conversione automatica approval e' consentita solo per source noti/non `generic` e solo sul subset sicuro dei branch (`send_email`, `write_log`, `update_trigger_record`). I branch non mappabili restano in `issues`/`warnings`; per `assenze` il converter deve generare un vero `send_approval` e prependere `moderation_status=0/1` nei rami approvato/rifiutato.
 - Il designer visuale espone un **test live inline** nel pannello laterale: modalita "Dati campione" e "Record reale" (AJAX picker ultimi 20 record), esecuzione via `POST /api/regole/<id>/test-ajax/` con risultati azione per azione. Endpoint aggiuntivi: `GET /api/sorgenti/<code>/record-recenti/` e `GET /api/sorgenti/<code>/record/<id>/payload/`.
+- Nel designer visuale, `branch`, `do_until` e `for_each` non devono presentarsi come editor solo-JSON per il caso d'uso normale: servono pannelli guidati leggibili (`Se Vero/Se Falso`, `Corpo loop/Se completato/Se timeout`, `Azioni per ogni record`) con badge di stato, lista delle azioni inline e quick actions. Il JSON embedded in `config_json` resta il formato canonico, ma va relegato a `JSON avanzato` come fallback esperto senza rompere import/export o riapertura draft.
 - Le card azione `send_email` hanno un pulsante "Anteprima" che mostra un pannello email renderizzato live (Da/A/Oggetto/Corpo) con highlight automatico dei `{placeholder}`, aggiornato su ogni keystroke senza submit.
 - **Azioni di controllo flusso** (migration 0008): `send_approval`, `do_until`, `for_each`, `branch` — tutte con azioni figlie embedded in `config_json` come lista `[{action_type, config_json, description}]`.
   - `send_approval`: pausa il flusso, crea `AutomationApproval`, lascia il run log in `waiting_approval` e mantiene `process_approval_decision()` come source of truth per i rami `approved_actions` / `rejected_actions`. URL decision classici: `/automazioni/approvazione/<token>/approva|rifiuta/` (no login, token-based, `@csrf_exempt`). URL proxy Entra: `/approval-actions/approve|reject/<token>/` (GET one-click, vedi sezione `MIDDLEWARE_EXEMPT_PREFIXES`).

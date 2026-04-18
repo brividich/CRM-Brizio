@@ -1445,6 +1445,7 @@ def _ldap_test_bind(server_url: str, timeout: int, username: str, password: str,
             password=pwd,
             authentication=SIMPLE,
             auto_bind=AUTO_BIND_NO_TLS,
+            auto_referrals=False,
             raise_exceptions=False,
         )
         if conn.bind():
@@ -1463,6 +1464,7 @@ def _ldap_test_bind(server_url: str, timeout: int, username: str, password: str,
                 password=pwd,
                 authentication=NTLM,
                 auto_bind=AUTO_BIND_NO_TLS,
+                auto_referrals=False,
                 raise_exceptions=False,
             )
             if conn2.bind():
@@ -2841,11 +2843,27 @@ def ldap_import_utenti(request):
 
     def _ldap_connect():
         srv = LdapServer(server_url, connect_timeout=timeout, get_info=NONE)
-        conn = Connection(srv, user=service_user, password=service_password, authentication=SIMPLE, auto_bind=AUTO_BIND_NO_TLS, raise_exceptions=False)
+        conn = Connection(
+            srv,
+            user=service_user,
+            password=service_password,
+            authentication=SIMPLE,
+            auto_bind=AUTO_BIND_NO_TLS,
+            auto_referrals=False,
+            raise_exceptions=False,
+        )
         if conn.bind():
             return conn, None
         if domain and "@" not in service_user and "\\" not in service_user:
-            conn2 = Connection(srv, user=f"{domain}\\{service_user}", password=service_password, authentication=NTLM, auto_bind=AUTO_BIND_NO_TLS, raise_exceptions=False)
+            conn2 = Connection(
+                srv,
+                user=f"{domain}\\{service_user}",
+                password=service_password,
+                authentication=NTLM,
+                auto_bind=AUTO_BIND_NO_TLS,
+                auto_referrals=False,
+                raise_exceptions=False,
+            )
             if conn2.bind():
                 return conn2, None
         return None, f"Bind LDAP fallito: {conn.result}"
@@ -2893,7 +2911,17 @@ def ldap_import_utenti(request):
             return JsonResponse({"ok": False, "error": f"Connessione LDAP fallita: {exc}"}, status=400)
 
         attrs = ["displayName", "givenName", "sn", "mail", "userPrincipalName", "sAMAccountName", "memberOf"]
-        ok = conn.search(search_base=base_dn, search_filter=ldap_filter, search_scope=SUBTREE, attributes=attrs, paged_size=500)
+        try:
+            ok = conn.search(
+                search_base=base_dn,
+                search_filter=ldap_filter,
+                search_scope=SUBTREE,
+                attributes=attrs,
+                paged_size=500,
+            )
+        except (LDAPSocketOpenError, LDAPException, OSError) as exc:
+            conn.unbind()
+            return JsonResponse({"ok": False, "error": f"Ricerca LDAP fallita: {exc}"}, status=400)
         if not ok:
             conn.unbind()
             return JsonResponse({"ok": False, "error": f"Ricerca LDAP fallita: {conn.result}"}, status=400)
@@ -2964,7 +2992,20 @@ def ldap_import_utenti(request):
             return JsonResponse({"ok": False, "error": f"Connessione LDAP fallita: {exc}"}, status=400)
 
         attrs = ["displayName", "givenName", "sn", "mail", "userPrincipalName", "sAMAccountName"]
-        conn.search(search_base=base_dn, search_filter=ldap_filter, search_scope=SUBTREE, attributes=attrs, paged_size=500)
+        try:
+            ok = conn.search(
+                search_base=base_dn,
+                search_filter=ldap_filter,
+                search_scope=SUBTREE,
+                attributes=attrs,
+                paged_size=500,
+            )
+        except (LDAPSocketOpenError, LDAPException, OSError) as exc:
+            conn.unbind()
+            return JsonResponse({"ok": False, "error": f"Ricerca LDAP fallita: {exc}"}, status=400)
+        if not ok:
+            conn.unbind()
+            return JsonResponse({"ok": False, "error": f"Ricerca LDAP fallita: {conn.result}"}, status=400)
 
         results = {"created": [], "updated": [], "errors": []}
 

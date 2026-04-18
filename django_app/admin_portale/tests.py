@@ -2,9 +2,10 @@
 
 import json
 import shutil
+import sys
 import tempfile
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from unittest.mock import ANY, MagicMock, patch
 from uuid import uuid4
 
@@ -896,6 +897,73 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
             self.assertContains(response, "Connessione LDAP riuscita.")
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_ldap_import_search_handles_referral_socket_errors(self):
+        self.client.force_login(self.admin_user)
+
+        class FakeLDAPException(Exception):
+            pass
+
+        class FakeLDAPSocketOpenError(FakeLDAPException):
+            pass
+
+        fake_conn = MagicMock()
+        fake_conn.bind.return_value = True
+        fake_conn.search.side_effect = FakeLDAPSocketOpenError("invalid server address")
+        fake_conn.entries = []
+
+        fake_ldap3 = ModuleType("ldap3")
+        fake_ldap3.AUTO_BIND_NO_TLS = "AUTO_BIND_NO_TLS"
+        fake_ldap3.NONE = "NONE"
+        fake_ldap3.NTLM = "NTLM"
+        fake_ldap3.SIMPLE = "SIMPLE"
+        fake_ldap3.SUBTREE = "SUBTREE"
+        fake_ldap3.Connection = MagicMock(return_value=fake_conn)
+        fake_ldap3.Server = MagicMock(return_value=object())
+
+        fake_ldap3_core = ModuleType("ldap3.core")
+        fake_ldap3_exceptions = ModuleType("ldap3.core.exceptions")
+        fake_ldap3_exceptions.LDAPException = FakeLDAPException
+        fake_ldap3_exceptions.LDAPSocketOpenError = FakeLDAPSocketOpenError
+
+        with override_settings(
+            LDAP_ENABLED=True,
+            LDAP_SERVER="ldap://dc1.example.local",
+            LDAP_DOMAIN="EXAMPLE",
+            LDAP_UPN_SUFFIX="@example.local",
+            LDAP_TIMEOUT=5,
+            LDAP_SERVICE_USER="svc_ldap@example.local",
+            LDAP_SERVICE_PASSWORD="secret",
+            LDAP_BASE_DN="DC=EXAMPLE,DC=LOCAL",
+            LDAP_USER_FILTER="(&(objectCategory=person)(objectClass=user))",
+        ), patch(
+            "admin_portale.decorators.get_legacy_user",
+            return_value=self.admin_legacy,
+        ), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ), patch.dict(
+            sys.modules,
+            {
+                "ldap3": fake_ldap3,
+                "ldap3.core": fake_ldap3_core,
+                "ldap3.core.exceptions": fake_ldap3_exceptions,
+            },
+            clear=False,
+        ):
+            response = self.client.post(
+                reverse("admin_portale:ldap_import_utenti"),
+                {"action": "search", "q": "Mario"},
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertJSONEqual(
+            response.content,
+            {"ok": False, "error": "Ricerca LDAP fallita: invalid server address"},
+        )
+        self.assertEqual(fake_ldap3.Connection.call_count, 1)
+        self.assertIs(fake_ldap3.Connection.call_args.kwargs["auto_referrals"], False)
+        fake_conn.unbind.assert_called_once()
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

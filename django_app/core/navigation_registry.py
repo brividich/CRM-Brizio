@@ -170,7 +170,7 @@ def _compiled_items_for_role(*, role_id: int | None, is_admin: bool, section: st
                 "category_order": (item.category.order if item.category_id and item.category else 0),
             }
         )
-    # ── Dedup guard ───────────────────────────────────────────────────────────
+    # ── Dedup guard (stesso target) ──────────────────────────────────────────
     # Se esistono più NavigationItem con lo stesso target (route_name o url_path)
     # nella stessa sezione (es. da bootstrap legacy eseguito più volte), teniamo
     # solo il primo incontrato (ordine asc → id asc) e logghiamo un warning.
@@ -194,6 +194,36 @@ def _compiled_items_for_role(*, role_id: int | None, is_admin: bool, section: st
         seen_targets.add(target)
         deduped.append(node)
     compiled = deduped
+
+    # ── Dedup guard (stessa etichetta, topbar flat) ──────────────────────────
+    # Se la sezione è topbar e ci sono più voci con la stessa etichetta E prive
+    # di categoria, teniamo solo la prima (ordine asc → id asc). Causa tipica:
+    # bootstrap_from_legacy crea un item per ogni pulsante legacy dello stesso
+    # modulo, tutti con la stessa etichetta ma route diverse.
+    # Fix: eseguire 'python manage.py deduplicate_nav --by-label' per pulire il DB.
+    if section == "topbar":
+        seen_labels: set[str] = set()
+        label_deduped: list[dict] = []
+        for node in compiled:
+            if node.get("category_key"):
+                # Voci con categoria: nessun dedup per etichetta (gruppi dropdown)
+                label_deduped.append(node)
+                continue
+            label_key = str(node.get("label") or "").strip().lower()
+            if label_key and label_key in seen_labels:
+                logger.warning(
+                    "navigation_registry: topbar flat label duplicata ignorata "
+                    "(label=%r code=%s id=%s) — eseguire "
+                    "'python manage.py deduplicate_nav --by-label' per pulire il DB.",
+                    label_key,
+                    node.get("code"),
+                    node.get("id"),
+                )
+                continue
+            if label_key:
+                seen_labels.add(label_key)
+            label_deduped.append(node)
+        compiled = label_deduped
     # ── Fine dedup guard ──────────────────────────────────────────────────────
 
     cache.set(cache_key, compiled, timeout=_NAV_CACHE_TTL)

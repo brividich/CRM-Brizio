@@ -23,7 +23,7 @@ from .models import (
     list_teams_flow_endpoints,
     list_approval_email_templates,
 )
-from .services import get_action_table_whitelist
+from .services import discover_module_tables, get_action_table_whitelist
 from .source_registry import (
     get_action_mapping_fields,
     get_condition_fields,
@@ -213,6 +213,21 @@ def _serialize_json_array_text(raw_value: Any) -> str:
     return json.dumps(raw_value, indent=2, ensure_ascii=False)
 
 
+def _safe_json_array_length(raw_value: Any) -> int:
+    if isinstance(raw_value, list):
+        return len([item for item in raw_value if isinstance(item, dict)])
+    text = str(raw_value or "").strip()
+    if not text:
+        return 0
+    try:
+        parsed = json.loads(text)
+    except Exception:
+        return 0
+    if not isinstance(parsed, list):
+        return 0
+    return len([item for item in parsed if isinstance(item, dict)])
+
+
 def _split_approval_branch_actions(actions: Any) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """
     Divide la lista azioni di un ramo approval in:
@@ -278,20 +293,92 @@ def _build_approval_branch_actions(
     return actions
 
 
+def _parse_inline_actions_field(
+    form_instance: forms.Form,
+    *,
+    raw_value: Any,
+    field_name: str,
+    field_label: str,
+) -> list[dict[str, Any]]:
+    try:
+        return _parse_json_array_text(raw_value, field_label=field_label)
+    except forms.ValidationError as exc:
+        form_instance.add_error(field_name, exc)
+        return []
+
+
+def _validate_simple_condition_fields(
+    form: forms.Form,
+    *,
+    field_name: str,
+    operator: str,
+    value_type: str,
+    expected_value: str,
+    field_name_key: str,
+    operator_key: str,
+    value_type_key: str,
+    expected_value_key: str,
+    label: str,
+) -> None:
+    if not field_name:
+        form.add_error(field_name_key, f"Il campo della {label} e' obbligatorio.")
+    if not operator:
+        form.add_error(operator_key, f"L'operatore della {label} e' obbligatorio.")
+    if not value_type:
+        form.add_error(value_type_key, f"Il tipo valore della {label} e' obbligatorio.")
+    if operator and operator not in OPERATORS_WITHOUT_EXPECTED_VALUE and not str(expected_value or "").strip():
+        form.add_error(
+            expected_value_key,
+            f"Il valore atteso della {label} e' obbligatorio per l'operatore selezionato.",
+        )
+
+
 def _build_whitelist_help(action_type: str) -> str:
     whitelist = get_action_table_whitelist().get(action_type, {})
+    catalog = discover_module_tables()
+    available_count = len(catalog)
     if not whitelist:
+        if available_count:
+            return (
+                "Nessuna tabella abilitata al momento. Il picker mostra comunque le tabelle dei moduli: "
+                "usa `+ Tabella` per abilitarle e scegliere campi scrivibili / where."
+            )
         return "Nessuna tabella whitelistata."
 
     rows = []
-    for table_name, table_config in sorted(whitelist.items()):
+    for index, (table_name, table_config) in enumerate(sorted(whitelist.items())):
+        if index >= 3:
+            break
         fields = ", ".join(sorted(table_config.get("fields", set())))
         where_fields = ", ".join(sorted(table_config.get("where_fields", set())))
         if where_fields:
             rows.append(f"{table_name}: fields [{fields}] | where [{where_fields}]")
         else:
             rows.append(f"{table_name}: fields [{fields}]")
-    return " | ".join(rows)
+    extra_count = max(len(whitelist) - len(rows), 0)
+    prefix = (
+        f"Tabelle abilitate: {len(whitelist)}"
+        + (f" su {available_count} tabelle modulo disponibili." if available_count else ".")
+        + " Usa `+ Tabella` per abilitarne altre o cambiare i campi esposti."
+    )
+    if rows:
+        prefix = f"{prefix} Esempi: " + " | ".join(rows)
+    if extra_count:
+        prefix = f"{prefix} | +{extra_count} altre"
+    return prefix
+
+
+def _build_action_table_choices(action_type: str) -> list[tuple[str, str]]:
+    whitelist = get_action_table_whitelist().get(action_type, {})
+    catalog = discover_module_tables()
+    table_names = sorted(set(catalog.keys()) | set(whitelist.keys()))
+    choices: list[tuple[str, str]] = [("", "---------")]
+    for table_name in table_names:
+        label = str((catalog.get(table_name) or {}).get("label") or table_name)
+        if table_name not in whitelist:
+            label = f"{label} [da abilitare]"
+        choices.append((table_name, label))
+    return choices
 
 
 def _build_source_update_help(source_code: str | None) -> str:
@@ -686,6 +773,77 @@ class AutomationActionForm(forms.ModelForm):
         help_text='Altre azioni inline oltre all\'aggiornamento record, es. [{"action_type":"write_log","config_json":{"message_template":"KO"}}].',
     )
 
+    loop_check_field = forms.ChoiceField(required=False, choices=(), label="Campo da controllare")
+    loop_check_operator = forms.ChoiceField(
+        required=False,
+        choices=(("", "---------"), *AutomationConditionOperator.choices),
+        label="Operatore condizione uscita",
+    )
+    loop_check_value = forms.CharField(required=False, label="Valore atteso", widget=forms.TextInput())
+    loop_check_value_type = forms.ChoiceField(
+        required=False,
+        choices=(("", "---------"), *AutomationConditionValueType.choices),
+        label="Tipo valore",
+    )
+    loop_retry_delay_value = forms.IntegerField(required=False, min_value=1, label="Ritardo retry")
+    loop_retry_delay_unit = forms.ChoiceField(required=False, choices=DELAY_UNIT_CHOICES, label="Unita' ritardo")
+    loop_max_iterations = forms.IntegerField(required=False, min_value=1, max_value=100, label="Max iterazioni")
+    loop_loop_actions_json = forms.CharField(
+        required=False,
+        label="Azioni corpo loop",
+        widget=forms.Textarea(attrs={"rows": 5}),
+        help_text='Array JSON di azioni inline eseguite a ogni iterazione, es. [{"action_type":"write_log","config_json":{"message_template":"Reminder {id}"}}].',
+    )
+    loop_on_success_actions_json = forms.CharField(
+        required=False,
+        label="Azioni se condizione soddisfatta",
+        widget=forms.Textarea(attrs={"rows": 4}),
+        help_text='Array JSON di azioni inline eseguite quando il loop termina con successo.',
+    )
+    loop_on_timeout_actions_json = forms.CharField(
+        required=False,
+        label="Azioni se max iterazioni raggiunto",
+        widget=forms.Textarea(attrs={"rows": 4}),
+        help_text='Array JSON di azioni inline eseguite quando il loop va in timeout.',
+    )
+
+    each_source_code = forms.ChoiceField(required=False, choices=(), label="Sorgente dati")
+    each_filter_field = forms.CharField(required=False, label="Campo filtro")
+    each_filter_value_template = forms.CharField(required=False, label="Valore filtro (template)")
+    each_max_items = forms.IntegerField(required=False, min_value=1, max_value=500, label="Max elementi")
+    each_actions_json = forms.CharField(
+        required=False,
+        label="Azioni per ogni record",
+        widget=forms.Textarea(attrs={"rows": 6}),
+        help_text='Array JSON di azioni inline eseguite per ogni record trovato.',
+    )
+
+    branch_condition_field = forms.ChoiceField(required=False, choices=(), label="Campo")
+    branch_condition_operator = forms.ChoiceField(
+        required=False,
+        choices=(("", "---------"), *AutomationConditionOperator.choices),
+        label="Operatore",
+    )
+    branch_condition_value = forms.CharField(required=False, label="Valore", widget=forms.TextInput())
+    branch_condition_value_type = forms.ChoiceField(
+        required=False,
+        choices=(("", "---------"), *AutomationConditionValueType.choices),
+        label="Tipo valore",
+    )
+    branch_compare_with_old = forms.BooleanField(required=False, label="Confronta con old payload")
+    branch_if_true_actions_json = forms.CharField(
+        required=False,
+        label="Azioni se vero",
+        widget=forms.Textarea(attrs={"rows": 5}),
+        help_text='Array JSON di azioni inline eseguite nel ramo true.',
+    )
+    branch_if_false_actions_json = forms.CharField(
+        required=False,
+        label="Azioni se falso",
+        widget=forms.Textarea(attrs={"rows": 5}),
+        help_text='Array JSON di azioni inline eseguite nel ramo false.',
+    )
+
     class Meta:
         model = AutomationAction
         fields = [
@@ -710,13 +868,24 @@ class AutomationActionForm(forms.ModelForm):
                 self.fields["delay_unit"].initial = "days"
                 self.fields["http_method"].initial = "POST"
                 self.fields["http_timeout_seconds"].initial = 20
+                self.fields["loop_check_operator"].initial = AutomationConditionOperator.EQUALS
+                self.fields["loop_check_value_type"].initial = AutomationConditionValueType.STRING
+                self.fields["loop_retry_delay_value"].initial = 24
+                self.fields["loop_retry_delay_unit"].initial = "hours"
+                self.fields["loop_max_iterations"].initial = 10
+                self.fields["each_max_items"].initial = 50
+                self.fields["branch_condition_operator"].initial = AutomationConditionOperator.EQUALS
+                self.fields["branch_condition_value_type"].initial = AutomationConditionValueType.STRING
 
-        insert_tables = sorted(get_action_table_whitelist().get(AutomationActionType.INSERT_RECORD, {}).keys())
-        update_tables = sorted(get_action_table_whitelist().get(AutomationActionType.UPDATE_RECORD, {}).keys())
-        self.fields["insert_target_table"].choices = [("", "---------"), *[(table, table) for table in insert_tables]]
-        self.fields["update_target_table"].choices = [("", "---------"), *[(table, table) for table in update_tables]]
+        self.fields["insert_target_table"].choices = _build_action_table_choices(AutomationActionType.INSERT_RECORD)
+        self.fields["update_target_table"].choices = _build_action_table_choices(AutomationActionType.UPDATE_RECORD)
         self.fields["run_if_field_name"].choices = _field_choices_from_registry(self._effective_source_code, mode="condition")
+        self.fields["loop_check_field"].choices = _field_choices_from_registry(self._effective_source_code, mode="condition")
+        self.fields["branch_condition_field"].choices = _field_choices_from_registry(self._effective_source_code, mode="condition")
+        self.fields["each_source_code"].choices = get_source_choices()
         _mark_smart_target(self.fields.get("run_if_field_name"), mode="field-select", role="run-if-field", source_role="condition")
+        _mark_smart_target(self.fields.get("loop_check_field"), mode="field-select", role="loop-check-field", source_role="condition")
+        _mark_smart_target(self.fields.get("branch_condition_field"), mode="field-select", role="branch-condition-field", source_role="condition")
         _mark_smart_target(self.fields.get("email_from_email"), mode="template-input", role="email-from", source_role="template")
         _mark_smart_target(self.fields.get("email_to"), mode="template-input", role="email-to", source_role="template")
         _mark_smart_target(self.fields.get("email_cc"), mode="template-input", role="email-cc", source_role="template")
@@ -751,17 +920,35 @@ class AutomationActionForm(forms.ModelForm):
         _mark_smart_target(self.fields.get("approval_rejected_update_fields_text"), mode="mapping-input", role="approval-rejected-update-fields", source_role="template")
         _mark_smart_target(self.fields.get("approval_approved_actions_json"), mode="json-editor", role="approval-approved-actions", source_role="template")
         _mark_smart_target(self.fields.get("approval_rejected_actions_json"), mode="json-editor", role="approval-rejected-actions", source_role="template")
+        _mark_smart_target(self.fields.get("loop_loop_actions_json"), mode="json-editor", role="loop-actions", source_role="template")
+        _mark_smart_target(self.fields.get("loop_on_success_actions_json"), mode="json-editor", role="loop-success-actions", source_role="template")
+        _mark_smart_target(self.fields.get("loop_on_timeout_actions_json"), mode="json-editor", role="loop-timeout-actions", source_role="template")
+        _mark_smart_target(self.fields.get("each_actions_json"), mode="json-editor", role="each-actions", source_role="template")
+        _mark_smart_target(self.fields.get("branch_if_true_actions_json"), mode="json-editor", role="branch-true-actions", source_role="template")
+        _mark_smart_target(self.fields.get("branch_if_false_actions_json"), mode="json-editor", role="branch-false-actions", source_role="template")
         source_update_help = _build_source_update_help(self._effective_source_code)
         self.fields["approval_approved_update_fields_text"].help_text = source_update_help or self.fields["approval_approved_update_fields_text"].help_text
         self.fields["approval_rejected_update_fields_text"].help_text = source_update_help or self.fields["approval_rejected_update_fields_text"].help_text
         self.fields["run_if_expected_value"].help_text = (
             "Per `changed_from_to` usa `vecchio|nuovo`. Se spunti `inverti risultato`, il branch diventa un ELSE."
         )
+        self.fields["insert_target_table"].help_text = (
+            "Il picker mostra le tabelle dei moduli. Quelle marcate `da abilitare` vanno prima configurate con `+ Tabella`."
+        )
+        self.fields["update_target_table"].help_text = (
+            "Il picker mostra le tabelle dei moduli. Quelle marcate `da abilitare` vanno prima configurate con `+ Tabella`."
+        )
         self.fields["insert_field_mappings_text"].help_text = _build_whitelist_help(AutomationActionType.INSERT_RECORD)
         self.fields["update_fields_text"].help_text = _build_whitelist_help(AutomationActionType.UPDATE_RECORD)
         self.fields["trigger_update_fields_text"].help_text = _build_source_update_help(self._effective_source_code)
         self.fields["delay_value_template"].help_text = "Numero o placeholder, es. `1`, `4`, `{giorni}`."
         self.fields["delay_until_template"].help_text = "Data/ora ISO o placeholder, es. `2026-04-10T15:30:00`."
+        self.fields["branch_if_true_actions_json"].help_text = (
+            "Per aggiungere una seconda condizione dentro il ramo, inserisci un'altra azione `branch`."
+        )
+        self.fields["branch_if_false_actions_json"].help_text = (
+            "Puoi usare questo ramo come vero ELSE oppure annidare un altro `branch`."
+        )
 
         config = self.instance.config_json if isinstance(getattr(self.instance, "config_json", None), dict) else {}
 
@@ -897,6 +1084,28 @@ class AutomationActionForm(forms.ModelForm):
             self.initial.setdefault("approval_rejected_update_fields_text", _serialize_mapping_for_textarea(rejected_update))
             self.initial.setdefault("approval_approved_actions_json", _serialize_json_array_text(approved_extra))
             self.initial.setdefault("approval_rejected_actions_json", _serialize_json_array_text(rejected_extra))
+            self.initial.setdefault("loop_check_field", config.get("check_field", ""))
+            self.initial.setdefault("loop_check_operator", config.get("check_operator", "equals"))
+            self.initial.setdefault("loop_check_value", config.get("check_value", ""))
+            self.initial.setdefault("loop_check_value_type", config.get("check_value_type", "string"))
+            self.initial.setdefault("loop_retry_delay_value", config.get("retry_delay_value", 24))
+            self.initial.setdefault("loop_retry_delay_unit", config.get("retry_delay_unit", "hours"))
+            self.initial.setdefault("loop_max_iterations", config.get("max_iterations", 10))
+            self.initial.setdefault("loop_loop_actions_json", _serialize_json_array_text(config.get("loop_actions")))
+            self.initial.setdefault("loop_on_success_actions_json", _serialize_json_array_text(config.get("on_success_actions")))
+            self.initial.setdefault("loop_on_timeout_actions_json", _serialize_json_array_text(config.get("on_timeout_actions")))
+            self.initial.setdefault("each_source_code", config.get("source_code", ""))
+            self.initial.setdefault("each_filter_field", config.get("filter_field", ""))
+            self.initial.setdefault("each_filter_value_template", config.get("filter_value_template", ""))
+            self.initial.setdefault("each_max_items", config.get("max_items", 50))
+            self.initial.setdefault("each_actions_json", _serialize_json_array_text(config.get("each_actions")))
+            self.initial.setdefault("branch_condition_field", config.get("condition_field", ""))
+            self.initial.setdefault("branch_condition_operator", config.get("condition_operator", "equals"))
+            self.initial.setdefault("branch_condition_value", config.get("condition_value", ""))
+            self.initial.setdefault("branch_condition_value_type", config.get("condition_value_type", "string"))
+            self.initial.setdefault("branch_compare_with_old", bool(config.get("compare_with_old")))
+            self.initial.setdefault("branch_if_true_actions_json", _serialize_json_array_text(config.get("if_true_actions")))
+            self.initial.setdefault("branch_if_false_actions_json", _serialize_json_array_text(config.get("if_false_actions")))
             template_initial = ""
             template_code = str(config.get("approval_email_template_code") or "").strip()
             template_id = str(config.get("approval_email_template_id") or "").strip()
@@ -983,13 +1192,20 @@ class AutomationActionForm(forms.ModelForm):
                 self.add_error("insert_field_mappings_text", "Serve almeno un mapping campo -> valore.")
 
             whitelist = get_action_table_whitelist().get(AutomationActionType.INSERT_RECORD, {})
-            allowed_fields = whitelist.get(config_json["target_table"], {}).get("fields", set())
-            invalid_fields = sorted(set(config_json["field_mappings"].keys()) - set(allowed_fields))
-            if invalid_fields:
+            target_config = whitelist.get(config_json["target_table"], {})
+            if config_json["target_table"].strip() and not target_config:
                 self.add_error(
-                    "insert_field_mappings_text",
-                    f"Campi non whitelistati per {config_json['target_table']}: {', '.join(invalid_fields)}.",
+                    "insert_target_table",
+                    "La tabella selezionata non e' ancora abilitata per insert_record. Usa `+ Tabella` per configurarla.",
                 )
+            else:
+                allowed_fields = target_config.get("fields", set())
+                invalid_fields = sorted(set(config_json["field_mappings"].keys()) - set(allowed_fields))
+                if invalid_fields:
+                    self.add_error(
+                        "insert_field_mappings_text",
+                        f"Campi non whitelistati per {config_json['target_table']}: {', '.join(invalid_fields)}.",
+                    )
 
         elif action_type == AutomationActionType.UPDATE_RECORD:
             config_json = {
@@ -1017,19 +1233,25 @@ class AutomationActionForm(forms.ModelForm):
 
             whitelist = get_action_table_whitelist().get(AutomationActionType.UPDATE_RECORD, {})
             target_config = whitelist.get(config_json["target_table"], {})
-            allowed_fields = set(target_config.get("fields", set()))
-            allowed_where_fields = set(target_config.get("where_fields", set()))
-            invalid_fields = sorted(set(config_json["update_fields"].keys()) - allowed_fields)
-            if invalid_fields:
+            if config_json["target_table"].strip() and not target_config:
                 self.add_error(
-                    "update_fields_text",
-                    f"Campi non whitelistati per {config_json['target_table']}: {', '.join(invalid_fields)}.",
+                    "update_target_table",
+                    "La tabella selezionata non e' ancora abilitata per update_record. Usa `+ Tabella` per configurarla.",
                 )
-            if config_json["where_field"] and config_json["where_field"] not in allowed_where_fields:
-                self.add_error(
-                    "update_where_field",
-                    f"Campo where non whitelistato per {config_json['target_table']}: {config_json['where_field']}.",
-                )
+            else:
+                allowed_fields = set(target_config.get("fields", set()))
+                allowed_where_fields = set(target_config.get("where_fields", set()))
+                invalid_fields = sorted(set(config_json["update_fields"].keys()) - allowed_fields)
+                if invalid_fields:
+                    self.add_error(
+                        "update_fields_text",
+                        f"Campi non whitelistati per {config_json['target_table']}: {', '.join(invalid_fields)}.",
+                    )
+                if config_json["where_field"] and config_json["where_field"] not in allowed_where_fields:
+                    self.add_error(
+                        "update_where_field",
+                        f"Campo where non whitelistato per {config_json['target_table']}: {config_json['where_field']}.",
+                    )
 
         elif action_type == AutomationActionType.UPDATE_TRIGGER_RECORD:
             config_json = {"update_fields": {}}
@@ -1255,6 +1477,110 @@ class AutomationActionForm(forms.ModelForm):
                     config_json["approval_email_template_code"] = existing_template_code
                 if existing_template_id:
                     config_json["approval_email_template_id"] = existing_template_id
+
+        elif action_type == AutomationActionType.DO_UNTIL:
+            check_field = str(cleaned_data.get("loop_check_field") or "").strip()
+            check_operator = str(cleaned_data.get("loop_check_operator") or "").strip()
+            check_value = str(cleaned_data.get("loop_check_value") or "")
+            check_value_type = str(cleaned_data.get("loop_check_value_type") or "").strip()
+            loop_actions = _parse_inline_actions_field(
+                self,
+                raw_value=cleaned_data.get("loop_loop_actions_json", ""),
+                field_name="loop_loop_actions_json",
+                field_label="Azioni corpo loop",
+            )
+            on_success_actions = _parse_inline_actions_field(
+                self,
+                raw_value=cleaned_data.get("loop_on_success_actions_json", ""),
+                field_name="loop_on_success_actions_json",
+                field_label="Azioni successo loop",
+            )
+            on_timeout_actions = _parse_inline_actions_field(
+                self,
+                raw_value=cleaned_data.get("loop_on_timeout_actions_json", ""),
+                field_name="loop_on_timeout_actions_json",
+                field_label="Azioni timeout loop",
+            )
+            config_json = {
+                "check_field": check_field,
+                "check_operator": check_operator or AutomationConditionOperator.EQUALS,
+                "check_value": check_value,
+                "check_value_type": check_value_type or AutomationConditionValueType.STRING,
+                "retry_delay_value": cleaned_data.get("loop_retry_delay_value") or 24,
+                "retry_delay_unit": str(cleaned_data.get("loop_retry_delay_unit") or "hours").strip() or "hours",
+                "max_iterations": cleaned_data.get("loop_max_iterations") or 10,
+                "loop_actions": loop_actions,
+                "on_success_actions": on_success_actions,
+                "on_timeout_actions": on_timeout_actions,
+            }
+            _validate_simple_condition_fields(
+                self,
+                field_name=check_field,
+                operator=check_operator,
+                value_type=check_value_type,
+                expected_value=check_value,
+                field_name_key="loop_check_field",
+                operator_key="loop_check_operator",
+                value_type_key="loop_check_value_type",
+                expected_value_key="loop_check_value",
+                label="condizione di uscita",
+            )
+
+        elif action_type == AutomationActionType.FOR_EACH:
+            each_actions = _parse_inline_actions_field(
+                self,
+                raw_value=cleaned_data.get("each_actions_json", ""),
+                field_name="each_actions_json",
+                field_label="Azioni for each",
+            )
+            config_json = {
+                "source_code": str(cleaned_data.get("each_source_code") or "").strip(),
+                "filter_field": str(cleaned_data.get("each_filter_field") or "").strip(),
+                "filter_value_template": str(cleaned_data.get("each_filter_value_template") or ""),
+                "max_items": cleaned_data.get("each_max_items") or 50,
+                "each_actions": each_actions,
+            }
+            if not config_json["source_code"]:
+                self.add_error("each_source_code", "La sorgente dati del for_each e' obbligatoria.")
+
+        elif action_type == AutomationActionType.BRANCH:
+            branch_condition_field = str(cleaned_data.get("branch_condition_field") or "").strip()
+            branch_condition_operator = str(cleaned_data.get("branch_condition_operator") or "").strip()
+            branch_condition_value = str(cleaned_data.get("branch_condition_value") or "")
+            branch_condition_value_type = str(cleaned_data.get("branch_condition_value_type") or "").strip()
+            if_true_actions = _parse_inline_actions_field(
+                self,
+                raw_value=cleaned_data.get("branch_if_true_actions_json", ""),
+                field_name="branch_if_true_actions_json",
+                field_label="Azioni ramo vero",
+            )
+            if_false_actions = _parse_inline_actions_field(
+                self,
+                raw_value=cleaned_data.get("branch_if_false_actions_json", ""),
+                field_name="branch_if_false_actions_json",
+                field_label="Azioni ramo falso",
+            )
+            config_json = {
+                "condition_field": branch_condition_field,
+                "condition_operator": branch_condition_operator or AutomationConditionOperator.EQUALS,
+                "condition_value": branch_condition_value,
+                "condition_value_type": branch_condition_value_type or AutomationConditionValueType.STRING,
+                "compare_with_old": bool(cleaned_data.get("branch_compare_with_old")),
+                "if_true_actions": if_true_actions,
+                "if_false_actions": if_false_actions,
+            }
+            _validate_simple_condition_fields(
+                self,
+                field_name=branch_condition_field,
+                operator=branch_condition_operator,
+                value_type=branch_condition_value_type,
+                expected_value=branch_condition_value,
+                field_name_key="branch_condition_field",
+                operator_key="branch_condition_operator",
+                value_type_key="branch_condition_value_type",
+                expected_value_key="branch_condition_value",
+                label="condizione del branch",
+            )
 
         if run_if_config:
             config_json["run_if"] = run_if_config

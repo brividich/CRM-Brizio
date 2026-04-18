@@ -10,10 +10,11 @@
     3. Aggiorna le dipendenze pip nel venv condiviso
     4. Esegue collectstatic (output in static\)
     5. Esegue migrate
-    6. Applica trigger SQL Server (trg_*.sql in automazioni/migrations/)
+    6. Applica trigger SQL Server (trg_*.sql in automazioni/migrations/ e sql/)
     7. Riallinea assenze.tipo_assenza a Flessibilita su SQL Server
     8. Esegue createcachetable (se primo deploy)
-    9. Stampa il tag release da usare con activate-release.ps1
+    9. Registra/aggiorna il Task Scheduler per process_automation_queue (idempotente)
+   10. Stampa il tag release da usare con activate-release.ps1
 
     NOTA: il release rimane in releases\ ma NON diventa "current" finche
     non si esegue activate-release.ps1 (o si usa -AutoActivate).
@@ -287,7 +288,7 @@ if (-not $SkipCollectStatic) {
     try {
         Invoke-Venv -VenvPath $paths.Venv `
                     -WorkDir  $djangoApp `
-                    -Args     @("manage.py", "collectstatic", "--noinput", "--settings=$settingsMod") `
+                    -Args     @("manage.py", "collectstatic", "--noinput", "--clear", "--settings=$settingsMod") `
                     -EnvVars  $djangoEnv
         Assert-StaticAssetsPresent -StaticRoot $paths.Static
         Write-Log "collectstatic completato e statici verificati." "SUCCESS"
@@ -320,9 +321,29 @@ if (-not $SkipMigrate) {
         Remove-Item $releaseDir -Recurse -Force
         exit 1
     }
+
+    # Verifica che non ci siano migration pendenti dopo il migrate
+    Write-Log "  Verifica migration pendenti post-migrate..." "INFO"
+    try {
+        $showOutput = & "$($paths.Venv)\Scripts\python.exe" "$djangoApp\manage.py" showmigrations `
+            --settings=$settingsMod --list 2>&1 | Out-String
+        $pendingLines = ($showOutput -split "`n") | Where-Object { $_ -match "^\s+\[ \]" }
+        if ($pendingLines.Count -gt 0) {
+            Write-Log "ERRORE: $($pendingLines.Count) migration non applicate dopo il migrate:" "ERROR"
+            $pendingLines | ForEach-Object { Write-Log "  $_" "ERROR" }
+            Write-Log "Possibile causa: -SkipMigrate usato in deploy precedente o migration aggiunta senza deploy." "WARN"
+            Remove-Item $releaseDir -Recurse -Force
+            exit 1
+        }
+        Write-Log "  Tutte le migration applicate." "SUCCESS"
+    }
+    catch {
+        Write-Log "  Verifica migration pendenti fallita (non bloccante): $_" "WARN"
+    }
 }
 else {
     Write-Log "[6/9] migrate - SALTATO (flag -SkipMigrate)" "WARN"
+    Write-Log "ATTENZIONE: saltare migrate puo lasciare tabelle mancanti. Verificare manualmente." "WARN"
 }
 
 # ---------------------------------------------------------------------------
@@ -383,6 +404,25 @@ try {
 }
 catch {
     Write-Log "createcachetable fallito (non bloccante se la tabella esiste gia): $_" "WARN"
+}
+
+# ---------------------------------------------------------------------------
+# [10/10] Registra/aggiorna Task Scheduler automation queue (idempotente)
+# ---------------------------------------------------------------------------
+Write-Log "[10/10] Registrazione task poller automation queue..." "STEP"
+$scheduleScript = "$PSScriptRoot\schedule-automation-queue.ps1"
+if (Test-Path $scheduleScript) {
+    try {
+        & $scheduleScript -Environment $Environment -ErrorAction Stop
+        Write-Log "Task poller automation queue registrato per $Environment." "SUCCESS"
+    }
+    catch {
+        Write-Log "Task poller non registrato (non bloccante): $_" "WARN"
+        Write-Log "  Per registrarlo manualmente: .\schedule-automation-queue.ps1 -Environment $Environment" "WARN"
+    }
+}
+else {
+    Write-Log "schedule-automation-queue.ps1 non trovato — task non registrato." "WARN"
 }
 
 # ---------------------------------------------------------------------------

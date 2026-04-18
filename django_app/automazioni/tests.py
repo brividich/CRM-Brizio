@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal
 import io
 import json
@@ -41,6 +41,7 @@ from .models import (
     AutomationRuleTriggerScope,
     AutomationRunLog,
     AutomationRunLogStatus,
+    AutomationTableConfig,
     DashboardMetricValue,
     TeamsWebhookPreset,
 )
@@ -143,6 +144,88 @@ class SourceRegistryTests(SimpleTestCase):
                 else:
                     self.assertTrue(field["db_column"])
 
+    def test_assenze_tipo_assenza_exposes_known_values_metadata(self):
+        source = get_source_definition("assenze")
+        self.assertIsNotNone(source)
+        tipo_field = next(field for field in source["fields"] if field["name"] == "tipo_assenza")
+
+        self.assertEqual(tipo_field["ui_control"], "select")
+        self.assertEqual(
+            tipo_field["allowed_values"],
+            ["Ferie", "Permesso", "Malattia", "Flessibilità", "Certifica presenza", "Altro"],
+        )
+        self.assertIn("Tipo assenza", tipo_field["value_source_label"])
+
+
+class ApplySqlTriggersCommandTests(SimpleTestCase):
+    def test_discover_trigger_files_includes_migrations_and_root_sql_dirs(self):
+        from .management.commands import apply_sql_triggers as command_module
+
+        class _FakePath:
+            def __init__(self, name: str):
+                self.name = name
+
+            def resolve(self):
+                return self
+
+            def __str__(self):
+                return self.name
+
+        class _FakeDir:
+            def __init__(self, files: list[str]):
+                self._files = [_FakePath(name) for name in files]
+
+            def exists(self):
+                return True
+
+            def glob(self, pattern: str):
+                if pattern != "trg_*.sql":
+                    raise AssertionError(f"Pattern inatteso: {pattern}")
+                return list(self._files)
+
+        migrations_dir = _FakeDir(["trg_tasks_automation.sql"])
+        sql_dir = _FakeDir(["trg_assenze_automation_after_insert.sql"])
+
+        with patch.object(command_module, "_TRIGGER_SEARCH_DIRS", (migrations_dir, sql_dir)):
+            files = command_module.discover_trigger_files()
+
+        self.assertEqual([path.name for path in files], ["trg_tasks_automation.sql", "trg_assenze_automation_after_insert.sql"])
+
+    def test_discover_trigger_files_respects_filename_filter(self):
+        from .management.commands import apply_sql_triggers as command_module
+
+        class _FakePath:
+            def __init__(self, name: str):
+                self.name = name
+
+            def resolve(self):
+                return self
+
+            def __str__(self):
+                return self.name
+
+        class _FakeDir:
+            def __init__(self, files: list[str]):
+                self._files = [_FakePath(name) for name in files]
+
+            def exists(self):
+                return True
+
+            def glob(self, pattern: str):
+                if pattern != "trg_*.sql":
+                    raise AssertionError(f"Pattern inatteso: {pattern}")
+                return list(self._files)
+
+        migrations_dir = _FakeDir(["trg_tasks_automation.sql"])
+        sql_dir = _FakeDir(["trg_assenze_automation_after_update.sql"])
+
+        with patch.object(command_module, "_TRIGGER_SEARCH_DIRS", (migrations_dir, sql_dir)):
+            files = command_module.discover_trigger_files(
+                filter_files=["trg_assenze_automation_after_update.sql"],
+            )
+
+        self.assertEqual([path.name for path in files], ["trg_assenze_automation_after_update.sql"])
+
 
 class SourceRegistryFieldFilterTests(SimpleTestCase):
     def test_trigger_condition_template_and_action_fields_are_filtered(self):
@@ -152,11 +235,12 @@ class SourceRegistryFieldFilterTests(SimpleTestCase):
         template_fields = get_template_fields("assenze")
         action_mapping_fields = get_action_mapping_fields("assenze")
 
-        self.assertEqual(len(source_fields), 11)
+        self.assertEqual(len(source_fields), 12)
         self.assertEqual([field["name"] for field in trigger_fields], [field["name"] for field in source_fields])
         self.assertEqual([field["name"] for field in condition_fields], [field["name"] for field in source_fields])
         self.assertEqual([field["name"] for field in template_fields], [field["name"] for field in source_fields])
         self.assertEqual([field["name"] for field in action_mapping_fields], [field["name"] for field in source_fields])
+        self.assertIn("dipendente_nome", [field["name"] for field in template_fields])
         self.assertIn("capo_email", [field["name"] for field in template_fields])
         self.assertIn("dipendente_email", [field["name"] for field in template_fields])
         self.assertIn("salta_approvazione", [field["name"] for field in template_fields])
@@ -178,6 +262,7 @@ class SourceRegistryFieldFilterTests(SimpleTestCase):
         self.assertIn("{status}", task_placeholders)
         self.assertIn("{next_step_text}", task_placeholders)
         self.assertIn("{created_at}", task_placeholders)
+        self.assertIn("{dipendente_nome}", build_placeholder_examples("assenze"))
         self.assertIn("{capo_email}", build_placeholder_examples("assenze"))
         self.assertIn("{dipendente_email}", build_placeholder_examples("assenze"))
         self.assertIn("{salta_approvazione}", build_placeholder_examples("assenze"))
@@ -186,6 +271,7 @@ class SourceRegistryFieldFilterTests(SimpleTestCase):
     def test_package_import_example_payload_uses_realistic_email_and_assenze_values(self):
         payload = build_example_payload("assenze")
 
+        self.assertEqual(payload["dipendente_nome"], "Mario Rossi")
         self.assertEqual(payload["capo_email"], "demo@example.com")
         self.assertEqual(payload["dipendente_email"], "demo@example.com")
         self.assertEqual(payload["tipo_assenza"], "Malattia")
@@ -241,6 +327,7 @@ class AutomazioniAdminPageTests(TestCase):
             "job_stuck_alert": False,
             "job_stuck_detail": "-",
             "job_next_expected_label": "15/04/2026 12:35:00",
+            "display_timezone_label": "Europe/Rome",
             "log_exists": True,
             "log_path": "C:\\Dev\\Portale Novicrom\\django_app\\logs\\automation_queue.log",
             "log_last_write_label": "15/04/2026 12:30:10",
@@ -561,6 +648,48 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertIsInstance(response.context["action_suggestions_json"], dict)
         self.assertIsInstance(response.context["diagram_action_choices"], list)
         self.assertIn("assenze", response.context["source_fields_json"])
+        assenze_fields = response.context["source_fields_json"]["assenze"]["all"]
+        tipo_field = next(field for field in assenze_fields if field["name"] == "tipo_assenza")
+        self.assertEqual(tipo_field["ui_control"], "select")
+        self.assertEqual(
+            tipo_field["allowed_values"],
+            ["Ferie", "Permesso", "Malattia", "Flessibilità", "Certifica presenza", "Altro"],
+        )
+
+    @patch("automazioni.views.connection.cursor")
+    @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
+    @patch("admin_portale.decorators.get_legacy_user")
+    def test_api_source_field_values_returns_known_and_distinct_values(
+        self,
+        mock_get_legacy_user,
+        _mock_is_admin,
+        mock_connection_cursor,
+    ):
+        mock_get_legacy_user.return_value = self.legacy_admin
+        cursor = MagicMock()
+        cursor.fetchall.return_value = [("Ferie",), ("Malattia",), ("Permesso",)]
+        cursor_context = MagicMock()
+        cursor_context.__enter__.return_value = cursor
+        cursor_context.__exit__.return_value = False
+        mock_connection_cursor.return_value = cursor_context
+
+        response = self.client.get(
+            reverse(
+                "admin_portale:automazioni_api_source_field_values",
+                kwargs={"source_code": "assenze", "field_name": "tipo_assenza"},
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["field_name"], "tipo_assenza")
+        self.assertEqual(payload["ui_control"], "select")
+        self.assertEqual(
+            payload["allowed_values"],
+            ["Ferie", "Permesso", "Malattia", "Flessibilità", "Certifica presenza", "Altro"],
+        )
+        self.assertEqual(payload["distinct_values"], ["Ferie", "Malattia", "Permesso"])
 
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
@@ -805,6 +934,78 @@ class AutomazioniAdminPageTests(TestCase):
         self.assertContains(response, 'id="flowNodeEditorMount"', html=False)
         self.assertContains(response, 'class="flow-workspace-shell"', html=False)
         self.assertContains(response, 'id="flowWorkspaceEmptyState"', html=False)
+        self.assertContains(response, 'name="actions-__prefix__-branch_condition_field"', html=False)
+        self.assertContains(response, 'name="actions-__prefix__-loop_check_field"', html=False)
+        self.assertContains(response, 'name="actions-__prefix__-each_source_code"', html=False)
+        self.assertContains(response, "Corpo loop")
+        self.assertContains(response, "Se completato")
+        self.assertContains(response, "Se timeout")
+        self.assertContains(response, "Azioni per ogni record")
+        self.assertContains(response, 'data-inline-json-target="loop_loop_actions_json"', html=False)
+        self.assertContains(response, 'data-inline-json-target="loop_on_success_actions_json"', html=False)
+        self.assertContains(response, 'data-inline-json-target="loop_on_timeout_actions_json"', html=False)
+        self.assertContains(response, 'data-inline-json-target="each_actions_json"', html=False)
+        self.assertContains(response, "Se Vero (IF)")
+        self.assertContains(response, "Se Falso (ELSE)")
+        self.assertContains(response, 'data-inline-json-builder', html=False)
+        self.assertContains(response, 'data-inline-json-add="write_log"', html=False)
+        self.assertContains(response, 'data-inline-json-add="send_email"', html=False)
+        self.assertContains(response, 'data-inline-json-add="delay_schedule"', html=False)
+        self.assertContains(response, 'data-inline-json-copy-other', html=False)
+        self.assertContains(response, 'data-open-condition-choice-modal', html=False)
+        self.assertContains(response, 'id="conditionChoiceModal"', html=False)
+        self.assertContains(response, 'id="tableConfigModal"', html=False)
+        self.assertContains(response, "openTableConfigModal('insert_record')", html=False)
+        self.assertContains(response, "tasks.Project (tasks_project) [da abilitare]")
+        self.assertContains(response, "Form richieste assenze - dropdown", html=False)
+
+    @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
+    @patch("admin_portale.decorators.get_legacy_user")
+    def test_api_table_config_save_accepts_valid_module_table(self, mock_get_legacy_user, _mock_is_admin):
+        mock_get_legacy_user.return_value = self.legacy_admin
+
+        response = self.client.post(
+            reverse("admin_portale:automazioni_api_table_config_save"),
+            data=json.dumps(
+                {
+                    "action_type": "update_record",
+                    "table_name": "tasks_project",
+                    "allowed_fields": ["name"],
+                    "where_fields": ["id"],
+                    "notes": "Tabella progetto abilitata da test",
+                }
+            ),
+            content_type="application/json",
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+        self.assertTrue(
+            AutomationTableConfig.objects.filter(action_type="update_record", table_name="tasks_project").exists()
+        )
+
+    @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
+    @patch("admin_portale.decorators.get_legacy_user")
+    def test_api_table_config_save_rejects_invalid_fields_for_module_table(self, mock_get_legacy_user, _mock_is_admin):
+        mock_get_legacy_user.return_value = self.legacy_admin
+
+        response = self.client.post(
+            reverse("admin_portale:automazioni_api_table_config_save"),
+            data=json.dumps(
+                {
+                    "action_type": "update_record",
+                    "table_name": "tasks_project",
+                    "allowed_fields": ["name", "campo_inesistente"],
+                    "where_fields": ["id"],
+                }
+            ),
+            content_type="application/json",
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("allowed_fields contiene colonne non valide", response.json()["error"])
 
     @patch("admin_portale.decorators.is_legacy_admin", return_value=True)
     @patch("admin_portale.decorators.get_legacy_user")
@@ -2809,6 +3010,21 @@ class AutomationServiceHelperTests(TestCase):
         enriched = enrich_payload_for_source("assenze", {"id": 4060, "capo_reparto_id": 7})
         self.assertEqual(enriched["capo_email"], "capo@example.com")
 
+    @patch(
+        "automazioni.services._fetch_assenza_runtime_details",
+        return_value={"capo_reparto_id": 9, "dipendente_nome": "Mario Rossi"},
+    )
+    @patch("automazioni.services._resolve_caporeparto_email_from_local_id", return_value="capo@example.com")
+    def test_enrich_payload_for_source_assenze_uses_runtime_details_for_missing_manager_and_name(
+        self,
+        _mock_resolve_local_capo_email,
+        _mock_runtime_details,
+    ):
+        enriched = enrich_payload_for_source("assenze", {"id": 17})
+        self.assertEqual(enriched["capo_reparto_id"], 9)
+        self.assertEqual(enriched["capo_email"], "capo@example.com")
+        self.assertEqual(enriched["dipendente_nome"], "Mario Rossi")
+
     @patch("automazioni.services.connection.cursor")
     @patch("automazioni.services._queue_table_has_column", return_value=False)
     def test_fetch_pending_queue_events_skips_execute_after_when_column_missing(
@@ -3058,7 +3274,11 @@ class AutomationRunRuleTests(TestCase):
 
     @patch(
         "automazioni.services._fetch_assenza_runtime_details",
-        return_value={"dipendente_email": "dipendente@example.com", "salta_approvazione": True},
+        return_value={
+            "dipendente_email": "dipendente@example.com",
+            "dipendente_nome": "Mario Rossi",
+            "salta_approvazione": True,
+        },
     )
     @patch("automazioni.services._resolve_legacy_user_email", return_value="capo@example.com")
     def test_run_rule_persists_enriched_assenze_runtime_fields_in_run_log(
@@ -3082,8 +3302,10 @@ class AutomationRunRuleTests(TestCase):
 
         self.assertEqual(run_log.payload_json["capo_email"], "capo@example.com")
         self.assertEqual(run_log.payload_json["dipendente_email"], "dipendente@example.com")
+        self.assertEqual(run_log.payload_json["dipendente_nome"], "Mario Rossi")
         self.assertTrue(run_log.payload_json["salta_approvazione"])
         self.assertEqual(run_log.old_payload_json["dipendente_email"], "dipendente@example.com")
+        self.assertEqual(run_log.old_payload_json["dipendente_nome"], "Mario Rossi")
         self.assertTrue(run_log.old_payload_json["salta_approvazione"])
 
     def test_run_rule_success_with_update_dashboard_metric(self):
@@ -3397,6 +3619,20 @@ class AutomationApprovalExecutorTests(TestCase):
         self.assertEqual(kwargs["to"], ["manager@test.local"])
         self.assertEqual(kwargs["subject"], "Approvazione richiesta #77")
 
+    def test_send_approval_with_unresolved_recipient_placeholder_returns_clear_error(self):
+        self._create_send_approval_action()
+
+        payload = dict(self.payload)
+        payload.pop("capo_email", None)
+
+        run_log = run_rule(self.rule, payload, old_payload=self.old_payload)
+
+        self.assertEqual(run_log.status, AutomationRunLogStatus.ERROR)
+        self.assertEqual(AutomationApproval.objects.count(), 0)
+        action_log = run_log.action_logs.first()
+        self.assertEqual(action_log.status, AutomationActionLogStatus.ERROR)
+        self.assertIn("Placeholder non risolto in to_template: {capo_email}.", action_log.result_message)
+
     @patch("automazioni.services.requests.post")
     def test_send_approval_teams_chat_flow_posts_payload(self, mock_post):
         endpoint = self._create_flow_endpoint("chat")
@@ -3588,6 +3824,35 @@ class AutomationApprovalExecutorTests(TestCase):
         self.assertTrue(run_log.action_logs.filter(result_message="rejected 77").exists())
 
 class AutomationActionFormExtendedTests(TestCase):
+    def test_target_table_choices_include_module_tables_but_mark_unconfigured_ones(self):
+        form = AutomationActionForm(source_code="assenze")
+
+        insert_choices = dict(form.fields["insert_target_table"].choices)
+        update_choices = dict(form.fields["update_target_table"].choices)
+
+        self.assertIn("tasks_project", insert_choices)
+        self.assertIn("tasks_project", update_choices)
+        self.assertIn("[da abilitare]", insert_choices["tasks_project"])
+        self.assertIn("[da abilitare]", update_choices["tasks_project"])
+        self.assertNotIn("[da abilitare]", insert_choices["core_notifica"])
+
+    def test_insert_record_form_rejects_module_table_not_yet_enabled(self):
+        form = AutomationActionForm(
+            data={
+                "order": "1",
+                "action_type": AutomationActionType.INSERT_RECORD,
+                "is_enabled": "on",
+                "description": "Inserisce progetto",
+                "insert_target_table": "tasks_project",
+                "insert_field_mappings_text": "name = Progetto {id}",
+            },
+            source_code="assenze",
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("insert_target_table", form.errors)
+        self.assertIn("non e' ancora abilitata", form.errors["insert_target_table"][0])
+
     def test_update_trigger_record_form_accepts_source_fields_and_run_if(self):
         form = AutomationActionForm(
             data={
@@ -3754,6 +4019,124 @@ class AutomationActionFormExtendedTests(TestCase):
         self.assertTrue(form.is_valid(), form.errors)
         self.assertEqual(form._config_json["approval_email_template_code"], template.code)
         self.assertEqual(form._config_json["approval_email_template_id"], str(template.pk))
+
+    def test_branch_form_serializes_true_and_false_actions(self):
+        true_actions = [
+            {
+                "action_type": AutomationActionType.WRITE_LOG,
+                "description": "Log OK",
+                "config_json": {"message_template": "Ramo true"},
+            }
+        ]
+        false_actions = [
+            {
+                "action_type": AutomationActionType.SEND_EMAIL,
+                "description": "Avvisa",
+                "config_json": {"to": "{owner_email}", "subject_template": "KO", "body_text_template": "No"},
+            }
+        ]
+        form = AutomationActionForm(
+            data={
+                "order": "1",
+                "action_type": AutomationActionType.BRANCH,
+                "description": "Branch decisionale",
+                "branch_condition_field": "status",
+                "branch_condition_operator": AutomationConditionOperator.EQUALS,
+                "branch_condition_value": "DONE",
+                "branch_condition_value_type": AutomationConditionValueType.STRING,
+                "branch_compare_with_old": "on",
+                "branch_if_true_actions_json": json.dumps(true_actions),
+                "branch_if_false_actions_json": json.dumps(false_actions),
+            },
+            source_code="tasks",
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form._config_json["condition_field"], "status")
+        self.assertEqual(form._config_json["condition_operator"], AutomationConditionOperator.EQUALS)
+        self.assertTrue(form._config_json["compare_with_old"])
+        self.assertEqual(form._config_json["if_true_actions"], true_actions)
+        self.assertEqual(form._config_json["if_false_actions"], false_actions)
+
+    def test_do_until_form_serializes_loop_configuration(self):
+        loop_actions = [
+            {
+                "action_type": AutomationActionType.WRITE_LOG,
+                "description": "Reminder loop",
+                "config_json": {"message_template": "Ancora in attesa"},
+            }
+        ]
+        success_actions = [
+            {
+                "action_type": AutomationActionType.UPDATE_TRIGGER_RECORD,
+                "description": "Chiudi loop",
+                "config_json": {"update_fields": {"status": "DONE"}},
+            }
+        ]
+        timeout_actions = [
+            {
+                "action_type": AutomationActionType.SEND_EMAIL,
+                "description": "Escalation",
+                "config_json": {"to": "{owner_email}", "subject_template": "Timeout", "body_text_template": "KO"},
+            }
+        ]
+        form = AutomationActionForm(
+            data={
+                "order": "2",
+                "action_type": AutomationActionType.DO_UNTIL,
+                "description": "Attendi chiusura",
+                "loop_check_field": "status",
+                "loop_check_operator": AutomationConditionOperator.EQUALS,
+                "loop_check_value": "DONE",
+                "loop_check_value_type": AutomationConditionValueType.STRING,
+                "loop_retry_delay_value": "6",
+                "loop_retry_delay_unit": "hours",
+                "loop_max_iterations": "8",
+                "loop_loop_actions_json": json.dumps(loop_actions),
+                "loop_on_success_actions_json": json.dumps(success_actions),
+                "loop_on_timeout_actions_json": json.dumps(timeout_actions),
+            },
+            source_code="tasks",
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form._config_json["check_field"], "status")
+        self.assertEqual(form._config_json["check_operator"], AutomationConditionOperator.EQUALS)
+        self.assertEqual(form._config_json["retry_delay_value"], 6)
+        self.assertEqual(form._config_json["retry_delay_unit"], "hours")
+        self.assertEqual(form._config_json["max_iterations"], 8)
+        self.assertEqual(form._config_json["loop_actions"], loop_actions)
+        self.assertEqual(form._config_json["on_success_actions"], success_actions)
+        self.assertEqual(form._config_json["on_timeout_actions"], timeout_actions)
+
+    def test_for_each_form_serializes_source_and_actions(self):
+        each_actions = [
+            {
+                "action_type": AutomationActionType.WRITE_LOG,
+                "description": "Traccia record",
+                "config_json": {"message_template": "Record correlato {id}"},
+            }
+        ]
+        form = AutomationActionForm(
+            data={
+                "order": "3",
+                "action_type": AutomationActionType.FOR_EACH,
+                "description": "Itera correlati",
+                "each_source_code": "tasks",
+                "each_filter_field": "status",
+                "each_filter_value_template": "TODO",
+                "each_max_items": "25",
+                "each_actions_json": json.dumps(each_actions),
+            },
+            source_code="tasks",
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form._config_json["source_code"], "tasks")
+        self.assertEqual(form._config_json["filter_field"], "status")
+        self.assertEqual(form._config_json["filter_value_template"], "TODO")
+        self.assertEqual(form._config_json["max_items"], 25)
+        self.assertEqual(form._config_json["each_actions"], each_actions)
 
 
 class AutomationExtendedActionExecutorTests(TestCase):
@@ -4390,7 +4773,11 @@ class AutomationQueueProcessorTests(TestCase):
 
     @patch(
         "automazioni.services._fetch_assenza_runtime_details",
-        return_value={"dipendente_email": "dipendente@example.com", "salta_approvazione": True},
+        return_value={
+            "dipendente_email": "dipendente@example.com",
+            "dipendente_nome": "Mario Rossi",
+            "salta_approvazione": True,
+        },
     )
     @patch("automazioni.services._resolve_legacy_user_email", return_value="capo@example.com")
     @patch("automazioni.services.mark_queue_done")
@@ -4419,8 +4806,10 @@ class AutomationQueueProcessorTests(TestCase):
         payload = mock_run_rule.call_args.args[1]
         old_payload = mock_run_rule.call_args.kwargs["old_payload"]
         self.assertEqual(payload["dipendente_email"], "dipendente@example.com")
+        self.assertEqual(payload["dipendente_nome"], "Mario Rossi")
         self.assertTrue(payload["salta_approvazione"])
         self.assertEqual(old_payload["dipendente_email"], "dipendente@example.com")
+        self.assertEqual(old_payload["dipendente_nome"], "Mario Rossi")
         self.assertTrue(old_payload["salta_approvazione"])
 
     @patch("automazioni.services.mark_queue_error")
@@ -4488,6 +4877,22 @@ class AutomationQueueCommandTests(SimpleTestCase):
 
         mock_process.assert_called_once_with(limit=50, source_code=None, dry_run=True)
         self.assertIn("candidate_rules=rule-a", stdout.getvalue())
+
+
+class AutomationQueueDisplayDateTests(SimpleTestCase):
+    def test_format_display_datetime_converts_aware_values_to_project_timezone(self):
+        from .views import _format_display_datetime
+
+        with timezone.override("Europe/Rome"):
+            value = datetime(2026, 4, 17, 10, 33, 41, tzinfo=dt_timezone.utc)
+            self.assertEqual(_format_display_datetime(value), "17/04/2026 12:33:41")
+
+    def test_format_display_datetime_assumes_project_timezone_for_naive_values(self):
+        from .views import _format_display_datetime
+
+        with timezone.override("Europe/Rome"):
+            value = datetime(2026, 4, 17, 12, 33, 41)
+            self.assertEqual(_format_display_datetime(value), "17/04/2026 12:33:41")
 
 
 # ---------------------------------------------------------------------------

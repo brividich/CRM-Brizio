@@ -1,0 +1,68 @@
+{% if notifiche_popup %}
+<div
+  class="notify-banner-wrap"
+  data-notify-banner
+  data-ack-url="{% url 'api_notifiche_popup_ack' %}"
+  data-csrf="{{ csrf_token|escapejs }}"
+>
+  <section class="notify-banner" aria-label="Nuove notifiche">
+    <div class="notify-banner-head">
+      <div class="notify-banner-intro">
+        <span class="notify-banner-kicker">Notifiche</span>
+        <h2 class="notify-banner-title">
+          {% if notifiche_popup|length == 1 %}
+            Hai 1 nuovo aggiornamento
+          {% else %}
+            Hai {{ notifiche_popup|length }} nuovi aggiornamenti
+          {% endif %}
+        </h2>
+        <p class="notify-banner-sub">
+          Gli ultimi eventi recenti sono visibili qui e nel centro notifiche.
+        </p>
+      </div>
+      <a class="notify-banner-link" href="{% url 'notifiche' %}">Apri centro notifiche</a>
+    </div>
+
+    <div class="notify-banner-list">
+      {% for n in notifiche_popup %}
+        <article class="notify-banner-item notify-banner-item-{{ n.tipo }}" data-notifica-id="{{ n.id }}">
+          <span class="notify-banner-dot" aria-hidden="true"></span>
+          <div class="notify-banner-copy">
+            <div class="notify-banner-item-title">{{ n.get_tipo_display }}</div>
+            <div class="notify-banner-item-message">{{ n.messaggio }}</div>
+            <div class="notify-banner-meta">{{ n.created_at|date:"d/m/Y H:i" }}</div>
+          </div>
+          {% if n.url_azione %}
+            <a class="notify-banner-item-link" href="{{ n.url_azione }}">Apri</a>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  var root = document.querySelector('[data-notify-banner]');
+  if (!root) return;
+
+  var ackUrl = root.getAttribute('data-ack-url');
+  var csrfToken = root.getAttribute('data-csrf');
+  var ids = Array.prototype.map.call(
+    root.querySelectorAll('[data-notifica-id]'),
+    function (item) { return Number(item.getAttribute('data-notifica-id')); }
+  ).filter(Boolean);
+
+  if (!ackUrl || !ids.length) return;
+
+  fetch(ackUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken
+    },
+    body: JSON.stringify({ ids: ids })
+  }).catch(function () {});
+})();
+</script>
+{% endif %}

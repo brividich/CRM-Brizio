@@ -187,6 +187,8 @@ def _sample_value_for_field(source_code: str | None, field_name: str, data_type:
         return "demo@example.com"
 
     if normalized_source == "assenze":
+        if normalized_field == "dipendente_nome":
+            return "Mario Rossi"
         if normalized_field == "tipo_assenza":
             return "Malattia"
         if normalized_field == "moderation_status":

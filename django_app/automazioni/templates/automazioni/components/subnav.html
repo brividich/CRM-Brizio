@@ -9,5 +9,6 @@
   <a class="sub-a{% if current == 'admin_portale:automazioni_teams_presets' or current == 'admin_portale:automazioni_teams_preset_create' or current == 'admin_portale:automazioni_teams_preset_edit' %} active{% endif %}" href="{% url 'admin_portale:automazioni_teams_presets' %}">Canali Teams</a>
   <a class="sub-a{% if current == 'admin_portale:automazioni_approval_templates' or current == 'admin_portale:automazioni_approval_template_create' or current == 'admin_portale:automazioni_approval_template_edit' or current == 'admin_portale:automazioni_approval_template_preview' %} active{% endif %}" href="{% url 'admin_portale:automazioni_approval_templates' %}">Template approvazioni</a>
   <a class="sub-a{% if current == 'admin_portale:automazioni_mailbox_log' %} active{% endif %}" href="{% url 'admin_portale:automazioni_mailbox_log' %}">Log mailbox</a>
+  <a class="sub-a{% if current == 'admin_portale:automazioni_trigger_generator' %} active{% endif %}" href="{% url 'admin_portale:automazioni_trigger_generator' %}">Trigger SQL</a>
 </div>
 {% endwith %}

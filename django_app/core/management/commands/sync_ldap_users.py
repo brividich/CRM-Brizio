@@ -110,6 +110,7 @@ class Command(BaseCommand):
                 password=service_password,
                 authentication=SIMPLE,
                 auto_bind=AUTO_BIND_NO_TLS,
+                auto_referrals=False,
                 raise_exceptions=False,
             )
             ok = conn.bind()
@@ -120,6 +121,7 @@ class Command(BaseCommand):
                     password=service_password,
                     authentication=NTLM,
                     auto_bind=AUTO_BIND_NO_TLS,
+                    auto_referrals=False,
                     raise_exceptions=False,
                 )
                 ok = conn.bind()
@@ -129,13 +131,18 @@ class Command(BaseCommand):
             raise CommandError(f"Connessione LDAP fallita: {exc}") from exc
 
         attrs = ["displayName", "givenName", "sn", "mail", "userPrincipalName", "sAMAccountName", "memberOf"]
-        if not conn.search(
-            search_base=search_base,
-            search_filter=user_filter,
-            search_scope=SUBTREE,
-            attributes=attrs,
-            paged_size=page_size,
-        ):
+        try:
+            search_ok = conn.search(
+                search_base=search_base,
+                search_filter=user_filter,
+                search_scope=SUBTREE,
+                attributes=attrs,
+                paged_size=page_size,
+            )
+        except (LDAPSocketOpenError, LDAPException, socket.error, OSError) as exc:
+            conn.unbind()
+            raise CommandError(f"Ricerca LDAP fallita: {exc}") from exc
+        if not search_ok:
             conn.unbind()
             raise CommandError(f"Ricerca LDAP fallita: {conn.result}")
 

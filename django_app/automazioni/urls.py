@@ -5,6 +5,7 @@ from . import views
 
 urlpatterns = [
     path("impostazioni/", views.settings_page, name="automazioni_settings"),
+    path("trigger-generator/", views.trigger_generator_page, name="automazioni_trigger_generator"),
     path("sorgenti/", views.sorgenti_page, name="automazioni_sorgenti"),
     path("contenuti/", views.contenuti_page, name="automazioni_contenuti"),
     path("regole/", views.rule_list_page, name="automazioni_rule_list"),
@@ -53,6 +54,11 @@ urlpatterns = [
     path("api/table-configs/save/", views.api_table_config_save, name="automazioni_api_table_config_save"),
     path("api/table-configs/<int:config_id>/delete/", views.api_table_config_delete, name="automazioni_api_table_config_delete"),
     path("api/sorgenti/<str:source_code>/record-recenti/", views.api_recent_records, name="automazioni_api_recent_records"),
+    path(
+        "api/sorgenti/<str:source_code>/campi/<str:field_name>/valori/",
+        views.api_source_field_values,
+        name="automazioni_api_source_field_values",
+    ),
     path("api/sorgenti/<str:source_code>/record/<str:record_id>/payload/", views.api_record_payload, name="automazioni_api_record_payload"),
     path("api/regole/<int:rule_id>/test-ajax/", views.api_test_rule_ajax, name="automazioni_api_test_rule_ajax"),
     # Canali Teams (preset webhook riutilizzabili)

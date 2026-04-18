@@ -94,6 +94,7 @@ python manage.py apply_sql_triggers</pre>
               <div class="auto-poller-meta">Stato: {{ poller_health.job_status_label }}</div>
               <div class="auto-poller-meta">Trigger: {{ poller_health.job_trigger_type_label }}</div>
               <div class="auto-poller-meta">Prossimo atteso: {{ poller_health.job_next_expected_label }}</div>
+              <div class="auto-poller-meta">Timezone UI: {{ poller_health.display_timezone_label|default:"Europe/Rome" }}</div>
             </div>
             <div class="auto-poller-box">
               <div class="auto-poller-label">Alert runtime</div>

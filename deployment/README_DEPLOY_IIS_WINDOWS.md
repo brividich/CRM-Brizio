@@ -1,8 +1,8 @@
 # Deployment Guide - NOVICROM HUB su Windows Server + IIS
 
 > Versione guida: **2.1**  
-> Versione repo: **0.9.18**  
-> Aggiornata: **2026-04-13**
+> Versione repo: **1.0.0**  
+> Aggiornata: **2026-04-17**
 
 Questa guida descrive il flusso di deploy reale supportato oggi dal repository. La priorita e evitare drift tra documentazione, settings, wizard e packaging.
 
@@ -101,7 +101,7 @@ Flusso minimo su server:
 .\activate-release.ps1 -Environment test
 ```
 
-`deploy-release.ps1` usa `config.settings.prod` sia per `test` sia per `prod`, in linea con il repository, e dopo `migrate` esegue automaticamente `allinea_tipo_assenza_flessibilita` per riallineare `CK_assenze_tipo` prima dell'attivazione della release. Durante il deploy controlla anche `DB_DRIVER` nel `.env` copiato nella release: se il valore manca o non e installato sul server applicativo, lo riallinea automaticamente al miglior driver SQL Server disponibile.
+`deploy-release.ps1` usa `config.settings.prod` sia per `test` sia per `prod`, in linea con il repository, e dopo `migrate` esegue automaticamente `apply_sql_triggers` (queue DDL + trigger in `django_app/automazioni/migrations/` e `sql/`) e `allinea_tipo_assenza_flessibilita` prima dell'attivazione della release. Durante il deploy controlla anche `DB_DRIVER` nel `.env` copiato nella release: se il valore manca o non e installato sul server applicativo, lo riallinea automaticamente al miglior driver SQL Server disponibile.
 
 Per PROD:
 
@@ -123,6 +123,7 @@ Automatizza almeno:
 - `pip install -r requirements.txt`
 - `collectstatic`
 - `migrate`
+- `apply_sql_triggers`
 - `allinea_tipo_assenza_flessibilita`
 - `createcachetable`
 - bootstrap ACL v2 pre/post migrate
@@ -217,4 +218,3 @@ Il modello a release directory + junction `current` permette di tornare indietro
 - creare una release senza eseguire il release guard
 - considerare `django_app/VERSION` come sorgente primaria
 - modificare `deployment/setup_wizard.py`, `deployment/SetupWizard.spec`, `deployment/setup_wizard_bundle_rules.json`, `deployment/scripts/*`, `deployment/config/*` o file runtime in `django_app/` senza rigenerare `SetupWizard.exe` o senza passare da `package-release.ps1`, che ora lo aggiorna automaticamente
-

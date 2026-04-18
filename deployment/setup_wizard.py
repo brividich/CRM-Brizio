@@ -88,7 +88,7 @@ PYTHON_MIN_VERSION = (3, 11)
 
 STEPS = ["Benvenuto","Pacchetto","Ambiente","Python",
          "Database","Active Directory","Email","IIS / Web",
-         "Prerequisiti IIS","Utente Admin","Riepilogo","Installazione","Completato"]
+         "Prerequisiti IIS","Utente Admin","Moduli","Riepilogo","Installazione","Completato"]
 
 STEPS_RELEASE   = ["Modalità", "Configurazione", "Esecuzione", "Completato"]
 STEPS_UNINSTALL = ["Configurazione", "Conferma", "Disinstallazione", "Completato"]
@@ -97,7 +97,7 @@ STEPS_UNINSTALL = ["Configurazione", "Conferma", "Disinstallazione", "Completato
 # Solo dev.py e prod.py esistono; test usa prod (stesse impostazioni SQL Server).
 _SETTINGS_MAP = {"dev": "dev", "test": "prod", "prod": "prod"}
 
-_DEFAULT_APP_VERSION = "0.9.18"
+_DEFAULT_APP_VERSION = "1.0.0"
 _VERSION_FILE = Path(__file__).resolve().parents[1] / "VERSION"
 _MODULE_VERSION_ENV_KEYS = (
     "APP_VERSION_CORE",
@@ -112,6 +112,104 @@ _MODULE_VERSION_ENV_KEYS = (
     "APP_VERSION_TICKETS",
     "APP_VERSION_DPI",
     "APP_VERSION_PROCEDURE_REFRESH",
+)
+
+# Registro centralizzato dei moduli installabili.
+# Usato da ModulesPage (selezione wizard) e dal migrate selettivo in InstallPage /
+# ReleaseRunPage.  Ogni voce descrive un'app Django opzionale o richiesta.
+#
+# Campi:
+#   key          – identificatore univoco (coincide con app_label Django)
+#   label        – nome visualizzato nel wizard
+#   description  – descrizione breve
+#   app_label    – app_label Django (per manage.py migrate <app_label>)
+#   required     – True = sempre installato, checkbox disabilitato
+#   default      – True = pre-selezionato nelle nuove installazioni
+#   depends_on   – lista di key che devono essere selezionati insieme
+#   has_migrations – True = ha migration Django da eseguire
+#   tier         – "system" | "standard" | "optional"  (per UI e futuro licensing)
+MODULE_REGISTRY: list[dict] = [
+    # ── SISTEMA ─────────────────────────────────────────────────────────────
+    {"key": "core",        "label": "Core",
+     "description": "ACL, autenticazione, navigazione, audit log — base obbligatoria",
+     "app_label": "core",  "required": True,  "default": True,  "depends_on": [],
+     "has_migrations": True,  "tier": "system"},
+    {"key": "anagrafica",  "label": "Anagrafica dipendenti",
+     "description": "Anagrafica dipendenti, ruoli operativi, fornitori — richiesta da asset e ticket",
+     "app_label": "anagrafica", "required": True, "default": True, "depends_on": [],
+     "has_migrations": True,  "tier": "system"},
+    {"key": "dashboard",   "label": "Dashboard",
+     "description": "Home page personalizzabile con widget KPI multi-modulo",
+     "app_label": "dashboard",  "required": True, "default": True, "depends_on": [],
+     "has_migrations": False, "tier": "system"},
+    {"key": "hub_tools",   "label": "Hub Strumenti Admin",
+     "description": "Module Manager, DB Manager, guide e documentazione interna",
+     "app_label": "hub_tools",  "required": True, "default": True, "depends_on": [],
+     "has_migrations": False, "tier": "system"},
+    # ── STANDARD ────────────────────────────────────────────────────────────
+    {"key": "notizie",     "label": "Notizie",
+     "description": "Bacheca notizie e comunicazioni aziendali",
+     "app_label": "notizie",    "required": False, "default": True, "depends_on": [],
+     "has_migrations": True,  "tier": "standard"},
+    {"key": "assenze",     "label": "Gestione Assenze",
+     "description": "Richieste assenze, calendario, certificazioni presenza, sync SharePoint",
+     "app_label": "assenze",    "required": False, "default": True, "depends_on": [],
+     "has_migrations": True,  "tier": "standard"},
+    {"key": "anomalie",    "label": "Anomalie Produzione",
+     "description": "Segnalazione e gestione anomalie produzione",
+     "app_label": "anomalie",   "required": False, "default": True, "depends_on": [],
+     "has_migrations": False, "tier": "standard"},
+    {"key": "assets",      "label": "Gestione Asset",
+     "description": "Inventario asset, manutenzioni, ordini di lavoro, scadenzari, licenze",
+     "app_label": "assets",     "required": False, "default": True,
+     "depends_on": ["anagrafica"], "has_migrations": True, "tier": "standard"},
+    {"key": "tickets",     "label": "Ticket Interni",
+     "description": "Sistema ticket interni, categorie, stati, interventi tecnici",
+     "app_label": "tickets",    "required": False, "default": True,
+     "depends_on": ["assets", "anagrafica"], "has_migrations": True, "tier": "standard"},
+    {"key": "automazioni", "label": "Automazioni",
+     "description": "Designer visuale automazioni, trigger SQL, approvazioni, polling mail",
+     "app_label": "automazioni", "required": False, "default": True, "depends_on": [],
+     "has_migrations": True,  "tier": "standard"},
+    {"key": "tasks",       "label": "KICK-OFF / Tasks",
+     "description": "Portfolio kickoff, attività, subtask, allegati, VRF MOD.073",
+     "app_label": "tasks",      "required": False, "default": True, "depends_on": [],
+     "has_migrations": True,  "tier": "standard"},
+    {"key": "timbri",      "label": "Timbrature",
+     "description": "Report timbrature da DB legacy con importazione e storico",
+     "app_label": "timbri",     "required": False, "default": True, "depends_on": [],
+     "has_migrations": True,  "tier": "standard"},
+    # ── OPZIONALI ───────────────────────────────────────────────────────────
+    {"key": "dpi",                    "label": "Gestione DPI",
+     "description": "Dispositivi Protezione Individuale: richieste, approvazione, consegna, storico",
+     "app_label": "dpi",             "required": False, "default": True, "depends_on": [],
+     "has_migrations": True,  "tier": "optional"},
+    {"key": "rentri",                 "label": "RENTRI",
+     "description": "Tracciabilità rifiuti — normativa RENTRI",
+     "app_label": "rentri",          "required": False, "default": True, "depends_on": [],
+     "has_migrations": True,  "tier": "optional"},
+    {"key": "diario_preposto",        "label": "Diario Preposto",
+     "description": "Diario del preposto sicurezza con segnalazioni e allegati",
+     "app_label": "diario_preposto", "required": False, "default": True, "depends_on": [],
+     "has_migrations": True,  "tier": "optional"},
+    {"key": "rilevazione_incidenti",  "label": "Rilevazione Incidenti",
+     "description": "Incidenti / unsafe condition con sorgente SharePoint via Graph API",
+     "app_label": "rilevazione_incidenti", "required": False, "default": True,
+     "depends_on": [], "has_migrations": True, "tier": "optional"},
+    {"key": "procedure_refresh",      "label": "Procedure Refresh",
+     "description": "Presa visione procedure MT/MTSI: campagne, assegnazioni, tracking aperture",
+     "app_label": "procedure_refresh", "required": False, "default": True, "depends_on": [],
+     "has_migrations": True,  "tier": "optional"},
+]
+
+# Mappa key → entry per lookup O(1)
+_MODULE_BY_KEY: dict[str, dict] = {m["key"]: m for m in MODULE_REGISTRY}
+
+# App Django di sistema (non custom) che devono sempre essere migrate
+# prima dei moduli custom. Django le risolve tramite le dependency declarations
+# nelle migration, ma le elenchiamo esplicitamente per chiarezza e robustezza.
+_DJANGO_BUILTIN_MIGRATE_LABELS: tuple[str, ...] = (
+    "contenttypes", "auth", "sessions", "admin", "axes",
 )
 
 
@@ -203,6 +301,37 @@ def _installed_sql_server_odbc_drivers() -> list[str]:
         return [driver for driver in _pyodbc_module.drivers() if "SQL Server" in driver]
     except Exception:
         return []
+
+
+def _is_ssl_cert_error(err_str: str) -> bool:
+    """Ritorna True se l'errore pyodbc è dovuto a un certificato SSL non verificabile."""
+    low = err_str.lower()
+    keywords = ("ssl", "certificate", "certificat", "catena", "-2146893019",
+                "08001", "encryption", "trust", "handshake")
+    return any(k in low for k in keywords)
+
+
+def _try_db_connection(
+    drv: str, host: str, user: str, pwd: str, trusted: bool, trust_cert: bool
+) -> tuple[bool, str]:
+    """Tenta una connessione pyodbc e ritorna (ok, messaggio_errore)."""
+    if _pyodbc_module is None:
+        return False, "pyodbc non disponibile"
+    tc = "yes" if trust_cert else "no"
+    try:
+        if trusted:
+            cs = (f"DRIVER={{{drv}}};SERVER={host};"
+                  f"Trusted_Connection=yes;Connection Timeout=5;"
+                  f"TrustServerCertificate={tc}")
+        else:
+            cs = (f"DRIVER={{{drv}}};SERVER={host};"
+                  f"UID={user};PWD={pwd};Connection Timeout=5;"
+                  f"TrustServerCertificate={tc}")
+        conn = _pyodbc_module.connect(cs, autocommit=True, timeout=5)
+        conn.close()
+        return True, ""
+    except Exception as exc:
+        return False, str(exc)
 
 
 def _sql_server_driver_sort_key(driver_name: str) -> tuple[int, str]:
@@ -339,6 +468,7 @@ class Config:
         self.db_host = ""; self.db_name = ""; self.db_user = ""
         self.db_password = ""; self.db_trusted = False
         self.db_driver = _preferred_sql_server_odbc_driver()
+        self.db_trust_cert = True   # True se il cert SSL del server non è verificabile
         self.ldap_uri = "ldap://DC01.cnovicrom.local"
         self.ldap_bind_dn = ""; self.ldap_bind_pwd = ""
         self.ldap_user_base = "OU=Users,DC=cnovicrom,DC=local"
@@ -353,6 +483,11 @@ class Config:
         self.admin_email    = ""
         self.admin_password = ""
         self.admin_django_superuser = True
+        # Moduli selezionati per l'installazione.
+        # Default: tutti i moduli con default=True (sistema + standard).
+        self.selected_modules: list[str] = [
+            m["key"] for m in MODULE_REGISTRY if m["default"]
+        ]
 
     @property
     def env_path(self): return Path(self.base_dir) / self.environment
@@ -383,7 +518,7 @@ class Config:
             f"DB_HOST={self.db_host}",
             f"DB_DRIVER={db_driver}",
             f"DB_PORT=1433",
-            f"DB_TRUST_CERT=True",
+            f"DB_TRUST_CERT={'True' if self.db_trust_cert else 'False'}",
             ("DB_TRUSTED_CONNECTION=yes" if self.db_trusted
              else f"DB_USER={self.db_user}\nDB_PASSWORD={self.db_password}"),
             f"\nDJANGO_CSRF_TRUSTED_ORIGINS={p}://{h}{pt}",
@@ -1696,6 +1831,60 @@ class DatabasePage(Page):
         self.cfg.db_password = self._pwd.get().strip()
         self.cfg.db_trusted  = self._trusted.get()
         self.cfg.db_driver = selected_driver
+
+        # ── Test connessione reale ────────────────────────────────────────────────
+        # Prova prima senza TrustServerCertificate; se fallisce per SSL, riprova
+        # con TrustServerCertificate=yes e chiede conferma all'utente.
+        if _pyodbc_module is not None:
+            host    = self.cfg.db_host
+            drv     = self.cfg.db_driver
+            user    = self.cfg.db_user
+            pwd     = self.cfg.db_password
+            trusted = self.cfg.db_trusted
+
+            ok, err = _try_db_connection(drv, host, user, pwd, trusted, trust_cert=False)
+            if ok:
+                # Connessione verificata con certificato SSL valido
+                self.cfg.db_trust_cert = False
+            elif _is_ssl_cert_error(err):
+                # Certificato non verificabile — retry con TrustServerCertificate=yes
+                ok2, err2 = _try_db_connection(drv, host, user, pwd, trusted, trust_cert=True)
+                if ok2:
+                    msg = (
+                        "Il server SQL Server usa un certificato SSL self-signed o emesso da "
+                        "una CA interna non installata in questo sistema.\n\n"
+                        "Il wizard può proseguire abilitando TrustServerCertificate=yes "
+                        "(DB_TRUST_CERT=True nel file .env).\n\n"
+                        "La connessione rimane cifrata ma l'identità del server non viene "
+                        "verificata crittograficamente.\n\n"
+                        "Soluzione definitiva: installare il certificato della CA nel "
+                        "trust store di Windows (certlm.msc → Autorità di certificazione "
+                        "radice attendibili).\n\n"
+                        "Procedere con DB_TRUST_CERT=True?"
+                    )
+                    if messagebox.askyesno(
+                        "Certificato SSL non verificabile", msg, parent=self.body
+                    ):
+                        self.cfg.db_trust_cert = True
+                        self._err.configure(text="")
+                        return True
+                    else:
+                        self._err.configure(
+                            text="Connessione bloccata — installa la CA del server in Windows "
+                                 "o abilitare DB_TRUST_CERT=True manualmente nel .env"
+                        )
+                        return False
+                else:
+                    self._err.configure(
+                        text=f"Errore SSL — connessione fallita anche con TrustServerCertificate=yes: "
+                             f"{err2[:80]}"
+                    )
+                    return False
+            else:
+                # Errore non SSL: credenziali, host sbagliato, ecc.
+                self._err.configure(text=f"Connessione fallita: {err[:90]}")
+                return False
+
         return True
 
 
@@ -2097,6 +2286,212 @@ class AdminPage(Page):
         return True
 
 
+class ModulesPage(Page):
+    """Step selezione moduli: quale sottoinsieme di app Django installare.
+
+    I moduli "sistema" sono sempre obbligatori (checkbox disabilitato).
+    I moduli "standard" sono pre-selezionati.
+    I moduli "optional" sono disattivati per default (futuro licensing).
+    La selezione viene salvata in cfg.selected_modules e usata dal migrate
+    selettivo in InstallPage._run_prod / _run_dev e ReleaseRunPage._run_promote.
+    """
+
+    _TIER_LABELS = {
+        "system":   ("Sistema",   "#374151", "#f3f4f6"),   # grigio
+        "standard": ("Incluso",   "#1d4ed8", "#eff6ff"),   # blu
+        "optional": ("Opzionale", "#92400e", "#fffbeb"),   # giallo/arancio
+    }
+    _TIER_HEADINGS = {
+        "system":   "SISTEMA  —  sempre installati",
+        "standard": "STANDARD  —  inclusi nel pacchetto base",
+        "optional": "OPZIONALI  —  attivabili su richiesta",
+    }
+
+    def __init__(self, parent, cfg):
+        super().__init__(parent, "Selezione Moduli",
+                         "Scegli i moduli da installare nel portale")
+        self.cfg = cfg
+        self._vars: dict[str, tk.BooleanVar] = {}
+        self._rows: dict[str, tk.Frame] = {}
+        self._build_ui()
+
+    # ── Build ─────────────────────────────────────────────────────────────
+
+    def _build_ui(self):
+        b = self.body
+
+        # Barra azioni in cima
+        top = frame(b, bg="white")
+        top.pack(fill="x", padx=32, pady=(6, 4))
+        tk.Label(top, text="Seleziona i moduli da attivare:",
+                 font=(SF, 9), fg=GRAY600, bg="white").pack(side="left")
+        btn_frame = frame(top, bg="white")
+        btn_frame.pack(side="right")
+        tk.Button(btn_frame, text="Seleziona tutto", font=FSM,
+                  bg=GRAY100, fg=GRAY700, relief="flat", cursor="hand2",
+                  command=self._select_all).pack(side="left", padx=(0, 6))
+        tk.Button(btn_frame, text="Solo default", font=FSM,
+                  bg=GRAY100, fg=GRAY700, relief="flat", cursor="hand2",
+                  command=self._select_defaults).pack(side="left")
+
+        # Canvas scrollabile per la lista moduli
+        outer = frame(b, bg=GRAY100, bd=1, relief="solid")
+        outer.pack(fill="both", expand=True, padx=32, pady=(0, 6))
+        canvas = tk.Canvas(outer, bg="white", highlightthickness=0)
+        sb = tk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        inner = frame(canvas, bg="white")
+        canvas_window = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+        def _on_configure(e):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        def _on_canvas_resize(e):
+            canvas.itemconfig(canvas_window, width=e.width)
+        inner.bind("<Configure>", _on_configure)
+        canvas.bind("<Configure>", _on_canvas_resize)
+
+        # Scroll con rotella mouse
+        def _on_mousewheel(e):
+            canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        # Raggruppa per tier
+        tier_order = ["system", "standard", "optional"]
+        grouped: dict[str, list[dict]] = {t: [] for t in tier_order}
+        for m in MODULE_REGISTRY:
+            grouped[m["tier"]].append(m)
+
+        for tier in tier_order:
+            modules = grouped[tier]
+            if not modules:
+                continue
+
+            # Intestazione sezione
+            hdr = frame(inner, bg=GRAY100)
+            hdr.pack(fill="x", padx=0, pady=(8, 0))
+            tk.Label(hdr, text=f"  {self._TIER_HEADINGS[tier]}",
+                     font=(SF, 8, "bold"), fg=GRAY500, bg=GRAY100,
+                     anchor="w").pack(fill="x", padx=8, pady=3)
+
+            for m in modules:
+                self._build_row(inner, m)
+
+        frame(inner, height=6, bg="white").pack()
+
+        self._canvas = canvas
+
+    def _build_row(self, parent, m: dict):
+        key  = m["key"]
+        tier = m["tier"]
+        lbl_text, lbl_fg, lbl_bg = self._TIER_LABELS[tier]
+
+        row = frame(parent, bg="white")
+        row.pack(fill="x", padx=0, pady=0)
+        self._rows[key] = row
+
+        # Linea separatrice sottile
+        sep = frame(row, bg=GRAY200, height=1)
+        sep.pack(fill="x")
+
+        content = frame(row, bg="white")
+        content.pack(fill="x", padx=12, pady=5)
+
+        # Checkbox
+        initial = key in self.cfg.selected_modules
+        var = tk.BooleanVar(value=initial)
+        self._vars[key] = var
+        cb = tk.Checkbutton(content, variable=var, bg="white",
+                            activebackground="white",
+                            command=lambda k=key: self._on_toggle(k))
+        cb.pack(side="left", padx=(0, 4))
+        if m["required"]:
+            cb.configure(state="disabled")
+
+        # Nome + descrizione
+        txt_frame = frame(content, bg="white")
+        txt_frame.pack(side="left", fill="x", expand=True)
+        name_row = frame(txt_frame, bg="white")
+        name_row.pack(fill="x")
+        tk.Label(name_row, text=m["label"], font=(SF, 9, "bold"),
+                 fg=GRAY800, bg="white").pack(side="left")
+
+        # Badge tier
+        badge = tk.Label(name_row, text=f" {lbl_text} ", font=(SF, 7, "bold"),
+                         fg=lbl_fg, bg=lbl_bg, padx=4, pady=1, relief="flat")
+        badge.pack(side="left", padx=(6, 0))
+
+        # Dipendenze (solo se ha depends_on)
+        if m.get("depends_on"):
+            deps_labels = [_MODULE_BY_KEY[d]["label"] for d in m["depends_on"]
+                           if d in _MODULE_BY_KEY]
+            dep_txt = "richiede: " + ", ".join(deps_labels)
+            tk.Label(name_row, text=dep_txt, font=(SF, 7, "italic"),
+                     fg=GRAY400, bg="white").pack(side="left", padx=(8, 0))
+
+        tk.Label(txt_frame, text=m["description"], font=(SF, 8),
+                 fg=GRAY500, bg="white", anchor="w").pack(fill="x")
+
+        # Icona migration
+        mig_icon = "  DB" if m["has_migrations"] else "  —"
+        mig_color = BRAND if m["has_migrations"] else GRAY400
+        tk.Label(content, text=mig_icon, font=(SF, 7, "bold"),
+                 fg=mig_color, bg="white", width=4).pack(side="right", padx=(4, 0))
+
+    # ── Toggle / selezione ────────────────────────────────────────────────
+
+    def _on_toggle(self, key: str):
+        m = _MODULE_BY_KEY[key]
+        enabled = self._vars[key].get()
+        if enabled:
+            # Quando si attiva un modulo, attiva anche le dipendenze
+            for dep in m.get("depends_on", []):
+                if dep in self._vars and not self._vars[dep].get():
+                    self._vars[dep].set(True)
+        else:
+            # Quando si disattiva, disattiva anche chi dipende da questo
+            for other in MODULE_REGISTRY:
+                if key in other.get("depends_on", []) and other["key"] in self._vars:
+                    if self._vars[other["key"]].get():
+                        self._vars[other["key"]].set(False)
+        self._sync_cfg()
+
+    def _select_all(self):
+        for key, var in self._vars.items():
+            m = _MODULE_BY_KEY[key]
+            if not m["required"]:
+                var.set(True)
+        self._sync_cfg()
+
+    def _select_defaults(self):
+        for key, var in self._vars.items():
+            m = _MODULE_BY_KEY[key]
+            if not m["required"]:
+                var.set(m["default"])
+        self._sync_cfg()
+
+    def _sync_cfg(self):
+        self.cfg.selected_modules = [
+            key for key, var in self._vars.items() if var.get()
+        ]
+
+    # ── Lifecycle ─────────────────────────────────────────────────────────
+
+    def on_enter(self):
+        # Sincronizza i checkbox con cfg (potrebbe essere cambiato da pagine precedenti)
+        for key, var in self._vars.items():
+            var.set(key in self.cfg.selected_modules)
+
+    def validate(self) -> bool:
+        self._sync_cfg()
+        # Almeno core deve essere selezionato (è required quindi sarà sempre vero)
+        if "core" not in self.cfg.selected_modules:
+            messagebox.showerror("Moduli", "Il modulo Core è obbligatorio.")
+            return False
+        return True
+
+
 class SummaryPage(Page):
     def __init__(self, parent, cfg):
         super().__init__(parent, "Riepilogo",
@@ -2162,6 +2557,13 @@ class SummaryPage(Page):
         kv("Email",         self.cfg.admin_email or "(non impostata)")
         kv("Password",      "●" * len(self.cfg.admin_password))
         kv("Django superuser", "Sì" if self.cfg.admin_django_superuser else "No")
+        h("── Moduli ───────────────────────────────────────")
+        sel = getattr(self.cfg, "selected_modules", [])
+        for m in MODULE_REGISTRY:
+            flag = "✓" if m["key"] in sel else "—"
+            color_tag = "v" if m["key"] in sel else "w"
+            t.insert("end", f"  {flag}  ", color_tag)
+            t.insert("end", f"{m['label']}\n", "k" if m["key"] in sel else "")
         h("── Generato ────────────────────────────────────")
         kv("SECRET_KEY",    self.cfg.secret_key[:24]+"…")
         t.insert("end", "\n")
@@ -2434,6 +2836,77 @@ class InstallPage(Page):
             else:
                 self._log_line("  ✗ Seed ACL v2 UAT fallito (non bloccante)", "warn")
 
+    def _run_selective_migrate(
+        self,
+        *,
+        venv_py,
+        django_app,
+        env_vars,
+        settings,
+        selected_module_keys: list[str],
+    ) -> bool:
+        """Esegue migrate selettivo per i moduli scelti dall'utente.
+
+        Strategia:
+        1. Migra i built-in Django (contenttypes, auth, sessions, admin, axes).
+        2. Migra i moduli "required" del MODULE_REGISTRY.
+        3. Migra solo i moduli opzionali presenti in selected_module_keys.
+
+        Django risolve le migration dependency declarations all'interno di ogni
+        app_label, quindi l'ordine esplicito garantisce che le tabelle siano
+        create nel giusto ordine senza dipendere da `migrate --noinput` globale.
+
+        Ritorna True solo se TUTTI i target hanno avuto successo.
+        """
+        selected = set(selected_module_keys)
+        all_ok = True
+
+        # 1. Built-in Django
+        for app_label in _DJANGO_BUILTIN_MIGRATE_LABELS:
+            ok = self._cmd(
+                [str(venv_py), "manage.py", "migrate", app_label,
+                 f"--settings={settings}", "--noinput"],
+                cwd=django_app, env=env_vars,
+            )
+            if not ok:
+                self._log_line(f"  ✗ migrate {app_label} fallito", "err")
+                all_ok = False
+
+        # 2. Moduli required (sistema)
+        for m in MODULE_REGISTRY:
+            if not m["required"] or not m["has_migrations"]:
+                continue
+            ok = self._cmd(
+                [str(venv_py), "manage.py", "migrate", m["app_label"],
+                 f"--settings={settings}", "--noinput"],
+                cwd=django_app, env=env_vars,
+            )
+            if ok:
+                self._log_line(f"  ✓ {m['label']}", "ok")
+            else:
+                self._log_line(f"  ✗ migrate {m['app_label']} fallito", "err")
+                all_ok = False
+
+        # 3. Moduli opzionali selezionati
+        for m in MODULE_REGISTRY:
+            if m["required"] or not m["has_migrations"]:
+                continue
+            if m["key"] not in selected:
+                self._log_line(f"  —  {m['label']} (non selezionato — skip)", "dim")
+                continue
+            ok = self._cmd(
+                [str(venv_py), "manage.py", "migrate", m["app_label"],
+                 f"--settings={settings}", "--noinput"],
+                cwd=django_app, env=env_vars,
+            )
+            if ok:
+                self._log_line(f"  ✓ {m['label']}", "ok")
+            else:
+                self._log_line(f"  ✗ migrate {m['app_label']} fallito", "err")
+                all_ok = False
+
+        return all_ok
+
     def _run_assenze_tipo_alignment(
         self,
         *,
@@ -2461,6 +2934,19 @@ class InstallPage(Page):
             self._log_line("  âœ“ CK_assenze_tipo riallineato a FlessibilitÃ ", "ok")
         else:
             self._log_line("  âœ— Riallineamento CK_assenze_tipo fallito", "err")
+        return ok
+
+    def _run_apply_sql_triggers(self, *, venv_py, django_app, env_vars, settings) -> bool:
+        self._log_line("  -> Trigger SQL automazioni", "dim")
+        ok = self._cmd(
+            [str(venv_py), "manage.py", "apply_sql_triggers", f"--settings={settings}"],
+            cwd=django_app,
+            env=env_vars,
+        )
+        if ok:
+            self._log_line("  Trigger SQL automazioni applicati", "ok")
+        else:
+            self._log_line("  apply_sql_triggers fallito (non bloccante)", "warn")
         return ok
 
     def _run_seed_pulsanti_descrizioni(self, *, venv_py, django_app, env_vars, settings):
@@ -2633,16 +3119,20 @@ class InstallPage(Page):
             deps_ready = False
             self._log_line("  requirements.txt non trovato — skip", "warn")
 
-        # 5. migrate
+        # 5. migrate selettivo (DEV usa SQLite — migrate tutto per semplicità)
         step(5, "Django migrate (SQLite dev)", 60)
         env_vars = {**os.environ, "DJANGO_SETTINGS_MODULE": settings,
                     "PYTHONPATH": str(django_app)}
         if not deps_ready:
             self._log_line("  Skip — dipendenze Python non disponibili", "warn")
         elif (django_app / "manage.py").exists():
-            ok = self._cmd([str(venv_py), "manage.py", "migrate",
-                            f"--settings={settings}", "--noinput"],
-                           cwd=django_app, env=env_vars)
+            selected = getattr(cfg, "selected_modules",
+                               [m["key"] for m in MODULE_REGISTRY])
+            ok = self._run_selective_migrate(
+                venv_py=venv_py, django_app=django_app,
+                env_vars=env_vars, settings=settings,
+                selected_module_keys=selected,
+            )
             if ok:
                 self._log_line("  ✓ migrate completato", "ok")
                 self._run_acl_bootstrap_workflow(
@@ -2655,7 +3145,7 @@ class InstallPage(Page):
                 )
             else:
                 self._append_error(errors, "migrate")
-                self._log_line("  ✗ migrate fallito", "err")
+                self._log_line("  ✗ migrate fallito (vedi dettagli sopra)", "err")
         else:
             self._log_line("  manage.py non trovato — skip", "warn")
 
@@ -2859,7 +3349,7 @@ class InstallPage(Page):
             self._log_line("  Skip — dipendenze Python non disponibili", "warn")
         elif django_app.exists() and (django_app/"manage.py").exists():
             ok = self._cmd([str(venv_py),"manage.py","collectstatic",
-                            "--noinput",f"--settings={settings}"],
+                            "--noinput","--clear",f"--settings={settings}"],
                            cwd=django_app, env=env_vars)
             if ok:
                 collectstatic_ok = self._verify_collectstatic_output(ep / "static", errors)
@@ -2869,7 +3359,7 @@ class InstallPage(Page):
         else:
             self._log_line("  manage.py non trovato — skip", "warn")
 
-        # 8. migrate
+        # 8. migrate selettivo per modulo
         step(8, "Django migrate", 75)
         migrate_ok = False
         if cfg.db_trusted or cfg.db_user:
@@ -2879,16 +3369,30 @@ class InstallPage(Page):
         if not waitress_ready:
             self._log_line("  Skip — dipendenze Python non disponibili", "warn")
         elif django_app.exists() and (django_app/"manage.py").exists():
-            ok = self._cmd([str(venv_py),"manage.py","migrate",
-                            f"--settings={settings}","--noinput"],
-                           cwd=django_app, env=env_vars)
+            selected = getattr(cfg, "selected_modules",
+                               [m["key"] for m in MODULE_REGISTRY])
+            self._log_line(
+                f"  Moduli selezionati: {', '.join(selected)}", "dim")
+            ok = self._run_selective_migrate(
+                venv_py=venv_py, django_app=django_app,
+                env_vars=env_vars, settings=settings,
+                selected_module_keys=selected,
+            )
             if ok:
                 migrate_ok = True
                 self._log_line("  ✓ migrate completato", "ok")
             else:
                 self._append_error(errors, "migrate")
-                self._log_line("  ✗ migrate fallito (verifica DB)", "err")
+                self._log_line("  ✗ migrate fallito (verifica DB e log sopra)", "err")
             if ok:
+                ok_triggers = self._run_apply_sql_triggers(
+                    venv_py=venv_py,
+                    django_app=django_app,
+                    env_vars=env_vars,
+                    settings=settings,
+                )
+                if not ok_triggers:
+                    self._append_error(errors, "apply_sql_triggers")
                 ok_align = self._run_assenze_tipo_alignment(
                     venv_py=venv_py,
                     django_app=django_app,
@@ -3425,10 +3929,11 @@ class WizardApp:
             IISPage(                   self.container, self.cfg),          # 7 — skip DEV
             HttpPlatformHandlerPage(   self.container, self.cfg),          # 8 — skip DEV
             AdminPage(                 self.container, self.cfg),          # 9
-            SummaryPage(               self.container, self.cfg),          # 10
-            InstallPage(               self.container, self.cfg,           # 11
+            ModulesPage(               self.container, self.cfg),          # 10
+            SummaryPage(               self.container, self.cfg),          # 11
+            InstallPage(               self.container, self.cfg,           # 12
                                         self._on_done),
-            FinishPage(                self.container, self.cfg, self._close),  # 12
+            FinishPage(                self.container, self.cfg, self._close),  # 13
         ]
 
     def _show(self, idx):
@@ -4001,6 +4506,53 @@ class ReleaseRunPage(Page):
             self._log_line(f"    - {label}: {path}", "err")
         return False
 
+    def _run_selective_migrate(
+        self, *, venv_py, django_app, env_vars, settings,
+        selected_module_keys: list[str],
+    ) -> bool:
+        """Stessa logica di InstallPage._run_selective_migrate (non c'è ereditarietà)."""
+        selected = set(selected_module_keys)
+        all_ok = True
+        for app_label in _DJANGO_BUILTIN_MIGRATE_LABELS:
+            ok = self._cmd(
+                [str(venv_py), "manage.py", "migrate", app_label,
+                 f"--settings={settings}", "--noinput"],
+                cwd=django_app, env=env_vars,
+            )
+            if not ok:
+                self._log_line(f"  ✗ migrate {app_label} fallito", "err")
+                all_ok = False
+        for m in MODULE_REGISTRY:
+            if not m["required"] or not m["has_migrations"]:
+                continue
+            ok = self._cmd(
+                [str(venv_py), "manage.py", "migrate", m["app_label"],
+                 f"--settings={settings}", "--noinput"],
+                cwd=django_app, env=env_vars,
+            )
+            if ok:
+                self._log_line(f"  ✓ {m['label']}", "ok")
+            else:
+                self._log_line(f"  ✗ migrate {m['app_label']} fallito", "err")
+                all_ok = False
+        for m in MODULE_REGISTRY:
+            if m["required"] or not m["has_migrations"]:
+                continue
+            if m["key"] not in selected:
+                self._log_line(f"  —  {m['label']} (non selezionato — skip)", "dim")
+                continue
+            ok = self._cmd(
+                [str(venv_py), "manage.py", "migrate", m["app_label"],
+                 f"--settings={settings}", "--noinput"],
+                cwd=django_app, env=env_vars,
+            )
+            if ok:
+                self._log_line(f"  ✓ {m['label']}", "ok")
+            else:
+                self._log_line(f"  ✗ migrate {m['app_label']} fallito", "err")
+                all_ok = False
+        return all_ok
+
     def _run_assenze_tipo_alignment(self, *, venv_py, django_app, env_vars, settings) -> bool:
         self._log_line("  -> Assenze SQL Server: allineamento tipo_assenza legacy", "dim")
         ok = self._cmd(
@@ -4011,6 +4563,19 @@ class ReleaseRunPage(Page):
             self._log_line("  ✓ CK_assenze_tipo riallineato a Flessibilità", "ok")
         else:
             self._log_line("  ✗ Riallineamento CK_assenze_tipo fallito", "err")
+        return ok
+
+    def _run_apply_sql_triggers(self, *, venv_py, django_app, env_vars, settings) -> bool:
+        self._log_line("  -> Trigger SQL automazioni", "dim")
+        ok = self._cmd(
+            [str(venv_py), "manage.py", "apply_sql_triggers", f"--settings={settings}"],
+            cwd=django_app,
+            env=env_vars,
+        )
+        if ok:
+            self._log_line("  Trigger SQL automazioni applicati", "ok")
+        else:
+            self._log_line("  apply_sql_triggers fallito (non bloccante)", "warn")
         return ok
 
     def _run_seed_pulsanti_descrizioni(self, *, venv_py, django_app, env_vars, settings):
@@ -4164,7 +4729,7 @@ class ReleaseRunPage(Page):
             self._log_line("  Skip — dipendenze Python non disponibili", "warn")
         elif (django_app / "manage.py").exists():
             ok = self._cmd([str(venv_py), "manage.py", "collectstatic",
-                             "--noinput", f"--settings={settings}"],
+                             "--noinput", "--clear", f"--settings={settings}"],
                             cwd=django_app, env=env_vars)
             if ok:
                 collectstatic_ok = self._verify_collectstatic_output(ep / "static", errors)
@@ -4172,22 +4737,36 @@ class ReleaseRunPage(Page):
                 self._append_error(errors, "collectstatic")
                 self._log_line("  ✗ collectstatic fallito", "err")
 
-        # 5. migrate
+        # 5. migrate selettivo per modulo
         step(5, "Django migrate", 65)
         migrate_ok = False
         if not deps_ready:
             self._log_line("  Skip — dipendenze Python non disponibili", "warn")
         elif (django_app / "manage.py").exists():
-            ok = self._cmd([str(venv_py), "manage.py", "migrate",
-                             f"--settings={settings}", "--noinput"],
-                            cwd=django_app, env=env_vars)
+            selected = getattr(cfg, "selected_modules",
+                               [m["key"] for m in MODULE_REGISTRY])
+            self._log_line(
+                f"  Moduli selezionati: {', '.join(selected)}", "dim")
+            ok = self._run_selective_migrate(
+                venv_py=venv_py, django_app=django_app,
+                env_vars=env_vars, settings=settings,
+                selected_module_keys=selected,
+            )
             if ok:
                 migrate_ok = True
                 self._log_line("  ✓ migrate completato", "ok")
             else:
                 self._append_error(errors, "migrate")
-                self._log_line("  ✗ migrate fallito (verifica DB)", "err")
+                self._log_line("  ✗ migrate fallito (verifica DB e log sopra)", "err")
             if ok:
+                ok_triggers = self._run_apply_sql_triggers(
+                    venv_py=venv_py,
+                    django_app=django_app,
+                    env_vars=env_vars,
+                    settings=settings,
+                )
+                if not ok_triggers:
+                    self._append_error(errors, "apply_sql_triggers")
                 ok_align = self._run_assenze_tipo_alignment(
                     venv_py=venv_py,
                     django_app=django_app,

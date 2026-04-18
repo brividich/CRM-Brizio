@@ -1,6 +1,6 @@
 # Struttura Attuale - NOVICROM HUB
 
-Data snapshot: 2026-04-16 | Versione: 0.9.18
+Data snapshot: 2026-04-17 | Versione: 1.0.0
 
 ---
 
@@ -166,6 +166,9 @@ Modelli in `core/legacy_models.py`, migration `0029_legacy_managed` applicata co
 - Processor: `python manage.py process_automation_queue`
 - Decorator `@monitored_automation` per wrappare qualsiasi job con tracking automatico
 - File principali: `automazioni/models.py`, `automazioni/views.py`, `sql/`
+
+- Il designer include una workspace `Diagramma di flusso` in split-view e un editor guidato per le azioni di controllo flusso: `branch` mostra i rami `Se Vero (IF)` / `Se Falso (ELSE)`, `do_until` espone `Corpo loop` / `Se completato` / `Se timeout`, `for_each` espone `Azioni per ogni record`.
+- Le azioni figlie di `branch`, `do_until` e `for_each` restano serializzate in `config_json` come liste inline, ma la UI operativa non e' piu' JSON-first: badge di stato, lista leggibile, quick actions e sezione `JSON avanzato` fungono da strato visuale sopra il formato canonico.
 
 ---
 

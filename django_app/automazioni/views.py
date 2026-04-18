@@ -33,6 +33,7 @@ from .forms import (
     AutomationRuleTestForm,
     PowerAutomateFlowUploadForm,
     TeamsWebhookPresetForm,
+    _safe_json_array_length,
 )
 from .models import (
     ApprovalEmailTemplate,
@@ -125,6 +126,7 @@ SAMPLE_VALUE_BY_TYPE = {
     "datetime": "2026-03-11T09:00:00",
     "string": "esempio",
 }
+FIELD_DISTINCT_VALUES_LIMIT = 24
 PACKAGE_IMPORT_SESSION_KEY = "automazioni_package_import_state"
 PACKAGE_IMPORT_RESULT_SESSION_KEY = "automazioni_package_import_result"
 POWER_AUTOMATE_CONVERTER_SESSION_KEY = "automazioni_power_automate_converter_state"
@@ -446,6 +448,106 @@ def _truncate_text(value, limit: int = 120) -> str:
     return f"{text[: limit - 1].rstrip()}..."
 
 
+def _quote_table_reference(table_name: str | None) -> str:
+    normalized = _string_value(table_name)
+    if not normalized:
+        return ""
+    return ".".join(connection.ops.quote_name(part) for part in normalized.split(".") if part)
+
+
+def _get_source_field_definition(source_code: str | None, field_name: str | None) -> dict[str, object] | None:
+    normalized_field = _string_value(field_name)
+    if not normalized_field:
+        return None
+    for field in get_source_fields(source_code):
+        if _string_value(field.get("name")) == normalized_field:
+            return field
+    return None
+
+
+def _fetch_source_field_distinct_values(
+    source_code: str | None,
+    field_name: str | None,
+    *,
+    limit: int = FIELD_DISTINCT_VALUES_LIMIT,
+) -> dict[str, object]:
+    source_definition = get_source_definition(source_code)
+    field_definition = _get_source_field_definition(source_code, field_name)
+    if not source_definition or not field_definition:
+        return {
+            "queryable": False,
+            "values": [],
+            "message": "Campo non registrato per la sorgente selezionata.",
+        }
+
+    table_name = _string_value(source_definition.get("table_name"))
+    db_column = _string_value(field_definition.get("db_column"))
+    if not table_name or not db_column or bool(field_definition.get("is_virtual")):
+        return {
+            "queryable": False,
+            "values": [],
+            "message": "Questo campo non e' collegato direttamente a una colonna interrogabile.",
+        }
+
+    safe_limit = max(1, min(int(limit or FIELD_DISTINCT_VALUES_LIMIT), 50))
+    fetch_limit = safe_limit * 3
+    quoted_table = _quote_table_reference(table_name)
+    quoted_column = connection.ops.quote_name(db_column)
+    if not quoted_table or not quoted_column:
+        return {
+            "queryable": False,
+            "values": [],
+            "message": "Impossibile determinare la colonna sorgente per il lookup valori.",
+        }
+
+    if str(connection.vendor or "").lower() in {"mssql", "microsoft", "sql_server"}:
+        sql = (
+            f"SELECT DISTINCT TOP {fetch_limit} {quoted_column} AS value "
+            f"FROM {quoted_table} "
+            f"WHERE {quoted_column} IS NOT NULL "
+            f"ORDER BY {quoted_column}"
+        )
+        params: tuple[object, ...] = ()
+    else:
+        sql = (
+            f"SELECT DISTINCT {quoted_column} AS value "
+            f"FROM {quoted_table} "
+            f"WHERE {quoted_column} IS NOT NULL "
+            f"ORDER BY {quoted_column} "
+            f"LIMIT %s"
+        )
+        params = (fetch_limit,)
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+    except (DjangoOperationalError, DjangoProgrammingError):
+        return {
+            "queryable": False,
+            "values": [],
+            "message": "Lookup valori non disponibile sul database corrente per questo campo.",
+        }
+
+    values: list[str] = []
+    seen: set[str] = set()
+    for row in rows:
+        raw_value = row[0] if row else None
+        text_value = _string_value(raw_value)
+        if not text_value or text_value in seen:
+            continue
+        seen.add(text_value)
+        values.append(text_value)
+        if len(values) >= safe_limit:
+            break
+
+    return {
+        "queryable": True,
+        "values": values,
+        "message": "" if values else "Nessun valore distinto trovato nella colonna selezionata.",
+    }
+
+
 def _choice_label(choice_enum, value: str) -> str:
     normalized = _string_value(value)
     if not normalized:
@@ -549,6 +651,7 @@ def _build_example_old_payload(rule: AutomationRule | None) -> dict[str, object]
 def _serialize_source_field_detail(field: dict[str, object], *, sample_value=None) -> dict[str, object]:
     field_name = _string_value(field.get("name"))
     data_type = _string_value(field.get("data_type"))
+    allowed_values = [_string_value(value) for value in (field.get("allowed_values") or []) if _string_value(value)]
     return {
         "name": field_name,
         "label": _string_value(field.get("label")) or field_name,
@@ -558,6 +661,10 @@ def _serialize_source_field_detail(field: dict[str, object], *, sample_value=Non
         "placeholder": f"{{{field_name}}}",
         "sample_value": sample_value if sample_value is not None else SAMPLE_VALUE_BY_TYPE.get(data_type, "esempio"),
         "aliases": [str(alias) for alias in (field.get("aliases") or []) if str(alias).strip()],
+        "allowed_values": allowed_values,
+        "has_allowed_values": bool(allowed_values),
+        "value_source_label": _string_value(field.get("value_source_label")),
+        "ui_control": _string_value(field.get("ui_control")),
         "db_column": _string_value(field.get("db_column")),
         "is_virtual": bool(field.get("is_virtual")),
         "usable_in_trigger": bool(field.get("usable_in_trigger")),
@@ -3393,12 +3500,80 @@ def _build_action_preview_from_form(form) -> list[str]:
         email_to = _truncate_text(_bound_or_instance_value(form, "approval_to_template"), 80) or "-"
         teams_recipient = _truncate_text(_bound_or_instance_value(form, "approval_teams_recipient_email_template"), 80) or "-"
         subject = _truncate_text(_bound_or_instance_value(form, "approval_subject_template"), 90) or "-"
+        approved_update_count = len(
+            [
+                line
+                for line in _string_value(_bound_or_instance_value(form, "approval_approved_update_fields_text")).splitlines()
+                if _string_value(line)
+            ]
+        )
+        rejected_update_count = len(
+            [
+                line
+                for line in _string_value(_bound_or_instance_value(form, "approval_rejected_update_fields_text")).splitlines()
+                if _string_value(line)
+            ]
+        )
+        approved_actions_count = approved_update_count + _safe_json_array_length(
+            _bound_or_instance_value(form, "approval_approved_actions_json")
+        )
+        rejected_actions_count = rejected_update_count + _safe_json_array_length(
+            _bound_or_instance_value(form, "approval_rejected_actions_json")
+        )
         preview_lines = [
             f"Recapito: {delivery_mode}",
             f"Email approvatori: {email_to}",
             f"Destinatario Teams: {teams_recipient}",
             f"Oggetto: {subject}",
+            f"Se approvato: {approved_actions_count} azioni",
+            f"Se rifiutato: {rejected_actions_count} azioni",
         ]
+    elif action_type == AutomationActionType.DO_UNTIL:
+        check_field = _truncate_text(_bound_or_instance_value(form, "loop_check_field"), 60) or "-"
+        check_operator = _truncate_text(_bound_or_instance_value(form, "loop_check_operator"), 40) or "-"
+        check_value = _truncate_text(_bound_or_instance_value(form, "loop_check_value"), 60)
+        retry_value = _truncate_text(_bound_or_instance_value(form, "loop_retry_delay_value"), 20) or "24"
+        retry_unit = _truncate_text(_bound_or_instance_value(form, "loop_retry_delay_unit"), 20) or "hours"
+        max_iterations = _truncate_text(_bound_or_instance_value(form, "loop_max_iterations"), 20) or "10"
+        condition_line = f"Uscita: {check_field} {check_operator}".strip()
+        if check_value:
+            condition_line += f" {check_value}"
+        preview_lines = [
+            condition_line,
+            f"Retry: {retry_value} {retry_unit}",
+            f"Max iterazioni: {max_iterations}",
+            f"Corpo loop: {_safe_json_array_length(_bound_or_instance_value(form, 'loop_loop_actions_json'))} azioni",
+            "Successo/timeout: "
+            f"{_safe_json_array_length(_bound_or_instance_value(form, 'loop_on_success_actions_json'))}"
+            "/"
+            f"{_safe_json_array_length(_bound_or_instance_value(form, 'loop_on_timeout_actions_json'))}",
+        ]
+    elif action_type == AutomationActionType.FOR_EACH:
+        source_code = _truncate_text(_bound_or_instance_value(form, "each_source_code"), 60) or "-"
+        filter_field = _truncate_text(_bound_or_instance_value(form, "each_filter_field"), 60)
+        filter_value = _truncate_text(_bound_or_instance_value(form, "each_filter_value_template"), 60)
+        max_items = _truncate_text(_bound_or_instance_value(form, "each_max_items"), 20) or "50"
+        preview_lines = [
+            f"Sorgente: {source_code}",
+            f"Filtro: {filter_field or '-'}" + (f" = {filter_value}" if filter_field and filter_value else ""),
+            f"Azioni per elemento: {_safe_json_array_length(_bound_or_instance_value(form, 'each_actions_json'))}",
+            f"Max elementi: {max_items}",
+        ]
+    elif action_type == AutomationActionType.BRANCH:
+        branch_field = _truncate_text(_bound_or_instance_value(form, "branch_condition_field"), 60) or "-"
+        branch_operator = _truncate_text(_bound_or_instance_value(form, "branch_condition_operator"), 40) or "-"
+        branch_value = _truncate_text(_bound_or_instance_value(form, "branch_condition_value"), 60)
+        compare_with_old = _bool_value(_bound_or_instance_value(form, "branch_compare_with_old"))
+        condition_line = f"If: {branch_field} {branch_operator}".strip()
+        if branch_value:
+            condition_line += f" {branch_value}"
+        preview_lines = [
+            condition_line,
+            f"Se vero: {_safe_json_array_length(_bound_or_instance_value(form, 'branch_if_true_actions_json'))} azioni",
+            f"Se falso: {_safe_json_array_length(_bound_or_instance_value(form, 'branch_if_false_actions_json'))} azioni",
+        ]
+        if compare_with_old:
+            preview_lines.append("Confronta con old payload")
     else:
         preview_lines = ["Configurazione non disponibile."]
 
@@ -3500,6 +3675,27 @@ def _build_action_entries(action_formset) -> list[dict[str, object]]:
             }
         )
     return entries
+
+
+def _build_empty_action_entry(action_formset) -> dict[str, object]:
+    empty_form = action_formset.empty_form
+    return {
+        "form": empty_form,
+        "index": None,
+        "is_existing": False,
+        "has_content": False,
+        "marked_for_delete": False,
+        "descriptor": _describe_action_values(
+            order="",
+            action_type="",
+            is_enabled=True,
+            description="Nuova azione",
+            item_id=None,
+            marked_for_delete=False,
+            preview_lines=_build_action_preview_from_form(empty_form),
+        ),
+        "meta_rows": [],
+    }
 
 
 def _build_human_rule_summary(trigger_descriptor: dict[str, object], condition_entries, action_entries) -> dict[str, object]:
@@ -3786,6 +3982,7 @@ def _build_rule_designer_context(
         "new_condition_entries": [entry for entry in condition_entries if not entry["is_existing"]],
         "existing_action_entries": [entry for entry in action_entries if entry["is_existing"]],
         "new_action_entries": [entry for entry in action_entries if not entry["is_existing"]],
+        "empty_action_entry": _build_empty_action_entry(action_formset),
         "human_rule_summary": _build_human_rule_summary(trigger_descriptor, condition_entries, action_entries),
         "source_definition": get_source_definition(source_code),
         "sample_payload_json": _build_example_payload(source_code),
@@ -4819,8 +5016,12 @@ def _format_display_datetime(value) -> str:
     if isinstance(parsed, datetime):
         if parsed.year < 1901:
             return "-"
-        if timezone.is_aware(parsed):
-            parsed = timezone.localtime(parsed)
+        current_tz = timezone.get_current_timezone()
+        if timezone.is_naive(parsed):
+            # Alcuni backend/driver restituiscono datetime naive pur usando USE_TZ.
+            # Li trattiamo come orario del progetto prima della formattazione finale.
+            parsed = timezone.make_aware(parsed, current_tz)
+        parsed = timezone.localtime(parsed, current_tz)
         return parsed.strftime("%d/%m/%Y %H:%M:%S")
     return str(parsed)
 
@@ -5018,6 +5219,7 @@ def _build_queue_poller_health_snapshot() -> dict[str, object]:
         "summary_state": summary_state,
         "summary_label": summary_label,
         "summary_message": summary_message,
+        "display_timezone_label": timezone.get_current_timezone_name(),
         "job_exists": job is not None,
         "job_id": getattr(job, "pk", None),
         "job_code": QUEUE_POLLER_JOB_CODE,
@@ -5313,6 +5515,52 @@ def api_table_config_save(request):
         return JsonResponse({"ok": False, "error": "action_type non valido"}, status=400)
     if not table_name:
         return JsonResponse({"ok": False, "error": "table_name obbligatorio"}, status=400)
+    available = discover_module_tables()
+    table_meta = available.get(table_name)
+    if not table_meta:
+        return JsonResponse(
+            {"ok": False, "error": "table_name non valido: seleziona una tabella del catalogo moduli."},
+            status=400,
+        )
+
+    def _normalize_string_list(raw_values) -> list[str]:
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for raw_value in raw_values or []:
+            text = _string_value(raw_value)
+            if not text or text in seen:
+                continue
+            normalized.append(text)
+            seen.add(text)
+        return normalized
+
+    allowed_fields = _normalize_string_list(allowed_fields)
+    where_fields = _normalize_string_list(where_fields)
+
+    writable_pool = {str(value) for value in (table_meta.get("fields") or [])}
+    where_pool = {str(value) for value in (table_meta.get("all_fields") or table_meta.get("fields") or [])}
+    invalid_allowed_fields = sorted(set(allowed_fields) - writable_pool)
+    invalid_where_fields = sorted(set(where_fields) - where_pool)
+    if invalid_allowed_fields:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "allowed_fields contiene colonne non valide per la tabella selezionata: "
+                + ", ".join(invalid_allowed_fields),
+            },
+            status=400,
+        )
+    if invalid_where_fields:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "where_fields contiene colonne non valide per la tabella selezionata: "
+                + ", ".join(invalid_where_fields),
+            },
+            status=400,
+        )
+    if action_type == AutomationActionType.INSERT_RECORD:
+        where_fields = []
 
     obj, created = AutomationTableConfig.objects.update_or_create(
         action_type=action_type,
@@ -5336,6 +5584,35 @@ def api_recent_records(request, source_code: str):
     """GET /api/sorgenti/<source_code>/record-recenti/ — record recenti per il picker del test live."""
     records = list_recent_source_records(source_code, limit=20)
     return JsonResponse({"ok": True, "records": records})
+
+
+@legacy_admin_required
+@require_GET
+def api_source_field_values(request, source_code: str, field_name: str):
+    field_definition = _get_source_field_definition(source_code, field_name)
+    if field_definition is None:
+        return JsonResponse({"ok": False, "message": "Campo non registrato per questa sorgente."}, status=404)
+
+    distinct_state = _fetch_source_field_distinct_values(source_code, field_name)
+    allowed_values = [
+        _string_value(value)
+        for value in (field_definition.get("allowed_values") or [])
+        if _string_value(value)
+    ]
+    return JsonResponse(
+        {
+            "ok": True,
+            "source_code": _string_value(source_code),
+            "field_name": _string_value(field_name),
+            "field_label": _string_value(field_definition.get("label")) or _string_value(field_name),
+            "ui_control": _string_value(field_definition.get("ui_control")),
+            "value_source_label": _string_value(field_definition.get("value_source_label")),
+            "allowed_values": allowed_values,
+            "distinct_values": distinct_state["values"],
+            "queryable": bool(distinct_state["queryable"]),
+            "message": _string_value(distinct_state["message"]),
+        }
+    )
 
 
 @legacy_admin_required
@@ -5740,6 +6017,234 @@ def settings_page(request):
             approval_graph_form=approval_graph_form,
         ),
     )
+
+
+def _get_trigger_sources() -> list[dict]:
+    """Restituisce le sorgenti con table_name definito, con campi non-virtual."""
+    from .source_registry import get_registered_sources
+    result = []
+    for src in get_registered_sources():
+        table_name = src.get("table_name")
+        if not table_name:
+            continue
+        pk_field = str(src.get("pk_field") or "id")
+        fields = [
+            f for f in (src.get("fields") or [])
+            if not f.get("is_virtual") and f.get("db_column")
+        ]
+        result.append({
+            "code": src["code"],
+            "label": src["label"],
+            "table_name": table_name,
+            "pk_field": pk_field,
+            "supported_operations": src.get("supported_operations", ["insert", "update"]),
+            "fields": fields,
+        })
+    return result
+
+
+def _generate_trigger_sql(
+    *,
+    source_code: str,
+    table_name: str,
+    pk_field: str,
+    operations: list[str],
+    fields: list[dict],
+) -> dict[str, str]:
+    """Genera il testo SQL dei trigger INSERT e/o UPDATE per la sorgente."""
+
+    def _col(f: dict) -> str:
+        return str(f.get("db_column") or f["name"])
+
+    def _select_block(alias: str, field_list: list[dict]) -> str:
+        lines = []
+        for f in field_list:
+            col = _col(f)
+            name = f["name"]
+            if col == name:
+                lines.append(f"            {alias}.{col}")
+            else:
+                lines.append(f"            {alias}.{col} AS {name}")
+        return ",\n".join(lines)
+
+    pk_col = next((f for f in fields if f["name"] == pk_field), None)
+    pk_db_col = pk_col["db_column"] if pk_col else pk_field
+
+    result: dict[str, str] = {}
+
+    if "insert" in operations:
+        select_block = _select_block("i", fields)
+        result["insert"] = f"""-- Trigger INSERT per sorgente '{source_code}'
+-- Generato da NOVICROM HUB - Generatore Trigger SQL
+CREATE TRIGGER [dbo].[trg_{source_code}_automation_after_insert]
+ON [dbo].[{table_name}]
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM inserted)
+    BEGIN
+        RETURN;
+    END;
+
+    INSERT INTO [dbo].[automation_event_queue] (
+        source_code, source_table, source_pk, operation_type,
+        event_code, watched_field, payload_json, old_payload_json, status
+    )
+    SELECT
+        N'{source_code}',
+        N'{table_name}',
+        CAST(i.{pk_db_col} AS NVARCHAR(100)),
+        N'INSERT',
+        N'{source_code}_insert',
+        NULL,
+        (
+            SELECT
+{select_block}
+            FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+        ),
+        NULL,
+        N'pending'
+    FROM inserted AS i;
+END;
+GO
+"""
+
+    if "update" in operations:
+        select_new = _select_block("i", fields)
+        select_old = _select_block("d", fields)
+        result["update"] = f"""-- Trigger UPDATE per sorgente '{source_code}'
+-- Generato da NOVICROM HUB - Generatore Trigger SQL
+CREATE TRIGGER [dbo].[trg_{source_code}_automation_after_update]
+ON [dbo].[{table_name}]
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM inserted)
+    BEGIN
+        RETURN;
+    END;
+
+    INSERT INTO [dbo].[automation_event_queue] (
+        source_code, source_table, source_pk, operation_type,
+        event_code, watched_field, payload_json, old_payload_json, status
+    )
+    SELECT
+        N'{source_code}',
+        N'{table_name}',
+        CAST(i.{pk_db_col} AS NVARCHAR(100)),
+        N'UPDATE',
+        N'{source_code}_update',
+        NULL,
+        (
+            SELECT
+{select_new}
+            FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+        ),
+        (
+            SELECT
+{select_old}
+            FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+        ),
+        N'pending'
+    FROM inserted AS i
+    INNER JOIN deleted AS d
+        ON d.{pk_db_col} = i.{pk_db_col};
+END;
+GO
+"""
+
+    return result
+
+
+def _apply_trigger_sql(sql: str) -> dict[str, object]:
+    """Esegue DROP + CREATE TRIGGER sul DB (compatibile con tutte le versioni SQL Server)."""
+    import re
+    vendor = getattr(connection, "vendor", "")
+    if vendor != "microsoft" and "mssql" not in vendor.lower():
+        return {"ok": False, "message": "Database non è SQL Server — impossibile applicare trigger."}
+    try:
+        # Estrae nome trigger dal SQL
+        match = re.search(r"CREATE\s+TRIGGER\s+\[?dbo\]?\.\[?(\w+)\]?", sql, re.IGNORECASE)
+        if not match:
+            return {"ok": False, "message": "Nome trigger non trovato nel SQL generato."}
+        trigger_name = match.group(1)
+        # Estrae solo il blocco CREATE (senza commenti iniziali e senza GO)
+        ddl_match = re.search(r"(CREATE\s+TRIGGER\s+.+?)(?:^\s*GO\s*$|$)", sql, re.IGNORECASE | re.MULTILINE | re.DOTALL)
+        ddl = ddl_match.group(1).strip() if ddl_match else sql
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"IF OBJECT_ID('[dbo].[{trigger_name}]', 'TR') IS NOT NULL "
+                f"DROP TRIGGER [dbo].[{trigger_name}]"
+            )
+            cursor.execute(ddl)
+        return {"ok": True}
+    except Exception as exc:
+        return {"ok": False, "message": str(exc)}
+
+
+@legacy_admin_required
+def trigger_generator_page(request):
+    """Generatore visuale trigger SQL Server per le sorgenti automazioni."""
+    all_sources = _get_trigger_sources()
+    sources_by_code = {s["code"]: s for s in all_sources}
+
+    selected_code = _string_value(request.POST.get("source_code") or request.GET.get("source_code"))
+    if selected_code not in sources_by_code:
+        selected_code = all_sources[0]["code"] if all_sources else ""
+
+    selected_source = sources_by_code.get(selected_code)
+    generated: dict[str, str] = {}
+    apply_results: dict[str, dict] = {}
+    action = _string_value(request.POST.get("action"))
+
+    if request.method == "POST" and selected_source:
+        selected_field_names = set(request.POST.getlist("fields"))
+        selected_operations = [
+            op for op in ["insert", "update"]
+            if request.POST.get(f"op_{op}") == "on"
+            and op in selected_source["supported_operations"]
+        ]
+        chosen_fields = [f for f in selected_source["fields"] if f["name"] in selected_field_names]
+
+        if not chosen_fields:
+            chosen_fields = selected_source["fields"]
+
+        if selected_operations:
+            generated = _generate_trigger_sql(
+                source_code=selected_source["code"],
+                table_name=selected_source["table_name"],
+                pk_field=selected_source["pk_field"],
+                operations=selected_operations,
+                fields=chosen_fields,
+            )
+
+        if action == "apply" and generated:
+            for op, sql in generated.items():
+                apply_results[op] = _apply_trigger_sql(sql)
+                if apply_results[op]["ok"]:
+                    log_action(request, "apply_sql_trigger", "automazioni",
+                               f"Trigger {op.upper()} applicato per sorgente '{selected_code}'")
+            if all(r["ok"] for r in apply_results.values()):
+                messages.success(request, f"Trigger applicati con successo per '{selected_source['label']}'.")
+            else:
+                errors = [r["message"] for r in apply_results.values() if not r["ok"]]
+                messages.error(request, f"Errori nell'applicazione: {'; '.join(errors)}")
+
+    is_sql_server = getattr(connection, "vendor", "") == "microsoft" or "mssql" in getattr(connection, "vendor", "").lower()
+
+    return render(request, "automazioni/pages/trigger_generator.html", {
+        **_base_context(),
+        "page_title": "Generatore Trigger SQL",
+        "all_sources": all_sources,
+        "selected_source": selected_source,
+        "generated": generated,
+        "apply_results": apply_results,
+        "is_sql_server": is_sql_server,
+    })
 
 
 @legacy_admin_required

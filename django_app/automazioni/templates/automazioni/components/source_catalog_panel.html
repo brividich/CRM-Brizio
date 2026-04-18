@@ -74,6 +74,14 @@
                       {% endfor %}
                     </div>
                   {% endif %}
+                  {% if field.allowed_values %}
+                    <div class="auto-smart-field-aliases">
+                      Valori noti{% if field.value_source_label %} da {{ field.value_source_label }}{% endif %}:
+                      {% for value in field.allowed_values %}
+                        <span>{{ value }}</span>{% if not forloop.last %}, {% endif %}
+                      {% endfor %}
+                    </div>
+                  {% endif %}
                   <div class="auto-smart-chip-row">
                     {% if field.usable_in_trigger %}<span class="auto-smart-mini-chip">trigger</span>{% endif %}
                     {% if field.usable_in_condition %}<span class="auto-smart-mini-chip">condizione</span>{% endif %}

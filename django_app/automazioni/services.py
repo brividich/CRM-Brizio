@@ -251,6 +251,32 @@ def _resolve_caporeparto_email_from_local_id(local_id: Any) -> str:
     return ""
 
 
+def _resolve_capo_email_from_reparto_mapping(dipendente_id: Any) -> str:
+    resolved_id = _coerce_int(dipendente_id)
+    if resolved_id is None:
+        return ""
+    try:
+        from core.models import RepartoCapoMapping, UserExtraInfo
+
+        extra = UserExtraInfo.objects.filter(legacy_user_id=resolved_id).only("reparto").first()
+        reparto = str(getattr(extra, "reparto", "") or "").strip()
+        if not reparto:
+            return ""
+        mapping = RepartoCapoMapping.objects.filter(reparto__iexact=reparto, is_active=True).first()
+        if not mapping:
+            return ""
+        caporeparto = str(mapping.caporeparto or "").strip()
+        if "@" in caporeparto:
+            return caporeparto.lower()
+        from core.legacy_models import UtenteLegacy
+
+        user = UtenteLegacy.objects.filter(nome__iexact=caporeparto).only("email").first()
+        return str(getattr(user, "email", "") or "").strip().lower()
+    except Exception:
+        logger.warning("_resolve_capo_email_from_reparto_mapping: errore per dipendente_id=%s", resolved_id, exc_info=True)
+        return ""
+
+
 def _resolve_caporeparto_email_from_lookup(lookup_id: Any) -> str:
     resolved_id = _coerce_int(lookup_id)
     if resolved_id is None:
@@ -299,15 +325,44 @@ def _fetch_assenza_runtime_details(assenza_id: Any) -> dict[str, Any]:
         return {}
 
     try:
+        from core.legacy_utils import legacy_table_columns
+
+        cols = set(legacy_table_columns("assenze"))
+    except Exception:
+        logger.warning(
+            "_fetch_assenza_runtime_details: impossibile leggere metadata per assenza_id=%s",
+            resolved_id,
+            exc_info=True,
+        )
+        cols = set()
+
+    select_cols: list[str] = []
+    for col in (
+        "email_esterna",
+        "salta_approvazione",
+        "capo_reparto_id",
+        "capo_reparto_lookup_id",
+        "nome_lookup_id",
+        "copia_nome",
+    ):
+        if col in cols:
+            select_cols.append(col)
+    if not select_cols:
+        return {}
+
+    try:
         with connection.cursor() as cursor:
-            cursor.execute(
-                """
-SELECT email_esterna, salta_approvazione
-FROM assenze
-WHERE id = %s
-""",
-                [resolved_id],
-            )
+            quoted_cols = ", ".join(select_cols)
+            if connection.vendor == "sqlite":
+                cursor.execute(
+                    f"SELECT {quoted_cols} FROM assenze WHERE id = %s ORDER BY id DESC LIMIT 1",
+                    [resolved_id],
+                )
+            else:
+                cursor.execute(
+                    f"SELECT TOP 1 {quoted_cols} FROM assenze WHERE id = %s ORDER BY id DESC",
+                    [resolved_id],
+                )
             row = cursor.fetchone()
     except Exception:
         logger.warning(
@@ -320,11 +375,33 @@ WHERE id = %s
     if not row:
         return {}
 
-    dipendente_email = str(row[0] or "").strip().lower()
-    return {
-        "dipendente_email": dipendente_email,
-        "salta_approvazione": _normalize_runtime_bool(row[1]),
-    }
+    result: dict[str, Any] = {}
+    values_by_col = dict(zip(select_cols, row))
+
+    dipendente_email = str(values_by_col.get("email_esterna") or "").strip().lower()
+    if dipendente_email:
+        result["dipendente_email"] = dipendente_email
+
+    if "salta_approvazione" in values_by_col:
+        result["salta_approvazione"] = _normalize_runtime_bool(values_by_col.get("salta_approvazione"))
+
+    capo_reparto_id = _coerce_int(values_by_col.get("capo_reparto_id"))
+    if capo_reparto_id is not None:
+        result["capo_reparto_id"] = capo_reparto_id
+
+    capo_reparto_lookup_id = _coerce_int(values_by_col.get("capo_reparto_lookup_id"))
+    if capo_reparto_lookup_id is not None:
+        result["capo_reparto_lookup_id"] = capo_reparto_lookup_id
+
+    dipendente_id = _coerce_int(values_by_col.get("nome_lookup_id"))
+    if dipendente_id is not None:
+        result["dipendente_id"] = dipendente_id
+
+    dipendente_nome = str(values_by_col.get("copia_nome") or "").strip()
+    if dipendente_nome:
+        result["dipendente_nome"] = dipendente_nome
+
+    return result
 
 
 def _enrich_assenze_payload(payload: Any) -> Any:
@@ -334,6 +411,13 @@ def _enrich_assenze_payload(payload: Any) -> Any:
     enriched = dict(payload)
     runtime_details = _fetch_assenza_runtime_details(enriched.get("id"))
 
+    if enriched.get("capo_reparto_id") in {None, ""} and runtime_details.get("capo_reparto_id") is not None:
+        enriched["capo_reparto_id"] = runtime_details.get("capo_reparto_id")
+    if enriched.get("capo_reparto_lookup_id") in {None, ""} and runtime_details.get("capo_reparto_lookup_id") is not None:
+        enriched["capo_reparto_lookup_id"] = runtime_details.get("capo_reparto_lookup_id")
+    if enriched.get("dipendente_id") in {None, ""} and runtime_details.get("dipendente_id") is not None:
+        enriched["dipendente_id"] = runtime_details.get("dipendente_id")
+
     capo_email = str(enriched.get("capo_email") or "").strip().lower()
     if not capo_email:
         capo_email = _resolve_caporeparto_email_from_local_id(enriched.get("capo_reparto_id"))
@@ -341,6 +425,8 @@ def _enrich_assenze_payload(payload: Any) -> Any:
         capo_email = _resolve_legacy_user_email(enriched.get("capo_reparto_id"))
     if not capo_email:
         capo_email = _resolve_caporeparto_email_from_lookup(enriched.get("capo_reparto_lookup_id"))
+    if not capo_email:
+        capo_email = _resolve_capo_email_from_reparto_mapping(enriched.get("dipendente_id"))
     if capo_email:
         enriched["capo_email"] = capo_email
 
@@ -354,6 +440,10 @@ def _enrich_assenze_payload(payload: Any) -> Any:
         dipendente_email = _resolve_legacy_user_email(enriched.get("dipendente_id"))
     if dipendente_email:
         enriched["dipendente_email"] = dipendente_email
+
+    dipendente_nome = str(enriched.get("dipendente_nome") or runtime_details.get("dipendente_nome") or "").strip()
+    if dipendente_nome:
+        enriched["dipendente_nome"] = dipendente_nome
 
     salta_approvazione = enriched.get("salta_approvazione")
     if salta_approvazione in {None, ""}:
@@ -378,6 +468,23 @@ def enrich_payload_for_source(source_code: str | None, payload: Any) -> Any:
 def _cursor_fetch_dicts(cursor) -> list[dict[str, Any]]:
     columns = [column[0] for column in cursor.description or []]
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+
+_QUEUE_DATETIME_FIELDS = {"created_at", "picked_at", "processed_at", "execute_after"}
+
+
+def _normalize_queue_event_datetimes(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Mark naive datetime fields from automation_event_queue as UTC-aware.
+
+    SQL Server stores these via SYSUTCDATETIME(); pyodbc returns naive datetimes.
+    Without tzinfo Django's date filter skips localtime conversion and shows UTC.
+    """
+    for row in rows:
+        for field in _QUEUE_DATETIME_FIELDS:
+            val = row.get(field)
+            if isinstance(val, datetime) and val.tzinfo is None:
+                row[field] = val.replace(tzinfo=dt_timezone.utc)
+    return rows
 
 
 def _queue_table_has_column(column_name: str) -> bool:
@@ -560,7 +667,7 @@ ORDER BY id ASC;
     try:
         with connection.cursor() as cursor:
             cursor.execute(sql, [QueueEventStatus.PENDING, *source_filter_params])
-            return _cursor_fetch_dicts(cursor)
+            return _normalize_queue_event_datetimes(_cursor_fetch_dicts(cursor))
     except DjangoProgrammingError:
         return []
 
@@ -600,7 +707,7 @@ ORDER BY id DESC;
     try:
         with connection.cursor() as cursor:
             cursor.execute(sql, params)
-            return _cursor_fetch_dicts(cursor)
+            return _normalize_queue_event_datetimes(_cursor_fetch_dicts(cursor))
     except DjangoProgrammingError:
         return []
 
@@ -629,7 +736,7 @@ FROM dbo.automation_event_queue
 """
     with connection.cursor() as cursor:
         cursor.execute(sql, params)
-        rows = _cursor_fetch_dicts(cursor)
+        rows = _normalize_queue_event_datetimes(_cursor_fetch_dicts(cursor))
     return rows[0] if rows else None
 
 
@@ -1349,6 +1456,8 @@ def _parse_email_recipients(raw_value: Any, payload: Any, field_name: str) -> li
         email = str(candidate).strip()
         if not email:
             continue
+        if "{" in email and "}" in email:
+            raise ValueError(f"Placeholder non risolto in {field_name}: {email}.")
         try:
             validate_email(email)
         except ValidationError as exc:
@@ -3106,7 +3215,7 @@ def process_approval_decision(token: str, decision: str, decided_by_email: str =
     run_log = approval.run_log
     run_log.status = AutomationRunLogStatus.SUCCESS if decision == "approved" else AutomationRunLogStatus.SKIPPED
     run_log.result_message = (
-        f"Approvazione ricevuta: {decision} da '{decided_by_email or 'N/D'}' il {approval.decided_at.strftime('%d/%m/%Y %H:%M')}."
+        f"Approvazione ricevuta: {decision} da '{decided_by_email or 'N/D'}' il {timezone.localtime(approval.decided_at).strftime('%d/%m/%Y %H:%M')}."
     )
     run_log.save(update_fields=["status", "result_message"])
 

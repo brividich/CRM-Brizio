@@ -843,7 +843,7 @@ def api_notifica_leggi(request, notifica_id: int):
 @login_required
 @require_POST
 def api_notifiche_popup_ack(request):
-    """Marca come popup_shown=True le notifiche indicate (chiamata automatica dal toast JS)."""
+    """Marca come popup_shown=True le notifiche indicate mostrate nella UI globale."""
     from core.models import Notifica
     legacy_user = get_legacy_user(request.user)
     if not legacy_user:

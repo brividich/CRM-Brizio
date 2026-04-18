@@ -104,7 +104,7 @@
     </div>
     <div class="hn-stat" style="border-color:#bfdbfe;">
       <div class="hn-stat-num" style="color:#1d4ed8;">{{ popup_pend }}</div>
-      <div class="hn-stat-label">Popup in attesa</div>
+      <div class="hn-stat-label">Banner in attesa</div>
     </div>
   </div>
 
@@ -198,10 +198,10 @@
                 <td>
                   {% if n.letta %}
                     <span class="hn-pill hn-pill-gray">Letta</span>
-                    {% if n.popup_shown %}<div style="font-size:10px;color:#94a3b8;margin-top:2px;">popup ✓</div>{% endif %}
+                    {% if n.popup_shown %}<div style="font-size:10px;color:#94a3b8;margin-top:2px;">banner ✓</div>{% endif %}
                   {% else %}
                     <span class="hn-pill hn-pill-yellow">Non letta</span>
-                    {% if not n.popup_shown %}<div style="font-size:10px;color:#94a3b8;margin-top:2px;">popup in attesa</div>{% endif %}
+                    {% if not n.popup_shown %}<div style="font-size:10px;color:#94a3b8;margin-top:2px;">banner in attesa</div>{% endif %}
                   {% endif %}
                 </td>
                 <td>

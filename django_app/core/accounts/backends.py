@@ -156,6 +156,7 @@ class LDAPBackend:
                 password=password,
                 authentication=SIMPLE,
                 auto_bind=AUTO_BIND_NO_TLS,
+                auto_referrals=False,
                 raise_exceptions=False,
             )
             ok = conn.bind()
@@ -168,6 +169,7 @@ class LDAPBackend:
                     password=password,
                     authentication=NTLM,
                     auto_bind=AUTO_BIND_NO_TLS,
+                    auto_referrals=False,
                     raise_exceptions=False,
                 )
                 ok = conn2.bind()

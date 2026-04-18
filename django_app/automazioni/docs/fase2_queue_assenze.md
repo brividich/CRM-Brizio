@@ -4,10 +4,11 @@ Questa fase introduce solo l'infrastruttura dati minima per accodare eventi `INS
 
 ## Strategia payload
 
-La queue usa principalmente i nomi DB reali della tabella `dbo.assenze` e aggiunge solo gli alias runtime strettamente utili alle automazioni (`dipendente_email`, `capo_email`):
+La queue usa principalmente i nomi DB reali della tabella `dbo.assenze` e aggiunge solo gli alias runtime strettamente utili alle automazioni (`dipendente_nome`, `dipendente_email`, `capo_email`):
 
 - `id`
 - `dipendente_id`
+- `dipendente_nome`
 - `data_inizio`
 - `data_fine`
 - `tipo_assenza`
@@ -53,6 +54,7 @@ In questa fase `watched_field` resta sempre `NULL`. Il confronto puntuale tra `p
 {
   "id": 123,
   "dipendente_id": 45,
+  "dipendente_nome": "Mario Rossi",
   "data_inizio": "2026-03-11T08:00:00",
   "data_fine": "2026-03-11T17:00:00",
   "tipo_assenza": "Permesso",

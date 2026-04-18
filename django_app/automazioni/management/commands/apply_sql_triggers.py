@@ -2,11 +2,11 @@
 Management command: apply_sql_triggers
 Esegue (nell'ordine):
   1. Creazione idempotente della tabella dbo.automation_event_queue (DDL da sql/automation_event_queue.sql)
-  2. DROP + CREATE dei trigger SQL Server in automazioni/migrations/trg_*.sql
+  2. DROP + CREATE dei trigger SQL Server trovati in automazioni/migrations/ e in sql/
 
 - Idempotente: usa IF OBJECT_ID ... IS NULL per la tabella; DROP TRIGGER IF EXISTS per i trigger.
 - Silenzioso su SQLite (dev): salta l'esecuzione senza errori.
-- Auto-discovery: trova tutti i file trg_*.sql in automazioni/migrations/.
+- Auto-discovery: trova tutti i file trg_*.sql sia in automazioni/migrations/ sia in sql/.
 - Da chiamare in deploy-release.ps1 subito dopo migrate.
 """
 from __future__ import annotations
@@ -26,6 +26,7 @@ _QUEUE_TABLE_DDL = _SQL_DIR / "automation_event_queue.sql"
 
 # Directory dove vivono i file trigger
 _MIGRATIONS_DIR = Path(__file__).resolve().parent.parent.parent / "migrations"
+_TRIGGER_SEARCH_DIRS = (_MIGRATIONS_DIR, _SQL_DIR)
 
 
 def _split_go_batches(sql: str) -> list[str]:
@@ -97,8 +98,28 @@ def apply_trigger(sql_path: Path, *, dry_run: bool = False) -> dict:
         return {"file": sql_path.name, "status": "error", "trigger": trigger_name, "message": str(exc)}
 
 
+def discover_trigger_files(*, filter_files: list[str] | None = None) -> list[Path]:
+    requested = set(filter_files or [])
+    discovered: list[Path] = []
+    seen: set[str] = set()
+
+    for directory in _TRIGGER_SEARCH_DIRS:
+        if not directory.exists():
+            continue
+        for sql_path in sorted(directory.glob("trg_*.sql"), key=lambda item: item.name.lower()):
+            key = str(sql_path.resolve())
+            if key in seen:
+                continue
+            if requested and sql_path.name not in requested:
+                continue
+            seen.add(key)
+            discovered.append(sql_path)
+
+    return discovered
+
+
 class Command(BaseCommand):
-    help = "Applica (DROP + CREATE) i trigger SQL Server in automazioni/migrations/trg_*.sql. Idempotente."
+    help = "Applica (DROP + CREATE) i trigger SQL Server trovati in automazioni/migrations/ e sql/. Idempotente."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -121,14 +142,13 @@ class Command(BaseCommand):
         if not _is_sql_server():
             self.stdout.write(
                 self.style.WARNING(
-                    f"apply_sql_triggers: database vendor '{connection.vendor}' non è SQL Server — skip."
+                    f"apply_sql_triggers: database vendor '{connection.vendor}' non e SQL Server - skip."
                 )
             )
             return
 
         errors = 0
 
-        # Step 1: crea la tabella automation_event_queue se non esiste
         ddl_result = apply_queue_table_ddl(dry_run=dry_run)
         ddl_status = ddl_result["status"]
         if ddl_status == "ok":
@@ -141,20 +161,17 @@ class Command(BaseCommand):
             errors += 1
             self.stdout.write(self.style.ERROR(f"  [ERRORE]  automation_event_queue DDL: {ddl_result['message']}"))
 
-        # Step 2: applica i trigger
-        sql_files = sorted(_MIGRATIONS_DIR.glob("trg_*.sql"))
+        sql_files = discover_trigger_files(filter_files=filter_files)
         if not sql_files:
-            self.stdout.write(self.style.WARNING("Nessun file trg_*.sql trovato in migrations/."))
+            if filter_files:
+                self.stdout.write(self.style.ERROR(f"Nessun file corrispondente a: {filter_files}"))
+            else:
+                self.stdout.write(self.style.WARNING("Nessun file trg_*.sql trovato nelle directory trigger configurate."))
             return
 
-        if filter_files:
-            sql_files = [f for f in sql_files if f.name in filter_files]
-            if not sql_files:
-                self.stdout.write(self.style.ERROR(f"Nessun file corrispondente a: {filter_files}"))
-                return
-
         mode = "dry-run" if dry_run else "apply"
-        self.stdout.write(f"apply_sql_triggers [{mode}] — {len(sql_files)} file trovati in {_MIGRATIONS_DIR}")
+        search_dirs = ", ".join(str(path) for path in _TRIGGER_SEARCH_DIRS if path.exists())
+        self.stdout.write(f"apply_sql_triggers [{mode}] - {len(sql_files)} file trovati in {search_dirs}")
 
         for sql_path in sql_files:
             result = apply_trigger(sql_path, dry_run=dry_run)

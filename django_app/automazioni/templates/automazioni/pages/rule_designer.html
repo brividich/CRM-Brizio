@@ -5,7 +5,7 @@
 {% block extra_head %}
 <style>
   .designer-shell { padding:4px; border-radius:24px; background:linear-gradient(135deg, #dbeafe 0%, #fef3c7 45%, #dcfce7 100%); }
-  .designer-layout { display:grid; gap:18px; grid-template-columns:minmax(0, 1.8fr) minmax(320px, .85fr); align-items:start; }
+  .designer-layout { display:grid; gap:18px; grid-template-columns:minmax(0, 1.8fr) minmax(320px, .85fr); align-items:start; min-height:calc(100vh - 32px); }
   .designer-main { display:grid; gap:18px; }
   .designer-header { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:flex-start; }
   .designer-actions { display:flex; gap:8px; flex-wrap:wrap; }
@@ -40,7 +40,17 @@
   .designer-field input, .designer-field select, .designer-field textarea { width:100%; padding:10px 11px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; }
   .designer-field textarea { min-height:88px; }
   .designer-field-wide { grid-column:1 / -1; }
+  .designer-field-choice-grid { grid-column:1 / -1; display:grid; gap:12px; grid-template-columns:minmax(0, 1.25fr) minmax(260px, .75fr); align-items:start; }
   .designer-help { font-size:12px; color:#64748b; }
+  .designer-choice-helper { display:grid; gap:10px; min-width:0; padding:12px; border-radius:14px; border:1px solid #dbeafe; background:linear-gradient(180deg, #eff6ff 0%, #ffffff 100%); }
+  .designer-choice-helper[hidden] { display:none !important; }
+  .designer-choice-helper-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+  .designer-choice-section { display:grid; gap:8px; }
+  .designer-choice-section-title { font-size:11px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; color:#1d4ed8; }
+  .designer-choice-chip-row { display:flex; flex-wrap:wrap; gap:6px; }
+  .designer-choice-chip { appearance:none; border:1px solid #bfdbfe; border-radius:999px; background:#fff; color:#1e3a8a; padding:5px 10px; font-size:12px; font-weight:700; cursor:pointer; transition:transform .12s ease, border-color .12s ease, background .12s ease; }
+  .designer-choice-chip:hover { transform:translateY(-1px); border-color:#60a5fa; background:#eff6ff; }
+  .designer-choice-chip.is-active { background:#1d4ed8; border-color:#1d4ed8; color:#fff; }
   .designer-errors { margin:4px 0 0; padding-left:18px; color:#b91c1c; font-size:13px; }
   .designer-pill-row { display:flex; flex-wrap:wrap; gap:8px; }
   .designer-pill { display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:#e2e8f0; color:#0f172a; font-size:12px; font-weight:700; }
@@ -68,6 +78,36 @@
   .designer-field-compact-toggle { align-content:start; }
   .designer-toggle-wrap { min-height:44px; display:flex; align-items:center; padding:0 2px; }
   .designer-toggle-wrap input[type="checkbox"] { width:18px; height:18px; }
+  .designer-branch-grid { display:grid; gap:12px; grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  .designer-branch-column { display:grid; gap:10px; padding:14px; border-radius:18px; border:1px solid #dbeafe; }
+  .designer-branch-column--true { background:linear-gradient(180deg, #f0fdf4 0%, #ffffff 100%); border-color:#86efac; }
+  .designer-branch-column--false { background:linear-gradient(180deg, #fff7ed 0%, #ffffff 100%); border-color:#fdba74; }
+  .designer-inline-builder-grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); }
+  .designer-inline-builder-column--loop { background:linear-gradient(180deg, #eff6ff 0%, #ffffff 100%); border-color:#93c5fd; }
+  .designer-inline-builder-column--success { background:linear-gradient(180deg, #f0fdf4 0%, #ffffff 100%); border-color:#86efac; }
+  .designer-inline-builder-column--timeout { background:linear-gradient(180deg, #fff7ed 0%, #ffffff 100%); border-color:#fdba74; }
+  .designer-inline-builder-column--each { background:linear-gradient(180deg, #f8fafc 0%, #ffffff 100%); border-color:#cbd5e1; }
+  .designer-branch-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+  .designer-branch-title { font-size:14px; font-weight:900; color:#0f172a; }
+  .designer-branch-badge { display:inline-flex; align-items:center; padding:6px 10px; border-radius:999px; background:#e2e8f0; color:#0f172a; font-size:11px; font-weight:800; white-space:nowrap; }
+  .designer-branch-badge[data-inline-json-state="filled"] { background:#dcfce7; color:#166534; }
+  .designer-branch-badge[data-inline-json-state="empty"] { background:#e2e8f0; color:#475569; }
+  .designer-branch-badge[data-inline-json-state="error"] { background:#fee2e2; color:#b91c1c; }
+  .designer-inline-toolbar { display:flex; flex-wrap:wrap; gap:8px; }
+  .designer-inline-warning { padding:10px 12px; border-radius:12px; border:1px solid #fed7aa; background:#fff7ed; color:#9a3412; font-size:12px; font-weight:700; }
+  .designer-inline-list { display:grid; gap:8px; }
+  .designer-inline-item { display:grid; gap:8px; padding:12px; border-radius:14px; border:1px solid #cbd5e1; background:#ffffff; box-shadow:0 1px 2px rgba(15, 23, 42, .04); }
+  .designer-inline-item-head { display:flex; justify-content:space-between; gap:8px; align-items:flex-start; }
+  .designer-inline-item-main { display:grid; gap:4px; min-width:0; }
+  .designer-inline-item-title { display:flex; gap:8px; align-items:center; color:#0f172a; font-size:13px; font-weight:800; }
+  .designer-inline-item-icon { width:22px; height:22px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:#f8fafc; flex-shrink:0; }
+  .designer-inline-item-meta { color:#475569; font-size:12px; line-height:1.45; word-break:break-word; }
+  .designer-inline-item-actions { display:flex; gap:6px; flex-wrap:wrap; }
+  .designer-inline-btn { border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:8px; padding:5px 8px; font-size:11px; font-weight:800; cursor:pointer; }
+  .designer-inline-btn:hover { background:#f8fafc; border-color:#94a3b8; }
+  .designer-inline-empty { padding:12px; border-radius:14px; border:1px dashed #cbd5e1; background:#f8fafc; color:#64748b; font-size:12px; }
+  .designer-inline-json-advanced { margin-top:2px; padding-top:10px; border-top:1px dashed #cbd5e1; }
+  .designer-inline-json-advanced[open] { padding-bottom:2px; }
   .designer-preset-zone { margin-top:12px; padding:14px; border-radius:16px; background:linear-gradient(135deg, #fffef2 0%, #f8fafc 100%); border:1px solid #e5e7eb; display:grid; gap:12px; }
   .designer-preset-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
   .designer-size-switch { display:inline-flex; align-items:center; gap:4px; padding:4px; border-radius:999px; background:#ffffff; border:1px solid #dbe4f0; }
@@ -104,7 +144,7 @@
   .designer-empty { padding:14px; border:1px dashed #cbd5e1; border-radius:14px; color:#64748b; background:#f8fafc; }
   .designer-add-stack { display:grid; gap:12px; }
   .designer-form-actions { display:flex; gap:8px; flex-wrap:wrap; }
-  .designer-side { display:grid; gap:18px; position:sticky; top:20px; }
+  .designer-side { display:grid; gap:18px; position:sticky; top:20px; align-self:start; max-height:calc(100vh - 40px); overflow:auto; padding-right:4px; scrollbar-gutter:stable; }
   .designer-quicktest pre { margin:0; max-height:240px; overflow:auto; padding:12px; border-radius:12px; background:#0f172a; color:#e2e8f0; font-size:12px; }
   .designer-status { min-height:20px; font-size:12px; color:#1d4ed8; }
   .designer-source-panel { position:static; }
@@ -130,7 +170,9 @@
   .auto-smart-empty { margin-top:12px; padding:12px; border-radius:12px; background:#f8fafc; border:1px dashed #cbd5e1; color:#64748b; font-size:13px; }
   @media (max-width: 1100px) {
     .designer-layout { grid-template-columns:1fr; }
-    .designer-side { position:static; }
+    .designer-side { position:static; max-height:none; overflow:visible; padding-right:0; }
+    .designer-field-choice-grid { grid-template-columns:1fr; }
+    .designer-branch-grid { grid-template-columns:1fr; }
   }
   @media (max-width: 900px) {
     .designer-flow { grid-template-columns:1fr; }
@@ -298,6 +340,23 @@
   .diagram-modal-close { background: none; border: none; color: #94a3b8; font-size: 20px; font-weight: 900; cursor: pointer; padding: 2px 8px; border-radius: 6px; line-height: 1; }
   .diagram-modal-close:hover { background: #f1f5f9; color: #475569; }
   .diagram-modal-body { padding: 16px 22px 22px; }
+  .designer-choice-modal-grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); }
+  .designer-choice-modal-card { display:grid; gap:6px; padding:12px; border:1px solid #dbeafe; border-radius:14px; background:linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); }
+  .designer-choice-modal-card-title { font-size:14px; font-weight:800; color:#0f172a; }
+  .designer-choice-modal-card-label { font-size:10px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; color:#64748b; }
+  .designer-choice-modal-empty { padding:12px; border-radius:12px; border:1px dashed #cbd5e1; background:#f8fafc; color:#64748b; font-size:13px; }
+  .designer-admin-modal-overlay { position:fixed; inset:0; background:rgba(15,23,42,.5); z-index:9999; padding:24px; overflow:auto; }
+  .designer-admin-modal-overlay[hidden] { display:none !important; }
+  .designer-admin-modal-box { max-width:860px; margin:0 auto; border-radius:20px; background:#fff; box-shadow:0 26px 80px rgba(15,23,42,.24); padding:28px 32px; display:grid; gap:18px; }
+  .designer-admin-modal-head { display:flex; justify-content:space-between; gap:12px; align-items:center; }
+  .designer-admin-modal-title { font-size:17px; font-weight:800; color:#0f172a; }
+  .designer-admin-modal-section-title { font-size:12px; font-weight:900; text-transform:uppercase; letter-spacing:.08em; color:#64748b; }
+  .designer-admin-table-list { display:grid; gap:8px; }
+  .designer-admin-table-row { display:flex; justify-content:space-between; gap:12px; align-items:center; border:1px solid #e2e8f0; border-radius:12px; padding:10px 14px; }
+  .designer-admin-field-grid { display:grid; gap:12px; }
+  .designer-admin-check-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .designer-admin-checklist { max-height:200px; overflow:auto; border:1px solid #e2e8f0; border-radius:10px; padding:8px; display:grid; gap:4px; }
+  .designer-admin-checklist label { display:flex; align-items:center; gap:6px; font-size:13px; color:#334155; }
   .diagram-action-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .diagram-action-item { width: 100%; appearance: none; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 14px 8px 10px; border-radius: 12px; border: 2px solid #e2e8f0; background: #fff; cursor: pointer; transition: border-color .12s, box-shadow .12s, transform .1s; font: inherit; text-align: center; }
   .diagram-action-item:hover { border-color: var(--ac, #3b82f6); box-shadow: 0 4px 16px rgba(0,0,0,.1); transform: translateY(-2px); }
@@ -316,6 +375,7 @@
     .flow-workspace-shell { height: 100vh; border-radius: 0; }
     .flow-diagram-topbar { flex-wrap: wrap; }
     .flow-diagram-canvas { padding: 18px 10px 28px; }
+    .designer-admin-check-grid { grid-template-columns:1fr; }
   }
 </style>
 {% endblock %}
@@ -743,7 +803,30 @@
       <div class="designer-field">{{ ef.field_name.label_tag }}{{ ef.field_name }}</div>
       <div class="designer-field">{{ ef.operator.label_tag }}{{ ef.operator }}</div>
       <div class="designer-field">{{ ef.value_type.label_tag }}{{ ef.value_type }}</div>
-      <div class="designer-field designer-field-wide">{{ ef.expected_value.label_tag }}{{ ef.expected_value }}</div>
+      <div class="designer-field-choice-grid">
+        <div class="designer-field">
+          {{ ef.expected_value.label_tag }}
+          {{ ef.expected_value }}
+        </div>
+        <aside class="designer-choice-helper" data-condition-choice-helper hidden>
+          <div class="designer-choice-helper-head">
+            <div>
+              <div class="designer-summary-kicker">Valori disponibili</div>
+              <div class="designer-help" data-condition-choice-source></div>
+            </div>
+            <button class="btn btn-light" type="button" data-open-condition-choice-modal>Scegli</button>
+          </div>
+          <div class="designer-choice-section" data-condition-choice-static-section hidden>
+            <div class="designer-choice-section-title">Valori noti</div>
+            <div class="designer-choice-chip-row" data-condition-choice-static-row></div>
+          </div>
+          <div class="designer-choice-section" data-condition-choice-db-section hidden>
+            <div class="designer-choice-section-title">Valori presenti in colonna</div>
+            <div class="designer-choice-chip-row" data-condition-choice-db-row></div>
+          </div>
+          <div class="designer-help" data-condition-choice-status></div>
+        </aside>
+      </div>
       <div class="designer-field">{{ ef.compare_with_old.label_tag }}{{ ef.compare_with_old }}</div>
       <div class="designer-field">{{ ef.is_enabled.label_tag }}{{ ef.is_enabled }}</div>
       <div class="designer-field">{{ ef.DELETE.label_tag }}{{ ef.DELETE }}</div>
@@ -754,244 +837,7 @@
 </div>
 
 <div id="empty-action-card" hidden>
-{% with ef=action_formset.empty_form %}
-<article class="designer-meta-card" data-action-card data-is-existing="false">
-  {% for hf in ef.hidden_fields %}{{ hf }}{% endfor %}
-  <div class="designer-header">
-    <div>
-      <div class="designer-summary-kicker">Azione <span data-order-badge>â€”</span></div>
-      <div class="designer-summary-line" style="font-size:15px;" data-action-label>-</div>
-      <div class="designer-section-subtitle" data-action-summary>Nuova azione</div>
-    </div>
-    <div class="designer-actions">
-      <button class="btn btn-light" type="button" data-apply-suggestion>Base suggerita</button>
-    </div>
-  </div>
-  <div class="designer-pill-row" style="margin-top:10px;"></div>
-  <div class="designer-note" style="margin-top:12px;" data-action-preview><div>Configurazione non disponibile.</div></div>
-  <div class="designer-help" data-suggestion-hint style="margin-top:8px;"></div>
-  <div class="designer-help" data-card-feedback style="margin-top:6px;font-weight:700;color:#0f766e;"></div>
-  <div class="designer-preset-zone" data-preset-zone hidden>
-    <div class="designer-preset-head">
-      <div>
-        <div class="designer-summary-kicker" data-preset-group-title>Preset consigliati</div>
-        <div class="designer-section-subtitle" data-preset-group-subtitle></div>
-      </div>
-      <div class="designer-size-switch" data-preset-size-switch>
-        <button class="designer-size-button is-active" type="button" data-preset-size="sm">S</button>
-        <button class="designer-size-button" type="button" data-preset-size="md">M</button>
-        <button class="designer-size-button" type="button" data-preset-size="lg">L</button>
-      </div>
-    </div>
-    <div class="designer-preset-grid" data-preset-grid></div>
-  </div>
-  <details class="designer-editor-shell" style="margin-top:12px;" data-card-details open>
-    <summary class="designer-editor-summary">Modifica card</summary>
-    <div class="designer-editor-stack" style="margin-top:12px;">
-      <div class="designer-inline-banner">Compila i campi principali e apri le opzioni avanzate solo se servono.</div>
-      <div class="designer-editor-panel">
-        <div class="designer-editor-panel-title">Impostazioni base</div>
-        <div class="designer-trigger-copy">
-          <div class="designer-field">{{ ef.order.label_tag }}{{ ef.order }}</div>
-          <div class="designer-field">{{ ef.action_type.label_tag }}{{ ef.action_type }}</div>
-          <div class="designer-field designer-field-compact-toggle">{{ ef.is_enabled.label_tag }}<div class="designer-toggle-wrap">{{ ef.is_enabled }}</div></div>
-          <div class="designer-field designer-field-compact-toggle">{{ ef.DELETE.label_tag }}<div class="designer-toggle-wrap">{{ ef.DELETE }}</div></div>
-          <div class="designer-field designer-field-wide">{{ ef.description.label_tag }}{{ ef.description }}</div>
-        </div>
-      </div>
-      <details class="designer-subeditor" style="margin-top:12px;">
-        <summary class="designer-subeditor-summary">Branch leggero / run_if <span class="designer-help" style="font-weight:normal;font-size:11px;margin-left:6px;">(esegui solo se...)</span></summary>
-        <div class="designer-trigger-copy" style="margin-top:10px;">
-          <div class="designer-field">{{ ef.run_if_field_name.label_tag }}{{ ef.run_if_field_name }}</div>
-          <div class="designer-field">{{ ef.run_if_operator.label_tag }}{{ ef.run_if_operator }}</div>
-          <div class="designer-field">{{ ef.run_if_value_type.label_tag }}{{ ef.run_if_value_type }}</div>
-          <div class="designer-field designer-field-compact-toggle">{{ ef.run_if_compare_with_old.label_tag }}<div class="designer-toggle-wrap">{{ ef.run_if_compare_with_old }}</div></div>
-          <div class="designer-field designer-field-compact-toggle">{{ ef.run_if_negate.label_tag }}<div class="designer-toggle-wrap">{{ ef.run_if_negate }}</div></div>
-          <div class="designer-field designer-field-wide">{{ ef.run_if_expected_value.label_tag }}{{ ef.run_if_expected_value }}</div>
-        </div>
-      </details>
-      <div class="designer-editor-panel" data-action-config="send_email" style="margin-top:12px;">
-        <div class="designer-editor-panel-title" style="display:flex;justify-content:space-between;align-items:center;">
-          <span>Email</span>
-          <button type="button" class="email-preview-toggle-btn" data-email-preview-btn title="Mostra anteprima email live">Anteprima</button>
-        </div>
-        <div class="designer-trigger-copy">
-          <div class="designer-field">{{ ef.email_from_email.label_tag }}{{ ef.email_from_email }}</div>
-          <div class="designer-field designer-field-wide">{{ ef.email_to.label_tag }}{{ ef.email_to }}</div>
-          <div class="designer-field designer-field-wide">{{ ef.email_subject_template.label_tag }}{{ ef.email_subject_template }}</div>
-          <div class="designer-field designer-field-wide">{{ ef.email_body_text_template.label_tag }}{{ ef.email_body_text_template }}</div>
-        </div>
-        <div class="email-preview-card" data-email-preview hidden>
-          <div class="email-preview-header">
-            <div class="email-preview-row">
-              <span class="email-preview-label">Da</span>
-              <span data-preview-from class="email-preview-value">â€”</span>
-            </div>
-            <div class="email-preview-row">
-              <span class="email-preview-label">A</span>
-              <span data-preview-to class="email-preview-value">â€”</span>
-            </div>
-            <div class="email-preview-row email-preview-subject-row">
-              <span class="email-preview-label">Oggetto</span>
-              <strong data-preview-subject class="email-preview-subject-value">â€”</strong>
-            </div>
-          </div>
-          <div class="email-preview-body" data-preview-body>(corpo non compilato)</div>
-          <div class="email-preview-footer">
-            <span class="email-preview-ph-hint">I <span class="email-ph">{placeholder}</span> verranno sostituiti dai valori reali a runtime.</span>
-          </div>
-        </div>
-        <details class="designer-subeditor">
-          <summary class="designer-subeditor-summary">Opzioni avanzate (CC, BCC, HTML)</summary>
-          <div class="designer-trigger-copy" style="margin-top:12px;">
-            <div class="designer-field">{{ ef.email_cc.label_tag }}{{ ef.email_cc }}</div>
-            <div class="designer-field">{{ ef.email_bcc.label_tag }}{{ ef.email_bcc }}</div>
-            <div class="designer-field">{{ ef.email_reply_to.label_tag }}{{ ef.email_reply_to }}</div>
-            <div class="designer-field designer-field-wide">{{ ef.email_body_html_template.label_tag }}{{ ef.email_body_html_template }}</div>
-            <div class="designer-field designer-field-compact-toggle">{{ ef.email_fail_silently.label_tag }}<div class="designer-toggle-wrap">{{ ef.email_fail_silently }}</div></div>
-          </div>
-        </details>
-      </div>
-      <div class="designer-editor-panel" data-action-config="write_log" style="margin-top:12px;">
-        <div class="designer-editor-panel-title">Messaggio log</div>
-        <div class="designer-trigger-copy">
-          <div class="designer-field designer-field-wide">{{ ef.write_log_message_template.label_tag }}{{ ef.write_log_message_template }}</div>
-        </div>
-      </div>
-      <div class="designer-editor-panel" data-action-config="update_dashboard_metric" style="margin-top:12px;">
-        <div class="designer-editor-panel-title">Aggiornamento metrica</div>
-        <div class="designer-trigger-copy">
-          <div class="designer-field">{{ ef.metric_code.label_tag }}{{ ef.metric_code }}</div>
-          <div class="designer-field">{{ ef.metric_operation.label_tag }}{{ ef.metric_operation }}</div>
-          <div class="designer-field">{{ ef.metric_value_template.label_tag }}{{ ef.metric_value_template }}</div>
-        </div>
-      </div>
-      <div class="designer-editor-panel" data-action-config="insert_record" style="margin-top:12px;">
-        <div class="designer-editor-panel-title">Inserimento record</div>
-        <div class="designer-trigger-copy">
-          <div class="designer-field">{{ ef.insert_target_table.label_tag }}{{ ef.insert_target_table }}</div>
-          <div class="designer-field designer-field-wide">{{ ef.insert_field_mappings_text.label_tag }}{{ ef.insert_field_mappings_text }}</div>
-        </div>
-      </div>
-      <div class="designer-editor-panel" data-action-config="update_record" style="margin-top:12px;">
-        <div class="designer-editor-panel-title">Aggiornamento record</div>
-        <div class="designer-trigger-copy">
-          <div class="designer-field">{{ ef.update_target_table.label_tag }}{{ ef.update_target_table }}</div>
-          <div class="designer-field">{{ ef.update_where_field.label_tag }}{{ ef.update_where_field }}</div>
-          <div class="designer-field">{{ ef.update_where_value_template.label_tag }}{{ ef.update_where_value_template }}</div>
-          <div class="designer-field designer-field-wide">{{ ef.update_fields_text.label_tag }}{{ ef.update_fields_text }}</div>
-        </div>
-      </div>
-      <div class="designer-editor-panel" data-action-config="update_trigger_record" style="margin-top:12px;">
-        <div class="designer-editor-panel-title">Aggiornamento record triggerante</div>
-        <div class="designer-trigger-copy">
-          <div class="designer-field designer-field-wide">{{ ef.trigger_update_fields_text.label_tag }}{{ ef.trigger_update_fields_text }}</div>
-        </div>
-      </div>
-      <div class="designer-editor-panel" data-action-config="delay_schedule" style="margin-top:12px;">
-        <div class="designer-editor-panel-title">Delay / Schedule</div>
-        <div class="designer-trigger-copy">
-          <div class="designer-field">{{ ef.delay_mode.label_tag }}{{ ef.delay_mode }}</div>
-          <div class="designer-field">{{ ef.delay_value_template.label_tag }}{{ ef.delay_value_template }}</div>
-          <div class="designer-field">{{ ef.delay_unit.label_tag }}{{ ef.delay_unit }}</div>
-          <div class="designer-field designer-field-wide">{{ ef.delay_until_template.label_tag }}{{ ef.delay_until_template }}</div>
-        </div>
-      </div>
-      <div class="designer-editor-panel" data-action-config="http_request" style="margin-top:12px;">
-        <div class="designer-editor-panel-title">HTTP request</div>
-        <div class="designer-trigger-copy">
-          <div class="designer-field">{{ ef.http_method.label_tag }}{{ ef.http_method }}</div>
-          <div class="designer-field designer-field-wide">{{ ef.http_url_template.label_tag }}{{ ef.http_url_template }}</div>
-          <div class="designer-field">{{ ef.http_timeout_seconds.label_tag }}{{ ef.http_timeout_seconds }}</div>
-          <div class="designer-field">{{ ef.http_expected_status_csv.label_tag }}{{ ef.http_expected_status_csv }}</div>
-          <div class="designer-field designer-field-wide">{{ ef.http_headers_text.label_tag }}{{ ef.http_headers_text }}</div>
-          <div class="designer-field designer-field-wide">{{ ef.http_body_template.label_tag }}{{ ef.http_body_template }}</div>
-        </div>
-      </div>
-      <div class="designer-editor-panel" data-action-config="teams_webhook" style="margin-top:12px;">
-        <div class="designer-editor-panel-title">Teams webhook</div>
-        <div class="designer-trigger-copy">
-          <div class="designer-field designer-field-wide">{{ ef.teams_webhook_url.label_tag }}{{ ef.teams_webhook_url }}</div>
-          <div class="designer-field">{{ ef.teams_title_template.label_tag }}{{ ef.teams_title_template }}</div>
-          <div class="designer-field">{{ ef.teams_summary_template.label_tag }}{{ ef.teams_summary_template }}</div>
-          <div class="designer-field">{{ ef.teams_theme_color.label_tag }}{{ ef.teams_theme_color }}</div>
-          <div class="designer-field designer-field-wide">{{ ef.teams_text_template.label_tag }}{{ ef.teams_text_template }}</div>
-          <div class="designer-field designer-field-wide">{{ ef.teams_facts_text.label_tag }}{{ ef.teams_facts_text }}</div>
-        </div>
-      </div>
-      <div class="designer-editor-panel" data-action-config="send_approval" style="margin-top:12px;">
-        <div class="designer-editor-panel-title" style="display:flex;align-items:center;gap:8px;">
-          <span>Richiedi approvazione</span>
-          <span class="designer-pill designer-pill-primary" style="font-size:11px;">flusso si mette in pausa</span>
-        </div>
-        <div class="designer-help" style="margin-bottom:10px;">
-          Il portale crea la richiesta, genera i link Approva/Rifiuta e resta la source of truth. Puoi consegnarla via email, webhook Teams legacy o Teams chat flow verso il singolo utente.
-        </div>
-        <div class="designer-trigger-copy">
-          <div class="designer-field">{{ ef.approval_delivery_mode.label_tag }}{{ ef.approval_delivery_mode }}</div>
-          <div class="designer-field designer-field-wide">{{ ef.approval_to_template.label_tag }}{{ ef.approval_to_template }}</div>
-          <div class="designer-field designer-field-wide">{{ ef.approval_subject_template.label_tag }}{{ ef.approval_subject_template }}</div>
-          <div class="designer-field designer-field-wide">{{ ef.approval_message_template.label_tag }}{{ ef.approval_message_template }}</div>
-          <div class="designer-field">{{ ef.approval_expiry_days.label_tag }}{{ ef.approval_expiry_days }}</div>
-          <div class="designer-field">{{ ef.approval_approve_label.label_tag }}{{ ef.approval_approve_label }}</div>
-          <div class="designer-field">{{ ef.approval_reject_label.label_tag }}{{ ef.approval_reject_label }}</div>
-        </div>
-        <details class="designer-subeditor" style="margin-top:12px;">
-          <summary class="designer-subeditor-summary">Template email approvazione</summary>
-          <div class="designer-trigger-copy" style="margin-top:10px;">
-            <div class="designer-field designer-field-wide">
-              {{ ef.approval_email_template_id.label_tag }}
-              {{ ef.approval_email_template_id }}
-              {% if ef.approval_email_template_id.help_text %}
-                <div class="designer-help">{{ ef.approval_email_template_id.help_text }}</div>
-              {% endif %}
-            </div>
-            <div class="designer-help designer-field-wide" style="color:#1e40af;">
-              Il template sovrascrive l'HTML della mail di approvazione (oggetto, corpo, facts, CTA).
-              Lascia vuoto per usare il comportamento standard (testo e bottoni base).
-              <a href="{% url 'admin_portale:automazioni_approval_templates' %}" target="_blank">Gestisci template &rarr;</a>
-            </div>
-          </div>
-        </details>
-        <details class="designer-subeditor" style="margin-top:6px;">
-          <summary class="designer-subeditor-summary">Recapito Teams</summary>
-          <div class="designer-trigger-copy" style="margin-top:10px;">
-            <div class="designer-field designer-field-wide">{{ ef.approval_teams_preset_id.label_tag }}{{ ef.approval_teams_preset_id }}</div>
-            <div class="designer-field designer-field-wide">{{ ef.approval_teams_flow_endpoint_id.label_tag }}{{ ef.approval_teams_flow_endpoint_id }}</div>
-            <div class="designer-field designer-field-wide">{{ ef.approval_teams_recipient_email_template.label_tag }}{{ ef.approval_teams_recipient_email_template }}</div>
-            <div class="designer-field designer-field-wide">{{ ef.approval_teams_title_template.label_tag }}{{ ef.approval_teams_title_template }}</div>
-            <div class="designer-field designer-field-wide">{{ ef.approval_teams_facts_inline.label_tag }}{{ ef.approval_teams_facts_inline }}</div>
-            <div class="designer-field designer-field-wide designer-field-compact-toggle">{{ ef.approval_strict_teams_flow.label_tag }}<div class="designer-toggle-wrap">{{ ef.approval_strict_teams_flow }}</div>{% if ef.approval_strict_teams_flow.help_text %}<div class="designer-help">{{ ef.approval_strict_teams_flow.help_text }}</div>{% endif %}</div>
-            {% if teams_flow_endpoints_warning %}
-              <div class="designer-help designer-field-wide" style="color:#92400e;">
-                {{ teams_flow_endpoints_warning }} Vai su <a href="{% url 'admin_portale:automazioni_teams_presets' %}" target="_blank">Canali Teams</a> dopo aver applicato <code>python manage.py migrate automazioni</code>.
-              </div>
-            {% elif not teams_presets or not teams_flow_endpoints %}
-              <div class="designer-help designer-field-wide" style="color:#92400e;">
-                Configura prima i recapiti Teams da <a href="{% url 'admin_portale:automazioni_teams_presets' %}" target="_blank">Canali Teams</a>.
-              </div>
-            {% endif %}
-          </div>
-        </details>
-        <details class="designer-subeditor" style="margin-top:6px;">
-          <summary class="designer-subeditor-summary">Azioni se approvato</summary>
-          <div style="margin-top:10px;">
-            {{ ef.approval_approved_actions_json }}
-            {% if ef.approval_approved_actions_json.help_text %}<div class="designer-help">{{ ef.approval_approved_actions_json.help_text }}</div>{% endif %}
-          </div>
-        </details>
-        <details class="designer-subeditor" style="margin-top:8px;">
-          <summary class="designer-subeditor-summary">Azioni se rifiutato</summary>
-          <div style="margin-top:10px;">
-            {{ ef.approval_rejected_actions_json }}
-            {% if ef.approval_rejected_actions_json.help_text %}<div class="designer-help">{{ ef.approval_rejected_actions_json.help_text }}</div>{% endif %}
-          </div>
-        </details>
-      </div>
-    </div>
-  </details>
-</article>
-{% endwith %}
+{% include "automazioni/components/action_card.html" with entry=empty_action_entry %}
 </div>
 
 {# â”€â”€ Modal aggiunta azione dal diagramma â”€â”€ #}
@@ -1020,6 +866,64 @@
         {% else %}
           <div class="designer-empty" style="grid-column:1 / -1;">Nessuna azione disponibile nel picker del diagramma.</div>
         {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="conditionChoiceModal" class="diagram-modal-overlay" hidden aria-modal="true" role="dialog">
+  <div class="diagram-modal-box">
+    <div class="diagram-modal-head">
+      <div>
+        <div class="diagram-modal-title">Scegli valore per la condizione</div>
+        <div class="designer-help" id="conditionChoiceModalSubtitle"></div>
+      </div>
+      <button class="diagram-modal-close" type="button" onclick="closeConditionChoiceModal()" aria-label="Chiudi">×</button>
+    </div>
+    <div class="diagram-modal-body">
+      <div class="designer-choice-modal-grid" id="conditionChoiceModalGrid"></div>
+      <div class="designer-choice-modal-empty" id="conditionChoiceModalEmpty" hidden>Nessun valore disponibile per questo campo.</div>
+    </div>
+  </div>
+</div>
+
+<div id="tableConfigModal" class="designer-admin-modal-overlay" hidden aria-modal="true" role="dialog">
+  <div class="designer-admin-modal-box">
+    <div class="designer-admin-modal-head">
+      <div class="designer-admin-modal-title">Tabelle consentite - <span id="tableConfigActionLabel"></span></div>
+      <button class="diagram-modal-close" type="button" onclick="closeTableConfigModal()" aria-label="Chiudi">×</button>
+    </div>
+    <div>
+      <div class="designer-admin-modal-section-title" style="margin-bottom:8px;">Tabelle gia' configurate</div>
+      <div id="tableConfigList" class="designer-admin-table-list"></div>
+    </div>
+    <hr style="margin:0;border-color:#e2e8f0;">
+    <div class="designer-admin-field-grid">
+      <div class="designer-admin-modal-section-title">Aggiungi / modifica tabella</div>
+      <div class="designer-field">
+        <label for="tableConfigSelect">Tabella</label>
+        <select id="tableConfigSelect">
+          <option value="">-- seleziona --</option>
+        </select>
+      </div>
+      <div id="tableConfigFieldsWrap" hidden>
+        <div class="designer-admin-check-grid">
+          <div>
+            <label style="font-size:12px;font-weight:800;color:#475569;display:block;margin-bottom:6px;">Campi scrivibili <button type="button" style="font-size:11px;margin-left:6px;background:none;border:none;color:#2563eb;cursor:pointer;" onclick="selectAllTableConfig('fields')">tutti</button></label>
+            <div id="tableConfigFieldsList" class="designer-admin-checklist"></div>
+          </div>
+          <div id="tableConfigWhereCol">
+            <label style="font-size:12px;font-weight:800;color:#475569;display:block;margin-bottom:6px;">Campi where <button type="button" style="font-size:11px;margin-left:6px;background:none;border:none;color:#2563eb;cursor:pointer;" onclick="selectAllTableConfig('where')">tutti</button></label>
+            <div id="tableConfigWhereList" class="designer-admin-checklist"></div>
+          </div>
+        </div>
+        <div class="designer-field" style="margin-top:10px;">
+          <label for="tableConfigNotes">Note</label>
+          <input id="tableConfigNotes" type="text">
+        </div>
+      </div>
+      <div class="designer-form-actions">
+        <button type="button" class="btn" onclick="saveTableConfig()">Salva tabella</button>
       </div>
     </div>
   </div>
@@ -1055,6 +959,16 @@
   var conditionPresetSizeStorageKey = 'automationDesignerConditionPresetSize';
   var presetSizeStorageKey = 'automationDesignerPresetSize';
   var activeSmartTarget = null;
+  var fieldValueCache = {};
+  var conditionChoiceModalState = { card: null, data: null };
+  var fieldValuesUrlTemplate = "{% url 'admin_portale:automazioni_api_source_field_values' source_code='__SOURCE__' field_name='__FIELD__' %}";
+  var operatorsWithoutExpectedValue = {
+    is_true: true,
+    is_false: true,
+    is_empty: true,
+    is_not_empty: true,
+    changed: true
+  };
 
   function forEachNode(nodeList, callback) {
     if (!nodeList || !callback) return;
@@ -1241,6 +1155,257 @@
     return field ? field.value : '';
   }
 
+  function escapeHtml(text) {
+    return String(text || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  var tableConfigActionType = '';
+  var tableConfigAvailable = {};
+  var tableConfigConfigs = [];
+  var tableConfigApiBase = '{% url "admin_portale:automazioni_api_table_config_list" %}';
+  var tableConfigApiSave = '{% url "admin_portale:automazioni_api_table_config_save" %}';
+
+  function readJsonResponse(response) {
+    if (window.portalReadJsonResponse) return window.portalReadJsonResponse(response);
+    return response.json();
+  }
+
+  function normalizeStringList(values) {
+    var items = Array.isArray(values) ? values : [];
+    var normalized = [];
+    var seen = {};
+    for (var index = 0; index < items.length; index += 1) {
+      var text = String(items[index] || '').trim();
+      if (!text || seen[text]) continue;
+      seen[text] = true;
+      normalized.push(text);
+    }
+    return normalized;
+  }
+
+  function renderTableConfigRows(containerId, fieldList, preSelected) {
+    var container = document.getElementById(containerId);
+    if (!container) return;
+    var selected = normalizeStringList(preSelected);
+    container.innerHTML = '';
+    fieldList.forEach(function(fieldName) {
+      var label = document.createElement('label');
+      var checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = fieldName;
+      checkbox.checked = selected.indexOf(fieldName) >= 0;
+      label.appendChild(checkbox);
+      label.appendChild(document.createTextNode(' ' + fieldName));
+      container.appendChild(label);
+    });
+  }
+
+  function populateTableConfigSelect() {
+    var select = document.getElementById('tableConfigSelect');
+    if (!select) return;
+    select.innerHTML = '<option value="">-- seleziona --</option>';
+    Object.keys(tableConfigAvailable).sort().forEach(function(tableName) {
+      var option = document.createElement('option');
+      option.value = tableName;
+      option.textContent = tableConfigAvailable[tableName].label || tableName;
+      select.appendChild(option);
+    });
+  }
+
+  function renderTableConfigList() {
+    var list = document.getElementById('tableConfigList');
+    if (!list) return;
+    var relevant = tableConfigConfigs.filter(function(config) {
+      return config.action_type === tableConfigActionType;
+    });
+    if (!relevant.length) {
+      list.innerHTML = '<div class="designer-empty">Nessuna tabella configurata.</div>';
+      return;
+    }
+    list.innerHTML = relevant.map(function(config) {
+      var noteHtml = config.notes
+        ? '<div style="font-size:12px;color:#94a3b8;">' + escapeHtml(config.notes) + '</div>'
+        : '';
+      return ''
+        + '<div class="designer-admin-table-row">'
+        +   '<div><strong style="font-size:14px;">' + escapeHtml(config.table_name) + '</strong>'
+        +   ' <span style="font-size:12px;color:#64748b;">(' + (config.allowed_fields || []).length + ' campi)</span>'
+        +   noteHtml
+        +   '</div>'
+        +   '<button type="button" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:13px;font-weight:700;" onclick="deleteTableConfig(' + config.id + ')">Rimuovi</button>'
+        + '</div>';
+    }).join('');
+  }
+
+  function syncTableConfigSelection() {
+    var select = document.getElementById('tableConfigSelect');
+    var wrap = document.getElementById('tableConfigFieldsWrap');
+    var whereCol = document.getElementById('tableConfigWhereCol');
+    var notesField = document.getElementById('tableConfigNotes');
+    if (!select || !wrap || !whereCol || !notesField) return;
+
+    var tableName = String(select.value || '').trim();
+    if (!tableName) {
+      wrap.hidden = true;
+      notesField.value = '';
+      return;
+    }
+
+    var info = tableConfigAvailable[tableName] || {};
+    var writableFields = normalizeStringList(info.fields || []);
+    var allFields = normalizeStringList(info.all_fields || writableFields);
+    var existing = null;
+    for (var index = 0; index < tableConfigConfigs.length; index += 1) {
+      if (
+        tableConfigConfigs[index].action_type === tableConfigActionType
+        && tableConfigConfigs[index].table_name === tableName
+      ) {
+        existing = tableConfigConfigs[index];
+        break;
+      }
+    }
+
+    renderTableConfigRows(
+      'tableConfigFieldsList',
+      writableFields,
+      existing ? existing.allowed_fields || [] : writableFields
+    );
+    renderTableConfigRows(
+      'tableConfigWhereList',
+      allFields,
+      existing ? existing.where_fields || [] : allFields
+    );
+    notesField.value = existing ? String(existing.notes || '') : '';
+    whereCol.style.display = tableConfigActionType === 'update_record' ? '' : 'none';
+    wrap.hidden = false;
+  }
+
+  window.openTableConfigModal = function(actionType) {
+    tableConfigActionType = String(actionType || '').trim();
+    var label = document.getElementById('tableConfigActionLabel');
+    var modal = document.getElementById('tableConfigModal');
+    var whereCol = document.getElementById('tableConfigWhereCol');
+    if (label) label.textContent = tableConfigActionType || '-';
+    if (whereCol) whereCol.style.display = tableConfigActionType === 'update_record' ? '' : 'none';
+    fetch(tableConfigApiBase, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+      .then(readJsonResponse)
+      .then(function(data) {
+        tableConfigAvailable = data.available || {};
+        tableConfigConfigs = Array.isArray(data.configs) ? data.configs : [];
+        renderTableConfigList();
+        populateTableConfigSelect();
+        syncTableConfigSelection();
+        if (modal) modal.hidden = false;
+      })
+      .catch(function(error) {
+        console.error('table config load error', error);
+        alert('Errore caricamento tabelle configurabili.');
+      });
+  };
+
+  window.closeTableConfigModal = function() {
+    var modal = document.getElementById('tableConfigModal');
+    var wrap = document.getElementById('tableConfigFieldsWrap');
+    var select = document.getElementById('tableConfigSelect');
+    var notesField = document.getElementById('tableConfigNotes');
+    if (modal) modal.hidden = true;
+    if (wrap) wrap.hidden = true;
+    if (select) select.value = '';
+    if (notesField) notesField.value = '';
+  };
+
+  window.selectAllTableConfig = function(which) {
+    var containerId = which === 'where' ? 'tableConfigWhereList' : 'tableConfigFieldsList';
+    document.querySelectorAll('#' + containerId + ' input[type="checkbox"]').forEach(function(checkbox) {
+      checkbox.checked = true;
+    });
+  };
+
+  window.saveTableConfig = function() {
+    var select = document.getElementById('tableConfigSelect');
+    var notesField = document.getElementById('tableConfigNotes');
+    if (!select) return;
+    var tableName = String(select.value || '').trim();
+    if (!tableName) {
+      alert('Seleziona una tabella.');
+      return;
+    }
+
+    var allowedFields = Array.prototype.slice.call(
+      document.querySelectorAll('#tableConfigFieldsList input:checked')
+    ).map(function(checkbox) {
+      return checkbox.value;
+    });
+    var whereFields = Array.prototype.slice.call(
+      document.querySelectorAll('#tableConfigWhereList input:checked')
+    ).map(function(checkbox) {
+      return checkbox.value;
+    });
+
+    fetch(tableConfigApiSave, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify({
+        action_type: tableConfigActionType,
+        table_name: tableName,
+        allowed_fields: allowedFields,
+        where_fields: whereFields,
+        notes: notesField ? notesField.value : ''
+      })
+    })
+      .then(readJsonResponse)
+      .then(function(data) {
+        if (!data.ok) {
+          alert('Errore: ' + (data.error || 'salvataggio non riuscito'));
+          return;
+        }
+        window.location.reload();
+      })
+      .catch(function(error) {
+        console.error('table config save error', error);
+        alert('Errore di rete durante il salvataggio della tabella.');
+      });
+  };
+
+  window.deleteTableConfig = function(configId) {
+    if (!window.confirm('Rimuovere questa tabella dalla whitelist?')) return;
+    var deleteUrl = tableConfigApiBase.replace(/\/+$/, '') + '/' + configId + '/delete/';
+    fetch(deleteUrl, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+      .then(readJsonResponse)
+      .then(function(data) {
+        if (!data.ok) {
+          alert('Errore: ' + (data.error || 'eliminazione non riuscita'));
+          return;
+        }
+        window.location.reload();
+      })
+      .catch(function(error) {
+        console.error('table config delete error', error);
+        alert('Errore di rete durante l\'eliminazione della tabella.');
+      });
+  };
+
+  var tableConfigSelect = document.getElementById('tableConfigSelect');
+  if (tableConfigSelect) {
+    tableConfigSelect.addEventListener('change', syncTableConfigSelection);
+  }
+
   function showStatus(section, message, isError) {
     var node = document.querySelector('[data-reorder-status="' + section + '"]');
     if (!node) return;
@@ -1295,6 +1460,9 @@
     });
 
     initSmartCatalogs();
+    forEachNode(document.querySelectorAll('[data-condition-card]'), function(card) {
+      syncConditionChoiceHelper(card);
+    });
   }
 
   function syncActionCards() {
@@ -1342,6 +1510,177 @@
     return String(field.value || '').trim();
   }
 
+  function getCurrentSourceCode() {
+    var select = document.getElementById('id_source_code');
+    return select ? String(select.value || '').trim() : '';
+  }
+
+  function getSourceFieldDetail(sourceCode, fieldName) {
+    var sourceData = sourceFieldsMap[sourceCode];
+    var allFields = sourceData && sourceData.all ? sourceData.all : [];
+    for (var index = 0; index < allFields.length; index += 1) {
+      if (String(allFields[index].name || '') === String(fieldName || '')) return allFields[index];
+    }
+    return null;
+  }
+
+  function dedupeStringValues(values) {
+    var result = [];
+    var seen = {};
+    forEachNode(values || [], function(value) {
+      var text = String(value || '').trim();
+      if (!text || seen[text]) return;
+      seen[text] = true;
+      result.push(text);
+    });
+    return result;
+  }
+
+  function buildFieldValuesUrl(sourceCode, fieldName) {
+    if (!sourceCode || !fieldName) return '';
+    return fieldValuesUrlTemplate
+      .replace('__SOURCE__', encodeURIComponent(sourceCode))
+      .replace('__FIELD__', encodeURIComponent(fieldName));
+  }
+
+  function loadFieldValues(sourceCode, fieldName) {
+    var cacheKey = String(sourceCode || '') + '::' + String(fieldName || '');
+    if (!sourceCode || !fieldName) {
+      return Promise.resolve({
+        allowed_values: [],
+        distinct_values: [],
+        queryable: false,
+        message: ''
+      });
+    }
+    if (fieldValueCache[cacheKey] && fieldValueCache[cacheKey].data) {
+      return Promise.resolve(fieldValueCache[cacheKey].data);
+    }
+    if (fieldValueCache[cacheKey] && fieldValueCache[cacheKey].promise) {
+      return fieldValueCache[cacheKey].promise;
+    }
+
+    var fieldDetail = getSourceFieldDetail(sourceCode, fieldName) || {};
+    var baseData = {
+      ok: true,
+      source_code: sourceCode,
+      field_name: fieldName,
+      field_label: String(fieldDetail.label || fieldName || ''),
+      ui_control: String(fieldDetail.ui_control || ''),
+      value_source_label: String(fieldDetail.value_source_label || ''),
+      allowed_values: dedupeStringValues(fieldDetail.allowed_values || []),
+      distinct_values: [],
+      queryable: false,
+      message: ''
+    };
+    var url = buildFieldValuesUrl(sourceCode, fieldName);
+    if (!url) {
+      fieldValueCache[cacheKey] = { data: baseData };
+      return Promise.resolve(baseData);
+    }
+
+    var promise = fetch(url, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin'
+    }).then(function(response) {
+      if (!response.ok) throw new Error('Lookup valori non disponibile.');
+      return response.json();
+    }).then(function(payload) {
+      var data = payload && payload.ok ? payload : {};
+      var normalized = {
+        ok: true,
+        source_code: String(data.source_code || sourceCode || ''),
+        field_name: String(data.field_name || fieldName || ''),
+        field_label: String(data.field_label || fieldDetail.label || fieldName || ''),
+        ui_control: String(data.ui_control || fieldDetail.ui_control || ''),
+        value_source_label: String(data.value_source_label || fieldDetail.value_source_label || ''),
+        allowed_values: dedupeStringValues((fieldDetail.allowed_values || []).concat(data.allowed_values || [])),
+        distinct_values: dedupeStringValues(data.distinct_values || []),
+        queryable: !!data.queryable,
+        message: String(data.message || '')
+      };
+      fieldValueCache[cacheKey] = { data: normalized };
+      return normalized;
+    }).catch(function(error) {
+      var fallback = {
+        ok: true,
+        source_code: sourceCode,
+        field_name: fieldName,
+        field_label: String(fieldDetail.label || fieldName || ''),
+        ui_control: String(fieldDetail.ui_control || ''),
+        value_source_label: String(fieldDetail.value_source_label || ''),
+        allowed_values: dedupeStringValues(fieldDetail.allowed_values || []),
+        distinct_values: [],
+        queryable: false,
+        message: error && error.message ? error.message : 'Lookup valori non disponibile.'
+      };
+      fieldValueCache[cacheKey] = { data: fallback };
+      return fallback;
+    });
+
+    fieldValueCache[cacheKey] = { promise: promise };
+    return promise;
+  }
+
+  function operatorNeedsExpectedValue(card) {
+    var operatorField = getCardField(card, 'operator');
+    var operatorValue = operatorField ? String(operatorField.value || '').trim() : '';
+    return !operatorsWithoutExpectedValue[operatorValue];
+  }
+
+  function getSelectedValuesForCard(card, rawValues) {
+    var values = dedupeStringValues(rawValues || []);
+    var expectedField = getCardField(card, 'expected_value');
+    var operatorField = getCardField(card, 'operator');
+    var expectedValue = expectedField ? String(expectedField.value || '').trim() : '';
+    var operatorValue = operatorField ? String(operatorField.value || '').trim() : '';
+    if (!expectedValue) return [];
+    if (operatorValue === 'in_csv') {
+      var selectedMap = {};
+      expectedValue.split(',').forEach(function(value) {
+        var text = String(value || '').trim();
+        if (text) selectedMap[text] = true;
+      });
+      return values.filter(function(value) { return !!selectedMap[value]; });
+    }
+    return values.filter(function(value) { return value === expectedValue; });
+  }
+
+  function applyValueChoiceToCard(card, value) {
+    var expectedField = getCardField(card, 'expected_value');
+    if (!expectedField) return;
+    var textValue = String(value || '').trim();
+    if (!textValue) return;
+
+    var operatorField = getCardField(card, 'operator');
+    var operatorValue = operatorField ? String(operatorField.value || '').trim() : '';
+    if (operatorValue === 'in_csv') {
+      var currentValues = dedupeStringValues(String(expectedField.value || '').split(','));
+      if (currentValues.indexOf(textValue) < 0) currentValues.push(textValue);
+      expectedField.value = currentValues.join(', ');
+    } else {
+      expectedField.value = textValue;
+    }
+
+    expectedField.dispatchEvent(new Event('input', { bubbles: true }));
+    expectedField.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function renderChoiceButtons(targetRow, values, card) {
+    if (!targetRow) return;
+    targetRow.innerHTML = '';
+    var selectedValues = getSelectedValuesForCard(card, values);
+    values.forEach(function(value) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'designer-choice-chip';
+      if (selectedValues.indexOf(value) >= 0) button.classList.add('is-active');
+      button.setAttribute('data-condition-choice-value', value);
+      button.textContent = value;
+      targetRow.appendChild(button);
+    });
+  }
+
   function setCardFeedback(card, message) {
     var feedback = card ? card.querySelector('[data-card-feedback]') : null;
     if (!feedback) return;
@@ -1361,6 +1700,283 @@
       lineNode.textContent = lines[index];
       node.appendChild(lineNode);
     }
+  }
+
+  function countFilledLines(rawValue) {
+    var lines = String(rawValue || '').split(/\r?\n/);
+    var count = 0;
+    for (var index = 0; index < lines.length; index += 1) {
+      if (String(lines[index] || '').trim()) count += 1;
+    }
+    return count;
+  }
+
+  function countJsonArrayItems(rawValue) {
+    var text = String(rawValue || '').trim();
+    if (!text) return 0;
+    try {
+      var parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) return 0;
+      var count = 0;
+      for (var index = 0; index < parsed.length; index += 1) {
+        if (parsed[index] && typeof parsed[index] === 'object' && !Array.isArray(parsed[index])) count += 1;
+      }
+      return count;
+    } catch (error) {
+      return 0;
+    }
+  }
+
+  function _escapeInlineHtml(text) {
+    return String(text || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function _dispatchFieldEvents(field) {
+    if (!field || typeof field.dispatchEvent !== 'function') return;
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    field.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function _parseInlineJsonArrayDetailed(rawValue) {
+    var text = String(rawValue || '').trim();
+    if (!text) return { items: [], error: '' };
+    try {
+      var parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) {
+        return { items: [], error: 'Il JSON deve essere un array di azioni.' };
+      }
+      var items = [];
+      for (var index = 0; index < parsed.length; index += 1) {
+        if (parsed[index] && typeof parsed[index] === 'object' && !Array.isArray(parsed[index])) {
+          items.push(parsed[index]);
+        }
+      }
+      return { items: items, error: '' };
+    } catch (error) {
+      return { items: [], error: 'JSON non valido. Apri il pannello avanzato per correggerlo.' };
+    }
+  }
+
+  function _stringifyInlineJsonArray(items) {
+    return items && items.length ? JSON.stringify(items, null, 2) : '';
+  }
+
+  function _truncateInlinePreview(text, maxLength) {
+    var value = String(text || '').trim();
+    if (!value) return '';
+    if (value.length <= maxLength) return value;
+    return value.slice(0, Math.max(0, maxLength - 1)).trim() + '…';
+  }
+
+  function _countConfigKeys(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return 0;
+    return Object.keys(value).length;
+  }
+
+  function _getInlineActionStyle(actionType) {
+    if (typeof _DIAG_STYLES !== 'undefined' && _DIAG_STYLES && _DIAG_STYLES[actionType]) {
+      return _DIAG_STYLES[actionType];
+    }
+    return { icon: '⚡', color: '#64748b', bg: '#f8fafc', label: actionType || 'Azione', app: 'Azione' };
+  }
+
+  function _describeInlineActionConfig(config) {
+    var cfg = config && config.config_json && typeof config.config_json === 'object' ? config.config_json : {};
+    var actionType = config && config.action_type ? String(config.action_type) : '';
+
+    if (actionType === 'write_log') {
+      return _truncateInlinePreview(cfg.message_template || 'Messaggio log da completare.', 96);
+    }
+    if (actionType === 'delay_schedule') {
+      if (String(cfg.mode || '').trim() === 'until') {
+        return 'Fino a ' + (String(cfg.until_template || '').trim() || 'data/ora da impostare');
+      }
+      return 'Dopo '
+        + (String(cfg.value_template || '').trim() || '1')
+        + ' '
+        + (String(cfg.unit || '').trim() || 'hours');
+    }
+    if (actionType === 'send_email') {
+      return 'A '
+        + (_truncateInlinePreview(cfg.to || 'destinatario da impostare', 48))
+        + ' | '
+        + (_truncateInlinePreview(cfg.subject_template || 'oggetto da impostare', 48));
+    }
+    if (actionType === 'update_trigger_record') {
+      return 'Aggiorna ' + _countConfigKeys(cfg.update_fields) + ' campi del record triggerante.';
+    }
+    if (actionType === 'branch') {
+      return 'Branch annidato: apri il JSON avanzato per rifinire il ramo.';
+    }
+    return 'Configurazione inline disponibile nel JSON avanzato.';
+  }
+
+  function _buildInlineActionTemplate(actionType, branchLabel) {
+    var label = String(branchLabel || 'ramo').trim() || 'ramo';
+    if (actionType === 'write_log') {
+      return {
+        action_type: 'write_log',
+        description: 'Log ' + label,
+        config_json: {
+          message_template: label + ': eseguito per il record {id}.',
+        }
+      };
+    }
+    if (actionType === 'delay_schedule') {
+      return {
+        action_type: 'delay_schedule',
+        description: 'Delay ' + label,
+        config_json: {
+          mode: 'relative',
+          value_template: '1',
+          unit: 'hours',
+          until_template: '',
+        }
+      };
+    }
+    if (actionType === 'send_email') {
+      return {
+        action_type: 'send_email',
+        description: 'Email ' + label,
+        config_json: {
+          from_email: '',
+          to: '{owner_email}',
+          cc: '',
+          bcc: '',
+          reply_to: '',
+          subject_template: label + ' - record {id}',
+          body_text_template: 'Gestione ' + label.toLowerCase() + ' per il record {id}.',
+          body_html_template: '',
+          fail_silently: false,
+        }
+      };
+    }
+    return {
+      action_type: actionType,
+      description: label,
+      config_json: {}
+    };
+  }
+
+  function _getInlineJsonFieldFromBuilder(builder) {
+    if (!builder) return null;
+    var card = closestElement(builder, '[data-action-card]');
+    var targetName = builder.getAttribute('data-inline-json-target') || '';
+    return card && targetName ? getCardField(card, targetName) : null;
+  }
+
+  function _getInlineJsonContext(trigger) {
+    var builder = closestElement(trigger, '[data-inline-json-builder]');
+    if (!builder) return null;
+    var card = closestElement(builder, '[data-action-card]');
+    var field = _getInlineJsonFieldFromBuilder(builder);
+    var details = builder.querySelector('.designer-inline-json-advanced');
+    return {
+      builder: builder,
+      card: card,
+      field: field,
+      details: details,
+      parsed: _parseInlineJsonArrayDetailed(field ? field.value : ''),
+    };
+  }
+
+  function _writeInlineJsonItems(field, items) {
+    if (!field) return;
+    field.value = _stringifyInlineJsonArray(items);
+    _dispatchFieldEvents(field);
+  }
+
+  function _renderInlineJsonBuilder(builder) {
+    if (!builder) return;
+    var field = _getInlineJsonFieldFromBuilder(builder);
+    if (!field) return;
+
+    var parsed = _parseInlineJsonArrayDetailed(field.value);
+    var items = parsed.items;
+    var statusNode = builder.querySelector('[data-inline-json-status]');
+    var warningNode = builder.querySelector('[data-inline-json-warning]');
+    var listNode = builder.querySelector('[data-inline-json-list]');
+    var emptyNode = builder.querySelector('[data-inline-json-empty]');
+    var detailsNode = builder.querySelector('.designer-inline-json-advanced');
+
+    if (statusNode) {
+      var state = parsed.error ? 'error' : (items.length ? 'filled' : 'empty');
+      statusNode.setAttribute('data-inline-json-state', state);
+      if (parsed.error) {
+        statusNode.textContent = 'JSON non valido';
+      } else if (items.length === 1) {
+        statusNode.textContent = '1 azione';
+      } else if (items.length > 1) {
+        statusNode.textContent = items.length + ' azioni';
+      } else {
+        statusNode.textContent = 'Nessuna azione';
+      }
+    }
+
+    if (warningNode) {
+      warningNode.hidden = !parsed.error;
+      warningNode.textContent = parsed.error || '';
+    }
+    if (detailsNode && parsed.error) detailsNode.open = true;
+
+    if (!listNode || !emptyNode) return;
+    if (parsed.error) {
+      listNode.hidden = true;
+      listNode.innerHTML = '';
+      emptyNode.hidden = true;
+      return;
+    }
+
+    if (!items.length) {
+      listNode.hidden = true;
+      listNode.innerHTML = '';
+      emptyNode.hidden = false;
+      return;
+    }
+
+    var html = '';
+    for (var index = 0; index < items.length; index += 1) {
+      var item = items[index] || {};
+      var actionType = item.action_type ? String(item.action_type) : '';
+      var style = _getInlineActionStyle(actionType);
+      var title = item.description ? String(item.description) : (style.label || actionType || 'Azione');
+      html += '<div class="designer-inline-item">';
+      html += '<div class="designer-inline-item-head">';
+      html += '<div class="designer-inline-item-main">';
+      html += '<div class="designer-inline-item-title">';
+      html += '<span class="designer-inline-item-icon" style="color:' + _escapeInlineHtml(style.color || '#64748b') + ';">' + _escapeInlineHtml(style.icon || '⚡') + '</span>';
+      html += '<span>' + _escapeInlineHtml(title) + '</span>';
+      html += '</div>';
+      html += '<div class="designer-inline-item-meta">' + _escapeInlineHtml(_describeInlineActionConfig(item)) + '</div>';
+      html += '</div>';
+      html += '<div class="designer-inline-item-actions">';
+      html += '<button class="designer-inline-btn" type="button" data-inline-json-move="-1" data-inline-json-index="' + index + '">Su</button>';
+      html += '<button class="designer-inline-btn" type="button" data-inline-json-move="1" data-inline-json-index="' + index + '">Giu\'</button>';
+      html += '<button class="designer-inline-btn" type="button" data-inline-json-remove data-inline-json-index="' + index + '">Rimuovi</button>';
+      html += '</div>';
+      html += '</div>';
+      html += '</div>';
+    }
+    listNode.hidden = false;
+    listNode.innerHTML = html;
+    emptyNode.hidden = true;
+  }
+
+  function syncInlineJsonBuilders(card) {
+    if (!card) return;
+    forEachNode(card.querySelectorAll('[data-inline-json-builder]'), function(builder) {
+      _renderInlineJsonBuilder(builder);
+    });
+  }
+
+  function buildSimpleConditionPreview(prefix, fieldName, operator, expectedValue) {
+    var text = prefix + ': ' + (fieldName || 'campo') + ' ' + (operator || 'operatore');
+    if (expectedValue) text += ' ' + expectedValue;
+    return text;
   }
 
   function updateConditionCardPresentation(card) {
@@ -1384,6 +2000,144 @@
       humanNode.textContent = fieldLabel + ' â€¢ ' + operatorLabel;
     }
   }
+
+  function syncConditionChoiceHelper(card) {
+    if (!card) return;
+    var helper = card.querySelector('[data-condition-choice-helper]');
+    if (!helper) return;
+
+    var fieldField = getCardField(card, 'field_name');
+    var fieldName = fieldField ? String(fieldField.value || '').trim() : '';
+    if (!fieldName || !operatorNeedsExpectedValue(card)) {
+      helper.hidden = true;
+      return;
+    }
+
+    helper.hidden = false;
+    var sourceCode = getCurrentSourceCode();
+    var requestKey = sourceCode + '::' + fieldName;
+    card.setAttribute('data-condition-choice-request', requestKey);
+
+    var statusNode = helper.querySelector('[data-condition-choice-status]');
+    var sourceNode = helper.querySelector('[data-condition-choice-source]');
+    var openButton = helper.querySelector('[data-open-condition-choice-modal]');
+    if (statusNode) statusNode.textContent = 'Caricamento valori disponibili...';
+    if (sourceNode) sourceNode.textContent = getFieldDisplayValue(fieldField) || fieldName;
+    if (openButton) openButton.disabled = true;
+
+    loadFieldValues(sourceCode, fieldName).then(function(data) {
+      if (!card.isConnected) return;
+      if (card.getAttribute('data-condition-choice-request') !== requestKey) return;
+
+      var staticValues = (data.allowed_values || []).slice(0, 8);
+      var dbValues = (data.distinct_values || []).slice(0, 8);
+      var staticSection = helper.querySelector('[data-condition-choice-static-section]');
+      var dbSection = helper.querySelector('[data-condition-choice-db-section]');
+      var staticRow = helper.querySelector('[data-condition-choice-static-row]');
+      var dbRow = helper.querySelector('[data-condition-choice-db-row]');
+      var totalValues = (data.allowed_values || []).length + (data.distinct_values || []).length;
+
+      if (sourceNode) {
+        var sourceLabel = String(data.value_source_label || '').trim();
+        sourceNode.textContent = sourceLabel || ((getFieldDisplayValue(fieldField) || fieldName) + ' - valori suggeriti');
+      }
+      if (staticSection) staticSection.hidden = staticValues.length === 0;
+      if (dbSection) dbSection.hidden = dbValues.length === 0;
+      renderChoiceButtons(staticRow, staticValues, card);
+      renderChoiceButtons(dbRow, dbValues, card);
+
+      if (statusNode) {
+        if (!totalValues) {
+          statusNode.textContent = data.message || 'Nessun valore disponibile per questo campo.';
+        } else if ((data.allowed_values || []).length && !(data.distinct_values || []).length && data.message) {
+          statusNode.textContent = 'Valori noti disponibili. ' + data.message;
+        } else if (data.message && !(data.distinct_values || []).length) {
+          statusNode.textContent = data.message;
+        } else {
+          statusNode.textContent = 'Click rapido per compilare il valore oppure apri il popup completo.';
+        }
+      }
+      if (openButton) openButton.disabled = totalValues === 0;
+    });
+  }
+
+  function renderConditionChoiceModal() {
+    var modal = document.getElementById('conditionChoiceModal');
+    var grid = document.getElementById('conditionChoiceModalGrid');
+    var empty = document.getElementById('conditionChoiceModalEmpty');
+    var subtitle = document.getElementById('conditionChoiceModalSubtitle');
+    var state = conditionChoiceModalState || {};
+    var data = state.data || {};
+    var card = state.card;
+    if (!modal || !grid || !empty) return;
+
+    grid.innerHTML = '';
+    var sections = [
+      { label: 'Valori noti', values: data.allowed_values || [] },
+      { label: 'Valori presenti in colonna', values: data.distinct_values || [] }
+    ];
+    var renderedCount = 0;
+
+    sections.forEach(function(section) {
+      var values = dedupeStringValues(section.values || []);
+      if (!values.length) return;
+      renderedCount += 1;
+      var cardNode = document.createElement('div');
+      cardNode.className = 'designer-choice-modal-card';
+
+      var labelNode = document.createElement('div');
+      labelNode.className = 'designer-choice-modal-card-label';
+      labelNode.textContent = section.label;
+      cardNode.appendChild(labelNode);
+
+      var titleNode = document.createElement('div');
+      titleNode.className = 'designer-choice-modal-card-title';
+      titleNode.textContent = values.length + ' valori disponibili';
+      cardNode.appendChild(titleNode);
+
+      var rowNode = document.createElement('div');
+      rowNode.className = 'designer-choice-chip-row';
+      var selectedValues = getSelectedValuesForCard(card, values);
+      values.forEach(function(value) {
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'designer-choice-chip';
+        if (selectedValues.indexOf(value) >= 0) button.classList.add('is-active');
+        button.setAttribute('data-condition-modal-value', value);
+        button.textContent = value;
+        rowNode.appendChild(button);
+      });
+      cardNode.appendChild(rowNode);
+      grid.appendChild(cardNode);
+    });
+
+    if (subtitle) {
+      subtitle.textContent = String(data.field_label || '').trim()
+        ? (String(data.field_label || '').trim() + (data.value_source_label ? ' - ' + data.value_source_label : ''))
+        : String(data.message || '');
+    }
+    empty.hidden = renderedCount > 0;
+    if (!empty.hidden) empty.textContent = data.message || 'Nessun valore disponibile per questo campo.';
+    modal.hidden = false;
+  }
+
+  window.closeConditionChoiceModal = function() {
+    var modal = document.getElementById('conditionChoiceModal');
+    if (modal) modal.hidden = true;
+    conditionChoiceModalState = { card: null, data: null };
+  };
+
+  window.openConditionChoiceModal = function(card) {
+    if (!card) return;
+    var fieldField = getCardField(card, 'field_name');
+    var fieldName = fieldField ? String(fieldField.value || '').trim() : '';
+    var sourceCode = getCurrentSourceCode();
+    if (!fieldName || !sourceCode) return;
+    loadFieldValues(sourceCode, fieldName).then(function(data) {
+      conditionChoiceModalState = { card: card, data: data };
+      renderConditionChoiceModal();
+    });
+  };
 
   function updateActionCardPresentation(card) {
     if (!card) return;
@@ -1468,6 +2222,58 @@
         'Teams title: ' + (String((getCardField(card, 'teams_title_template') || {}).value || '').trim() || '-'),
         'Summary: ' + (String((getCardField(card, 'teams_summary_template') || {}).value || '').trim() || '-')
       ];
+    } else if (actionType === 'send_approval') {
+      var approvedUpdateCount = countFilledLines(String((getCardField(card, 'approval_approved_update_fields_text') || {}).value || ''));
+      var rejectedUpdateCount = countFilledLines(String((getCardField(card, 'approval_rejected_update_fields_text') || {}).value || ''));
+      previewLines = [
+        'Recapito: ' + (String((getCardField(card, 'approval_delivery_mode') || {}).value || '').trim() || 'email'),
+        'Email approvatori: ' + (String((getCardField(card, 'approval_to_template') || {}).value || '').trim() || '-'),
+        'Destinatario Teams: ' + (String((getCardField(card, 'approval_teams_recipient_email_template') || {}).value || '').trim() || '-'),
+        'Oggetto: ' + (String((getCardField(card, 'approval_subject_template') || {}).value || '').trim() || '-'),
+        'Se approvato: ' + (approvedUpdateCount + countJsonArrayItems(String((getCardField(card, 'approval_approved_actions_json') || {}).value || ''))) + ' azioni',
+        'Se rifiutato: ' + (rejectedUpdateCount + countJsonArrayItems(String((getCardField(card, 'approval_rejected_actions_json') || {}).value || ''))) + ' azioni'
+      ];
+    } else if (actionType === 'do_until') {
+      previewLines = [
+        buildSimpleConditionPreview(
+          'Uscita',
+          String((getCardField(card, 'loop_check_field') || {}).value || '').trim(),
+          String((getCardField(card, 'loop_check_operator') || {}).value || '').trim(),
+          String((getCardField(card, 'loop_check_value') || {}).value || '').trim()
+        ),
+        'Retry: ' + (String((getCardField(card, 'loop_retry_delay_value') || {}).value || '').trim() || '24')
+          + ' '
+          + (String((getCardField(card, 'loop_retry_delay_unit') || {}).value || '').trim() || 'hours'),
+        'Max iterazioni: ' + (String((getCardField(card, 'loop_max_iterations') || {}).value || '').trim() || '10'),
+        'Corpo loop: ' + countJsonArrayItems(String((getCardField(card, 'loop_loop_actions_json') || {}).value || '')) + ' azioni',
+        'Successo/timeout: '
+          + countJsonArrayItems(String((getCardField(card, 'loop_on_success_actions_json') || {}).value || ''))
+          + '/'
+          + countJsonArrayItems(String((getCardField(card, 'loop_on_timeout_actions_json') || {}).value || ''))
+      ];
+    } else if (actionType === 'for_each') {
+      var filterField = String((getCardField(card, 'each_filter_field') || {}).value || '').trim();
+      var filterValue = String((getCardField(card, 'each_filter_value_template') || {}).value || '').trim();
+      previewLines = [
+        'Sorgente: ' + (String((getCardField(card, 'each_source_code') || {}).value || '').trim() || '-'),
+        'Filtro: ' + (filterField || '-') + (filterField && filterValue ? ' = ' + filterValue : ''),
+        'Azioni per elemento: ' + countJsonArrayItems(String((getCardField(card, 'each_actions_json') || {}).value || '')),
+        'Max elementi: ' + (String((getCardField(card, 'each_max_items') || {}).value || '').trim() || '50')
+      ];
+    } else if (actionType === 'branch') {
+      var branchConditionLine = buildSimpleConditionPreview(
+        'If',
+        String((getCardField(card, 'branch_condition_field') || {}).value || '').trim(),
+        String((getCardField(card, 'branch_condition_operator') || {}).value || '').trim(),
+        String((getCardField(card, 'branch_condition_value') || {}).value || '').trim()
+      );
+      previewLines = [
+        branchConditionLine,
+        'Se vero: ' + countJsonArrayItems(String((getCardField(card, 'branch_if_true_actions_json') || {}).value || '')) + ' azioni',
+        'Se falso: ' + countJsonArrayItems(String((getCardField(card, 'branch_if_false_actions_json') || {}).value || '')) + ' azioni'
+      ];
+      var compareWithOldField = getCardField(card, 'branch_compare_with_old');
+      if (compareWithOldField && compareWithOldField.checked) previewLines.push('Confronta con old payload');
     }
 
     var runIfField = String((getCardField(card, 'run_if_field_name') || {}).value || '').trim();
@@ -1484,6 +2290,7 @@
     if (actionLabelNode) actionLabelNode.textContent = actionLabel;
     if (actionSummaryNode) actionSummaryNode.textContent = description || actionLabel;
     replaceNodeChildren(previewNode, previewLines);
+    syncInlineJsonBuilders(card);
   }
 
   function getConditionConfig() {
@@ -1722,6 +2529,7 @@
 
     card.setAttribute('data-condition-suggestion-applied', preset && preset.key ? preset.key : 'base');
     updateConditionCardPresentation(card);
+    syncConditionChoiceHelper(card);
     setCardFeedback(card, preset && preset.title ? ('Applicato preset: ' + preset.title) : 'Base suggerita applicata.');
     openCardDetails(card);
   }
@@ -1916,6 +2724,32 @@
       syncAllOrderFields();
     }
 
+    var conditionChoiceButton = closestElement(event.target, '[data-condition-choice-value]');
+    if (conditionChoiceButton) {
+      event.preventDefault();
+      applyValueChoiceToCard(
+        closestElement(conditionChoiceButton, '[data-condition-card]'),
+        conditionChoiceButton.getAttribute('data-condition-choice-value')
+      );
+      syncConditionChoiceHelper(closestElement(conditionChoiceButton, '[data-condition-card]'));
+    }
+
+    var openChoiceModalButton = closestElement(event.target, '[data-open-condition-choice-modal]');
+    if (openChoiceModalButton) {
+      event.preventDefault();
+      openConditionChoiceModal(closestElement(openChoiceModalButton, '[data-condition-card]'));
+    }
+
+    var modalChoiceButton = closestElement(event.target, '[data-condition-modal-value]');
+    if (modalChoiceButton) {
+      event.preventDefault();
+      if (conditionChoiceModalState.card) {
+        applyValueChoiceToCard(conditionChoiceModalState.card, modalChoiceButton.getAttribute('data-condition-modal-value'));
+        syncConditionChoiceHelper(conditionChoiceModalState.card);
+      }
+      closeConditionChoiceModal();
+    }
+
     var sizeButton = closestElement(event.target, '[data-preset-size]');
     if (sizeButton) {
       event.preventDefault();
@@ -1965,6 +2799,88 @@
       focusFirstSmartTarget();
     }
 
+    var inlineAddButton = closestElement(event.target, '[data-inline-json-add]');
+    if (inlineAddButton) {
+      event.preventDefault();
+      var addContext = _getInlineJsonContext(inlineAddButton);
+      if (!addContext || !addContext.field) return;
+      if (addContext.parsed.error) {
+        if (addContext.details) addContext.details.open = true;
+        setCardFeedback(addContext.card, 'Correggi prima il JSON avanzato del ramo.');
+        return;
+      }
+      var addType = inlineAddButton.getAttribute('data-inline-json-add') || 'write_log';
+      var branchLabel = addContext.builder.getAttribute('data-inline-json-branch-label') || 'Ramo';
+      addContext.parsed.items.push(_buildInlineActionTemplate(addType, branchLabel));
+      _writeInlineJsonItems(addContext.field, addContext.parsed.items);
+      openCardDetails(addContext.card);
+      setCardFeedback(addContext.card, 'Azione aggiunta al ramo ' + branchLabel + '.');
+      return;
+    }
+
+    var inlineCopyButton = closestElement(event.target, '[data-inline-json-copy-other]');
+    if (inlineCopyButton) {
+      event.preventDefault();
+      var copyContext = _getInlineJsonContext(inlineCopyButton);
+      if (!copyContext || !copyContext.field) return;
+      var otherTarget = copyContext.builder.getAttribute('data-inline-json-other-target') || '';
+      var otherField = copyContext.card ? getCardField(copyContext.card, otherTarget) : null;
+      var otherParsed = _parseInlineJsonArrayDetailed(otherField ? otherField.value : '');
+      if (otherParsed.error) {
+        if (copyContext.details) copyContext.details.open = true;
+        setCardFeedback(copyContext.card, 'Il ramo opposto ha un JSON non valido: correggilo prima della copia.');
+        return;
+      }
+      _writeInlineJsonItems(copyContext.field, otherParsed.items);
+      openCardDetails(copyContext.card);
+      setCardFeedback(
+        copyContext.card,
+        otherParsed.items.length
+          ? ('Copiate ' + otherParsed.items.length + ' azioni dal ramo opposto.')
+          : 'Ramo svuotato: il ramo opposto non contiene azioni.'
+      );
+      return;
+    }
+
+    var inlineClearButton = closestElement(event.target, '[data-inline-json-clear]');
+    if (inlineClearButton) {
+      event.preventDefault();
+      var clearContext = _getInlineJsonContext(inlineClearButton);
+      if (!clearContext || !clearContext.field) return;
+      _writeInlineJsonItems(clearContext.field, []);
+      setCardFeedback(clearContext.card, 'Ramo svuotato.');
+      return;
+    }
+
+    var inlineMoveButton = closestElement(event.target, '[data-inline-json-move]');
+    if (inlineMoveButton) {
+      event.preventDefault();
+      var moveContext = _getInlineJsonContext(inlineMoveButton);
+      if (!moveContext || !moveContext.field || moveContext.parsed.error) return;
+      var moveIndex = parseInt(inlineMoveButton.getAttribute('data-inline-json-index') || '-1', 10);
+      var direction = parseInt(inlineMoveButton.getAttribute('data-inline-json-move') || '0', 10);
+      var targetIndex = moveIndex + direction;
+      if (moveIndex < 0 || targetIndex < 0 || targetIndex >= moveContext.parsed.items.length) return;
+      var movedItem = moveContext.parsed.items.splice(moveIndex, 1)[0];
+      moveContext.parsed.items.splice(targetIndex, 0, movedItem);
+      _writeInlineJsonItems(moveContext.field, moveContext.parsed.items);
+      setCardFeedback(moveContext.card, 'Ordine azioni ramo aggiornato.');
+      return;
+    }
+
+    var inlineRemoveButton = closestElement(event.target, '[data-inline-json-remove]');
+    if (inlineRemoveButton) {
+      event.preventDefault();
+      var removeContext = _getInlineJsonContext(inlineRemoveButton);
+      if (!removeContext || !removeContext.field || removeContext.parsed.error) return;
+      var removeIndex = parseInt(inlineRemoveButton.getAttribute('data-inline-json-index') || '-1', 10);
+      if (removeIndex < 0 || removeIndex >= removeContext.parsed.items.length) return;
+      removeContext.parsed.items.splice(removeIndex, 1);
+      _writeInlineJsonItems(removeContext.field, removeContext.parsed.items);
+      setCardFeedback(removeContext.card, 'Azione rimossa dal ramo.');
+      return;
+    }
+
     var addConditionButton = closestElement(event.target, '[data-add-condition]');
     if (addConditionButton) {
       event.preventDefault();
@@ -1996,6 +2912,7 @@
     renderConditionPresetCards(newCard);
     updateConditionCardPresentation(newCard);
     applyConditionSuggestion(newCard, false);
+    syncConditionChoiceHelper(newCard);
     syncAllOrderFields();
     syncSourceCatalog();
     newCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -2018,6 +2935,7 @@
     var select = newCard.querySelector('select[name$="-action_type"]');
     updateSuggestionHint(newCard, select ? select.value : '');
     renderPresetCards(newCard, select ? select.value : '');
+    openCardDetails(newCard);
     updateActionCardPresentation(newCard);
     syncActionCards();
     syncAllOrderFields();
@@ -2044,11 +2962,12 @@
       updateActionCardPresentation(card);
     }
     if (event.target && /-field_name$|-operator$|-expected_value$/.test(event.target.name || '')) {
-      updateConditionCardPresentation(closestElement(event.target, '[data-condition-card]'));
+      var conditionCardForChange = closestElement(event.target, '[data-condition-card]');
+      updateConditionCardPresentation(conditionCardForChange);
+      syncConditionChoiceHelper(conditionCardForChange);
     }
-    if (event.target && /-description$|-run_if_field_name$|-run_if_operator$|-run_if_expected_value$|-run_if_value_type$|-run_if_compare_with_old$|-run_if_negate$|-email_to$|-email_subject_template$|-email_body_text_template$|-write_log_message_template$|-metric_code$|-metric_operation$|-metric_value_template$|-insert_target_table$|-insert_field_mappings_text$|-update_target_table$|-update_where_field$|-update_fields_text$|-trigger_update_fields_text$|-delay_mode$|-delay_value_template$|-delay_unit$|-delay_until_template$|-http_method$|-http_url_template$|-http_expected_status_csv$|-http_headers_text$|-http_body_template$|-teams_title_template$|-teams_summary_template$|-teams_text_template$|-teams_theme_color$|-teams_facts_text$/.test(event.target.name || '')) {
-      updateActionCardPresentation(closestElement(event.target, '[data-action-card]'));
-    }
+    var changedActionCard = closestElement(event.target, '[data-action-card]');
+    if (changedActionCard && /^actions-/.test(event.target.name || '')) updateActionCardPresentation(changedActionCard);
   });
 
   document.addEventListener('focusin', function(event) {
@@ -2060,6 +2979,13 @@
   document.addEventListener('input', function(event) {
     if (matchesSelector(event.target, '[data-smart-field-search]')) {
       applyCatalogFiltering(closestElement(event.target, '[data-source-catalog]'));
+    }
+    var actionCard = closestElement(event.target, '[data-action-card]');
+    if (actionCard && /^actions-/.test(event.target.name || '')) updateActionCardPresentation(actionCard);
+    var conditionCard = closestElement(event.target, '[data-condition-card]');
+    if (conditionCard && /^conditions-/.test(event.target.name || '') && /-field_name$|-operator$|-expected_value$/.test(event.target.name || '')) {
+      updateConditionCardPresentation(conditionCard);
+      syncConditionChoiceHelper(conditionCard);
     }
   });
 
@@ -2076,6 +3002,7 @@
     if (card.getAttribute('data-is-existing') !== 'true') {
       applyConditionSuggestion(card, false);
     }
+    syncConditionChoiceHelper(card);
   });
   forEachNode(document.querySelectorAll('[data-action-card]'), function(card) {
     var select = card.querySelector('select[name$="-action_type"]');
@@ -2496,6 +3423,78 @@
     return rawText ? [rawText] : [];
   }
 
+  function _cardTextValue(card, fieldName) {
+    var field = _cardField(card, fieldName);
+    return field ? String(field.value || '').trim() : '';
+  }
+
+  function _cardBoolValue(card, fieldName) {
+    var field = _cardField(card, fieldName);
+    return !!(field && field.checked);
+  }
+
+  function _countMappingLines(rawValue) {
+    var lines = String(rawValue || '').split(/\r?\n/);
+    var count = 0;
+    for (var index = 0; index < lines.length; index += 1) {
+      if (String(lines[index] || '').trim()) count += 1;
+    }
+    return count;
+  }
+
+  function _parseInlineActionConfigs(rawValue) {
+    var text = String(rawValue || '').trim();
+    if (!text) return [];
+    try {
+      var parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) return [];
+      var items = [];
+      for (var index = 0; index < parsed.length; index += 1) {
+        if (parsed[index] && typeof parsed[index] === 'object' && !Array.isArray(parsed[index])) items.push(parsed[index]);
+      }
+      return items;
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function _inlineNodesFromConfigs(configs) {
+    var nodes = [];
+    for (var index = 0; index < configs.length; index += 1) {
+      var cfg = configs[index];
+      var actionType = cfg && cfg.action_type ? String(cfg.action_type) : '';
+      var style = _DIAG_STYLES[actionType] || { icon: '⚡', color: '#64748b', label: actionType || 'Azione' };
+      nodes.push({
+        action_type: actionType,
+        title: (cfg && cfg.description) ? String(cfg.description) : (style.label || actionType || 'Azione'),
+        icon: style.icon || '⚡',
+        color: style.color || '#64748b'
+      });
+    }
+    return nodes;
+  }
+
+  function _updateFieldsActionNode(title, count) {
+    if (!count) return null;
+    var style = _DIAG_STYLES.update_trigger_record || { icon: '🔄', color: '#0d9488' };
+    return {
+      action_type: 'update_trigger_record',
+      title: title + ' (' + count + ' campi)',
+      icon: style.icon || '🔄',
+      color: style.color || '#0d9488'
+    };
+  }
+
+  function _approvalBranchNodes(card, updateFieldName, jsonFieldName) {
+    var nodes = [];
+    var updateNode = _updateFieldsActionNode(
+      'Aggiorna record triggerante',
+      _countMappingLines(_cardTextValue(card, updateFieldName))
+    );
+    if (updateNode) nodes.push(updateNode);
+    return nodes.concat(_inlineNodesFromConfigs(_parseInlineActionConfigs(_cardTextValue(card, jsonFieldName))));
+  }
+
   function _getActionTypeNodeKind(actionType) {
     return /^(send_approval|do_until|for_each|branch)$/.test(String(actionType || '')) ? String(actionType || '') : 'action';
   }
@@ -2637,6 +3636,58 @@
     node.color = style.color;
     node.bg = style.bg;
     node.app = style.app;
+    delete node.branches;
+    delete node.loop;
+    delete node.each;
+    delete node.if_else;
+
+    if (actionType === 'send_approval') {
+      var approvedNodes = _approvalBranchNodes(card, 'approval_approved_update_fields_text', 'approval_approved_actions_json');
+      var rejectedNodes = _approvalBranchNodes(card, 'approval_rejected_update_fields_text', 'approval_rejected_actions_json');
+      node.branches = {
+        approved: {
+          label: _cardTextValue(card, 'approval_approve_label') || 'Approvato',
+          color: '#16a34a',
+          bg: '#f0fdf4',
+          actions: approvedNodes,
+          count: approvedNodes.length
+        },
+        rejected: {
+          label: _cardTextValue(card, 'approval_reject_label') || 'Rifiutato',
+          color: '#dc2626',
+          bg: '#fef2f2',
+          actions: rejectedNodes,
+          count: rejectedNodes.length
+        }
+      };
+    } else if (actionType === 'do_until') {
+      node.loop = {
+        check_field: _cardTextValue(card, 'loop_check_field'),
+        check_operator: _cardTextValue(card, 'loop_check_operator') || 'equals',
+        check_value: _cardTextValue(card, 'loop_check_value'),
+        max_iterations: parseInt(_cardTextValue(card, 'loop_max_iterations') || '10', 10) || 10,
+        retry_delay: (_cardTextValue(card, 'loop_retry_delay_value') || '24') + ' ' + (_cardTextValue(card, 'loop_retry_delay_unit') || 'hours'),
+        loop_actions: _inlineNodesFromConfigs(_parseInlineActionConfigs(_cardTextValue(card, 'loop_loop_actions_json'))),
+        on_success_actions: _inlineNodesFromConfigs(_parseInlineActionConfigs(_cardTextValue(card, 'loop_on_success_actions_json'))),
+        on_timeout_actions: _inlineNodesFromConfigs(_parseInlineActionConfigs(_cardTextValue(card, 'loop_on_timeout_actions_json')))
+      };
+    } else if (actionType === 'for_each') {
+      node.each = {
+        source_code: _cardTextValue(card, 'each_source_code'),
+        filter_field: _cardTextValue(card, 'each_filter_field'),
+        max_items: parseInt(_cardTextValue(card, 'each_max_items') || '50', 10) || 50,
+        each_actions: _inlineNodesFromConfigs(_parseInlineActionConfigs(_cardTextValue(card, 'each_actions_json')))
+      };
+    } else if (actionType === 'branch') {
+      node.if_else = {
+        condition_field: _cardTextValue(card, 'branch_condition_field'),
+        condition_operator: _cardTextValue(card, 'branch_condition_operator') || 'equals',
+        condition_value: _cardTextValue(card, 'branch_condition_value'),
+        compare_with_old: _cardBoolValue(card, 'branch_compare_with_old'),
+        if_true_actions: _inlineNodesFromConfigs(_parseInlineActionConfigs(_cardTextValue(card, 'branch_if_true_actions_json'))),
+        if_false_actions: _inlineNodesFromConfigs(_parseInlineActionConfigs(_cardTextValue(card, 'branch_if_false_actions_json')))
+      };
+    }
 
     var itemId = String(card.getAttribute('data-item-id') || '');
     if (itemId) {
@@ -3161,11 +4212,28 @@
       _closeFlowDiagramWorkspace();
       return;
     }
+    var tableConfigModal = document.getElementById('tableConfigModal');
+    if (tableConfigModal && !tableConfigModal.hidden && e.target === tableConfigModal) {
+      closeTableConfigModal();
+      return;
+    }
     var modal = document.getElementById('diagramAddModal');
     if (modal && !modal.hidden && e.target === modal) closeDiagramAddModal();
+    var choiceModal = document.getElementById('conditionChoiceModal');
+    if (choiceModal && !choiceModal.hidden && e.target === choiceModal) closeConditionChoiceModal();
   });
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
+      var tableConfigModal = document.getElementById('tableConfigModal');
+      if (tableConfigModal && !tableConfigModal.hidden) {
+        closeTableConfigModal();
+        return;
+      }
+      var choiceModal = document.getElementById('conditionChoiceModal');
+      if (choiceModal && !choiceModal.hidden) {
+        closeConditionChoiceModal();
+        return;
+      }
       var modal = document.getElementById('diagramAddModal');
       if (modal && !modal.hidden) {
         closeDiagramAddModal();
@@ -3236,7 +4304,21 @@
     }
   };
 
+  // Apre automaticamente i <details> che contengono errori di validazione (dopo POST fallita)
+  (function() {
+    var cards = document.querySelectorAll('[data-card-details]');
+    for (var i = 0; i < cards.length; i++) {
+      if (cards[i].querySelector('.designer-errors')) {
+        cards[i].open = true;
+      }
+    }
+    // Scrolla al primo errore visibile
+    var firstError = document.querySelector('.designer-errors');
+    if (firstError) {
+      firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }());
+
 }());
 </script>
 {% endblock %}
-

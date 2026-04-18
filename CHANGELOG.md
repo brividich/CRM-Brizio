@@ -6,6 +6,47 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ---
 
+## 1.0.0 - 2026-04-17
+
+### Added (2026-04-17)
+
+- **[AUTOMAZIONI][DESIGNER][UX] Builder visuale per `branch`, `do_until` e `for_each`** (`django_app/automazioni/templates/automazioni/components/action_card.html`, `django_app/automazioni/templates/automazioni/pages/rule_designer.html`, `django_app/automazioni/tests.py`): le azioni di controllo flusso non sono piu' "JSON-first" nel caso comune. Il designer mostra ora pannelli guidati `Se Vero (IF)` / `Se Falso (ELSE)` per `branch`, `Corpo loop` / `Se completato` / `Se timeout` per `do_until` e `Azioni per ogni record` per `for_each`, con badge di stato, elenco leggibile delle azioni inline, pulsanti rapidi (`+ Log`, `+ Delay`, `+ Email`) e scorciatoie `Copia da...` / `Svuota`. Il JSON canonico embedded in `config_json` resta invariato ma viene spostato sotto `JSON avanzato` come fallback per casi avanzati o import/export.
+
+- **[AUTOMAZIONI][DESIGNER][UX] Picker valori guidato per le condizioni** (`django_app/automazioni/views.py`, `django_app/automazioni/urls.py`, `django_app/automazioni/source_registry.py`, `django_app/automazioni/templates/automazioni/components/condition_card.html`, `django_app/automazioni/templates/automazioni/components/source_catalog_panel.html`, `django_app/automazioni/templates/automazioni/pages/rule_designer.html`, `django_app/automazioni/tests.py`, `django_app/assenze/constants.py`, `django_app/assenze/views.py`): nelle card condizione il campo `expected_value` espone ora il riquadro `Valori disponibili`, alimentato sia da `allowed_values` dichiarati nel source registry sia dai valori distinti reali letti dalla colonna sorgente tramite il nuovo endpoint `/admin-portale/automazioni/api/sorgenti/<source>/campi/<field>/valori/`. Il picker e' generico per qualsiasi campo queryable, include popup `Scegli` con inserimento rapido del valore selezionato e centralizza anche i valori canonici del dropdown `tipo_assenza` in costanti condivise tra modulo assenze e automazioni.
+
+- **[AUTOMAZIONI][TRIGGER GENERATOR] Generatore visuale trigger SQL Server** (`django_app/automazioni/views.py`, `django_app/automazioni/urls.py`, `django_app/automazioni/templates/automazioni/pages/trigger_generator.html`, `django_app/core/migrations/0047_admin_subnav_trigger_generator.py`): nuova pagina `/automazioni/trigger-generator/` accessibile da admin subnav (gruppo automazioni). Mostra tutte le sorgenti con `table_name` definito nel registry, permette di selezionare campi e operazioni (INSERT/UPDATE), genera il SQL `CREATE OR ALTER TRIGGER` corrispondente con preview e pulsante copia. Se il DB attivo è SQL Server, il pulsante "Applica al DB" esegue il trigger direttamente senza passare da file `.sql` o management command. Le applicazioni vengono tracciate in AuditLog.
+
+- **[DEPLOY][AUTOMATION][TASK SCHEDULER] Registrazione automatica poller queue al deploy** (`deployment/scripts/deploy-release.ps1`): aggiunto step 10 che chiama `schedule-automation-queue.ps1 -Environment <env>` in modo idempotente ad ogni deploy. Il task Windows `\PortaleNovicrom\AutomationQueue_<ENV>` viene così creato o aggiornato automaticamente senza intervento manuale. Se lo script non è raggiungibile o fallisce, il deploy non viene bloccato ma viene emesso un warning con il comando manuale.
+- **[AUTOMAZIONI][APPROVAL][TIMEZONE] Orario decisione approvazione ora in ora locale** (`django_app/automazioni/services.py`): il messaggio "Approvazione ricevuta: ... il GG/MM/YYYY HH:MM" nel result message del run log usava UTC. Corretto con `timezone.localtime()` per mostrare l'ora del server (Europa/Roma).
+- **[CONFIG][DEPLOY] `SITE_URL` letto da `.env`** (`django_app/config/settings/base.py`, `django_app/.env.example`): la variabile `SITE_URL` usata per costruire i link nelle email di approvazione è ora dichiarata in `base.py` tramite `env()` e documentata in `.env.example`. Impostare all'URL esterno Entra Application Proxy (es. `https://approvazioni-xxx.msappproxy.net`) per link cliccabili fuori rete. Senza questa variabile i link restano path relativi non cliccabili.
+
+### Fixed (2026-04-17)
+
+- **[AUTOMAZIONI][DESIGNER][LAYOUT] Pannello laterale con scroll indipendente** (`django_app/automazioni/templates/automazioni/pages/rule_designer.html`): la colonna destra `Contenuti / Colonne disponibili` mantiene ora uno scroll autonomo rispetto al resto della pagina e conserva lo stesso comportamento nella workspace del diagramma, evitando continui su/giu mentre si cercano campi per trigger, condizioni, template o mapping.
+
+- **[AUTOMAZIONI][QUEUE][TIMEZONE] La card salute del poller normalizza i timestamp in ora progetto** (`django_app/automazioni/views.py`, `django_app/automazioni/templates/automazioni/pages/queue_list.html`, `django_app/automazioni/tests.py`): il formatter della queue admin trattava i `datetime` naive come valori gia pronti e li stampava grezzi, con possibili scarti orari nel box `Job Django` e `Task Windows`. Ora i timestamp vengono resi sempre nella timezone corrente del progetto (default `Europe/Rome`) e la UI espone esplicitamente la timezone usata.
+
+### Notes (2026-04-17)
+
+- Prima release **1.0.0**: il portale è considerato stabile per uso produzione con il set completo di moduli (assenze, anomalie, assets, tasks, automazioni, DPI, procedure refresh, ecc.) e l'infrastruttura di approvazione via Entra Application Proxy collaudata.
+- Il file `.env` **non viene mai sovrascritto dall'installazione**: il deploy copia da `config\<env>\.env` (source of truth per ambiente). Modifiche al runtime `django_app\.env` vengono perse al prossimo deploy — aggiornare sempre `config\<env>\.env`.
+
+---
+
+## 0.9.18 - 2026-04-16
+
+### Fixed (2026-04-16)
+
+- **[NAV][SIDEBAR][BUG] Fix definitivo voci duplicate e icone come testo nella sidebar** (`django_app/core/icon_utils.py`, `django_app/core/navigation_registry.py`, `django_app/core/management/commands/deduplicate_nav.py`, `django_app/core/migrations/0046_navigation_fix_icons.py`): risolti due problemi distinti che causavano la sidebar in ambiente test corrotta ad ogni deploy. (1) **Icone come testo**: `bell`, `zap`, `trash-2`, `tool` e ~40 altri nomi Lucide non erano in `_SEMANTIC_ICON_SVGS` → comparivano come testo prima dell'etichetta. Aggiunti SVG completi, estesa `_SEMANTIC_ICON_ALIASES` con mappatura 1:1 per tutti i nomi Lucide comuni, aggiornata `_looks_like_placeholder_text` per non trattare come placeholder token lunghi ≥4 char con trattino. Migration `0046` corregge i NavigationItem esistenti con `icon="tool"` assegnando l'icona semantica appropriata. (2) **Voci duplicate**: `api_navigation_bootstrap_from_legacy` crea un NavigationItem per ogni pulsante legacy → più pulsanti dello stesso modulo (es. 4 pulsanti assets, 3 notizie) generano N voci etichettate identicamente in topbar flat. Aggiunto secondo dedup pass in `_compiled_items_for_role`: se section=topbar e voce flat (no categoria), mantiene solo la prima occorrenza per etichetta (ordine asc → id asc), logga warning con istruzione `deduplicate_nav --by-label`. Potenziato `deduplicate_nav` con flag `--by-label` per pulizia definitiva del DB.
+
+### Added (2026-04-16)
+
+- **[WIZARD][MODULI][LICENSING] Selezione moduli installabili nel Setup Wizard** (`deployment/setup_wizard.py`): aggiunta pagina "Moduli" (step 11 di 14) con checkbox per scegliere quali app Django installare. I moduli sono classificati in tre tier — **Sistema** (obbligatori: Core, Anagrafica, Dashboard, Hub Strumenti), **Standard** (pre-selezionati: Assenze, Anomalie, Asset, Ticket, Automazioni, Tasks, Timbrature, Notizie) e **Opzionali** (disattivati per default: DPI, RENTRI, Diario Preposto, Rilevazione Incidenti, Procedure Refresh). La selezione gestisce automaticamente le dipendenze tra moduli (es. Ticket richiede Asset + Anagrafica) ed è mostrata nella pagina Riepilogo prima dell'installazione. Il migrate diventa **selettivo per modulo**: vengono eseguiti prima i built-in Django (`contenttypes`, `auth`, `sessions`, `admin`, `axes`), poi i moduli required, infine solo i moduli opzionali selezionati. Stesso comportamento in `InstallPage._run_prod`, `_run_dev` e `ReleaseRunPage._run_promote`. La selezione è persistita in `cfg.selected_modules` e utilizzabile come base per un futuro sistema di licensing. Il `MODULE_REGISTRY` e `_MODULE_BY_KEY` sono costanti di modulo reusabili per estensioni future.
+
+### Fixed (2026-04-16)
+
+- **[DEPLOY][MIGRATION][GUARD] Verifica migration pendenti post-migrate in `deploy-release.ps1`** (`deployment/scripts/deploy-release.ps1`): dopo il passo `migrate`, lo script esegue `showmigrations --list` e blocca il deploy (exit 1) se rileva migration non ancora applicate. Questo previene che tabelle Django (es. `assenze_certificazionepresenza`) risultino mancanti sul server, in particolare se precedenti deploy usavano `-SkipMigrate`. Il flag `-SkipMigrate` mostra ora un warning esplicito sul rischio di tabelle mancanti.
+
 ## 0.9.18 - 2026-04-15
 
 ### Added (2026-04-15)
