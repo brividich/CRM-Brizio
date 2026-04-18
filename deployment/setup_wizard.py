@@ -922,7 +922,9 @@ class Page(tk.Frame):
         # Header
         hdr = frame(self)
         hdr.pack(fill="x", padx=32, pady=(26,0))
-        tk.Label(hdr, text=title, font=(SF,18,"bold"), fg=GRAY900, bg="white").pack(anchor="w")
+        self.title_label = tk.Label(hdr, text=title, font=(SF,18,"bold"),
+                                     fg=GRAY900, bg="white")
+        self.title_label.pack(anchor="w")
         if subtitle:
             tk.Label(hdr, text=subtitle, font=(SF,10), fg=GRAY500, bg="white").pack(anchor="w", pady=(2,0))
         frame(self, bg=GRAY100, height=1).pack(fill="x", pady=(16,0))
@@ -2997,10 +2999,33 @@ class InstallPage(Page):
         else:
             self._run_prod(cfg, ep, settings, errors)
 
-        self._set_progress(100, "Installazione completata!")
+        # Esponi stato finale a FinishPage (non mentire all'utente).
+        # Marcatori blocking: fail di venv/pip/migrate/collectstatic = ambiente non attivabile.
+        cfg.install_errors = list(errors)
+        _blocking = {"venv", "pip install", "waitress", "migrate", "collectstatic",
+                     "collectstatic: asset statici mancanti"}
+        cfg.install_blocking = [e for e in errors if e in _blocking]
+        cfg.install_success = not errors
+
+        if cfg.install_blocking:
+            self._set_progress(100, "Installazione INCOMPLETA — release non attivata")
+        elif errors:
+            self._set_progress(100, "Installazione completata con avvisi")
+        else:
+            self._set_progress(100, "Installazione completata!")
         self._log_line("\n" + "─"*50, "step")
-        if errors:
-            self._log_line(f"  Completato con {len(errors)} errori/avvisi:", "warn")
+        if cfg.install_blocking:
+            self._log_line(
+                f"  ⚠ {len(cfg.install_blocking)} errori bloccanti — release NON attivata:", "err")
+            for e in cfg.install_blocking:
+                self._log_line(f"  · {e}", "err")
+            other = [e for e in errors if e not in _blocking]
+            if other:
+                self._log_line(f"  Altri {len(other)} avvisi non bloccanti:", "warn")
+                for e in other:
+                    self._log_line(f"  · {e}", "warn")
+        elif errors:
+            self._log_line(f"  Completato con {len(errors)} avvisi:", "warn")
             for e in errors: self._log_line(f"  · {e}", "warn")
         else:
             self._log_line("  Tutto completato senza errori!", "ok")
@@ -3793,6 +3818,13 @@ class FinishPage(Page):
         b = self.body
         frame(b, height=10).pack()
 
+        # Banner stato: mostra esplicitamente se l'installazione è incompleta.
+        # Popolato in on_enter() da cfg.install_blocking / install_errors.
+        self._status_banner = tk.Label(b, text="", font=(SF,10,"bold"),
+                                        bg="white", fg=GRAY600, anchor="w", justify="left",
+                                        wraplength=620)
+        self._status_banner.pack(fill="x", padx=32, pady=(0,10))
+
         self._url_lbl = tk.Label(b, text="", font=(SF,15,"bold"),
                                   fg=BRAND, bg="white", cursor="hand2")
         self._url_lbl.pack(padx=32, anchor="w")
@@ -3834,7 +3866,36 @@ class FinishPage(Page):
         pt = f":{self.cfg.iis_port}" if self.cfg.iis_port not in ("80","443") else ""
         self._url = f"{p}://{h}{pt}/"
         self._url_lbl.configure(text=f"→  {self._url}")
-        self._start_countdown(15)
+
+        blocking = list(getattr(self.cfg, "install_blocking", []) or [])
+        other_errors = [
+            e for e in (getattr(self.cfg, "install_errors", []) or [])
+            if e not in blocking
+        ]
+        # Aggiorna titolo e banner in funzione dello stato reale.
+        if blocking:
+            self.title_label.configure(text="Installazione Incompleta")
+            self._status_banner.configure(
+                fg="#b91c1c",
+                text=("⚠  Errori bloccanti: release NON attivata, IIS non aggiornato.\n"
+                      f"  · {chr(10) + '  · '.join(blocking)}\n"
+                      "  Correggi e rilancia il wizard — non aprire l'URL, il portale non è in linea."),
+            )
+            countdown = 60
+        elif other_errors:
+            self.title_label.configure(text="Installazione Completata (con avvisi)")
+            self._status_banner.configure(
+                fg="#92400e",
+                text=("⚠  Release attivata ma con avvisi non bloccanti:\n"
+                      f"  · {chr(10) + '  · '.join(other_errors)}\n"
+                      "  Il portale è in linea; consulta i log per i dettagli."),
+            )
+            countdown = 30
+        else:
+            self.title_label.configure(text="Installazione Completata!")
+            self._status_banner.configure(text="", fg=GRAY600)
+            countdown = 15
+        self._start_countdown(countdown)
 
     def _open_dashboard(self):
         ServerDashboard(parent=self.winfo_toplevel())

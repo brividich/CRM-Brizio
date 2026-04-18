@@ -410,17 +410,30 @@ def _load_registry_nav_items(request, legacy_user) -> list[NavItem]:
     ]
 
 
+_CAR_PENDING_ALLOWED_CLAUSES = frozenset({
+    "a.capo_reparto_id = %s",
+    "UPPER(COALESCE(cr.indirizzo_email,'')) = UPPER(%s)",
+    "UPPER(COALESCE(cr.nome,'')) = UPPER(%s)",
+    "UPPER(COALESCE(cr.title,'')) = UPPER(%s)",
+})
+_CAR_PENDING_ALLOWED_JOINS = frozenset({
+    "",
+    "LEFT JOIN capi_reparto cr ON cr.id = a.capo_reparto_id",
+})
+
+
 def _count_car_pending(legacy_user_id: int | None, legacy_user=None) -> int:
     """Conta le assenze in attesa del personale gestito da un CAR (per il badge topbar)."""
     manager_name = str(getattr(legacy_user, "nome", "") or "").strip() if legacy_user else ""
     manager_email = str(getattr(legacy_user, "email", "") or "").strip() if legacy_user else ""
 
-    clauses = []
-    params = []
+    clauses: list[str] = []
+    params: list = []
     if legacy_user_id is not None:
         clauses.append("a.capo_reparto_id = %s")
         params.append(int(legacy_user_id))
-    if legacy_table_has_column("capi_reparto", "id"):
+    has_capi_reparto = legacy_table_has_column("capi_reparto", "id")
+    if has_capi_reparto:
         if manager_email:
             clauses.append("UPPER(COALESCE(cr.indirizzo_email,'')) = UPPER(%s)")
             params.append(manager_email)
@@ -432,19 +445,27 @@ def _count_car_pending(legacy_user_id: int | None, legacy_user=None) -> int:
 
     if not clauses:
         return 0
+
+    # Defense-in-depth: ogni frammento SQL iniettato deve essere nell'allowlist.
+    # I valori passano sempre via bind %s; questa è una barriera contro regressioni
+    # future che introducessero predicati dinamici non letterali.
+    if not all(c in _CAR_PENDING_ALLOWED_CLAUSES for c in clauses):
+        logger.error("_count_car_pending: clausola non autorizzata, abort")
+        return 0
+    join_sql = "LEFT JOIN capi_reparto cr ON cr.id = a.capo_reparto_id" if has_capi_reparto else ""
+    if join_sql not in _CAR_PENDING_ALLOWED_JOINS:
+        logger.error("_count_car_pending: join non autorizzato, abort")
+        return 0
+
+    sql = (
+        "SELECT COUNT(*) FROM assenze a "
+        + (join_sql + " " if join_sql else "")
+        + "WHERE (" + " OR ".join(clauses) + ") "
+        + "AND COALESCE(a.moderation_status, 2) = 2"
+    )
     try:
-        join_sql = "LEFT JOIN capi_reparto cr ON cr.id = a.capo_reparto_id" if legacy_table_has_column("capi_reparto", "id") else ""
         with connections["default"].cursor() as cursor:
-            cursor.execute(
-                f"""
-                SELECT COUNT(*)
-                FROM assenze a
-                {join_sql}
-                WHERE ({' OR '.join(clauses)})
-                  AND COALESCE(a.moderation_status, 2) = 2
-                """,
-                params,
-            )
+            cursor.execute(sql, params)
             row = cursor.fetchone()
             return int(row[0]) if row else 0
     except Exception:

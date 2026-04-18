@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Pre-commit hook — blocca commit di .env e pattern secret evidenti.
+# Installazione: tools\install-git-hooks.ps1 (copia in .git/hooks/)
+# Bypass (SCONSIGLIATO): git commit --no-verify
+
+set -e
+
+# 1. Blocca qualsiasi file .env (anche se forzato con git add -f)
+BLOCKED_ENV=$(git diff --cached --name-only --diff-filter=ACM | grep -E '(^|/)(\.env(\..+)?|env)$' | grep -v '\.env\.example$' || true)
+if [ -n "$BLOCKED_ENV" ]; then
+  echo "ERRORE: tentativo di commit di file .env:" >&2
+  echo "$BLOCKED_ENV" >&2
+  echo "Questi file contengono credenziali e non devono essere versionati." >&2
+  echo "Rimuovi dallo staging con: git reset HEAD <file>" >&2
+  exit 1
+fi
+
+# 2. Blocca estensioni sensibili comuni
+BLOCKED_EXT=$(git diff --cached --name-only --diff-filter=ACM | grep -iE '\.(pem|key|pfx|p12|jks)$' || true)
+if [ -n "$BLOCKED_EXT" ]; then
+  echo "ERRORE: file di credenziali/chiavi in staging:" >&2
+  echo "$BLOCKED_EXT" >&2
+  exit 1
+fi
+
+# 3. Scansione pattern secret nelle righe aggiunte (non esaustiva, solo high-signal)
+PATTERNS='AKIA[0-9A-Z]{16}|SECRET_KEY\s*=\s*["'"'"'][^"'"'"']{20,}|-----BEGIN (RSA |EC |OPENSSH |PRIVATE)? ?PRIVATE KEY-----|xox[baprs]-[A-Za-z0-9-]{10,}|ghp_[A-Za-z0-9]{30,}|gho_[A-Za-z0-9]{30,}'
+
+MATCHES=$(git diff --cached --no-color -U0 -- ':(exclude)*.md' ':(exclude)*.example' 2>/dev/null | grep -E "^\+" | grep -E "$PATTERNS" || true)
+if [ -n "$MATCHES" ]; then
+  echo "ERRORE: possibili secret nelle righe aggiunte:" >&2
+  echo "$MATCHES" | head -5 >&2
+  echo "Verifica e rimuovi prima di committare. Bypass: --no-verify (sconsigliato)." >&2
+  exit 1
+fi
+
+exit 0
