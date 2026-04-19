@@ -53,7 +53,7 @@ piattaforma Django 5.2 che consolida in un unico ambiente **workflow HR**,
 
 | | |
 |---|---|
-| 🧩 **25+ moduli Django** | raggruppati per area funzionale |
+| 🧩 **21 app Django custom** | raggruppate per area funzionale |
 | 🔐 **ACL canonico v2** + fallback legacy | migrazione incrementale route-per-route |
 | 🤖 **Designer automazioni visuale** | trigger SQL · approvazioni · queue processor |
 | 📊 **Dashboard KPI personalizzabile** | widget drag&drop per utente |
@@ -125,68 +125,356 @@ sequenceDiagram
 
 ![Moduli del portale](.github/assets/modules-grid.svg)
 
+### Tutti i 21 moduli custom a colpo d'occhio
+
+| # | App Django | Area | URL prefisso | Sintesi |
+|---|---|---|---|---|
+| 1 | [`core`](django_app/core/) | Core | — | Middleware ACL, navigation registry, auth backends, audit, legacy models |
+| 2 | [`dashboard`](django_app/dashboard/) | Core | `/` | Home KPI personalizzabile per utente, widget, layout salvato |
+| 3 | [`admin_portale`](django_app/admin_portale/) | Core | `/admin-portale/` | Pannello admin custom: ACL canonico, diagnostica, mappa permessi, branding |
+| 4 | [`hub_tools`](django_app/hub_tools/) | Core | `/admin-portale/hub/` | Module Manager, DB Manager, Schema infografica, Homepage builder, Guide |
+| 5 | [`setup_wizard`](django_app/setup_wizard/) | Core | `/setup/` | Wizard primo setup (anche via `SetupWizard.exe`) |
+| 6 | [`monitoring`](django_app/monitoring/) | Core | `/monitoring/` | Monitoring interno, issue tracking, alert email, segnalazioni utente, monitor automazioni |
+| 7 | [`anagrafica`](django_app/anagrafica/) | Operations | `/anagrafica/` | Dipendenti + fornitori + documenti ordini/valutazioni, stats dashboard |
+| 8 | [`assets`](django_app/assets/) | Operations | `/assets/` | Inventario, work order, manutenzioni periodiche, planimetrie, licenze SW, Outlook sync |
+| 9 | [`tasks`](django_app/tasks/) | Operations | `/tasks/` | Portfolio **KICK-OFF** progetti, attività, VRF (MOD.073), blocco progressivo |
+| 10 | [`planimetria`](django_app/planimetria/) | Operations | `/planimetria/` | Wrapper compat di assets per discoverability layout |
+| 11 | [`assenze`](django_app/assenze/) | HR & Workflow | `/assenze/` | Richieste, gestione, calendario, certificazione presenza, sync SharePoint |
+| 12 | [`anomalie`](django_app/anomalie/) | HR & Workflow | `/anomalie/` `/anomalie-menu` | Segnalazione e gestione anomalie produzione |
+| 13 | [`tickets`](django_app/tickets/) | HR & Workflow | `/tickets/` | Ticket interni con interventi, fermo macchina, ticket ricorrenti |
+| 14 | [`timbri`](django_app/timbri/) | HR & Workflow | `/timbri/` | Report timbrature da DB legacy, registro, immagini badge |
+| 15 | [`notizie`](django_app/notizie/) | HR & Workflow | `/notizie/` | Bacheca con audience, allegati, letture tracked |
+| 16 | [`dpi`](django_app/dpi/) | Sicurezza | `/dpi/` | Dispositivi Protezione Individuale: richieste, approvazione, consegna, KPI |
+| 17 | [`diario_preposto`](django_app/diario_preposto/) | Sicurezza | `/diario-preposto/` | Diario preposto sicurezza con segnalazioni e follow-up |
+| 18 | [`rilevazione_incidenti`](django_app/rilevazione_incidenti/) | Sicurezza | `/rilevazione-incidenti/` | Unsafe conditions e incidenti (SharePoint source of truth) |
+| 19 | [`procedure_refresh`](django_app/procedure_refresh/) | Sicurezza | `/procedure-refresh/` | Presa visione procedure MT/MTSI, campagne, tracking, export CSV |
+| 20 | [`rentri`](django_app/rentri/) | Sicurezza | `/rentri/` | Tracciabilità rifiuti (normativa RENTRI) |
+| 21 | [`automazioni`](django_app/automazioni/) | Automation | `/automazioni/` | Designer visuale, trigger SQL, queue processor, approvazioni email/Teams, import Power Automate |
+
+> Tutte le app sono disabilitabili dal **Module Manager** in `/admin-portale/hub/moduli/` e selezionabili in fase di setup dal wizard (step 11/14).
+> Il tier di selezione è: **system** (obbligatori: core, anagrafica, dashboard, hub_tools), **standard** (pre-selezionati), **optional** (disattivati di default, per futuro licensing).
+
 ### Dettaglio per area funzionale
 
-<details>
-<summary><b>🧭 Core Platform</b> — fondamenta comuni a tutti i moduli</summary>
+#### 🧭 Core Platform
 
-| Modulo | Responsabilità |
-|---|---|
-| `core` | ACL middleware, navigation registry, legacy models, auth backends, context processors, audit trail |
-| `dashboard` | Home KPI modulare per utente, widget drag&drop, layout personale, template admin |
-| `admin_portale` | Pannello admin custom (non Django admin nativo) con tutti i tool di governance |
-| `hub_tools` | Module Manager, DB Manager, Schema infografica, Homepage builder, Setup wizard hub, Guide |
-| `setup_wizard` | Wizard guidato 14 step per primo setup e release (SQL discovery, IIS config, ACL bootstrap) |
+<details open>
+<summary><b>1. <code>core</code> — fondamenta del portale</b></summary>
 
+L'app trasversale che fa funzionare tutto il resto. Contiene middleware, resolver ACL, legacy models, auth backends, audit trail e context processors.
+
+- **ACL middleware** con resolver canonico v2 + fallback legacy, logging throttled delle decisioni
+- **Navigation registry** (`NavigationItem`, `NavigationRoleAccess`, `UserNavigationOverride`) con deny-by-default
+- **4 auth backend in cascata**: `AxesStandaloneBackend` → `SQLServerLegacyBackend` → `LDAPBackend` → `ModelBackend`
+- **Audit trail** fire-and-forget via `core.audit.log_action()` su tabella `AuditLog`
+- **Legacy models managed** su SQL Server: `Ruolo`, `UtenteLegacy`, `AnagraficaDipendente`, `Pulsante`, `Permesso`
+- **Impersonation** admin → utente con middleware dedicato e session key
+- **23 modelli Django** (Profile, AuditLog, SiteConfig, Notifica, Checklist*, OptioneConfig, ecc.)
+- **Ricerca globale** Ctrl+K su 6 sorgenti (dipendenti, asset, ticket, progetti, task, procedure)
 </details>
 
-<details>
-<summary><b>🗓️ HR & Workflow</b> — vita quotidiana dipendenti</summary>
+<details open>
+<summary><b>2. <code>dashboard</code> — home KPI personalizzabile</b></summary>
 
-| Modulo | Funzionalità |
-|---|---|
-| `assenze` | Richieste, gestione, calendario, certificazione presenza, sync SharePoint. Il capo reparto è risolto via `capi_reparto.id` per coerenza FK |
-| `anomalie` | Segnalazione e gestione anomalie produzione con launcher `/anomalie-menu` |
-| `tickets` | Ticket interni con interventi tecnici, fermo macchina, ticket ricorrenti, categorie configurabili |
-| `timbri` | Report timbrature da DB legacy, registro + immagini badge, import issues tracking |
-| `notizie` | Bacheca con audience per ruolo, allegati, tracking letture per KPI engagement |
+Workspace personale dell'utente autenticato. Widget multi-modulo con layout salvato per utente.
 
+- **Widget KPI cross-modulo** (assenze in attesa, ticket aperti, scadenze asset, anomalie…)
+- **Drag & drop** dei widget con persistenza `UserDashboardConfig`
+- **Template iniziale globale** definibile dagli admin + ripristino rapido
+- **Shell viewport-aware** a tutta altezza, no bande vuote in fondo al viewport
+- Route legacy `/scheda-dipendente` mantenuto come alias compat
 </details>
 
-<details>
-<summary><b>🏭 Operations</b> — asset, progetti, anagrafica</summary>
+<details open>
+<summary><b>3. <code>admin_portale</code> — pannello admin custom</b></summary>
 
-| Modulo | Funzionalità |
-|---|---|
-| `assets` | Inventario (macchinari, IT, licenze SW), work order, manutenzioni periodiche, planimetrie con marker, sync scadenze su Outlook Calendar via Graph, dashboard KPI personalizzabile con 12 widget |
-| `tasks` | Branding "**KICK-OFF**". Portfolio progetti, attività, subtask, commenti, allegati. Upload MOD.073 **VRF** (Excel) con parsing celle fisse, blocco progressivo dopo N giorni, riuso kickoff su identità `P/N + revisione + versione` |
-| `anagrafica` | Dipendenti (AD sync), fornitori, documenti ordini/valutazioni, ruoli operativi, stats dashboard |
-| `planimetria` | Wrapper leggero di assets per discoverability layout impianti |
+Sostituisce il Django admin nativo con un pannello ritagliato sulle operazioni reali del portale.
 
+- **Gestione accessi** semplici con toggle unificato per modulo (sync legacy + canonico + navigazione)
+- **ACL canonico** con 5 tab (Permission, Binding, Role grant, User override, Nav override)
+- **ACL route coverage** report con stati e export CSV
+- **ACL diagnostica** combinata legacy + canonical con trace completo della decisione
+- **Mappa permessi/navigazione** visuale con drill-down cliccabile e toggle live dei grant
+- **Navigation Builder** con vista tabellare + **vista drag&drop orizzontale** per sezione
+- **LDAP settings** + configurazione SMTP + mailbox tecnica approvazioni
+- **Branding portale** (favicon, logo, login banner, pagina login personalizzabile)
+- **Module Manager** integrato per abilitazione moduli runtime
+- **Automazioni admin**: impostazioni runtime, queue list, log mailbox, convertitore Power Automate
 </details>
 
-<details>
-<summary><b>🦺 Sicurezza & Compliance</b> — tracciabilità obblighi normativi</summary>
+<details open>
+<summary><b>4. <code>hub_tools</code> — hub strumenti interni admin</b></summary>
 
-| Modulo | Funzionalità |
-|---|---|
-| `dpi` | Gestione Dispositivi Protezione Individuale: richieste con card-picker immagini, approvazione, consegna, storico, KPI. Numerazione `DPI-YYYY-NNNN` |
-| `diario_preposto` | Diario del preposto sicurezza con segnalazioni + allegati + follow-up |
-| `rilevazione_incidenti` | Unsafe conditions e incidenti, CRUD via Graph con SharePoint come fonte di verità, cache locale |
-| `procedure_refresh` | Presa visione procedure MT/MTSI: campagne, assegnazioni, tracking aperture/conferme, reminder automatici, export CSV |
-| `rentri` | Tracciabilità rifiuti secondo normativa RENTRI |
+Collezione di tool sotto `/admin-portale/hub/` protetti da `@legacy_admin_required`.
 
+- **Module Manager** — abilita/disabilita moduli visibili, configura redirect post-login
+- **Database Manager** — statistiche tabelle, backup, pulizia log/sessioni, ottimizzazione, ripristino. Engine rilevato automaticamente (SQLite dev / SQL Server prod)
+- **DB Schema infografica** — mappa visuale di tutti i modelli Django con campi, tipi, relazioni FK/1:1/M:M
+- **Homepage Builder** — editor visuale layout home per ruolo
+- **Setup Wizard Hub** — rilancia il wizard di configurazione (14 step) sul `.env` corrente
+- **Guide** — catalogo auto-indicizzato di documenti (HTML/PDF/MD) da `tools/`, `doc/`, `deployment/`, con dedup per formato
 </details>
 
-<details>
-<summary><b>🤖 Automazioni & Governance</b> — il cuore programmabile del portale</summary>
+<details open>
+<summary><b>5. <code>setup_wizard</code> — wizard primo setup</b></summary>
 
-| Modulo | Funzionalità |
-|---|---|
-| `automazioni` | **Designer visuale** regole trigger/condizioni/azioni · trigger SQL Server auto-generati · queue processor · approvazioni email + Teams webhook + Teams chat Flow · import/convert Power Automate · test inline con record reali |
-| ACL v2 | Permission code (`modulo.risorsa.azione`), route binding, role grant, user override, resolver unificato, strict mode opzionale, route coverage report |
-| Navigation Registry | Voci menu configurabili per sezione (`topbar`, `subnav`, `admin_subnav`, `sidebar`, `page`), deny-by-default per ruolo, override per utente, editor drag&drop orizzontale |
+Wizard Django 12 step raggiungibile su `/setup/`, usato quando `SETUP_COMPLETED=0`. Esiste anche come **installer standalone `SetupWizard.exe`** (14 step) per deploy Windows Server.
 
+- Configurazione `SiteConfig`, `.env`, credenziali admin
+- Wizard exe: discovery SQL Server (UDP broadcast + TCP scan + SSRP)
+- Selezione moduli **tier-based** (system/standard/optional)
+- Migrate selettivo per modulo scelto
+- Fail-fast: se venv/pip/migrate/collectstatic falliscono, release **non** attivata
+- FinishPage mostra banner rosso "Installazione Incompleta" con countdown 60s
+- Server Dashboard integrato con start/stop/restart IIS e reset password live
+</details>
+
+<details open>
+<summary><b>6. <code>monitoring</code> — osservabilità interna</b></summary>
+
+Superficie di monitoring del portale, issue tracking interno e segnalazioni utenti.
+
+- **Issue tracking** interno per bug segnalati dagli utenti
+- **Alert email** su eventi di sistema configurabili
+- **Monitor automazioni** con health card della queue
+- **Segnalazioni utente** dirette all'admin
+- CSS dedicato in `static/monitoring/css/monitoring.css` verificato in `collectstatic`
+</details>
+
+---
+
+#### 🏭 Operations
+
+<details open>
+<summary><b>7. <code>anagrafica</code> — dipendenti e fornitori</b></summary>
+
+Anagrafica master del portale, integrata con Active Directory e tabelle legacy.
+
+- **9 modelli**: Fornitore, FornitoreDocumento, FornitoreOrdine, FornitoreValutazione, FornitoreAsset, RuoloOperativo, DipendenteRuoloOperativo, DipendenteStatLayout, AnagraficaStatPermission
+- **Fallback email** automatico `email_notifica` → `email` quando il legacy non popola il primo campo
+- **Sync LDAP/AD** con `sync_ldap_users` command, paging configurabile
+- **Stats dashboard dipendente** con layout salvato per utente
+- **Generazione PDF** anagrafica tramite `tools/gen_anagrafica_pdf.py`
+- **Ruoli operativi** aggiuntivi (non i ruoli ACL)
+</details>
+
+<details open>
+<summary><b>8. <code>assets</code> — inventario e manutenzioni</b></summary>
+
+Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT, infrastruttura, software.
+
+- **27 modelli**: Asset, AssetCategory, AssetITDetails, WorkMachine, WorkOrder, WorkOrderAttachment/Log, PeriodicVerification, SoftwareLicense, AssetEndpoint, PlantLayout/Area/Marker, AssetDocument, AssetLabelTemplate…
+- **Inventario** canonico su `/assets/lista/` con ripristino automatico link filtrati legacy
+- **Categorie asset** e **campi dinamici** configurabili dalla tab `Categorie asset` di `/assets/impostazioni/`
+- **Work Order** (ordini di lavoro) con allegati, log cronologico, fornitori associati
+- **Manutenzione periodica** come categoria della manutenzione (`/assets/manutenzione/verifiche/`), redirect legacy preservato
+- **Planimetrie** con marker posizionabili, aree, officine, TVCC
+- **Licenze software** (software, antivirus, Office) assegnabili ad asset o dipendenti su `/assets/licenze/`
+- **Sync Outlook** via Graph per scadenze manutenzioni/contratti/verifiche (tracking anti-duplicati)
+- **Dashboard KPI personalizzabile** con 12 widget (scadenze, OdL, verifiche, ripartizioni) e drag&drop
+- **Logo modulo** personalizzabile dalla tab Configurazione
+- **Etichette asset** con template stampabili
+</details>
+
+<details open>
+<summary><b>9. <code>tasks</code> — branding KICK-OFF</b></summary>
+
+Portfolio gestione progetti con workflow documento **VRF** (MOD.073). Presentato agli utenti come "KICK-OFF".
+
+- **7 modelli**: Project, Task, SubTask, TaskComment, ProjectComment, TaskEvent, TaskAttachment + singleton `TaskImpostazioni`
+- **Kickoff = progetto** con numerazione automatica `KICK-OFF <progressivo>`
+- **Identità univoca** su `part_number + revisione + versione` — riuso automatico, niente duplicati
+- **VRF upload workflow**: dopo creazione kickoff, redirect a `/tasks/projects/<id>/vrf/` per caricare il MOD.073 Excel
+- **Parsing automatico** celle fisse del .xlsx (B3=P/N, I3=Descrizione, P3=Esp, O2=Preventivo, P2=Versione, B4=Cliente) con anteprima
+- **Blocco progressivo VRF**: warning dopo `vrf_reminder_days` (default 7g), **bloccante** dopo `vrf_blocking_days` (default 30g) — guardati da `task_create` e `task_edit`
+- **Stati VRF**: `PENDING` / `UPLOADED` / `NOT_REQUIRED` con badge colorato nel portfolio
+- **Copia kickoff** con due varianti: "Copia kickoff e VRF" e "Copia kickoff e VRF tranne P/N" (svuota cella B3 del workbook)
+- **Impostazioni** tab `Configurazione`, `Riepilogo`, `Record`, `Log attivita`; legacy `/tasks/gestione/` → redirect a `Riepilogo`
+- **Import Excel** massivo per bulk creation
+</details>
+
+<details open>
+<summary><b>10. <code>planimetria</code> — wrapper compatibile</b></summary>
+
+App "ponte" con `models.py` vuoto. Mantenuta solo per **discoverability** e retrocompat delle URL storiche — tutta la logica vive in `assets`.
+
+- Nessuna tabella propria
+- Reindirizza a `/assets/` con filtri appropriati
+</details>
+
+---
+
+#### 🗓️ HR & Workflow
+
+<details open>
+<summary><b>11. <code>assenze</code> — ferie, permessi, malattie</b></summary>
+
+Modulo unificato per richieste di assenza su tabella legacy SQL Server `assenze`.
+
+- **1 modello Django**: `CertificazionePresenza` (+ tabelle legacy managed)
+- **Workflow completo**: richiesta → approvazione capo reparto → notifica → calendario
+- **Calendario** con vista mensile/settimanale e colori per tipo
+- **Certificazione presenza** come tipo applicativo dedicato (persistita come `Altro` con metadato interno)
+- **Sync bidirezionale** con lista SharePoint via Graph API (intervallo configurabile `ASSENZE_SP_PULL_INTERVAL_SECONDS`)
+- **Capo reparto** risolto verso FK `capi_reparto.id` leggendo `indirizzo_email` (email_notifica/email fallback)
+- **Tipo assenza canonico** `Flessibilità` (allineamento da legacy `Infortunio` via management command idempotente)
+- **Export CSV** tracciato in AuditLog (`export_csv`)
+- **URL canonico**: menu, nuova richiesta, gestione personale, calendario, certificazione, impostazioni
+</details>
+
+<details open>
+<summary><b>12. <code>anomalie</code> — segnalazioni produzione</b></summary>
+
+Segnalazione e gestione anomalie rilevate in produzione dagli operatori.
+
+- **Segnalazione rapida** con launcher dedicato `/anomalie-menu` (compat ACL con permessi operativi)
+- **Gestione** su `/gestione-anomalie` con workflow di presa in carico e chiusura
+- **Tipi di anomalia** configurabili per ruolo
+- **API gate** `/api/anomalie/` protetta da ACL canonico
+- **Export CSV** tracciato in AuditLog
+- **ACL**: il launcher resta accessibile ai ruoli con almeno un permesso operativo (`anomalie_aperte` o `inserimento_anomalie`) anche senza grant del contenitore
+</details>
+
+<details open>
+<summary><b>13. <code>tickets</code> — ticket interni IT/manutenzione</b></summary>
+
+Sistema ticket per richieste interne con capabilities analitiche avanzate.
+
+- **7 modelli**: Ticket, TicketCommento, TicketAllegato, TicketImpostazioni, CategoriaTicket, TicketStatoLog, TicketIntervento
+- **Campi analitici**: componente guasto, causa radice, tipo fermo, ore fermo macchina, data presa in carico, data primo intervento, risolto_da
+- **Ticket ricorrenti** con FK `ticket_origine` per tracciare serie di problemi correlati
+- **Interventi tecnici** come sessioni di lavoro multiple sullo stesso ticket
+- **Log cambio stato** completo con timestamp, autore, motivazione
+- **Categorie ticket** configurabili con SLA
+- **Upload allegati hardening** con validazione MIME reale (non solo estensione)
+- **Download autenticato** via view Django (non da `/media/tickets/` diretto)
+</details>
+
+<details open>
+<summary><b>14. <code>timbri</code> — report timbrature</b></summary>
+
+Lettura e reporting timbrature dal sistema di rilevazione presenze esterno.
+
+- **4 modelli**: OperatoreTimbri, RegistroTimbro, RegistroTimbroImmagine, TimbriImportIssue
+- **Report** per periodo, operatore, reparto
+- **Import timbrature** da file esterno con tracking issue
+- **Immagini badge** associate a ogni timbratura per verifica
+- **Registro** con correzione manuale auditata
+</details>
+
+<details open>
+<summary><b>15. <code>notizie</code> — bacheca comunicazioni aziendali</b></summary>
+
+Sistema di comunicazione top-down con target per ruolo/reparto.
+
+- **4 modelli**: Notizia, NotiziaAudience, NotiziaAllegato, NotiziaLettura
+- **Audience targeting** per ruolo/reparto/utente specifico
+- **Allegati** multipli
+- **Tracking letture** per misurare engagement
+- **KPI dashboard** apertura per notizia
+- **ACL bootstrap automatico** degli endpoint API all'avvio
+</details>
+
+---
+
+#### 🦺 Sicurezza & Compliance
+
+<details open>
+<summary><b>16. <code>dpi</code> — Dispositivi Protezione Individuale</b></summary>
+
+Ciclo completo DPI dal magazzino alla consegna firmata al dipendente.
+
+- **5 modelli**: CategoriaDPI (con immagine e vita utile), DPIImpostazioni (singleton), RichiestaDPI, ConsegnaDPI (1:1), RichiestaDPICommento
+- **Richieste** con **card-picker grafico** (selezione DPI da immagini, non testo)
+- **Numerazione univoca** `DPI-YYYY-NNNN`
+- **Stati workflow**: creata → approvata → consegnata → rifiutata/annullata
+- **Approvazione** da parte del responsabile sicurezza con commenti
+- **Consegna** con firma dipendente e data
+- **Vita utile** DPI tracciata per categoria (scadenza e sostituzione)
+- **Storico** completo per dipendente con export PDF
+- **KPI dashboard** su consumi, costi, scadenze imminenti
+</details>
+
+<details open>
+<summary><b>17. <code>diario_preposto</code> — diario sicurezza</b></summary>
+
+Registro obbligatorio delle verifiche del preposto sicurezza.
+
+- **3 modelli**: SegnalazionePreposto, SegnalazioneAllegato, DiarioPrepostoImpostazioni
+- **Segnalazioni** con categorizzazione (comportamento, infrastruttura, DPI, procedura)
+- **Allegati multipli** (foto, documenti) con upload hardening
+- **Follow-up** con azioni correttive e verifica efficacia
+- **Firma** preposto e controfirma responsabile
+- **Report** per audit ispettivo esterno
+- **ACL bootstrap automatico** all'avvio app
+</details>
+
+<details open>
+<summary><b>18. <code>rilevazione_incidenti</code> — incidenti e unsafe conditions</b></summary>
+
+Segnalazione e tracciamento incidenti/mancati incidenti con **SharePoint** come fonte di verità.
+
+- **2 modelli**: RilevazioneIncidente (cache locale), SicurezzaImpostazioni
+- **CRUD via Graph API** sulla lista SharePoint configurata
+- **Cache locale** Django per performance e query offline
+- **Tipi**: incidente, mancato incidente, condizione non sicura, comportamento non sicuro
+- **Workflow** apertura → analisi → azioni correttive → verifica → chiusura
+- **Allegati** salvati su SharePoint (foto scena, medicazioni, referti)
+- **Statistiche** per reparto, causa, gravità
+</details>
+
+<details open>
+<summary><b>19. <code>procedure_refresh</code> — presa visione procedure</b></summary>
+
+Campagne di aggiornamento procedure MT/MTSI con tracking letture obbligatorio.
+
+- **6 modelli**: ProcedureDocument, ProcedureRevision, ProcedureCampaign, ProcedureCampaignDocument, ProcedureAssignment, ProcedureReadEvent
+- **Anagrafica procedure** con codice univoco, tipo MT/MTSI/ALTRO
+- **Revisioni** con sorgente SharePoint o file server, validazione URL/path
+- **Campagne** con stati draft → published → closed → archived
+- **Assegnazioni** per utente Django con stati assigned → opened → read_confirmed (o overdue/cancelled)
+- **Tracking aperture**: `open_count`, `first_opened_at`, `last_opened_at`, IP, user agent
+- **Log eventi**: opened, confirmed, reminder_sent, reassigned, exported
+- **Reminder automatici** via mail configurabili
+- **Export CSV** per audit
+- **Report** copertura per reparto/procedura
+</details>
+
+<details open>
+<summary><b>20. <code>rentri</code> — tracciabilità rifiuti</b></summary>
+
+Gestione registro rifiuti secondo normativa **RENTRI** (Registro Elettronico Nazionale Tracciabilità Rifiuti).
+
+- **1 modello**: RegistroRifiuti
+- **Movimenti** con codice CER, quantità, destinazione, formulario
+- **Formulari** di identificazione rifiuto
+- **Report periodico** per MUD e adempimenti
+</details>
+
+---
+
+#### 🤖 Automazione
+
+<details open>
+<summary><b>21. <code>automazioni</code> — workflow engine visuale</b></summary>
+
+Il modulo più complesso del portale: motore di automazione event-driven con designer visuale, approvazioni multi-canale e integrazione Power Automate.
+
+- **9 modelli**: AutomationRule, AutomationCondition, AutomationAction, AutomationRunLog, AutomationActionLog, DashboardMetricValue, AutomationApproval, TeamsWebhookPreset, AutomationDeliveryEndpoint
+- **Designer visuale** con builder classico + diagramma Power Automate-style
+- **Trigger SQL Server** auto-generati (CREATE OR ALTER TRIGGER) con applicazione one-click dal portale
+- **Queue** `automation_event_queue` persistente con processor command
+- **Azioni disponibili**: `send_email`, `write_log`, `update_trigger_record`, `send_approval`, `do_until`, `for_each`, `branch`, `run_if`
+- **Controllo flusso visuale**: pannelli guidati Se Vero/Se Falso, Corpo loop/Timeout, Azioni per ogni record
+- **Approvazioni multi-canale**: email classica, webhook Teams legacy, **Teams chat Flow** (Power Automate), Entra Application Proxy one-click
+- **Template email approvazioni** riutilizzabili con `portal_links` / `mail_reply` / `hybrid`
+- **Mailbox poller Graph** (Microsoft 365 compatible, no Basic Auth): policy "first valid decision wins", dedup persistente, fail-closed sui mittenti
+- **Import Power Automate** (`.zip`/`.json`) con analisi, remediation, preview, handoff a draft nel designer
+- **Converter integrato** con selettore target table dal catalogo del portale
+- **Test inline**: esegui regola con record reale (ultimi 20) o dati campione, output per azione
+- **Picker valori smart** per condizioni: `allowed_values` registry + valori distinti DB
+- **Queue admin** con azioni `Stoppa` / `Elimina`, card salute poller, timezone-aware
+- **Schema drift difensivo**: UI resta funzionante anche se migration non ancora applicate (warning leggibili)
 </details>
 
 ---
