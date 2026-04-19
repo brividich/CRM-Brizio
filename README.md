@@ -1,333 +1,488 @@
+<div align="center">
 
-<h1 align="center">NOVICROM HUB</h1>
+<img src="django_app/core/static/core/img/logo_novicrom.png" alt="NOVICROM HUB" height="96">
 
-![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
-![Django 5.2](https://img.shields.io/badge/Django-5.2-0C4B33?logo=django&logoColor=white)
-![Version 1.0.0](https://img.shields.io/badge/version-1.0.0-F97316)
-![Database SQLite or SQL Server](https://img.shields.io/badge/DB-SQLite%20%7C%20SQL%20Server-1E3A5F)
+# NOVICROM HUB
 
-Repository di riferimento del software **NOVICROM HUB**. I nomi storici come
-`Portale Novicrom` restano nel repo solo come esempio di istanza, percorso o deploy.
+**Il portale interno unificato di Costruzioni Novicrom SRL**
+*Workflow · Operations · Sicurezza · Automazioni · Governance*
+
+![Version](https://img.shields.io/badge/version-1.0.0-F97316?style=flat-square)
+![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white)
+![Django](https://img.shields.io/badge/Django-5.2-0C4B33?style=flat-square&logo=django&logoColor=white)
+![DB](https://img.shields.io/badge/DB-SQLite%20%7C%20SQL%20Server-1E3A5F?style=flat-square&logo=microsoftsqlserver&logoColor=white)
+![IIS](https://img.shields.io/badge/Runtime-Waitress%20%2B%20IIS-0078D4?style=flat-square&logo=microsoft&logoColor=white)
+![Graph](https://img.shields.io/badge/Integration-Microsoft%20Graph-2563eb?style=flat-square&logo=microsoft&logoColor=white)
+![LDAP](https://img.shields.io/badge/Auth-LDAP%20%2B%20Django%20%2B%20Legacy-6B7280?style=flat-square)
+![Modules](https://img.shields.io/badge/Moduli-25%2B-16A34A?style=flat-square)
+
+[Start here](doc/START_HERE.md) · [Architettura](doc/ARCHITETTURA_TARGET_E_DISMISSIONE_LEGACY.md) · [Testing](doc/TESTING.md) · [Deploy IIS](deployment/README_DEPLOY_IIS_WINDOWS.md) · [ACL v2](doc/ACL_V2_PERMISSION_GUIDE.md)
+
+</div>
+
+---
+
+## 📖 Indice
+
+1. [Cos'è NOVICROM HUB](#-cosè-novicrom-hub)
+2. [Anteprima UI](#-anteprima-ui)
+3. [Architettura](#-architettura)
+4. [Catalogo moduli](#-catalogo-moduli)
+5. [Governance & sicurezza (ACL v2)](#-governance--sicurezza-acl-v2)
+6. [Automazioni](#-automazioni)
+7. [Integrazioni Microsoft 365](#-integrazioni-microsoft-365)
+8. [Stack tecnico](#-stack-tecnico)
+9. [Quick start](#-quick-start)
+10. [Deployment](#-deployment-su-windows-server--iis)
+11. [Comandi utili](#-comandi-utili)
+12. [Documentazione](#-documentazione-collegata)
+
+---
+
+## 🎯 Cos'è NOVICROM HUB
+
+NOVICROM HUB è il **portale intranet aziendale** di Costruzioni Novicrom SRL: una
+piattaforma Django 5.2 che consolida in un unico ambiente **workflow HR**,
+**gestione asset**, **compliance sicurezza**, **automazioni aziendali** e
+**governance ACL granulare**.
+
+> 💡 I nomi storici (`Portale Novicrom`) restano nel repo solo come esempio di
+> istanza o percorso di deploy. La baseline documentale corrente è **NOVICROM HUB**.
+
+### Numeri chiave
+
+| | |
+|---|---|
+| 🧩 **25+ moduli Django** | raggruppati per area funzionale |
+| 🔐 **ACL canonico v2** + fallback legacy | migrazione incrementale route-per-route |
+| 🤖 **Designer automazioni visuale** | trigger SQL · approvazioni · queue processor |
+| 📊 **Dashboard KPI personalizzabile** | widget drag&drop per utente |
+| 🔌 **Integrazioni native** | Microsoft Graph · SharePoint · Outlook · LDAP/AD |
+| ⚙️ **Setup wizard 14 step** | PyInstaller exe · discovery SQL · IIS config |
+
+---
+
+## 🖼️ Anteprima UI
+
+<div align="center">
 
 ![Preview dashboard NOVICROM HUB](.github/assets/dashboard-preview.svg)
 
-## Panoramica
-
-Il codice applicativo vive in `django_app/` ed espone un portale aziendale costruito su Django 5.2,
-con moduli separati per operativita quotidiana, amministrazione, anagrafiche, asset, workflow e automazioni.
-
-L'entrypoint corretto per lo sviluppo locale e `django_app/manage.py`.
-
-Nel modulo anagrafica, se il legacy non ha `email_notifica`, il portale usa e riallinea automaticamente l'`email` account per evitare schede dipendente e rubriche incoerenti.
-
-## Start Here
-
-Se stai entrando adesso nel progetto, parti da [`doc/START_HERE.md`](doc/START_HERE.md):
-
-- sviluppatore
-- admin funzionale
-- deployer
-- tester / UAT
-
-## Personalizzazione interfaccia
-
-Il portale include un sistema di preferenze UI per utente che permette di adattare
-la leggibilita e i comandi rapidi senza modificare codice o template:
-
-- `font_scale` globale con profili `small`, `normal`, `large`, `xl`
-- tipografia coerente su dashboard, moduli operativi, form, tabelle, card e widget
-- sidebar con toggle compatto in alto e logo separato
-- trigger ricerca globale in sidebar reso come card integrata con hint `Ctrl+K`, coerente con il tema della shell anche in stato compresso
-- icone topbar/sidebar con alias SVG semantici e fallback automatico sui moduli principali
-- sottomenu sidebar aperti resi come livello annidato con pannello dedicato e stato aperto piu evidente
-- footer sidebar personalizzabile con azioni rapide aggiungibili, rimovibili e riordinabili
-- favicon del portale sostituibile da `/admin-portale/branding/` senza toccare codice o file statici
-- shell modulo e dashboard shared a tutta altezza, cosi i layout principali non lasciano bande vuote in fondo al viewport
-
-Le preferenze vengono salvate lato server e riapplicate automaticamente al login successivo.
-
-Dal wizard di primo accesso (`/onboarding/`) l'utente appena creato configura subito anche queste preferenze UI, invece di doverle cercare dopo il login. La pagina resta raggiungibile da qualsiasi utente autenticato senza grant ACL dedicati, mentre le preferenze email continuano a mostrare solo i moduli che il ruolo rende davvero visibili, cosi il setup iniziale non propone opzioni fuorvianti. Anche il centro notifiche personale (`/notifiche/` e API `/api/notifiche/...`) resta sempre disponibile a ogni utente autenticato, senza dipendere dai permessi di modulo.
-
-## Cosa include
-
-| Area | Descrizione |
-| --- | --- |
-| Dashboard e UX | home modulare, viste per ruolo, scorciatoie operative, navigazione dinamica, font scaling globale e sidebar personalizzabile con categorie colorate, icone SVG semantiche e sottomenu annidati piu leggibili |
-| Workflow | assenze, anomalie, tickets, timbri, notizie e richieste interne |
-| Operations | inventory asset, work order, macchine di lavoro, planimetrie e manutenzione periodica |
-| Sicurezza e compliance | DPI (richieste/approvazione/consegna), diario preposto, rilevazione incidenti, presa visione procedure MT/MTSI, tracciabilita rifiuti RENTRI |
-| Governance | gestione utenti, ACL canonico v2 + fallback legacy, pulsanti UI, audit, diagnostica LDAP, diagnostica ACL, mappa permessi/navigazione e branding portale (favicon, login) |
-| Automazioni | designer visuale, conversione Power Automate, approvazioni email/Teams, sorgenti, queue processor, test regole e import package |
-| Osservabilita | monitoring interno, issue tracking, alert email, segnalazioni utente, monitor automazioni |
-| Compatibilita legacy | route storiche, tabelle unmanaged e fallback di navigazione/permessi |
-
-La `dashboard` resta il cruscotto KPI cross-modulo e i workflow di dominio vivono dentro i rispettivi moduli. Per `assenze` il punto di ingresso unico e `/assenze/`, che raccoglie menu modulo, nuova richiesta, gestione personale, calendario e certificazione presenza. Il salvataggio locale delle richieste risolve ora il capo reparto selezionato verso `capi_reparto.id`, evitando errori FK quando dal form arrivano email o lookup SharePoint.
-
-Nel modulo `automazioni`, sia il builder classico sia il designer visuale tengono ora allineati i dropdown di trigger e condizioni con la sorgente selezionata, cosi il catalogo colonne riflette davvero la tabella attiva invece di restare fermo sulla prima sorgente caricata. Il designer visuale espone anche un browser campi con ricerca, filtri e inserimento intelligente nel target attivo (trigger, condizioni, template, mapping), mentre la pagina test offre un composer guidato current/old payload sincronizzato col JSON raw. Anche le azioni di controllo flusso `branch`, `do_until` e `for_each` sono diventate piu' leggibili nel caso comune: il designer mostra pannelli guidati `Se Vero/Se Falso`, `Corpo loop/Se completato/Se timeout` e `Azioni per ogni record`, con badge di stato, elenco delle azioni inline e pulsanti rapidi (`+ Log`, `+ Delay`, `+ Email`), lasciando il JSON originale sotto `JSON avanzato` solo come fallback. Nel diagramma di flusso, il modal `Aggiungi azione` viene inoltre renderizzato gia lato server e poi rifinito dal JS, con CSS che rispetta davvero lo stato `hidden`: in questo modo il picker non si apre vuoto, non compare da solo al load e si richiude correttamente. I nodi azione supportano anche un editor inline: al click il diagramma monta la card reale del form nel pannello del flow, cosi si modifica la stessa configurazione SSR senza saltare avanti e indietro tra diagramma e lista card. Quando apri `Diagramma di flusso`, il portale entra inoltre in una workspace split-view stile Power Automate, con canvas centrale, inspector fisso a sinistra, lock dello scroll pagina e scorciatoie per tornare ai blocchi trigger/condizioni/azioni solo quando serve. La stessa area admin include ora anche il converter integrato `Converti Power Automate`, raggiungibile da lista regole e import package: carica export `.zip` o `.json`, riusa i servizi della webapp spostata sotto `django_app/powerautomate-to-django-automations`, mostra il diagramma del flow originale, applica remediation consigliate e passa il package risultante direttamente all'import guidato SSR del modulo. Se una regola convertita e' gia importabile, puoi anche aprirla subito nel designer visuale: il portale crea una bozza draft/disattiva e ti porta nell'editor vero per rifinirla prima dell'import bulk. La selezione tabella target resta opzionale e usa il catalogo tabelle del portale, senza riaprire il vecchio wizard standalone SQL Server. Per i flow con approval, il converter espone anche un selettore di template approvazione, preferisce template attivi `hybrid` e poi `mail_reply`, salva nel package il riferimento portabile `approval_email_template_code` e, sui source noti/non `generic`, prova a collassare i branch supportati in una singola `send_approval` email con preview coerente nel dry-run/import. Le approvazioni umane `send_approval` restano governate dal portale come source of truth, ma possono ora essere recapitate via email, via webhook Teams legacy di canale oppure via nuovo flow Power Automate / Teams Workflow verso la chat del singolo utente (`teams_chat_flow`); la pagina `/automazioni/canali-teams/` gestisce sia i preset webhook legacy sia gli endpoint flow riutilizzabili per il recapito a utente identificato da email aziendale. Per la sorgente `assenze`, il runtime risolve ora `capo_email` dal record locale `capi_reparto.id` selezionato nel form, cosi le nuove richieste di assenza inviano l'approvazione al responsabile corretto anche dopo il riallineamento FK del modulo. La nuova pagina `/admin-portale/automazioni/impostazioni/` centralizza invece la mailbox tecnica globale, lo stato runtime IMAP delle risposte approvazione e il pulsante `Esegui ora` che lancia `poll_approval_mailbox` dal portale; lo stesso pannello IMAP compare anche in `/admin-portale/ldap/` dentro `Configurazione SMTP` e da entrambe le superfici puoi ora modificare direttamente `APPROVAL_IMAP_HOST`, `PORT`, `USER`, `PASSWORD`, `SSL` e `FOLDER`, con salvataggio in `django_app/.env`, mantenimento password se lasciata vuota e riallineamento del runtime corrente. Sul backend Graph delle reply approvative, il polling applica inoltre una policy `first valid decision wins`, salva sempre il tracking persistente su `ApprovalMailboxMessage`, accetta dal body solo token etichettati (`RID:` / `TOKEN:`), rifiuta i mittenti non validabili in fail-closed e marca come lette soltanto le reply terminali o gia deduplicate, lasciando riprocessabili gli errori reali. La queue admin in `/admin-portale/automazioni/queue/` espone adesso anche i pulsanti `Stoppa` ed `Elimina`: il primo blocca un evento ancora `pending` senza eseguirlo, il secondo lo rimuove quando non ha run log collegati ed e' ancora `pending/error`, cosi i duplicati si possono ripulire dal portale senza shell. La stessa pagina mostra anche una card salute del poller automatico con task Windows locale `Portale Hub Polling Mail`, ultimo job monitorato, alert `missing/stuck` e stato del file `django_app/logs/automation_queue.log`; i timestamp vengono resi nella timezone del progetto (`TIME_ZONE`, default `Europe/Rome`) e la card espone esplicitamente il fuso usato, cosi capisci subito perche una riga resta `pending` senza dover aprire Task Scheduler. Per i repo usati direttamente su Windows senza struttura `C:\PortaleNovicrom\prod|test`, puoi registrare lo scheduler locale con `deployment/scripts/register-local-polling-mail.ps1`, che crea proprio quel task e lo collega al `.venv` corrente. Se un ambiente viene aggiornato col nuovo codice ma non ha ancora applicato la migration `automazioni.0010_automationdeliveryendpoint`, la UI non va in 500: mostra un warning e disabilita temporaneamente gli endpoint Teams Flow finche' non esegui `python django_app/manage.py migrate automazioni`. Allo stesso modo, se il database ha una `dbo.automation_event_queue` preesistente, dopo ogni upgrade automazioni conviene rieseguire in modo idempotente `sql/automation_event_queue.sql`: lo script riallinea la tabella tecnica aggiungendo colonne nuove come `execute_after`, richieste dalle azioni schedulate e dal filtro dei job pending.
-
-Sul designer delle condizioni, accanto a `expected_value`, e' disponibile anche il riquadro `Valori disponibili`: mostra i valori canonici dichiarati dal source registry e, quando il campo punta a una colonna fisica, puo aprire un popup `Scegli` che legge anche i valori distinti reali dal DB della sorgente selezionata. Il comportamento e' generico per qualsiasi sorgente/campo queryable, non solo per `tipo_assenza`, e il catalogo laterale rende visibili gli stessi `allowed_values` quando sono gia noti. La colonna destra `Contenuti / Colonne disponibili` resta inoltre scrollabile in autonomia rispetto al resto della pagina, cosi la ricerca dei campi nel builder e nel designer grafico non obbliga piu a muovere tutto il layout.
-
-Le pagine `Impostazioni` restano separate per modulo ma seguono ora un pattern condiviso per hero, KPI/quick links e branding nome/logo modulo. I percorsi canonici sono `/diario-preposto/impostazioni/`, `/rilevazione-incidenti/impostazioni/`, `/timbri/impostazioni/`, `/rentri/impostazioni/`, `/assenze/impostazioni/`, `/notizie/impostazioni/`, `/procedure-refresh/impostazioni/`, `/tasks/impostazioni/` e `/assets/impostazioni/`; gli URL storici (`gestione`, `configurazione`, `admin`) restano compatibili come redirect legacy. Nel modulo `tasks`, `/tasks/impostazioni/` raccoglie ora anche le tab amministrative `Configurazione`, `Riepilogo`, `Record` e `Log attivita`, mentre il vecchio `/tasks/gestione/` reindirizza alla tab `Riepilogo`.
-
-Nel modulo `tasks`, presentato in UI come `KICK-OFF`, il kickoff coincide ora con il progetto ed e nominato automaticamente `KICK-OFF <progressivo dedicato>`, mentre `VRF` indica solo il documento Excel MOD.073. Il form crea o riusa kickoff in modo P/N-safe sull'identita `P/N + revisione + versione`, non chiede piu un nome progetto manuale e presenta le righe operative come `attivita kickoff`. Dal portfolio kickoff sono disponibili anche le azioni `Copia kickoff e VRF` e `Copia kickoff e VRF tranne P/N`: la seconda duplica il file Excel svuotando in memoria sia il campo `part_number` del kickoff sia la cella `B3` del workbook, senza alterare il file sorgente.
-
-Alla creazione di ogni kickoff il portale guida all'upload del documento MOD.073 VRF: il file .xlsx viene analizzato automaticamente e i campi identificativi (Cliente, P/N, Versione, Preventivo, Descrizione, Esp) vengono estratti e mostrati in anteprima prima del salvataggio. Se il documento non viene caricato subito, il sistema attiva un reminder progressivo configurabile: dopo N giorni compare un avviso, dopo M giorni il kickoff viene bloccato e non accetta nuove attivita fino al caricamento del documento. I valori N e M sono modificabili dalla tab `Configurazione` di `/tasks/impostazioni/` (parametri `vrf_reminder_days` e `vrf_blocking_days`). La stessa pagina include anche riepilogo, record e log amministrativi del modulo. Il portfolio kickoff mostra la colonna "Documento" con badge colorato per ogni progetto (Caricato / Avviso / Bloccato / Non richiesto).
-
-Nel modulo `assets`, gli admin possono ora creare eventi Outlook Calendar per le scadenze principali del modulo: manutenzioni, scadenze amministrative, manutenzione periodica e contratti assistenza. La sincronizzazione riusa Microsoft Graph, salva un tracking unico per evitare duplicati e, per manutenzione periodica/contratti, richiede il filtro su un asset specifico cosi il calendario resta legato a un contesto chiaro. La manutenzione periodica e ora trattata come categoria della manutenzione, con percorso canonico `/assets/manutenzione/verifiche/` e redirect compatibile dal vecchio `/assets/verifiche-periodiche/`. La dashboard del modulo vive su `/assets/`, mentre la lista inventario canonica e `/assets/lista/`; i vecchi link filtrati nel formato `/assets/?asset_type=...` vengono riallineati automaticamente alla lista. La pagina `/assets/licenze/` gestisce le licenze software (software, antivirus, Office) con assegnazione diretta a asset o dipendenti anagrafica. Il logo del modulo Assets e personalizzabile dalla pagina `Impostazioni` (tab Configurazione) con upload diretto o URL esterno; il brand nella sidebar e cliccabile per tornare all'homepage del modulo. La configurazione di categorie asset e campi dinamici vive nella tab `Categorie asset` di `/assets/impostazioni/`, mentre lo Studio amministratore dell'inventario mantiene un rimando rapido per chi arriva dai flussi storici. La sidebar del modulo espone il link `Impostazioni` su tutte le pagine per gli utenti con permesso `admin_assets`.
-
-La dashboard principale usa ora questo workspace personale: widget KPI multi-modulo, layout personale per utente, template iniziale definibile dagli admin e ripristino rapido al template di partenza. La route `scheda-dipendente` resta solo come alias compatibile.
-
-Nel modulo `assenze` il valore canonico per le richieste flessibili e `FlessibilitÃƒÆ’Ã‚Â `. Se il database SQL Server proviene da una versione legacy che usa ancora `Infortunio`, riallinealo con `python django_app/manage.py allinea_tipo_assenza_flessibilita --settings=config.settings.dev` prima di usare insert/update o `sync/pull`; il runtime non deve piu persistere `Infortunio` in `tipo_assenza`. `Certifica presenza` resta gestita come tipo applicativo dedicato ma viene persistita come `Altro` con metadato interno per compatibilita.
-
-## Preview
-
-Anteprime visuali GitHub-friendly dei flussi principali del portale.
+</div>
 
 | Assets / Officina | Automazioni |
-| --- | --- |
+|:---:|:---:|
 | ![Preview modulo assets e officina](.github/assets/assets-preview.svg) | ![Preview designer automazioni](.github/assets/automation-preview.svg) |
 
-## ACL canonico v2 (permission-code based)
+> Le anteprime sono SVG GitHub-friendly renderizzate direttamente nel browser.
+> Per screenshot reali del portale in produzione vedi `/admin-portale/hub/guide/`
+> una volta installato.
 
-Il portale supporta un layer ACL canonico progressivo che convive con il legacy:
+---
 
-- `PermissionDefinition`: catalogo permessi leggibili (`code`, `label`, `module`, `description`)
-- `RoutePermissionBinding`: mappa route/path -> `permission_code`
-- `RolePermissionGrant`: grant ruolo legacy -> `permission_code`
-- `UserPermissionGrant`: override per-utente sullo stesso `permission_code`
-- resolver unificato in `core/acl_v2.py` integrato in middleware
-- fallback legacy (`pulsanti` + `permessi`) usato solo se il binding canonico manca
-- compat route dedicata: `/anomalie-menu` funziona come launcher del modulo anomalie e puo restare accessibile ai ruoli che hanno almeno un permesso operativo (`anomalie_aperte` o `inserimento_anomalie`) anche se il grant contenitore `dashboard_anomalie_menu` non e presente
+## 🏗️ Architettura
 
-Strumenti operativi:
+![Architettura sistema](.github/assets/architecture-overview.svg)
 
-- `/admin-portale/accessi/` come entrypoint semplice predefinito: un solo toggle per modulo sincronizza ACL legacy (`permessi.can_view/consentito`), grant canonici v2 e visibilita menu del ruolo
-- `/admin-portale/gestione-accessi/` per il dettaglio legacy storico modulo/azione
-- `/admin-portale/acl-canonico/` per gestire permission code, binding e grant
-- `/admin-portale/acl-route-coverage/` per classificare tutte le route (`CANONICAL_BOUND`, `LEGACY_FALLBACK`, `UNBOUND`, `COMING_SOON_EXCLUDED`, `REDIRECT_ONLY`)
-- `/admin-portale/acl-diagnostica/` per capire perchÃƒÆ’Ã‚Â© un accesso ÃƒÆ’Ã‚Â¨ consentito/negato
-- `/admin-portale/mappa-permessi-navigazione/` per il workflow visuale route/menu con toggle live grant canonici + permessi legacy (con filtro ruolo)
-- `/admin-portale/navigation-builder/` per gestire la navigazione con tab per sezione e card operative `Apri`, `Clona`, `Rimuovi` direttamente dalla vista visuale
-- comando `python django_app/manage.py bootstrap_acl_v2` per supportare migrazione incrementale
-  - `--dry-run` per audit senza scritture
-  - `--apps assets,automazioni` per migrare una app alla volta
-  - `--apply` per creare/aggiornare binding canonici attivi su route `LEGACY_FALLBACK/UNBOUND`
-- comando `python django_app/manage.py seed_acl_uat --reset` per caricare un pacchetto UAT ripetibile (ruoli, utenti, binding, grant, override, fallback legacy, report scenari)
+### Principi chiave
 
-In installazione tramite `SetupWizard.exe` (ambienti `test`/`prod`), dopo `migrate` il wizard esegue automaticamente `apply_sql_triggers`, il workflow ACL v2 e gli altri riallineamenti server:
-- `apply_sql_triggers` per queue DDL + trigger SQL automazioni
-- audit pre `bootstrap_acl_v2 --dry-run`
-- migrazione `bootstrap_acl_v2 --import-legacy --apply`
-- audit post `bootstrap_acl_v2 --dry-run`
-- in ambiente `test`: seed UAT opzionale (`seed_acl_uat --reset`) tramite checkbox wizard `Esegui seed UAT ACL`
+- **SSR puro** con Django templates — nessun framework JavaScript lato client
+- **Layer ACL doppio**: canonico v2 (policy-as-data) + fallback legacy per migrazione incrementale
+- **Storage dual-mode**: SQLite in dev, SQL Server in test/prod con driver ODBC 18/17/13 auto-rilevato
+- **Deploy Windows-first**: Waitress + HttpPlatformHandler + IIS, installer PyInstaller
+- **Cache condivisa multi-worker**: `DatabaseCache` su SQL Server (token Graph, ACL, sessioni)
+- **Audit trail fire-and-forget** su ogni operazione CRUD rilevante
 
-## Stack tecnico
+### Flusso request tipico
 
-| Area | Tecnologia |
-| --- | --- |
-| Runtime | Python 3.11+ |
-| Framework | Django 5.2.11 |
-| WSGI IIS | Waitress via `HttpPlatformHandler` |
-| Database dev | SQLite |
-| Database full environment | SQL Server via `mssql-django` e `pyodbc` |
-| Auth | Django auth, ACL canonico v2 con fallback legacy, LDAP opzionale |
-| Integrazioni opzionali | Microsoft Graph / SharePoint, SMTP, Active Directory |
+```mermaid
+sequenceDiagram
+    participant U as Browser
+    participant IIS as IIS + HttpPlatformHandler
+    participant W as Waitress (worker)
+    participant M as ACLMiddleware
+    participant V as Django View
+    participant DB as SQL Server
+    participant G as Microsoft Graph
 
-Dipendenze principali: `django_app/requirements.txt`
-Per i deploy IIS, `waitress` e una dipendenza runtime obbligatoria: se manca nel venv, `python -m waitress ...` fallisce e IIS risponde con `503 Service Unavailable`.
-
-## Moduli principali
-
-| Gruppo | Moduli |
-| --- | --- |
-| Core platform | `core`, `dashboard` |
-| HR e workflow | `assenze`, `anomalie`, `tickets`, `timbri`, `notizie` |
-| Sicurezza e compliance | `diario_preposto`, `rilevazione_incidenti`, `dpi`, `procedure_refresh`, `rentri` |
-| Operations | `assets`, `tasks`, `planimetria` |
-| Backoffice | `admin_portale`, `anagrafica` |
-| Automation | `automazioni` |
-| Infrastruttura | `hub_tools`, `setup_wizard`, `monitoring` |
-
-## Quick start
-
-### 1. Crea l'ambiente
-
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r django_app\requirements.txt
+    U->>IIS: GET /assenze/
+    IIS->>W: proxy to Waitress
+    W->>M: request
+    M->>M: resolve_acl_access() · canonical v2
+    alt no binding
+        M->>M: fallback legacy pulsanti/permessi
+        M-->>W: log warning (throttled 5m)
+    end
+    M->>V: allowed
+    V->>DB: ORM query (+ raw legacy)
+    V->>G: token cached · SharePoint sync
+    V-->>U: HTML SSR
 ```
 
-### 2. Prepara la configurazione
+---
+
+## 🧩 Catalogo moduli
+
+![Moduli del portale](.github/assets/modules-grid.svg)
+
+### Dettaglio per area funzionale
+
+<details>
+<summary><b>🧭 Core Platform</b> — fondamenta comuni a tutti i moduli</summary>
+
+| Modulo | Responsabilità |
+|---|---|
+| `core` | ACL middleware, navigation registry, legacy models, auth backends, context processors, audit trail |
+| `dashboard` | Home KPI modulare per utente, widget drag&drop, layout personale, template admin |
+| `admin_portale` | Pannello admin custom (non Django admin nativo) con tutti i tool di governance |
+| `hub_tools` | Module Manager, DB Manager, Schema infografica, Homepage builder, Setup wizard hub, Guide |
+| `setup_wizard` | Wizard guidato 14 step per primo setup e release (SQL discovery, IIS config, ACL bootstrap) |
+
+</details>
+
+<details>
+<summary><b>🗓️ HR & Workflow</b> — vita quotidiana dipendenti</summary>
+
+| Modulo | Funzionalità |
+|---|---|
+| `assenze` | Richieste, gestione, calendario, certificazione presenza, sync SharePoint. Il capo reparto è risolto via `capi_reparto.id` per coerenza FK |
+| `anomalie` | Segnalazione e gestione anomalie produzione con launcher `/anomalie-menu` |
+| `tickets` | Ticket interni con interventi tecnici, fermo macchina, ticket ricorrenti, categorie configurabili |
+| `timbri` | Report timbrature da DB legacy, registro + immagini badge, import issues tracking |
+| `notizie` | Bacheca con audience per ruolo, allegati, tracking letture per KPI engagement |
+
+</details>
+
+<details>
+<summary><b>🏭 Operations</b> — asset, progetti, anagrafica</summary>
+
+| Modulo | Funzionalità |
+|---|---|
+| `assets` | Inventario (macchinari, IT, licenze SW), work order, manutenzioni periodiche, planimetrie con marker, sync scadenze su Outlook Calendar via Graph, dashboard KPI personalizzabile con 12 widget |
+| `tasks` | Branding "**KICK-OFF**". Portfolio progetti, attività, subtask, commenti, allegati. Upload MOD.073 **VRF** (Excel) con parsing celle fisse, blocco progressivo dopo N giorni, riuso kickoff su identità `P/N + revisione + versione` |
+| `anagrafica` | Dipendenti (AD sync), fornitori, documenti ordini/valutazioni, ruoli operativi, stats dashboard |
+| `planimetria` | Wrapper leggero di assets per discoverability layout impianti |
+
+</details>
+
+<details>
+<summary><b>🦺 Sicurezza & Compliance</b> — tracciabilità obblighi normativi</summary>
+
+| Modulo | Funzionalità |
+|---|---|
+| `dpi` | Gestione Dispositivi Protezione Individuale: richieste con card-picker immagini, approvazione, consegna, storico, KPI. Numerazione `DPI-YYYY-NNNN` |
+| `diario_preposto` | Diario del preposto sicurezza con segnalazioni + allegati + follow-up |
+| `rilevazione_incidenti` | Unsafe conditions e incidenti, CRUD via Graph con SharePoint come fonte di verità, cache locale |
+| `procedure_refresh` | Presa visione procedure MT/MTSI: campagne, assegnazioni, tracking aperture/conferme, reminder automatici, export CSV |
+| `rentri` | Tracciabilità rifiuti secondo normativa RENTRI |
+
+</details>
+
+<details>
+<summary><b>🤖 Automazioni & Governance</b> — il cuore programmabile del portale</summary>
+
+| Modulo | Funzionalità |
+|---|---|
+| `automazioni` | **Designer visuale** regole trigger/condizioni/azioni · trigger SQL Server auto-generati · queue processor · approvazioni email + Teams webhook + Teams chat Flow · import/convert Power Automate · test inline con record reali |
+| ACL v2 | Permission code (`modulo.risorsa.azione`), route binding, role grant, user override, resolver unificato, strict mode opzionale, route coverage report |
+| Navigation Registry | Voci menu configurabili per sezione (`topbar`, `subnav`, `admin_subnav`, `sidebar`, `page`), deny-by-default per ruolo, override per utente, editor drag&drop orizzontale |
+
+</details>
+
+---
+
+## 🔐 Governance & sicurezza (ACL v2)
+
+![Flusso ACL](.github/assets/acl-flow.svg)
+
+### I 4 pilastri dell'ACL canonico
+
+| Tabella | Scopo |
+|---|---|
+| `PermissionDefinition` | Catalogo permessi leggibili (`code`, `label`, `module`) |
+| `RoutePermissionBinding` | Mappa `route_name` o `path_pattern` → `permission_code` |
+| `RolePermissionGrant` | Grant per ruolo legacy → `permission_code` |
+| `UserPermissionGrant` | Override positivo/negativo per singolo utente |
+
+### Migrazione incrementale legacy → canonico
+
+Il resolver decide route-per-route: se esiste un `RoutePermissionBinding` usa il
+layer canonico, altrimenti scivola sul **fallback legacy** (`pulsanti` +
+`permessi`). Questo consente di migrare modulo-per-modulo senza big-bang.
+
+```bash
+# Audit delle route ancora in fallback
+python django_app/manage.py acl_fallback_report --only-unbound --app assenze
+
+# Bootstrap canonico di un'app (dry-run poi apply)
+python django_app/manage.py bootstrap_acl_v2 --apps assenze --dry-run
+python django_app/manage.py bootstrap_acl_v2 --apps assenze --import-legacy --apply
+
+# Seed UAT completo (6 utenti, 3 ruoli, binding + grant + override)
+python django_app/manage.py seed_acl_uat --reset
+```
+
+### Setting di governance
+
+| Variabile `.env` | Effetto |
+|---|---|
+| `ACL_LOG_LEGACY_FALLBACK=1` | Warning throttled (5m/route) quando il resolver usa il fallback — utile per audit |
+| `ACL_STRICT_CANONICAL=1` | Nega le route senza binding canonico anche se il legacy le consentirebbe — da attivare prima in test/UAT |
+
+### Strumenti admin
+
+- `/admin-portale/accessi/` — toggle unificato per modulo (legacy + v2 + nav)
+- `/admin-portale/acl-canonico/` — gestione permission code, binding, grant, override, nav override
+- `/admin-portale/acl-route-coverage/` — stato di ogni route (`CANONICAL_BOUND` / `LEGACY_FALLBACK` / `UNBOUND` / `REDIRECT_ONLY`) + export CSV
+- `/admin-portale/acl-diagnostica/` — diagnostica combinata con trace di ogni decisione
+- `/admin-portale/mappa-permessi-navigazione/` — workflow visuale cliccabile route/menu/ruoli
+
+---
+
+## 🤖 Automazioni
+
+Il modulo `automazioni` offre un **designer visuale** completo per creare
+workflow event-driven senza scrivere codice:
+
+```mermaid
+graph LR
+    A[SQL trigger<br/>INSERT/UPDATE] --> B[automation_event_queue]
+    B --> C[process_automation_queue<br/>Windows Scheduled Task]
+    C --> D{Match rules}
+    D -->|condizioni OK| E[Esegui azioni]
+    E --> F[send_email]
+    E --> G[send_approval<br/>email / Teams flow]
+    E --> H[update_trigger_record]
+    E --> I[branch / do_until / for_each]
+    G --> J[ApprovalEmailTemplate<br/>portal_links / mail_reply / hybrid]
+    J --> K[Mailbox poller Graph<br/>first valid decision wins]
+    K --> L[process approved_actions<br/>or rejected_actions]
+```
+
+### Capabilities
+
+- 🎨 **Designer SSR visuale**: trigger, condizioni, azioni con editor inline
+- 🔀 **Controllo flusso**: `branch`, `do_until`, `for_each`, `run_if` con pannelli guidati
+- ✉️ **Approvazioni umane**: recapito via email · webhook Teams legacy · Teams chat Flow (Power Automate) · Entra Application Proxy
+- 🔄 **Import Power Automate**: converter integrato `.zip`/`.json` con remediation e handoff a draft
+- 🧪 **Test inline**: esegui regola con record reale o dati campione, visualizzando output per azione
+- 📊 **Diagramma Power Automate-style**: visualizzazione verticale con rami approval/branch/loop
+- 📮 **Mailbox poller via Graph**: autenticazione moderna compatibile Microsoft 365 con bloccato Basic Auth
+- 📋 **Template email approvazioni** riutilizzabili con `portal_links`, `mail_reply`, `hybrid`
+- 💚 **Queue health card**: stato task Windows, alert missing/stuck, timezone-aware
+
+### Endpoint rapidi
+
+- `/automazioni/regole/` — regole e designer
+- `/automazioni/regole/converti-power-automate/` — converter Power Automate
+- `/automazioni/canali-teams/` — webhook + flow endpoints
+- `/automazioni/template-approvazioni/` — template email
+- `/admin-portale/automazioni/impostazioni/` — mailbox tecnica, polling, quick links
+- `/admin-portale/automazioni/queue/` — queue admin con azioni `Stoppa`/`Elimina`
+
+---
+
+## 🔌 Integrazioni Microsoft 365
+
+| Integrazione | Uso | File chiave |
+|---|---|---|
+| **Microsoft Graph** | SharePoint sync (assenze, incidenti), Outlook Calendar (scadenze assets), Teams chat flow (approvazioni), mailbox polling | `core/graph_utils.py` (cache cross-process) |
+| **LDAP / Active Directory** | Auth utenti con `LDAPBackend`, sync anagrafica, SSO SPNEGO opzionale | `core/accounts/backends.py`, `core/accounts/windows_sso.py` |
+| **Entra Application Proxy** | Pubblicazione selettiva di `/approval-actions/*` per approvazioni one-click fuori rete | `automazioni/approval_proxy_urls.py` |
+| **SMTP** | Notifiche utente, approvazioni email, reminder procedure | `EMAIL_*` in `.env` |
+
+### Sicurezza credenziali
+
+Le credenziali sensibili (Graph secret, SMTP password, LDAP bind) vivono **solo**
+in `django_app/.env`, mai committato. Un pre-commit hook in `tools/git-hooks/`
+blocca commit accidentali di `.env*`, chiavi private e pattern secret.
+
+```powershell
+# Installa il pre-commit hook (una-tantum per sviluppatore)
+powershell tools\install-git-hooks.ps1
+```
+
+---
+
+## 🛠️ Stack tecnico
+
+| Area | Tecnologia |
+|---|---|
+| Runtime | **Python 3.11+** |
+| Framework | **Django 5.2.11** |
+| WSGI produzione | **Waitress** via `HttpPlatformHandler` (IIS) |
+| Database dev | **SQLite** |
+| Database prod | **SQL Server** via `mssql-django` + `pyodbc 5.2` (driver 18/17/13) |
+| Auth cascata | `AxesStandaloneBackend` → `SQLServerLegacyBackend` → `LDAPBackend` → `ModelBackend` |
+| Frontend | **SSR** con Django templates, CSS custom, nessun framework JS |
+| Cache | `DatabaseCache` su SQL Server (prod), `LocMemCache` (dev) |
+| Background | Windows Scheduled Tasks (queue processor, mailbox poll, backup) |
+| Osservabilità | `SafeTimedRotatingFileHandler` multi-process, SQL logging, audit DB |
+| Hardening | `django-axes` rate-limit login, `axes` lockout template, upload MIME validation, CSRF, allowlist SQL |
+
+Dipendenze: [`django_app/requirements.txt`](django_app/requirements.txt)
+
+---
+
+## 🚀 Quick start
+
+### 1. Clona e prepara l'ambiente
+
+```powershell
+git clone <repo-url> novicrom-hub
+cd novicrom-hub
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r django_app\requirements.txt
+
+# Installa pre-commit hook anti-leak (raccomandato)
+powershell tools\install-git-hooks.ps1
+```
+
+### 2. Configura `.env`
 
 ```powershell
 Copy-Item django_app\.env.example django_app\.env
 ```
 
-Configurazione minima consigliata per sviluppo locale:
+Configurazione minima per sviluppo locale:
 
 ```env
-DJANGO_SECRET_KEY=CHANGE_ME
+DJANGO_SECRET_KEY=CHANGE_ME_use_secrets.token_urlsafe
 DJANGO_DEBUG=1
 DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost
 DB_ENGINE=sqlite
+ACL_LOG_LEGACY_FALLBACK=1
 ```
 
-`django_app/.env` e l'unica sorgente persistita di configurazione runtime.
-
-### 3. Avvia il progetto
+### 3. Migra e avvia
 
 ```powershell
-python django_app\manage.py migrate
-python django_app\manage.py runserver
+python django_app\manage.py migrate --settings=config.settings.dev
+python django_app\manage.py createsuperuser --settings=config.settings.dev
+python django_app\manage.py runserver --settings=config.settings.dev
 ```
 
-Se preferisci `django_app\avvia_server.bat`, il batch ora libera solo il listener `LISTENING` sulla porta `8000` prima dell'avvio. Non usa piu una scansione CIM/WMI globale dei processi Python, perche su alcune macchine Windows quella query puo restare bloccata e far sembrare il terminale congelato.
+In alternativa: `django_app\avvia_server.bat` (libera la porta 8000 e avvia).
 
-Se registri il poller locale della queue automazioni con `deployment\scripts\register-local-polling-mail.ps1`, il task Windows usa ora un runner hidden e resta silent, senza popup `cmd` o `powershell` a ogni minuto.
+### 4. URL principali in locale
 
-Endpoint tipici in locale:
+| URL | Descrizione |
+|---|---|
+| http://127.0.0.1:8000/ | Dashboard personale |
+| http://127.0.0.1:8000/assenze/ | Modulo assenze unificato |
+| http://127.0.0.1:8000/assets/ | Inventario e manutenzioni |
+| http://127.0.0.1:8000/tickets/ | Ticket interni |
+| http://127.0.0.1:8000/dpi/ | Dispositivi protezione individuale |
+| http://127.0.0.1:8000/automazioni/regole/ | Designer automazioni |
+| http://127.0.0.1:8000/admin-portale/ | Pannello admin custom |
+| http://127.0.0.1:8000/admin-portale/hub/ | Hub strumenti (moduli, DB, schema, guide) |
+| http://127.0.0.1:8000/admin-portale/acl-canonico/ | Gestione ACL v2 |
 
-- `http://127.0.0.1:8000/` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â dashboard
-- `http://127.0.0.1:8000/assenze/` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â modulo assenze unificato (menu, gestione, calendario)
-- `http://127.0.0.1:8000/assets/` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â gestione asset
-- `http://127.0.0.1:8000/admin-portale/` → pannello admin
-- `http://127.0.0.1:8000/admin-portale/automazioni/regole/converti-power-automate/` → converter Power Automate integrato nel modulo automazioni
-- `http://127.0.0.1:8000/admin-portale/branding/` - favicon e identità visiva del portale (ICO/PNG/SVG, aggiornamento immediato su tutte le pagine)
-- `http://127.0.0.1:8000/admin-portale/login-config/` - titolo, logo, banner e SSO della pagina di login
-- `http://127.0.0.1:8000/admin-portale/accessi/` - accessi semplici: un toggle per modulo sincronizza legacy ACL, grant canonici v2 e menu ruolo
-- `http://127.0.0.1:8000/admin-portale/gestione-accessi/` - dettaglio legacy storico per modulo/azione
-- `http://127.0.0.1:8000/admin-portale/navigation-builder/` - builder navigazione con vista visuale drag&drop orizzontale (scroll laterale) + editor tabellare completo, con toggle modalita avanzata per slot `Sidebar Dedicated`
-- `http://127.0.0.1:8000/admin-portale/acl-canonico/` - gestione permission code / binding / grant
-- `http://127.0.0.1:8000/admin-portale/acl-route-coverage/` - report copertura route ACL con filtri e export CSV
-- `http://127.0.0.1:8000/admin-portale/acl-diagnostica/` - diagnostica ACL (utente/ruolo/path/route)
-- `http://127.0.0.1:8000/admin-portale/mappa-permessi-navigazione/` - mappa route/menu/ruoli/override/redirect con drill-down workflow per riga e toggle live grant canonici v2 + permessi legacy (con ruolo filtro attivo)
-- `http://127.0.0.1:8000/tickets/` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ticket interni
-- `http://127.0.0.1:8000/dpi/` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â dispositivi protezione individuale
-- `http://127.0.0.1:8000/procedure-refresh/` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â presa visione procedure
-- `http://127.0.0.1:8000/admin-portale/hub/` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â hub strumenti interni
+---
 
-Nota assets: la dashboard modulo risponde su `/assets/`, mentre la lista inventario canonica e `/assets/lista/`; i vecchi link filtrati come `/assets/?asset_type=FIREWALL&rows=25` vengono reindirizzati automaticamente alla lista.
+## 📦 Deployment su Windows Server + IIS
 
-## Configurazione ambienti
+Il metodo **raccomandato** è [`SetupWizard.exe`](deployment/dist/SetupWizard.exe),
+un installer PyInstaller che automatizza:
 
-- `config.settings.dev` usa SQLite di default ed e il profilo caricato da `manage.py` per i comandi locali ordinari.
-- `config.settings.test` forza sempre SQLite, cache/email locali e viene usato automaticamente da `python django_app\manage.py test` se non passi `--settings` esplicito.
-- `config.settings.prod` usa SQL Server di default, `ALLOWED_HOSTS` vuoto e impostazioni HTTP/HTTPS piu restrittive.
-- Per SQL Server serve almeno un driver ODBC SQL Server installato (`ODBC Driver 18/17/13`, `SQL Server Native Client 11.0` o `SQL Server`); il wizard e `deployment/scripts/deploy-release.ps1` allineano automaticamente `DB_DRIVER` al miglior driver disponibile sul server applicativo.
-- LDAP, Graph, SMTP, GuestPortal e le configurazioni applicative admin sono lette dal processo e da `django_app/.env`.
-- La precedenza effettiva e: ambiente processo -> `django_app/.env` -> default codice.
-- `/admin-portale/ldap/` mostra runtime attivo e valori che verrebbero caricati al prossimo riavvio; il salvataggio scrive direttamente `.env`, che resta la sola source of truth persistita.
-
-Check rapido del profilo produzione:
-
-```powershell
-$env:DJANGO_SETTINGS_MODULE="config.settings.prod"
-python django_app\manage.py check
+```mermaid
+graph TD
+    A[SetupWizard.exe] --> B[Estrai pacchetto]
+    B --> C[Auto-detect Python 3.11+]
+    C --> D[Crea venv + pip install]
+    D --> E[Configura .env ambiente]
+    E --> F[Discovery SQL Server UDP/TCP]
+    F --> G[migrate selettivo per modulo]
+    G --> H[apply_sql_triggers + bootstrap_acl_v2]
+    H --> I[collectstatic + createcachetable]
+    I --> J[Crea utente admin legacy]
+    J --> K[Junction release · IIS site + app pool]
+    K --> L[Scheduled tasks: queue · backup]
+    L --> M[Server Dashboard]
 ```
 
-### Setup cache multi-worker (IIS con 2+ worker)
+**Governance fail-fast**: se venv, pip, migrate o collectstatic falliscono,
+`FinishPage` mostra banner rosso "Installazione Incompleta" e la release
+**non viene attivata** — IIS non punta a un ambiente rotto.
 
-Con piÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¹ worker IIS la cache deve essere condivisa tra processi. Il profilo prod usa automaticamente `DatabaseCache` su SQL Server. Eseguire **una sola volta** dopo ogni deploy su server vergine:
+### Prerequisiti server
+
+- **IIS** con modulo `HttpPlatformHandler`
+- **SQL Server** (Express/Standard/Enterprise)
+- **ODBC driver** SQL Server 18/17/13
+- **Python 3.11+** (rilevato automaticamente)
+- **Privilegi Administrator** (per configurare IIS)
+
+### Deploy manuale (senza wizard)
 
 ```powershell
-python django_app\manage.py createcachetable --settings=config.settings.prod
+# Dalla release directory
+python manage.py migrate --settings=config.settings.prod
+python manage.py apply_sql_triggers --settings=config.settings.prod
+python manage.py collectstatic --noinput --settings=config.settings.prod
+python manage.py createcachetable --settings=config.settings.prod
 ```
 
-> Il `SetupWizard.exe` esegue `createcachetable` automaticamente durante l'installazione.
+Guida completa: [`deployment/README_DEPLOY_IIS_WINDOWS.md`](deployment/README_DEPLOY_IIS_WINDOWS.md)
 
-### Backup automatico
+---
 
-- Command: `python django_app\manage.py backup_portale`
-- Opzioni: `--include-media`, `--retention N`
-- Config via `.env`: `BACKUP_DIR` (path root), `BACKUP_RETENTION` (numero backup da mantenere)
-- Cleanup retention: vengono rimosse solo cartelle backup con formato timestamp `YYYYMMDD_HHMMSS`
-
-## Comandi utili
+## ⚡ Comandi utili
 
 ```powershell
+# Test (usa config.settings.test automaticamente)
 python django_app\manage.py test
+
+# Queue processor (one-shot, tipicamente via Task Scheduler)
 python django_app\manage.py process_automation_queue
-python django_app\manage.py bootstrap_acl_v2
+
+# Mailbox poller approvazioni (Graph)
+python django_app\manage.py process_approval_mailbox
+
+# ACL v2 governance
+python django_app\manage.py bootstrap_acl_v2 --dry-run
+python django_app\manage.py acl_fallback_report --only-unbound
 python django_app\manage.py seed_acl_uat --reset
+
+# Backup
+python django_app\manage.py backup_portale --include-media --retention 10
+
+# Allineamento tipo_assenza legacy → canonico (idempotente)
+python django_app\manage.py allinea_tipo_assenza_flessibilita
+
+# Audit URL esposti
 python django_app\manage.py show_urls
 ```
 
-`python django_app\manage.py test` usa `config.settings.test` in automatico; se vuoi essere esplicito puoi comunque usare `--settings=config.settings.test`.
+---
 
-Su ambienti SQL Server con automazioni gia attive, i flussi supportati (`SetupWizard.exe`, `deploy-release.ps1`, `patch-release.ps1` con `apply_sql_triggers`) riallineano automaticamente queue tecnica e trigger SQL; se fai un aggiornamento manuale fuori da questi flussi, riesegui `python django_app\manage.py apply_sql_triggers`.
+## 📚 Documentazione collegata
 
-Per un flusso completo di test, smoke ACL e raccolta evidenze usa [`doc/TESTING.md`](doc/TESTING.md).
+La raccolta interna in [`/admin-portale/hub/guide/`](django_app/hub_tools/) indicizza
+automaticamente tutti i documenti supportati. Per consultazione da repo:
 
-## Struttura repository
+- 📘 [Start here per persona](doc/START_HERE.md) — sviluppatore, admin, deployer, tester
+- 🏛️ [Architettura target e dismissione legacy](doc/ARCHITETTURA_TARGET_E_DISMISSIONE_LEGACY.md)
+- 🧪 [Testing, smoke e UAT](doc/TESTING.md)
+- 🔐 [Guida ACL v2 (permission-code based)](doc/ACL_V2_PERMISSION_GUIDE.md)
+- 📋 [Convenzione permission code](doc/ACL_V2_PERMISSION_CODE_CONVENTION.md)
+- ✅ [Checklist UAT ACL v2](doc/ACL_V2_UAT_CHECKLIST.md)
+- 🛠️ [Manuale admin navigazione e permessi](tools/MANUALE_ADMIN_NAVIGAZIONE_PERMESSI.md)
+- 🚀 [Guida deployment IIS (manuale + troubleshooting)](deployment/README_DEPLOY_IIS_WINDOWS.md)
+- 🎨 [Guida designer automazioni (HTML)](doc/GUIDA_AUTOMAZIONI_DESIGNER.html)
+- 👥 [Guida gestione permessi (HTML/PDF)](doc/GUIDA_GESTIONE_PERMESSI.html)
+- 🤝 [Guida Teams approvazioni (HTML)](doc/GUIDA_TEAMS_APPROVAZIONI.html)
+- 🏭 [Note modulo assets](django_app/assets/README.md)
 
-```text
-repo-root/
-|-- django_app/
-|   |-- manage.py
-|   |-- config/
-|   |-- core/
-|   |-- assets/
-|   |-- automazioni/
-|   `-- ...
-|-- doc/
-|-- sql/
-|-- .github/assets/
-`-- .env.example
-```
+---
 
-## Deployment su Windows Server + IIS
+<div align="center">
 
-Il metodo raccomandato ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¨ **`SetupWizard.exe`** (`deployment/dist/`), che automatizza:
-creazione directory, venv, `.env`, database SQL Server, migrate, `apply_sql_triggers`, collectstatic, createcachetable,
-utente admin e configurazione IIS completa.
-Il bundle dell'exe include anche il runtime Tcl/Tk richiesto dalla UI e una copia filtrata di `django_app/`, senza `.env`, `.venv`, database locali, cartelle temporanee, cache, log o media della macchina di build.
-Il wizard e `deployment/scripts/setup-environment.ps1` auto-rilevano ora un Python 3.11+ valido anche se non e installato in `C:\Python311\python.exe`; in caso di errore su venv, dipendenze o migration non attivano la release incompleta sotto IIS. Durante il setup il wizard scrive anche `DB_DRIVER` nel `.env`, lo riallinea al driver SQL Server realmente installato sul server applicativo e verifica gli asset statici chiave dopo `collectstatic` prima di attivare la release.
+**NOVICROM HUB** · Costruzioni Novicrom SRL · `v1.0.0`
 
-Prerequisiti: IIS + HttpPlatformHandler, SQL Server, un driver ODBC SQL Server installato (18/17/13 o equivalente), sqlcmd, Python 3.11+.
-Il venv condiviso dell'ambiente deve includere anche `waitress`, ora dichiarato direttamente in `django_app/requirements.txt`.
-Nel deploy manuale basta fornire il file `.env` dell'ambiente in `config\` cosi lo script lo copia nella release attiva sotto `django_app\.env`. Nel Server Dashboard del wizard e disponibile anche un reset password live degli account locali per l'ambiente selezionato, ma solo se il setup/exe e avviato come Administrator.
+*Repository ripulito per pubblicazione sicura: nessuna credenziale reale è inclusa.
+I file `.example` sono template. Il pre-commit hook in `tools/git-hooks/` blocca
+commit accidentali di `.env` e secret.*
 
-Nota sicurezza deployment: gli allegati ticket non devono essere serviti direttamente da `/media/tickets/`.
-I nuovi upload usano storage privato e il download passa da una view Django autenticata; il template IIS incluso nel repo blocca l'accesso diretto alla cartella pubblica legacy.
-
-Per il flusso manuale e il troubleshooting: [deployment/README_DEPLOY_IIS_WINDOWS.md](deployment/README_DEPLOY_IIS_WINDOWS.md)
-
-Prima di creare lo zip, `deployment/scripts/package-release.ps1` verifica `deployment/dist/SetupWizard.exe` usando le stesse regole di bundle condivise in `deployment/setup_wizard_bundle_rules.json`; se l'exe manca o e obsoleto rispetto ai file runtime davvero inclusi, lo rigenera automaticamente con PyInstaller e solo dopo esegue `tools/release_guard.ps1`. Il controllo continua a ignorare i file test-only esclusi dal bundle (`tests.py`, `test_*.py`, `tests/`, `conftest.py`) e blocca il packaging solo se restano drift su versioni, documentazione canonica o smoke ACL non distruttivo.
-Nei deploy `test` e `prod`, i flussi supportati eseguono anche `python manage.py allinea_tipo_assenza_flessibilita` subito dopo `migrate`, cosÃƒÆ’Ã‚Â¬ `CK_assenze_tipo` resta allineato a `FlessibilitÃƒÆ’Ã‚Â ` prima dell'attivazione della release; se il database non contiene la tabella legacy `assenze`, il comando termina in no-op senza rompere il setup. I flussi supportati verificano inoltre che `collectstatic` abbia realmente prodotto `static\core\css\theme.css` e `static\monitoring\css\monitoring.css`.
-
-### Post-deploy (obbligatorio)
-
-Se il deploy viene eseguito manualmente (senza `SetupWizard.exe`), eseguire sempre:
-
-```powershell
-python django_app\manage.py migrate
-python django_app\manage.py apply_sql_triggers
-```
-
-Nel flusso standard e upgrade di `SetupWizard.exe`, `migrate` viene eseguito automaticamente.
-
-## Documentazione collegata
-
-La raccolta interna in `/admin-portale/hub/guide/` indicizza automaticamente questi documenti e le altre guide supportate presenti in `tools/`, `doc/`, `deployment/` e `django_app/assets/README.md`. Nella vista singola documento i pulsanti principali sono compatti per lasciare piu spazio al contenuto. Se una guida arriva con un'icona in encoding corrotto, l'Hub la omette invece di mostrare caratteri sporchi davanti al titolo.
-
-- [Guida deployment IIS (manuale + troubleshooting)](deployment/README_DEPLOY_IIS_WINDOWS.md)
-- [Start here per persona](doc/START_HERE.md)
-- [Testing, smoke e UAT](doc/TESTING.md)
-- [Architettura target e dismissione legacy](doc/ARCHITETTURA_TARGET_E_DISMISSIONE_LEGACY.md)
-- [Manuale amministratore ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â navigazione e permessi](tools/MANUALE_ADMIN_NAVIGAZIONE_PERMESSI.md)
-- [Guida ACL v2 (permission-code based)](doc/ACL_V2_PERMISSION_GUIDE.md)
-- [Guida rapida admin ACL v2](doc/ACL_V2_ADMIN_QUICK_GUIDE.md)
-- [Convenzione permission code ACL v2](doc/ACL_V2_PERMISSION_CODE_CONVENTION.md)
-- [Checklist UAT ACL v2](doc/ACL_V2_UAT_CHECKLIST.md)
-- [Guida seed UAT ACL v2](doc/ACL_V2_UAT_SEED_GUIDE.md)
-- [Matrice scenari UAT ACL v2](doc/ACL_V2_UAT_SCENARIOS.md)
-- [Note del modulo assets](django_app/assets/README.md)
-
-## Nota sul repository pubblico
-
-Questo repository e stato ripulito per una pubblicazione sicura:
-
-- credenziali reali e configurazioni sensibili non sono incluse
-- i file `.example` rappresentano solo template o placeholder
-- la documentazione mantenuta nel repository e limitata a cio che serve per orientarsi nel codice
+</div>
