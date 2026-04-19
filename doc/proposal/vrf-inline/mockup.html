@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Mockup VRF MOD.073 Rev.10 - Compilazione inline</title>
+<style>
+  :root {
+    --accent: #F97316;
+    --accent-dark: #C2410C;
+    --bg: #F8FAFC;
+    --panel: #FFFFFF;
+    --border: #E2E8F0;
+    --text: #0F172A;
+    --muted: #64748B;
+    --risk-header: #1E293B;
+    --risk-sub: #F1F5F9;
+    --risk-low: #DCFCE7;
+    --risk-low-text: #166534;
+    --risk-med: #FEF3C7;
+    --risk-med-text: #92400E;
+    --risk-high: #FEE2E2;
+    --risk-high-text: #991B1B;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0; padding: 24px;
+    font-size: 13px;
+  }
+  h1 { font-size: 22px; margin: 0 0 4px 0; }
+  .subtitle { color: var(--muted); margin-bottom: 24px; font-size: 14px; }
+
+  /* Wizard steps */
+  .steps {
+    display: flex; gap: 12px; margin-bottom: 24px;
+    background: var(--panel); padding: 12px 16px; border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .step {
+    flex: 1; padding: 10px 16px; border-radius: 6px;
+    background: #F8FAFC; border: 1px solid var(--border);
+    text-align: center; font-weight: 500; color: var(--muted);
+    cursor: pointer;
+  }
+  .step.active { background: var(--accent); color: white; border-color: var(--accent-dark); }
+  .step.done { background: #ECFDF5; color: #065F46; border-color: #A7F3D0; }
+  .step-num { display: block; font-size: 11px; opacity: .8; }
+
+  /* Panel */
+  .panel {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 20px; margin-bottom: 20px;
+  }
+  .panel-title {
+    font-size: 16px; font-weight: 600; margin: 0 0 16px 0;
+    padding-bottom: 12px; border-bottom: 2px solid var(--accent);
+  }
+
+  /* Header form */
+  .header-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+  }
+  .form-row { display: flex; flex-direction: column; }
+  .form-row label { font-size: 11px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .form-row input, .form-row select {
+    padding: 8px 10px; border: 1px solid var(--border); border-radius: 4px;
+    font-size: 13px; font-family: inherit;
+  }
+  .form-row input:focus, .form-row select:focus {
+    outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent);
+  }
+
+  /* Risk matrix */
+  .matrix {
+    width: 100%; border-collapse: collapse; font-size: 12px;
+  }
+  .matrix thead th {
+    position: sticky; top: 0; background: var(--risk-header); color: white;
+    padding: 10px 8px; text-align: center; font-weight: 600; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    border-right: 1px solid #334155;
+  }
+  .matrix thead .phase-group { font-size: 12px; }
+  .matrix thead th:first-child { text-align: left; width: 40%; }
+  .matrix thead th.k-col { width: 50px; background: #475569; }
+  .matrix thead th.score-col { width: 55px; background: #334155; }
+  .matrix thead th.rmed-col { width: 55px; background: #475569; }
+
+  .risk-row {
+    background: #E2E8F0; font-weight: 600;
+  }
+  .risk-row td { padding: 10px 8px; border-bottom: 2px solid #CBD5E1; }
+  .risk-row td:first-child { font-size: 13px; color: var(--text); }
+  .risk-code { display: inline-block; background: var(--accent); color: white; padding: 2px 8px;
+              border-radius: 3px; font-size: 11px; margin-right: 8px; font-weight: 700; }
+  .risk-row .num-cell { text-align: center; font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .risk-row input.k-input {
+    width: 40px; padding: 4px 6px; text-align: center; border: 1px solid #94A3B8;
+    border-radius: 3px; font-size: 13px; font-weight: 700;
+  }
+
+  .sub-row td {
+    padding: 8px; border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  .sub-row td:first-child {
+    padding-left: 28px; font-size: 12px; color: #334155; line-height: 1.35;
+  }
+  .sub-code { color: var(--muted); font-weight: 600; margin-right: 6px; }
+  .sub-row select {
+    width: 50px; padding: 4px 6px; text-align: center;
+    border: 1px solid var(--border); border-radius: 3px; font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  .sub-row select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+  /* Pill / badge */
+  .pill {
+    display: inline-block; padding: 3px 10px; border-radius: 10px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .pill-low { background: var(--risk-low); color: var(--risk-low-text); }
+  .pill-med { background: var(--risk-med); color: var(--risk-med-text); }
+  .pill-high { background: var(--risk-high); color: var(--risk-high-text); }
+
+  /* Totals footer */
+  .totals {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;
+    margin-top: 24px; padding: 20px;
+    background: var(--panel); border: 2px solid var(--accent);
+    border-radius: 8px;
+  }
+  .totals .card { text-align: center; padding: 12px; border-right: 1px solid var(--border); }
+  .totals .card:last-child { border-right: none; }
+  .totals .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .totals .value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
+
+  /* DIG warning */
+  .dig-warning {
+    margin-top: 16px; padding: 12px 16px;
+    background: #FEF2F2; border-left: 4px solid #DC2626; color: #991B1B;
+    border-radius: 4px; font-weight: 500;
+  }
+  .dig-warning.ok { background: #F0FDF4; border-color: #16A34A; color: #166534; }
+
+  /* Legend */
+  .legend {
+    display: flex; gap: 24px; margin-top: 12px; padding: 12px;
+    background: #F8FAFC; border-radius: 4px; font-size: 11px; color: var(--muted);
+  }
+  .legend .item { display: flex; align-items: center; gap: 6px; }
+  .legend .swatch { width: 12px; height: 12px; border-radius: 2px; }
+
+  /* Actions */
+  .actions {
+    display: flex; justify-content: space-between; gap: 12px;
+    margin-top: 24px;
+  }
+  .btn {
+    padding: 10px 20px; border: 1px solid transparent; border-radius: 6px;
+    font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: var(--accent-dark); }
+  .btn-ghost { background: transparent; color: var(--muted); border-color: var(--border); }
+  .btn-ghost:hover { background: var(--bg); color: var(--text); }
+
+  /* Sticky note */
+  .sticky-info {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(248, 250, 252, 0.95); backdrop-filter: blur(8px);
+    padding: 8px 16px; border-bottom: 1px solid var(--border);
+    margin: -24px -24px 24px -24px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 12px;
+  }
+  .sticky-info .draft-status { color: var(--muted); }
+  .dot-saved { width: 8px; height: 8px; background: #16A34A; border-radius: 50%; display: inline-block; margin-right: 6px; }
+</style>
+</head>
+<body>
+
+<div class="sticky-info">
+  <div><strong>VRF-2026-042</strong> · Kickoff #KO-2026-042 · <span class="draft-status"><span class="dot-saved"></span>Bozza salvata 3 sec fa</span></div>
+  <div><button class="btn btn-ghost" style="padding: 4px 10px; font-size: 11px;">Annulla</button></div>
+</div>
+
+<h1>Valutazione Rischio di Fornitura (VRF) · MOD.073 Rev.10</h1>
+<p class="subtitle">Compilazione inline — i totali sono ricalcolati automaticamente. L'xlsx verrà generato alla conferma finale.</p>
+
+<div class="steps">
+  <div class="step done"><span class="step-num">Step 1/3</span>Intestazione</div>
+  <div class="step active"><span class="step-num">Step 2/3</span>Matrice rischi</div>
+  <div class="step"><span class="step-num">Step 3/3</span>Task & Conferma</div>
+</div>
+
+<div class="panel">
+  <h2 class="panel-title">Intestazione documento</h2>
+  <div class="header-grid">
+    <div class="form-row"><label>Preventivo n°</label><input type="text" value="PRV-2026-0142"></div>
+    <div class="form-row"><label>Versione (se no preventivo)</label><input type="text" placeholder=""></div>
+    <div class="form-row"><label>Part Number</label><input type="text" value="NCR-78452-A"></div>
+    <div class="form-row" style="grid-column: span 2;"><label>Descrizione</label><input type="text" value="Flangia rotore turbina Ø280 Inconel 718"></div>
+    <div class="form-row"><label>Esp</label><input type="text" value="03"></div>
+    <div class="form-row" style="grid-column: span 3;"><label>Cliente</label><input type="text" value="AEROMEC S.p.A."></div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2 class="panel-title">Matrice rischi — 9 categorie · 45 sub-parametri</h2>
+  <table class="matrix">
+    <thead>
+      <tr>
+        <th rowspan="2">Parametro in valutazione</th>
+        <th colspan="3" class="phase-group" style="background: #0891B2;">Preventivazione / Offerta</th>
+        <th colspan="3" class="phase-group" style="background: #7C3AED;">Industrializzazione</th>
+        <th colspan="3" class="phase-group" style="background: #DC2626;">Produzione & Consegna</th>
+      </tr>
+      <tr>
+        <th class="score-col">R</th><th class="k-col">K</th><th class="rmed-col">K×R</th>
+        <th class="score-col">R</th><th class="k-col">K</th><th class="rmed-col">K×R</th>
+        <th class="score-col">R</th><th class="k-col">K</th><th class="rmed-col">K×R</th>
+      </tr>
+    </thead>
+    <tbody id="matrix-body"></tbody>
+    <tfoot>
+      <tr style="background: var(--risk-header); color: white;">
+        <td style="padding: 12px 8px; font-weight: 700; font-size: 13px;">TOTALE RISCHIO (TR) = Σ K × R</td>
+        <td colspan="2" class="num-cell" style="padding: 12px 8px; font-size: 16px; font-weight: 700;"></td>
+        <td class="num-cell" id="tr-p" style="padding: 12px 8px; font-size: 18px; font-weight: 700;">—</td>
+        <td colspan="2" class="num-cell" style="padding: 12px 8px;"></td>
+        <td class="num-cell" id="tr-i" style="padding: 12px 8px; font-size: 18px; font-weight: 700;">—</td>
+        <td colspan="2" class="num-cell" style="padding: 12px 8px;"></td>
+        <td class="num-cell" id="tr-c" style="padding: 12px 8px; font-size: 18px; font-weight: 700;">—</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="legend">
+    <div class="item"><span class="swatch pill-low"></span>R: 0=N/A · 1=Bassa · 2=Media · 3=Alta</div>
+    <div class="item">K (Impatto): 1…5</div>
+    <div class="item">K×R: <span class="pill pill-low">Basso &lt;4</span> <span class="pill pill-med">Medio 4–6</span> <span class="pill pill-high">Alto ≥6</span></div>
+    <div class="item">TR ≥ 46 → si sente DIG</div>
+  </div>
+</div>
+
+<div class="totals">
+  <div class="card">
+    <div class="label">Totale Preventivazione</div>
+    <div class="value" id="tot-p">—</div>
+    <div id="tot-p-pill"></div>
+  </div>
+  <div class="card">
+    <div class="label">Totale Industrializzazione</div>
+    <div class="value" id="tot-i">—</div>
+    <div id="tot-i-pill"></div>
+  </div>
+  <div class="card">
+    <div class="label">Totale Produzione &amp; Consegna</div>
+    <div class="value" id="tot-c">—</div>
+    <div id="tot-c-pill"></div>
+  </div>
+</div>
+
+<div class="dig-warning ok" id="dig-warning">
+  Nessun totale ≥ 46: intervento DIG non richiesto. Compilare la matrice per aggiornare lo stato.
+</div>
+
+<div class="actions">
+  <button class="btn btn-ghost">← Step precedente</button>
+  <div style="display: flex; gap: 8px;">
+    <button class="btn btn-ghost">Salva bozza</button>
+    <button class="btn btn-primary">Prosegui allo Step 3 → Task &amp; Conferma</button>
+  </div>
+</div>
+
+<script>
+const DATA = {
+  risks: [
+    {code:"R1", title:"Rischio di Mancata comprensione dei Requisiti di Fornitura", k:{p:3,i:3,c:3}, subs:[
+      {code:"a", label:"Idoneità, Complessità e Comprensione della Documentazione Tecnica (Disegni 2D, DBT, Modelli 3D, Cicli e Fogli Operativi)"},
+      {code:"b", label:"Idoneità e Comprensione Condizioni di Fornitura (incluso/escluso Materie Prime, Normaleria, Attrezzature)"},
+      {code:"c", label:"Idoneità e Comprensione Specifiche e Norme richiamate, Lista Fornitori/Terzisti qualificati dal Cliente"},
+      {code:"d", label:"Idoneità e Comprensione dei Requisiti Validazione Tecnologica per Prima fornitura"},
+      {code:"e", label:"Idoneità e Comprensione dei Requisiti di Collaudo per Forniture Successive (PDC, Quote Critiche)"},
+      {code:"f", label:"Idoneità e Comprensione di Informazioni inerenti REACH o Conflict Minerals"},
+      {code:"g", label:"Disponibilità e Comprensione Piani di Consegna"},
+      {code:"h", label:"Disponibilità e Comprensione Eventuale Target Economico"},
+      {code:"i", label:"Disponibilità e Comprensione norme applicative di eventuali penali"}
+    ]},
+    {code:"R2", title:"Rischio Sicurezza dei Lavoratori e Ambiente", k:{p:3,i:3,c:5}, subs:[
+      {code:"a", label:"Difficoltà Movimentazione causa Dimensioni e Peso del particolare"},
+      {code:"b", label:"Criticità di lavorazione del materiale (Infiammabilità, Esalazioni)"},
+      {code:"c", label:"Utilizzo di Sostanze Chimiche"}
+    ]},
+    {code:"R3", title:"Rischio di Fattibilità dei processi di trasformazione, conservazione e collaudo", k:{p:3,i:3,c:3}, subs:[
+      {code:"a", label:"Difficoltà di Lavorazione, Collaudo, Movimentazione e/o Stoccaggio (Ingombro, Peso, Forma)"},
+      {code:"b", label:"Lavorabilità Materiale di Partenza (durezza, surriscaldamento, utensili speciali)"},
+      {code:"c", label:"Particolare soggetto a deformazioni (spessori sottili, trattamenti)"},
+      {code:"d", label:"Fattibilità di Lavorazione/Collaudo di Tolleranze e Lavorazioni Critiche"},
+      {code:"e", label:"Conoscenza e Fattibilità Metodo di Mantenimento / Conservazione"},
+      {code:"f", label:"Possibilità di verificare Commesse analoghe (lessons learned)"}
+    ]},
+    {code:"R4", title:"Rischio di Inadeguatezza tecnica e tecnologica dei mezzi di produzione e collaudo", k:{p:2,i:2,c:3}, subs:[
+      {code:"a", label:"Disponibilità e Manutenzione Impianti di Produzione e Collaudo"},
+      {code:"b", label:"Disponibilità e Manutenzione Attrezzature di Produzione (divisore, lunetta)"},
+      {code:"c", label:"Disponibilità e Taratura Apparecchiature di Collaudo (tastatori speciali)"},
+      {code:"d", label:"Disponibilità e Manutenzione idonei strumenti di movimentazione"},
+      {code:"e", label:"Disponibilità e Numero di Risorse con Idonea Esperienza (Skill Matrix)"}
+    ]},
+    {code:"R5", title:"Rischio di Errata Pianificazione delle attività interne", k:{p:2,i:2,c:3}, subs:[
+      {code:"a", label:"Disponibilità Risorse per Industrializzazione (carichi ingegneria e programmatori)"},
+      {code:"b", label:"Disponibilità Mezzi di Produzione e Collaudo (carichi macchina, personale)"},
+      {code:"c", label:"Criticità di bilanciamento tra Fasi/Reparti/Impianti (Colli di Bottiglia)"},
+      {code:"d", label:"Disponibilità di Metodologie Produttive alternative"}
+    ]},
+    {code:"R6", title:"Rischio connesso all'Approvvigionamento materiali di partenza e/o assemblaggio", k:{p:2,i:2,c:3}, subs:[
+      {code:"a", label:"Difficile reperibilità e/o criticità dei tempi di approvvigionamento materia prima"},
+      {code:"b", label:"Difficile reperibilità e/o criticità dei tempi di approvvigionamento normaleria"},
+      {code:"c", label:"Disponibilità strumenti e criteri di accettazione materiali/normaleria"},
+      {code:"d", label:"Incidenza elevata di eventuali MOQ su valore economico del singolo prodotto"},
+      {code:"e", label:"Elevata esposizione finanziaria complessiva da acquisto materiali/normaleria"}
+    ]},
+    {code:"R7", title:"Rischio connesso alla Gestione fasi di trasformazione esterne", k:{p:2,i:2,c:3}, subs:[
+      {code:"a", label:"Difficile reperibilità e/o criticità lead time di processo"},
+      {code:"b", label:"Disponibilità strumenti e criteri di accettazione materiali processati"},
+      {code:"c", label:"Incidenza elevata del processo su valore economico del singolo prodotto"}
+    ]},
+    {code:"R8", title:"Rischio connesso alla gestione dei Processi Speciali", k:{p:3,i:3,c:3}, subs:[
+      {code:"a", label:"Idoneità e Comprensione informazioni su processi speciali richiesti da cliente"},
+      {code:"b", label:"Disponibilità e Manutenzione Impianti appositamente qualificati"},
+      {code:"c", label:"Disponibilità e Numero di Risorse con Idonea Qualifica (Skill Matrix)"},
+      {code:"d", label:"Disponibilità strumenti e criteri di accettazione materiali processati"},
+      {code:"e", label:"Verifica validità della qualifica fornitore da parte del cliente"}
+    ]},
+    {code:"R9", title:"Rischio Economico - Finanziario", k:{p:3,i:3,c:3}, subs:[
+      {code:"a", label:"Disponibilità Risorse Finanziarie adeguate all'attività"},
+      {code:"b", label:"Situazione Crediti verso Cliente"},
+      {code:"c", label:"Probabilità di variazione significativa del costo di Fornitori/Terzisti"},
+      {code:"d", label:"Complessità di Gestione Clienti/Fornitori Esteri (Dogana, Normative)"},
+      {code:"e", label:"Onerosità di eventuali addebiti del cliente per non conformità o ritardi"}
+    ]}
+  ]
+};
+
+const PHASES = [
+  {key:"p", label:"Preventivazione"},
+  {key:"i", label:"Industrializzazione"},
+  {key:"c", label:"Produzione"}
+];
+
+function scoreOptions(selected) {
+  const opts = [{v:"",l:"—"},{v:"0",l:"0"},{v:"1",l:"1"},{v:"2",l:"2"},{v:"3",l:"3"}];
+  return opts.map(o => `<option value="${o.v}" ${String(selected||"")===o.v?"selected":""}>${o.l}</option>`).join("");
+}
+
+function render() {
+  const tbody = document.getElementById("matrix-body");
+  let html = "";
+  for (const risk of DATA.risks) {
+    html += `<tr class="risk-row" data-risk="${risk.code}">
+      <td><span class="risk-code">${risk.code}</span>${risk.title}</td>
+      ${PHASES.map(ph => `
+        <td class="num-cell" id="avg-${risk.code}-${ph.key}">—</td>
+        <td class="num-cell"><input type="number" class="k-input" min="1" max="5" value="${risk.k[ph.key]}" data-risk="${risk.code}" data-ph="${ph.key}" data-kind="k"></td>
+        <td class="num-cell" id="kr-${risk.code}-${ph.key}">—</td>
+      `).join("")}
+    </tr>`;
+    for (const sub of risk.subs) {
+      html += `<tr class="sub-row" data-risk="${risk.code}" data-sub="${sub.code}">
+        <td><span class="sub-code">${sub.code}</span>${sub.label}</td>
+        ${PHASES.map(ph => `
+          <td class="num-cell"><select data-risk="${risk.code}" data-sub="${sub.code}" data-ph="${ph.key}" data-kind="score">${scoreOptions("")}</select></td>
+          <td></td><td></td>
+        `).join("")}
+      </tr>`;
+    }
+  }
+  tbody.innerHTML = html;
+  tbody.addEventListener("change", recalc);
+  tbody.addEventListener("input", recalc);
+  recalc();
+}
+
+function recalc() {
+  const totals = {p:0, i:0, c:0};
+  for (const risk of DATA.risks) {
+    for (const ph of PHASES) {
+      const scores = [];
+      document.querySelectorAll(`[data-risk="${risk.code}"][data-ph="${ph.key}"][data-kind="score"]`).forEach(s => {
+        if (s.value !== "") scores.push(parseFloat(s.value));
+      });
+      let avg = null;
+      if (scores.length > 0) avg = scores.reduce((a,b)=>a+b,0) / scores.length;
+      const kInput = document.querySelector(`[data-risk="${risk.code}"][data-ph="${ph.key}"][data-kind="k"]`);
+      const k = kInput ? parseFloat(kInput.value) || 0 : 0;
+      const kr = avg !== null ? avg * k : null;
+
+      const avgCell = document.getElementById(`avg-${risk.code}-${ph.key}`);
+      const krCell  = document.getElementById(`kr-${risk.code}-${ph.key}`);
+      avgCell.textContent = avg === null ? "—" : avg.toFixed(2);
+      if (kr === null) {
+        krCell.innerHTML = "—";
+      } else {
+        let pillClass = "pill-low";
+        if (kr >= 6) pillClass = "pill-high";
+        else if (kr >= 4) pillClass = "pill-med";
+        krCell.innerHTML = `<span class="pill ${pillClass}">${kr.toFixed(1)}</span>`;
+        totals[ph.key] += kr;
+      }
+    }
+  }
+  for (const ph of PHASES) {
+    const v = totals[ph.key];
+    document.getElementById(`tot-${ph.key}`).textContent = v.toFixed(1);
+    document.getElementById(`tr-${ph.key}`).textContent = v.toFixed(1);
+    let pillClass = "pill-low", label = "Basso";
+    if (v >= 46) { pillClass = "pill-high"; label = "Alto · DIG"; }
+    else if (v >= 20) { pillClass = "pill-med"; label = "Medio"; }
+    document.getElementById(`tot-${ph.key}-pill`).innerHTML = `<span class="pill ${pillClass}">${label}</span>`;
+  }
+  const anyHigh = Object.values(totals).some(t => t >= 46);
+  const warn = document.getElementById("dig-warning");
+  if (anyHigh) {
+    warn.classList.remove("ok");
+    warn.innerHTML = "⚠️ <strong>Totale Rischio ≥ 46</strong> in almeno una fase: è richiesto il coinvolgimento del DIG (Direttore Industriale/Generale) prima di procedere.";
+  } else {
+    warn.classList.add("ok");
+    warn.innerHTML = "✅ Nessun totale ≥ 46: intervento DIG non richiesto.";
+  }
+}
+
+render();
+</script>
+
+</body>
+</html>

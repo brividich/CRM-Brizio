@@ -161,6 +161,9 @@ Desktop.ini
 
 
 doc/*
+!doc/proposal/
+!doc/proposal/vrf-inline/
+!doc/proposal/vrf-inline/mockup.html
 django_app/staticfiles/
 django_app/.env
 config/capi_reparto.json
