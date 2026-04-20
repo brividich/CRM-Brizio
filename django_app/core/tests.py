@@ -21,6 +21,7 @@ from django.test import RequestFactory, SimpleTestCase, TestCase, override_setti
 from django.urls import reverse
 
 from core.acl import check_permesso, diagnose_permesso_for_context
+from core.acl_v2 import resolve_canonical_target
 from core.audit import log_action
 from core.csrf_cookie_middleware import EnsureCSRFCookieMiddleware
 from core.accounts import windows_sso as windows_sso_module
@@ -42,8 +43,12 @@ from core.models import (
     LegacyRedirect,
     NavigationItem,
     NavigationRoleAccess,
+    PermissionDefinition,
     Profile,
+    RolePermissionGrant,
+    RoutePermissionBinding,
     UserOnboarding,
+    UserNavigationOverride,
     UserPermissionOverride,
     UserUiPreference,
 )
@@ -57,7 +62,12 @@ from core.module_registry import (
     navigation_code_label_map,
     resolve_module_label,
 )
-from core.navigation_registry import get_topbar_nodes
+from core.navigation_registry import (
+    get_topbar_nodes,
+    publish_navigation_snapshot,
+    resolve_navigation_item_permission_code,
+    restore_navigation_snapshot,
+)
 from core.views import csrf_failure
 from config.settings.base import default_dev_allowed_hosts
 
@@ -1295,6 +1305,140 @@ class NavigationRegistryBrandingTests(TestCase):
 
         self.assertEqual(len(sicurezza_nodes), 1)
         self.assertEqual(sicurezza_nodes[0].category_icon, "🛡️")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class NavigationRegistryCanonicalTests(TestCase):
+    def setUp(self):
+        super().setUp()
+        cache.clear()
+        self.role = Ruolo.objects.create(id=202, nome="Operatore Canonico")
+        self.legacy_user = UtenteLegacy.objects.create(
+            id=902,
+            nome="Utente Canonico",
+            email="canonico@example.local",
+            password="hash",
+            ruolo=self.role.nome,
+            ruolo_id=self.role.id,
+            attivo=True,
+        )
+        PermissionDefinition.objects.create(
+            code="dashboard.home.view",
+            label="Dashboard Home",
+            module="dashboard",
+            is_active=True,
+        )
+        RoutePermissionBinding.objects.create(
+            permission_id="dashboard.home.view",
+            route_name="dashboard_home",
+            path_pattern="/dashboard",
+            source_app="dashboard",
+            is_active=True,
+        )
+
+    def test_positive_nav_override_does_not_force_show_denied_item(self):
+        item = NavigationItem.objects.create(
+            code="dashboard_canonico",
+            label="Dashboard",
+            section="topbar",
+            route_name="dashboard_home",
+            order=10,
+            is_visible=True,
+            is_enabled=True,
+        )
+        UserNavigationOverride.objects.create(
+            legacy_user_id=self.legacy_user.id,
+            item=item,
+            enabled=True,
+        )
+
+        nodes = get_topbar_nodes(
+            current_path="/dashboard",
+            role_id=self.role.id,
+            is_admin=False,
+            legacy_user_id=self.legacy_user.id,
+        )
+
+        self.assertEqual(nodes, [])
+
+    def test_navigation_snapshot_preserves_required_permission_code(self):
+        item = NavigationItem.objects.create(
+            code="dashboard_canonico",
+            label="Dashboard",
+            section="topbar",
+            route_name="dashboard_home",
+            required_permission_code="dashboard.home.view",
+            order=10,
+            is_visible=True,
+            is_enabled=True,
+        )
+
+        snapshot = publish_navigation_snapshot()
+        NavigationItem.objects.all().delete()
+        restore_navigation_snapshot(snapshot)
+
+        restored = NavigationItem.objects.get(code=item.code)
+        self.assertEqual(restored.required_permission_code, "dashboard.home.view")
+
+    def test_navigation_item_route_name_infers_permission_from_reversed_path(self):
+        item = NavigationItem.objects.create(
+            code="dashboard_alias",
+            label="Dashboard Alias",
+            section="topbar",
+            route_name="dashboard",
+            order=12,
+            is_visible=True,
+            is_enabled=True,
+        )
+        RolePermissionGrant.objects.create(
+            legacy_role_id=self.role.id,
+            permission_id="dashboard.home.view",
+            enabled=True,
+        )
+
+        self.assertEqual(resolve_navigation_item_permission_code(item), "dashboard.home.view")
+
+        nodes = get_topbar_nodes(
+            current_path="/dashboard",
+            role_id=self.role.id,
+            is_admin=False,
+            legacy_user_id=self.legacy_user.id,
+        )
+
+        alias_nodes = [node for node in nodes if node.codice == "dashboard_alias"]
+        self.assertEqual(len(alias_nodes), 1)
+        self.assertEqual(alias_nodes[0].href, reverse("dashboard"))
+
+    def test_resolve_canonical_target_prefers_more_specific_path_binding(self):
+        PermissionDefinition.objects.create(
+            code="anagrafica.index.view",
+            label="Anagrafica Index",
+            module="anagrafica",
+            is_active=True,
+        )
+        PermissionDefinition.objects.create(
+            code="anagrafica.dipendenti.view",
+            label="Anagrafica Dipendenti",
+            module="anagrafica",
+            is_active=True,
+        )
+        RoutePermissionBinding.objects.create(
+            permission_id="anagrafica.index.view",
+            path_pattern="/anagrafica",
+            source_app="anagrafica",
+            is_active=True,
+        )
+        RoutePermissionBinding.objects.create(
+            permission_id="anagrafica.dipendenti.view",
+            path_pattern="/anagrafica/dipendenti",
+            source_app="anagrafica",
+            is_active=True,
+        )
+
+        resolved = resolve_canonical_target(path="/anagrafica/dipendenti")
+
+        self.assertTrue(resolved["binding_found"])
+        self.assertEqual(resolved["binding"]["permission_code"], "anagrafica.dipendenti.view")
 
 
 class ModuleSettingsRouteTests(TestCase):

@@ -40,7 +40,13 @@ from automazioni.approval_mailbox_runtime import (
     save_approval_imap_settings,
 )
 from core.acl import diagnose_permesso_for_context
-from core.acl_v2 import diagnose_acl_access, normalize_binding_path_pattern, normalize_permission_code, validate_permission_code
+from core.acl_v2 import (
+    diagnose_acl_access,
+    normalize_binding_path_pattern,
+    normalize_permission_code,
+    resolve_canonical_target,
+    validate_permission_code,
+)
 from core.audit import log_action
 from core.caporeparto_utils import (
     format_caporeparto_label,
@@ -59,6 +65,7 @@ from core.navigation_registry import (
     bump_navigation_registry_version,
     export_navigation_state,
     publish_navigation_snapshot,
+    resolve_navigation_item_permission_code,
     restore_navigation_snapshot,
 )
 from core.legacy_utils import get_legacy_user, legacy_table_columns, legacy_table_has_column
@@ -2002,7 +2009,7 @@ def _infer_navigation_item_module_key(item: NavigationItem, known_modules: set[s
 
 
 def _build_accessi_semplice_rows(selected_role_id: int | None) -> list[dict]:
-    """Righe sintetiche modulo->legacy/canonical/menu per la UI semplificata."""
+    """Righe sintetiche modulo->canonical/menu con legacy come solo contesto."""
     try:
         pulsanti = list(Pulsante.objects.all().order_by("modulo", "nome_visibile", "id"))
     except DatabaseError:
@@ -2077,37 +2084,7 @@ def _build_accessi_semplice_rows(selected_role_id: int | None) -> list[dict]:
         except DatabaseError:
             pass
 
-    canonical_grants_map: dict[str, bool] = {}
-    nav_access_map: dict[int, bool] = {}
-    if selected_role_id is not None:
-        try:
-            canonical_rows = list(
-                RolePermissionGrant.objects.filter(legacy_role_id=int(selected_role_id)).values(
-                    "permission_id",
-                    "enabled",
-                )
-            )
-        except Exception:
-            canonical_rows = []
-        for row in canonical_rows:
-            permission_code = normalize_permission_code(str(row.get("permission_id") or ""))
-            if permission_code:
-                canonical_grants_map[permission_code] = bool(row.get("enabled"))
-
-        try:
-            nav_rows = list(
-                NavigationRoleAccess.objects.filter(legacy_role_id=int(selected_role_id)).values(
-                    "item_id",
-                    "can_view",
-                )
-            )
-        except Exception:
-            nav_rows = []
-        for row in nav_rows:
-            item_id = _int_or_none(row.get("item_id"))
-            if item_id is None:
-                continue
-            nav_access_map[int(item_id)] = bool(row.get("can_view"))
+    canonical_grants_map = _canonical_grants_map_for_role(selected_role_id)
 
     ui_meta_map = _pulsanti_ui_meta_map()
     rows: list[dict] = []
@@ -2139,34 +2116,41 @@ def _build_accessi_semplice_rows(selected_role_id: int | None) -> list[dict]:
         enabled_count = sum(1 for item in enabled_values if item)
         buttons_total = len(enabled_values)
 
-        canonical_codes = [str(perm.code or "").strip() for perm in canonical_permissions if str(perm.code or "").strip()]
+        canonical_codes: list[str] = []
+        seen_canonical_codes: set[str] = set()
+        for perm in canonical_permissions:
+            permission_code = normalize_permission_code(str(perm.code or ""))
+            if not permission_code or permission_code in seen_canonical_codes:
+                continue
+            seen_canonical_codes.add(permission_code)
+            canonical_codes.append(permission_code)
         canonical_enabled_count = sum(
-            1 for code in canonical_codes if canonical_grants_map.get(normalize_permission_code(code), False)
+            1 for code in canonical_codes if canonical_grants_map.get(code, False)
         )
         canonical_total = len(canonical_codes)
         canonical_enabled = canonical_total > 0 and canonical_enabled_count == canonical_total
         canonical_partial = canonical_enabled_count > 0 and canonical_enabled_count < canonical_total
 
         nav_item_ids = [int(item.id) for item in nav_module_items]
-        nav_enabled_count = sum(1 for item_id in nav_item_ids if nav_access_map.get(int(item_id), False))
+        nav_permission_codes = [_navigation_item_permission_code(item) for item in nav_module_items]
         nav_total = len(nav_item_ids)
-        nav_enabled = nav_total > 0 and nav_enabled_count == nav_total
-        nav_partial = nav_enabled_count > 0 and nav_enabled_count < nav_total
+        nav_mapped_count = sum(1 for code in nav_permission_codes if code)
+        nav_unmapped_count = nav_total - nav_mapped_count
+        nav_enabled_count = sum(1 for code in nav_permission_codes if code and canonical_grants_map.get(code, False))
+        nav_enabled = nav_total > 0 and nav_unmapped_count == 0 and nav_enabled_count == nav_total
+        nav_partial = (nav_enabled_count > 0 and nav_enabled_count < nav_total) or (nav_total > 0 and nav_unmapped_count > 0)
 
-        component_states: list[bool] = []
-        component_partial = False
-        if perm_row is not None:
-            component_states.append(bool(perm_row.can_view))
-            component_partial = component_partial or bool(perm_row.partial)
-        if canonical_total:
-            component_states.append(bool(canonical_enabled))
-            component_partial = component_partial or bool(canonical_partial)
-        if nav_total:
-            component_states.append(bool(nav_enabled))
-            component_partial = component_partial or bool(nav_partial)
-
-        simple_enabled = bool(component_states) and all(component_states)
-        simple_partial = component_partial or (bool(component_states) and any(component_states) and not all(component_states))
+        legacy_role_enabled = bool(perm_row.can_view) if perm_row else False
+        legacy_role_partial = bool(perm_row.partial) if perm_row else False
+        canonical_managed = canonical_total > 0
+        simple_enabled = canonical_managed and canonical_enabled
+        legacy_drift = perm_row is not None and (legacy_role_partial or legacy_role_enabled != simple_enabled)
+        simple_partial = (
+            canonical_partial
+            or (canonical_managed and nav_partial)
+            or (not canonical_managed)
+            or legacy_drift
+        )
         display_label = _accessi_semplice_module_display_label(modulo_key)
 
         rows.append(
@@ -2176,16 +2160,20 @@ def _build_accessi_semplice_rows(selected_role_id: int | None) -> list[dict]:
                 "pulsanti": pulsanti_rows,
                 "pulsanti_count": len(pulsanti_rows),
                 "sample_labels": [p["label"] for p in pulsanti_rows[:3]],
-                "legacy_role_enabled": bool(perm_row.can_view) if perm_row else False,
-                "legacy_role_partial": bool(perm_row.partial) if perm_row else False,
+                "legacy_role_enabled": legacy_role_enabled,
+                "legacy_role_partial": legacy_role_partial,
                 "canonical_permissions_count": canonical_total,
                 "canonical_permission_codes": canonical_codes,
                 "canonical_enabled": canonical_enabled,
                 "canonical_partial": canonical_partial,
+                "canonical_managed": canonical_managed,
                 "navigation_items_count": nav_total,
                 "navigation_item_ids": nav_item_ids,
                 "navigation_enabled": nav_enabled,
                 "navigation_partial": nav_partial,
+                "navigation_mapped_count": nav_mapped_count,
+                "navigation_unmapped_count": nav_unmapped_count,
+                "legacy_drift": legacy_drift,
                 "buttons_enabled_count": enabled_count,
                 "buttons_total_count": buttons_total,
                 "simple_enabled": simple_enabled,
@@ -2199,73 +2187,59 @@ def _apply_accessi_semplice_changes(
     role_id: int,
     module_rows: list[dict],
     allowed_modules: set[str],
-) -> tuple[int, int, int]:
-    """Applica i cambiamenti richiesti dalla UI semplificata.
-
-    Returns:
-      (permessi_legacy_modificati, grant_canonici_modificati, menu_ruolo_modificati)
-    """
-    acl_keys = _pulsanti_acl_keys()
-    module_acl_map: dict[str, list[tuple[str, str]]] = {}
-    for modulo, azione in acl_keys:
-        modulo_key = _normalize_accessi_semplice_module_key(modulo or "")
-        if not modulo_key:
-            continue
-        module_acl_map.setdefault(modulo_key, []).append((modulo, azione))
-
-    permessi_changed = 0
+) -> tuple[int, list[str]]:
+    """Applica i cambiamenti richiesti dalla UI semplificata sul solo layer canonico."""
     canonical_changed = 0
-    navigation_changed = 0
+    skipped_modules: list[str] = []
 
     for row in module_rows:
         modulo = str(row.get("modulo") or "").strip()
         if not modulo:
             continue
-        modulo_norm = _normalize_accessi_semplice_module_key(modulo)
-
         should_allow = modulo in allowed_modules
-        for mod, azione in module_acl_map.get(modulo_norm, []):
-            perm = _get_or_create_permesso(role_id, mod, azione)
-            current = bool(getattr(perm, "can_view", 0)) or bool(getattr(perm, "consentito", 0))
-            if current == should_allow:
-                continue
-            _set_perm_field(perm, "can_view", should_allow)
-            permessi_changed += 1
-
+        permission_codes: list[str] = []
+        seen_permission_codes: set[str] = set()
         for permission_code in row.get("canonical_permission_codes", []):
             permission_norm = normalize_permission_code(str(permission_code or ""))
-            if not permission_norm:
+            if not permission_norm or permission_norm in seen_permission_codes:
                 continue
-            grant, _created = RolePermissionGrant.objects.update_or_create(
-                legacy_role_id=int(role_id),
-                permission_id=permission_norm,
-                defaults={"enabled": bool(should_allow)},
+            seen_permission_codes.add(permission_norm)
+            permission_codes.append(permission_norm)
+        if not permission_codes:
+            skipped_modules.append(modulo)
+            continue
+        for permission_norm in permission_codes:
+            existing = (
+                RolePermissionGrant.objects.filter(
+                    legacy_role_id=int(role_id),
+                    permission_id=permission_norm,
+                )
+                .order_by("-id")
+                .first()
             )
-            if bool(grant.enabled) != bool(should_allow):
-                grant.enabled = bool(should_allow)
-                grant.save(update_fields=["enabled"])
-            # update_or_create may still leave us unable to count changes if defaults
-            # match current state; compare against row-level snapshot instead.
-        current_canonical_state = bool(row.get("canonical_enabled"))
-        current_canonical_partial = bool(row.get("canonical_partial"))
-        if row.get("canonical_permissions_count") and (current_canonical_partial or current_canonical_state != should_allow):
-            canonical_changed += int(row.get("canonical_permissions_count") or 0)
-
-        for item_id in row.get("navigation_item_ids", []):
-            nav_item_id = _int_or_none(item_id)
-            if nav_item_id is None:
+            if should_allow:
+                if existing is not None and bool(existing.enabled):
+                    continue
+                grant, created = RolePermissionGrant.objects.update_or_create(
+                    legacy_role_id=int(role_id),
+                    permission_id=permission_norm,
+                    defaults={"enabled": True},
+                )
+                if created or not bool(getattr(existing, "enabled", False)):
+                    canonical_changed += 1
+                if not bool(grant.enabled):
+                    grant.enabled = True
+                    grant.save(update_fields=["enabled"])
                 continue
-            NavigationRoleAccess.objects.update_or_create(
-                item_id=int(nav_item_id),
-                legacy_role_id=int(role_id),
-                defaults={"can_view": bool(should_allow)},
-            )
-        current_nav_state = bool(row.get("navigation_enabled"))
-        current_nav_partial = bool(row.get("navigation_partial"))
-        if row.get("navigation_items_count") and (current_nav_partial or current_nav_state != should_allow):
-            navigation_changed += int(row.get("navigation_items_count") or 0)
+            if existing is None:
+                continue
+            if not bool(existing.enabled):
+                continue
+            existing.enabled = False
+            existing.save(update_fields=["enabled"])
+            canonical_changed += 1
 
-    return permessi_changed, canonical_changed, navigation_changed
+    return canonical_changed, skipped_modules
 
 
 def _full_perm_rows_for_user(legacy_user_id: int) -> list[PermRow]:
@@ -3126,6 +3100,48 @@ def _navigation_item_target_payload(item: NavigationItem) -> dict:
     }
 
 
+def _navigation_item_permission_code(item: NavigationItem) -> str:
+    return normalize_permission_code(resolve_navigation_item_permission_code(item))
+
+
+def _canonical_grants_map_for_role(role_id: int | None) -> dict[str, bool]:
+    if role_id is None:
+        return {}
+    try:
+        rows = list(
+            RolePermissionGrant.objects.filter(legacy_role_id=int(role_id)).values(
+                "permission_id",
+                "enabled",
+            )
+        )
+    except Exception:
+        return {}
+    grants_map: dict[str, bool] = {}
+    for row in rows:
+        permission_code = normalize_permission_code(str(row.get("permission_id") or ""))
+        if permission_code:
+            grants_map[permission_code] = bool(row.get("enabled"))
+    return grants_map
+
+
+def _canonical_role_ids_for_permission(permission_code: str) -> list[int]:
+    permission_norm = normalize_permission_code(permission_code)
+    if not permission_norm:
+        return []
+    try:
+        return sorted(
+            {
+                int(row.legacy_role_id)
+                for row in RolePermissionGrant.objects.filter(
+                    permission_id=permission_norm,
+                    enabled=True,
+                ).only("legacy_role_id")
+            }
+        )
+    except Exception:
+        return []
+
+
 def _role_ids_to_labels(role_ids: list[int], role_name_map: dict[int, str]) -> list[str]:
     labels: list[str] = []
     for role_id in role_ids:
@@ -3160,6 +3176,7 @@ def _collect_registry_matches_for_path(
     matched_rows: list[dict] = []
     for item in items:
         target = _navigation_item_target_payload(item)
+        permission_code = _navigation_item_permission_code(item)
         item_route_name = str(item.route_name or "").strip()
         item_url_path = str(item.url_path or "").strip()
         item_url_norm = normalize_legacy_path(item_url_path) if item_url_path and item_url_path.startswith("/") else ""
@@ -3174,7 +3191,11 @@ def _collect_registry_matches_for_path(
         if not is_match:
             continue
 
-        role_ids = sorted(set(access_map.get(int(item.id), [])))
+        role_ids = (
+            _canonical_role_ids_for_permission(permission_code)
+            if permission_code
+            else sorted(set(access_map.get(int(item.id), [])))
+        )
         matched_rows.append(
             {
                 "id": int(item.id),
@@ -3182,6 +3203,7 @@ def _collect_registry_matches_for_path(
                 "label": item.label,
                 "section": item.section,
                 "group": item.group or "",
+                "required_permission_code": permission_code,
                 "route_name": item.route_name or "",
                 "url_path": item.url_path or "",
                 "target_href": target["href"],
@@ -3253,23 +3275,17 @@ def _acl_diag_badges(*, diag: dict, registry_matches: list[dict], redirect_match
         badges.append("SUPERUSER_BYPASS")
     if registry_matches:
         badges.append("REGISTRY")
-    if diag.get("pulsante"):
-        badges.append("LEGACY")
     override = diag.get("override") or {}
-    if override.get("can_view") is not None:
-        badges.append("OVERRIDE")
-    if diag.get("admin_bypass"):
-        badges.append("ADMIN BYPASS")
     inbound = (redirect_matches.get("inbound") or [])
     outbound = (redirect_matches.get("outbound") or [])
     if inbound or outbound:
         badges.append("REDIRECT")
     if any(bool(row.get("coming")) for row in registry_matches):
         badges.append("COMING")
-    registry_enabled = bool(getattr(settings, "NAVIGATION_REGISTRY_ENABLED", True))
-    fallback_enabled = bool(getattr(settings, "NAVIGATION_LEGACY_FALLBACK_ENABLED", False))
-    if registry_enabled and fallback_enabled and not registry_matches and diag.get("pulsante"):
-        badges.append("FALLBACK REGISTRY->LEGACY")
+    if final_source == "legacy_fallback" and diag.get("pulsante"):
+        badges.append("LEGACY_MATCH")
+    if final_source == "legacy_fallback" and override.get("can_view") is not None:
+        badges.append("LEGACY_OVERRIDE")
     return badges
 
 
@@ -3523,6 +3539,7 @@ def _build_permission_navigation_map_rows(
 
     for item in registry_items:
         target = _navigation_item_target_payload(item)
+        permission_code = _navigation_item_permission_code(item)
         path_norm = str(target.get("normalized_path") or "").strip()
         if not path_norm:
             continue
@@ -3534,7 +3551,11 @@ def _build_permission_navigation_map_rows(
             row["coming"] = True
         if item.route_name:
             row["route_names"].add(str(item.route_name).strip())
-        role_ids = access_map.get(int(item.id), set())
+        role_ids = (
+            set(_canonical_role_ids_for_permission(permission_code))
+            if permission_code
+            else access_map.get(int(item.id), set())
+        )
         row["registry_role_ids"].update(role_ids)
         row["registry_items"].append(
             {
@@ -3542,6 +3563,7 @@ def _build_permission_navigation_map_rows(
                 "code": item.code,
                 "label": item.label,
                 "section": item.section,
+                "required_permission_code": permission_code,
                 "route_name": item.route_name or "",
                 "url_path": item.url_path or "",
                 "role_ids": sorted(role_ids),
@@ -6238,6 +6260,7 @@ def _apply_navigation_role_access(item: NavigationItem, role_ids: list[int]) -> 
 
 def _navigation_item_payload(item: NavigationItem, role_ids_map: dict[int, list[int]]) -> dict:
     role_ids = role_ids_map.get(int(item.id), [])
+    required_permission_code = _navigation_item_permission_code(item)
     return {
         "id": int(item.id),
         "code": item.code,
@@ -6246,6 +6269,7 @@ def _navigation_item_payload(item: NavigationItem, role_ids_map: dict[int, list[
         "parent_code": item.parent_code or "",
         "route_name": item.route_name,
         "url_path": item.url_path,
+        "required_permission_code": required_permission_code,
         "order": int(item.order),
         "is_visible": bool(item.is_visible),
         "is_enabled": bool(item.is_enabled),
@@ -6294,6 +6318,7 @@ def navigation_builder(request):
             or q_lower in (item.label or "").lower()
             or q_lower in (item.route_name or "").lower()
             or q_lower in (item.url_path or "").lower()
+            or q_lower in _navigation_item_permission_code(item).lower()
             or q_lower in (item.section or "").lower()
         ]
     if section_filter == "all":
@@ -6347,21 +6372,17 @@ def navigation_builder(request):
                     role_id_for_nav = int(nav_override_user.ruolo_id)
                 except Exception:
                     pass
-            role_access_items: set[int] = set()
-            if role_id_for_nav is not None:
-                for row in NavigationRoleAccess.objects.filter(legacy_role_id=role_id_for_nav, can_view=True):
-                    role_access_items.add(int(row.item_id))
+            role_grants_map = _canonical_grants_map_for_role(role_id_for_nav)
             nav_visible_items = list(NavigationItem.objects.filter(
                 is_visible=True, is_enabled=True,
                 section__in=["topbar", "subnav", "sidebar", "page"],
             ).order_by("section", "order", "label"))
             for ni in nav_visible_items:
                 iid = int(ni.id)
-                role_allowed = iid in role_access_items
-                override = user_grants.get(iid)  # None / True / False
-                if override is True:
-                    state = "ov-show"
-                elif override is False:
+                permission_code = _navigation_item_permission_code(ni)
+                role_allowed = bool(permission_code and role_grants_map.get(permission_code, False))
+                override = user_grants.get(iid)
+                if override is False:
                     state = "ov-hide"
                 elif role_allowed:
                     state = "role-show"
@@ -6373,8 +6394,9 @@ def navigation_builder(request):
                     "item_label": ni.label,
                     "item_section": ni.section,
                     "item_icon": ni.icon or "",
+                    "required_permission_code": permission_code,
                     "role_allowed": role_allowed,
-                    "override": override,
+                    "override": False if override is False else None,
                     "state": state,
                 })
             # Raggruppamento per section
@@ -6451,6 +6473,15 @@ def api_navigation_item_create(request):
     url_path = _normalize_nav_url_path(payload.get("url_path") or "")
     if not route_name and not url_path:
         return _json_error("Serve almeno route_name o url_path.")
+    required_permission_code = normalize_permission_code(str(payload.get("required_permission_code") or ""))
+    if required_permission_code:
+        is_valid_code, validation_error = validate_permission_code(required_permission_code)
+        if not is_valid_code:
+            return _json_error(validation_error or "Permission code non valido.")
+    if not required_permission_code:
+        target = resolve_canonical_target(path=url_path or None, route_name=route_name or None)
+        binding = target.get("binding") or {}
+        required_permission_code = normalize_permission_code(str(binding.get("permission_code") or ""))
 
     section = str(payload.get("section") or "topbar").strip().lower() or "topbar"
     parent_code = str(payload.get("parent_code") or "").strip().lower()
@@ -6467,6 +6498,7 @@ def api_navigation_item_create(request):
                 parent_code=parent_code,
                 route_name=route_name,
                 url_path=url_path,
+                required_permission_code=required_permission_code,
                 order=(order_value if order_value is not None else 100),
                 is_visible=_bool_from_any(payload.get("is_visible")) if "is_visible" in payload else True,
                 is_enabled=_bool_from_any(payload.get("is_enabled")) if "is_enabled" in payload else True,
@@ -6509,6 +6541,15 @@ def api_navigation_item_update(request):
     url_path = _normalize_nav_url_path(payload.get("url_path") or "")
     if not route_name and not url_path:
         return _json_error("Serve almeno route_name o url_path.")
+    required_permission_code = normalize_permission_code(str(payload.get("required_permission_code") or ""))
+    if required_permission_code:
+        is_valid_code, validation_error = validate_permission_code(required_permission_code)
+        if not is_valid_code:
+            return _json_error(validation_error or "Permission code non valido.")
+    if not required_permission_code:
+        target = resolve_canonical_target(path=url_path or None, route_name=route_name or None)
+        binding = target.get("binding") or {}
+        required_permission_code = normalize_permission_code(str(binding.get("permission_code") or ""))
 
     section = str(payload.get("section") or "topbar").strip().lower() or "topbar"
     parent_code = str(payload.get("parent_code") or "").strip().lower()
@@ -6524,6 +6565,7 @@ def api_navigation_item_update(request):
             item.parent_code = parent_code
             item.route_name = route_name
             item.url_path = url_path
+            item.required_permission_code = required_permission_code
             item.order = order_value if order_value is not None else 100
             item.is_visible = _bool_from_any(payload.get("is_visible")) if "is_visible" in payload else item.is_visible
             item.is_enabled = _bool_from_any(payload.get("is_enabled")) if "is_enabled" in payload else item.is_enabled
@@ -6648,6 +6690,9 @@ def api_navigation_bootstrap_from_legacy(request):
                 route_name = raw_url.split(":", 1)[1].strip()
             else:
                 url_path = _normalize_nav_url_path(raw_url)
+            required_permission_code = normalize_permission_code(
+                str(resolve_canonical_target(path=url_path or None, route_name=route_name or None).get("binding", {}).get("permission_code") or "")
+            )
 
             order_hint = meta.get("ui_order") if isinstance(meta, dict) else None
             if order_hint is None:
@@ -6670,6 +6715,7 @@ def api_navigation_bootstrap_from_legacy(request):
             item.section = "topbar"
             item.route_name = route_name
             item.url_path = url_path
+            item.required_permission_code = required_permission_code
             item.order = int(order_hint)
             item.is_visible = True
             item.is_enabled = True
@@ -6804,26 +6850,22 @@ def api_legacy_redirect_delete(request):
 @csrf_protect
 @require_POST
 def api_nav_user_override_toggle(request, legacy_user_id: int):
-    """Imposta o rimuove un UserNavigationOverride per un utente e una voce di navigazione.
-
-    Body JSON: { "item_id": <int>, "state": "show" | "hide" | "inherit" }
-    """
+    """Imposta o rimuove un override hide-only per una voce di navigazione."""
     from core.models import UserNavigationOverride
     payload = _post_or_json_payload(request)
     item_id = _int_or_none(payload.get("item_id"))
     state = str(payload.get("state") or "").strip().lower()
-    if not item_id or state not in {"show", "hide", "inherit"}:
+    if not item_id or state not in {"hide", "inherit"}:
         return _json_error("Payload incompleto o stato non valido.")
     item = get_object_or_404(NavigationItem, pk=item_id)
     if state == "inherit":
         UserNavigationOverride.objects.filter(legacy_user_id=legacy_user_id, item=item).delete()
         bump_navigation_registry_version()
         return JsonResponse({"ok": True, "state": "inherit"})
-    enabled = state == "show"
     UserNavigationOverride.objects.update_or_create(
         legacy_user_id=legacy_user_id,
         item=item,
-        defaults={"enabled": enabled},
+        defaults={"enabled": False},
     )
     bump_navigation_registry_version()
     return JsonResponse({"ok": True, "state": state})
@@ -7816,10 +7858,10 @@ def accessi_semplice(request):
     """Pannello semplificato unico per ruoli/moduli.
 
     Permette in una sola schermata di:
-    - attivare/disattivare accesso modulo per ruolo
-    - sincronizzare nella stessa azione legacy ACL, grant canonici v2 e visibilita menu
+    - attivare/disattivare grant canonici di modulo per ruolo
+    - verificare la copertura menu derivata dai permission code canonici
 
-    I casi speciali restano delegati agli strumenti avanzati.
+    I casi legacy o non ancora coperti restano delegati agli strumenti avanzati.
     """
     roles = _role_choices()
     selected_role_id = _int_or_none(request.GET.get("ruolo_id") or request.POST.get("ruolo_id"))
@@ -7836,24 +7878,17 @@ def accessi_semplice(request):
 
         try:
             with transaction.atomic():
-                perm_changed, canonical_changed, navigation_changed = _apply_accessi_semplice_changes(
+                canonical_changed, skipped_modules = _apply_accessi_semplice_changes(
                     selected_role_id,
                     module_rows,
                     allowed_modules,
                 )
-                if perm_changed:
-                    _schedule_legacy_acl_cache_invalidation()
-                if navigation_changed:
+                if canonical_changed:
                     transaction.on_commit(bump_navigation_registry_version)
-            messages.success(
-                request,
-                (
-                    "Salvato. "
-                    f"Legacy aggiornato: {perm_changed}. "
-                    f"Grant canonici aggiornati: {canonical_changed}. "
-                    f"Menu ruolo aggiornati: {navigation_changed}."
-                ),
-            )
+            message = f"Salvato. Grant canonici aggiornati: {canonical_changed}."
+            if skipped_modules:
+                message += f" Moduli senza permission code canonico: {len(skipped_modules)}."
+            messages.success(request, message)
         except DatabaseError as exc:
             messages.error(request, f"Errore durante il salvataggio: {exc}")
         except Exception as exc:

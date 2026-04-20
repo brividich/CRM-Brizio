@@ -9,6 +9,7 @@ app_name = "tasks"
 urlpatterns = [
     path("tasks/", views.task_list, name="list"),
     path("tasks/projects/", views.project_list, name="project_list"),
+    path("tasks/projects/new/", views.project_create, name="project_create"),
     path("tasks/projects/<int:project_id>/gantt/", views.project_gantt, name="project_gantt"),
     path(
         "tasks/projects/<int:project_id>/copy/",
@@ -48,6 +49,8 @@ urlpatterns = [
         name="edit_subtask_status",
     ),
     path("tasks/projects/<int:project_id>/vrf/", views.project_vrf_upload, name="project_vrf_upload"),
+    path("tasks/projects/<int:project_id>/vrf/compile/", views.project_vrf_compile, name="project_vrf_compile"),
+    path("tasks/projects/<int:project_id>/vrf/download/", views.project_vrf_download, name="project_vrf_download"),
     path("tasks/import/", views.import_excel, name="import_excel"),
     path("tasks/import/template/", views.download_excel_template, name="download_excel_template"),
 ]

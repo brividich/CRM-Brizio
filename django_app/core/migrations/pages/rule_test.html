@@ -1,0 +1,735 @@
+{% extends "core/base.html" %}
+
+{% block title %}Automazioni - Test Regola | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .auto-layout { display:grid; gap:16px; grid-template-columns:minmax(0, 1.5fr) minmax(340px, .9fr); align-items:start; }
+  .auto-main { display:grid; gap:16px; }
+  .auto-field { display:grid; gap:6px; }
+  .auto-field label { font-size:12px; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:.04em; }
+  .auto-field input, .auto-field textarea, .auto-field select { width:100%; padding:10px 11px; border:1px solid #cbd5e1; border-radius:12px; background:#fff; }
+  .auto-field textarea { min-height:150px; font-family:Consolas, monospace; font-size:13px; }
+  .auto-field-compact { max-width:320px; }
+  .auto-errors { margin:4px 0 0 0; padding-left:18px; color:#b91c1c; font-size:13px; }
+  .auto-help { font-size:12px; color:#64748b; }
+  .auto-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .auto-source-panel { position:sticky; top:20px; }
+  .auto-source-catalog[hidden] { display:none !important; }
+  .auto-source-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+  .auto-source-desc { margin-top:4px; color:#475569; font-size:13px; }
+  .auto-source-chip { display:inline-flex; align-items:center; padding:4px 9px; border-radius:999px; background:#e2e8f0; color:#0f172a; font-size:12px; font-weight:700; border:0; }
+  .auto-source-chip.is-active { background:#0f172a; color:#fff; }
+  .auto-source-section-title { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; margin-bottom:8px; }
+  .auto-source-note { margin-bottom:12px; font-size:13px; color:#475569; }
+  .auto-hero-grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); }
+  .auto-hero-card { border:1px solid #dbe4f0; border-radius:16px; padding:14px; background:linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); }
+  .auto-hero-label { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:#64748b; }
+  .auto-hero-value { margin-top:6px; font-size:16px; font-weight:800; color:#0f172a; }
+  .auto-toolbar { display:flex; gap:8px; flex-wrap:wrap; }
+  .auto-builder-layout { display:grid; gap:14px; grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  .auto-builder-panel { border:1px solid #dbe4f0; border-radius:16px; background:linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); overflow:hidden; }
+  .auto-builder-head { padding:14px 14px 0; display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+  .auto-builder-title { font-size:16px; font-weight:800; color:#0f172a; }
+  .auto-builder-subtitle { margin-top:4px; color:#64748b; font-size:13px; }
+  .auto-builder-body { padding:14px; display:grid; gap:12px; }
+  .auto-builder-search input { width:100%; padding:9px 10px; border:1px solid #cbd5e1; border-radius:12px; }
+  .auto-builder-status { font-size:12px; color:#1d4ed8; min-height:18px; }
+  .auto-builder-grid { display:grid; gap:10px; max-height:560px; overflow:auto; padding-right:4px; }
+  .auto-builder-card { border:1px solid #e2e8f0; border-radius:14px; padding:12px; background:#fff; display:grid; gap:8px; }
+  .auto-builder-card-head { display:flex; justify-content:space-between; gap:8px; align-items:flex-start; }
+  .auto-builder-card-title { font-size:13px; font-weight:800; color:#0f172a; }
+  .auto-builder-card-title code { font-size:12px; }
+  .auto-builder-card-type { display:inline-flex; align-items:center; padding:4px 8px; border-radius:999px; background:#ecfeff; color:#155e75; font-size:11px; font-weight:800; text-transform:uppercase; }
+  .auto-builder-card-desc { color:#64748b; font-size:12px; line-height:1.45; }
+  .auto-builder-card-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .auto-builder-empty { padding:12px; border:1px dashed #cbd5e1; border-radius:12px; color:#64748b; background:#f8fafc; font-size:13px; }
+  .auto-json-grid { display:grid; gap:14px; }
+  .auto-diff-box { padding:14px; border-radius:16px; background:linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%); border:1px solid #bfdbfe; display:grid; gap:10px; }
+  .auto-diff-list { display:flex; flex-wrap:wrap; gap:8px; }
+  .auto-diff-chip { display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:#dbeafe; color:#1d4ed8; font-size:12px; font-weight:800; }
+  .auto-smart-target-banner { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:12px 14px; border-radius:14px; background:linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%); border:1px solid #bfdbfe; margin-bottom:14px; }
+  .auto-smart-target-label { font-size:13px; font-weight:800; color:#0f172a; }
+  .auto-smart-target-button { white-space:nowrap; }
+  .auto-smart-toolbar { display:grid; gap:10px; margin-top:14px; }
+  .auto-smart-search-input { width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:12px; }
+  .auto-smart-filter-row { display:flex; flex-wrap:wrap; gap:8px; }
+  .auto-smart-grid { display:grid; gap:10px; margin-top:14px; }
+  .auto-smart-field-card { display:grid; gap:10px; padding:14px; border-radius:16px; border:1px solid #dbe4f0; background:linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); }
+  .auto-smart-field-top { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+  .auto-smart-field-name code { font-size:13px; font-weight:800; color:#0f172a; }
+  .auto-smart-field-label { margin-top:4px; color:#334155; font-size:13px; font-weight:700; }
+  .auto-smart-field-type { display:inline-flex; align-items:center; padding:4px 9px; border-radius:999px; background:#e2e8f0; color:#0f172a; font-size:11px; font-weight:800; text-transform:uppercase; }
+  .auto-smart-field-desc { color:#475569; font-size:13px; line-height:1.45; }
+  .auto-smart-field-aliases { color:#64748b; font-size:12px; }
+  .auto-smart-chip-row { display:flex; flex-wrap:wrap; gap:6px; }
+  .auto-smart-mini-chip { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; background:#ecfeff; color:#155e75; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+  .auto-smart-field-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .auto-smart-empty { margin-top:12px; padding:12px; border-radius:12px; background:#f8fafc; border:1px dashed #cbd5e1; color:#64748b; font-size:13px; }
+  @media (max-width: 1180px) {
+    .auto-layout { grid-template-columns:1fr; }
+    .auto-source-panel { position:static; }
+  }
+  @media (max-width: 900px) {
+    .auto-builder-layout { grid-template-columns:1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Test Manuale Regola" page_subtitle="Composer guidato + JSON raw per provare la regola senza passare dalla queue SQL." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+  {% include "automazioni/components/subnav.html" %}
+
+  <div class="auto-layout">
+    <div class="auto-main">
+      <div class="card">
+        <div class="card-head"><div class="card-title">{{ rule.name }}</div></div>
+        <div class="card-body">
+          <div class="notice" style="margin-bottom:14px;">
+            Usa il composer per valorizzare il payload in modo guidato e lascia il JSON raw come fallback avanzato.
+          </div>
+          <div class="auto-hero-grid">
+            <div class="auto-hero-card">
+              <div class="auto-hero-label">Sorgente</div>
+              <div class="auto-hero-value">{{ rule.source_code }}</div>
+            </div>
+            <div class="auto-hero-card">
+              <div class="auto-hero-label">Operazione</div>
+              <div class="auto-hero-value">{{ rule.operation_type }}</div>
+            </div>
+            <div class="auto-hero-card">
+              <div class="auto-hero-label">Trigger</div>
+              <div class="auto-hero-value">{{ rule.trigger_scope }}</div>
+            </div>
+            <div class="auto-hero-card">
+              <div class="auto-hero-label">Campo osservato</div>
+              <div class="auto-hero-value">{% if rule.watched_field %}<code>{{ rule.watched_field }}</code>{% else %}-{% endif %}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <form method="post" class="auto-main" id="rule-test-form">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+          <div class="card"><div class="card-body"><ul class="auto-errors">{% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}</ul></div></div>
+        {% endif %}
+
+        <div class="card">
+          <div class="card-head"><div class="card-title">Composer guidato del payload</div></div>
+          <div class="card-body">
+            <div class="auto-toolbar">
+              <button class="btn btn-light" type="button" data-test-action="sample-current">Usa payload esempio</button>
+              <button class="btn btn-light" type="button" data-test-action="sample-old">Usa old payload esempio</button>
+              <button class="btn btn-light" type="button" data-test-action="clone-current-to-old">Duplica current in old</button>
+              <button class="btn btn-light" type="button" data-test-action="format-json">Formatta JSON</button>
+              <button class="btn btn-light" type="button" data-test-action="clear-old">Svuota old</button>
+            </div>
+            <div class="auto-builder-layout">
+              <section class="auto-builder-panel" data-builder-panel="payload_json">
+                <div class="auto-builder-head">
+                  <div>
+                    <div class="auto-builder-title">Payload corrente</div>
+                    <div class="auto-builder-subtitle">Compila i campi che vuoi inviare al runtime.</div>
+                  </div>
+                </div>
+                <div class="auto-builder-body">
+                  <div class="auto-builder-search">
+                    <input type="search" placeholder="Cerca campo..." data-builder-search="payload_json">
+                  </div>
+                  <div class="auto-builder-status" data-builder-status="payload_json"></div>
+                  <div class="auto-builder-grid" data-json-builder="payload_json"></div>
+                  <div class="auto-builder-empty" data-builder-empty="payload_json" hidden>Nessun campo trovato con il filtro corrente.</div>
+                </div>
+              </section>
+              <section class="auto-builder-panel" data-builder-panel="old_payload_json">
+                <div class="auto-builder-head">
+                  <div>
+                    <div class="auto-builder-title">Old payload</div>
+                    <div class="auto-builder-subtitle">Utile per trigger update, any_change, specific_field e condizioni changed.</div>
+                  </div>
+                </div>
+                <div class="auto-builder-body">
+                  <div class="auto-builder-search">
+                    <input type="search" placeholder="Cerca campo..." data-builder-search="old_payload_json">
+                  </div>
+                  <div class="auto-builder-status" data-builder-status="old_payload_json"></div>
+                  <div class="auto-builder-grid" data-json-builder="old_payload_json"></div>
+                  <div class="auto-builder-empty" data-builder-empty="old_payload_json" hidden>Nessun campo trovato con il filtro corrente.</div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div class="card-title">JSON raw</div></div>
+          <div class="card-body">
+            <div class="auto-json-grid">
+              <div class="auto-field">
+                {{ form.payload_json.label_tag }}
+                {{ form.payload_json }}
+                {% if form.payload_json.help_text %}<div class="auto-help">{{ form.payload_json.help_text }}</div>{% endif %}
+                {% if form.payload_json.errors %}<ul class="auto-errors">{% for error in form.payload_json.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+              </div>
+              <div class="auto-field">
+                {{ form.old_payload_json.label_tag }}
+                {{ form.old_payload_json }}
+                {% if form.old_payload_json.help_text %}<div class="auto-help">{{ form.old_payload_json.help_text }}</div>{% endif %}
+                {% if form.old_payload_json.errors %}<ul class="auto-errors">{% for error in form.old_payload_json.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+              </div>
+              <div class="auto-field auto-field-compact">
+                {{ form.is_test.label_tag }}
+                {{ form.is_test }}
+                {% if form.is_test.help_text %}<div class="auto-help">{{ form.is_test.help_text }}</div>{% endif %}
+                {% if form.is_test.errors %}<ul class="auto-errors">{% for error in form.is_test.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+              </div>
+            </div>
+
+            <div class="auto-diff-box" style="margin-top:16px;">
+              <div>
+                <div class="auto-source-section-title" style="margin-bottom:4px;">Differenze rilevate</div>
+                <div class="auto-help">Il riepilogo si aggiorna confrontando current e old payload validi.</div>
+              </div>
+              <div class="auto-diff-list" data-json-diff></div>
+            </div>
+
+            <div class="auto-actions" style="margin-top:16px;">
+              <button class="btn" type="submit">Esegui test</button>
+              <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_detail' rule.id %}">Torna al dettaglio</a>
+            </div>
+          </div>
+        </div>
+      </form>
+
+      {% if run_log %}
+        <div class="card">
+          <div class="card-head"><div class="card-title">Esito ultimo test</div></div>
+          <div class="card-body">
+            <div class="notice{% if run_log.status == 'error' %} notice-danger{% endif %}">
+              <strong>Stato:</strong> {{ run_log.status }}<br>
+              <strong>Messaggio:</strong> {{ run_log.result_message|default:"-" }}<br>
+              <strong>Run log:</strong> <a href="{% url 'admin_portale:automazioni_run_log_detail' run_log.id %}">#{{ run_log.id }}</a>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    {% include "automazioni/components/source_catalog_panel.html" %}
+  </div>
+{% endblock %}
+
+{% block extra_scripts %}
+{{ source_fields_json|json_script:"rule-test-source-fields" }}
+{{ sample_payload_json|json_script:"rule-test-sample-payload" }}
+{{ sample_old_payload_json|json_script:"rule-test-sample-old-payload" }}
+<script>
+(function() {
+  function parseJsonScript(scriptId) {
+    var node = document.getElementById(scriptId);
+    if (!node) return {};
+    try {
+      var parsed = JSON.parse(node.textContent);
+      if (typeof parsed === 'string') {
+        return parsed;
+      }
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  var sourceFieldsMap = parseJsonScript('rule-test-source-fields');
+  var sourceCode = '{{ selected_source_code|escapejs }}';
+  var samplePayloadJson = String(parseJsonScript('rule-test-sample-payload') || '{}');
+  var sampleOldPayloadJson = String(parseJsonScript('rule-test-sample-old-payload') || '');
+  var editors = {
+    payload_json: {
+      textarea: document.getElementById('id_payload_json'),
+      grid: document.querySelector('[data-json-builder="payload_json"]'),
+      search: document.querySelector('[data-builder-search="payload_json"]'),
+      status: document.querySelector('[data-builder-status="payload_json"]'),
+      empty: document.querySelector('[data-builder-empty="payload_json"]'),
+      extras: {}
+    },
+    old_payload_json: {
+      textarea: document.getElementById('id_old_payload_json'),
+      grid: document.querySelector('[data-json-builder="old_payload_json"]'),
+      search: document.querySelector('[data-builder-search="old_payload_json"]'),
+      status: document.querySelector('[data-builder-status="old_payload_json"]'),
+      empty: document.querySelector('[data-builder-empty="old_payload_json"]'),
+      extras: {}
+    }
+  };
+  var activeSmartTarget = null;
+
+  function forEachNode(nodeList, callback) {
+    if (!nodeList || !callback) return;
+    for (var index = 0; index < nodeList.length; index += 1) {
+      callback(nodeList[index], index);
+    }
+  }
+
+  function matchesSelector(element, selector) {
+    if (!element || element.nodeType !== 1) return false;
+    var matcher = element.matches || element.msMatchesSelector || element.webkitMatchesSelector;
+    return matcher ? matcher.call(element, selector) : false;
+  }
+
+  function closestElement(element, selector) {
+    var current = element;
+    while (current && current.nodeType === 1) {
+      if (matchesSelector(current, selector)) return current;
+      current = current.parentElement;
+    }
+    return null;
+  }
+
+  function setClassState(element, className, isActive) {
+    if (!element || !className) return;
+    if (element.classList) {
+      if (isActive) {
+        element.classList.add(className);
+      } else {
+        element.classList.remove(className);
+      }
+    }
+  }
+
+  function getSourceData() {
+    return sourceFieldsMap[sourceCode] || {};
+  }
+
+  function getSourceFields() {
+    return getSourceData().all || [];
+  }
+
+  function getFieldMeta(fieldName) {
+    var fields = getSourceFields();
+    for (var index = 0; index < fields.length; index += 1) {
+      if (fields[index] && fields[index].name === fieldName) return fields[index];
+    }
+    return null;
+  }
+
+  function parseObjectJson(rawValue) {
+    var text = String(rawValue || '').trim();
+    if (!text) return {};
+    try {
+      var parsed = JSON.parse(text);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function describeSmartTarget(element) {
+    if (!element) return 'Nessun campo selezionato';
+    var role = element.getAttribute('data-smart-role') || '';
+    if (role === 'payload-json') return 'JSON attivo: payload corrente. Un click aggiunge chiave e sample value.';
+    if (role === 'old-payload-json') return 'JSON attivo: old payload. Un click aggiunge chiave e sample value.';
+    return 'Template attivo. Un click inserisce il placeholder alla posizione del cursore.';
+  }
+
+  function updateSmartTargetBanner() {
+    var labelNode = document.querySelector('[data-smart-target-label]');
+    if (labelNode) labelNode.textContent = describeSmartTarget(activeSmartTarget);
+  }
+
+  function setActiveSmartTarget(element) {
+    if (!element || element.getAttribute('data-smart-target') !== '1' || element.disabled) return;
+    activeSmartTarget = element;
+    updateSmartTargetBanner();
+  }
+
+  function focusDefaultSmartTarget() {
+    if (activeSmartTarget && activeSmartTarget.getAttribute('data-smart-target') === '1' && !activeSmartTarget.disabled) {
+      updateSmartTargetBanner();
+      return;
+    }
+    if (editors.payload_json.textarea) {
+      setActiveSmartTarget(editors.payload_json.textarea);
+      return;
+    }
+    updateSmartTargetBanner();
+  }
+
+  function inputValueForField(field, value) {
+    if (value == null) return '';
+    if (field.data_type === 'bool') {
+      return value === true ? 'true' : value === false ? 'false' : '';
+    }
+    return String(value);
+  }
+
+  function fieldValueFromInput(field, rawValue) {
+    var text = String(rawValue || '').trim();
+    if (!text) return null;
+    if (field.data_type === 'bool') {
+      if (text === 'true') return true;
+      if (text === 'false') return false;
+      return null;
+    }
+    if (field.data_type === 'int') {
+      var intValue = parseInt(text, 10);
+      return isNaN(intValue) ? null : intValue;
+    }
+    if (field.data_type === 'float') {
+      var floatValue = parseFloat(text);
+      return isNaN(floatValue) ? null : floatValue;
+    }
+    return text;
+  }
+
+  function renderBuilderField(editorKey, field, value) {
+    var inputHtml = '';
+    var safeValue = inputValueForField(field, value).replace(/"/g, '&quot;');
+    if (field.data_type === 'bool') {
+      inputHtml = ''
+        + '<select data-builder-input="' + editorKey + '" data-field-name="' + field.name + '">'
+        +   '<option value="">---</option>'
+        +   '<option value="true"' + (safeValue === 'true' ? ' selected' : '') + '>true</option>'
+        +   '<option value="false"' + (safeValue === 'false' ? ' selected' : '') + '>false</option>'
+        + '</select>';
+    } else if (field.data_type === 'int' || field.data_type === 'float') {
+      inputHtml = '<input type="number" step="' + (field.data_type === 'float' ? 'any' : '1') + '" value="' + safeValue + '" data-builder-input="' + editorKey + '" data-field-name="' + field.name + '">';
+    } else {
+      inputHtml = '<input type="text" value="' + safeValue + '" data-builder-input="' + editorKey + '" data-field-name="' + field.name + '" placeholder="' + String(field.sample_value == null ? '' : field.sample_value).replace(/"/g, '&quot;') + '">';
+    }
+
+    return ''
+      + '<article class="auto-builder-card" data-builder-card data-field-name="' + field.name + '">'
+      +   '<div class="auto-builder-card-head">'
+      +     '<div class="auto-builder-card-title"><code>' + field.name + '</code><div>' + field.label + '</div></div>'
+      +     '<span class="auto-builder-card-type">' + field.data_type + '</span>'
+      +   '</div>'
+      +   '<div class="auto-builder-card-desc">' + (field.description || '') + '</div>'
+      +   inputHtml
+      +   '<div class="auto-builder-card-actions">'
+      +     '<button type="button" class="btn btn-light" data-builder-fill="' + editorKey + '" data-field-name="' + field.name + '">Usa sample</button>'
+      +     '<button type="button" class="btn btn-light" data-builder-clear="' + editorKey + '" data-field-name="' + field.name + '">Pulisci</button>'
+      +   '</div>'
+      + '</article>';
+  }
+
+  function updateBuilderStatus(editorKey, message, isError) {
+    var statusNode = editors[editorKey].status;
+    if (!statusNode) return;
+    statusNode.textContent = message || '';
+    statusNode.style.color = isError ? '#b91c1c' : '#1d4ed8';
+  }
+
+  function renderBuilder(editorKey, dataObject) {
+    var editor = editors[editorKey];
+    if (!editor || !editor.grid) return;
+    var searchValue = editor.search ? String(editor.search.value || '').trim().toLowerCase() : '';
+    var visibleCount = 0;
+    var html = [];
+
+    getSourceFields().forEach(function(field) {
+      var haystack = [
+        field.name || '',
+        field.label || '',
+        field.description || '',
+        (field.aliases || []).join(' ')
+      ].join(' ').toLowerCase();
+      if (searchValue && haystack.indexOf(searchValue) < 0) return;
+      html.push(renderBuilderField(editorKey, field, dataObject[field.name]));
+      visibleCount += 1;
+    });
+
+    editor.grid.innerHTML = html.join('');
+    if (editor.empty) editor.empty.hidden = visibleCount > 0;
+  }
+
+  function syncBuilderFromTextarea(editorKey) {
+    var editor = editors[editorKey];
+    if (!editor || !editor.textarea) return;
+    var parsed = parseObjectJson(editor.textarea.value);
+    var knownFieldNames = {};
+    getSourceFields().forEach(function(field) {
+      knownFieldNames[field.name] = true;
+    });
+
+    if (parsed === null) {
+      updateBuilderStatus(editorKey, 'JSON non valido: il builder resta in attesa di un oggetto valido.', true);
+      return;
+    }
+
+    editor.extras = {};
+    Object.keys(parsed).forEach(function(key) {
+      if (!knownFieldNames[key]) {
+        editor.extras[key] = parsed[key];
+      }
+    });
+
+    renderBuilder(editorKey, parsed);
+    var extrasCount = Object.keys(editor.extras).length;
+    updateBuilderStatus(
+      editorKey,
+      extrasCount ? ('JSON valido. Chiavi extra preservate: ' + extrasCount + '.') : 'JSON valido e sincronizzato con il builder.',
+      false
+    );
+    updateDiffSummary();
+  }
+
+  function buildObjectFromBuilder(editorKey) {
+    var editor = editors[editorKey];
+    var result = {};
+    getSourceFields().forEach(function(field) {
+      var selector = '[data-builder-input="' + editorKey + '"][data-field-name="' + field.name + '"]';
+      var input = editor.grid ? editor.grid.querySelector(selector) : null;
+      if (!input) return;
+      var parsedValue = fieldValueFromInput(field, input.value);
+      if (parsedValue !== null) {
+        result[field.name] = parsedValue;
+      }
+    });
+    Object.keys(editor.extras || {}).forEach(function(key) {
+      result[key] = editor.extras[key];
+    });
+    return result;
+  }
+
+  function syncTextareaFromBuilder(editorKey) {
+    var editor = editors[editorKey];
+    if (!editor || !editor.textarea) return;
+    editor.textarea.value = JSON.stringify(buildObjectFromBuilder(editorKey), null, 2);
+    updateBuilderStatus(editorKey, 'Builder sincronizzato nel JSON raw.', false);
+    updateDiffSummary();
+  }
+
+  function updateDiffSummary() {
+    var diffNode = document.querySelector('[data-json-diff]');
+    if (!diffNode) return;
+    var currentPayload = parseObjectJson(editors.payload_json.textarea ? editors.payload_json.textarea.value : '');
+    var oldPayload = parseObjectJson(editors.old_payload_json.textarea ? editors.old_payload_json.textarea.value : '');
+    if (currentPayload === null || oldPayload === null) {
+      diffNode.innerHTML = '<span class="auto-diff-chip">Attendi JSON validi per vedere il diff.</span>';
+      return;
+    }
+    var keys = {};
+    Object.keys(currentPayload || {}).forEach(function(key) { keys[key] = true; });
+    Object.keys(oldPayload || {}).forEach(function(key) { keys[key] = true; });
+    var changed = [];
+    Object.keys(keys).forEach(function(key) {
+      var currentValue = JSON.stringify(currentPayload[key]);
+      var oldValue = JSON.stringify(oldPayload[key]);
+      if (currentValue !== oldValue) changed.push(key);
+    });
+    if (!changed.length) {
+      diffNode.innerHTML = '<span class="auto-diff-chip">Nessuna differenza rilevata</span>';
+      return;
+    }
+    diffNode.innerHTML = changed.map(function(key) {
+      return '<span class="auto-diff-chip">' + key + '</span>';
+    }).join('');
+  }
+
+  function applyBuilderSearch(editorKey) {
+    var parsed = parseObjectJson(editors[editorKey].textarea ? editors[editorKey].textarea.value : '');
+    renderBuilder(editorKey, parsed && typeof parsed === 'object' ? parsed : {});
+  }
+
+  function useJsonSample(editorKey, rawValue) {
+    var editor = editors[editorKey];
+    if (!editor || !editor.textarea) return;
+    editor.textarea.value = String(rawValue || '').trim() || '{}';
+    syncBuilderFromTextarea(editorKey);
+  }
+
+  function formatJsonEditors() {
+    Object.keys(editors).forEach(function(editorKey) {
+      var editor = editors[editorKey];
+      if (!editor || !editor.textarea) return;
+      var parsed = parseObjectJson(editor.textarea.value);
+      if (parsed === null) return;
+      editor.textarea.value = JSON.stringify(parsed, null, 2);
+      syncBuilderFromTextarea(editorKey);
+    });
+  }
+
+  function insertTextAtCursor(field, text) {
+    if (!field) return;
+    var value = String(field.value || '');
+    var start = typeof field.selectionStart === 'number' ? field.selectionStart : value.length;
+    var end = typeof field.selectionEnd === 'number' ? field.selectionEnd : value.length;
+    field.value = value.slice(0, start) + text + value.slice(end);
+    if (field.setSelectionRange) {
+      var nextPosition = start + text.length;
+      field.setSelectionRange(nextPosition, nextPosition);
+    }
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    field.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function applyFieldToSmartTarget(fieldName) {
+    var meta = getFieldMeta(fieldName);
+    if (!meta || !activeSmartTarget) {
+      focusDefaultSmartTarget();
+    }
+    var target = activeSmartTarget;
+    if (!meta || !target) return;
+
+    if ((target.getAttribute('data-smart-mode') || '') === 'json-editor') {
+      var parsed = parseObjectJson(target.value);
+      if (parsed === null) parsed = {};
+      parsed[fieldName] = meta.sample_value;
+      target.value = JSON.stringify(parsed, null, 2);
+      target.dispatchEvent(new Event('input', { bubbles: true }));
+      target.dispatchEvent(new Event('change', { bubbles: true }));
+      target.focus();
+      return;
+    }
+
+    insertTextAtCursor(target, meta.placeholder || ('{' + fieldName + '}'));
+    target.focus();
+  }
+
+  function applyCatalogFiltering(catalog) {
+    if (!catalog) return;
+    var searchField = catalog.querySelector('[data-smart-field-search]');
+    var searchValue = searchField ? String(searchField.value || '').trim().toLowerCase() : '';
+    var activeFilterButton = catalog.querySelector('[data-smart-filter].is-active');
+    var filterValue = activeFilterButton ? activeFilterButton.getAttribute('data-smart-filter') : 'all';
+    var visibleCount = 0;
+
+    forEachNode(catalog.querySelectorAll('[data-smart-field-card]'), function(card) {
+      var text = [
+        card.getAttribute('data-field-name') || '',
+        card.getAttribute('data-field-label') || '',
+        card.getAttribute('data-field-aliases') || '',
+        card.getAttribute('data-field-description') || ''
+      ].join(' ').toLowerCase();
+      var matchesSearch = !searchValue || text.indexOf(searchValue) >= 0;
+      var matchesFilter = filterValue === 'all' || card.getAttribute('data-filter-' + filterValue) === '1';
+      card.hidden = !(matchesSearch && matchesFilter);
+      if (!card.hidden) visibleCount += 1;
+    });
+
+    var emptyState = catalog.querySelector('[data-smart-empty-state]');
+    if (emptyState) emptyState.hidden = visibleCount > 0;
+  }
+
+  document.addEventListener('focusin', function(event) {
+    if (event.target && event.target.getAttribute && event.target.getAttribute('data-smart-target') === '1') {
+      setActiveSmartTarget(event.target);
+    }
+  });
+
+  document.addEventListener('click', function(event) {
+    var copyButton = closestElement(event.target, '[data-copy-value]');
+    if (copyButton) {
+      event.preventDefault();
+      var value = copyButton.getAttribute('data-copy-value');
+      if (!navigator.clipboard) return;
+      navigator.clipboard.writeText(value).then(function() {
+        copyButton.textContent = 'Copiato';
+        window.setTimeout(function() {
+          copyButton.textContent = 'Copia placeholder';
+        }, 1200);
+      });
+    }
+
+    var smartInsertButton = closestElement(event.target, '[data-smart-insert-field]');
+    if (smartInsertButton) {
+      event.preventDefault();
+      applyFieldToSmartTarget(smartInsertButton.getAttribute('data-smart-insert-field'));
+    }
+
+    var smartFilterButton = closestElement(event.target, '[data-smart-filter]');
+    if (smartFilterButton) {
+      event.preventDefault();
+      var catalog = closestElement(smartFilterButton, '[data-source-catalog]');
+      if (!catalog) return;
+      forEachNode(catalog.querySelectorAll('[data-smart-filter]'), function(button) {
+        setClassState(button, 'is-active', button === smartFilterButton);
+      });
+      applyCatalogFiltering(catalog);
+    }
+
+    var clearSmartTargetButton = closestElement(event.target, '[data-smart-target-clear]');
+    if (clearSmartTargetButton) {
+      event.preventDefault();
+      activeSmartTarget = null;
+      focusDefaultSmartTarget();
+    }
+
+    var builderFillButton = closestElement(event.target, '[data-builder-fill]');
+    if (builderFillButton) {
+      event.preventDefault();
+      var editorKey = builderFillButton.getAttribute('data-builder-fill');
+      var fieldName = builderFillButton.getAttribute('data-field-name');
+      var meta = getFieldMeta(fieldName);
+      var selector = '[data-builder-input="' + editorKey + '"][data-field-name="' + fieldName + '"]';
+      var input = editors[editorKey].grid.querySelector(selector);
+      if (meta && input) {
+        input.value = inputValueForField(meta, meta.sample_value);
+        syncTextareaFromBuilder(editorKey);
+      }
+    }
+
+    var builderClearButton = closestElement(event.target, '[data-builder-clear]');
+    if (builderClearButton) {
+      event.preventDefault();
+      var editorKey = builderClearButton.getAttribute('data-builder-clear');
+      var fieldName = builderClearButton.getAttribute('data-field-name');
+      var selector = '[data-builder-input="' + editorKey + '"][data-field-name="' + fieldName + '"]';
+      var input = editors[editorKey].grid.querySelector(selector);
+      if (input) {
+        input.value = '';
+        syncTextareaFromBuilder(editorKey);
+      }
+    }
+
+    var toolbarAction = closestElement(event.target, '[data-test-action]');
+    if (toolbarAction) {
+      event.preventDefault();
+      var action = toolbarAction.getAttribute('data-test-action');
+      if (action === 'sample-current') {
+        useJsonSample('payload_json', samplePayloadJson);
+      } else if (action === 'sample-old') {
+        useJsonSample('old_payload_json', sampleOldPayloadJson || '{}');
+      } else if (action === 'clone-current-to-old') {
+        useJsonSample('old_payload_json', editors.payload_json.textarea ? editors.payload_json.textarea.value : '{}');
+      } else if (action === 'format-json') {
+        formatJsonEditors();
+      } else if (action === 'clear-old') {
+        useJsonSample('old_payload_json', '{}');
+      }
+    }
+  });
+
+  document.addEventListener('input', function(event) {
+    if (matchesSelector(event.target, '[data-builder-search]')) {
+      applyBuilderSearch(event.target.getAttribute('data-builder-search'));
+    }
+    if (matchesSelector(event.target, '[data-builder-input]')) {
+      syncTextareaFromBuilder(event.target.getAttribute('data-builder-input'));
+    }
+    if (matchesSelector(event.target, '[data-smart-field-search]')) {
+      applyCatalogFiltering(closestElement(event.target, '[data-source-catalog]'));
+    }
+    if (event.target === editors.payload_json.textarea) {
+      syncBuilderFromTextarea('payload_json');
+    }
+    if (event.target === editors.old_payload_json.textarea) {
+      syncBuilderFromTextarea('old_payload_json');
+    }
+  });
+
+  forEachNode(document.querySelectorAll('[data-source-catalog]'), function(catalog) {
+    applyCatalogFiltering(catalog);
+  });
+  syncBuilderFromTextarea('payload_json');
+  syncBuilderFromTextarea('old_payload_json');
+  focusDefaultSmartTarget();
+})();
+</script>
+{% endblock %}

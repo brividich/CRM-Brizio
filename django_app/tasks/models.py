@@ -167,6 +167,10 @@ class Task(models.Model):
         related_name="tasks_subscribed",
         blank=True,
     )
+    reminder_portal_enabled = models.BooleanField(
+        default=True,
+        help_text="Se attivo, crea un promemoria nel centro notifiche 'giorni_preavviso' prima della scadenza.",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -368,3 +372,133 @@ class TaskImpostazioni(models.Model):
     def get_singleton(cls) -> "TaskImpostazioni":
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+
+class VRFRiskAssessment(models.Model):
+    """Valutazione rischi del MOD.073 VRF Rev.10 compilata online.
+
+    1:1 col Project. Il payload 'data' segue la shape di vrf_catalog.default_scores().
+    I totali (TR per fase) sono cache denormalizzata: ricalcolati a ogni save()
+    dal catalogo per mantenere coerenza con la logica di riferimento.
+    """
+
+    project = models.OneToOneField(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="vrf_assessment",
+    )
+    data = models.JSONField(default=dict, blank=True)
+    total_p = models.FloatField(default=0.0)
+    total_i = models.FloatField(default=0.0)
+    total_c = models.FloatField(default=0.0)
+    dig_triggered = models.BooleanField(default=False)
+    compiled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="vrf_assessments_compiled",
+    )
+    compiled_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Valutazione rischi VRF"
+        verbose_name_plural = "Valutazioni rischi VRF"
+
+    def __str__(self) -> str:
+        return f"VRF#{self.project_id}"
+
+    def recompute_totals(self) -> None:
+        from .vrf_catalog import compute_totals
+        result = compute_totals(self.data or {})
+        totals = result["totals"]
+        self.total_p = float(totals.get("p") or 0.0)
+        self.total_i = float(totals.get("i") or 0.0)
+        self.total_c = float(totals.get("c") or 0.0)
+        self.dig_triggered = bool(result.get("dig_triggered"))
+
+
+class TaskRoleType(models.TextChoices):
+    PROJECT_MANAGER = "PM",   "Project manager"
+    CAPO_COMMESSA   = "CC",   "Capocommessa"
+    PROGRAMMER      = "PRG",  "Programmatore"
+
+
+class TaskRoleAssignment(models.Model):
+    """Mappatura utenti abilitati a comparire come scelta nei dropdown kickoff/task.
+
+    Serve per filtrare i dropdown di Nuovo kickoff / Nuova attivita':
+    - se almeno un utente ha assegnato il role_type X, il dropdown relativo mostra
+      solo quegli utenti;
+    - se nessun utente ha il role_type X, il dropdown mantiene il comportamento
+      originale (tutti gli utenti) per non bloccare l'operativita'.
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="task_role_assignments",
+    )
+    role_type = models.CharField(max_length=8, choices=TaskRoleType.choices, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("user", "role_type")]
+        ordering = ["role_type", "user__last_name", "user__first_name", "user_id"]
+
+    def __str__(self) -> str:
+        return f"{self.user_id}:{self.role_type}"
+
+
+class TaskCalendarEvent(models.Model):
+    """Evento Outlook calendar creato per un Task (dedup + tracking).
+
+    Ogni task puo' avere al piu' un evento attivo (dedup su `source_key`).
+    Il record mantiene l'identita' Graph per update/delete successivi.
+    """
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="calendar_events")
+    source_key = models.CharField(max_length=160, unique=True, db_index=True)
+    target_email = models.EmailField()
+    target_display_name = models.CharField(max_length=200, blank=True, default="")
+    due_date = models.DateField()
+    subject = models.CharField(max_length=255, blank=True, default="")
+    transaction_id = models.CharField(max_length=64, blank=True, default="")
+    graph_event_id = models.CharField(max_length=255, blank=True, default="")
+    graph_event_web_link = models.CharField(max_length=500, blank=True, default="")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="task_calendar_events_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"TaskCalendarEvent<task={self.task_id} event={self.graph_event_id}>"
+
+
+class TaskReminder(models.Model):
+    """Promemoria portale schedulato per una task.
+
+    Viene creato al salvataggio della task con `fire_at = due_date - giorni_preavviso`.
+    Il management command `send_task_reminders` lo trasforma in `core.Notifica`
+    quando `fire_at <= today`.
+    """
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="portal_reminders")
+    legacy_user_id = models.IntegerField(db_index=True)
+    fire_at = models.DateField(db_index=True)
+    fired = models.BooleanField(default=False, db_index=True)
+    fired_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["fire_at", "id"]
+        indexes = [models.Index(fields=["fired", "fire_at"])]
+
+    def __str__(self) -> str:
+        return f"TaskReminder<task={self.task_id} fire_at={self.fire_at} fired={self.fired}>"

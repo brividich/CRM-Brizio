@@ -1,0 +1,154 @@
+{% extends "core/base.html" %}
+
+{% block title %}Preview — {{ template.name }} | Automazioni | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .atp-layout { display:grid; gap:20px; grid-template-columns:340px minmax(0,1fr); align-items:start; }
+  @media(max-width:1000px){ .atp-layout { grid-template-columns:1fr; } }
+  .atp-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden; }
+  .atp-card-head { padding:14px 18px; border-bottom:1px solid #e2e8f0; background:#f8fafc; }
+  .atp-card-title { font-size:14px; font-weight:800; color:#0f172a; }
+  .atp-card-subtitle { font-size:12px; color:#64748b; margin-top:2px; }
+  .atp-body { padding:16px 18px; }
+  .atp-field { display:grid; gap:4px; margin-bottom:12px; }
+  .atp-field label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; }
+  .atp-field input[type=text], .atp-field textarea { width:100%; padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; box-sizing:border-box; }
+  .atp-field textarea { resize:vertical; }
+  .atp-btn { display:inline-flex; align-items:center; gap:5px; padding:8px 16px; border-radius:9px; font-size:13px; font-weight:700; cursor:pointer; border:none; text-decoration:none; }
+  .atp-btn-primary { background:#3b82f6; color:#fff; }
+  .atp-btn-back { background:#f1f5f9; color:#334155; }
+  .atp-subject-bar { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; font-size:13px; margin-bottom:14px; }
+  .atp-subject-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px; }
+  .atp-subject-value { font-weight:700; color:#0f172a; }
+  .atp-unresolved { background:#fef3c7; border:1px solid #fcd34d; border-radius:10px; padding:10px 14px; margin-bottom:14px; }
+  .atp-unresolved-title { font-size:12px; font-weight:700; color:#92400e; margin-bottom:6px; }
+  .atp-chip { display:inline-flex; align-items:center; background:#fde68a; color:#78350f; font-size:11px; font-family:monospace; padding:2px 7px; border-radius:4px; margin:2px; }
+  .atp-iframe-wrap { border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; background:#f1f5f9; }
+  iframe.atp-iframe { width:100%; min-height:600px; border:none; display:block; }
+  .atp-badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; }
+  .atp-badge-mode { background:#eff6ff; color:#1d4ed8; }
+  .atp-badge-mailto { background:#fef3c7; color:#92400e; }
+  .atp-badge-hybrid { background:#f3e8ff; color:#6b21a8; }
+  .atp-info { background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:12px 14px; font-size:13px; color:#1e40af; line-height:1.6; margin-bottom:14px; }
+  .atp-text-preview { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; font-size:12px; color:#334155; white-space:pre-wrap; font-family:monospace; margin-top:14px; max-height:280px; overflow:auto; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "automazioni/components/subnav.html" %}
+<div class="page-header" style="margin-bottom:20px;">
+  <h1 class="page-title">Preview — {{ template.name }}</h1>
+  <p class="page-subtitle">
+    Rendering con dati demo (caso assenze). Modifica il payload per testare altri scenari.
+  </p>
+</div>
+
+<div class="atp-layout">
+
+  <!-- Pannello sinistra: controlli -->
+  <div style="display:grid;gap:16px;">
+
+    <div class="atp-card">
+      <div class="atp-card-head">
+        <div class="atp-card-title">Template</div>
+      </div>
+      <div class="atp-body">
+        <div style="font-size:13px;color:#334155;line-height:1.6;display:grid;gap:6px;">
+          <div><strong>Codice:</strong> <code style="background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px;">{{ template.code }}</code></div>
+          <div>
+            <strong>Modalità:</strong>
+            {% if template.delivery_mode == 'portal_links' %}<span class="atp-badge atp-badge-mode">Link portale</span>
+            {% elif template.delivery_mode == 'mail_reply' %}<span class="atp-badge atp-badge-mailto">mailto:</span>
+            {% elif template.delivery_mode == 'hybrid' %}<span class="atp-badge atp-badge-hybrid">Hybrid</span>{% endif %}
+          </div>
+          <div><strong>Stato:</strong> {% if template.is_enabled %}Attivo{% else %}Disabilitato{% endif %}</div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+          <a href="{% url 'admin_portale:automazioni_approval_template_edit' template.pk %}" class="atp-btn atp-btn-back">Modifica</a>
+          <a href="{% url 'admin_portale:automazioni_approval_templates' %}" class="atp-btn atp-btn-back">Lista</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Payload personalizzato -->
+    <div class="atp-card">
+      <div class="atp-card-head">
+        <div class="atp-card-title">Payload di test</div>
+        <div class="atp-card-subtitle">JSON con valori custom — sovrascrive il demo di default</div>
+      </div>
+      <div class="atp-body">
+        <form method="get" action="">
+          <div class="atp-field">
+            <label for="payload-input">Payload JSON (opzionale)</label>
+            <textarea id="payload-input" name="payload" rows="8" placeholder='{"dipendente_nome": "Giulia Verdi", "tipo_assenza": "Malattia", "data_inizio": "2026-06-01"}'>{{ custom_payload_raw }}</textarea>
+          </div>
+          {% if payload_error %}
+          <div style="font-size:12px;color:#dc2626;margin-bottom:8px;">{{ payload_error }}</div>
+          {% endif %}
+          <button type="submit" class="atp-btn atp-btn-primary">Aggiorna preview</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Payload demo di default -->
+    <div class="atp-card">
+      <div class="atp-card-head">
+        <div class="atp-card-title">Payload demo (assenze)</div>
+        <div class="atp-card-subtitle">Dati usati in assenza di payload custom</div>
+      </div>
+      <div class="atp-body">
+        <div style="font-size:12px;color:#64748b;font-family:monospace;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;max-height:200px;overflow:auto;">
+          {% for k, v in demo_payload.items %}
+            <div><strong>{{ k }}</strong>: {{ v }}</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pannello destra: preview -->
+  <div style="display:grid;gap:14px;">
+
+    <!-- Subject -->
+    <div class="atp-subject-bar">
+      <div class="atp-subject-label">Oggetto email</div>
+      <div class="atp-subject-value">{{ rendered.subject }}</div>
+    </div>
+
+    <!-- Placeholder non risolti -->
+    {% if unresolved %}
+    <div class="atp-unresolved">
+      <div class="atp-unresolved-title">Placeholder non risolti ({{ unresolved|length }})</div>
+      <div>
+        {% for p in unresolved %}<span class="atp-chip">&#123;{{ p }}&#125;</span>{% endfor %}
+      </div>
+      <div style="font-size:11px;color:#78350f;margin-top:6px;">Questi placeholder non hanno trovato corrispondenza nel payload. Verifica che i campi del payload della sorgente li espongano.</div>
+    </div>
+    {% endif %}
+
+    <!-- HTML preview iframe -->
+    <div class="atp-iframe-wrap">
+      <iframe class="atp-iframe"
+              srcdoc="{{ rendered.html_body }}"
+              title="Preview email"
+              sandbox="allow-same-origin"></iframe>
+    </div>
+
+    <!-- Text fallback -->
+    <div class="atp-card">
+      <div class="atp-card-head">
+        <div class="atp-card-title">Testo plain (fallback)</div>
+      </div>
+      <div class="atp-body">
+        <div class="atp-text-preview">{{ rendered.text_body }}</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

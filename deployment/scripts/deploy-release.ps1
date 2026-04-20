@@ -444,9 +444,22 @@ if ($AutoActivate) {
     & "$PSScriptRoot\activate-release.ps1" -Environment $Environment -ReleaseTag $releaseTag
 }
 else {
+    $currentTargetAfterDeploy = Get-CurrentReleaseTarget -CurrentPath $paths.Current
+    if ($currentTargetAfterDeploy -ne $releaseDir) {
+        Write-Log "ATTENZIONE: il nuovo pacchetto e stato estratto ma NON e ancora attivo." "WARN"
+        if ($currentTargetAfterDeploy) {
+            Write-Log "  current punta ancora a: $currentTargetAfterDeploy" "WARN"
+        } else {
+            Write-Log "  current non punta ancora a nessuna release attiva." "WARN"
+        }
+        Write-Log "  release appena deployato: $releaseDir" "WARN"
+    }
     Write-Log "Release pronto ma NON ancora attivo." "INFO"
     Write-Log "Per attivarlo:" "STEP"
     Write-Log "  .\activate-release.ps1 -Environment $Environment -ReleaseTag $releaseTag" "INFO"
+    if ($Environment -eq "test") {
+        Write-Log "Suggerimento: in TEST usa -AutoActivate per evitare di dimenticare lo switch del current." "WARN"
+    }
     Write-Log "" "INFO"
     Write-Log "Per fare smoke test prima di attivare (opzionale):" "INFO"
     Write-Log "  .\smoke-test.ps1 -Environment $Environment  # testa l'ambiente corrente" "INFO"

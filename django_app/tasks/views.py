@@ -6,7 +6,7 @@ from functools import wraps
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.views import redirect_to_login
-from django.db import DatabaseError, connections
+from django.db import DatabaseError, connections, transaction
 from django.db.models import Count, F, Prefetch, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -26,6 +26,7 @@ from core.module_branding import get_module_branding_context, handle_module_bran
 
 from .forms import (
     ProjectCommentForm,
+    ProjectKickoffForm,
     ProjectTaskGanttUpdateForm,
     SubTaskForm,
     SubTaskStatusForm,
@@ -49,6 +50,7 @@ from .models import (
     TaskPriority,
     TaskStatus,
     VRFDocStatus,
+    VRFRiskAssessment,
 )
 
 TASK_MODULE_CODE = "tasks"
@@ -88,7 +90,7 @@ GANTT_NAME_WIDTH_OPTIONS = (
     (360, "Media"),
     (460, "Ampia"),
 )
-TASK_SETTINGS_TABS = ("config", "riepilogo", "record", "log")
+TASK_SETTINGS_TABS = ("config", "riepilogo", "record", "log", "ruoli", "promemoria")
 
 
 def _normalize_tasks_settings_tab(raw_tab: str | None, *, default: str = "config") -> str:
@@ -168,6 +170,90 @@ def _build_tasks_settings_context(request, *, tab: str) -> dict:
 
     if tab == "log":
         context["audit_entries"] = AuditLog.objects.filter(modulo="tasks").order_by("-created_at")[:100]
+
+    if tab == "ruoli":
+        from .models import TaskRoleAssignment, TaskRoleType
+
+        all_users = list(
+            User.objects.filter(is_active=True)
+            .order_by("first_name", "last_name", "username")
+        )
+        assignments_raw = list(
+            TaskRoleAssignment.objects.values_list("user_id", "role_type")
+        )
+        by_user: dict[int, set[str]] = {}
+        for uid, rtype in assignments_raw:
+            by_user.setdefault(uid, set()).add(rtype)
+
+        roster = []
+        for u in all_users:
+            user_label = (u.get_full_name() or u.username)
+            roster.append({
+                "id": u.id,
+                "label": user_label,
+                "email": u.email or "",
+                "is_pm":  TaskRoleType.PROJECT_MANAGER in by_user.get(u.id, set()),
+                "is_cc":  TaskRoleType.CAPO_COMMESSA   in by_user.get(u.id, set()),
+                "is_prg": TaskRoleType.PROGRAMMER      in by_user.get(u.id, set()),
+            })
+        context.update({
+            "ruoli_filter_q": request.GET.get("q_user", "").strip(),
+            "ruoli_roster": roster,
+            "ruoli_stats": {
+                "pm":  sum(1 for r in roster if r["is_pm"]),
+                "cc":  sum(1 for r in roster if r["is_cc"]),
+                "prg": sum(1 for r in roster if r["is_prg"]),
+                "total_users": len(roster),
+            },
+            "ruoli_role_labels": {
+                "PM":  "Project manager",
+                "CC":  "Capocommessa",
+                "PRG": "Programmatore",
+            },
+        })
+
+    if tab == "promemoria":
+        from .models import TaskReminder
+
+        q_filter = (request.GET.get("filter_status") or "pending").strip().lower()
+        qs = (
+            TaskReminder.objects.select_related("task", "task__project", "task__assigned_to")
+            .order_by("fire_at", "id")
+        )
+        if q_filter == "pending":
+            qs = qs.filter(fired=False)
+        elif q_filter == "fired":
+            qs = qs.filter(fired=True)
+        # else: all
+
+        today = timezone.localdate()
+        reminders_list = []
+        for r in qs[:200]:
+            reminders_list.append({
+                "id": r.id,
+                "task_id": r.task_id,
+                "task_title": r.task.title if r.task else "(task eliminato)",
+                "project_name": (r.task.project.name if r.task and r.task.project_id else ""),
+                "assignee": (
+                    r.task.assigned_to.get_full_name() or r.task.assigned_to.username
+                ) if r.task and r.task.assigned_to_id else "",
+                "legacy_user_id": r.legacy_user_id,
+                "fire_at": r.fire_at,
+                "due_date": r.task.due_date if r.task else None,
+                "fired": r.fired,
+                "fired_at": r.fired_at,
+                "overdue": (not r.fired) and r.fire_at < today,
+            })
+        context.update({
+            "promemoria_filter": q_filter,
+            "promemoria_list": reminders_list,
+            "promemoria_count_pending": TaskReminder.objects.filter(fired=False).count(),
+            "promemoria_count_fired":   TaskReminder.objects.filter(fired=True).count(),
+            "promemoria_count_overdue": TaskReminder.objects.filter(fired=False, fire_at__lt=today).count(),
+            "promemoria_count_next7":   TaskReminder.objects.filter(
+                fired=False, fire_at__gte=today, fire_at__lte=today + timedelta(days=7),
+            ).count(),
+        })
 
     return context
 
@@ -773,6 +859,40 @@ def _add_task_absence_warnings(request, task: Task) -> None:
         )
 
 
+def _sync_task_integrations(request, task: Task, form, *, action: str) -> None:
+    """Dopo save: allinea evento Outlook + reminder portale secondo il form submit.
+
+    `action` e' "create" o "edit" - controlla solo messages che vogliamo mostrare.
+    Non blocca mai il flusso: errori Graph producono messages.warning ma il task resta salvato.
+    """
+    from .outlook_reminder import sync_task_outlook_event, sync_task_portal_reminder
+
+    requested = bool(form.cleaned_data.get("add_to_outlook"))
+    explicit_email = form.cleaned_data.get("outlook_target_email") or ""
+    try:
+        level, msg = sync_task_outlook_event(
+            request=request, task=task, requested=requested, explicit_email=str(explicit_email),
+        )
+        if msg:
+            if level == "success":
+                messages.success(request, msg)
+            elif level == "info":
+                messages.info(request, msg)
+            elif level == "warning":
+                messages.warning(request, msg)
+            elif level == "error":
+                messages.error(request, msg)
+    except Exception as exc:
+        messages.warning(request, f"Integrazione Outlook non disponibile: {exc}")
+
+    try:
+        sync_task_portal_reminder(task=task)
+    except Exception as exc:
+        # Fire-and-forget: non bloccare il save del task
+        import logging
+        logging.getLogger(__name__).warning("Task reminder sync fallita (task=%s): %s", task.id, exc)
+
+
 def _build_task_absence_day_map(tasks: list[Task], *, timeline_start: date, timeline_end: date) -> dict[int, dict[date, list[dict]]]:
     if timeline_end < timeline_start:
         return {}
@@ -1306,6 +1426,27 @@ def task_detail(request, task_id: int):
     )
 
 
+def _suggest_task_start_date(project) -> date:
+    """Return the automatic start date for a new task in ``project``.
+
+    Day after the last existing task's end date (due_date or next_step_due),
+    or today if the project has no tasks yet.
+    """
+    today = timezone.localdate()
+    if project is None:
+        return today
+    last_task = (
+        Task.objects.filter(project=project)
+        .order_by("-id")
+        .first()
+    )
+    if last_task:
+        last_end = last_task.due_date or last_task.next_step_due
+        if last_end:
+            return max(last_end + timedelta(days=1), today)
+    return today
+
+
 @task_permissions_required("tasks_view")
 def project_info_json(request, project_id: int):
     """Restituisce info progetto + lista task (ordine creazione) in formato JSON, per l'AJAX del form."""
@@ -1351,7 +1492,9 @@ def project_info_json(request, project_id: int):
         "vrf_status": vrf_detail["status"],
         "vrf_label": vrf_detail["label"],
         "vrf_upload_url": reverse("tasks:project_vrf_upload", kwargs={"project_id": project.id}),
+        "vrf_compile_url": reverse("tasks:project_vrf_compile", kwargs={"project_id": project.id}),
         "tasks": tasks_data,
+        "suggested_start_date": _suggest_task_start_date(project).isoformat(),
     })
 
 
@@ -1373,17 +1516,11 @@ def _task_create_locked_project(request, projects_qs):
 def task_create(request):
     projects_qs = _scoped_projects_queryset(request).order_by("name", "id")
     locked_project = _task_create_locked_project(request, projects_qs)
-    suggested_start_date = None
-    if locked_project is not None:
-        last_task = (
-            Task.objects.filter(project=locked_project)
-            .order_by("-id")
-            .first()
-        )
-        if last_task:
-            last_end = last_task.due_date or last_task.next_step_due
-            if last_end:
-                suggested_start_date = last_end + timedelta(days=1)
+    suggested_start_date = _suggest_task_start_date(locked_project)
+    has_previous_task = (
+        locked_project is not None
+        and Task.objects.filter(project=locked_project).exists()
+    )
 
     if request.method == "POST":
         form = TaskForm(
@@ -1450,6 +1587,11 @@ def task_create(request):
                 messages.warning(request, "Attivita kickoff creata con scadenza gia oltre la data odierna.")
             _add_task_absence_warnings(request, task)
 
+            # Applica preferenze reminder portale + integrazione Outlook
+            task.reminder_portal_enabled = bool(form.cleaned_data.get("reminder_portal_enabled_field"))
+            task.save(update_fields=["reminder_portal_enabled"])
+            _sync_task_integrations(request, task, form, action="create")
+
             # Se è stato creato un nuovo progetto, redirect alla pagina upload VRF
             if getattr(form, "new_project_created", False) and task.project_id:
                 next_url = reverse("tasks:detail", kwargs={"task_id": task.id})
@@ -1459,9 +1601,7 @@ def task_create(request):
                 )
             return redirect("tasks:detail", task_id=task.id)
     else:
-        initial = {}
-        if suggested_start_date:
-            initial["next_step_due"] = suggested_start_date
+        initial = {"next_step_due": suggested_start_date.isoformat()}
         if locked_project is not None:
             initial["project_choice"] = locked_project.id
             initial["task_scope"] = "project"
@@ -1483,6 +1623,7 @@ def task_create(request):
                 "form": form,
                 "mode": "create",
                 "suggested_start_date": suggested_start_date,
+                "suggested_start_from_previous": has_previous_task,
                 "suggested_project_id": locked_project.id if locked_project is not None else None,
                 "locked_project": locked_project,
                 "locked_project_vrf_detail": _vrf_status_detail(locked_project, TaskImpostazioni.get_singleton()) if locked_project is not None else None,
@@ -1499,6 +1640,7 @@ def task_create(request):
             "form": form,
             "mode": "create",
             "suggested_start_date": suggested_start_date,
+            "suggested_start_from_previous": has_previous_task,
             "suggested_project_id": locked_project.id if locked_project is not None else None,
             "locked_project": locked_project,
             "locked_project_vrf_detail": _vrf_status_detail(locked_project, TaskImpostazioni.get_singleton()) if locked_project is not None else None,
@@ -1566,6 +1708,9 @@ def task_edit(request, task_id: int):
             if updated_task.is_overdue:
                 messages.warning(request, "Task in stato overdue.")
             _add_task_absence_warnings(request, updated_task)
+            updated_task.reminder_portal_enabled = bool(form.cleaned_data.get("reminder_portal_enabled_field"))
+            updated_task.save(update_fields=["reminder_portal_enabled"])
+            _sync_task_integrations(request, updated_task, form, action="edit")
             return redirect("tasks:detail", task_id=updated_task.id)
     else:
         form = TaskForm(instance=task, user=request.user, project_queryset=projects_qs)
@@ -1784,6 +1929,61 @@ def add_attachment(request, task_id: int):
         messages.error(request, "Upload allegato non valido.")
 
     return redirect("tasks:detail", task_id=task.id)
+
+
+@task_permissions_required("tasks_view", "tasks_create")
+def project_create(request):
+    """Crea un nuovo kickoff (Project) e avvia il workflow VRF.
+
+    Flow: anagrafica kickoff -> salvataggio Project -> redirect a vrf_compile.
+    Se l'utente compila P/N + revisione + versione gia' esistenti, il form
+    intercetta il duplicato e reindirizza al kickoff gia' presente.
+    """
+    projects_qs = _scoped_projects_queryset(request)
+
+    if request.method == "POST":
+        form = ProjectKickoffForm(request.POST, project_queryset=projects_qs)
+        if form.is_valid():
+            if form.reused_existing_project is not None:
+                reused = form.reused_existing_project
+                messages.info(
+                    request,
+                    f"Kickoff gia' esistente per questo P/N: riutilizzo '{reused.name}'. "
+                    "Procedi con la scheda VRF o aggiungi una nuova attivita.",
+                )
+                log_action(request, "kickoff_reused_on_create", "tasks", {
+                    "project_id": reused.id,
+                    "part_number": reused.part_number,
+                    "message": f"Kickoff #{reused.id} riutilizzato da form Nuovo kickoff",
+                })
+                return redirect("tasks:project_vrf_compile", project_id=reused.id)
+
+            project = form.save(commit=False)
+            project.created_by = request.user
+            project.save()
+            log_action(request, "kickoff_created", "tasks", {
+                "project_id": project.id,
+                "part_number": project.part_number,
+                "client_name": project.client_name,
+                "message": f"Nuovo kickoff #{project.id} '{project.name}' creato",
+            })
+            messages.success(
+                request,
+                f"Kickoff '{project.name}' creato. Compila la scheda VRF per proseguire.",
+            )
+            return redirect("tasks:project_vrf_compile", project_id=project.id)
+    else:
+        form = ProjectKickoffForm(project_queryset=projects_qs)
+
+    return render(
+        request,
+        "tasks/project_create.html",
+        {
+            **_tasks_shell_context(request, active="projects"),
+            "page_title": "Nuovo kickoff",
+            "form": form,
+        },
+    )
 
 
 @task_permissions_required("tasks_view")
@@ -2282,6 +2482,169 @@ def gestione_admin(request):
     return redirect(target_url)
 
 
+def _handle_tasks_roles_post(request):
+    """POST tab ruoli: set completo delle assegnazioni ricalcolato dal form."""
+    from .models import TaskRoleAssignment, TaskRoleType
+
+    target_url = f"{reverse('tasks:impostazioni')}?tab=ruoli"
+    q_user = request.POST.get("q_user", "").strip()
+    if q_user:
+        target_url = f"{target_url}&q_user={q_user}"
+
+    # raccoglie tutti i checkbox inviati: name="role__<PM|CC|PRG>__<user_id>"
+    desired: set[tuple[int, str]] = set()
+    for key in request.POST:
+        if not key.startswith("role__"):
+            continue
+        parts = key.split("__")
+        if len(parts) != 3:
+            continue
+        _, role_code, uid_raw = parts
+        if role_code not in {"PM", "CC", "PRG"}:
+            continue
+        try:
+            uid = int(uid_raw)
+        except (TypeError, ValueError):
+            continue
+        desired.add((uid, role_code))
+
+    # valutiamo solo gli utenti visibili nel form (non tocchiamo utenti filtrati fuori)
+    visible_uids = [int(x) for x in request.POST.getlist("visible_user_id")]
+    if not visible_uids:
+        messages.warning(request, "Nessun utente visibile: nessuna modifica ai ruoli.")
+        return redirect(target_url)
+
+    # delete + recreate (diff sul subset visible)
+    existing = set(
+        TaskRoleAssignment.objects.filter(user_id__in=visible_uids)
+        .values_list("user_id", "role_type")
+    )
+    to_add = {pair for pair in desired if pair[0] in visible_uids} - existing
+    to_remove = existing - {pair for pair in desired if pair[0] in visible_uids}
+
+    with transaction.atomic():
+        if to_remove:
+            q = Q()
+            for uid, rtype in to_remove:
+                q |= Q(user_id=uid, role_type=rtype)
+            TaskRoleAssignment.objects.filter(q).delete()
+        TaskRoleAssignment.objects.bulk_create([
+            TaskRoleAssignment(user_id=uid, role_type=rtype)
+            for uid, rtype in to_add
+        ])
+
+    log_action(request, "ruoli_aggiornati", "tasks", {
+        "message": f"Aggiornati ruoli operativi kickoff: +{len(to_add)} -{len(to_remove)}",
+        "added": sorted(to_add),
+        "removed": sorted(to_remove),
+    })
+    messages.success(
+        request,
+        f"Ruoli aggiornati: +{len(to_add)} aggiunti, {len(to_remove)} rimossi.",
+    )
+    return redirect(target_url)
+
+
+def _handle_tasks_reminders_post(request):
+    """POST tab promemoria: azioni su TaskReminder (delete/postpone/fire_now)."""
+    from .models import TaskReminder, TaskStatus
+    from core.models import Notifica
+
+    target_url = f"{reverse('tasks:impostazioni')}?tab=promemoria"
+    filter_status = (request.POST.get("filter_status") or "").strip()
+    if filter_status:
+        target_url = f"{target_url}&filter_status={filter_status}"
+
+    action = (request.POST.get("reminder_action") or "").strip()
+    ids_raw = request.POST.getlist("reminder_id")
+    ids: list[int] = []
+    for r in ids_raw:
+        try:
+            ids.append(int(r))
+        except (TypeError, ValueError):
+            pass
+
+    if not ids:
+        messages.warning(request, "Nessun promemoria selezionato.")
+        return redirect(target_url)
+
+    qs = TaskReminder.objects.filter(id__in=ids)
+
+    if action == "delete":
+        n = qs.count()
+        qs.delete()
+        log_action(request, "reminder_eliminati", "tasks", {
+            "message": f"Eliminati {n} promemoria kickoff",
+            "ids": ids,
+        })
+        messages.success(request, f"{n} promemoria eliminati.")
+        return redirect(target_url)
+
+    if action == "postpone":
+        try:
+            days = max(1, int(request.POST.get("postpone_days") or 0))
+        except (TypeError, ValueError):
+            days = 0
+        if not days:
+            messages.error(request, "Specifica il numero di giorni di rinvio.")
+            return redirect(target_url)
+        updated = 0
+        for rem in qs.filter(fired=False):
+            rem.fire_at = rem.fire_at + timedelta(days=days)
+            rem.save(update_fields=["fire_at"])
+            updated += 1
+        log_action(request, "reminder_rimandati", "tasks", {
+            "message": f"Rimandati {updated} promemoria kickoff di {days} giorni",
+            "ids": ids,
+            "days": days,
+        })
+        messages.success(request, f"{updated} promemoria rimandati di {days} giorni.")
+        return redirect(target_url)
+
+    if action == "fire_now":
+        fired = 0
+        skipped = 0
+        for rem in qs.select_related("task", "task__project").filter(fired=False):
+            task = rem.task
+            if task is None:
+                rem.fired = True
+                rem.fired_at = timezone.now()
+                rem.save(update_fields=["fired", "fired_at"])
+                skipped += 1
+                continue
+            if task.status in {TaskStatus.DONE, TaskStatus.CANCELED}:
+                rem.fired = True
+                rem.fired_at = timezone.now()
+                rem.save(update_fields=["fired", "fired_at"])
+                skipped += 1
+                continue
+            project_label = f" [{task.project.name}]" if task.project_id and task.project else ""
+            due_str = task.due_date.strftime("%d/%m/%Y") if task.due_date else "(senza data)"
+            message_text = (
+                f"Promemoria scadenza attivita kickoff: \"{task.title}\"{project_label} "
+                f"in scadenza il {due_str}."
+            )[:500]
+            Notifica.objects.create(
+                legacy_user_id=int(rem.legacy_user_id or 0),
+                tipo="generico",
+                messaggio=message_text,
+                url_azione=reverse("tasks:detail", args=[task.id]),
+            )
+            rem.fired = True
+            rem.fired_at = timezone.now()
+            rem.save(update_fields=["fired", "fired_at"])
+            fired += 1
+        log_action(request, "reminder_forzati", "tasks", {
+            "message": f"Forzato invio di {fired} promemoria kickoff ({skipped} saltati)",
+            "ids": ids,
+        })
+        messages.success(request, f"Inviati {fired} promemoria ({skipped} saltati).")
+        return redirect(target_url)
+
+    messages.error(request, "Azione non riconosciuta.")
+    return redirect(target_url)
+
+
 @legacy_admin_required
 def impostazioni(request):
     """Pagina canonica impostazioni/admin del modulo Task."""
@@ -2289,6 +2652,12 @@ def impostazioni(request):
     config_url = f"{reverse('tasks:impostazioni')}?tab=config"
 
     if request.method == "POST":
+        posted_tab = (request.POST.get("tab") or "").strip().lower()
+        if posted_tab == "ruoli":
+            return _handle_tasks_roles_post(request)
+        if posted_tab == "promemoria":
+            return _handle_tasks_reminders_post(request)
+
         branding_response = handle_module_branding_post(
             request,
             module_key="tasks",
@@ -2477,6 +2846,198 @@ def project_vrf_upload(request, project_id: int):
         return redirect(next_url)
 
     return redirect(request.get_full_path())
+
+
+# ---------------------------------------------------------------------------
+# VRF compilazione online (matrice rischi MOD.073 Rev.10)
+# ---------------------------------------------------------------------------
+
+@task_permissions_required("tasks_view")
+def project_vrf_compile(request, project_id: int):
+    """Compila la matrice rischi VRF online e genera l'xlsx a conferma.
+
+    GET: mostra la matrice (con eventuale bozza salvata su VRFRiskAssessment).
+    POST action=save_draft: aggiorna la valutazione senza generare file.
+    POST action=confirm: genera xlsx, salva su project.vrf_file, marca UPLOADED.
+    """
+    from . import vrf_catalog
+    from .vrf_generator import build_vrf_xlsx, vrf_filename_for
+
+    project_qs = _scoped_projects_queryset(request)
+    project = get_object_or_404(project_qs, pk=project_id)
+    cfg = TaskImpostazioni.get_singleton()
+    vrf_detail = _vrf_status_detail(project, cfg)
+
+    if vrf_detail.get("is_blocked"):
+        messages.error(request, "Compilazione VRF bloccata: periodo di blocco superato.")
+        return redirect("tasks:project_gantt", project_id=project_id)
+
+    assessment = getattr(project, "vrf_assessment", None)
+    if assessment is None:
+        assessment = VRFRiskAssessment(project=project, data=vrf_catalog.default_scores())
+
+    if request.method == "POST":
+        action = request.POST.get("action", "")
+        data = vrf_catalog.default_scores()
+
+        for risk in vrf_catalog.RISKS:
+            r_code = risk["code"]
+            for ph in vrf_catalog.PHASES:
+                k_raw = request.POST.get(f"k_{r_code}_{ph['key']}", "").strip()
+                try:
+                    k_val = int(k_raw)
+                    k_val = max(vrf_catalog.K_RANGE[0], min(vrf_catalog.K_RANGE[1], k_val))
+                except (TypeError, ValueError):
+                    k_val = risk["k_default"][ph["key"]]
+                data["risks"][r_code]["k"][ph["key"]] = k_val
+
+                for sub in risk["sub_parameters"]:
+                    raw = request.POST.get(f"score_{r_code}_{sub['code']}_{ph['key']}", "").strip()
+                    if raw == "" or raw is None:
+                        data["risks"][r_code]["subs"][sub["code"]][ph["key"]] = None
+                    else:
+                        try:
+                            v = int(raw)
+                            v = max(vrf_catalog.R_RANGE[0], min(vrf_catalog.R_RANGE[1], v))
+                            data["risks"][r_code]["subs"][sub["code"]][ph["key"]] = v
+                        except (TypeError, ValueError):
+                            data["risks"][r_code]["subs"][sub["code"]][ph["key"]] = None
+
+        assessment.data = data
+        assessment.recompute_totals()
+        assessment.compiled_by = request.user if getattr(request.user, "is_authenticated", False) else None
+        assessment.compiled_at = timezone.now()
+        assessment.save()
+
+        if action == "save_draft":
+            log_action(request, "vrf_compiled_draft", "tasks", {
+                "project_id": project.id,
+                "message": f"Bozza VRF online salvata per kickoff #{project.id}",
+            })
+            messages.success(request, "Bozza VRF salvata. I totali sono aggiornati.")
+            return redirect("tasks:project_vrf_compile", project_id=project_id)
+
+        if action == "skip_with_reminder":
+            log_action(request, "vrf_skipped_with_reminder", "tasks", {
+                "project_id": project.id,
+                "message": f"VRF rimandato per kickoff #{project.id}, bozza salvata, stato PENDING",
+            })
+            messages.info(
+                request,
+                "Bozza VRF salvata. Il sistema ti ricordera' di completare la scheda VRF "
+                "secondo le impostazioni del modulo (promemoria e blocco progressivo).",
+            )
+            return redirect("tasks:project_gantt", project_id=project_id)
+
+        if action == "confirm":
+            from django.core.files.base import ContentFile
+            try:
+                xlsx_bytes = build_vrf_xlsx(project, assessment)
+            except FileNotFoundError:
+                messages.error(request, "Template VRF non disponibile sul server. Contattare l'amministratore.")
+                return redirect("tasks:project_vrf_compile", project_id=project_id)
+
+            filename = vrf_filename_for(project)
+            project.vrf_file.save(filename, ContentFile(xlsx_bytes), save=False)
+            project.vrf_original_name = filename
+            project.vrf_uploaded_at = timezone.now()
+            project.vrf_status = VRFDocStatus.UPLOADED
+            project.save()
+
+            log_action(request, "vrf_compiled_inline", "tasks", {
+                "project_id": project.id,
+                "filename": filename,
+                "total_p": assessment.total_p,
+                "total_i": assessment.total_i,
+                "total_c": assessment.total_c,
+                "dig_triggered": assessment.dig_triggered,
+                "message": f"VRF compilato online per kickoff #{project.id} - {project.name}",
+            })
+            if assessment.dig_triggered:
+                messages.warning(request, "VRF salvato. Attenzione: TR >= 46 in almeno una fase - richiesto coinvolgimento DIG.")
+            else:
+                messages.success(request, "VRF compilato e salvato. Kickoff sbloccato.")
+            return redirect("tasks:project_gantt", project_id=project_id)
+
+        messages.error(request, "Azione non riconosciuta.")
+        return redirect("tasks:project_vrf_compile", project_id=project_id)
+
+    totals = vrf_catalog.compute_totals(assessment.data or {})
+    risks_data = (assessment.data or {}).get("risks") or {}
+    enriched_risks = []
+    for risk in vrf_catalog.RISKS:
+        r_data = risks_data.get(risk["code"]) or {}
+        k_vals = r_data.get("k") or risk["k_default"]
+        subs_data = r_data.get("subs") or {}
+        enriched_subs = []
+        for sub in risk["sub_parameters"]:
+            sub_scores = subs_data.get(sub["code"]) or {}
+            enriched_subs.append({
+                "code": sub["code"],
+                "row": sub["row"],
+                "label": sub["label"],
+                "score_p": "" if sub_scores.get("p") is None else str(sub_scores.get("p")),
+                "score_i": "" if sub_scores.get("i") is None else str(sub_scores.get("i")),
+                "score_c": "" if sub_scores.get("c") is None else str(sub_scores.get("c")),
+            })
+        enriched_risks.append({
+            "code": risk["code"],
+            "row": risk["row"],
+            "title": risk["title"],
+            "k_p": k_vals.get("p", risk["k_default"]["p"]),
+            "k_i": k_vals.get("i", risk["k_default"]["i"]),
+            "k_c": k_vals.get("c", risk["k_default"]["c"]),
+            "sub_parameters": enriched_subs,
+        })
+
+    context = {
+        **_tasks_shell_context(request, active="projects", project=project),
+        "page_title": f"Compila VRF - {project.name}",
+        "project": project,
+        "vrf_detail": vrf_detail,
+        "assessment": assessment,
+        "risks": enriched_risks,
+        "phases": vrf_catalog.PHASES,
+        "totals": totals,
+        "dig_threshold": vrf_catalog.DIG_THRESHOLD,
+        "k_min": vrf_catalog.K_RANGE[0],
+        "k_max": vrf_catalog.K_RANGE[1],
+        "r_min": vrf_catalog.R_RANGE[0],
+        "r_max": vrf_catalog.R_RANGE[1],
+    }
+    return render(request, "tasks/project_vrf_compile.html", context)
+
+
+@task_permissions_required("tasks_view")
+def project_vrf_download(request, project_id: int):
+    """Scarica l'xlsx corrente (da vrf_file) oppure rigenera dal template+assessment."""
+    from django.http import FileResponse, HttpResponse
+    from .vrf_generator import build_vrf_xlsx, vrf_filename_for
+
+    project_qs = _scoped_projects_queryset(request)
+    project = get_object_or_404(project_qs, pk=project_id)
+
+    if project.vrf_file and project.vrf_file.name:
+        try:
+            return FileResponse(
+                project.vrf_file.open("rb"),
+                as_attachment=True,
+                filename=project.vrf_original_name or vrf_filename_for(project),
+            )
+        except FileNotFoundError:
+            pass
+
+    assessment = getattr(project, "vrf_assessment", None)
+    try:
+        xlsx_bytes = build_vrf_xlsx(project, assessment)
+    except FileNotFoundError:
+        return HttpResponse("Template VRF non disponibile sul server.", status=500)
+    response = HttpResponse(
+        xlsx_bytes,
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{vrf_filename_for(project)}"'
+    return response
 
 
 # ---------------------------------------------------------------------------

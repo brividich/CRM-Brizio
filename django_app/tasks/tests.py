@@ -24,6 +24,7 @@ from .models import (
     SubTask,
     Task,
     TaskAttachment,
+    TaskCalendarEvent,
     TaskComment,
     TaskEvent,
     TaskEventType,
@@ -863,11 +864,15 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         self.assertEqual(project.client_name, "Cliente Nuovo")
 
     def test_new_project_requires_part_number_when_revision_or_version_is_set(self):
+        # Regression: la validazione deve restare attiva sul ramo legacy
+        # `project_link_mode=new` del TaskForm (il template ora usa il flow
+        # dedicato /tasks/projects/new/ ma il backend mantiene compat).
         self.client.force_login(self.user)
         payload = self._base_task_payload("Task con revisione senza pn")
         payload.update(
             {
                 "task_scope": "project",
+                "project_link_mode": "new",
                 "project_new_revisione": "B",
             }
         )
@@ -1538,3 +1543,534 @@ class TaskEditAndDueDatePermissionsTests(TasksBaseTestCase):
         self.assertEqual(response.status_code, 302)
         self.task.refresh_from_db()
         self.assertEqual(self.task.due_date, target_due)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class TaskRoleAssignmentTests(TasksBaseTestCase):
+    def setUp(self):
+        super().setUp()
+        _ensure_role(1, "admin")
+        _ensure_role(2, "utente")
+        _grant_role_actions(2, ["tasks_view", "tasks_create"])
+        self._refresh_acl_cache()
+        self.admin = _create_user_with_legacy(
+            username="roleadmin", legacy_user_id=9101, role_id=1, role_name="admin",
+        )
+        self.alice = _create_user_with_legacy(
+            username="alice", legacy_user_id=9201, role_id=2, role_name="utente",
+        )
+        self.alice.first_name = "Alice"; self.alice.save()
+        self.bob = _create_user_with_legacy(
+            username="bob", legacy_user_id=9202, role_id=2, role_name="utente",
+        )
+        self.bob.first_name = "Bob"; self.bob.save()
+
+    def test_no_assignment_means_all_users_visible_in_form(self):
+        from .forms import _users_for_role
+        from .models import TaskRoleType
+        qs = _users_for_role(TaskRoleType.PROJECT_MANAGER)
+        # fallback: nessuna assegnazione -> tutti gli utenti
+        self.assertIn(self.alice, list(qs))
+        self.assertIn(self.bob, list(qs))
+
+    def test_with_assignment_filter_applies(self):
+        from .forms import _users_for_role
+        from .models import TaskRoleAssignment, TaskRoleType
+        TaskRoleAssignment.objects.create(user=self.alice, role_type=TaskRoleType.PROJECT_MANAGER)
+        qs = list(_users_for_role(TaskRoleType.PROJECT_MANAGER))
+        self.assertIn(self.alice, qs)
+        self.assertNotIn(self.bob, qs)
+        # altri ruoli: ancora fallback
+        qs_cc = list(_users_for_role(TaskRoleType.CAPO_COMMESSA))
+        self.assertIn(self.alice, qs_cc)
+        self.assertIn(self.bob, qs_cc)
+
+    def test_post_ruoli_tab_adds_and_removes_assignments(self):
+        from .models import TaskRoleAssignment, TaskRoleType
+        # alice parte con PM attivo
+        TaskRoleAssignment.objects.create(user=self.alice, role_type=TaskRoleType.PROJECT_MANAGER)
+        self.client.force_login(self.admin)
+        # Post: alice non piu' PM ma CC, bob diventa PRG
+        payload = {
+            "tab": "ruoli",
+            "visible_user_id": [str(self.alice.id), str(self.bob.id)],
+            f"role__CC__{self.alice.id}": "on",
+            f"role__PRG__{self.bob.id}": "on",
+        }
+        response = self.client.post(reverse("tasks:impostazioni"), payload)
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(
+            TaskRoleAssignment.objects.filter(user=self.alice, role_type=TaskRoleType.PROJECT_MANAGER).exists()
+        )
+        self.assertTrue(
+            TaskRoleAssignment.objects.filter(user=self.alice, role_type=TaskRoleType.CAPO_COMMESSA).exists()
+        )
+        self.assertTrue(
+            TaskRoleAssignment.objects.filter(user=self.bob, role_type=TaskRoleType.PROGRAMMER).exists()
+        )
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class TaskReminderAdminTabTests(TasksBaseTestCase):
+    def setUp(self):
+        super().setUp()
+        _ensure_role(1, "admin")
+        _ensure_role(2, "utente")
+        _grant_role_actions(2, ["tasks_view", "tasks_create", "tasks_edit"])
+        self._refresh_acl_cache()
+        self.admin = _create_user_with_legacy(
+            username="remadmin", legacy_user_id=9401, role_id=1, role_name="admin",
+        )
+        self.user = _create_user_with_legacy(
+            username="remuser", legacy_user_id=9501, role_id=2, role_name="utente",
+        )
+        self.project = Project.objects.create(name="KO rem", created_by=self.user)
+        self.task = Task.objects.create(
+            title="T rem", project=self.project, assigned_to=self.user,
+            due_date=timezone.localdate() + timedelta(days=5),
+            created_by=self.user, reminder_portal_enabled=True,
+        )
+
+    def test_postpone_shifts_fire_at(self):
+        from .models import TaskReminder
+        rem = TaskReminder.objects.create(
+            task=self.task, legacy_user_id=9501,
+            fire_at=timezone.localdate(),
+        )
+        original_fire = rem.fire_at
+        self.client.force_login(self.admin)
+        response = self.client.post(reverse("tasks:impostazioni"), {
+            "tab": "promemoria",
+            "reminder_action": "postpone",
+            "reminder_id": [str(rem.id)],
+            "postpone_days": "5",
+        })
+        self.assertEqual(response.status_code, 302)
+        rem.refresh_from_db()
+        self.assertEqual(rem.fire_at, original_fire + timedelta(days=5))
+
+    def test_delete_removes_selected(self):
+        from .models import TaskReminder
+        rem = TaskReminder.objects.create(
+            task=self.task, legacy_user_id=9501, fire_at=timezone.localdate(),
+        )
+        self.client.force_login(self.admin)
+        response = self.client.post(reverse("tasks:impostazioni"), {
+            "tab": "promemoria",
+            "reminder_action": "delete",
+            "reminder_id": [str(rem.id)],
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(TaskReminder.objects.filter(id=rem.id).exists())
+
+    def test_fire_now_creates_notifica_and_marks_fired(self):
+        from .models import TaskReminder
+        rem = TaskReminder.objects.create(
+            task=self.task, legacy_user_id=9501,
+            fire_at=timezone.localdate() + timedelta(days=3),
+        )
+        self.client.force_login(self.admin)
+        response = self.client.post(reverse("tasks:impostazioni"), {
+            "tab": "promemoria",
+            "reminder_action": "fire_now",
+            "reminder_id": [str(rem.id)],
+        })
+        self.assertEqual(response.status_code, 302)
+        rem.refresh_from_db()
+        self.assertTrue(rem.fired)
+        self.assertEqual(Notifica.objects.filter(legacy_user_id=9501).count(), 1)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class TaskOutlookReminderTests(TasksBaseTestCase):
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "utente")
+        _grant_role_actions(2, ["tasks_view", "tasks_create", "tasks_edit"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="outlookuser", legacy_user_id=8001, role_id=2, role_name="utente",
+        )
+        self.project = Project.objects.create(name="KO Reminder", created_by=self.user)
+        self.impostazioni = TaskImpostazioni.get_singleton()
+        self.impostazioni.notifiche_scadenza_attive = True
+        self.impostazioni.giorni_preavviso = 3
+        self.impostazioni.save()
+
+    def test_reminder_created_on_task_save_when_enabled(self):
+        from .models import TaskReminder
+
+        target_due = timezone.localdate() + timedelta(days=10)
+        self.client.force_login(self.user)
+        payload = {
+            "title": "Task con reminder",
+            "description": "",
+            "status": TaskStatus.TODO,
+            "priority": TaskPriority.MEDIUM,
+            "task_scope": "project",
+            "project_link_mode": "existing",
+            "project_choice": str(self.project.id),
+            "due_date": target_due.isoformat(),
+            "assigned_to": str(self.user.id),
+            "reminder_portal_enabled_field": "on",
+        }
+        response = self.client.post(reverse("tasks:create"), payload)
+        self.assertEqual(response.status_code, 302)
+        task = Task.objects.get(title="Task con reminder")
+        self.assertTrue(task.reminder_portal_enabled)
+        reminders = TaskReminder.objects.filter(task=task)
+        self.assertEqual(reminders.count(), 1)
+        r = reminders.first()
+        self.assertEqual(r.fire_at, target_due - timedelta(days=3))
+        self.assertEqual(r.legacy_user_id, 8001)
+        self.assertFalse(r.fired)
+
+    def test_reminder_not_created_when_disabled(self):
+        from .models import TaskReminder
+
+        target_due = timezone.localdate() + timedelta(days=10)
+        self.client.force_login(self.user)
+        payload = {
+            "title": "Task senza reminder",
+            "description": "",
+            "status": TaskStatus.TODO,
+            "priority": TaskPriority.MEDIUM,
+            "task_scope": "project",
+            "project_link_mode": "existing",
+            "project_choice": str(self.project.id),
+            "due_date": target_due.isoformat(),
+            "assigned_to": str(self.user.id),
+            # reminder_portal_enabled_field NOT sent => False
+        }
+        response = self.client.post(reverse("tasks:create"), payload)
+        self.assertEqual(response.status_code, 302)
+        task = Task.objects.get(title="Task senza reminder")
+        self.assertFalse(task.reminder_portal_enabled)
+        self.assertEqual(TaskReminder.objects.filter(task=task).count(), 0)
+
+    def test_send_task_reminders_command_creates_notifica(self):
+        from .models import TaskReminder
+        from django.core.management import call_command
+        from io import StringIO
+
+        task = Task.objects.create(
+            title="T reminder fire",
+            project=self.project,
+            assigned_to=self.user,
+            due_date=timezone.localdate() + timedelta(days=1),
+            created_by=self.user,
+            reminder_portal_enabled=True,
+        )
+        TaskReminder.objects.create(
+            task=task, legacy_user_id=8001,
+            fire_at=timezone.localdate(),
+        )
+        out = StringIO()
+        call_command("send_task_reminders", stdout=out)
+        r = TaskReminder.objects.get(task=task)
+        self.assertTrue(r.fired)
+        self.assertIsNotNone(r.fired_at)
+        self.assertEqual(
+            Notifica.objects.filter(legacy_user_id=8001).count(),
+            1,
+        )
+        notif = Notifica.objects.get(legacy_user_id=8001)
+        self.assertIn("T reminder fire", notif.messaggio)
+        self.assertTrue(notif.url_azione)
+
+    def test_send_task_reminders_skips_closed_task(self):
+        from .models import TaskReminder
+        from django.core.management import call_command
+        from io import StringIO
+
+        task = Task.objects.create(
+            title="T chiuso",
+            project=self.project, assigned_to=self.user,
+            due_date=timezone.localdate() + timedelta(days=1),
+            status=TaskStatus.DONE,
+            created_by=self.user, reminder_portal_enabled=True,
+        )
+        TaskReminder.objects.create(
+            task=task, legacy_user_id=8001, fire_at=timezone.localdate(),
+        )
+        call_command("send_task_reminders", stdout=StringIO())
+        self.assertTrue(TaskReminder.objects.get(task=task).fired)
+        self.assertEqual(Notifica.objects.filter(legacy_user_id=8001).count(), 0)
+
+    def test_edit_form_prefills_existing_outlook_target(self):
+        from .forms import TaskForm
+
+        task = Task.objects.create(
+            title="Task con evento Outlook",
+            project=self.project,
+            assigned_to=self.user,
+            due_date=timezone.localdate() + timedelta(days=2),
+            created_by=self.user,
+            reminder_portal_enabled=True,
+        )
+        TaskCalendarEvent.objects.create(
+            task=task,
+            source_key=f"tasks.task:{task.id}:due",
+            target_email="planner@example.com",
+            target_display_name="Planner",
+            due_date=task.due_date,
+            subject="Task con evento Outlook",
+            transaction_id="tx-001",
+            graph_event_id="evt-001",
+            graph_event_web_link="https://outlook.office.com/calendar/item/evt-001",
+            created_by=self.user,
+        )
+
+        form = TaskForm(instance=task)
+
+        self.assertTrue(form.initial["add_to_outlook"])
+        self.assertEqual(form.initial["outlook_target_email"], "planner@example.com")
+
+    def test_sync_task_outlook_event_access_denied_message_is_actionable(self):
+        from unittest.mock import patch
+
+        from .outlook_reminder import sync_task_outlook_event
+
+        self.user.email = "outlook.user@cnovicrom.local"
+        self.user.save(update_fields=["email"])
+        task = Task.objects.create(
+            title="Task access denied",
+            project=self.project,
+            assigned_to=self.user,
+            due_date=timezone.localdate() + timedelta(days=4),
+            created_by=self.user,
+            reminder_portal_enabled=True,
+        )
+
+        with patch("tasks.outlook_reminder.graph_ready", return_value=True), patch(
+            "tasks.outlook_reminder.create_event",
+            side_effect=RuntimeError("Access is denied. Check credentials and try again."),
+        ):
+            level, message = sync_task_outlook_event(
+                request=None,
+                task=task,
+                requested=True,
+                explicit_email="",
+            )
+
+        self.assertEqual(level, "warning")
+        self.assertIn("Calendars.ReadWrite", message)
+        self.assertIn("Email calendario Outlook", message)
+        self.assertIn(".local", message)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class ProjectCreateFlowTests(TasksBaseTestCase):
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "utente")
+        _grant_role_actions(2, ["tasks_view", "tasks_create", "tasks_edit"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="kickoffuser", legacy_user_id=7001, role_id=2, role_name="utente",
+        )
+
+    def test_get_project_create_page(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("tasks:project_create"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Nuovo kickoff")
+        self.assertContains(response, 'name="part_number"')
+        self.assertContains(response, 'name="client_name"')
+
+    def test_post_creates_project_and_redirects_to_vrf_compile(self):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("tasks:project_create"),
+            {
+                "client_name": "Cliente Test",
+                "part_number": "PN-NEW-001",
+                "revisione": "A",
+                "versione": "1.0",
+                "description": "Desc",
+                "control_method": "",
+                "vrf_quote_number": "Q-1",
+                "vrf_description": "",
+                "vrf_esp": "02",
+            },
+        )
+        project = Project.objects.get(part_number="PN-NEW-001")
+        self.assertRedirects(
+            response,
+            reverse("tasks:project_vrf_compile", args=[project.id]),
+        )
+        self.assertEqual(project.client_name, "Cliente Test")
+        self.assertEqual(project.revisione, "A")
+        self.assertEqual(project.created_by, self.user)
+
+    def test_revisione_without_part_number_rejected(self):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("tasks:project_create"),
+            {"client_name": "X", "part_number": "", "revisione": "A", "versione": ""},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Revisione e versione sono valide solo con un P/N indicato.",
+        )
+        self.assertFalse(Project.objects.filter(client_name="X").exists())
+
+    def test_duplicate_identity_reuses_existing_kickoff(self):
+        existing = Project.objects.create(
+            part_number="DUP-001", revisione="B", versione="2.0",
+            client_name="Cliente Precedente", created_by=self.user,
+        )
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("tasks:project_create"),
+            {
+                "client_name": "Cliente Nuovo",
+                "part_number": "DUP-001",
+                "revisione": "B",
+                "versione": "2.0",
+            },
+        )
+        self.assertRedirects(
+            response,
+            reverse("tasks:project_vrf_compile", args=[existing.id]),
+        )
+        self.assertEqual(Project.objects.filter(part_number="DUP-001").count(), 1)
+        existing.refresh_from_db()
+        self.assertEqual(existing.client_name, "Cliente Precedente")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class VRFCompileOnlineTests(TasksBaseTestCase):
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "utente")
+        _grant_role_actions(2, ["tasks_view", "tasks_create", "tasks_edit"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="vrfuser", legacy_user_id=6001, role_id=2, role_name="utente",
+        )
+        tmp_root = Path(__file__).resolve().parents[1] / ".tmp_tests"
+        tmp_root.mkdir(parents=True, exist_ok=True)
+        self._media_root = str(tmp_root / f"vrf_compile_{uuid4().hex}")
+        Path(self._media_root).mkdir(parents=True, exist_ok=True)
+        self._media_override = override_settings(MEDIA_ROOT=self._media_root)
+        self._media_override.enable()
+        today = timezone.localdate()
+        Path(self._media_root, "tasks_vrf", today.strftime("%Y"), today.strftime("%m")).mkdir(parents=True, exist_ok=True)
+        self.addCleanup(self._media_override.disable)
+        self.addCleanup(shutil.rmtree, self._media_root, True)
+        self.project = Project.objects.create(
+            name="TBD",
+            client_name="Test Client",
+            part_number="PN-TEST-1",
+            vrf_description="Particolare di test",
+            vrf_esp="02",
+            vrf_quote_number="Q-TEST",
+            created_by=self.user,
+        )
+
+    def test_compile_page_renders_full_matrix(self):
+        self.client.force_login(self.user)
+        response = self.client.get(
+            reverse("tasks:project_vrf_compile", args=[self.project.id])
+        )
+        self.assertEqual(response.status_code, 200)
+        for r_code in ("R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9"):
+            self.assertContains(response, f'data-risk="{r_code}"')
+        self.assertContains(response, 'name="score_R1_a_p"')
+        self.assertContains(response, 'name="k_R2_c"')
+
+    def test_save_draft_persists_scores_and_recomputes_totals(self):
+        from .models import VRFRiskAssessment
+
+        self.client.force_login(self.user)
+        payload = {
+            "action": "save_draft",
+            "score_R1_a_p": "3", "score_R1_b_p": "2",
+            "score_R2_a_p": "1", "score_R2_b_p": "2", "score_R2_c_p": "3",
+            "k_R1_p": "3", "k_R1_i": "3", "k_R1_c": "3",
+            "k_R2_p": "3", "k_R2_i": "3", "k_R2_c": "5",
+        }
+        response = self.client.post(
+            reverse("tasks:project_vrf_compile", args=[self.project.id]), payload
+        )
+        self.assertEqual(response.status_code, 302)
+        assessment = VRFRiskAssessment.objects.get(project=self.project)
+        self.assertEqual(assessment.data["risks"]["R1"]["subs"]["a"]["p"], 3)
+        self.assertEqual(assessment.data["risks"]["R2"]["subs"]["c"]["p"], 3)
+        self.assertGreater(assessment.total_p, 0.0)
+        self.assertEqual(assessment.total_i, 0.0)
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.vrf_status, VRFDocStatus.PENDING)
+
+    def test_confirm_generates_xlsx_and_marks_uploaded(self):
+        self.client.force_login(self.user)
+        payload = {
+            "action": "confirm",
+            "score_R1_a_p": "2", "score_R1_b_p": "3",
+            "k_R1_p": "3",
+        }
+        response = self.client.post(
+            reverse("tasks:project_vrf_compile", args=[self.project.id]), payload
+        )
+        self.assertEqual(response.status_code, 302)
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.vrf_status, VRFDocStatus.UPLOADED)
+        self.assertTrue(self.project.vrf_file.name)
+        self.assertTrue(self.project.vrf_original_name.endswith(".xlsx"))
+        import openpyxl
+        self.project.vrf_file.open("rb")
+        try:
+            wb = openpyxl.load_workbook(io.BytesIO(self.project.vrf_file.read()))
+        finally:
+            self.project.vrf_file.close()
+        ws = wb["VRF"]
+        self.assertEqual(ws["B3"].value, "PN-TEST-1")
+        self.assertEqual(ws["B4"].value, "Test Client")
+        self.assertEqual(ws["U8"].value, 2)
+        self.assertEqual(ws["U9"].value, 3)
+        wb.close()
+
+    def test_skip_with_reminder_saves_draft_and_redirects_to_gantt(self):
+        from .models import VRFRiskAssessment
+
+        self.client.force_login(self.user)
+        payload = {
+            "action": "skip_with_reminder",
+            "score_R1_a_p": "2",
+            "k_R1_p": "3",
+        }
+        response = self.client.post(
+            reverse("tasks:project_vrf_compile", args=[self.project.id]), payload
+        )
+        self.assertRedirects(
+            response,
+            reverse("tasks:project_gantt", args=[self.project.id]),
+        )
+        # Stato rimane PENDING (non UPLOADED): il reminder progressivo resta attivo
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.vrf_status, VRFDocStatus.PENDING)
+        # La bozza e' comunque stata salvata
+        assessment = VRFRiskAssessment.objects.get(project=self.project)
+        self.assertEqual(assessment.data["risks"]["R1"]["subs"]["a"]["p"], 2)
+
+    def test_dig_threshold_triggered_when_totals_high(self):
+        from .models import VRFRiskAssessment
+        from . import vrf_catalog
+
+        self.client.force_login(self.user)
+        payload = {"action": "save_draft"}
+        for risk in vrf_catalog.RISKS:
+            for sub in risk["sub_parameters"]:
+                payload[f"score_{risk['code']}_{sub['code']}_p"] = "3"
+            payload[f"k_{risk['code']}_p"] = "5"
+            payload[f"k_{risk['code']}_i"] = str(risk["k_default"]["i"])
+            payload[f"k_{risk['code']}_c"] = str(risk["k_default"]["c"])
+        response = self.client.post(
+            reverse("tasks:project_vrf_compile", args=[self.project.id]), payload
+        )
+        self.assertEqual(response.status_code, 302)
+        assessment = VRFRiskAssessment.objects.get(project=self.project)
+        self.assertGreaterEqual(assessment.total_p, vrf_catalog.DIG_THRESHOLD)
+        self.assertTrue(assessment.dig_triggered)

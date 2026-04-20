@@ -832,6 +832,22 @@
     </section>
   {% endif %}
 
+  {# ── Step 3/3 del wizard: gantt vuoto, suggerisci prima attivita ── #}
+  {% if total_tasks == 0 %}
+    <section class="ts-panel" style="border-left: 4px solid #ea580c;">
+      <div class="ts-panel-body" style="display:flex; gap:16px; align-items:center; flex-wrap:wrap; padding:18px 22px;">
+        <div style="flex:1; min-width:240px;">
+          <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:#ea580c; font-weight:700; margin-bottom:4px;">Step 3/3 · Attivita' di lavorazione</div>
+          <h3 style="margin:0 0 6px 0; font-size:16px; color:#0f172a;">Aggiungi la prima attivita' al kickoff</h3>
+          <p style="margin:0; font-size:13px; color:#64748b;">
+            Kickoff creato{% if vrf_detail.status == 'ok' %} e scheda VRF compilata{% endif %}. Ora puoi iniziare la pianificazione: definisci titolo, responsabile e date della prima attivita' di lavorazione.
+          </p>
+        </div>
+        <a href="{% url 'tasks:create' %}?project={{ project.id }}" class="btn">Aggiungi prima attivita' &rarr;</a>
+      </div>
+    </section>
+  {% endif %}
+
   {# ── Spotlight: progress + health ── #}
   <div class="g-spotlight">
     <article class="g-progress-card">

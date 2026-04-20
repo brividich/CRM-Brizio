@@ -1,0 +1,146 @@
+{
+  "_meta": {
+    "template_file": "MOD.073 - VRF Rev.10 NEW.xlsx",
+    "sheet": "VRF",
+    "rev": "10",
+    "extracted_at": "2026-04-19",
+    "header_cells": {
+      "preventivo_numero": "O2",
+      "versione": "P2",
+      "part_number": "B3",
+      "descrizione": "I3",
+      "esp": "P3",
+      "cliente": "B4"
+    },
+    "phase_columns": {
+      "preventivazione": {"input_default": "U", "k_weight": "Y", "k_x_rmedio": "Z"},
+      "industrializzazione": {"input_default": "AB", "k_weight": "AF", "k_x_rmedio": "AG"},
+      "produzione_consegna": {"input_default": "AI", "k_weight": "AM", "k_x_rmedio": "AN"}
+    },
+    "totale_rischio_cells": {"preventivazione": "Z61", "industrializzazione": "AG61", "produzione_consegna": "AN61"},
+    "scale_probabilita": {"0": "N/A", "1": "Bassa", "2": "Media", "3": "Alta"},
+    "scale_impatto_k": "1..5",
+    "soglie_rischio_singolo": {"basso": "<4", "medio": "4..6", "alto": ">=6"},
+    "soglia_tr_alto_dig": 46,
+    "note": "Le AVG formulas originali variano colonna (U/V/W) per riga. Il generatore xlsx scrive il punteggio utente sulla colonna canonica del sub-param per phase P; per phase I e C scrive direttamente sul risk header (comportamento reale del template). I totali sono ricalcolati server-side e verificati contro Excel alla prima apertura."
+  },
+  "risks": [
+    {
+      "code": "R1",
+      "row": 7,
+      "title": "Rischio di Mancata comprensione dei Requisiti di Fornitura",
+      "k_default": {"preventivazione": 3, "industrializzazione": 3, "produzione_consegna": 3},
+      "sub_parameters": [
+        {"code": "a", "row": 8,  "label": "Idoneità, Complessità e Comprensione della Documentazione Tecnica (Disegni 2D, DBT, Modelli 3D, Cicli e Fogli Operativi del Cliente)"},
+        {"code": "b", "row": 9,  "label": "Idoneità e Comprensione Condizioni di Fornitura (incluso/escluso Materie Prime, Normaleria, Attrezzature, Strumenti di Collaudo, Utensili)"},
+        {"code": "c", "row": 10, "label": "Idoneità e Comprensione Specifiche e Norme richiamate, Lista Fornitori/Terzisti qualificati dal Cliente"},
+        {"code": "d", "row": 11, "label": "Idoneità e Comprensione dei Requisiti Validazione Tecnologica per Prima fornitura (o per passaggio da Proto a Serie)"},
+        {"code": "e", "row": 12, "label": "Idoneità e Comprensione dei Requisiti di Collaudo per Forniture Successive (PDC, Quote Critiche, Evidenze Fotografiche…)"},
+        {"code": "f", "row": 13, "label": "Idoneità e Comprensione di Informazioni inerenti REACH o Conflict Minerals"},
+        {"code": "g", "row": 14, "label": "Disponibilità e Comprensione Piani di Consegna (quantità e numerosità dei lotti, schedulazione, deadlines)"},
+        {"code": "h", "row": 15, "label": "Disponibilità e Comprensione Eventuale Target Economico"},
+        {"code": "i", "row": 16, "label": "Disponibilità e Comprensione norme applicative di eventuali penali (addebito scarto fusioni, sanzioni ritardo consegne)"}
+      ]
+    },
+    {
+      "code": "R2",
+      "row": 17,
+      "title": "Rischio Sicurezza dei Lavoratori e Ambiente",
+      "k_default": {"preventivazione": 3, "industrializzazione": 3, "produzione_consegna": 5},
+      "sub_parameters": [
+        {"code": "a", "row": 18, "label": "Difficoltà Movimentazione causa Dimensioni e Peso del particolare"},
+        {"code": "b", "row": 19, "label": "Criticità di lavorazione del materiale e necessità di eventuali accorgimenti (Infiammabilità, Esalazioni)"},
+        {"code": "c", "row": 20, "label": "Utilizzo di Sostanze Chimiche"}
+      ]
+    },
+    {
+      "code": "R3",
+      "row": 21,
+      "title": "Rischio di Fattibilità dei processi di trasformazione, conservazione e collaudo",
+      "k_default": {"preventivazione": 3, "industrializzazione": 3, "produzione_consegna": 3},
+      "sub_parameters": [
+        {"code": "a", "row": 22, "label": "Difficoltà di Lavorazione, Collaudo, Movimentazione e/o Stoccaggio legate a Fattori Dimensionali (Ingombro, Peso, Forma)"},
+        {"code": "b", "row": 23, "label": "Lavorabilità Materiale di Partenza (durezza, surriscaldamento, necessità utensili speciali)"},
+        {"code": "c", "row": 24, "label": "Particolare soggetto a deformazioni (spessori sottili, instabilità del pezzo, deformazioni da trattamenti)"},
+        {"code": "d", "row": 25, "label": "Fattibilità di Lavorazione e Collaudo di eventuali Tolleranze e/o Lavorazioni Critiche (utensili/strumenti di misura speciali)"},
+        {"code": "e", "row": 26, "label": "Conoscenza e Fattibilità Metodo di Mantenimento / Conservazione"},
+        {"code": "f", "row": 27, "label": "Possibilità di verificare Commesse analoghe (metodo e tempi di lavoro, lessons learned)"}
+      ]
+    },
+    {
+      "code": "R4",
+      "row": 28,
+      "title": "Rischio di Inadeguatezza tecnica e tecnologica dei mezzi di produzione e collaudo",
+      "k_default": {"preventivazione": 2, "industrializzazione": 2, "produzione_consegna": 3},
+      "sub_parameters": [
+        {"code": "a", "row": 29, "label": "Disponibilità e Manutenzione Impianti di Produzione e Collaudo"},
+        {"code": "b", "row": 30, "label": "Disponibilità e Manutenzione Attrezzature di Produzione (divisore, lunetta, attrezzature specifiche)"},
+        {"code": "c", "row": 31, "label": "Disponibilità e Taratura Apparecchiature di Collaudo (tastatori speciali, apparecchi di misura specifici)"},
+        {"code": "d", "row": 32, "label": "Disponibilità e Manutenzione idonei strumenti di movimentazione e aree di stoccaggio"},
+        {"code": "e", "row": 33, "label": "Disponibilità e Numero di Risorse con Idonea Esperienza (Skill Matrix)"}
+      ]
+    },
+    {
+      "code": "R5",
+      "row": 34,
+      "title": "Rischio di Errata Pianificazione delle attività interne",
+      "k_default": {"preventivazione": 2, "industrializzazione": 2, "produzione_consegna": 3},
+      "sub_parameters": [
+        {"code": "a", "row": 35, "label": "Disponibilità Risorse per Industrializzazione nel periodo richiesto (verifica carichi ingegneria e programmatori)"},
+        {"code": "b", "row": 36, "label": "Disponibilità Mezzi di Produzione e Collaudo nel periodo richiesto (carichi macchina, disponibilità personale)"},
+        {"code": "c", "row": 37, "label": "Criticità di bilanciamento tra Fasi / Reparti / Impianti (Colli di Bottiglia)"},
+        {"code": "d", "row": 38, "label": "Disponibilità di Metodologie Produttive alternative (metodi alternativi, spostamento fasi su altri reparti o terzisti)"}
+      ]
+    },
+    {
+      "code": "R6",
+      "row": 39,
+      "title": "Rischio connesso all'Approvvigionamento materiali di partenza e/o assemblaggio",
+      "k_default": {"preventivazione": 2, "industrializzazione": 2, "produzione_consegna": 3},
+      "sub_parameters": [
+        {"code": "a", "row": 40, "label": "Difficile reperibilità e/o criticità dei tempi di approvvigionamento della materia prima"},
+        {"code": "b", "row": 41, "label": "Difficile reperibilità e/o criticità dei tempi di approvvigionamento di normaleria"},
+        {"code": "c", "row": 42, "label": "Disponibilità strumenti e criteri di accettazione materiali/normaleria"},
+        {"code": "d", "row": 43, "label": "Incidenza elevata di eventuali MOQ su valore economico del singolo prodotto"},
+        {"code": "e", "row": 44, "label": "Elevata esposizione finanziaria complessiva derivante da acquisto materiali/normaleria"}
+      ]
+    },
+    {
+      "code": "R7",
+      "row": 45,
+      "title": "Rischio connesso alla Gestione fasi di trasformazione esterne",
+      "k_default": {"preventivazione": 2, "industrializzazione": 2, "produzione_consegna": 3},
+      "sub_parameters": [
+        {"code": "a", "row": 46, "label": "Difficile reperibilità e/o criticità dei lead time di processo (tempi attrezzaggio fornitore, fornitori alternativi, attendibilità consegne)"},
+        {"code": "b", "row": 47, "label": "Disponibilità strumenti e criteri di accettazione materiali processati"},
+        {"code": "c", "row": 48, "label": "Incidenza elevata del processo su valore economico del singolo prodotto (costo processo, attrezzaggio, minimo fatturabile)"}
+      ]
+    },
+    {
+      "code": "R8",
+      "row": 49,
+      "title": "Rischio connesso alla gestione dei Processi Speciali",
+      "k_default": {"preventivazione": 3, "industrializzazione": 3, "produzione_consegna": 3},
+      "sub_parameters": [
+        {"code": "a", "row": 50, "label": "Idoneità e Comprensione informazioni su processi speciali richiesti da cliente"},
+        {"code": "b", "row": 51, "label": "Disponibilità e Manutenzione Impianti appositamente qualificati"},
+        {"code": "c", "row": 52, "label": "Disponibilità e Numero di Risorse con Idonea Qualifica (Skill Matrix)"},
+        {"code": "d", "row": 53, "label": "Disponibilità strumenti e criteri di accettazione materiali processati"},
+        {"code": "e", "row": 54, "label": "Verifica validità della qualifica fornitore da parte del cliente"}
+      ]
+    },
+    {
+      "code": "R9",
+      "row": 55,
+      "title": "Rischio Economico - Finanziario",
+      "k_default": {"preventivazione": 3, "industrializzazione": 3, "produzione_consegna": 3},
+      "sub_parameters": [
+        {"code": "a", "row": 56, "label": "Disponibilità Risorse Finanziarie adeguate all'attività"},
+        {"code": "b", "row": 57, "label": "Situazione Crediti verso Cliente"},
+        {"code": "c", "row": 58, "label": "Probabilità di variazione significativa del costo di Fornitori/Terzisti"},
+        {"code": "d", "row": 59, "label": "Complessità di Gestione Clienti/Fornitori Esteri (Normative, Costi di Dogana)"},
+        {"code": "e", "row": 60, "label": "Onerosità di eventuali addebiti del cliente per non conformità o ritardi di consegna"}
+      ]
+    }
+  ]
+}

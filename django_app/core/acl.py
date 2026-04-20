@@ -142,6 +142,20 @@ def check_permesso(legacy_user: UtenteLegacy | None, path: str) -> bool:
 
     path_norm = normalize_acl_path(path)
     try:
+        from core.acl_v2 import evaluate_permission_code_access, resolve_canonical_target
+
+        canonical_target = resolve_canonical_target(path=path_norm)
+        canonical_binding = canonical_target.get("binding") or {}
+        canonical_permission_code = str(canonical_binding.get("permission_code") or "").strip()
+        if canonical_permission_code:
+            canonical_result = evaluate_permission_code_access(
+                permission_code=canonical_permission_code,
+                legacy_user=legacy_user,
+                allow_superuser=False,
+                allow_legacy_admin=False,
+            )
+            return bool(canonical_result.get("allowed", False))
+
         pulsante = _match_pulsante(path_norm)
         if not pulsante:
             _log_once_warning(
@@ -398,6 +412,22 @@ def evaluate_modulo_action_access(*, legacy_user: UtenteLegacy | None, modulo: s
         result["reason"] = "Ruolo legacy o coordinate modulo/azione mancanti."
         return result
     try:
+        from core.acl_v2 import evaluate_permission_code_access, normalize_permission_code
+
+        canonical_permission_code = normalize_permission_code(f"legacy.{modulo_norm}.{azione_norm}")
+        canonical_result = evaluate_permission_code_access(
+            permission_code=canonical_permission_code,
+            legacy_user=legacy_user,
+            allow_superuser=False,
+            allow_legacy_admin=False,
+        )
+        if canonical_result.get("permission"):
+            result["allowed"] = bool(canonical_result.get("allowed", False))
+            result["source"] = str(canonical_result.get("effective_level") or "canonical_permission")
+            result["reason"] = str(canonical_result.get("reason") or "")
+            result["override"] = canonical_result.get("user_override")
+            return result
+
         override = _get_user_override(int(legacy_user.id), modulo_norm, azione_norm)
         if override is not None and override.can_view is not None:
             allowed = bool(override.can_view)

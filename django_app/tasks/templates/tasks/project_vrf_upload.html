@@ -230,10 +230,23 @@
 
   {% if not preview %}
     {# ===== STEP 1: upload form ===== #}
+    {# --- CTA compila online --- #}
+    <section class="ts-panel" style="border-left: 4px solid #ea580c;">
+      <div class="ts-panel-body" style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+        <div style="flex:1; min-width:240px;">
+          <h3 style="margin:0 0 6px 0; font-size:15px; color:#0f172a;">Compila VRF online</h3>
+          <p style="margin:0; font-size:13px; color:#64748b;">Compila la matrice rischi MOD.073 Rev.10 direttamente nel browser (9 rischi, 45 sub-parametri). L'xlsx viene generato automaticamente dal template.</p>
+        </div>
+        <a href="{% url 'tasks:project_vrf_compile' project.id %}" class="btn">{% if vrf_detail.status == 'ok' %}Apri compilazione{% else %}Inizia compilazione{% endif %} &rarr;</a>
+      </div>
+    </section>
+
+    <div style="text-align:center; color:#94a3b8; font-size:11px; text-transform:uppercase; letter-spacing:0.08em; font-weight:700; margin: -6px 0;">oppure</div>
+
     <section class="ts-panel">
       <div class="ts-panel-head">
         <div class="ts-panel-title-wrap">
-          <h2 class="ts-panel-title">{% if vrf_detail.status == 'ok' %}Sostituisci documento VRF{% else %}Carica documento VRF{% endif %}</h2>
+          <h2 class="ts-panel-title">{% if vrf_detail.status == 'ok' %}Sostituisci documento VRF{% else %}Carica documento VRF esistente{% endif %}</h2>
           <p class="ts-panel-subtitle">Seleziona il file MOD.073 compilato (.xlsx). I campi identificativi verranno estratti e mostrati in anteprima prima del salvataggio.</p>
         </div>
       </div>

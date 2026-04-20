@@ -198,6 +198,8 @@
 </style>
 {% endblock %}
 
+{% block tasks_shell_shell_class %} ts-shell--compact ts-shell--portfolio{% endblock %}
+
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Portfolio</span>{% endblock %}
 {% block tasks_shell_title %}Portfolio kickoff{% endblock %}
 
@@ -214,7 +216,8 @@
   <a class="ts-hero-action" href="{% url 'tasks:list' %}">Dashboard attivita</a>
   {% if tasks_shell_can_create %}
     <a class="ts-hero-action" href="{% url 'tasks:import_excel' %}">Import Excel</a>
-    <a class="ts-hero-action primary" href="{% url 'tasks:create' %}">+ Nuova attivita</a>
+    <a class="ts-hero-action" href="{% url 'tasks:create' %}">+ Nuova attivita</a>
+    <a class="ts-hero-action primary" href="{% url 'tasks:project_create' %}">+ Nuovo kickoff</a>
   {% endif %}
 {% endblock %}
 

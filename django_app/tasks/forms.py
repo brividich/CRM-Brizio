@@ -6,7 +6,25 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 
-from .models import Project, ProjectComment, SubTask, Task, TaskAttachment, TaskComment, TaskPriority, TaskStatus
+from .models import (
+    Project, ProjectComment, SubTask, Task, TaskAttachment, TaskComment,
+    TaskPriority, TaskRoleAssignment, TaskRoleType, TaskStatus,
+)
+
+
+def _users_for_role(role_type: str):
+    """Ritorna queryset utenti abilitati per un ruolo operativo kickoff.
+
+    Se nessun utente e' mappato per il ruolo, fallback a tutti gli utenti
+    (ordine coerente) per non bloccare l'operativita' quando la mappatura
+    admin non e' ancora stata completata.
+    """
+    assigned = User.objects.filter(
+        task_role_assignments__role_type=role_type,
+    ).distinct()
+    if assigned.exists():
+        return assigned.order_by("first_name", "last_name", "username")
+    return User.objects.order_by("first_name", "last_name", "username")
 
 User = get_user_model()
 
@@ -27,6 +45,103 @@ def _project_option_label(project: Project) -> str:
 class ProjectChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, obj):
         return _project_option_label(obj)
+
+
+class ProjectKickoffForm(forms.ModelForm):
+    """Form dedicato alla creazione di un kickoff (Project) senza task.
+
+    Usato dal flow /tasks/projects/new/: anagrafica kickoff -> redirect al
+    vrf_compile -> redirect al gantt con CTA 'aggiungi prima attivita'.
+    La duplicate-identity logica (stesso P/N + rev + versione) viene
+    intercettata in clean() e restituita via reuse_existing_project per
+    consentire alla view di redirigere al kickoff gia esistente.
+    """
+
+    project_manager = forms.ModelChoiceField(
+        required=False, queryset=User.objects.none(),
+        widget=forms.Select(attrs={"class": "input"}),
+        label="Project manager",
+    )
+    capo_commessa = forms.ModelChoiceField(
+        required=False, queryset=User.objects.none(),
+        widget=forms.Select(attrs={"class": "input"}),
+        label="Capocommessa",
+    )
+    programmer = forms.ModelChoiceField(
+        required=False, queryset=User.objects.none(),
+        widget=forms.Select(attrs={"class": "input"}),
+        label="Programmatore",
+    )
+
+    class Meta:
+        model = Project
+        fields = [
+            "client_name",
+            "part_number",
+            "revisione",
+            "versione",
+            "description",
+            "control_method",
+            "vrf_quote_number",
+            "vrf_description",
+            "vrf_esp",
+        ]
+        widgets = {
+            "client_name":      forms.TextInput(attrs={"class": "input", "maxlength": 180, "placeholder": "Cliente"}),
+            "part_number":      forms.TextInput(attrs={"class": "input", "maxlength": 120, "placeholder": "P/N"}),
+            "revisione":        forms.TextInput(attrs={"class": "input", "maxlength": 60,  "placeholder": "es. A, B, 01"}),
+            "versione":         forms.TextInput(attrs={"class": "input", "maxlength": 60,  "placeholder": "es. 1.0, 2.3"}),
+            "description":      forms.Textarea(attrs={"class": "input", "rows": 2, "placeholder": "Descrizione kickoff (opzionale)"}),
+            "control_method":   forms.TextInput(attrs={"class": "input", "maxlength": 180, "placeholder": "Metodo di controllo"}),
+            "vrf_quote_number": forms.TextInput(attrs={"class": "input", "maxlength": 120, "placeholder": "Preventivo n."}),
+            "vrf_description":  forms.TextInput(attrs={"class": "input", "maxlength": 500, "placeholder": "Descrizione scheda VRF"}),
+            "vrf_esp":          forms.TextInput(attrs={"class": "input", "maxlength": 120, "placeholder": "Esp"}),
+        }
+
+    def __init__(self, *args, project_queryset=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.reused_existing_project: Project | None = None
+        self.project_queryset = project_queryset if project_queryset is not None else Project.objects.all()
+        self.fields["project_manager"].queryset = _users_for_role(TaskRoleType.PROJECT_MANAGER)
+        self.fields["capo_commessa"].queryset   = _users_for_role(TaskRoleType.CAPO_COMMESSA)
+        self.fields["programmer"].queryset      = _users_for_role(TaskRoleType.PROGRAMMER)
+        for name in ("client_name", "part_number", "revisione", "versione",
+                     "description", "control_method", "vrf_quote_number",
+                     "vrf_description", "vrf_esp"):
+            self.fields[name].required = False
+
+    def clean(self):
+        cleaned = super().clean()
+        part_number = (cleaned.get("part_number") or "").strip()
+        revisione   = (cleaned.get("revisione") or "").strip()
+        versione    = (cleaned.get("versione") or "").strip()
+
+        if (revisione or versione) and not part_number:
+            raise forms.ValidationError(
+                "Revisione e versione sono valide solo con un P/N indicato."
+            )
+
+        if part_number:
+            match_qs = self.project_queryset.filter(
+                part_number__iexact=part_number,
+                revisione__iexact=revisione,
+                versione__iexact=versione,
+            ).order_by("-updated_at", "-id")
+            match = match_qs.first()
+            if match is not None:
+                self.reused_existing_project = match
+        return cleaned
+
+    def save(self, commit=True):
+        if self.reused_existing_project is not None:
+            return self.reused_existing_project
+        project = super().save(commit=False)
+        project.project_manager = self.cleaned_data.get("project_manager")
+        project.capo_commessa = self.cleaned_data.get("capo_commessa")
+        project.programmer = self.cleaned_data.get("programmer")
+        if commit:
+            project.save()
+        return project
 
 
 class TaskForm(forms.ModelForm):
@@ -147,6 +262,24 @@ class TaskForm(forms.ModelForm):
         widget=forms.Select(attrs={"class": "input"}),
         label="Gestione conflitto impegni",
     )
+    add_to_outlook = forms.BooleanField(
+        required=False, initial=False,
+        widget=forms.CheckboxInput(attrs={"class": "input-checkbox"}),
+        label="Aggiungi al calendario Outlook dell'assegnatario",
+        help_text="Crea un evento nel calendario Outlook per la data di fine attivita'.",
+    )
+    outlook_target_email = forms.EmailField(
+        required=False,
+        widget=forms.EmailInput(attrs={"class": "input", "placeholder": "Default: email dell'assegnatario"}),
+        label="Email calendario Outlook",
+        help_text="Lasciare vuoto per usare l'email dell'operatore incaricato.",
+    )
+    reminder_portal_enabled_field = forms.BooleanField(
+        required=False, initial=True,
+        widget=forms.CheckboxInput(attrs={"class": "input-checkbox"}),
+        label="Promemoria automatico sul portale",
+        help_text="Crea una notifica portale 'N giorni' prima della scadenza (N da Impostazioni modulo).",
+    )
 
     class Meta:
         model = Task
@@ -183,6 +316,7 @@ class TaskForm(forms.ModelForm):
         self.reused_existing_project = None
         self.reused_existing_project_fields: list[str] = []
         self.locked_project = locked_project
+        existing_calendar_event = None
         users_qs = User.objects.order_by("first_name", "last_name", "username")
         project_qs = project_queryset if project_queryset is not None else Project.objects.order_by("name", "id")
         self.project_queryset = project_qs
@@ -192,9 +326,9 @@ class TaskForm(forms.ModelForm):
         self.fields["subscribers"].required = False
         self.fields["subscribers"].queryset = users_qs
         self.fields["project_choice"].queryset = project_qs
-        self.fields["project_new_manager"].queryset = users_qs
-        self.fields["project_new_capo_commessa"].queryset = users_qs
-        self.fields["project_new_programmer"].queryset = users_qs
+        self.fields["project_new_manager"].queryset       = _users_for_role(TaskRoleType.PROJECT_MANAGER)
+        self.fields["project_new_capo_commessa"].queryset = _users_for_role(TaskRoleType.CAPO_COMMESSA)
+        self.fields["project_new_programmer"].queryset    = _users_for_role(TaskRoleType.PROGRAMMER)
         self.fields["project_similar_choice"].queryset = project_qs
 
         self.fields["project_choice"].label = "Collega a kickoff esistente"
@@ -237,6 +371,32 @@ class TaskForm(forms.ModelForm):
         self.fields["project_similar_choice"].help_text = "Seleziona un'attivita simile gia presente, se disponibile."
         self.fields["project_similar_new_note"].help_text = "Usa questo campo solo se l'attivita simile non esiste ancora."
 
+        # Initial per i nuovi campi outlook/reminder: in edit legge dall'istanza,
+        # in create usa default (reminder attivo, outlook disattivo).
+        if self.instance and self.instance.pk:
+            existing_calendar_event = self.instance.calendar_events.order_by("-created_at", "-id").first()
+            self.initial.setdefault("reminder_portal_enabled_field", bool(self.instance.reminder_portal_enabled))
+            if existing_calendar_event is not None:
+                self.initial.setdefault("add_to_outlook", True)
+                self.initial.setdefault("outlook_target_email", existing_calendar_event.target_email)
+        else:
+            self.initial.setdefault("reminder_portal_enabled_field", True)
+
+        default_outlook_email = ""
+        if existing_calendar_event is not None and existing_calendar_event.target_email:
+            default_outlook_email = str(existing_calendar_event.target_email).strip()
+        elif self.instance and self.instance.pk and self.instance.assigned_to_id:
+            default_outlook_email = str(getattr(self.instance.assigned_to, "email", "") or "").strip()
+        if default_outlook_email:
+            self.fields["outlook_target_email"].widget.attrs["placeholder"] = (
+                f"Default: {default_outlook_email}"
+            )
+            if existing_calendar_event is None:
+                self.fields["outlook_target_email"].help_text = (
+                    "Lasciare vuoto per usare l'email dell'operatore incaricato "
+                    f"({default_outlook_email})."
+                )
+
         if self.locked_project is not None:
             self.initial["task_scope"] = self.TASK_SCOPE_PROJECT
             self.initial["project_link_mode"] = self.PROJECT_LINK_EXISTING
@@ -250,10 +410,7 @@ class TaskForm(forms.ModelForm):
                 self.initial.setdefault("task_scope", self.TASK_SCOPE_SINGLE)
         else:
             self.initial.setdefault("task_scope", self.TASK_SCOPE_SINGLE)
-            if self.initial.get("project_choice"):
-                self.initial.setdefault("project_link_mode", self.PROJECT_LINK_EXISTING)
-            else:
-                self.initial.setdefault("project_link_mode", self.PROJECT_LINK_NEW)
+            self.initial.setdefault("project_link_mode", self.PROJECT_LINK_EXISTING)
 
     def _matching_projects_for_new_entry(self, *, part_number: str, revisione: str, versione: str):
         part_number = str(part_number or "").strip()

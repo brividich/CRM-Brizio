@@ -186,6 +186,8 @@
         <div class="admin-tabs">
           <a href="?tab=config" class="admin-tab {% if tab == 'config' %}active{% endif %}">Configurazione</a>
           <a href="?tab=riepilogo" class="admin-tab {% if tab == 'riepilogo' %}active{% endif %}">Riepilogo</a>
+          <a href="?tab=ruoli" class="admin-tab {% if tab == 'ruoli' %}active{% endif %}">Ruoli operativi</a>
+          <a href="?tab=promemoria" class="admin-tab {% if tab == 'promemoria' %}active{% endif %}">Promemoria</a>
           <a href="?tab=record" class="admin-tab {% if tab == 'record' %}active{% endif %}">Record</a>
           <a href="?tab=log" class="admin-tab {% if tab == 'log' %}active{% endif %}">Log attivita</a>
         </div>
@@ -497,6 +499,140 @@
               {% if tasks_page.has_next %}<a class="btn btn-secondary btn-sm" href="?tab=record&q_task={{ q_task }}&filter_status={{ filter_status }}&task_page={{ tasks_page.next_page_number }}">Succ</a>{% endif %}
             </div>
           {% endif %}
+        </div>
+      </section>
+    {% endif %}
+
+    {% if tab == "ruoli" %}
+      <section class="ts-panel">
+        <div class="ts-panel-head">
+          <div class="ts-panel-title-wrap">
+            <h2 class="ts-panel-title">Ruoli operativi kickoff</h2>
+            <p class="ts-panel-subtitle">Definisci quali utenti compaiono come opzioni nei dropdown Project manager, Capocommessa e Programmatore dei form Nuovo kickoff / Nuova attivita. Se nessun utente ha un ruolo assegnato, il dropdown mostra tutti gli utenti (fallback non bloccante).</p>
+          </div>
+          <div class="ts-panel-meta" style="display:flex; gap:16px; font-size:12px; color:#64748b;">
+            <span><strong style="color:#1e40af;">{{ ruoli_stats.pm }}</strong> PM</span>
+            <span><strong style="color:#15803d;">{{ ruoli_stats.cc }}</strong> Capocommessa</span>
+            <span><strong style="color:#9a3412;">{{ ruoli_stats.prg }}</strong> Programmatori</span>
+          </div>
+        </div>
+        <div class="ts-panel-body">
+          <form method="get" action="" style="display:flex; gap:8px; margin-bottom:12px;">
+            <input type="hidden" name="tab" value="ruoli">
+            <input type="text" class="input" name="q_user" value="{{ ruoli_filter_q }}" placeholder="Cerca per nome, cognome o username" style="flex:1;">
+            <button type="submit" class="btn btn-secondary btn-sm">Filtra</button>
+          </form>
+          <form method="post" action="">
+            {% csrf_token %}
+            <input type="hidden" name="tab" value="ruoli">
+            <table style="width:100%; border-collapse:collapse; font-size:13px;">
+              <thead>
+                <tr style="background:#f1f5f9;">
+                  <th style="padding:8px 10px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#64748b;">Utente</th>
+                  <th style="padding:8px 10px; text-align:left; font-size:11px; text-transform:uppercase; color:#64748b;">Email</th>
+                  <th style="padding:8px 10px; text-align:center; font-size:11px; text-transform:uppercase; color:#1e40af; width:110px;">Project manager</th>
+                  <th style="padding:8px 10px; text-align:center; font-size:11px; text-transform:uppercase; color:#15803d; width:110px;">Capocommessa</th>
+                  <th style="padding:8px 10px; text-align:center; font-size:11px; text-transform:uppercase; color:#9a3412; width:110px;">Programmatore</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in ruoli_roster %}
+                  {% if not ruoli_filter_q or ruoli_filter_q|lower in row.label|lower or ruoli_filter_q|lower in row.email|lower %}
+                    <tr style="border-bottom:1px solid #e2e8f0;">
+                      <td style="padding:8px 10px; font-weight:600; color:#0f172a;">
+                        {{ row.label }}
+                        <input type="hidden" name="visible_user_id" value="{{ row.id }}">
+                      </td>
+                      <td style="padding:8px 10px; color:#64748b;">{{ row.email|default:"-" }}</td>
+                      <td style="padding:8px 10px; text-align:center;"><input type="checkbox" name="role__PM__{{ row.id }}" {% if row.is_pm %}checked{% endif %}></td>
+                      <td style="padding:8px 10px; text-align:center;"><input type="checkbox" name="role__CC__{{ row.id }}" {% if row.is_cc %}checked{% endif %}></td>
+                      <td style="padding:8px 10px; text-align:center;"><input type="checkbox" name="role__PRG__{{ row.id }}" {% if row.is_prg %}checked{% endif %}></td>
+                    </tr>
+                  {% endif %}
+                {% empty %}
+                  <tr><td colspan="5" style="padding:30px; text-align:center; color:#94a3b8;">Nessun utente attivo trovato.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            <div style="margin-top:14px; display:flex; gap:10px; justify-content:flex-end;">
+              <button type="submit" class="btn">Salva ruoli operativi</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    {% endif %}
+
+    {% if tab == "promemoria" %}
+      <section class="ts-panel">
+        <div class="ts-panel-head">
+          <div class="ts-panel-title-wrap">
+            <h2 class="ts-panel-title">Gestione promemoria kickoff</h2>
+            <p class="ts-panel-subtitle">Ogni task con reminder attivo ha un record schedulato. Da qui puoi eliminarli, rimandarli di N giorni o forzarne l'invio immediato (crea Notifica portale all'assegnatario).</p>
+          </div>
+          <div class="ts-panel-meta" style="display:flex; gap:16px; font-size:12px; color:#64748b;">
+            <span><strong style="color:#1e40af;">{{ promemoria_count_pending }}</strong> pending</span>
+            <span><strong style="color:#dc2626;">{{ promemoria_count_overdue }}</strong> overdue</span>
+            <span><strong style="color:#d97706;">{{ promemoria_count_next7 }}</strong> in 7gg</span>
+            <span><strong style="color:#15803d;">{{ promemoria_count_fired }}</strong> fired</span>
+          </div>
+        </div>
+        <div class="ts-panel-body">
+          <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+            <a href="?tab=promemoria&filter_status=pending" class="btn btn-sm {% if promemoria_filter == 'pending' %}btn-primary{% else %}btn-secondary{% endif %}">Pending ({{ promemoria_count_pending }})</a>
+            <a href="?tab=promemoria&filter_status=fired" class="btn btn-sm {% if promemoria_filter == 'fired' %}btn-primary{% else %}btn-secondary{% endif %}">Fired ({{ promemoria_count_fired }})</a>
+            <a href="?tab=promemoria&filter_status=all" class="btn btn-sm {% if promemoria_filter == 'all' %}btn-primary{% else %}btn-secondary{% endif %}">Tutti</a>
+          </div>
+          <form method="post" action="">
+            {% csrf_token %}
+            <input type="hidden" name="tab" value="promemoria">
+            <input type="hidden" name="filter_status" value="{{ promemoria_filter }}">
+            <table style="width:100%; border-collapse:collapse; font-size:12px;">
+              <thead>
+                <tr style="background:#f1f5f9;">
+                  <th style="padding:8px; text-align:center; width:36px;"><input type="checkbox" onclick="document.querySelectorAll('input[name=reminder_id]').forEach(c=>c.checked=this.checked)"></th>
+                  <th style="padding:8px; text-align:left; font-size:11px; text-transform:uppercase; color:#64748b;">Attivita</th>
+                  <th style="padding:8px; text-align:left; font-size:11px; text-transform:uppercase; color:#64748b;">Kickoff</th>
+                  <th style="padding:8px; text-align:left; font-size:11px; text-transform:uppercase; color:#64748b;">Assegnatario</th>
+                  <th style="padding:8px; text-align:center; font-size:11px; text-transform:uppercase; color:#64748b;">Fire at</th>
+                  <th style="padding:8px; text-align:center; font-size:11px; text-transform:uppercase; color:#64748b;">Scadenza</th>
+                  <th style="padding:8px; text-align:center; font-size:11px; text-transform:uppercase; color:#64748b;">Stato</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in promemoria_list %}
+                  <tr style="border-bottom:1px solid #e2e8f0; {% if r.overdue %}background:#fef2f2;{% elif r.fired %}background:#f0fdf4;{% endif %}">
+                    <td style="padding:8px; text-align:center;"><input type="checkbox" name="reminder_id" value="{{ r.id }}"></td>
+                    <td style="padding:8px;"><a href="{% url 'tasks:detail' r.task_id %}" style="color:#0f172a; font-weight:600;">{{ r.task_title }}</a></td>
+                    <td style="padding:8px; color:#64748b;">{{ r.project_name|default:"-" }}</td>
+                    <td style="padding:8px;">{{ r.assignee|default:"(id legacy " }}{% if not r.assignee %}{{ r.legacy_user_id }}){% endif %}</td>
+                    <td style="padding:8px; text-align:center; font-variant-numeric:tabular-nums;">{{ r.fire_at|date:"d/m/Y" }}</td>
+                    <td style="padding:8px; text-align:center; font-variant-numeric:tabular-nums; color:#64748b;">{% if r.due_date %}{{ r.due_date|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+                    <td style="padding:8px; text-align:center;">
+                      {% if r.fired %}
+                        <span style="background:#dcfce7; color:#166534; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700;">FIRED</span>
+                      {% elif r.overdue %}
+                        <span style="background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700;">OVERDUE</span>
+                      {% else %}
+                        <span style="background:#dbeafe; color:#1e40af; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700;">PENDING</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="7" style="padding:30px; text-align:center; color:#94a3b8;">Nessun promemoria per il filtro corrente.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            <div style="margin-top:16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px;">
+              <span style="font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.05em;">Azioni su selezionati:</span>
+              <button type="submit" name="reminder_action" value="fire_now" class="btn btn-sm" onclick="return confirm('Invia subito Notifica portale per i promemoria selezionati?')">Invia ora</button>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <button type="submit" name="reminder_action" value="postpone" class="btn btn-secondary btn-sm">Rimanda</button>
+                <input type="number" name="postpone_days" value="7" min="1" max="365" style="width:60px; padding:4px 6px; border:1px solid #cbd5e1; border-radius:4px;">
+                <span style="font-size:12px; color:#64748b;">giorni</span>
+              </div>
+              <button type="submit" name="reminder_action" value="delete" class="btn btn-secondary btn-sm" style="color:#b91c1c; border-color:#fecaca;" onclick="return confirm('Eliminare definitivamente i promemoria selezionati?')">Elimina</button>
+            </div>
+          </form>
         </div>
       </section>
     {% endif %}

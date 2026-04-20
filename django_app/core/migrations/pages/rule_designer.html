@@ -1,0 +1,3217 @@
+﻿{% extends "core/base.html" %}
+
+{% block title %}Automazioni - Designer Visuale | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .designer-shell { padding:4px; border-radius:24px; background:linear-gradient(135deg, #dbeafe 0%, #fef3c7 45%, #dcfce7 100%); }
+  .designer-layout { display:grid; gap:18px; grid-template-columns:minmax(0, 1.8fr) minmax(320px, .85fr); align-items:start; }
+  .designer-main { display:grid; gap:18px; }
+  .designer-header { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:flex-start; }
+  .designer-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .designer-summary { display:grid; gap:12px; background:linear-gradient(135deg, #fff7ed 0%, #eff6ff 52%, #ecfdf5 100%); border:1px solid #bfdbfe; border-radius:20px; padding:20px; }
+  .designer-summary-kicker { font-size:12px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#0f766e; }
+  .designer-summary-line { font-size:16px; font-weight:700; color:#0f172a; }
+  .designer-summary-list { margin:0; padding-left:18px; display:grid; gap:6px; color:#334155; }
+  .designer-flow { display:grid; gap:12px; grid-template-columns:repeat(3, minmax(0, 1fr)); }
+  .designer-flow-card { position:relative; padding:18px; border-radius:20px; border:1px solid #dbeafe; background:#fff; min-height:132px; overflow:hidden; }
+  .designer-flow-card::after { content:""; position:absolute; inset:auto -18px 50% auto; width:36px; height:2px; background:#94a3b8; }
+  .designer-flow-card:last-child::after { display:none; }
+  .designer-flow-card.trigger { background:linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-color:#93c5fd; }
+  .designer-flow-card.conditions { background:linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%); border-color:#fdba74; }
+  .designer-flow-card.actions { background:linear-gradient(135deg, #ecfdf5 0%, #bbf7d0 100%); border-color:#86efac; }
+  .designer-flow-step { font-size:11px; font-weight:900; letter-spacing:.12em; text-transform:uppercase; color:#334155; }
+  .designer-flow-title { margin-top:8px; font-size:22px; font-weight:900; color:#0f172a; }
+  .designer-flow-copy { margin-top:8px; color:#334155; font-size:13px; line-height:1.5; }
+  .designer-flow-meta { margin-top:14px; display:flex; gap:8px; flex-wrap:wrap; }
+  .designer-meta { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); }
+  .designer-meta-card { border:1px solid #e2e8f0; border-radius:14px; padding:14px; background:#fff; }
+  .designer-meta-label { font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.08em; }
+  .designer-meta-value { margin-top:6px; color:#0f172a; font-size:15px; word-break:break-word; }
+  .designer-sections { display:grid; gap:18px; }
+  .designer-section-card { border:1px solid #e2e8f0; border-radius:18px; background:#fff; overflow:hidden; }
+  .designer-section-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; padding:18px 18px 0; }
+  .designer-section-title { font-size:18px; font-weight:800; color:#0f172a; }
+  .designer-section-subtitle { margin-top:4px; color:#475569; font-size:13px; max-width:760px; }
+  .designer-section-body { display:grid; gap:14px; padding:18px; }
+  .designer-trigger-copy { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); }
+  .designer-field { display:grid; gap:6px; }
+  .designer-field label { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:#475569; }
+  .designer-field input, .designer-field select, .designer-field textarea { width:100%; padding:10px 11px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; }
+  .designer-field textarea { min-height:88px; }
+  .designer-field-wide { grid-column:1 / -1; }
+  .designer-help { font-size:12px; color:#64748b; }
+  .designer-errors { margin:4px 0 0; padding-left:18px; color:#b91c1c; font-size:13px; }
+  .designer-pill-row { display:flex; flex-wrap:wrap; gap:8px; }
+  .designer-pill { display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; background:#e2e8f0; color:#0f172a; font-size:12px; font-weight:700; }
+  .designer-pill-primary { background:#dbeafe; color:#1d4ed8; }
+  .designer-pill-warning { background:#fef3c7; color:#92400e; }
+  .designer-pill-success { background:#dcfce7; color:#166534; }
+  .designer-note { padding:12px 14px; border-radius:12px; background:#f8fafc; color:#475569; font-size:13px; border:1px solid #e2e8f0; }
+  .designer-inline-banner { padding:10px 12px; border-radius:12px; background:linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%); border:1px solid #bfdbfe; color:#1e3a8a; font-size:13px; font-weight:600; }
+  .designer-sortable { display:grid; gap:12px; }
+  .designer-condition-card, .designer-action-card { cursor:grab; }
+  .designer-condition-card.is-dragging, .designer-action-card.is-dragging { opacity:.65; box-shadow:0 20px 35px rgba(15, 23, 42, .08); }
+  .designer-editor-shell { border-top:1px dashed #cbd5e1; padding-top:12px; }
+  .designer-editor-summary { cursor:pointer; font-weight:800; color:#0f172a; list-style:none; display:flex; align-items:center; gap:8px; }
+  .designer-editor-summary::-webkit-details-marker { display:none; }
+  .designer-editor-summary::before { content:"â–¾"; color:#0f766e; font-size:14px; transition:transform .18s ease; }
+  .designer-editor-shell:not([open]) .designer-editor-summary::before { transform:rotate(-90deg); }
+  .designer-editor-stack { display:grid; gap:12px; }
+  .designer-editor-panel { padding:14px; border:1px solid #e2e8f0; border-radius:16px; background:linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); }
+  .designer-editor-panel-title { margin-bottom:10px; font-size:12px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; color:#0f766e; }
+  .designer-subeditor { margin-top:12px; padding-top:12px; border-top:1px dashed #cbd5e1; }
+  .designer-subeditor-summary { cursor:pointer; font-size:13px; font-weight:700; color:#334155; list-style:none; }
+  .designer-subeditor-summary::-webkit-details-marker { display:none; }
+  .designer-subeditor-summary::before { content:"+"; display:inline-flex; width:18px; justify-content:center; color:#1d4ed8; font-weight:900; }
+  .designer-subeditor[open] .designer-subeditor-summary::before { content:"âˆ’"; }
+  .designer-field-compact-toggle { align-content:start; }
+  .designer-toggle-wrap { min-height:44px; display:flex; align-items:center; padding:0 2px; }
+  .designer-toggle-wrap input[type="checkbox"] { width:18px; height:18px; }
+  .designer-preset-zone { margin-top:12px; padding:14px; border-radius:16px; background:linear-gradient(135deg, #fffef2 0%, #f8fafc 100%); border:1px solid #e5e7eb; display:grid; gap:12px; }
+  .designer-preset-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+  .designer-size-switch { display:inline-flex; align-items:center; gap:4px; padding:4px; border-radius:999px; background:#ffffff; border:1px solid #dbe4f0; }
+  .designer-size-button { min-width:32px; height:30px; border:0; border-radius:999px; background:transparent; color:#475569; font-size:12px; font-weight:800; cursor:pointer; }
+  .designer-size-button.is-active { background:#0f172a; color:#ffffff; }
+  .designer-preset-grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); }
+  .designer-preset-card { position:relative; overflow:hidden; padding:12px; border-radius:14px; border:1px solid #dbe4f0; background:#fff; display:grid; gap:8px; min-height:124px; }
+  .designer-preset-zone[data-preset-size-mode="sm"] .designer-preset-grid { grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:8px; }
+  .designer-preset-zone[data-preset-size-mode="sm"] .designer-preset-card { padding:10px; min-height:108px; gap:6px; }
+  .designer-preset-zone[data-preset-size-mode="sm"] .designer-preset-title { font-size:13px; }
+  .designer-preset-zone[data-preset-size-mode="sm"] .designer-preset-desc { font-size:12px; line-height:1.35; }
+  .designer-preset-zone[data-preset-size-mode="sm"] .designer-preset-tag { font-size:10px; padding:3px 8px; }
+  .designer-preset-zone[data-preset-size-mode="sm"] .designer-preset-card .btn { padding:5px 10px; font-size:12px; }
+  .designer-preset-zone[data-preset-size-mode="md"] .designer-preset-grid { grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); }
+  .designer-preset-zone[data-preset-size-mode="lg"] .designer-preset-grid { grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; }
+  .designer-preset-zone[data-preset-size-mode="lg"] .designer-preset-card { padding:16px; min-height:154px; gap:10px; border-radius:18px; }
+  .designer-preset-zone[data-preset-size-mode="lg"] .designer-preset-title { font-size:16px; }
+  .designer-preset-zone[data-preset-size-mode="lg"] .designer-preset-desc { font-size:14px; line-height:1.5; }
+  .designer-preset-card::before { content:""; position:absolute; inset:0 auto 0 0; width:5px; background:#94a3b8; }
+  .designer-preset-card.theme-blue { background:linear-gradient(180deg, #eff6ff 0%, #ffffff 100%); border-color:#bfdbfe; }
+  .designer-preset-card.theme-blue::before { background:#2563eb; }
+  .designer-preset-card.theme-green { background:linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%); border-color:#bbf7d0; }
+  .designer-preset-card.theme-green::before { background:#16a34a; }
+  .designer-preset-card.theme-rose { background:linear-gradient(180deg, #fff1f2 0%, #ffffff 100%); border-color:#fecdd3; }
+  .designer-preset-card.theme-rose::before { background:#e11d48; }
+  .designer-preset-card.theme-amber { background:linear-gradient(180deg, #fffbeb 0%, #ffffff 100%); border-color:#fde68a; }
+  .designer-preset-card.theme-amber::before { background:#d97706; }
+  .designer-preset-card.theme-slate { background:linear-gradient(180deg, #f8fafc 0%, #ffffff 100%); border-color:#cbd5e1; }
+  .designer-preset-card.theme-slate::before { background:#475569; }
+  .designer-preset-title { font-size:15px; font-weight:800; color:#0f172a; }
+  .designer-preset-desc { color:#475569; font-size:13px; line-height:1.45; }
+  .designer-preset-foot { display:flex; justify-content:space-between; gap:8px; align-items:center; margin-top:auto; }
+  .designer-preset-tag { display:inline-flex; align-items:center; padding:4px 9px; border-radius:999px; background:rgba(255,255,255,.8); color:#334155; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; }
+  .designer-empty { padding:14px; border:1px dashed #cbd5e1; border-radius:14px; color:#64748b; background:#f8fafc; }
+  .designer-add-stack { display:grid; gap:12px; }
+  .designer-form-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .designer-side { display:grid; gap:18px; position:sticky; top:20px; }
+  .designer-quicktest pre { margin:0; max-height:240px; overflow:auto; padding:12px; border-radius:12px; background:#0f172a; color:#e2e8f0; font-size:12px; }
+  .designer-status { min-height:20px; font-size:12px; color:#1d4ed8; }
+  .designer-source-panel { position:static; }
+  .designer-badge-grid { display:grid; gap:8px; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); }
+  .auto-smart-target-banner { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:12px 14px; border-radius:14px; background:linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%); border:1px solid #bfdbfe; margin-bottom:14px; }
+  .auto-smart-target-label { font-size:13px; font-weight:800; color:#0f172a; }
+  .auto-smart-target-button { white-space:nowrap; }
+  .auto-smart-toolbar { display:grid; gap:10px; margin-top:14px; }
+  .auto-smart-search-input { width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:12px; }
+  .auto-smart-filter-row { display:flex; flex-wrap:wrap; gap:8px; }
+  .auto-source-chip.is-active { background:#0f172a; color:#fff; }
+  .auto-smart-grid { display:grid; gap:10px; margin-top:14px; }
+  .auto-smart-field-card { display:grid; gap:10px; padding:14px; border-radius:16px; border:1px solid #dbe4f0; background:linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); }
+  .auto-smart-field-top { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+  .auto-smart-field-name code { font-size:13px; font-weight:800; color:#0f172a; }
+  .auto-smart-field-label { margin-top:4px; color:#334155; font-size:13px; font-weight:700; }
+  .auto-smart-field-type { display:inline-flex; align-items:center; padding:4px 9px; border-radius:999px; background:#e2e8f0; color:#0f172a; font-size:11px; font-weight:800; text-transform:uppercase; }
+  .auto-smart-field-desc { color:#475569; font-size:13px; line-height:1.45; }
+  .auto-smart-field-aliases { color:#64748b; font-size:12px; }
+  .auto-smart-chip-row { display:flex; flex-wrap:wrap; gap:6px; }
+  .auto-smart-mini-chip { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; background:#ecfeff; color:#155e75; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+  .auto-smart-field-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .auto-smart-empty { margin-top:12px; padding:12px; border-radius:12px; background:#f8fafc; border:1px dashed #cbd5e1; color:#64748b; font-size:13px; }
+  @media (max-width: 1100px) {
+    .designer-layout { grid-template-columns:1fr; }
+    .designer-side { position:static; }
+  }
+  @media (max-width: 900px) {
+    .designer-flow { grid-template-columns:1fr; }
+    .designer-flow-card::after { display:none; }
+  }
+  /* â”€â”€ Live test panel â”€â”€ */
+  .livetest-tabs { display:flex; gap:3px; padding:4px; background:#f1f5f9; border-radius:12px; }
+  .livetest-tab { flex:1; padding:7px 10px; border:0; border-radius:9px; background:transparent; font-size:12px; font-weight:700; color:#475569; cursor:pointer; transition:background .12s,color .12s; }
+  .livetest-tab.is-active { background:#fff; color:#0f172a; box-shadow:0 1px 4px rgba(15,23,42,.1); }
+  .livetest-payload-area { width:100%; padding:10px; border:1px solid #334155; border-radius:10px; background:#0f172a; color:#e2e8f0; font-family:monospace; font-size:11px; resize:vertical; line-height:1.5; }
+  .livetest-result-step { display:flex; gap:8px; align-items:flex-start; padding:9px 11px; border-radius:10px; border:1px solid #e2e8f0; background:#f8fafc; font-size:12px; }
+  .livetest-result-step.success { background:#f0fdf4; border-color:#bbf7d0; }
+  .livetest-result-step.error { background:#fef2f2; border-color:#fecaca; }
+  .livetest-result-step.skipped { background:#fffbeb; border-color:#fde68a; }
+  .livetest-result-icon { font-size:15px; flex-shrink:0; line-height:1.3; font-weight:900; }
+  .livetest-result-body { flex:1; min-width:0; }
+  .livetest-result-type { font-weight:800; color:#0f172a; margin-bottom:2px; font-size:10px; text-transform:uppercase; letter-spacing:.07em; }
+  .livetest-result-msg { color:#475569; word-break:break-word; line-height:1.4; }
+  /* â”€â”€ Email preview card â”€â”€ */
+  .email-preview-card { border:1px solid #bfdbfe; border-radius:14px; overflow:hidden; margin-top:12px; box-shadow:0 2px 12px rgba(37,99,235,.06); }
+  .email-preview-header { padding:12px 14px; background:linear-gradient(180deg,#eff6ff 0%,#f8fafc 100%); border-bottom:1px solid #bfdbfe; display:grid; gap:5px; }
+  .email-preview-row { display:flex; gap:8px; align-items:flex-start; }
+  .email-preview-label { min-width:52px; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.07em; color:#64748b; padding-top:2px; flex-shrink:0; }
+  .email-preview-value { color:#334155; font-size:13px; word-break:break-all; }
+  .email-preview-subject-row { padding-top:6px; border-top:1px solid #dbeafe; margin-top:3px; }
+  .email-preview-subject-value { color:#0f172a; font-size:14px; }
+  .email-preview-body { padding:16px; color:#374151; font-size:13px; line-height:1.65; white-space:pre-wrap; word-break:break-word; min-height:64px; max-height:260px; overflow:auto; background:#fff; font-family:Georgia,serif; }
+  .email-preview-footer { padding:8px 14px; background:#f8fafc; border-top:1px solid #e2e8f0; font-size:11px; color:#94a3b8; }
+  .email-ph { display:inline-block; padding:1px 5px; border-radius:4px; background:#dbeafe; color:#1d4ed8; font-weight:700; font-size:11px; font-family:monospace; }
+  .email-preview-toggle-btn { padding:4px 10px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; font-size:11px; font-weight:700; cursor:pointer; color:#475569; transition:all .12s; }
+  .email-preview-toggle-btn:hover { background:#f1f5f9; }
+  .email-preview-toggle-btn.is-on { background:#dbeafe; border-color:#93c5fd; color:#1d4ed8; }
+  .email-preview-ph-hint { font-size:11px; color:#94a3b8; }
+
+  /* â”€â”€â”€ Flow Diagram â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  .flow-workspace-overlay { position: fixed; inset: 0; z-index: 950; background: rgba(15,23,42,.38); padding: 18px; }
+  .flow-workspace-overlay[hidden] { display: none !important; }
+  .flow-workspace-shell { width: 100%; height: calc(100vh - 36px); display: grid; grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); border-radius: 24px; overflow: hidden; background: #f8fafc; box-shadow: 0 26px 80px rgba(15,23,42,.24); }
+  .flow-workspace-side { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); border-right: 1px solid #dbeafe; }
+  .flow-workspace-side-head { padding: 18px 20px 16px; border-bottom: 1px solid #dbeafe; background: rgba(255,255,255,.86); backdrop-filter: blur(8px); display: grid; gap: 12px; }
+  .flow-workspace-kicker { font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color: #1d4ed8; }
+  .flow-workspace-title { font-size: 22px; font-weight: 900; color: #0f172a; }
+  .flow-workspace-copy { color: #475569; font-size: 13px; line-height: 1.5; }
+  .flow-workspace-side-scroll { min-height: 0; overflow: auto; padding: 18px 20px 22px; display: grid; gap: 16px; }
+  .flow-workspace-summary { display: grid; gap: 8px; padding: 14px 16px; border-radius: 18px; border: 1px solid #dbeafe; background: linear-gradient(160deg, #eff6ff 0%, #ffffff 100%); }
+  .flow-workspace-summary-line { font-size: 13px; font-weight: 700; color: #1e3a8a; }
+  .flow-workspace-nav { display: grid; gap: 8px; }
+  .flow-workspace-nav-btn { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 11px 13px; border-radius: 12px; border: 1px solid #dbeafe; background: #fff; color: #0f172a; font-size: 13px; font-weight: 800; cursor: pointer; transition: border-color .14s ease, transform .12s ease, box-shadow .14s ease; }
+  .flow-workspace-nav-btn:hover { border-color: #93c5fd; transform: translateY(-1px); box-shadow: 0 8px 22px rgba(59,130,246,.12); }
+  .flow-workspace-nav-btn span:last-child { color: #64748b; font-size: 11px; font-weight: 700; }
+  .flow-workspace-empty { display: grid; gap: 10px; padding: 16px; border-radius: 18px; border: 1px dashed #cbd5e1; background: #fff; color: #475569; }
+  .flow-workspace-empty-title { font-size: 15px; font-weight: 900; color: #0f172a; }
+  .flow-workspace-main { min-width: 0; min-height: 0; display: grid; }
+  .flow-diagram-shell { height: 100%; background: linear-gradient(160deg, #f8fafc 0%, #eff6ff 100%); overflow: hidden; margin-bottom: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+  .flow-diagram-topbar { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: rgba(255,255,255,.7); border-bottom: 1px solid #dbeafe; }
+  .flow-diagram-label { font-size: 13px; font-weight: 800; color: #1e40af; }
+  .flow-diagram-hint { flex: 1; font-size: 12px; color: #64748b; }
+  .flow-diagram-canvas { display: flex; flex-direction: column; align-items: center; padding: 28px 24px 44px; gap: 0; overflow: auto; min-height: 0; background-image: radial-gradient(circle at 1px 1px, rgba(148,163,184,.28) 1px, transparent 0); background-size: 24px 24px; }
+  .flow-diagram-loading { padding: 40px; color: #64748b; font-size: 14px; }
+
+  /* Connettore verticale */
+  .flow-conn { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+  .flow-conn-line { width: 2px; height: 22px; background: #94a3b8; }
+  .flow-conn-arrow { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 7px solid #94a3b8; }
+  .flow-conn-plus { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #94a3b8; background: #f8fafc; color: #94a3b8; font-size: 14px; font-weight: 900; cursor: default; }
+
+  /* Nodo base */
+  .flow-node { width: 480px; max-width: 100%; background: #fff; border: 1.5px solid #e2e8f0; border-radius: 14px; overflow: hidden; box-shadow: 0 1px 6px rgba(15,23,42,.06); transition: box-shadow .15s, transform .12s; flex-shrink: 0; }
+  .flow-node:hover { box-shadow: 0 4px 20px rgba(15,23,42,.1); transform: translateY(-1px); }
+  .flow-node-inner { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; }
+  .flow-node-icon-wrap { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+  .flow-node-body { flex: 1; min-width: 0; }
+  .flow-node-app { font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: .07em; }
+  .flow-node-title { font-size: 14px; font-weight: 800; color: #0f172a; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .flow-node-subtitle { font-size: 12px; color: #475569; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .flow-node-preview { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: #f8fafc; border: 1px solid #e2e8f0; font-size: 11px; color: #475569; line-height: 1.5; }
+  .flow-node-accent { width: 5px; flex-shrink: 0; align-self: stretch; }
+  .flow-node-end-btn { display: flex; align-items: center; padding: 4px 10px; border-radius: 8px; background: transparent; border: 1px solid #e2e8f0; color: #64748b; font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: background .1s; }
+  .flow-node-end-btn:hover { background: #f1f5f9; }
+  .flow-node-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; align-self: center; }
+  .flow-node--editing { border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59,130,246,.18), 0 4px 20px rgba(15,23,42,.12); }
+
+  /* Tipi speciali */
+  .flow-node--trigger { border-color: #93c5fd; }
+  .flow-node--end { border-color: #e2e8f0; opacity: .6; }
+  .flow-node--conditions { border-color: #fdba74; }
+  .flow-node--waiting { border-color: #c4b5fd; }
+
+  /* Tag Pills */
+  .flow-pill { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; margin-top: 6px; margin-right: 4px; }
+  .flow-pill-blue { background: #dbeafe; color: #1d4ed8; }
+  .flow-pill-green { background: #dcfce7; color: #166534; }
+  .flow-pill-red { background: #fee2e2; color: #991b1b; }
+  .flow-pill-orange { background: #fef3c7; color: #92400e; }
+  .flow-pill-gray { background: #f1f5f9; color: #475569; }
+  .flow-pill-disabled { background: #fef2f2; color: #dc2626; text-decoration: line-through; opacity: .7; }
+
+  /* Condizioni sub-list */
+  .flow-cond-list { padding: 0 16px 12px; display: grid; gap: 5px; }
+  .flow-cond-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #334155; }
+  .flow-cond-bullet { width: 6px; height: 6px; border-radius: 50%; background: #d97706; flex-shrink: 0; }
+
+  /* Branch container (per approval / branch) */
+  .flow-branch-wrap { width: 480px; max-width: 100%; }
+  .flow-branch-split { display: flex; justify-content: center; align-items: flex-start; gap: 0; position: relative; }
+  .flow-branch-col { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 0; }
+  .flow-branch-col-h { display: flex; justify-content: center; margin-bottom: 2px; }
+  .flow-branch-pill { display: inline-flex; align-items: center; padding: 5px 14px; border-radius: 999px; font-size: 12px; font-weight: 800; border: 2px solid; }
+  .flow-branch-pill--approved { background: #f0fdf4; border-color: #86efac; color: #166534; }
+  .flow-branch-pill--rejected { background: #fef2f2; border-color: #fca5a5; color: #991b1b; }
+  .flow-branch-pill--true { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+  .flow-branch-pill--false { background: #fff7ed; border-color: #fdba74; color: #92400e; }
+  .flow-branch-line-h { height: 2px; background: #cbd5e1; width: 50%; }
+  .flow-branch-inner-node { width: 220px; max-width: 100%; background: #fff; border: 1.5px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(15,23,42,.05); }
+  .flow-branch-inner-node-inner { display: flex; align-items: center; gap: 8px; padding: 10px 12px; }
+  .flow-branch-inner-icon { font-size: 16px; }
+  .flow-branch-inner-title { font-size: 12px; font-weight: 700; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .flow-branch-empty { padding: 10px 14px; font-size: 12px; color: #94a3b8; font-style: italic; text-align: center; }
+  .flow-merge-line { display: flex; justify-content: center; }
+  .flow-merge-line-v { width: 2px; height: 20px; background: #cbd5e1; }
+
+  /* Loop */
+  .flow-loop-wrap { width: 480px; max-width: 100%; }
+  .flow-loop-body { margin: 0 32px; border: 2px dashed #67e8f9; border-top: none; border-radius: 0 0 14px 14px; padding: 8px 12px 12px; background: rgba(236,254,255,.4); }
+  .flow-loop-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #ecfeff; border-radius: 10px; margin-bottom: 10px; }
+  .flow-loop-header-text { font-size: 12px; font-weight: 700; color: #0e7490; }
+  .flow-loop-condition { font-size: 11px; color: #475569; background: #f0fdfa; padding: 5px 10px; border-radius: 7px; border: 1px solid #99f6e4; margin-bottom: 8px; }
+  .flow-loop-back { display: flex; align-items: center; gap: 6px; justify-content: center; padding: 6px; color: #0891b2; font-size: 11px; font-weight: 800; margin-top: 8px; }
+
+  /* For Each */
+  .flow-each-wrap { width: 480px; max-width: 100%; }
+  .flow-each-body { margin: 0 24px; border: 2px dashed #a5b4fc; border-top: none; border-radius: 0 0 12px 12px; padding: 8px 12px 12px; background: rgba(238,242,255,.4); }
+  .flow-each-header { font-size: 11px; font-weight: 700; color: #4338ca; background: #eef2ff; padding: 5px 10px; border-radius: 7px; border: 1px solid #c7d2fe; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+
+  /* â”€â”€ Interattivo Diagramma â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  .flow-node[data-draggable] { cursor: grab; }
+  .flow-node[data-draggable]:active { cursor: grabbing; }
+  .flow-node--drag-over { outline: 3px solid #3b82f6 !important; outline-offset: 3px; transform: none !important; }
+  .flow-node--dragging { opacity: .3; pointer-events: none; }
+  .flow-node--pending { border-style: dashed !important; }
+  .flow-node-drag-handle { cursor: grab; color: #d1d5db; font-size: 16px; padding: 0 8px; user-select: none; flex-shrink: 0; display: flex; align-items: center; border-right: 1px solid #f1f5f9; }
+  .flow-node-drag-handle:hover { color: #94a3b8; background: #f8fafc; }
+  .flow-node-delete-btn { cursor: pointer; color: #d1d5db; background: none; border: none; font-size: 14px; font-weight: 900; padding: 4px 6px; border-radius: 6px; line-height: 1; flex-shrink: 0; transition: color .12s, background .12s; }
+  .flow-node-delete-btn:hover { color: #dc2626; background: #fee2e2; }
+  /* Add row */
+  .flow-diagram-add-row { display: flex; flex-direction: column; align-items: center; }
+  .flow-diagram-add-btn { display: flex; align-items: center; gap: 7px; padding: 9px 22px; border-radius: 999px; border: 2px dashed #cbd5e1; background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 800; cursor: pointer; transition: border-color .15s, color .15s, background .15s; }
+  .flow-diagram-add-btn:hover { border-color: #3b82f6; color: #1d4ed8; background: #eff6ff; }
+  .flow-inline-editor { display: grid; gap: 14px; width: 100%; padding: 0; border-top: 0; background: transparent; }
+  .flow-inline-editor[hidden] { display: none !important; }
+  .flow-inline-editor-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  .flow-inline-editor-title { font-size: 18px; font-weight: 900; color: #0f172a; }
+  .flow-inline-editor-body { display: grid; gap: 12px; }
+  .flow-inline-editor .designer-meta-card { margin: 0; border-color: #bfdbfe; box-shadow: 0 10px 28px rgba(15,23,42,.08); }
+  .flow-inline-editor .designer-actions [data-move] { display: none; }
+  .flow-inline-editor [data-card-details] { margin-top: 0 !important; border-top: 0; padding-top: 0; }
+  .flow-inline-editor [data-card-details] > summary { display: none; }
+  .flow-inline-editor-placeholder { padding: 14px; border-radius: 14px; border: 1px dashed #cbd5e1; background: #f8fafc; color: #64748b; font-size: 13px; }
+  /* Modal */
+  .diagram-modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.5); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .diagram-modal-overlay[hidden] { display: none !important; }
+  .diagram-modal-box { background: #fff; border-radius: 18px; box-shadow: 0 24px 64px rgba(15,23,42,.22); width: 100%; max-width: 560px; overflow: hidden; }
+  .diagram-modal-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px 14px; border-bottom: 1px solid #f1f5f9; }
+  .diagram-modal-title { font-size: 15px; font-weight: 900; color: #0f172a; }
+  .diagram-modal-close { background: none; border: none; color: #94a3b8; font-size: 20px; font-weight: 900; cursor: pointer; padding: 2px 8px; border-radius: 6px; line-height: 1; }
+  .diagram-modal-close:hover { background: #f1f5f9; color: #475569; }
+  .diagram-modal-body { padding: 16px 22px 22px; }
+  .diagram-action-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .diagram-action-item { width: 100%; appearance: none; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 14px 8px 10px; border-radius: 12px; border: 2px solid #e2e8f0; background: #fff; cursor: pointer; transition: border-color .12s, box-shadow .12s, transform .1s; font: inherit; text-align: center; }
+  .diagram-action-item:hover { border-color: var(--ac, #3b82f6); box-shadow: 0 4px 16px rgba(0,0,0,.1); transform: translateY(-2px); }
+  .diagram-action-item-icon { font-size: 22px; width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+  .diagram-action-item-label { font-size: 11px; font-weight: 800; color: #334155; text-align: center; line-height: 1.3; }
+  .diagram-action-item-app { font-size: 10px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  body.flow-workspace-open { overflow: hidden; }
+  @media (max-width: 1180px) {
+    .flow-workspace-overlay { padding: 8px; }
+    .flow-workspace-shell { height: calc(100vh - 16px); grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); border-radius: 20px; }
+    .flow-workspace-side { border-right: 0; border-bottom: 1px solid #dbeafe; }
+    .flow-workspace-side-scroll { max-height: 42vh; }
+  }
+  @media (max-width: 720px) {
+    .flow-workspace-overlay { padding: 0; }
+    .flow-workspace-shell { height: 100vh; border-radius: 0; }
+    .flow-diagram-topbar { flex-wrap: wrap; }
+    .flow-diagram-canvas { padding: 18px 10px 28px; }
+  }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Designer visuale" page_subtitle="Vista affiancata al builder classico per leggere e modificare la regola in modo piu' chiaro." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+  {% include "automazioni/components/subnav.html" %}
+
+  <div class="designer-shell">
+  <form method="post" class="designer-layout" id="rule-designer-form">
+    {% csrf_token %}
+    <div class="designer-main">
+      <div class="designer-section-card">
+        <div class="designer-section-body">
+          <div class="designer-header">
+            <div>
+              <div class="designer-summary-kicker">Designer visuale affiancato {% if is_new_rule %}Â· Nuova regola{% else %}Â· Regola {{ rule.id }}{% endif %}</div>
+              <div class="designer-section-title">{{ rule_name_value }}</div>
+              <div class="designer-section-subtitle">Questa pagina non sostituisce il builder classico: e' una vista piu' leggibile sugli stessi dati e sugli stessi servizi runtime.</div>
+            </div>
+            <div class="designer-actions">
+              <button type="button" class="btn btn-light" id="flowDiagramToggleBtn" onclick="toggleFlowDiagram()">ðŸ”€ Diagramma di flusso</button>
+              {% if not is_new_rule %}
+                <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_detail' rule.id %}">Dettaglio</a>
+                <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_edit' rule.id %}">Builder classico</a>
+                <a class="btn" href="{% url 'admin_portale:automazioni_rule_test' rule.id %}">Testa regola</a>
+              {% else %}
+                <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_create' %}">Builder classico</a>
+                <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_list' %}">Lista regole</a>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="designer-flow">
+            <div class="designer-flow-card trigger">
+              <div class="designer-flow-step">Step 1</div>
+              <div class="designer-flow-title">Trigger</div>
+              <div class="designer-flow-copy">{{ trigger_descriptor.headline }}</div>
+              <div class="designer-flow-meta">
+                <span class="designer-pill designer-pill-primary">{{ trigger_descriptor.operation_label }}</span>
+                <span class="designer-pill">{{ trigger_descriptor.trigger_scope_label }}</span>
+              </div>
+            </div>
+            <div class="designer-flow-card conditions">
+              <div class="designer-flow-step">Step 2</div>
+              <div class="designer-flow-title">Condizioni</div>
+              <div class="designer-flow-copy">Tutte le condizioni devono essere vere. Il riordino cambia l'ordine logico con drag-and-drop o pulsanti dedicati.</div>
+              <div class="designer-flow-meta">
+                <span class="designer-pill">{{ existing_condition_entries|length }} salvate</span>
+                <span class="designer-pill designer-pill-warning">AND</span>
+              </div>
+            </div>
+            <div class="designer-flow-card actions">
+              <div class="designer-flow-step">Step 3</div>
+              <div class="designer-flow-title">Azioni</div>
+              <div class="designer-flow-copy">Preview sintetico immediato, sequenza visibile e modifica inline solo quando serve.</div>
+              <div class="designer-flow-meta">
+                <span class="designer-pill">{{ existing_action_entries|length }} salvate</span>
+                <span class="designer-pill designer-pill-success">sequenza</span>
+              </div>
+            </div>
+          </div>
+
+          {# â”€â”€ Flow Diagram Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ #}
+          <div id="flowDiagramPanel" class="flow-workspace-overlay" hidden>
+            <div class="flow-workspace-shell" role="dialog" aria-modal="true" aria-label="Workspace diagramma di flusso">
+              <aside class="flow-workspace-side">
+                <div class="flow-workspace-side-head">
+                  <div class="flow-workspace-kicker">Workspace flow</div>
+                  <div class="flow-workspace-title">{{ rule_name_value }}</div>
+                  <div class="flow-workspace-copy">Canvas a destra, inspector a sinistra. Il diagramma resta visibile mentre modifichi la card selezionata.</div>
+                  <div class="designer-pill-row">
+                    <span class="designer-pill designer-pill-primary">{{ trigger_descriptor.operation_label }}</span>
+                    <span class="designer-pill">{{ existing_condition_entries|length }} condizioni</span>
+                    <span class="designer-pill designer-pill-success">{{ existing_action_entries|length }} azioni</span>
+                  </div>
+                  <div class="designer-actions">
+                    <button class="btn" type="submit">Salva designer</button>
+                    <button type="button" class="btn btn-light" onclick="toggleFlowDiagram()">Chiudi workspace</button>
+                  </div>
+                </div>
+                <div class="flow-workspace-side-scroll">
+                  <div class="flow-workspace-summary">
+                    <div class="designer-summary-kicker">Riepilogo rapido</div>
+                    <div class="flow-workspace-summary-line">{{ human_rule_summary.when }}</div>
+                    <div class="flow-workspace-summary-line">{{ human_rule_summary.scope }}</div>
+                    <div class="flow-workspace-summary-line">{{ human_rule_summary.condition_line }}</div>
+                  </div>
+                  <div class="flow-workspace-nav">
+                    <button type="button" class="flow-workspace-nav-btn" onclick="scrollToAnchor('trigger-section')">
+                      <span>Apri trigger completo</span><span>pagina</span>
+                    </button>
+                    <button type="button" class="flow-workspace-nav-btn" onclick="scrollToAnchor('conditions-section')">
+                      <span>Apri condizioni complete</span><span>pagina</span>
+                    </button>
+                    <button type="button" class="flow-workspace-nav-btn" onclick="scrollToAnchor('actions-section')">
+                      <span>Apri lista azioni</span><span>pagina</span>
+                    </button>
+                  </div>
+                  <div class="flow-workspace-empty" id="flowWorkspaceEmptyState">
+                    <div class="flow-workspace-empty-title">Seleziona un nodo azione</div>
+                    <div>Click su un'azione nel canvas per aprire qui l'editor fissato. In questo modo lavori sul flow senza dover scorrere avanti e indietro tutta la pagina.</div>
+                  </div>
+                  <div class="flow-inline-editor" id="flowNodeEditorPanel" hidden>
+                    <div class="flow-inline-editor-head">
+                      <div>
+                        <div class="designer-summary-kicker">Editor inline</div>
+                        <div class="flow-inline-editor-title" id="flowNodeEditorTitle">Seleziona un'azione dal diagramma</div>
+                        <div class="designer-section-subtitle" id="flowNodeEditorSubtitle">Click sul nodo per modificare direttamente la card qui, senza scendere al form completo.</div>
+                      </div>
+                      <div class="designer-actions">
+                        <button type="button" class="btn btn-light" id="flowNodeEditorCardBtn">Apri card completa</button>
+                        <button type="button" class="btn btn-light" onclick="closeFlowNodeEditor()">Chiudi</button>
+                      </div>
+                    </div>
+                    <div class="flow-inline-editor-body" id="flowNodeEditorMount"></div>
+                  </div>
+                </div>
+              </aside>
+              <section class="flow-workspace-main">
+                <div class="flow-diagram-shell">
+              <div class="flow-diagram-topbar">
+                <span class="flow-diagram-label">ðŸ”€ Diagramma di flusso</span>
+                <span class="flow-diagram-hint">Trascina per riordinare Â· click sul nodo per modificare Â· ï¼‹ per aggiungere Â· âœ• per rimuovere</span>
+                <button type="button" class="btn btn-light btn-sm" id="flowDiagramPngBtn" onclick="downloadDiagramPng()" title="Scarica come immagine PNG">â¬‡ PNG</button>
+                <button type="button" class="btn btn-light btn-sm" onclick="toggleFlowDiagram()">âœ• Chiudi</button>
+              </div>
+              <div class="flow-diagram-canvas" id="flowDiagramCanvas">
+                <div class="flow-diagram-loading">Generazione diagrammaâ€¦</div>
+              </div>
+                </div>
+              </section>
+            </div>
+          </div>
+
+          {% comment %}Dati JSON per il diagramma, passati via json_script{% endcomment %}
+          {{ flow_nodes_json|json_script:"flow-nodes-data" }}
+
+          <div class="designer-summary">
+            <div class="designer-summary-kicker">Riepilogo umano</div>
+            <div class="designer-summary-line">{{ human_rule_summary.when }}</div>
+            <div class="designer-summary-line">{{ human_rule_summary.scope }}</div>
+            <div class="designer-summary-line">{{ human_rule_summary.condition_line }}</div>
+            <div>
+              <div class="designer-summary-kicker">Allora</div>
+              <ul class="designer-summary-list">
+                {% for line in human_rule_summary.then_lines %}
+                  <li>{{ line }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+          </div>
+
+          {% if rule_form.non_field_errors %}
+            <ul class="designer-errors">{% for error in rule_form.non_field_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+          {% endif %}
+
+          <div class="designer-meta">
+            <div class="designer-meta-card">
+              <div class="designer-meta-label">Code</div>
+              <div class="designer-meta-value">{{ rule_form.code }}</div>
+              {% if rule_form.code.errors %}<ul class="designer-errors">{% for error in rule_form.code.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            </div>
+            <div class="designer-meta-card">
+              <div class="designer-meta-label">Nome</div>
+              <div class="designer-meta-value">{{ rule_form.name }}</div>
+              {% if rule_form.name.errors %}<ul class="designer-errors">{% for error in rule_form.name.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            </div>
+            <div class="designer-meta-card">
+              <div class="designer-meta-label">Descrizione</div>
+              <div class="designer-meta-value">{{ rule_form.description }}</div>
+              {% if rule_form.description.errors %}<ul class="designer-errors">{% for error in rule_form.description.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            </div>
+          </div>
+
+          <div class="designer-form-actions">
+            <button class="btn" type="submit">Salva designer</button>
+            <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_list' %}">Torna alla lista</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="designer-sections">
+        <div id="trigger-section">
+          {% include "automazioni/components/trigger_card.html" %}
+        </div>
+
+        <section class="designer-section-card" id="conditions-section">
+          <div class="designer-section-head">
+            <div>
+              <div class="designer-section-title">Condizioni</div>
+              <div class="designer-section-subtitle">Tutte le condizioni devono essere vere. Riordino con drag-and-drop o pulsanti su/giu'.</div>
+            </div>
+            <div class="designer-pill-row">
+              <span class="designer-pill designer-pill-primary">AND</span>
+              <span class="designer-pill">{{ existing_condition_entries|length }} salvate</span>
+              {% if is_new_rule %}<span class="designer-pill designer-pill-warning">salva per attivare il riordino persistente</span>{% endif %}
+            </div>
+          </div>
+          <div class="designer-section-body">
+            {{ condition_formset.management_form }}
+            {% if condition_formset.non_form_errors %}
+              <ul class="designer-errors">{% for error in condition_formset.non_form_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+            <div class="designer-status" data-reorder-status="conditions"></div>
+            <div class="designer-note">Drag-and-drop e pulsanti di riordino aggiornano il campo `order`. Le modifiche ai contenuti restano SSR e vanno salvate con il pulsante pagina.{% if is_new_rule %} Finche' la regola non esiste ancora a database, il riordino server-side non viene eseguito.{% endif %}</div>
+
+            {% if existing_condition_entries %}
+              <div class="designer-sortable" data-sortable-list data-section="conditions"{% if not is_new_rule %} data-reorder-url="{% url 'admin_portale:automazioni_rule_condition_reorder' rule.id %}"{% endif %}>
+                {% for entry in existing_condition_entries %}
+                  {% include "automazioni/components/condition_card.html" with entry=entry %}
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="designer-empty">Nessuna condizione salvata nella regola.</div>
+            {% endif %}
+
+            <div class="designer-add-stack" id="designer-new-conditions">
+              {% for entry in new_condition_entries %}
+                {% include "automazioni/components/condition_card.html" with entry=entry %}
+              {% endfor %}
+            </div>
+            <button type="button" class="btn btn-light" data-add-condition style="margin-top:8px;">+ Nuova condizione</button>
+          </div>
+        </section>
+
+        <section class="designer-section-card" id="actions-section">
+          <div class="designer-section-head">
+            <div>
+              <div class="designer-section-title">Azioni</div>
+              <div class="designer-section-subtitle">Le azioni vengono eseguite in sequenza. Il preview sintetico resta leggibile anche senza aprire l'editor della card.</div>
+            </div>
+            <div class="designer-pill-row">
+              <span class="designer-pill designer-pill-success">sequenza</span>
+              <span class="designer-pill">{{ existing_action_entries|length }} salvate</span>
+              {% if is_new_rule %}<span class="designer-pill designer-pill-warning">salva per attivare il riordino persistente</span>{% endif %}
+            </div>
+          </div>
+          <div class="designer-section-body">
+            {{ action_formset.management_form }}
+            {% if action_formset.non_form_errors %}
+              <ul class="designer-errors">{% for error in action_formset.non_form_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+            <div class="designer-status" data-reorder-status="actions"></div>
+            <div class="designer-note">Usa il riordino leggero per cambiare l'ordine esecutivo. Il dettaglio configurazione si apre nella singola card.{% if is_new_rule %} Il persist del riordino parte dopo il primo salvataggio.{% endif %}</div>
+
+            {% if existing_action_entries %}
+              <div class="designer-sortable" data-sortable-list data-section="actions"{% if not is_new_rule %} data-reorder-url="{% url 'admin_portale:automazioni_rule_action_reorder' rule.id %}"{% endif %}>
+                {% for entry in existing_action_entries %}
+                  {% include "automazioni/components/action_card.html" with entry=entry %}
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="designer-empty">Nessuna azione salvata nella regola.</div>
+            {% endif %}
+
+            <div class="designer-add-stack" id="designer-new-actions">
+              {% for entry in new_action_entries %}
+                {% include "automazioni/components/action_card.html" with entry=entry %}
+              {% endfor %}
+            </div>
+            <button type="button" class="btn btn-light" data-add-action style="margin-top:8px;">+ Nuova azione</button>
+          </div>
+        </section>
+      </div>
+
+      <div class="designer-form-actions">
+        <button class="btn" type="submit">Salva designer</button>
+        <a class="btn btn-light" href="{% if is_new_rule %}{% url 'admin_portale:automazioni_rule_list' %}{% else %}{% url 'admin_portale:automazioni_rule_detail' rule.id %}{% endif %}">Annulla</a>
+      </div>
+    </div>
+
+    <aside class="designer-side">
+
+      {# â”€â”€ Test live panel â”€â”€ #}
+      {% if not is_new_rule %}
+      <div class="designer-section-card" id="livetest-panel">
+        <div class="designer-section-head">
+          <div>
+            <div class="designer-section-title" style="display:flex;align-items:center;gap:8px;">
+              Test live
+              <span class="designer-pill designer-pill-success" style="font-size:10px;padding:3px 8px;">â–¶ Pronto</span>
+            </div>
+            <div class="designer-section-subtitle">Esegui con dati campione o un record reale â€” risultati azione per azione.</div>
+          </div>
+        </div>
+        <div class="designer-section-body">
+
+          {# Tabs #}
+          <div class="livetest-tabs">
+            <button class="livetest-tab is-active" type="button" data-livetest-tab="sample">Dati campione</button>
+            <button class="livetest-tab" type="button" data-livetest-tab="real">Record reale</button>
+          </div>
+
+          {# â”€â”€ Tab: Dati campione â”€â”€ #}
+          <div data-livetest-panel="sample">
+            <div class="designer-field" style="margin-top:10px;">
+              <label style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#64748b;">Payload ({{ trigger_descriptor.source_label }})</label>
+              <textarea id="livetest-sample-payload" class="livetest-payload-area" rows="7">{{ sample_payload_json }}</textarea>
+            </div>
+            {% if rule_is_update %}
+            <div class="designer-field" style="margin-top:8px;">
+              <label style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#64748b;">Old payload (stato precedente)</label>
+              <textarea id="livetest-sample-old-payload" class="livetest-payload-area" rows="4">{{ sample_old_payload_json }}</textarea>
+            </div>
+            {% endif %}
+          </div>
+
+          {# â”€â”€ Tab: Record reale â”€â”€ #}
+          <div data-livetest-panel="real" hidden>
+            <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+              <div class="designer-field" style="flex:1;min-width:130px;">
+                <label style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#64748b;">Record {{ trigger_descriptor.source_label }}</label>
+                <select id="livetest-record-select" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;">
+                  <option value="">â€” premi Carica â€”</option>
+                </select>
+              </div>
+              <button type="button" class="btn btn-light" id="livetest-load-records-btn"
+                      data-records-url="{% url 'admin_portale:automazioni_api_recent_records' source_code=rule.source_code %}"
+                      style="white-space:nowrap;flex-shrink:0;">Carica</button>
+            </div>
+            <button type="button" class="btn btn-light" id="livetest-use-record-btn"
+                    data-payload-url-template="{% url 'admin_portale:automazioni_api_record_payload' source_code=rule.source_code record_id='RECORD_ID' %}"
+                    disabled style="margin-top:8px;width:100%;">
+              Usa come payload â†’
+            </button>
+            <div class="designer-field" style="margin-top:10px;">
+              <label style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#64748b;">Payload caricato</label>
+              <textarea id="livetest-real-payload" class="livetest-payload-area" rows="7">{{ sample_payload_json }}</textarea>
+            </div>
+            {% if rule_is_update %}
+            <div class="designer-field" style="margin-top:8px;">
+              <label style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#64748b;">Old payload</label>
+              <textarea id="livetest-real-old-payload" class="livetest-payload-area" rows="3">{}</textarea>
+            </div>
+            {% endif %}
+          </div>
+
+          {# Run button #}
+          <div class="designer-form-actions" style="margin-top:12px;">
+            <button type="button" class="btn" id="livetest-run-btn"
+                    data-test-url="{% url 'admin_portale:automazioni_api_test_rule_ajax' rule_id=rule.id %}"
+                    data-is-update="{{ rule_is_update|yesno:'true,false' }}"
+                    data-run-log-base="{% url 'admin_portale:automazioni_run_log_list' %}">
+              â–¶ Esegui test
+            </button>
+            <a class="btn btn-light" href="{% url 'admin_portale:automazioni_rule_test' rule.id %}">Test completo</a>
+          </div>
+
+          {# Results panel #}
+          <div id="livetest-results" hidden>
+            <div style="border-top:1px solid #e2e8f0;padding-top:14px;margin-top:14px;">
+              <div class="designer-summary-kicker" style="margin-bottom:8px;">Risultato</div>
+              <div id="livetest-result-status-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;"></div>
+              <div id="livetest-result-actions" style="display:grid;gap:6px;"></div>
+              <div id="livetest-result-error" hidden style="margin-top:10px;padding:10px;border-radius:10px;background:#fef2f2;border:1px solid #fecaca;">
+                <div style="font-size:10px;font-weight:900;color:#991b1b;margin-bottom:4px;text-transform:uppercase;letter-spacing:.07em;">Errore globale</div>
+                <pre id="livetest-result-error-trace" style="margin:0;font-size:10px;color:#7f1d1d;white-space:pre-wrap;word-break:break-all;max-height:100px;overflow:auto;"></pre>
+              </div>
+              <div id="livetest-result-link" style="margin-top:8px;font-size:12px;"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      {% else %}
+      <div class="designer-section-card">
+        <div class="designer-section-body">
+          <div class="designer-summary-kicker">Test live</div>
+          <div class="designer-note" style="margin-top:8px;">Il test live sarÃ  disponibile dopo il primo salvataggio della regola.</div>
+          <div style="margin-top:10px;">
+            <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#64748b;margin-bottom:6px;">Payload campione</div>
+            <pre style="margin:0;padding:12px;border-radius:10px;background:#0f172a;color:#e2e8f0;font-size:11px;max-height:160px;overflow:auto;">{{ sample_payload_json }}</pre>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {% include "automazioni/components/source_catalog_panel.html" with panel_class="designer-source-panel" %}
+    </aside>
+  </form>
+  </div>
+
+{# â”€â”€ Hidden empty-form templates per clonazione JS â”€â”€ #}
+<div id="empty-condition-card" hidden>
+{% with ef=condition_formset.empty_form %}
+<article class="designer-meta-card" data-condition-card data-is-existing="false">
+  {% for hf in ef.hidden_fields %}{{ hf }}{% endfor %}
+  <div class="designer-header">
+    <div>
+      <div class="designer-summary-kicker">Condizione <span data-order-badge>â€”</span></div>
+      <div class="designer-summary-line" style="font-size:15px;" data-condition-summary>â€”</div>
+      <div class="designer-section-subtitle" data-condition-human-summary>Nuova condizione</div>
+    </div>
+    <div class="designer-actions">
+      <button class="btn btn-light" type="button" data-apply-condition-suggestion>Base suggerita</button>
+    </div>
+  </div>
+  <div class="designer-pill-row" style="margin-top:10px;"></div>
+  <div class="designer-help" data-condition-suggestion-hint style="margin-top:8px;"></div>
+  <div class="designer-help" data-card-feedback style="margin-top:6px;font-weight:700;color:#0f766e;"></div>
+  <div class="designer-preset-zone" data-condition-preset-zone hidden>
+    <div class="designer-preset-head">
+      <div>
+        <div class="designer-summary-kicker" data-condition-preset-group-title>Preset consigliati</div>
+        <div class="designer-section-subtitle" data-condition-preset-group-subtitle></div>
+      </div>
+      <div class="designer-size-switch">
+        <button class="designer-size-button is-active" type="button" data-condition-preset-size="sm">S</button>
+        <button class="designer-size-button" type="button" data-condition-preset-size="md">M</button>
+        <button class="designer-size-button" type="button" data-condition-preset-size="lg">L</button>
+      </div>
+    </div>
+    <div class="designer-preset-grid" data-condition-preset-grid></div>
+  </div>
+  <details style="margin-top:12px;" data-card-details open>
+    <summary style="cursor:pointer;font-weight:700;color:#0f172a;">Modifica card</summary>
+    <div class="designer-trigger-copy" style="margin-top:12px;">
+      <div class="designer-field">{{ ef.order.label_tag }}{{ ef.order }}</div>
+      <div class="designer-field">{{ ef.field_name.label_tag }}{{ ef.field_name }}</div>
+      <div class="designer-field">{{ ef.operator.label_tag }}{{ ef.operator }}</div>
+      <div class="designer-field">{{ ef.value_type.label_tag }}{{ ef.value_type }}</div>
+      <div class="designer-field designer-field-wide">{{ ef.expected_value.label_tag }}{{ ef.expected_value }}</div>
+      <div class="designer-field">{{ ef.compare_with_old.label_tag }}{{ ef.compare_with_old }}</div>
+      <div class="designer-field">{{ ef.is_enabled.label_tag }}{{ ef.is_enabled }}</div>
+      <div class="designer-field">{{ ef.DELETE.label_tag }}{{ ef.DELETE }}</div>
+    </div>
+  </details>
+</article>
+{% endwith %}
+</div>
+
+<div id="empty-action-card" hidden>
+{% include "automazioni/components/action_card.html" with entry=empty_action_entry %}
+</div>
+
+{# â”€â”€ Modal aggiunta azione dal diagramma â”€â”€ #}
+<div id="diagramAddModal" class="diagram-modal-overlay" hidden aria-modal="true" role="dialog">
+  <div class="diagram-modal-box">
+    <div class="diagram-modal-head">
+      <span class="diagram-modal-title">Aggiungi azione al flusso</span>
+      <button class="diagram-modal-close" type="button" onclick="closeDiagramAddModal()" aria-label="Chiudi">âœ•</button>
+    </div>
+    <div class="diagram-modal-body">
+      <div class="diagram-action-grid" id="diagramActionGrid">
+        {% if diagram_action_choices %}
+          {% for choice in diagram_action_choices %}
+          <button
+            class="diagram-action-item"
+            type="button"
+            style="--ac:{{ choice.color }};"
+            data-action-type="{{ choice.value }}"
+            onclick="diagramAddAction('{{ choice.value|escapejs }}')"
+          >
+            <div class="diagram-action-item-icon" style="background:{{ choice.bg }};">{{ choice.icon }}</div>
+            <div class="diagram-action-item-label">{{ choice.label }}</div>
+            <div class="diagram-action-item-app">{{ choice.app }}</div>
+          </button>
+          {% endfor %}
+        {% else %}
+          <div class="designer-empty" style="grid-column:1 / -1;">Nessuna azione disponibile nel picker del diagramma.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+{{ condition_suggestions_json|json_script:"designer-condition-suggestions" }}
+{{ action_suggestions_json|json_script:"designer-action-suggestions" }}
+{{ source_fields_json|json_script:"designer-source-fields" }}
+{{ diagram_action_choices|json_script:"diagram-action-choices" }}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+(function() {
+  function parseJsonScript(scriptId) {
+    var node = document.getElementById(scriptId);
+    if (!node) return {};
+    try {
+      var parsed = JSON.parse(node.textContent);
+      if (typeof parsed === 'string') {
+        parsed = JSON.parse(parsed);
+      }
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  var conditionSuggestions = parseJsonScript('designer-condition-suggestions');
+  var sourceFieldsMap = parseJsonScript('designer-source-fields');
+  var actionSuggestions = parseJsonScript('designer-action-suggestions');
+  var conditionPresetSizeStorageKey = 'automationDesignerConditionPresetSize';
+  var presetSizeStorageKey = 'automationDesignerPresetSize';
+  var activeSmartTarget = null;
+
+  function forEachNode(nodeList, callback) {
+    if (!nodeList || !callback) return;
+    for (var index = 0; index < nodeList.length; index += 1) {
+      callback(nodeList[index], index);
+    }
+  }
+
+  function matchesSelector(element, selector) {
+    if (!element || element.nodeType !== 1) return false;
+    var matcher = element.matches || element.msMatchesSelector || element.webkitMatchesSelector;
+    return matcher ? matcher.call(element, selector) : false;
+  }
+
+  function closestElement(element, selector) {
+    var current = element;
+    while (current && current.nodeType === 1) {
+      if (matchesSelector(current, selector)) return current;
+      current = current.parentElement;
+    }
+    return null;
+  }
+
+  function setClassState(element, className, isActive) {
+    if (!element || !className) return;
+    if (element.classList) {
+      if (isActive) {
+        element.classList.add(className);
+      } else {
+        element.classList.remove(className);
+      }
+      return;
+    }
+    var classes = String(element.className || '').split(/\s+/);
+    var filtered = [];
+    for (var index = 0; index < classes.length; index += 1) {
+      if (classes[index] && classes[index] !== className) {
+        filtered.push(classes[index]);
+      }
+    }
+    if (isActive) filtered.push(className);
+    element.className = filtered.join(' ');
+  }
+
+  function getCurrentSourceCode() {
+    var select = document.getElementById('id_source_code');
+    return select ? String(select.value || '').trim() : '';
+  }
+
+  function getSourceFieldMeta(sourceCode, fieldName) {
+    var sourceData = sourceFieldsMap[sourceCode] || {};
+    var fields = sourceData.all || [];
+    for (var index = 0; index < fields.length; index += 1) {
+      if (fields[index] && fields[index].name === fieldName) return fields[index];
+    }
+    return null;
+  }
+
+  function isSmartTarget(element) {
+    return !!(element && element.getAttribute && element.getAttribute('data-smart-target') === '1');
+  }
+
+  function describeSmartTarget(element) {
+    if (!element) return 'Nessun campo selezionato';
+    var role = element.getAttribute('data-smart-role') || '';
+    var label = '';
+    if (role) {
+      label = role.replace(/-/g, ' ');
+    } else {
+      var wrapper = closestElement(element, '.designer-field');
+      var labelNode = wrapper ? wrapper.querySelector('label') : null;
+      label = labelNode ? String(labelNode.textContent || '').trim() : '';
+    }
+    var mode = element.getAttribute('data-smart-mode') || '';
+    if (mode === 'field-select') {
+      return 'Select attivo: ' + (label || 'campo') + '. Un click imposta il nome campo.';
+    }
+    if (mode === 'json-editor') {
+      return 'JSON attivo: ' + (label || 'payload') + '. Un click aggiunge chiave e sample value.';
+    }
+    return 'Template attivo: ' + (label || 'testo') + '. Un click inserisce il placeholder nel cursore.';
+  }
+
+  function updateSmartTargetBanner() {
+    var labelNode = document.querySelector('[data-smart-target-label]');
+    if (labelNode) labelNode.textContent = describeSmartTarget(activeSmartTarget);
+  }
+
+  function setActiveSmartTarget(element) {
+    if (!isSmartTarget(element) || element.disabled) return;
+    activeSmartTarget = element;
+    updateSmartTargetBanner();
+  }
+
+  function focusFirstSmartTarget() {
+    if (isSmartTarget(activeSmartTarget) && !activeSmartTarget.disabled) {
+      updateSmartTargetBanner();
+      return;
+    }
+    var firstTarget = document.querySelector('[data-smart-target="1"]:not([disabled])');
+    if (firstTarget) {
+      setActiveSmartTarget(firstTarget);
+    } else {
+      activeSmartTarget = null;
+      updateSmartTargetBanner();
+    }
+  }
+
+  function insertTextAtCursor(field, text) {
+    if (!field) return;
+    var value = String(field.value || '');
+    var start = typeof field.selectionStart === 'number' ? field.selectionStart : value.length;
+    var end = typeof field.selectionEnd === 'number' ? field.selectionEnd : value.length;
+    field.value = value.slice(0, start) + text + value.slice(end);
+    if (field.setSelectionRange) {
+      var nextPosition = start + text.length;
+      field.setSelectionRange(nextPosition, nextPosition);
+    }
+    if (typeof field.dispatchEvent === 'function') {
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+      field.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+
+  function applyFieldToSmartTarget(fieldName) {
+    var sourceCode = getCurrentSourceCode();
+    var meta = getSourceFieldMeta(sourceCode, fieldName);
+    var target = activeSmartTarget;
+    if (!meta) return;
+    if (!isSmartTarget(target) || target.disabled) {
+      focusFirstSmartTarget();
+      target = activeSmartTarget;
+    }
+    if (!target) return;
+
+    var mode = target.getAttribute('data-smart-mode') || 'template-input';
+    if (mode === 'field-select') {
+      var option = target.querySelector('option[value="' + fieldName + '"]');
+      if (option) {
+        target.value = fieldName;
+        target.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      target.focus();
+      return;
+    }
+
+    insertTextAtCursor(target, meta.placeholder || ('{' + fieldName + '}'));
+    target.focus();
+  }
+
+  function applyCatalogFiltering(catalog) {
+    if (!catalog) return;
+    var searchField = catalog.querySelector('[data-smart-field-search]');
+    var searchValue = searchField ? String(searchField.value || '').trim().toLowerCase() : '';
+    var activeFilterButton = catalog.querySelector('[data-smart-filter].is-active');
+    var filterValue = activeFilterButton ? activeFilterButton.getAttribute('data-smart-filter') : 'all';
+    var visibleCount = 0;
+
+    forEachNode(catalog.querySelectorAll('[data-smart-field-card]'), function(card) {
+      var text = [
+        card.getAttribute('data-field-name') || '',
+        card.getAttribute('data-field-label') || '',
+        card.getAttribute('data-field-aliases') || '',
+        card.getAttribute('data-field-description') || ''
+      ].join(' ').toLowerCase();
+      var matchesSearch = !searchValue || text.indexOf(searchValue) >= 0;
+      var matchesFilter = filterValue === 'all' || card.getAttribute('data-filter-' + filterValue) === '1';
+      card.hidden = !(matchesSearch && matchesFilter);
+      if (!card.hidden) visibleCount += 1;
+    });
+
+    var emptyState = catalog.querySelector('[data-smart-empty-state]');
+    if (emptyState) emptyState.hidden = visibleCount > 0;
+  }
+
+  function initSmartCatalogs() {
+    forEachNode(document.querySelectorAll('[data-source-catalog]'), function(catalog) {
+      applyCatalogFiltering(catalog);
+    });
+  }
+
+  function getCsrfToken() {
+    var field = document.querySelector('#rule-designer-form input[name="csrfmiddlewaretoken"]');
+    return field ? field.value : '';
+  }
+
+  function showStatus(section, message, isError) {
+    var node = document.querySelector('[data-reorder-status="' + section + '"]');
+    if (!node) return;
+    node.textContent = message || '';
+    node.style.color = isError ? '#b91c1c' : '#1d4ed8';
+  }
+
+  function syncWatchedField() {
+    var scope = document.getElementById('id_trigger_scope');
+    var watched = document.getElementById('id_watched_field');
+    if (!scope || !watched) return;
+    var enabled = scope.value === 'specific_field';
+    watched.disabled = !enabled;
+    if (!enabled) watched.value = '';
+  }
+
+  function rebuildSelectOptions(selectEl, options, currentValue) {
+    if (!selectEl) return;
+    selectEl.innerHTML = '<option value="">---------</option>';
+    options.forEach(function(f) {
+      var opt = document.createElement('option');
+      opt.value = f.name;
+      opt.textContent = f.label;
+      if (f.name === currentValue) opt.selected = true;
+      selectEl.appendChild(opt);
+    });
+  }
+
+  function syncSourceCatalog() {
+    var select = document.getElementById('id_source_code');
+    if (!select) return;
+    var value = select.value;
+
+    forEachNode(document.querySelectorAll('[data-source-catalog]'), function(panel) {
+      panel.hidden = panel.getAttribute('data-source-catalog') !== value;
+    });
+
+    var sourceData = sourceFieldsMap[value];
+    if (!sourceData) return;
+
+    var watchedSelect = document.getElementById('id_watched_field');
+    if (watchedSelect) {
+      rebuildSelectOptions(watchedSelect, sourceData.trigger, watchedSelect.value);
+    }
+
+    forEachNode(document.querySelectorAll('select[name$="-field_name"]'), function(condSelect) {
+      rebuildSelectOptions(condSelect, sourceData.condition, condSelect.value);
+    });
+
+    forEachNode(document.querySelectorAll('select[name$="-run_if_field_name"]'), function(runIfSelect) {
+      rebuildSelectOptions(runIfSelect, sourceData.condition, runIfSelect.value);
+    });
+
+    initSmartCatalogs();
+  }
+
+  function syncActionCards() {
+    forEachNode(document.querySelectorAll('[data-action-card]'), function(card) {
+      var select = card.querySelector('select[name$="-action_type"]');
+      if (!select) return;
+      var value = select.value;
+      forEachNode(card.querySelectorAll('[data-action-config]'), function(group) {
+        group.hidden = group.getAttribute('data-action-config') !== value;
+      });
+    });
+  }
+
+  function fieldIsBlank(field) {
+    if (!field) return true;
+    if (field.type === 'checkbox') return !field.checked;
+    return !String(field.value || '').trim();
+  }
+
+  function setFieldValue(field, value) {
+    if (!field) return;
+    if (field.type === 'checkbox') {
+      field.checked = !!value;
+      return;
+    }
+    field.value = value == null ? '' : value;
+  }
+
+  function setFieldPlaceholder(field, value) {
+    if (!field || field.type === 'checkbox') return;
+    field.setAttribute('placeholder', value || '');
+  }
+
+  function getCardField(card, fieldName) {
+    return card.querySelector('[name$="-' + fieldName + '"]');
+  }
+
+  function getFieldDisplayValue(field) {
+    if (!field) return '';
+    if (field.type === 'checkbox') return field.checked ? 'Si' : 'No';
+    if (field.tagName && field.tagName.toLowerCase() === 'select') {
+      var selected = field.options[field.selectedIndex];
+      return selected ? String(selected.text || '').trim() : '';
+    }
+    return String(field.value || '').trim();
+  }
+
+  function setCardFeedback(card, message) {
+    var feedback = card ? card.querySelector('[data-card-feedback]') : null;
+    if (!feedback) return;
+    feedback.textContent = message || '';
+  }
+
+  function openCardDetails(card) {
+    var details = card ? card.querySelector('[data-card-details]') : null;
+    if (details) details.open = true;
+  }
+
+  function replaceNodeChildren(node, lines) {
+    if (!node) return;
+    node.innerHTML = '';
+    for (var index = 0; index < lines.length; index += 1) {
+      var lineNode = document.createElement('div');
+      lineNode.textContent = lines[index];
+      node.appendChild(lineNode);
+    }
+  }
+
+  function countFilledLines(rawValue) {
+    var lines = String(rawValue || '').split(/\r?\n/);
+    var count = 0;
+    for (var index = 0; index < lines.length; index += 1) {
+      if (String(lines[index] || '').trim()) count += 1;
+    }
+    return count;
+  }
+
+  function countJsonArrayItems(rawValue) {
+    var text = String(rawValue || '').trim();
+    if (!text) return 0;
+    try {
+      var parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) return 0;
+      var count = 0;
+      for (var index = 0; index < parsed.length; index += 1) {
+        if (parsed[index] && typeof parsed[index] === 'object' && !Array.isArray(parsed[index])) count += 1;
+      }
+      return count;
+    } catch (error) {
+      return 0;
+    }
+  }
+
+  function buildSimpleConditionPreview(prefix, fieldName, operator, expectedValue) {
+    var text = prefix + ': ' + (fieldName || 'campo') + ' ' + (operator || 'operatore');
+    if (expectedValue) text += ' ' + expectedValue;
+    return text;
+  }
+
+  function updateConditionCardPresentation(card) {
+    if (!card) return;
+    var fieldField = getCardField(card, 'field_name');
+    var operatorField = getCardField(card, 'operator');
+    var expectedField = getCardField(card, 'expected_value');
+    var summaryNode = card.querySelector('[data-condition-summary]');
+    var humanNode = card.querySelector('[data-condition-human-summary]');
+
+    var fieldRaw = fieldField ? String(fieldField.value || '').trim() : '';
+    var fieldLabel = getFieldDisplayValue(fieldField) || fieldRaw || 'Campo';
+    var operatorRaw = operatorField ? String(operatorField.value || '').trim() : '';
+    var operatorLabel = getFieldDisplayValue(operatorField) || operatorRaw || 'Operatore';
+    var expectedValue = expectedField ? String(expectedField.value || '').trim() : '';
+
+    if (summaryNode) {
+      summaryNode.textContent = (fieldRaw || 'campo') + ' ' + (operatorRaw || 'operatore') + (expectedValue ? ' ' + expectedValue : '');
+    }
+    if (humanNode) {
+      humanNode.textContent = fieldLabel + ' â€¢ ' + operatorLabel;
+    }
+  }
+
+  function updateActionCardPresentation(card) {
+    if (!card) return;
+    var actionTypeField = getCardField(card, 'action_type');
+    var descriptionField = getCardField(card, 'description');
+    var actionLabelNode = card.querySelector('[data-action-label]');
+    var actionSummaryNode = card.querySelector('[data-action-summary]');
+    var previewNode = card.querySelector('[data-action-preview]');
+
+    var actionType = actionTypeField ? String(actionTypeField.value || '').trim() : '';
+    var actionLabel = getFieldDisplayValue(actionTypeField) || '-';
+    var description = descriptionField ? String(descriptionField.value || '').trim() : '';
+    var previewLines = ['Configurazione non disponibile.'];
+
+    if (actionType === 'send_email') {
+      previewLines = [
+        'Destinatari: ' + (String((getCardField(card, 'email_to') || {}).value || '').trim() || '-'),
+        'Subject: ' + (String((getCardField(card, 'email_subject_template') || {}).value || '').trim() || '-'),
+        'Body: ' + (String((getCardField(card, 'email_body_text_template') || {}).value || '').trim() || '-')
+      ];
+    } else if (actionType === 'write_log') {
+      previewLines = ['Messaggio: ' + (String((getCardField(card, 'write_log_message_template') || {}).value || '').trim() || '-')];
+    } else if (actionType === 'update_dashboard_metric') {
+      previewLines = [
+        'Metrica: ' + (String((getCardField(card, 'metric_code') || {}).value || '').trim() || '-'),
+        'Operazione: ' + (String((getCardField(card, 'metric_operation') || {}).value || '').trim() || '-'),
+        'Valore: ' + (String((getCardField(card, 'metric_value_template') || {}).value || '').trim() || '-')
+      ];
+    } else if (actionType === 'insert_record') {
+      var insertMappings = String((getCardField(card, 'insert_field_mappings_text') || {}).value || '').split(/\r?\n/);
+      var insertCount = 0;
+      for (var i = 0; i < insertMappings.length; i += 1) {
+        if (String(insertMappings[i] || '').trim()) insertCount += 1;
+      }
+      previewLines = [
+        'Tabella: ' + (String((getCardField(card, 'insert_target_table') || {}).value || '').trim() || '-'),
+        'Field mappings: ' + insertCount
+      ];
+    } else if (actionType === 'update_record') {
+      var updateMappings = String((getCardField(card, 'update_fields_text') || {}).value || '').split(/\r?\n/);
+      var updateCount = 0;
+      for (var j = 0; j < updateMappings.length; j += 1) {
+        if (String(updateMappings[j] || '').trim()) updateCount += 1;
+      }
+      previewLines = [
+        'Tabella: ' + (String((getCardField(card, 'update_target_table') || {}).value || '').trim() || '-'),
+        'Where field: ' + (String((getCardField(card, 'update_where_field') || {}).value || '').trim() || '-'),
+        'Update fields: ' + updateCount
+      ];
+    } else if (actionType === 'update_trigger_record') {
+      var triggerMappings = String((getCardField(card, 'trigger_update_fields_text') || {}).value || '').split(/\r?\n/);
+      var triggerCount = 0;
+      for (var k = 0; k < triggerMappings.length; k += 1) {
+        if (String(triggerMappings[k] || '').trim()) triggerCount += 1;
+      }
+      previewLines = [
+        'Target: record triggerante',
+        'Update fields: ' + triggerCount
+      ];
+    } else if (actionType === 'delay_schedule') {
+      var delayMode = String((getCardField(card, 'delay_mode') || {}).value || '').trim() || 'relative';
+      if (delayMode === 'until') {
+        previewLines = [
+          'Fino a: ' + (String((getCardField(card, 'delay_until_template') || {}).value || '').trim() || '-')
+        ];
+      } else {
+        previewLines = [
+          'Delay: ' + (String((getCardField(card, 'delay_value_template') || {}).value || '').trim() || '-')
+            + ' '
+            + (String((getCardField(card, 'delay_unit') || {}).value || '').trim() || '-')
+        ];
+      }
+    } else if (actionType === 'http_request') {
+      previewLines = [
+        'HTTP: ' + (String((getCardField(card, 'http_method') || {}).value || '').trim() || '-')
+          + ' '
+          + (String((getCardField(card, 'http_url_template') || {}).value || '').trim() || '-'),
+        'Status attesi: ' + (String((getCardField(card, 'http_expected_status_csv') || {}).value || '').trim() || '2xx')
+      ];
+    } else if (actionType === 'teams_webhook') {
+      previewLines = [
+        'Teams title: ' + (String((getCardField(card, 'teams_title_template') || {}).value || '').trim() || '-'),
+        'Summary: ' + (String((getCardField(card, 'teams_summary_template') || {}).value || '').trim() || '-')
+      ];
+    } else if (actionType === 'send_approval') {
+      var approvedUpdateCount = countFilledLines(String((getCardField(card, 'approval_approved_update_fields_text') || {}).value || ''));
+      var rejectedUpdateCount = countFilledLines(String((getCardField(card, 'approval_rejected_update_fields_text') || {}).value || ''));
+      previewLines = [
+        'Recapito: ' + (String((getCardField(card, 'approval_delivery_mode') || {}).value || '').trim() || 'email'),
+        'Email approvatori: ' + (String((getCardField(card, 'approval_to_template') || {}).value || '').trim() || '-'),
+        'Destinatario Teams: ' + (String((getCardField(card, 'approval_teams_recipient_email_template') || {}).value || '').trim() || '-'),
+        'Oggetto: ' + (String((getCardField(card, 'approval_subject_template') || {}).value || '').trim() || '-'),
+        'Se approvato: ' + (approvedUpdateCount + countJsonArrayItems(String((getCardField(card, 'approval_approved_actions_json') || {}).value || ''))) + ' azioni',
+        'Se rifiutato: ' + (rejectedUpdateCount + countJsonArrayItems(String((getCardField(card, 'approval_rejected_actions_json') || {}).value || ''))) + ' azioni'
+      ];
+    } else if (actionType === 'do_until') {
+      previewLines = [
+        buildSimpleConditionPreview(
+          'Uscita',
+          String((getCardField(card, 'loop_check_field') || {}).value || '').trim(),
+          String((getCardField(card, 'loop_check_operator') || {}).value || '').trim(),
+          String((getCardField(card, 'loop_check_value') || {}).value || '').trim()
+        ),
+        'Retry: ' + (String((getCardField(card, 'loop_retry_delay_value') || {}).value || '').trim() || '24')
+          + ' '
+          + (String((getCardField(card, 'loop_retry_delay_unit') || {}).value || '').trim() || 'hours'),
+        'Max iterazioni: ' + (String((getCardField(card, 'loop_max_iterations') || {}).value || '').trim() || '10'),
+        'Corpo loop: ' + countJsonArrayItems(String((getCardField(card, 'loop_loop_actions_json') || {}).value || '')) + ' azioni',
+        'Successo/timeout: '
+          + countJsonArrayItems(String((getCardField(card, 'loop_on_success_actions_json') || {}).value || ''))
+          + '/'
+          + countJsonArrayItems(String((getCardField(card, 'loop_on_timeout_actions_json') || {}).value || ''))
+      ];
+    } else if (actionType === 'for_each') {
+      var filterField = String((getCardField(card, 'each_filter_field') || {}).value || '').trim();
+      var filterValue = String((getCardField(card, 'each_filter_value_template') || {}).value || '').trim();
+      previewLines = [
+        'Sorgente: ' + (String((getCardField(card, 'each_source_code') || {}).value || '').trim() || '-'),
+        'Filtro: ' + (filterField || '-') + (filterField && filterValue ? ' = ' + filterValue : ''),
+        'Azioni per elemento: ' + countJsonArrayItems(String((getCardField(card, 'each_actions_json') || {}).value || '')),
+        'Max elementi: ' + (String((getCardField(card, 'each_max_items') || {}).value || '').trim() || '50')
+      ];
+    } else if (actionType === 'branch') {
+      var branchConditionLine = buildSimpleConditionPreview(
+        'If',
+        String((getCardField(card, 'branch_condition_field') || {}).value || '').trim(),
+        String((getCardField(card, 'branch_condition_operator') || {}).value || '').trim(),
+        String((getCardField(card, 'branch_condition_value') || {}).value || '').trim()
+      );
+      previewLines = [
+        branchConditionLine,
+        'Se vero: ' + countJsonArrayItems(String((getCardField(card, 'branch_if_true_actions_json') || {}).value || '')) + ' azioni',
+        'Se falso: ' + countJsonArrayItems(String((getCardField(card, 'branch_if_false_actions_json') || {}).value || '')) + ' azioni'
+      ];
+      var compareWithOldField = getCardField(card, 'branch_compare_with_old');
+      if (compareWithOldField && compareWithOldField.checked) previewLines.push('Confronta con old payload');
+    }
+
+    var runIfField = String((getCardField(card, 'run_if_field_name') || {}).value || '').trim();
+    var runIfOperator = String((getCardField(card, 'run_if_operator') || {}).value || '').trim();
+    var runIfExpected = String((getCardField(card, 'run_if_expected_value') || {}).value || '').trim();
+    var runIfNegateField = getCardField(card, 'run_if_negate');
+    var runIfNegate = !!(runIfNegateField && runIfNegateField.checked);
+    if (runIfField || runIfOperator || runIfExpected || runIfNegate) {
+      var branchLine = 'Branch: ' + (runIfNegate ? 'NOT ' : '') + (runIfField || 'campo') + ' ' + (runIfOperator || 'operatore');
+      if (runIfExpected) branchLine += ' ' + runIfExpected;
+      previewLines.push(branchLine);
+    }
+
+    if (actionLabelNode) actionLabelNode.textContent = actionLabel;
+    if (actionSummaryNode) actionSummaryNode.textContent = description || actionLabel;
+    replaceNodeChildren(previewNode, previewLines);
+  }
+
+  function getConditionConfig() {
+    return conditionSuggestions.base || null;
+  }
+
+  function getPresetSizeMode() {
+    try {
+      return localStorage.getItem(presetSizeStorageKey) || 'sm';
+    } catch (error) {
+      return 'sm';
+    }
+  }
+
+  function setPresetSizeMode(mode) {
+    try {
+      localStorage.setItem(presetSizeStorageKey, mode);
+    } catch (error) {
+      // ignore storage errors
+    }
+    forEachNode(document.querySelectorAll('[data-preset-zone]'), function(zone) {
+      zone.setAttribute('data-preset-size-mode', mode);
+      forEachNode(zone.querySelectorAll('[data-preset-size]'), function(button) {
+        setClassState(button, 'is-active', button.getAttribute('data-preset-size') === mode);
+      });
+    });
+  }
+
+  function getConditionPresetSizeMode() {
+    try {
+      return localStorage.getItem(conditionPresetSizeStorageKey) || 'sm';
+    } catch (error) {
+      return 'sm';
+    }
+  }
+
+  function setConditionPresetSizeMode(mode) {
+    try {
+      localStorage.setItem(conditionPresetSizeStorageKey, mode);
+    } catch (error) {
+      // ignore storage errors
+    }
+    forEachNode(document.querySelectorAll('[data-condition-preset-zone]'), function(zone) {
+      zone.setAttribute('data-preset-size-mode', mode);
+      forEachNode(zone.querySelectorAll('[data-condition-preset-size]'), function(button) {
+        setClassState(button, 'is-active', button.getAttribute('data-condition-preset-size') === mode);
+      });
+    });
+  }
+
+  function getActionConfig(actionType) {
+    return actionSuggestions[actionType] || null;
+  }
+
+  function getDefaultActionType() {
+    if (actionSuggestions.send_email) return 'send_email';
+    var keys = Object.keys(actionSuggestions || {});
+    for (var index = 0; index < keys.length; index += 1) {
+      if (getActionConfig(keys[index])) return keys[index];
+    }
+    return '';
+  }
+
+  function getPresetByKey(config, presetKey) {
+    var presets = (config && config.presets) || [];
+    for (var index = 0; index < presets.length; index += 1) {
+      if (presets[index].key === presetKey) return presets[index];
+    }
+    return null;
+  }
+
+  function getConditionPresetByKey(config, presetKey) {
+    var presets = (config && config.presets) || [];
+    for (var index = 0; index < presets.length; index += 1) {
+      if (presets[index].key === presetKey) return presets[index];
+    }
+    return null;
+  }
+
+  function updateSuggestionHint(card, actionType) {
+    var hint = card.querySelector('[data-suggestion-hint]');
+    if (!hint) return;
+    if (!actionType) {
+      hint.textContent = 'Se non scegli ancora il tipo, "Base suggerita" imposta una card consigliata automaticamente.';
+      return;
+    }
+    var config = getActionConfig(actionType);
+    var presetCount = config && config.presets ? config.presets.length : 0;
+    if (presetCount > 1) {
+      hint.textContent = 'Base pronta piu' + "'" + ' ' + presetCount + ' preset visuali da applicare con un click.';
+      return;
+    }
+    hint.textContent = 'Base suggerita disponibile per ' + actionType + '. Poi puoi rifinire tutto a mano.';
+  }
+
+  function updateConditionSuggestionHint(card) {
+    var hint = card.querySelector('[data-condition-suggestion-hint]');
+    if (!hint) return;
+    var config = getConditionConfig();
+    var presetCount = config && config.presets ? config.presets.length : 0;
+    hint.textContent = presetCount
+      ? 'Base pronta piu' + "'" + ' ' + presetCount + ' preset visuali compatti da applicare con un click.'
+      : 'Usa la base suggerita per precompilare una condizione.';
+  }
+
+  function mergeSuggestionPayload(config, preset) {
+    return {
+      values: Object.assign({}, (config && config.values) || {}, (preset && preset.values) || {}),
+      placeholders: Object.assign({}, (config && config.placeholders) || {}, (preset && preset.placeholders) || {})
+    };
+  }
+
+  function mergeConditionSuggestionPayload(config, preset) {
+    return {
+      values: Object.assign({}, (config && config.values) || {}, (preset && preset.values) || {})
+    };
+  }
+
+  function renderPresetCards(card, actionType) {
+    var zone = card.querySelector('[data-preset-zone]');
+    var grid = card.querySelector('[data-preset-grid]');
+    var title = card.querySelector('[data-preset-group-title]');
+    var subtitle = card.querySelector('[data-preset-group-subtitle]');
+    var config = getActionConfig(actionType);
+    if (!zone || !grid || !config || !config.presets || !config.presets.length) {
+      if (zone) zone.hidden = true;
+      if (grid) grid.innerHTML = '';
+      return;
+    }
+
+    zone.hidden = false;
+    zone.setAttribute('data-preset-size-mode', getPresetSizeMode());
+    title.textContent = config.group_title || 'Preset consigliati';
+    subtitle.textContent = config.group_subtitle || '';
+    grid.innerHTML = config.presets.map(function(preset) {
+      var theme = preset.theme || 'slate';
+      return ''
+        + '<div class="designer-preset-card theme-' + theme + '">'
+        +   '<div class="designer-preset-tag">preset</div>'
+        +   '<div class="designer-preset-title">' + preset.title + '</div>'
+        +   '<div class="designer-preset-desc">' + preset.description + '</div>'
+        +   '<div class="designer-preset-foot">'
+        +     '<span class="designer-preset-tag">' + actionType.replace(/_/g, ' ') + '</span>'
+        +     '<button class="btn btn-light" type="button" data-apply-preset="' + preset.key + '">Usa</button>'
+        +   '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function renderConditionPresetCards(card) {
+    var zone = card.querySelector('[data-condition-preset-zone]');
+    var grid = card.querySelector('[data-condition-preset-grid]');
+    var title = card.querySelector('[data-condition-preset-group-title]');
+    var subtitle = card.querySelector('[data-condition-preset-group-subtitle]');
+    var config = getConditionConfig();
+    if (!zone || !grid || !config || !config.presets || !config.presets.length) {
+      if (zone) zone.hidden = true;
+      if (grid) grid.innerHTML = '';
+      return;
+    }
+
+    zone.hidden = false;
+    zone.setAttribute('data-preset-size-mode', getConditionPresetSizeMode());
+    title.textContent = config.group_title || 'Preset consigliati';
+    subtitle.textContent = config.group_subtitle || '';
+    grid.innerHTML = config.presets.map(function(preset) {
+      var theme = preset.theme || 'slate';
+      return ''
+        + '<div class="designer-preset-card theme-' + theme + '">'
+        +   '<div class="designer-preset-tag">condizione</div>'
+        +   '<div class="designer-preset-title">' + preset.title + '</div>'
+        +   '<div class="designer-preset-desc">' + preset.description + '</div>'
+        +   '<div class="designer-preset-foot">'
+        +     '<span class="designer-preset-tag">and</span>'
+        +     '<button class="btn btn-light" type="button" data-apply-condition-preset="' + preset.key + '">Usa</button>'
+        +   '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function applyActionSuggestion(card, force, presetKey) {
+    var select = card.querySelector('select[name$="-action_type"]');
+    if (!select) return;
+    var actionType = select.value;
+    if (!actionType) {
+      actionType = getDefaultActionType();
+      if (actionType) {
+        setFieldValue(select, actionType);
+      }
+    }
+    var config = getActionConfig(actionType);
+    var preset = getPresetByKey(config, presetKey);
+    var payload = mergeSuggestionPayload(config, preset);
+
+    updateSuggestionHint(card, actionType);
+    renderPresetCards(card, actionType);
+    if (!config) return;
+
+    Object.keys(payload.values || {}).forEach(function(fieldName) {
+      var field = getCardField(card, fieldName);
+      if (!field) return;
+      if (force || fieldIsBlank(field)) {
+        setFieldValue(field, payload.values[fieldName]);
+      }
+    });
+
+    Object.keys(payload.placeholders || {}).forEach(function(fieldName) {
+      var field = getCardField(card, fieldName);
+      if (!field) return;
+      setFieldPlaceholder(field, payload.placeholders[fieldName]);
+    });
+
+    card.setAttribute('data-suggestion-applied', actionType || '');
+    if (preset && preset.key) {
+      card.setAttribute('data-preset-applied', preset.key);
+    }
+    updateActionCardPresentation(card);
+    setCardFeedback(card, preset && preset.title ? ('Applicato preset: ' + preset.title) : 'Base suggerita applicata.');
+    openCardDetails(card);
+    syncActionCards();
+  }
+
+  function applyConditionSuggestion(card, force, presetKey) {
+    var config = getConditionConfig();
+    var preset = getConditionPresetByKey(config, presetKey);
+    var payload = mergeConditionSuggestionPayload(config, preset);
+    if (!config) return;
+
+    Object.keys(payload.values || {}).forEach(function(fieldName) {
+      var field = getCardField(card, fieldName);
+      if (!field) return;
+      if (force || fieldIsBlank(field)) {
+        setFieldValue(field, payload.values[fieldName]);
+      }
+    });
+
+    card.setAttribute('data-condition-suggestion-applied', preset && preset.key ? preset.key : 'base');
+    updateConditionCardPresentation(card);
+    setCardFeedback(card, preset && preset.title ? ('Applicato preset: ' + preset.title) : 'Base suggerita applicata.');
+    openCardDetails(card);
+  }
+
+  function syncOrderFields(container) {
+    forEachNode(container.querySelectorAll('[data-sortable-item]'), function(item, index) {
+      var orderInput = item.querySelector('input[name$="-order"]');
+      var orderBadge = item.querySelector('[data-order-badge]');
+      var position = index + 1;
+      if (orderInput) orderInput.value = position;
+      if (orderBadge) orderBadge.textContent = position;
+    });
+  }
+
+  function syncPendingCardOrders(cardSelector, startAt) {
+    var current = startAt;
+    forEachNode(document.querySelectorAll(cardSelector), function(card) {
+      if (card.getAttribute('data-is-existing') === 'true') return;
+      var orderInput = card.querySelector('input[name$="-order"]');
+      var orderBadge = card.querySelector('[data-order-badge]');
+      if (!orderInput) return;
+      if (!String(orderInput.value || '').trim()) {
+        orderInput.value = current;
+      }
+      if (orderBadge) {
+        orderBadge.textContent = orderInput.value;
+      }
+      current += 1;
+    });
+  }
+
+  function syncAllOrderFields() {
+    forEachNode(document.querySelectorAll('[data-sortable-list]'), syncOrderFields);
+    syncPendingCardOrders('[data-condition-card]', document.querySelectorAll('[data-condition-card][data-is-existing="true"]').length + 1);
+    syncPendingCardOrders('[data-action-card]', document.querySelectorAll('[data-action-card][data-is-existing="true"]').length + 1);
+  }
+
+  function persistOrder(container) {
+    var url = container.getAttribute('data-reorder-url');
+    var section = container.getAttribute('data-section');
+    var ids = [];
+    forEachNode(container.querySelectorAll('[data-sortable-item]'), function(item) {
+      var itemId = item.getAttribute('data-item-id');
+      if (itemId) ids.push(itemId);
+    });
+    if (!url || !ids.length) return;
+
+    var data = new FormData();
+    ids.forEach(function(id) { data.append('ordered_ids', id); });
+
+    if (window.fetch) {
+      fetch(url, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCsrfToken() },
+        body: data,
+        credentials: 'same-origin'
+      }).then(function(response) {
+        if (!response.ok) {
+          return response.json().then(function(payload) {
+            throw new Error(payload.message || 'Riordino non riuscito.');
+          });
+        }
+        return response.json();
+      }).then(function() {
+        showStatus(section, 'Ordine aggiornato.', false);
+      }).catch(function(error) {
+        showStatus(section, error.message || 'Errore di riordino.', true);
+      });
+      return;
+    }
+
+    var request = new XMLHttpRequest();
+    request.open('POST', url, true);
+    request.setRequestHeader('X-CSRFToken', getCsrfToken());
+    request.onreadystatechange = function() {
+      if (request.readyState !== 4) return;
+      if (request.status >= 200 && request.status < 300) {
+        showStatus(section, 'Ordine aggiornato.', false);
+        return;
+      }
+      var message = 'Errore di riordino.';
+      try {
+        var payload = JSON.parse(request.responseText || '{}');
+        message = payload.message || message;
+      } catch (error) {
+        // keep default message
+      }
+      showStatus(section, message, true);
+    };
+    request.send(data);
+  }
+
+  function moveItem(item, direction) {
+    var container = closestElement(item, '[data-sortable-list]');
+    if (!container) return;
+    var sibling = direction < 0 ? item.previousElementSibling : item.nextElementSibling;
+    if (!sibling) return;
+    if (direction < 0) {
+      container.insertBefore(item, sibling);
+    } else {
+      container.insertBefore(sibling, item);
+    }
+    syncOrderFields(container);
+    persistOrder(container);
+  }
+
+  function enableSortable(container) {
+    var draggedItem = null;
+
+    forEachNode(container.querySelectorAll('[data-sortable-item]'), function(item) {
+      item.addEventListener('dragstart', function() {
+        draggedItem = item;
+        item.classList.add('is-dragging');
+      });
+      item.addEventListener('dragend', function() {
+        item.classList.remove('is-dragging');
+      });
+    });
+
+    container.addEventListener('dragover', function(event) {
+      event.preventDefault();
+      var afterElement = getDragAfterElement(container, event.clientY);
+      if (!draggedItem) return;
+      if (!afterElement) {
+        container.appendChild(draggedItem);
+      } else if (afterElement !== draggedItem) {
+        container.insertBefore(draggedItem, afterElement);
+      }
+    });
+
+    container.addEventListener('drop', function(event) {
+      event.preventDefault();
+      if (!draggedItem) return;
+      syncOrderFields(container);
+      persistOrder(container);
+      draggedItem = null;
+    });
+
+    syncOrderFields(container);
+  }
+
+  function getDragAfterElement(container, y) {
+    var elements = [].slice.call(container.querySelectorAll('[data-sortable-item]:not(.is-dragging)'));
+    return elements.reduce(function(closest, child) {
+      var box = child.getBoundingClientRect();
+      var offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset: offset, element: child };
+      }
+      return closest;
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+  }
+
+  document.addEventListener('click', function(event) {
+    var button = closestElement(event.target, '[data-move]');
+    if (button) {
+      event.preventDefault();
+      moveItem(closestElement(button, '[data-sortable-item]'), parseInt(button.getAttribute('data-move'), 10));
+    }
+
+    var suggestionButton = closestElement(event.target, '[data-apply-suggestion]');
+    if (suggestionButton) {
+      event.preventDefault();
+      applyActionSuggestion(closestElement(suggestionButton, '[data-action-card]'), true);
+      syncActionCards();
+      syncAllOrderFields();
+    }
+
+    var conditionSuggestionButton = closestElement(event.target, '[data-apply-condition-suggestion]');
+    if (conditionSuggestionButton) {
+      event.preventDefault();
+      applyConditionSuggestion(closestElement(conditionSuggestionButton, '[data-condition-card]'), true);
+      syncAllOrderFields();
+    }
+
+    var presetButton = closestElement(event.target, '[data-apply-preset]');
+    if (presetButton) {
+      event.preventDefault();
+      applyActionSuggestion(closestElement(presetButton, '[data-action-card]'), true, presetButton.getAttribute('data-apply-preset'));
+      syncActionCards();
+      syncAllOrderFields();
+    }
+
+    var conditionPresetButton = closestElement(event.target, '[data-apply-condition-preset]');
+    if (conditionPresetButton) {
+      event.preventDefault();
+      applyConditionSuggestion(
+        closestElement(conditionPresetButton, '[data-condition-card]'),
+        true,
+        conditionPresetButton.getAttribute('data-apply-condition-preset')
+      );
+      syncAllOrderFields();
+    }
+
+    var sizeButton = closestElement(event.target, '[data-preset-size]');
+    if (sizeButton) {
+      event.preventDefault();
+      setPresetSizeMode(sizeButton.getAttribute('data-preset-size'));
+    }
+
+    var conditionSizeButton = closestElement(event.target, '[data-condition-preset-size]');
+    if (conditionSizeButton) {
+      event.preventDefault();
+      setConditionPresetSizeMode(conditionSizeButton.getAttribute('data-condition-preset-size'));
+    }
+
+    var copyButton = closestElement(event.target, '[data-copy-value]');
+    if (copyButton) {
+      event.preventDefault();
+      var value = copyButton.getAttribute('data-copy-value');
+      if (!navigator.clipboard) return;
+      navigator.clipboard.writeText(value).then(function() {
+        copyButton.textContent = 'Copiato';
+        window.setTimeout(function() {
+          copyButton.textContent = 'Copia';
+        }, 1200);
+      });
+    }
+
+    var smartInsertButton = closestElement(event.target, '[data-smart-insert-field]');
+    if (smartInsertButton) {
+      event.preventDefault();
+      applyFieldToSmartTarget(smartInsertButton.getAttribute('data-smart-insert-field'));
+    }
+
+    var smartFilterButton = closestElement(event.target, '[data-smart-filter]');
+    if (smartFilterButton) {
+      event.preventDefault();
+      var catalog = closestElement(smartFilterButton, '[data-source-catalog]');
+      if (!catalog) return;
+      forEachNode(catalog.querySelectorAll('[data-smart-filter]'), function(button) {
+        setClassState(button, 'is-active', button === smartFilterButton);
+      });
+      applyCatalogFiltering(catalog);
+    }
+
+    var clearSmartTargetButton = closestElement(event.target, '[data-smart-target-clear]');
+    if (clearSmartTargetButton) {
+      event.preventDefault();
+      activeSmartTarget = null;
+      focusFirstSmartTarget();
+    }
+
+    var addConditionButton = closestElement(event.target, '[data-add-condition]');
+    if (addConditionButton) {
+      event.preventDefault();
+      addDesignerCondition();
+    }
+
+    var addActionButton = closestElement(event.target, '[data-add-action]');
+    if (addActionButton) {
+      event.preventDefault();
+      addDesignerAction();
+    }
+  });
+
+  function addDesignerCondition() {
+    var totalForms = document.getElementById('id_conditions-TOTAL_FORMS');
+    if (!totalForms) return;
+    var count = parseInt(totalForms.value, 10);
+    var template = document.getElementById('empty-condition-card');
+    if (!template) return;
+    var html = template.innerHTML.replace(/__prefix__/g, String(count));
+    var div = document.createElement('div');
+    div.innerHTML = html;
+    var newCard = div.firstElementChild;
+    if (!newCard) return;
+    var stack = document.getElementById('designer-new-conditions');
+    if (stack) stack.appendChild(newCard);
+    totalForms.value = count + 1;
+    updateConditionSuggestionHint(newCard);
+    renderConditionPresetCards(newCard);
+    updateConditionCardPresentation(newCard);
+    applyConditionSuggestion(newCard, false);
+    syncAllOrderFields();
+    syncSourceCatalog();
+    newCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function addDesignerAction() {
+    var totalForms = document.getElementById('id_actions-TOTAL_FORMS');
+    if (!totalForms) return;
+    var count = parseInt(totalForms.value, 10);
+    var template = document.getElementById('empty-action-card');
+    if (!template) return;
+    var html = template.innerHTML.replace(/__prefix__/g, String(count));
+    var div = document.createElement('div');
+    div.innerHTML = html;
+    var newCard = div.firstElementChild;
+    if (!newCard) return;
+    var stack = document.getElementById('designer-new-actions');
+    if (stack) stack.appendChild(newCard);
+    totalForms.value = count + 1;
+    var select = newCard.querySelector('select[name$="-action_type"]');
+    updateSuggestionHint(newCard, select ? select.value : '');
+    renderPresetCards(newCard, select ? select.value : '');
+    openCardDetails(newCard);
+    updateActionCardPresentation(newCard);
+    syncActionCards();
+    syncAllOrderFields();
+    newCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  // Esposto globalmente per il diagramma interattivo
+  window.addDesignerAction = addDesignerAction;
+
+  document.addEventListener('change', function(event) {
+    if (event.target && event.target.id === 'id_trigger_scope') syncWatchedField();
+    if (event.target && event.target.id === 'id_source_code') syncSourceCatalog();
+    if (event.target && /-action_type$/.test(event.target.name || '')) {
+      var card = closestElement(event.target, '[data-action-card]');
+      if (card && card.getAttribute('data-is-existing') !== 'true') {
+        var previousSuggestion = card.getAttribute('data-suggestion-applied') || '';
+        if (previousSuggestion !== event.target.value) {
+          applyActionSuggestion(card, false);
+        }
+      } else if (card) {
+        updateSuggestionHint(card, event.target.value);
+        renderPresetCards(card, event.target.value);
+      }
+      syncActionCards();
+      updateActionCardPresentation(card);
+    }
+    if (event.target && /-field_name$|-operator$|-expected_value$/.test(event.target.name || '')) {
+      updateConditionCardPresentation(closestElement(event.target, '[data-condition-card]'));
+    }
+    var changedActionCard = closestElement(event.target, '[data-action-card]');
+    if (changedActionCard && /^actions-/.test(event.target.name || '')) updateActionCardPresentation(changedActionCard);
+  });
+
+  document.addEventListener('focusin', function(event) {
+    if (isSmartTarget(event.target)) {
+      setActiveSmartTarget(event.target);
+    }
+  });
+
+  document.addEventListener('input', function(event) {
+    if (matchesSelector(event.target, '[data-smart-field-search]')) {
+      applyCatalogFiltering(closestElement(event.target, '[data-source-catalog]'));
+    }
+    var actionCard = closestElement(event.target, '[data-action-card]');
+    if (actionCard && /^actions-/.test(event.target.name || '')) updateActionCardPresentation(actionCard);
+    var conditionCard = closestElement(event.target, '[data-condition-card]');
+    if (conditionCard && /^conditions-/.test(event.target.name || '') && /-field_name$|-operator$|-expected_value$/.test(event.target.name || '')) {
+      updateConditionCardPresentation(conditionCard);
+    }
+  });
+
+  syncWatchedField();
+  syncSourceCatalog();
+  syncActionCards();
+  setPresetSizeMode(getPresetSizeMode());
+  setConditionPresetSizeMode(getConditionPresetSizeMode());
+  initSmartCatalogs();
+  forEachNode(document.querySelectorAll('[data-condition-card]'), function(card) {
+    updateConditionSuggestionHint(card);
+    renderConditionPresetCards(card);
+    updateConditionCardPresentation(card);
+    if (card.getAttribute('data-is-existing') !== 'true') {
+      applyConditionSuggestion(card, false);
+    }
+  });
+  forEachNode(document.querySelectorAll('[data-action-card]'), function(card) {
+    var select = card.querySelector('select[name$="-action_type"]');
+    updateSuggestionHint(card, select ? select.value : '');
+    renderPresetCards(card, select ? select.value : '');
+    updateActionCardPresentation(card);
+    if (card.getAttribute('data-is-existing') !== 'true' && select && select.value) {
+      applyActionSuggestion(card, false);
+    }
+  });
+  syncAllOrderFields();
+  forEachNode(document.querySelectorAll('[data-sortable-list]'), enableSortable);
+  focusFirstSmartTarget();
+
+  // â”€â”€ Live test panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  (function() {
+    var livetestCurrentTab = 'sample';
+    var livetestIsRunning = false;
+
+    function escHtml(text) {
+      return String(text || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function initLivetest() {
+      var runBtn = document.getElementById('livetest-run-btn');
+      if (!runBtn) return;
+
+      var loadRecordsBtn = document.getElementById('livetest-load-records-btn');
+      var useRecordBtn = document.getElementById('livetest-use-record-btn');
+      var recordSelect = document.getElementById('livetest-record-select');
+
+      // Tab switching
+      forEachNode(document.querySelectorAll('[data-livetest-tab]'), function(tab) {
+        tab.addEventListener('click', function() {
+          livetestCurrentTab = tab.getAttribute('data-livetest-tab') || 'sample';
+          forEachNode(document.querySelectorAll('[data-livetest-tab]'), function(t) { setClassState(t, 'is-active', t === tab); });
+          forEachNode(document.querySelectorAll('[data-livetest-panel]'), function(p) { p.hidden = p.getAttribute('data-livetest-panel') !== livetestCurrentTab; });
+        });
+      });
+
+      // Load recent records
+      if (loadRecordsBtn) {
+        loadRecordsBtn.addEventListener('click', function() {
+          var url = loadRecordsBtn.getAttribute('data-records-url');
+          if (!url) return;
+          loadRecordsBtn.disabled = true;
+          loadRecordsBtn.textContent = '...';
+          fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              loadRecordsBtn.disabled = false;
+              loadRecordsBtn.textContent = 'Carica';
+              if (!recordSelect) return;
+              if (!data.ok) {
+                recordSelect.innerHTML = '<option value="">Errore: ' + escHtml(data.message || 'fetch fallita') + '</option>';
+                return;
+              }
+              var records = data.records || [];
+              recordSelect.innerHTML = records.length
+                ? '<option value="">â€” seleziona â€”</option>'
+                : '<option value="">Nessun record trovato</option>';
+              records.forEach(function(rec) {
+                var opt = document.createElement('option');
+                opt.value = String(rec.id);
+                opt.textContent = String(rec.label || rec.id);
+                recordSelect.appendChild(opt);
+              });
+              if (useRecordBtn) useRecordBtn.disabled = !recordSelect.value;
+            })
+            .catch(function() {
+              loadRecordsBtn.disabled = false;
+              loadRecordsBtn.textContent = 'Carica';
+              if (recordSelect) recordSelect.innerHTML = '<option value="">Errore di rete</option>';
+            });
+        });
+      }
+
+      if (recordSelect && useRecordBtn) {
+        recordSelect.addEventListener('change', function() { useRecordBtn.disabled = !recordSelect.value; });
+      }
+
+      // Use record â†’ fetch full payload
+      if (useRecordBtn) {
+        useRecordBtn.addEventListener('click', function() {
+          var recordId = recordSelect ? recordSelect.value : '';
+          if (!recordId) return;
+          var urlTemplate = useRecordBtn.getAttribute('data-payload-url-template') || '';
+          var url = urlTemplate.replace('RECORD_ID', encodeURIComponent(recordId));
+          if (!url) return;
+          var origText = useRecordBtn.textContent;
+          useRecordBtn.disabled = true;
+          useRecordBtn.textContent = 'Caricamento...';
+          fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              useRecordBtn.disabled = false;
+              useRecordBtn.textContent = origText;
+              if (!data.ok) { alert('Errore: ' + (data.message || 'record non disponibile')); return; }
+              var realPayloadEl = document.getElementById('livetest-real-payload');
+              if (realPayloadEl) realPayloadEl.value = JSON.stringify(data.payload, null, 2);
+            })
+            .catch(function() {
+              useRecordBtn.disabled = false;
+              useRecordBtn.textContent = origText;
+              alert('Errore di rete nel caricamento del record.');
+            });
+        });
+      }
+
+      // Run test
+      runBtn.addEventListener('click', function() {
+        if (livetestIsRunning) return;
+        var testUrl = runBtn.getAttribute('data-test-url');
+        if (!testUrl) return;
+        var isUpdate = runBtn.getAttribute('data-is-update') === 'true';
+        var runLogBase = runBtn.getAttribute('data-run-log-base') || '';
+
+        var payloadEl, oldPayloadEl;
+        if (livetestCurrentTab === 'real') {
+          payloadEl = document.getElementById('livetest-real-payload');
+          oldPayloadEl = document.getElementById('livetest-real-old-payload');
+        } else {
+          payloadEl = document.getElementById('livetest-sample-payload');
+          oldPayloadEl = document.getElementById('livetest-sample-old-payload');
+        }
+
+        var payload, oldPayload = null;
+        try { payload = JSON.parse(payloadEl ? payloadEl.value : '{}'); } catch (e) { alert('Payload JSON non valido: ' + e.message); return; }
+        if (isUpdate && oldPayloadEl && oldPayloadEl.value.trim()) {
+          try { oldPayload = JSON.parse(oldPayloadEl.value); } catch (e) { oldPayload = null; }
+        }
+
+        livetestIsRunning = true;
+        runBtn.disabled = true;
+        runBtn.textContent = 'âŸ³ Esecuzione...';
+
+        var body = { payload: payload };
+        if (oldPayload) body.old_payload = oldPayload;
+
+        fetch(testUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
+          body: JSON.stringify(body),
+        })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            livetestIsRunning = false; runBtn.disabled = false; runBtn.textContent = 'â–¶ Esegui test';
+            renderLivetestResults(data, runLogBase);
+          })
+          .catch(function(err) {
+            livetestIsRunning = false; runBtn.disabled = false; runBtn.textContent = 'â–¶ Esegui test';
+            renderLivetestResults({ ok: false, status: 'error', result_message: 'Errore di rete: ' + String(err.message || err) }, runLogBase);
+          });
+      });
+    }
+
+    function renderLivetestResults(data, runLogBase) {
+      var resultsEl = document.getElementById('livetest-results');
+      var statusRow = document.getElementById('livetest-result-status-row');
+      var actionsEl = document.getElementById('livetest-result-actions');
+      var errorBlock = document.getElementById('livetest-result-error');
+      var errorTrace = document.getElementById('livetest-result-error-trace');
+      var linkEl = document.getElementById('livetest-result-link');
+      if (!resultsEl) return;
+      resultsEl.hidden = false;
+
+      var statusMap = {
+        success: { label: 'SUCCESSO', cls: 'designer-pill-success', icon: 'âœ“' },
+        error:   { label: 'ERRORE',   cls: 'designer-pill',         icon: 'âœ—' },
+        skipped: { label: 'SALTATA',  cls: 'designer-pill-warning', icon: 'â€”' },
+        test:    { label: 'TEST OK',  cls: 'designer-pill-success', icon: 'âœ“' },
+      };
+      var s = String(data.status || '').toLowerCase();
+      var si = statusMap[s] || { label: String(data.status || 'N/D').toUpperCase(), cls: '', icon: '?' };
+
+      if (statusRow) {
+        statusRow.innerHTML =
+          '<span class="designer-pill ' + si.cls + '" style="font-size:12px;">' + si.icon + ' ' + si.label + '</span>'
+          + (data.execution_ms != null ? '<span class="designer-pill" style="font-size:11px;">' + data.execution_ms + ' ms</span>' : '')
+          + (data.trigger_event_label ? '<span style="font-size:11px;color:#64748b;">' + escHtml(data.trigger_event_label) + '</span>' : '');
+      }
+
+      if (actionsEl) {
+        actionsEl.innerHTML = '';
+        var actionLogs = data.action_logs || [];
+        if (!actionLogs.length && data.result_message) {
+          var div = document.createElement('div');
+          div.className = 'livetest-result-step ' + (s === 'error' ? 'error' : (s === 'skipped' ? 'skipped' : 'success'));
+          div.innerHTML = '<div class="livetest-result-icon">' + si.icon + '</div><div class="livetest-result-body"><div class="livetest-result-msg">' + escHtml(data.result_message) + '</div></div>';
+          actionsEl.appendChild(div);
+        }
+        actionLogs.forEach(function(alog, i) {
+          var as = String(alog.status || '').toLowerCase();
+          var ai = statusMap[as] || { label: as.toUpperCase(), cls: '', icon: '?' };
+          var stepCls = as === 'success' ? 'success' : (as === 'error' ? 'error' : 'skipped');
+          var aType = alog.action_type ? alog.action_type.replace(/_/g, ' ') : ('azione ' + (i + 1));
+          var aDesc = alog.action_desc ? ' â€” ' + alog.action_desc : '';
+          var div = document.createElement('div');
+          div.className = 'livetest-result-step ' + stepCls;
+          div.innerHTML =
+            '<div class="livetest-result-icon">' + ai.icon + '</div>'
+            + '<div class="livetest-result-body">'
+            + '<div class="livetest-result-type">' + escHtml(aType + aDesc) + '</div>'
+            + (alog.result_message ? '<div class="livetest-result-msg">' + escHtml(alog.result_message) + '</div>' : '')
+            + (alog.error_trace ? '<pre style="margin:4px 0 0;font-size:10px;color:#991b1b;white-space:pre-wrap;word-break:break-all;max-height:60px;overflow:auto;background:#fef2f2;padding:6px;border-radius:6px;">' + escHtml(alog.error_trace) + '</pre>' : '')
+            + '</div>';
+          actionsEl.appendChild(div);
+        });
+      }
+
+      if (errorBlock && errorTrace) {
+        var hasGlobal = s === 'error' && !!data.error_trace;
+        errorBlock.hidden = !hasGlobal;
+        if (hasGlobal) errorTrace.textContent = data.error_trace || '';
+      }
+      if (linkEl && data.run_log_id && runLogBase) {
+        linkEl.innerHTML = '<a href="' + runLogBase + data.run_log_id + '/" style="color:#1d4ed8;">Apri run log #' + data.run_log_id + ' â†’</a>';
+      }
+      if (resultsEl.scrollIntoView) resultsEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    initLivetest();
+  }());
+
+  // â”€â”€ Email live preview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  (function() {
+    function highlightPh(text) {
+      return String(text || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/\{([^}]+)\}/g, '<span class="email-ph">{$1}</span>');
+    }
+
+    function refreshEmailPreview(panel) {
+      var preview = panel ? panel.querySelector('[data-email-preview]') : null;
+      if (!preview || preview.hidden) return;
+      var fromEl = panel.querySelector('[name$="-email_from_email"]');
+      var toEl   = panel.querySelector('[name$="-email_to"]');
+      var subEl  = panel.querySelector('[name$="-email_subject_template"]');
+      var bodyEl = panel.querySelector('[name$="-email_body_text_template"]');
+      var fromNode = preview.querySelector('[data-preview-from]');
+      var toNode   = preview.querySelector('[data-preview-to]');
+      var subNode  = preview.querySelector('[data-preview-subject]');
+      var bodyNode = preview.querySelector('[data-preview-body]');
+      if (fromNode) fromNode.textContent = (fromEl && fromEl.value) || 'â€”';
+      if (toNode)   toNode.textContent   = (toEl   && toEl.value)   || 'â€”';
+      if (subNode)  subNode.innerHTML    = highlightPh((subEl  && subEl.value)  || 'â€”');
+      if (bodyNode) bodyNode.innerHTML   = highlightPh((bodyEl && bodyEl.value) || '(corpo non compilato)');
+    }
+
+    document.addEventListener('click', function(event) {
+      if (!event.target || event.target.getAttribute('data-email-preview-btn') === null) return;
+      var panel = closestElement(event.target, '[data-action-config="send_email"]');
+      if (!panel) return;
+      var preview = panel.querySelector('[data-email-preview]');
+      if (!preview) return;
+      var showing = !preview.hidden;
+      preview.hidden = showing;
+      event.target.textContent = showing ? 'Anteprima' : 'Nascondi';
+      setClassState(event.target, 'is-on', !showing);
+      if (!showing) refreshEmailPreview(panel);
+    });
+
+    document.addEventListener('input', function(event) {
+      if (!event.target) return;
+      if (!/-email_from_email$|-email_to$|-email_subject_template$|-email_body_text_template$/.test(event.target.name || '')) return;
+      var panel = closestElement(event.target, '[data-action-config="send_email"]');
+      refreshEmailPreview(panel);
+    });
+  }());
+
+})();
+
+// â”€â”€ Flow Diagram â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+(function() {
+  'use strict';
+
+  var _diagramRendered = false;
+  var _diagramOpen    = false;
+  var _diagramNodes   = [];   // stato corrente nodi (arricchiti)
+  var _dragNodeId     = null; // nodo attualmente in drag
+
+  // Stili azioni â€” specchio di _ACTION_NODE_STYLES in views.py
+  var _DIAG_STYLES = {
+    'send_email':             {icon:'âœ‰ï¸',  color:'#2563eb', bg:'#eff6ff', label:'Send email',           app:'Email'},
+    'insert_record':          {icon:'âž•',  color:'#16a34a', bg:'#f0fdf4', label:'Insert record',         app:'Database'},
+    'update_record':          {icon:'âœï¸',  color:'#0d9488', bg:'#f0fdfa', label:'Update record',         app:'Database'},
+    'update_trigger_record':  {icon:'ðŸ”„',  color:'#0d9488', bg:'#f0fdfa', label:'Update trigger record', app:'Database'},
+    'update_dashboard_metric':{icon:'ðŸ“Š',  color:'#7c3aed', bg:'#f5f3ff', label:'Update metric',         app:'Dashboard'},
+    'write_log':              {icon:'ðŸ“',  color:'#475569', bg:'#f8fafc', label:'Write log',             app:'Log'},
+    'delay_schedule':         {icon:'â°',  color:'#d97706', bg:'#fffbeb', label:'Delay / Schedule',      app:'Scheduler'},
+    'http_request':           {icon:'ðŸŒ',  color:'#0369a1', bg:'#f0f9ff', label:'HTTP request',          app:'HTTP'},
+    'teams_webhook':          {icon:'ðŸ’¬',  color:'#5b5fc7', bg:'#eef2ff', label:'Teams webhook',         app:'Teams'},
+    'send_approval':          {icon:'âœ…',  color:'#9333ea', bg:'#faf5ff', label:'Richiedi Approvazione', app:'Approvazione'},
+    'do_until':               {icon:'ðŸ”',  color:'#0891b2', bg:'#ecfeff', label:'Do Until',              app:'Loop'},
+    'for_each':               {icon:'ðŸ”‚',  color:'#4f46e5', bg:'#eef2ff', label:'Per Ogni Elemento',     app:'Iterazione'},
+    'branch':                 {icon:'ðŸ”€',  color:'#ea580c', bg:'#fff7ed', label:'Branch / If-Else',      app:'Condizione'},
+  };
+
+  function getDiagramActionChoices() {
+    var el = document.getElementById('diagram-action-choices');
+    if (!el) return [];
+    try {
+      var parsed = JSON.parse(el.textContent || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  getDiagramActionChoices().forEach(function(choice) {
+    if (!choice || !choice.value) return;
+    _DIAG_STYLES[String(choice.value)] = {
+      icon: choice.icon || 'âš¡',
+      color: choice.color || '#64748b',
+      bg: choice.bg || '#f8fafc',
+      label: choice.label || choice.value,
+      app: choice.app || 'Azione'
+    };
+  });
+
+  var _flowNodeEditorState = null;
+  var _diagramSyncQueue = [];
+  var _diagramSyncTimer = null;
+
+  function _setFlowWorkspaceBodyLock(isLocked) {
+    if (!document.body) return;
+    document.body.classList.toggle('flow-workspace-open', !!isLocked);
+  }
+
+  function _setFlowDiagramToggleState(isOpen) {
+    var btn = document.getElementById('flowDiagramToggleBtn');
+    if (!btn) return;
+    btn.style.background = isOpen ? '#dbeafe' : '';
+    btn.style.color = isOpen ? '#1d4ed8' : '';
+    btn.style.border = isOpen ? '1px solid #93c5fd' : '';
+  }
+
+  function _syncFlowWorkspaceEmptyState() {
+    var emptyState = document.getElementById('flowWorkspaceEmptyState');
+    var panel = document.getElementById('flowNodeEditorPanel');
+    if (!emptyState || !panel) return;
+    emptyState.hidden = !panel.hidden;
+  }
+
+  function _closeFlowDiagramWorkspace() {
+    var panel = document.getElementById('flowDiagramPanel');
+    if (!panel) return;
+    if (typeof closeDiagramAddModal === 'function') closeDiagramAddModal();
+    closeFlowNodeEditor();
+    panel.hidden = true;
+    _diagramOpen = false;
+    _setFlowWorkspaceBodyLock(false);
+    _setFlowDiagramToggleState(false);
+  }
+
+  function _openFlowDiagramWorkspace() {
+    var panel = document.getElementById('flowDiagramPanel');
+    if (!panel) return;
+    panel.hidden = false;
+    _diagramOpen = true;
+    _setFlowWorkspaceBodyLock(true);
+    _setFlowDiagramToggleState(true);
+    if (!_diagramRendered) {
+      _initDiagramState();
+      _diagramRendered = true;
+    } else {
+      _renderDiagramFromState();
+      _initDiagramEvents();
+      _highlightActiveEditorNode();
+    }
+    _syncFlowWorkspaceEmptyState();
+  }
+
+  function _cardField(card, fieldName) {
+    return card ? card.querySelector('[name$="-' + fieldName + '"]') : null;
+  }
+
+  function _findDiagramNode(nodeId) {
+    for (var index = 0; index < _diagramNodes.length; index += 1) {
+      if (_diagramNodes[index] && _diagramNodes[index].id === nodeId) return _diagramNodes[index];
+    }
+    return null;
+  }
+
+  function _findDiagramNodeForCard(card) {
+    if (!card) return null;
+    var itemId = String(card.getAttribute('data-item-id') || '');
+    for (var index = 0; index < _diagramNodes.length; index += 1) {
+      var node = _diagramNodes[index];
+      if (!node) continue;
+      if (itemId && String(node.itemId || '') === itemId) return node;
+      if (node._formCard === card) return node;
+    }
+    return null;
+  }
+
+  function _getCardForDiagramNode(node) {
+    if (!node) return null;
+    if (node._formCard && document.body.contains(node._formCard)) return node._formCard;
+    if (node.itemId) return document.querySelector('[data-item-id="' + String(node.itemId) + '"]');
+    return null;
+  }
+
+  function _collectCardPreview(card) {
+    var previewNode = card ? card.querySelector('[data-action-preview]') : null;
+    if (!previewNode) return [];
+    var lines = [];
+    var blocks = previewNode.querySelectorAll('div');
+    if (blocks && blocks.length) {
+      for (var index = 0; index < blocks.length; index += 1) {
+        var text = String(blocks[index].textContent || '').trim();
+        if (text) lines.push(text);
+      }
+      return lines;
+    }
+    var rawText = String(previewNode.textContent || '').trim();
+    return rawText ? [rawText] : [];
+  }
+
+  function _cardTextValue(card, fieldName) {
+    var field = _cardField(card, fieldName);
+    return field ? String(field.value || '').trim() : '';
+  }
+
+  function _cardBoolValue(card, fieldName) {
+    var field = _cardField(card, fieldName);
+    return !!(field && field.checked);
+  }
+
+  function _countMappingLines(rawValue) {
+    var lines = String(rawValue || '').split(/\r?\n/);
+    var count = 0;
+    for (var index = 0; index < lines.length; index += 1) {
+      if (String(lines[index] || '').trim()) count += 1;
+    }
+    return count;
+  }
+
+  function _parseInlineActionConfigs(rawValue) {
+    var text = String(rawValue || '').trim();
+    if (!text) return [];
+    try {
+      var parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) return [];
+      var items = [];
+      for (var index = 0; index < parsed.length; index += 1) {
+        if (parsed[index] && typeof parsed[index] === 'object' && !Array.isArray(parsed[index])) items.push(parsed[index]);
+      }
+      return items;
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function _inlineNodesFromConfigs(configs) {
+    var nodes = [];
+    for (var index = 0; index < configs.length; index += 1) {
+      var cfg = configs[index];
+      var actionType = cfg && cfg.action_type ? String(cfg.action_type) : '';
+      var style = _DIAG_STYLES[actionType] || { icon: '⚡', color: '#64748b', label: actionType || 'Azione' };
+      nodes.push({
+        action_type: actionType,
+        title: (cfg && cfg.description) ? String(cfg.description) : (style.label || actionType || 'Azione'),
+        icon: style.icon || '⚡',
+        color: style.color || '#64748b'
+      });
+    }
+    return nodes;
+  }
+
+  function _updateFieldsActionNode(title, count) {
+    if (!count) return null;
+    var style = _DIAG_STYLES.update_trigger_record || { icon: '🔄', color: '#0d9488' };
+    return {
+      action_type: 'update_trigger_record',
+      title: title + ' (' + count + ' campi)',
+      icon: style.icon || '🔄',
+      color: style.color || '#0d9488'
+    };
+  }
+
+  function _approvalBranchNodes(card, updateFieldName, jsonFieldName) {
+    var nodes = [];
+    var updateNode = _updateFieldsActionNode(
+      'Aggiorna record triggerante',
+      _countMappingLines(_cardTextValue(card, updateFieldName))
+    );
+    if (updateNode) nodes.push(updateNode);
+    return nodes.concat(_inlineNodesFromConfigs(_parseInlineActionConfigs(_cardTextValue(card, jsonFieldName))));
+  }
+
+  function _getActionTypeNodeKind(actionType) {
+    return /^(send_approval|do_until|for_each|branch)$/.test(String(actionType || '')) ? String(actionType || '') : 'action';
+  }
+
+  function _highlightActiveEditorNode() {
+    var canvas = document.getElementById('flowDiagramCanvas');
+    if (canvas) {
+      var activeNodes = canvas.querySelectorAll('.flow-node--editing');
+      for (var index = 0; index < activeNodes.length; index += 1) {
+        activeNodes[index].classList.remove('flow-node--editing');
+      }
+    }
+    if (!_flowNodeEditorState || !_flowNodeEditorState.nodeId) return;
+    var active = document.getElementById('fd-' + _flowNodeEditorState.nodeId);
+    if (active) active.classList.add('flow-node--editing');
+  }
+
+  function _updateFlowNodeEditorHeader(node, card) {
+    var titleNode = document.getElementById('flowNodeEditorTitle');
+    var subtitleNode = document.getElementById('flowNodeEditorSubtitle');
+    if (titleNode) titleNode.textContent = node && node.title ? node.title : 'Editor azione';
+    if (subtitleNode) {
+      subtitleNode.textContent = node && node.subtitle
+        ? 'Modifica inline: ' + node.subtitle
+        : 'Modifica direttamente la card qui, senza scendere al form completo.';
+    }
+
+    var cardBtn = document.getElementById('flowNodeEditorCardBtn');
+    if (!cardBtn) return;
+    cardBtn.onclick = function() {
+      if (node && node.edit_anchor) {
+        scrollToAnchor(node.edit_anchor);
+        return;
+      }
+      if (card && card.scrollIntoView) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+  }
+
+  function _restoreFlowNodeEditorCard() {
+    if (!_flowNodeEditorState) return;
+    var state = _flowNodeEditorState;
+    var panel = document.getElementById('flowNodeEditorPanel');
+    var mount = document.getElementById('flowNodeEditorMount');
+    var card = state.card;
+    if (card) {
+      card.classList.remove('flow-inline-editor-card');
+      if (state.placeholder && state.placeholder.parentNode) {
+        state.placeholder.parentNode.replaceChild(card, state.placeholder);
+      } else if (state.parentNode) {
+        state.parentNode.insertBefore(card, state.nextSibling && state.nextSibling.parentNode === state.parentNode ? state.nextSibling : null);
+      }
+      var details = card.querySelector('[data-card-details]');
+      if (details) details.open = !!state.detailsWasOpen;
+    }
+    if (mount) mount.innerHTML = '';
+    if (panel) panel.hidden = true;
+    _flowNodeEditorState = null;
+    _syncFlowWorkspaceEmptyState();
+    _highlightActiveEditorNode();
+  }
+
+  window.closeFlowNodeEditor = function() {
+    _restoreFlowNodeEditorCard();
+  };
+
+  function _openFlowNodeEditor(nodeId) {
+    var node = _findDiagramNode(nodeId);
+    if (!node) return;
+    var card = _getCardForDiagramNode(node);
+    if (!card) {
+      if (node.edit_anchor) scrollToAnchor(node.edit_anchor);
+      return;
+    }
+    if (_flowNodeEditorState && _flowNodeEditorState.nodeId === nodeId) {
+      var existingPanel = document.getElementById('flowNodeEditorPanel');
+      if (existingPanel) existingPanel.hidden = false;
+      _syncFlowWorkspaceEmptyState();
+      _highlightActiveEditorNode();
+      return;
+    }
+
+    _restoreFlowNodeEditorCard();
+
+    var panel = document.getElementById('flowNodeEditorPanel');
+    var mount = document.getElementById('flowNodeEditorMount');
+    if (!panel || !mount || !card.parentNode) return;
+
+    var placeholder = document.createElement('div');
+    placeholder.className = 'flow-inline-editor-placeholder';
+    placeholder.textContent = 'Editor aperto nel diagramma. Chiudi il pannello per riportare la card qui.';
+    card.parentNode.insertBefore(placeholder, card);
+
+    var details = card.querySelector('[data-card-details]');
+    var previousOpen = details ? !!details.open : false;
+    if (details) details.open = true;
+
+    _flowNodeEditorState = {
+      nodeId: nodeId,
+      card: card,
+      placeholder: placeholder,
+      parentNode: placeholder.parentNode,
+      nextSibling: placeholder.nextSibling,
+      detailsWasOpen: previousOpen
+    };
+
+    card.classList.add('flow-inline-editor-card');
+    mount.appendChild(card);
+    panel.hidden = false;
+    _syncFlowWorkspaceEmptyState();
+    _updateFlowNodeEditorHeader(node, card);
+    _highlightActiveEditorNode();
+    if (panel.scrollIntoView) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    var focusTarget = card.querySelector('textarea:not([disabled]), input[type="text"]:not([disabled]), input[type="email"]:not([disabled]), select:not([disabled])');
+    if (focusTarget && focusTarget.focus) focusTarget.focus();
+  }
+
+  function _syncDiagramNodeFromCard(card, shouldRerender) {
+    var node = _findDiagramNodeForCard(card);
+    if (!node) return;
+
+    var actionTypeField = _cardField(card, 'action_type');
+    var descriptionField = _cardField(card, 'description');
+    var enabledField = _cardField(card, 'is_enabled');
+    var deleteField = _cardField(card, 'DELETE');
+    var actionType = actionTypeField ? String(actionTypeField.value || '').trim() : '';
+    var selectedOption = actionTypeField && actionTypeField.options ? actionTypeField.options[actionTypeField.selectedIndex] : null;
+    var actionLabel = selectedOption ? String(selectedOption.text || '').trim() : (actionType || 'Azione');
+    var description = descriptionField ? String(descriptionField.value || '').trim() : '';
+    var style = _DIAG_STYLES[actionType] || { icon: 'Ã¢Å¡Â¡', color: '#64748b', bg: '#f8fafc', app: 'Azione' };
+
+    node.action_type = actionType;
+    node.type = _getActionTypeNodeKind(actionType);
+    node.title = actionLabel || actionType || 'Azione';
+    node.subtitle = description || actionLabel || 'Configura l\'azione';
+    node.preview = _collectCardPreview(card);
+    node.enabled = !(deleteField && deleteField.checked) && !!(!enabledField || enabledField.checked);
+    node.icon = style.icon;
+    node.color = style.color;
+    node.bg = style.bg;
+    node.app = style.app;
+    delete node.branches;
+    delete node.loop;
+    delete node.each;
+    delete node.if_else;
+
+    if (actionType === 'send_approval') {
+      var approvedNodes = _approvalBranchNodes(card, 'approval_approved_update_fields_text', 'approval_approved_actions_json');
+      var rejectedNodes = _approvalBranchNodes(card, 'approval_rejected_update_fields_text', 'approval_rejected_actions_json');
+      node.branches = {
+        approved: {
+          label: _cardTextValue(card, 'approval_approve_label') || 'Approvato',
+          color: '#16a34a',
+          bg: '#f0fdf4',
+          actions: approvedNodes,
+          count: approvedNodes.length
+        },
+        rejected: {
+          label: _cardTextValue(card, 'approval_reject_label') || 'Rifiutato',
+          color: '#dc2626',
+          bg: '#fef2f2',
+          actions: rejectedNodes,
+          count: rejectedNodes.length
+        }
+      };
+    } else if (actionType === 'do_until') {
+      node.loop = {
+        check_field: _cardTextValue(card, 'loop_check_field'),
+        check_operator: _cardTextValue(card, 'loop_check_operator') || 'equals',
+        check_value: _cardTextValue(card, 'loop_check_value'),
+        max_iterations: parseInt(_cardTextValue(card, 'loop_max_iterations') || '10', 10) || 10,
+        retry_delay: (_cardTextValue(card, 'loop_retry_delay_value') || '24') + ' ' + (_cardTextValue(card, 'loop_retry_delay_unit') || 'hours'),
+        loop_actions: _inlineNodesFromConfigs(_parseInlineActionConfigs(_cardTextValue(card, 'loop_loop_actions_json'))),
+        on_success_actions: _inlineNodesFromConfigs(_parseInlineActionConfigs(_cardTextValue(card, 'loop_on_success_actions_json'))),
+        on_timeout_actions: _inlineNodesFromConfigs(_parseInlineActionConfigs(_cardTextValue(card, 'loop_on_timeout_actions_json')))
+      };
+    } else if (actionType === 'for_each') {
+      node.each = {
+        source_code: _cardTextValue(card, 'each_source_code'),
+        filter_field: _cardTextValue(card, 'each_filter_field'),
+        max_items: parseInt(_cardTextValue(card, 'each_max_items') || '50', 10) || 50,
+        each_actions: _inlineNodesFromConfigs(_parseInlineActionConfigs(_cardTextValue(card, 'each_actions_json')))
+      };
+    } else if (actionType === 'branch') {
+      node.if_else = {
+        condition_field: _cardTextValue(card, 'branch_condition_field'),
+        condition_operator: _cardTextValue(card, 'branch_condition_operator') || 'equals',
+        condition_value: _cardTextValue(card, 'branch_condition_value'),
+        compare_with_old: _cardBoolValue(card, 'branch_compare_with_old'),
+        if_true_actions: _inlineNodesFromConfigs(_parseInlineActionConfigs(_cardTextValue(card, 'branch_if_true_actions_json'))),
+        if_false_actions: _inlineNodesFromConfigs(_parseInlineActionConfigs(_cardTextValue(card, 'branch_if_false_actions_json')))
+      };
+    }
+
+    var itemId = String(card.getAttribute('data-item-id') || '');
+    if (itemId) {
+      node.itemId = itemId;
+      node.edit_anchor = 'action-card-' + itemId;
+    }
+
+    if (_flowNodeEditorState && _flowNodeEditorState.nodeId === node.id) {
+      _updateFlowNodeEditorHeader(node, card);
+    }
+
+    if (shouldRerender && _diagramOpen) {
+      _renderDiagramFromState();
+      _initDiagramEvents();
+      _highlightActiveEditorNode();
+    }
+  }
+
+  function _scheduleDiagramNodeSync(card) {
+    if (!card) return;
+    if (_diagramSyncQueue.indexOf(card) === -1) _diagramSyncQueue.push(card);
+    if (_diagramSyncTimer) return;
+    _diagramSyncTimer = window.setTimeout(function() {
+      var queue = _diagramSyncQueue.slice();
+      _diagramSyncQueue = [];
+      _diagramSyncTimer = null;
+      for (var index = 0; index < queue.length; index += 1) {
+        _syncDiagramNodeFromCard(queue[index], true);
+      }
+    }, 80);
+  }
+
+  window.toggleFlowDiagram = function() {
+    if (_diagramOpen) {
+      _closeFlowDiagramWorkspace();
+      return;
+    }
+    _openFlowDiagramWorkspace();
+  };
+
+  function getFlowNodes() {
+    var el = document.getElementById('flow-nodes-data');
+    if (!el) return [];
+    try { return JSON.parse(el.textContent || '[]'); } catch(e) { return []; }
+  }
+
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function makeConnector(extra) {
+    return '<div class="flow-conn' + (extra ? ' ' + extra : '') + '">'
+      + '<div class="flow-conn-line"></div>'
+      + '<div class="flow-conn-arrow"></div>'
+      + '</div>';
+  }
+
+  function makeInlineActionNode(a) {
+    return '<div class="flow-branch-inner-node" style="border-left:3px solid ' + esc(a.color || '#64748b') + ';">'
+      + '<div class="flow-branch-inner-node-inner">'
+      + '<span class="flow-branch-inner-icon">' + esc(a.icon || 'âš¡') + '</span>'
+      + '<span class="flow-branch-inner-title">' + esc(a.title || a.action_type) + '</span>'
+      + '</div></div>';
+  }
+
+  function makeBranchColumn(branchData, pillClass) {
+    var html = '<div class="flow-branch-col">';
+    html += '<div class="flow-branch-col-h"><span class="flow-branch-pill ' + pillClass + '">' + esc(branchData.label) + '</span></div>';
+    html += '<div class="flow-conn-line" style="height:14px;width:2px;background:#cbd5e1;"></div>';
+    var actions = branchData.actions || [];
+    if (actions.length === 0) {
+      html += '<div class="flow-branch-inner-node"><div class="flow-branch-empty">Nessuna azione</div></div>';
+    } else {
+      actions.forEach(function(a, i) {
+        if (i > 0) html += '<div class="flow-conn-line" style="height:8px;width:2px;background:#cbd5e1;margin:0 auto;"></div>';
+        html += makeInlineActionNode(a);
+      });
+    }
+    html += '<div class="flow-conn-line" style="height:14px;width:2px;background:#cbd5e1;"></div>';
+    html += '</div>';
+    return html;
+  }
+
+  function nodeHtml(node) {
+    if (!node) return '';
+    var type       = node.type || 'action';
+    var accentColor = node.color || '#64748b';
+    var bgColor     = node.bg || '#f8fafc';
+    var icon        = node.icon || 'âš¡';
+    var app         = node.app || '';
+    var title       = node.title || '';
+    var subtitle    = node.subtitle || '';
+    var preview     = node.preview || [];
+    var enabled     = node.enabled !== false;
+    var anchor      = node.edit_anchor || '';
+
+    var nodeClass = 'flow-node flow-node--' + type;
+    if (!enabled) nodeClass += ' flow-node--disabled';
+    if (node.isPending) nodeClass += ' flow-node--pending';
+
+    var isInteractive = (type !== 'trigger' && type !== 'conditions' && type !== 'end');
+    var html = '<div class="' + nodeClass + '" id="fd-' + esc(node.id) + '"'
+      + ' data-node-id="' + esc(node.id) + '"'
+      + (isInteractive ? ' data-draggable draggable="true"' : '')
+      + ' style="border-color:' + accentColor + '40;">';
+
+    // Accent bar + inner
+    html += '<div style="display:flex;">';
+    if (isInteractive) html += '<div class="flow-node-drag-handle" title="Trascina per riordinare">â ¿</div>';
+    html += '<div class="flow-node-accent" style="background:' + accentColor + ';"></div>';
+    html += '<div class="flow-node-inner" style="flex:1;">';
+
+    // Icon
+    html += '<div class="flow-node-icon-wrap" style="background:' + bgColor + ';">' + esc(icon) + '</div>';
+
+    // Body
+    html += '<div class="flow-node-body">';
+    if (app) html += '<div class="flow-node-app">' + esc(app) + '</div>';
+    html += '<div class="flow-node-title">' + esc(title) + '</div>';
+    if (subtitle) html += '<div class="flow-node-subtitle">' + esc(subtitle) + '</div>';
+
+    // Conditions sub-list
+    if (type === 'conditions' && node.items && node.items.length) {
+      html += '<div class="flow-cond-list" style="margin-top:6px;">';
+      node.items.forEach(function(item) {
+        html += '<div class="flow-cond-item">'
+          + '<div class="flow-cond-bullet"></div>'
+          + '<span>' + esc(item.label) + '</span>'
+          + '</div>';
+      });
+      html += '</div>';
+    }
+
+    // Pills per tipo speciale
+    if (type === 'send_approval') {
+      html += '<span class="flow-pill flow-pill-blue">â¸ Pausa flusso</span><span class="flow-pill flow-pill-orange">Attende decisione umana</span>';
+    } else if (type === 'do_until') {
+      var loop = node.loop || {};
+      html += '<span class="flow-pill flow-pill-blue">ðŸ” max ' + esc(loop.max_iterations || '10') + ' iter.</span>';
+      if (loop.retry_delay) html += '<span class="flow-pill flow-pill-gray">ogni ' + esc(loop.retry_delay) + '</span>';
+    } else if (type === 'for_each') {
+      var each = node.each || {};
+      html += '<span class="flow-pill flow-pill-blue">sorgente: ' + esc(each.source_code || '?') + '</span>';
+      if (each.max_items) html += '<span class="flow-pill flow-pill-gray">max ' + esc(each.max_items) + ' elem.</span>';
+    } else if (type === 'branch') {
+      var ife = node.if_else || {};
+      html += '<span class="flow-pill flow-pill-orange">IF ' + esc(ife.condition_field || '?') + ' ' + esc(ife.condition_operator || '') + ' ' + esc(ife.condition_value || '') + '</span>';
+    }
+
+    // Preview lines
+    if (preview.length && type === 'action') {
+      html += '<div class="flow-node-preview">' + preview.map(function(l){ return esc(l); }).join('<br>') + '</div>';
+    }
+    if (!enabled) html += '<span class="flow-pill flow-pill-disabled">disabilitata</span>';
+
+    html += '</div>'; // .flow-node-body
+
+    // Azioni nodo: delete + modifica
+    if (type !== 'trigger' && type !== 'end' && type !== 'conditions') {
+      html += '<div class="flow-node-actions">';
+      html += '<button class="flow-node-delete-btn" data-delete-node="' + esc(node.id) + '" title="Rimuovi azione" type="button">âœ•</button>';
+      if (anchor) html += '<button class="flow-node-end-btn" onclick="scrollToAnchor(\'' + esc(anchor) + '\')" type="button">Modifica â†“</button>';
+      html += '</div>';
+    }
+
+    html += '</div>'; // .flow-node-inner
+    html += '</div>'; // accent+inner flex
+    html += '</div>'; // .flow-node
+
+    // â”€â”€ Sezioni speciali (branch, loop, each) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    if (type === 'send_approval' && node.branches) {
+      var br = node.branches;
+      html += '<div class="flow-branch-wrap">';
+      html += '<div class="flow-branch-split">';
+      // linee orizzontali di split
+      html += '<div style="flex:1;height:2px;background:#cbd5e1;margin-top:20px;"></div>';
+      html += '<div style="display:flex;gap:24px;">';
+      html += makeBranchColumn(br.approved, 'flow-branch-pill--approved');
+      html += makeBranchColumn(br.rejected, 'flow-branch-pill--rejected');
+      html += '</div>';
+      html += '<div style="flex:1;height:2px;background:#cbd5e1;margin-top:20px;"></div>';
+      html += '</div>';
+      html += '<div class="flow-merge-line"><div class="flow-merge-line-v"></div></div>';
+      html += '</div>';
+    } else if (type === 'branch' && node.if_else) {
+      var ie = node.if_else;
+      html += '<div class="flow-branch-wrap">';
+      html += '<div class="flow-branch-split">';
+      html += '<div style="flex:1;height:2px;background:#cbd5e1;margin-top:20px;"></div>';
+      html += '<div style="display:flex;gap:24px;">';
+      html += makeBranchColumn({label:'âœ… Se Vero', actions: ie.if_true_actions}, 'flow-branch-pill--true');
+      html += makeBranchColumn({label:'âŒ Se Falso', actions: ie.if_false_actions}, 'flow-branch-pill--false');
+      html += '</div>';
+      html += '<div style="flex:1;height:2px;background:#cbd5e1;margin-top:20px;"></div>';
+      html += '</div>';
+      html += '<div class="flow-merge-line"><div class="flow-merge-line-v"></div></div>';
+      html += '</div>';
+    } else if (type === 'do_until' && node.loop) {
+      var lp = node.loop;
+      html += '<div class="flow-loop-wrap">';
+      html += '<div class="flow-loop-body">';
+      html += '<div class="flow-loop-header"><span>ðŸ”</span><span class="flow-loop-header-text">Corpo del loop (eseguito ogni iterazione)</span></div>';
+      if (lp.check_field) {
+        html += '<div class="flow-loop-condition">Uscita quando: <strong>' + esc(lp.check_field) + ' ' + esc(lp.check_operator) + ' ' + esc(lp.check_value) + '</strong></div>';
+      }
+      var loopActions = lp.loop_actions || [];
+      if (loopActions.length === 0) {
+        html += '<div class="flow-branch-empty">Nessuna azione nel loop</div>';
+      } else {
+        loopActions.forEach(function(a, i) {
+          if (i > 0) html += '<div style="height:6px;"></div>';
+          html += makeInlineActionNode(a);
+        });
+      }
+      html += '<div class="flow-loop-back">â†© Ricontrolla condizione dopo ' + esc(lp.retry_delay || '24 hours') + '</div>';
+      html += '</div>';
+      html += '<div class="flow-merge-line"><div class="flow-merge-line-v"></div></div>';
+      html += '</div>';
+    } else if (type === 'for_each' && node.each) {
+      var ea = node.each;
+      html += '<div class="flow-each-wrap">';
+      html += '<div class="flow-each-body">';
+      html += '<div class="flow-each-header"><span>ðŸ”‚</span><span>Per ogni record in &ldquo;' + esc(ea.source_code || '?') + '&rdquo;</span></div>';
+      var eachActions = ea.each_actions || [];
+      if (eachActions.length === 0) {
+        html += '<div class="flow-branch-empty">Nessuna azione per elemento</div>';
+      } else {
+        eachActions.forEach(function(a, i) {
+          if (i > 0) html += '<div style="height:6px;"></div>';
+          html += makeInlineActionNode(a);
+        });
+      }
+      html += '</div>';
+      html += '<div class="flow-merge-line"><div class="flow-merge-line-v"></div></div>';
+      html += '</div>';
+    }
+
+    return html;
+  }
+
+  // â”€â”€ Stato diagramma â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  function _initDiagramState() {
+    var rawNodes = getFlowNodes();
+    _diagramNodes = rawNodes.map(function(n) {
+      var itemId = (n.id && n.id.indexOf('action-') === 0) ? n.id.replace('action-', '') : null;
+      return Object.assign({}, n, {itemId: itemId, isPending: false});
+    });
+    _renderDiagramFromState();
+    _initDiagramEvents();
+    _initDiagramAddModal();
+    _syncFlowWorkspaceEmptyState();
+  }
+
+  function _renderDiagramFromState() {
+    var canvas = document.getElementById('flowDiagramCanvas');
+    if (!canvas) return;
+    if (!_diagramNodes.length) {
+      canvas.innerHTML = '<div class="flow-diagram-loading">Nessun dato disponibile per il diagramma.</div>';
+      return;
+    }
+    var html = '';
+    _diagramNodes.forEach(function(node, idx) {
+      if (idx > 0) html += makeConnector();
+      html += nodeHtml(node);
+    });
+    // Pulsante "ï¼‹ Aggiungi azione" in fondo
+    html += makeConnector();
+    html += '<div class="flow-diagram-add-row">'
+      + '<button class="flow-diagram-add-btn" type="button" onclick="openDiagramAddModal()">ï¼‹ Aggiungi azione</button>'
+      + '</div>';
+    canvas.innerHTML = html;
+    canvas.querySelectorAll('.flow-node-end-btn').forEach(function(button) {
+      button.textContent = 'Apri editor';
+    });
+    _highlightActiveEditorNode();
+  }
+
+  // Alias retrocompatibile
+  function renderFlowDiagram() { _initDiagramState(); }
+
+  // â”€â”€ Drag & Drop â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  function _initDiagramEvents() {
+    var canvas = document.getElementById('flowDiagramCanvas');
+    if (!canvas) return;
+    // Rimuovi listener precedenti clonando il nodo
+    var fresh = canvas.cloneNode(true);
+    canvas.parentNode.replaceChild(fresh, canvas);
+    canvas = fresh;
+
+    canvas.addEventListener('dragstart', function(e) {
+      var node = _closestNodeEl(e.target);
+      if (!node || !node.hasAttribute('data-draggable')) return;
+      _dragNodeId = node.getAttribute('data-node-id');
+      node.classList.add('flow-node--dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', _dragNodeId);
+    });
+
+    canvas.addEventListener('dragend', function() {
+      _clearDragOver();
+      _dragNodeId = null;
+      canvas.querySelectorAll('.flow-node--dragging').forEach(function(el) {
+        el.classList.remove('flow-node--dragging');
+      });
+    });
+
+    canvas.addEventListener('dragover', function(e) {
+      if (!_dragNodeId) return;
+      var node = _closestNodeEl(e.target);
+      if (!node || !node.hasAttribute('data-draggable')) return;
+      var targetId = node.getAttribute('data-node-id');
+      if (targetId === _dragNodeId) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      _clearDragOver();
+      node.classList.add('flow-node--drag-over');
+    });
+
+    canvas.addEventListener('dragleave', function(e) {
+      var node = _closestNodeEl(e.target);
+      if (node) node.classList.remove('flow-node--drag-over');
+    });
+
+    canvas.addEventListener('drop', function(e) {
+      if (!_dragNodeId) return;
+      var node = _closestNodeEl(e.target);
+      if (!node || !node.hasAttribute('data-draggable')) return;
+      var targetId = node.getAttribute('data-node-id');
+      if (targetId === _dragNodeId) return;
+      e.preventDefault();
+      _clearDragOver();
+      _reorderNodes(_dragNodeId, targetId);
+      _dragNodeId = null;
+    });
+
+    // Delete delegato
+    canvas.addEventListener('click', function(e) {
+      var editBtn = e.target.closest ? e.target.closest('.flow-node-end-btn') : null;
+      if (editBtn) {
+        e.preventDefault();
+        var editNode = _closestNodeEl(editBtn);
+        if (editNode) _openFlowNodeEditor(editNode.getAttribute('data-node-id'));
+        return;
+      }
+
+      var btn = e.target.closest ? e.target.closest('[data-delete-node]') : null;
+      if (btn) {
+        var deleteNodeId = btn.getAttribute('data-delete-node');
+        if (deleteNodeId) _diagramDeleteNode(deleteNodeId);
+        return;
+      }
+
+      if (e.target.closest && e.target.closest('button')) return;
+      if (e.target.closest && e.target.closest('.flow-node-drag-handle')) return;
+
+      var nodeEl = _closestNodeEl(e.target);
+      if (!nodeEl) return;
+      var nodeId = nodeEl.getAttribute('data-node-id');
+      var node = _findDiagramNode(nodeId);
+      if (!node || node.type === 'trigger' || node.type === 'conditions' || node.type === 'end') return;
+      _openFlowNodeEditor(nodeId);
+    });
+  }
+
+  function _closestNodeEl(el) {
+    if (!el) return null;
+    if (el.classList && el.classList.contains('flow-node')) return el;
+    return el.closest ? el.closest('.flow-node') : null;
+  }
+
+  function _clearDragOver() {
+    var canvas = document.getElementById('flowDiagramCanvas');
+    if (!canvas) return;
+    canvas.querySelectorAll('.flow-node--drag-over').forEach(function(el) {
+      el.classList.remove('flow-node--drag-over');
+    });
+  }
+
+  function _reorderNodes(dragId, targetId) {
+    var dragIdx = -1, targetIdx = -1;
+    _diagramNodes.forEach(function(n, i) {
+      if (n.id === dragId)   dragIdx   = i;
+      if (n.id === targetId) targetIdx = i;
+    });
+    if (dragIdx < 0 || targetIdx < 0) return;
+    var dragged = _diagramNodes.splice(dragIdx, 1)[0];
+    // ricalcola targetIdx dopo splice
+    targetIdx = -1;
+    _diagramNodes.forEach(function(n, i) { if (n.id === targetId) targetIdx = i; });
+    if (targetIdx < 0) { _diagramNodes.push(dragged); }
+    else { _diagramNodes.splice(targetIdx, 0, dragged); }
+    _renderDiagramFromState();
+    _initDiagramEvents();
+    _syncDiagramOrderToForms();
+  }
+
+  // â”€â”€ Elimina nodo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  function _diagramDeleteNode(nodeId) {
+    var node = null;
+    _diagramNodes.forEach(function(n) { if (n.id === nodeId) node = n; });
+    if (!node) return;
+    if (_flowNodeEditorState && _flowNodeEditorState.nodeId === nodeId) closeFlowNodeEditor();
+
+    if (!node.isPending && node.itemId) {
+      // Azione esistente: spunta DELETE sul form corrispondente
+      var card = document.querySelector('[data-item-id="' + node.itemId + '"]');
+      if (card) {
+        var delCb = card.querySelector('input[type="checkbox"][name$="-DELETE"]');
+        if (delCb) {
+          delCb.checked = true;
+          delCb.dispatchEvent(new Event('change', {bubbles: true}));
+        }
+      }
+    } else if (node.isPending && node._formCard) {
+      // Azione pending non salvata: rimuovi il form card
+      node._formCard.remove();
+      var totalForms = document.getElementById('id_actions-TOTAL_FORMS');
+      if (totalForms) {
+        var v = parseInt(totalForms.value, 10);
+        if (v > 0) totalForms.value = v - 1;
+      }
+    }
+
+    _diagramNodes = _diagramNodes.filter(function(n) { return n.id !== nodeId; });
+    _renderDiagramFromState();
+    _initDiagramEvents();
+    if (typeof syncAllOrderFields === 'function') syncAllOrderFields();
+  }
+
+  // â”€â”€ Sync ordine â†’ formset â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  function _syncDiagramOrderToForms() {
+    var orderIdx = 0;
+    _diagramNodes.forEach(function(node) {
+      if (node.type === 'trigger' || node.type === 'conditions') return;
+      orderIdx++;
+      var orderInput = null;
+      if (!node.isPending && node.itemId) {
+        var card = document.querySelector('[data-item-id="' + node.itemId + '"]');
+        if (card) orderInput = card.querySelector('input[name$="-order"]');
+      } else if (node.isPending && node._formCard) {
+        orderInput = node._formCard.querySelector('input[name$="-order"]');
+      }
+      if (orderInput) orderInput.value = orderIdx;
+    });
+    if (typeof syncAllOrderFields === 'function') syncAllOrderFields();
+  }
+
+  // â”€â”€ Modal aggiunta azione â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  function _initDiagramAddModal() {
+    var grid = document.getElementById('diagramActionGrid');
+    if (!grid || grid.querySelector('.diagram-action-item')) return; // giÃ  popolato
+    var html = '';
+    Object.keys(_DIAG_STYLES).forEach(function(type) {
+      var s = _DIAG_STYLES[type];
+      html += '<div class="diagram-action-item" style="--ac:' + s.color + ';" onclick="diagramAddAction(\'' + esc(type) + '\')">'
+        + '<div class="diagram-action-item-icon" style="background:' + s.bg + ';">' + s.icon + '</div>'
+        + '<div class="diagram-action-item-label">' + esc(s.label) + '</div>'
+        + '<div class="diagram-action-item-app">' + esc(s.app) + '</div>'
+        + '</div>';
+    });
+    grid.innerHTML = html;
+  }
+
+  window.openDiagramAddModal = function() {
+    _initDiagramAddModal(); // garantisce griglia popolata anche se il diagramma non Ã¨ stato ancora aperto
+    var modal = document.getElementById('diagramAddModal');
+    if (modal) modal.hidden = false;
+  };
+
+  window.closeDiagramAddModal = function() {
+    var modal = document.getElementById('diagramAddModal');
+    if (modal) modal.hidden = true;
+  };
+
+  window.diagramAddAction = function(actionType) {
+    closeDiagramAddModal();
+    if (typeof addDesignerAction !== 'function') return;
+    addDesignerAction();
+
+    // Trova il form card appena creato (ultimo non-existing)
+    var allCards = document.querySelectorAll('[data-action-card][data-is-existing="false"]');
+    var newCard = allCards.length ? allCards[allCards.length - 1] : null;
+    if (newCard) {
+      var select = newCard.querySelector('select[name$="-action_type"]');
+      if (select) {
+        select.value = actionType;
+        select.dispatchEvent(new Event('change', {bubbles: true}));
+      }
+    }
+
+    // Nodo pending nel diagramma
+    var style = _DIAG_STYLES[actionType] || {icon:'âš¡', color:'#64748b', bg:'#f8fafc', label: actionType, app:'Azione'};
+    var pendingId = 'pending-' + Date.now();
+    _diagramNodes.push({
+      id: pendingId,
+      type: 'action',
+      action_type: actionType,
+      title: style.label,
+      subtitle: 'Nuova azione â€” compila il form e salva',
+      icon: style.icon,
+      color: style.color,
+      bg: style.bg,
+      app: style.app,
+      preview: [],
+      enabled: true,
+      edit_anchor: '',
+      itemId: null,
+      isPending: true,
+      _formCard: newCard,
+    });
+    if (newCard) _syncDiagramNodeFromCard(newCard, false);
+    _renderDiagramFromState();
+    _initDiagramEvents();
+    _syncDiagramOrderToForms();
+    if (newCard) _openFlowNodeEditor(pendingId);
+  };
+
+  // Chiudi modal su click overlay o ESC
+  document.addEventListener('click', function(e) {
+    var workspace = document.getElementById('flowDiagramPanel');
+    if (workspace && !workspace.hidden && e.target === workspace) {
+      _closeFlowDiagramWorkspace();
+      return;
+    }
+    var modal = document.getElementById('diagramAddModal');
+    if (modal && !modal.hidden && e.target === modal) closeDiagramAddModal();
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      var modal = document.getElementById('diagramAddModal');
+      if (modal && !modal.hidden) {
+        closeDiagramAddModal();
+        return;
+      }
+      if (_diagramOpen) _closeFlowDiagramWorkspace();
+    }
+  });
+  function _handleDiagramCardEvent(event) {
+    var target = event.target;
+    var card = target && target.closest ? target.closest('[data-action-card]') : null;
+    if (!card) return;
+    _scheduleDiagramNodeSync(card);
+  }
+
+  document.addEventListener('input', _handleDiagramCardEvent);
+  document.addEventListener('change', _handleDiagramCardEvent);
+
+  // â”€â”€ PNG download â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  window.downloadDiagramPng = function() {
+    var canvas = document.getElementById('flowDiagramCanvas');
+    if (!canvas) return;
+    var btn = document.getElementById('flowDiagramPngBtn');
+    if (btn) { btn.textContent = 'â€¦'; btn.disabled = true; }
+    if (typeof html2canvas === 'undefined') {
+      alert('html2canvas non disponibile. Ricarica la pagina e riprova.');
+      if (btn) { btn.textContent = 'â¬‡ PNG'; btn.disabled = false; }
+      return;
+    }
+    html2canvas(canvas, {backgroundColor: '#ffffff', scale: 2, useCORS: true, logging: false})
+      .then(function(c) {
+        var titleEl = document.querySelector('.designer-section-title');
+        var name = titleEl ? titleEl.textContent.trim() : 'automazione';
+        var link = document.createElement('a');
+        link.download = 'diagramma-' + name.replace(/[^a-z0-9\-_]/gi, '-').toLowerCase().substring(0, 40) + '.png';
+        link.href = c.toDataURL('image/png');
+        link.click();
+      })
+      .catch(function(err) {
+        console.error('PNG export error', err);
+        alert('Errore durante la generazione del PNG.');
+      })
+      .finally(function() {
+        if (btn) { btn.textContent = 'â¬‡ PNG'; btn.disabled = false; }
+      });
+  };
+
+  window.scrollToAnchor = function(anchor) {
+    _closeFlowDiagramWorkspace();
+
+    // Cerca l'anchor nel DOM
+    var target = document.getElementById(anchor);
+    if (!target) {
+      // Prova a trovare la card via data-item-id
+      var match = anchor.match(/action-card-(\d+)/);
+      if (match) {
+        var cards = document.querySelectorAll('[data-item-id="' + match[1] + '"]');
+        if (cards.length) target = cards[0];
+      }
+    }
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Apri i details se chiusi
+      var details = target.closest ? target.closest('details') : null;
+      if (details) details.open = true;
+      target.style.outline = '2px solid #2563eb';
+      setTimeout(function(){ target.style.outline=''; }, 2000);
+    }
+  };
+
+}());
+</script>
+{% endblock %}

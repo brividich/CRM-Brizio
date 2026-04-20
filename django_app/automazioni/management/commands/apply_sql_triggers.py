@@ -62,18 +62,15 @@ def _is_sql_server() -> bool:
 
 
 def _trigger_name_from_sql(sql: str) -> str | None:
-    """Estrae il nome del trigger dalla prima riga CREATE TRIGGER."""
-    for line in sql.splitlines():
-        line = line.strip()
-        if line.upper().startswith("CREATE TRIGGER"):
-            parts = line.split()
-            if len(parts) >= 3:
-                # Rimuove eventuali [dbo]. e parentesi quadre
-                name = parts[2].strip("[]")
-                if "." in name:
-                    name = name.split(".")[-1].strip("[]")
-                return name
-    return None
+    """Estrae il nome del trigger da CREATE TRIGGER o CREATE OR ALTER TRIGGER."""
+    match = re.search(
+        r"CREATE\s+(?:OR\s+ALTER\s+)?TRIGGER\s+(?:\[?dbo\]?\.)?\[?([^\]\s(]+)\]?",
+        sql,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None
+    return str(match.group(1) or "").strip() or None
 
 
 def apply_trigger(sql_path: Path, *, dry_run: bool = False) -> dict:
@@ -89,9 +86,11 @@ def apply_trigger(sql_path: Path, *, dry_run: bool = False) -> dict:
         return {"file": sql_path.name, "status": "dry-run", "trigger": trigger_name}
 
     try:
+        batches = _split_go_batches(sql)
         with connection.cursor() as cursor:
             cursor.execute(drop_sql)
-            cursor.execute(sql)
+            for batch in batches:
+                cursor.execute(batch)
         return {"file": sql_path.name, "status": "ok", "trigger": trigger_name}
     except Exception as exc:
         logger.error("apply_sql_triggers: errore su %s: %s", sql_path.name, exc)

@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Richiesta di Approvazione</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f1f5f9; min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; color: #0f172a; }
+    .card { background: #fff; border-radius: 20px; box-shadow: 0 4px 32px rgba(15,23,42,.1); max-width: 560px; width: 100%; overflow: hidden; }
+    .card-header { padding: 28px 32px 20px; border-bottom: 1px solid #e2e8f0; }
+    .card-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+    .card-logo-icon { width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #7c3aed, #4f46e5); display: flex; align-items: center; justify-content: center; font-size: 20px; }
+    .card-logo-name { font-size: 14px; font-weight: 800; color: #0f172a; letter-spacing: -.01em; }
+    .card-logo-sub { font-size: 12px; color: #64748b; margin-top: 1px; }
+    .card-title { font-size: 22px; font-weight: 800; color: #0f172a; line-height: 1.3; }
+    .card-subtitle { margin-top: 6px; font-size: 14px; color: #475569; line-height: 1.5; }
+    .card-body { padding: 24px 32px; display: grid; gap: 20px; }
+    .card-footer { padding: 20px 32px; border-top: 1px solid #e2e8f0; background: #f8fafc; display: flex; gap: 12px; flex-wrap: wrap; }
+    .meta-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    .meta-item { padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
+    .meta-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: #64748b; }
+    .meta-value { margin-top: 4px; font-size: 14px; font-weight: 600; color: #0f172a; word-break: break-word; }
+    .message-box { padding: 16px 18px; border-radius: 14px; background: #f8fafc; border: 1px solid #e2e8f0; font-size: 14px; color: #334155; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 24px; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; border: none; text-decoration: none; transition: opacity .12s, transform .1s; }
+    .btn:hover { opacity: .9; transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn-approve { background: #16a34a; color: #fff; }
+    .btn-reject { background: #dc2626; color: #fff; }
+    .btn-neutral { background: #e2e8f0; color: #0f172a; }
+    .status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 700; }
+    .status-pending { background: #fef3c7; color: #92400e; }
+    .status-approved { background: #dcfce7; color: #166534; }
+    .status-rejected { background: #fee2e2; color: #991b1b; }
+    .status-expired { background: #f1f5f9; color: #475569; }
+    .alert { padding: 14px 16px; border-radius: 12px; font-size: 14px; font-weight: 600; line-height: 1.5; }
+    .alert-error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+    .alert-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+    .alert-warning { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+    .alert-info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+    .confirm-box { padding: 20px; border-radius: 14px; border: 2px dashed #e2e8f0; background: linear-gradient(135deg, #f8fafc 0%, #fff 100%); }
+    .confirm-title { font-size: 16px; font-weight: 800; color: #0f172a; margin-bottom: 8px; }
+    .confirm-text { font-size: 13px; color: #475569; line-height: 1.5; }
+    .divider { border: none; border-top: 1px solid #e2e8f0; }
+    .rule-name { font-size: 13px; font-weight: 700; color: #1d4ed8; background: #eff6ff; padding: 3px 10px; border-radius: 6px; display: inline-block; }
+    .expiry-warn { font-size: 12px; color: #92400e; background: #fef3c7; padding: 6px 12px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-logo">
+        <div class="card-logo-icon">✅</div>
+        <div>
+          <div class="card-logo-name">NOVICROM HUB</div>
+          <div class="card-logo-sub">Sistema di Automazioni</div>
+        </div>
+      </div>
+
+      {% if error %}
+        <div class="alert alert-error">{{ error }}</div>
+      {% elif status_only %}
+        <div class="card-title">Stato Richiesta di Approvazione</div>
+        <div class="card-subtitle">
+          {% if approval.run_log.rule %}
+            Regola: <span class="rule-name">{{ approval.run_log.rule.name }}</span>
+          {% endif %}
+        </div>
+      {% elif result %}
+        {% if result.ok %}
+          <div class="card-title">
+            {% if decision == "approved" %}Richiesta Approvata ✅{% else %}Richiesta Rifiutata{% endif %}
+          </div>
+          <div class="card-subtitle">La tua decisione è stata registrata correttamente.</div>
+        {% else %}
+          <div class="card-title">Impossibile Processare</div>
+          <div class="card-subtitle">{{ result.message }}</div>
+        {% endif %}
+      {% elif already_decided and not result %}
+        <div class="card-title">Richiesta già Elaborata</div>
+        <div class="card-subtitle">Questa richiesta è già stata gestita.</div>
+      {% elif is_expired %}
+        <div class="card-title">Richiesta Scaduta</div>
+        <div class="card-subtitle">Il link di approvazione non è più valido.</div>
+      {% else %}
+        <div class="card-title">{{ approval.subject }}</div>
+        {% if approval.run_log.rule %}
+          <div class="card-subtitle">
+            Regola: <span class="rule-name">{{ approval.run_log.rule.name }}</span>
+          </div>
+        {% endif %}
+      {% endif %}
+    </div>
+
+    <div class="card-body">
+
+      {% if error %}
+        {# Niente da mostrare #}
+
+      {% elif status_only %}
+        <div class="meta-grid">
+          <div class="meta-item">
+            <div class="meta-label">Stato</div>
+            <div class="meta-value">
+              <span class="status-badge status-{{ approval.status }}">
+                {% if approval.status == "pending" %}⏳ In attesa{% elif approval.status == "approved" %}✅ Approvato{% elif approval.status == "rejected" %}❌ Rifiutato{% else %}⌛ Scaduto{% endif %}
+              </span>
+            </div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Creata il</div>
+            <div class="meta-value">{{ approval.created_at|date:"d/m/Y H:i" }}</div>
+          </div>
+          {% if approval.decided_at %}
+          <div class="meta-item">
+            <div class="meta-label">Decisa il</div>
+            <div class="meta-value">{{ approval.decided_at|date:"d/m/Y H:i" }}</div>
+          </div>
+          {% endif %}
+          {% if approval.decided_by_email %}
+          <div class="meta-item">
+            <div class="meta-label">Decisa da</div>
+            <div class="meta-value">{{ approval.decided_by_email }}</div>
+          </div>
+          {% endif %}
+        </div>
+        {% if approval.message %}
+          <div class="message-box">{{ approval.message }}</div>
+        {% endif %}
+
+      {% elif result %}
+        {% if result.ok %}
+          <div class="alert alert-success">
+            {{ result.message }}
+          </div>
+          {% if result.actions_run > 0 %}
+            <div class="meta-grid">
+              <div class="meta-item">
+                <div class="meta-label">Azioni eseguite</div>
+                <div class="meta-value">{{ result.actions_run }}</div>
+              </div>
+              {% if result.actions_errors > 0 %}
+              <div class="meta-item">
+                <div class="meta-label">Errori azioni</div>
+                <div class="meta-value" style="color:#dc2626;">{{ result.actions_errors }}</div>
+              </div>
+              {% endif %}
+            </div>
+          {% endif %}
+        {% else %}
+          <div class="alert alert-error">{{ result.message }}</div>
+        {% endif %}
+
+      {% elif already_decided and not result %}
+        <div class="alert alert-warning">
+          Questa richiesta è già in stato
+          <span class="status-badge status-{{ approval.status }}">{{ approval.get_status_display }}</span>
+          {% if approval.decided_at %}il {{ approval.decided_at|date:"d/m/Y \a\l\l\e H:i" }}{% endif %}
+          {% if approval.decided_by_email %}da {{ approval.decided_by_email }}{% endif %}.
+        </div>
+
+      {% elif is_expired %}
+        <div class="alert alert-error">
+          Il link di approvazione è scaduto. Contattare il mittente per una nuova richiesta.
+        </div>
+
+      {% else %}
+        {# Pagina di conferma: mostra dettagli e bottoni #}
+        {% if approval.message %}
+          <div class="message-box">{{ approval.message }}</div>
+        {% endif %}
+
+        <div class="meta-grid">
+          <div class="meta-item">
+            <div class="meta-label">Approvatori</div>
+            <div class="meta-value">{{ approval.approver_emails|join:", " }}</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Creata il</div>
+            <div class="meta-value">{{ approval.created_at|date:"d/m/Y H:i" }}</div>
+          </div>
+          {% if approval.expires_at %}
+          <div class="meta-item">
+            <div class="meta-label">Scade il</div>
+            <div class="meta-value">{{ approval.expires_at|date:"d/m/Y H:i" }}</div>
+          </div>
+          {% endif %}
+        </div>
+
+        <hr class="divider">
+
+        <div class="confirm-box">
+          <div class="confirm-title">
+            {% if decision == "approved" %}Stai per APPROVARE questa richiesta{% else %}Stai per RIFIUTARE questa richiesta{% endif %}
+          </div>
+          <div class="confirm-text">
+            Questa azione è irreversibile. Una volta confermata,
+            {% if decision == "approved" %}le azioni di approvazione verranno eseguite automaticamente.{% else %}le azioni di rifiuto verranno eseguite automaticamente.{% endif %}
+          </div>
+        </div>
+      {% endif %}
+
+    </div>
+
+    <div class="card-footer">
+      {% if not error and not status_only and not result and not already_decided and not is_expired %}
+        <form method="post" action="" style="display:contents;">
+          {% csrf_token %}
+          <button type="submit" class="btn {% if decision == 'approved' %}btn-approve{% else %}btn-reject{% endif %}">
+            {% if decision == "approved" %}✅ Conferma Approvazione{% else %}❌ Conferma Rifiuto{% endif %}
+          </button>
+          <a href="/automazioni/approvazione/{{ token }}/" class="btn btn-neutral">Annulla</a>
+        </form>
+      {% elif status_only %}
+        {% if approval.status == "pending" and not approval.is_expired %}
+          <a href="/automazioni/approvazione/{{ token }}/approva/" class="btn btn-approve">✅ Approva</a>
+          <a href="/automazioni/approvazione/{{ token }}/rifiuta/" class="btn btn-reject">❌ Rifiuta</a>
+        {% endif %}
+      {% else %}
+        <span style="font-size:13px;color:#64748b;">Puoi chiudere questa finestra.</span>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

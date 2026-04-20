@@ -36,6 +36,7 @@ from core.models import (
     UserDashboardLayout,
     UserExtraInfo,
     UserModuleVisibility,
+    UserOnboarding,
     UserPermissionGrant,
     UserPermissionOverride,
 )
@@ -1643,6 +1644,13 @@ class AdminPortaleSimpleAccessTests(TestCase):
             module="dashboard",
             is_active=True,
         )
+        RoutePermissionBinding.objects.create(
+            permission_id="dashboard.home.view",
+            route_name="dashboard_home",
+            path_pattern="/dashboard",
+            source_app="dashboard",
+            is_active=True,
+        )
         self.nav_item = NavigationItem.objects.create(
             code="dashboard-simple",
             label="Dashboard",
@@ -1680,7 +1688,7 @@ class AdminPortaleSimpleAccessTests(TestCase):
         self.assertContains(response, "grant canonici", html=False)
         self.assertContains(response, 'name="simple_modules"', html=False)
 
-    def test_accessi_semplice_post_enables_legacy_canonical_and_navigation_together(self):
+    def test_accessi_semplice_post_enables_canonical_grants_only(self):
         response = self._as_admin_post(
             reverse("admin_portale:accessi"),
             {
@@ -1690,15 +1698,7 @@ class AdminPortaleSimpleAccessTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(
-            Permesso.objects.filter(
-                ruolo_id=2,
-                modulo="dashboard",
-                azione="dashboard_home",
-                can_view=1,
-                consentito=1,
-            ).exists()
-        )
+        self.assertFalse(Permesso.objects.filter(ruolo_id=2, modulo="dashboard").exists())
         self.assertTrue(
             RolePermissionGrant.objects.filter(
                 legacy_role_id=2,
@@ -1706,31 +1706,13 @@ class AdminPortaleSimpleAccessTests(TestCase):
                 enabled=True,
             ).exists()
         )
-        self.assertTrue(
-            NavigationRoleAccess.objects.filter(
-                item=self.nav_item,
-                legacy_role_id=2,
-                can_view=True,
-            ).exists()
-        )
+        self.assertFalse(NavigationRoleAccess.objects.filter(item=self.nav_item, legacy_role_id=2).exists())
 
-    def test_accessi_semplice_post_can_disable_navigation_and_grants_together(self):
-        Permesso.objects.create(
-            ruolo_id=2,
-            modulo="dashboard",
-            azione="dashboard_home",
-            can_view=1,
-            consentito=1,
-        )
+    def test_accessi_semplice_post_can_disable_canonical_grants_without_touching_legacy(self):
         RolePermissionGrant.objects.create(
             legacy_role_id=2,
             permission_id="dashboard.home.view",
             enabled=True,
-        )
-        NavigationRoleAccess.objects.create(
-            item=self.nav_item,
-            legacy_role_id=2,
-            can_view=True,
         )
 
         response = self._as_admin_post(
@@ -1742,28 +1724,29 @@ class AdminPortaleSimpleAccessTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertTrue(
-            Permesso.objects.filter(
-                ruolo_id=2,
-                modulo="dashboard",
-                azione="dashboard_home",
-                can_view=0,
-                consentito=0,
-            ).exists()
-        )
-        self.assertTrue(
             RolePermissionGrant.objects.filter(
                 legacy_role_id=2,
                 permission_id="dashboard.home.view",
                 enabled=False,
             ).exists()
         )
-        self.assertTrue(
-            NavigationRoleAccess.objects.filter(
-                item=self.nav_item,
-                legacy_role_id=2,
-                can_view=False,
-            ).exists()
-        )
+        self.assertFalse(Permesso.objects.filter(ruolo_id=2, modulo="dashboard").exists())
+
+    def test_nav_user_override_toggle_is_hide_only(self):
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.post(
+                reverse("admin_portale:api_nav_user_override_toggle", args=[704]),
+                data=json.dumps({"item_id": self.nav_item.id, "state": "show"}),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 400)
+        payload = response.json()
+        self.assertFalse(payload["ok"])
 
 
 class AdminPortaleFormSecurityTests(TestCase):
@@ -1836,6 +1819,7 @@ class AdminPortaleDecoratorJsonResponseTests(TestCase):
             email="json.check@test.local",
             password="pass12345",
         )
+        UserOnboarding.objects.create(user=self.user, completed=True)
         self.non_admin_legacy = UtenteLegacy.objects.create(
             nome="Operatore JSON",
             email="json.check@test.local",

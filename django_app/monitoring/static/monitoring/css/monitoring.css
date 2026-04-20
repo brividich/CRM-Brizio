@@ -113,6 +113,53 @@
   border-color: rgba(255, 255, 255, 0.28);
 }
 
+.monitoring-subnav-spacer {
+  flex: 1 1 auto;
+  min-width: 12px;
+}
+
+.monitoring-subnav-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(45, 82, 130, 0.14);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  color: #1e3a5f;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.monitoring-subnav-action:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #eef6ff 100%);
+  border-color: rgba(45, 82, 130, 0.22);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+}
+
+.subnav.subnav-monitoring-only {
+  justify-content: flex-end;
+  min-height: 0;
+  height: auto;
+  padding-top: 12px;
+  padding-bottom: 0;
+  background: transparent;
+  border-bottom: none;
+}
+
+.subnav.subnav-monitoring-only .monitoring-subnav-spacer {
+  display: none;
+}
+
 .app-header-right {
   display: flex;
   align-items: center;
@@ -256,5 +303,14 @@
   .app-header-report-btn {
     padding: 0 10px;
     font-size: 12px;
+  }
+
+  body.nav-side .subnav .monitoring-subnav-spacer,
+  body.nav-side .subnav .monitoring-subnav-action {
+    display: none;
+  }
+
+  body.nav-side .subnav.subnav-monitoring-only {
+    display: none;
   }
 }

@@ -14,19 +14,27 @@ BEGIN
     BEGIN
         INSERT INTO [dbo].[automation_event_queue] (
             [source_code],
+            [source_table],
+            [source_pk],
             [operation_type],
-            [item_id],
+            [event_code],
+            [watched_field],
             [payload_json],
+            [old_payload_json],
             [status],
             [created_at]
         )
         SELECT
-            'tickets',
-            'insert',
-            CAST(id AS NVARCHAR(100)),
+            N'tickets',
+            N'tickets_ticket',
+            CAST(i.id AS NVARCHAR(100)),
+            N'insert',
+            N'tickets_insert',
+            NULL,
             (SELECT * FROM inserted i2 WHERE i2.id = i.id FOR JSON PATH, WITHOUT_ARRAY_WRAPPER),
-            'pending',
-            GETDATE()
+            NULL,
+            N'pending',
+            SYSUTCDATETIME()
         FROM inserted i;
     END
 
@@ -35,21 +43,36 @@ BEGIN
     BEGIN
         INSERT INTO [dbo].[automation_event_queue] (
             [source_code],
+            [source_table],
+            [source_pk],
             [operation_type],
-            [item_id],
+            [event_code],
+            [watched_field],
             [payload_json],
+            [old_payload_json],
             [status],
             [created_at]
         )
         SELECT
-            'tickets',
-            'update',
+            N'tickets',
+            N'tickets_ticket',
             CAST(i.id AS NVARCHAR(100)),
-            (SELECT i.*, d.stato as old_stato, d.assegnato_a as old_assegnato_a FOR JSON PATH, WITHOUT_ARRAY_WRAPPER),
-            'pending',
-            GETDATE()
+            N'update',
+            N'tickets_update',
+            NULL,
+            (
+                SELECT
+                    i.*,
+                    d.stato AS old_stato,
+                    d.assegnato_a AS old_assegnato_a
+                FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+            ),
+            (SELECT d.* FOR JSON PATH, WITHOUT_ARRAY_WRAPPER),
+            N'pending',
+            SYSUTCDATETIME()
         FROM inserted i
         JOIN deleted d ON i.id = d.id
-        WHERE i.stato <> d.stato OR i.assegnato_a <> d.assegnato_a;
+        WHERE ISNULL(i.stato, N'') <> ISNULL(d.stato, N'')
+           OR ISNULL(i.assegnato_a, N'') <> ISNULL(d.assegnato_a, N'');
     END
 END

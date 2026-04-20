@@ -79,7 +79,7 @@
 {% endblock %}
 
 {% block content %}
-  {% include "admin_portale/components/page_header.html" with page_title="Accessi Semplificati" page_subtitle="Un solo toggle per modulo: accesso, grant canonici e menu del ruolo seguono la stessa scelta." %}
+  {% include "admin_portale/components/page_header.html" with page_title="Accessi Semplificati" page_subtitle="Un solo toggle per modulo: qui governi i grant canonici. Menu e route seguono i permission code associati." %}
   {% include "admin_portale/components/flash_messages.html" %}
 
   <div style="margin-bottom:10px;">
@@ -107,7 +107,7 @@
       </form>
       <div class="notice" style="margin-top:10px;">
         <strong>Come usarla:</strong> spunta solo i moduli che il ruolo deve poter usare.
-        Il salvataggio sincronizza insieme permessi legacy, grant canonici v2 e voci menu del ruolo.
+        Il salvataggio aggiorna i grant canonici del ruolo; i casi legacy o non ancora coperti restano nei pannelli avanzati.
       </div>
     </div>
   </div>
@@ -140,7 +140,7 @@
           <thead>
             <tr>
               <th class="mod-col">Modulo</th>
-              <th class="tick-col">Accesso + Menu</th>
+              <th class="tick-col">Grant canonico</th>
               <th class="tick-col">Copertura</th>
               <th class="act-col">Azioni Avanzate</th>
             </tr>
@@ -165,8 +165,9 @@
                          name="simple_modules"
                          value="{{ row.modulo }}"
                          data-partial="{% if row.simple_partial %}1{% else %}0{% endif %}"
+                         {% if not row.canonical_managed %}disabled{% endif %}
                          {% if row.simple_enabled %}checked{% endif %}>
-                  <span>Abilitato</span>
+                  <span>{% if row.canonical_managed %}Abilitato{% else %}Non coperto{% endif %}</span>
                 </label>
                 {% if row.simple_partial %}
                   <div style="margin-top:4px;"><span class="helper-chip">Parziale</span></div>
@@ -194,7 +195,7 @@
                       OFF
                     {% endif %}
                   {% else %}
-                    n/d
+                    da mappare
                   {% endif %}
                 </div>
                 <div class="sample">
@@ -207,10 +208,16 @@
                     {% else %}
                       OFF
                     {% endif %}
+                    {% if row.navigation_unmapped_count %}
+                      ({{ row.navigation_unmapped_count }} senza permission code)
+                    {% endif %}
                   {% else %}
                     n/d
                   {% endif %}
                 </div>
+                {% if row.legacy_drift %}
+                  <div class="sample">legacy: disallineato</div>
+                {% endif %}
               </td>
               <td class="act-col">
                 <a class="btn btn-secondary btn-sm"
@@ -257,6 +264,7 @@
 
   function setAll(selector, checked) {
     document.querySelectorAll(selector).forEach(function (el) {
+      if (el.disabled) return;
       el.checked = checked;
       el.indeterminate = false;
     });

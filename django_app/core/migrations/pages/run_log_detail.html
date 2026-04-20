@@ -1,0 +1,161 @@
+{% extends "core/base.html" %}
+
+{% block title %}Automazioni - Run Log Detail | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .auto-grid { display:grid; gap:16px; }
+  .auto-grid-2 { display:grid; gap:16px; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); }
+  .auto-meta { display:grid; gap:10px; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); }
+  .auto-meta-item { padding:12px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; }
+  .auto-meta-label { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; }
+  .auto-meta-value { margin-top:6px; font-size:15px; color:#0f172a; word-break:break-word; }
+  .auto-pre { margin:0; padding:14px; background:#0f172a; color:#e2e8f0; border-radius:14px; overflow:auto; font-size:13px; line-height:1.55; }
+  .auto-table { width:100%; border-collapse:collapse; font-size:14px; }
+  .auto-table th, .auto-table td { padding:10px 12px; border-bottom:1px solid #e2e8f0; text-align:left; vertical-align:top; }
+  .auto-table th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; background:#f8fafc; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Dettaglio Run Log" page_subtitle="Debug completo di una singola esecuzione regola, con payload e action log." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+  {% include "automazioni/components/subnav.html" %}
+
+  <div class="auto-grid">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Run log #{{ run_log.id }}</div>
+      </div>
+      <div class="card-body auto-grid">
+        <div class="auto-meta">
+          <div class="auto-meta-item">
+            <div class="auto-meta-label">Regola</div>
+            <div class="auto-meta-value">{{ run_log.rule|default:"-" }}</div>
+          </div>
+          <div class="auto-meta-item">
+            <div class="auto-meta-label">Queue event</div>
+            <div class="auto-meta-value">
+              {% if run_log.queue_event_id %}
+                <a href="{% url 'admin_portale:automazioni_queue_detail' run_log.queue_event_id %}">#{{ run_log.queue_event_id }}</a>
+              {% else %}
+                -
+              {% endif %}
+            </div>
+          </div>
+          <div class="auto-meta-item">
+            <div class="auto-meta-label">Sorgente</div>
+            <div class="auto-meta-value">{{ run_log.source_code }}</div>
+          </div>
+          <div class="auto-meta-item">
+            <div class="auto-meta-label">Operazione</div>
+            <div class="auto-meta-value">{{ run_log.operation_type|upper }}</div>
+          </div>
+          <div class="auto-meta-item">
+            <div class="auto-meta-label">Status</div>
+            <div class="auto-meta-value">{{ run_log.status }}</div>
+          </div>
+          <div class="auto-meta-item">
+            <div class="auto-meta-label">Started</div>
+            <div class="auto-meta-value">{{ run_log.started_at|date:"d/m/Y H:i:s" }}</div>
+          </div>
+          <div class="auto-meta-item">
+            <div class="auto-meta-label">Finished</div>
+            <div class="auto-meta-value">{{ run_log.finished_at|date:"d/m/Y H:i:s"|default:"-" }}</div>
+          </div>
+          <div class="auto-meta-item">
+            <div class="auto-meta-label">Execution ms</div>
+            <div class="auto-meta-value">{{ run_log.execution_ms|default:"-" }}</div>
+          </div>
+          <div class="auto-meta-item">
+            <div class="auto-meta-label">Trigger event label</div>
+            <div class="auto-meta-value"><code>{{ run_log.trigger_event_label|default:"-" }}</code></div>
+          </div>
+          <div class="auto-meta-item">
+            <div class="auto-meta-label">Test</div>
+            <div class="auto-meta-value">{{ run_log.is_test|yesno:"Si,No" }}</div>
+          </div>
+        </div>
+
+        <div class="notice{% if run_log.status == 'error' %} notice-danger{% endif %}">
+          <strong>Result message:</strong>
+          {{ run_log.result_message|default:"Nessun messaggio." }}
+        </div>
+
+        {% if run_log.error_trace %}
+          <div class="notice notice-danger">
+            <strong>Error trace:</strong>
+            <pre class="auto-pre" style="margin-top:10px;">{{ run_log.error_trace }}</pre>
+          </div>
+        {% endif %}
+
+        {% if queue_event %}
+          <div class="notice">
+            Evento queue collegato:
+            <a href="{% url 'admin_portale:automazioni_queue_detail' queue_event.id %}">#{{ queue_event.id }}</a>
+            | stato attuale {{ queue_event.status }}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="auto-grid-2">
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Payload JSON</div>
+        </div>
+        <div class="card-body">
+          <pre class="auto-pre">{{ payload_pretty|default:"{}" }}</pre>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Old payload JSON</div>
+        </div>
+        <div class="card-body">
+          <pre class="auto-pre">{{ old_payload_pretty|default:"{}" }}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Action log figli</div>
+      </div>
+      <div class="card-body">
+        <table class="auto-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Azione</th>
+              <th>Stato</th>
+              <th>Messaggio</th>
+              <th>Error trace</th>
+              <th>Creato</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for action_log in action_logs %}
+              <tr>
+                <td>#{{ action_log.id }}</td>
+                <td>{{ action_log.action|default:"-" }}</td>
+                <td>{{ action_log.status }}</td>
+                <td>{{ action_log.result_message|default:"-" }}</td>
+                <td>{{ action_log.error_trace|default:"-" }}</td>
+                <td>{{ action_log.created_at|date:"d/m/Y H:i:s" }}</td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="6">Nessun action log registrato per questo run.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{% endblock %}

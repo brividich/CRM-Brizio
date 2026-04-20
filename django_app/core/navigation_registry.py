@@ -8,9 +8,17 @@ from django.core.cache import cache
 from django.db import transaction
 from django.urls import NoReverseMatch, reverse
 
+from core.acl_v2 import normalize_permission_code, resolve_canonical_target
 from core.legacy_cache import normalize_legacy_path
 from core.module_registry import navigation_code_label_map
-from core.models import NavigationItem, NavigationRoleAccess, NavigationSnapshot, UserNavigationOverride
+from core.models import (
+    NavigationItem,
+    NavigationRoleAccess,
+    NavigationSnapshot,
+    RolePermissionGrant,
+    UserNavigationOverride,
+    UserPermissionGrant,
+)
 
 
 NAV_REGISTRY_VERSION_KEY = "nav_registry_version"
@@ -119,9 +127,53 @@ def _resolve_item_href(item: NavigationItem) -> tuple[str, bool]:
     return reverse("coming_admin"), True
 
 
-def _compiled_items_for_role(*, role_id: int | None, is_admin: bool, section: str) -> list[dict]:
+def _item_required_permission_code(
+    item: NavigationItem,
+    *,
+    target_cache: dict[str, str],
+) -> str:
+    explicit = normalize_permission_code(str(item.required_permission_code or ""))
+    if explicit:
+        return explicit
+
+    route_name = str(item.route_name or "").strip()
+    if route_name:
+        cache_key = f"route:{route_name.lower()}"
+        if cache_key not in target_cache:
+            resolved = resolve_canonical_target(route_name=route_name)
+            binding = resolved.get("binding") or {}
+            target_cache[cache_key] = normalize_permission_code(str(binding.get("permission_code") or ""))
+        return target_cache[cache_key]
+
+    url_path = str(item.url_path or "").strip()
+    if url_path:
+        normalized_path = normalize_legacy_path(urlsplit(url_path).path or url_path or "/")
+        cache_key = f"path:{normalized_path}"
+        if cache_key not in target_cache:
+            resolved = resolve_canonical_target(path=normalized_path)
+            binding = resolved.get("binding") or {}
+            target_cache[cache_key] = normalize_permission_code(str(binding.get("permission_code") or ""))
+        return target_cache[cache_key]
+    return ""
+
+
+def resolve_navigation_item_permission_code(item: NavigationItem) -> str:
+    """Restituisce il permission code canonico associato alla voce di navigazione."""
+    return _item_required_permission_code(item, target_cache={})
+
+
+def _compiled_items_for_role(
+    *,
+    role_id: int | None,
+    is_admin: bool,
+    section: str,
+    legacy_user_id: int | None = None,
+) -> list[dict]:
     role_key = role_id if role_id is not None else 0
-    cache_key = _versioned_key(f"nav_registry:role:{role_key}:admin:{1 if is_admin else 0}:section:{section}")
+    user_key = legacy_user_id if legacy_user_id is not None else 0
+    cache_key = _versioned_key(
+        f"nav_registry:role:{role_key}:user:{user_key}:admin:{1 if is_admin else 0}:section:{section}"
+    )
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
@@ -135,16 +187,36 @@ def _compiled_items_for_role(*, role_id: int | None, is_admin: bool, section: st
     for row in access_rows:
         access_map.setdefault(int(row.item_id), {})[int(row.legacy_role_id)] = bool(row.can_view)
 
+    role_grants_map: dict[str, bool] = {}
+    if role_id is not None:
+        role_grants_map = {
+            normalize_permission_code(str(row.permission_id or "")): bool(row.enabled)
+            for row in RolePermissionGrant.objects.filter(legacy_role_id=int(role_id))
+            if str(row.permission_id or "").strip()
+        }
+
+    user_grants_map: dict[str, bool] = {}
+    if legacy_user_id is not None:
+        user_grants_map = {
+            normalize_permission_code(str(row.permission_id or "")): bool(row.enabled)
+            for row in UserPermissionGrant.objects.filter(legacy_user_id=int(legacy_user_id))
+            if str(row.permission_id or "").strip()
+        }
+
     compiled: list[dict] = []
     label_overrides = navigation_code_label_map(surface="menu")
+    target_cache: dict[str, str] = {}
     for item in items:
-        item_access = access_map.get(int(item.id), {})
-        # Nessun record accesso -> voce non ancora configurata, non mostrata
-        if not item_access:
-            continue
-        # Ha righe accesso: admin vede sempre, non-admin controlla il proprio ruolo
+        required_permission_code = _item_required_permission_code(item, target_cache=target_cache)
         if not is_admin:
-            allowed = bool(role_id is not None and item_access.get(int(role_id), False))
+            if required_permission_code:
+                if required_permission_code in user_grants_map:
+                    allowed = bool(user_grants_map[required_permission_code])
+                else:
+                    allowed = bool(role_grants_map.get(required_permission_code, False))
+            else:
+                item_access = access_map.get(int(item.id), {})
+                allowed = bool(role_id is not None and item_access.get(int(role_id), False))
             if not allowed:
                 continue
         href, coming = _resolve_item_href(item)
@@ -159,6 +231,7 @@ def _compiled_items_for_role(*, role_id: int | None, is_admin: bool, section: st
                 "coming": coming,
                 "route_name": item.route_name,
                 "url_path": item.url_path,
+                "required_permission_code": required_permission_code,
                 "parent_code": item.parent_code or "",
                 "icon": item.icon or "",
                 "group": item.group or "",
@@ -239,8 +312,7 @@ def _apply_user_nav_overrides(
     """Applica gli override per-utente alla lista di voci compilate per ruolo.
 
     - enabled=False: rimuove la voce anche se il ruolo la vedrebbe.
-    - enabled=True:  aggiunge la voce anche se il ruolo non la vedrebbe
-                     (solo se la voce esiste e is_visible/is_enabled nel DB).
+    - enabled=True:  legacy positivo deprecato, ignorato a runtime.
     Non usa la cache (gli override sono rari e la tabella è piccola).
     """
     try:
@@ -255,46 +327,7 @@ def _apply_user_nav_overrides(
         return compiled
 
     override_map: dict[int, bool] = {int(ov.item_id): bool(ov.enabled) for ov in overrides}
-    existing_ids = {int(row["id"]) for row in compiled}
-
-    # Rimuovi voci con override negativo
-    result = [row for row in compiled if override_map.get(int(row["id"]), True)]
-
-    # Aggiungi voci con override positivo non già presenti
-    for ov in overrides:
-        if not ov.enabled:
-            continue
-        item = ov.item
-        if int(item.id) in existing_ids:
-            continue
-        if not item.is_visible or not item.is_enabled:
-            continue
-        if item.section != section:
-            continue
-        href, coming = _resolve_item_href(item)
-        result.append(
-            {
-                "id": int(item.id),
-                "code": item.code,
-                "label": item.label,
-                "href": href,
-                "order": _safe_int(item.order, 100),
-                "coming": coming,
-                "route_name": item.route_name or "",
-                "url_path": item.url_path or "",
-                "parent_code": item.parent_code or "",
-                "icon": item.icon or "",
-                "group": item.group or "",
-                "active_patterns": item.active_patterns or "",
-                "category_color": (item.category.topbar_color if item.category_id and item.category else ""),
-                "category_key": (item.category.key if item.category_id and item.category else ""),
-                "category_label": (item.category.label if item.category_id and item.category else ""),
-                "category_icon": (item.category.icon if item.category_id and item.category else ""),
-                "category_order": (item.category.order if item.category_id and item.category else 0),
-            }
-        )
-
-    return result
+    return [row for row in compiled if override_map.get(int(row["id"]), True)]
 
 
 def get_subnav_nodes(
@@ -307,7 +340,12 @@ def get_subnav_nodes(
     """Restituisce le voci subnav per la sezione corrente (parent_code)."""
     if not parent_code:
         return []
-    compiled = _compiled_items_for_role(role_id=role_id, is_admin=is_admin, section="subnav")
+    compiled = _compiled_items_for_role(
+        role_id=role_id,
+        is_admin=is_admin,
+        section="subnav",
+        legacy_user_id=legacy_user_id,
+    )
     if legacy_user_id is not None and not is_admin:
         compiled = _apply_user_nav_overrides(compiled, legacy_user_id, "subnav", is_admin)
     nodes: list[NavigationNode] = []
@@ -340,7 +378,12 @@ def get_topbar_nodes(
     is_admin: bool,
     legacy_user_id: int | None = None,
 ) -> list[NavigationNode]:
-    compiled = _compiled_items_for_role(role_id=role_id, is_admin=is_admin, section="topbar")
+    compiled = _compiled_items_for_role(
+        role_id=role_id,
+        is_admin=is_admin,
+        section="topbar",
+        legacy_user_id=legacy_user_id,
+    )
     if legacy_user_id is not None and not is_admin:
         compiled = _apply_user_nav_overrides(compiled, legacy_user_id, "topbar", is_admin)
     current_variants = _path_variants(current_path)
@@ -384,6 +427,7 @@ def export_navigation_state() -> dict:
                 "parent_code": item.parent_code or "",
                 "route_name": item.route_name,
                 "url_path": item.url_path,
+                "required_permission_code": item.required_permission_code or "",
                 "order": item.order,
                 "is_visible": item.is_visible,
                 "is_enabled": item.is_enabled,
@@ -500,6 +544,7 @@ def restore_navigation_snapshot(snapshot: NavigationSnapshot) -> None:
                 parent_code=str(row.get("parent_code") or "").strip(),
                 route_name=str(row.get("route_name") or "").strip(),
                 url_path=str(row.get("url_path") or "").strip(),
+                required_permission_code=normalize_permission_code(str(row.get("required_permission_code") or "")),
                 order=_safe_int(row.get("order"), 100),
                 is_visible=bool(row.get("is_visible", True)),
                 is_enabled=bool(row.get("is_enabled", True)),

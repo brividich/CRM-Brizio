@@ -249,6 +249,16 @@ class NavigationItem(models.Model):
     )
     route_name = models.CharField(max_length=120, blank=True, default="")
     url_path = models.CharField(max_length=500, blank=True, default="")
+    required_permission_code = models.CharField(
+        max_length=120,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text=(
+            "Permission code canonico richiesto per mostrare la voce. "
+            "Se vuoto, il registry prova a ricavarlo da route_name/url_path."
+        ),
+    )
     order = models.IntegerField(default=100)
     is_visible = models.BooleanField(default=True)
     is_enabled = models.BooleanField(default=True)

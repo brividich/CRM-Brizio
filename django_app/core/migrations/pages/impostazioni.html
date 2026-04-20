@@ -1,0 +1,195 @@
+{% extends "core/base.html" %}
+
+{% block title %}Impostazioni Automazioni | Admin Portale{% endblock %}
+
+{% block extra_head %}
+  {% include "core/components/module_settings_styles.html" %}
+  <style>
+    .auto-settings-links { display:grid; gap:10px; }
+    .auto-settings-link {
+      display:block;
+      padding:12px 14px;
+      border:1px solid #dbe5ef;
+      border-radius:14px;
+      background:#fff;
+      color:#0f172a;
+      text-decoration:none;
+    }
+    .auto-settings-link:hover { border-color:#bfdbfe; background:#f8fbff; }
+    .auto-settings-link strong { display:block; font-size:14px; }
+    .auto-settings-link span { display:block; margin-top:4px; font-size:12px; color:#64748b; line-height:1.5; }
+    .backend-badge {
+      display:inline-block;
+      padding:3px 10px;
+      border-radius:20px;
+      font-size:11px;
+      font-weight:700;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+      margin-left:8px;
+    }
+    .backend-badge-graph { background:#dbeafe; color:#1d4ed8; }
+    .backend-badge-imap  { background:#fef3c7; color:#b45309; }
+    details.legacy-section > summary {
+      cursor:pointer;
+      user-select:none;
+      padding:8px 0;
+      font-size:13px;
+      font-weight:700;
+      color:#64748b;
+      list-style:none;
+    }
+    details.legacy-section > summary::before { content:"▶  "; font-size:10px; }
+    details.legacy-section[open] > summary::before { content:"▼  "; }
+  </style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/flash_messages.html" %}
+  {% include "automazioni/components/subnav.html" %}
+
+  <div class="ms-page">
+    {% if approval_mailbox_backend_is_graph %}
+      {% include "core/components/module_settings_hero.html" with settings_title="Impostazioni Automazioni" settings_subtitle="Centralizza i recapiti di approvazione via email e il polling mailbox. Backend attivo: Microsoft Graph (lettura modern auth M365)." %}
+    {% else %}
+      {% include "core/components/module_settings_hero.html" with settings_title="Impostazioni Automazioni" settings_subtitle="Centralizza i recapiti di approvazione via email e il polling mailbox. Backend attivo: IMAP (Basic Auth – sconsigliato su M365)." %}
+    {% endif %}
+
+    <div class="ms-grid-2">
+
+      {# ── Pannello backend attivo ────────────────────────────────────────── #}
+      <section class="ms-card">
+        <div class="ms-card-head">
+          <div class="ms-card-title-wrap">
+            <h2 class="ms-card-title">
+              Polling mailbox approvazioni
+              {% if approval_mailbox_backend_is_graph %}
+                <span class="backend-badge backend-badge-graph">Microsoft Graph</span>
+              {% else %}
+                <span class="backend-badge backend-badge-imap">IMAP</span>
+              {% endif %}
+            </h2>
+            <p class="ms-card-subtitle">
+              {% if approval_mailbox_backend_is_graph %}
+                Legge la mailbox tecnica tramite <strong>Microsoft Graph API</strong> (autenticazione moderna, compatibile con M365 Exchange Online).
+                Nessuna Basic Auth richiesta.
+              {% else %}
+                Legge la casella <strong>IMAP</strong> (Basic Auth). Su Microsoft 365 / Exchange Online questo backend
+                è bloccato — passare a Graph impostando <code>APPROVAL_MAILBOX_BACKEND=graph</code>.
+              {% endif %}
+            </p>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <a href="{% url 'admin_portale:automazioni_mailbox_log' %}" class="btn btn-secondary btn-sm">Log messaggi</a>
+          </div>
+        </div>
+        <div class="ms-card-body">
+          {% if approval_mailbox_backend_is_graph %}
+            {# ── Graph panel (backend attivo) ── #}
+            {% include "automazioni/components/approval_graph_panel.html" with approval_graph_form=approval_graph_form approval_graph_edit_action="save_approval_graph_config" approval_graph_action="run_approval_graph_poll" approval_graph_button_label="Esegui ora (Graph)" %}
+
+            {# ── IMAP panel (legacy, collassato) ── #}
+            <details class="legacy-section" style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:16px;">
+              <summary>Backend IMAP (legacy – non usato su M365)</summary>
+              <div style="margin-top:12px;">
+                <div class="notice notice-warning" style="margin-bottom:12px;">
+                  Basic Auth è bloccata su Microsoft 365 / Exchange Online. Il backend IMAP
+                  non funzionerà su questa mailbox. È mantenuto solo per ambienti con server
+                  IMAP classici e Basic Auth abilitata.
+                </div>
+                {% include "automazioni/components/approval_imap_panel.html" with approval_imap_form=approval_imap_form approval_imap_edit_action="save_approval_imap_config" approval_imap_action="run_approval_imap_poll" approval_imap_button_label="Esegui ora (IMAP)" %}
+              </div>
+            </details>
+
+          {% else %}
+            {# ── IMAP panel (backend attivo, ma deprecato) ── #}
+            <div class="notice notice-warning" style="margin-bottom:12px;">
+              Backend IMAP attivo. Su Microsoft 365 / Exchange Online questo backend non funzionerà
+              perché Basic Auth è bloccata. Passare a <strong>Microsoft Graph</strong>:
+              imposta <code>APPROVAL_MAILBOX_BACKEND=graph</code> nel <code>.env</code> o salva
+              la configurazione Graph qui sotto.
+            </div>
+            {% include "automazioni/components/approval_imap_panel.html" with approval_imap_form=approval_imap_form approval_imap_edit_action="save_approval_imap_config" approval_imap_action="run_approval_imap_poll" approval_imap_button_label="Esegui ora (IMAP)" %}
+
+            <details class="legacy-section" style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:16px;">
+              <summary>Configura backend Graph (raccomandato per M365)</summary>
+              <div style="margin-top:12px;">
+                {% include "automazioni/components/approval_graph_panel.html" with approval_graph_form=approval_graph_form approval_graph_edit_action="save_approval_graph_config" approval_graph_action=None %}
+              </div>
+            </details>
+          {% endif %}
+        </div>
+      </section>
+
+      <div style="display:grid;gap:16px;">
+        <section class="ms-card">
+          <div class="ms-card-head">
+            <div class="ms-card-title-wrap">
+              <h2 class="ms-card-title">Mailbox tecnica globale</h2>
+              <p class="ms-card-subtitle">Fallback usato dai template approvazione quando il singolo template non definisce <code>mailto_mailbox</code>.</p>
+            </div>
+          </div>
+          <div class="ms-card-body">
+            <form method="post" class="ms-field-grid">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="save_default_approval_mailbox">
+              <div class="ms-field">
+                <label for="approval_mailbox">Mailbox tecnica</label>
+                <input
+                  id="approval_mailbox"
+                  type="email"
+                  name="approval_mailbox"
+                  value="{{ approval_mailbox_site_config_value }}"
+                  placeholder="{% if approval_graph_status.mailbox %}{{ approval_graph_status.mailbox }}{% elif approval_imap_status.mailbox.value %}{{ approval_imap_status.mailbox.value }}{% else %}approvazioni@azienda.local{% endif %}"
+                >
+                <span class="ms-field-help">
+                  Valore risolto oggi:
+                  {% if approval_mailbox_backend_is_graph %}
+                    <code>{% if approval_graph_status.mailbox %}{{ approval_graph_status.mailbox }}{% else %}(non configurata){% endif %}</code>
+                  {% else %}
+                    <code>{% if approval_imap_status.mailbox.value %}{{ approval_imap_status.mailbox.value }}{% else %}(non configurata){% endif %}</code>
+                  {% endif %}
+                  Lascia vuoto per usare solo eventuali valori per-template o il fallback da <code>settings</code>.
+                </span>
+              </div>
+              <div class="ms-form-actions">
+                <button type="submit" class="btn btn-primary">Salva mailbox</button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <section class="ms-card">
+          <div class="ms-card-head">
+            <div class="ms-card-title-wrap">
+              <h2 class="ms-card-title">Aree collegate</h2>
+              <p class="ms-card-subtitle">Le impostazioni operative restano distribuite nelle superfici specializzate del modulo.</p>
+            </div>
+          </div>
+          <div class="ms-card-body auto-settings-links">
+            <a class="auto-settings-link" href="{% url 'admin_portale:automazioni_mailbox_log' %}">
+              <strong>Log mailbox approvazioni</strong>
+              <span>Diagnostica: ultimi messaggi letti, stato parsing, deduplica, errori.</span>
+            </a>
+            <a class="auto-settings-link" href="{% url 'admin_portale:automazioni_approval_templates' %}">
+              <strong>Template approvazioni</strong>
+              <span>Gestisci contenuto email, CTA portal links / mailto e override mailbox per template.</span>
+            </a>
+            <a class="auto-settings-link" href="{% url 'admin_portale:automazioni_teams_presets' %}">
+              <strong>Canali Teams</strong>
+              <span>Configura webhook legacy ed endpoint Teams Flow usati dalle azioni <code>send_approval</code>.</span>
+            </a>
+            <a class="auto-settings-link" href="{% url 'admin_portale:automazioni_rule_list' %}">
+              <strong>Regole automazioni</strong>
+              <span>Apri builder e designer per collegare template, approvazioni umane e recapiti al runtime del modulo.</span>
+            </a>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,241 @@
+{% extends "core/base.html" %}
+
+{% block title %}Generatore Trigger SQL | Admin Portale{% endblock %}
+
+{% block extra_head %}
+  {% include "core/components/module_settings_styles.html" %}
+  <style>
+    .tg-layout { display:grid; grid-template-columns:280px 1fr; gap:20px; align-items:start; }
+    .tg-source-list { display:flex; flex-direction:column; gap:6px; }
+    .tg-source-btn {
+      display:block; padding:10px 14px; border-radius:10px; border:1px solid #dbe5ef;
+      background:#fff; color:#0f172a; text-decoration:none; font-size:13px; cursor:pointer;
+      text-align:left; width:100%; transition:border-color .15s, background .15s;
+    }
+    .tg-source-btn:hover { border-color:#93c5fd; background:#f0f7ff; }
+    .tg-source-btn.active { border-color:#2563eb; background:#eff6ff; font-weight:700; color:#1d4ed8; }
+    .tg-source-btn small { display:block; color:#64748b; font-weight:400; font-size:11px; margin-top:2px; }
+    .tg-panel { display:flex; flex-direction:column; gap:16px; }
+    .tg-ops { display:flex; gap:12px; flex-wrap:wrap; }
+    .tg-op-label {
+      display:flex; align-items:center; gap:8px; padding:8px 16px;
+      border:1px solid #dbe5ef; border-radius:8px; background:#f8fafc;
+      cursor:pointer; font-size:13px; font-weight:600;
+    }
+    .tg-op-label input:checked ~ span { color:#1d4ed8; }
+    .tg-fields-grid {
+      display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:8px;
+    }
+    .tg-field-label {
+      display:flex; align-items:flex-start; gap:8px; padding:8px 12px;
+      border:1px solid #e2e8f0; border-radius:8px; background:#fff;
+      cursor:pointer; font-size:12px; line-height:1.4;
+    }
+    .tg-field-label input { margin-top:2px; flex-shrink:0; }
+    .tg-field-label .field-name { font-weight:600; color:#0f172a; }
+    .tg-field-label .field-col { color:#64748b; font-size:11px; }
+    .tg-code-block {
+      position:relative; background:#0f172a; color:#e2e8f0; border-radius:12px;
+      padding:20px 20px 16px; font-family:monospace; font-size:12px;
+      line-height:1.7; white-space:pre; overflow-x:auto; max-height:400px; overflow-y:auto;
+    }
+    .tg-copy-btn {
+      position:absolute; top:10px; right:10px; background:#334155; color:#e2e8f0;
+      border:none; border-radius:6px; padding:4px 10px; font-size:11px; cursor:pointer;
+    }
+    .tg-copy-btn:hover { background:#475569; }
+    .tg-result-ok { color:#16a34a; font-weight:700; font-size:13px; }
+    .tg-result-err { color:#dc2626; font-weight:700; font-size:13px; }
+    .tg-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .badge-op-insert { background:#dcfce7; color:#166534; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:700; }
+    .badge-op-update { background:#dbeafe; color:#1e40af; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:700; }
+    @media (max-width:800px) {
+      .tg-layout { grid-template-columns:1fr; }
+    }
+  </style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/flash_messages.html" %}
+  {% include "automazioni/components/subnav.html" %}
+
+  <div class="ms-page">
+    {% include "core/components/module_settings_hero.html" with settings_title="Generatore Trigger SQL" settings_subtitle="Genera e applica trigger SQL Server per le sorgenti automazioni. Il trigger inserisce automaticamente un evento in automation_event_queue ad ogni INSERT o UPDATE." %}
+
+    {% if not is_sql_server %}
+      <div class="ms-card" style="border-color:#fde68a;background:#fffbeb;margin-bottom:16px;">
+        <p style="margin:0;color:#92400e;font-size:13px;">
+          <strong>Attenzione:</strong> il database attivo non è SQL Server.
+          Il pulsante <em>Applica</em> non sarà disponibile. Puoi comunque generare e copiare il SQL da eseguire manualmente.
+        </p>
+      </div>
+    {% endif %}
+
+    <div class="tg-layout">
+
+      {# ── Colonna sinistra: lista sorgenti ─────────────────────────────── #}
+      <div>
+        <h3 style="font-size:13px;font-weight:700;color:#64748b;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em;">Sorgenti disponibili</h3>
+        <div class="tg-source-list">
+          {% for src in all_sources %}
+            <form method="get" style="margin:0;">
+              <button type="submit" name="source_code" value="{{ src.code }}"
+                      class="tg-source-btn {% if selected_source.code == src.code %}active{% endif %}">
+                {{ src.label }}
+                <small>{{ src.table_name }} &middot; {{ src.fields|length }} campi</small>
+              </button>
+            </form>
+          {% endfor %}
+        </div>
+      </div>
+
+      {# ── Colonna destra: configuratore ───────────────────────────────── #}
+      <div class="tg-panel">
+        {% if selected_source %}
+
+          <form method="post" id="tg-form">
+            {% csrf_token %}
+            <input type="hidden" name="source_code" value="{{ selected_source.code }}">
+
+            {# Operazioni #}
+            <div class="ms-card">
+              <div class="ms-card-head">
+                <div class="ms-card-title-wrap">
+                  <h2 class="ms-card-title">{{ selected_source.label }}</h2>
+                  <p class="ms-card-subtitle">Tabella: <code>dbo.{{ selected_source.table_name }}</code> &mdash; PK: <code>{{ selected_source.pk_field }}</code></p>
+                </div>
+              </div>
+              <div style="padding:0 0 8px;">
+                <p style="font-size:13px;font-weight:600;color:#374151;margin-bottom:10px;">Operazioni da triggerare:</p>
+                <div class="tg-ops">
+                  {% if "insert" in selected_source.supported_operations %}
+                    <label class="tg-op-label">
+                      <input type="checkbox" name="op_insert" {% if not generated or "insert" in generated %}checked{% endif %}>
+                      <span>INSERT <span class="badge-op-insert">INSERT</span></span>
+                    </label>
+                  {% endif %}
+                  {% if "update" in selected_source.supported_operations %}
+                    <label class="tg-op-label">
+                      <input type="checkbox" name="op_update" {% if not generated or "update" in generated %}checked{% endif %}>
+                      <span>UPDATE <span class="badge-op-update">UPDATE</span></span>
+                    </label>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            {# Campi #}
+            <div class="ms-card">
+              <div class="ms-card-head">
+                <div class="ms-card-title-wrap">
+                  <h2 class="ms-card-title">Campi nel payload</h2>
+                  <p class="ms-card-subtitle">Seleziona i campi da includere in <code>payload_json</code> e <code>old_payload_json</code>. I campi virtuali (join) non sono selezionabili qui.</p>
+                </div>
+                <div style="display:flex;gap:8px;">
+                  <button type="button" onclick="document.querySelectorAll('.tg-field-cb').forEach(c=>c.checked=true)" class="btn btn-secondary btn-sm">Tutti</button>
+                  <button type="button" onclick="document.querySelectorAll('.tg-field-cb').forEach(c=>c.checked=false)" class="btn btn-secondary btn-sm">Nessuno</button>
+                </div>
+              </div>
+              <div class="tg-fields-grid">
+                {% for field in selected_source.fields %}
+                  <label class="tg-field-label">
+                    <input type="checkbox" class="tg-field-cb" name="fields" value="{{ field.name }}"
+                           {% if not generated or field.name in generated_fields %}checked{% endif %}>
+                    <div>
+                      <div class="field-name">{{ field.name }}</div>
+                      {% if field.db_column != field.name %}
+                        <div class="field-col">col: {{ field.db_column }}</div>
+                      {% endif %}
+                      <div class="field-col">{{ field.label }}</div>
+                    </div>
+                  </label>
+                {% endfor %}
+              </div>
+            </div>
+
+            {# Pulsanti azione #}
+            <div class="tg-actions">
+              <button type="submit" name="action" value="generate" class="btn btn-primary">
+                Genera SQL
+              </button>
+              {% if is_sql_server and generated %}
+                <button type="submit" name="action" value="apply"
+                        class="btn btn-danger"
+                        onclick="return confirm('Applicare i trigger su dbo.{{ selected_source.table_name }}? I trigger esistenti verranno sostituiti.')">
+                  Applica al DB
+                </button>
+              {% endif %}
+            </div>
+          </form>
+
+          {# SQL generato #}
+          {% if generated %}
+            {% if generated.insert %}
+              <div class="ms-card">
+                <div class="ms-card-head">
+                  <div class="ms-card-title-wrap">
+                    <h2 class="ms-card-title">Trigger INSERT <span class="badge-op-insert">INSERT</span></h2>
+                    <p class="ms-card-subtitle">trg_{{ selected_source.code }}_automation_after_insert</p>
+                  </div>
+                  {% if apply_results.insert %}
+                    {% if apply_results.insert.ok %}
+                      <span class="tg-result-ok">✓ Applicato</span>
+                    {% else %}
+                      <span class="tg-result-err">✗ {{ apply_results.insert.message }}</span>
+                    {% endif %}
+                  {% endif %}
+                </div>
+                <div class="tg-code-block" id="sql-insert">
+                  <button class="tg-copy-btn" onclick="copyCode('sql-insert')">Copia</button>{{ generated.insert }}</div>
+              </div>
+            {% endif %}
+
+            {% if generated.update %}
+              <div class="ms-card">
+                <div class="ms-card-head">
+                  <div class="ms-card-title-wrap">
+                    <h2 class="ms-card-title">Trigger UPDATE <span class="badge-op-update">UPDATE</span></h2>
+                    <p class="ms-card-subtitle">trg_{{ selected_source.code }}_automation_after_update</p>
+                  </div>
+                  {% if apply_results.update %}
+                    {% if apply_results.update.ok %}
+                      <span class="tg-result-ok">✓ Applicato</span>
+                    {% else %}
+                      <span class="tg-result-err">✗ {{ apply_results.update.message }}</span>
+                    {% endif %}
+                  {% endif %}
+                </div>
+                <div class="tg-code-block" id="sql-update">
+                  <button class="tg-copy-btn" onclick="copyCode('sql-update')">Copia</button>{{ generated.update }}</div>
+              </div>
+            {% endif %}
+          {% endif %}
+
+        {% else %}
+          <div class="ms-card">
+            <p style="color:#64748b;font-size:14px;text-align:center;padding:32px 0;">
+              Seleziona una sorgente per iniziare.
+            </p>
+          </div>
+        {% endif %}
+      </div>
+
+    </div>{# /tg-layout #}
+  </div>
+
+  <script>
+    function copyCode(blockId) {
+      const block = document.getElementById(blockId);
+      const text = block.innerText.replace(/^Copia\n/, '');
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = block.querySelector('.tg-copy-btn');
+        btn.textContent = 'Copiato!';
+        setTimeout(() => btn.textContent = 'Copia', 1500);
+      });
+    }
+  </script>
+{% endblock %}

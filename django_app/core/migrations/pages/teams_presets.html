@@ -1,0 +1,266 @@
+{% extends "core/base.html" %}
+
+{% block title %}Canali Teams | Automazioni | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .tp-layout { display:grid; gap:20px; grid-template-columns:minmax(0, 1fr) 380px; align-items:start; }
+  @media (max-width:900px) { .tp-layout { grid-template-columns:1fr; } }
+  .tp-stack { display:grid; gap:18px; }
+  .tp-table-wrap { overflow:auto; }
+  .tp-table { width:100%; border-collapse:collapse; font-size:14px; }
+  .tp-table th, .tp-table td { padding:10px 12px; border-bottom:1px solid #e2e8f0; text-align:left; vertical-align:top; }
+  .tp-table th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; background:#f8fafc; }
+  .tp-url { font-size:12px; color:#475569; word-break:break-all; max-width:320px; }
+  .tp-badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; }
+  .tp-badge-on { background:#dcfce7; color:#166534; }
+  .tp-badge-off { background:#e2e8f0; color:#64748b; }
+  .tp-actions { display:flex; gap:6px; flex-wrap:wrap; }
+  .tp-btn { display:inline-flex; align-items:center; gap:5px; padding:6px 12px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; border:none; text-decoration:none; }
+  .tp-btn-primary { background:#3b82f6; color:#fff; }
+  .tp-btn-primary:hover { background:#2563eb; }
+  .tp-btn-edit { background:#f1f5f9; color:#334155; }
+  .tp-btn-edit:hover { background:#e2e8f0; }
+  .tp-btn-danger { background:#fef2f2; color:#dc2626; }
+  .tp-btn-danger:hover { background:#fee2e2; }
+  .tp-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden; }
+  .tp-card-head { padding:18px 20px; border-bottom:1px solid #e2e8f0; background:#f8fafc; }
+  .tp-card-title { font-size:15px; font-weight:800; color:#0f172a; }
+  .tp-card-subtitle { font-size:13px; color:#64748b; margin-top:4px; }
+  .form-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:20px; }
+  .form-card-title { font-size:14px; font-weight:800; color:#0f172a; margin-bottom:14px; }
+  .form-field { display:grid; gap:5px; margin-bottom:12px; }
+  .form-field label { font-size:12px; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:.04em; }
+  .form-field input, .form-field textarea, .form-field select { width:100%; padding:9px 10px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; font-size:13px; }
+  .form-field textarea { resize:vertical; }
+  .form-errors { list-style:none; padding:0; margin:0; }
+  .form-errors li { font-size:12px; color:#dc2626; margin-top:3px; }
+  .form-toggle { display:flex; align-items:center; gap:8px; }
+  .tp-empty { text-align:center; color:#94a3b8; padding:32px; font-size:14px; }
+  .tp-help { background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:14px 16px; font-size:13px; color:#1e40af; line-height:1.6; margin-bottom:16px; }
+  .tp-help code { background:#dbeafe; padding:1px 5px; border-radius:4px; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "automazioni/components/subnav.html" %}
+<div class="page-header" style="margin-bottom:20px;">
+  <h1 class="page-title">Canali Teams</h1>
+  <p class="page-subtitle">Gestisci sia i webhook legacy di canale sia gli endpoint Power Automate / Teams Workflow usati per recapitare richieste di approvazione al singolo utente.</p>
+</div>
+
+{% if messages %}
+  {% for message in messages %}
+  <div class="alert alert-{{ message.tags }}" style="margin-bottom:16px;">{{ message }}</div>
+  {% endfor %}
+{% endif %}
+
+<div class="tp-help">
+  <strong>Webhook legacy</strong>: invia una card nel canale Teams con il comportamento storico.<br>
+  <strong>Teams Flow endpoint</strong>: il portale invia una POST a Power Automate; il flow recapita la richiesta alla chat del singolo utente identificato da email aziendale.<br>
+  Il portale resta la source of truth: la decisione finale passa sempre dai link <code>Approva</code> e <code>Rifiuta</code> del portale.
+</div>
+{% if flow_endpoints_warning %}
+<div class="tp-help" style="background:#fff7ed;border-color:#fdba74;color:#9a3412;">
+  <strong>Endpoint Teams Flow non disponibili.</strong><br>
+  {{ flow_endpoints_warning }} Esegui <code>python manage.py migrate automazioni</code> sull'ambiente corrente per riattivarli.
+</div>
+{% endif %}
+
+<div class="tp-layout">
+  <div class="tp-stack">
+    <section class="tp-card">
+      <div class="tp-card-head">
+        <div class="tp-card-title">Canali Teams legacy</div>
+        <div class="tp-card-subtitle">Preset riutilizzabili per la modalita' <code>teams_webhook_legacy</code> di <strong>SEND_APPROVAL</strong>.</div>
+      </div>
+      {% if presets %}
+      <div class="tp-table-wrap">
+        <table class="tp-table">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Webhook URL</th>
+              <th>Stato</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for preset in presets %}
+            <tr>
+              <td style="font-weight:700;">
+                {{ preset.name }}
+                {% if preset.description %}<div style="font-size:12px;color:#64748b;font-weight:400;margin-top:2px;">{{ preset.description }}</div>{% endif %}
+              </td>
+              <td><div class="tp-url">{{ preset.webhook_url|truncatechars:90 }}</div></td>
+              <td>
+                <span class="tp-badge {% if preset.is_active %}tp-badge-on{% else %}tp-badge-off{% endif %}">
+                  {% if preset.is_active %}Attivo{% else %}Disattivato{% endif %}
+                </span>
+              </td>
+              <td>
+                <div class="tp-actions">
+                  <a href="{% url 'admin_portale:automazioni_teams_preset_edit' pk=preset.pk %}" class="tp-btn tp-btn-edit">Modifica</a>
+                  <form method="post" action="{% url 'admin_portale:automazioni_teams_preset_delete' pk=preset.pk %}" onsubmit="return confirm('Eliminare il canale {{ preset.name|escapejs }}?');" style="margin:0;">
+                    {% csrf_token %}
+                    <button type="submit" class="tp-btn tp-btn-danger">Elimina</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="tp-empty">Nessun canale Teams legacy configurato.</div>
+      {% endif %}
+      <div style="padding:16px 20px;">
+        <a href="{% url 'admin_portale:automazioni_teams_preset_create' %}" class="tp-btn tp-btn-primary">+ Aggiungi canale legacy</a>
+      </div>
+    </section>
+
+    <section class="tp-card">
+      <div class="tp-card-head">
+        <div class="tp-card-title">Endpoint Teams Flow</div>
+        <div class="tp-card-subtitle">Endpoint HTTP chiamati dal portale per la modalita' <code>teams_chat_flow</code> o <code>email_and_teams_chat_flow</code>.</div>
+      </div>
+      {% if flow_endpoints_warning %}
+      <div class="tp-empty" style="color:#9a3412;">{{ flow_endpoints_warning }}</div>
+      {% elif flow_endpoints %}
+      <div class="tp-table-wrap">
+        <table class="tp-table">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Codice</th>
+              <th>Endpoint URL</th>
+              <th>Stato</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for endpoint in flow_endpoints %}
+            <tr>
+              <td style="font-weight:700;">
+                {{ endpoint.name }}
+                {% if endpoint.description %}<div style="font-size:12px;color:#64748b;font-weight:400;margin-top:2px;">{{ endpoint.description }}</div>{% endif %}
+              </td>
+              <td><code>{{ endpoint.code }}</code></td>
+              <td><div class="tp-url">{{ endpoint.endpoint_url|truncatechars:90 }}</div></td>
+              <td>
+                <span class="tp-badge {% if endpoint.is_active %}tp-badge-on{% else %}tp-badge-off{% endif %}">
+                  {% if endpoint.is_active %}Attivo{% else %}Disattivato{% endif %}
+                </span>
+              </td>
+              <td>
+                <div class="tp-actions">
+                  <a href="{% url 'admin_portale:automazioni_teams_flow_endpoint_edit' pk=endpoint.pk %}" class="tp-btn tp-btn-edit">Modifica</a>
+                  <form method="post" action="{% url 'admin_portale:automazioni_teams_flow_endpoint_delete' pk=endpoint.pk %}" onsubmit="return confirm('Eliminare l\\'endpoint {{ endpoint.name|escapejs }}?');" style="margin:0;">
+                    {% csrf_token %}
+                    <button type="submit" class="tp-btn tp-btn-danger">Elimina</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="tp-empty">Nessun endpoint Teams Flow configurato.</div>
+      {% endif %}
+      {% if not flow_endpoints_warning %}
+      <div style="padding:16px 20px;">
+        <a href="{% url 'admin_portale:automazioni_teams_flow_endpoint_create' %}" class="tp-btn tp-btn-primary">+ Aggiungi endpoint Flow</a>
+      </div>
+      {% endif %}
+    </section>
+  </div>
+
+  <div class="tp-stack">
+    <section class="form-card">
+      <div class="form-card-title">
+        {% if preset_form %}
+          {% if preset_form_mode == "edit" %}Modifica canale "{{ edit_preset.name }}"{% else %}Nuovo canale Teams legacy{% endif %}
+        {% else %}
+          Nuovo canale Teams legacy
+        {% endif %}
+      </div>
+      {% if preset_form %}
+      <form method="post" action="{% if preset_form_mode == 'edit' %}{% url 'admin_portale:automazioni_teams_preset_edit' pk=edit_preset.pk %}{% else %}{% url 'admin_portale:automazioni_teams_preset_create' %}{% endif %}">
+        {% csrf_token %}
+        {% for field in preset_form %}
+        <div class="form-field">
+          {% if field.field.widget.input_type == 'checkbox' %}
+            <div class="form-toggle">
+              {{ field }} <label for="{{ field.id_for_label }}" style="text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:#0f172a;">{{ field.label }}</label>
+            </div>
+          {% else %}
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+          {% endif %}
+          {% if field.errors %}
+            <ul class="form-errors">{% for error in field.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+          {% endif %}
+        </div>
+        {% endfor %}
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <button type="submit" class="tp-btn tp-btn-primary">{% if preset_form_mode == "edit" %}Salva modifiche{% else %}Crea canale{% endif %}</button>
+          <a href="{% url 'admin_portale:automazioni_teams_presets' %}" class="tp-btn tp-btn-edit">Annulla</a>
+        </div>
+      </form>
+      {% else %}
+      <p style="font-size:13px;color:#64748b;margin-bottom:14px;">Configura qui i webhook legacy dei canali Teams da riusare nelle regole storiche.</p>
+      <a href="{% url 'admin_portale:automazioni_teams_preset_create' %}" class="tp-btn tp-btn-primary">+ Aggiungi canale legacy</a>
+      {% endif %}
+    </section>
+
+    <section class="form-card">
+      <div class="form-card-title">
+        {% if flow_form %}
+          {% if flow_form_mode == "edit" %}Modifica endpoint "{{ edit_flow_endpoint.name }}"{% else %}Nuovo endpoint Teams Flow{% endif %}
+        {% else %}
+          Nuovo endpoint Teams Flow
+        {% endif %}
+      </div>
+      {% if flow_endpoints_warning %}
+      <p style="font-size:13px;color:#9a3412;margin-bottom:14px;">{{ flow_endpoints_warning }}</p>
+      {% elif flow_form %}
+      <form method="post" action="{% if flow_form_mode == 'edit' %}{% url 'admin_portale:automazioni_teams_flow_endpoint_edit' pk=edit_flow_endpoint.pk %}{% else %}{% url 'admin_portale:automazioni_teams_flow_endpoint_create' %}{% endif %}">
+        {% csrf_token %}
+        {% for field in flow_form.hidden_fields %}{{ field }}{% endfor %}
+        {% for field in flow_form %}
+          {% if field.is_hidden %}{% else %}
+          <div class="form-field">
+            {% if field.field.widget.input_type == 'checkbox' %}
+              <div class="form-toggle">
+                {{ field }} <label for="{{ field.id_for_label }}" style="text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:#0f172a;">{{ field.label }}</label>
+              </div>
+            {% else %}
+              <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+            {% endif %}
+            {% if field.errors %}
+              <ul class="form-errors">{% for error in field.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+          </div>
+          {% endif %}
+        {% endfor %}
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <button type="submit" class="tp-btn tp-btn-primary">{% if flow_form_mode == "edit" %}Salva modifiche{% else %}Crea endpoint{% endif %}</button>
+          <a href="{% url 'admin_portale:automazioni_teams_presets' %}" class="tp-btn tp-btn-edit">Annulla</a>
+        </div>
+      </form>
+      {% else %}
+      <p style="font-size:13px;color:#64748b;margin-bottom:14px;">Usa un endpoint Power Automate / Teams Workflow che riceva il payload del portale e notifichi la persona giusta tramite email aziendale.</p>
+      <a href="{% url 'admin_portale:automazioni_teams_flow_endpoint_create' %}" class="tp-btn tp-btn-primary">+ Aggiungi endpoint Flow</a>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

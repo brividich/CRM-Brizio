@@ -1,0 +1,85 @@
+{% extends "core/base.html" %}
+
+{% block title %}Automazioni - Sorgenti | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .auto-table-wrap { overflow:auto; }
+  .auto-table { width:100%; border-collapse:collapse; font-size:14px; }
+  .auto-table th, .auto-table td { padding:10px 12px; border-bottom:1px solid #e2e8f0; text-align:left; vertical-align:top; }
+  .auto-table th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; background:#f8fafc; }
+  .auto-chip { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; background:#e2e8f0; color:#0f172a; font-size:12px; font-weight:700; }
+  .auto-stack { display:grid; gap:4px; }
+  .auto-note { margin-top:14px; color:#475569; font-size:13px; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Catalogo Sorgenti" page_subtitle="Catalogo tecnico delle sorgenti dati esposte al futuro wizard automazioni." %}
+  {% include "automazioni/components/subnav.html" %}
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Sorgenti registrate</div>
+    </div>
+    <div class="card-body auto-table-wrap">
+      <table class="auto-table">
+        <thead>
+          <tr>
+            <th>Sorgente</th>
+            <th>Code</th>
+            <th>App</th>
+            <th>Tabella</th>
+            <th>PK</th>
+            <th>Operazioni</th>
+            <th>Campi</th>
+            <th>Descrizione</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for source in sources %}
+            <tr>
+              <td>
+                <div class="auto-stack">
+                  <strong>{{ source.label }}</strong>
+                  <span class="auto-chip">{{ source.code }}</span>
+                </div>
+              </td>
+              <td><code>{{ source.code }}</code></td>
+              <td><code>{{ source.source_app }}</code></td>
+              <td><code>{{ source.table_name }}</code></td>
+              <td><code>{{ source.pk_field }}</code></td>
+              <td>{{ source.operations_display }}</td>
+              <td>{{ source.field_count }}</td>
+              <td>{{ source.description }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="8">Nessuna sorgente registrata.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <div class="card-head">
+      <div class="card-title">Contratto ACL suggerito</div>
+    </div>
+    <div class="card-body">
+      <div class="auto-stack">
+        {% for action_name in acl_action_contract %}
+          <div><code>{{ action_name }}</code></div>
+        {% endfor %}
+      </div>
+      <div class="auto-note">
+        Fase 1: i nomi sono dichiarati per allineare catalogo, ACL legacy e future integrazioni Navigation/worker.
+      </div>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,313 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ page_title }} | Automazioni | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .atf-layout { display:grid; gap:20px; grid-template-columns:minmax(0,1fr) 340px; align-items:start; }
+  @media(max-width:900px){ .atf-layout { grid-template-columns:1fr; } }
+  .atf-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden; }
+  .atf-card-head { padding:16px 20px; border-bottom:1px solid #e2e8f0; background:#f8fafc; }
+  .atf-card-title { font-size:14px; font-weight:800; color:#0f172a; }
+  .atf-card-subtitle { font-size:12px; color:#64748b; margin-top:3px; }
+  .atf-body { padding:20px; }
+  .atf-section { margin-bottom:20px; }
+  .atf-section-title { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:#64748b; border-bottom:1px solid #e2e8f0; padding-bottom:8px; margin-bottom:14px; }
+  .atf-field { display:grid; gap:5px; margin-bottom:14px; }
+  .atf-field label { font-size:12px; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:.04em; }
+  .atf-field input[type=text], .atf-field input[type=email], .atf-field select, .atf-field textarea { width:100%; padding:9px 10px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; font-size:13px; box-sizing:border-box; }
+  .atf-field textarea { resize:vertical; }
+  .atf-field .helptext { font-size:11px; color:#64748b; margin-top:3px; line-height:1.5; }
+  .atf-field .errorlist { list-style:none; padding:0; margin:3px 0 0; }
+  .atf-field .errorlist li { font-size:12px; color:#dc2626; }
+  .atf-toggle { display:flex; align-items:center; gap:8px; }
+  .atf-toggle input[type=checkbox] { width:16px; height:16px; cursor:pointer; }
+  .atf-actions { display:flex; gap:10px; flex-wrap:wrap; align-items:center; padding:16px 20px; border-top:1px solid #e2e8f0; background:#f8fafc; }
+  .atf-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 18px; border-radius:10px; font-size:13px; font-weight:700; cursor:pointer; border:none; text-decoration:none; }
+  .atf-btn-primary { background:#3b82f6; color:#fff; }
+  .atf-btn-primary:hover { background:#2563eb; }
+  .atf-btn-back { background:#f1f5f9; color:#334155; }
+  .atf-btn-back:hover { background:#e2e8f0; }
+  .atf-btn-preview { background:#eff6ff; color:#1d4ed8; }
+  .atf-btn-preview:hover { background:#dbeafe; }
+  .atf-btn-clone { background:#f0fdf4; color:#166534; }
+  .atf-btn-clone:hover { background:#dcfce7; }
+  .atf-info { background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:14px 16px; font-size:13px; color:#1e40af; line-height:1.6; }
+  .atf-info code { background:#dbeafe; padding:1px 5px; border-radius:4px; font-size:11px; }
+  .atf-warn { background:#fff7ed; border:1px solid #fdba74; border-radius:12px; padding:12px 14px; font-size:12px; color:#9a3412; margin-bottom:12px; }
+  .mode-section { border:1px solid #e2e8f0; border-radius:12px; padding:14px; margin-bottom:14px; }
+  .mode-section[data-mode-section]:not([data-visible]) { display:none; }
+  .atf-placeholder-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .atf-placeholder-chip { background:#f1f5f9; color:#334155; font-size:11px; font-family:monospace; padding:3px 7px; border-radius:5px; cursor:pointer; border:1px solid #e2e8f0; }
+  .atf-placeholder-chip:hover { background:#e2e8f0; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "automazioni/components/subnav.html" %}
+<div class="page-header" style="margin-bottom:20px;">
+  <h1 class="page-title">{{ page_title }}</h1>
+</div>
+
+{% if messages %}
+  {% for message in messages %}
+  <div class="alert alert-{{ message.tags }}" style="margin-bottom:16px;">{{ message }}</div>
+  {% endfor %}
+{% endif %}
+
+<form method="post">
+{% csrf_token %}
+<div class="atf-layout">
+  <!-- Colonna sinistra: form principale -->
+  <div style="display:grid;gap:18px;">
+
+    <!-- Sezione: Identità -->
+    <div class="atf-card">
+      <div class="atf-card-head">
+        <div class="atf-card-title">Identità template</div>
+      </div>
+      <div class="atf-body">
+        <div class="atf-field">
+          {{ form.name.label_tag }}
+          {{ form.name }}
+          {% if form.name.errors %}<ul class="errorlist">{% for e in form.name.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+        </div>
+        <div class="atf-field">
+          {{ form.code.label_tag }}
+          {{ form.code }}
+          <span class="helptext">{{ form.code.help_text }}</span>
+          {% if form.code.errors %}<ul class="errorlist">{% for e in form.code.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+        </div>
+        <div class="atf-field">
+          {{ form.description.label_tag }}
+          {{ form.description }}
+          {% if form.description.errors %}<ul class="errorlist">{% for e in form.description.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+        </div>
+        <div class="atf-field">
+          <div class="atf-toggle">
+            {{ form.is_enabled }}
+            <label for="{{ form.is_enabled.id_for_label }}">{{ form.is_enabled.label }}</label>
+          </div>
+        </div>
+        <div class="atf-field">
+          {{ form.delivery_mode.label_tag }}
+          {{ form.delivery_mode }}
+          {% if form.delivery_mode.errors %}<ul class="errorlist">{% for e in form.delivery_mode.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Sezione: Contenuto email -->
+    <div class="atf-card">
+      <div class="atf-card-head">
+        <div class="atf-card-title">Contenuto email</div>
+        <div class="atf-card-subtitle">Usa {placeholder} per inserire valori dinamici dal payload della regola.</div>
+      </div>
+      <div class="atf-body">
+        <div class="atf-field">
+          {{ form.subject_template.label_tag }}
+          {{ form.subject_template }}
+          <span class="helptext">{{ form.subject_template.help_text }}</span>
+          {% if form.subject_template.errors %}<ul class="errorlist">{% for e in form.subject_template.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+        </div>
+        <div class="atf-field">
+          {{ form.title_template.label_tag }}
+          {{ form.title_template }}
+          <span class="helptext">{{ form.title_template.help_text }}</span>
+        </div>
+        <div class="atf-field">
+          {{ form.intro_template.label_tag }}
+          {{ form.intro_template }}
+          <span class="helptext">{{ form.intro_template.help_text }}</span>
+        </div>
+        <div class="atf-field">
+          {{ form.body_template.label_tag }}
+          {{ form.body_template }}
+          <span class="helptext">{{ form.body_template.help_text }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sezione: Facts / Riepilogo -->
+    <div class="atf-card">
+      <div class="atf-card-head">
+        <div class="atf-card-title">Facts / Riepilogo</div>
+        <div class="atf-card-subtitle">Tabella campi chiave mostrata nell'email (ignorata se il corpo libero è compilato).</div>
+      </div>
+      <div class="atf-body">
+        <div class="atf-field">
+          <div class="atf-toggle">
+            {{ form.include_facts }}
+            <label for="{{ form.include_facts.id_for_label }}">{{ form.include_facts.label }}</label>
+          </div>
+        </div>
+        <div class="atf-field">
+          {{ form.facts_lines.label_tag }}
+          {{ form.facts_lines }}
+          <span class="helptext">{{ form.facts_lines.help_text }}</span>
+          {% if form.facts_lines.errors %}<ul class="errorlist">{% for e in form.facts_lines.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+        </div>
+        <div class="atf-field">
+          {{ form.approval_label.label_tag }}
+          {{ form.approval_label }}
+        </div>
+        <div class="atf-field">
+          {{ form.rejection_label.label_tag }}
+          {{ form.rejection_label }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Sezione: Azioni mailto: -->
+    <div class="atf-card" id="mailto-section">
+      <div class="atf-card-head">
+        <div class="atf-card-title">Azioni mailto:</div>
+        <div class="atf-card-subtitle">Attive solo per modalità <em>mail_reply</em> o <em>hybrid</em>. Il subject del mailto è il canale principale di comando per il parser.</div>
+      </div>
+      <div class="atf-body">
+        <div class="atf-field">
+          <div class="atf-toggle">
+            {{ form.include_mailto_actions }}
+            <label for="{{ form.include_mailto_actions.id_for_label }}">{{ form.include_mailto_actions.label }}</label>
+          </div>
+          <span class="helptext">{{ form.include_mailto_actions.help_text }}</span>
+          {% if form.include_mailto_actions.errors %}<ul class="errorlist">{% for e in form.include_mailto_actions.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+        </div>
+
+        <div id="mailto-fields">
+          <div class="atf-field">
+            {{ form.mailto_mailbox.label_tag }}
+            {{ form.mailto_mailbox }}
+            <span class="helptext">{{ form.mailto_mailbox.help_text }}</span>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div>
+              <div class="atf-section-title" style="margin-top:12px;">Approva</div>
+              <div class="atf-field">
+                {{ form.approval_mailto_subject_template.label_tag }}
+                {{ form.approval_mailto_subject_template }}
+                <span class="helptext">{{ form.approval_mailto_subject_template.help_text }}</span>
+              </div>
+              <div class="atf-field">
+                {{ form.approval_mailto_body_template.label_tag }}
+                {{ form.approval_mailto_body_template }}
+              </div>
+            </div>
+            <div>
+              <div class="atf-section-title" style="margin-top:12px;">Rifiuta</div>
+              <div class="atf-field">
+                {{ form.rejection_mailto_subject_template.label_tag }}
+                {{ form.rejection_mailto_subject_template }}
+                <span class="helptext">{{ form.rejection_mailto_subject_template.help_text }}</span>
+              </div>
+              <div class="atf-field">
+                {{ form.rejection_mailto_body_template.label_tag }}
+                {{ form.rejection_mailto_body_template }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Azioni form -->
+    <div class="atf-actions">
+      <button type="submit" class="atf-btn atf-btn-primary">Salva template</button>
+      {% if template %}
+        <a href="{% url 'admin_portale:automazioni_approval_template_preview' template.pk %}" target="_blank" class="atf-btn atf-btn-preview">Preview</a>
+        <form method="post" action="{% url 'admin_portale:automazioni_approval_template_clone' template.pk %}" style="display:inline;">
+          {% csrf_token %}
+          <button type="submit" class="atf-btn atf-btn-clone">Clona template</button>
+        </form>
+      {% endif %}
+      <a href="{% url 'admin_portale:automazioni_approval_templates' %}" class="atf-btn atf-btn-back">Annulla</a>
+    </div>
+  </div>
+
+  <!-- Colonna destra: aiuto -->
+  <div style="display:grid;gap:16px;">
+    <div class="atf-card">
+      <div class="atf-card-head"><div class="atf-card-title">Placeholder disponibili</div></div>
+      <div class="atf-body">
+        <div class="atf-info" style="margin-bottom:12px;">
+          Questi placeholder sono sempre disponibili in tutti i campi template:
+        </div>
+        <div class="atf-placeholder-list">
+          {% for p in available_placeholders %}
+            <span class="atf-placeholder-chip" onclick="insertPlaceholder('{' + this.textContent.trim() + '}')">{{ p }}</span>
+          {% endfor %}
+        </div>
+        <div style="font-size:12px;color:#64748b;margin-top:10px;">
+          Clicca su un placeholder per copiarlo. I campi {approval_token} e {approval_id} vengono iniettati automaticamente.
+        </div>
+      </div>
+    </div>
+
+    <div class="atf-card">
+      <div class="atf-card-head"><div class="atf-card-title">Modalità recapito</div></div>
+      <div class="atf-body">
+        <div style="font-size:13px;color:#334155;line-height:1.6;display:grid;gap:10px;">
+          <div><strong>portal_links</strong> — CTA con link HTTP al portale. Funziona solo se il portale è raggiungibile dalla rete dell'approvatore.</div>
+          <div><strong>mail_reply</strong> — Solo link <code>mailto:</code>. Ideale per reti isolate: apre Outlook con soggetto e corpo precompilati verso la mailbox tecnica interna.</div>
+          <div><strong>hybrid</strong> — Entrambi. Mostra prima i link portale, poi i mailto: come alternativa.</div>
+        </div>
+      </div>
+    </div>
+
+    {% if template %}
+    <div class="atf-card">
+      <div class="atf-card-head"><div class="atf-card-title">Utilizzo</div></div>
+      <div class="atf-body">
+        <div style="font-size:13px;color:#334155;line-height:1.6;">
+          Per usare questo template in una regola <code>send_approval</code>, selezionalo nel designer visuale alla voce
+          <strong>"Template email approvazione"</strong>.<br><br>
+          Codice template: <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">{{ template.code }}</code>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+</form>
+
+<script>
+function insertPlaceholder(text) {
+  const active = document.activeElement;
+  if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+    const start = active.selectionStart;
+    const end = active.selectionEnd;
+    active.value = active.value.substring(0, start) + text + active.value.substring(end);
+    active.selectionStart = active.selectionEnd = start + text.length;
+    active.focus();
+  } else {
+    navigator.clipboard.writeText(text).then(() => {
+      const ev = document.createElement('span');
+      ev.textContent = 'Copiato!';
+      ev.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;z-index:9999;pointer-events:none;';
+      document.body.appendChild(ev);
+      setTimeout(() => ev.remove(), 1800);
+    });
+  }
+}
+
+// Mostra/nasconde sezione mailto in base alla modalità
+const modeSelect = document.getElementById('{{ form.delivery_mode.id_for_label }}');
+const mailtoSection = document.getElementById('mailto-section');
+function updateMailtoVisibility() {
+  const mode = modeSelect ? modeSelect.value : '';
+  if (mailtoSection) {
+    mailtoSection.style.opacity = (mode === 'portal_links') ? '0.5' : '1';
+    mailtoSection.style.pointerEvents = (mode === 'portal_links') ? 'none' : '';
+  }
+}
+if (modeSelect) {
+  modeSelect.addEventListener('change', updateMailtoVisibility);
+  updateMailtoVisibility();
+}
+</script>
+{% endblock %}

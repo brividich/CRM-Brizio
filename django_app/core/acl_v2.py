@@ -4,7 +4,7 @@ import re
 from urllib.parse import urlsplit
 
 from django.db import DatabaseError
-from django.urls import Resolver404, resolve
+from django.urls import NoReverseMatch, Resolver404, resolve, reverse
 
 from core.acl import (
     check_permesso,
@@ -179,9 +179,27 @@ def _binding_matches_path(binding: RoutePermissionBinding, path_norm: str) -> bo
     return path_norm == pattern
 
 
+def _binding_path_sort_key(binding: RoutePermissionBinding) -> tuple[int, int, int, int]:
+    strategy = (binding.match_strategy or RoutePermissionBinding.MATCH_EXACT).lower()
+    if strategy == RoutePermissionBinding.MATCH_EXACT:
+        strategy_rank = 0
+        pattern = normalize_binding_path_pattern(binding.path_pattern, for_regex=False)
+    elif strategy == RoutePermissionBinding.MATCH_PREFIX:
+        strategy_rank = 1
+        pattern = normalize_binding_path_pattern(binding.path_pattern, for_regex=False)
+    else:
+        strategy_rank = 2
+        pattern = str(binding.path_pattern or "")
+    return (
+        int(getattr(binding, "priority", 0) or 0),
+        strategy_rank,
+        -len(pattern),
+        int(getattr(binding, "id", 0) or 0),
+    )
+
+
 def _find_canonical_binding(*, route_name: str, path_norm: str) -> tuple[RoutePermissionBinding | None, str]:
     by_route = None
-    by_path = None
 
     if route_name:
         by_route = (
@@ -199,13 +217,166 @@ def _find_canonical_binding(*, route_name: str, path_norm: str) -> tuple[RoutePe
         .select_related("permission")
         .order_by("priority", "id")
     )
+    path_matches: list[RoutePermissionBinding] = []
     for candidate in path_candidates:
         if _binding_matches_path(candidate, path_norm):
-            by_path = candidate
-            break
+            path_matches.append(candidate)
+    by_path = min(path_matches, key=_binding_path_sort_key) if path_matches else None
     if by_path is not None:
         return by_path, "path_pattern"
     return None, ""
+
+
+def evaluate_permission_code_access(
+    *,
+    permission_code: str,
+    legacy_role_id: int | None = None,
+    legacy_user_id: int | None = None,
+    legacy_user=None,
+    django_user=None,
+    allow_superuser: bool = True,
+    allow_legacy_admin: bool = True,
+) -> dict:
+    permission_code = normalize_permission_code(permission_code)
+    result = {
+        "allowed": False,
+        "permission_code": permission_code,
+        "decision_source": "deny",
+        "reason": "",
+        "permission": None,
+        "role_grant": None,
+        "user_override": None,
+        "effective_level": None,
+    }
+    if not permission_code:
+        result["reason"] = "Permission code mancante."
+        return result
+
+    if allow_superuser and bool(getattr(django_user, "is_superuser", False)):
+        result["allowed"] = True
+        result["decision_source"] = "superuser_bypass"
+        result["reason"] = "Utente Django superuser: bypass ACL."
+        result["effective_level"] = "superuser_bypass"
+        return result
+
+    if allow_legacy_admin and legacy_user and is_legacy_admin(legacy_user):
+        result["allowed"] = True
+        result["decision_source"] = "legacy_admin_bypass"
+        result["reason"] = "Utente riconosciuto come admin legacy: bypass ACL."
+        result["effective_level"] = "legacy_admin_bypass"
+        return result
+
+    if legacy_role_id is None and legacy_user is not None:
+        legacy_role_id = getattr(legacy_user, "ruolo_id", None)
+    if legacy_user_id is None and legacy_user is not None:
+        legacy_user_id = getattr(legacy_user, "id", None)
+
+    permission = PermissionDefinition.objects.filter(code=permission_code).first()
+    if permission is None:
+        result["decision_source"] = "permission_missing"
+        result["reason"] = f"Permission '{permission_code}' non trovata."
+        return result
+
+    result["permission"] = _serialize_permission(permission)
+    if not bool(permission.is_active):
+        result["decision_source"] = "permission_inactive"
+        result["reason"] = f"Permission '{permission.code}' trovata ma disattiva."
+        return result
+
+    role_allowed = False
+    if legacy_role_id:
+        role_grant = (
+            RolePermissionGrant.objects.filter(
+                legacy_role_id=int(legacy_role_id),
+                permission_id=permission.code,
+            )
+            .order_by("-id")
+            .first()
+        )
+        if role_grant is None:
+            result["role_grant"] = {"exists": False, "enabled": None}
+        else:
+            role_allowed = bool(role_grant.enabled)
+            result["role_grant"] = {
+                "exists": True,
+                "id": int(role_grant.id),
+                "enabled": bool(role_grant.enabled),
+                "legacy_role_id": int(role_grant.legacy_role_id),
+                "note": role_grant.note or "",
+            }
+    else:
+        result["role_grant"] = {"exists": False, "enabled": None}
+
+    if legacy_user_id:
+        user_grant = (
+            UserPermissionGrant.objects.filter(
+                legacy_user_id=int(legacy_user_id),
+                permission_id=permission.code,
+            )
+            .order_by("-id")
+            .first()
+        )
+    else:
+        user_grant = None
+
+    if user_grant is None:
+        result["user_override"] = {"exists": False, "enabled": None}
+        result["allowed"] = bool(role_allowed)
+        result["decision_source"] = "canonical_permission"
+        result["effective_level"] = "role_grant"
+        result["reason"] = (
+            f"Grant ruolo su '{permission.code}' consente accesso."
+            if role_allowed
+            else f"Grant ruolo su '{permission.code}' nega accesso (o assente)."
+        )
+        return result
+
+    result["user_override"] = {
+        "exists": True,
+        "id": int(user_grant.id),
+        "enabled": bool(user_grant.enabled),
+        "legacy_user_id": int(user_grant.legacy_user_id),
+        "note": user_grant.note or "",
+    }
+    result["allowed"] = bool(user_grant.enabled)
+    result["decision_source"] = "canonical_permission"
+    result["effective_level"] = "user_override"
+    result["reason"] = (
+        f"Override utente canonico su '{permission.code}' consente accesso."
+        if user_grant.enabled
+        else f"Override utente canonico su '{permission.code}' nega accesso."
+    )
+    return result
+
+
+def resolve_canonical_target(
+    *,
+    path: str | None = None,
+    route_name: str | None = None,
+    request=None,
+) -> dict:
+    resolved_route_name = str(route_name or "").strip()
+    path_input = str(path or "").strip()
+    if not path_input and resolved_route_name:
+        try:
+            path_input = reverse(resolved_route_name)
+        except NoReverseMatch:
+            path_input = "/"
+    if not path_input:
+        path_input = "/"
+    path_norm = normalize_acl_path(path_input)
+    if not resolved_route_name:
+        resolved_route_name = resolve_route_name(path_norm, request=request)
+    binding, matched_by = _find_canonical_binding(route_name=resolved_route_name, path_norm=path_norm)
+    permission = binding.permission if binding is not None else None
+    return {
+        "path_input": path_input,
+        "path_normalized": path_norm,
+        "route_name": resolved_route_name,
+        "binding_found": binding is not None,
+        "binding": _serialize_binding(binding, matched_by=matched_by),
+        "permission": _serialize_permission(permission),
+    }
 
 
 def _resolve_anomalie_menu_compat_access(*, path_norm: str, legacy_user) -> dict | None:

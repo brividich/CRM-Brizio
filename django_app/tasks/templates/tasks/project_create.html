@@ -1,0 +1,178 @@
+{% extends "tasks/base_shell.html" %}
+
+{% block tasks_shell_head %}
+<style>
+  .kc-wizard-steps {
+    display: flex; gap: 10px; margin-bottom: 18px;
+    padding: 10px 14px; background: #fff; border: 1px solid #e2e8f0;
+    border-radius: 10px;
+  }
+  .kc-step {
+    flex: 1; padding: 10px 14px; border-radius: 6px;
+    background: #f8fafc; border: 1px solid #e2e8f0;
+    text-align: center; font-weight: 600; color: #64748b; font-size: 12px;
+  }
+  .kc-step.active { background: #ea580c; color: #fff; border-color: #c2410c; }
+  .kc-step.done { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+  .kc-step-num { display: block; font-size: 10px; opacity: .8; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .kc-form-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+  }
+  .kc-form-grid .field { display: flex; flex-direction: column; }
+  .kc-form-grid .field.span-2 { grid-column: span 2; }
+  .kc-form-grid .field.span-3 { grid-column: span 3; }
+  .kc-form-grid label {
+    font-size: 11px; font-weight: 700; color: #64748b;
+    text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;
+  }
+  .kc-form-grid .field .input,
+  .kc-form-grid .field input,
+  .kc-form-grid .field select,
+  .kc-form-grid .field textarea {
+    padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 6px;
+    font-size: 13px; font-family: inherit; background: #fff;
+  }
+  .kc-form-grid .field input:focus,
+  .kc-form-grid .field select:focus,
+  .kc-form-grid .field textarea:focus {
+    outline: 2px solid #ea580c; outline-offset: -1px; border-color: #ea580c;
+  }
+  .kc-form-grid .help { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+  .kc-form-grid .err  { font-size: 11px; color: #b91c1c; margin-top: 4px; }
+
+  .kc-section-title {
+    font-size: 14px; font-weight: 700; color: #0f172a;
+    margin: 18px 0 8px 0; padding-bottom: 6px;
+    border-bottom: 2px solid #e2e8f0;
+  }
+
+  .kc-actions {
+    display: flex; justify-content: space-between; gap: 10px;
+    margin-top: 22px; flex-wrap: wrap;
+  }
+  .kc-actions .right { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .kc-note {
+    margin-bottom: 12px; padding: 10px 14px;
+    background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px;
+    color: #9a3412; font-size: 12px;
+  }
+</style>
+{% endblock %}
+
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Nuovo kickoff</span>{% endblock %}
+{% block tasks_shell_title %}Nuovo kickoff{% endblock %}
+{% block tasks_shell_subtitle %}Anagrafica del kickoff. Al termine procederai con la compilazione della scheda VRF e poi con le attivita' di lavorazione.{% endblock %}
+{% block tasks_shell_actions %}
+  <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Portfolio kickoff</a>
+{% endblock %}
+
+{% block tasks_shell_content %}
+<div class="ts-stack">
+
+  {% if messages %}
+    {% for msg in messages %}
+      <div class="ts-note-box {% if 'error' in msg.tags %}danger{% endif %}">{{ msg }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="kc-wizard-steps">
+    <div class="kc-step active"><span class="kc-step-num">Step 1/3</span>Anagrafica kickoff</div>
+    <div class="kc-step"><span class="kc-step-num">Step 2/3</span>Compila scheda VRF</div>
+    <div class="kc-step"><span class="kc-step-num">Step 3/3</span>Attivita' di lavorazione</div>
+  </div>
+
+  <div class="kc-note">
+    <strong>Nota:</strong> se inserisci un P/N con revisione e versione gia' esistenti, il sistema riusa il kickoff corrispondente invece di crearne un duplicato.
+  </div>
+
+  <form method="post" id="kc-form">
+    {% csrf_token %}
+
+    <section class="ts-panel">
+      <div class="ts-panel-head">
+        <div class="ts-panel-title-wrap">
+          <h2 class="ts-panel-title">Identificazione kickoff</h2>
+          <p class="ts-panel-subtitle">Il nome del kickoff viene assegnato automaticamente come <strong>KICK-OFF &lt;progressivo&gt;</strong>. Si raccomanda di compilare P/N, revisione e versione per evitare duplicati.</p>
+        </div>
+      </div>
+      <div class="ts-panel-body">
+        {% if form.non_field_errors %}<div class="err">{{ form.non_field_errors }}</div>{% endif %}
+        <div class="kc-form-grid">
+          <div class="field span-2">
+            <label for="{{ form.client_name.id_for_label }}">Cliente</label>
+            {{ form.client_name }}
+            {% if form.client_name.errors %}<div class="err">{{ form.client_name.errors|join:" " }}</div>{% endif %}
+          </div>
+          <div class="field">
+            <label for="{{ form.part_number.id_for_label }}">P/N</label>
+            {{ form.part_number }}
+            {% if form.part_number.errors %}<div class="err">{{ form.part_number.errors|join:" " }}</div>{% endif %}
+          </div>
+          <div class="field">
+            <label for="{{ form.revisione.id_for_label }}">Revisione</label>
+            {{ form.revisione }}
+            <div class="help">Valida solo se P/N compilato</div>
+            {% if form.revisione.errors %}<div class="err">{{ form.revisione.errors|join:" " }}</div>{% endif %}
+          </div>
+          <div class="field">
+            <label for="{{ form.versione.id_for_label }}">Versione</label>
+            {{ form.versione }}
+            <div class="help">Valida solo se P/N compilato</div>
+            {% if form.versione.errors %}<div class="err">{{ form.versione.errors|join:" " }}</div>{% endif %}
+          </div>
+          <div class="field">
+            <label for="{{ form.control_method.id_for_label }}">Metodo di controllo</label>
+            {{ form.control_method }}
+          </div>
+          <div class="field span-3">
+            <label for="{{ form.description.id_for_label }}">Descrizione kickoff</label>
+            {{ form.description }}
+          </div>
+        </div>
+
+        <div class="kc-section-title">Dati scheda VRF (opzionali: si possono completare dopo)</div>
+        <div class="kc-form-grid">
+          <div class="field">
+            <label for="{{ form.vrf_quote_number.id_for_label }}">Preventivo n.</label>
+            {{ form.vrf_quote_number }}
+          </div>
+          <div class="field">
+            <label for="{{ form.vrf_esp.id_for_label }}">Esp</label>
+            {{ form.vrf_esp }}
+          </div>
+          <div class="field span-3">
+            <label for="{{ form.vrf_description.id_for_label }}">Descrizione scheda VRF</label>
+            {{ form.vrf_description }}
+          </div>
+        </div>
+
+        <div class="kc-section-title">Team di progetto</div>
+        <div class="kc-form-grid">
+          <div class="field">
+            <label for="{{ form.project_manager.id_for_label }}">Project manager</label>
+            {{ form.project_manager }}
+          </div>
+          <div class="field">
+            <label for="{{ form.capo_commessa.id_for_label }}">Capocommessa</label>
+            {{ form.capo_commessa }}
+          </div>
+          <div class="field">
+            <label for="{{ form.programmer.id_for_label }}">Programmatore</label>
+            {{ form.programmer }}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="kc-actions">
+      <a class="btn btn-secondary" href="{% url 'tasks:project_list' %}">Annulla</a>
+      <div class="right">
+        <button type="submit" class="btn">Crea kickoff e passa alla scheda VRF &rarr;</button>
+      </div>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

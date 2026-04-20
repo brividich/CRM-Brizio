@@ -848,7 +848,7 @@
 
   {% if active_tab == 'nav-overrides' %}
     <div class="card" id="step-nav-overrides">
-      {% include "admin_portale/components/card_head.html" with card_title="Step 5 - Override Navigazione Utente" card_subtitle="Override di visibilità menu per singolo utente, indipendente dal ruolo. Clicca per ciclare: eredita ruolo → forza MOSTRA → forza NASCONDI." %}
+      {% include "admin_portale/components/card_head.html" with card_title="Step 5 - Override Navigazione Utente" card_subtitle="Override hide-only per singolo utente: puoi solo nascondere una voce già consentita dal ruolo canonico." %}
       <div class="card-body">
 
         {# ── Selettore utente ── #}
@@ -877,7 +877,6 @@
             <span>Override navigazione per <strong>{{ nav_ov_user_label }}</strong>{% if nav_ov_user.ruolo_id %} (ruolo #{{ nav_ov_user.ruolo_id }}){% endif %}</span>
             <span style="color:#64748b;font-size:11px;">
               <span style="display:inline-block;width:11px;height:11px;background:#dcfce7;border:1px solid #86efac;border-radius:2px;vertical-align:middle;"></span> eredita &nbsp;
-              <span style="display:inline-block;width:11px;height:11px;background:#3b82f6;border:1px solid #2563eb;border-radius:2px;vertical-align:middle;"></span> forza MOSTRA &nbsp;
               <span style="display:inline-block;width:11px;height:11px;background:#fee2e2;border:1px solid #fca5a5;border-radius:2px;vertical-align:middle;"></span> forza NASCONDI
             </span>
           </div>
@@ -900,15 +899,17 @@
                         {% if row.item_icon %}<span style="margin-right:4px;">{% render_icon row.item_icon row.item_label %}</span>{% endif %}
                         {{ row.item_label }}
                         <span class="acl-perm-code">{{ row.item_code }}</span>
+                        {% if row.required_permission_code %}
+                          <span class="acl-perm-code">{{ row.required_permission_code }}</span>
+                        {% endif %}
                       </div>
                       <button type="button"
                         class="nav-ov-toggle"
                         data-item-id="{{ row.item_id }}"
                         data-state="{{ row.state }}"
                         data-role="{{ row.role_allowed|yesno:'1,0,' }}"
-                        title="Clicca: eredita → MOSTRA → NASCONDI → eredita">
-                        {% if row.state == 'ov-show' %}MOSTRA
-                        {% elif row.state == 'ov-hide' %}NASCONDI
+                        title="Clicca: eredita → NASCONDI → eredita">
+                        {% if row.state == 'ov-hide' %}NASCONDI
                         {% elif row.state == 'role-show' %}eredita ✓
                         {% else %}eredita —
                         {% endif %}
@@ -1011,14 +1012,13 @@
         clearTimeout(statusEl._t); statusEl._t=setTimeout(function(){ statusEl.textContent=""; },3000);
       }
 
-      // ── Toggle 3-stati: eredita → MOSTRA → NASCONDI → eredita ───────────────
+      // ── Toggle hide-only: eredita ↔ NASCONDI ────────────────────────────────
       function applyNavOvStyle(btn, uiState){
         btn.dataset.uistate = uiState;
         var roleVal = btn.dataset.role;
-        btn.textContent = uiState==="ov-show"?"MOSTRA" : uiState==="ov-hide"?"NASCONDI" : (roleVal==="1"?"eredita ✓":"eredita —");
+        btn.textContent = uiState==="ov-hide"?"NASCONDI" : (roleVal==="1"?"eredita ✓":"eredita —");
         btn.style.cssText="";
-        if(uiState==="ov-show"){ btn.style.background="#3b82f6"; btn.style.color="#fff"; btn.style.borderColor="#2563eb"; btn.style.fontWeight="700"; }
-        else if(uiState==="ov-hide"){ btn.style.background="#fee2e2"; btn.style.color="#dc2626"; btn.style.borderColor="#fca5a5"; btn.style.fontWeight="700"; }
+        if(uiState==="ov-hide"){ btn.style.background="#fee2e2"; btn.style.color="#dc2626"; btn.style.borderColor="#fca5a5"; btn.style.fontWeight="700"; }
         else if(roleVal==="1"){ btn.style.background="#dcfce7"; btn.style.color="#16a34a"; btn.style.borderColor="#86efac"; }
         else { btn.style.background="#f8fafc"; btn.style.color="#94a3b8"; btn.style.borderColor="#e2e8f0"; }
         // applica stile base pulsante
@@ -1032,13 +1032,13 @@
 
       document.querySelectorAll(".nav-ov-toggle").forEach(function(btn){
         var raw = btn.dataset.state;
-        var uiState = (raw==="ov-show"||raw==="ov-hide") ? raw : "inherit";
+        var uiState = raw==="ov-hide" ? "ov-hide" : "inherit";
         applyNavOvStyle(btn, uiState);
         btn.addEventListener("click", async function(){
           if(!NAV_OV_TOGGLE_URL) return;
           var cur = this.dataset.uistate;
-          var next = cur==="inherit"?"ov-show" : cur==="ov-show"?"ov-hide" : "inherit";
-          var stateMap = {"inherit":"inherit","ov-show":"show","ov-hide":"hide"};
+          var next = cur==="inherit"?"ov-hide" : "inherit";
+          var stateMap = {"inherit":"inherit","ov-hide":"hide"};
           var row = this.closest(".acl-perm-row"); if(row) row.classList.add("saving");
           this.disabled = true;
           try{

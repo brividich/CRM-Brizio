@@ -28,6 +28,11 @@
     --ts-radius-lg: 18px;
   }
 
+  .ts-shell--compact {
+    gap: 10px;
+    padding-top: 6px;
+  }
+
   /* ── Hero ── */
   .ts-hero {
     display: flex;
@@ -150,6 +155,44 @@
     background: #f0f6ff;
   }
 
+  .ts-shell--compact .ts-hero {
+    align-items: flex-end;
+    gap: 16px 18px;
+    padding: 16px 18px;
+    border-radius: 16px;
+    box-shadow: 0 12px 28px rgba(20,48,90,.16), inset 0 1px 0 rgba(255,255,255,.1);
+  }
+
+  .ts-shell--compact .ts-hero-left {
+    flex: 1 1 520px;
+    gap: 4px;
+  }
+
+  .ts-shell--compact .ts-hero h1 {
+    font-size: 23px;
+  }
+
+  .ts-shell--compact .ts-hero-text {
+    max-width: 760px;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .ts-shell--compact .ts-hero-meta {
+    margin-top: 0;
+  }
+
+  .ts-shell--compact .ts-hero-right {
+    gap: 6px;
+    justify-content: flex-end;
+  }
+
+  .ts-shell--compact .ts-hero-action {
+    min-height: 32px;
+    padding: 0 12px;
+    font-size: 11px;
+  }
+
   /* ── Tabs ── */
   .ts-tabs {
     display: flex;
@@ -160,6 +203,10 @@
     border: 1px solid var(--ts-border);
     border-radius: 999px;
     width: fit-content;
+    max-width: 100%;
+    justify-self: start;
+    align-self: start;
+    overflow-x: auto;
     box-shadow: 0 2px 8px rgba(15,23,42,.05);
   }
 
@@ -190,6 +237,18 @@
     color: #fff;
     border-color: transparent;
     box-shadow: 0 2px 8px rgba(249,115,22,.3);
+  }
+
+  .ts-shell--compact .ts-tabs {
+    padding: 3px;
+    border-radius: 18px;
+    box-shadow: 0 1px 4px rgba(15,23,42,.04);
+  }
+
+  .ts-shell--compact .ts-tab {
+    min-height: 28px;
+    padding: 0 12px;
+    font-size: 11px;
   }
 
   /* ── KPI grid ── */
@@ -599,6 +658,13 @@
   @media (max-width: 980px) {
     .ts-grid-2, .ts-grid-3, .ts-form-grid-3, .ts-form-grid-4 { grid-template-columns: 1fr; }
     .ts-form-grid-2 { grid-template-columns: 1fr; }
+    .ts-shell--compact .ts-hero {
+      align-items: flex-start;
+    }
+    .ts-shell--compact .ts-hero-right {
+      width: 100%;
+      justify-content: flex-start;
+    }
   }
 
   @media (max-width: 760px) {
@@ -614,7 +680,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="ts-shell">
+<div class="ts-shell{% block tasks_shell_shell_class %}{% endblock %}">
   <section class="ts-hero">
     <div class="ts-hero-left">
       <div class="ts-hero-eyebrow-row">

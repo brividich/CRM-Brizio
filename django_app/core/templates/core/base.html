@@ -120,8 +120,22 @@ window.portalReadJsonResponse = async function (response, opts) {
     pendingBtn = null;
     if (!btn || btn.disabled) return;
 
-    btn.disabled = true;
     btn.classList.add('btn-loading');
+    // Preserve the submitter name/value via hidden input: disabled controls are
+    // excluded from the form entry list, so without this the POST loses keys
+    // like `action` used by <button name="action" value="save_draft">.
+    if (btn.name) {
+      var hidden = form.querySelector('input[type="hidden"][data-submitter-shim="1"]');
+      if (!hidden) {
+        hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.setAttribute('data-submitter-shim', '1');
+        form.appendChild(hidden);
+      }
+      hidden.name = btn.name;
+      hidden.value = btn.value != null ? btn.value : '';
+    }
+    setTimeout(function () { btn.disabled = true; }, 0);
 
     if (resetTimer) clearTimeout(resetTimer);
     resetTimer = setTimeout(function () {

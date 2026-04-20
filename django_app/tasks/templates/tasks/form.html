@@ -3,6 +3,12 @@
 {% block tasks_shell_head %}
 <style>
   .tf-wrap{max-width:1220px;margin:0 auto;display:grid;gap:14px}
+  .tf-kickoff-strip{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:14px 18px;border-radius:18px;border:1px solid rgba(249,115,22,.22);background:linear-gradient(90deg,#fff7f0 0%,#ffffff 55%,#fff 100%);box-shadow:0 10px 22px rgba(15,23,42,.06)}
+  .tf-kickoff-strip-left{flex:1 1 260px;min-width:220px;display:grid;gap:4px}
+  .tf-kickoff-strip-name{font-size:17px;font-weight:900;color:var(--text);letter-spacing:-.01em}
+  .tf-kickoff-strip-sub{font-size:12px;color:var(--text-mid)}
+  .tf-kickoff-strip-chips{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .tf-kickoff-strip-vrf{padding:6px 12px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
   .tf-grid{display:grid;gap:14px}
   .tf-grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
   .tf-grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
@@ -66,58 +72,58 @@
 </style>
 {% endblock %}
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / {% if mode == "edit" %}Modifica{% else %}Creazione{% endif %}</span>{% endblock %}
-{% block tasks_shell_title %}{% if mode == "edit" %}Modifica attivita kickoff{% else %}Nuova attivita kickoff{% endif %}{% endblock %}
-{% block tasks_shell_subtitle %}{% if mode == "edit" %}Aggiorna contesto, kickoff e pianificazione mantenendo la scheda coerente con il resto del portale.{% elif locked_project %}Stai creando una nuova attivita direttamente dal kickoff corrente: il collegamento resta fisso su questo kickoff e puoi concentrarti su contenuto, timeline e assegnazioni.{% else %}Inserisci una nuova attivita kickoff con un flusso guidato: prima il contesto, poi il kickoff P/N, quindi pianificazione e responsabilita operative.{% endif %}{% endblock %}
+{% block tasks_shell_title %}{% if mode == "edit" %}Modifica attivita kickoff{% elif locked_project %}Nuova attivita in {{ locked_project.name }}{% else %}Nuova attivita kickoff{% endif %}{% endblock %}
+{% block tasks_shell_subtitle %}{% if mode == "edit" %}Aggiorna contesto, kickoff e pianificazione mantenendo la scheda coerente con il resto del portale.{% elif locked_project %}Compila descrizione, pianificazione e assegnazione: l'attivita entra direttamente nel Gantt del kickoff.{% else %}Inserisci una nuova attivita kickoff con un flusso guidato: prima il contesto, poi il kickoff P/N, quindi pianificazione e responsabilita operative.{% endif %}{% endblock %}
 {% block tasks_shell_meta %}
   <span class="ts-hero-pill">{% if mode == "edit" %}Modalita modifica{% else %}Modalita creazione{% endif %}</span>
-  {% if task and task.project %}<span class="ts-hero-pill">{{ task.project.name }}</span>{% if task.project.part_number %}<span class="ts-hero-pill">P/N {{ task.project.part_number }}</span>{% endif %}{% elif locked_project %}<span class="ts-hero-pill">{{ locked_project.name }}</span>{% if locked_project.part_number %}<span class="ts-hero-pill">P/N {{ locked_project.part_number }}</span>{% endif %}{% elif suggested_project_id %}<span class="ts-hero-pill">Kickoff preselezionato</span>{% else %}<span class="ts-hero-pill">Attivita singola o attivita in kickoff</span>{% endif %}
+  {% if task and task.project %}<span class="ts-hero-pill">{{ task.project.name }}</span>{% if task.project.part_number %}<span class="ts-hero-pill">P/N {{ task.project.part_number }}</span>{% endif %}{% elif locked_project %}<span class="ts-hero-pill">Dentro il kickoff</span>{% elif suggested_project_id %}<span class="ts-hero-pill">Kickoff preselezionato</span>{% else %}<span class="ts-hero-pill">Attivita singola o attivita in kickoff</span>{% endif %}
   {% if task %}<span class="ts-hero-pill">{{ task.get_status_display }}</span>{% endif %}
 {% endblock %}
 {% block tasks_shell_actions %}{% if task %}<a class="ts-hero-action" href="{% url 'tasks:detail' task.id %}">Torna al dettaglio</a>{% elif locked_project %}<a class="ts-hero-action" href="{% url 'tasks:project_gantt' locked_project.id %}">Torna al Gantt kickoff</a>{% else %}<a class="ts-hero-action" href="{% url 'tasks:list' %}">Torna alla dashboard</a>{% endif %}{% endblock %}
 {% block tasks_shell_content %}
 <div class="tf-wrap">
+  {% if locked_project %}
+  <section class="tf-kickoff-strip">
+    <div class="tf-kickoff-strip-left">
+      <span class="tf-kicker">Kickoff</span>
+      <div class="tf-kickoff-strip-name">{{ locked_project.name }}</div>
+      <div class="tf-kickoff-strip-sub">{{ locked_project.client_name|default:"Cliente non indicato" }}{% if locked_project_task_total %} &middot; {{ locked_project_task_total }} attivita gia collegate{% endif %}</div>
+    </div>
+    <div class="tf-kickoff-strip-chips">
+      {% if locked_project.part_number %}<span class="tf-id-chip pn"><span class="lbl">P/N</span>{{ locked_project.part_number }}</span>{% endif %}
+      {% if locked_project.revisione %}<span class="tf-id-chip rev"><span class="lbl">Rev</span>{{ locked_project.revisione }}</span>{% endif %}
+      {% if locked_project.versione %}<span class="tf-id-chip ver"><span class="lbl">Ver</span>{{ locked_project.versione }}</span>{% endif %}
+      {% if locked_project_vrf_detail %}<span class="tf-kickoff-strip-vrf tf-banner {{ locked_project_vrf_detail.status|default:'pending' }}">{{ locked_project_vrf_detail.label }}</span>{% endif %}
+    </div>
+  </section>
   <div class="tf-intro-grid">
-    <article class="tf-intro-card"><div class="tf-step">1</div><div class="tf-intro-title">{% if locked_project %}Kickoff gia definito{% else %}Scegli il contesto{% endif %}</div><div class="tf-intro-copy">{% if locked_project %}L'attivita nascera gia dentro il kickoff corrente, quindi non serve riselezionare o ricreare l'anagrafica.{% else %}Decidi se stai aprendo un'attivita singola oppure un'attivita agganciata a un kickoff strutturato.{% endif %}</div></article>
-    <article class="tf-intro-card"><div class="tf-step">2</div><div class="tf-intro-title">{% if locked_project %}Dati kickoff fissi{% else %}Lavora per P/N{% endif %}</div><div class="tf-intro-copy">{% if locked_project %}Cliente, P/N, revisione e stato VRF sono quelli del kickoff aperto in questo momento.{% else %}Ricerca i kickoff esistenti per nome, cliente e P/N oppure crea una nuova anagrafica completa.{% endif %}</div></article>
+    <article class="tf-intro-card"><div class="tf-step">1</div><div class="tf-intro-title">Cosa succede</div><div class="tf-intro-copy">Descrivi l'attivita, aggiungi tag e note: tutto resta dentro il kickoff corrente.</div></article>
+    <article class="tf-intro-card"><div class="tf-step">2</div><div class="tf-intro-title">Quando</div><div class="tf-intro-copy">Imposta stato, priorita, data di inizio e scadenza richiesta. Le date entrano nel Gantt del kickoff.</div></article>
+    <article class="tf-intro-card"><div class="tf-step">3</div><div class="tf-intro-title">Chi</div><div class="tf-intro-copy">Assegna incaricato, gestisci eventuali sovrapposizioni e aggiungi partecipanti in copia.</div></article>
+    <article class="tf-intro-card"><div class="tf-step">4</div><div class="tf-intro-title">Promemoria</div><div class="tf-intro-copy">Decidi se pubblicare l'evento su Outlook e se far arrivare un promemoria nel centro notifiche.</div></article>
+  </div>
+  {% else %}
+  <div class="tf-intro-grid">
+    <article class="tf-intro-card"><div class="tf-step">1</div><div class="tf-intro-title">Scegli il contesto</div><div class="tf-intro-copy">Decidi se stai aprendo un'attivita singola oppure un'attivita agganciata a un kickoff strutturato.</div></article>
+    <article class="tf-intro-card"><div class="tf-step">2</div><div class="tf-intro-title">Lavora per P/N</div><div class="tf-intro-copy">Ricerca i kickoff esistenti per nome, cliente e P/N oppure crea una nuova anagrafica completa.</div></article>
     <article class="tf-intro-card"><div class="tf-step">3</div><div class="tf-intro-title">Pianifica bene</div><div class="tf-intro-copy">Stabilisci stato, priorita, data inizio, data richiesta fine e prossimo passo.</div></article>
     <article class="tf-intro-card"><div class="tf-step">4</div><div class="tf-intro-title">Assegna le persone</div><div class="tf-intro-copy">Indica incaricato, partecipanti in copia e gestione delle sovrapposizioni.</div></article>
   </div>
+  {% endif %}
 
   <form method="post" class="tf-grid">
     {% csrf_token %}
     {% if form.non_field_errors %}<div class="ts-message danger">{{ form.non_field_errors }}</div>{% endif %}
+    {% comment %}Errori dei campi legacy 'nuovo kickoff inline' (hidden nel template): li mostriamo qui per non perdere il messaggio.{% endcomment %}
+    {% if form.project_new_part_number.errors %}<div class="ts-message danger">{{ form.project_new_part_number.errors|join:" " }}</div>{% endif %}
+    {% if form.project_new_client.errors %}<div class="ts-message danger">{{ form.project_new_client.errors|join:" " }}</div>{% endif %}
+    {% if form.project_new_revisione.errors %}<div class="ts-message danger">{{ form.project_new_revisione.errors|join:" " }}</div>{% endif %}
+    {% if form.project_new_versione.errors %}<div class="ts-message danger">{{ form.project_new_versione.errors|join:" " }}</div>{% endif %}
 
     {% if locked_project %}
     <input type="hidden" name="{{ form.task_scope.html_name }}" value="project">
     <input type="hidden" name="{{ form.project_link_mode.html_name }}" value="existing">
     <input type="hidden" name="{{ form.project_choice.html_name }}" value="{{ locked_project.id }}">
-
-    <section class="tf-panel tf-panel-accent">
-      <div class="tf-head">
-        <div><span class="tf-kicker">Kickoff di destinazione</span><h2 class="tf-title">Attivita gia collegata al kickoff corrente</h2><p class="tf-copy">Hai aperto questa schermata dal Gantt kickoff: il collegamento e gia fissato su <strong>{{ locked_project.name }}</strong> e non puo essere cambiato da qui.</p></div>
-        <div class="tf-aside">Se vuoi creare un'attivita singola o lavorare su un altro kickoff, usa <strong>Nuova attivita</strong> dalla dashboard oppure rientra dal portfolio kickoff corretto.</div>
-      </div>
-      <div class="tf-project-info">
-        <div class="tf-project-top">
-          <div>
-            <div class="tf-project-name">{{ locked_project.name }}</div>
-            <div class="tf-project-sub">{{ locked_project_task_total }} attivita gia collegate a questo kickoff</div>
-          </div>
-          <div class="tf-id-row">
-            {% if locked_project.part_number %}<span class="tf-id-chip pn"><span class="lbl">P/N</span>{{ locked_project.part_number }}</span>{% endif %}
-            {% if locked_project.revisione %}<span class="tf-id-chip rev"><span class="lbl">Rev</span>{{ locked_project.revisione }}</span>{% endif %}
-            {% if locked_project.versione %}<span class="tf-id-chip ver"><span class="lbl">Ver</span>{{ locked_project.versione }}</span>{% endif %}
-          </div>
-        </div>
-        {% if locked_project_vrf_detail %}<div class="tf-banner {{ locked_project_vrf_detail.status|default:'pending' }}">{{ locked_project_vrf_detail.label }}</div>{% endif %}
-        <div class="tf-meta">
-          <div class="tf-meta-item"><div class="lbl">Cliente</div><div class="val">{{ locked_project.client_name|default:"-" }}</div></div>
-          <div class="tf-meta-item"><div class="lbl">Project manager</div><div class="val">{% if locked_project.project_manager %}{{ locked_project.project_manager.get_full_name|default:locked_project.project_manager.username }}{% else %}-{% endif %}</div></div>
-          <div class="tf-meta-item"><div class="lbl">Capo commessa</div><div class="val">{% if locked_project.capo_commessa %}{{ locked_project.capo_commessa.get_full_name|default:locked_project.capo_commessa.username }}{% else %}-{% endif %}</div></div>
-          <div class="tf-meta-item"><div class="lbl">Programmatore</div><div class="val">{% if locked_project.programmer %}{{ locked_project.programmer.get_full_name|default:locked_project.programmer.username }}{% else %}-{% endif %}</div></div>
-        </div>
-      </div>
-    </section>
     {% else %}
     <section class="tf-panel tf-panel-accent">
       <div class="tf-head">
@@ -139,13 +145,16 @@
       </div>
 
       <div id="project-workspace" class="tf-grid">
-        <div class="tf-choice-grid">
-          {% for radio in form.project_link_mode %}
-            <label class="tf-choice">{{ radio.tag }}<span class="tf-choice-body"><span class="tf-choice-label">{{ radio.choice_label }}</span><span class="tf-choice-copy">{% if forloop.first %}Cerca nell'anagrafica gia esistente per nome kickoff, cliente o P/N.{% else %}Compila cliente, P/N e ruoli del kickoff. Il nome verra assegnato automaticamente e il sistema evita duplicati sull'identita P/N.{% endif %}</span></span></label>
-          {% endfor %}
+        {# Il form richiede sempre un kickoff esistente. Per creare un nuovo kickoff usare il flusso dedicato. #}
+        <input type="hidden" name="project_link_mode" value="existing">
+
+        <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:12px 16px; background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; margin-bottom:10px;">
+          <div style="flex:1; min-width:220px; font-size:13px; color:#9a3412;">
+            <strong>Serve creare un nuovo kickoff?</strong>
+            Dalla pagina dedicata compili anagrafica, scheda VRF e pianifichi le attivita' in un percorso guidato.
+          </div>
+          <a href="{% url 'tasks:project_create' %}" class="btn btn-sm">+ Nuovo kickoff</a>
         </div>
-        {% if form.project_link_mode.errors %}<div class="ts-field-error">{{ form.project_link_mode.errors }}</div>{% endif %}
-        {% if form.project_link_mode.help_text %}<div class="ts-field-help">{{ form.project_link_mode.help_text }}</div>{% endif %}
 
         <div id="project-existing-panel" class="tf-project-box">
           <div class="tf-search"><span class="tf-search-tag">P/N</span><input id="project-choice-filter" class="input" type="text" placeholder="Cerca kickoff per nome, cliente, P/N, revisione o versione"></div>
@@ -154,28 +163,20 @@
           <div id="project-info-empty" class="tf-empty">Seleziona un kickoff esistente per vedere subito P/N, referenti, stato documento VRF e sequenza delle attivita gia presenti.</div>
         </div>
 
-        <div id="project-new-panel" class="tf-project-box">
-          <div class="tf-preview" id="project-identity-preview" hidden><div class="tf-preview-title">Anteprima kickoff</div><div class="tf-id-row" id="project-identity-preview-row"></div><div class="tf-copy" id="project-identity-preview-copy"></div></div>
-          <div class="ts-note-box">Il nome del kickoff verra assegnato automaticamente dal sistema nel formato <strong>KICK-OFF &lt;progressivo&gt;</strong>.</div>
-          <div class="tf-grid-2">
-            <div class="ts-field"><label for="{{ form.project_new_client.id_for_label }}">{{ form.project_new_client.label }}</label>{{ form.project_new_client }}{% if form.project_new_client.errors %}<div class="ts-field-error">{{ form.project_new_client.errors }}</div>{% endif %}</div>
-            <div class="ts-field"><label for="{{ form.project_new_control_method.id_for_label }}">{{ form.project_new_control_method.label }}</label>{{ form.project_new_control_method }}{% if form.project_new_control_method.errors %}<div class="ts-field-error">{{ form.project_new_control_method.errors }}</div>{% endif %}</div>
-          </div>
-          <div class="ts-field"><label for="{{ form.project_new_description.id_for_label }}">{{ form.project_new_description.label }}</label>{{ form.project_new_description }}{% if form.project_new_description.errors %}<div class="ts-field-error">{{ form.project_new_description.errors }}</div>{% endif %}</div>
-          <div class="tf-grid-4">
-            <div class="ts-field"><label for="{{ form.project_new_part_number.id_for_label }}">{{ form.project_new_part_number.label }}</label>{{ form.project_new_part_number }}{% if form.project_new_part_number.errors %}<div class="ts-field-error">{{ form.project_new_part_number.errors }}</div>{% endif %}</div>
-            <div class="ts-field"><label for="{{ form.project_new_revisione.id_for_label }}">{{ form.project_new_revisione.label }}</label>{{ form.project_new_revisione }}{% if form.project_new_revisione.errors %}<div class="ts-field-error">{{ form.project_new_revisione.errors }}</div>{% endif %}</div>
-            <div class="ts-field"><label for="{{ form.project_new_versione.id_for_label }}">{{ form.project_new_versione.label }}</label>{{ form.project_new_versione }}{% if form.project_new_versione.errors %}<div class="ts-field-error">{{ form.project_new_versione.errors }}</div>{% endif %}</div>
-            <div class="ts-field"><label for="{{ form.project_similar_new_note.id_for_label }}">{{ form.project_similar_new_note.label }}</label>{{ form.project_similar_new_note }}{% if form.project_similar_new_note.errors %}<div class="ts-field-error">{{ form.project_similar_new_note.errors }}</div>{% endif %}{% if form.project_similar_new_note.help_text %}<div class="ts-field-help">{{ form.project_similar_new_note.help_text }}</div>{% endif %}</div>
-          </div>
-          <div class="tf-grid-3">
-            <div class="ts-field"><label for="{{ form.project_new_manager.id_for_label }}">{{ form.project_new_manager.label }}</label>{{ form.project_new_manager }}{% if form.project_new_manager.errors %}<div class="ts-field-error">{{ form.project_new_manager.errors }}</div>{% endif %}</div>
-            <div class="ts-field"><label for="{{ form.project_new_capo_commessa.id_for_label }}">{{ form.project_new_capo_commessa.label }}</label>{{ form.project_new_capo_commessa }}{% if form.project_new_capo_commessa.errors %}<div class="ts-field-error">{{ form.project_new_capo_commessa.errors }}</div>{% endif %}</div>
-            <div class="ts-field"><label for="{{ form.project_new_programmer.id_for_label }}">{{ form.project_new_programmer.label }}</label>{{ form.project_new_programmer }}{% if form.project_new_programmer.errors %}<div class="ts-field-error">{{ form.project_new_programmer.errors }}</div>{% endif %}</div>
-          </div>
-          <div class="tf-grid-2">
-            <div class="ts-field"><label for="{{ form.project_similar_choice.id_for_label }}">{{ form.project_similar_choice.label }}</label><input id="project-similar-filter" class="input" type="text" placeholder="Cerca attivita simile per nome o P/N" style="margin-bottom:8px;">{{ form.project_similar_choice }}{% if form.project_similar_choice.errors %}<div class="ts-field-error">{{ form.project_similar_choice.errors }}</div>{% endif %}{% if form.project_similar_choice.help_text %}<div class="ts-field-help">{{ form.project_similar_choice.help_text }}</div>{% endif %}</div>
-          </div>
+        {# Campi legacy del ramo 'nuovo kickoff inline' mantenuti hidden per compat form backend #}
+        <div id="project-new-panel" class="tf-project-box" hidden>
+          {{ form.project_new_name.as_hidden }}
+          {{ form.project_new_description.as_hidden }}
+          {{ form.project_new_client.as_hidden }}
+          {{ form.project_new_control_method.as_hidden }}
+          {{ form.project_new_part_number.as_hidden }}
+          {{ form.project_new_revisione.as_hidden }}
+          {{ form.project_new_versione.as_hidden }}
+          {{ form.project_new_manager.as_hidden }}
+          {{ form.project_new_capo_commessa.as_hidden }}
+          {{ form.project_new_programmer.as_hidden }}
+          {{ form.project_similar_choice.as_hidden }}
+          {{ form.project_similar_new_note.as_hidden }}
         </div>
       </div>
     </section>
@@ -192,7 +193,7 @@
 
     <section class="tf-panel">
       <div class="tf-head"><div><span class="tf-kicker">Pianificazione</span><h2 class="tf-title">Timeline e avanzamento</h2><p class="tf-copy">Le date sono il riferimento per backlog, Gantt e segnalazioni di sovraccarico.</p></div></div>
-      {% if suggested_start_date and not task %}<div id="date-suggestion-banner" class="date-suggestion-banner"><div>Data di inizio suggerita: <strong>{{ suggested_start_date|date:"d/m/Y" }}</strong>. Il sistema ha preso come riferimento il giorno successivo alla fine dell'ultima attivita del kickoff.</div><button type="button" id="date-override-btn" class="btn btn-secondary btn-sm" onclick="enableDateOverride()">Override</button></div>{% endif %}
+      {% if suggested_start_from_previous and not task %}<div id="date-suggestion-banner" class="date-suggestion-banner"><div>Data di inizio impostata automaticamente al <strong>{{ suggested_start_date|date:"d/m/Y" }}</strong> (giorno successivo alla fine dell'ultima attivita del kickoff). Puoi modificarla liberamente.</div></div>{% endif %}
       <div class="tf-grid-2">
         <div class="ts-field"><label for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>{{ form.status }}{% if form.status.errors %}<div class="ts-field-error">{{ form.status.errors }}</div>{% endif %}</div>
         <div class="ts-field"><label for="{{ form.priority.id_for_label }}">{{ form.priority.label }}</label>{{ form.priority }}{% if form.priority.errors %}<div class="ts-field-error">{{ form.priority.errors }}</div>{% endif %}</div>
@@ -211,6 +212,32 @@
       </div>
     </section>
 
+    <section class="tf-panel">
+      <div class="tf-head"><div><span class="tf-kicker">Promemoria</span><h2 class="tf-title">Calendario Outlook e notifiche portale</h2><p class="tf-copy">Scegli se sincronizzare l'attivita' con il calendario Outlook dell'assegnatario e se mostrare un promemoria nel centro notifiche prima della scadenza.</p></div></div>
+      <div class="tf-grid-2">
+        <div class="ts-field" style="display:flex; gap:10px; align-items:flex-start;">
+          {{ form.add_to_outlook }}
+          <div>
+            <label for="{{ form.add_to_outlook.id_for_label }}" style="cursor:pointer;"><strong>{{ form.add_to_outlook.label }}</strong></label>
+            {% if form.add_to_outlook.help_text %}<div class="ts-field-help">{{ form.add_to_outlook.help_text }}</div>{% endif %}
+          </div>
+        </div>
+        <div class="ts-field" style="display:flex; gap:10px; align-items:flex-start;">
+          {{ form.reminder_portal_enabled_field }}
+          <div>
+            <label for="{{ form.reminder_portal_enabled_field.id_for_label }}" style="cursor:pointer;"><strong>{{ form.reminder_portal_enabled_field.label }}</strong></label>
+            {% if form.reminder_portal_enabled_field.help_text %}<div class="ts-field-help">{{ form.reminder_portal_enabled_field.help_text }}</div>{% endif %}
+          </div>
+        </div>
+        <div class="ts-field full">
+          <label for="{{ form.outlook_target_email.id_for_label }}">{{ form.outlook_target_email.label }}</label>
+          {{ form.outlook_target_email }}
+          {% if form.outlook_target_email.help_text %}<div class="ts-field-help">{{ form.outlook_target_email.help_text }}</div>{% endif %}
+          {% if form.outlook_target_email.errors %}<div class="ts-field-error">{{ form.outlook_target_email.errors }}</div>{% endif %}
+        </div>
+      </div>
+    </section>
+
     <div class="ts-field-actions">
       <button type="submit" class="btn">{% if mode == "edit" %}Salva modifiche{% else %}Crea attivita{% endif %}</button>
       {% if task %}<a class="btn btn-secondary" href="{% url 'tasks:detail' task.id %}">Annulla</a>{% elif locked_project %}<a class="btn btn-secondary" href="{% url 'tasks:project_gantt' locked_project.id %}">Annulla</a>{% else %}<a class="btn btn-secondary" href="{% url 'tasks:list' %}">Annulla</a>{% endif %}
@@ -220,8 +247,7 @@
 {% endblock %}
 {% block tasks_shell_scripts %}
 <script>
-function enableDateOverride(){const b=document.getElementById("date-suggestion-banner");const t=document.getElementById("date-override-btn");const s=document.getElementById("{{ form.next_step_due.id_for_label }}");const d=document.getElementById("{{ form.due_date.id_for_label }}");if(b){b.classList.add("override-active");const n=b.querySelector("div");if(n){n.innerHTML="Override attivo: puoi modificare liberamente le date dell'attivita kickoff.";}}if(t){t.disabled=true;}if(s){s.readOnly=false;s.style.opacity="";}if(d){d.readOnly=false;d.style.opacity="";}}
-{% if suggested_start_date and not task %}document.addEventListener("DOMContentLoaded",function(){const s=document.getElementById("{{ form.next_step_due.id_for_label }}");const d=document.getElementById("{{ form.due_date.id_for_label }}");if(s){s.readOnly=true;s.style.opacity="0.72";}if(d){d.readOnly=true;d.style.opacity="0.72";}});{% endif %}
+document.addEventListener("DOMContentLoaded",function(){const s=document.getElementById("{{ form.next_step_due.id_for_label }}");if(s){s.addEventListener("input",function(){s.dataset.userOverride="1";});s.addEventListener("change",function(){s.dataset.userOverride="1";});}});
 (function(){
 const scopeInputs=document.querySelectorAll("input[name='task_scope']");
 const modeInputs=document.querySelectorAll("input[name='project_link_mode']");
@@ -249,7 +275,14 @@ function chip(label,value,extra){if(!value){return"";}return '<span class="tf-id
 function toggleWorkspace(){const isProject=currentScope()==="project";const mode=currentMode();workspace.style.display=isProject?"grid":"none";existingPanel.hidden=!isProject||mode!=="existing";newPanel.hidden=!isProject||mode!=="new";if(isProject&&mode==="existing"&&projectChoice){updateProjectInfo(projectChoice.value);}if(isProject&&mode==="new"){renderPreview();}}
 const statusLabels={todo:"Da fare",in_progress:"In corso",done:"Fatto",canceled:"Annullata"};
 function statusBadge(status){const n=String(status||"").toLowerCase();return '<span class="status-badge '+n+'">'+esc(statusLabels[n]||n||"-")+'</span>';}
+function applySuggestedStart(iso){
+  if(!iso){return;}
+  const s=document.getElementById("{{ form.next_step_due.id_for_label }}");
+  if(!s||s.dataset.userOverride==="1"){return;}
+  s.value=iso;
+}
 function renderInfo(data){
+  applySuggestedStart(data.suggested_start_date);
   const ids=[chip("P/N",data.part_number,"pn"),chip("Rev",data.revisione,"rev"),chip("Ver",data.versione,"ver")].join("");
   const meta=[["Cliente",data.client_name],["Project manager",data.project_manager],["Capo commessa",data.capo_commessa],["Programmatore",data.programmer]].map(function(item){return '<div class="tf-meta-item"><div class="lbl">'+esc(item[0])+'</div><div class="val">'+esc(item[1]||"-")+'</div></div>';}).join("");
   let tasksHtml='<div class="tf-empty">Nessuna attivita ancora presente in questo kickoff.</div>';

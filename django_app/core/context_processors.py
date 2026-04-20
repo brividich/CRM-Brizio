@@ -9,7 +9,6 @@ from django.core.cache import cache
 from django.db import DatabaseError, connections
 from django.urls import NoReverseMatch, reverse
 
-from core.acl import check_permesso
 from core.branding import get_portal_branding
 from core.impersonation import display_name_for_user
 from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_auth_enabled, legacy_table_has_column
@@ -24,9 +23,6 @@ from core.module_registry import resolve_module_label
 from core.navigation_registry import get_admin_subnav_nodes, get_subnav_nodes, get_topbar_nodes
 from core.versioning import get_changelog_entries, get_current_release, get_module_versions
 
-NAV_REGISTRY_ACL_GATES: dict[str, str] = {
-    "tasks": "/tasks/",
-}
 _NAV_LOG_ONCE_TTL_SECONDS = 300
 logger = logging.getLogger(__name__)
 
@@ -374,18 +370,6 @@ def _load_registry_nav_items(request, legacy_user) -> list[NavItem]:
         is_admin=is_admin,
         legacy_user_id=legacy_user_id_for_override,
     )
-    filtered_nodes = []
-    for node in nodes:
-        gate_path = NAV_REGISTRY_ACL_GATES.get((node.codice or "").strip().lower())
-        if gate_path is None:
-            filtered_nodes.append(node)
-            continue
-        if is_admin:
-            filtered_nodes.append(node)
-            continue
-        if legacy_user and check_permesso(legacy_user, gate_path):
-            filtered_nodes.append(node)
-    nodes = filtered_nodes
     if not nodes:
         return []
     return [

@@ -454,7 +454,7 @@
 
     {# ─── NUOVA VOCE DI NAVIGAZIONE ─── #}
     <div class="card">
-      {% include "admin_portale/components/card_head.html" with card_title="Nuova voce di navigazione" card_subtitle="Aggiungi una nuova voce al menu. Per link interni usa «Route name»; per link esterni o di fallback usa «URL path»." %}
+      {% include "admin_portale/components/card_head.html" with card_title="Nuova voce di navigazione" card_subtitle="Aggiungi una nuova voce al menu. Per link interni usa «Route name»; il permission code richiesto viene dedotto automaticamente quando esiste un binding canonico." %}
       <div class="card-body">
         <form id="nav-create-form" class="admin-form-grid">
 
@@ -526,15 +526,20 @@
           </div>
 
           <div class="field field-wide">
-            <label>Ruoli abilitati <span class="cell-muted">(opzionale)</span></label>
+            <label>Permission code richiesto <span class="cell-muted">(opzionale)</span></label>
+            <input class="input" type="text" name="required_permission_code" placeholder="es. dashboard.home.view">
+            <div class="field-help">Se vuoto, il builder prova a ricavarlo dal binding canonico della route/path. Serve soprattutto per voci che non puntano a una route bindata.</div>
+          </div>
+
+          <div class="field field-wide">
+            <label>Ruoli fallback legacy <span class="cell-muted">(compatibilità)</span></label>
             <select class="input" name="role_ids_csv" multiple>
               {% for r in ruoli %}
                 <option value="{{ r.id }}">{{ r.nome }} — ID {{ r.id }}</option>
               {% endfor %}
             </select>
             <div class="field-help">
-              Tieni premuto <kbd>Ctrl</kbd> (o <kbd>Cmd</kbd> su Mac) per selezionare più ruoli.
-              Nessuna selezione = voce visibile a tutti i ruoli.
+              Usato solo come fallback per voci ancora senza permission code canonico. Nessuna selezione = nessun fallback esplicito.
             </div>
           </div>
 
@@ -609,6 +614,7 @@
                     data-section="{{ row.section }}"
                     data-route-name="{{ row.route_name|default:'' }}"
                     data-url-path="{{ row.url_path|default:'' }}"
+                    data-required-permission-code="{{ row.required_permission_code|default:'' }}"
                     data-parent-code="{{ row.parent_code|default:'' }}"
                     data-is-visible="{{ row.is_visible|yesno:'1,0' }}"
                     data-is-enabled="{{ row.is_enabled|yesno:'1,0' }}"
@@ -626,6 +632,9 @@
                       {% elif row.url_path %}
                         <div>path: <code>{{ row.url_path }}</code></div>
                       {% endif %}
+                      {% if row.required_permission_code %}
+                        <div>perm: <code>{{ row.required_permission_code }}</code></div>
+                      {% endif %}
                       {% if row.section == "subnav" and row.parent_code %}
                         <div>gruppo: <code>{{ row.parent_code }}</code></div>
                       {% endif %}
@@ -638,7 +647,7 @@
                         {% if row.is_enabled %}Enabled{% else %}Disabled{% endif %}
                       </span>
                       <span class="visual-badge">
-                        {% if row.role_ids %}Ruoli {{ row.role_ids|length }}{% else %}Ruoli: tutti{% endif %}
+                        {% if row.role_ids %}Fallback ruoli {{ row.role_ids|length }}{% else %}Fallback legacy: no{% endif %}
                       </span>
                     </div>
                     <div class="visual-card-actions">
@@ -665,7 +674,7 @@
           <div class="cell-muted" style="font-size:13px;">
             Modifica direttamente le celle e premi <strong>Salva</strong> sulla riga.
             I campi <em>Route name</em> supportano la selezione dall'elenco (digita o clicca).
-            Il campo <em>Ruoli</em> è una lista multipla (Ctrl+click).
+            Il campo <em>Ruoli</em> resta solo come fallback legacy per le voci non ancora mappate a un permission code.
             — {{ item_rows|length }} voci{% if filters.section != "all" %}, sezione: <strong>{{ filters.section }}</strong>{% endif %}{% if filters.q %}, ricerca: <strong>«{{ filters.q }}»</strong>{% endif %}.
           </div>
         </div>
@@ -711,7 +720,8 @@
                 <th title="Emoji, testo breve o URL immagine (.ico, .png, .svg)">Icona</th>
                 <th title="Route Django — digita o scegli dalla lista">Route name</th>
                 <th title="URL path alternativo o link esterno">URL path</th>
-                <th title="Ruoli abilitati — Ctrl+click per più ruoli, nessuno = tutti">Ruoli</th>
+                <th title="Permission code canonico richiesto per mostrare la voce">Permission code</th>
+                <th title="Fallback legacy per voci senza permission code">Ruoli</th>
                 <th title="Visibile nel menu">Vis.</th>
                 <th title="Link attivo e cliccabile">Att.</th>
                 <th title="Apre in nuova scheda del browser">Tab</th>
@@ -752,9 +762,10 @@
                            title="Route Django — digita o scegli dalla lista" style="min-width:160px;">
                   </td>
                   <td><input class="input input-sm" type="text" data-name="url_path" value="{{ row.url_path }}" title="URL path"></td>
+                  <td><input class="input input-sm" type="text" data-name="required_permission_code" value="{{ row.required_permission_code }}" title="Permission code richiesto" style="min-width:170px;"></td>
                   <td>
                     <select class="input input-sm" data-name="role_ids_csv" multiple size="3"
-                            title="Ruoli abilitati — Ctrl+click per più voci. Nessuna selezione = tutti.">
+                            title="Fallback legacy per voci senza permission code canonico.">
                       {% for r in ruoli %}
                         <option value="{{ r.id }}">{{ r.nome }}</option>
                       {% endfor %}
@@ -769,7 +780,7 @@
                   </td>
                 </tr>
               {% empty %}
-                <tr><td colspan="15" class="cell-muted">Nessuna voce. Creane una dal modulo qui sopra oppure importa dalla topbar legacy.</td></tr>
+                <tr><td colspan="16" class="cell-muted">Nessuna voce. Creane una dal modulo qui sopra oppure importa dalla topbar legacy.</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -913,7 +924,7 @@
 
     {# ─── OVERRIDE NAVIGAZIONE PER UTENTE ─── #}
     <div class="card" id="nav-user-override-card">
-      {% include "admin_portale/components/card_head.html" with card_title="Override Navigazione Utente" card_subtitle="Imposta override di visibilità menu per singolo utente, indipendente dal ruolo. Clicca un toggle per ciclare: eredita → MOSTRA → NASCONDI." %}
+      {% include "admin_portale/components/card_head.html" with card_title="Override Navigazione Utente" card_subtitle="Override hide-only per singolo utente: puoi solo nascondere una voce già consentita dal ruolo canonico." %}
       <div class="card-body">
 
         <form method="get" class="admin-form-grid" style="margin-bottom:0;" id="nav-ov-user-form-nb">
@@ -938,7 +949,6 @@
             <span>Override navigazione per <strong>{{ nav_override_user_label }}</strong>{% if nav_override_user.ruolo_id %} (ruolo #{{ nav_override_user.ruolo_id }}){% endif %}</span>
             <span style="color:#64748b;font-size:11px;">
               <span style="display:inline-block;width:11px;height:11px;background:#dcfce7;border:1px solid #86efac;border-radius:2px;vertical-align:middle;"></span> eredita &nbsp;
-              <span style="display:inline-block;width:11px;height:11px;background:#3b82f6;border:1px solid #2563eb;border-radius:2px;vertical-align:middle;"></span> MOSTRA &nbsp;
               <span style="display:inline-block;width:11px;height:11px;background:#fee2e2;border:1px solid #fca5a5;border-radius:2px;vertical-align:middle;"></span> NASCONDI
             </span>
           </div>
@@ -957,15 +967,17 @@
                       {% if row.item_icon %}<span style="margin-right:4px;">{% render_icon row.item_icon row.item_label %}</span>{% endif %}
                       {{ row.item_label }}
                       <span class="acl-perm-code">{{ row.item_code }}</span>
+                      {% if row.required_permission_code %}
+                        <span class="acl-perm-code">{{ row.required_permission_code }}</span>
+                      {% endif %}
                     </div>
                     <button type="button"
                       class="nb-nav-ov-toggle ov-toggle"
                       data-item-id="{{ row.item_id }}"
                       data-state="{{ row.state }}"
                       data-role="{{ row.role_allowed|yesno:'1,0,' }}"
-                      title="Clicca: eredita → MOSTRA → NASCONDI → eredita">
-                      {% if row.state == 'ov-show' %}MOSTRA
-                      {% elif row.state == 'ov-hide' %}NASCONDI
+                      title="Clicca: eredita → NASCONDI → eredita">
+                      {% if row.state == 'ov-hide' %}NASCONDI
                       {% elif row.state == 'role-show' %}eredita ✓
                       {% else %}eredita —
                       {% endif %}
@@ -1056,10 +1068,9 @@
           function applyNavStyle(btn, uiState){
             btn.dataset.uistate = uiState;
             var rv = btn.dataset.role;
-            btn.textContent = uiState==="ov-show"?"MOSTRA" : uiState==="ov-hide"?"NASCONDI" : (rv==="1"?"eredita ✓":"eredita —");
+            btn.textContent = uiState==="ov-hide"?"NASCONDI" : (rv==="1"?"eredita ✓":"eredita —");
             btn.style.cssText="";
-            if(uiState==="ov-show"){ btn.style.background="#3b82f6"; btn.style.color="#fff"; btn.style.borderColor="#2563eb"; btn.style.fontWeight="700"; }
-            else if(uiState==="ov-hide"){ btn.style.background="#fee2e2"; btn.style.color="#dc2626"; btn.style.borderColor="#fca5a5"; btn.style.fontWeight="700"; }
+            if(uiState==="ov-hide"){ btn.style.background="#fee2e2"; btn.style.color="#dc2626"; btn.style.borderColor="#fca5a5"; btn.style.fontWeight="700"; }
             else if(rv==="1"){ btn.style.background="#dcfce7"; btn.style.color="#16a34a"; btn.style.borderColor="#86efac"; }
             else { btn.style.background="#f8fafc"; btn.style.color="#94a3b8"; btn.style.borderColor="#e2e8f0"; }
             btn.style.padding="3px 10px"; btn.style.borderRadius="999px"; btn.style.border=btn.style.border||"1px solid #e2e8f0";
@@ -1068,12 +1079,12 @@
 
           document.querySelectorAll(".nb-nav-ov-toggle").forEach(function(btn){
             var raw=btn.dataset.state;
-            applyNavStyle(btn,(raw==="ov-show"||raw==="ov-hide")?raw:"inherit");
+            applyNavStyle(btn,raw==="ov-hide"?"ov-hide":"inherit");
             btn.addEventListener("click", async function(){
               if(!TOGGLE_URL_NB) return;
               var cur=this.dataset.uistate;
-              var next=cur==="inherit"?"ov-show":cur==="ov-show"?"ov-hide":"inherit";
-              var sm={"inherit":"inherit","ov-show":"show","ov-hide":"hide"};
+              var next=cur==="inherit"?"ov-hide":"inherit";
+              var sm={"inherit":"inherit","ov-hide":"hide"};
               this.disabled=true;
               try{
                 var d=await postJson2(TOGGLE_URL_NB,{item_id:parseInt(this.dataset.itemId),state:sm[next]});
@@ -1799,6 +1810,7 @@
           parent_code: String(d.parentCode || ""),
           route_name: String(d.routeName || ""),
           url_path: String(d.urlPath || ""),
+          required_permission_code: String(d.requiredPermissionCode || ""),
           is_visible: d.isVisible === "1" ? "1" : "0",
           is_enabled: d.isEnabled === "1" ? "1" : "0",
           icon: String(d.icon || ""),

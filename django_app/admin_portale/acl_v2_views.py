@@ -19,13 +19,14 @@ from core.acl_v2 import (
     normalize_binding_path_pattern,
     normalize_permission_code,
     permission_code_naming_warning,
+    resolve_canonical_target,
     validate_permission_code,
 )
 from core.legacy_models import AnagraficaDipendente, Pulsante, Ruolo, UtenteLegacy
+from core.navigation_registry import resolve_navigation_item_permission_code
 from core.models import (
     LegacyRedirect,
     NavigationItem,
-    NavigationRoleAccess,
     PermissionDefinition,
     RolePermissionGrant,
     RoutePermissionBinding,
@@ -292,14 +293,20 @@ def _collect_route_coverage_rows() -> tuple[list[dict], dict]:
         route_name = str(route["view_name"] or "").strip()
         path_norm = normalize_binding_path_pattern(str(route["route"] or "/"))
         app_label = _normalize_app_label(route_name, path_norm)
-        canonical_matches: list[RoutePermissionBinding] = []
-        canonical_matches.extend(route_bindings_map.get(route_name.lower(), []))
+        route_matches = list(route_bindings_map.get(route_name.lower(), []))
+        path_matches: list[RoutePermissionBinding] = []
         for candidate in path_bindings:
             if _binding_matches_path(candidate, path_norm):
-                canonical_matches.append(candidate)
-        canonical_binding_ids = sorted({int(binding.id) for binding in canonical_matches})
-        canonical_permissions = sorted({str(binding.permission_id) for binding in canonical_matches if binding.permission_id})
-        canonical_missing_grant = any(code not in enabled_permission_codes for code in canonical_permissions)
+                path_matches.append(candidate)
+        resolved = resolve_canonical_target(path=path_norm, route_name=route_name)
+        binding_payload = resolved.get("binding") or {}
+        effective_binding_id = _int_or_none(binding_payload.get("id"))
+        effective_permission_code = normalize_permission_code(str(binding_payload.get("permission_code") or ""))
+        canonical_binding_ids = [int(effective_binding_id)] if effective_binding_id is not None else []
+        canonical_permissions = [effective_permission_code] if effective_permission_code else []
+        canonical_missing_grant = bool(
+            effective_permission_code and effective_permission_code not in enabled_permission_codes
+        )
         has_legacy = _route_has_legacy_coverage(route_name, path_norm, legacy_route_names, legacy_paths)
         has_redirect = bool(
             (route_name and route_name in redirect_route_targets) or (path_norm and path_norm in redirect_path_targets)
@@ -308,7 +315,7 @@ def _collect_route_coverage_rows() -> tuple[list[dict], dict]:
 
         if is_excluded:
             status = STATUS_COMING_SOON_EXCLUDED
-        elif canonical_binding_ids:
+        elif effective_binding_id is not None:
             status = STATUS_CANONICAL_BOUND
         elif has_legacy:
             status = STATUS_LEGACY_FALLBACK
@@ -320,7 +327,49 @@ def _collect_route_coverage_rows() -> tuple[list[dict], dict]:
         warnings: list[str] = []
         if canonical_missing_grant:
             warnings.append("BINDING_WITHOUT_ENABLED_ROLE_GRANT")
-        if len(canonical_binding_ids) > 1:
+        ambiguous_route_matches = False
+        if route_matches:
+            min_route_priority = min(int(getattr(binding, "priority", 0) or 0) for binding in route_matches)
+            ambiguous_route_matches = sum(
+                1 for binding in route_matches if int(getattr(binding, "priority", 0) or 0) == min_route_priority
+            ) > 1
+        ambiguous_path_matches = False
+        if not route_matches and path_matches and effective_binding_id is not None:
+            effective_binding = next((binding for binding in path_matches if int(binding.id) == int(effective_binding_id)), None)
+            if effective_binding is not None:
+                strategy = (effective_binding.match_strategy or RoutePermissionBinding.MATCH_EXACT).lower()
+                if strategy == RoutePermissionBinding.MATCH_EXACT:
+                    strategy_rank = 0
+                    pattern = normalize_binding_path_pattern(effective_binding.path_pattern, for_regex=False)
+                elif strategy == RoutePermissionBinding.MATCH_PREFIX:
+                    strategy_rank = 1
+                    pattern = normalize_binding_path_pattern(effective_binding.path_pattern, for_regex=False)
+                else:
+                    strategy_rank = 2
+                    pattern = str(effective_binding.path_pattern or "")
+                winner_key = (
+                    int(getattr(effective_binding, "priority", 0) or 0),
+                    strategy_rank,
+                    -len(pattern),
+                )
+                for binding in path_matches:
+                    strategy = (binding.match_strategy or RoutePermissionBinding.MATCH_EXACT).lower()
+                    if strategy == RoutePermissionBinding.MATCH_EXACT:
+                        binding_rank = 0
+                        binding_pattern = normalize_binding_path_pattern(binding.path_pattern, for_regex=False)
+                    elif strategy == RoutePermissionBinding.MATCH_PREFIX:
+                        binding_rank = 1
+                        binding_pattern = normalize_binding_path_pattern(binding.path_pattern, for_regex=False)
+                    else:
+                        binding_rank = 2
+                        binding_pattern = str(binding.path_pattern or "")
+                    if (
+                        int(getattr(binding, "priority", 0) or 0),
+                        binding_rank,
+                        -len(binding_pattern),
+                    ) == winner_key:
+                        ambiguous_path_matches = ambiguous_path_matches or int(binding.id) != int(effective_binding_id)
+        if ambiguous_route_matches or ambiguous_path_matches:
             warnings.append("AMBIGUOUS_CANONICAL_BINDING")
 
         rows.append(
@@ -334,6 +383,12 @@ def _collect_route_coverage_rows() -> tuple[list[dict], dict]:
                 "canonical_binding_count": len(canonical_binding_ids),
                 "canonical_permissions": canonical_permissions,
                 "canonical_missing_grant": canonical_missing_grant,
+                "canonical_candidate_binding_ids": sorted(
+                    {
+                        int(binding.id)
+                        for binding in [*route_matches, *path_matches]
+                    }
+                ),
                 "has_legacy": has_legacy,
                 "has_redirect": has_redirect,
                 "is_excluded": is_excluded,
@@ -860,21 +915,23 @@ def acl_canonico(request):
                     role_id_for_nav_ov = int(nav_ov_user.ruolo_id)
                 except Exception:
                     pass
-            role_nav_items: set[int] = set()
+            role_grants_map: dict[str, bool] = {}
             if role_id_for_nav_ov is not None:
-                for row in NavigationRoleAccess.objects.filter(legacy_role_id=role_id_for_nav_ov, can_view=True):
-                    role_nav_items.add(int(row.item_id))
+                role_grants_map = {
+                    normalize_permission_code(str(row.permission_id or "")): bool(row.enabled)
+                    for row in RolePermissionGrant.objects.filter(legacy_role_id=role_id_for_nav_ov)
+                    if str(row.permission_id or "").strip()
+                }
             nav_sections_order = ["topbar", "subnav", "sidebar", "page"]
             nav_ov_by_section = {s: [] for s in nav_sections_order}
             for ni in NavigationItem.objects.filter(
                 is_visible=True, is_enabled=True, section__in=nav_sections_order
             ).order_by("section", "order", "label"):
                 iid = int(ni.id)
-                role_allowed = iid in role_nav_items
+                permission_code = normalize_permission_code(resolve_navigation_item_permission_code(ni))
+                role_allowed = bool(permission_code and role_grants_map.get(permission_code, False))
                 override = user_nav_grants.get(iid)
-                if override is True:
-                    state = "ov-show"
-                elif override is False:
+                if override is False:
                     state = "ov-hide"
                 elif role_allowed:
                     state = "role-show"
@@ -886,8 +943,9 @@ def acl_canonico(request):
                     "item_label": ni.label,
                     "item_section": ni.section,
                     "item_icon": ni.icon or "",
+                    "required_permission_code": permission_code,
                     "role_allowed": role_allowed,
-                    "override": override,
+                    "override": False if override is False else None,
                     "state": state,
                 }
                 nav_ov_rows.append(row_data)
@@ -1086,4 +1144,3 @@ def api_acl_legacy_user_search(request):
     except DatabaseError as exc:
         return JsonResponse({"results": [], "error": str(exc)})
     return JsonResponse({"results": results})
-

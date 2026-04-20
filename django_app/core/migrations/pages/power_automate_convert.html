@@ -1,0 +1,457 @@
+{% extends "core/base.html" %}
+
+{% block title %}Automazioni - Converti Power Automate | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .auto-grid { display:grid; gap:16px; }
+  .auto-grid-2 { display:grid; gap:16px; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); }
+  .auto-grid-3 { display:grid; gap:16px; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); }
+  .auto-field { display:grid; gap:6px; }
+  .auto-field label { font-size:12px; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:.04em; }
+  .auto-field input, .auto-field textarea, .auto-field select { width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; }
+  .auto-help { font-size:12px; color:#64748b; }
+  .auto-errors { margin:4px 0 0 0; padding-left:18px; color:#b91c1c; font-size:13px; }
+  .auto-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .auto-status { display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+  .auto-status-ready { background:#dcfce7; color:#166534; }
+  .auto-status-partial { background:#fef3c7; color:#92400e; }
+  .auto-status-blocked { background:#fee2e2; color:#991b1b; }
+  .auto-status-ok { background:#dbeafe; color:#1d4ed8; }
+  .auto-status-error { background:#fee2e2; color:#991b1b; }
+  .auto-status-skipped { background:#e2e8f0; color:#334155; }
+  .auto-meta-item { padding:14px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; }
+  .auto-meta-label { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; }
+  .auto-meta-value { margin-top:6px; color:#0f172a; word-break:break-word; }
+  .auto-table { width:100%; border-collapse:collapse; font-size:14px; }
+  .auto-table th, .auto-table td { padding:10px 12px; border-bottom:1px solid #e2e8f0; text-align:left; vertical-align:top; }
+  .auto-table th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; background:#f8fafc; }
+  .auto-rule-card { border:1px solid #e2e8f0; border-radius:14px; padding:14px; background:#fff; display:grid; gap:12px; }
+  .auto-rule-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap; }
+  .auto-tag { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; background:#f1f5f9; color:#334155; font-size:12px; font-weight:700; }
+  .auto-list { margin:0; padding-left:18px; display:grid; gap:6px; color:#334155; }
+  .auto-pre { margin:0; padding:12px; border-radius:12px; background:#0f172a; color:#e2e8f0; overflow:auto; font-size:12px; }
+  .auto-divider { height:1px; background:#e2e8f0; }
+  .diagram-wrap { overflow:hidden; border:1px solid #e2e8f0; border-radius:18px; background:linear-gradient(135deg, #fffdf8 0%, #f0ebe0 100%); min-height:320px; cursor:grab; user-select:none; position:relative; }
+  .diagram-wrap svg { display:block; }
+  .diagram-lane-label { font-size:11px; font-weight:700; fill:#64748b; letter-spacing:.08em; text-transform:uppercase; }
+  .diagram-node-title { font-size:13px; font-weight:700; fill:#0f172a; }
+  .diagram-node-subtitle { font-size:11px; fill:#64748b; }
+  .diagram-node-icon { font-size:10px; font-weight:700; fill:#fffdf8; letter-spacing:.08em; }
+  .diagram-issue-badge { font-size:10px; font-weight:700; fill:#991b1b; letter-spacing:.06em; text-transform:uppercase; }
+  @media (max-width: 900px) {
+    .auto-rule-head { flex-direction:column; }
+  }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% url 'admin_portale:automazioni_rule_power_automate_convert' as converter_url %}
+  {% url 'admin_portale:automazioni_rule_power_automate_package_download' as package_download_url %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Converti Power Automate" page_subtitle="Carica un export Power Automate, rivedi il diagramma del flow originale e passa il package risultante all'import guidato del modulo automazioni." %}
+  {% include "admin_portale/components/flash_messages.html" %}
+  {% include "automazioni/components/subnav.html" %}
+
+  <div class="auto-grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Upload export Power Automate</div></div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data" class="auto-grid">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="analyze">
+          {% if upload_form.non_field_errors %}
+            <ul class="auto-errors">{% for error in upload_form.non_field_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+          {% endif %}
+          {% for field in upload_form %}
+            <div class="auto-field">
+              {{ field.label_tag }}
+              {{ field }}
+              {% if field.help_text %}<div class="auto-help">{{ field.help_text }}</div>{% endif %}
+              {% if field.errors %}<ul class="auto-errors">{% for error in field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+            </div>
+          {% endfor %}
+          <div class="auto-actions">
+            <button class="btn" type="submit">Analizza flow</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {% if converter_record and analysis %}
+      <div class="card">
+        <div class="card-head"><div class="card-title">Riepilogo conversione</div></div>
+        <div class="card-body auto-grid">
+          <div class="auto-actions">
+            <span class="auto-status auto-status-{{ analysis.status }}">{{ analysis.status_label }}</span>
+            <span class="auto-tag">{{ analysis.importable_rule_count }} regole importabili</span>
+            <span class="auto-tag">{{ analysis.skipped_rule_count }} regole saltate</span>
+            {% if converter_record.target_context and converter_record.target_context.full_name %}
+              <span class="auto-tag">target {{ converter_record.target_context.full_name }}</span>
+            {% else %}
+              <span class="auto-tag">solo runtime portale</span>
+            {% endif %}
+          </div>
+
+          <div class="auto-actions">
+            <a class="btn btn-light" href="{{ package_download_url }}">Scarica package JSON</a>
+            <form method="post" action="{{ converter_url }}">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="reset">
+              <button class="btn btn-light" type="submit">Reset workflow</button>
+            </form>
+            <form method="post" action="{{ converter_url }}">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="apply_remediation">
+              <button class="btn btn-light" type="submit">Applica remediation consigliata</button>
+            </form>
+            <form method="post" action="{{ converter_url }}">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="handoff_import">
+              <button class="btn" type="submit">Apri import guidato</button>
+            </form>
+          </div>
+
+          <div class="auto-grid-3">
+            <div class="auto-meta-item"><div class="auto-meta-label">Flow</div><div class="auto-meta-value">{{ analysis.flow_name }}</div></div>
+            <div class="auto-meta-item"><div class="auto-meta-label">Source candidata</div><div class="auto-meta-value">{{ analysis.source_candidate.label|default:"-" }}{% if analysis.source_candidate.source_code %}<br><code>{{ analysis.source_candidate.source_code }}</code>{% endif %}</div></div>
+            <div class="auto-meta-item"><div class="auto-meta-label">Versione package</div><div class="auto-meta-value">{{ analysis.package_version }}</div></div>
+            <div class="auto-meta-item"><div class="auto-meta-label">Compatibilita'</div><div class="auto-meta-value">{% if analysis.compatibility_lines %}{{ analysis.compatibility_lines|join:" · " }}{% else %}-{% endif %}</div></div>
+            <div class="auto-meta-item"><div class="auto-meta-label">Issue rilevate</div><div class="auto-meta-value">{{ converter_record.package.issues|length }}</div></div>
+            <div class="auto-meta-item"><div class="auto-meta-label">Remediation applicate</div><div class="auto-meta-value">{{ converter_record.remediations_applied|length }}</div></div>
+          </div>
+
+          {% if analysis.errors %}
+            <div class="notice notice-danger">
+              <strong>Blocchi import:</strong>
+              <ul class="auto-list">{% for item in analysis.errors %}<li>{{ item }}</li>{% endfor %}</ul>
+            </div>
+          {% endif %}
+          {% if analysis.warnings %}
+            <div class="notice">
+              <strong>Warning package:</strong>
+              <ul class="auto-list">{% for item in analysis.warnings %}<li>{{ item }}</li>{% endfor %}</ul>
+            </div>
+          {% endif %}
+          {% if approval_conversion %}
+            <div class="notice">
+              <strong>Conversione approval:</strong>
+              <ul class="auto-list">
+                <li>Strategia: <code>{{ approval_conversion.strategy|default:"-" }}</code></li>
+                <li>Template: <code>{{ approval_conversion.template_code|default:"-" }}</code> {% if approval_conversion.template_delivery_mode %}({{ approval_conversion.template_delivery_mode }}){% endif %}</li>
+                <li>Approvatore: <code>{{ approval_conversion.approver_template|default:"-" }}</code></li>
+                <li>Branch supportati: approvato {{ approval_conversion.approved_branch_supported_count|default:0 }}, rifiutato {{ approval_conversion.rejected_branch_supported_count|default:0 }}</li>
+              </ul>
+            </div>
+          {% endif %}
+
+          <div class="auto-grid-2">
+            <div>
+              <div class="auto-meta-label" style="margin-bottom:8px;">Issue e remediation del converter</div>
+              {% if converter_record.package.issues %}
+                <div class="auto-grid">
+                  {% for issue in converter_record.package.issues %}
+                    <div class="auto-rule-card">
+                      <div class="auto-rule-head">
+                        <div><strong>{{ issue.title|default:issue.code }}</strong></div>
+                        <span class="auto-status auto-status-{% if issue.severity == 'high' %}error{% else %}partial{% endif %}">{{ issue.severity|default:"warning" }}</span>
+                      </div>
+                      <div class="auto-help">{{ issue.detail|default:"-" }}</div>
+                      {% if issue.remediation %}<div class="auto-help"><strong>Remediation:</strong> {{ issue.remediation }}</div>{% endif %}
+                    </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="auto-help">Nessuna issue rilevata dal converter.</div>
+              {% endif %}
+            </div>
+            <div>
+              <div class="auto-meta-label" style="margin-bottom:8px;">Target context</div>
+              {% if analysis.target_context_pretty %}
+                <pre class="auto-pre">{{ analysis.target_context_pretty }}</pre>
+              {% else %}
+                <div class="auto-help">Nessuna tabella target selezionata. Il package resta comunque convertibile sul runtime del portale.</div>
+              {% endif %}
+            </div>
+          </div>
+
+          {% if converter_record.remediations_applied %}
+            <div>
+              <div class="auto-meta-label" style="margin-bottom:8px;">Remediation applicate</div>
+              <div class="auto-grid">
+                {% for item in converter_record.remediations_applied %}
+                  <div class="auto-rule-card">
+                    <strong>{{ item.label|default:item.code }}</strong>
+                    <div class="auto-help">{{ item.detail|default:"-" }}</div>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+
+          <div>
+            <div class="auto-meta-label" style="margin-bottom:8px;">Mapping approvati / fallback</div>
+            <table class="auto-table">
+              <thead>
+                <tr><th>Campo flow</th><th>Campo portale</th><th>Stato</th></tr>
+              </thead>
+              <tbody>
+                {% for row in analysis.mapping_rows %}
+                  <tr>
+                    <td><code>{{ row.source_field|default:"-" }}</code></td>
+                    <td><code>{{ row.target_field|default:"-" }}</code></td>
+                    <td>{{ row.status_label }}</td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="3">Nessun mapping esplicito disponibile.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+            <div class="card-title">Diagramma del Flusso Power Automate</div>
+            <div class="auto-actions" style="margin:0;">
+              <button class="btn btn-light" id="diag-zoom-in" type="button">+</button>
+              <button class="btn btn-light" id="diag-zoom-out" type="button">-</button>
+              <button class="btn btn-light" id="diag-reset" type="button">Reset</button>
+            </div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="auto-help" style="margin-bottom:12px;">
+            Rappresentazione visiva del flow originale. Trascina per navigare e usa la rotella per zoomare.
+          </div>
+          {% if converter_diagram and converter_diagram.nodes %}
+            <div class="diagram-wrap" id="diagram-container">
+              <svg
+                id="diagram-svg"
+                width="{{ converter_diagram.width }}"
+                height="{{ converter_diagram.height }}"
+                style="display:block;"
+                role="img"
+                aria-label="Diagramma del flusso Power Automate"
+              >
+                <defs>
+                  <filter id="node-shadow" x="-15%" y="-15%" width="130%" height="140%">
+                    <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="rgba(40,32,18,.12)"/>
+                  </filter>
+                  <marker id="arrow-main" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+                    <path d="M 0 0 L 8 4 L 0 8 z" fill="#334155"/>
+                  </marker>
+                  <marker id="arrow-branch" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+                    <path d="M 0 0 L 8 4 L 0 8 z" fill="#6366f1"/>
+                  </marker>
+                </defs>
+                <g id="diag-viewport">
+                  {% for lane in converter_diagram.lanes %}
+                    <rect x="{{ lane.x }}" y="{{ lane.y }}" rx="20" ry="20" width="{{ lane.width }}" height="{{ lane.height }}" fill="{{ lane.fill }}" stroke="{{ lane.stroke }}" stroke-width="1.5" stroke-dasharray="6 4" />
+                    <text x="{{ lane.x|add:18 }}" y="{{ lane.y|add:20 }}" class="diagram-lane-label">{{ lane.label }}</text>
+                  {% endfor %}
+
+                  {% for edge in converter_diagram.edges %}
+                    {% if edge.label %}
+                      <path d="M {{ edge.x1 }} {{ edge.y1 }} C {{ edge.label_x }} {{ edge.y1 }}, {{ edge.label_x }} {{ edge.y2 }}, {{ edge.x2 }} {{ edge.y2 }}" stroke="#6366f1" stroke-width="2" fill="none" stroke-dasharray="5 3" marker-end="url(#arrow-branch)" />
+                      <rect x="{{ edge.label_x|add:'-22' }}" y="{{ edge.label_y|add:'-9' }}" width="44" height="16" rx="8" fill="rgba(238,242,255,.95)" stroke="#c7d2fe" stroke-width="1" />
+                      <text x="{{ edge.label_x }}" y="{{ edge.label_y|add:3 }}" text-anchor="middle" style="font-size:10px;font-weight:700;fill:#4f46e5;letter-spacing:.04em;">{{ edge.label }}</text>
+                    {% else %}
+                      <path d="M {{ edge.x1 }} {{ edge.y1 }} C {{ edge.label_x }} {{ edge.y1 }}, {{ edge.label_x }} {{ edge.y2 }}, {{ edge.x2 }} {{ edge.y2 }}" stroke="#334155" stroke-width="2" fill="none" marker-end="url(#arrow-main)" />
+                    {% endif %}
+                  {% endfor %}
+
+                  {% for node in converter_diagram.nodes %}
+                    <g>
+                      <rect x="{{ node.x }}" y="{{ node.y }}" rx="16" ry="16" width="{{ node.width }}" height="{{ node.height }}" fill="{{ node.fill }}" stroke="{{ node.stroke }}" stroke-width="2" filter="url(#node-shadow)" />
+                      <rect x="{{ node.x }}" y="{{ node.y }}" rx="16" ry="16" width="36" height="{{ node.height }}" fill="{{ node.stroke }}" opacity=".9" />
+                      <rect x="{{ node.x|add:16 }}" y="{{ node.y }}" width="20" height="{{ node.height }}" fill="{{ node.stroke }}" opacity=".9" />
+                      <text x="{{ node.x|add:18 }}" y="{{ node.y|add:node.icon_y }}" text-anchor="middle" class="diagram-node-icon">{{ node.icon }}</text>
+                      <text x="{{ node.x|add:46 }}" y="{{ node.y|add:30 }}" class="diagram-node-title">{{ node.lines.0 }}</text>
+                      <text x="{{ node.x|add:46 }}" y="{{ node.y|add:50 }}" class="diagram-node-subtitle">{{ node.lines.1 }}</text>
+                      {% if node.issue_badge %}
+                        <rect x="{{ node.x|add:node.issue_rect_x }}" y="{{ node.y|add:node.issue_rect_y }}" width="48" height="17" rx="8" fill="#fee2e2" stroke="#fca5a5" stroke-width="1" />
+                        <text x="{{ node.x|add:node.issue_text_x }}" y="{{ node.y|add:node.issue_text_y }}" text-anchor="middle" class="diagram-issue-badge">{{ node.issue_badge }}</text>
+                      {% endif %}
+                    </g>
+                  {% endfor %}
+                </g>
+              </svg>
+            </div>
+
+            <script>
+            (() => {
+              const container = document.getElementById('diagram-container');
+              const svg = document.getElementById('diagram-svg');
+              const viewport = document.getElementById('diag-viewport');
+              if (!container || !svg || !viewport) return;
+
+              const svgW = parseInt(svg.getAttribute('width'), 10);
+              const svgH = parseInt(svg.getAttribute('height'), 10);
+              let scale = 1;
+              let panX = 0;
+              let panY = 0;
+              let dragging = false;
+              let lastX = 0;
+              let lastY = 0;
+
+              const MIN_SCALE = 0.15;
+              const MAX_SCALE = 3;
+
+              const applyTransform = () => {
+                viewport.setAttribute('transform', `translate(${panX},${panY}) scale(${scale})`);
+              };
+
+              const fitToContainer = () => {
+                const cW = container.clientWidth || 800;
+                const cH = Math.max(container.clientHeight, 320);
+                const fit = Math.min(cW / svgW, cH / svgH, 1);
+                scale = fit;
+                panX = (cW - svgW * fit) / 2;
+                panY = (cH - svgH * fit) / 2;
+                applyTransform();
+              };
+
+              const targetH = Math.min(Math.round(svgH * 0.9), 560);
+              container.style.height = Math.max(targetH, 280) + 'px';
+              svg.style.width = '100%';
+              svg.style.height = '100%';
+              fitToContainer();
+
+              container.addEventListener('wheel', (event) => {
+                event.preventDefault();
+                const factor = event.deltaY < 0 ? 1.12 : 0.88;
+                const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * factor));
+                const rect = container.getBoundingClientRect();
+                const mx = event.clientX - rect.left;
+                const my = event.clientY - rect.top;
+                panX = mx - (mx - panX) * (newScale / scale);
+                panY = my - (my - panY) * (newScale / scale);
+                scale = newScale;
+                applyTransform();
+              }, { passive: false });
+
+              container.addEventListener('mousedown', (event) => {
+                if (event.button !== 0) return;
+                dragging = true;
+                lastX = event.clientX;
+                lastY = event.clientY;
+                container.style.cursor = 'grabbing';
+                event.preventDefault();
+              });
+
+              window.addEventListener('mousemove', (event) => {
+                if (!dragging) return;
+                panX += event.clientX - lastX;
+                panY += event.clientY - lastY;
+                lastX = event.clientX;
+                lastY = event.clientY;
+                applyTransform();
+              });
+
+              window.addEventListener('mouseup', () => {
+                if (!dragging) return;
+                dragging = false;
+                container.style.cursor = 'grab';
+              });
+
+              document.getElementById('diag-zoom-in')?.addEventListener('click', () => {
+                scale = Math.min(MAX_SCALE, scale * 1.2);
+                applyTransform();
+              });
+              document.getElementById('diag-zoom-out')?.addEventListener('click', () => {
+                scale = Math.max(MIN_SCALE, scale / 1.2);
+                applyTransform();
+              });
+              document.getElementById('diag-reset')?.addEventListener('click', fitToContainer);
+            })();
+            </script>
+          {% else %}
+            <div class="auto-help">Diagramma non disponibile per questo flow.</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-title">Regole proposte per l'import</div></div>
+        <div class="card-body auto-grid">
+          <div class="notice">
+            Il converter genera un package compatibile con l'import SSR del modulo. Se vuoi rifinire una singola regola prima dell'import bulk, puoi aprirla direttamente nel designer visuale come bozza draft.
+          </div>
+          {% for rule in analysis.rules %}
+            <div class="auto-rule-card">
+              <div class="auto-rule-head">
+                <div>
+                  <strong>{{ rule.name }}</strong><br>
+                  <code>{{ rule.source_rule_code|default:"-" }}</code> -> <code>{{ rule.portal_code|default:"-" }}</code>
+                </div>
+                <div class="auto-actions">
+                  <span class="auto-status auto-status-{% if rule.is_importable %}ok{% else %}error{% endif %}">{% if rule.is_importable %}importabile{% else %}saltata{% endif %}</span>
+                  <span class="auto-tag">{{ rule.operation_type }} / {{ rule.trigger_scope }}</span>
+                  {% if rule.is_importable %}
+                    <form method="post" action="{{ converter_url }}">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="open_designer">
+                      <input type="hidden" name="rule_index" value="{{ rule.index }}">
+                      <button class="btn btn-light" type="submit">Apri nel designer</button>
+                    </form>
+                  {% endif %}
+                </div>
+              </div>
+              {% if rule.description %}<div class="auto-help">{{ rule.description }}</div>{% endif %}
+              <div class="auto-grid-2">
+                <div>
+                  <div class="auto-meta-label" style="margin-bottom:8px;">Condizioni</div>
+                  <ul class="auto-list">
+                    {% for condition in rule.conditions %}
+                      <li><code>{{ condition.field_name|default:"-" }}</code> {{ condition.operator|default:"-" }} <code>{{ condition.expected_value|default:"-" }}</code></li>
+                    {% empty %}
+                      <li>Nessuna condizione.</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+                <div>
+                  <div class="auto-meta-label" style="margin-bottom:8px;">Azioni</div>
+                  <ul class="auto-list">
+                    {% for action in rule.actions %}
+                      <li>{{ action.action_type|default:"-" }}{% if action.description %} · {{ action.description }}{% endif %}</li>
+                    {% empty %}
+                      <li>Nessuna action.</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              </div>
+              {% if rule.errors %}
+                <div class="notice notice-danger">
+                  <strong>Errori regola:</strong>
+                  <ul class="auto-list">{% for item in rule.errors %}<li>{{ item }}</li>{% endfor %}</ul>
+                </div>
+              {% endif %}
+              {% if rule.warnings %}
+                <div class="notice">
+                  <strong>Warning regola:</strong>
+                  <ul class="auto-list">{% for item in rule.warnings %}<li>{{ item }}</li>{% endfor %}</ul>
+                </div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><div class="card-title">Package JSON convertito</div></div>
+        <div class="card-body">
+          <details>
+            <summary>Apri package completo</summary>
+            <pre class="auto-pre" style="margin-top:12px;">{{ package_pretty }}</pre>
+          </details>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}

@@ -42,6 +42,9 @@ def legacy_admin_required(view_func):
         legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
         request.legacy_user = legacy_user
 
+        if bool(getattr(request.user, "is_superuser", False)):
+            return view_func(request, *args, **kwargs)
+
         if legacy_user and is_legacy_admin(legacy_user):
             return view_func(request, *args, **kwargs)
 

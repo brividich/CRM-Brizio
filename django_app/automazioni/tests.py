@@ -158,6 +158,25 @@ class SourceRegistryTests(SimpleTestCase):
 
 
 class ApplySqlTriggersCommandTests(SimpleTestCase):
+    def test_trigger_name_from_sql_supports_create_or_alter(self):
+        from .management.commands import apply_sql_triggers as command_module
+
+        sql = """
+CREATE OR ALTER TRIGGER dbo.trg_assenze_automation_after_insert
+ON dbo.assenze
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+END;
+GO
+"""
+
+        self.assertEqual(
+            command_module._trigger_name_from_sql(sql),
+            "trg_assenze_automation_after_insert",
+        )
+
     def test_discover_trigger_files_includes_migrations_and_root_sql_dirs(self):
         from .management.commands import apply_sql_triggers as command_module
 

@@ -164,7 +164,7 @@ sequenceDiagram
 L'app trasversale che fa funzionare tutto il resto. Contiene middleware, resolver ACL, legacy models, auth backends, audit trail e context processors.
 
 - **ACL middleware** con resolver canonico v2 + fallback legacy, logging throttled delle decisioni
-- **Navigation registry** (`NavigationItem`, `NavigationRoleAccess`, `UserNavigationOverride`) con deny-by-default
+- **Navigation registry** (`NavigationItem`, `NavigationRoleAccess`, `UserNavigationOverride`) con visibilita derivata dai permission code canonici e fallback legacy solo per voci ancora non mappate
 - **4 auth backend in cascata**: `AxesStandaloneBackend` → `SQLServerLegacyBackend` → `LDAPBackend` → `ModelBackend`
 - **Audit trail** fire-and-forget via `core.audit.log_action()` su tabella `AuditLog`
 - **Legacy models managed** su SQL Server: `Ruolo`, `UtenteLegacy`, `AnagraficaDipendente`, `Pulsante`, `Permesso`
@@ -190,10 +190,10 @@ Workspace personale dell'utente autenticato. Widget multi-modulo con layout salv
 
 Sostituisce il Django admin nativo con un pannello ritagliato sulle operazioni reali del portale.
 
-- **Gestione accessi** semplici con toggle unificato per modulo (sync legacy + canonico + navigazione)
+- **Gestione accessi** semplici canonico-first con toggle per modulo su `RolePermissionGrant`
 - **ACL canonico** con 5 tab (Permission, Binding, Role grant, User override, Nav override)
 - **ACL route coverage** report con stati e export CSV
-- **ACL diagnostica** combinata legacy + canonical con trace completo della decisione
+- **ACL diagnostica** combinata legacy + canonical con una sola decisione finale chiara e trace completo
 - **Mappa permessi/navigazione** visuale con drill-down cliccabile e toggle live dei grant
 - **Navigation Builder** con vista tabellare + **vista drag&drop orizzontale** per sezione
 - **LDAP settings** + configurazione SMTP + mailbox tecnica approvazioni
@@ -498,6 +498,13 @@ Il resolver decide route-per-route: se esiste un `RoutePermissionBinding` usa il
 layer canonico, altrimenti scivola sul **fallback legacy** (`pulsanti` +
 `permessi`). Questo consente di migrare modulo-per-modulo senza big-bang.
 
+La navigazione segue la stessa logica: se una `NavigationItem` espone
+`required_permission_code` oppure e' riconducibile a un binding canonico tramite
+`route_name` / `url_path`, la visibilita viene derivata dai grant canonici.
+`NavigationRoleAccess` resta solo come fallback compat per le voci ancora
+unmapped. Gli override `UserNavigationOverride` sono hide-only: possono
+nascondere una voce gia consentita, non mostrarne una negata.
+
 ```bash
 # Audit delle route ancora in fallback
 python django_app/manage.py acl_fallback_report --only-unbound --app assenze
@@ -519,7 +526,7 @@ python django_app/manage.py seed_acl_uat --reset
 
 ### Strumenti admin
 
-- `/admin-portale/accessi/` — toggle unificato per modulo (legacy + v2 + nav)
+- `/admin-portale/accessi/` — toggle modulo canonico-first (scrive `RolePermissionGrant`; legacy/nav restano diagnostici)
 - `/admin-portale/acl-canonico/` — gestione permission code, binding, grant, override, nav override
 - `/admin-portale/acl-route-coverage/` — stato di ogni route (`CANONICAL_BOUND` / `LEGACY_FALLBACK` / `UNBOUND` / `REDIRECT_ONLY`) + export CSV
 - `/admin-portale/acl-diagnostica/` — diagnostica combinata con trace di ogni decisione

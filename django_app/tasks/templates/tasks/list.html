@@ -381,9 +381,7 @@
 {% block tasks_shell_content %}
 <div class="ts-stack">
 
-{# ════════════════════════════════════════
-   MODALITA PROGETTO (?project=N)
-════════════════════════════════════════ #}
+{# MODALITA PROGETTO (?project=N) #}
 {% if active_project %}
 
   {# Header card progetto #}
@@ -539,9 +537,7 @@
   </section>
 
 
-{# ════════════════════════════════════════
-   MODALITA GLOBALE (backlog completo)
-════════════════════════════════════════ #}
+{# MODALITA GLOBALE (backlog completo) #}
 {% else %}
 
   {% if is_scope_admin and admin_console %}

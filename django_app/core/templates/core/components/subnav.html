@@ -1,6 +1,6 @@
 {% load ui_icons %}
-{% if subnav_items or user.is_authenticated and monitoring_ui.enabled %}
-<div class="subnav">
+{% if subnav_items or user.is_authenticated and monitoring_ui.enabled and ui_prefs.nav_mode == "side" %}
+<div class="subnav{% if not subnav_items and user.is_authenticated and monitoring_ui.enabled and ui_prefs.nav_mode == "side" %} subnav-monitoring-only{% endif %}">
   {% for item in subnav_items %}
     {% ifchanged item.group %}
       {% if item.group and not forloop.first %}<div class="sub-sep"></div>{% endif %}
@@ -11,7 +11,7 @@
       {% if item.coming %}<span class="dot"></span>{% endif %}
     </a>
   {% endfor %}
-  {% if user.is_authenticated and monitoring_ui.enabled %}
+  {% if user.is_authenticated and monitoring_ui.enabled and ui_prefs.nav_mode == "side" %}
     <span class="monitoring-subnav-spacer"></span>
     <button
       type="button"

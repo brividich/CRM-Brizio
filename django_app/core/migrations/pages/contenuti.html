@@ -1,0 +1,156 @@
+{% extends "core/base.html" %}
+
+{% block title %}Automazioni - Contenuti | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .auto-source-grid { display:grid; gap:18px; }
+  .auto-source-head { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:12px; }
+  .auto-kicker { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:#64748b; }
+  .auto-meta { color:#475569; font-size:13px; }
+  .auto-section-grid { display:grid; gap:14px; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); }
+  .auto-section { border:1px solid #e2e8f0; border-radius:12px; background:#fff; }
+  .auto-section-head { padding:12px 14px; border-bottom:1px solid #e2e8f0; background:#f8fafc; }
+  .auto-section-title { font-size:15px; font-weight:800; color:#0f172a; }
+  .auto-field-list { display:grid; gap:10px; padding:14px; }
+  .auto-field { border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; background:#fff; }
+  .auto-field-top { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+  .auto-field-label { font-weight:700; color:#0f172a; }
+  .auto-field-name { font-size:12px; color:#64748b; }
+  .auto-field-desc { margin-top:6px; font-size:13px; color:#475569; }
+  .auto-pill { display:inline-flex; align-items:center; padding:3px 8px; border-radius:999px; background:#dbeafe; color:#1d4ed8; font-size:12px; font-weight:700; }
+  .auto-placeholders { display:flex; flex-wrap:wrap; gap:8px; padding:14px; }
+  .auto-empty { padding:14px; color:#64748b; font-size:13px; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Contenuti e Colonne" page_subtitle="Vista consultiva dei campi disponibili per trigger, condizioni, template e mapping azioni." %}
+  {% include "automazioni/components/subnav.html" %}
+
+  <div class="auto-source-grid">
+    {% for source in sources %}
+      <div class="card">
+        <div class="card-body">
+          <div class="auto-source-head">
+            <div>
+              <div class="auto-kicker">{{ source.source_app }} / {{ source.table_name }}</div>
+              <div class="card-title" style="margin:2px 0 0 0;">{{ source.label }}</div>
+            </div>
+            <div class="auto-meta">PK: <code>{{ source.pk_field }}</code></div>
+            <div class="auto-meta">Operazioni: {{ source.supported_operations|join:", " }}</div>
+          </div>
+
+          <div class="auto-section-grid">
+            <section class="auto-section">
+              <div class="auto-section-head"><div class="auto-section-title">Campi usabili nei trigger</div></div>
+              {% if source.trigger_fields %}
+                <div class="auto-field-list">
+                  {% for field in source.trigger_fields %}
+                    <div class="auto-field">
+                      <div class="auto-field-top">
+                        <div>
+                          <div class="auto-field-label">{{ field.label }}</div>
+                          <div class="auto-field-name"><code>{{ field.name }}</code></div>
+                        </div>
+                        <span class="auto-pill">{{ field.data_type }}</span>
+                      </div>
+                      <div class="auto-field-desc">{{ field.description }}</div>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="auto-empty">Nessun campo disponibile.</div>
+              {% endif %}
+            </section>
+
+            <section class="auto-section">
+              <div class="auto-section-head"><div class="auto-section-title">Campi usabili nelle condizioni</div></div>
+              {% if source.condition_fields %}
+                <div class="auto-field-list">
+                  {% for field in source.condition_fields %}
+                    <div class="auto-field">
+                      <div class="auto-field-top">
+                        <div>
+                          <div class="auto-field-label">{{ field.label }}</div>
+                          <div class="auto-field-name"><code>{{ field.name }}</code></div>
+                        </div>
+                        <span class="auto-pill">{{ field.data_type }}</span>
+                      </div>
+                      <div class="auto-field-desc">{{ field.description }}</div>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="auto-empty">Nessun campo disponibile.</div>
+              {% endif %}
+            </section>
+
+            <section class="auto-section">
+              <div class="auto-section-head"><div class="auto-section-title">Campi usabili nei template</div></div>
+              {% if source.template_fields %}
+                <div class="auto-field-list">
+                  {% for field in source.template_fields %}
+                    <div class="auto-field">
+                      <div class="auto-field-top">
+                        <div>
+                          <div class="auto-field-label">{{ field.label }}</div>
+                          <div class="auto-field-name"><code>{{ field.name }}</code></div>
+                        </div>
+                        <span class="auto-pill">{{ field.data_type }}</span>
+                      </div>
+                      <div class="auto-field-desc">{{ field.description }}</div>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="auto-empty">Nessun campo disponibile.</div>
+              {% endif %}
+            </section>
+
+            <section class="auto-section">
+              <div class="auto-section-head"><div class="auto-section-title">Campi usabili nel mapping azioni</div></div>
+              {% if source.action_mapping_fields %}
+                <div class="auto-field-list">
+                  {% for field in source.action_mapping_fields %}
+                    <div class="auto-field">
+                      <div class="auto-field-top">
+                        <div>
+                          <div class="auto-field-label">{{ field.label }}</div>
+                          <div class="auto-field-name"><code>{{ field.name }}</code></div>
+                        </div>
+                        <span class="auto-pill">{{ field.data_type }}</span>
+                      </div>
+                      <div class="auto-field-desc">{{ field.description }}</div>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="auto-empty">Nessun campo disponibile.</div>
+              {% endif %}
+            </section>
+
+            <section class="auto-section">
+              <div class="auto-section-head"><div class="auto-section-title">Placeholder disponibili</div></div>
+              {% if source.placeholder_examples %}
+                <div class="auto-placeholders">
+                  {% for placeholder in source.placeholder_examples %}
+                    <span class="auto-pill"><code>{{ placeholder }}</code></span>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="auto-empty">Nessun placeholder disponibile.</div>
+              {% endif %}
+            </section>
+          </div>
+        </div>
+      </div>
+    {% empty %}
+      <div class="card"><div class="card-body">Nessuna sorgente registrata.</div></div>
+    {% endfor %}
+  </div>
+{% endblock %}
