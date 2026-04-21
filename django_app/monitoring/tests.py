@@ -15,6 +15,7 @@ import unittest.mock as mock
 
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory, TestCase
+from django.urls import reverse
 from django.utils import timezone
 
 from .automation import get_or_create_automation_job, monitored_automation
@@ -194,6 +195,34 @@ class UserProblemReportTests(TestCase):
         # La correlazione è opzionale nel service, non garantita, ma se c'è deve puntare a issue aperta
         if report.issue_id is not None:
             self.assertEqual(report.issue_id, existing_issue.pk)
+
+
+class UserProblemReportRoutingTests(TestCase):
+    def test_report_problem_accepts_legacy_path_without_trailing_slash(self):
+        user = _make_user("monitoring-noslash")
+        self.client.force_login(user)
+
+        response = self.client.post(
+            "/monitoring/report-problem",
+            {
+                "message": "Segnalazione senza slash",
+                "current_url": "/profilo/",
+                "route_name": "profilo",
+                "module_name": "core",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["message"], "Segnalazione inviata")
+        self.assertIn("issue_code", payload)
+        report = UserProblemReport.objects.get()
+        self.assertEqual(report.current_url, "/profilo/")
+        self.assertEqual(report.route_name, "profilo")
+
+    def test_report_problem_named_route_keeps_canonical_trailing_slash(self):
+        self.assertEqual(reverse("monitoring:report_problem"), "/monitoring/report-problem/")
 
 
 # ---------------------------------------------------------------------------

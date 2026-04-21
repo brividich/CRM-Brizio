@@ -9,6 +9,9 @@ from django.shortcuts import render
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 
 
+LEGACY_ADMIN_BYPASS_ATTR = "_legacy_admin_bypass"
+
+
 def _is_json_request(request) -> bool:
     accept = (request.headers.get("Accept") or "").lower()
     content_type = (request.headers.get("Content-Type") or "").lower()
@@ -20,6 +23,10 @@ def _is_json_request(request) -> bool:
         or requested_with == "xmlhttprequest"
         or "/api/" in path
     )
+
+
+def is_legacy_admin_bypass_view(view_func) -> bool:
+    return bool(getattr(view_func, LEGACY_ADMIN_BYPASS_ATTR, False))
 
 
 def legacy_admin_required(view_func):
@@ -59,4 +66,5 @@ def legacy_admin_required(view_func):
             )
         return render(request, "core/pages/forbidden.html", status=403)
 
+    setattr(_wrapped, LEGACY_ADMIN_BYPASS_ATTR, True)
     return _wrapped

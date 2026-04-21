@@ -659,6 +659,90 @@
       </article>
     {% endfor %}
   </section>
+
+  {% if asset_upcoming_task_rows %}
+    <section class="af-card" style="margin-top:18px;">
+      <div class="af-card-head">
+        <div>
+          <div class="af-card-kicker">AdL PREVISTE</div>
+          <h3 class="af-card-title">Attivita di lavoro pianificate</h3>
+          <p class="af-card-copy" style="margin:2px 0 0 0;">Attivita TODO o in corso che impegnano questo asset oggi o nei prossimi giorni. Usa questa lista prima di pianificare una nuova attivita sullo stesso asset.</p>
+        </div>
+        <div style="color:#64748b; font-size:12px;">{{ asset_upcoming_task_rows|length }} pianificate</div>
+      </div>
+      <div class="af-table-wrap">
+        <table class="af-table">
+          <thead>
+            <tr>
+              <th>Attivita</th>
+              <th>Tipo</th>
+              <th>Campo</th>
+              <th>Kickoff</th>
+              <th>Inizio</th>
+              <th>Fine</th>
+              <th>Stato</th>
+              <th>Assegnatario</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in asset_upcoming_task_rows %}
+              <tr>
+                <td><a href="{{ row.url }}" style="color:#1d4ed8; text-decoration:none;">{{ row.title }}</a></td>
+                <td>{{ row.category_name|default:"-" }}</td>
+                <td>{{ row.field_label }}</td>
+                <td>{{ row.project_name|default:"-" }}</td>
+                <td>{% if row.start_date %}{{ row.start_date|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+                <td>{% if row.due_date %}{{ row.due_date|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+                <td>{{ row.status }}</td>
+                <td>{{ row.assignee|default:"-" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+
+  {% if asset_linked_task_rows %}
+    <section class="af-card" style="margin-top:18px;">
+      <div class="af-card-head">
+        <div>
+          <div class="af-card-kicker">KICK-OFF</div>
+          <h3 class="af-card-title">Attivita kickoff collegate</h3>
+          <p class="af-card-copy" style="margin:2px 0 0 0;">Attivita del modulo KICK-OFF che referenziano questo asset tramite un campo del tipo attivita.</p>
+        </div>
+        <div style="color:#64748b; font-size:12px;">{{ asset_linked_task_rows|length }} attivita</div>
+      </div>
+      <div class="af-table-wrap">
+        <table class="af-table">
+          <thead>
+            <tr>
+              <th>Attivita</th>
+              <th>Tipo</th>
+              <th>Campo</th>
+              <th>Kickoff</th>
+              <th>Stato</th>
+              <th>Scadenza</th>
+              <th>Assegnatario</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in asset_linked_task_rows %}
+              <tr>
+                <td><a href="{{ row.url }}" style="color:#1d4ed8; text-decoration:none;">{{ row.title }}</a></td>
+                <td>{{ row.category_name|default:"-" }}</td>
+                <td>{{ row.field_label }}</td>
+                <td>{{ row.project_name|default:"-" }}</td>
+                <td>{{ row.status }}</td>
+                <td>{% if row.due_date %}{{ row.due_date|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+                <td>{{ row.assignee|default:"-" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
 </section>
 {% endblock %}
 

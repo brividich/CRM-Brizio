@@ -32,7 +32,7 @@
 {% endblock %}
 
 {% block content %}
-  {% include "admin_portale/components/page_header.html" with page_title="ACL Route Coverage" page_subtitle="Classificazione route: CANONICAL_BOUND, LEGACY_FALLBACK, UNBOUND, COMING_SOON_EXCLUDED, REDIRECT_ONLY." %}
+  {% include "admin_portale/components/page_header.html" with page_title="ACL Route Coverage" page_subtitle="Classificazione route: CANONICAL_BOUND, LEGACY_FALLBACK, UNBOUND, COMING_SOON_EXCLUDED, REDIRECT_ONLY. Le route protette da legacy_admin_required espongono Admin bypass e non vengono conteggiate come missing grant." %}
   {% include "admin_portale/components/flash_messages.html" %}
 
   <div class="card">
@@ -88,6 +88,7 @@
         <div class="cov-mini"><div class="n">{{ summary.unbound }}</div><div class="l">Unbound</div></div>
         <div class="cov-mini"><div class="n">{{ summary.coming_or_excluded }}</div><div class="l">Coming/Excluded</div></div>
         <div class="cov-mini"><div class="n">{{ summary.redirect_only }}</div><div class="l">Redirect Only</div></div>
+        <div class="cov-mini"><div class="n">{{ summary.admin_bypass }}</div><div class="l">Admin bypass</div></div>
       </div>
     </div>
   </div>
@@ -101,6 +102,7 @@
         <div class="cov-mini"><div class="n">{{ filtered_summary.legacy_fallback }}</div><div class="l">Legacy fallback</div></div>
         <div class="cov-mini"><div class="n">{{ filtered_summary.unbound }}</div><div class="l">Unbound</div></div>
         <div class="cov-mini"><div class="n">{{ filtered_summary.redirect_only }}</div><div class="l">Redirect only</div></div>
+        <div class="cov-mini"><div class="n">{{ filtered_summary.admin_bypass }}</div><div class="l">Admin bypass</div></div>
         <div class="cov-mini"><div class="n">{{ filtered_summary.warnings }}</div><div class="l">Con warning</div></div>
       </div>
     </div>
@@ -109,7 +111,7 @@
   <div class="card">
     <div class="card-head">
       <div class="card-title">Dettaglio Route</div>
-      <div class="cell-muted">Warning principali: BINDING_WITHOUT_ENABLED_ROLE_GRANT, AMBIGUOUS_CANONICAL_BINDING, DUPLICATE_ROUTE_PATH</div>
+      <div class="cell-muted">Warning principali: BINDING_WITHOUT_ENABLED_ROLE_GRANT, AMBIGUOUS_CANONICAL_BINDING, DUPLICATE_ROUTE_PATH. Admin bypass segnala le route volutamente governate da legacy_admin_required.</div>
     </div>
     <div class="card-body" style="padding:0;">
       {% if rows %}
@@ -125,6 +127,7 @@
                 <th>Binding #</th>
                 <th>Legacy</th>
                 <th>Redirect</th>
+                <th>Admin bypass</th>
                 <th>Warning</th>
               </tr>
             </thead>
@@ -145,6 +148,7 @@
                   <td>{{ row.canonical_binding_count }}</td>
                   <td>{% if row.has_legacy %}Si{% else %}No{% endif %}</td>
                   <td>{% if row.has_redirect %}Si{% else %}No{% endif %}</td>
+                  <td>{% if row.admin_bypass %}Si{% else %}No{% endif %}</td>
                   <td>
                     <div class="cov-badges">
                       {% for warning in row.warnings %}

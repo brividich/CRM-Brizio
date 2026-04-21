@@ -130,6 +130,17 @@
       border-color: #2670b8;
       background: #fff;
     }
+    .field select,
+    .ga-select {
+      width: 100%;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: var(--fs-base);
+      background: #fff;
+      color: #1e293b;
+      outline: none;
+    }
     .actions {
       display: flex;
       gap: 10px;
@@ -225,6 +236,7 @@
   <div class="ga-tabs">
     <a href="?tab=riepilogo" class="ga-tab {% if tab == 'riepilogo' %}active{% endif %}">Riepilogo</a>
     <a href="?tab=config" class="ga-tab {% if tab == 'config' or not tab %}active{% endif %}">Configurazione</a>
+    <a href="?tab=permessi" class="ga-tab {% if tab == 'permessi' %}active{% endif %}">Permessi</a>
     <a href="?tab=record" class="ga-tab {% if tab == 'record' %}active{% endif %}">Record</a>
     <a href="?tab=log" class="ga-tab {% if tab == 'log' %}active{% endif %}">Log attivit&agrave;</a>
   </div>
@@ -536,6 +548,224 @@
       <div class="actions">
         <button id="btn-default" class="btn btn-secondary" type="button">Ripristina default</button>
         <button id="btn-save" class="btn btn-main" type="button">Salva configurazione</button>
+      </div>
+    </div>
+  {% endif %}
+
+  {# ========== TAB PERMESSI (Ruoli operativi + Accessi) ========== #}
+  {% if tab == 'permessi' %}
+    <div style="display:flex;gap:6px;margin:0 0 14px;padding:6px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;">
+      <a href="?tab=permessi&amp;sub=ruoli"
+         style="flex:0 0 auto;padding:8px 16px;border-radius:8px;text-decoration:none;font-weight:700;font-size:13px;{% if permessi_sub == 'ruoli' %}background:#1a5499;color:#fff;{% else %}background:transparent;color:#334155;{% endif %}">
+        Ruoli operativi
+      </a>
+      <a href="?tab=permessi&amp;sub=accessi"
+         style="flex:0 0 auto;padding:8px 16px;border-radius:8px;text-decoration:none;font-weight:700;font-size:13px;{% if permessi_sub == 'accessi' %}background:#1a5499;color:#fff;{% else %}background:transparent;color:#334155;{% endif %}">
+        Accessi
+      </a>
+      <span style="margin-left:auto;align-self:center;font-size:12px;color:#64748b;padding-right:8px;">
+        Definisci prima i ruoli (catalogo + assegnazioni), poi i permessi associati.
+      </span>
+    </div>
+  {% endif %}
+
+  {# ========== SUB-TAB RUOLI OPERATIVI ========== #}
+  {% if tab == 'permessi' and permessi_sub == 'ruoli' %}
+    <div class="ga-card">
+      <div class="ga-card-head">
+        <span>Ruoli operativi anomalie</span>
+        <span style="display:flex;gap:12px;font-size:12px;color:#64748b;font-weight:700;">
+          <span>{{ ruoli_stats.roles }} ruoli</span>
+          <span>{{ ruoli_stats.assignments }} assegnazioni</span>
+          <span>{{ ruoli_stats.total_users }} utenti attivi</span>
+        </span>
+      </div>
+      <div class="ga-card-body">
+        <p style="color:#64748b;line-height:1.45;margin-bottom:14px;">
+          I ruoli di sistema <strong>Capocommessa</strong> e <strong>CAR/Incaricato</strong> vengono riconosciuti dai campi dell'OP.
+          I ruoli custom valgono per gli utenti assegnati qui e possono ricevere regole globali nel sub-tab Accessi.
+        </p>
+
+        <form method="post" style="display:grid;grid-template-columns:1fr 2fr auto;gap:8px;align-items:end;margin-bottom:14px;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create_role">
+          <div class="field" style="gap:5px;">
+            <label>Nuovo ruolo</label>
+            <input type="text" name="role_name" maxlength="80" placeholder="Es. Qualit&agrave;">
+          </div>
+          <div class="field" style="gap:5px;">
+            <label>Descrizione</label>
+            <input type="text" name="role_description" maxlength="255" placeholder="A cosa serve questo ruolo">
+          </div>
+          <button class="ga-btn ga-btn-primary" type="submit" style="height:38px;">+ Aggiungi</button>
+        </form>
+
+        <form method="get" class="ga-search">
+          <input type="hidden" name="tab" value="permessi">
+          <input type="hidden" name="sub" value="ruoli">
+          <input type="text" name="q_user" value="{{ ruoli_filter_q }}" placeholder="Cerca utente per nome, email o ruolo...">
+          <button type="submit" class="ga-btn ga-btn-primary">Filtra</button>
+          {% if ruoli_filter_q %}<a href="?tab=permessi&amp;sub=ruoli" class="ga-btn" style="border:1px solid #ccc;">Mostra tutti</a>{% endif %}
+        </form>
+
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="save_roles">
+          <input type="hidden" name="q_user" value="{{ ruoli_filter_q }}">
+          <input type="hidden" name="role_code" value="">
+          <div style="overflow-x:auto;">
+            <table class="ga-tbl" style="min-width:760px;">
+              <thead>
+                <tr>
+                  <th>Utente</th>
+                  <th>Email</th>
+                  {% for role in ruoli_role_definitions %}
+                    <th style="text-align:center;">
+                      {{ role.name }}
+                      {% if not role.is_system %}
+                        <button type="submit" name="action" value="delete_role" onclick="this.form.role_code.value='{{ role.code }}'; return confirm('Eliminare il ruolo {{ role.name }}? Verranno rimosse assegnazioni e regole accesso.');" style="display:block;margin:4px auto 0;border:0;background:transparent;color:#b91c1c;font-size:10px;font-weight:800;cursor:pointer;">elimina</button>
+                      {% endif %}
+                    </th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in ruoli_roster %}
+                  <tr>
+                    <td style="font-weight:800;color:#0f172a;">
+                      {{ row.label }}
+                      <input type="hidden" name="visible_user_id" value="{{ row.id }}">
+                    </td>
+                    <td>{{ row.email|default:"-" }}</td>
+                    {% for cell in row.role_cells %}
+                      <td style="text-align:center;"><input type="checkbox" name="role__{{ cell.code }}__{{ row.id }}" {% if cell.checked %}checked{% endif %}></td>
+                    {% endfor %}
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="{{ ruoli_colspan }}" style="color:#9aadcb;text-align:center;padding:24px;">Nessun utente attivo trovato per questo filtro.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="actions" style="padding:14px 0 0;">
+            <button class="btn btn-main" type="submit">Salva ruoli operativi</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  {% endif %}
+
+  {# ========== SUB-TAB ACCESSI ========== #}
+  {% if tab == 'permessi' and permessi_sub == 'accessi' %}
+    <div class="ga-card">
+      <div class="ga-card-head">
+        <span>Regole accesso anomalie</span>
+        <span style="display:flex;gap:12px;font-size:12px;color:#64748b;font-weight:700;">
+          <span>{{ access_stats.role_rules }} regole ruolo</span>
+          <span>{{ access_stats.legacy_role_rules }} regole ruolo aziendale</span>
+          <span>{{ access_stats.user_overrides }} override utente</span>
+          <span>{{ access_stats.edit_all_users }} utenti full</span>
+        </span>
+      </div>
+      <div class="ga-card-body">
+        <div style="margin-bottom:14px;padding:12px 14px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;color:#475569;line-height:1.5;">
+          Il permesso pagina resta la prima barriera. Queste regole decidono cosa l'utente puo' modificare dentro Gestione Anomalie:
+          Capocommessa/CAR valgono sull'OP in cui l'utente compare; i ruoli custom, i ruoli aziendali e gli override utente valgono globalmente.
+        </div>
+
+        <form method="get" class="ga-search">
+          <input type="hidden" name="tab" value="permessi">
+          <input type="hidden" name="sub" value="accessi">
+          <input type="text" name="q_access_user" value="{{ access_filter_q }}" placeholder="Cerca override utente per nome, email o ruolo...">
+          <button type="submit" class="ga-btn ga-btn-primary">Filtra</button>
+          {% if access_filter_q %}<a href="?tab=permessi&amp;sub=accessi" class="ga-btn" style="border:1px solid #ccc;">Mostra tutti</a>{% endif %}
+        </form>
+
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="save_access">
+          <input type="hidden" name="q_access_user" value="{{ access_filter_q }}">
+
+          <h3 style="font-size:15px;color:#0f172a;margin:0 0 10px;">Regole per ruolo operativo</h3>
+          <div style="overflow-x:auto;margin-bottom:20px;">
+            <table class="ga-tbl">
+              <thead><tr><th>Ruolo</th><th>Ambito</th><th>Regola</th></tr></thead>
+              <tbody>
+                {% for row in access_role_rows %}
+                  <tr>
+                    <td style="font-weight:800;color:#0f172a;">{{ row.label }}</td>
+                    <td>{{ row.help }}</td>
+                    <td>
+                      <select name="access_role__{{ row.code }}" class="ga-select">
+                        {% for value, label in access_role_choices %}
+                          <option value="{{ value }}" {% if row.access_level == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                      </select>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <h3 style="font-size:15px;color:#0f172a;margin:0 0 10px;">Regole per ruolo aziendale</h3>
+          <div style="overflow-x:auto;margin-bottom:20px;">
+            <table class="ga-tbl">
+              <thead><tr><th>Ruolo aziendale</th><th>Origine</th><th>Regola</th></tr></thead>
+              <tbody>
+                {% for row in access_legacy_role_rows %}
+                  <tr>
+                    <td style="font-weight:800;color:#0f172a;">
+                      {{ row.label }}
+                      <input type="hidden" name="visible_legacy_role_id" value="{{ row.id }}">
+                    </td>
+                    <td>ruoli.id = {{ row.id }}</td>
+                    <td>
+                      <select name="access_legacy_role__{{ row.id }}" class="ga-select">
+                        {% for value, label in access_legacy_role_choices %}
+                          <option value="{{ value }}" {% if row.access_level == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                      </select>
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="3" style="color:#9aadcb;text-align:center;padding:24px;">Nessun ruolo aziendale trovato.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <h3 style="font-size:15px;color:#0f172a;margin:0 0 10px;">Override per singolo utente</h3>
+          <div style="overflow-x:auto;">
+            <table class="ga-tbl">
+              <thead><tr><th>Utente</th><th>Email</th><th>Override modulo</th></tr></thead>
+              <tbody>
+                {% for row in access_user_rows %}
+                  <tr>
+                    <td style="font-weight:800;color:#0f172a;">
+                      {{ row.label }}
+                      <input type="hidden" name="visible_access_user_id" value="{{ row.id }}">
+                    </td>
+                    <td>{{ row.email|default:"-" }}</td>
+                    <td>
+                      <select name="access_user__{{ row.id }}" class="ga-select">
+                        {% for value, label in access_user_choices %}
+                          <option value="{{ value }}" {% if row.access_level == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                      </select>
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="3" style="color:#9aadcb;text-align:center;padding:24px;">Nessun utente attivo trovato per questo filtro.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="actions" style="padding:14px 0 0;">
+            <button class="btn btn-main" type="submit">Salva regole accesso</button>
+          </div>
+        </form>
       </div>
     </div>
   {% endif %}

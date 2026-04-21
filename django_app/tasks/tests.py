@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 from datetime import datetime, timedelta
 import io
 from pathlib import Path
@@ -22,15 +23,22 @@ from .models import (
     Project,
     ProjectComment,
     SubTask,
+    TaskAccessLevel,
     Task,
     TaskAttachment,
     TaskCalendarEvent,
+    TaskCategory,
     TaskComment,
     TaskEvent,
     TaskEventType,
     TaskImpostazioni,
     TaskPriority,
+    TaskRoleAssignment,
+    TaskRoleAccessRule,
+    TaskRoleDefinition,
+    TaskRoleType,
     TaskStatus,
+    TaskUserAccessRule,
     VRFDocStatus,
 )
 from .views import _task_date_absence_conflicts
@@ -38,6 +46,32 @@ from .views import _task_date_absence_conflicts
 User = get_user_model()
 
 TASK_ACTIONS = ("tasks_view", "tasks_create", "tasks_edit", "tasks_comment", "tasks_admin")
+
+
+class TaskViewsImportHygieneTests(TestCase):
+    def test_views_do_not_shadow_module_imports_with_local_imports(self):
+        path = Path(__file__).with_name("views.py")
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        module_imports: set[str] = set()
+        for node in tree.body:
+            if isinstance(node, ast.Import):
+                module_imports.update(alias.asname or alias.name.split(".")[0] for alias in node.names)
+            elif isinstance(node, ast.ImportFrom):
+                module_imports.update(alias.asname or alias.name for alias in node.names if alias.name != "*")
+
+        offenders: list[str] = []
+        for fn in (node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))):
+            for node in ast.walk(fn):
+                imported_names: list[str] = []
+                if isinstance(node, ast.Import):
+                    imported_names = [alias.asname or alias.name.split(".")[0] for alias in node.names]
+                elif isinstance(node, ast.ImportFrom):
+                    imported_names = [alias.asname or alias.name for alias in node.names if alias.name != "*"]
+                for name in imported_names:
+                    if name in module_imports:
+                        offenders.append(f"{fn.name}:{node.lineno}:{name}")
+
+        self.assertEqual(offenders, [])
 
 
 def _ensure_legacy_acl_tables() -> None:
@@ -1192,7 +1226,15 @@ class TaskProjectGanttAndNotificationsTests(TasksBaseTestCase):
             username="g_outsider", legacy_user_id=6004, role_id=2, role_name="utente"
         )
 
-        self.project = Project.objects.create(name="Gantt Project", created_by=self.owner)
+        self.project = Project.objects.create(
+            name="Gantt Project",
+            created_by=self.owner,
+            programmer=self.assignee,
+        )
+        TaskRoleAccessRule.objects.create(
+            role_type=TaskRoleType.PROGRAMMER,
+            access_level=TaskAccessLevel.EDIT_ASSIGNED,
+        )
         self.task = Task.objects.create(
             title="Task Gantt",
             created_by=self.owner,
@@ -1567,7 +1609,6 @@ class TaskRoleAssignmentTests(TasksBaseTestCase):
 
     def test_no_assignment_means_all_users_visible_in_form(self):
         from .forms import _users_for_role
-        from .models import TaskRoleType
         qs = _users_for_role(TaskRoleType.PROJECT_MANAGER)
         # fallback: nessuna assegnazione -> tutti gli utenti
         self.assertIn(self.alice, list(qs))
@@ -1575,7 +1616,6 @@ class TaskRoleAssignmentTests(TasksBaseTestCase):
 
     def test_with_assignment_filter_applies(self):
         from .forms import _users_for_role
-        from .models import TaskRoleAssignment, TaskRoleType
         TaskRoleAssignment.objects.create(user=self.alice, role_type=TaskRoleType.PROJECT_MANAGER)
         qs = list(_users_for_role(TaskRoleType.PROJECT_MANAGER))
         self.assertIn(self.alice, qs)
@@ -1586,7 +1626,6 @@ class TaskRoleAssignmentTests(TasksBaseTestCase):
         self.assertIn(self.bob, qs_cc)
 
     def test_post_ruoli_tab_adds_and_removes_assignments(self):
-        from .models import TaskRoleAssignment, TaskRoleType
         # alice parte con PM attivo
         TaskRoleAssignment.objects.create(user=self.alice, role_type=TaskRoleType.PROJECT_MANAGER)
         self.client.force_login(self.admin)
@@ -1608,6 +1647,49 @@ class TaskRoleAssignmentTests(TasksBaseTestCase):
         self.assertTrue(
             TaskRoleAssignment.objects.filter(user=self.bob, role_type=TaskRoleType.PROGRAMMER).exists()
         )
+
+    def test_ruoli_tab_search_matches_legacy_user_name(self):
+        _legacy_upsert_by_id(
+            "utenti",
+            9201,
+            {
+                "nome": "Danesi Mario",
+                "email": "m.danesi@example.local",
+                "password": "x",
+                "ruolo": "utente",
+                "attivo": True,
+                "deve_cambiare_password": False,
+                "ruolo_id": 2,
+            },
+        )
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("tasks:impostazioni"), {"tab": "ruoli", "q_user": "Danesi"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Alice")
+        self.assertNotContains(response, "Bob")
+
+    def test_ruoli_tab_search_syncs_missing_active_legacy_user(self):
+        _legacy_upsert_by_id(
+            "utenti",
+            9299,
+            {
+                "nome": "Danesi Simone",
+                "email": "s.danesi@example.local",
+                "password": "x",
+                "ruolo": "utente",
+                "attivo": True,
+                "deve_cambiare_password": False,
+                "ruolo_id": 2,
+            },
+        )
+        self.assertFalse(Profile.objects.filter(legacy_user_id=9299).exists())
+
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("tasks:impostazioni"), {"tab": "ruoli", "q_user": "Danesi"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Danesi")
+        self.assertTrue(Profile.objects.filter(legacy_user_id=9299).exists())
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
@@ -1679,6 +1761,181 @@ class TaskReminderAdminTabTests(TasksBaseTestCase):
         rem.refresh_from_db()
         self.assertTrue(rem.fired)
         self.assertEqual(Notifica.objects.filter(legacy_user_id=9501).count(), 1)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class TaskScopedAccessRulesTests(TasksBaseTestCase):
+    def setUp(self):
+        super().setUp()
+        _ensure_role(1, "admin")
+        _ensure_role(2, "utente")
+        _grant_role_actions(2, ["tasks_view", "tasks_create", "tasks_edit", "tasks_comment"])
+        self._refresh_acl_cache()
+
+        self.admin = _create_user_with_legacy(username="taskaccessadmin", legacy_user_id=9601, role_id=1, role_name="admin")
+        self.owner = _create_user_with_legacy(username="ko_owner", legacy_user_id=9602, role_id=2, role_name="utente")
+        self.capo = _create_user_with_legacy(username="ko_capo", legacy_user_id=9603, role_id=2, role_name="utente")
+        self.programmer = _create_user_with_legacy(username="ko_prog", legacy_user_id=9604, role_id=2, role_name="utente")
+        self.pm_user = _create_user_with_legacy(username="ko_pm", legacy_user_id=9605, role_id=2, role_name="utente")
+        self.override_user = _create_user_with_legacy(username="ko_override", legacy_user_id=9606, role_id=2, role_name="utente")
+        self.outsider = _create_user_with_legacy(username="ko_outsider", legacy_user_id=9607, role_id=2, role_name="utente")
+
+        self.project = Project.objects.create(
+            name="Kickoff accessi",
+            created_by=self.owner,
+            project_manager=self.pm_user,
+            capo_commessa=self.capo,
+            programmer=self.programmer,
+        )
+        self.task_prog = Task.objects.create(
+            title="Task programmatore",
+            created_by=self.owner,
+            assigned_to=self.programmer,
+            project=self.project,
+            next_step_due=timezone.localdate() + timedelta(days=1),
+            due_date=timezone.localdate() + timedelta(days=3),
+        )
+        self.task_other = Task.objects.create(
+            title="Task altri",
+            created_by=self.owner,
+            assigned_to=self.owner,
+            project=self.project,
+            next_step_due=timezone.localdate() + timedelta(days=2),
+            due_date=timezone.localdate() + timedelta(days=5),
+        )
+
+    def test_capo_commessa_edit_all_can_manage_entire_kickoff(self):
+        TaskRoleAccessRule.objects.create(
+            role_type=TaskRoleType.CAPO_COMMESSA,
+            access_level=TaskAccessLevel.EDIT_ALL,
+        )
+        self.client.force_login(self.capo)
+
+        response_projects = self.client.get(reverse("tasks:project_list"))
+        self.assertEqual(response_projects.status_code, 200)
+        self.assertContains(response_projects, self.project.name)
+
+        response_edit = self.client.get(reverse("tasks:edit", args=[self.task_other.id]))
+        self.assertEqual(response_edit.status_code, 200)
+
+    def test_programmer_edit_assigned_can_only_edit_own_tasks(self):
+        TaskRoleAccessRule.objects.create(
+            role_type=TaskRoleType.PROGRAMMER,
+            access_level=TaskAccessLevel.EDIT_ASSIGNED,
+        )
+        self.client.force_login(self.programmer)
+
+        response_detail = self.client.get(reverse("tasks:detail", args=[self.task_other.id]))
+        self.assertEqual(response_detail.status_code, 200)
+
+        response_allowed = self.client.post(
+            reverse("tasks:project_gantt_update_task", args=[self.project.id, self.task_prog.id]),
+            {
+                f"task_{self.task_prog.id}-next_step_due": "2026-03-10",
+                f"task_{self.task_prog.id}-due_date": "2026-03-12",
+                f"task_{self.task_prog.id}-status": TaskStatus.IN_PROGRESS,
+            },
+        )
+        self.assertEqual(response_allowed.status_code, 302)
+
+        response_denied = self.client.post(
+            reverse("tasks:project_gantt_update_task", args=[self.project.id, self.task_other.id]),
+            {
+                f"task_{self.task_other.id}-next_step_due": "2026-03-10",
+                f"task_{self.task_other.id}-due_date": "2026-03-12",
+                f"task_{self.task_other.id}-status": TaskStatus.IN_PROGRESS,
+            },
+        )
+        self.assertEqual(response_denied.status_code, 403)
+
+    def test_project_manager_read_all_can_view_but_not_edit(self):
+        TaskRoleAccessRule.objects.create(
+            role_type=TaskRoleType.PROJECT_MANAGER,
+            access_level=TaskAccessLevel.READ_ALL,
+        )
+        self.client.force_login(self.pm_user)
+
+        response_detail = self.client.get(reverse("tasks:detail", args=[self.task_other.id]))
+        self.assertEqual(response_detail.status_code, 200)
+
+        response_edit = self.client.get(reverse("tasks:edit", args=[self.task_other.id]))
+        self.assertEqual(response_edit.status_code, 403)
+
+    def test_user_override_edit_all_grants_global_scope_and_manage(self):
+        TaskUserAccessRule.objects.create(
+            user=self.override_user,
+            access_level=TaskAccessLevel.EDIT_ALL,
+        )
+        self.client.force_login(self.override_user)
+
+        response_detail = self.client.get(reverse("tasks:detail", args=[self.task_other.id]))
+        self.assertEqual(response_detail.status_code, 200)
+
+        response_edit = self.client.get(reverse("tasks:edit", args=[self.task_other.id]))
+        self.assertEqual(response_edit.status_code, 200)
+
+    def test_settings_access_tab_persists_role_and_user_rules(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("tasks:impostazioni"),
+            {
+                "tab": "accessi",
+                f"access_role__{TaskRoleType.CAPO_COMMESSA}": TaskAccessLevel.EDIT_ALL,
+                f"access_role__{TaskRoleType.PROGRAMMER}": TaskAccessLevel.EDIT_ASSIGNED,
+                f"access_role__{TaskRoleType.PROJECT_MANAGER}": TaskAccessLevel.READ_ALL,
+                "visible_access_user_id": [str(self.override_user.id)],
+                f"access_user__{self.override_user.id}": TaskAccessLevel.EDIT_ALL,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            TaskRoleAccessRule.objects.filter(
+                role_type=TaskRoleType.CAPO_COMMESSA,
+                access_level=TaskAccessLevel.EDIT_ALL,
+            ).exists()
+        )
+        self.assertTrue(
+            TaskRoleAccessRule.objects.filter(
+                role_type=TaskRoleType.PROGRAMMER,
+                access_level=TaskAccessLevel.EDIT_ASSIGNED,
+            ).exists()
+        )
+        self.assertTrue(
+            TaskUserAccessRule.objects.filter(
+                user=self.override_user,
+                access_level=TaskAccessLevel.EDIT_ALL,
+            ).exists()
+        )
+
+    def test_custom_role_category_rule_grants_scope(self):
+        role = TaskRoleDefinition.objects.create(
+            code="COLLAUDATORE",
+            name="Collaudatore",
+            order_index=40,
+        )
+        category = TaskCategory.objects.create(
+            name="Collaudo finale",
+            slug="collaudo-finale",
+            role_type=role.code,
+        )
+        task = Task.objects.create(
+            title="Task collaudo",
+            created_by=self.owner,
+            assigned_to=self.owner,
+            project=self.project,
+            category=category,
+            next_step_due=timezone.localdate() + timedelta(days=1),
+            due_date=timezone.localdate() + timedelta(days=3),
+        )
+        TaskRoleAssignment.objects.create(user=self.outsider, role_type=role.code)
+        TaskRoleAccessRule.objects.create(role_type=role.code, access_level=TaskAccessLevel.EDIT_ALL)
+        self.client.force_login(self.outsider)
+
+        response_detail = self.client.get(reverse("tasks:detail", args=[task.id]))
+        self.assertEqual(response_detail.status_code, 200)
+
+        response_edit = self.client.get(reverse("tasks:edit", args=[task.id]))
+        self.assertEqual(response_edit.status_code, 200)
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

@@ -225,6 +225,9 @@
           {% if project.vrf_uploaded_at %}— caricato il {{ project.vrf_uploaded_at|date:"d/m/Y H:i" }}{% endif %}
         {% endif %}
       </div>
+      {% if project.vrf_file %}
+        <a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_vrf_download' project.id %}">⬇ Scarica documento</a>
+      {% endif %}
     </div>
   {% endif %}
 

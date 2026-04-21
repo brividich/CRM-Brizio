@@ -308,7 +308,7 @@
             <div class="pf-card-footer">
               <a class="btn btn-secondary btn-sm" href="{% url 'tasks:list' %}?project={{ project.id }}">Attivita</a>
               <a class="btn btn-sm" href="{% url 'tasks:project_gantt' project.id %}">Gantt</a>
-              {% if tasks_shell_can_create %}
+              {% if tasks_shell_can_create and project.can_manage %}
                 <form method="post" action="{% url 'tasks:copy_project_with_vrf' project.id %}" style="margin:0;">
                   {% csrf_token %}
                   <button type="submit" class="btn btn-secondary btn-sm">Copia VRF</button>

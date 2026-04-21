@@ -171,6 +171,14 @@ class Task(models.Model):
         default=True,
         help_text="Se attivo, crea un promemoria nel centro notifiche 'giorni_preavviso' prima della scadenza.",
     )
+    category = models.ForeignKey(
+        "TaskCategory",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="tasks",
+    )
+    extra_data = models.JSONField(default=dict, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -357,6 +365,16 @@ class TaskImpostazioni(models.Model):
         verbose_name="Giorni blocco VRF",
         help_text="Blocca la creazione/modifica di VRF su quel progetto dopo N giorni senza documento VRF.",
     )
+    asset_conflict_check_enabled = models.BooleanField(
+        default=True,
+        verbose_name="Verifica disponibilita asset",
+        help_text="Se attivo, all'assegnazione di un asset mostra OdL, verifiche, ticket e attivita in conflitto nella finestra temporale.",
+    )
+    asset_conflict_block = models.BooleanField(
+        default=False,
+        verbose_name="Blocca il salvataggio su conflitto asset",
+        help_text="Se attivo, impedisce di salvare l'attivita quando l'asset selezionato ha conflitti rilevanti (OdL aperto, asset in riparazione, sovrapposizione con altra attivita).",
+    )
 
     class Meta:
         verbose_name = "Impostazioni KICK-OFF"
@@ -426,6 +444,34 @@ class TaskRoleType(models.TextChoices):
     PROGRAMMER      = "PRG",  "Programmatore"
 
 
+class TaskRoleDefinition(models.Model):
+    """Catalogo ruoli operativi configurabile da Impostazioni KICK-OFF."""
+
+    code = models.SlugField(max_length=32, unique=True)
+    name = models.CharField(max_length=80, unique=True)
+    description = models.CharField(max_length=255, blank=True, default="")
+    is_system = models.BooleanField(default=False, db_index=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    order_index = models.PositiveIntegerField(default=0, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["order_index", "name", "id"]
+        verbose_name = "Ruolo operativo task"
+        verbose_name_plural = "Ruoli operativi task"
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class TaskAccessLevel(models.TextChoices):
+    NONE = "NONE", "Nessun accesso extra"
+    READ_ALL = "READ_ALL", "Vede tutto"
+    EDIT_ASSIGNED = "EDIT_ASSIGNED", "Modifica solo i task assegnati"
+    EDIT_ALL = "EDIT_ALL", "Modifica tutto"
+
+
 class TaskRoleAssignment(models.Model):
     """Mappatura utenti abilitati a comparire come scelta nei dropdown kickoff/task.
 
@@ -440,7 +486,7 @@ class TaskRoleAssignment(models.Model):
         on_delete=models.CASCADE,
         related_name="task_role_assignments",
     )
-    role_type = models.CharField(max_length=8, choices=TaskRoleType.choices, db_index=True)
+    role_type = models.CharField(max_length=32, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -449,6 +495,60 @@ class TaskRoleAssignment(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user_id}:{self.role_type}"
+
+
+class TaskRoleAccessRule(models.Model):
+    """Regola accesso per ruolo operativo kickoff.
+
+    La regola vale all'interno dei kickoff in cui l'utente ricopre il ruolo
+    configurato (`project_manager`, `capo_commessa`, `programmer`).
+    """
+
+    role_type = models.CharField(
+        max_length=32,
+        unique=True,
+        db_index=True,
+    )
+    access_level = models.CharField(
+        max_length=20,
+        choices=TaskAccessLevel.choices,
+        default=TaskAccessLevel.NONE,
+        db_index=True,
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["role_type"]
+        verbose_name = "Regola accesso ruolo KICK-OFF"
+        verbose_name_plural = "Regole accesso ruoli KICK-OFF"
+
+    def __str__(self) -> str:
+        return f"TaskRoleAccessRule<{self.role_type}={self.access_level}>"
+
+
+class TaskUserAccessRule(models.Model):
+    """Override accesso globale modulo KICK-OFF per singolo utente."""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="task_access_rule",
+    )
+    access_level = models.CharField(
+        max_length=20,
+        choices=TaskAccessLevel.choices,
+        default=TaskAccessLevel.READ_ALL,
+        db_index=True,
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["user__last_name", "user__first_name", "user_id"]
+        verbose_name = "Override accesso utente KICK-OFF"
+        verbose_name_plural = "Override accesso utenti KICK-OFF"
+
+    def __str__(self) -> str:
+        return f"TaskUserAccessRule<user={self.user_id}={self.access_level}>"
 
 
 class TaskCalendarEvent(models.Model):
@@ -502,3 +602,173 @@ class TaskReminder(models.Model):
 
     def __str__(self) -> str:
         return f"TaskReminder<task={self.task_id} fire_at={self.fire_at} fired={self.fired}>"
+
+
+class TaskCategory(models.Model):
+    """Tipologia di attivita' configurabile dall'admin.
+
+    Ogni categoria definisce un set di campi extra (TaskCategoryField) che
+    l'utente compila quando crea un'attivita' di quella tipologia. I valori
+    sono persistiti su Task.extra_data (JSON) e, per i campi FK utente/asset,
+    anche in TaskExtraRef per query efficienti.
+    """
+    name = models.CharField(max_length=120, unique=True)
+    slug = models.SlugField(max_length=120, unique=True)
+    icon = models.CharField(max_length=80, blank=True, default="")
+    description = models.CharField(max_length=255, blank=True, default="")
+    role_type = models.CharField(
+        max_length=32,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Ruolo operativo autorizzato per questo tipo attivita.",
+    )
+    order_index = models.PositiveIntegerField(default=0, db_index=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["order_index", "name", "id"]
+        verbose_name = "Tipo attivita"
+        verbose_name_plural = "Tipi attivita"
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class TaskCategoryFieldType(models.TextChoices):
+    TEXT        = "text",        "Testo"
+    NUMBER      = "number",      "Numero"
+    DATE        = "date",        "Data"
+    CHECKBOX    = "checkbox",    "Checkbox"
+    SELECT      = "select",      "Menu a tendina"
+    MULTISELECT = "multiselect", "Scelta multipla"
+    USER        = "user",        "Utente"
+    ASSET       = "asset",       "Asset"
+
+
+class TaskCategoryField(models.Model):
+    """Singolo campo extra associato a una TaskCategory.
+
+    - choices_json: solo per select/multiselect, lista di stringhe oppure
+      lista di oggetti {value, label}.
+    - depends_on_code + depends_on_value: dipendenza dinamica. Il campo e'
+      visibile/richiesto solo se il campo 'depends_on_code' (stessa categoria)
+      ha il valore indicato. Supporta anche valori multipli separati da '|'.
+    """
+    category = models.ForeignKey(
+        TaskCategory,
+        on_delete=models.CASCADE,
+        related_name="fields",
+    )
+    code = models.SlugField(max_length=60)
+    label = models.CharField(max_length=180)
+    field_type = models.CharField(
+        max_length=20,
+        choices=TaskCategoryFieldType.choices,
+        default=TaskCategoryFieldType.TEXT,
+    )
+    required = models.BooleanField(default=False)
+    order_index = models.PositiveIntegerField(default=0, db_index=True)
+    help_text = models.CharField(max_length=255, blank=True, default="")
+    placeholder = models.CharField(max_length=120, blank=True, default="")
+    choices_json = models.JSONField(default=list, blank=True)
+    depends_on_code = models.CharField(max_length=60, blank=True, default="")
+    depends_on_value = models.CharField(max_length=255, blank=True, default="")
+    asset_type_filter = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Solo per field_type=asset. CSV di codici asset_type (es. 'CNC,WORK_MACHINE'). Vuoto = tutti i tipi.",
+    )
+    asset_category_filter = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Solo per field_type=asset. CSV di ID AssetCategory. Vuoto = tutte le categorie.",
+    )
+
+    class Meta:
+        ordering = ["order_index", "id"]
+        unique_together = [("category", "code")]
+        verbose_name = "Campo tipo attivita"
+        verbose_name_plural = "Campi tipo attivita"
+
+    def __str__(self) -> str:
+        return f"{self.category_id}.{self.code}"
+
+    def asset_type_filter_list(self) -> list[str]:
+        raw = (self.asset_type_filter or "").strip()
+        if not raw:
+            return []
+        return [p.strip() for p in raw.split(",") if p.strip()]
+
+    def asset_category_filter_ids(self) -> list[int]:
+        raw = (self.asset_category_filter or "").strip()
+        if not raw:
+            return []
+        out: list[int] = []
+        for p in raw.split(","):
+            p = p.strip()
+            if not p:
+                continue
+            try:
+                out.append(int(p))
+            except (TypeError, ValueError):
+                continue
+        return out
+
+    def normalized_choices(self) -> list[dict[str, str]]:
+        """Normalizza choices_json in lista di {value, label}."""
+        out: list[dict[str, str]] = []
+        for item in self.choices_json or []:
+            if isinstance(item, dict):
+                value = str(item.get("value", "")).strip()
+                label = str(item.get("label", value)).strip() or value
+                if value:
+                    out.append({"value": value, "label": label})
+            else:
+                value = str(item or "").strip()
+                if value:
+                    out.append({"value": value, "label": value})
+        return out
+
+
+class TaskExtraRef(models.Model):
+    """Indice normalizzato dei FK (utente/asset) presenti in Task.extra_data.
+
+    Ogni riga = 1 valore FK compilato nei campi extra di una task. Viene
+    rigenerato a ogni save dalla view del form. Consente query tipo
+    'quali task fanno riferimento a questo asset?' senza scandire il JSON.
+    """
+    task = models.ForeignKey(
+        Task,
+        on_delete=models.CASCADE,
+        related_name="extra_refs",
+    )
+    field_code = models.CharField(max_length=60, db_index=True)
+    asset = models.ForeignKey(
+        "assets.Asset",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="task_extra_refs",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="task_extra_refs",
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["asset", "field_code"]),
+            models.Index(fields=["user", "field_code"]),
+        ]
+
+    def __str__(self) -> str:
+        target = self.asset_id or self.user_id
+        return f"TaskExtraRef<task={self.task_id} {self.field_code}={target}>"

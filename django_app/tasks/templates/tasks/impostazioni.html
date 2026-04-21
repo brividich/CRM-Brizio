@@ -187,7 +187,9 @@
           <a href="?tab=config" class="admin-tab {% if tab == 'config' %}active{% endif %}">Configurazione</a>
           <a href="?tab=riepilogo" class="admin-tab {% if tab == 'riepilogo' %}active{% endif %}">Riepilogo</a>
           <a href="?tab=ruoli" class="admin-tab {% if tab == 'ruoli' %}active{% endif %}">Ruoli operativi</a>
+          <a href="?tab=accessi" class="admin-tab {% if tab == 'accessi' %}active{% endif %}">Accessi</a>
           <a href="?tab=promemoria" class="admin-tab {% if tab == 'promemoria' %}active{% endif %}">Promemoria</a>
+          <a href="?tab=tipi" class="admin-tab {% if tab == 'tipi' %}active{% endif %}">Tipi attivita</a>
           <a href="?tab=record" class="admin-tab {% if tab == 'record' %}active{% endif %}">Record</a>
           <a href="?tab=log" class="admin-tab {% if tab == 'log' %}active{% endif %}">Log attivita</a>
         </div>
@@ -292,6 +294,33 @@
             <div class="ts-note-box" style="margin-top:12px;">
               <strong>Soglie attive:</strong> avviso dopo {{ cfg.vrf_reminder_days }} giorni &bull; blocco dopo {{ cfg.vrf_blocking_days }} giorni.
               Il timer parte dalla data di creazione del kickoff.
+            </div>
+          </div>
+          <div class="ts-panel-footer">
+            <button type="submit" class="btn btn-primary">Salva impostazioni</button>
+          </div>
+        </div>
+
+        <div class="ts-panel" style="margin-top:14px;">
+          <div class="ts-panel-head">
+            <div class="ts-panel-title-wrap">
+              <h2 class="ts-panel-title">Verifica disponibilita asset</h2>
+              <p class="ts-panel-subtitle">All'assegnazione di un asset a un'attivita, il portale verifica se nella finestra scelta esistono OdL aperti, verifiche periodiche, ticket manutenzione o altre attivita gia' pianificate su quello stesso asset.</p>
+            </div>
+          </div>
+          <div class="ts-panel-body">
+            <div class="ts-form-grid-2">
+              <div class="ts-field ts-field-inline">
+                <input type="checkbox" id="asset_conflict_check_enabled" name="asset_conflict_check_enabled" {% if cfg.asset_conflict_check_enabled %}checked{% endif %}>
+                <label for="asset_conflict_check_enabled">Mostra pannello disponibilita' sugli asset selezionati</label>
+              </div>
+              <div class="ts-field ts-field-inline">
+                <input type="checkbox" id="asset_conflict_block" name="asset_conflict_block" {% if cfg.asset_conflict_block %}checked{% endif %}>
+                <label for="asset_conflict_block">Blocca il salvataggio in presenza di conflitto bloccante (OdL aperto, asset in riparazione, sovrapposizione con altra attivita')</label>
+              </div>
+            </div>
+            <div class="ts-note-box" style="margin-top:12px;">
+              Le verifiche periodiche e i ticket aperti restano sempre in stato <em>warning</em> (solo avviso). I conflitti con OdL aperti, asset in riparazione e sovrapposizioni temporali con altre attivita' sono considerati <em>bloccanti</em> e possono impedire il salvataggio quando l'opzione e' attiva.
             </div>
           </div>
           <div class="ts-panel-footer">
@@ -508,54 +537,175 @@
         <div class="ts-panel-head">
           <div class="ts-panel-title-wrap">
             <h2 class="ts-panel-title">Ruoli operativi kickoff</h2>
-            <p class="ts-panel-subtitle">Definisci quali utenti compaiono come opzioni nei dropdown Project manager, Capocommessa e Programmatore dei form Nuovo kickoff / Nuova attivita. Se nessun utente ha un ruolo assegnato, il dropdown mostra tutti gli utenti (fallback non bloccante).</p>
+            <p class="ts-panel-subtitle">Definisci il catalogo ruoli e assegna gli utenti. PM, Capocommessa e Programmatore restano ruoli di sistema; gli altri ruoli possono pilotare Accessi e Tipi attivita.</p>
           </div>
           <div class="ts-panel-meta" style="display:flex; gap:16px; font-size:12px; color:#64748b;">
-            <span><strong style="color:#1e40af;">{{ ruoli_stats.pm }}</strong> PM</span>
-            <span><strong style="color:#15803d;">{{ ruoli_stats.cc }}</strong> Capocommessa</span>
-            <span><strong style="color:#9a3412;">{{ ruoli_stats.prg }}</strong> Programmatori</span>
+            <span><strong style="color:#1e40af;">{{ ruoli_stats.roles }}</strong> ruoli</span>
+            <span><strong style="color:#15803d;">{{ ruoli_stats.assignments }}</strong> assegnazioni</span>
+            <span><strong style="color:#9a3412;">{{ ruoli_stats.total_users }}</strong> utenti attivi</span>
           </div>
         </div>
         <div class="ts-panel-body">
+          <form method="post" action="" style="display:grid; grid-template-columns:1fr 2fr auto; gap:8px; align-items:end; margin-bottom:14px; padding:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
+            {% csrf_token %}
+            <input type="hidden" name="tab" value="ruoli">
+            <input type="hidden" name="role_admin_action" value="create_role">
+            <div class="ts-field" style="margin:0;">
+              <label>Nuovo ruolo</label>
+              <input type="text" name="role_name" class="input" maxlength="80" placeholder="Es. Collaudatore">
+            </div>
+            <div class="ts-field" style="margin:0;">
+              <label>Descrizione</label>
+              <input type="text" name="role_description" class="input" maxlength="255" placeholder="A cosa serve questo ruolo">
+            </div>
+            <button type="submit" class="btn btn-secondary btn-sm">+ Aggiungi ruolo</button>
+          </form>
+
           <form method="get" action="" style="display:flex; gap:8px; margin-bottom:12px;">
             <input type="hidden" name="tab" value="ruoli">
             <input type="text" class="input" name="q_user" value="{{ ruoli_filter_q }}" placeholder="Cerca per nome, cognome o username" style="flex:1;">
             <button type="submit" class="btn btn-secondary btn-sm">Filtra</button>
+            {% if ruoli_filter_q %}<a href="?tab=ruoli" class="btn btn-secondary btn-sm">Mostra tutti</a>{% endif %}
           </form>
           <form method="post" action="">
             {% csrf_token %}
             <input type="hidden" name="tab" value="ruoli">
-            <table style="width:100%; border-collapse:collapse; font-size:13px;">
+            <div class="ts-table-wrap">
+            <table style="width:100%; border-collapse:collapse; font-size:13px; min-width:760px;">
               <thead>
                 <tr style="background:#f1f5f9;">
                   <th style="padding:8px 10px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#64748b;">Utente</th>
                   <th style="padding:8px 10px; text-align:left; font-size:11px; text-transform:uppercase; color:#64748b;">Email</th>
-                  <th style="padding:8px 10px; text-align:center; font-size:11px; text-transform:uppercase; color:#1e40af; width:110px;">Project manager</th>
-                  <th style="padding:8px 10px; text-align:center; font-size:11px; text-transform:uppercase; color:#15803d; width:110px;">Capocommessa</th>
-                  <th style="padding:8px 10px; text-align:center; font-size:11px; text-transform:uppercase; color:#9a3412; width:110px;">Programmatore</th>
+                  {% for role in ruoli_role_definitions %}
+                    <th style="padding:8px 10px; text-align:center; font-size:11px; text-transform:uppercase; color:#1e40af; width:120px;">
+                      {{ role.name }}
+                      {% if not role.is_system %}
+                        <button type="submit" name="role_admin_action" value="delete_role" formaction="" formmethod="post" onclick="this.form.role_code.value='{{ role.code }}'; return confirm('Eliminare il ruolo {{ role.name }}? Verranno rimosse assegnazioni, regole accesso e agganci ai tipi.');" style="display:block; margin:4px auto 0; border:0; background:transparent; color:#b91c1c; font-size:10px; cursor:pointer;">elimina</button>
+                      {% endif %}
+                    </th>
+                  {% endfor %}
                 </tr>
               </thead>
               <tbody>
                 {% for row in ruoli_roster %}
-                  {% if not ruoli_filter_q or ruoli_filter_q|lower in row.label|lower or ruoli_filter_q|lower in row.email|lower %}
-                    <tr style="border-bottom:1px solid #e2e8f0;">
-                      <td style="padding:8px 10px; font-weight:600; color:#0f172a;">
-                        {{ row.label }}
-                        <input type="hidden" name="visible_user_id" value="{{ row.id }}">
-                      </td>
-                      <td style="padding:8px 10px; color:#64748b;">{{ row.email|default:"-" }}</td>
-                      <td style="padding:8px 10px; text-align:center;"><input type="checkbox" name="role__PM__{{ row.id }}" {% if row.is_pm %}checked{% endif %}></td>
-                      <td style="padding:8px 10px; text-align:center;"><input type="checkbox" name="role__CC__{{ row.id }}" {% if row.is_cc %}checked{% endif %}></td>
-                      <td style="padding:8px 10px; text-align:center;"><input type="checkbox" name="role__PRG__{{ row.id }}" {% if row.is_prg %}checked{% endif %}></td>
-                    </tr>
-                  {% endif %}
+                  <tr style="border-bottom:1px solid #e2e8f0;">
+                    <td style="padding:8px 10px; font-weight:600; color:#0f172a;">
+                      {{ row.label }}
+                      <input type="hidden" name="visible_user_id" value="{{ row.id }}">
+                    </td>
+                    <td style="padding:8px 10px; color:#64748b;">{{ row.email|default:"-" }}</td>
+                    {% for cell in row.role_cells %}
+                      <td style="padding:8px 10px; text-align:center;"><input type="checkbox" name="role__{{ cell.code }}__{{ row.id }}" {% if cell.checked %}checked{% endif %}></td>
+                    {% endfor %}
+                  </tr>
                 {% empty %}
-                  <tr><td colspan="5" style="padding:30px; text-align:center; color:#94a3b8;">Nessun utente attivo trovato.</td></tr>
+                  <tr><td colspan="{{ ruoli_colspan }}" style="padding:30px; text-align:center; color:#94a3b8;">Nessun utente attivo trovato per questo filtro.</td></tr>
                 {% endfor %}
               </tbody>
             </table>
+            </div>
+            <input type="hidden" name="role_code" value="">
             <div style="margin-top:14px; display:flex; gap:10px; justify-content:flex-end;">
               <button type="submit" class="btn">Salva ruoli operativi</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    {% endif %}
+
+    {% if tab == "accessi" %}
+      <section class="ts-panel">
+        <div class="ts-panel-head">
+          <div class="ts-panel-title-wrap">
+            <h2 class="ts-panel-title">Regole accesso kickoff</h2>
+            <p class="ts-panel-subtitle">Qui definisci chi vede e chi modifica davvero i task. Le regole per ruolo valgono dentro i kickoff in cui l'utente ricopre quel ruolo; gli override utente valgono su tutto il modulo KICK-OFF.</p>
+          </div>
+          <div class="ts-panel-meta" style="display:flex; gap:16px; font-size:12px; color:#64748b;">
+            <span><strong style="color:#1e40af;">{{ access_stats.role_rules }}</strong> regole ruolo</span>
+            <span><strong style="color:#15803d;">{{ access_stats.user_overrides }}</strong> override utente</span>
+            <span><strong style="color:#b45309;">{{ access_stats.edit_all_roles }}</strong> ruoli con edit completo</span>
+            <span><strong style="color:#9f1239;">{{ access_stats.edit_all_users }}</strong> utenti con edit completo</span>
+          </div>
+        </div>
+        <div class="ts-panel-body">
+          <div style="margin-bottom:14px; padding:12px 14px; border:1px solid #e2e8f0; border-radius:10px; background:#f8fafc; color:#475569; font-size:13px; line-height:1.5;">
+            <strong style="color:#0f172a;">Esempi:</strong> imposta <em>Capocommessa</em> su <em>Vede e modifica tutto il kickoff</em> e <em>Programmatore</em> su <em>Vede tutto + modifica solo i task assegnati</em>. Se serve un'eccezione, usa l'override sul singolo utente.
+          </div>
+
+          <form method="get" action="" style="display:flex; gap:8px; margin-bottom:12px;">
+            <input type="hidden" name="tab" value="accessi">
+            <input type="text" class="input" name="q_access_user" value="{{ access_filter_q }}" placeholder="Filtra override utente per nome, cognome o email" style="flex:1;">
+            <button type="submit" class="btn btn-secondary btn-sm">Filtra</button>
+          </form>
+
+          <form method="post" action="">
+            {% csrf_token %}
+            <input type="hidden" name="tab" value="accessi">
+            <input type="hidden" name="q_access_user" value="{{ access_filter_q }}">
+
+            <div style="margin-bottom:20px;">
+              <h3 style="margin:0 0 10px 0; font-size:15px; color:#0f172a;">Regole per ruolo operativo</h3>
+              <table style="width:100%; border-collapse:collapse; font-size:13px;">
+                <thead>
+                  <tr style="background:#f1f5f9;">
+                    <th style="padding:8px 10px; text-align:left; font-size:11px; text-transform:uppercase; color:#64748b;">Ruolo</th>
+                    <th style="padding:8px 10px; text-align:left; font-size:11px; text-transform:uppercase; color:#64748b;">Ambito</th>
+                    <th style="padding:8px 10px; text-align:left; font-size:11px; text-transform:uppercase; color:#64748b;">Regola</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in access_role_rows %}
+                    <tr style="border-bottom:1px solid #e2e8f0;">
+                      <td style="padding:10px; font-weight:700; color:#0f172a;">{{ row.label }}</td>
+                      <td style="padding:10px; color:#64748b;">{{ row.help }}</td>
+                      <td style="padding:10px;">
+                        <select name="access_role__{{ row.code }}" class="input">
+                          {% for value, label in access_role_choices %}
+                            <option value="{{ value }}" {% if row.access_level == value %}selected{% endif %}>{{ label }}</option>
+                          {% endfor %}
+                        </select>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+
+            <div>
+              <h3 style="margin:0 0 10px 0; font-size:15px; color:#0f172a;">Override per singolo utente</h3>
+              <table style="width:100%; border-collapse:collapse; font-size:13px;">
+                <thead>
+                  <tr style="background:#f1f5f9;">
+                    <th style="padding:8px 10px; text-align:left; font-size:11px; text-transform:uppercase; color:#64748b;">Utente</th>
+                    <th style="padding:8px 10px; text-align:left; font-size:11px; text-transform:uppercase; color:#64748b;">Email</th>
+                    <th style="padding:8px 10px; text-align:left; font-size:11px; text-transform:uppercase; color:#64748b;">Override modulo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in access_user_rows %}
+                    <tr style="border-bottom:1px solid #e2e8f0;">
+                      <td style="padding:10px; font-weight:600; color:#0f172a;">
+                        {{ row.label }}
+                        <input type="hidden" name="visible_access_user_id" value="{{ row.id }}">
+                      </td>
+                      <td style="padding:10px; color:#64748b;">{{ row.email|default:"-" }}</td>
+                      <td style="padding:10px;">
+                        <select name="access_user__{{ row.id }}" class="input">
+                          {% for value, label in access_user_choices %}
+                            <option value="{{ value }}" {% if row.access_level == value %}selected{% endif %}>{{ label }}</option>
+                          {% endfor %}
+                        </select>
+                      </td>
+                    </tr>
+                  {% empty %}
+                    <tr><td colspan="3" style="padding:30px; text-align:center; color:#94a3b8;">Nessun utente attivo trovato per questo filtro.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+
+            <div style="margin-top:14px; display:flex; gap:10px; justify-content:flex-end;">
+              <button type="submit" class="btn">Salva regole accesso</button>
             </div>
           </form>
         </div>
@@ -633,6 +783,217 @@
               <button type="submit" name="reminder_action" value="delete" class="btn btn-secondary btn-sm" style="color:#b91c1c; border-color:#fecaca;" onclick="return confirm('Eliminare definitivamente i promemoria selezionati?')">Elimina</button>
             </div>
           </form>
+        </div>
+      </section>
+    {% endif %}
+
+    {% if tab == "tipi" %}
+      <section class="ts-panel">
+        <div class="ts-panel-head">
+          <div class="ts-panel-title-wrap">
+            <h2 class="ts-panel-title">Tipi attivita e campi dinamici</h2>
+            <p class="ts-panel-subtitle">Definisci le tipologie di attivita (es. Programmazione, Collaudo, Industrializzazione) e i campi extra che devono comparire nel form <code>Nuova attivita</code>. I campi supportano dipendenze dinamiche: un campo puo' apparire solo se un altro ha certo valore.</p>
+          </div>
+        </div>
+        <div class="ts-panel-body">
+          <div style="display:grid; grid-template-columns: 260px 1fr; gap:18px; align-items:start;">
+
+            {# --- COLONNA SX: lista categorie + form nuovo tipo --- #}
+            <aside style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px;">
+              <h3 style="margin:0 0 8px 0; font-size:13px; text-transform:uppercase; letter-spacing:0.06em; color:#64748b;">Tipi definiti</h3>
+              {% if tipi_categories %}
+                <div style="display:flex; flex-direction:column; gap:4px; margin-bottom:14px;">
+                  {% for cat in tipi_categories %}
+                    <a href="?tab=tipi&cat={{ cat.id }}"
+                       style="padding:8px 10px; border-radius:6px; text-decoration:none; display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:13px; {% if tipi_focus_category and tipi_focus_category.id == cat.id %}background:#ea580c; color:#fff; font-weight:600;{% else %}background:#fff; color:#0f172a; border:1px solid #e2e8f0;{% endif %}">
+                      <span>{% if cat.icon %}<span style="opacity:.7; margin-right:4px;">{{ cat.icon }}</span>{% endif %}{{ cat.name }}</span>
+                      <span style="font-size:10px; opacity:.75;">{{ cat.fields.count }} campi{% if not cat.is_active %} · off{% endif %}</span>
+                    </a>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div style="font-size:12px; color:#94a3b8; margin-bottom:14px;">Nessun tipo definito.</div>
+              {% endif %}
+
+              <form method="post" style="display:flex; flex-direction:column; gap:6px; border-top:1px dashed #cbd5e1; padding-top:12px;">
+                {% csrf_token %}
+                <input type="hidden" name="tab" value="tipi">
+                <input type="hidden" name="cat_action" value="category_create">
+                <label style="font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:0.05em;">Nuovo tipo</label>
+                <input type="text" name="name" required maxlength="120" placeholder="Es. Programmazione" class="input" style="padding:6px 8px;">
+                <input type="text" name="icon" maxlength="80" placeholder="Emoji/icona (opz.)" class="input" style="padding:6px 8px;">
+                <input type="text" name="description" maxlength="255" placeholder="Descrizione breve" class="input" style="padding:6px 8px;">
+                <select name="role_type" class="input" style="padding:6px 8px;">
+                  {% for value, label in tipi_role_choices %}
+                    <option value="{{ value }}">{{ label }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-sm">+ Crea tipo</button>
+              </form>
+            </aside>
+
+            {# --- COLONNA DX: dettaglio categoria selezionata --- #}
+            <div>
+              {% if tipi_focus_category %}
+                <form method="post" style="background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:14px 16px; margin-bottom:16px;">
+                  {% csrf_token %}
+                  <input type="hidden" name="tab" value="tipi">
+                  <input type="hidden" name="cat_action" value="category_update">
+                  <input type="hidden" name="category_id" value="{{ tipi_focus_category.id }}">
+                  <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+                    <div style="flex:1; min-width:180px;">
+                      <label style="font-size:11px; color:#64748b; text-transform:uppercase;">Nome</label>
+                      <input type="text" name="name" value="{{ tipi_focus_category.name }}" required maxlength="120" class="input" style="width:100%;">
+                    </div>
+                    <div style="width:140px;">
+                      <label style="font-size:11px; color:#64748b; text-transform:uppercase;">Icona</label>
+                      <input type="text" name="icon" value="{{ tipi_focus_category.icon }}" maxlength="80" class="input" style="width:100%;">
+                    </div>
+                    <div style="width:100px;">
+                      <label style="font-size:11px; color:#64748b; text-transform:uppercase;">Ordine</label>
+                      <input type="number" name="order_index" value="{{ tipi_focus_category.order_index }}" min="0" class="input" style="width:100%;">
+                    </div>
+                    <div style="width:220px;">
+                      <label style="font-size:11px; color:#64748b; text-transform:uppercase;">Ruolo dedicato</label>
+                      <select name="role_type" class="input" style="width:100%;">
+                        {% for value, label in tipi_role_choices %}
+                          <option value="{{ value }}" {% if tipi_focus_category.role_type == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <label style="display:flex; align-items:center; gap:6px; font-size:12px; padding-bottom:8px;">
+                      <input type="checkbox" name="is_active" {% if tipi_focus_category.is_active %}checked{% endif %}> Attivo
+                    </label>
+                  </div>
+                  <div style="margin-top:8px;">
+                    <label style="font-size:11px; color:#64748b; text-transform:uppercase;">Descrizione</label>
+                    <input type="text" name="description" value="{{ tipi_focus_category.description }}" maxlength="255" class="input" style="width:100%;">
+                  </div>
+                  <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:10px;">
+                    <button type="submit" formaction="?tab=tipi" form="" class="btn btn-secondary btn-sm" style="color:#b91c1c; border-color:#fecaca;" formmethod="post" onclick="this.form.cat_action.value='category_delete'; return confirm('Eliminare il tipo &quot;{{ tipi_focus_category.name }}&quot;? Le attivita collegate verranno scollegate.');">Elimina tipo</button>
+                    <button type="submit" class="btn btn-sm">Salva tipo</button>
+                  </div>
+                </form>
+
+                <h3 style="margin:0 0 8px 0; font-size:14px;">Campi del tipo "{{ tipi_focus_category.name }}"</h3>
+
+                {% if tipi_focus_category.fields.all %}
+                  <div style="display:flex; flex-direction:column; gap:8px;">
+                    {% for f in tipi_focus_category.fields.all %}
+                      <details style="background:#fff; border:1px solid #e2e8f0; border-radius:8px;">
+                        <summary style="padding:10px 14px; cursor:pointer; display:flex; gap:10px; align-items:center; font-size:13px;">
+                          <span style="flex:1;"><strong>{{ f.label }}</strong>
+                            <span style="color:#94a3b8; font-size:11px;">· {{ f.get_field_type_display }} · <code>{{ f.code }}</code>{% if f.required %} · <span style="color:#b91c1c;">richiesto</span>{% endif %}{% if f.depends_on_code %} · mostra se <code>{{ f.depends_on_code }}</code>={{ f.depends_on_value|default:"*" }}{% endif %}</span>
+                          </span>
+                          <span style="color:#94a3b8; font-size:11px;">Ord. {{ f.order_index }}</span>
+                        </summary>
+                        <div style="padding:12px 14px; border-top:1px solid #f1f5f9;">
+                          <form method="post" style="display:grid; grid-template-columns:repeat(2, 1fr); gap:10px;">
+                            {% csrf_token %}
+                            <input type="hidden" name="tab" value="tipi">
+                            <input type="hidden" name="cat_action" value="field_update">
+                            <input type="hidden" name="category_id" value="{{ tipi_focus_category.id }}">
+                            <input type="hidden" name="field_id" value="{{ f.id }}">
+                            <div><label style="font-size:11px; color:#64748b; text-transform:uppercase;">Label</label><input name="label" value="{{ f.label }}" required maxlength="180" class="input" style="width:100%;"></div>
+                            <div><label style="font-size:11px; color:#64748b; text-transform:uppercase;">Code (slug)</label><input name="code" value="{{ f.code }}" maxlength="60" class="input" style="width:100%;"></div>
+                            <div><label style="font-size:11px; color:#64748b; text-transform:uppercase;">Tipo</label>
+                              <select name="field_type" class="input" style="width:100%;">
+                                {% for value, label in tipi_field_types %}
+                                  <option value="{{ value }}" {% if f.field_type == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                              </select>
+                            </div>
+                            <div><label style="font-size:11px; color:#64748b; text-transform:uppercase;">Ordine</label><input type="number" name="order_index" value="{{ f.order_index }}" min="0" class="input" style="width:100%;"></div>
+                            <div><label style="font-size:11px; color:#64748b; text-transform:uppercase;">Help text</label><input name="help_text" value="{{ f.help_text }}" maxlength="255" class="input" style="width:100%;"></div>
+                            <div><label style="font-size:11px; color:#64748b; text-transform:uppercase;">Placeholder</label><input name="placeholder" value="{{ f.placeholder }}" maxlength="120" class="input" style="width:100%;"></div>
+                            <div style="grid-column: span 2;">
+                              <label style="font-size:11px; color:#64748b; text-transform:uppercase;">Opzioni (solo select / multiselect) — una per riga, formato <code>valore | label</code></label>
+                              <textarea name="choices_raw" rows="4" class="input" style="width:100%; font-family:monospace; font-size:12px;">{% for ch in f.choices_json %}{{ ch.value|default:ch }}{% if ch.label and ch.label != ch.value %} | {{ ch.label }}{% endif %}
+{% endfor %}</textarea>
+                            </div>
+                            <div><label style="font-size:11px; color:#64748b; text-transform:uppercase;">Dipende dal campo (code)</label><input name="depends_on_code" value="{{ f.depends_on_code }}" maxlength="60" class="input" style="width:100%;"></div>
+                            <div><label style="font-size:11px; color:#64748b; text-transform:uppercase;">Quando ha valore (separa con |)</label><input name="depends_on_value" value="{{ f.depends_on_value }}" maxlength="255" class="input" style="width:100%;"></div>
+                            <div style="grid-column: span 2; border-top:1px dashed #e2e8f0; padding-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:10px;" data-asset-filters="{% if f.field_type == 'asset' %}1{% else %}0{% endif %}">
+                              <div style="grid-column: span 2; font-size:11px; color:#64748b;"><strong>Filtri asset</strong> (validi solo per field_type=asset). Lascia vuoto per mostrare tutti gli asset operativi.</div>
+                              <div>
+                                <label style="font-size:11px; color:#64748b; text-transform:uppercase;">Limita per tipo asset</label>
+                                <select name="asset_type_filter_multi" class="input" multiple size="4" style="width:100%;">
+                                  {% for value, label in tipi_asset_type_choices %}
+                                    <option value="{{ value }}" {% if value in f.asset_type_filter_list %}selected{% endif %}>{{ label }}</option>
+                                  {% endfor %}
+                                </select>
+                              </div>
+                              <div>
+                                <label style="font-size:11px; color:#64748b; text-transform:uppercase;">Limita per categoria asset</label>
+                                <select name="asset_category_filter_multi" class="input" multiple size="4" style="width:100%;">
+                                  {% for cat in tipi_asset_categories %}
+                                    <option value="{{ cat.id }}" {% if cat.id in f.asset_category_filter_ids %}selected{% endif %}>{{ cat.label }}</option>
+                                  {% endfor %}
+                                </select>
+                              </div>
+                            </div>
+                            <label style="display:flex; gap:6px; align-items:center; font-size:12px;"><input type="checkbox" name="required" {% if f.required %}checked{% endif %}> Campo richiesto</label>
+                            <div style="grid-column: span 2; display:flex; gap:8px; justify-content:flex-end; border-top:1px solid #f1f5f9; padding-top:10px;">
+                              <button type="submit" formmethod="post" class="btn btn-secondary btn-sm" style="color:#b91c1c; border-color:#fecaca;" onclick="this.form.cat_action.value='field_delete'; return confirm('Eliminare il campo &quot;{{ f.label }}&quot;?');">Elimina</button>
+                              <button type="submit" class="btn btn-sm">Salva</button>
+                            </div>
+                          </form>
+                        </div>
+                      </details>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  <div class="ts-empty"><strong>Nessun campo ancora definito.</strong><div>Aggiungi il primo campo qui sotto.</div></div>
+                {% endif %}
+
+                <form method="post" style="margin-top:14px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:14px; display:grid; grid-template-columns:repeat(2, 1fr); gap:10px;">
+                  {% csrf_token %}
+                  <input type="hidden" name="tab" value="tipi">
+                  <input type="hidden" name="cat_action" value="field_create">
+                  <input type="hidden" name="category_id" value="{{ tipi_focus_category.id }}">
+                  <div style="grid-column: span 2;"><strong style="font-size:13px; color:#1e40af;">+ Aggiungi campo al tipo "{{ tipi_focus_category.name }}"</strong></div>
+                  <div><label style="font-size:11px; color:#64748b; text-transform:uppercase;">Label*</label><input name="label" required maxlength="180" class="input" style="width:100%;"></div>
+                  <div><label style="font-size:11px; color:#64748b; text-transform:uppercase;">Code (auto dallo slug se vuoto)</label><input name="code" maxlength="60" class="input" style="width:100%;"></div>
+                  <div><label style="font-size:11px; color:#64748b; text-transform:uppercase;">Tipo*</label>
+                    <select name="field_type" class="input" style="width:100%;">
+                      {% for value, label in tipi_field_types %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                    </select>
+                  </div>
+                  <div><label style="font-size:11px; color:#64748b; text-transform:uppercase;">Ordine</label><input type="number" name="order_index" min="0" class="input" style="width:100%;" placeholder="auto"></div>
+                  <div style="grid-column: span 2;">
+                    <label style="font-size:11px; color:#64748b; text-transform:uppercase;">Opzioni select (uno per riga, <code>valore | label</code>)</label>
+                    <textarea name="choices_raw" rows="3" class="input" style="width:100%; font-family:monospace; font-size:12px;" placeholder="basic&#10;advanced | Avanzato"></textarea>
+                  </div>
+                  <div><label style="font-size:11px; color:#64748b; text-transform:uppercase;">Help text</label><input name="help_text" maxlength="255" class="input" style="width:100%;"></div>
+                  <div><label style="font-size:11px; color:#64748b; text-transform:uppercase;">Placeholder</label><input name="placeholder" maxlength="120" class="input" style="width:100%;"></div>
+                  <div><label style="font-size:11px; color:#64748b; text-transform:uppercase;">Dipende dal campo (code)</label><input name="depends_on_code" maxlength="60" class="input" style="width:100%;"></div>
+                  <div><label style="font-size:11px; color:#64748b; text-transform:uppercase;">Quando ha valore</label><input name="depends_on_value" maxlength="255" class="input" style="width:100%;" placeholder="es. programmazione oppure val1|val2"></div>
+                  <div style="grid-column: span 2; border-top:1px dashed #bfdbfe; padding-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    <div style="grid-column: span 2; font-size:11px; color:#64748b;"><strong>Filtri asset</strong> (validi solo per field_type=asset). Lascia vuoto per mostrare tutti gli asset operativi.</div>
+                    <div>
+                      <label style="font-size:11px; color:#64748b; text-transform:uppercase;">Limita per tipo asset</label>
+                      <select name="asset_type_filter_multi" class="input" multiple size="4" style="width:100%;">
+                        {% for value, label in tipi_asset_type_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                      </select>
+                    </div>
+                    <div>
+                      <label style="font-size:11px; color:#64748b; text-transform:uppercase;">Limita per categoria asset</label>
+                      <select name="asset_category_filter_multi" class="input" multiple size="4" style="width:100%;">
+                        {% for cat in tipi_asset_categories %}<option value="{{ cat.id }}">{{ cat.label }}</option>{% endfor %}
+                      </select>
+                    </div>
+                  </div>
+                  <label style="display:flex; gap:6px; align-items:center; font-size:12px;"><input type="checkbox" name="required"> Campo richiesto</label>
+                  <div style="grid-column: span 2; display:flex; justify-content:flex-end; border-top:1px solid #bfdbfe; padding-top:10px;"><button type="submit" class="btn btn-sm">+ Aggiungi campo</button></div>
+                </form>
+              {% else %}
+                <div class="ts-empty">
+                  <strong>Nessun tipo selezionato.</strong>
+                  <div>Crea un primo tipo dalla colonna sinistra per iniziare a definire i suoi campi dinamici.</div>
+                </div>
+              {% endif %}
+            </div>
+          </div>
         </div>
       </section>
     {% endif %}

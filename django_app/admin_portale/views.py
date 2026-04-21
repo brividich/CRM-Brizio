@@ -8603,6 +8603,8 @@ def crea_release(request):
 
     repo_root = Path(settings.BASE_DIR).parent
     script_path = repo_root / "deployment" / "scripts" / "package-release.ps1"
+    package_timeout_seconds = 900
+    package_timeout_minutes = package_timeout_seconds // 60
 
     # Directory pacchetti: shared/packages se esiste, altrimenti releases/ nella repo
     shared_packages = Path("C:/PortaleNovicrom/shared/packages")
@@ -8630,7 +8632,7 @@ def crea_release(request):
                     ["powershell.exe", "-ExecutionPolicy", "Bypass", "-File", str(script_path)],
                     capture_output=True,
                     text=True,
-                    timeout=300,
+                    timeout=package_timeout_seconds,
                     cwd=str(script_path.parent),
                 )
                 stdout = proc.stdout.strip()
@@ -8652,8 +8654,13 @@ def crea_release(request):
                 }
                 if ok and zip_path:
                     _audit_safe(request, "crea_release", "admin_portale", {"zip": zip_path})
-            except subprocess.TimeoutExpired:
-                result = {"ok": False, "error": "Timeout: lo script ha impiegato troppo tempo (>5 min)"}
+            except subprocess.TimeoutExpired as exc:
+                result = {
+                    "ok": False,
+                    "error": f"Timeout: lo script ha impiegato troppo tempo (>{package_timeout_minutes} min)",
+                    "stdout": (exc.stdout or "").strip(),
+                    "stderr": (exc.stderr or "").strip(),
+                }
             except Exception as exc:
                 result = {"ok": False, "error": str(exc)}
 
@@ -8663,6 +8670,7 @@ def crea_release(request):
         "script_path": str(script_path),
         "script_exists": script_path.exists(),
         "app_version": getattr(settings, "APP_VERSION", ""),
+        "package_timeout_minutes": package_timeout_minutes,
     })
 
 

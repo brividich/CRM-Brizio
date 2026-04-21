@@ -37,6 +37,8 @@
     window.ANOMALIE_CONFIG_LISTS = JSON.parse("{{ config_lists_json|escapejs }}");
     window.CURRENT_USER_NAME = "{{ current_user_name|escapejs }}";
     window.CURRENT_USER_EMAIL = "{{ current_user_email|escapejs }}";
+    window.CURRENT_USER_NAME_NORMS = JSON.parse("{{ current_user_name_norms_json|escapejs }}");
+    window.ANOMALIE_ACCESS = JSON.parse("{{ access_context_json|escapejs }}");
     window.ANOMALIE_SYNC_AVAILABLE = {% if sharepoint_sync_available %}true{% else %}false{% endif %};
     window.ANOMALIE_SYNC_ERROR = "{{ sharepoint_sync_error|escapejs }}";
     window.ANOMALIE_API = {
@@ -59,6 +61,9 @@
     const CONFIG_LISTS = window.ANOMALIE_CONFIG_LISTS || {};
     const CURRENT_USER_NAME = String(window.CURRENT_USER_NAME || "").trim();
     const CURRENT_USER_EMAIL = String(window.CURRENT_USER_EMAIL || "").trim();
+    const CURRENT_USER_NAME_NORMS = Array.isArray(window.CURRENT_USER_NAME_NORMS)
+      ? window.CURRENT_USER_NAME_NORMS
+      : [];
     const SYNC_AVAILABLE = window.ANOMALIE_SYNC_AVAILABLE !== false;
     const SYNC_ERROR = String(window.ANOMALIE_SYNC_ERROR || "").trim();
     const API = window.ANOMALIE_API || {
@@ -74,6 +79,9 @@
     const EDIT_NAME_WHITELIST = Array.isArray(CONFIG_LISTS.autorizzati_modifica)
       ? CONFIG_LISTS.autorizzati_modifica
       : [];
+    const ACCESS_CONTEXT = window.ANOMALIE_ACCESS || {};
+    const ROLE_ACCESS = ACCESS_CONTEXT.role_access || {};
+    const ACCESS_ORDER = { NONE: 0, READ_ALL: 1, EDIT_ASSIGNED: 2, EDIT_ALL: 3 };
     const BASE_AVANZAMENTO_OPTIONS =
       Array.isArray(CONFIG_LISTS.avanzamenti) && CONFIG_LISTS.avanzamenti.length
         ? CONFIG_LISTS.avanzamenti
@@ -103,20 +111,36 @@
         .filter(Boolean);
 
     const USER_NAME_NORM = normalizeIdentity(CURRENT_USER_NAME);
+    const USER_NAME_NORMS = new Set([USER_NAME_NORM, ...CURRENT_USER_NAME_NORMS].filter(Boolean));
     const EDIT_NAME_WHITELIST_SET = new Set(EDIT_NAME_WHITELIST.map((name) => normalizeIdentity(name)));
+    const accessAtLeast = (level, minimum) =>
+      (ACCESS_ORDER[String(level || "NONE")] || 0) >= (ACCESS_ORDER[String(minimum || "NONE")] || 0);
+    const peopleMatchCurrentUser = (rawPeople) => {
+      const tokens = splitPeopleTokens(rawPeople);
+      if (!tokens.length || !USER_NAME_NORMS.size) return false;
+      return tokens.some((token) => USER_NAME_NORMS.has(normalizeIdentity(token)));
+    };
     const QUERY_PARAMS = new URLSearchParams(window.location.search || "");
     const INITIAL_FILTER = normalizeChoice(QUERY_PARAMS.get("filter")).toLowerCase();
     const ACTIVE_FILTER = ["aperte", "in_carico"].includes(INITIAL_FILTER) ? INITIAL_FILTER : "";
 
     const canUserEditOp = (opCapocommessa, opCar) => {
       if (IS_ADMIN) return true;
+      if (ACCESS_CONTEXT.can_edit_all) return true;
       if (USER_NAME_NORM && EDIT_NAME_WHITELIST_SET.has(USER_NAME_NORM)) return true;
 
-      for (const rawPeople of [opCapocommessa, opCar]) {
-        const tokens = splitPeopleTokens(rawPeople);
-        if (!tokens.length) continue;
-        const tokenNorms = new Set(tokens.map((t) => normalizeIdentity(t)));
-        if (USER_NAME_NORM && tokenNorms.has(USER_NAME_NORM)) return true;
+      const roleChecks = [
+        ["CC", opCapocommessa],
+        ["CAR", opCar],
+      ];
+      const globalLevel = String(ACCESS_CONTEXT.global_level || "NONE");
+      if (accessAtLeast(globalLevel, "EDIT_ASSIGNED") && roleChecks.some(([, rawPeople]) => peopleMatchCurrentUser(rawPeople))) {
+        return true;
+      }
+      for (const [roleCode, rawPeople] of roleChecks) {
+        const roleLevel = String(ROLE_ACCESS[roleCode] || "NONE");
+        if (!accessAtLeast(roleLevel, "EDIT_ASSIGNED")) continue;
+        if (peopleMatchCurrentUser(rawPeople)) return true;
       }
       return false;
     };

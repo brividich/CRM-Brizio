@@ -66,6 +66,17 @@
   .date-suggestion-banner.override-active{border-color:rgba(249,115,22,.22);background:rgba(249,115,22,.1);color:#c05621}
   .status-badge{display:inline-flex;align-items:center;justify-content:center;min-height:24px;padding:0 10px;border-radius:999px;background:#edf2f7;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-mid)}
   .status-badge.done{background:rgba(56,161,105,.12);color:#2f855a}.status-badge.in_progress{background:rgba(214,158,46,.14);color:#975a16}.status-badge.todo{background:rgba(45,82,130,.1);color:var(--primary-mid)}.status-badge.canceled{background:rgba(148,163,184,.16);color:var(--text-mid)}
+  .tf-asset-conflict{margin-top:8px;display:none;padding:10px 12px;border-radius:12px;border:1px solid rgba(148,163,184,.3);background:#f8fafc;font-size:12px;line-height:1.5;color:var(--text-mid)}
+  .tf-asset-conflict[data-state="ok"]{display:block;border-color:rgba(56,161,105,.26);background:rgba(56,161,105,.08);color:#276749}
+  .tf-asset-conflict[data-state="warning"]{display:block;border-color:rgba(214,158,46,.3);background:rgba(214,158,46,.12);color:#7a4c0b}
+  .tf-asset-conflict[data-state="block"]{display:block;border-color:rgba(229,62,62,.28);background:rgba(229,62,62,.08);color:#9b2c2c}
+  .tf-asset-conflict[data-state="loading"]{display:block}
+  .tf-asset-conflict-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-weight:800;font-size:12px;letter-spacing:.02em}
+  .tf-asset-conflict-head .badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;background:rgba(255,255,255,.6);border:1px solid currentColor}
+  .tf-asset-conflict-list{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:4px}
+  .tf-asset-conflict-list li{display:flex;gap:8px;align-items:flex-start;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,.7)}
+  .tf-asset-conflict-list li .kind{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-light);min-width:80px}
+  .tf-asset-conflict-list li a{color:inherit;font-weight:700;text-decoration:underline}
   @media (max-width:1120px){.tf-intro-grid,.tf-meta,.tf-grid-4{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media (max-width:980px){.tf-choice-grid,.tf-grid-2,.tf-grid-3{grid-template-columns:1fr}}
   @media (max-width:760px){.tf-panel{padding:18px}.tf-intro-grid,.tf-meta{grid-template-columns:1fr}.date-suggestion-banner{flex-direction:column;align-items:flex-start}}
@@ -87,6 +98,7 @@
     <div class="tf-kickoff-strip-left">
       <span class="tf-kicker">Kickoff</span>
       <div class="tf-kickoff-strip-name">{{ locked_project.name }}</div>
+      <div class="tf-kickoff-strip-sub">Attivita gia collegata al kickoff corrente</div>
       <div class="tf-kickoff-strip-sub">{{ locked_project.client_name|default:"Cliente non indicato" }}{% if locked_project_task_total %} &middot; {{ locked_project_task_total }} attivita gia collegate{% endif %}</div>
     </div>
     <div class="tf-kickoff-strip-chips">
@@ -179,6 +191,21 @@
           {{ form.project_similar_new_note.as_hidden }}
         </div>
       </div>
+    </section>
+    {% endif %}
+
+    {% if form.category.field.queryset.exists %}
+    <section class="tf-panel">
+      <div class="tf-head"><div><span class="tf-kicker">Tipo</span><h2 class="tf-title">Tipo attivita e campi specifici</h2><p class="tf-copy">Selezionando un tipo (es. Programmazione, Collaudo) vengono mostrati i campi dedicati configurati dall'amministratore.</p></div></div>
+      <div class="tf-grid-2">
+        <div class="ts-field full">
+          <label for="{{ form.category.id_for_label }}">{{ form.category.label }}</label>
+          {{ form.category }}
+          {% if form.category.help_text %}<div class="ts-field-help">{{ form.category.help_text }}</div>{% endif %}
+          {% if form.category.errors %}<div class="ts-field-error">{{ form.category.errors }}</div>{% endif %}
+        </div>
+      </div>
+      <div id="tf-category-fields" style="margin-top:12px;" data-initial='{{ task_extra_data_json|default:"{}" }}'></div>
     </section>
     {% endif %}
 
@@ -342,6 +369,189 @@ installFilter(projectFilter,projectChoice);
 installFilter(similarFilter,similarSelect);
 toggleWorkspace();
 renderPreview();
+})();
+(function(){
+const catSel=document.querySelector("select[data-role='task-category']");
+const host=document.getElementById("tf-category-fields");
+if(!catSel||!host){return;}
+let initial={};
+try{initial=JSON.parse(host.dataset.initial||"{}");}catch(e){initial={};}
+function esc2(v){return String(v==null?"":v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#39;");}
+function buildSelect(field,users,assets){
+  let choices=field.choices||[];
+  if(field.field_type==='user'){choices=users;}
+  if(field.field_type==='asset'){choices=(field.choices&&field.choices.length)?field.choices:assets;}
+  const mul=field.field_type==='multiselect'?' multiple size="4"':'';
+  const curRaw=initial[field.code];
+  const cur=Array.isArray(curRaw)?curRaw.map(String):[curRaw==null?"":String(curRaw)];
+  const opts=[!mul?'<option value="">-- seleziona --</option>':''].concat(choices.map(function(c){
+    const sel=cur.indexOf(String(c.value))>=0?' selected':'';
+    return '<option value="'+esc2(c.value)+'"'+sel+'>'+esc2(c.label)+'</option>';
+  })).join('');
+  return '<select name="extra__'+esc2(field.code)+'" class="input"'+mul+(field.required?' required':'')+'>'+opts+'</select>';
+}
+function buildField(field,users,assets){
+  const val=initial[field.code];
+  const req=field.required?' required':'';
+  const ph=field.placeholder?' placeholder="'+esc2(field.placeholder)+'"':'';
+  const nm=' name="extra__'+esc2(field.code)+'"';
+  switch(field.field_type){
+    case 'text':    return '<input type="text" class="input"'+nm+ph+req+' value="'+esc2(val||"")+'">';
+    case 'number':  return '<input type="number" step="any" class="input"'+nm+ph+req+' value="'+esc2(val==null?"":val)+'">';
+    case 'date':    return '<input type="date" class="input"'+nm+req+' value="'+esc2(val||"")+'">';
+    case 'checkbox':return '<label style="display:flex;gap:8px;align-items:center;"><input type="checkbox"'+nm+(val?' checked':'')+'> '+esc2(field.help_text||'Abilitato')+'</label>';
+    case 'select':
+    case 'multiselect':
+    case 'user':
+    case 'asset':   return buildSelect(field,users,assets);
+  }
+  return '';
+}
+function matchesDepend(field,values){
+  if(!field.depends_on_code){return true;}
+  const raw=values[field.depends_on_code];
+  if(raw==null||raw==='')return false;
+  const spec=(field.depends_on_value||'').trim();
+  if(!spec){return true;}
+  const allowed=spec.split('|').map(function(s){return s.trim();}).filter(Boolean);
+  if(!allowed.length){return true;}
+  const cur=Array.isArray(raw)?raw.map(String):[String(raw)];
+  return cur.some(function(v){return allowed.indexOf(v)>=0;});
+}
+function readValues(){
+  const out={};
+  host.querySelectorAll('[name^="extra__"]').forEach(function(el){
+    const code=el.name.slice(7);
+    if(el.type==='checkbox'){out[code]=el.checked;return;}
+    if(el.tagName==='SELECT'&&el.multiple){out[code]=Array.from(el.selectedOptions).map(function(o){return o.value;});return;}
+    out[code]=el.value;
+  });
+  return out;
+}
+function render(payload){
+  host.dataset.payload=JSON.stringify(payload||{});
+  if(!payload||!payload.fields||!payload.fields.length){host.innerHTML='';return;}
+  const users=payload.users||[];
+  const assets=payload.assets||[];
+  const fields=payload.fields;
+  const values=readValues();
+  for(var k in initial){if(!values.hasOwnProperty(k))values[k]=initial[k];}
+  let html='<div class="tf-grid-2" data-dyn-grid>';
+  fields.forEach(function(f){
+    const show=matchesDepend(f,values);
+    const style=show?'':'display:none;';
+    html+='<div class="ts-field" data-extra-code="'+esc2(f.code)+'" data-depends-on="'+esc2(f.depends_on_code||'')+'" data-depends-val="'+esc2(f.depends_on_value||'')+'" style="'+style+'">';
+    html+='<label>'+esc2(f.label)+(f.required?' *':'')+'</label>';
+    html+=buildField(f,users,assets);
+    if(f.help_text){html+='<div class="ts-field-help">'+esc2(f.help_text)+'</div>';}
+    if(f.field_type==='asset'){html+='<div class="tf-asset-conflict" data-asset-panel="1" data-field-code="'+esc2(f.code)+'"></div>';}
+    html+='</div>';
+  });
+  html+='</div>';
+  host.innerHTML=html;
+  host.querySelectorAll('[name^="extra__"]').forEach(function(el){
+    el.addEventListener('change',refreshVisibility);
+    if(el.type==='text'||el.type==='number'){el.addEventListener('input',refreshVisibility);}
+  });
+  host.querySelectorAll('select[name^="extra__"]').forEach(function(el){
+    const code=el.name.slice(7);
+    const field=(payload.fields||[]).find(function(x){return x.code===code;});
+    if(field&&field.field_type==='asset'){
+      el.addEventListener('change',function(){refreshAssetAvailability(code);});
+      refreshAssetAvailability(code);
+    }
+  });
+  refreshVisibility();
+}
+function refreshVisibility(){
+  const payload=host.dataset.payload?JSON.parse(host.dataset.payload):null;
+  if(!payload)return;
+  const values=readValues();
+  payload.fields.forEach(function(f){
+    const row=host.querySelector('[data-extra-code="'+f.code+'"]');
+    if(!row)return;
+    row.style.display=matchesDepend(f,values)?'':'none';
+  });
+}
+function load(id){
+  if(!id){host.innerHTML='';return;}
+  fetch('/tasks/categories/'+id+'/fields/',{headers:{"X-Requested-With":"XMLHttpRequest"}})
+    .then(function(r){return r.json();})
+    .then(function(d){if(d&&d.ok){render(d);}else{host.innerHTML='';}})
+    .catch(function(){host.innerHTML='';});
+}
+catSel.addEventListener('change',function(){load(catSel.value);});
+if(catSel.value){load(catSel.value);}
+
+const AVAIL_URL_BASE='/tasks/api/asset/';
+const AVAIL_URL_SUFFIX='/availability/';
+const currentTaskId={{ task.id|default:"null" }};
+const severityLabels={ok:'Asset disponibile',warning:'Attenzione',block:'Conflitto'};
+const kindLabels={workorder:'OdL',verification:'Verifica',ticket:'Ticket',task:'Attivita',asset_status:'Stato asset'};
+const pendingTimers={};
+function escHtml(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;');}
+function getDateInputs(){
+  return{
+    start:document.querySelector('[name="next_step_due"]'),
+    end:document.querySelector('[name="due_date"]'),
+  };
+}
+function renderAssetPanel(code,data){
+  const panel=host.querySelector('[data-asset-panel="1"][data-field-code="'+code+'"]');
+  if(!panel)return;
+  if(!data){panel.removeAttribute('data-state');panel.innerHTML='';return;}
+  if(data.check_enabled===false){panel.removeAttribute('data-state');panel.innerHTML='';return;}
+  if(data.state==='loading'){panel.setAttribute('data-state','loading');panel.innerHTML='<div class="tf-asset-conflict-head">Verifica disponibilita asset in corso...</div>';return;}
+  if(data.state==='error'){panel.setAttribute('data-state','warning');panel.innerHTML='<div class="tf-asset-conflict-head">Impossibile verificare la disponibilita asset.</div>';return;}
+  const sev=data.overall_severity||'ok';
+  panel.setAttribute('data-state',sev);
+  const badge='<span class="badge">'+escHtml(severityLabels[sev]||sev)+'</span>';
+  const blockNote=(data.block_on_conflict&&data.has_blocking_conflict)?' <span class="badge" style="border-color:#9b2c2c;color:#9b2c2c;">Salvataggio bloccato</span>':'';
+  const windowNote=(data.window&&data.window.start)?(' finestra '+escHtml(data.window.start)+(data.window.end&&data.window.end!==data.window.start?(' -> '+escHtml(data.window.end)):'' )):' (nessuna data impostata)';
+  let body='<div class="tf-asset-conflict-head">'+badge+' '+escHtml(data.asset?(data.asset.tag?data.asset.tag+' - ':'')+data.asset.name:'')+windowNote+blockNote+'</div>';
+  if(sev==='ok'){body+='<div style="margin-top:6px;">Nessuna manutenzione, verifica, ticket o attivita gia programmata su questo asset.</div>';}
+  else{
+    body+='<ul class="tf-asset-conflict-list">';
+    (data.conflicts||[]).forEach(function(c){
+      const kind=escHtml(kindLabels[c.type]||c.type);
+      const title=c.url?('<a href="'+escHtml(c.url)+'" target="_blank" rel="noopener">'+escHtml(c.title)+'</a>'):escHtml(c.title);
+      const when=c.when?(' <span style="color:var(--text-light);">('+escHtml(c.when)+')</span>'):'';
+      const detail=c.detail?(' &ndash; '+escHtml(c.detail)):'';
+      body+='<li><span class="kind">'+kind+'</span><span>'+title+detail+when+'</span></li>';
+    });
+    body+='</ul>';
+  }
+  panel.innerHTML=body;
+}
+function refreshAssetAvailability(code){
+  const sel=host.querySelector('select[name="extra__'+code+'"]');
+  if(!sel){return;}
+  const assetId=sel.value;
+  if(!assetId){renderAssetPanel(code,null);return;}
+  const d=getDateInputs();
+  const start=d.start?d.start.value:'';
+  const end=d.end?d.end.value:'';
+  const params=[];
+  if(start)params.push('start='+encodeURIComponent(start));
+  if(end)params.push('end='+encodeURIComponent(end));
+  if(currentTaskId)params.push('exclude_task='+encodeURIComponent(currentTaskId));
+  const url=AVAIL_URL_BASE+encodeURIComponent(assetId)+AVAIL_URL_SUFFIX+(params.length?('?'+params.join('&')):'');
+  if(pendingTimers[code]){clearTimeout(pendingTimers[code]);}
+  renderAssetPanel(code,{state:'loading'});
+  pendingTimers[code]=setTimeout(function(){
+    fetch(url,{headers:{'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}})
+      .then(function(r){return r.ok?r.json():Promise.reject(r);})
+      .then(function(data){if(data&&data.ok){renderAssetPanel(code,data);}else{renderAssetPanel(code,{state:'error'});}})
+      .catch(function(){renderAssetPanel(code,{state:'error'});});
+  },200);
+}
+function refreshAllAssetPanels(){
+  host.querySelectorAll('[data-asset-panel="1"]').forEach(function(p){refreshAssetAvailability(p.dataset.fieldCode);});
+}
+['next_step_due','due_date'].forEach(function(n){
+  const el=document.querySelector('[name="'+n+'"]');
+  if(el){el.addEventListener('change',refreshAllAssetPanels);el.addEventListener('input',refreshAllAssetPanels);}
+});
 })();
 </script>
 {% endblock %}

@@ -52,6 +52,51 @@ def _make_workspace_tempdir(prefix: str) -> Path:
     return target
 
 
+def _legacy_table_has_identity(table_name: str) -> bool:
+    if connection.vendor == "sqlite":
+        return False
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT COUNT(*)
+            FROM sys.identity_columns
+            WHERE object_id = OBJECT_ID(%s)
+            """,
+            [table_name],
+        )
+        row = cursor.fetchone()
+    return bool(row and int(row[0] or 0))
+
+
+def _legacy_upsert_by_id(table_name: str, record_id: int, values: dict[str, object]) -> None:
+    assignments = ", ".join(f"{column} = %s" for column in values)
+    insert_columns = ["id", *values.keys()]
+    insert_placeholders = ", ".join(["%s"] * len(insert_columns))
+    update_params = [*values.values(), record_id]
+    insert_params = [record_id, *values.values()]
+
+    with connection.cursor() as cursor:
+        cursor.execute(f"UPDATE {table_name} SET {assignments} WHERE id = %s", update_params)
+        if cursor.rowcount and cursor.rowcount > 0:
+            return
+
+        if _legacy_table_has_identity(table_name):
+            cursor.execute(f"SET IDENTITY_INSERT {table_name} ON")
+            try:
+                cursor.execute(
+                    f"INSERT INTO {table_name} ({', '.join(insert_columns)}) VALUES ({insert_placeholders})",
+                    insert_params,
+                )
+            finally:
+                cursor.execute(f"SET IDENTITY_INSERT {table_name} OFF")
+            return
+
+        cursor.execute(
+            f"INSERT INTO {table_name} ({', '.join(insert_columns)}) VALUES ({insert_placeholders})",
+            insert_params,
+        )
+
+
 def _ensure_utenti_table() -> None:
     vendor = connection.vendor
     with connection.cursor() as cursor:
@@ -435,9 +480,9 @@ class AdminPortaleCaporepartoRoleSyncTests(TestCase):
         with connection.cursor() as cursor:
             cursor.execute("DELETE FROM utenti")
             cursor.execute("DELETE FROM ruoli")
-            cursor.execute("INSERT INTO ruoli (id, nome) VALUES (1, 'admin')")
-            cursor.execute("INSERT INTO ruoli (id, nome) VALUES (2, 'caporeparto')")
-            cursor.execute("INSERT INTO ruoli (id, nome) VALUES (6, 'utente')")
+        _legacy_upsert_by_id("ruoli", 1, {"nome": "admin"})
+        _legacy_upsert_by_id("ruoli", 2, {"nome": "caporeparto"})
+        _legacy_upsert_by_id("ruoli", 6, {"nome": "utente"})
 
         self.admin_user = User.objects.create_superuser(
             username="admin-portale-caporeparto",
@@ -2063,8 +2108,8 @@ class AdminPortaleAclCanonicoTests(TestCase):
         with connection.cursor() as cursor:
             cursor.execute("DELETE FROM utenti")
             cursor.execute("DELETE FROM ruoli")
-            cursor.execute("INSERT INTO ruoli (id, nome) VALUES (1, 'admin')")
-            cursor.execute("INSERT INTO ruoli (id, nome) VALUES (6, 'utente')")
+        _legacy_upsert_by_id("ruoli", 1, {"nome": "admin"})
+        _legacy_upsert_by_id("ruoli", 6, {"nome": "utente"})
 
         self.admin_user = User.objects.create_superuser(
             username="admin-acl-canonico",
@@ -2240,8 +2285,8 @@ class AdminPortaleAclRouteCoverageTests(TestCase):
             cursor.execute("DELETE FROM utenti")
             cursor.execute("DELETE FROM ruoli")
             cursor.execute("DELETE FROM pulsanti")
-            cursor.execute("INSERT INTO ruoli (id, nome) VALUES (1, 'admin')")
-            cursor.execute("INSERT INTO ruoli (id, nome) VALUES (6, 'utente')")
+        _legacy_upsert_by_id("ruoli", 1, {"nome": "admin"})
+        _legacy_upsert_by_id("ruoli", 6, {"nome": "utente"})
 
         self.admin_user = User.objects.create_superuser(
             username="admin-acl-route-coverage",
@@ -2314,16 +2359,16 @@ class AdminPortaleAclRouteCoverageTests(TestCase):
 
     def test_route_coverage_flags_ambiguous_canonical_bindings(self):
         PermissionDefinition.objects.create(
-            code="admin_portale.acl.prefix.view",
-            label="ACL prefix",
+            code="admin_portale.acl.diagnostica.duplicate",
+            label="ACL duplicate",
             module="admin_portale",
             is_active=True,
         )
         RoutePermissionBinding.objects.create(
-            route_name="",
-            path_pattern="/admin-portale/acl-diagnostica",
-            match_strategy=RoutePermissionBinding.MATCH_PREFIX,
-            permission_id="admin_portale.acl.prefix.view",
+            route_name="admin_portale:acl_diagnostica",
+            path_pattern="/admin-portale/acl-diagnostica/duplicato",
+            match_strategy=RoutePermissionBinding.MATCH_EXACT,
+            permission_id="admin_portale.acl.diagnostica.duplicate",
             source_app="admin_portale",
             is_active=True,
         )
@@ -2338,6 +2383,151 @@ class AdminPortaleAclRouteCoverageTests(TestCase):
         rows = response.context["rows"]
         row = next(item for item in rows if item["route_name"] == "admin_portale:acl_diagnostica")
         self.assertIn("AMBIGUOUS_CANONICAL_BINDING", row["warnings"])
+
+    def test_route_coverage_uses_effective_binding_for_permission_and_missing_grant(self):
+        PermissionDefinition.objects.create(
+            code="automazioni.regole.view",
+            label="Automazioni regole",
+            module="automazioni",
+            is_active=True,
+        )
+        PermissionDefinition.objects.create(
+            code="automazioni.converti_power_automate.view",
+            label="Automazioni converti power automate",
+            module="automazioni",
+            is_active=True,
+        )
+        RoutePermissionBinding.objects.create(
+            route_name="",
+            path_pattern="/admin-portale/automazioni/regole",
+            match_strategy=RoutePermissionBinding.MATCH_PREFIX,
+            permission_id="automazioni.regole.view",
+            source_app="automazioni",
+            is_active=True,
+        )
+        RoutePermissionBinding.objects.create(
+            route_name="",
+            path_pattern="/admin-portale/automazioni/regole/converti-power-automate",
+            match_strategy=RoutePermissionBinding.MATCH_PREFIX,
+            permission_id="automazioni.converti_power_automate.view",
+            source_app="automazioni",
+            is_active=True,
+        )
+        RolePermissionGrant.objects.create(
+            legacy_role_id=1,
+            permission_id="automazioni.converti_power_automate.view",
+            enabled=True,
+        )
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.get(self.url, {"q": "admin_portale:automazioni_rule_power_automate_convert"})
+
+        self.assertEqual(response.status_code, 200)
+        rows = response.context["rows"]
+        row = next(item for item in rows if item["route_name"] == "admin_portale:automazioni_rule_power_automate_convert")
+        self.assertEqual(row["status"], "CANONICAL_BOUND")
+        self.assertEqual(row["canonical_permissions"], ["automazioni.converti_power_automate.view"])
+        self.assertEqual(row["canonical_binding_count"], 1)
+        self.assertNotIn("BINDING_WITHOUT_ENABLED_ROLE_GRANT", row["warnings"])
+
+    def test_route_coverage_marks_admin_bypass_routes_without_missing_grant_warning(self):
+        PermissionDefinition.objects.create(
+            code="automazioni.converti_power_automate.admin_only",
+            label="Automazioni converti power automate admin only",
+            module="automazioni",
+            is_active=True,
+        )
+        RoutePermissionBinding.objects.filter(
+            route_name="automazioni:automazioni_rule_power_automate_convert",
+        ).delete()
+        RoutePermissionBinding.objects.create(
+            route_name="automazioni:automazioni_rule_power_automate_convert",
+            path_pattern="/automazioni/regole/converti-power-automate",
+            match_strategy=RoutePermissionBinding.MATCH_EXACT,
+            permission_id="automazioni.converti_power_automate.admin_only",
+            source_app="automazioni",
+            is_active=True,
+        )
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.get(self.url, {"q": "automazioni:automazioni_rule_power_automate_convert"})
+
+        self.assertEqual(response.status_code, 200)
+        rows = response.context["rows"]
+        row = next(item for item in rows if item["route_name"] == "automazioni:automazioni_rule_power_automate_convert")
+        self.assertEqual(row["status"], "CANONICAL_BOUND")
+        self.assertTrue(row["admin_bypass"])
+        self.assertFalse(row["canonical_missing_grant"])
+        self.assertNotIn("BINDING_WITHOUT_ENABLED_ROLE_GRANT", row["warnings"])
+
+    def test_route_coverage_marks_acl_shared_profile_route_as_excluded(self):
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.get(self.url, {"q": "profilo"})
+
+        self.assertEqual(response.status_code, 200)
+        rows = response.context["rows"]
+        row = next(item for item in rows if item["route_name"] == "profilo")
+        self.assertEqual(row["status"], "COMING_SOON_EXCLUDED")
+        self.assertEqual(row["excluded_reason"], "AUTH_SHARED_PATH")
+
+    def test_route_coverage_marks_monitoring_problem_report_exempt_without_trailing_slash(self):
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.get(self.url, {"q": "monitoring:report_problem"})
+
+        self.assertEqual(response.status_code, 200)
+        rows = response.context["rows"]
+        row = next(item for item in rows if item["route_name"] == "monitoring:report_problem")
+        self.assertEqual(row["status"], "COMING_SOON_EXCLUDED")
+        self.assertEqual(row["excluded_reason"], "EXEMPT_MIDDLEWARE_PATH")
+
+    def test_route_coverage_uses_gate_target_path_for_anomalie_api_routes(self):
+        PermissionDefinition.objects.create(
+            code="anomalie.gestione.view",
+            label="Anomalie gestione",
+            module="anomalie",
+            is_active=True,
+        )
+        RoutePermissionBinding.objects.create(
+            route_name="",
+            path_pattern="/gestione-anomalie",
+            match_strategy=RoutePermissionBinding.MATCH_PREFIX,
+            permission_id="anomalie.gestione.view",
+            source_app="anomalie",
+            is_active=True,
+        )
+        RolePermissionGrant.objects.create(
+            legacy_role_id=1,
+            permission_id="anomalie.gestione.view",
+            enabled=True,
+        )
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.get(self.url, {"q": "api_anomalie_db_ordini"})
+
+        self.assertEqual(response.status_code, 200)
+        rows = response.context["rows"]
+        row = next(item for item in rows if item["route_name"] == "api_anomalie_db_ordini")
+        self.assertEqual(row["status"], "CANONICAL_BOUND")
+        self.assertEqual(row["canonical_permissions"], ["anomalie.gestione.view"])
+        self.assertEqual(row["canonical_binding_count"], 1)
+        self.assertFalse(row["canonical_missing_grant"])
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

@@ -10,6 +10,16 @@ from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
 from anomalie import views as anomalie_views
+from anomalie.models import (
+    AnomalieAccessLevel,
+    AnomalieLegacyRoleAccessRule,
+    AnomalieRoleAccessRule,
+    AnomalieRoleAssignment,
+    AnomalieRoleDefinition,
+    AnomalieRoleType,
+    AnomalieUserAccessRule,
+)
+from core.legacy_models import Ruolo
 
 
 def _make_workspace_tempdir(prefix: str) -> Path:
@@ -192,6 +202,18 @@ class AnomalieConfigPageTests(TestCase):
         self.assertContains(response, 'name="sharepoint_list_id_anomalie_db"', html=False)
         self.assertContains(response, "list-test")
 
+    def test_config_page_shows_roles_and_access_tabs(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("anomalie_configurazione_page") + "?tab=accessi")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ruoli operativi")
+        self.assertContains(response, "Regole accesso anomalie")
+        self.assertContains(response, "Regole per ruolo aziendale")
+        self.assertContains(response, "Capocommessa")
+        self.assertContains(response, "CAR / Incaricato")
+
     def test_config_page_can_save_sharepoint_config(self):
         self.client.force_login(self.admin)
 
@@ -224,6 +246,145 @@ class AnomalieConfigPageTests(TestCase):
             self.assertIn("GRAPH_CLIENT_SECRET=old-secret", content)
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AnomalieAccessRuleTests(TestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = get_user_model().objects.create_user(username="anom-access-user", password="pass12345")
+        self.factory = RequestFactory()
+
+    def _request(self, legacy_name: str = "Mario Rossi"):
+        request = self.factory.get(reverse("gestione_anomalie_page"))
+        request.user = self.user
+        request.legacy_user = SimpleNamespace(
+            id=101,
+            nome=legacy_name,
+            email="m.rossi@test.local",
+            ruolo="utente",
+            ruolo_id=2,
+        )
+        return request
+
+    def test_system_role_rule_controls_op_edit_scope(self):
+        anomalie_views._ensure_system_anomalie_roles()
+        AnomalieRoleAccessRule.objects.update_or_create(
+            role_type=AnomalieRoleType.CAPO_COMMESSA,
+            defaults={"access_level": AnomalieAccessLevel.NONE},
+        )
+        request = self._request("Mario Rossi")
+
+        with (
+            patch("anomalie.views._load_anomalie_lists", return_value={"autorizzati_modifica": []}),
+            patch("anomalie.views._has_table", return_value=True),
+            patch(
+                "anomalie.views._fetch_all_dict",
+                return_value=[{"capocomessa": "Mario Rossi", "incaricato": ""}],
+            ),
+        ):
+            self.assertFalse(anomalie_views._can_edit_anomalie_for_op(request, "OP/2026/001"))
+
+        AnomalieRoleAccessRule.objects.update_or_create(
+            role_type=AnomalieRoleType.CAPO_COMMESSA,
+            defaults={"access_level": AnomalieAccessLevel.EDIT_ASSIGNED},
+        )
+        with (
+            patch("anomalie.views._load_anomalie_lists", return_value={"autorizzati_modifica": []}),
+            patch("anomalie.views._has_table", return_value=True),
+            patch(
+                "anomalie.views._fetch_all_dict",
+                return_value=[{"capocomessa": "Mario Rossi", "incaricato": ""}],
+            ),
+        ):
+            self.assertTrue(anomalie_views._can_edit_anomalie_for_op(request, "OP/2026/001"))
+
+    def test_custom_role_and_user_override_can_grant_global_edit(self):
+        role = AnomalieRoleDefinition.objects.create(
+            code="CUSTOM_QUALITY",
+            name="Qualita",
+            description="Ruolo test",
+            is_system=False,
+            is_active=True,
+            order_index=100,
+        )
+        AnomalieRoleAssignment.objects.create(user=self.user, role_type=role.code)
+        AnomalieRoleAccessRule.objects.create(role_type=role.code, access_level=AnomalieAccessLevel.EDIT_ALL)
+
+        request = self._request("Utente Non In OP")
+        with patch("anomalie.views._load_anomalie_lists", return_value={"autorizzati_modifica": []}):
+            self.assertTrue(anomalie_views._can_edit_anomalie_for_op(request, "OP/2026/999"))
+
+        AnomalieRoleAccessRule.objects.filter(role_type=role.code).update(access_level=AnomalieAccessLevel.NONE)
+        AnomalieUserAccessRule.objects.create(user=self.user, access_level=AnomalieAccessLevel.EDIT_ALL)
+        with patch("anomalie.views._load_anomalie_lists", return_value={"autorizzati_modifica": []}):
+            self.assertTrue(anomalie_views._can_edit_anomalie_for_op(request, "OP/2026/999"))
+
+    def test_legacy_role_rule_can_grant_global_edit(self):
+        AnomalieLegacyRoleAccessRule.objects.create(
+            legacy_role_id=2,
+            legacy_role_name="utente",
+            access_level=AnomalieAccessLevel.EDIT_ALL,
+        )
+
+        request = self._request("Utente Non In OP")
+        with patch("anomalie.views._load_anomalie_lists", return_value={"autorizzati_modifica": []}):
+            self.assertTrue(anomalie_views._can_edit_anomalie_for_op(request, "OP/2026/999"))
+
+    def test_legacy_role_edit_assigned_requires_matching_op_role(self):
+        anomalie_views._ensure_system_anomalie_roles()
+        AnomalieRoleAccessRule.objects.update_or_create(
+            role_type=AnomalieRoleType.CAPO_COMMESSA,
+            defaults={"access_level": AnomalieAccessLevel.NONE},
+        )
+        AnomalieLegacyRoleAccessRule.objects.create(
+            legacy_role_id=2,
+            legacy_role_name="utente",
+            access_level=AnomalieAccessLevel.EDIT_ASSIGNED,
+        )
+        request = self._request("Mario Rossi")
+
+        with (
+            patch("anomalie.views._load_anomalie_lists", return_value={"autorizzati_modifica": []}),
+            patch("anomalie.views._has_table", return_value=True),
+            patch(
+                "anomalie.views._fetch_all_dict",
+                return_value=[{"capocomessa": "Mario Rossi", "incaricato": ""}],
+            ),
+        ):
+            self.assertTrue(anomalie_views._can_edit_anomalie_for_op(request, "OP/2026/001"))
+
+        with (
+            patch("anomalie.views._load_anomalie_lists", return_value={"autorizzati_modifica": []}),
+            patch("anomalie.views._has_table", return_value=True),
+            patch(
+                "anomalie.views._fetch_all_dict",
+                return_value=[{"capocomessa": "Altro Utente", "incaricato": ""}],
+            ),
+        ):
+            self.assertFalse(anomalie_views._can_edit_anomalie_for_op(request, "OP/2026/002"))
+
+    def test_access_post_saves_legacy_role_rule(self):
+        Ruolo.objects.create(id=77, nome="Qualita")
+        self.client.force_login(get_user_model().objects.create_superuser("anom-admin-roles", password="pass12345"))
+
+        response = self.client.post(
+            reverse("anomalie_configurazione_page") + "?tab=accessi",
+            {
+                "action": "save_access",
+                "visible_legacy_role_id": "77",
+                "access_legacy_role__77": AnomalieAccessLevel.EDIT_ALL,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            AnomalieLegacyRoleAccessRule.objects.filter(
+                legacy_role_id=77,
+                legacy_role_name="Qualita",
+                access_level=AnomalieAccessLevel.EDIT_ALL,
+            ).exists()
+        )
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

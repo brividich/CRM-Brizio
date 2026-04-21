@@ -336,6 +336,7 @@ TRUSTED_PROXY_IPS: set[str] = set(env_list("TRUSTED_PROXY_IPS", []))
 MIDDLEWARE_EXEMPT_PREFIXES = (
     "/health",
     "/version",
+    "/check",
     "/login",
     "/logout",
     "/cambia-password",
@@ -346,6 +347,7 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
     "/setup/",
     "/admin-portale/hub/",
     "/monitoring/report-problem/",
+    "/admin-portale/automazioni/approvazione/",
     "/automazioni/approvazione/",  # token-based, no login required
     "/approval-actions/",          # token-based, Entra Application Proxy frontend
 )

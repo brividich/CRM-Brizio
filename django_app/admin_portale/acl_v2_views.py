@@ -13,7 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import URLPattern, URLResolver, get_resolver, reverse
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
-from admin_portale.decorators import legacy_admin_required
+from admin_portale.decorators import is_legacy_admin_bypass_view, legacy_admin_required
 from core.acl_v2 import (
     PERMISSION_CODE_FORMAT_HINT,
     normalize_binding_path_pattern,
@@ -22,6 +22,7 @@ from core.acl_v2 import (
     resolve_canonical_target,
     validate_permission_code,
 )
+from core.middleware import is_acl_exempt_path, is_acl_shared_path, resolve_acl_gate_target_path
 from core.legacy_models import AnagraficaDipendente, Pulsante, Ruolo, UtenteLegacy
 from core.navigation_registry import resolve_navigation_item_permission_code
 from core.models import (
@@ -136,6 +137,7 @@ def _route_catalog() -> list[dict]:
                     {
                         "view_name": full_view_name,
                         "route": route_display or "/",
+                        "admin_bypass": is_legacy_admin_bypass_view(getattr(pattern, "callback", None)),
                     }
                 )
             elif isinstance(pattern, URLResolver):
@@ -230,6 +232,10 @@ def _redirect_target_catalog() -> tuple[set[str], set[str]]:
 
 def _is_coming_or_excluded_route(route_name: str, path_norm: str) -> tuple[bool, str]:
     route_name_norm = str(route_name or "").strip()
+    if is_acl_exempt_path(path_norm):
+        return True, "EXEMPT_MIDDLEWARE_PATH"
+    if is_acl_shared_path(path_norm):
+        return True, "AUTH_SHARED_PATH"
     if _COMING_ROUTE_RE.search(route_name_norm):
         return True, "COMING_SOON_ROUTE"
     excluded_route_prefixes = (
@@ -292,24 +298,29 @@ def _collect_route_coverage_rows() -> tuple[list[dict], dict]:
     for route in catalog:
         route_name = str(route["view_name"] or "").strip()
         path_norm = normalize_binding_path_pattern(str(route["route"] or "/"))
+        gate_target_path = resolve_acl_gate_target_path(path_norm)
         app_label = _normalize_app_label(route_name, path_norm)
+        admin_bypass = bool(route.get("admin_bypass"))
         route_matches = list(route_bindings_map.get(route_name.lower(), []))
         path_matches: list[RoutePermissionBinding] = []
         for candidate in path_bindings:
-            if _binding_matches_path(candidate, path_norm):
+            if _binding_matches_path(candidate, gate_target_path):
                 path_matches.append(candidate)
-        resolved = resolve_canonical_target(path=path_norm, route_name=route_name)
+        resolved = resolve_canonical_target(path=gate_target_path, route_name=route_name)
         binding_payload = resolved.get("binding") or {}
         effective_binding_id = _int_or_none(binding_payload.get("id"))
         effective_permission_code = normalize_permission_code(str(binding_payload.get("permission_code") or ""))
         canonical_binding_ids = [int(effective_binding_id)] if effective_binding_id is not None else []
         canonical_permissions = [effective_permission_code] if effective_permission_code else []
         canonical_missing_grant = bool(
-            effective_permission_code and effective_permission_code not in enabled_permission_codes
+            effective_permission_code
+            and effective_permission_code not in enabled_permission_codes
+            and not admin_bypass
         )
-        has_legacy = _route_has_legacy_coverage(route_name, path_norm, legacy_route_names, legacy_paths)
+        has_legacy = _route_has_legacy_coverage(route_name, gate_target_path, legacy_route_names, legacy_paths)
         has_redirect = bool(
-            (route_name and route_name in redirect_route_targets) or (path_norm and path_norm in redirect_path_targets)
+            (route_name and route_name in redirect_route_targets)
+            or (gate_target_path and gate_target_path in redirect_path_targets)
         )
         is_excluded, excluded_reason = _is_coming_or_excluded_route(route_name, path_norm)
 
@@ -383,6 +394,7 @@ def _collect_route_coverage_rows() -> tuple[list[dict], dict]:
                 "canonical_binding_count": len(canonical_binding_ids),
                 "canonical_permissions": canonical_permissions,
                 "canonical_missing_grant": canonical_missing_grant,
+                "admin_bypass": admin_bypass,
                 "canonical_candidate_binding_ids": sorted(
                     {
                         int(binding.id)
@@ -413,6 +425,7 @@ def _collect_route_coverage_rows() -> tuple[list[dict], dict]:
         "unbound": sum(1 for row in rows if row["status"] == STATUS_UNBOUND),
         "coming_or_excluded": sum(1 for row in rows if row["status"] == STATUS_COMING_SOON_EXCLUDED),
         "redirect_only": sum(1 for row in rows if row["status"] == STATUS_REDIRECT_ONLY),
+        "admin_bypass": sum(1 for row in rows if row["admin_bypass"]),
         "ambiguous": sum(1 for row in rows if "AMBIGUOUS_CANONICAL_BINDING" in row["warnings"]),
         "duplicate_path": sum(1 for row in rows if row["has_duplicate_path"]),
         "missing_grant": sum(1 for row in rows if row["canonical_missing_grant"]),
@@ -448,6 +461,7 @@ def _filter_route_coverage_rows(
                     row["status"],
                     " ".join(row["canonical_permissions"]),
                     " ".join(row["warnings"]),
+                    "ADMIN_BYPASS" if row["admin_bypass"] else "",
                 ]
             ).lower()
             if q_norm not in blob:
@@ -1048,6 +1062,7 @@ def acl_route_coverage(request):
         "unbound": sum(1 for row in filtered_rows if row["status"] == STATUS_UNBOUND),
         "coming_or_excluded": sum(1 for row in filtered_rows if row["status"] == STATUS_COMING_SOON_EXCLUDED),
         "redirect_only": sum(1 for row in filtered_rows if row["status"] == STATUS_REDIRECT_ONLY),
+        "admin_bypass": sum(1 for row in filtered_rows if row["admin_bypass"]),
         "warnings": sum(1 for row in filtered_rows if row["warnings"]),
     }
 
@@ -1066,6 +1081,7 @@ def acl_route_coverage(request):
                 "canonical_binding_count",
                 "has_legacy",
                 "has_redirect",
+                "admin_bypass",
                 "warnings",
                 "excluded_reason",
             ]
@@ -1081,6 +1097,7 @@ def acl_route_coverage(request):
                     row["canonical_binding_count"],
                     "1" if row["has_legacy"] else "0",
                     "1" if row["has_redirect"] else "0",
+                    "1" if row["admin_bypass"] else "0",
                     ", ".join(row["warnings"]),
                     row["excluded_reason"],
                 ]

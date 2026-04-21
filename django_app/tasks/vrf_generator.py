@@ -83,6 +83,42 @@ def build_vrf_xlsx(project, assessment) -> bytes:
     return buffer.getvalue()
 
 
+def parse_vrf_xlsx(file_obj) -> dict[str, Any]:
+    """Legge un xlsx VRF (caricato o generato) e ritorna una struttura 'data'
+    compatibile con VRFRiskAssessment.data / vrf_catalog.default_scores().
+
+    Usata per pre-popolare la compilazione online a partire dal file gia'
+    caricato dal kickoff. Valori mancanti / non convertibili restano None
+    (default per i sub-parametri; il default del catalogo per i K)."""
+    wb = load_workbook(file_obj, data_only=True)
+    ws = wb[vrf_catalog.TEMPLATE_SHEET] if vrf_catalog.TEMPLATE_SHEET in wb.sheetnames else wb.active
+
+    data = vrf_catalog.default_scores()
+    for risk in vrf_catalog.RISKS:
+        r_code = risk["code"]
+        for ph in vrf_catalog.PHASES:
+            ph_key = ph["key"]
+            raw_k = ws[f"{ph['k_col']}{risk['row']}"].value
+            try:
+                k_val = int(raw_k)
+                k_val = max(vrf_catalog.K_RANGE[0], min(vrf_catalog.K_RANGE[1], k_val))
+                data["risks"][r_code]["k"][ph_key] = k_val
+            except (TypeError, ValueError):
+                pass
+            for sub in risk["sub_parameters"]:
+                raw = ws[f"{ph['input_col']}{sub['row']}"].value
+                if raw is None or raw == "":
+                    continue
+                try:
+                    v = int(raw)
+                    v = max(vrf_catalog.R_RANGE[0], min(vrf_catalog.R_RANGE[1], v))
+                    data["risks"][r_code]["subs"][sub["code"]][ph_key] = v
+                except (TypeError, ValueError):
+                    continue
+    wb.close()
+    return data
+
+
 def vrf_filename_for(project) -> str:
     parts = []
     if getattr(project, "kickoff_number", None):

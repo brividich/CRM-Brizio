@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from functools import lru_cache
 from urllib.parse import urlencode
 
 from django.conf import settings
@@ -18,6 +19,105 @@ API_ACL_GATE_PATHS = {
 }
 _ACL_MIDDLEWARE_LOG_TTL_SECONDS = 300
 logger = logging.getLogger(__name__)
+
+_ACL_ONBOARDING_SHARED_ROUTE_NAMES = (
+    "onboarding_wizard",
+    "notifiche",
+    "api_onboarding_email_save",
+)
+_ACL_ONBOARDING_SHARED_PREFIXES = (
+    "/api/notifiche/",
+)
+_ACL_SHARED_ROUTE_NAMES = _ACL_ONBOARDING_SHARED_ROUTE_NAMES + (
+    "root",
+    "profilo",
+    "gestione_reparto",
+    "rubrica",
+    "organigramma",
+    "ui_prefs_page",
+    "ui_prefs_api_save",
+    "ui_sidebar_save",
+    "api_global_search",
+    "stop_impersonation",
+    "employee_board",
+    "api_employee_board_layout",
+    "api_employee_board_widget_config",
+    "api_employee_board_reset",
+    "api_employee_board_admin_template",
+    "api_employee_board_data",
+    "employee_board_pdf",
+    "api_debug_ui_meta",
+    "assets:api_dashboard_save_config",
+    "legacy_modifica_capo",
+    "legacy_modifica_info_completa",
+    "legacy_flask_check",
+)
+_ACL_SHARED_PREFIXES = _ACL_ONBOARDING_SHARED_PREFIXES + (
+    "/api/onboarding/",
+    "/api/gestione-reparto/",
+    "/gestione_utenti/modifica/",
+)
+
+
+def _normalize_acl_runtime_path(path: str) -> str:
+    value = str(path or "/").split("?", 1)[0].strip()
+    if not value:
+        return "/"
+    if not value.startswith("/"):
+        value = "/" + value
+    if value != "/":
+        value = value.rstrip("/")
+    return value or "/"
+
+
+def _path_matches_prefixes(path: str, prefixes: tuple[str, ...]) -> bool:
+    path_norm = _normalize_acl_runtime_path(path)
+    for prefix in prefixes:
+        prefix_norm = _normalize_acl_runtime_path(prefix)
+        if prefix_norm == "/":
+            return True
+        if path_norm == prefix_norm or path_norm.startswith(prefix_norm + "/"):
+            return True
+    return False
+
+
+@lru_cache(maxsize=4)
+def _route_names_to_paths(route_names: tuple[str, ...]) -> frozenset[str]:
+    paths: set[str] = set()
+    for route_name in route_names:
+        try:
+            path = reverse(route_name)
+        except Exception:
+            continue
+        paths.add(_normalize_acl_runtime_path(path))
+    return frozenset(paths)
+
+
+def is_acl_exempt_path(path: str, prefixes: tuple[str, ...] | None = None) -> bool:
+    configured_prefixes = prefixes if prefixes is not None else tuple(getattr(settings, "MIDDLEWARE_EXEMPT_PREFIXES", ()))
+    return _path_matches_prefixes(path, tuple(configured_prefixes))
+
+
+def is_acl_onboarding_shared_path(path: str) -> bool:
+    path_norm = _normalize_acl_runtime_path(path)
+    if path_norm in _route_names_to_paths(_ACL_ONBOARDING_SHARED_ROUTE_NAMES):
+        return True
+    return _path_matches_prefixes(path_norm, _ACL_ONBOARDING_SHARED_PREFIXES)
+
+
+def is_acl_shared_path(path: str) -> bool:
+    path_norm = _normalize_acl_runtime_path(path)
+    if path_norm in _route_names_to_paths(_ACL_SHARED_ROUTE_NAMES):
+        return True
+    return _path_matches_prefixes(path_norm, _ACL_SHARED_PREFIXES)
+
+
+def resolve_acl_gate_target_path(path: str) -> str:
+    path_norm = _normalize_acl_runtime_path(path)
+    for prefix, mapped_path in API_ACL_GATE_PATHS.items():
+        if _path_matches_prefixes(path_norm, (prefix,)):
+            return _normalize_acl_runtime_path(mapped_path)
+    return path_norm
 
 
 def _is_json_request(request) -> bool:
@@ -72,15 +172,9 @@ class ACLMiddleware:
     def __call__(self, request):
         path = request.path or "/"
         onboarding_path = reverse("onboarding_wizard")
-        notifiche_path = reverse("notifiche")
-        notifiche_public_prefixes = (
-            notifiche_path,
-            "/api/notifiche/",
-        )
-        is_auth_shared_path = path == onboarding_path or any(
-            path.startswith(prefix) for prefix in notifiche_public_prefixes
-        )
-        if any(path.startswith(prefix) for prefix in self.exempt_prefixes):
+        is_onboarding_shared_path = is_acl_onboarding_shared_path(path)
+        is_shared_acl_path = is_acl_shared_path(path)
+        if is_acl_exempt_path(path, self.exempt_prefixes):
             return self.get_response(request)
 
         if not request.user.is_authenticated:
@@ -104,7 +198,7 @@ class ACLMiddleware:
 
         # Onboarding wizard: reindirizza l'utente se non ha ancora completato il wizard
         # (solo utenti non-superuser; /onboarding/ stesso è sempre permesso)
-        if not getattr(request.user, "is_superuser", False) and not is_auth_shared_path:
+        if not getattr(request.user, "is_superuser", False) and not is_onboarding_shared_path:
             try:
                 from core.models import UserOnboarding
                 onboarding = UserOnboarding.objects.filter(user=request.user).first()
@@ -124,18 +218,14 @@ class ACLMiddleware:
         if getattr(request.user, "is_superuser", False):
             return self.get_response(request)
 
-        if is_auth_shared_path:
+        if is_shared_acl_path:
             return self.get_response(request)
 
         legacy_user = get_legacy_user(request.user)
         request.legacy_user = legacy_user
         request.acl_decision = None
 
-        gate_target = path
-        for prefix, mapped_path in API_ACL_GATE_PATHS.items():
-            if path.startswith(prefix):
-                gate_target = mapped_path
-                break
+        gate_target = resolve_acl_gate_target_path(path)
 
         decision = resolve_acl_access(
             path=gate_target,

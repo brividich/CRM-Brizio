@@ -281,7 +281,7 @@ Modulo più ricco del portale per gestione patrimonio aziendale: macchinari, IT,
 
 Portfolio gestione progetti con workflow documento **VRF** (MOD.073). Presentato agli utenti come "KICK-OFF".
 
-- **7 modelli**: Project, Task, SubTask, TaskComment, ProjectComment, TaskEvent, TaskAttachment + singleton `TaskImpostazioni`
+- **11 modelli operativi**: Project, Task, SubTask, TaskComment, ProjectComment, TaskEvent, TaskAttachment, VRFRiskAssessment, TaskRoleDefinition, TaskRoleAccessRule, TaskUserAccessRule + singleton `TaskImpostazioni`
 - **Kickoff = progetto** con numerazione automatica `KICK-OFF <progressivo>`
 - **Identità univoca** su `part_number + revisione + versione` — riuso automatico, niente duplicati
 - **VRF upload workflow**: dopo creazione kickoff, redirect a `/tasks/projects/<id>/vrf/` per caricare il MOD.073 Excel
@@ -289,7 +289,9 @@ Portfolio gestione progetti con workflow documento **VRF** (MOD.073). Presentato
 - **Blocco progressivo VRF**: warning dopo `vrf_reminder_days` (default 7g), **bloccante** dopo `vrf_blocking_days` (default 30g) — guardati da `task_create` e `task_edit`
 - **Stati VRF**: `PENDING` / `UPLOADED` / `NOT_REQUIRED` con badge colorato nel portfolio
 - **Copia kickoff** con due varianti: "Copia kickoff e VRF" e "Copia kickoff e VRF tranne P/N" (svuota cella B3 del workbook)
-- **Impostazioni** tab `Configurazione`, `Riepilogo`, `Record`, `Log attivita`; legacy `/tasks/gestione/` → redirect a `Riepilogo`
+- **Impostazioni** tab `Configurazione`, `Riepilogo`, `Ruoli operativi`, `Accessi`, `Promemoria`, `Record`, `Log attivita`; legacy `/tasks/gestione/` → redirect a `Riepilogo`
+- **Ruoli e accessi kickoff configurabili**: catalogo ruoli estendibile, matrice utenti x ruolo, regole accesso per ruolo e override singolo utente decidono chi vede tutto, chi modifica solo i task assegnati e chi modifica tutto
+- **Tipi attivita con ruolo dedicato**: ogni tipo task puo essere associato a un singolo ruolo operativo custom, usato dalle regole accesso per mostrare/modificare solo i task di quel tipo
 - **Import Excel** massivo per bulk creation
 </details>
 
@@ -504,6 +506,11 @@ La navigazione segue la stessa logica: se una `NavigationItem` espone
 `NavigationRoleAccess` resta solo come fallback compat per le voci ancora
 unmapped. Gli override `UserNavigationOverride` sono hide-only: possono
 nascondere una voce gia consentita, non mostrarne una negata.
+
+Il report `/admin-portale/acl-route-coverage/` usa il binding canonico effettivo
+(route o path piu specifico) e distingue le route protette da
+`@legacy_admin_required` con il flag `Admin bypass`, senza contarle come
+`missing_grant` del layer canonico.
 
 ```bash
 # Audit delle route ancora in fallback

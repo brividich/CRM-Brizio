@@ -8,9 +8,10 @@ from django.core.management.base import BaseCommand
 from django.db import DatabaseError, connection, transaction
 from django.urls import URLPattern, URLResolver, get_resolver
 
-from core.acl_v2 import normalize_binding_path_pattern, resolve_acl_access
+from core.acl_v2 import normalize_binding_path_pattern, resolve_acl_access, resolve_canonical_target
 from core.legacy_cache import bump_legacy_cache_version
 from core.legacy_models import Permesso, Pulsante, Ruolo, UtenteLegacy
+from core.middleware import is_acl_exempt_path, is_acl_shared_path, resolve_acl_gate_target_path
 from core.models import (
     LegacyRedirect,
     PermissionDefinition,
@@ -1424,38 +1425,40 @@ class Command(BaseCommand):
         redirect_route_targets: set[str],
         redirect_path_targets: set[str],
     ) -> tuple[str, dict]:
-        canonical_matches: list[RoutePermissionBinding] = []
+        route_matches: list[RoutePermissionBinding] = []
+        path_matches: list[RoutePermissionBinding] = []
         route_name_norm = str(route_name or "").strip().lower()
+        gate_target_path = resolve_acl_gate_target_path(path_norm)
         for binding in active_bindings:
             if binding.route_name and binding.route_name.strip().lower() == route_name_norm:
-                canonical_matches.append(binding)
+                route_matches.append(binding)
                 continue
-            if self._binding_matches_path(binding, path_norm):
-                canonical_matches.append(binding)
+            if self._binding_matches_path(binding, gate_target_path):
+                path_matches.append(binding)
 
-        canonical_permissions = sorted(
-            {
-                str(binding.permission_id)
-                for binding in canonical_matches
-                if str(binding.permission_id or "").strip()
-            }
+        resolved = resolve_canonical_target(path=gate_target_path, route_name=route_name)
+        binding_payload = resolved.get("binding") or {}
+        effective_binding_id = binding_payload.get("id")
+        effective_permission_code = str(binding_payload.get("permission_code") or "").strip()
+        canonical_permissions = [effective_permission_code] if effective_permission_code else []
+        canonical_missing_grant = bool(
+            effective_permission_code and effective_permission_code not in enabled_permission_codes
         )
-        canonical_missing_grant = any(code not in enabled_permission_codes for code in canonical_permissions)
         has_legacy = self._route_has_legacy_coverage(
             route_name=route_name,
-            path_norm=path_norm,
+            path_norm=gate_target_path,
             legacy_route_names=legacy_route_names,
             legacy_paths=legacy_paths,
         )
         has_redirect = bool(
             (route_name and route_name in redirect_route_targets)
-            or (path_norm and path_norm in redirect_path_targets)
+            or (gate_target_path and gate_target_path in redirect_path_targets)
         )
         is_excluded, _ = self._is_coming_or_excluded_route(route_name=route_name, path_norm=path_norm)
 
         if is_excluded:
             status = STATUS_COMING_SOON_EXCLUDED
-        elif canonical_matches:
+        elif effective_binding_id:
             status = STATUS_CANONICAL_BOUND
         elif has_legacy:
             status = STATUS_LEGACY_FALLBACK
@@ -1467,7 +1470,49 @@ class Command(BaseCommand):
         warnings: list[str] = []
         if canonical_missing_grant:
             warnings.append("BINDING_WITHOUT_ENABLED_ROLE_GRANT")
-        if len({int(binding.id) for binding in canonical_matches}) > 1:
+        ambiguous_route_matches = False
+        if route_matches:
+            min_route_priority = min(int(getattr(binding, "priority", 0) or 0) for binding in route_matches)
+            ambiguous_route_matches = sum(
+                1 for binding in route_matches if int(getattr(binding, "priority", 0) or 0) == min_route_priority
+            ) > 1
+        ambiguous_path_matches = False
+        if not route_matches and path_matches and effective_binding_id:
+            effective_binding = next((binding for binding in path_matches if int(binding.id) == int(effective_binding_id)), None)
+            if effective_binding is not None:
+                strategy = (effective_binding.match_strategy or RoutePermissionBinding.MATCH_EXACT).lower()
+                if strategy == RoutePermissionBinding.MATCH_EXACT:
+                    strategy_rank = 0
+                    pattern = normalize_binding_path_pattern(effective_binding.path_pattern, for_regex=False)
+                elif strategy == RoutePermissionBinding.MATCH_PREFIX:
+                    strategy_rank = 1
+                    pattern = normalize_binding_path_pattern(effective_binding.path_pattern, for_regex=False)
+                else:
+                    strategy_rank = 2
+                    pattern = str(effective_binding.path_pattern or "")
+                winner_key = (
+                    int(getattr(effective_binding, "priority", 0) or 0),
+                    strategy_rank,
+                    -len(pattern),
+                )
+                for binding in path_matches:
+                    strategy = (binding.match_strategy or RoutePermissionBinding.MATCH_EXACT).lower()
+                    if strategy == RoutePermissionBinding.MATCH_EXACT:
+                        binding_rank = 0
+                        binding_pattern = normalize_binding_path_pattern(binding.path_pattern, for_regex=False)
+                    elif strategy == RoutePermissionBinding.MATCH_PREFIX:
+                        binding_rank = 1
+                        binding_pattern = normalize_binding_path_pattern(binding.path_pattern, for_regex=False)
+                    else:
+                        binding_rank = 2
+                        binding_pattern = str(binding.path_pattern or "")
+                    if (
+                        int(getattr(binding, "priority", 0) or 0),
+                        binding_rank,
+                        -len(binding_pattern),
+                    ) == winner_key:
+                        ambiguous_path_matches = ambiguous_path_matches or int(binding.id) != int(effective_binding_id)
+        if ambiguous_route_matches or ambiguous_path_matches:
             warnings.append("AMBIGUOUS_CANONICAL_BINDING")
         return status, {"permissions": canonical_permissions, "warnings": warnings}
 
@@ -1545,6 +1590,10 @@ class Command(BaseCommand):
 
     def _is_coming_or_excluded_route(self, *, route_name: str, path_norm: str) -> tuple[bool, str]:
         route_name_norm = str(route_name or "").strip()
+        if is_acl_exempt_path(path_norm):
+            return True, "EXEMPT_MIDDLEWARE_PATH"
+        if is_acl_shared_path(path_norm):
+            return True, "AUTH_SHARED_PATH"
         if _COMING_ROUTE_RE.search(route_name_norm):
             return True, "COMING_SOON_ROUTE"
         excluded_route_prefixes = (

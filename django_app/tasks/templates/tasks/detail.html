@@ -262,6 +262,29 @@
               {% endif %}
             {% endwith %}
           </div>
+          {% if task.category %}
+            <div class="task-detail-meta-item" style="grid-column: 1 / -1;">
+              <strong>Tipo attivita</strong>
+              {% if task.category.icon %}<span style="opacity:.7;">{{ task.category.icon }}</span>{% endif %}
+              {{ task.category.name }}
+            </div>
+            {% if task_extra_rows %}
+              <div class="task-detail-meta-item" style="grid-column: 1 / -1; background:#f8fbff; border-radius:10px; padding:12px 14px; border:1px solid #e2e8f0;">
+                <strong>Campi tipo "{{ task.category.name }}"</strong>
+                <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:10px; margin-top:8px;">
+                  {% for row in task_extra_rows %}
+                    <div style="background:#fff; padding:8px 10px; border-radius:8px; border:1px solid #e2e8f0;">
+                      <div style="font-size:10px; text-transform:uppercase; letter-spacing:0.06em; color:#94a3b8;">{{ row.label }}</div>
+                      <div style="font-weight:600; color:#0f172a;">
+                        {% if row.href %}<a href="{{ row.href }}" style="color:#2563eb; text-decoration:none;">{{ row.value }}</a>
+                        {% else %}{{ row.value }}{% endif %}
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            {% endif %}
+          {% endif %}
         </div>
 
         {% if can_edit %}

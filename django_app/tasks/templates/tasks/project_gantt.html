@@ -468,7 +468,7 @@
   }
 
   /* Drag */
-  .task-row .g-cell.is-active { cursor: grab; touch-action: none; user-select: none; }
+  .task-row.is-shiftable .g-cell.is-active { cursor: grab; touch-action: none; user-select: none; }
   .task-row.is-dragging .g-cell.is-active { opacity: .22; }
   .g-cell.is-active { background: #fff !important; }
   .g-cell.is-active.is-weekend { background: #f0f4f8 !important; }
@@ -702,7 +702,7 @@
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Gantt</span>{% endblock %}
 {% block tasks_shell_title %}{{ project.name }}{% endblock %}
 {% block tasks_shell_subtitle %}
-  Timeline {{ gantt_timeline_start|date:"d/m/Y" }} → {{ gantt_timeline_end|date:"d/m/Y" }} — {{ gantt_days|length }} giorni, drag barre, quick edit contestuale.
+  Timeline {{ gantt_timeline_start|date:"d/m/Y" }} → {{ gantt_timeline_end|date:"d/m/Y" }} — {{ gantt_days|length }} giorni. Le attività modificabili espongono drag e quick edit.
 {% endblock %}
 
 {% block tasks_shell_meta %}
@@ -715,11 +715,11 @@
 {% endblock %}
 
 {% block tasks_shell_actions %}
-  {% if tasks_shell_can_create %}
+  {% if can_add_project_task %}
     {% if vrf_detail.is_blocked %}
       <span class="ts-hero-action" style="opacity:.4;cursor:not-allowed;pointer-events:none;">+ Aggiungi attivita</span>
     {% else %}
-      <a class="ts-hero-action primary" href="{% url 'tasks:create' %}?project={{ project.id %}">+ Aggiungi attivita</a>
+      <a class="ts-hero-action primary" href="{% url 'tasks:create' %}?project={{ project.id }}">+ Aggiungi attivita</a>
     {% endif %}
   {% endif %}
   <a class="ts-hero-action" href="{% url 'tasks:project_vrf_upload' project.id %}">VRF</a>
@@ -762,7 +762,7 @@
   <article class="ts-kpi {% if can_edit_schedule %}green{% else %}slate{% endif %}">
     <div class="ts-kpi-label">Permesso</div>
     <div class="ts-kpi-value">{% if can_edit_schedule %}Edit{% else %}Read{% endif %}</div>
-    <div class="ts-kpi-note">Drag e quick edit {% if not can_edit_schedule %}non {% endif %}disponibili.</div>
+    <div class="ts-kpi-note">Disponibili solo sulle righe che puoi modificare.</div>
   </article>
 </section>
 {% endblock %}
@@ -898,7 +898,7 @@
       <div class="ts-panel-title-wrap">
         <h2 class="ts-panel-title">Diagramma Gantt</h2>
         <p class="ts-panel-subtitle">
-          {% if can_edit_schedule %}Drag barre per spostare date. Clic riga per quick edit.{% else %}Vista sola lettura.{% endif %}
+          {% if can_edit_schedule %}Drag barre e quick edit solo sulle attività che puoi modificare.{% else %}Vista sola lettura.{% endif %}
           Assenze in rosso con X.
         </p>
       </div>
@@ -1038,12 +1038,12 @@
             </thead>
             <tbody>
               {% for row in gantt_rows %}
-                <tr class="task-row"
+                <tr class="task-row{% if row.can_edit %} is-shiftable{% endif %}"
                     data-task-id="{{ row.task.id }}"
                     data-start-index="{{ row.start_index }}"
                     data-end-index="{{ row.end_index }}"
                     data-prev-end-index="{{ row.prev_end_index }}"
-                    data-shift-url="{% url 'tasks:project_gantt_shift_task' project.id row.task.id %}">
+                    {% if row.can_edit %}data-shift-url="{% url 'tasks:project_gantt_shift_task' project.id row.task.id %}"{% endif %}>
                   {% if gantt_show_wbs %}<td class="col-wbs">{{ row.wbs }}</td>{% endif %}
                   <td class="col-name">
                     <a class="gantt-task-link" href="{% url 'tasks:detail' row.task.id %}">{{ row.task.title }}</a>
@@ -1086,9 +1086,9 @@
         <div class="ts-empty" style="margin:16px;">
           <strong>Nessuna attivita nel kickoff.</strong>
           <div>Aggiungi la prima attivita direttamente da questa vista.</div>
-          {% if tasks_shell_can_create %}
+          {% if can_add_project_task %}
             <div class="ts-actions">
-              <a class="btn btn-sm" href="{% url 'tasks:create' %}?project={{ project.id %}">Aggiungi attivita</a>
+              <a class="btn btn-sm" href="{% url 'tasks:create' %}?project={{ project.id }}">Aggiungi attivita</a>
             </div>
           {% endif %}
         </div>
@@ -1111,7 +1111,7 @@
             Clicca un'attivita nel diagramma per aprire il form di modifica rapida.
           </div>
           {% for row in gantt_rows %}
-            {% if row.update_form %}
+            {% if row.can_edit and row.update_form %}
               <form class="quick-edit-item" data-task-id="{{ row.task.id }}"
                     method="post"
                     action="{% url 'tasks:project_gantt_update_task' project.id row.task.id %}">
@@ -1488,6 +1488,8 @@
       const row = event.target.closest("tr.task-row");
       if (!row) return;
       const taskId = row.dataset.taskId;
+      const hasForm = document.querySelector('.quick-edit-item[data-task-id="' + String(taskId) + '"]');
+      if (!hasForm) return;
       const isAlreadySelected = row.classList.contains("is-selected");
       selectTask(isAlreadySelected ? null : taskId);
       if (!isAlreadySelected) {

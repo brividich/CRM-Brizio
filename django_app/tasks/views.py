@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import logging
 from datetime import date, datetime, timedelta
 from functools import wraps
 
@@ -7,21 +9,24 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.views import redirect_to_login
 from django.db import DatabaseError, connections, transaction
-from django.db.models import Count, F, Prefetch, Q
+from django.db.models import Count, F, Max, Prefetch, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
 from admin_portale.decorators import legacy_admin_required
 from core.acl import user_can_modulo_action
 from core.audit import log_action
 from core.legacy_cache import get_cached_perm_map
+from core.legacy_models import UtenteLegacy
 from core.legacy_utils import get_legacy_user
 from core.legacy_utils import is_legacy_admin
 from core.legacy_utils import legacy_table_columns
-from core.models import AuditLog, Notifica
+from core.legacy_utils import sync_django_user_from_legacy
+from core.models import AuditLog, Notifica, Profile
 from core.module_branding import get_module_branding_context, handle_module_branding_post
 
 from .forms import (
@@ -36,19 +41,31 @@ from .forms import (
     TaskFilterForm,
     TaskForm,
     TaskStatusForm,
+    task_active_users_queryset,
 )
 from .models import (
     Project,
     ProjectComment,
     SubTask,
+    TaskAccessLevel,
     Task,
     TaskAttachment,
+    TaskCategory,
+    TaskCategoryField,
+    TaskCategoryFieldType,
     TaskComment,
     TaskEvent,
     TaskEventType,
+    TaskExtraRef,
     TaskImpostazioni,
     TaskPriority,
+    TaskReminder,
+    TaskRoleAssignment,
+    TaskRoleAccessRule,
+    TaskRoleDefinition,
+    TaskRoleType,
     TaskStatus,
+    TaskUserAccessRule,
     VRFDocStatus,
     VRFRiskAssessment,
 )
@@ -57,6 +74,13 @@ TASK_MODULE_CODE = "tasks"
 OPEN_STATUSES = {TaskStatus.TODO, TaskStatus.IN_PROGRESS}
 KEY_EDIT_FIELDS = ("title", "priority", "due_date", "next_step_text", "next_step_due", "tags", "project_id")
 User = get_user_model()
+logger = logging.getLogger(__name__)
+
+SYSTEM_TASK_ROLE_DEFINITIONS = (
+    (TaskRoleType.PROJECT_MANAGER, "Project manager", "Ruolo collegato al campo Project manager del kickoff.", 10),
+    (TaskRoleType.CAPO_COMMESSA, "Capocommessa", "Ruolo collegato al campo Capocommessa del kickoff.", 20),
+    (TaskRoleType.PROGRAMMER, "Programmatore", "Ruolo collegato al campo Programmatore del kickoff.", 30),
+)
 
 MONTH_LABELS_IT = {
     1: "Gennaio",
@@ -90,7 +114,13 @@ GANTT_NAME_WIDTH_OPTIONS = (
     (360, "Media"),
     (460, "Ampia"),
 )
-TASK_SETTINGS_TABS = ("config", "riepilogo", "record", "log", "ruoli", "promemoria")
+TASK_SETTINGS_TABS = ("config", "riepilogo", "record", "log", "ruoli", "accessi", "promemoria", "tipi")
+TASK_ACCESS_LEVEL_ORDER = {
+    TaskAccessLevel.NONE: 0,
+    TaskAccessLevel.READ_ALL: 1,
+    TaskAccessLevel.EDIT_ASSIGNED: 2,
+    TaskAccessLevel.EDIT_ALL: 3,
+}
 
 
 def _normalize_tasks_settings_tab(raw_tab: str | None, *, default: str = "config") -> str:
@@ -98,6 +128,113 @@ def _normalize_tasks_settings_tab(raw_tab: str | None, *, default: str = "config
     if tab in TASK_SETTINGS_TABS:
         return tab
     return default
+
+
+def _ensure_system_task_roles() -> None:
+    for code, name, description, order_index in SYSTEM_TASK_ROLE_DEFINITIONS:
+        role, created = TaskRoleDefinition.objects.get_or_create(
+            code=code,
+            defaults={
+                "name": name,
+                "description": description,
+                "is_system": True,
+                "is_active": True,
+                "order_index": order_index,
+            },
+        )
+        if not created and not role.is_system:
+            role.is_system = True
+            role.save(update_fields=["is_system", "updated_at"])
+
+
+def _task_role_definitions(*, include_inactive: bool = False) -> list[TaskRoleDefinition]:
+    _ensure_system_task_roles()
+    qs = TaskRoleDefinition.objects.all()
+    if not include_inactive:
+        qs = qs.filter(is_active=True)
+    return list(qs.order_by("order_index", "name", "id"))
+
+
+def _task_role_label_map() -> dict[str, str]:
+    return {role.code: role.name for role in _task_role_definitions(include_inactive=True)}
+
+
+def _filter_task_user_rows(users, query: str):
+    users = list(users)
+    query = str(query or "").strip().casefold()
+    if not query:
+        return users
+
+    legacy_ids = []
+    for user in users:
+        profile = getattr(user, "profile", None)
+        legacy_user_id = getattr(profile, "legacy_user_id", None) if profile is not None else None
+        if legacy_user_id:
+            legacy_ids.append(legacy_user_id)
+
+    legacy_by_id = {}
+    if legacy_ids:
+        try:
+            legacy_by_id = {
+                row["id"]: row
+                for row in UtenteLegacy.objects.filter(id__in=legacy_ids).values("id", "nome", "email", "ruolo")
+            }
+        except DatabaseError:
+            legacy_by_id = {}
+
+    def _haystack(user) -> str:
+        parts = [
+            user.get_full_name(),
+            getattr(user, "first_name", ""),
+            getattr(user, "last_name", ""),
+            getattr(user, "username", ""),
+            getattr(user, "email", ""),
+        ]
+        profile = getattr(user, "profile", None)
+        if profile is not None:
+            legacy_user_id = getattr(profile, "legacy_user_id", None)
+            parts.append(str(legacy_user_id or ""))
+            legacy_row = legacy_by_id.get(legacy_user_id)
+            if legacy_row:
+                parts.extend([legacy_row.get("nome"), legacy_row.get("email"), legacy_row.get("ruolo")])
+        return " ".join(str(part or "") for part in parts).casefold()
+
+    return [user for user in users if query in _haystack(user)]
+
+
+def _task_settings_users_queryset():
+    """Utenti visibili nelle impostazioni task, sincronizzati dal legacy.
+
+    La schermata admin utenti mostra `utenti` legacy; le assegnazioni task usano
+    invece FK Django. Qui creiamo/aggiorniamo i corrispondenti auth_user mancanti
+    solo per le pagine impostazioni, cosi' la matrice ruoli resta completa.
+    """
+    try:
+        active_legacy_users = list(
+            UtenteLegacy.objects.filter(attivo=True).only("id", "nome", "email", "ruolo", "ruolo_id")
+        )
+    except DatabaseError:
+        return task_active_users_queryset()
+
+    if not active_legacy_users:
+        return task_active_users_queryset()
+
+    active_legacy_ids = [int(user.id) for user in active_legacy_users]
+    mapped_ids = set(
+        Profile.objects.filter(legacy_user_id__in=active_legacy_ids).values_list("legacy_user_id", flat=True)
+    )
+    for legacy_user in active_legacy_users:
+        if int(legacy_user.id) in mapped_ids:
+            continue
+        try:
+            sync_django_user_from_legacy(legacy_user)
+        except Exception:
+            logger.exception(
+                "Impossibile sincronizzare utente legacy task legacy_user_id=%s",
+                getattr(legacy_user, "id", None),
+            )
+
+    return task_active_users_queryset()
 
 
 def _coerce_positive_int(value, *, default: int, minimum: int = 1) -> int:
@@ -172,12 +309,10 @@ def _build_tasks_settings_context(request, *, tab: str) -> dict:
         context["audit_entries"] = AuditLog.objects.filter(modulo="tasks").order_by("-created_at")[:100]
 
     if tab == "ruoli":
-        from .models import TaskRoleAssignment, TaskRoleType
-
-        all_users = list(
-            User.objects.filter(is_active=True)
-            .order_by("first_name", "last_name", "username")
-        )
+        role_definitions = _task_role_definitions(include_inactive=True)
+        ruoli_filter_q = request.GET.get("q_user", "").strip()
+        all_users = list(_task_settings_users_queryset())
+        filtered_users = _filter_task_user_rows(all_users, ruoli_filter_q)
         assignments_raw = list(
             TaskRoleAssignment.objects.values_list("user_id", "role_type")
         )
@@ -186,35 +321,92 @@ def _build_tasks_settings_context(request, *, tab: str) -> dict:
             by_user.setdefault(uid, set()).add(rtype)
 
         roster = []
-        for u in all_users:
+        for u in filtered_users:
             user_label = (u.get_full_name() or u.username)
+            assigned_roles = by_user.get(u.id, set())
             roster.append({
                 "id": u.id,
                 "label": user_label,
                 "email": u.email or "",
-                "is_pm":  TaskRoleType.PROJECT_MANAGER in by_user.get(u.id, set()),
-                "is_cc":  TaskRoleType.CAPO_COMMESSA   in by_user.get(u.id, set()),
-                "is_prg": TaskRoleType.PROGRAMMER      in by_user.get(u.id, set()),
+                "role_cells": [
+                    {"code": role.code, "checked": role.code in assigned_roles}
+                    for role in role_definitions
+                ],
             })
         context.update({
-            "ruoli_filter_q": request.GET.get("q_user", "").strip(),
+            "ruoli_filter_q": ruoli_filter_q,
             "ruoli_roster": roster,
+            "ruoli_role_definitions": role_definitions,
+            "ruoli_colspan": 2 + len(role_definitions),
             "ruoli_stats": {
-                "pm":  sum(1 for r in roster if r["is_pm"]),
-                "cc":  sum(1 for r in roster if r["is_cc"]),
-                "prg": sum(1 for r in roster if r["is_prg"]),
-                "total_users": len(roster),
-            },
-            "ruoli_role_labels": {
-                "PM":  "Project manager",
-                "CC":  "Capocommessa",
-                "PRG": "Programmatore",
+                "roles": len(role_definitions),
+                "assignments": sum(len(v) for v in by_user.values()),
+                "total_users": len(all_users),
+                "filtered_users": len(roster),
             },
         })
 
-    if tab == "promemoria":
-        from .models import TaskReminder
+    if tab == "accessi":
+        role_definitions = _task_role_definitions(include_inactive=True)
+        access_filter_q = request.GET.get("q_access_user", "").strip()
+        all_users = list(_task_settings_users_queryset())
+        filtered_users = _filter_task_user_rows(all_users, access_filter_q)
+        role_rule_map = {
+            role_type: access_level
+            for role_type, access_level in TaskRoleAccessRule.objects.values_list("role_type", "access_level")
+        }
+        user_rule_map = {
+            user_id: access_level
+            for user_id, access_level in TaskUserAccessRule.objects.values_list("user_id", "access_level")
+        }
+        context.update(
+            {
+                "access_filter_q": access_filter_q,
+                "access_role_rows": [
+                    {
+                        "code": role.code,
+                        "label": role.name,
+                        "help": role.description or (
+                            "Valida sui task dei tipi associati a questo ruolo."
+                        ),
+                        "is_system": role.is_system,
+                        "access_level": role_rule_map.get(role.code, TaskAccessLevel.NONE),
+                    }
+                    for role in role_definitions
+                ],
+                "access_user_rows": [
+                    {
+                        "id": user.id,
+                        "label": user.get_full_name() or user.username,
+                        "email": user.email or "",
+                        "access_level": user_rule_map.get(user.id, ""),
+                    }
+                    for user in filtered_users
+                ],
+                "access_role_choices": [
+                    (TaskAccessLevel.NONE, "Nessun accesso extra"),
+                    (TaskAccessLevel.READ_ALL, "Vede tutti i task del kickoff"),
+                    (TaskAccessLevel.EDIT_ASSIGNED, "Vede tutto + modifica solo i task assegnati"),
+                    (TaskAccessLevel.EDIT_ALL, "Vede e modifica tutto il kickoff"),
+                ],
+                "access_user_choices": [
+                    ("", "Eredita scope standard"),
+                    (TaskAccessLevel.READ_ALL, "Vede tutto il modulo"),
+                    (TaskAccessLevel.EDIT_ASSIGNED, "Vede tutto + modifica solo i task assegnati"),
+                    (TaskAccessLevel.EDIT_ALL, "Vede e modifica tutto il modulo"),
+                ],
+                "access_stats": {
+                    "role_rules": len(role_rule_map),
+                    "user_overrides": len(user_rule_map),
+                    "edit_all_roles": sum(1 for level in role_rule_map.values() if level == TaskAccessLevel.EDIT_ALL),
+                    "edit_all_users": sum(1 for level in user_rule_map.values() if level == TaskAccessLevel.EDIT_ALL),
+                    "total_users": len(all_users),
+                    "filtered_users": len(filtered_users),
+                },
+            }
+        )
 
+    if tab == "promemoria":
         q_filter = (request.GET.get("filter_status") or "pending").strip().lower()
         qs = (
             TaskReminder.objects.select_related("task", "task__project", "task__assigned_to")
@@ -253,6 +445,49 @@ def _build_tasks_settings_context(request, *, tab: str) -> dict:
             "promemoria_count_next7":   TaskReminder.objects.filter(
                 fired=False, fire_at__gte=today, fire_at__lte=today + timedelta(days=7),
             ).count(),
+        })
+
+    if tab == "tipi":
+        role_definitions = _task_role_definitions(include_inactive=True)
+        categories = list(
+            TaskCategory.objects.prefetch_related("fields").order_by("order_index", "name")
+        )
+        focus_id_raw = (request.GET.get("cat") or "").strip()
+        focus_category = None
+        try:
+            focus_id = int(focus_id_raw)
+        except (TypeError, ValueError):
+            focus_id = 0
+        if focus_id:
+            for cat in categories:
+                if cat.id == focus_id:
+                    focus_category = cat
+                    break
+        if focus_category is None and categories:
+            focus_category = categories[0]
+
+        asset_type_choices: list[tuple[str, str]] = []
+        asset_categories: list[dict] = []
+        try:
+            from assets.models import Asset, AssetCategory
+            asset_type_choices = list(Asset.TYPE_CHOICES)
+            asset_categories = [
+                {"id": c.id, "label": getattr(c, "label", "") or c.code}
+                for c in AssetCategory.objects.filter(is_active=True).order_by("sort_order", "label", "id")
+            ]
+        except Exception:
+            pass
+        context.update({
+            "tipi_categories": categories,
+            "tipi_focus_category": focus_category,
+            "tipi_field_types": TaskCategoryFieldType.choices,
+            "tipi_role_choices": [("", "Nessun ruolo dedicato")] + [
+                (role.code, role.name) for role in role_definitions if role.is_active
+            ],
+            "tipi_role_label_map": _task_role_label_map(),
+            "tipi_tasks_with_category": Task.objects.filter(category__isnull=False).count(),
+            "tipi_asset_type_choices": asset_type_choices,
+            "tipi_asset_categories": asset_categories,
         })
 
     return context
@@ -522,10 +757,147 @@ def task_permissions_required(*action_codes: str):
     return decorator
 
 
+def _task_access_rank(level: str | None) -> int:
+    return int(TASK_ACCESS_LEVEL_ORDER.get(str(level or "").strip(), 0))
+
+
+def _task_access_allows_read(level: str | None) -> bool:
+    return _task_access_rank(level) >= _task_access_rank(TaskAccessLevel.READ_ALL)
+
+
+def _task_access_allows_edit_assigned(level: str | None) -> bool:
+    return _task_access_rank(level) >= _task_access_rank(TaskAccessLevel.EDIT_ASSIGNED)
+
+
+def _task_access_allows_edit_all(level: str | None) -> bool:
+    return _task_access_rank(level) >= _task_access_rank(TaskAccessLevel.EDIT_ALL)
+
+
+def _request_task_role_access_map(request) -> dict[str, str]:
+    cached = getattr(request, "_task_role_access_map", None)
+    if cached is not None:
+        return cached
+    cached = {
+        role_type: access_level
+        for role_type, access_level in TaskRoleAccessRule.objects.values_list("role_type", "access_level")
+    }
+    request._task_role_access_map = cached
+    return cached
+
+
+def _request_task_user_access_level(request) -> str:
+    cached = getattr(request, "_task_user_access_level", None)
+    if cached is not None:
+        return cached
+    if not getattr(request.user, "is_authenticated", False):
+        cached = TaskAccessLevel.NONE
+    else:
+        cached = (
+            TaskUserAccessRule.objects.filter(user=request.user)
+            .values_list("access_level", flat=True)
+            .first()
+            or TaskAccessLevel.NONE
+        )
+    request._task_user_access_level = cached
+    return cached
+
+
+def _request_task_user_role_codes(request) -> set[str]:
+    cached = getattr(request, "_task_user_role_codes", None)
+    if cached is not None:
+        return cached
+    if not getattr(request.user, "is_authenticated", False):
+        cached = set()
+    else:
+        cached = set(
+            TaskRoleAssignment.objects.filter(user=request.user)
+            .values_list("role_type", flat=True)
+        )
+    request._task_user_role_codes = cached
+    return cached
+
+
+def _project_role_access_level(request, project: Project | None) -> str:
+    if project is None or not getattr(project, "pk", None):
+        return TaskAccessLevel.NONE
+    if not getattr(request.user, "is_authenticated", False):
+        return TaskAccessLevel.NONE
+
+    role_map = _request_task_role_access_map(request)
+    levels: list[str] = []
+    user_id = request.user.id
+    if getattr(project, "project_manager_id", None) == user_id:
+        levels.append(role_map.get(TaskRoleType.PROJECT_MANAGER, TaskAccessLevel.NONE))
+    if getattr(project, "capo_commessa_id", None) == user_id:
+        levels.append(role_map.get(TaskRoleType.CAPO_COMMESSA, TaskAccessLevel.NONE))
+    if getattr(project, "programmer_id", None) == user_id:
+        levels.append(role_map.get(TaskRoleType.PROGRAMMER, TaskAccessLevel.NONE))
+    if not levels:
+        return TaskAccessLevel.NONE
+    return max(levels, key=_task_access_rank)
+
+
+def _task_role_access_level(request, task: Task | None) -> str:
+    if task is None:
+        return TaskAccessLevel.NONE
+    levels = [_project_role_access_level(request, getattr(task, "project", None))]
+    role_type = getattr(task, "category", None)
+    role_type = getattr(role_type, "role_type", "") or ""
+    if role_type and role_type in _request_task_user_role_codes(request):
+        levels.append(_request_task_role_access_map(request).get(role_type, TaskAccessLevel.NONE))
+    return max(levels, key=_task_access_rank)
+
+
+def _task_scope_filter_q(request) -> Q:
+    user = request.user
+    q = Q(created_by=user) | Q(assigned_to=user) | Q(subscribers=user)
+    role_map = _request_task_role_access_map(request)
+    if _task_access_allows_read(role_map.get(TaskRoleType.PROJECT_MANAGER)):
+        q |= Q(project__project_manager=user)
+    if _task_access_allows_read(role_map.get(TaskRoleType.CAPO_COMMESSA)):
+        q |= Q(project__capo_commessa=user)
+    if _task_access_allows_read(role_map.get(TaskRoleType.PROGRAMMER)):
+        q |= Q(project__programmer=user)
+    category_role_codes = [
+        role_code
+        for role_code in _request_task_user_role_codes(request)
+        if _task_access_allows_read(role_map.get(role_code))
+    ]
+    if category_role_codes:
+        q |= Q(category__role_type__in=category_role_codes)
+    return q
+
+
+def _project_scope_filter_q(request) -> Q:
+    user = request.user
+    q = (
+        Q(created_by=user)
+        | Q(tasks__created_by=user)
+        | Q(tasks__assigned_to=user)
+        | Q(tasks__subscribers=user)
+    )
+    role_map = _request_task_role_access_map(request)
+    if _task_access_allows_read(role_map.get(TaskRoleType.PROJECT_MANAGER)):
+        q |= Q(project_manager=user)
+    if _task_access_allows_read(role_map.get(TaskRoleType.CAPO_COMMESSA)):
+        q |= Q(capo_commessa=user)
+    if _task_access_allows_read(role_map.get(TaskRoleType.PROGRAMMER)):
+        q |= Q(programmer=user)
+    category_role_codes = [
+        role_code
+        for role_code in _request_task_user_role_codes(request)
+        if _task_access_allows_read(role_map.get(role_code))
+    ]
+    if category_role_codes:
+        q |= Q(tasks__category__role_type__in=category_role_codes)
+    return q
+
+
 def _scoped_tasks_queryset(request):
     qs = Task.objects.select_related(
         "created_by",
         "assigned_to",
+        "category",
         "project",
         "project__project_manager",
         "project__capo_commessa",
@@ -534,8 +906,9 @@ def _scoped_tasks_queryset(request):
     )
     if _has_task_permission(request, "tasks_admin"):
         return qs
-    user = request.user
-    return qs.filter(Q(created_by=user) | Q(assigned_to=user) | Q(subscribers=user)).distinct()
+    if _task_access_allows_read(_request_task_user_access_level(request)):
+        return qs
+    return qs.filter(_task_scope_filter_q(request)).distinct()
 
 
 def _scoped_projects_queryset(request):
@@ -548,13 +921,9 @@ def _scoped_projects_queryset(request):
     )
     if _has_task_permission(request, "tasks_admin"):
         return qs
-    user = request.user
-    return qs.filter(
-        Q(created_by=user)
-        | Q(tasks__created_by=user)
-        | Q(tasks__assigned_to=user)
-        | Q(tasks__subscribers=user)
-    ).distinct()
+    if _task_access_allows_read(_request_task_user_access_level(request)):
+        return qs
+    return qs.filter(_project_scope_filter_q(request)).distinct()
 
 
 def _detail_queryset(request):
@@ -889,8 +1258,7 @@ def _sync_task_integrations(request, task: Task, form, *, action: str) -> None:
         sync_task_portal_reminder(task=task)
     except Exception as exc:
         # Fire-and-forget: non bloccare il save del task
-        import logging
-        logging.getLogger(__name__).warning("Task reminder sync fallita (task=%s): %s", task.id, exc)
+        logger.warning("Task reminder sync fallita (task=%s): %s", task.id, exc)
 
 
 def _build_task_absence_day_map(tasks: list[Task], *, timeline_start: date, timeline_end: date) -> dict[int, dict[date, list[dict]]]:
@@ -1176,9 +1544,29 @@ def _can_edit_project_schedule(request, project: Project) -> bool:
         return True
     if project.created_by_id == request.user.id:
         return True
-    if not _has_task_permission(request, "tasks_edit"):
-        return False
-    return project.tasks.filter(assigned_to=request.user).exists()
+    global_level = _request_task_user_access_level(request)
+    if _task_access_allows_edit_all(global_level):
+        return True
+    role_level = _project_role_access_level(request, project)
+    if _task_access_allows_edit_all(role_level):
+        return True
+    if _task_access_allows_edit_assigned(global_level) and project.tasks.filter(assigned_to=request.user).exists():
+        return True
+    if _task_access_allows_edit_assigned(role_level) and project.tasks.filter(assigned_to=request.user).exists():
+        return True
+    return False
+
+
+def _can_manage_project(request, project: Project) -> bool:
+    if _has_task_permission(request, "tasks_admin"):
+        return True
+    if project.created_by_id == request.user.id:
+        return True
+    global_level = _request_task_user_access_level(request)
+    if _task_access_allows_edit_all(global_level):
+        return True
+    role_level = _project_role_access_level(request, project)
+    return _task_access_allows_edit_all(role_level)
 
 
 def _is_project_lead_for_task(user, task: Task) -> bool:
@@ -1188,9 +1576,19 @@ def _is_project_lead_for_task(user, task: Task) -> bool:
 def _can_manage_task(request, task: Task) -> bool:
     if _has_task_permission(request, "tasks_admin"):
         return True
+    if task.created_by_id == getattr(request.user, "id", None):
+        return True
     if _is_project_lead_for_task(request.user, task):
         return True
-    return _has_task_permission(request, "tasks_edit")
+    global_level = _request_task_user_access_level(request)
+    if _task_access_allows_edit_all(global_level):
+        return True
+    role_level = _task_role_access_level(request, task)
+    if _task_access_allows_edit_all(role_level):
+        return True
+    if task.assigned_to_id == getattr(request.user, "id", None):
+        return _task_access_allows_edit_assigned(global_level) or _task_access_allows_edit_assigned(role_level)
+    return False
 
 
 def _can_update_task_due_date(request, task: Task) -> bool:
@@ -1422,6 +1820,7 @@ def task_detail(request, task_id: int):
             "can_comment": _has_task_permission(request, "tasks_comment"),
             "task_status_choices": TaskStatus.choices,
             "subtask_status_choices": TaskStatus.choices,
+            "task_extra_rows": _render_task_extra_data(task),
         },
     )
 
@@ -1533,6 +1932,12 @@ def task_create(request):
             task = form.save(commit=False)
             task.created_by = request.user
             task.project = form.resolve_project(created_by=request.user)
+            if task.project and not getattr(form, "new_project_created", False) and not _can_manage_project(request, task.project):
+                messages.error(
+                    request,
+                    "Non hai i permessi per aggiungere nuove attivita a questo kickoff.",
+                )
+                return redirect("tasks:project_gantt", project_id=task.project.id)
 
             # Blocking guard: se il progetto esistente è bloccato per VRF mancante, blocca il salvataggio
             if task.project and not getattr(form, "new_project_created", False):
@@ -1549,8 +1954,35 @@ def task_create(request):
                         + f"?next={reverse('tasks:create')}"
                     )
 
+            block_msgs = _check_blocking_asset_conflicts(task, request.POST, exclude_task_id=None)
+            if block_msgs:
+                for m in block_msgs:
+                    messages.error(request, m)
+                form.add_error(
+                    None,
+                    "Impossibile salvare: conflitto bloccante sugli asset selezionati.",
+                )
+                return render(
+                    request,
+                    "tasks/form.html",
+                    {
+                        **_tasks_shell_context(request, active="create"),
+                        "page_title": "Nuova attivita kickoff",
+                        "form": form,
+                        "mode": "create",
+                        "suggested_start_date": suggested_start_date,
+                        "suggested_start_from_previous": has_previous_task,
+                        "suggested_project_id": locked_project.id if locked_project is not None else None,
+                        "locked_project": locked_project,
+                        "locked_project_vrf_detail": _vrf_status_detail(locked_project, TaskImpostazioni.get_singleton()) if locked_project is not None else None,
+                        "locked_project_task_total": Task.objects.filter(project=locked_project).count() if locked_project is not None else 0,
+                        "task_extra_data_json": json.dumps(request.POST.dict()),
+                    },
+                )
+
             task.save()
             form.save_m2m()
+            _persist_task_extra_data(task, request.POST)
             if form.reused_existing_project is not None and task.project_id:
                 if form.reused_existing_project_fields:
                     messages.info(
@@ -1628,6 +2060,7 @@ def task_create(request):
                 "locked_project": locked_project,
                 "locked_project_vrf_detail": _vrf_status_detail(locked_project, TaskImpostazioni.get_singleton()) if locked_project is not None else None,
                 "locked_project_task_total": Task.objects.filter(project=locked_project).count() if locked_project is not None else 0,
+                "task_extra_data_json": json.dumps({}),
             },
         )
 
@@ -1645,6 +2078,7 @@ def task_create(request):
             "locked_project": locked_project,
             "locked_project_vrf_detail": _vrf_status_detail(locked_project, TaskImpostazioni.get_singleton()) if locked_project is not None else None,
             "locked_project_task_total": Task.objects.filter(project=locked_project).count() if locked_project is not None else 0,
+            "task_extra_data_json": json.dumps({}),
         },
     )
 
@@ -1667,6 +2101,12 @@ def task_edit(request, task_id: int):
         if form.is_valid():
             updated_task = form.save(commit=False)
             updated_task.project = form.resolve_project(created_by=request.user)
+            if updated_task.project and updated_task.project_id != task.project_id and not _can_manage_project(request, updated_task.project):
+                messages.error(
+                    request,
+                    "Non hai i permessi per spostare l'attivita su questo kickoff.",
+                )
+                return redirect("tasks:edit", task_id=task.id)
 
             # Blocking guard: progetto bloccato per VRF mancante
             if updated_task.project and not getattr(form, "new_project_created", False):
@@ -1682,8 +2122,30 @@ def task_edit(request, task_id: int):
                         + f"?next={reverse('tasks:edit', kwargs={'task_id': task.id})}"
                     )
 
+            block_msgs = _check_blocking_asset_conflicts(updated_task, request.POST, exclude_task_id=task.id)
+            if block_msgs:
+                for m in block_msgs:
+                    messages.error(request, m)
+                form.add_error(
+                    None,
+                    "Impossibile salvare: conflitto bloccante sugli asset selezionati.",
+                )
+                return render(
+                    request,
+                    "tasks/form.html",
+                    {
+                        **_tasks_shell_context(request, active="edit", task=task),
+                        "page_title": "Modifica attivita kickoff",
+                        "form": form,
+                        "task": task,
+                        "mode": "edit",
+                        "task_extra_data_json": json.dumps(request.POST.dict()),
+                    },
+                )
+
             updated_task.save()
             form.save_m2m()
+            _persist_task_extra_data(updated_task, request.POST)
             _log_task_update_events(updated_task, request.user, before)
             if form.reused_existing_project is not None and updated_task.project_id:
                 messages.info(
@@ -1724,6 +2186,7 @@ def task_edit(request, task_id: int):
             "form": form,
             "task": task,
             "mode": "edit",
+            "task_extra_data_json": json.dumps(task.extra_data or {}),
         },
     )
 
@@ -1903,6 +2366,13 @@ def add_attachment(request, task_id: int):
 
         attach_to = form.cleaned_data.get("attach_to") or TaskAttachmentForm.TARGET_TASK
         if attach_to == TaskAttachmentForm.TARGET_PROJECT:
+            if not task.project_id or not _can_manage_project(request, task.project):
+                return render(
+                    request,
+                    "core/pages/forbidden.html",
+                    {"page_title": "Accesso negato"},
+                    status=403,
+                )
             attachment.project = task.project
             attachment.task = None
             target = "project"
@@ -1999,6 +2469,7 @@ def project_list(request):
     cfg = TaskImpostazioni.get_singleton()
     for p in projects:
         p.vrf_detail = _vrf_status_detail(p, cfg)
+        p.can_manage = _can_manage_project(request, p)
     return render(
         request,
         "tasks/projects.html",
@@ -2015,6 +2486,13 @@ def project_list(request):
 @task_permissions_required("tasks_view", "tasks_create")
 def copy_project_with_vrf(request, project_id: int):
     source_project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    if not _can_manage_project(request, source_project):
+        return render(
+            request,
+            "core/pages/forbidden.html",
+            {"page_title": "Accesso negato"},
+            status=403,
+        )
     kickoff = _duplicate_kickoff(source_project, created_by=request.user, clear_part_number=False)
     log_action(
         request,
@@ -2034,6 +2512,13 @@ def copy_project_with_vrf(request, project_id: int):
 @task_permissions_required("tasks_view", "tasks_create")
 def copy_project_with_vrf_without_pn(request, project_id: int):
     source_project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
+    if not _can_manage_project(request, source_project):
+        return render(
+            request,
+            "core/pages/forbidden.html",
+            {"page_title": "Accesso negato"},
+            status=403,
+        )
     kickoff = _duplicate_kickoff(source_project, created_by=request.user, clear_part_number=True)
     log_action(
         request,
@@ -2125,11 +2610,16 @@ def project_gantt(request, project_id: int):
     }
 
     task_update_forms = {}
-    if can_edit_schedule:
-        for task in tasks:
-            task_update_forms[task.id] = ProjectTaskGanttUpdateForm(instance=task, prefix=f"task_{task.id}")
-        for row in gantt_meta["rows"]:
-            row["update_form"] = task_update_forms.get(row["task"].id)
+    for row in gantt_meta["rows"]:
+        row["can_edit"] = _can_manage_task(request, row["task"])
+        if row["can_edit"]:
+            task_update_forms[row["task"].id] = ProjectTaskGanttUpdateForm(
+                instance=row["task"],
+                prefix=f"task_{row['task'].id}",
+            )
+        row["update_form"] = task_update_forms.get(row["task"].id)
+
+    can_edit_schedule = any(bool(row.get("can_edit")) for row in gantt_meta["rows"]) or _can_manage_project(request, project)
 
     cfg = TaskImpostazioni.get_singleton()
     vrf_detail = _vrf_status_detail(project, cfg)
@@ -2166,6 +2656,7 @@ def project_gantt(request, project_id: int):
             "gantt_name_width_choices": gantt_options["name_width_choices"],
             "gantt_return_qs": gantt_options["return_qs"],
             "vrf_detail": vrf_detail,
+            "can_add_project_task": _has_task_permission(request, "tasks_create") and _can_manage_project(request, project),
         },
     )
 
@@ -2174,15 +2665,14 @@ def project_gantt(request, project_id: int):
 @task_permissions_required("tasks_view")
 def project_gantt_update_task(request, project_id: int, task_id: int):
     project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
-    if not _can_edit_project_schedule(request, project):
+    task = get_object_or_404(Task.objects.filter(project=project), pk=task_id)
+    if not _can_manage_task(request, task):
         return render(
             request,
             "core/pages/forbidden.html",
             {"page_title": "Accesso negato"},
             status=403,
         )
-
-    task = get_object_or_404(Task.objects.filter(project=project), pk=task_id)
     before = _task_snapshot(task)
     form = ProjectTaskGanttUpdateForm(request.POST, instance=task, prefix=f"task_{task.id}")
     if form.is_valid():
@@ -2211,10 +2701,9 @@ def project_gantt_update_task(request, project_id: int, task_id: int):
 @task_permissions_required("tasks_view")
 def project_gantt_shift_task(request, project_id: int, task_id: int):
     project = get_object_or_404(_scoped_projects_queryset(request), pk=project_id)
-    if not _can_edit_project_schedule(request, project):
-        return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
-
     task = get_object_or_404(Task.objects.filter(project=project), pk=task_id)
+    if not _can_manage_task(request, task):
+        return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
 
     try:
         shift_days = int(str(request.POST.get("shift_days", "0")).strip())
@@ -2484,14 +2973,58 @@ def gestione_admin(request):
 
 def _handle_tasks_roles_post(request):
     """POST tab ruoli: set completo delle assegnazioni ricalcolato dal form."""
-    from .models import TaskRoleAssignment, TaskRoleType
-
     target_url = f"{reverse('tasks:impostazioni')}?tab=ruoli"
     q_user = request.POST.get("q_user", "").strip()
     if q_user:
         target_url = f"{target_url}&q_user={q_user}"
 
-    # raccoglie tutti i checkbox inviati: name="role__<PM|CC|PRG>__<user_id>"
+    role_admin_action = (request.POST.get("role_admin_action") or "").strip()
+    if role_admin_action == "create_role":
+        name = (request.POST.get("role_name") or "").strip()
+        description = (request.POST.get("role_description") or "").strip()[:255]
+        if not name:
+            messages.error(request, "Indica il nome del nuovo ruolo.")
+            return redirect(target_url)
+        base_code = slugify(name).upper().replace("-", "_")[:32] or "RUOLO"
+        code = base_code
+        n = 2
+        while TaskRoleDefinition.objects.filter(code=code).exists():
+            suffix = f"_{n}"
+            code = f"{base_code[:32 - len(suffix)]}{suffix}"
+            n += 1
+        max_order = TaskRoleDefinition.objects.aggregate(m=Max("order_index")).get("m") or 30
+        role = TaskRoleDefinition.objects.create(
+            code=code,
+            name=name[:80],
+            description=description,
+            is_system=False,
+            is_active=True,
+            order_index=max_order + 10,
+        )
+        log_action(request, "ruolo_creato", "tasks", {"message": f"Creato ruolo operativo {role.name}", "role": role.code})
+        messages.success(request, f"Ruolo '{role.name}' creato.")
+        return redirect(target_url)
+
+    if role_admin_action == "delete_role":
+        role_code = (request.POST.get("role_code") or "").strip()
+        try:
+            role = TaskRoleDefinition.objects.get(code=role_code, is_system=False)
+        except TaskRoleDefinition.DoesNotExist:
+            messages.error(request, "Ruolo non eliminabile o non trovato.")
+            return redirect(target_url)
+        role_name = role.name
+        with transaction.atomic():
+            TaskRoleAssignment.objects.filter(role_type=role.code).delete()
+            TaskRoleAccessRule.objects.filter(role_type=role.code).delete()
+            TaskCategory.objects.filter(role_type=role.code).update(role_type="")
+            role.delete()
+        log_action(request, "ruolo_eliminato", "tasks", {"message": f"Eliminato ruolo operativo {role_name}", "role": role_code})
+        messages.success(request, f"Ruolo '{role_name}' eliminato.")
+        return redirect(target_url)
+
+    valid_role_codes = {role.code for role in _task_role_definitions(include_inactive=False)}
+
+    # raccoglie tutti i checkbox inviati: name="role__<ROLE_CODE>__<user_id>"
     desired: set[tuple[int, str]] = set()
     for key in request.POST:
         if not key.startswith("role__"):
@@ -2500,7 +3033,7 @@ def _handle_tasks_roles_post(request):
         if len(parts) != 3:
             continue
         _, role_code, uid_raw = parts
-        if role_code not in {"PM", "CC", "PRG"}:
+        if role_code not in valid_role_codes:
             continue
         try:
             uid = int(uid_raw)
@@ -2545,11 +3078,109 @@ def _handle_tasks_roles_post(request):
     return redirect(target_url)
 
 
+def _handle_tasks_access_post(request):
+    """POST tab accessi: regole ruolo operativo + override singolo utente."""
+    from urllib.parse import urlencode
+
+    params = {"tab": "accessi"}
+    q_user = request.POST.get("q_access_user", "").strip()
+    if q_user:
+        params["q_access_user"] = q_user
+    target_url = f"{reverse('tasks:impostazioni')}?{urlencode(params)}"
+
+    valid_role_values = {
+        TaskAccessLevel.NONE,
+        TaskAccessLevel.READ_ALL,
+        TaskAccessLevel.EDIT_ASSIGNED,
+        TaskAccessLevel.EDIT_ALL,
+    }
+    valid_user_values = {
+        TaskAccessLevel.READ_ALL,
+        TaskAccessLevel.EDIT_ASSIGNED,
+        TaskAccessLevel.EDIT_ALL,
+    }
+
+    role_updates: dict[str, str] = {}
+    for role in _task_role_definitions(include_inactive=False):
+        role_code = role.code
+        raw_value = (request.POST.get(f"access_role__{role_code}") or TaskAccessLevel.NONE).strip()
+        role_updates[role_code] = raw_value if raw_value in valid_role_values else TaskAccessLevel.NONE
+
+    existing_role_map = {
+        role_type: access_level
+        for role_type, access_level in TaskRoleAccessRule.objects.values_list("role_type", "access_level")
+    }
+    role_changes = 0
+    with transaction.atomic():
+        for role_code, desired_level in role_updates.items():
+            current_level = existing_role_map.get(role_code)
+            if desired_level == TaskAccessLevel.NONE:
+                if current_level is not None:
+                    TaskRoleAccessRule.objects.filter(role_type=role_code).delete()
+                    role_changes += 1
+                continue
+            if current_level != desired_level:
+                TaskRoleAccessRule.objects.update_or_create(
+                    role_type=role_code,
+                    defaults={"access_level": desired_level},
+                )
+                role_changes += 1
+
+        visible_uids: list[int] = []
+        for raw_uid in request.POST.getlist("visible_access_user_id"):
+            try:
+                visible_uids.append(int(raw_uid))
+            except (TypeError, ValueError):
+                continue
+        visible_uids = sorted(set(visible_uids))
+
+        existing_user_map = {
+            user_id: access_level
+            for user_id, access_level in TaskUserAccessRule.objects.filter(user_id__in=visible_uids).values_list("user_id", "access_level")
+        }
+        desired_user_map: dict[int, str] = {}
+        for user_id in visible_uids:
+            raw_value = (request.POST.get(f"access_user__{user_id}") or "").strip()
+            if raw_value in valid_user_values:
+                desired_user_map[user_id] = raw_value
+
+        user_changes = 0
+        to_remove = sorted(set(existing_user_map) - set(desired_user_map))
+        if to_remove:
+            TaskUserAccessRule.objects.filter(user_id__in=to_remove).delete()
+            user_changes += len(to_remove)
+
+        for user_id, desired_level in desired_user_map.items():
+            if existing_user_map.get(user_id) == desired_level:
+                continue
+            TaskUserAccessRule.objects.update_or_create(
+                user_id=user_id,
+                defaults={"access_level": desired_level},
+            )
+            user_changes += 1
+
+    log_action(
+        request,
+        "accessi_aggiornati",
+        "tasks",
+        {
+            "message": (
+                f"Aggiornate regole accesso KICK-OFF: {role_changes} regole ruolo, "
+                f"{user_changes} override utente."
+            ),
+            "role_updates": role_updates,
+            "visible_users": visible_uids,
+        },
+    )
+    messages.success(
+        request,
+        f"Regole accesso aggiornate: {role_changes} ruoli, {user_changes} override utente.",
+    )
+    return redirect(target_url)
+
+
 def _handle_tasks_reminders_post(request):
     """POST tab promemoria: azioni su TaskReminder (delete/postpone/fire_now)."""
-    from .models import TaskReminder, TaskStatus
-    from core.models import Notifica
-
     target_url = f"{reverse('tasks:impostazioni')}?tab=promemoria"
     filter_status = (request.POST.get("filter_status") or "").strip()
     if filter_status:
@@ -2645,6 +3276,744 @@ def _handle_tasks_reminders_post(request):
     return redirect(target_url)
 
 
+def _render_task_extra_data(task) -> list[dict]:
+    """Risolve i valori salvati in task.extra_data in righe display-ready
+    per il template detail: [{'label', 'value', 'href'}]. Per i campi FK
+    restituisce display name + link alla scheda.
+    """
+    if not task.category_id:
+        return []
+    rows: list[dict] = []
+    data = task.extra_data or {}
+    fields = list(task.category.fields.all().order_by("order_index", "id"))
+    user_ids = {v for v in (data.get(f.code) for f in fields if f.field_type == TaskCategoryFieldType.USER) if v}
+    asset_ids = {v for v in (data.get(f.code) for f in fields if f.field_type == TaskCategoryFieldType.ASSET) if v}
+    users_map: dict[int, str] = {}
+    assets_map: dict[int, tuple[str, str]] = {}
+    if user_ids:
+        users_map = {
+            u.id: (u.get_full_name() or u.username)
+            for u in User.objects.filter(pk__in=user_ids)
+        }
+    if asset_ids:
+        try:
+            from assets.models import Asset
+            for a in Asset.objects.filter(pk__in=asset_ids):
+                tag = getattr(a, "asset_tag", "") or getattr(a, "code", "")
+                label = f"{tag} - {a.name}" if tag else a.name
+                try:
+                    href = reverse("assets:asset_view", kwargs={"id": a.id})
+                except Exception:
+                    href = ""
+                assets_map[a.id] = (label, href)
+        except Exception:
+            pass
+
+    for f in fields:
+        raw = data.get(f.code)
+        value: str = ""
+        href: str = ""
+        if f.field_type == TaskCategoryFieldType.CHECKBOX:
+            value = "Si" if raw else "No"
+        elif f.field_type == TaskCategoryFieldType.MULTISELECT:
+            labels = {c["value"]: c["label"] for c in f.normalized_choices()}
+            value = ", ".join(labels.get(v, str(v)) for v in (raw or []))
+        elif f.field_type == TaskCategoryFieldType.SELECT:
+            labels = {c["value"]: c["label"] for c in f.normalized_choices()}
+            value = labels.get(raw, str(raw or ""))
+        elif f.field_type == TaskCategoryFieldType.USER:
+            if raw:
+                value = users_map.get(int(raw), f"Utente #{raw}")
+        elif f.field_type == TaskCategoryFieldType.ASSET:
+            if raw:
+                label, href = assets_map.get(int(raw), (f"Asset #{raw}", ""))
+                value = label
+        else:
+            value = "" if raw in (None, "") else str(raw)
+        if value == "":
+            continue
+        rows.append({"label": f.label, "value": value, "href": href, "code": f.code})
+    return rows
+
+
+def _serialize_category_field(field) -> dict:
+    return {
+        "id": field.id,
+        "code": field.code,
+        "label": field.label,
+        "field_type": field.field_type,
+        "required": field.required,
+        "order": field.order_index,
+        "help_text": field.help_text,
+        "placeholder": field.placeholder,
+        "choices": field.normalized_choices(),
+        "depends_on_code": field.depends_on_code,
+        "depends_on_value": field.depends_on_value,
+        "asset_type_filter": field.asset_type_filter or "",
+        "asset_category_filter": field.asset_category_filter or "",
+    }
+
+
+def _build_asset_options_for_field(field) -> list[dict]:
+    """Opzioni asset per un TaskCategoryField di tipo asset.
+
+    Applica i filtri configurati (asset_type_filter, asset_category_filter) e
+    esclude in ogni caso gli asset con status RETIRED o IN_STOCK (non sono
+    candidati ad attivita operative).
+    """
+    try:
+        from assets.models import Asset
+    except ImportError:
+        return []
+    qs = Asset.objects.exclude(status__in=[Asset.STATUS_RETIRED, Asset.STATUS_IN_STOCK])
+    types = field.asset_type_filter_list()
+    if types:
+        qs = qs.filter(asset_type__in=types)
+    cat_ids = field.asset_category_filter_ids()
+    if cat_ids:
+        qs = qs.filter(asset_category_id__in=cat_ids)
+    out: list[dict] = []
+    for a in qs.order_by("name")[:500]:
+        tag = getattr(a, "asset_tag", "") or ""
+        label = f"{tag} - {a.name}" if tag else a.name
+        out.append({"value": a.id, "label": label})
+    return out
+
+
+@task_permissions_required("tasks_view")
+def category_fields_json(request, category_id: int):
+    """Espone la definizione dei campi di una categoria al form nuova attivita.
+
+    Per i campi di tipo 'user' / 'asset' restituisce anche un piccolo dataset
+    di opzioni (utenti attivi, asset base) cosi' il frontend puo' popolare
+    la select senza una seconda chiamata.
+    """
+    try:
+        category = TaskCategory.objects.prefetch_related("fields").get(pk=category_id, is_active=True)
+    except TaskCategory.DoesNotExist:
+        return JsonResponse({"ok": False, "reason": "not_found"}, status=404)
+
+    raw_fields = list(category.fields.all().order_by("order_index", "id"))
+    fields = [_serialize_category_field(f) for f in raw_fields]
+
+    users_payload: list[dict] = []
+    needs_users = any(f["field_type"] == TaskCategoryFieldType.USER for f in fields)
+
+    # Popola le opzioni asset per-campo (ogni campo puo' avere filtri diversi).
+    for raw, ser in zip(raw_fields, fields):
+        if ser["field_type"] == TaskCategoryFieldType.ASSET:
+            ser["choices"] = _build_asset_options_for_field(raw)
+
+    if needs_users:
+        users_payload = [
+            {"value": u.id, "label": (u.get_full_name() or u.username)}
+            for u in task_active_users_queryset()[:500]
+        ]
+
+    return JsonResponse({
+        "ok": True,
+        "category": {"id": category.id, "name": category.name, "slug": category.slug},
+        "fields": fields,
+        "users": users_payload,
+        # retrocompat: il frontend accede a payload.assets; le choices asset
+        # vivono ora per-campo in field.choices.
+        "assets": [],
+    })
+
+
+def _parse_iso_date(raw: str):
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    try:
+        return datetime.strptime(raw, "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return None
+
+
+def _task_time_window(task: "Task"):
+    """Finestra temporale di un task, normalizzata a (start, end).
+
+    - Se next_step_due e due_date sono entrambi presenti, usa [next_step_due, due_date].
+    - Se solo due_date, finestra = [due_date, due_date].
+    - Se solo next_step_due, finestra = [next_step_due, next_step_due].
+    - Se nessuno dei due, ritorna (None, None).
+    """
+    start = getattr(task, "next_step_due", None)
+    end = getattr(task, "due_date", None)
+    if start and end:
+        if end < start:
+            start, end = end, start
+        return start, end
+    if end:
+        return end, end
+    if start:
+        return start, start
+    return None, None
+
+
+def _windows_overlap(a_start, a_end, b_start, b_end) -> bool:
+    if not a_start or not a_end or not b_start or not b_end:
+        return False
+    return a_start <= b_end and b_start <= a_end
+
+
+def _asset_availability_report(
+    asset,
+    start,
+    end,
+    exclude_task_id: int | None = None,
+) -> dict:
+    """Calcola il report di disponibilita per un asset nella finestra [start, end].
+
+    Il risultato contiene: stato asset, OdL aperti, verifiche periodiche, ticket
+    manutenzione aperti, task sovrapposti (via TaskExtraRef), severita
+    complessiva.
+    """
+    from assets.models import Asset, WorkOrder, PeriodicVerification
+
+    conflicts: list[dict] = []
+    overall = "ok"
+
+    def bump(level: str) -> None:
+        nonlocal overall
+        order = {"ok": 0, "warning": 1, "block": 2}
+        if order[level] > order[overall]:
+            overall = level
+
+    # 1) Status asset
+    if asset.status == Asset.STATUS_IN_REPAIR:
+        conflicts.append({
+            "type": "asset_status",
+            "severity": "block",
+            "title": f"Asset in riparazione: {asset.get_status_display()}",
+            "detail": asset.notes or "",
+            "when": "",
+            "url": "",
+        })
+        bump("block")
+
+    # 2) Ordini di lavoro aperti. Se la finestra e' nota, consideriamo solo
+    #    quelli che si sovrappongono; altrimenti li riportiamo tutti (OPEN).
+    wo_qs = WorkOrder.objects.filter(
+        asset=asset,
+        status=WorkOrder.STATUS_OPEN,
+    ).order_by("opened_at")
+    try:
+        asset_view_url = reverse("assets:asset_view", kwargs={"id": asset.id})
+    except Exception:
+        asset_view_url = ""
+    for wo in wo_qs[:50]:
+        wo_start = wo.opened_at.date() if wo.opened_at else None
+        wo_end = wo.closed_at.date() if wo.closed_at else None
+        if start and end and wo_start:
+            # consideriamo un OdL ancora aperto senza data di chiusura come
+            # "in corso" fino a oggi incluso
+            effective_end = wo_end or timezone.localdate()
+            if not _windows_overlap(start, end, wo_start, effective_end):
+                continue
+        conflicts.append({
+            "type": "workorder",
+            "severity": "block",
+            "title": f"OdL aperto #{wo.id}: {wo.title}",
+            "detail": wo.get_kind_display(),
+            "when": wo_start.isoformat() if wo_start else "",
+            "url": asset_view_url,
+        })
+        bump("block")
+
+    # 3) Verifiche periodiche in finestra
+    pv_qs = PeriodicVerification.objects.filter(
+        assets=asset,
+        is_active=True,
+        next_verification_date__isnull=False,
+    )
+    if start and end:
+        pv_qs = pv_qs.filter(next_verification_date__gte=start, next_verification_date__lte=end)
+    for pv in pv_qs.order_by("next_verification_date")[:20]:
+        conflicts.append({
+            "type": "verification",
+            "severity": "warning",
+            "title": f"Verifica periodica: {pv.name}",
+            "detail": "",
+            "when": pv.next_verification_date.isoformat() if pv.next_verification_date else "",
+            "url": asset_view_url,
+        })
+        bump("warning")
+
+    # 4) Ticket manutenzione aperti sull'asset
+    try:
+        from tickets.models import Ticket, StatoTicket
+        open_states = [
+            StatoTicket.APERTA,
+            StatoTicket.IN_CARICO,
+            StatoTicket.IN_ATTESA,
+        ]
+        for tk in Ticket.objects.filter(asset=asset, stato__in=open_states).order_by("-pk")[:20]:
+            try:
+                tk_url = reverse("tickets:detail", kwargs={"ticket_id": tk.id})
+            except Exception:
+                tk_url = ""
+            conflicts.append({
+                "type": "ticket",
+                "severity": "warning",
+                "title": f"Ticket {tk.numero_ticket}: {tk.titolo}",
+                "detail": tk.get_stato_display(),
+                "when": "",
+                "url": tk_url,
+            })
+            bump("warning")
+    except Exception:
+        pass
+
+    # 5) Task sovrapposti (stesso asset via TaskExtraRef, stato attivo)
+    if start and end:
+        tref_qs = (
+            TaskExtraRef.objects.filter(asset=asset)
+            .exclude(task__status__in=[TaskStatus.DONE, TaskStatus.CANCELED])
+            .select_related("task")
+        )
+        if exclude_task_id:
+            tref_qs = tref_qs.exclude(task_id=exclude_task_id)
+        seen_task_ids: set[int] = set()
+        for ref in tref_qs[:100]:
+            if ref.task_id in seen_task_ids:
+                continue
+            other = ref.task
+            o_start, o_end = _task_time_window(other)
+            if not _windows_overlap(start, end, o_start, o_end):
+                continue
+            seen_task_ids.add(ref.task_id)
+            try:
+                t_url = reverse("tasks:detail", kwargs={"task_id": other.id})
+            except Exception:
+                t_url = ""
+            when_label = o_start.isoformat() if o_start else ""
+            if o_start and o_end and o_start != o_end:
+                when_label = f"{o_start.isoformat()} -> {o_end.isoformat()}"
+            conflicts.append({
+                "type": "task",
+                "severity": "block",
+                "title": f"Attivita gia' assegnata: {other.title}",
+                "detail": other.get_status_display(),
+                "when": when_label,
+                "url": t_url,
+            })
+            bump("block")
+
+    return {
+        "asset": {
+            "id": asset.id,
+            "tag": getattr(asset, "asset_tag", "") or "",
+            "name": asset.name,
+            "status": asset.status,
+            "status_label": asset.get_status_display(),
+        },
+        "window": {
+            "start": start.isoformat() if start else "",
+            "end": end.isoformat() if end else "",
+        },
+        "conflicts": conflicts,
+        "overall_severity": overall,
+        "has_blocking_conflict": any(c["severity"] == "block" for c in conflicts),
+    }
+
+
+def _check_blocking_asset_conflicts(task: "Task", post_data, exclude_task_id: int | None) -> list[str]:
+    """Ritorna la lista di messaggi di errore per eventuali conflitti asset
+    bloccanti, usando la stessa logica dell'endpoint availability. Se le
+    impostazioni disabilitano il blocco, ritorna [].
+    """
+    cfg = TaskImpostazioni.get_singleton()
+    if not cfg.asset_conflict_check_enabled or not cfg.asset_conflict_block:
+        return []
+    if not task.category_id:
+        return []
+    try:
+        from assets.models import Asset
+    except ImportError:
+        return []
+    fields = list(task.category.fields.all().order_by("order_index", "id"))
+    asset_fields = [f for f in fields if f.field_type == TaskCategoryFieldType.ASSET]
+    if not asset_fields:
+        return []
+    start, end = _task_time_window(task)
+    errors: list[str] = []
+    for f in asset_fields:
+        raw = (post_data.get(f"extra__{f.code}") or "").strip()
+        if not raw:
+            continue
+        try:
+            aid = int(raw)
+        except (TypeError, ValueError):
+            continue
+        try:
+            asset = Asset.objects.get(pk=aid)
+        except Asset.DoesNotExist:
+            continue
+        report = _asset_availability_report(asset, start, end, exclude_task_id)
+        if report["has_blocking_conflict"]:
+            tag = report["asset"].get("tag") or ""
+            name = report["asset"].get("name") or ""
+            asset_label = f"{tag} - {name}" if tag else name
+            blocking = [c for c in report["conflicts"] if c["severity"] == "block"]
+            details = "; ".join(c["title"] for c in blocking[:3])
+            errors.append(
+                f"Campo '{f.label}' ({asset_label}): conflitto bloccante - {details}"
+            )
+    return errors
+
+
+@task_permissions_required("tasks_view")
+def asset_availability_json(request, asset_id: int):
+    """Ritorna il report di disponibilita per un asset nella finestra richiesta.
+
+    Query string:
+      start=YYYY-MM-DD (opzionale)
+      end=YYYY-MM-DD (opzionale)
+      exclude_task=<id> (opzionale, per l'edit di un task esistente)
+    """
+    try:
+        from assets.models import Asset
+        asset = Asset.objects.get(pk=asset_id)
+    except Exception:
+        return JsonResponse({"ok": False, "reason": "not_found"}, status=404)
+
+    start = _parse_iso_date(request.GET.get("start") or "")
+    end = _parse_iso_date(request.GET.get("end") or "")
+    if start and end and end < start:
+        start, end = end, start
+    exclude_task_raw = request.GET.get("exclude_task") or ""
+    exclude_task_id: int | None = None
+    if exclude_task_raw:
+        try:
+            exclude_task_id = int(exclude_task_raw)
+        except (TypeError, ValueError):
+            exclude_task_id = None
+
+    cfg = TaskImpostazioni.get_singleton()
+    report = _asset_availability_report(asset, start, end, exclude_task_id)
+    report["ok"] = True
+    report["check_enabled"] = bool(cfg.asset_conflict_check_enabled)
+    report["block_on_conflict"] = bool(cfg.asset_conflict_block)
+    return JsonResponse(report)
+
+
+def _persist_task_extra_data(task: "Task", post_data) -> None:
+    """Legge i campi extra dal POST per la categoria di `task`, valida i
+    valori secondo il catalogo TaskCategoryField e salva:
+      - task.extra_data (JSON)
+      - TaskExtraRef (righe normalizzate per FK user/asset)
+    """
+    task.extra_data = task.extra_data or {}
+
+    if not task.category_id:
+        if task.extra_data:
+            task.extra_data = {}
+            task.save(update_fields=["extra_data"])
+        TaskExtraRef.objects.filter(task=task).delete()
+        return
+
+    fields = list(task.category.fields.all().order_by("order_index", "id"))
+    parsed: dict[str, object] = {}
+    refs_to_create: list[TaskExtraRef] = []
+
+    for f in fields:
+        name = f"extra__{f.code}"
+        if f.field_type == TaskCategoryFieldType.CHECKBOX:
+            parsed[f.code] = bool(post_data.get(name))
+            continue
+        if f.field_type == TaskCategoryFieldType.MULTISELECT:
+            raw = post_data.getlist(name) if hasattr(post_data, "getlist") else post_data.get(name) or []
+            if isinstance(raw, str):
+                raw = [raw]
+            allowed = {c["value"] for c in f.normalized_choices()}
+            parsed[f.code] = [v for v in raw if v in allowed]
+            continue
+        raw_value = (post_data.get(name) or "").strip()
+        if not raw_value:
+            parsed[f.code] = ""
+            continue
+        if f.field_type == TaskCategoryFieldType.NUMBER:
+            try:
+                parsed[f.code] = float(raw_value) if "." in raw_value else int(raw_value)
+            except (TypeError, ValueError):
+                parsed[f.code] = raw_value
+        elif f.field_type == TaskCategoryFieldType.SELECT:
+            allowed = {c["value"] for c in f.normalized_choices()}
+            parsed[f.code] = raw_value if raw_value in allowed else ""
+        elif f.field_type == TaskCategoryFieldType.USER:
+            try:
+                uid = int(raw_value)
+                if User.objects.filter(pk=uid).exists():
+                    parsed[f.code] = uid
+                    refs_to_create.append(TaskExtraRef(task=task, field_code=f.code, user_id=uid))
+                else:
+                    parsed[f.code] = ""
+            except (TypeError, ValueError):
+                parsed[f.code] = ""
+        elif f.field_type == TaskCategoryFieldType.ASSET:
+            try:
+                aid = int(raw_value)
+                from assets.models import Asset
+                if Asset.objects.filter(pk=aid).exists():
+                    parsed[f.code] = aid
+                    refs_to_create.append(TaskExtraRef(task=task, field_code=f.code, asset_id=aid))
+                else:
+                    parsed[f.code] = ""
+            except (TypeError, ValueError, ImportError):
+                parsed[f.code] = ""
+        else:
+            parsed[f.code] = raw_value
+
+    task.extra_data = parsed
+    task.save(update_fields=["extra_data"])
+    TaskExtraRef.objects.filter(task=task).delete()
+    if refs_to_create:
+        TaskExtraRef.objects.bulk_create(refs_to_create)
+
+
+def _handle_tasks_categories_post(request):
+    """POST tab tipi: CRUD TaskCategory + TaskCategoryField."""
+    action = (request.POST.get("cat_action") or "").strip()
+    base_url = f"{reverse('tasks:impostazioni')}?tab=tipi"
+
+    def _url_for(category=None):
+        if category is not None:
+            return f"{base_url}&cat={category.id}"
+        return base_url
+
+    def _unique_slug(base: str, exclude_pk: int | None = None) -> str:
+        candidate = slugify(base) or "tipo"
+        candidate = candidate[:120]
+        n = 2
+        root = candidate
+        while TaskCategory.objects.exclude(pk=exclude_pk or 0).filter(slug=candidate).exists():
+            candidate = f"{root}-{n}"[:120]
+            n += 1
+        return candidate
+
+    valid_field_types = {value for value, _ in TaskCategoryFieldType.choices}
+    valid_role_codes = {role.code for role in _task_role_definitions(include_inactive=False)}
+
+    def _clean_category_role() -> str:
+        raw_role = (request.POST.get("role_type") or "").strip()
+        return raw_role if raw_role in valid_role_codes else ""
+
+    if action == "category_create":
+        name = (request.POST.get("name") or "").strip()
+        if not name:
+            messages.error(request, "Indica un nome per il tipo attivita.")
+            return redirect(_url_for())
+        description = (request.POST.get("description") or "").strip()
+        icon = (request.POST.get("icon") or "").strip()
+        max_order = TaskCategory.objects.aggregate(m=Max("order_index")).get("m") or 0
+        category = TaskCategory.objects.create(
+            name=name[:120],
+            slug=_unique_slug(name),
+            description=description[:255],
+            icon=icon[:80],
+            role_type=_clean_category_role(),
+            order_index=max_order + 10,
+        )
+        log_action(request, "tipo_creato", "tasks", {
+            "message": f"Creato tipo attivita '{category.name}'",
+            "category_id": category.id,
+        })
+        messages.success(request, f"Tipo '{category.name}' creato.")
+        return redirect(_url_for(category))
+
+    if action == "category_update":
+        try:
+            category = TaskCategory.objects.get(pk=int(request.POST.get("category_id") or 0))
+        except (TaskCategory.DoesNotExist, TypeError, ValueError):
+            messages.error(request, "Tipo attivita non trovato.")
+            return redirect(_url_for())
+        name = (request.POST.get("name") or "").strip()
+        if not name:
+            messages.error(request, "Il nome del tipo e' obbligatorio.")
+            return redirect(_url_for(category))
+        category.name = name[:120]
+        category.description = (request.POST.get("description") or "").strip()[:255]
+        category.icon = (request.POST.get("icon") or "").strip()[:80]
+        category.role_type = _clean_category_role()
+        category.is_active = bool(request.POST.get("is_active"))
+        try:
+            category.order_index = max(0, int(request.POST.get("order_index") or 0))
+        except (TypeError, ValueError):
+            pass
+        category.save()
+        log_action(request, "tipo_modificato", "tasks", {
+            "message": f"Modificato tipo attivita '{category.name}'",
+            "category_id": category.id,
+        })
+        messages.success(request, "Tipo aggiornato.")
+        return redirect(_url_for(category))
+
+    if action == "category_delete":
+        try:
+            category = TaskCategory.objects.get(pk=int(request.POST.get("category_id") or 0))
+        except (TaskCategory.DoesNotExist, TypeError, ValueError):
+            messages.error(request, "Tipo attivita non trovato.")
+            return redirect(_url_for())
+        name = category.name
+        in_use = Task.objects.filter(category_id=category.id).count()
+        category.delete()
+        log_action(request, "tipo_eliminato", "tasks", {
+            "message": f"Eliminato tipo attivita '{name}' (attivita collegate: {in_use})",
+        })
+        messages.success(request, f"Tipo '{name}' eliminato ({in_use} attivita scollegate).")
+        return redirect(_url_for())
+
+    if action in {"field_create", "field_update", "field_delete"}:
+        try:
+            category = TaskCategory.objects.get(pk=int(request.POST.get("category_id") or 0))
+        except (TaskCategory.DoesNotExist, TypeError, ValueError):
+            messages.error(request, "Tipo attivita non trovato.")
+            return redirect(_url_for())
+
+        if action == "field_delete":
+            try:
+                field = TaskCategoryField.objects.get(pk=int(request.POST.get("field_id") or 0), category=category)
+            except (TaskCategoryField.DoesNotExist, TypeError, ValueError):
+                messages.error(request, "Campo non trovato.")
+                return redirect(_url_for(category))
+            label = field.label
+            field.delete()
+            log_action(request, "tipo_campo_eliminato", "tasks", {
+                "message": f"Eliminato campo '{label}' dal tipo '{category.name}'",
+                "category_id": category.id,
+            })
+            messages.success(request, f"Campo '{label}' eliminato.")
+            return redirect(_url_for(category))
+
+        label = (request.POST.get("label") or "").strip()
+        code = (request.POST.get("code") or "").strip()
+        field_type = (request.POST.get("field_type") or "").strip()
+        if field_type not in valid_field_types:
+            messages.error(request, "Tipo di campo non valido.")
+            return redirect(_url_for(category))
+        if not label:
+            messages.error(request, "La label del campo e' obbligatoria.")
+            return redirect(_url_for(category))
+        if not code:
+            code = slugify(label)[:60] or "campo"
+        else:
+            code = slugify(code)[:60] or "campo"
+        required = bool(request.POST.get("required"))
+        help_text = (request.POST.get("help_text") or "").strip()[:255]
+        placeholder = (request.POST.get("placeholder") or "").strip()[:120]
+        depends_on_code = slugify(request.POST.get("depends_on_code") or "")[:60]
+        depends_on_value = (request.POST.get("depends_on_value") or "").strip()[:255]
+        try:
+            order_index = max(0, int(request.POST.get("order_index") or 0))
+        except (TypeError, ValueError):
+            order_index = 0
+
+        asset_type_filter = ",".join(
+            [v.strip() for v in request.POST.getlist("asset_type_filter_multi") if v.strip()]
+        )[:255]
+        asset_category_filter_raw = request.POST.getlist("asset_category_filter_multi")
+        asset_category_filter_ids: list[str] = []
+        for v in asset_category_filter_raw:
+            v = (v or "").strip()
+            if not v:
+                continue
+            try:
+                asset_category_filter_ids.append(str(int(v)))
+            except (TypeError, ValueError):
+                continue
+        asset_category_filter = ",".join(asset_category_filter_ids)[:255]
+
+        choices_raw = (request.POST.get("choices_raw") or "").strip()
+        choices_json: list[dict[str, str]] = []
+        if field_type in {TaskCategoryFieldType.SELECT, TaskCategoryFieldType.MULTISELECT}:
+            for line in choices_raw.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                if "|" in line:
+                    value, label_choice = line.split("|", 1)
+                    value = value.strip()
+                    label_choice = label_choice.strip() or value
+                else:
+                    value = line
+                    label_choice = line
+                if value:
+                    choices_json.append({"value": value[:120], "label": label_choice[:180]})
+
+        if action == "field_create":
+            # unique code per category
+            base_code = code
+            n = 2
+            while TaskCategoryField.objects.filter(category=category, code=code).exists():
+                code = f"{base_code}-{n}"[:60]
+                n += 1
+            max_order = TaskCategoryField.objects.filter(category=category).aggregate(
+                m=Max("order_index")
+            ).get("m") or 0
+            TaskCategoryField.objects.create(
+                category=category,
+                code=code,
+                label=label[:180],
+                field_type=field_type,
+                required=required,
+                order_index=order_index or (max_order + 10),
+                help_text=help_text,
+                placeholder=placeholder,
+                choices_json=choices_json,
+                depends_on_code=depends_on_code,
+                depends_on_value=depends_on_value,
+                asset_type_filter=asset_type_filter if field_type == TaskCategoryFieldType.ASSET else "",
+                asset_category_filter=asset_category_filter if field_type == TaskCategoryFieldType.ASSET else "",
+            )
+            log_action(request, "tipo_campo_creato", "tasks", {
+                "message": f"Aggiunto campo '{label}' al tipo '{category.name}'",
+                "category_id": category.id,
+            })
+            messages.success(request, f"Campo '{label}' aggiunto.")
+            return redirect(_url_for(category))
+
+        # field_update
+        try:
+            field = TaskCategoryField.objects.get(pk=int(request.POST.get("field_id") or 0), category=category)
+        except (TaskCategoryField.DoesNotExist, TypeError, ValueError):
+            messages.error(request, "Campo non trovato.")
+            return redirect(_url_for(category))
+        # permetti cambio code solo se non confligge
+        if code != field.code:
+            if TaskCategoryField.objects.filter(category=category, code=code).exclude(pk=field.pk).exists():
+                messages.error(request, f"Codice '{code}' gia in uso.")
+                return redirect(_url_for(category))
+            field.code = code
+        field.label = label[:180]
+        field.field_type = field_type
+        field.required = required
+        field.help_text = help_text
+        field.placeholder = placeholder
+        field.depends_on_code = depends_on_code
+        field.depends_on_value = depends_on_value
+        field.choices_json = choices_json
+        if field_type == TaskCategoryFieldType.ASSET:
+            field.asset_type_filter = asset_type_filter
+            field.asset_category_filter = asset_category_filter
+        else:
+            field.asset_type_filter = ""
+            field.asset_category_filter = ""
+        if order_index:
+            field.order_index = order_index
+        field.save()
+        log_action(request, "tipo_campo_modificato", "tasks", {
+            "message": f"Modificato campo '{label}' del tipo '{category.name}'",
+            "category_id": category.id,
+        })
+        messages.success(request, f"Campo '{label}' aggiornato.")
+        return redirect(_url_for(category))
+
+    messages.error(request, "Azione non riconosciuta.")
+    return redirect(base_url)
+
+
 @legacy_admin_required
 def impostazioni(request):
     """Pagina canonica impostazioni/admin del modulo Task."""
@@ -2655,8 +4024,12 @@ def impostazioni(request):
         posted_tab = (request.POST.get("tab") or "").strip().lower()
         if posted_tab == "ruoli":
             return _handle_tasks_roles_post(request)
+        if posted_tab == "accessi":
+            return _handle_tasks_access_post(request)
         if posted_tab == "promemoria":
             return _handle_tasks_reminders_post(request)
+        if posted_tab == "tipi":
+            return _handle_tasks_categories_post(request)
 
         branding_response = handle_module_branding_post(
             request,
@@ -2673,6 +4046,8 @@ def impostazioni(request):
         cfg.note_generali = request.POST.get("note_generali", "").strip()
         cfg.vrf_reminder_days = _coerce_positive_int(request.POST.get("vrf_reminder_days"), default=7)
         cfg.vrf_blocking_days = _coerce_positive_int(request.POST.get("vrf_blocking_days"), default=30)
+        cfg.asset_conflict_check_enabled = bool(request.POST.get("asset_conflict_check_enabled"))
+        cfg.asset_conflict_block = bool(request.POST.get("asset_conflict_block"))
         cfg.save()
         log_action(request, "modifica", "tasks", {"message": "Aggiornate impostazioni KICK-OFF"})
         messages.success(request, "Impostazioni salvate.")
@@ -2723,6 +4098,14 @@ def project_vrf_upload(request, project_id: int):
             "preview": None,
             "next_url": next_url,
         })
+
+    if not _can_manage_project(request, project):
+        return render(
+            request,
+            "core/pages/forbidden.html",
+            {"page_title": "Accesso negato"},
+            status=403,
+        )
 
     action = request.POST.get("action", "")
 
@@ -2861,7 +4244,7 @@ def project_vrf_compile(request, project_id: int):
     POST action=confirm: genera xlsx, salva su project.vrf_file, marca UPLOADED.
     """
     from . import vrf_catalog
-    from .vrf_generator import build_vrf_xlsx, vrf_filename_for
+    from .vrf_generator import build_vrf_xlsx, parse_vrf_xlsx, vrf_filename_for
 
     project_qs = _scoped_projects_queryset(request)
     project = get_object_or_404(project_qs, pk=project_id)
@@ -2873,10 +4256,27 @@ def project_vrf_compile(request, project_id: int):
         return redirect("tasks:project_gantt", project_id=project_id)
 
     assessment = getattr(project, "vrf_assessment", None)
+    prefilled_from_xlsx = False
     if assessment is None:
-        assessment = VRFRiskAssessment(project=project, data=vrf_catalog.default_scores())
+        initial_data = vrf_catalog.default_scores()
+        if request.method == "GET" and project.vrf_file and project.vrf_file.name:
+            try:
+                with project.vrf_file.open("rb") as fh:
+                    initial_data = parse_vrf_xlsx(fh)
+                prefilled_from_xlsx = True
+            except Exception:
+                initial_data = vrf_catalog.default_scores()
+                prefilled_from_xlsx = False
+        assessment = VRFRiskAssessment(project=project, data=initial_data)
 
     if request.method == "POST":
+        if not _can_manage_project(request, project):
+            return render(
+                request,
+                "core/pages/forbidden.html",
+                {"page_title": "Accesso negato"},
+                status=403,
+            )
         action = request.POST.get("action", "")
         data = vrf_catalog.default_scores()
 
@@ -2996,6 +4396,7 @@ def project_vrf_compile(request, project_id: int):
         "project": project,
         "vrf_detail": vrf_detail,
         "assessment": assessment,
+        "prefilled_from_xlsx": prefilled_from_xlsx,
         "risks": enriched_risks,
         "phases": vrf_catalog.PHASES,
         "totals": totals,
@@ -3145,7 +4546,6 @@ def import_excel(request):
     """Upload + anteprima + commit import attivita kickoff da Excel."""
     import io
     import openpyxl
-    from django.db import transaction
 
     if request.method == "GET":
         return render(request, "tasks/import.html", {

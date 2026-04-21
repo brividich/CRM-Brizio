@@ -7813,6 +7813,59 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             "new_label": "+ Nuova macchina",
             "search_placeholder": "Ricerca rapida per macchina, tag, reparto o seriale",
         }
+
+    linked_task_rows: list[dict] = []
+    upcoming_task_rows: list[dict] = []
+    try:
+        from tasks.models import TaskExtraRef, TaskStatus
+        refs = (
+            TaskExtraRef.objects.filter(asset=asset)
+            .select_related("task", "task__category", "task__project", "task__assigned_to")
+            .order_by("-task__updated_at", "-task_id")[:50]
+        )
+        today = timezone.localdate()
+        seen_task_ids = set()
+        for ref in refs:
+            if not ref.task_id or ref.task_id in seen_task_ids:
+                continue
+            seen_task_ids.add(ref.task_id)
+            t = ref.task
+            cat_field_label = ""
+            if t.category_id:
+                cat_field = next((f for f in t.category.fields.all() if f.code == ref.field_code), None)
+                if cat_field:
+                    cat_field_label = cat_field.label
+            base_row = {
+                "id": t.id,
+                "title": t.title,
+                "status": t.get_status_display(),
+                "status_code": t.status,
+                "due_date": t.due_date,
+                "start_date": getattr(t, "next_step_due", None),
+                "assignee": (t.assigned_to.get_full_name() or t.assigned_to.username) if t.assigned_to_id else "",
+                "category_name": t.category.name if t.category_id else "",
+                "field_label": cat_field_label or ref.field_code,
+                "project_name": t.project.name if t.project_id else "",
+                "url": reverse("tasks:detail", args=[t.id]),
+            }
+            linked_task_rows.append(base_row)
+            # "AdL previste": solo task attive con finestra temporale rilevante (in corso oppure futura)
+            if t.status in {TaskStatus.TODO, TaskStatus.IN_PROGRESS}:
+                start = base_row["start_date"]
+                end = base_row["due_date"]
+                effective_end = end or start
+                if effective_end and effective_end >= today:
+                    upcoming_task_rows.append(base_row)
+        upcoming_task_rows.sort(
+            key=lambda r: (
+                r.get("start_date") or r.get("due_date") or today,
+                r.get("due_date") or today,
+                r.get("id") or 0,
+            )
+        )
+    except Exception:
+        linked_task_rows = []
+        upcoming_task_rows = []
     detail_section_cards = _build_asset_detail_section_cards(
         detail_specs_title=detail_specs_title,
         detail_timeline_title=detail_timeline_title,
@@ -7916,6 +7969,8 @@ def asset_detail(request: HttpRequest, id: int | None = None) -> HttpResponse:
             ),
             "asset_maintenance_rule_list_url": _asset_maintenance_rule_list_page_url(asset_id=asset.id),
             "can_manage_asset_maintenance_rules": can_manage_asset_maintenance_rules,
+            "asset_linked_task_rows": linked_task_rows,
+            "asset_upcoming_task_rows": upcoming_task_rows,
             "asset_maintenance_schedule_url": _maintenance_schedule_page_url(asset_id=asset.id),
             "asset_assistance_contracts_url": _assistance_contracts_page_url(asset_id=asset.id),
             "asset_primary_contract": primary_contract,

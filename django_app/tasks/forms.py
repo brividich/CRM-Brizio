@@ -4,12 +4,38 @@ from datetime import date
 
 from django import forms
 from django.contrib.auth import get_user_model
+from django.db import DatabaseError
 from django.db.models import Q
 
+from core.legacy_models import UtenteLegacy
+
 from .models import (
-    Project, ProjectComment, SubTask, Task, TaskAttachment, TaskComment,
-    TaskPriority, TaskRoleAssignment, TaskRoleType, TaskStatus,
+    Project, ProjectComment, SubTask, Task, TaskAttachment, TaskCategory,
+    TaskComment, TaskPriority, TaskRoleAssignment, TaskRoleType, TaskStatus,
 )
+
+
+def task_active_users_queryset():
+    """Utenti Django assegnabili nei task, allineati agli utenti portale attivi.
+
+    La gestione utenti admin lavora sulla tabella legacy `utenti` (`attivo`).
+    I form Django pero' salvano FK verso `auth_user`, quindi mostriamo gli
+    utenti Django collegati a legacy attivi. Se il mapping legacy non e'
+    disponibile (test/dev minimale), fallback non bloccante agli auth_user attivi.
+    """
+    base_qs = User.objects.filter(is_active=True).select_related("profile")
+    try:
+        active_legacy_ids = list(
+            UtenteLegacy.objects.filter(attivo=True).values_list("id", flat=True)
+        )
+    except DatabaseError:
+        return base_qs.order_by("first_name", "last_name", "username")
+    if not active_legacy_ids:
+        return base_qs.order_by("first_name", "last_name", "username")
+    mapped_qs = base_qs.filter(profile__legacy_user_id__in=active_legacy_ids)
+    if not mapped_qs.exists():
+        return base_qs.order_by("first_name", "last_name", "username")
+    return mapped_qs.order_by("first_name", "last_name", "username")
 
 
 def _users_for_role(role_type: str):
@@ -24,7 +50,7 @@ def _users_for_role(role_type: str):
     ).distinct()
     if assigned.exists():
         return assigned.order_by("first_name", "last_name", "username")
-    return User.objects.order_by("first_name", "last_name", "username")
+    return User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
 
 User = get_user_model()
 
@@ -171,6 +197,13 @@ class TaskForm(forms.ModelForm):
         widget=forms.RadioSelect(attrs={"class": "input-radio"}),
         label="Contesto lavoro",
     )
+    category = forms.ModelChoiceField(
+        required=False,
+        queryset=TaskCategory.objects.none(),
+        widget=forms.Select(attrs={"class": "input", "data-role": "task-category"}),
+        label="Tipo attivita",
+        help_text="Seleziona il tipo per abilitare i campi specifici configurati dall'amministratore.",
+    )
     project_link_mode = forms.ChoiceField(
         required=False,
         choices=PROJECT_LINK_MODE_CHOICES,
@@ -284,6 +317,7 @@ class TaskForm(forms.ModelForm):
     class Meta:
         model = Task
         fields = [
+            "category",
             "title",
             "description",
             "tags",
@@ -317,7 +351,7 @@ class TaskForm(forms.ModelForm):
         self.reused_existing_project_fields: list[str] = []
         self.locked_project = locked_project
         existing_calendar_event = None
-        users_qs = User.objects.order_by("first_name", "last_name", "username")
+        users_qs = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
         project_qs = project_queryset if project_queryset is not None else Project.objects.order_by("name", "id")
         self.project_queryset = project_qs
 
@@ -326,6 +360,7 @@ class TaskForm(forms.ModelForm):
         self.fields["subscribers"].required = False
         self.fields["subscribers"].queryset = users_qs
         self.fields["project_choice"].queryset = project_qs
+        self.fields["category"].queryset = TaskCategory.objects.filter(is_active=True).order_by("order_index", "name")
         self.fields["project_new_manager"].queryset       = _users_for_role(TaskRoleType.PROJECT_MANAGER)
         self.fields["project_new_capo_commessa"].queryset = _users_for_role(TaskRoleType.CAPO_COMMESSA)
         self.fields["project_new_programmer"].queryset    = _users_for_role(TaskRoleType.PROGRAMMER)
@@ -705,7 +740,7 @@ class TaskFilterForm(forms.Form):
 
     def __init__(self, *args, user=None, project_queryset=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["assigned_to"].queryset = User.objects.order_by("first_name", "last_name", "username")
+        self.fields["assigned_to"].queryset = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
         if project_queryset is not None:
             self.fields["project"].queryset = project_queryset
         else:
@@ -756,7 +791,7 @@ class TaskCommentForm(forms.ModelForm):
         if notify_user_queryset is not None:
             self.fields["target_user"].queryset = notify_user_queryset
         else:
-            self.fields["target_user"].queryset = User.objects.order_by("first_name", "last_name", "username")
+            self.fields["target_user"].queryset = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
 
 
 class ProjectCommentForm(forms.ModelForm):
@@ -774,7 +809,7 @@ class ProjectCommentForm(forms.ModelForm):
         if notify_user_queryset is not None:
             self.fields["target_user"].queryset = notify_user_queryset
         else:
-            self.fields["target_user"].queryset = User.objects.order_by("first_name", "last_name", "username")
+            self.fields["target_user"].queryset = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
 
 
 class SubTaskForm(forms.ModelForm):
@@ -791,7 +826,7 @@ class SubTaskForm(forms.ModelForm):
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["assigned_to"].required = False
-        self.fields["assigned_to"].queryset = User.objects.order_by("first_name", "last_name", "username")
+        self.fields["assigned_to"].queryset = User.objects.filter(is_active=True).order_by("first_name", "last_name", "username")
 
 
 class SubTaskStatusForm(forms.ModelForm):

@@ -53,4 +53,6 @@ urlpatterns = [
     path("tasks/projects/<int:project_id>/vrf/download/", views.project_vrf_download, name="project_vrf_download"),
     path("tasks/import/", views.import_excel, name="import_excel"),
     path("tasks/import/template/", views.download_excel_template, name="download_excel_template"),
+    path("tasks/categories/<int:category_id>/fields/", views.category_fields_json, name="category_fields_json"),
+    path("tasks/api/asset/<int:asset_id>/availability/", views.asset_availability_json, name="asset_availability_json"),
 ]

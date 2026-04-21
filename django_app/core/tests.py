@@ -458,6 +458,82 @@ class ACLLegacyDecisionTests(TestCase):
         mocked_get_legacy_user.assert_not_called()
         mocked_resolve_acl_access.assert_not_called()
 
+    def test_acl_middleware_profile_shared_path_still_requires_onboarding_completion(self):
+        request = self.factory.get("/profilo/")
+        _attach_session(request)
+        request.user = SimpleNamespace(is_authenticated=True, is_superuser=False, id=891)
+        middleware = ACLMiddleware(lambda req: HttpResponse("ok"))
+        onboarding_qs = MagicMock()
+        onboarding_qs.first.return_value = SimpleNamespace(is_done=lambda: False)
+
+        with patch("core.models.UserOnboarding.objects.filter", return_value=onboarding_qs) as mocked_onboarding_filter, patch(
+            "core.middleware.get_legacy_user"
+        ) as mocked_get_legacy_user, patch("core.middleware.resolve_acl_access") as mocked_resolve_acl_access:
+            response = middleware(request)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("onboarding_wizard"))
+        mocked_onboarding_filter.assert_called_once_with(user=request.user)
+        mocked_get_legacy_user.assert_not_called()
+        mocked_resolve_acl_access.assert_not_called()
+
+    def test_acl_middleware_allows_acl_shared_assets_api_after_onboarding(self):
+        request = self.factory.post(
+            "/api/assets/dashboard/config/",
+            data="{}",
+            content_type="application/json",
+            HTTP_ACCEPT="application/json",
+        )
+        _attach_session(request)
+        request.user = SimpleNamespace(is_authenticated=True, is_superuser=False, id=892)
+        middleware = ACLMiddleware(lambda req: HttpResponse("ok"))
+        onboarding_qs = MagicMock()
+        onboarding_qs.first.return_value = SimpleNamespace(is_done=lambda: True)
+
+        with patch("core.models.UserOnboarding.objects.filter", return_value=onboarding_qs) as mocked_onboarding_filter, patch(
+            "core.middleware.get_legacy_user"
+        ) as mocked_get_legacy_user, patch("core.middleware.resolve_acl_access") as mocked_resolve_acl_access:
+            response = middleware(request)
+
+        self.assertEqual(response.status_code, 200)
+        mocked_onboarding_filter.assert_called_once_with(user=request.user)
+        mocked_get_legacy_user.assert_not_called()
+        mocked_resolve_acl_access.assert_not_called()
+
+    def test_acl_middleware_allows_onboarding_email_api_without_acl_resolution(self):
+        request = self.factory.post(
+            "/api/onboarding/email/",
+            HTTP_ACCEPT="application/json",
+            CONTENT_TYPE="application/json",
+        )
+        _attach_session(request)
+        request.user = SimpleNamespace(is_authenticated=True, is_superuser=False, id=893)
+        middleware = ACLMiddleware(lambda req: HttpResponse("ok"))
+
+        with patch("core.models.UserOnboarding.objects.filter") as mocked_onboarding_filter, patch(
+            "core.middleware.get_legacy_user"
+        ) as mocked_get_legacy_user, patch("core.middleware.resolve_acl_access") as mocked_resolve_acl_access:
+            response = middleware(request)
+
+        self.assertEqual(response.status_code, 200)
+        mocked_onboarding_filter.assert_not_called()
+        mocked_get_legacy_user.assert_not_called()
+        mocked_resolve_acl_access.assert_not_called()
+
+    def test_acl_middleware_treats_monitoring_exempt_prefix_without_trailing_slash_as_exempt(self):
+        request = self.factory.post(
+            "/monitoring/report-problem",
+            HTTP_ACCEPT="application/json",
+            CONTENT_TYPE="application/json",
+        )
+        _attach_session(request)
+        request.user = AnonymousUser()
+        middleware = ACLMiddleware(lambda req: HttpResponse("ok"))
+
+        response = middleware(request)
+
+        self.assertEqual(response.status_code, 200)
+
 
 @override_settings(
     LEGACY_AUTH_ENABLED=True,
@@ -1717,6 +1793,7 @@ class ModuleRegistryStructureTests(TestCase):
         admin_modules = get_modules_by_audience("admin")
         self.assertIn("admin_portale", admin_modules)
         self.assertIn("hub_tools", admin_modules)
+        self.assertIn("automazioni", admin_modules)
 
     def test_get_modules_by_audience_system_includes_monitoring(self):
         system_modules = get_modules_by_audience("system")
