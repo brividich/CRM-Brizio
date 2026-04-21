@@ -223,10 +223,14 @@ Wizard Django 12 step raggiungibile su `/setup/`, usato quando `SETUP_COMPLETED=
 - Configurazione `SiteConfig`, `.env`, credenziali admin
 - Wizard exe: discovery SQL Server (UDP broadcast + TCP scan + SSRP)
 - Selezione moduli **tier-based** (system/standard/optional)
-- Migrate selettivo per modulo scelto
+- Migrate selettivo per modulo scelto, con copertura di tutte le app dotate di migration (`anomalie`, `monitoring`, `planimetria` incluse)
+- Runtime Python 3.11+ rilevato e validato prima della creazione del virtualenv
+- `collectstatic` isolato dai bootstrap ACL runtime, così non apre cache/DB prima di copiare gli asset
+- Preflight SQL Server: il database configurato viene creato/verificato prima delle migration; con `DB_TRUST_CERT=True` anche `sqlcmd` usa `-C` e, se serve, fallback ODBC con `TrustServerCertificate=yes`
+- Trigger automazioni SQL idempotenti: `apply_sql_triggers` crea la queue e salta i trigger la cui tabella sorgente legacy/opzionale non esiste nel DB corrente; gli script assenze sono self-guarded anche se lanciati direttamente
 - Fail-fast: se venv/pip/migrate/collectstatic falliscono, release **non** attivata
 - FinishPage mostra banner rosso "Installazione Incompleta" con countdown 60s
-- Server Dashboard integrato con start/stop/restart IIS e reset password live
+- Server Dashboard integrato con start/stop/restart IIS, reset password live e terminale TEST/PROD con preset Django/ACL
 </details>
 
 <details open>

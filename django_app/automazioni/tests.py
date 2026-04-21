@@ -177,6 +177,70 @@ GO
             "trg_assenze_automation_after_insert",
         )
 
+    def test_trigger_target_table_from_sql_supports_schema_and_brackets(self):
+        from .management.commands import apply_sql_triggers as command_module
+
+        self.assertEqual(
+            command_module._trigger_target_table_from_sql(
+                "CREATE TRIGGER [dbo].[trg_tasks_automation]\nON [dbo].[tasks_task]\nAFTER INSERT AS SELECT 1"
+            ),
+            "dbo.tasks_task",
+        )
+        self.assertEqual(
+            command_module._trigger_target_table_from_sql(
+                "CREATE OR ALTER TRIGGER dbo.trg_assenze_automation_after_insert\nON dbo.assenze\nAFTER INSERT AS SELECT 1"
+            ),
+            "dbo.assenze",
+        )
+
+    def test_apply_trigger_skips_when_target_table_is_missing(self):
+        from .management.commands import apply_sql_triggers as command_module
+
+        class _FakeSqlPath:
+            name = "trg_assenze_automation_after_insert.sql"
+
+            def read_text(self, encoding="utf-8"):
+                return """
+CREATE OR ALTER TRIGGER dbo.trg_assenze_automation_after_insert
+ON dbo.assenze
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+END;
+GO
+"""
+
+        with patch.object(command_module, "_sql_table_exists", return_value=False):
+            result = command_module.apply_trigger(_FakeSqlPath())
+
+        self.assertEqual(result["status"], "skip")
+        self.assertEqual(result["trigger"], "trg_assenze_automation_after_insert")
+        self.assertEqual(result["target_table"], "dbo.assenze")
+        self.assertIn("Tabella target assente", result["message"])
+
+    def test_missing_target_sql_error_is_treated_as_skip(self):
+        from .management.commands import apply_sql_triggers as command_module
+
+        exc = Exception(
+            "('42000', \"[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]"
+            "L'oggetto 'dbo.assenze' non esiste o non e valido per questa operazione. (8197)\")"
+        )
+
+        self.assertTrue(command_module._is_missing_trigger_target_error(exc))
+
+    def test_assenze_trigger_scripts_are_self_guarded(self):
+        repo_root = Path(__file__).resolve().parents[2]
+        for filename in (
+            "trg_assenze_automation_after_insert.sql",
+            "trg_assenze_automation_after_update.sql",
+        ):
+            sql = (repo_root / "sql" / filename).read_text(encoding="utf-8")
+
+            self.assertIn("IF OBJECT_ID(N'dbo.assenze', N'U') IS NULL", sql)
+            self.assertIn("EXEC sys.sp_executesql N'", sql)
+            self.assertIn("N''pending''", sql)
+
     def test_discover_trigger_files_includes_migrations_and_root_sql_dirs(self):
         from .management.commands import apply_sql_triggers as command_module
 

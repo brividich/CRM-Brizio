@@ -5,7 +5,7 @@ import logging
 from django.core.cache import cache
 from django.db import DatabaseError, transaction
 
-from core.acl_bootstrap_base import init_missing_permessi, set_ui_meta
+from core.acl_bootstrap_base import init_missing_permessi, set_ui_meta, should_skip_runtime_bootstrap
 from core.legacy_cache import bump_legacy_cache_version, normalize_legacy_button_url
 from core.legacy_models import Pulsante
 
@@ -31,6 +31,10 @@ def _calendar_acl_identity() -> tuple[str, str]:
 
 
 def bootstrap_assenze_acl_endpoints(force: bool = False) -> None:
+    if should_skip_runtime_bootstrap(force=force):
+        logger.debug("ACL bootstrap assenze skipped for management command")
+        return
+
     if not force and cache.get(_BOOTSTRAP_CACHE_KEY):
         return
 

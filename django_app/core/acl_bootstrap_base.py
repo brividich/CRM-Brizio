@@ -20,6 +20,8 @@ Campo opzionale: "icona" (override per-pulsante sull'icona default dell'app)
 from __future__ import annotations
 
 import logging
+import os
+import sys
 
 from django.core.cache import cache
 from django.db import DatabaseError, connections, transaction
@@ -30,6 +32,30 @@ from core.legacy_models import Pulsante
 logger = logging.getLogger(__name__)
 
 _BOOTSTRAP_TTL_SECONDS = 300
+_SKIP_RUNTIME_BOOTSTRAP_COMMANDS = {
+    "check",
+    "collectstatic",
+    "createcachetable",
+    "diffsettings",
+    "findstatic",
+    "bootstrap_acl_v2",
+    "seed_acl_uat",
+    "seed_pulsanti_descrizioni",
+    "createsuperuser",
+    "makemigrations",
+    "migrate",
+    "showmigrations",
+    "test",
+}
+
+
+def should_skip_runtime_bootstrap(*, force: bool = False) -> bool:
+    """Evita bootstrap DB/cache durante comandi Django non runtime."""
+    if force:
+        return False
+    if os.environ.get("PORTAL_SKIP_RUNTIME_BOOTSTRAP", "").strip().lower() in {"1", "true", "yes", "on"}:
+        return True
+    return any(arg in _SKIP_RUNTIME_BOOTSTRAP_COMMANDS for arg in sys.argv[1:])
 
 
 # ---------------------------------------------------------------------------
@@ -258,6 +284,10 @@ def run_bootstrap(
     init_permessi   Se True crea record Permesso(can_view=0) per ruoli mancanti
     bootstrap_nav_fn Callable opzionale per inizializzare il NavigationRegistry
     """
+    if should_skip_runtime_bootstrap(force=force):
+        logger.debug("ACL bootstrap %s skipped for management command", app_name)
+        return
+
     if not force and cache.get(cache_key):
         return
 

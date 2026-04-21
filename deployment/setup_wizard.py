@@ -4,7 +4,7 @@ Eseguire come Amministratore: python setup_wizard.py [--env dev|test|prod]
 Requisiti: Python 3.11+ (tkinter incluso).
 """
 
-import ctypes, json, os, re, shutil, socket, subprocess, sys, threading
+import ctypes, json, os, re, shlex, shutil, socket, subprocess, sys, threading
 import traceback, zipfile
 from datetime import datetime
 from pathlib import Path
@@ -146,6 +146,10 @@ MODULE_REGISTRY: list[dict] = [
      "description": "Module Manager, DB Manager, guide e documentazione interna",
      "app_label": "hub_tools",  "required": True, "default": True, "depends_on": [],
      "has_migrations": False, "tier": "system"},
+    {"key": "monitoring",  "label": "Monitoring",
+     "description": "Issue tracking interno e osservabilita del portale",
+     "app_label": "monitoring", "required": True, "default": True, "depends_on": [],
+     "has_migrations": True, "tier": "system"},
     # ── STANDARD ────────────────────────────────────────────────────────────
     {"key": "notizie",     "label": "Notizie",
      "description": "Bacheca notizie e comunicazioni aziendali",
@@ -158,7 +162,7 @@ MODULE_REGISTRY: list[dict] = [
     {"key": "anomalie",    "label": "Anomalie Produzione",
      "description": "Segnalazione e gestione anomalie produzione",
      "app_label": "anomalie",   "required": False, "default": True, "depends_on": [],
-     "has_migrations": False, "tier": "standard"},
+     "has_migrations": True, "tier": "standard"},
     {"key": "assets",      "label": "Gestione Asset",
      "description": "Inventario asset, manutenzioni, ordini di lavoro, scadenzari, licenze",
      "app_label": "assets",     "required": False, "default": True,
@@ -179,6 +183,10 @@ MODULE_REGISTRY: list[dict] = [
      "description": "Report timbrature da DB legacy con importazione e storico",
      "app_label": "timbri",     "required": False, "default": True, "depends_on": [],
      "has_migrations": True,  "tier": "standard"},
+    {"key": "planimetria", "label": "Planimetria",
+     "description": "Wrapper planimetria e compatibilita percorsi asset",
+     "app_label": "planimetria", "required": False, "default": True,
+     "depends_on": ["assets"], "has_migrations": True, "tier": "standard"},
     # ── OPZIONALI ───────────────────────────────────────────────────────────
     {"key": "dpi",                    "label": "Gestione DPI",
      "description": "Dispositivi Protezione Individuale: richieste, approvazione, consegna, storico",
@@ -312,19 +320,28 @@ def _is_ssl_cert_error(err_str: str) -> bool:
 
 
 def _try_db_connection(
-    drv: str, host: str, user: str, pwd: str, trusted: bool, trust_cert: bool
+    drv: str,
+    host: str,
+    user: str,
+    pwd: str,
+    trusted: bool,
+    trust_cert: bool,
+    database: str = "",
 ) -> tuple[bool, str]:
     """Tenta una connessione pyodbc e ritorna (ok, messaggio_errore)."""
     if _pyodbc_module is None:
         return False, "pyodbc non disponibile"
     tc = "yes" if trust_cert else "no"
+    db_part = f"DATABASE={database};" if database else ""
     try:
         if trusted:
             cs = (f"DRIVER={{{drv}}};SERVER={host};"
+                  f"{db_part}"
                   f"Trusted_Connection=yes;Connection Timeout=5;"
                   f"TrustServerCertificate={tc}")
         else:
             cs = (f"DRIVER={{{drv}}};SERVER={host};"
+                  f"{db_part}"
                   f"UID={user};PWD={pwd};Connection Timeout=5;"
                   f"TrustServerCertificate={tc}")
         conn = _pyodbc_module.connect(cs, autocommit=True, timeout=5)
@@ -3147,7 +3164,8 @@ class InstallPage(Page):
         # 5. migrate selettivo (DEV usa SQLite — migrate tutto per semplicità)
         step(5, "Django migrate (SQLite dev)", 60)
         env_vars = {**os.environ, "DJANGO_SETTINGS_MODULE": settings,
-                    "PYTHONPATH": str(django_app)}
+                    "PYTHONPATH": str(django_app),
+                    "PORTAL_SKIP_RUNTIME_BOOTSTRAP": "1"}
         if not deps_ready:
             self._log_line("  Skip — dipendenze Python non disponibili", "warn")
         elif (django_app / "manage.py").exists():
@@ -3207,6 +3225,8 @@ class InstallPage(Page):
         def step(n, title, pct):
             self._set_progress(pct, f"[{n}/{N}] {title}")
             self._log_line(f"\n── {title} {'─'*(44-len(title))}", "step")
+
+        python_info = self._resolve_python_runtime(cfg, errors)
 
         # 1. Directory
         step(1, "Creazione struttura directory", 5)
@@ -3337,7 +3357,8 @@ class InstallPage(Page):
         env_vars = {**os.environ, "DJANGO_SETTINGS_MODULE": settings,
                     "PYTHONPATH": str(django_app),
                     "STATIC_ROOT": str(ep / "static"),
-                    "MEDIA_ROOT":  str(ep / "media")}
+                    "MEDIA_ROOT":  str(ep / "media"),
+                    "PORTAL_SKIP_RUNTIME_BOOTSTRAP": "1"}
         deps_ready = venv_ready
         if not venv_ready:
             deps_ready = False
@@ -3387,11 +3408,17 @@ class InstallPage(Page):
         # 8. migrate selettivo per modulo
         step(8, "Django migrate", 75)
         migrate_ok = False
+        database_ready = True
         if cfg.db_trusted or cfg.db_user:
-            self._create_sql_database(cfg)
-        if cfg.db_trusted:
+            database_ready = self._create_sql_database(cfg)
+            if not database_ready:
+                self._append_error(errors, "database access")
+                self._log_line("  ✗ Database non pronto: migrate saltato", "err")
+        if database_ready and cfg.db_trusted:
             self._configure_sql_login(cfg)
-        if not waitress_ready:
+        if not database_ready:
+            self._log_line("  Skip — database SQL Server non accessibile", "warn")
+        elif not waitress_ready:
             self._log_line("  Skip — dipendenze Python non disponibili", "warn")
         elif django_app.exists() and (django_app/"manage.py").exists():
             selected = getattr(cfg, "selected_modules",
@@ -3691,38 +3718,154 @@ Write-Host "OK $taskName"
             return ["-E"]
         return ["-U", cfg.db_user, "-P", cfg.db_password]
 
+    def _sqlcmd_tls_args(self, cfg):
+        """Restituisce gli argomenti TLS per sqlcmd coerenti con DB_TRUST_CERT."""
+        if bool(getattr(cfg, "db_trust_cert", True)):
+            return ["-C"]
+        return []
+
+    def _current_windows_account(self):
+        domain = os.environ.get("USERDOMAIN", "").strip()
+        user = os.environ.get("USERNAME", "").strip()
+        if domain and user:
+            return f"{domain}\\{user}"
+        return user or "ACCOUNT_WINDOWS"
+
+    def _log_sql_database_access_hint(self, cfg, db):
+        db_bracket = _sql_bracket_escape(db)
+        if cfg.db_trusted:
+            account = self._current_windows_account()
+            account_sql = _sql_string_escape(account)
+            account_bracket = _sql_bracket_escape(account)
+            self._log_line(
+                "  -> Rimedi SSMS (Windows Auth):\n"
+                f"    USE [master];\n"
+                f"    IF DB_ID(N'{_sql_string_escape(db)}') IS NULL CREATE DATABASE [{db_bracket}];\n"
+                f"    GO\n"
+                f"    USE [master];\n"
+                f"    IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'{account_sql}') CREATE LOGIN [{account_bracket}] FROM WINDOWS;\n"
+                f"    GO\n"
+                f"    USE [{db_bracket}];\n"
+                f"    IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'{account_sql}') CREATE USER [{account_bracket}] FOR LOGIN [{account_bracket}];\n"
+                f"    ALTER ROLE db_owner ADD MEMBER [{account_bracket}];",
+                "warn",
+            )
+        else:
+            self._log_line(
+                f"  -> Verificare in SSMS che il login SQL configurato sia db_owner su [{db_bracket}].",
+                "warn",
+            )
+
+    def _check_sql_database_access(self, cfg, db):
+        ok, err = _try_db_connection(
+            cfg.db_driver or _preferred_sql_server_odbc_driver() or "ODBC Driver 18 for SQL Server",
+            cfg.db_host or "localhost",
+            cfg.db_user,
+            cfg.db_password,
+            cfg.db_trusted,
+            bool(getattr(cfg, "db_trust_cert", True)),
+            database=db,
+        )
+        if ok:
+            self._log_line(f"  ✓ Connessione al database [{db}] verificata", "ok")
+            return True
+        self._log_line(f"  ✗ Connessione al database [{db}] fallita: {err[:500]}", "err")
+        self._log_sql_database_access_hint(cfg, db)
+        return False
+
+    def _create_sql_database_via_odbc(self, cfg, db):
+        if _pyodbc_module is None:
+            self._log_line("  ✗ pyodbc non disponibile: impossibile creare il database senza sqlcmd", "err")
+            return False
+
+        driver = cfg.db_driver or _preferred_sql_server_odbc_driver() or "ODBC Driver 18 for SQL Server"
+        server = cfg.db_host or "localhost"
+        tc = "yes" if bool(getattr(cfg, "db_trust_cert", True)) else "no"
+        if cfg.db_trusted:
+            cs = (
+                f"DRIVER={{{driver}}};SERVER={server};DATABASE=master;"
+                f"Trusted_Connection=yes;Connection Timeout=5;TrustServerCertificate={tc}"
+            )
+        else:
+            cs = (
+                f"DRIVER={{{driver}}};SERVER={server};DATABASE=master;"
+                f"UID={cfg.db_user};PWD={cfg.db_password};Connection Timeout=5;TrustServerCertificate={tc}"
+            )
+
+        db_bracket = _sql_bracket_escape(db)
+        db_quoted = _sql_string_escape(db)
+        sql = (
+            f"IF DB_ID(N'{db_quoted}') IS NULL "
+            f"BEGIN EXEC(N'CREATE DATABASE [{db_bracket}]') END"
+        )
+        try:
+            conn = _pyodbc_module.connect(cs, autocommit=True, timeout=5)
+            try:
+                cursor = conn.cursor()
+                cursor.execute(sql)
+                cursor.close()
+            finally:
+                conn.close()
+            self._log_line(f"  ✓ Database [{db}] creato/verificato via ODBC", "ok")
+            return self._check_sql_database_access(cfg, db)
+        except Exception as exc:
+            self._log_line(f"  ✗ Creazione DB via ODBC fallita: {str(exc)[:500]}", "err")
+            self._log_sql_database_access_hint(cfg, db)
+            return False
+
     def _create_sql_database(self, cfg):
-        """Crea il database SQL Server se non esiste già."""
+        """Crea il database SQL Server se non esiste e verifica l'accesso."""
         server = cfg.db_host or "localhost"
         try:
             db = _validate_sql_identifier(cfg.db_name)
         except ValueError as e:
             self._log_line(f"  ✗ {e}", "err")
-            return
+            return False
         db_bracket = _sql_bracket_escape(db)
         db_quoted  = _sql_string_escape(db)
-        sql = (
-            f"IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE name = N'{db_quoted}') "
-            f"BEGIN CREATE DATABASE [{db_bracket}] END"
+        create_sql = (
+            f"IF DB_ID(N'{db_quoted}') IS NULL "
+            f"BEGIN EXEC(N'CREATE DATABASE [{db_bracket}]') END"
         )
+        verify_sql = "SELECT 1 AS database_access_ok;"
         sqlcmd = self._find_sqlcmd()
         auth   = self._sqlcmd_auth_args(cfg)
+        tls    = self._sqlcmd_tls_args(cfg)
         try:
-            r = subprocess.run(
-                [sqlcmd, "-S", server] + auth + ["-Q", sql],
+            create_result = subprocess.run(
+                [sqlcmd, "-S", server] + auth + tls + ["-b", "-d", "master", "-Q", create_sql],
                 capture_output=True, text=True, encoding="utf-8", errors="replace",
                 timeout=30, creationflags=subprocess.CREATE_NO_WINDOW)
-            out = (r.stdout + r.stderr).strip()
-            if r.returncode == 0:
+            create_out = (create_result.stdout + create_result.stderr).strip()
+            if create_result.returncode != 0:
+                if _is_ssl_cert_error(create_out):
+                    self._log_line("  ! sqlcmd bloccato dal certificato TLS - riprovo via ODBC", "warn")
+                    return self._create_sql_database_via_odbc(cfg, db)
+                self._log_line(f"  ✗ Creazione DB: {create_out[:500]}", "err")
+                self._log_sql_database_access_hint(cfg, db)
+                return False
+
+            verify_result = subprocess.run(
+                [sqlcmd, "-S", server] + auth + tls + ["-b", "-d", db, "-Q", verify_sql],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=30, creationflags=subprocess.CREATE_NO_WINDOW)
+            verify_out = (verify_result.stdout + verify_result.stderr).strip()
+            if verify_result.returncode == 0:
                 self._log_line(f"  ✓ Database [{db}] pronto", "ok")
-            else:
-                self._log_line(f"  ✗ Creazione DB: {out[:300]}", "err")
+                return True
+
+            if _is_ssl_cert_error(verify_out):
+                self._log_line("  ! sqlcmd bloccato dal certificato TLS - verifico via ODBC", "warn")
+                return self._check_sql_database_access(cfg, db)
+            self._log_line(f"  ✗ Database [{db}] creato ma non apribile: {verify_out[:500]}", "err")
+            self._log_sql_database_access_hint(cfg, db)
+            return False
         except FileNotFoundError:
-            self._log_line(
-                f"  ⚠ sqlcmd non trovato — creare manualmente il database:\n"
-                f"    CREATE DATABASE [{db}];", "warn")
+            self._log_line("  ⚠ sqlcmd non trovato — creo/verifico il DB via ODBC", "warn")
+            return self._create_sql_database_via_odbc(cfg, db)
         except Exception as e:
             self._log_line(f"  ⚠ Creazione DB: {e}", "warn")
+            return self._create_sql_database_via_odbc(cfg, db)
 
     def _configure_sql_login(self, cfg):
         """Crea il login NT AUTHORITY\\SYSTEM su SQL Server (necessario quando
@@ -3743,9 +3886,10 @@ Write-Host "OK $taskName"
             f"ALTER ROLE db_owner ADD MEMBER [NT AUTHORITY\\SYSTEM];"
         )
         sqlcmd = self._find_sqlcmd()
+        tls = self._sqlcmd_tls_args(cfg)
         try:
             r = subprocess.run(
-                [sqlcmd, "-S", server, "-E", "-Q", sql],
+                [sqlcmd, "-S", server, "-E"] + tls + ["-b", "-Q", sql],
                 capture_output=True, text=True, encoding="utf-8", errors="replace",
                 timeout=30, creationflags=subprocess.CREATE_NO_WINDOW)
             out = (r.stdout + r.stderr).strip()
@@ -4784,7 +4928,8 @@ class ReleaseRunPage(Page):
                     "DJANGO_SETTINGS_MODULE": settings,
                     "PYTHONPATH": str(django_app),
                     "STATIC_ROOT": str(ep / "static"),
-                    "MEDIA_ROOT": str(ep / "media")}
+                    "MEDIA_ROOT": str(ep / "media"),
+                    "PORTAL_SKIP_RUNTIME_BOOTSTRAP": "1"}
         collectstatic_ok = False
         if not deps_ready:
             self._log_line("  Skip — dipendenze Python non disponibili", "warn")
@@ -5601,17 +5746,30 @@ class ServerDashboard:
             self.root = tk.Toplevel(parent)
         self.root.title("Portale Novicrom — Server Dashboard")
         self.root.configure(bg="white")
-        self.root.resizable(False, False)
+        self.root.resizable(True, True)
 
-        W, H = 700, 610
+        W, H = 920, 780
         sw = self.root.winfo_screenwidth()
         sh = self.root.winfo_screenheight()
         self.root.geometry(f"{W}x{H}+{(sw-W)//2}+{(sh-H)//2 - 20}")
+        self.root.minsize(860, 720)
 
         self._selected_env = tk.StringVar(value="test")
         self._status_data: dict = {}
         self._after_id = None
         self._admin_mode = is_admin()
+        self._terminal_proc = None
+        self._terminal_running = False
+        self._terminal_lock = threading.Lock()
+        self._terminal_presets = [
+            ("Django check", "manage.py check --settings=config.settings.prod"),
+            ("Stato migrations", "manage.py showmigrations --settings=config.settings.prod"),
+            ("Migrate", "manage.py migrate --settings=config.settings.prod --noinput"),
+            ("Collectstatic dry-run", "manage.py collectstatic --dry-run --noinput --clear --settings=config.settings.prod -v 0"),
+            ("ACL dry-run", "manage.py bootstrap_acl_v2 --dry-run --settings=config.settings.prod"),
+            ("ACL apply legacy", "manage.py bootstrap_acl_v2 --import-legacy --apply --settings=config.settings.prod"),
+            ("Seed descrizioni pulsanti", "manage.py seed_pulsanti_descrizioni --settings=config.settings.prod"),
+        ]
 
         self._build()
         self._refresh()
@@ -5715,6 +5873,79 @@ class ServerDashboard:
         sb.pack(side="right", fill="y")
         self._log_txt.pack(fill="both", expand=True, padx=8, pady=6)
 
+        # Terminale ambiente
+        frame(main, height=14).pack()
+        term_head = frame(main, bg="white")
+        term_head.pack(fill="x")
+        tk.Label(term_head, text="Terminale ambiente", font=(SF, 9, "bold"),
+                 fg=GRAY600, bg="white").pack(side="left")
+        self._terminal_context_lbl = tk.Label(term_head, text="", font=FSM,
+                                              fg=GRAY400, bg="white")
+        self._terminal_context_lbl.pack(side="right")
+
+        term_cmd_row = frame(main, bg="white")
+        term_cmd_row.pack(fill="x", pady=(5, 4))
+        preset_values = [label for label, _ in self._terminal_presets]
+        self._terminal_preset_var = tk.StringVar(value=preset_values[0])
+        self._terminal_preset = ttk.Combobox(
+            term_cmd_row,
+            textvariable=self._terminal_preset_var,
+            values=preset_values,
+            state="readonly",
+            width=24,
+            font=FSM,
+        )
+        self._terminal_preset.pack(side="left", padx=(0, 8))
+        self._terminal_preset.bind("<<ComboboxSelected>>", self._on_terminal_preset)
+
+        self._terminal_cmd_var = tk.StringVar(value=self._terminal_presets[0][1])
+        self._terminal_entry = tk.Entry(
+            term_cmd_row,
+            textvariable=self._terminal_cmd_var,
+            font=FMO,
+            relief="flat",
+            bg=GRAY50,
+            fg=GRAY800,
+            insertbackground=BRAND,
+            highlightthickness=1,
+            highlightbackground=GRAY200,
+            highlightcolor=BRAND,
+        )
+        self._terminal_entry.pack(side="left", fill="x", expand=True, ipady=6, ipadx=8)
+        self._terminal_entry.bind("<Return>", lambda _e: self._run_terminal_command())
+        self._terminal_run_btn = PrimaryButton(term_cmd_row, "Esegui", self._run_terminal_command)
+        self._terminal_run_btn.pack(side="left", padx=(8, 0))
+        self._terminal_stop_btn = SecondaryButton(term_cmd_row, "Stop", self._stop_terminal_command)
+        self._terminal_stop_btn.pack(side="left", padx=(8, 0))
+        self._terminal_stop_btn.set_enabled(False)
+
+        terminal_frame = frame(main, bg=CODE_BG,
+                               highlightthickness=1, highlightbackground=GRAY700)
+        terminal_frame.pack(fill="both", expand=True)
+        self._terminal_txt = tk.Text(
+            terminal_frame,
+            bg=CODE_BG,
+            fg=CODE_FG,
+            font=FMO,
+            relief="flat",
+            state="disabled",
+            wrap="none",
+            height=8,
+        )
+        self._terminal_txt.tag_configure("meta", foreground="#58a6ff")
+        self._terminal_txt.tag_configure("error", foreground="#f87171")
+        self._terminal_txt.tag_configure("ok", foreground="#7ee787")
+        term_sb_y = tk.Scrollbar(terminal_frame, command=self._terminal_txt.yview)
+        term_sb_x = tk.Scrollbar(terminal_frame, command=self._terminal_txt.xview, orient="horizontal")
+        self._terminal_txt.configure(yscrollcommand=term_sb_y.set, xscrollcommand=term_sb_x.set)
+        term_sb_y.pack(side="right", fill="y")
+        term_sb_x.pack(side="bottom", fill="x")
+        self._terminal_txt.pack(fill="both", expand=True, padx=8, pady=6)
+        self._append_terminal(
+            "Console pronta. I comandi manage.py usano il virtualenv dell'ambiente selezionato.\n",
+            "meta",
+        )
+
         # ── Footer ──────────────────────────────────────────────
         ftr = frame(self.root, bg=GRAY50,
                     highlightthickness=1, highlightbackground=GRAY100)
@@ -5731,6 +5962,8 @@ class ServerDashboard:
         for e, btn in self._tab_btns.items():
             btn.configure(bg=BRAND if e == env else GRAY50,
                           fg="white" if e == env else GRAY600)
+        if hasattr(self, "_terminal_context_lbl"):
+            self._update_terminal_context()
         if self._after_id:
             self.root.after_cancel(self._after_id)
         self._refresh()
@@ -5873,6 +6106,193 @@ Write-Output "$sState|$pState|$port"
             os.startfile(getattr(self, "_url", "http://localhost/"))
         except Exception:
             pass
+
+    def _env_root(self, env=None) -> Path:
+        return Path(self.BASE_DIR) / (env or self._selected_env.get())
+
+    def _resolve_env_django_app(self, env=None) -> Path | None:
+        env_root = self._env_root(env)
+        candidates = [
+            env_root / "current" / "django_app",
+            env_root / "django_app",
+        ]
+        releases_dir = env_root / "releases"
+        try:
+            if releases_dir.exists():
+                releases = sorted(
+                    (p for p in releases_dir.iterdir() if p.is_dir()),
+                    key=lambda p: p.name,
+                    reverse=True,
+                )
+                candidates.extend(p / "django_app" for p in releases)
+        except Exception:
+            pass
+        for candidate in candidates:
+            if (candidate / "manage.py").exists():
+                return candidate
+        return None
+
+    def _update_terminal_context(self):
+        env = self._selected_env.get()
+        django_app = self._resolve_env_django_app(env)
+        if django_app:
+            text = f"{env.upper()} - {django_app}"
+            fg = GRAY400
+        else:
+            text = f"{env.upper()} - release corrente non trovata"
+            fg = RED
+        self._terminal_context_lbl.configure(text=text, fg=fg)
+
+    def _on_terminal_preset(self, _event=None):
+        selected = self._terminal_preset_var.get()
+        for label, command in self._terminal_presets:
+            if label == selected:
+                self._terminal_cmd_var.set(command)
+                break
+        self._terminal_entry.focus_set()
+        self._terminal_entry.icursor("end")
+
+    def _append_terminal(self, text, tag=None):
+        if not hasattr(self, "_terminal_txt"):
+            return
+        self._terminal_txt.configure(state="normal")
+        if tag:
+            self._terminal_txt.insert("end", text, tag)
+        else:
+            self._terminal_txt.insert("end", text)
+        self._terminal_txt.see("end")
+        self._terminal_txt.configure(state="disabled")
+
+    def _set_terminal_running(self, running: bool):
+        self._terminal_run_btn.configure_text("In esecuzione..." if running else "Esegui")
+        self._terminal_stop_btn.set_enabled(running)
+        state = "disabled" if running else "normal"
+        self._terminal_entry.configure(state=state)
+        self._terminal_preset.configure(state="disabled" if running else "readonly")
+
+    def _split_terminal_command(self, command: str) -> list[str]:
+        try:
+            parts = shlex.split(command, posix=False)
+        except ValueError:
+            parts = command.split()
+        cleaned = []
+        for part in parts:
+            if len(part) >= 2 and part[0] == part[-1] and part[0] in {"'", '"'}:
+                cleaned.append(part[1:-1])
+            else:
+                cleaned.append(part)
+        return cleaned
+
+    def _terminal_command_argv(self, command: str, venv_py: Path) -> tuple[list[str], bool]:
+        stripped = command.strip()
+        lower = stripped.lower()
+        if lower == "manage.py" or lower.startswith("manage.py "):
+            parts = self._split_terminal_command(stripped)
+            return [str(venv_py), *parts], True
+        if lower == "python" or lower.startswith("python ") or lower.startswith("py "):
+            parts = self._split_terminal_command(stripped)
+            if parts and parts[0].lower() in {"python", "py"}:
+                parts = parts[1:]
+            return [str(venv_py), *parts], True
+        return ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", stripped], False
+
+    def _terminal_env_vars(self, env: str, django_app: Path) -> dict:
+        env_root = self._env_root(env)
+        venv_scripts = env_root / "venv" / "Scripts"
+        env_vars = {
+            **os.environ,
+            "DJANGO_SETTINGS_MODULE": _django_settings(env),
+            "PYTHONPATH": str(django_app),
+            "PORTAL_SKIP_RUNTIME_BOOTSTRAP": "1",
+            "STATIC_ROOT": str(env_root / "static"),
+            "MEDIA_ROOT": str(env_root / "media"),
+        }
+        env_vars["PATH"] = f"{venv_scripts};{env_vars.get('PATH', '')}"
+        return env_vars
+
+    def _run_terminal_command(self):
+        with self._terminal_lock:
+            if self._terminal_running:
+                self._append_terminal("\nUn comando e gia in esecuzione. Usa Stop o attendi il termine.\n", "error")
+                return
+
+        command = self._terminal_cmd_var.get().strip()
+        if not command:
+            return
+        env = self._selected_env.get()
+        env_root = self._env_root(env)
+        django_app = self._resolve_env_django_app(env)
+        venv_py = env_root / "venv" / "Scripts" / "python.exe"
+        if not django_app:
+            self._append_terminal(f"\n[{env.upper()}] Release corrente non trovata: manca current\\django_app.\n", "error")
+            return
+
+        argv, needs_venv = self._terminal_command_argv(command, venv_py)
+        if needs_venv and not venv_py.exists():
+            self._append_terminal(f"\n[{env.upper()}] Virtualenv non trovato: {venv_py}\n", "error")
+            return
+
+        if env == "prod":
+            if not messagebox.askyesno(
+                "Conferma comando PROD",
+                f"Eseguire questo comando su PROD?\n\n{command}",
+            ):
+                return
+
+        self._append_terminal(f"\n[{env.upper()}] {django_app}\n$ {command}\n", "meta")
+        self._set_terminal_running(True)
+        with self._terminal_lock:
+            self._terminal_running = True
+        threading.Thread(
+            target=self._run_terminal_thread,
+            args=(env, django_app, argv),
+            daemon=True,
+        ).start()
+
+    def _run_terminal_thread(self, env: str, django_app: Path, argv: list[str]):
+        env_vars = self._terminal_env_vars(env, django_app)
+        proc = None
+        try:
+            proc = subprocess.Popen(
+                argv,
+                cwd=str(django_app),
+                env=env_vars,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            with self._terminal_lock:
+                self._terminal_proc = proc
+            if proc.stdout:
+                for line in proc.stdout:
+                    self.root.after(0, lambda value=line: self._append_terminal(value))
+            return_code = proc.wait()
+            tag = "ok" if return_code == 0 else "error"
+            self.root.after(0, lambda rc=return_code, t=tag: self._append_terminal(f"\n[exit {rc}]\n", t))
+        except Exception as exc:
+            self.root.after(0, lambda e=exc: self._append_terminal(f"\nErrore terminale: {e}\n", "error"))
+        finally:
+            with self._terminal_lock:
+                self._terminal_proc = None
+                self._terminal_running = False
+            self.root.after(0, lambda: self._set_terminal_running(False))
+
+    def _stop_terminal_command(self):
+        with self._terminal_lock:
+            proc = self._terminal_proc
+        if proc is None:
+            return
+        if not messagebox.askyesno("Terminale", "Interrompere il comando in esecuzione?"):
+            return
+        try:
+            proc.terminate()
+            self._append_terminal("\n[stop richiesto]\n", "meta")
+        except Exception as exc:
+            self._append_terminal(f"\nStop non riuscito: {exc}\n", "error")
 
     def _open_live_password_reset(self):
         if not self._admin_mode:
@@ -6078,6 +6498,7 @@ print(json.dumps({{
             **os.environ,
             "DJANGO_SETTINGS_MODULE": settings,
             "PYTHONPATH": str(django_app),
+            "PORTAL_SKIP_RUNTIME_BOOTSTRAP": "1",
         }
 
         try:

@@ -1,5 +1,13 @@
 -- Trigger interamente set-based e compatibile con update multi-riga.
 -- Il confronto fine old/new restera' demandato a Django nelle fasi successive.
+-- Self-guard: su ambienti TEST/PROD senza tabella legacy dbo.assenze non deve bloccare il deploy.
+IF OBJECT_ID(N'dbo.assenze', N'U') IS NULL
+BEGIN
+    PRINT N'[SKIP] dbo.assenze non esiste: trigger trg_assenze_automation_after_update non creato.';
+END
+ELSE
+BEGIN
+EXEC sys.sp_executesql N'
 CREATE OR ALTER TRIGGER dbo.trg_assenze_automation_after_update
 ON dbo.assenze
 AFTER UPDATE
@@ -8,6 +16,11 @@ BEGIN
     SET NOCOUNT ON;
 
     IF NOT EXISTS (SELECT 1 FROM inserted)
+    BEGIN
+        RETURN;
+    END;
+
+    IF OBJECT_ID(N''dbo.automation_event_queue'', N''U'') IS NULL
     BEGIN
         RETURN;
     END;
@@ -24,11 +37,11 @@ BEGIN
         status
     )
     SELECT
-        N'assenze',
-        N'assenze',
+        N''assenze'',
+        N''assenze'',
         CAST(i.id AS NVARCHAR(100)),
-        N'UPDATE',
-        N'assenze_update',
+        N''UPDATE'',
+        N''assenze_update'',
         NULL,
         (
             SELECT
@@ -62,7 +75,7 @@ BEGIN
                 ud.email AS capo_email
             FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
         ),
-        N'pending'
+        N''pending''
     FROM inserted AS i
     INNER JOIN deleted AS d
         ON d.id = i.id
@@ -70,5 +83,7 @@ BEGIN
         ON ui.id = i.capo_reparto_id
     LEFT JOIN dbo.utenti AS ud
         ON ud.id = d.capo_reparto_id;
+END;
+';
 END;
 GO

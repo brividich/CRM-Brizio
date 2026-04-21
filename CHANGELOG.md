@@ -6,6 +6,24 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ---
 
+## 1.0.0 - 2026-04-21 (wizard hotfix)
+
+### Added (2026-04-21)
+
+- **[DEPLOY][WIZARD][DASHBOARD] Terminale integrato TEST/PROD** (`deployment/setup_wizard.py`, `deployment/dist/SetupWizard.exe`, `README.md`, `CLAUDE.md`): la Server Dashboard del wizard espone ora una console operativa legata all'ambiente selezionato. I comandi `manage.py` e `python` vengono eseguiti con il virtualenv dell'ambiente (`C:\PortaleNovicrom\<env>\venv\Scripts\python.exe`), con output integrato nella finestra, preset per `check`/`showmigrations`/`migrate`/`collectstatic`/ACL e conferma esplicita prima di eseguire qualunque comando su PROD.
+
+### Fixed (2026-04-21)
+
+- **[DEPLOY][WIZARD] `SetupWizard.exe` rigenerato dopo correzione `_run_prod`** (`deployment/setup_wizard.py`, `deployment/dist/SetupWizard.exe`, `README.md`, `CLAUDE.md`): il flusso TEST/PROD ora inizializza correttamente il runtime Python rilevato prima dello step virtualenv. Rimossa la regressione di indentazione che impediva la compilazione del sorgente del wizard e produceva un artefatto mancante/corrotto.
+- **[DEPLOY][SQL][AUTOMAZIONI] Trigger SQL saltati se manca la tabella sorgente legacy** (`django_app/automazioni/management/commands/apply_sql_triggers.py`, `sql/trg_assenze_automation_after_insert.sql`, `sql/trg_assenze_automation_after_update.sql`, `django_app/automazioni/tests.py`, `README.md`, `CLAUDE.md`): `apply_sql_triggers` ora legge la tabella target dal blocco `ON dbo.<tabella>` e verifica `OBJECT_ID(..., 'U')` prima del `CREATE TRIGGER`; in piu intercetta SQL Server 8197 come `[SKIP]`. I due trigger assenze sono anche self-guarded a livello SQL tramite `IF OBJECT_ID(N'dbo.assenze', N'U') IS NULL ... ELSE EXEC sys.sp_executesql`, cosi anche un esecutore vecchio dello script non puo piu fallire su DB TEST/PROD senza `dbo.assenze`.
+- **[DEPLOY][COLLECTSTATIC] Bootstrap ACL disattivati durante i management command non runtime** (`django_app/core/acl_bootstrap_base.py`, `django_app/assenze/acl_bootstrap.py`, `django_app/timbri/acl_bootstrap.py`, `deployment/dist/SetupWizard.exe`): `collectstatic`, `createcachetable`, `migrate`, `check` e comandi simili non eseguono piu gli upsert ACL avviati dagli `AppConfig.ready()`. In prod questo evita accessi anticipati a `DatabaseCache`/SQL Server durante `collectstatic`, che potevano bloccare il wizard subito dopo il log `AXES: BEGIN`.
+- **[DEPLOY][WIZARD][SQL] Preflight database prima delle migration** (`deployment/setup_wizard.py`, `deployment/dist/SetupWizard.exe`): il wizard ora crea il database selezionato in un batch dedicato su `master` e solo dopo verifica l'apertura del DB target, evitando il falso errore `Il database ... non esiste` causato da `CREATE DATABASE` + `USE [DB]` nello stesso batch. Se SQL Server rifiuta l'account Windows/SQL, il deploy salta le migration invece di produrre traceback `18456/4060` e mostra i comandi SSMS per login/user/`db_owner`.
+- **[DEPLOY][WIZARD][SQL] `sqlcmd` coerente con `DB_TRUST_CERT`** (`deployment/setup_wizard.py`, `deployment/dist/SetupWizard.exe`): la creazione/verifica database e la configurazione login passano `-C` a `sqlcmd` quando il wizard ha abilitato `TrustServerCertificate`. Se `sqlcmd` resta bloccato su certificato TLS non trusted, il wizard riprova la creazione/verifica via ODBC con `TrustServerCertificate=yes` invece di fermare subito il migrate.
+- **[DEPLOY][WIZARD][MIGRATE] Copertura completa delle app con migration** (`deployment/setup_wizard.py`, `deployment/dist/SetupWizard.exe`, `README.md`, `CLAUDE.md`): il registry moduli del wizard ora marca `anomalie` come app migrabile e include anche `monitoring` e `planimetria`, evitando il warning post-installazione `You have 5 unapplied migration(s)` durante `createsuperuser`.
+- **[DEPLOY][BOOTSTRAP] Bootstrap ACL runtime silenziati nei comandi installazione** (`django_app/core/acl_bootstrap_base.py`, `deployment/setup_wizard.py`, `deployment/dist/SetupWizard.exe`): i comandi `bootstrap_acl_v2`, `seed_acl_uat`, `seed_pulsanti_descrizioni`, `createsuperuser` e gli script `python -c` del wizard impostano/rispettano `PORTAL_SKIP_RUNTIME_BOOTSTRAP=1`, evitando query DB da `AppConfig.ready()` e il warning Django `Accessing the database during app initialization is discouraged`.
+
+---
+
 ## 1.0.0 - 2026-04-20 (fix)
 
 ### Changed (2026-04-20)

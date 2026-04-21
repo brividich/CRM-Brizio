@@ -73,9 +73,54 @@ def _trigger_name_from_sql(sql: str) -> str | None:
     return str(match.group(1) or "").strip() or None
 
 
+def _trigger_target_table_from_sql(sql: str) -> str | None:
+    """Estrae la tabella target del trigger DML, es. dbo.assenze."""
+    match = re.search(
+        r"\bON\s+"
+        r"(?:(?:\[([^\]]+)\])|([A-Za-z_][\w$#@]*))"
+        r"\s*\.\s*"
+        r"(?:(?:\[([^\]]+)\])|([A-Za-z_][\w$#@]*))",
+        sql,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None
+    schema = (match.group(1) or match.group(2) or "").strip()
+    table = (match.group(3) or match.group(4) or "").strip()
+    if not schema or not table:
+        return None
+    return f"{schema}.{table}"
+
+
+def _sql_table_exists(table_name: str) -> bool:
+    """Ritorna True se la tabella utente SQL Server esiste nel database corrente."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT CASE WHEN OBJECT_ID(%s, N'U') IS NULL THEN 0 ELSE 1 END",
+            [table_name],
+        )
+        row = cursor.fetchone()
+    return bool(row and row[0])
+
+
+def _is_missing_trigger_target_error(exc: Exception) -> bool:
+    """Riconosce l'errore SQL Server 8197 su CREATE TRIGGER target mancante."""
+    message = str(exc)
+    lowered = message.lower()
+    return (
+        "8197" in message
+        or (
+            "oggetto" in lowered
+            and ("non esiste" in lowered or "does not exist" in lowered)
+            and ("trigger" in lowered or "sqlserver" in lowered or "sql server" in lowered)
+        )
+    )
+
+
 def apply_trigger(sql_path: Path, *, dry_run: bool = False) -> dict:
     sql = sql_path.read_text(encoding="utf-8").strip()
     trigger_name = _trigger_name_from_sql(sql)
+    target_table = _trigger_target_table_from_sql(sql)
 
     if not trigger_name:
         return {"file": sql_path.name, "status": "error", "message": "Nome trigger non trovato nel file SQL."}
@@ -83,7 +128,16 @@ def apply_trigger(sql_path: Path, *, dry_run: bool = False) -> dict:
     drop_sql = f"DROP TRIGGER IF EXISTS [dbo].[{trigger_name}];"
 
     if dry_run:
-        return {"file": sql_path.name, "status": "dry-run", "trigger": trigger_name}
+        return {"file": sql_path.name, "status": "dry-run", "trigger": trigger_name, "target_table": target_table}
+
+    if target_table and not _sql_table_exists(target_table):
+        return {
+            "file": sql_path.name,
+            "status": "skip",
+            "trigger": trigger_name,
+            "target_table": target_table,
+            "message": f"Tabella target assente: {target_table}",
+        }
 
     try:
         batches = _split_go_batches(sql)
@@ -93,6 +147,15 @@ def apply_trigger(sql_path: Path, *, dry_run: bool = False) -> dict:
                 cursor.execute(batch)
         return {"file": sql_path.name, "status": "ok", "trigger": trigger_name}
     except Exception as exc:
+        if _is_missing_trigger_target_error(exc):
+            logger.warning("apply_sql_triggers: skip %s per tabella target assente: %s", sql_path.name, exc)
+            return {
+                "file": sql_path.name,
+                "status": "skip",
+                "trigger": trigger_name,
+                "target_table": target_table,
+                "message": f"Tabella target assente o non valida: {target_table or 'non rilevata'}",
+            }
         logger.error("apply_sql_triggers: errore su %s: %s", sql_path.name, exc)
         return {"file": sql_path.name, "status": "error", "trigger": trigger_name, "message": str(exc)}
 
@@ -182,6 +245,8 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(f"  [OK]      {sql_path.name}  ({trigger})"))
             elif status == "dry-run":
                 self.stdout.write(f"  [dry-run] {sql_path.name}  ({trigger})")
+            elif status == "skip":
+                self.stdout.write(self.style.WARNING(f"  [SKIP]    {sql_path.name}  ({trigger}): {message}"))
             else:
                 errors += 1
                 self.stdout.write(self.style.ERROR(f"  [ERRORE]  {sql_path.name}  ({trigger}): {message}"))

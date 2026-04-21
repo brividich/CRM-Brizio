@@ -5,7 +5,7 @@ import logging
 from django.core.cache import cache
 from django.db import DatabaseError, transaction
 
-from core.acl_bootstrap_base import set_ui_meta, upsert_pulsante
+from core.acl_bootstrap_base import set_ui_meta, should_skip_runtime_bootstrap, upsert_pulsante
 from core.legacy_cache import bump_legacy_cache_version
 from core.legacy_models import Permesso, Ruolo
 
@@ -137,6 +137,10 @@ def _bootstrap_navigation() -> bool:
 
 
 def bootstrap_timbri_runtime(force: bool = False) -> None:
+    if should_skip_runtime_bootstrap(force=force):
+        logger.debug("ACL bootstrap timbri skipped for management command")
+        return
+
     if not force and cache.get(_BOOTSTRAP_CACHE_KEY):
         return
 
