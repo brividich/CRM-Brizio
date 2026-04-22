@@ -7,9 +7,11 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from config.env_config import load_env_file_values, update_env_file_values
 from core.models import ModuleCategory, NavigationItem, SiteConfig
 from hub_tools.views import _sanitize_guide_icon
 
@@ -56,6 +58,10 @@ class HubCategorieViewTests(TestCase):
             "portal_subtitle": "Area test",
             "brand_logo_full": "/media/brand-full.svg",
             "brand_logo_compact": "/media/brand-compact.svg",
+            "brand_favicon": "/media/favicon.ico",
+            "brand_primary_color": "#112233",
+            "brand_accent_color": "#ffaa00",
+            "brand_background_color": "#f7f8fb",
         }
         with self._admin_access():
             response = self.client.post(self.url, payload)
@@ -65,6 +71,48 @@ class HubCategorieViewTests(TestCase):
         self.assertEqual(SiteConfig.get("portal_subtitle"), "Area test")
         self.assertEqual(SiteConfig.get("brand_logo_full"), "/media/brand-full.svg")
         self.assertEqual(SiteConfig.get("brand_logo_compact"), "/media/brand-compact.svg")
+        self.assertEqual(SiteConfig.get("brand_favicon"), "/media/favicon.ico")
+        self.assertEqual(SiteConfig.get("brand_primary_color"), "#112233")
+        self.assertEqual(SiteConfig.get("brand_accent_color"), "#ffaa00")
+        self.assertEqual(SiteConfig.get("brand_background_color"), "#f7f8fb")
+
+    def test_categorie_branding_uploads_logo_files(self):
+        media_root = Path(__file__).resolve().parents[1] / ".tmp_tests" / f"hub-branding-{uuid4().hex}"
+        try:
+            with (
+                override_settings(MEDIA_ROOT=media_root, MEDIA_URL="/media/"),
+                self._admin_access(),
+                patch("hub_tools.views.validate_extension_and_mime", return_value="image/png"),
+            ):
+                response = self.client.post(
+                    self.url,
+                    {
+                        "action": "branding",
+                        "portal_name": "Portal Upload",
+                        "portal_subtitle": "",
+                        "brand_primary_color": "#1e3a5f",
+                        "brand_accent_color": "#f97316",
+                        "brand_background_color": "#eef0f5",
+                        "brand_logo_full_file": SimpleUploadedFile(
+                            "logo.png",
+                            b"\x89PNG\r\n\x1a\n",
+                            content_type="image/png",
+                        ),
+                        "brand_logo_compact_file": SimpleUploadedFile(
+                            "logo-compact.png",
+                            b"\x89PNG\r\n\x1a\n",
+                            content_type="image/png",
+                        ),
+                    },
+                )
+
+            self.assertRedirects(response, self.url, fetch_redirect_response=False)
+            self.assertEqual(SiteConfig.get("brand_logo_full"), "/media/portal_branding/logo_full.png")
+            self.assertEqual(SiteConfig.get("brand_logo_compact"), "/media/portal_branding/logo_compact.png")
+            self.assertTrue((media_root / "portal_branding" / "logo_full.png").exists())
+            self.assertTrue((media_root / "portal_branding" / "logo_compact.png").exists())
+        finally:
+            shutil.rmtree(media_root, ignore_errors=True)
 
     def test_categorie_create_edit_assign_and_item_icon_post(self):
         nav_item = NavigationItem.objects.create(
@@ -138,6 +186,117 @@ class HubCategorieViewTests(TestCase):
         self.assertEqual(category.icon, "QO")
         self.assertEqual(category.topbar_color, "#334455")
         self.assertEqual(category.order, 9)
+
+
+class HubSetupWizardEnvTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.user = User.objects.create_superuser(
+            username="hub-setup-admin",
+            email="hub.setup@test.local",
+            password="test-pass-123",
+        )
+        cls.legacy_admin = SimpleNamespace(id=1, ruolo="admin", ruolo_id=1)
+
+    def setUp(self):
+        self.client.force_login(self.user)
+        self.temp_root = Path(__file__).resolve().parents[1] / ".tmp_tests" / f"hub-setup-env-{uuid4().hex}"
+        self.temp_root.mkdir(parents=True, exist_ok=True)
+        self.env_path = self.temp_root / ".env"
+        self.addCleanup(lambda: shutil.rmtree(self.temp_root, ignore_errors=True))
+
+    def _admin_access(self):
+        stack = ExitStack()
+        stack.enter_context(
+            patch("admin_portale.decorators.get_legacy_user", return_value=self.legacy_admin)
+        )
+        stack.enter_context(
+            patch("admin_portale.decorators.is_legacy_admin", return_value=True)
+        )
+        stack.enter_context(
+            patch("core.context_processors.get_legacy_user", return_value=self.legacy_admin)
+        )
+        stack.enter_context(
+            patch("core.context_processors.is_legacy_admin", return_value=True)
+        )
+        return stack
+
+    def _update_env_without_process(self, updates, dotenv_path=None, *, delete_keys=None):
+        return update_env_file_values(
+            updates,
+            dotenv_path=dotenv_path,
+            delete_keys=delete_keys,
+            apply_to_process=False,
+        )
+
+    def test_setup_wizard_renders_true_false_env_booleans_correctly(self):
+        self.env_path.write_text(
+            "\n".join(
+                [
+                    "DB_TRUST_CERT=True",
+                    "LDAP_ENABLED=yes",
+                    "SESSION_EXPIRE_AT_BROWSER_CLOSE=True",
+                    "EMAIL_USE_TLS=False",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        with (
+            self._admin_access(),
+            patch("hub_tools.views._ENV_PATH", self.env_path),
+        ):
+            response = self.client.get(reverse("hub_tools:hub_setup_wizard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["env"]["DB_TRUST_CERT"], "1")
+        self.assertEqual(response.context["env"]["LDAP_ENABLED"], "1")
+        self.assertEqual(response.context["env"]["EMAIL_USE_TLS"], "0")
+        self.assertContains(response, 'id="f_db_trust_cert" checked')
+        self.assertContains(response, 'id="f_ldap_enabled" checked')
+
+    def test_reconfigure_preserves_db_trust_cert_when_field_is_missing(self):
+        self.env_path.write_text(
+            "\n".join(
+                [
+                    "INSTANCE_NAME=NOVICROM HUB",
+                    "APP_VERSION=1.0.0",
+                    "DJANGO_SECRET_KEY=test-secret",
+                    "DB_ENGINE=sqlserver",
+                    "DB_HOST=sql.test.local",
+                    "DB_NAME=PortaleTest",
+                    "DB_DRIVER=ODBC Driver 18 for SQL Server",
+                    "DB_TRUST_CERT=True",
+                    "LDAP_ENABLED=False",
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        with (
+            self._admin_access(),
+            patch("hub_tools.views._ENV_PATH", self.env_path),
+            patch("hub_tools.views.update_env_file_values", side_effect=self._update_env_without_process),
+        ):
+            response = self.client.post(
+                reverse("hub_tools:hub_api_reconfigure"),
+                data=json.dumps(
+                    {
+                        "ldap_enabled": True,
+                        "ldap_server": "ldap://dc.test.local",
+                        "ldap_domain": "TEST",
+                    }
+                ),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        updated = load_env_file_values(self.env_path)
+        self.assertEqual(updated["DB_TRUST_CERT"], "1")
+        self.assertEqual(updated["LDAP_ENABLED"], "1")
 
 
 class HubDatabaseRestoreSecurityTests(TestCase):

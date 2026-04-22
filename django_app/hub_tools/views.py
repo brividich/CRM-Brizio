@@ -20,7 +20,10 @@ import tempfile
 from datetime import datetime
 from html import escape
 from pathlib import Path
+from urllib.parse import urlsplit
 
+from django.contrib import messages
+from django.core.files.storage import default_storage
 from django.http import FileResponse, HttpResponse, Http404, JsonResponse
 from django.shortcuts import render
 from django.utils.text import slugify
@@ -30,6 +33,7 @@ from django.views.decorators.http import require_GET, require_POST
 from admin_portale.decorators import legacy_admin_required as _staff_required
 from config.app_version import build_module_version_env_block, load_app_version
 from config.env_config import update_env_file_values
+from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +41,49 @@ _APP_DIR = Path(__file__).resolve().parent.parent  # django_app/
 _TOOLS_DIR = _APP_DIR.parent / "tools"
 _ENV_PATH = _APP_DIR / ".env"
 _GENERIC_ERROR_MESSAGE = "Operazione fallita. Controlla i log."
+_ENV_TRUE_VALUES = {"1", "true", "yes", "on", "y", "t", "si"}
+_ENV_FALSE_VALUES = {"0", "false", "no", "off", "n", "f", ""}
+_ENV_BOOLEAN_KEYS = {
+    "DJANGO_DEBUG",
+    "SETUP_COMPLETED",
+    "SECURE_SSL_REDIRECT",
+    "CSRF_COOKIE_SECURE",
+    "SESSION_COOKIE_SECURE",
+    "DB_TRUST_CERT",
+    "LEGACY_AUTH_ENABLED",
+    "NAVIGATION_REGISTRY_ENABLED",
+    "NAVIGATION_LEGACY_FALLBACK_ENABLED",
+    "ASSENZE_SYNC_ON_PAGE_LOAD",
+    "SESSION_EXPIRE_AT_BROWSER_CLOSE",
+    "LDAP_ENABLED",
+    "SQL_LOG_ENABLED",
+    "SQL_LOG_FORCE_DEBUG_CURSOR",
+    "EMAIL_USE_TLS",
+    "EMAIL_USE_SSL",
+}
+
+
+def _env_boolish(value, default: bool = False) -> bool:
+    if value is None:
+        return default
+    normalized = str(value).strip().lower()
+    if normalized in _ENV_TRUE_VALUES:
+        return True
+    if normalized in _ENV_FALSE_VALUES:
+        return False
+    return default
+
+
+def _env_bool_value(value, default: bool = False) -> str:
+    return "1" if _env_boolish(value, default) else "0"
+
+
+def _normalize_env_booleans(values: dict) -> dict:
+    normalized = dict(values)
+    for key in _ENV_BOOLEAN_KEYS:
+        if key in normalized:
+            normalized[key] = _env_bool_value(normalized.get(key))
+    return normalized
 
 # _BACKUP_DIR: usa BACKUP_DIR da settings (impostato dal wizard in produzione),
 # con fallback legacy per ambienti non ancora aggiornati.
@@ -959,7 +1006,7 @@ def homepage_builder_tool(request):
 @_staff_required
 def setup_wizard_hub(request):
     """Mostra il Setup Wizard precompilato con i valori del .env corrente."""
-    env = _read_env()
+    env = _normalize_env_booleans(_read_env())
     return render(request, "hub_tools/setup_wizard.html", {"env": env})
 
 
@@ -1029,10 +1076,12 @@ def api_reconfigure(request):
         return str(data.get(key) or default).strip()
 
     def b(key, default=False):
-        return "1" if data.get(key, default) else "0"
+        if key in data:
+            return _env_bool_value(data.get(key))
+        return _env_bool_value(default)
 
     # Legge il .env attuale per preservare campi non gestiti da questo form
-    current_env = _read_env()
+    current_env = _normalize_env_booleans(_read_env())
 
     # Preserva SECRET_KEY e SETUP_COMPLETED esistenti
     secret_key = current_env.get("DJANGO_SECRET_KEY", "")
@@ -1054,25 +1103,25 @@ def api_reconfigure(request):
         "SETUP_COMPLETED": "1",
         "BRANDING_LOGO": current_env.get("BRANDING_LOGO", ""),
         "BRANDING_FAVICON": current_env.get("BRANDING_FAVICON", ""),
-        "SECURE_SSL_REDIRECT": b("secure_ssl"),
-        "CSRF_COOKIE_SECURE": b("csrf_secure"),
-        "SESSION_COOKIE_SECURE": b("session_secure"),
+        "SECURE_SSL_REDIRECT": b("secure_ssl", current_env.get("SECURE_SSL_REDIRECT", "0")),
+        "CSRF_COOKIE_SECURE": b("csrf_secure", current_env.get("CSRF_COOKIE_SECURE", "0")),
+        "SESSION_COOKIE_SECURE": b("session_secure", current_env.get("SESSION_COOKIE_SECURE", "0")),
         "DB_ENGINE": s("db_engine", current_env.get("DB_ENGINE", "sqlserver")),
         "DB_HOST": s("db_host", current_env.get("DB_HOST", "")),
         "DB_NAME": s("db_name", current_env.get("DB_NAME", "")),
         "DB_USER": s("db_user", current_env.get("DB_USER", "")),
         "DB_PASSWORD": s("db_password", current_env.get("DB_PASSWORD", "")),
         "DB_DRIVER": s("db_driver", current_env.get("DB_DRIVER", "ODBC Driver 18 for SQL Server")),
-        "DB_TRUST_CERT": b("db_trust_cert"),
+        "DB_TRUST_CERT": b("db_trust_cert", current_env.get("DB_TRUST_CERT", "0")),
         "LEGACY_AUTH_ENABLED": current_env.get("LEGACY_AUTH_ENABLED", "1"),
-        "NAVIGATION_REGISTRY_ENABLED": b("nav_registry", current_env.get("NAVIGATION_REGISTRY_ENABLED", "0") == "1"),
+        "NAVIGATION_REGISTRY_ENABLED": b("nav_registry", current_env.get("NAVIGATION_REGISTRY_ENABLED", "0")),
         "NAVIGATION_LEGACY_FALLBACK_ENABLED": "1",
         "ASSENZE_SYNC_ON_PAGE_LOAD": current_env.get("ASSENZE_SYNC_ON_PAGE_LOAD", "0"),
         "SESSION_IDLE_TIMEOUT_SECONDS": s("session_timeout", current_env.get("SESSION_IDLE_TIMEOUT_SECONDS", "3600")),
-        "SESSION_EXPIRE_AT_BROWSER_CLOSE": b("session_expire", True),
+        "SESSION_EXPIRE_AT_BROWSER_CLOSE": b("session_expire", current_env.get("SESSION_EXPIRE_AT_BROWSER_CLOSE", "1")),
         "LEGACY_ACL_CACHE_TTL": s("acl_cache_ttl", current_env.get("LEGACY_ACL_CACHE_TTL", "120")),
         "LEGACY_NAV_CACHE_TTL": s("nav_cache_ttl", current_env.get("LEGACY_NAV_CACHE_TTL", "120")),
-        "LDAP_ENABLED": b("ldap_enabled"),
+        "LDAP_ENABLED": b("ldap_enabled", current_env.get("LDAP_ENABLED", "0")),
         "LDAP_SERVER": s("ldap_server", current_env.get("LDAP_SERVER", "")),
         "LDAP_DOMAIN": s("ldap_domain", current_env.get("LDAP_DOMAIN", "")),
         "LDAP_UPN_SUFFIX": s("ldap_upn", current_env.get("LDAP_UPN_SUFFIX", "")),
@@ -1103,7 +1152,7 @@ def api_reconfigure(request):
         "EMAIL_PORT": s("email_port", current_env.get("EMAIL_PORT", "587")),
         "EMAIL_HOST_USER": s("email_user", current_env.get("EMAIL_HOST_USER", "")),
         "EMAIL_HOST_PASSWORD": s("email_password", current_env.get("EMAIL_HOST_PASSWORD", "")),
-        "EMAIL_USE_TLS": b("email_tls", True),
+        "EMAIL_USE_TLS": b("email_tls", current_env.get("EMAIL_USE_TLS", "1")),
         "EMAIL_USE_SSL": current_env.get("EMAIL_USE_SSL", "0"),
         "EMAIL_TIMEOUT": current_env.get("EMAIL_TIMEOUT", "10"),
         "DEFAULT_FROM_EMAIL": s("email_from", current_env.get("DEFAULT_FROM_EMAIL", "")),
@@ -1131,6 +1180,99 @@ def api_reconfigure(request):
 # Categorie moduli
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
+_BRAND_IMAGE_ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".svg", ".webp"}
+_BRAND_IMAGE_ALLOWED_MIMES = {"image/png", "image/jpeg", "image/svg+xml", "image/webp"}
+_BRAND_FAVICON_ALLOWED_EXTS = _BRAND_IMAGE_ALLOWED_EXTS | {".ico"}
+_BRAND_FAVICON_ALLOWED_MIMES = _BRAND_IMAGE_ALLOWED_MIMES | {
+    "image/x-icon",
+    "image/vnd.microsoft.icon",
+}
+_BRAND_UPLOAD_MAX_BYTES = 1024 * 1024
+_BRAND_COLOR_DEFAULTS = {
+    "brand_primary_color": "#1e3a5f",
+    "brand_accent_color": "#f97316",
+    "brand_background_color": "#eef0f5",
+}
+_BRAND_ASSETS = {
+    "brand_logo_full": {
+        "slot": "logo_full",
+        "file_field": "brand_logo_full_file",
+        "clear_field": "clear_brand_logo_full",
+        "label": "Logo sidebar espansa",
+        "allowed_extensions": _BRAND_IMAGE_ALLOWED_EXTS,
+        "allowed_mimes": _BRAND_IMAGE_ALLOWED_MIMES,
+    },
+    "brand_logo_compact": {
+        "slot": "logo_compact",
+        "file_field": "brand_logo_compact_file",
+        "clear_field": "clear_brand_logo_compact",
+        "label": "Logo sidebar compressa",
+        "allowed_extensions": _BRAND_IMAGE_ALLOWED_EXTS,
+        "allowed_mimes": _BRAND_IMAGE_ALLOWED_MIMES,
+    },
+    "brand_favicon": {
+        "slot": "favicon",
+        "file_field": "brand_favicon_file",
+        "clear_field": "clear_brand_favicon",
+        "label": "Favicon",
+        "allowed_extensions": _BRAND_FAVICON_ALLOWED_EXTS,
+        "allowed_mimes": _BRAND_FAVICON_ALLOWED_MIMES,
+    },
+}
+
+
+def _is_hex_color(value: str) -> bool:
+    cleaned = str(value or "").strip()
+    return (
+        len(cleaned) == 7
+        and cleaned.startswith("#")
+        and all(ch in "0123456789abcdefABCDEF" for ch in cleaned[1:])
+    )
+
+
+def _clean_brand_color(value: str, *, default: str, label: str) -> str:
+    cleaned = str(value or "").strip() or default
+    if not _is_hex_color(cleaned):
+        raise ValueError(f"{label}: usa un colore esadecimale valido, es. #1e3a5f.")
+    return cleaned.lower()
+
+
+def _clean_brand_asset_url(value: str, *, label: str) -> str:
+    cleaned = str(value or "").strip()
+    if not cleaned:
+        return ""
+    parsed = urlsplit(cleaned)
+    if parsed.scheme in {"http", "https"} or cleaned.startswith("/"):
+        return cleaned
+    raise ValueError(f"{label}: l'URL deve iniziare con http://, https:// o /")
+
+
+def _delete_portal_brand_asset(slot: str, allowed_extensions: set[str]) -> None:
+    for ext in allowed_extensions:
+        path = f"portal_branding/{slot}{ext}"
+        if default_storage.exists(path):
+            default_storage.delete(path)
+
+
+def _save_portal_brand_asset(uploaded_file, *, meta: dict[str, object]) -> str:
+    label = str(meta["label"])
+    allowed_extensions = set(meta["allowed_extensions"])
+    allowed_mimes = set(meta["allowed_mimes"])
+    validate_extension_and_mime(
+        uploaded_file,
+        allowed_extensions=allowed_extensions,
+        allowed_mimes=allowed_mimes,
+        max_bytes=_BRAND_UPLOAD_MAX_BYTES,
+        label=label,
+    )
+    raw_ext = os.path.splitext(uploaded_file.name)[1].lower()
+    ext = raw_ext if raw_ext in allowed_extensions else ".png"
+    slot = str(meta["slot"])
+    _delete_portal_brand_asset(slot, allowed_extensions)
+    saved_path = default_storage.save(f"portal_branding/{slot}{ext}", uploaded_file)
+    return default_storage.url(saved_path)
+
+
 @_staff_required
 def categorie(request):
     from django.shortcuts import redirect
@@ -1144,19 +1286,59 @@ def categorie(request):
         "portal_subtitle": "Sottotitolo branding globale.",
         "brand_logo_full": "URL logo esteso usato nella sidebar espansa.",
         "brand_logo_compact": "URL logo compatto usato nella sidebar collassata.",
+        "brand_favicon": "URL favicon del portale.",
+        "brand_primary_color": "Colore principale shell/sidebar.",
+        "brand_accent_color": "Colore accento CTA e fallback logo.",
+        "brand_background_color": "Colore sfondo applicazione.",
     }
 
     if request.method == "POST":
         action = request.POST.get("action", "")
         if action == "branding":
-            for key, description in branding_keys.items():
-                SiteConfig.set(key, request.POST.get(key, "").strip(), description)
+            try:
+                branding_values = {
+                    "portal_name": request.POST.get("portal_name", "").strip(),
+                    "portal_subtitle": request.POST.get("portal_subtitle", "").strip(),
+                }
+                for key, default in _BRAND_COLOR_DEFAULTS.items():
+                    branding_values[key] = _clean_brand_color(
+                        request.POST.get(key, default),
+                        default=default,
+                        label=branding_keys[key],
+                    )
+                for key, meta in _BRAND_ASSETS.items():
+                    uploaded_file = request.FILES.get(str(meta["file_field"]))
+                    if request.POST.get(str(meta["clear_field"])):
+                        _delete_portal_brand_asset(str(meta["slot"]), set(meta["allowed_extensions"]))
+                        branding_values[key] = ""
+                    elif uploaded_file:
+                        branding_values[key] = _save_portal_brand_asset(uploaded_file, meta=meta)
+                    else:
+                        branding_values[key] = _clean_brand_asset_url(
+                            request.POST.get(key, ""),
+                            label=str(meta["label"]),
+                        )
+            except (UploadMimeValidationError, ValueError) as exc:
+                messages.error(request, str(exc))
+                return redirect("hub_tools:hub_categorie")
+
+            for key, value in branding_values.items():
+                SiteConfig.set(key, value, branding_keys[key])
+            messages.success(request, "Branding portale salvato.")
         elif action == "create":
             key = request.POST.get("key", "").strip()
             label = request.POST.get("label", "").strip()
             icon = request.POST.get("icon", "").strip()
-            color = request.POST.get("topbar_color", "#1e3a5f").strip()
-            order = int(request.POST.get("order", 100) or 100)
+            try:
+                color = _clean_brand_color(
+                    request.POST.get("topbar_color", "#1e3a5f"),
+                    default="#1e3a5f",
+                    label="Colore topbar",
+                )
+                order = int(request.POST.get("order", 100) or 100)
+            except ValueError as exc:
+                messages.error(request, str(exc))
+                return redirect("hub_tools:hub_categorie")
             if key and label:
                 ModuleCategory.objects.get_or_create(
                     key=key,
@@ -1169,8 +1351,16 @@ def categorie(request):
                 cat = ModuleCategory.objects.get(pk=cat_id)
                 cat.label = request.POST.get("label", cat.label).strip() or cat.label
                 cat.icon = request.POST.get("icon", cat.icon).strip()
-                cat.topbar_color = request.POST.get("topbar_color", cat.topbar_color).strip() or cat.topbar_color
-                cat.order = int(request.POST.get("order", cat.order) or cat.order)
+                try:
+                    cat.topbar_color = _clean_brand_color(
+                        request.POST.get("topbar_color", cat.topbar_color),
+                        default=cat.topbar_color,
+                        label="Colore topbar",
+                    )
+                    cat.order = int(request.POST.get("order", cat.order) or cat.order)
+                except ValueError as exc:
+                    messages.error(request, str(exc))
+                    return redirect("hub_tools:hub_categorie")
                 cat.save()
                 bump_navigation_registry_version()
             except ModuleCategory.DoesNotExist:
@@ -1208,6 +1398,10 @@ def categorie(request):
             "portal_subtitle": PORTAL_BRANDING_DEFAULTS["portal_subtitle"],
             "brand_logo_full": PORTAL_BRANDING_DEFAULTS["brand_logo_full"],
             "brand_logo_compact": PORTAL_BRANDING_DEFAULTS["brand_logo_compact"],
+            "brand_favicon": PORTAL_BRANDING_DEFAULTS["brand_favicon"],
+            "brand_primary_color": PORTAL_BRANDING_DEFAULTS["brand_primary_color"],
+            "brand_accent_color": PORTAL_BRANDING_DEFAULTS["brand_accent_color"],
+            "brand_background_color": PORTAL_BRANDING_DEFAULTS["brand_background_color"],
         }
     )
     return render(request, "hub_tools/categorie.html", {

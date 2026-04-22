@@ -16,7 +16,7 @@
 ![LDAP](https://img.shields.io/badge/Auth-LDAP%20%2B%20Django%20%2B%20Legacy-6B7280?style=flat-square)
 ![Modules](https://img.shields.io/badge/Moduli-25%2B-16A34A?style=flat-square)
 
-[Start here](doc/START_HERE.md) · [Architettura](doc/ARCHITETTURA_TARGET_E_DISMISSIONE_LEGACY.md) · [Testing](doc/TESTING.md) · [Deploy IIS](deployment/README_DEPLOY_IIS_WINDOWS.md) · [ACL v2](doc/ACL_V2_PERMISSION_GUIDE.md)
+[Start here](doc/START_HERE.md) · [Manuale tecnico GitHub](doc/README.md) · [Architettura](doc/ARCHITETTURA_TARGET_E_DISMISSIONE_LEGACY.md) · [Testing](doc/TESTING.md) · [Deploy IIS](deployment/README_DEPLOY_IIS_WINDOWS.md) · [ACL v2](doc/ACL_V2_PERMISSION_GUIDE.md)
 
 </div>
 
@@ -165,6 +165,7 @@ L'app trasversale che fa funzionare tutto il resto. Contiene middleware, resolve
 
 - **ACL middleware** con resolver canonico v2 + fallback legacy, logging throttled delle decisioni
 - **Navigation registry** (`NavigationItem`, `NavigationRoleAccess`, `UserNavigationOverride`) con visibilita derivata dai permission code canonici e fallback legacy solo per voci ancora non mappate
+- **Fallback navigazione legacy** con deduplica visuale per modulo, cosi i restore/import non duplicano in sidebar le azioni `pulsanti` dello stesso modulo
 - **4 auth backend in cascata**: `AxesStandaloneBackend` → `SQLServerLegacyBackend` → `LDAPBackend` → `ModelBackend`
 - **Audit trail** fire-and-forget via `core.audit.log_action()` su tabella `AuditLog`
 - **Legacy models managed** su SQL Server: `Ruolo`, `UtenteLegacy`, `AnagraficaDipendente`, `Pulsante`, `Permesso`
@@ -211,8 +212,9 @@ Collezione di tool sotto `/admin-portale/hub/` protetti da `@legacy_admin_requir
 - **Database Manager** — statistiche tabelle, backup, pulizia log/sessioni, ottimizzazione, ripristino. Engine rilevato automaticamente (SQLite dev / SQL Server prod)
 - **DB Schema infografica** — mappa visuale di tutti i modelli Django con campi, tipi, relazioni FK/1:1/M:M
 - **Homepage Builder** — editor visuale layout home per ruolo
-- **Setup Wizard Hub** — rilancia il wizard di configurazione (14 step) sul `.env` corrente
+- **Setup Wizard Hub** — rilancia il wizard di configurazione (14 step) sul `.env` corrente, normalizzando i booleani `True`/`False` e `1`/`0`
 - **Guide** — catalogo auto-indicizzato di documenti (HTML/PDF/MD) da `tools/`, `doc/`, `deployment/`, con dedup per formato
+- **Categorie moduli / branding portale** — raggruppa la navigazione e personalizza nome, loghi upload/URL, favicon e colori globali della shell
 </details>
 
 <details open>
@@ -227,6 +229,7 @@ Wizard Django 12 step raggiungibile su `/setup/`, usato quando `SETUP_COMPLETED=
 - Runtime Python 3.11+ rilevato e validato prima della creazione del virtualenv
 - `collectstatic` isolato dai bootstrap ACL runtime, così non apre cache/DB prima di copiare gli asset
 - Preflight SQL Server: il database configurato viene creato/verificato prima delle migration; con `DB_TRUST_CERT=True` anche `sqlcmd` usa `-C` e, se serve, fallback ODBC con `TrustServerCertificate=yes`
+- Il wizard web interno preserva `DB_TRUST_CERT` quando si modifica solo LDAP/SMTP, evitando che ODBC Driver 18 perda `TrustServerCertificate=yes` su ambienti con certificato SQL non trusted
 - Trigger automazioni SQL idempotenti: `apply_sql_triggers` crea la queue e salta i trigger la cui tabella sorgente legacy/opzionale non esiste nel DB corrente; gli script assenze sono self-guarded anche se lanciati direttamente
 - Fail-fast: se venv/pip/migrate/collectstatic falliscono, release **non** attivata
 - FinishPage mostra banner rosso "Installazione Incompleta" con countdown 60s
@@ -335,7 +338,9 @@ Segnalazione e gestione anomalie rilevate in produzione dagli operatori.
 
 - **Segnalazione rapida** con launcher dedicato `/anomalie-menu` (compat ACL con permessi operativi)
 - **Gestione** su `/gestione-anomalie` con workflow di presa in carico e chiusura
-- **Tipi di anomalia** configurabili per ruolo
+- **Impostazioni** su `/gestione-anomalie/configurazione` con tab `Ruoli operativi` e `Accessi`
+- **Accessi granulari**: ACL pagina come prima barriera, poi regole modulo per Capocommessa/CAR, ruoli operativi custom, ruoli aziendali legacy (`ruoli.id`/`utenti.ruolo_id`) e override singolo utente
+- **Modifica in carico**: `EDIT_ASSIGNED` permette di modificare solo gli OP dove l'utente compare come Capocommessa o CAR/Incaricato; `EDIT_ALL` abilita la modifica globale
 - **API gate** `/api/anomalie/` protetta da ACL canonico
 - **Export CSV** tracciato in AuditLog
 - **ACL**: il launcher resta accessibile ai ruoli con almeno un permesso operativo (`anomalie_aperte` o `inserimento_anomalie`) anche senza grant del contenitore
@@ -768,6 +773,7 @@ python django_app\manage.py show_urls
 La raccolta interna in [`/admin-portale/hub/guide/`](django_app/hub_tools/) indicizza
 automaticamente tutti i documenti supportati. Per consultazione da repo:
 
+- 📚 [Manuale tecnico GitHub](doc/README.md) — indice canonico Markdown pensato per la lettura diretta su GitHub, con link relativi a governance, setup, deploy, test e ACL
 - 📘 [Start here per persona](doc/START_HERE.md) — sviluppatore, admin, deployer, tester
 - 🏛️ [Architettura target e dismissione legacy](doc/ARCHITETTURA_TARGET_E_DISMISSIONE_LEGACY.md)
 - 🧪 [Testing, smoke e UAT](doc/TESTING.md)

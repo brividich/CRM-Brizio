@@ -345,6 +345,64 @@ def _ensure_dashboard_nav(items: list[NavItem], current_variants: set[str]) -> l
     return items
 
 
+def _nav_order_value(item: NavItem) -> int:
+    if item.order_hint is None:
+        return 999999
+    try:
+        return int(item.order_hint)
+    except Exception:
+        return 999999
+
+
+def _legacy_nav_dedupe_key(item: NavItem) -> str:
+    module_key = str(item.modulo or "").strip().lower()
+    if module_key:
+        return f"module:{module_key}"
+    label_key = str(item.label or "").strip().lower()
+    if label_key:
+        return f"label:{label_key}"
+    target = str(item.legacy_url or "").strip() or str(item.href or "").strip()
+    return f"target:{_normalize_path(urlsplit(target).path or target or '/')}"
+
+
+def _legacy_nav_rank(item: NavItem) -> tuple[int, int, str, str]:
+    return (
+        1 if item.coming else 0,
+        _nav_order_value(item),
+        str(item.label or "").strip().lower(),
+        str(item.codice or "").strip().lower(),
+    )
+
+
+def _dedupe_legacy_nav_items(items: list[NavItem]) -> list[NavItem]:
+    """Riduce il fallback legacy a una sola voce topbar/sidebar per modulo.
+
+    Le tabelle legacy possono avere piu pulsanti operativi per lo stesso modulo
+    (lista, crea, gestione, ecc.). In modalita sidebar/topbar questi non devono
+    diventare duplicati visivi del modulo.
+    """
+    chosen: dict[str, NavItem] = {}
+    order: list[str] = []
+    duplicate_count = 0
+    for item in items:
+        key = _legacy_nav_dedupe_key(item)
+        if key not in chosen:
+            chosen[key] = item
+            order.append(key)
+            continue
+        duplicate_count += 1
+        if _legacy_nav_rank(item) < _legacy_nav_rank(chosen[key]):
+            chosen[key] = item
+    if duplicate_count:
+        _log_nav_once(
+            level="warning",
+            cache_key=f"legacy-dedup:{duplicate_count}",
+            message="Navigation fallback legacy: voci duplicate per modulo nascoste nel menu principale.",
+            duplicate_count=duplicate_count,
+        )
+    return [chosen[key] for key in order]
+
+
 def _load_registry_nav_items(request, legacy_user) -> list[NavItem]:
     if not _navigation_registry_enabled():
         return []
@@ -673,8 +731,9 @@ def legacy_nav(request):
                 )
             )
 
+        items.sort(key=lambda x: ((x.order_hint if x.order_hint is not None else 999999), x.label.lower()))
+        items = _dedupe_legacy_nav_items(items)
         items = _ensure_dashboard_nav(items, current_variants)
-
         items.sort(key=lambda x: ((x.order_hint if x.order_hint is not None else 999999), x.label.lower()))
         result["nav_items"] = items
     except DatabaseError:

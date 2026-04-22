@@ -10,6 +10,15 @@
   {% endif %}
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
+  <style>
+    :root {
+      --primary: {{ portal_branding.brand_primary_color }};
+      --primary-mid: {{ portal_branding.brand_primary_mid_color }};
+      --accent: {{ portal_branding.brand_accent_color }};
+      --accent-light: {{ portal_branding.brand_accent_light_color }};
+      --bg: {{ portal_branding.brand_background_color }};
+    }
+  </style>
   <link rel="stylesheet" href="{% static 'monitoring/css/monitoring.css' %}">
   {% block extra_head %}{% endblock %}
 </head>

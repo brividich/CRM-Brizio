@@ -106,6 +106,7 @@ Pattern condiviso pagine modulo `Impostazioni`:
 - Tabelle Django: `NavigationItem`, `NavigationRoleAccess`, `UserNavigationOverride`, `UserDashboardConfig`, `UserModuleVisibility`
 - `NavigationItem` espone ora anche `required_permission_code`: se compilato, o se ricavabile da `route_name` / `url_path`, la visibilita della voce viene derivata dai grant canonici del ruolo/utente.
 - Runtime attuale: `RolePermissionGrant` / `UserPermissionGrant` sono la fonte primaria di visibilita menu; `NavigationRoleAccess` sopravvive solo come fallback compat per voci ancora prive di permission code canonico.
+- Quando il Navigation Registry e' vuoto/disattivato e la shell cade sul fallback legacy `pulsanti`, `core.context_processors.legacy_nav()` deve deduplicare la navigazione principale per modulo prima di renderizzare topbar/sidebar. Le tabelle legacy possono contenere piu azioni dello stesso modulo (`lista`, `crea`, `gestione`) ma il menu principale deve mostrare una sola voce modulo, specialmente dopo restore/import topbar.
 - **Override per-utente navigazione** (`UserNavigationOverride`): in runtime e hide-only. `enabled=False` nasconde una voce gia consentita; i vecchi override positivi (`enabled=True`) non forzano piu la mostra di voci negate dal canonico. Non usa la cache; gli admin non sono soggetti agli override. Funziona su `topbar` e `subnav`. Gestito da "Step 5 â€“ Nav Override" in `/admin-portale/acl-canonico/` e da "Override Navigazione Utente" in `/admin-portale/navigation-builder/`.
 
 #### Sezioni `NavigationItem.section`
@@ -211,6 +212,7 @@ Pattern: `AppConfig.ready()` Ã¢â€ â€™ chiama `bootstrap_*_acl_endpoin
 
 - Accesso: `SiteConfig.get_many(defaults)` Ã¢â‚¬â€ restituisce dict con fallback
 - Usato da: `setup_wizard`, `hub_tools` (Module Manager), `context_processors`
+- Branding globale portale: chiavi `portal_name`, `portal_subtitle`, `brand_logo_full`, `brand_logo_compact`, `brand_favicon`, `brand_primary_color`, `brand_accent_color`, `brand_background_color`; si gestiscono da `/admin-portale/hub/categorie/`, con upload validato MIME in `media/portal_branding/` o fallback via URL assoluto/relativo.
 - Non usare `settings.py` per configurazioni modificabili a runtime Ã¢â‚¬â€ usare `SiteConfig`
 
 ---
@@ -301,6 +303,7 @@ L'exe e l'artefatto distribuito agli utenti finali: se non viene rigenerato, le 
 - I flussi wizard DEV/TEST/PROD devono risolvere il runtime Python prima di creare il virtualenv; se non viene trovato Python 3.11+ devono registrare errore `venv` e saltare pip/migrate senza attivare release incomplete.
 - I bootstrap ACL runtime lanciati dagli `AppConfig.ready()` devono usare `should_skip_runtime_bootstrap()` e non devono toccare cache/DB durante comandi Django non runtime (`collectstatic`, `createcachetable`, `migrate`, `check`, `test`), altrimenti il deploy puo bloccarsi prima dell'esecuzione reale del comando.
 - Prima di `migrate` il wizard deve creare/verificare il database SQL Server configurato: la creazione deve avvenire in un batch dedicato su `master`, poi l'apertura del DB va verificata separatamente (`sqlcmd -d <DB>` o ODBC con `DATABASE=`). Non combinare `CREATE DATABASE` e `USE [DB]` nello stesso batch. Se `DB_TRUST_CERT=True`, anche `sqlcmd` deve ricevere `-C`; se resta bloccato su TLS/certificato, il wizard deve riprovare via ODBC con `TrustServerCertificate=yes`. Se fallisce con login/db accesso negato, deve saltare le migration e mostrare rimedio SSMS esplicito invece di lasciare traceback `18456/4060`.
+- Il wizard interno `/admin-portale/hub/setup-wizard/` deve normalizzare i booleani del `.env` (`True`/`False`, `yes`/`no`, `1`/`0`) prima del render e preservare `DB_TRUST_CERT` quando si salvano solo LDAP/SMTP; non deve mai spegnere `TrustServerCertificate` per differenze di formato tra wizard desktop e web.
 - Se falliscono `venv`, `pip install`, `collectstatic` o `migrate`, il wizard deve marcare l'errore esplicitamente e non attivare la release/IIS o schedulare task su un ambiente incompleto.
 
 ### Selezione moduli (ModulesPage — step 11)
@@ -395,9 +398,10 @@ Percorso: `/admin-portale/hub/` Ã¢â‚¬â€ richiede `is_legacy_admin()`.
 | `database/` | `database` | DB Manager: statistiche tabelle, backup, pulizia log/sessioni, ottimizzazione, ripristino. Engine rilevato automaticamente (SQLite in dev, SQL Server in prod). |
 | `database/schema/` | `db_schema` | **Schema DB infografica**: mappa visuale di tutti i modelli Django (campi, tipi, relazioni FK/1:1/M:M). Template: `hub_tools/templates/hub_tools/db_schema.html`. Versione standalone anche in `db_schema.html` nella root del repo. |
 | `homepage-builder/` | `homepage_builder` | Editor visuale layout home page per ruolo. |
-| `setup-wizard/` | `setup_wizard_hub` | Riesecuzione wizard configurazione (12 step), legge `.env` corrente. |
+| `setup-wizard/` | `setup_wizard_hub` | Riesecuzione wizard configurazione (12 step), legge `.env` corrente normalizzando i booleani e preservando `DB_TRUST_CERT` durante modifiche LDAP/SMTP. |
 | `guide/` | `guide_list` | Elenco guide/manuali/documentazione tecnica indicizzato automaticamente da `tools/`, `doc/`, `deployment/` e `django_app/assets/README.md` con deduplica per formato (`html` > `pdf` > `md`). |
 | `guide/<slug>/` | `guide_view` | Visualizzazione singola guida. |
+| `categorie/` | `categorie` | Categorie moduli/topbar e branding globale portale: nome, sottotitolo, upload o URL per logo sidebar espansa/compatta, favicon e colori shell/accento/sfondo. Gli upload finiscono in `media/portal_branding/`. |
 
 ### Guide Hub
 

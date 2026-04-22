@@ -591,6 +591,50 @@ class NavigationFallbackAndLegacyRedirectTests(TestCase):
         self.assertTrue(context["nav_items"])
         self.assertTrue(any(item.legacy_url == "/tasks" for item in context["nav_items"]))
 
+    def test_legacy_fallback_deduplicates_topbar_items_by_module(self):
+        Pulsante.objects.create(
+            codice="notizie_lista",
+            nome_visibile="Notizie",
+            icona="bell",
+            modulo="notizie",
+            url="/notizie/",
+        )
+        Pulsante.objects.create(
+            codice="notizie_nuova",
+            nome_visibile="Nuova notizia",
+            icona="newspaper",
+            modulo="notizie",
+            url="/notizie/nuova/",
+        )
+        Permesso.objects.create(
+            ruolo_id=1,
+            modulo="notizie",
+            azione="notizie_lista",
+            consentito=1,
+            can_view=1,
+        )
+        Permesso.objects.create(
+            ruolo_id=1,
+            modulo="notizie",
+            azione="notizie_nuova",
+            consentito=1,
+            can_view=1,
+        )
+        bump_legacy_cache_version()
+
+        request = self.factory.get("/notizie/")
+        request.user = get_user_model().objects.create_user(
+            username="fallback-nav-dedupe-user",
+            password="pass12345",
+        )
+        request.legacy_user = self.legacy_user
+        _attach_session(request)
+
+        context = legacy_nav(request)
+        labels = [item.label for item in context["nav_items"]]
+
+        self.assertEqual(labels.count("Notizie"), 1)
+
     def test_legacy_redirect_row_in_db_is_applied_on_dispatch(self):
         user = get_user_model().objects.create_user(username="legacy-redirect-user", password="pass12345")
         self.client.force_login(user)
