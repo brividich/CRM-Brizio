@@ -105,7 +105,7 @@
       <div class="notice" style="margin-bottom:12px;">
         Questa form mostra i valori effettivi con la precedenza reale del progetto:
         <code>ambiente processo -&gt; .env -&gt; default</code>.
-        Il pulsante di salvataggio aggiorna direttamente <code>.env</code>, che e' ora la sola configurazione persistita del progetto.
+        Il pulsante di salvataggio aggiorna direttamente <code>{{ dotenv_target_label }}</code>, che e' ora la sola configurazione persistita del progetto.
       </div>
 
       <form method="post" class="admin-form-grid">
@@ -147,7 +147,7 @@
         </div>
         <div class="field field-actions" style="gap:8px; display:flex; flex-wrap:wrap;">
           <button class="btn btn-secondary" type="submit" name="action" value="test_connect">Test Connessione LDAP</button>
-          <button class="btn" type="submit" name="action" value="save_ldap_config">Salva config LDAP in .env</button>
+          <button class="btn" type="submit" name="action" value="save_ldap_config">Salva config LDAP</button>
         </div>
       </form>
       {% if result_connect %}
@@ -156,7 +156,7 @@
         </div>
       {% endif %}
       <div class="cell-muted" style="margin-top:10px;">
-        Il salvataggio aggiorna <code>.env</code>. Dopo il salvataggio serve <strong>riavviare il server</strong> per far rileggere i settings Django; se esiste un override nell'ambiente processo, il confronto nel riquadro sopra lo segnala esplicitamente.
+        Il salvataggio aggiorna <code>{{ dotenv_target_label }}</code>. Dopo il salvataggio serve <strong>riavviare il server</strong> per far rileggere i settings Django; se esiste un override nell'ambiente processo, il confronto nel riquadro sopra lo segnala esplicitamente.
       </div>
       <div class="notice" style="margin-top:10px;">
         Origine valori effettivi principali:
@@ -207,7 +207,7 @@
         <div class="field field-actions" style="gap:8px; display:flex; flex-wrap:wrap;">
           <button class="btn btn-secondary" type="submit" name="action" value="test_smtp_connect">Test Connessione SMTP</button>
           <button class="btn btn-secondary" type="submit" name="action" value="test_smtp_send">Invia Mail di Test</button>
-          <button class="btn" type="submit" name="action" value="save_smtp_config">Salva SMTP in .env</button>
+          <button class="btn" type="submit" name="action" value="save_smtp_config">Salva SMTP</button>
         </div>
       </form>
 
@@ -235,7 +235,7 @@
       {% endif %}
 
       <div class="cell-muted" style="margin-top:10px;">
-        Nota: se salvi la configurazione SMTP in <code>.env</code>, poi serve <strong>riavviare il server</strong>
+        Nota: se salvi la configurazione SMTP in <code>{{ dotenv_target_label }}</code>, poi serve <strong>riavviare il server</strong>
         per far rileggere i settings Django. Il test connessione qui sopra usa invece i valori del form, senza riavvio.
       </div>
     </div>
@@ -244,13 +244,17 @@
   <div class="card">
     {% include "admin_portale/components/card_head.html" with card_title="Service Account (sync massiva)" card_subtitle="Account di servizio usato da sync_ldap_users per leggere tutti gli utenti da AD. Non serve per il login dei singoli utenti." %}
     <div class="card-body">
-      {% if not ldap_cfg.service_user %}
+      {% if not ldap_cfg.service_user or not ldap_cfg.service_password_configured %}
         <div class="notice notice-warning" style="margin-bottom:12px;">
-          Service account effettivo non configurato. La sync massiva da AD non e' disponibile finche' non vengono impostati username e password nei valori effettivi.
+          Service account effettivo incompleto:
+          username <strong>{% if ldap_cfg.service_user %}configurato{% else %}non configurato{% endif %}</strong>,
+          password <strong>{% if ldap_cfg.service_password_configured %}configurata{% else %}non configurata{% endif %}</strong>.
+          La sync massiva da AD non e' disponibile finche' non vengono impostati entrambi.
         </div>
       {% else %}
         <div class="notice notice-success" style="margin-bottom:12px;">
           Service account effettivo configurato: <strong>{{ ldap_cfg.service_user }}</strong>
+          - password <strong>configurata</strong>
         </div>
       {% endif %}
 
@@ -266,7 +270,7 @@
         </div>
         <div class="field field-actions" style="gap:8px; display:flex; flex-wrap:wrap;">
           <button class="btn btn-secondary" type="submit" name="action" value="test_service_bind">Testa bind service account</button>
-          <button class="btn" type="submit" name="action" value="save_service_account">Salva in .env</button>
+          <button class="btn" type="submit" name="action" value="save_service_account">Salva service account</button>
         </div>
       </form>
 
@@ -277,8 +281,8 @@
       {% endif %}
 
       <div class="cell-muted" style="margin-top:10px;">
-        Nota: dopo aver salvato il service account e' necessario <strong>riavviare il server</strong> per applicare le credenziali.
-        Se imposti <code>LDAP_SERVICE_USER</code> e <code>LDAP_SERVICE_PASSWORD</code> nel file <code>.env</code>, anche in quel caso serve il riavvio o il reload del processo Django.
+        Nota: se la password e' gia configurata puoi lasciare vuoto il campo e verra' preservata.
+        La sync avviata da questa pagina usa i valori effettivi salvati, mentre il comando CLI continua a leggere i settings del processo.
       </div>
     </div>
   </div>

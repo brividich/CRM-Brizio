@@ -7,7 +7,7 @@
 **Il portale interno unificato di Costruzioni Novicrom SRL**
 *Workflow · Operations · Sicurezza · Automazioni · Governance*
 
-![Version](https://img.shields.io/badge/version-1.0.0-F97316?style=flat-square)
+![Version](https://img.shields.io/badge/version-1.0.1-F97316?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Django](https://img.shields.io/badge/Django-5.2-0C4B33?style=flat-square&logo=django&logoColor=white)
 ![DB](https://img.shields.io/badge/DB-SQLite%20%7C%20SQL%20Server-1E3A5F?style=flat-square&logo=microsoftsqlserver&logoColor=white)
@@ -197,10 +197,11 @@ Sostituisce il Django admin nativo con un pannello ritagliato sulle operazioni r
 - **ACL diagnostica** combinata legacy + canonical con una sola decisione finale chiara e trace completo
 - **Mappa permessi/navigazione** visuale con drill-down cliccabile e toggle live dei grant
 - **Navigation Builder** con vista tabellare + **vista drag&drop orizzontale** per sezione
-- **LDAP settings** + configurazione SMTP + mailbox tecnica approvazioni
+- **LDAP settings** + sync/import utenti AD con service account effettivo; nei deploy TEST/PROD salva sul `config/.env` persistente, non sul `.env` della release attiva
 - **Branding portale** (favicon, logo, login banner, pagina login personalizzabile)
 - **Module Manager** integrato per abilitazione moduli runtime
 - **Automazioni admin**: impostazioni runtime, queue list, log mailbox, convertitore Power Automate
+- **Crea Release** (`/admin-portale/crea-release/`) con package zip, riavvio IIS TEST/PROD automatico via task schedulato elevato `\PortaleNovicrom\IISRestart_TEST/PROD` e terminale web con preset Django/ACL sull'ambiente selezionato
 </details>
 
 <details open>
@@ -259,7 +260,7 @@ Anagrafica master del portale, integrata con Active Directory e tabelle legacy.
 
 - **9 modelli**: Fornitore, FornitoreDocumento, FornitoreOrdine, FornitoreValutazione, FornitoreAsset, RuoloOperativo, DipendenteRuoloOperativo, DipendenteStatLayout, AnagraficaStatPermission
 - **Fallback email** automatico `email_notifica` → `email` quando il legacy non popola il primo campo
-- **Sync LDAP/AD** con `sync_ldap_users` command, paging configurabile
+- **Sync LDAP/AD** con `sync_ldap_users`, paging configurabile e credenziali service account preservate dal pannello admin su `config/.env` persistente nei deploy
 - **Stats dashboard dipendente** con layout salvato per utente
 - **Generazione PDF** anagrafica tramite `tools/gen_anagrafica_pdf.py`
 - **Ruoli operativi** aggiuntivi (non i ruoli ACL)
@@ -605,8 +606,11 @@ graph LR
 ### Sicurezza credenziali
 
 Le credenziali sensibili (Graph secret, SMTP password, LDAP bind) vivono **solo**
-in `django_app/.env`, mai committato. Un pre-commit hook in `tools/git-hooks/`
-blocca commit accidentali di `.env*`, chiavi private e pattern secret.
+in `django_app/.env` in sviluppo e in `ENV/config/.env` nei deploy TEST/PROD;
+questi file non vanno mai committati. In deploy Django carica `config/.env`
+prima del `.env` copiato nella release attiva, cosi un riavvio IIS applica i
+salvataggi del pannello admin. Un pre-commit hook in `tools/git-hooks/` blocca
+commit accidentali di `.env*`, chiavi private e pattern secret.
 
 ```powershell
 # Installa il pre-commit hook (una-tantum per sviluppatore)
@@ -705,7 +709,7 @@ graph TD
     D --> E[Configura .env ambiente]
     E --> F[Discovery SQL Server UDP/TCP]
     F --> G[migrate selettivo per modulo]
-    G --> H[apply_sql_triggers + bootstrap_acl_v2]
+    G --> H[ensure_legacy_schema + apply_sql_triggers + bootstrap_acl_v2]
     H --> I[collectstatic + createcachetable]
     I --> J[Crea utente admin legacy]
     J --> K[Junction release · IIS site + app pool]
@@ -713,7 +717,7 @@ graph TD
     L --> M[Server Dashboard]
 ```
 
-**Governance fail-fast**: se venv, pip, migrate o collectstatic falliscono,
+**Governance fail-fast**: se venv, pip, migrate, `ensure_legacy_schema` o collectstatic falliscono,
 `FinishPage` mostra banner rosso "Installazione Incompleta" e la release
 **non viene attivata** — IIS non punta a un ambiente rotto.
 
@@ -730,6 +734,7 @@ graph TD
 ```powershell
 # Dalla release directory
 python manage.py migrate --settings=config.settings.prod
+python manage.py ensure_legacy_schema --settings=config.settings.prod
 python manage.py apply_sql_triggers --settings=config.settings.prod
 python manage.py collectstatic --noinput --settings=config.settings.prod
 python manage.py createcachetable --settings=config.settings.prod
@@ -791,7 +796,7 @@ automaticamente tutti i documenti supportati. Per consultazione da repo:
 
 <div align="center">
 
-**NOVICROM HUB** · Costruzioni Novicrom SRL · `v1.0.0`
+**NOVICROM HUB** · Costruzioni Novicrom SRL · `v1.0.1`
 
 *Repository ripulito per pubblicazione sicura: nessuna credenziale reale è inclusa.
 I file `.example` sono template. Il pre-commit hook in `tools/git-hooks/` blocca

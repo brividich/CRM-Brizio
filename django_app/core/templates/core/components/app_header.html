@@ -15,7 +15,9 @@
         {% endif %}
         <span class="brand-mark-fallback">{{ portal_branding.monogram }}</span>
       </span>
-      <span class="app-header-brand-name">{{ portal_branding.portal_name|default:"Portale Novicrom" }}</span>
+      {% if portal_branding.portal_name %}
+        <span class="app-header-brand-name">{{ portal_branding.portal_name }}</span>
+      {% endif %}
     </a>
   </div>
   {% if user.is_authenticated and monitoring_ui.enabled %}

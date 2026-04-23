@@ -59,6 +59,14 @@ class HubCategorieViewTests(TestCase):
             "brand_logo_full": "/media/brand-full.svg",
             "brand_logo_compact": "/media/brand-compact.svg",
             "brand_favicon": "/media/favicon.ico",
+            "brand_landing_image": "/media/landing.png",
+            "brand_landing_fit_mode": "contain",
+            "brand_logo_full_height": "48",
+            "brand_logo_full_max_width": "220",
+            "brand_logo_compact_size": "40",
+            "brand_sidebar_logo_scale": "170",
+            "brand_login_form_x": "72",
+            "brand_login_form_y": "46",
             "brand_primary_color": "#112233",
             "brand_accent_color": "#ffaa00",
             "brand_background_color": "#f7f8fb",
@@ -72,6 +80,14 @@ class HubCategorieViewTests(TestCase):
         self.assertEqual(SiteConfig.get("brand_logo_full"), "/media/brand-full.svg")
         self.assertEqual(SiteConfig.get("brand_logo_compact"), "/media/brand-compact.svg")
         self.assertEqual(SiteConfig.get("brand_favicon"), "/media/favicon.ico")
+        self.assertEqual(SiteConfig.get("brand_landing_image"), "/media/landing.png")
+        self.assertEqual(SiteConfig.get("brand_landing_fit_mode"), "contain")
+        self.assertEqual(SiteConfig.get("brand_logo_full_height"), "48")
+        self.assertEqual(SiteConfig.get("brand_logo_full_max_width"), "220")
+        self.assertEqual(SiteConfig.get("brand_logo_compact_size"), "40")
+        self.assertEqual(SiteConfig.get("brand_sidebar_logo_scale"), "170")
+        self.assertEqual(SiteConfig.get("brand_login_form_x"), "72")
+        self.assertEqual(SiteConfig.get("brand_login_form_y"), "46")
         self.assertEqual(SiteConfig.get("brand_primary_color"), "#112233")
         self.assertEqual(SiteConfig.get("brand_accent_color"), "#ffaa00")
         self.assertEqual(SiteConfig.get("brand_background_color"), "#f7f8fb")
@@ -93,6 +109,13 @@ class HubCategorieViewTests(TestCase):
                         "brand_primary_color": "#1e3a5f",
                         "brand_accent_color": "#f97316",
                         "brand_background_color": "#eef0f5",
+                        "brand_landing_fit_mode": "stretch",
+                        "brand_logo_full_height": "40",
+                        "brand_logo_full_max_width": "140",
+                        "brand_logo_compact_size": "32",
+                        "brand_sidebar_logo_scale": "135",
+                        "brand_login_form_x": "80",
+                        "brand_login_form_y": "52",
                         "brand_logo_full_file": SimpleUploadedFile(
                             "logo.png",
                             b"\x89PNG\r\n\x1a\n",
@@ -103,14 +126,25 @@ class HubCategorieViewTests(TestCase):
                             b"\x89PNG\r\n\x1a\n",
                             content_type="image/png",
                         ),
+                        "brand_landing_image_file": SimpleUploadedFile(
+                            "landing.png",
+                            b"\x89PNG\r\n\x1a\n",
+                            content_type="image/png",
+                        ),
                     },
                 )
 
             self.assertRedirects(response, self.url, fetch_redirect_response=False)
             self.assertEqual(SiteConfig.get("brand_logo_full"), "/media/portal_branding/logo_full.png")
             self.assertEqual(SiteConfig.get("brand_logo_compact"), "/media/portal_branding/logo_compact.png")
+            self.assertEqual(SiteConfig.get("brand_landing_image"), "/media/portal_branding/landing.png")
+            self.assertEqual(SiteConfig.get("brand_landing_fit_mode"), "stretch")
+            self.assertEqual(SiteConfig.get("brand_sidebar_logo_scale"), "135")
+            self.assertEqual(SiteConfig.get("brand_login_form_x"), "80")
+            self.assertEqual(SiteConfig.get("brand_login_form_y"), "52")
             self.assertTrue((media_root / "portal_branding" / "logo_full.png").exists())
             self.assertTrue((media_root / "portal_branding" / "logo_compact.png").exists())
+            self.assertTrue((media_root / "portal_branding" / "landing.png").exists())
         finally:
             shutil.rmtree(media_root, ignore_errors=True)
 

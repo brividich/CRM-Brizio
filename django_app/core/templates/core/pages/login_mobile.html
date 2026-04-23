@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 
 {% block title %}Login | {{ portal_branding.portal_name }}{% endblock %}
-{% block body_class %}login-page fs-{{ ui_prefs.font_scale|default:'normal' }}{% endblock %}
+{% block body_class %}login-page login-page-mobile fs-{{ ui_prefs.font_scale|default:'normal' }}{% endblock %}
 {% block layout_sidebar %}{% endblock %}
 {% block layout_header %}{% endblock %}
 {% block subnav %}{% endblock %}
@@ -9,7 +9,7 @@
 {% block extra_head %}
 <style>
   {% if portal_branding.brand_landing_image %}
-  body.login-page {
+  body.login-page-mobile {
     background-image: url('{{ portal_branding.brand_landing_image }}');
     background-position: center center;
     background-repeat: no-repeat;
@@ -26,8 +26,8 @@
     min-height: 100vh;
   }
   {% else %}
-  body.login-page {
-    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-mid) 60%, #1a4a7a 100%);
+  body.login-page-mobile {
+    background: linear-gradient(160deg, var(--primary) 0%, var(--primary-mid) 52%, #1a4a7a 100%);
     min-height: 100vh;
   }
   {% endif %}
@@ -37,45 +37,79 @@
     width: 100%;
   }
   .content {
-    position: relative;
-    width: 100vw;
+    width: 100%;
     max-width: none;
     margin: 0;
     min-height: 100vh;
     padding: 0;
-    overflow: hidden;
   }
 
-  .login-wrap {
-    position: absolute;
-    left: clamp(240px, {{ portal_branding.brand_login_form_x }}%, calc(100vw - 240px));
-    top: clamp(320px, {{ portal_branding.brand_login_form_y }}%, calc(100vh - 320px));
-    transform: translate(-50%, -50%);
-    width: min(460px, calc(100vw - 48px));
-    display: grid;
-    gap: 12px;
+  .mobile-login-shell {
+    min-height: 100vh;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 20px 14px;
   }
 
-  .login-card {
-    background: rgba(255, 255, 255, 0.96);
-    border-radius: 24px;
-    box-shadow: 0 28px 64px rgba(8, 20, 45, 0.24);
-    border: 1px solid rgba(207, 216, 232, 0.72);
-    overflow: hidden;
-  }
-  .login-card-body {
-    padding: 30px 28px 24px;
-  }
-
-  .login-card-head {
+  .mobile-login-brand {
+    width: min(440px, 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: #f5f9ff;
     text-align: center;
-    margin-bottom: 16px;
   }
-  .login-lock {
-    width: 84px;
-    height: 84px;
+  .mobile-login-brand-mark {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    background: linear-gradient(145deg, var(--accent), #f08c3a);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    color: #fff;
+    flex-shrink: 0;
+  }
+  .mobile-login-brand-logo {
+    max-height: 42px;
+    max-width: min(220px, 65vw);
+    object-fit: contain;
+  }
+  .mobile-login-brand-text {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: .01em;
+    color: rgba(245, 249, 255, 0.92);
+  }
+
+  .mobile-login-card {
+    width: min(440px, 100%);
+    background: rgba(255, 255, 255, 0.97);
+    border-radius: 24px;
+    border: 1px solid rgba(207, 216, 232, 0.72);
+    box-shadow: 0 24px 54px rgba(8, 20, 45, 0.24);
+    overflow: hidden;
+  }
+  .mobile-login-body {
+    padding: 22px 18px 18px;
+  }
+
+  .mobile-login-head {
+    text-align: center;
+    margin-bottom: 14px;
+  }
+  .mobile-login-lock {
+    width: 60px;
+    height: 60px;
     border-radius: 999px;
-    margin: 0 auto 14px;
+    margin: 0 auto 12px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -83,49 +117,49 @@
     background: #eef2f8;
     color: var(--primary);
   }
-  .login-card-title {
+  .mobile-login-title {
     margin: 0;
-    font-size: 34px;
-    line-height: 1.1;
+    font-size: 24px;
+    line-height: 1.15;
     font-weight: 800;
     color: #1c3466;
   }
-  .login-card-subtitle {
-    margin: 6px 0 0;
-    font-size: 17px;
+  .mobile-login-subtitle {
+    margin: 7px 0 0;
+    font-size: 14px;
     color: #667792;
     font-weight: 500;
   }
 
-  .login-banners {
+  .mobile-login-banners {
     display: grid;
     gap: 8px;
     margin: 0 0 14px;
   }
-  .login-banner {
-    padding: 11px 14px;
+  .mobile-login-banner {
+    padding: 11px 12px;
     border-radius: 10px;
     font-size: 13px;
     display: flex;
     align-items: flex-start;
-    gap: 10px;
+    gap: 8px;
   }
-  .login-banner.info { background: #ebf8ff; border-left: 4px solid #3182ce; color: #2c5282; }
-  .login-banner.warning { background: #fffff0; border-left: 4px solid #d69e2e; color: #744210; }
-  .login-banner.danger { background: var(--danger-bg); border-left: 4px solid var(--danger); color: #742a2a; }
-  .login-banner.success { background: var(--success-bg); border-left: 4px solid var(--success); color: #276749; }
+  .mobile-login-banner.info { background: #ebf8ff; border-left: 4px solid #3182ce; color: #2c5282; }
+  .mobile-login-banner.warning { background: #fffff0; border-left: 4px solid #d69e2e; color: #744210; }
+  .mobile-login-banner.danger { background: var(--danger-bg); border-left: 4px solid var(--danger); color: #742a2a; }
+  .mobile-login-banner.success { background: var(--success-bg); border-left: 4px solid var(--success); color: #276749; }
 
-  .login-error {
+  .mobile-login-error {
     background: var(--danger-bg);
     border-left: 4px solid var(--danger);
     border-radius: 10px;
-    padding: 11px 14px;
+    padding: 11px 12px;
     font-size: 13px;
     color: var(--danger);
-    margin-bottom: 14px;
+    margin-bottom: 12px;
     font-weight: 600;
   }
-  .login-notice {
+  .mobile-login-notice {
     background: var(--surface);
     border: 1px solid var(--border);
     border-left: 4px solid var(--primary-mid);
@@ -133,10 +167,10 @@
     padding: 10px 12px;
     font-size: 13px;
     color: var(--text);
-    margin-bottom: 12px;
+    margin-bottom: 10px;
   }
-  .login-notice.success { border-left-color: var(--success); }
-  .login-notice.warning { border-left-color: var(--warning); }
+  .mobile-login-notice.success { border-left-color: var(--success); }
+  .mobile-login-notice.warning { border-left-color: var(--warning); }
 
   .sr-only {
     position: absolute;
@@ -149,20 +183,16 @@
     border: 0;
   }
 
-  .login-field {
-    margin-bottom: 12px;
+  .mobile-login-field {
+    margin-bottom: 11px;
   }
-  .login-field label {
-    display: block;
-    margin-bottom: 6px;
-  }
-  .login-input-wrap {
+  .mobile-login-input-wrap {
     position: relative;
     display: flex;
     align-items: center;
   }
-  .login-input-icon,
-  .login-input-tail {
+  .mobile-login-input-icon,
+  .mobile-login-input-tail {
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
@@ -172,50 +202,50 @@
     justify-content: center;
     pointer-events: none;
   }
-  .login-input-icon { left: 14px; }
-  .login-input-tail { right: 12px; }
+  .mobile-login-input-icon { left: 14px; }
+  .mobile-login-input-tail { right: 12px; }
 
-  .login-field .input {
+  .mobile-login-field .input {
     width: 100%;
-    min-height: 56px;
-    font-size: 15px;
-    padding: 0 44px;
+    min-height: 52px;
+    font-size: 16px;
+    padding: 0 42px;
     border-radius: 11px;
     border: 1px solid #cfd7e6;
     background: #ffffff;
     color: #24395f;
   }
-  .login-field .input::placeholder {
+  .mobile-login-field .input::placeholder {
     color: #8a98ae;
   }
-  .login-field .input:focus {
+  .mobile-login-field .input:focus {
     outline: none;
     border-color: #4c78b8;
     box-shadow: 0 0 0 3px rgba(31, 95, 179, 0.15);
   }
 
-  .login-btn {
+  .mobile-login-btn {
     width: 100%;
-    min-height: 52px;
+    min-height: 50px;
     padding: 0 16px;
     font-size: 15px;
     font-weight: 700;
     background: #1f5fb3;
-    color: white;
+    color: #fff;
     border: none;
     border-radius: 11px;
     cursor: pointer;
     font-family: "Outfit", sans-serif;
     transition: all .15s ease;
-    box-shadow: 0 10px 20px rgba(31, 95, 179, 0.25);
+    box-shadow: 0 10px 20px rgba(31, 95, 179, 0.24);
     margin-top: 6px;
   }
-  .login-btn:hover {
+  .mobile-login-btn:hover {
     filter: brightness(1.04);
     box-shadow: 0 14px 24px rgba(31, 95, 179, 0.28);
   }
 
-  .login-help {
+  .mobile-login-help {
     text-align: center;
     margin-top: 10px;
     margin-bottom: 6px;
@@ -223,8 +253,7 @@
     font-size: 13px;
     font-weight: 600;
   }
-
-  .login-divider {
+  .mobile-login-divider {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -232,17 +261,16 @@
     color: #96a3b7;
     font-size: 12px;
   }
-  .login-divider::before,
-  .login-divider::after {
+  .mobile-login-divider::before,
+  .mobile-login-divider::after {
     content: "";
     flex: 1;
     height: 1px;
     background: #d6deeb;
   }
-
-  .login-sso-btn {
+  .mobile-login-sso-btn {
     width: 100%;
-    min-height: 52px;
+    min-height: 50px;
     padding: 0 14px;
     font-size: 14px;
     font-weight: 600;
@@ -259,101 +287,78 @@
     gap: 10px;
     text-decoration: none;
   }
-  .login-sso-btn:hover {
+  .mobile-login-sso-btn:hover {
     border-color: #1f5fb3;
     background: #f5f8ff;
   }
 
-  .login-card-meta {
+  .mobile-login-meta {
     margin-top: 12px;
     text-align: center;
     color: #6f7f98;
     font-size: 12px;
     font-weight: 500;
   }
-  .login-meta {
+  .mobile-login-footer {
+    width: min(440px, 100%);
     text-align: center;
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.55);
-    padding-top: 8px;
-  }
-
-  @media (max-width: 980px) {
-    .content {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px 16px;
-    }
-    .login-wrap {
-      position: static;
-      left: auto;
-      top: auto;
-      transform: none;
-      max-width: 460px;
-    }
-    .login-card-body {
-      padding: 22px 18px 18px;
-    }
-    .login-card-title {
-      font-size: 24px;
-    }
-    .login-card-subtitle {
-      font-size: 15px;
-    }
-    .login-lock {
-      width: 66px;
-      height: 66px;
-    }
-    .login-meta {
-      color: rgba(255, 255, 255, 0.7);
-    }
+    color: rgba(255, 255, 255, 0.72);
   }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="login-wrap">
-  <div class="login-card">
-    <div class="login-card-body">
-      <div class="login-card-head">
-        <div class="login-lock" aria-hidden="true">
-          <svg xmlns="http://www.w3.org/2000/svg" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+<div class="mobile-login-shell">
+  <div class="mobile-login-brand">
+    {% if login_logo_url %}
+      <img src="{{ login_logo_url }}" alt="{{ portal_branding.portal_name }}" class="mobile-login-brand-logo">
+    {% else %}
+      <span class="mobile-login-brand-mark" aria-hidden="true">N</span>
+      <p class="mobile-login-brand-text">{{ portal_branding.portal_name }}</p>
+    {% endif %}
+  </div>
+
+  <div class="mobile-login-card">
+    <div class="mobile-login-body">
+      <div class="mobile-login-head">
+        <div class="mobile-login-lock" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <rect x="4" y="11" width="16" height="9" rx="2"></rect>
             <path d="M8 11V8a4 4 0 0 1 8 0v3"></path>
             <circle cx="12" cy="15.5" r="1.4"></circle>
           </svg>
         </div>
-        <h1 class="login-card-title">Accedi al tuo account</h1>
-        <p class="login-card-subtitle">Inserisci le tue credenziali per continuare</p>
+        <h1 class="mobile-login-title">Accedi al tuo account</h1>
+        <p class="mobile-login-subtitle">{{ login_sottotitolo|default:"Inserisci le tue credenziali per continuare" }}</p>
       </div>
 
       {% if login_banners %}
-        <div class="login-banners">
+        <div class="mobile-login-banners">
           {% for banner in login_banners %}
-            <div class="login-banner {{ banner.tipo }}">{{ banner.testo }}</div>
+            <div class="mobile-login-banner {{ banner.tipo }}">{{ banner.testo }}</div>
           {% endfor %}
         </div>
       {% endif %}
 
       {% if messages %}
         {% for message in messages %}
-          <div class="login-notice {% if message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% endif %}">{{ message }}</div>
+          <div class="mobile-login-notice {% if message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% endif %}">{{ message }}</div>
         {% endfor %}
       {% endif %}
 
       {% if form.errors %}
-        <div class="login-error">Credenziali non valide. Riprova.</div>
+        <div class="mobile-login-error">Credenziali non valide. Riprova.</div>
       {% endif %}
 
       <form method="post" action="{% url 'login' %}">
         {% csrf_token %}
         {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
 
-        <div class="login-field">
+        <div class="mobile-login-field">
           <label class="sr-only" for="id_username">Username</label>
-          <div class="login-input-wrap">
-            <span class="login-input-icon" aria-hidden="true">
+          <div class="mobile-login-input-wrap">
+            <span class="mobile-login-input-icon" aria-hidden="true">
               <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M20 21a8 8 0 0 0-16 0"></path>
                 <circle cx="12" cy="7" r="4"></circle>
@@ -363,17 +368,17 @@
           </div>
         </div>
 
-        <div class="login-field">
+        <div class="mobile-login-field">
           <label class="sr-only" for="id_password">Password</label>
-          <div class="login-input-wrap">
-            <span class="login-input-icon" aria-hidden="true">
+          <div class="mobile-login-input-wrap">
+            <span class="mobile-login-input-icon" aria-hidden="true">
               <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="4" y="11" width="16" height="9" rx="2"></rect>
                 <path d="M8 11V8a4 4 0 0 1 8 0v3"></path>
               </svg>
             </span>
             <input id="id_password" class="input" type="password" name="password" autocomplete="current-password" placeholder="Password">
-            <span class="login-input-tail" aria-hidden="true">
+            <span class="mobile-login-input-tail" aria-hidden="true">
               <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"></path>
                 <circle cx="12" cy="12" r="2.8"></circle>
@@ -382,14 +387,14 @@
           </div>
         </div>
 
-        <button type="submit" class="login-btn">Accedi</button>
+        <button type="submit" class="mobile-login-btn">Accedi</button>
       </form>
 
-      <div class="login-help">Hai bisogno di supporto?</div>
+      <div class="mobile-login-help">Hai bisogno di supporto?</div>
 
       {% if login_sso_visibile %}
-        <div class="login-divider"></div>
-        <a href="{% url 'windows_sso' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="login-sso-btn">
+        <div class="mobile-login-divider"></div>
+        <a href="{% url 'windows_sso' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="mobile-login-sso-btn">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#0078d4">
             <path d="M0 0h11.5v11.5H0zm12.5 0H24v11.5H12.5zM0 12.5h11.5V24H0zm12.5 0H24V24H12.5z"></path>
           </svg>
@@ -397,10 +402,10 @@
         </a>
       {% endif %}
 
-      <div class="login-card-meta">{{ portal_branding.portal_name }} &bull; Accesso riservato</div>
+      <div class="mobile-login-meta">{{ login_titolo }} &bull; Accesso riservato</div>
     </div>
   </div>
 
-  <div class="login-meta">Area autenticata {{ portal_branding.portal_name|lower }}</div>
+  <div class="mobile-login-footer">Area autenticata {{ portal_branding.portal_name|lower }}</div>
 </div>
 {% endblock %}

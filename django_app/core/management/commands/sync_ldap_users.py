@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import logging
 import socket
 from collections.abc import Iterable
@@ -46,6 +47,41 @@ def _normalized_allowlist(raw_values: Iterable[str]) -> set[str]:
     return {str(v).strip().casefold() for v in raw_values if str(v).strip()}
 
 
+def _domain_root_dn(*values: str) -> str:
+    for value in values:
+        text = str(value or "").strip().strip("@")
+        if not text or "." not in text:
+            continue
+        parts = [part.strip() for part in text.split(".") if part.strip()]
+        if len(parts) >= 2:
+            return ",".join(f"DC={part.upper()}" for part in parts)
+    return ""
+
+
+def _format_ldap_search_error(result, *, search_base: str, domain: str, upn_suffix: str) -> str:
+    if isinstance(result, dict):
+        description = str(result.get("description") or "").strip()
+        message = str(result.get("message") or "").strip()
+    else:
+        description = ""
+        message = str(result or "").strip()
+
+    if description == "noSuchObject":
+        suggestion = _domain_root_dn(upn_suffix, domain)
+        detail = f" Dettaglio AD: {message}" if message else ""
+        if suggestion and suggestion.casefold() != search_base.casefold():
+            return (
+                "Ricerca LDAP fallita: Base DN non trovato "
+                f"({search_base}). Imposta LDAP_BASE_DN su un DN esistente, "
+                f"ad esempio {suggestion}, oppure correggi il percorso OU/container.{detail}"
+            )
+        return (
+            "Ricerca LDAP fallita: Base DN non trovato "
+            f"({search_base}). Correggi LDAP_BASE_DN con un DN esistente in Active Directory.{detail}"
+        )
+    return f"Ricerca LDAP fallita: {result}"
+
+
 class Command(BaseCommand):
     help = "Importa utenti da LDAP/AD su UtenteLegacy + auth_user/Profile e sincronizza gruppi Django (membership multipla)."
 
@@ -64,19 +100,45 @@ class Command(BaseCommand):
         )
         parser.add_argument("--search-base", default="", help="Override LDAP_BASE_DN.")
         parser.add_argument("--user-filter", default="", help="Override LDAP_USER_FILTER.")
+        parser.add_argument(
+            "--ldap-enabled",
+            dest="ldap_enabled",
+            action="store_true",
+            default=None,
+            help=argparse.SUPPRESS,
+        )
+        parser.add_argument("--server", dest="server", default="", help=argparse.SUPPRESS)
+        parser.add_argument("--domain", dest="domain", default="", help=argparse.SUPPRESS)
+        parser.add_argument("--upn-suffix", dest="upn_suffix", default=None, help=argparse.SUPPRESS)
+        parser.add_argument("--timeout", dest="timeout", type=int, default=None, help=argparse.SUPPRESS)
+        parser.add_argument("--service-user", dest="service_user", default="", help=argparse.SUPPRESS)
+        parser.add_argument("--service-password", dest="service_password", default="", help=argparse.SUPPRESS)
+        parser.add_argument("--page-size", dest="page_size", type=int, default=None, help=argparse.SUPPRESS)
 
     def handle(self, *args, **options):
-        if not bool(getattr(settings, "LDAP_ENABLED", False)):
+        ldap_enabled = options.get("ldap_enabled")
+        if ldap_enabled is None:
+            ldap_enabled = bool(getattr(settings, "LDAP_ENABLED", False))
+        if not bool(ldap_enabled):
             raise CommandError("LDAP non abilitato (LDAP_ENABLED=0).")
 
-        server_url = str(getattr(settings, "LDAP_SERVER", "") or "").strip()
-        domain = str(getattr(settings, "LDAP_DOMAIN", "") or "").strip()
-        timeout = int(getattr(settings, "LDAP_TIMEOUT", 5) or 5)
-        service_user = str(getattr(settings, "LDAP_SERVICE_USER", "") or "").strip()
-        service_password = str(getattr(settings, "LDAP_SERVICE_PASSWORD", "") or "").strip()
+        server_url = str(options.get("server") or getattr(settings, "LDAP_SERVER", "") or "").strip()
+        domain = str(options.get("domain") or getattr(settings, "LDAP_DOMAIN", "") or "").strip()
+        upn_suffix_option = options.get("upn_suffix")
+        upn_suffix = str(
+            getattr(settings, "LDAP_UPN_SUFFIX", "") if upn_suffix_option is None else upn_suffix_option
+        ).strip().lstrip("@")
+        timeout = int(options.get("timeout") or getattr(settings, "LDAP_TIMEOUT", 5) or 5)
+        service_user = str(options.get("service_user") or getattr(settings, "LDAP_SERVICE_USER", "") or "").strip()
+        service_password = str(
+            options.get("service_password") or getattr(settings, "LDAP_SERVICE_PASSWORD", "") or ""
+        ).strip()
         search_base = str(options.get("search_base") or getattr(settings, "LDAP_BASE_DN", "") or "").strip()
         user_filter = str(options.get("user_filter") or getattr(settings, "LDAP_USER_FILTER", "") or "").strip()
-        page_size = max(100, min(int(getattr(settings, "LDAP_SYNC_PAGE_SIZE", 500) or 500), 2000))
+        page_size = max(
+            100,
+            min(int(options.get("page_size") or getattr(settings, "LDAP_SYNC_PAGE_SIZE", 500) or 500), 2000),
+        )
         dry_run = bool(options.get("dry_run"))
         limit = max(0, int(options.get("limit") or 0))
         replace_allowlist = bool(options.get("replace_allowlist_memberships"))
@@ -91,7 +153,7 @@ class Command(BaseCommand):
             raise CommandError("LDAP_USER_FILTER non configurato.")
 
         try:
-            from ldap3 import AUTO_BIND_NO_TLS, NONE, NTLM, SIMPLE, SUBTREE, Connection, Server
+            from ldap3 import NONE, NTLM, SIMPLE, SUBTREE, Connection, Server
             from ldap3.core.exceptions import LDAPException, LDAPSocketOpenError
         except Exception as exc:
             raise CommandError(f"ldap3 non disponibile: {exc}") from exc
@@ -102,31 +164,45 @@ class Command(BaseCommand):
         else:
             allowlist = _normalized_allowlist(getattr(settings, "LDAP_GROUP_ALLOWLIST", []) or [])
 
+        def _bind_attempts() -> list[tuple[str, object]]:
+            if "\\" in service_user:
+                return [(service_user, NTLM)]
+            if "@" in service_user:
+                return [(service_user, SIMPLE)]
+
+            attempts: list[tuple[str, object]] = []
+            if upn_suffix:
+                attempts.append((f"{service_user}@{upn_suffix}", SIMPLE))
+            attempts.append((service_user, SIMPLE))
+            if domain:
+                attempts.append((f"{domain}\\{service_user}", NTLM))
+            return attempts
+
         try:
             server = Server(server_url, connect_timeout=timeout, get_info=NONE)
-            conn = Connection(
-                server,
-                user=service_user,
-                password=service_password,
-                authentication=SIMPLE,
-                auto_bind=AUTO_BIND_NO_TLS,
-                auto_referrals=False,
-                raise_exceptions=False,
-            )
-            ok = conn.bind()
-            if not ok and domain and "@" not in service_user and "\\" not in service_user:
-                conn = Connection(
+            conn = None
+            last_result = None
+            for bind_user, authentication in _bind_attempts():
+                candidate = Connection(
                     server,
-                    user=f"{domain}\\{service_user}",
+                    user=bind_user,
                     password=service_password,
-                    authentication=NTLM,
-                    auto_bind=AUTO_BIND_NO_TLS,
+                    authentication=authentication,
+                    auto_bind=False,
                     auto_referrals=False,
                     raise_exceptions=False,
                 )
-                ok = conn.bind()
-            if not ok:
-                raise CommandError(f"Bind LDAP fallito: {conn.result}")
+                ok = candidate.bind()
+                if ok:
+                    conn = candidate
+                    break
+                last_result = candidate.result
+                try:
+                    candidate.unbind()
+                except Exception:
+                    pass
+            if conn is None:
+                raise CommandError(f"Bind LDAP fallito: {last_result}")
         except (LDAPSocketOpenError, LDAPException, socket.error, OSError) as exc:
             raise CommandError(f"Connessione LDAP fallita: {exc}") from exc
 
@@ -144,7 +220,14 @@ class Command(BaseCommand):
             raise CommandError(f"Ricerca LDAP fallita: {exc}") from exc
         if not search_ok:
             conn.unbind()
-            raise CommandError(f"Ricerca LDAP fallita: {conn.result}")
+            raise CommandError(
+                _format_ldap_search_error(
+                    conn.result,
+                    search_base=search_base,
+                    domain=domain,
+                    upn_suffix=upn_suffix,
+                )
+            )
 
         role_utente = Ruolo.objects.filter(nome__iexact="utente").first()
         ruolo_id = int(role_utente.id) if role_utente else None

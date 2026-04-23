@@ -7,7 +7,7 @@
 {% endblock %}
 
 {% block content %}
-  {% include "admin_portale/components/page_header.html" with page_title="Configura pagina di login" page_subtitle="Personalizza titolo, sottotitolo, logo, banner e il bottone SSO." %}
+  {% include "admin_portale/components/page_header.html" with page_title="Configura pagina di login" page_subtitle="Gestisci login, landing e loghi topbar/sidebar dal pannello dedicato." %}
 
   {% if messages %}
     <div class="messages-wrap" style="margin-bottom:20px;">
@@ -17,85 +17,189 @@
     </div>
   {% endif %}
 
-  <div style="display:grid;grid-template-columns:1fr 340px;gap:20px;max-width:1100px;">
-
-    <!-- COLONNA SINISTRA -->
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;max-width:1220px;">
     <div style="display:flex;flex-direction:column;gap:20px;">
-
-      <!-- Impostazioni generali -->
       <div class="card">
-        <div class="card-head"><div class="card-title">Testo e SSO</div></div>
+        <div class="card-head">
+          <div class="card-title">Testo login e SSO</div>
+        </div>
         <div class="card-body">
           <form method="post" action="{% url 'admin_portale:api_login_config_save' %}">
             {% csrf_token %}
-            <div class="field" style="margin-bottom:14px;">
-              <label>Titolo pagina</label>
-              <input class="input" type="text" name="login_titolo"
-                     value="{{ valori.login_titolo }}" placeholder="Portale Applicativo">
-            </div>
-            <div class="field" style="margin-bottom:14px;">
-              <label>Sottotitolo / azienda</label>
-              <input class="input" type="text" name="login_sottotitolo"
-                     value="{{ valori.login_sottotitolo }}" placeholder="Example Organization">
-            </div>
-            <div class="field" style="margin-bottom:14px;">
-              <label>Etichetta bottone SSO Windows</label>
-              <input class="input" type="text" name="login_sso_label"
-                     value="{{ valori.login_sso_label }}" placeholder="Accedi con credenziali Windows">
-            </div>
-            <div class="field" style="margin-bottom:18px;">
-              <label>Bottone SSO</label>
-              <div style="display:flex;gap:16px;margin-top:4px;">
-                <label class="checkline">
-                  <input type="radio" name="login_sso_visibile" value="1" {% if valori.login_sso_visibile == "1" %}checked{% endif %}> Visibile
-                </label>
-                <label class="checkline">
-                  <input type="radio" name="login_sso_visibile" value="0" {% if valori.login_sso_visibile == "0" %}checked{% endif %}> Nascosto
-                </label>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div class="field" style="margin-bottom:0;">
+                <label>Titolo pagina login</label>
+                <input class="input" type="text" name="login_titolo" value="{{ valori.login_titolo }}" placeholder="Portale Applicativo">
+              </div>
+              <div class="field" style="margin-bottom:0;">
+                <label>Sottotitolo login</label>
+                <input class="input" type="text" name="login_sottotitolo" value="{{ valori.login_sottotitolo }}" placeholder="Example Organization">
+              </div>
+              <div class="field" style="margin-bottom:0;">
+                <label>Nome portale (topbar/sidebar)</label>
+                <input class="input" type="text" name="portal_name" value="{{ branding.portal_name }}" placeholder="Portale Novicrom">
+              </div>
+              <div class="field" style="margin-bottom:0;">
+                <label>Sottotitolo portale</label>
+                <input class="input" type="text" name="portal_subtitle" value="{{ branding.portal_subtitle }}" placeholder="Lascia vuoto per nascondere">
               </div>
             </div>
-            <button type="submit" class="btn">Salva</button>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+              <div class="field" style="margin-bottom:0;">
+                <label>Etichetta bottone SSO</label>
+                <input class="input" type="text" name="login_sso_label" value="{{ valori.login_sso_label }}" placeholder="Accedi con credenziali Windows">
+              </div>
+              <div class="field" style="margin-bottom:0;">
+                <label>Bottone SSO</label>
+                <div style="display:flex;gap:16px;margin-top:10px;">
+                  <label class="checkline">
+                    <input type="radio" name="login_sso_visibile" value="1" {% if valori.login_sso_visibile == "1" %}checked{% endif %}> Visibile
+                  </label>
+                  <label class="checkline">
+                    <input type="radio" name="login_sso_visibile" value="0" {% if valori.login_sso_visibile == "0" %}checked{% endif %}> Nascosto
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top:16px;">
+              <button type="submit" class="btn">Salva testo e SSO</button>
+            </div>
           </form>
         </div>
       </div>
 
-      <!-- Logo -->
       <div class="card">
-        <div class="card-head"><div class="card-title">Logo</div></div>
+        <div class="card-head">
+          <div class="card-title">Landing login e loghi portale</div>
+        </div>
         <div class="card-body">
+          <form method="post" action="{% url 'admin_portale:api_login_config_save' %}" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div class="field" style="margin-bottom:0;">
+                <label>Logo sidebar espansa</label>
+                <input class="input" type="text" name="brand_logo_full" value="{{ branding.brand_logo_full }}" placeholder="/media/... o https://...">
+                <input class="input" type="file" name="brand_logo_full_file" accept=".png,.jpg,.jpeg,.svg,.webp" style="margin-top:8px;">
+                {% if branding.brand_logo_full %}
+                  <label class="checkline" style="margin-top:8px;">
+                    <input type="checkbox" name="clear_brand_logo_full" value="1"> Rimuovi logo espanso
+                  </label>
+                {% endif %}
+              </div>
+              <div class="field" style="margin-bottom:0;">
+                <label>Logo sidebar compressa</label>
+                <input class="input" type="text" name="brand_logo_compact" value="{{ branding.brand_logo_compact }}" placeholder="/media/... o https://...">
+                <input class="input" type="file" name="brand_logo_compact_file" accept=".png,.jpg,.jpeg,.svg,.webp" style="margin-top:8px;">
+                {% if branding.brand_logo_compact %}
+                  <label class="checkline" style="margin-top:8px;">
+                    <input type="checkbox" name="clear_brand_logo_compact" value="1"> Rimuovi logo compresso
+                  </label>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="field" style="margin-top:12px;">
+              <label>Immagine landing login</label>
+              <input class="input" type="text" name="brand_landing_image" value="{{ branding.brand_landing_image }}" placeholder="/media/... o https://...">
+              <input class="input" type="file" name="brand_landing_image_file" accept=".png,.jpg,.jpeg,.svg,.webp" style="margin-top:8px;">
+              {% if branding.brand_landing_image %}
+                <label class="checkline" style="margin-top:8px;">
+                  <input type="checkbox" name="clear_brand_landing_image" value="1"> Rimuovi immagine landing
+                </label>
+              {% endif %}
+            </div>
+
+            <div class="field" style="margin-top:12px;">
+              <input type="hidden" name="brand_logo_remove_white_bg" value="0">
+              <label class="checkline">
+                <input type="checkbox" name="brand_logo_remove_white_bg" value="1" {% if branding.brand_logo_remove_white_bg == "1" %}checked{% endif %}>
+                Rimuovi automaticamente lo sfondo bianco da PNG/JPG/WEBP dei loghi
+              </label>
+              <div style="font-size:12px;color:var(--text-light);margin-top:4px;">La pulizia si applica ai prossimi upload di logo espanso/compresso.</div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px;">
+              <div class="field" style="margin-bottom:0;">
+                <label>Altezza logo espansa (px)</label>
+                <input class="input" type="number" name="brand_logo_full_height" value="{{ branding.brand_logo_full_height|default:'40' }}" min="28" max="96">
+              </div>
+              <div class="field" style="margin-bottom:0;">
+                <label>Larghezza max logo espansa (px)</label>
+                <input class="input" type="number" name="brand_logo_full_max_width" value="{{ branding.brand_logo_full_max_width|default:'140' }}" min="80" max="360">
+              </div>
+              <div class="field" style="margin-bottom:0;">
+                <label>Dimensione logo compresso (px)</label>
+                <input class="input" type="number" name="brand_logo_compact_size" value="{{ branding.brand_logo_compact_size|default:'32' }}" min="24" max="80">
+              </div>
+              <div class="field" style="margin-bottom:0;">
+                <label>Scala logo sidebar (%)</label>
+                <input class="input" type="number" name="brand_sidebar_logo_scale" value="{{ branding.brand_sidebar_logo_scale|default:'100' }}" min="60" max="260">
+              </div>
+              <div class="field" style="margin-bottom:0;">
+                <label>Posizione form login X (%)</label>
+                <input class="input" type="number" name="brand_login_form_x" value="{{ branding.brand_login_form_x|default:'78' }}" min="0" max="100">
+              </div>
+              <div class="field" style="margin-bottom:0;">
+                <label>Posizione form login Y (%)</label>
+                <input class="input" type="number" name="brand_login_form_y" value="{{ branding.brand_login_form_y|default:'50' }}" min="0" max="100">
+              </div>
+            </div>
+
+            <div class="field" style="margin-top:12px;">
+              <label>Modalita sfondo landing login</label>
+              <select class="input" name="brand_landing_fit_mode">
+                <option value="cover" {% if branding.brand_landing_fit_mode == "cover" or not branding.brand_landing_fit_mode %}selected{% endif %}>Riempi</option>
+                <option value="contain" {% if branding.brand_landing_fit_mode == "contain" %}selected{% endif %}>Adatta</option>
+                <option value="stretch" {% if branding.brand_landing_fit_mode == "stretch" %}selected{% endif %}>Stira</option>
+                <option value="center" {% if branding.brand_landing_fit_mode == "center" %}selected{% endif %}>Centrata</option>
+              </select>
+            </div>
+
+            <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
+              <button type="submit" class="btn">Salva branding login</button>
+              <a href="{% url 'admin_portale:branding_config' %}" class="btn btn-secondary">Gestisci favicon</a>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Logo login dedicato (opzionale)</div>
+        </div>
+        <div class="card-body">
+          <p style="font-size:13px;color:var(--text-light);margin-bottom:12px;">Se non imposti questo campo, la login usa automaticamente il logo sidebar espansa.</p>
           {% if logo_url %}
-            <div style="margin-bottom:14px;background:#f8fafc;border-radius:10px;padding:16px;text-align:center;border:1px solid var(--border);">
-              <img src="{{ logo_url }}" alt="Logo attuale" style="max-height:72px;max-width:200px;object-fit:contain;">
+            <div style="margin-bottom:12px;background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;">
+              <img src="{{ logo_url }}" alt="Logo login" style="max-height:72px;max-width:220px;object-fit:contain;">
               <div style="margin-top:10px;">
                 <form method="post" action="{% url 'admin_portale:api_login_logo_remove' %}" style="display:inline;">
                   {% csrf_token %}
-                  <button type="submit" class="btn btn-danger btn-sm">Rimuovi logo</button>
+                  <button type="submit" class="btn btn-danger btn-sm">Rimuovi logo login</button>
                 </form>
               </div>
             </div>
-          {% else %}
-            <p style="font-size:13px;color:var(--text-light);margin-bottom:14px;">Nessun logo caricato — viene mostrata la lettera "N" arancione.</p>
           {% endif %}
           <form method="post" action="{% url 'admin_portale:api_login_logo_upload' %}" enctype="multipart/form-data">
             {% csrf_token %}
             <div class="field" style="margin-bottom:12px;">
-              <label>Carica nuovo logo <span style="font-weight:400;color:var(--text-light)">(PNG, JPG, SVG, WEBP)</span></label>
+              <label>Carica logo login</label>
               <input class="input" type="file" name="logo" accept=".png,.jpg,.jpeg,.svg,.webp">
             </div>
-            <button type="submit" class="btn btn-secondary">Carica logo</button>
+            <button type="submit" class="btn btn-secondary">Carica logo login</button>
           </form>
         </div>
       </div>
 
-      <!-- Banner -->
       <div class="card">
         <div class="card-head">
           <div class="card-title">Banner di avviso</div>
           <span style="font-size:11px;color:var(--text-light);">Visualizzati nella pagina di login</span>
         </div>
         <div class="card-body">
-
-          <!-- Lista banner esistenti -->
           {% if banners %}
             <div style="margin-bottom:16px;display:flex;flex-direction:column;gap:8px;">
               {% for b in banners %}
@@ -103,14 +207,12 @@
                   <div style="flex:1;min-width:0;">
                     <div style="font-size:12px;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px;">
                       {% if b.tipo == 'info' %}Informazione{% elif b.tipo == 'warning' %}Attenzione{% elif b.tipo == 'danger' %}Errore{% else %}Successo{% endif %}
-                      — ordine {{ b.ordine }}
+                      - ordine {{ b.ordine }}
                     </div>
                     <div style="font-size:13px;color:var(--text);">{{ b.testo }}</div>
                   </div>
                   <div style="display:flex;gap:6px;flex-shrink:0;">
-                    <button onclick="toggleBanner({{ b.id }}, this)"
-                            class="btn btn-sm btn-secondary"
-                            style="{% if not b.is_active %}opacity:.5;{% endif %}">
+                    <button onclick="toggleBanner({{ b.id }}, this)" class="btn btn-sm btn-secondary" style="{% if not b.is_active %}opacity:.5;{% endif %}">
                       {% if b.is_active %}Disattiva{% else %}Attiva{% endif %}
                     </button>
                     <button onclick="deleteBanner({{ b.id }}, this)" class="btn btn-sm btn-danger">Elimina</button>
@@ -122,13 +224,12 @@
             <p style="font-size:13px;color:var(--text-light);margin-bottom:16px;">Nessun banner configurato.</p>
           {% endif %}
 
-          <!-- Form nuovo banner -->
           <form method="post" action="{% url 'admin_portale:api_login_banner_create' %}" style="border-top:1px solid var(--border);padding-top:16px;">
             {% csrf_token %}
             <div style="font-size:12px;font-weight:700;color:var(--text-mid);margin-bottom:10px;text-transform:uppercase;letter-spacing:.03em;">Nuovo banner</div>
             <div class="field" style="margin-bottom:10px;">
               <label>Testo</label>
-              <textarea class="input" name="testo" rows="2" placeholder="Es: Il portale sarà in manutenzione sabato dalle 14:00..."></textarea>
+              <textarea class="input" name="testo" rows="2" placeholder="Es: Il portale sara in manutenzione sabato dalle 14:00..."></textarea>
             </div>
             <div style="display:flex;gap:10px;margin-bottom:12px;">
               <div class="field" style="flex:1;">
@@ -146,31 +247,39 @@
             </div>
             <button type="submit" class="btn">Aggiungi banner</button>
           </form>
-
         </div>
       </div>
-
     </div>
 
-    <!-- COLONNA DESTRA — anteprima -->
     <div style="display:flex;flex-direction:column;gap:20px;">
       <div class="card">
-        <div class="card-head"><div class="card-title">Anteprima</div></div>
+        <div class="card-head"><div class="card-title">Anteprima login</div></div>
         <div class="card-body">
-
-          <!-- Mini preview della card login -->
           <div style="background:linear-gradient(135deg,#1e3a5f,#2d5282);border-radius:12px;padding:20px;text-align:center;margin-bottom:14px;">
-            {% if logo_url %}
-              <img src="{{ logo_url }}" alt="Logo" style="max-height:48px;max-width:140px;object-fit:contain;margin-bottom:8px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.3));">
+            {% if branding.brand_logo_full %}
+              <img src="{{ branding.brand_logo_full }}" alt="{{ branding.portal_name|default:valori.login_titolo }}" style="max-height:48px;max-width:180px;object-fit:contain;margin-bottom:8px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.3));">
+            {% elif logo_url %}
+              <img src="{{ logo_url }}" alt="{{ branding.portal_name|default:valori.login_titolo }}" style="max-height:48px;max-width:180px;object-fit:contain;margin-bottom:8px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.3));">
             {% else %}
               <div style="width:40px;height:40px;background:var(--accent);border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:18px;color:white;margin-bottom:8px;">N</div>
             {% endif %}
             <div style="color:white;font-weight:800;font-size:15px;">{{ valori.login_titolo|default:"Portale Applicativo" }}</div>
-            <div style="color:rgba(255,255,255,.6);font-size:11px;">{{ valori.login_sottotitolo|default:"Example Organization" }}</div>
+            <div style="color:rgba(255,255,255,.65);font-size:11px;">{{ valori.login_sottotitolo|default:"Example Organization" }}</div>
           </div>
 
+          {% if landing_url %}
+            <div style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">Sfondo landing</div>
+            <div style="height:120px;border-radius:10px;overflow:hidden;background:#0f172a;border:1px solid var(--border);">
+              <img
+                src="{{ landing_url }}"
+                alt="Landing login"
+                style="width:100%;height:100%;{% if branding.brand_landing_fit_mode == 'contain' %}object-fit:contain;{% elif branding.brand_landing_fit_mode == 'stretch' %}object-fit:fill;{% elif branding.brand_landing_fit_mode == 'center' %}object-fit:none;object-position:center center;{% else %}object-fit:cover;{% endif %}"
+              >
+            </div>
+          {% endif %}
+
           {% if banners %}
-            <div style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">Banner attivi</div>
+            <div style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.04em;margin-top:12px;margin-bottom:6px;">Banner attivi</div>
             {% for b in banners %}
               {% if b.is_active %}
                 <div style="padding:8px 12px;border-radius:7px;font-size:12px;margin-bottom:5px;border-left:3px solid {% if b.tipo == 'info' %}#3182ce{% elif b.tipo == 'warning' %}#d69e2e{% elif b.tipo == 'danger' %}#e53e3e{% else %}#38a169{% endif %};background:{% if b.tipo == 'info' %}#ebf8ff{% elif b.tipo == 'warning' %}#fffff0{% elif b.tipo == 'danger' %}#fff5f5{% else %}#f0fff4{% endif %};">{{ b.testo }}</div>
@@ -180,13 +289,12 @@
 
           <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
             <a href="{% url 'login' %}" target="_blank" class="btn btn-secondary btn-sm" style="width:100%;justify-content:center;">
-              Apri pagina login &rarr;
+              Apri pagina login ->
             </a>
           </div>
         </div>
       </div>
     </div>
-
   </div>
 {% endblock %}
 
@@ -194,7 +302,7 @@
 <script>
 const csrfToken = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || "";
 
-async function toggleBanner(id, btn) {
+async function toggleBanner(id) {
   try {
     const res = await fetch("{% url 'admin_portale:api_login_banner_toggle' %}", {
       method: "POST",

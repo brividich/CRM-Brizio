@@ -6,6 +6,20 @@ Formato: [Keep a Changelog](https://keepachangelog.com/it/1.0.0/)
 
 ---
 
+## 1.0.1 - 2026-04-22
+
+### Added
+
+- **[ADMIN][DEPLOY] Operazioni server nella pagina Crea Release** (`django_app/admin_portale/views.py`, `django_app/admin_portale/urls.py`, `django_app/admin_portale/templates/admin_portale/pages/crea_release.html`, `django_app/admin_portale/tests.py`, `deployment/scripts/register-iis-restart-helper.ps1`, `deployment/scripts/restart-iis-env.ps1`, `deployment/scripts/configure-iis-site.ps1`, `deployment/scripts/deploy-release.ps1`, `README.md`, `CLAUDE.md`, `deployment/README_DEPLOY_IIS_WINDOWS.md`): `/admin-portale/crea-release/` espone ora una sezione `Operazioni server` con selezione TEST/PROD, riavvio IIS automatico tramite task schedulato elevato `\PortaleNovicrom\IISRestart_TEST/PROD` e terminale web con preset Django/ACL eseguiti nel virtualenv dell'ambiente selezionato. Le chiamate AJAX usano JSON gestibile da `portalReadJsonResponse`, richiedono admin legacy/superuser e conferma client prima di operare su PROD. Gli script `configure-iis-site.ps1` e `deploy-release.ps1` registrano/aggiornano il task in modo idempotente.
+
+### Fixed
+
+- **[DEPLOY][WIZARD][SQL] Fresh install allinea anche lo schema legacy runtime** (`deployment/setup_wizard.py`, `deployment/dist/SetupWizard.exe`, `django_app/setup_wizard/views.py`, `django_app/setup_wizard/templates/setup_wizard/wizard.html`, `django_app/core/management/commands/ensure_legacy_schema.py`, `django_app/setup_wizard/tests.py`, `README.md`, `CLAUDE.md`): dopo le migration il wizard esegue automaticamente `ensure_legacy_schema`, `createcachetable`, trigger SQL, bootstrap ACL v2 e seed descrizioni pulsanti. Le installazioni TEST/PROD non vengono attivate se lo schema runtime legacy non viene allineato, evitando database nuovi privi di tabelle operative come `ordini_produzione`, `anomalie`, `dipendenti` o `capi_reparto`.
+- **[ADMIN][DEPLOY] Fallback riavvio senza privilegi IIS** (`django_app/admin_portale/views.py`, `django_app/admin_portale/templates/admin_portale/pages/crea_release.html`, `django_app/admin_portale/tests.py`): il pulsante `Riavvia servizio IIS` su `/admin-portale/crea-release/` usa prima il task schedulato elevato; se il task manca o l'App Pool non puo avviarlo, tenta il riavvio diretto e solo come ultima difesa degrada al restart del processo Django/Waitress gestito da HttpPlatformHandler.
+- **[ADMIN][LDAP] Sync utenti usa le credenziali effettive salvate** (`django_app/admin_portale/views.py`, `django_app/admin_portale/templates/admin_portale/pages/ldap_diagnostica.html`, `django_app/config/env_config.py`, `django_app/config/settings/base.py`, `django_app/core/management/commands/sync_ldap_users.py`, `django_app/admin_portale/tests.py`, `django_app/config/test_env_config.py`, `django_app/core/test_sync_ldap_users_command.py`, `README.md`, `CLAUDE.md`): la sync LDAP lanciata da `/admin-portale/ldap/` passa al command i valori effettivi letti da ambiente processo/`.env`, compresa `LDAP_SERVICE_PASSWORD`, senza richiedere reload del processo Django dopo il salvataggio dal pannello. Nei deploy TEST/PROD il pannello admin scrive il `config/.env` persistente dell'ambiente e il boot Django lo carica prima del `.env` copiato dentro la release attiva, evitando riscritture locali di `current/django_app/.env` e facendo applicare i valori al riavvio IIS. La card service account ora distingue username e password configurata, preserva la password esistente quando il campo resta vuoto e considera la password tra i requisiti di readiness. Anche l'import selettivo LDAP usa gli stessi valori effettivi.
+
+---
+
 ## 1.0.0 - 2026-04-21 (wizard hotfix)
 
 ### Added (2026-04-22)

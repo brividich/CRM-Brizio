@@ -1,20 +1,27 @@
 ﻿from __future__ import annotations
 
+import base64
 import json
 import logging
 import os
 import re
+import shlex
 import socket
+import subprocess
 import tempfile
+import threading
+from collections import deque
 from dataclasses import dataclass
-from io import StringIO
+from io import BytesIO, StringIO
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from django.apps import apps as django_apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib import messages
 from django.core.exceptions import ValidationError
+from django.core.files.base import ContentFile
 from django.core.mail import EmailMultiAlternatives, get_connection
 from django.core.validators import validate_email
 from django.core.files.storage import default_storage
@@ -30,9 +37,10 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_GET, require_POST
+from PIL import Image, UnidentifiedImageError
 from werkzeug.security import generate_password_hash
 
-from config.env_config import get_first_env_value, load_env_file_values, update_env_file_values
+from config.env_config import get_first_env_value, load_env_file_values, primary_runtime_env_path, update_env_file_values
 from automazioni.approval_mailbox_runtime import (
     get_approval_imap_form_defaults,
     get_approval_imap_status,
@@ -1103,7 +1111,14 @@ LDAP_DIAG_FIELDS: tuple[dict[str, object], ...] = (
 
 
 def _dotenv_path() -> Path:
-    return Path(settings.BASE_DIR) / ".env"
+    return primary_runtime_env_path(Path(settings.BASE_DIR))
+
+
+def _dotenv_target_label(path: Path | None = None) -> str:
+    target = path or _dotenv_path()
+    if target != Path(settings.BASE_DIR) / ".env":
+        return "config/.env persistente dell'ambiente"
+    return ".env runtime"
 
 
 def _config_ini_path() -> Path:
@@ -1137,6 +1152,13 @@ def _effective_env_int(env_key: str, default: int) -> int:
     if value is None:
         return int(default)
     return int(value)
+
+
+def _ldap_effective_service_password() -> str:
+    return _effective_env_value(
+        "LDAP_SERVICE_PASSWORD",
+        str(getattr(settings, "LDAP_SERVICE_PASSWORD", "") or ""),
+    )
 
 
 def _ldap_csv_items(value) -> list[str]:
@@ -1346,11 +1368,16 @@ def _ldap_missing_required_labels(cfg: dict[str, object], required_keys: tuple[s
         str(field["key"]): str(field["label"])
         for field in LDAP_DIAG_FIELDS
     }
+    labels_by_key["service_password"] = "Password service account"
     missing: list[str] = []
 
     for key in required_keys:
         if key == "enabled":
             if not _bool_from_any(cfg.get(key)):
+                missing.append(labels_by_key.get(key, key))
+            continue
+        if key == "service_password":
+            if not bool(cfg.get("service_password_configured")):
                 missing.append(labels_by_key.get(key, key))
             continue
         if not str(cfg.get(key) or "").strip():
@@ -1397,11 +1424,15 @@ def _smtp_diag_defaults() -> dict[str, str | bool | int]:
     }
 
 def _update_dotenv_assignments(values: dict[str, str], *, delete_keys: list[str] | None = None) -> tuple[bool, str]:
+    dotenv_path = _dotenv_path()
     try:
-        update_env_file_values(values, dotenv_path=_dotenv_path(), delete_keys=delete_keys or [])
+        update_env_file_values(values, dotenv_path=dotenv_path, delete_keys=delete_keys or [])
     except Exception as exc:
         return False, f"Errore scrittura .env: {exc}"
-    return True, "Configurazione salvata in .env. Riavvia il server per applicare."
+    return True, (
+        f"Configurazione salvata in {_dotenv_target_label(dotenv_path)}. "
+        "La sync da questa pagina usa subito i valori salvati; il runtime li applica dopo reload/deploy."
+    )
 
 
 def _ldap_test_connect(server_url: str, timeout: int) -> tuple[bool, str]:
@@ -1427,7 +1458,7 @@ def _ldap_test_connect(server_url: str, timeout: int) -> tuple[bool, str]:
 
 def _ldap_test_bind(server_url: str, timeout: int, username: str, password: str, domain: str, upn_suffix: str) -> tuple[bool, str]:
     try:
-        from ldap3 import AUTO_BIND_NO_TLS, NONE, NTLM, SIMPLE, Connection, Server
+        from ldap3 import NONE, NTLM, SIMPLE, Connection, Server
     except Exception as exc:
         return False, f"ldap3 non disponibile: {exc}"
 
@@ -1436,61 +1467,58 @@ def _ldap_test_bind(server_url: str, timeout: int, username: str, password: str,
     if not ident or not pwd:
         return False, "Username e password sono obbligatori per il test bind."
 
-    if "@" in ident:
-        upn = ident
-        bind_dn = ident
+    server = Server(server_url, connect_timeout=timeout, get_info=NONE)
+    alias = ident.split("\\")[-1]
+    attempts: list[tuple[str, object, str]] = []
+    if "\\" in ident:
+        attempts.append((ident, NTLM, f"NTLM ({ident})"))
+    elif "@" in ident:
+        attempts.append((ident, SIMPLE, f"UPN ({ident})"))
     else:
         suffix = (upn_suffix or "").lstrip("@")
-        upn = f"{ident}@{suffix}" if suffix else ident
-        bind_dn = upn
+        bind_dn = f"{alias}@{suffix}" if suffix else alias
+        attempts.append((bind_dn, SIMPLE, f"UPN ({bind_dn})"))
+        if bind_dn != alias:
+            attempts.append((alias, SIMPLE, f"SIMPLE ({alias})"))
+        if domain:
+            ntlm_user = f"{domain}\\{alias}"
+            attempts.append((ntlm_user, NTLM, f"NTLM ({ntlm_user})"))
 
-    server = Server(server_url, connect_timeout=timeout, get_info=NONE)
-    try:
-        conn = Connection(
-            server,
-            user=bind_dn,
-            password=pwd,
-            authentication=SIMPLE,
-            auto_bind=AUTO_BIND_NO_TLS,
-            auto_referrals=False,
-            raise_exceptions=False,
-        )
-        if conn.bind():
-            conn.unbind()
-            return True, f"Bind LDAP riuscito con UPN ({bind_dn})."
-        conn.unbind()
-    except Exception as exc:
-        logger.info("LDAP UPN bind test failed: %s", exc)
-
-    if domain and "@" not in ident:
+    last_error = "nessun dettaglio disponibile"
+    for bind_user, authentication, label in attempts:
         try:
-            ntlm_user = f"{domain}\\{ident}"
-            conn2 = Connection(
+            conn = Connection(
                 server,
-                user=ntlm_user,
+                user=bind_user,
                 password=pwd,
-                authentication=NTLM,
-                auto_bind=AUTO_BIND_NO_TLS,
+                authentication=authentication,
+                auto_bind=False,
                 auto_referrals=False,
                 raise_exceptions=False,
             )
-            if conn2.bind():
-                conn2.unbind()
-                return True, f"Bind LDAP riuscito con NTLM ({ntlm_user})."
-            err = str(conn2.result)
-            conn2.unbind()
-            return False, f"Bind fallito (UPN e NTLM). Ultimo errore: {err}"
+            if conn.bind():
+                conn.unbind()
+                return True, f"Bind LDAP riuscito con {label}."
+            last_error = str(conn.result)
+            conn.unbind()
         except Exception as exc:
-            return False, f"Bind fallito (UPN e NTLM): {exc}"
+            last_error = str(exc)
+            logger.info("LDAP bind test failed for %s: %s", label, exc)
 
-    return False, "Bind fallito con UPN."
+    return False, f"Bind fallito. Ultimo errore: {last_error}"
 
 
 def _ldap_save_service_account(service_user: str, service_password: str) -> tuple[bool, str]:
+    password_to_save = (service_password or "").strip() or _ldap_effective_service_password()
+    if not service_user:
+        return False, "Username service account obbligatorio."
+    if not password_to_save:
+        return False, "Password service account obbligatoria: inseriscila almeno al primo salvataggio."
+
     ok, message = _update_dotenv_assignments(
         {
             "LDAP_SERVICE_USER": service_user,
-            "LDAP_SERVICE_PASSWORD": service_password,
+            "LDAP_SERVICE_PASSWORD": password_to_save,
         }
     )
     if not ok:
@@ -2474,12 +2502,13 @@ def schema_dati(request):
 def ldap_diagnostica(request):
     runtime_cfg = _ldap_diag_defaults()
     defaults = _ldap_file_defaults(runtime_cfg)
+    defaults["service_password_configured"] = bool(_ldap_effective_service_password())
     ldap_cfg_source_labels = _ldap_effective_source_labels()
     ldap_sync_cfg = {
         "sync_limit": 0,
         "sync_dry_run": True,
         "sync_replace_allowlist": False,
-        "group_allowlist": str(runtime_cfg["group_allowlist"] or ""),
+        "group_allowlist": str(defaults["group_allowlist"] or ""),
     }
     ldap_diag_rows, ldap_runtime_has_pending_restart, ldap_runtime_has_env_override = _ldap_diag_runtime_rows(runtime_cfg)
     smtp_defaults = _smtp_diag_defaults()
@@ -2527,13 +2556,16 @@ def ldap_diagnostica(request):
         if action in ("save_service_account", "test_service_bind"):
             svc_user = (request.POST.get("service_user") or "").strip()
             svc_password = (request.POST.get("service_password") or "").strip()
+            effective_svc_password = svc_password or _ldap_effective_service_password()
             defaults["service_user"] = svc_user
+            defaults["service_password_configured"] = bool(_ldap_effective_service_password())
             if action == "save_service_account":
                 ok, msg = _ldap_save_service_account(svc_user, svc_password)
                 result_service = {"ok": ok, "message": msg}
                 (messages.success if ok else messages.error)(request, msg)
                 if ok:
                     defaults = _ldap_file_defaults(runtime_cfg)
+                    defaults["service_password_configured"] = bool(_ldap_effective_service_password())
                     ldap_cfg_source_labels = _ldap_effective_source_labels()
                     ldap_diag_rows, ldap_runtime_has_pending_restart, ldap_runtime_has_env_override = _ldap_diag_runtime_rows(runtime_cfg)
             else:
@@ -2544,7 +2576,14 @@ def ldap_diagnostica(request):
                     }
                 else:
                     try:
-                        ok, msg = _ldap_test_bind(server, int(timeout), svc_user, svc_password, domain, upn_suffix)
+                        ok, msg = _ldap_test_bind(
+                            server,
+                            int(timeout),
+                            svc_user,
+                            effective_svc_password,
+                            domain,
+                            upn_suffix,
+                        )
                     except Exception as exc:
                         ok, msg = False, f"Errore connessione LDAP: {exc}"
                     result_service = {"ok": ok, "message": f"[Service Account] {msg}"}
@@ -2677,6 +2716,7 @@ def ldap_diagnostica(request):
             (messages.success if ok else messages.error)(request, msg)
             if ok:
                 defaults = _ldap_file_defaults(runtime_cfg)
+                defaults["service_password_configured"] = bool(_ldap_effective_service_password())
                 ldap_cfg_source_labels = _ldap_effective_source_labels()
                 ldap_diag_rows, ldap_runtime_has_pending_restart, ldap_runtime_has_env_override = _ldap_diag_runtime_rows(runtime_cfg)
         elif action == "test_connect":
@@ -2709,13 +2749,14 @@ def ldap_diagnostica(request):
                     "sync_limit": sync_limit,
                     "sync_dry_run": sync_dry_run,
                     "sync_replace_allowlist": sync_replace_allowlist,
-                    "group_allowlist": sync_group_allowlist or str(runtime_cfg.get("group_allowlist") or ""),
+                    "group_allowlist": sync_group_allowlist or str(defaults.get("group_allowlist") or ""),
                 }
             )
 
             cmd_out = StringIO()
             cmd_err = StringIO()
             cmd_kwargs = {"stdout": cmd_out, "stderr": cmd_err}
+            service_password = _ldap_effective_service_password()
             if sync_dry_run:
                 cmd_kwargs["dry_run"] = True
             if sync_limit > 0:
@@ -2724,6 +2765,24 @@ def ldap_diagnostica(request):
                 cmd_kwargs["replace_allowlist_memberships"] = True
             if sync_group_allowlist:
                 cmd_kwargs["group_allowlist"] = sync_group_allowlist
+            else:
+                effective_group_allowlist = str(defaults.get("group_allowlist") or "").strip()
+                if effective_group_allowlist:
+                    cmd_kwargs["group_allowlist"] = effective_group_allowlist
+            cmd_kwargs.update(
+                {
+                    "ldap_enabled": _bool_from_any(defaults.get("enabled")),
+                    "server": str(defaults.get("server") or "").strip(),
+                    "domain": str(defaults.get("domain") or "").strip(),
+                    "upn_suffix": str(defaults.get("upn_suffix") or "").strip(),
+                    "timeout": int(defaults.get("timeout") or 5),
+                    "service_user": str(defaults.get("service_user") or "").strip(),
+                    "service_password": service_password,
+                    "search_base": str(defaults.get("base_dn") or "").strip(),
+                    "user_filter": str(defaults.get("user_filter") or "").strip(),
+                    "page_size": int(defaults.get("sync_page_size") or 500),
+                }
+            )
 
             try:
                 call_command("sync_ldap_users", **cmd_kwargs)
@@ -2744,8 +2803,9 @@ def ldap_diagnostica(request):
     ldap_effective_auth_missing = _ldap_missing_required_labels(defaults, ("enabled", "server"))
     ldap_effective_sync_missing = _ldap_missing_required_labels(
         defaults,
-        ("enabled", "server", "service_user", "base_dn", "user_filter"),
+        ("enabled", "server", "service_user", "service_password", "base_dn", "user_filter"),
     )
+    dotenv_target_label = _dotenv_target_label()
 
     return render(
         request,
@@ -2762,6 +2822,7 @@ def ldap_diagnostica(request):
             "ldap_effective_sync_ready": len(ldap_effective_sync_missing) == 0,
             "ldap_effective_sync_missing": ldap_effective_sync_missing,
             "ldap_sync_cfg": ldap_sync_cfg,
+            "dotenv_target_label": dotenv_target_label,
             "smtp_cfg": smtp_defaults,
             "approval_imap_status": approval_imap_status,
             "approval_imap_form": approval_imap_form,
@@ -2779,16 +2840,19 @@ def ldap_diagnostica(request):
 @legacy_admin_required
 def ldap_import_utenti(request):
     """Pagina importazione selettiva utenti da LDAP/AD."""
-    server_url = str(getattr(settings, "LDAP_SERVER", "") or "").strip()
-    service_user = str(getattr(settings, "LDAP_SERVICE_USER", "") or "").strip()
-    service_password = str(getattr(settings, "LDAP_SERVICE_PASSWORD", "") or "").strip()
-    base_dn = str(getattr(settings, "LDAP_BASE_DN", "") or "").strip()
-    user_filter_tmpl = str(getattr(settings, "LDAP_USER_FILTER", "") or "").strip()
-    domain = str(getattr(settings, "LDAP_DOMAIN", "") or "").strip()
-    upn_suffix = str(getattr(settings, "LDAP_UPN_SUFFIX", "") or "").strip()
-    timeout = int(getattr(settings, "LDAP_TIMEOUT", 5) or 5)
-    ldap_enabled = bool(getattr(settings, "LDAP_ENABLED", False))
-    ldap_configured = bool(server_url and service_user and base_dn and user_filter_tmpl)
+    server_url = _effective_env_value("LDAP_SERVER", str(getattr(settings, "LDAP_SERVER", "") or ""))
+    service_user = _effective_env_value("LDAP_SERVICE_USER", str(getattr(settings, "LDAP_SERVICE_USER", "") or ""))
+    service_password = _ldap_effective_service_password()
+    base_dn = _effective_env_value("LDAP_BASE_DN", str(getattr(settings, "LDAP_BASE_DN", "") or ""))
+    user_filter_tmpl = _effective_env_value(
+        "LDAP_USER_FILTER",
+        str(getattr(settings, "LDAP_USER_FILTER", "") or ""),
+    )
+    domain = _effective_env_value("LDAP_DOMAIN", str(getattr(settings, "LDAP_DOMAIN", "") or ""))
+    upn_suffix = _effective_env_value("LDAP_UPN_SUFFIX", str(getattr(settings, "LDAP_UPN_SUFFIX", "") or ""))
+    timeout = _effective_env_int("LDAP_TIMEOUT", int(getattr(settings, "LDAP_TIMEOUT", 5) or 5))
+    ldap_enabled = _effective_env_bool("LDAP_ENABLED", bool(getattr(settings, "LDAP_ENABLED", False)))
+    ldap_configured = bool(server_url and service_user and service_password and base_dn and user_filter_tmpl)
 
     if request.method == "GET":
         return render(
@@ -2806,10 +2870,13 @@ def ldap_import_utenti(request):
     action = (request.POST.get("action") or "").strip()
 
     if not ldap_configured:
-        return JsonResponse({"ok": False, "error": "LDAP non configurato (server, service account o base DN mancanti)."}, status=400)
+        return JsonResponse(
+            {"ok": False, "error": "LDAP non configurato (server, service account, password o base DN mancanti)."},
+            status=400,
+        )
 
     try:
-        from ldap3 import AUTO_BIND_NO_TLS, NONE, NTLM, SIMPLE, SUBTREE, Connection
+        from ldap3 import NONE, NTLM, SIMPLE, SUBTREE, Connection
         from ldap3 import Server as LdapServer
         from ldap3.core.exceptions import LDAPException, LDAPSocketOpenError
     except Exception as exc:
@@ -2817,30 +2884,38 @@ def ldap_import_utenti(request):
 
     def _ldap_connect():
         srv = LdapServer(server_url, connect_timeout=timeout, get_info=NONE)
-        conn = Connection(
-            srv,
-            user=service_user,
-            password=service_password,
-            authentication=SIMPLE,
-            auto_bind=AUTO_BIND_NO_TLS,
-            auto_referrals=False,
-            raise_exceptions=False,
-        )
-        if conn.bind():
-            return conn, None
-        if domain and "@" not in service_user and "\\" not in service_user:
-            conn2 = Connection(
+        if "\\" in service_user:
+            attempts = [(service_user, NTLM)]
+        elif "@" in service_user:
+            attempts = [(service_user, SIMPLE)]
+        else:
+            attempts = []
+            suffix = (upn_suffix or "").strip().lstrip("@")
+            if suffix:
+                attempts.append((f"{service_user}@{suffix}", SIMPLE))
+            attempts.append((service_user, SIMPLE))
+            if domain:
+                attempts.append((f"{domain}\\{service_user}", NTLM))
+
+        last_result = None
+        for bind_user, authentication in attempts:
+            conn = Connection(
                 srv,
-                user=f"{domain}\\{service_user}",
+                user=bind_user,
                 password=service_password,
-                authentication=NTLM,
-                auto_bind=AUTO_BIND_NO_TLS,
+                authentication=authentication,
+                auto_bind=False,
                 auto_referrals=False,
                 raise_exceptions=False,
             )
-            if conn2.bind():
-                return conn2, None
-        return None, f"Bind LDAP fallito: {conn.result}"
+            if conn.bind():
+                return conn, None
+            last_result = conn.result
+            try:
+                conn.unbind()
+            except Exception:
+                pass
+        return None, f"Bind LDAP fallito: {last_result}"
 
     def _first(data, key):
         raw = data.get(key)
@@ -8401,6 +8476,263 @@ _LOGIN_CONFIG_KEYS = [
 
 _LOGO_UPLOAD_DIR = "site"
 _ALLOWED_LOGO_EXTENSIONS = {".png", ".jpg", ".jpeg", ".svg", ".webp"}
+_ALLOWED_LOGO_MIMES = {"image/png", "image/jpeg", "image/svg+xml", "image/webp"}
+_LOGO_UPLOAD_MAX_BYTES = 1024 * 1024
+_LOGIN_BRANDING_DEFAULTS = {
+    "portal_name": "Portale Novicrom",
+    "portal_subtitle": "",
+    "brand_logo_full": "",
+    "brand_logo_compact": "",
+    "brand_logo_remove_white_bg": "0",
+    "brand_landing_image": "",
+    "brand_landing_fit_mode": "cover",
+    "brand_logo_full_height": "40",
+    "brand_logo_full_max_width": "140",
+    "brand_logo_compact_size": "32",
+    "brand_sidebar_logo_scale": "100",
+    "brand_login_form_x": "78",
+    "brand_login_form_y": "50",
+}
+_LOGIN_BRANDING_TEXT_KEYS = {
+    "portal_name": "Nome portale globale.",
+    "portal_subtitle": "Sottotitolo branding globale.",
+    "brand_logo_full": "URL logo sidebar espansa.",
+    "brand_logo_compact": "URL logo sidebar compressa.",
+    "brand_landing_image": "Immagine di sfondo pagina login.",
+    "brand_logo_remove_white_bg": "Rimozione automatica sfondo bianco dai loghi caricati.",
+}
+_LOGIN_LANDING_FIT_MODES = {"cover", "contain", "stretch", "center"}
+_LOGIN_BRANDING_DIMENSIONS: dict[str, dict[str, int]] = {
+    "brand_logo_full_height": {"default": 40, "min": 28, "max": 96},
+    "brand_logo_full_max_width": {"default": 140, "min": 80, "max": 360},
+    "brand_logo_compact_size": {"default": 32, "min": 24, "max": 80},
+    "brand_sidebar_logo_scale": {"default": 100, "min": 60, "max": 260},
+    "brand_login_form_x": {"default": 78, "min": 0, "max": 100},
+    "brand_login_form_y": {"default": 50, "min": 0, "max": 100},
+}
+_LANDING_UPLOAD_MAX_BYTES = 5 * 1024 * 1024
+_LOGIN_WHITE_BG_STRIP_KEYS = {"brand_logo_full", "brand_logo_compact"}
+_LOGIN_BG_FLOOD_MIN_CHANNEL = 205
+_LOGIN_BG_FLOOD_MAX_CHROMA = 36
+_LOGIN_BG_GLOBAL_MIN_CHANNEL = 230
+_LOGIN_BG_GLOBAL_MAX_CHROMA = 20
+_LOGIN_BG_GLOBAL_MIN_COVERAGE = 0.12
+_LOGIN_BRAND_ASSETS = {
+    "brand_logo_full": {
+        "slot": "logo_full",
+        "file_field": "brand_logo_full_file",
+        "clear_field": "clear_brand_logo_full",
+        "label": "Logo sidebar espansa",
+        "allowed_extensions": _ALLOWED_LOGO_EXTENSIONS,
+        "allowed_mimes": _ALLOWED_LOGO_MIMES,
+        "max_bytes": _LOGO_UPLOAD_MAX_BYTES,
+    },
+    "brand_logo_compact": {
+        "slot": "logo_compact",
+        "file_field": "brand_logo_compact_file",
+        "clear_field": "clear_brand_logo_compact",
+        "label": "Logo sidebar compressa",
+        "allowed_extensions": _ALLOWED_LOGO_EXTENSIONS,
+        "allowed_mimes": _ALLOWED_LOGO_MIMES,
+        "max_bytes": _LOGO_UPLOAD_MAX_BYTES,
+    },
+    "brand_landing_image": {
+        "slot": "landing",
+        "file_field": "brand_landing_image_file",
+        "clear_field": "clear_brand_landing_image",
+        "label": "Immagine landing login",
+        "allowed_extensions": _ALLOWED_LOGO_EXTENSIONS,
+        "allowed_mimes": _ALLOWED_LOGO_MIMES,
+        "max_bytes": _LANDING_UPLOAD_MAX_BYTES,
+    },
+}
+
+
+def _normalize_checkbox_flag(value: object) -> str:
+    cleaned = str(value or "").strip().lower()
+    return "1" if cleaned in {"1", "true", "on", "yes"} else "0"
+
+
+def _clean_login_asset_url(value: str, *, label: str) -> str:
+    cleaned = str(value or "").strip()
+    if not cleaned:
+        return ""
+    parsed = urlsplit(cleaned)
+    if parsed.scheme in {"http", "https"} or cleaned.startswith("/"):
+        return cleaned
+    raise ValueError(f"{label}: usa un percorso /media/... o un URL http/https.")
+
+
+def _clean_login_landing_url(value: str) -> str:
+    return _clean_login_asset_url(value, label="Immagine landing")
+
+
+def _clean_login_landing_fit_mode(value: str) -> str:
+    cleaned = str(value or "").strip().lower()
+    if not cleaned:
+        return _LOGIN_BRANDING_DEFAULTS["brand_landing_fit_mode"]
+    if cleaned in _LOGIN_LANDING_FIT_MODES:
+        return cleaned
+    raise ValueError("Modalita sfondo login non valida. Usa: riempi, adatta, stira o centrata.")
+
+
+def _clean_login_dimension(value: str, *, field_name: str) -> str:
+    rules = _LOGIN_BRANDING_DIMENSIONS[field_name]
+    cleaned = str(value or "").strip()
+    if not cleaned:
+        return str(rules["default"])
+    try:
+        parsed = int(cleaned)
+    except ValueError as exc:
+        raise ValueError(f"{field_name}: inserisci un numero intero.") from exc
+    if parsed < rules["min"] or parsed > rules["max"]:
+        raise ValueError(f"{field_name}: valore ammesso tra {rules['min']} e {rules['max']}.")
+    return str(parsed)
+
+
+def _strip_white_background_image(uploaded_file):
+    try:
+        uploaded_file.seek(0)
+    except Exception:
+        pass
+
+    try:
+        with Image.open(uploaded_file) as img:
+            rgba = img.convert("RGBA")
+    except (UnidentifiedImageError, OSError, ValueError):
+        try:
+            uploaded_file.seek(0)
+        except Exception:
+            pass
+        return None
+
+    width, height = rgba.size
+    pixels = list(rgba.getdata())
+    visited = bytearray(width * height)
+    queue: deque[int] = deque()
+    to_clear: set[int] = set()
+
+    def _is_edge_background(px: tuple[int, int, int, int]) -> bool:
+        red, green, blue, alpha = px
+        if alpha == 0:
+            return False
+        high = max(red, green, blue)
+        low = min(red, green, blue)
+        return low >= _LOGIN_BG_FLOOD_MIN_CHANNEL and (high - low) <= _LOGIN_BG_FLOOD_MAX_CHROMA
+
+    for x in range(width):
+        queue.append(x)
+        queue.append((height - 1) * width + x)
+    for y in range(height):
+        queue.append(y * width)
+        queue.append(y * width + (width - 1))
+
+    while queue:
+        idx = queue.popleft()
+        if idx < 0 or idx >= width * height:
+            continue
+        if visited[idx]:
+            continue
+        visited[idx] = 1
+        if not _is_edge_background(pixels[idx]):
+            continue
+        to_clear.add(idx)
+        x = idx % width
+        y = idx // width
+        if x > 0:
+            queue.append(idx - 1)
+        if x < width - 1:
+            queue.append(idx + 1)
+        if y > 0:
+            queue.append(idx - width)
+        if y < height - 1:
+            queue.append(idx + width)
+
+    global_candidates: list[int] = []
+    for idx, (red, green, blue, alpha) in enumerate(pixels):
+        if alpha == 0:
+            continue
+        high = max(red, green, blue)
+        low = min(red, green, blue)
+        if low >= _LOGIN_BG_GLOBAL_MIN_CHANNEL and (high - low) <= _LOGIN_BG_GLOBAL_MAX_CHROMA:
+            global_candidates.append(idx)
+    if global_candidates and (len(global_candidates) / (width * height)) >= _LOGIN_BG_GLOBAL_MIN_COVERAGE:
+        to_clear.update(global_candidates)
+
+    if not to_clear:
+        try:
+            uploaded_file.seek(0)
+        except Exception:
+            pass
+        return None
+
+    for idx in to_clear:
+        red, green, blue, _ = pixels[idx]
+        pixels[idx] = (red, green, blue, 0)
+
+    rgba.putdata(pixels)
+    output = BytesIO()
+    rgba.save(output, format="PNG", optimize=True)
+    output.seek(0)
+    return ContentFile(output.getvalue(), name=f"{Path(uploaded_file.name).stem}.png")
+
+
+def _delete_login_brand_asset(slot: str, allowed_extensions: set[str]) -> None:
+    for ext in allowed_extensions:
+        path = f"portal_branding/{slot}{ext}"
+        try:
+            if default_storage.exists(path):
+                default_storage.delete(path)
+        except Exception:
+            continue
+
+
+def _save_login_brand_asset(
+    uploaded_file,
+    *,
+    meta: dict[str, object],
+    strip_white_background: bool = False,
+) -> str:
+    label = str(meta["label"])
+    allowed_extensions = set(meta["allowed_extensions"])
+    allowed_mimes = set(meta["allowed_mimes"])
+    max_bytes = int(meta.get("max_bytes") or _LOGO_UPLOAD_MAX_BYTES)
+    validate_extension_and_mime(
+        uploaded_file,
+        allowed_extensions=allowed_extensions,
+        allowed_mimes=allowed_mimes,
+        max_bytes=max_bytes,
+        label=label,
+    )
+    raw_ext = os.path.splitext(uploaded_file.name)[1].lower()
+    ext = raw_ext if raw_ext in allowed_extensions else ".png"
+    file_to_save = uploaded_file
+    if strip_white_background and ext in {".png", ".jpg", ".jpeg", ".webp"}:
+        processed_file = _strip_white_background_image(uploaded_file)
+        if processed_file is not None:
+            file_to_save = processed_file
+            ext = ".png"
+    try:
+        file_to_save.seek(0)
+    except Exception:
+        pass
+    slot = str(meta["slot"])
+    _delete_login_brand_asset(slot, allowed_extensions)
+    saved_path = default_storage.save(f"portal_branding/{slot}{ext}", file_to_save)
+    return default_storage.url(saved_path)
+
+
+def _delete_login_landing_files() -> None:
+    for ext in _ALLOWED_LOGO_EXTENSIONS:
+        try:
+            legacy_path = os.path.join(_LOGO_UPLOAD_DIR, f"login_landing{ext}")
+            if default_storage.exists(legacy_path):
+                default_storage.delete(legacy_path)
+            portal_path = f"portal_branding/landing{ext}"
+            if default_storage.exists(portal_path):
+                default_storage.delete(portal_path)
+        except Exception:
+            continue
 
 
 @legacy_admin_required
@@ -8408,11 +8740,15 @@ _ALLOWED_LOGO_EXTENSIONS = {".png", ".jpg", ".jpeg", ".svg", ".webp"}
 def login_config(request):
     valori = {chiave: SiteConfig.get(chiave, default) for chiave, _, default in _LOGIN_CONFIG_KEYS}
     logo_url = SiteConfig.get("login_logo_url", "")
+    branding = SiteConfig.get_many(_LOGIN_BRANDING_DEFAULTS)
+    landing_url = branding.get("brand_landing_image", "")
     banners = list(LoginBanner.objects.all())
     return render(request, "admin_portale/pages/login_config.html", {
         "config_keys": _LOGIN_CONFIG_KEYS,
         "valori": valori,
         "logo_url": logo_url,
+        "landing_url": landing_url,
+        "branding": branding,
         "banners": banners,
         "banner_tipi": LoginBanner.TIPO_CHOICES,
     })
@@ -8428,6 +8764,61 @@ def api_login_config_save(request):
             valore = request.POST[chiave].strip()
             SiteConfig.set(chiave, valore, descrizione)
             changed[chiave] = valore
+    try:
+        for key, descrizione in _LOGIN_BRANDING_TEXT_KEYS.items():
+            if key not in request.POST:
+                continue
+            if key in {"brand_logo_full", "brand_logo_compact", "brand_landing_image"}:
+                value = _clean_login_asset_url(request.POST.get(key, ""), label=descrizione)
+            elif key == "brand_logo_remove_white_bg":
+                value = _normalize_checkbox_flag(request.POST.get(key))
+            else:
+                value = request.POST.get(key, "").strip()
+            SiteConfig.set(key, value, descrizione)
+            changed[key] = value
+
+        if "brand_landing_fit_mode" in request.POST:
+            fit_mode = _clean_login_landing_fit_mode(request.POST.get("brand_landing_fit_mode", ""))
+            SiteConfig.set("brand_landing_fit_mode", fit_mode, "Modalita sfondo pagina login.")
+            changed["brand_landing_fit_mode"] = fit_mode
+
+        for key in _LOGIN_BRANDING_DIMENSIONS:
+            if key in request.POST:
+                value = _clean_login_dimension(request.POST.get(key, ""), field_name=key)
+                SiteConfig.set(key, value, f"Configurazione login: {key}.")
+                changed[key] = value
+
+        strip_white_bg = _normalize_checkbox_flag(request.POST.get("brand_logo_remove_white_bg")) == "1"
+        for key, meta in _LOGIN_BRAND_ASSETS.items():
+            file_field = str(meta["file_field"])
+            clear_field = str(meta["clear_field"])
+            uploaded_file = request.FILES.get(file_field)
+            clear_requested = _normalize_checkbox_flag(request.POST.get(clear_field)) == "1"
+
+            if clear_requested:
+                _delete_login_brand_asset(str(meta["slot"]), set(meta["allowed_extensions"]))
+                if key == "brand_landing_image":
+                    _delete_login_landing_files()
+                value = ""
+            elif uploaded_file:
+                value = _save_login_brand_asset(
+                    uploaded_file,
+                    meta=meta,
+                    strip_white_background=(strip_white_bg and key in _LOGIN_WHITE_BG_STRIP_KEYS),
+                )
+            elif key in request.POST:
+                value = _clean_login_asset_url(request.POST.get(key, ""), label=str(meta["label"]))
+            else:
+                continue
+
+            SiteConfig.set(key, value, _LOGIN_BRANDING_TEXT_KEYS.get(key, f"Configurazione login: {key}."))
+            changed[key] = value
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect("admin_portale:login_config")
+    except UploadMimeValidationError as exc:
+        messages.error(request, str(exc))
+        return redirect("admin_portale:login_config")
     _audit_safe(request, "login_config_save", "admin_portale", {"changed_keys": list(changed.keys())})
     messages.success(request, "Configurazione login salvata.")
     return redirect("admin_portale:login_config")
@@ -8441,10 +8832,20 @@ def api_login_logo_upload(request):
     if not upload:
         messages.error(request, "Nessun file selezionato.")
         return redirect("admin_portale:login_config")
+    try:
+        validate_extension_and_mime(
+            upload,
+            allowed_extensions=_ALLOWED_LOGO_EXTENSIONS,
+            allowed_mimes=_ALLOWED_LOGO_MIMES,
+            max_bytes=1024 * 1024,
+            label="Logo login",
+        )
+    except UploadMimeValidationError as exc:
+        messages.error(request, str(exc))
+        return redirect("admin_portale:login_config")
     ext = os.path.splitext(upload.name)[1].lower()
     if ext not in _ALLOWED_LOGO_EXTENSIONS:
-        messages.error(request, f"Formato non consentito ({ext}). Usa PNG, JPG, SVG o WEBP.")
-        return redirect("admin_portale:login_config")
+        ext = ".png"
     filename = f"login_logo{ext}"
     save_path = os.path.join(_LOGO_UPLOAD_DIR, filename)
     # Salva sovrascrivendo un eventuale logo precedente
@@ -8471,6 +8872,45 @@ def api_login_logo_remove(request):
             pass
         SiteConfig.set("login_logo_url", "", "URL logo pagina login")
     messages.success(request, "Logo rimosso.")
+    return redirect("admin_portale:login_config")
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_login_landing_upload(request):
+    upload = request.FILES.get("landing")
+    if not upload:
+        messages.error(request, "Nessun file selezionato.")
+        return redirect("admin_portale:login_config")
+    try:
+        _delete_login_landing_files()
+        url = _save_login_brand_asset(upload, meta=_LOGIN_BRAND_ASSETS["brand_landing_image"])
+    except UploadMimeValidationError as exc:
+        messages.error(request, str(exc))
+        return redirect("admin_portale:login_config")
+    SiteConfig.set("brand_landing_image", url, "Immagine di sfondo pagina login (caricata da admin).")
+    _audit_safe(request, "login_landing_upload", "admin_portale", {"url": url})
+    messages.success(request, "Immagine landing aggiornata.")
+    return redirect("admin_portale:login_config")
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_login_landing_remove(request):
+    current = SiteConfig.get("brand_landing_image", "")
+    if current:
+        rel = current.replace(settings.MEDIA_URL, "", 1)
+        try:
+            if default_storage.exists(rel):
+                default_storage.delete(rel)
+        except Exception:
+            pass
+    _delete_login_landing_files()
+    SiteConfig.set("brand_landing_image", "", "Immagine di sfondo pagina login.")
+    _audit_safe(request, "login_landing_remove", "admin_portale")
+    messages.success(request, "Immagine landing rimossa.")
     return redirect("admin_portale:login_config")
 
 
@@ -8596,9 +9036,278 @@ def api_branding_favicon_remove(request):
 # CREA RELEASE PACKAGE
 # ---------------------------------------------------------------------------
 
+_RELEASE_ENVIRONMENTS = {"test", "prod"}
+_RELEASE_TERMINAL_DEFAULT_TIMEOUT = 240
+_RELEASE_TERMINAL_MAX_TIMEOUT = 600
+_RELEASE_IIS_TASK_FOLDER = r"\PortaleNovicrom"
+_RELEASE_IIS_TASK_BASE_NAME = "IISRestart"
+
+
+def _release_creationflags() -> int:
+    return getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+
+def _normalize_release_environment(value: object) -> str:
+    env = str(value or "").strip().lower()
+    return env if env in _RELEASE_ENVIRONMENTS else "test"
+
+
+def _release_deploy_base_dir() -> Path:
+    configured = str(os.getenv("PORTAL_DEPLOY_BASE_DIR") or "").strip()
+    if configured:
+        return Path(configured)
+
+    project_dir = Path(settings.BASE_DIR)
+    try:
+        resolved = project_dir.resolve()
+    except OSError:
+        resolved = project_dir
+
+    candidates = [project_dir]
+    if resolved != project_dir:
+        candidates.append(resolved)
+
+    for candidate in candidates:
+        parent = candidate.parent
+        if parent.name.lower() == "current":
+            return parent.parent.parent
+        release_parent = parent.parent
+        if release_parent.name.lower() == "releases":
+            return release_parent.parent.parent
+
+    return Path("C:/PortaleNovicrom")
+
+
+def _release_env_root(environment: str) -> Path:
+    return _release_deploy_base_dir() / _normalize_release_environment(environment)
+
+
+def _release_site_name(environment: str) -> str:
+    return f"PortaleNovicrom-{_normalize_release_environment(environment).upper()}"
+
+
+def _release_iis_restart_task_short_name(environment: str) -> str:
+    return f"{_RELEASE_IIS_TASK_BASE_NAME}_{_normalize_release_environment(environment).upper()}"
+
+
+def _release_iis_restart_task_name(environment: str) -> str:
+    return rf"{_RELEASE_IIS_TASK_FOLDER}\{_release_iis_restart_task_short_name(environment)}"
+
+
+def _release_resolve_django_app(environment: str) -> Path | None:
+    env_root = _release_env_root(environment)
+    candidates = [
+        env_root / "current" / "django_app",
+        env_root / "django_app",
+    ]
+    releases_dir = env_root / "releases"
+    try:
+        if releases_dir.exists():
+            releases = sorted(
+                (p for p in releases_dir.iterdir() if p.is_dir()),
+                key=lambda p: p.name,
+                reverse=True,
+            )
+            candidates.extend(p / "django_app" for p in releases)
+    except OSError:
+        pass
+
+    for candidate in candidates:
+        if (candidate / "manage.py").exists():
+            return candidate
+    return None
+
+
+def _release_current_environment() -> str:
+    configured = str(os.getenv("ENVIRONMENT") or "").strip().lower()
+    if configured in _RELEASE_ENVIRONMENTS:
+        return configured
+
+    try:
+        project_dir = Path(settings.BASE_DIR).resolve()
+    except OSError:
+        project_dir = Path(settings.BASE_DIR)
+    base = _release_deploy_base_dir()
+    for env in ("test", "prod"):
+        try:
+            project_dir.relative_to(base / env)
+            return env
+        except ValueError:
+            continue
+    return "test"
+
+
+def _release_split_command(command: str) -> list[str]:
+    try:
+        parts = shlex.split(command, posix=False)
+    except ValueError:
+        parts = command.split()
+    cleaned = []
+    for part in parts:
+        if len(part) >= 2 and part[0] == part[-1] and part[0] in {"'", '"'}:
+            cleaned.append(part[1:-1])
+        else:
+            cleaned.append(part)
+    return cleaned
+
+
+def _release_command_argv(command: str, venv_python: Path) -> tuple[list[str], bool]:
+    stripped = command.strip()
+    lower = stripped.lower()
+    if lower == "manage.py" or lower.startswith("manage.py "):
+        return [str(venv_python), *_release_split_command(stripped)], True
+    if lower == "python" or lower.startswith("python ") or lower.startswith("py "):
+        parts = _release_split_command(stripped)
+        if parts and parts[0].lower() in {"python", "py"}:
+            parts = parts[1:]
+        return [str(venv_python), *parts], True
+    return ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", stripped], False
+
+
+def _release_terminal_env(environment: str, django_app: Path) -> dict[str, str]:
+    env_root = _release_env_root(environment)
+    venv_scripts = env_root / "venv" / "Scripts"
+    env_vars = {
+        **os.environ,
+        "DJANGO_SETTINGS_MODULE": "config.settings.prod",
+        "PYTHONPATH": str(django_app),
+        "PORTAL_SKIP_RUNTIME_BOOTSTRAP": "1",
+        "PORTAL_ENV_ROOT": str(env_root),
+        "STATIC_ROOT": str(env_root / "static"),
+        "MEDIA_ROOT": str(env_root / "media"),
+    }
+    env_vars["PATH"] = f"{venv_scripts};{env_vars.get('PATH', '')}"
+    return env_vars
+
+
+def _release_ops_context() -> dict[str, object]:
+    current_env = _release_current_environment()
+    base_dir = _release_deploy_base_dir()
+    envs = []
+    for env in ("test", "prod"):
+        env_root = base_dir / env
+        django_app = _release_resolve_django_app(env)
+        envs.append(
+            {
+                "value": env,
+                "label": env.upper(),
+                "site_name": _release_site_name(env),
+                "restart_task_name": _release_iis_restart_task_name(env),
+                "env_root": str(env_root),
+                "django_app": str(django_app) if django_app else "",
+                "has_current": bool(django_app),
+            }
+        )
+    return {
+        "deploy_base": str(base_dir),
+        "current_environment": current_env,
+        "environments": envs,
+        "terminal_presets": [
+            {"label": "Django check", "command": "manage.py check --settings=config.settings.prod"},
+            {"label": "Stato migrations", "command": "manage.py showmigrations --settings=config.settings.prod"},
+            {"label": "Migrate", "command": "manage.py migrate --settings=config.settings.prod --noinput"},
+            {"label": "Allinea schema runtime", "command": "manage.py ensure_legacy_schema --settings=config.settings.prod"},
+            {"label": "Collectstatic dry-run", "command": "manage.py collectstatic --dry-run --noinput --clear --settings=config.settings.prod -v 0"},
+            {"label": "ACL dry-run", "command": "manage.py bootstrap_acl_v2 --dry-run --settings=config.settings.prod"},
+            {"label": "Seed descrizioni pulsanti", "command": "manage.py seed_pulsanti_descrizioni --settings=config.settings.prod"},
+            {"label": "Tail waitress log", "command": r'Get-Content "$env:PORTAL_ENV_ROOT\logs\waitress_stdout.log" -Tail 80'},
+        ],
+        "terminal_timeout_seconds": _RELEASE_TERMINAL_DEFAULT_TIMEOUT,
+    }
+
+
+def _release_access_denied(text: object) -> bool:
+    value = str(text or "").lower()
+    return any(
+        marker in value
+        for marker in (
+            "winerror 5",
+            "access is denied",
+            "accesso negato",
+            "unauthorizedaccessexception",
+            "permission denied",
+        )
+    )
+
+
+def _release_process_restart_fallback_enabled() -> bool:
+    raw = os.environ.get("PORTAL_RELEASE_PROCESS_RESTART_FALLBACK", "1").strip().lower()
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    if os.environ.get("DJANGO_SETTINGS_MODULE", "").endswith(".test"):
+        return False
+    if os.environ.get("HTTP_PLATFORM_PORT") or os.environ.get("PORTAL_ENV_ROOT"):
+        return True
+    return not getattr(settings, "DEBUG", False)
+
+
+def _release_schedule_process_restart(delay_seconds: float = 2.0) -> bool:
+    if not _release_process_restart_fallback_enabled():
+        return False
+
+    def _exit_process() -> None:
+        logger.warning("Riavvio processo Django schedulato dalla pagina Crea Release")
+        os._exit(0)
+
+    timer = threading.Timer(delay_seconds, _exit_process)
+    timer.daemon = True
+    timer.start()
+    return True
+
+
+def _release_process_restart_payload(environment: str, site_name: str, pool_name: str, reason: str) -> dict[str, object] | None:
+    if not _release_schedule_process_restart():
+        return None
+    message = (
+        "Accesso negato al riavvio IIS. Ho schedulato il riavvio del processo Django/Waitress; "
+        "HttpPlatformHandler lo riavviera' alla prossima richiesta."
+    )
+    return {
+        "ok": True,
+        "service_ok": True,
+        "environment": environment,
+        "site_name": site_name,
+        "pool_name": pool_name,
+        "returncode": 0,
+        "stdout": message,
+        "stderr": "",
+        "scheduled": True,
+        "fallback_used": True,
+        "restart_mode": "django_process",
+        "warning": reason,
+        "error": "",
+    }
+
+
+def _release_start_iis_restart_task(environment: str) -> tuple[bool, subprocess.CompletedProcess[str]]:
+    task_path = _RELEASE_IIS_TASK_FOLDER + "\\"
+    task_name = _release_iis_restart_task_short_name(environment)
+    full_task_name = _release_iis_restart_task_name(environment)
+    ps = f"""
+$taskPath = '{task_path}'
+$taskName = '{task_name}'
+$task = Get-ScheduledTask -TaskPath $taskPath -TaskName $taskName -ErrorAction SilentlyContinue
+if (-not $task) {{
+    Write-Output "Task restart IIS non configurato: {full_task_name}"
+    exit 3
+}}
+Start-ScheduledTask -TaskPath $taskPath -TaskName $taskName -ErrorAction Stop
+Write-Output "Task restart IIS avviato: {full_task_name}"
+"""
+    proc = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+        creationflags=_release_creationflags(),
+    )
+    return proc.returncode == 0, proc
+
+
 @legacy_admin_required
 def crea_release(request):
-    import subprocess
     from django.http import FileResponse, Http404
 
     repo_root = Path(settings.BASE_DIR).parent
@@ -8671,6 +9380,7 @@ def crea_release(request):
         "script_exists": script_path.exists(),
         "app_version": getattr(settings, "APP_VERSION", ""),
         "package_timeout_minutes": package_timeout_minutes,
+        "release_ops": _release_ops_context(),
     })
 
 
@@ -8687,4 +9397,318 @@ def download_release_package(request):
     if not f.exists() or not f.suffix == ".zip" or not f.name.startswith("portale-novicrom-"):
         raise Http404
     return FileResponse(open(f, "rb"), as_attachment=True, filename=f.name)
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_release_restart_service(request):
+    payload = _post_or_json_payload(request)
+    environment = _normalize_release_environment(payload.get("environment"))
+    site_name = _release_site_name(environment)
+    pool_name = site_name
+
+    try:
+        task_started, task_proc = _release_start_iis_restart_task(environment)
+    except subprocess.TimeoutExpired as exc:
+        task_started = False
+        task_proc = subprocess.CompletedProcess(
+            args=[],
+            returncode=124,
+            stdout=(exc.stdout or ""),
+            stderr=(exc.stderr or "Timeout avvio task restart IIS."),
+        )
+    except Exception as exc:
+        if _release_access_denied(exc):
+            fallback_payload = _release_process_restart_payload(environment, site_name, pool_name, str(exc))
+            if fallback_payload:
+                _audit_safe(
+                    request,
+                    "release_restart_process_fallback",
+                    "admin_portale",
+                    {
+                        "environment": environment,
+                        "site_name": site_name,
+                        "reason": str(exc),
+                        "source": "scheduled_task",
+                    },
+                )
+                return JsonResponse(fallback_payload, status=200)
+        task_started = False
+        task_proc = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr=str(exc))
+
+    task_stdout = (task_proc.stdout or "").strip()
+    task_stderr = (task_proc.stderr or "").strip()
+    task_output = "\n".join(part for part in (task_stdout, task_stderr) if part)
+    if task_started:
+        _audit_safe(
+            request,
+            "release_restart_scheduled_task",
+            "admin_portale",
+            {
+                "environment": environment,
+                "site_name": site_name,
+                "task_name": _release_iis_restart_task_name(environment),
+            },
+        )
+        return JsonResponse(
+            {
+                "ok": True,
+                "service_ok": True,
+                "environment": environment,
+                "site_name": site_name,
+                "pool_name": pool_name,
+                "task_name": _release_iis_restart_task_name(environment),
+                "returncode": task_proc.returncode,
+                "stdout": task_stdout,
+                "stderr": task_stderr,
+                "scheduled": True,
+                "restart_mode": "scheduled_task",
+                "error": "",
+            },
+            status=200,
+        )
+    if _release_access_denied(task_output):
+        fallback_payload = _release_process_restart_payload(environment, site_name, pool_name, task_output)
+        if fallback_payload:
+            _audit_safe(
+                request,
+                "release_restart_process_fallback",
+                "admin_portale",
+                {
+                    "environment": environment,
+                    "site_name": site_name,
+                    "returncode": task_proc.returncode,
+                    "reason": task_output,
+                    "source": "scheduled_task",
+                },
+            )
+            return JsonResponse(fallback_payload, status=200)
+
+    restart_script = f"""
+Start-Sleep -Seconds 2
+Import-Module WebAdministration -ErrorAction Stop
+$siteName = '{site_name}'
+$poolName = '{pool_name}'
+$hadError = $false
+
+$site = Get-Website -Name $siteName -ErrorAction SilentlyContinue
+$pool = Get-WebAppPool -Name $poolName -ErrorAction SilentlyContinue
+
+if (-not $pool) {{
+    Write-Output "App Pool non trovato: $poolName"
+    $hadError = $true
+}} else {{
+    Stop-WebAppPool -Name $poolName -ErrorAction SilentlyContinue
+    Start-WebAppPool -Name $poolName -ErrorAction Stop
+    Write-Output "App Pool riavviato: $poolName"
+}}
+
+if (-not $site) {{
+    Write-Output "Sito IIS non trovato: $siteName"
+    $hadError = $true
+}} else {{
+    Stop-Website -Name $siteName -ErrorAction SilentlyContinue
+    Start-Website -Name $siteName -ErrorAction Stop
+    Write-Output "Sito riavviato: $siteName"
+}}
+
+if ($hadError) {{ exit 2 }}
+"""
+    encoded_restart = base64.b64encode(restart_script.encode("utf-16le")).decode("ascii")
+    ps = f"""
+Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @(
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-EncodedCommand',
+    '{encoded_restart}'
+)
+Write-Output "Riavvio schedulato per {site_name}. La pagina potrebbe perdere connessione per qualche secondo."
+"""
+    try:
+        proc = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+            creationflags=_release_creationflags(),
+        )
+    except subprocess.TimeoutExpired as exc:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "Timeout durante il riavvio del servizio.",
+                "stdout": (exc.stdout or "").strip(),
+                "stderr": (exc.stderr or "").strip(),
+            },
+            status=504,
+        )
+    except Exception as exc:
+        if _release_access_denied(exc):
+            fallback_payload = _release_process_restart_payload(environment, site_name, pool_name, str(exc))
+            if fallback_payload:
+                _audit_safe(
+                    request,
+                    "release_restart_process_fallback",
+                    "admin_portale",
+                    {
+                        "environment": environment,
+                        "site_name": site_name,
+                        "reason": str(exc),
+                    },
+                )
+                return JsonResponse(fallback_payload, status=200)
+        return JsonResponse({"ok": False, "error": str(exc)}, status=500)
+
+    stdout = (proc.stdout or "").strip()
+    stderr = (proc.stderr or "").strip()
+    ok = proc.returncode == 0
+    combined_output = "\n".join(part for part in (stdout, stderr) if part)
+    if not ok and _release_access_denied(combined_output):
+        fallback_payload = _release_process_restart_payload(environment, site_name, pool_name, combined_output)
+        if fallback_payload:
+            _audit_safe(
+                request,
+                "release_restart_process_fallback",
+                "admin_portale",
+                {
+                    "environment": environment,
+                    "site_name": site_name,
+                    "returncode": proc.returncode,
+                    "reason": combined_output,
+                },
+            )
+            return JsonResponse(fallback_payload, status=200)
+
+    _audit_safe(
+        request,
+        "release_restart_service",
+        "admin_portale",
+        {
+            "environment": environment,
+            "site_name": site_name,
+            "returncode": proc.returncode,
+            "ok": ok,
+        },
+    )
+    return JsonResponse(
+        {
+            "ok": True,
+            "service_ok": ok,
+            "environment": environment,
+            "site_name": site_name,
+            "pool_name": pool_name,
+            "returncode": proc.returncode,
+            "stdout": stdout,
+            "stderr": stderr,
+            "scheduled": ok,
+            "error": "" if ok else (stderr or stdout or f"PowerShell ha restituito codice {proc.returncode}."),
+        },
+        status=200,
+    )
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_release_terminal_command(request):
+    payload = _post_or_json_payload(request)
+    environment = _normalize_release_environment(payload.get("environment"))
+    command = str(payload.get("command") or "").strip()
+    if not command:
+        return JsonResponse({"ok": False, "error": "Comando mancante."}, status=400)
+
+    timeout_seconds = _int_or_none(payload.get("timeout_seconds")) or _RELEASE_TERMINAL_DEFAULT_TIMEOUT
+    timeout_seconds = max(5, min(timeout_seconds, _RELEASE_TERMINAL_MAX_TIMEOUT))
+    env_root = _release_env_root(environment)
+    django_app = _release_resolve_django_app(environment)
+    if not django_app:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": f"Release corrente non trovata per {environment.upper()}: manca current\\django_app.",
+                "environment": environment,
+                "env_root": str(env_root),
+            },
+            status=400,
+        )
+
+    venv_python = env_root / "venv" / "Scripts" / "python.exe"
+    argv, needs_venv = _release_command_argv(command, venv_python)
+    if needs_venv and not venv_python.exists():
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": f"Virtualenv non trovato: {venv_python}",
+                "environment": environment,
+                "env_root": str(env_root),
+            },
+            status=400,
+        )
+
+    try:
+        proc = subprocess.run(
+            argv,
+            cwd=str(django_app),
+            env=_release_terminal_env(environment, django_app),
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout_seconds,
+            creationflags=_release_creationflags(),
+        )
+    except subprocess.TimeoutExpired as exc:
+        _audit_safe(
+            request,
+            "release_terminal_timeout",
+            "admin_portale",
+            {"environment": environment, "command": command, "timeout_seconds": timeout_seconds},
+        )
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": f"Timeout: comando oltre {timeout_seconds} secondi.",
+                "stdout": (exc.stdout or "").strip(),
+                "stderr": (exc.stderr or "").strip(),
+                "environment": environment,
+                "cwd": str(django_app),
+            },
+            status=504,
+        )
+    except Exception as exc:
+        return JsonResponse({"ok": False, "error": str(exc)}, status=500)
+
+    stdout = (proc.stdout or "").strip()
+    stderr = (proc.stderr or "").strip()
+    ok = proc.returncode == 0
+    _audit_safe(
+        request,
+        "release_terminal_command",
+        "admin_portale",
+        {
+            "environment": environment,
+            "command": command,
+            "returncode": proc.returncode,
+            "ok": ok,
+        },
+    )
+    return JsonResponse(
+        {
+            "ok": True,
+            "command_ok": ok,
+            "environment": environment,
+            "cwd": str(django_app),
+            "argv": argv,
+            "returncode": proc.returncode,
+            "stdout": stdout,
+            "stderr": stderr,
+            "error": "" if ok else (stderr or stdout or f"Comando terminato con codice {proc.returncode}."),
+        },
+        status=200,
+    )
 

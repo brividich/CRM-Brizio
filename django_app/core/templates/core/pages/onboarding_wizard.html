@@ -478,6 +478,22 @@
         </div>
 
         <div class="onb-section">
+          <div class="onb-section-title">Tema interfaccia</div>
+          <div class="onb-choice-grid">
+            <label class="onb-choice{% if ui_prefs_current.theme_mode|default:'light' == 'light' %} selected{% endif %}">
+              <input type="radio" name="theme_mode" value="light" {% if ui_prefs_current.theme_mode|default:'light' == 'light' %}checked{% endif %}>
+              <div class="onb-choice-title">Chiaro</div>
+              <div class="onb-choice-sub">Aspetto luminoso standard.</div>
+            </label>
+            <label class="onb-choice{% if ui_prefs_current.theme_mode == 'dark' %} selected{% endif %}">
+              <input type="radio" name="theme_mode" value="dark" {% if ui_prefs_current.theme_mode == 'dark' %}checked{% endif %}>
+              <div class="onb-choice-title">Scuro</div>
+              <div class="onb-choice-sub">Contrasto elevato su fondo scuro.</div>
+            </label>
+          </div>
+        </div>
+
+        <div class="onb-section">
           <div class="onb-section-title">Dimensione caratteri</div>
           <div class="onb-choice-grid">
             <label class="onb-choice{% if ui_prefs_current.font_scale == 'small' %} selected{% endif %}">
@@ -612,6 +628,10 @@
             <span class="value" id="sum-nav-mode">-</span>
           </div>
           <div class="onb-summary-row">
+            <span class="label">Tema</span>
+            <span class="value" id="sum-theme-mode">-</span>
+          </div>
+          <div class="onb-summary-row">
             <span class="label">Testo</span>
             <span class="value" id="sum-font-scale">-</span>
           </div>
@@ -703,6 +723,7 @@
     var email = (document.getElementById("email_contatto") || {}).value || "";
     var cellulare = (document.getElementById("cellulare_contatto") || {}).value || "";
     var navMode = selectedRadioValue("nav_mode", "side");
+    var themeMode = selectedRadioValue("theme_mode", "light");
     var fontScale = selectedRadioValue("font_scale", "normal");
     var sidebarCollapsed = selectedRadioValue("sidebar_collapsed", "0");
     var footerChecks = document.querySelectorAll('input[name="sidebar_footer_actions"]:checked');
@@ -714,6 +735,7 @@
     document.getElementById("sum-cellulare").textContent = cellulare.trim() || "-";
 
     document.getElementById("sum-nav-mode").textContent = navMode === "side" ? "Barra laterale" : "Barra superiore";
+    document.getElementById("sum-theme-mode").textContent = themeMode === "dark" ? "Scuro" : "Chiaro";
 
     document.getElementById("sum-font-scale").textContent = {
       small: "Piccolo",
@@ -776,6 +798,8 @@
       setChoiceState(input);
       if (input.name === "nav_mode") {
         toggleSidebarBlock();
+      } else if (input.name === "theme_mode") {
+        document.body.classList.toggle("theme-dark", input.value === "dark");
       }
     });
   });

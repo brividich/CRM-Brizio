@@ -9,12 +9,16 @@
       {% endif %}
       <span class="brand-mark-fallback">{{ portal_branding.monogram }}</span>
     </span>
-    <span class="logo-txt">
-      {% if portal_branding.portal_subtitle %}
-        <span class="co">{{ portal_branding.portal_subtitle }}</span>
-      {% endif %}
-      <span class="name">{{ portal_branding.portal_name|default:"Portale Novicrom" }}</span>
-    </span>
+    {% if portal_branding.portal_name or portal_branding.portal_subtitle %}
+      <span class="logo-txt">
+        {% if portal_branding.portal_subtitle %}
+          <span class="co">{{ portal_branding.portal_subtitle }}</span>
+        {% endif %}
+        {% if portal_branding.portal_name %}
+          <span class="name">{{ portal_branding.portal_name }}</span>
+        {% endif %}
+      </span>
+    {% endif %}
   </a>
 
   <button class="nav-hamburger" id="nav-toggle" type="button" aria-label="Apri menu" aria-expanded="false">

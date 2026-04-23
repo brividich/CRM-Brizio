@@ -235,6 +235,53 @@
 .ap-release-list   { margin: 0; padding-left: 18px; color: #334155; display: grid; gap: 7px; }
 .ap-release-meta   { color: #64748b; font-size: 12px; }
 .ap-version-note   { color: #64748b; font-size: 12px; }
+
+/* ── Dark mode overrides ───────────────────────────────────── */
+body.theme-dark .ap-section { background: var(--surface); }
+body.theme-dark .ap-section-head { background: var(--bg); }
+body.theme-dark .ap-section-title { color: var(--text); }
+
+body.theme-dark .ap-section.blue   { --section-bg:rgba(37,99,235,.18);  --section-icon-bg:rgba(37,99,235,.28); }
+body.theme-dark .ap-section.teal   { --section-bg:rgba(13,148,136,.18); --section-icon-bg:rgba(13,148,136,.28); }
+body.theme-dark .ap-section.purple { --section-bg:rgba(124,58,237,.18); --section-icon-bg:rgba(124,58,237,.28); }
+body.theme-dark .ap-section.orange { --section-bg:rgba(234,88,12,.18);  --section-icon-bg:rgba(234,88,12,.28); }
+body.theme-dark .ap-section.emerald{ --section-bg:rgba(5,150,105,.18);  --section-icon-bg:rgba(5,150,105,.28); }
+body.theme-dark .ap-section.slate  { --section-bg:rgba(71,85,105,.18);  --section-icon-bg:rgba(71,85,105,.28); }
+body.theme-dark .ap-section.indigo { --section-bg:rgba(79,70,229,.18);  --section-icon-bg:rgba(79,70,229,.28); }
+body.theme-dark .ap-section.rose   { --section-bg:rgba(225,29,72,.18);  --section-icon-bg:rgba(225,29,72,.28); }
+body.theme-dark .ap-section.dark   { --section-bg:rgba(30,58,95,.18);   --section-icon-bg:rgba(30,58,95,.28); }
+
+body.theme-dark .ap-section .mod { background: var(--surface); }
+body.theme-dark .ap-section.blue   .mod:hover { background:rgba(37,99,235,.15);  border-color:#2563eb; box-shadow:0 2px 8px rgba(37,99,235,.15); }
+body.theme-dark .ap-section.teal   .mod:hover { background:rgba(13,148,136,.15); border-color:#0d9488; box-shadow:0 2px 8px rgba(13,148,136,.15); }
+body.theme-dark .ap-section.purple .mod:hover { background:rgba(124,58,237,.15); border-color:#7c3aed; box-shadow:0 2px 8px rgba(124,58,237,.15); }
+body.theme-dark .ap-section.orange .mod:hover { background:rgba(234,88,12,.15);  border-color:#ea580c; box-shadow:0 2px 8px rgba(234,88,12,.15); }
+body.theme-dark .ap-section.emerald .mod:hover{ background:rgba(5,150,105,.15);  border-color:#059669; box-shadow:0 2px 8px rgba(5,150,105,.15); }
+body.theme-dark .ap-section.slate  .mod:hover { background:rgba(71,85,105,.15);  border-color:#475569; box-shadow:0 2px 8px rgba(71,85,105,.15); }
+body.theme-dark .ap-section.indigo .mod:hover { background:rgba(79,70,229,.15);  border-color:#4f46e5; box-shadow:0 2px 8px rgba(79,70,229,.15); }
+body.theme-dark .ap-section.rose   .mod:hover { background:rgba(225,29,72,.15);  border-color:#e11d48; box-shadow:0 2px 8px rgba(225,29,72,.15); }
+body.theme-dark .ap-section.dark   .mod:hover { background:rgba(30,58,95,.15);   border-color:#1e3a5f; box-shadow:0 2px 8px rgba(30,58,95,.15); }
+
+body.theme-dark .hub-mod { background: var(--surface); border-color: var(--border); }
+body.theme-dark .hub-mod-name { color: var(--text); }
+body.theme-dark .hub-mod-sub  { color: var(--text-light); }
+body.theme-dark .hub-mod:hover { border-color:#60a5fa; box-shadow:0 3px 12px rgba(96,165,250,.15); }
+
+body.theme-dark .ap-mod-card { background: var(--surface); }
+body.theme-dark .ap-mod-card-head { background: var(--bg); }
+body.theme-dark .ap-mod-card-name { color: var(--text); }
+body.theme-dark .ap-mod-card:hover { border-color:#4f46e5; }
+
+body.theme-dark .ap-version-item { background: var(--surface); }
+body.theme-dark .ap-version-label { color: var(--text-light); }
+body.theme-dark .ap-version-value { color: var(--text); }
+body.theme-dark .ap-version-meta  { color: var(--text-light); }
+body.theme-dark .ap-release-list  { color: var(--text-mid); }
+body.theme-dark .ap-release-meta  { color: var(--text-light); }
+body.theme-dark .ap-version-note  { color: var(--text-light); }
+
+body.theme-dark .ap-qn-pill { background: var(--surface); color: var(--text-mid); border-color: var(--border); }
+body.theme-dark .ap-qn-pill:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
 </style>
 {% endblock %}
 

@@ -6,31 +6,31 @@ import uuid
 
 from cachetools import TTLCache
 from django.conf import settings
-from django.contrib.auth import login
 from django.contrib import messages
+from django.contrib.auth import login
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 
 from core.accounts.redirects import get_safe_redirect_target
-from core.legacy_utils import provision_legacy_user, sync_django_user_from_legacy
+from core.legacy_utils import (
+    normalize_windows_principal_to_upn,
+    provision_legacy_user,
+    resolve_ldap_identity,
+    sync_django_user_from_legacy,
+)
 
 logger = logging.getLogger(__name__)
 
-# Cache in-process dei contesti SPNEGO in corso (NTLM è multi-step).
+# Cache in-process dei contesti SPNEGO in corso (NTLM e multi-step).
 # Chiave: ctx_id (uuid), Valore: oggetto spnego context.
 # Vengono rimossi al completamento o alla scadenza implicita (max 60s).
 _SPNEGO_CONTEXTS: TTLCache[str, object] = TTLCache(maxsize=500, ttl=60)
 
 
 def _normalize_principal(principal: str) -> str:
-    """Normalizza un principal Windows in UPN minuscolo (es. DOMAIN\\user → user@domain)."""
-    upn = principal.lower()
-    if "\\" in upn:
-        domain, username = upn.split("\\", 1)
-        upn = f"{username}@{domain}"
-    return upn
+    return normalize_windows_principal_to_upn(principal)
 
 
 @csrf_exempt
@@ -39,9 +39,9 @@ def windows_sso_view(request):
     View per il login SSO con credenziali Windows (NTLM/Kerberos via SPNEGO).
 
     Flusso:
-      1. GET senza Authorization  → 401 + WWW-Authenticate: Negotiate
+      1. GET senza Authorization  -> 401 + WWW-Authenticate: Negotiate
       2. Browser rimanda con token SPNEGO (Kerberos: 1 step; NTLM: 2 step)
-      3. Autenticazione completata → login e redirect
+      3. Autenticazione completata -> login e redirect
     """
     if not getattr(settings, "LDAP_ENABLED", False):
         messages.error(request, "SSO Windows non abilitato (LDAP_ENABLED=0).")
@@ -103,7 +103,13 @@ def windows_sso_view(request):
 
     logger.info("Windows SSO: autenticato %s", principal)
 
-    legacy_user = provision_legacy_user(_normalize_principal(principal))
+    normalized_upn = _normalize_principal(principal)
+    resolved_upn, resolved_full_name = resolve_ldap_identity(alias=principal, upn_hint=normalized_upn)
+    legacy_user = provision_legacy_user(
+        resolved_upn or normalized_upn,
+        full_name=resolved_full_name,
+        alias=principal,
+    )
     if legacy_user is None:
         messages.error(request, f"Utente {principal} non autorizzato o disabilitato.")
         return redirect("login")

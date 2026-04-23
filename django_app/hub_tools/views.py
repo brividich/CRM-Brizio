@@ -17,18 +17,22 @@ import os
 import shutil
 import socket
 import tempfile
+from collections import deque
 from datetime import datetime
 from html import escape
+from io import BytesIO
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from django.contrib import messages
+from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.http import FileResponse, HttpResponse, Http404, JsonResponse
 from django.shortcuts import render
 from django.utils.text import slugify
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.http import require_GET, require_POST
+from PIL import Image, UnidentifiedImageError
 
 from admin_portale.decorators import legacy_admin_required as _staff_required
 from config.app_version import build_module_version_env_block, load_app_version
@@ -1188,10 +1192,26 @@ _BRAND_FAVICON_ALLOWED_MIMES = _BRAND_IMAGE_ALLOWED_MIMES | {
     "image/vnd.microsoft.icon",
 }
 _BRAND_UPLOAD_MAX_BYTES = 1024 * 1024
+_BRAND_LANDING_UPLOAD_MAX_BYTES = 5 * 1024 * 1024
+_BRAND_WHITE_BG_STRIP_KEYS = {"brand_logo_full", "brand_logo_compact"}
+_BRAND_BG_FLOOD_MIN_CHANNEL = 205
+_BRAND_BG_FLOOD_MAX_CHROMA = 36
+_BRAND_BG_GLOBAL_MIN_CHANNEL = 230
+_BRAND_BG_GLOBAL_MAX_CHROMA = 20
+_BRAND_BG_GLOBAL_MIN_COVERAGE = 0.12
 _BRAND_COLOR_DEFAULTS = {
     "brand_primary_color": "#1e3a5f",
     "brand_accent_color": "#f97316",
     "brand_background_color": "#eef0f5",
+}
+_BRAND_LANDING_FIT_MODES = {"cover", "contain", "stretch", "center"}
+_BRAND_DIMENSION_RULES: dict[str, dict[str, int]] = {
+    "brand_logo_full_height": {"default": 40, "min": 28, "max": 96},
+    "brand_logo_full_max_width": {"default": 140, "min": 80, "max": 360},
+    "brand_logo_compact_size": {"default": 32, "min": 24, "max": 80},
+    "brand_sidebar_logo_scale": {"default": 100, "min": 60, "max": 260},
+    "brand_login_form_x": {"default": 78, "min": 0, "max": 100},
+    "brand_login_form_y": {"default": 50, "min": 0, "max": 100},
 }
 _BRAND_ASSETS = {
     "brand_logo_full": {
@@ -1217,6 +1237,15 @@ _BRAND_ASSETS = {
         "label": "Favicon",
         "allowed_extensions": _BRAND_FAVICON_ALLOWED_EXTS,
         "allowed_mimes": _BRAND_FAVICON_ALLOWED_MIMES,
+    },
+    "brand_landing_image": {
+        "slot": "landing",
+        "file_field": "brand_landing_image_file",
+        "clear_field": "clear_brand_landing_image",
+        "label": "Immagine landing login",
+        "allowed_extensions": _BRAND_IMAGE_ALLOWED_EXTS,
+        "allowed_mimes": _BRAND_IMAGE_ALLOWED_MIMES,
+        "max_bytes": _BRAND_LANDING_UPLOAD_MAX_BYTES,
     },
 }
 
@@ -1247,6 +1276,125 @@ def _clean_brand_asset_url(value: str, *, label: str) -> str:
     raise ValueError(f"{label}: l'URL deve iniziare con http://, https:// o /")
 
 
+def _clean_brand_dimension(
+    value: str,
+    *,
+    default: int,
+    min_value: int,
+    max_value: int,
+    label: str,
+) -> str:
+    cleaned = str(value or "").strip()
+    if not cleaned:
+        return str(default)
+    try:
+        parsed = int(cleaned)
+    except ValueError as exc:
+        raise ValueError(f"{label}: inserisci un numero intero.") from exc
+    if parsed < min_value or parsed > max_value:
+        raise ValueError(f"{label}: valore ammesso tra {min_value} e {max_value}.")
+    return str(parsed)
+
+
+def _clean_brand_landing_fit_mode(value: str, *, default: str) -> str:
+    cleaned = str(value or "").strip().lower()
+    if not cleaned:
+        return default
+    if cleaned in _BRAND_LANDING_FIT_MODES:
+        return cleaned
+    raise ValueError("Modalita sfondo login non valida. Usa: riempi, adatta, stira o centrata.")
+
+
+def _strip_white_background_image(uploaded_file):
+    try:
+        uploaded_file.seek(0)
+    except Exception:
+        pass
+
+    try:
+        with Image.open(uploaded_file) as img:
+            rgba = img.convert("RGBA")
+    except (UnidentifiedImageError, OSError, ValueError):
+        try:
+            uploaded_file.seek(0)
+        except Exception:
+            pass
+        return None
+
+    width, height = rgba.size
+    pixels = list(rgba.getdata())
+    visited = bytearray(width * height)
+    queue: deque[int] = deque()
+    to_clear: set[int] = set()
+
+    min_channel = _BRAND_BG_FLOOD_MIN_CHANNEL
+    max_chroma = _BRAND_BG_FLOOD_MAX_CHROMA
+
+    def _is_edge_background(px: tuple[int, int, int, int]) -> bool:
+        red, green, blue, alpha = px
+        if alpha == 0:
+            return False
+        high = max(red, green, blue)
+        low = min(red, green, blue)
+        return low >= min_channel and (high - low) <= max_chroma
+
+    for x in range(width):
+        queue.append(x)
+        queue.append((height - 1) * width + x)
+    for y in range(height):
+        queue.append(y * width)
+        queue.append(y * width + (width - 1))
+
+    while queue:
+        idx = queue.popleft()
+        if idx < 0 or idx >= width * height:
+            continue
+        if visited[idx]:
+            continue
+        visited[idx] = 1
+        if not _is_edge_background(pixels[idx]):
+            continue
+        to_clear.add(idx)
+        x = idx % width
+        y = idx // width
+        if x > 0:
+            queue.append(idx - 1)
+        if x < width - 1:
+            queue.append(idx + 1)
+        if y > 0:
+            queue.append(idx - width)
+        if y < height - 1:
+            queue.append(idx + width)
+
+    global_candidates: list[int] = []
+    for idx, (red, green, blue, alpha) in enumerate(pixels):
+        if alpha == 0:
+            continue
+        high = max(red, green, blue)
+        low = min(red, green, blue)
+        if low >= _BRAND_BG_GLOBAL_MIN_CHANNEL and (high - low) <= _BRAND_BG_GLOBAL_MAX_CHROMA:
+            global_candidates.append(idx)
+    if global_candidates and (len(global_candidates) / (width * height)) >= _BRAND_BG_GLOBAL_MIN_COVERAGE:
+        to_clear.update(global_candidates)
+
+    if not to_clear:
+        try:
+            uploaded_file.seek(0)
+        except Exception:
+            pass
+        return None
+
+    for idx in to_clear:
+        red, green, blue, _ = pixels[idx]
+        pixels[idx] = (red, green, blue, 0)
+
+    rgba.putdata(pixels)
+    output = BytesIO()
+    rgba.save(output, format="PNG", optimize=True)
+    output.seek(0)
+    return ContentFile(output.getvalue(), name=f"{Path(uploaded_file.name).stem}.png")
+
+
 def _delete_portal_brand_asset(slot: str, allowed_extensions: set[str]) -> None:
     for ext in allowed_extensions:
         path = f"portal_branding/{slot}{ext}"
@@ -1254,22 +1402,38 @@ def _delete_portal_brand_asset(slot: str, allowed_extensions: set[str]) -> None:
             default_storage.delete(path)
 
 
-def _save_portal_brand_asset(uploaded_file, *, meta: dict[str, object]) -> str:
+def _save_portal_brand_asset(
+    uploaded_file,
+    *,
+    meta: dict[str, object],
+    strip_white_background: bool = False,
+) -> str:
     label = str(meta["label"])
     allowed_extensions = set(meta["allowed_extensions"])
     allowed_mimes = set(meta["allowed_mimes"])
+    max_bytes = int(meta.get("max_bytes") or _BRAND_UPLOAD_MAX_BYTES)
     validate_extension_and_mime(
         uploaded_file,
         allowed_extensions=allowed_extensions,
         allowed_mimes=allowed_mimes,
-        max_bytes=_BRAND_UPLOAD_MAX_BYTES,
+        max_bytes=max_bytes,
         label=label,
     )
     raw_ext = os.path.splitext(uploaded_file.name)[1].lower()
     ext = raw_ext if raw_ext in allowed_extensions else ".png"
+    file_to_save = uploaded_file
+    if strip_white_background and ext in {".png", ".jpg", ".jpeg", ".webp"}:
+        processed_file = _strip_white_background_image(uploaded_file)
+        if processed_file is not None:
+            file_to_save = processed_file
+            ext = ".png"
+    try:
+        file_to_save.seek(0)
+    except Exception:
+        pass
     slot = str(meta["slot"])
     _delete_portal_brand_asset(slot, allowed_extensions)
-    saved_path = default_storage.save(f"portal_branding/{slot}{ext}", uploaded_file)
+    saved_path = default_storage.save(f"portal_branding/{slot}{ext}", file_to_save)
     return default_storage.url(saved_path)
 
 
@@ -1286,7 +1450,16 @@ def categorie(request):
         "portal_subtitle": "Sottotitolo branding globale.",
         "brand_logo_full": "URL logo esteso usato nella sidebar espansa.",
         "brand_logo_compact": "URL logo compatto usato nella sidebar collassata.",
+        "brand_logo_remove_white_bg": "Rimozione automatica sfondo bianco dai loghi caricati.",
         "brand_favicon": "URL favicon del portale.",
+        "brand_landing_image": "URL immagine landing/login.",
+        "brand_landing_fit_mode": "Modalita sfondo landing/login.",
+        "brand_logo_full_height": "Altezza logo sidebar espansa (px).",
+        "brand_logo_full_max_width": "Larghezza massima logo sidebar espansa (px).",
+        "brand_logo_compact_size": "Dimensione logo sidebar compressa (px).",
+        "brand_sidebar_logo_scale": "Scala dimensione logo sidebar (%).",
+        "brand_login_form_x": "Posizione orizzontale form login (%).",
+        "brand_login_form_y": "Posizione verticale form login (%).",
         "brand_primary_color": "Colore principale shell/sidebar.",
         "brand_accent_color": "Colore accento CTA e fallback logo.",
         "brand_background_color": "Colore sfondo applicazione.",
@@ -1299,11 +1472,24 @@ def categorie(request):
                 branding_values = {
                     "portal_name": request.POST.get("portal_name", "").strip(),
                     "portal_subtitle": request.POST.get("portal_subtitle", "").strip(),
+                    "brand_logo_remove_white_bg": _env_bool_value(request.POST.get("brand_logo_remove_white_bg")),
+                    "brand_landing_fit_mode": _clean_brand_landing_fit_mode(
+                        request.POST.get("brand_landing_fit_mode", ""),
+                        default=PORTAL_BRANDING_DEFAULTS["brand_landing_fit_mode"],
+                    ),
                 }
                 for key, default in _BRAND_COLOR_DEFAULTS.items():
                     branding_values[key] = _clean_brand_color(
                         request.POST.get(key, default),
                         default=default,
+                        label=branding_keys[key],
+                    )
+                for key, rules in _BRAND_DIMENSION_RULES.items():
+                    branding_values[key] = _clean_brand_dimension(
+                        request.POST.get(key, str(rules["default"])),
+                        default=rules["default"],
+                        min_value=rules["min"],
+                        max_value=rules["max"],
                         label=branding_keys[key],
                     )
                 for key, meta in _BRAND_ASSETS.items():
@@ -1312,7 +1498,14 @@ def categorie(request):
                         _delete_portal_brand_asset(str(meta["slot"]), set(meta["allowed_extensions"]))
                         branding_values[key] = ""
                     elif uploaded_file:
-                        branding_values[key] = _save_portal_brand_asset(uploaded_file, meta=meta)
+                        branding_values[key] = _save_portal_brand_asset(
+                            uploaded_file,
+                            meta=meta,
+                            strip_white_background=(
+                                branding_values["brand_logo_remove_white_bg"] == "1"
+                                and key in _BRAND_WHITE_BG_STRIP_KEYS
+                            ),
+                        )
                     else:
                         branding_values[key] = _clean_brand_asset_url(
                             request.POST.get(key, ""),
@@ -1398,7 +1591,16 @@ def categorie(request):
             "portal_subtitle": PORTAL_BRANDING_DEFAULTS["portal_subtitle"],
             "brand_logo_full": PORTAL_BRANDING_DEFAULTS["brand_logo_full"],
             "brand_logo_compact": PORTAL_BRANDING_DEFAULTS["brand_logo_compact"],
+            "brand_logo_remove_white_bg": PORTAL_BRANDING_DEFAULTS["brand_logo_remove_white_bg"],
             "brand_favicon": PORTAL_BRANDING_DEFAULTS["brand_favicon"],
+            "brand_landing_image": PORTAL_BRANDING_DEFAULTS["brand_landing_image"],
+            "brand_landing_fit_mode": PORTAL_BRANDING_DEFAULTS["brand_landing_fit_mode"],
+            "brand_logo_full_height": PORTAL_BRANDING_DEFAULTS["brand_logo_full_height"],
+            "brand_logo_full_max_width": PORTAL_BRANDING_DEFAULTS["brand_logo_full_max_width"],
+            "brand_logo_compact_size": PORTAL_BRANDING_DEFAULTS["brand_logo_compact_size"],
+            "brand_sidebar_logo_scale": PORTAL_BRANDING_DEFAULTS["brand_sidebar_logo_scale"],
+            "brand_login_form_x": PORTAL_BRANDING_DEFAULTS["brand_login_form_x"],
+            "brand_login_form_y": PORTAL_BRANDING_DEFAULTS["brand_login_form_y"],
             "brand_primary_color": PORTAL_BRANDING_DEFAULTS["brand_primary_color"],
             "brand_accent_color": PORTAL_BRANDING_DEFAULTS["brand_accent_color"],
             "brand_background_color": PORTAL_BRANDING_DEFAULTS["brand_background_color"],

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+import socket
 from functools import lru_cache
 from typing import Iterable
 
@@ -33,6 +34,203 @@ ALLOWED_LEGACY_TABLES = frozenset(
 
 def legacy_auth_enabled() -> bool:
     return bool(getattr(settings, "LEGACY_AUTH_ENABLED", False))
+
+
+def extract_identity_alias(ident: str) -> str:
+    alias = str(ident or "").strip().lower()
+    if not alias:
+        return ""
+    if "\\" in alias:
+        alias = alias.split("\\")[-1]
+    if "@" in alias:
+        alias = alias.split("@", 1)[0]
+    return alias.strip()
+
+
+def canonicalize_ldap_upn(alias_or_ident: str, fallback_upn: str = "") -> str:
+    alias = extract_identity_alias(alias_or_ident)
+    fallback = str(fallback_upn or "").strip().lower()
+    suffix = str(getattr(settings, "LDAP_UPN_SUFFIX", "") or "").strip().lstrip("@").lower()
+    if alias and suffix:
+        return f"{alias}@{suffix}"
+    if fallback and "@" in fallback:
+        return fallback
+    if alias:
+        domain = str(getattr(settings, "LDAP_DOMAIN", "") or "").strip().lower()
+        if domain:
+            return f"{alias}@{domain}"
+        return alias
+    return fallback
+
+
+def normalize_windows_principal_to_upn(principal: str) -> str:
+    normalized = str(principal or "").strip().lower()
+    if not normalized:
+        return ""
+    if "\\" in normalized:
+        domain, username = normalized.split("\\", 1)
+        return canonicalize_ldap_upn(username, f"{username}@{domain}")
+    return canonicalize_ldap_upn(normalized, normalized)
+
+
+def _ldap_escape_filter(value: str) -> str:
+    escaped = str(value or "")
+    escaped = escaped.replace("\\", r"\5c")
+    escaped = escaped.replace("*", r"\2a")
+    escaped = escaped.replace("(", r"\28")
+    escaped = escaped.replace(")", r"\29")
+    escaped = escaped.replace("\x00", r"\00")
+    return escaped
+
+
+def _as_ldap_list(value) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        return [str(v).strip() for v in value if str(v).strip()]
+    text = str(value).strip()
+    if not text:
+        return []
+    return [text]
+
+
+def _ldap_entry_first(entry_dict: dict, key: str, default: str = "") -> str:
+    values = _as_ldap_list(entry_dict.get(key))
+    if not values:
+        return default
+    return values[0]
+
+
+def resolve_ldap_identity(alias: str, upn_hint: str = "", *, conn=None) -> tuple[str, str]:
+    alias_norm = extract_identity_alias(alias or upn_hint)
+    preferred_upn = canonicalize_ldap_upn(alias_norm or alias, upn_hint)
+    full_name = ""
+
+    if not bool(getattr(settings, "LDAP_ENABLED", False)):
+        return preferred_upn, full_name
+
+    search_base = str(getattr(settings, "LDAP_BASE_DN", "") or "").strip()
+    user_filter = str(getattr(settings, "LDAP_USER_FILTER", "") or "").strip()
+    if not search_base or not user_filter:
+        return preferred_upn, full_name
+
+    cleanup_conn = False
+    active_conn = conn
+
+    if active_conn is None:
+        server_url = str(getattr(settings, "LDAP_SERVER", "") or "").strip()
+        timeout = int(getattr(settings, "LDAP_TIMEOUT", 5) or 5)
+        service_user = str(getattr(settings, "LDAP_SERVICE_USER", "") or "").strip()
+        service_password = str(getattr(settings, "LDAP_SERVICE_PASSWORD", "") or "").strip()
+        domain = str(getattr(settings, "LDAP_DOMAIN", "") or "").strip()
+        suffix = str(getattr(settings, "LDAP_UPN_SUFFIX", "") or "").strip().lstrip("@")
+
+        if not server_url or not service_user or not service_password:
+            return preferred_upn, full_name
+
+        try:
+            from ldap3 import Connection, NONE, NTLM, SIMPLE, Server
+            from ldap3.core.exceptions import LDAPException, LDAPSocketOpenError
+        except Exception as exc:
+            logger.warning("resolve_ldap_identity: ldap3 unavailable: %s", exc)
+            return preferred_upn, full_name
+
+        try:
+            server = Server(server_url, connect_timeout=timeout, get_info=NONE)
+            if "\\" in service_user:
+                bind_attempts = [(service_user, NTLM)]
+            elif "@" in service_user:
+                bind_attempts = [(service_user, SIMPLE)]
+            else:
+                bind_attempts = []
+                if suffix:
+                    bind_attempts.append((f"{service_user}@{suffix}", SIMPLE))
+                bind_attempts.append((service_user, SIMPLE))
+                if domain:
+                    bind_attempts.append((f"{domain}\\{service_user}", NTLM))
+
+            last_error = None
+            for bind_user, authentication in bind_attempts:
+                candidate = Connection(
+                    server,
+                    user=bind_user,
+                    password=service_password,
+                    authentication=authentication,
+                    auto_bind=False,
+                    auto_referrals=False,
+                    raise_exceptions=False,
+                )
+                ok = candidate.bind()
+                if ok:
+                    active_conn = candidate
+                    cleanup_conn = True
+                    break
+                last_error = candidate.result
+                try:
+                    candidate.unbind()
+                except Exception:
+                    pass
+            if active_conn is None:
+                logger.warning("resolve_ldap_identity: LDAP service bind failed: %s", last_error)
+                return preferred_upn, full_name
+        except (LDAPSocketOpenError, LDAPException, socket.error, OSError, ValueError) as exc:
+            logger.warning("resolve_ldap_identity: LDAP service connection failed: %s", exc)
+            return preferred_upn, full_name
+
+    lookup_keys = []
+    if alias_norm:
+        lookup_keys.append(f"(sAMAccountName={_ldap_escape_filter(alias_norm)})")
+    for candidate in (upn_hint, preferred_upn):
+        upn_candidate = str(candidate or "").strip().lower()
+        if upn_candidate and "@" in upn_candidate:
+            lookup_keys.append(f"(userPrincipalName={_ldap_escape_filter(upn_candidate)})")
+            lookup_keys.append(f"(mail={_ldap_escape_filter(upn_candidate)})")
+
+    if not lookup_keys:
+        if cleanup_conn and active_conn is not None:
+            try:
+                active_conn.unbind()
+            except Exception:
+                pass
+        return preferred_upn, full_name
+
+    identity_filter = "".join(dict.fromkeys(lookup_keys))
+    search_filter = f"(&{user_filter}(|{identity_filter}))"
+    attrs = ["displayName", "givenName", "sn", "mail", "userPrincipalName", "sAMAccountName"]
+
+    try:
+        ok = active_conn.search(
+            search_base=search_base,
+            search_filter=search_filter,
+            attributes=attrs,
+            size_limit=1,
+        )
+        if ok and getattr(active_conn, "entries", None):
+            entry = active_conn.entries[0]
+            data = entry.entry_attributes_as_dict if hasattr(entry, "entry_attributes_as_dict") else {}
+            sam = _ldap_entry_first(data, "sAMAccountName").strip().lower()
+            ldap_upn = _ldap_entry_first(data, "userPrincipalName").strip().lower()
+            ldap_mail = _ldap_entry_first(data, "mail").strip().lower()
+            given = _ldap_entry_first(data, "givenName").strip()
+            sn = _ldap_entry_first(data, "sn").strip()
+            display = _ldap_entry_first(data, "displayName").strip()
+
+            resolved_alias = extract_identity_alias(sam or alias_norm)
+            resolved_upn = canonicalize_ldap_upn(resolved_alias, ldap_upn or preferred_upn or ldap_mail)
+            full_name = display or " ".join([p for p in [given, sn] if p]).strip()
+            if not full_name and resolved_alias:
+                full_name = resolved_alias.replace(".", " ").title()
+            return resolved_upn, full_name
+    except Exception as exc:
+        logger.warning("resolve_ldap_identity: LDAP search failed for alias=%s: %s", alias_norm, exc)
+    finally:
+        if cleanup_conn and active_conn is not None:
+            try:
+                active_conn.unbind()
+            except Exception:
+                pass
+
+    return preferred_upn, full_name
 
 
 def _split_name(full_name: str) -> tuple[str, str]:
@@ -213,18 +411,22 @@ def sync_django_user_from_legacy(legacy_user: UtenteLegacy):
         return django_user
 
 
-def provision_legacy_user(upn: str) -> "UtenteLegacy | None":
+def provision_legacy_user(upn: str, *, full_name: str = "", alias: str = "") -> "UtenteLegacy | None":
     """Recupera o crea un UtenteLegacy per un UPN AD/SSO (usato da LDAPBackend e windows_sso).
 
     Restituisce None se l'utente è disabilitato o in caso di errore DB.
     """
-    upn = upn.lower()
+    upn = str(upn or "").strip().lower()
+    alias_norm = extract_identity_alias(alias or upn)
     try:
         legacy_user = UtenteLegacy.objects.filter(email__iexact=upn).first()
+        if legacy_user is None and alias_norm:
+            # Compat: riallinea utenti AD esistenti quando cambia il dominio UPN.
+            legacy_user = UtenteLegacy.objects.filter(email__istartswith=f"{alias_norm}@").order_by("id").first()
         if legacy_user is None:
             ruolo_utente = Ruolo.objects.filter(nome__iexact="utente").first()
             ruolo_id = ruolo_utente.id if ruolo_utente else None
-            display_name = upn.split("@", 1)[0].replace(".", " ").title()
+            display_name = (full_name or "").strip() or upn.split("@", 1)[0].replace(".", " ").title()
             model_fields = {f.name for f in UtenteLegacy._meta.fields}
             create_kwargs = {
                 "nome": display_name,
@@ -239,6 +441,16 @@ def provision_legacy_user(upn: str) -> "UtenteLegacy | None":
             legacy_user = UtenteLegacy.objects.create(
                 **{k: v for k, v in create_kwargs.items() if k in model_fields}
             )
+        else:
+            changed_fields = []
+            if upn and (legacy_user.email or "").strip().lower() != upn:
+                legacy_user.email = upn
+                changed_fields.append("email")
+            if full_name and (legacy_user.nome or "").strip() != full_name.strip():
+                legacy_user.nome = full_name.strip()
+                changed_fields.append("nome")
+            if changed_fields:
+                legacy_user.save(update_fields=changed_fields)
         if not bool(legacy_user.attivo):
             return None
         return legacy_user

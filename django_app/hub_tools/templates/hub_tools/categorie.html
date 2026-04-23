@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% load static ui_icons %}
 
-{% block title %}Hub Tools — Categorie Moduli{% endblock %}
+{% block title %}Hub Tools - Categorie Moduli{% endblock %}
 
 {% block content %}
 <style>
@@ -34,16 +34,6 @@
 .flash{padding:10px 12px;border-radius:9px;border:1px solid #dbe3ef;background:#fff;color:#334155;font-weight:600}
 .flash.success{border-color:#bbf7d0;background:#f0fdf4;color:#166534}
 .flash.error{border-color:#fecaca;background:#fef2f2;color:#b91c1c}
-.brand-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.brand-asset-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}
-.brand-asset-field{display:grid;gap:7px;align-content:start}
-.brand-file{padding:6px;background:#fff}
-.brand-check{display:flex;align-items:center;gap:7px;font-size:.78rem;color:#64748b;font-weight:600}
-.brand-check input{min-height:0;width:auto}
-.brand-color-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}
-.brand-color-control{display:flex;align-items:center;gap:8px}
-.brand-color-control input[type=color]{width:54px;min-width:54px;height:38px;padding:3px 5px}
-.brand-color-control input[type=text]{font-family:monospace;text-transform:lowercase}
 .btn-primary{background:#1a6fc4;color:#fff;border:none;padding:8px 18px;border-radius:7px;font-weight:700;cursor:pointer;font-size:.84rem;white-space:nowrap}
 .btn-primary:hover{background:#1558a0}
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center}
@@ -53,24 +43,17 @@
 .modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
 .badge-cat{font-size:.72rem;padding:2px 9px;border-radius:12px;font-weight:700;color:#fff;white-space:nowrap}
 .cat-icon{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:#eef2ff;font-size:1rem;flex-shrink:0}
-.brand-preview{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px}
-.brand-preview-card{background:#fff;border:1px solid #dbe3ef;border-radius:10px;padding:14px;min-width:220px}
-.brand-preview-label{font-size:.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
-.brand-preview-logo{height:48px;display:flex;align-items:center;justify-content:flex-start;padding:8px 10px;border-radius:10px;background:#1e3a5f;color:#fff;overflow:hidden}
-.brand-preview-logo img{max-width:100%;max-height:100%;object-fit:contain}
-.brand-preview-fallback{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;background:#f97316;color:#fff;font-weight:800}
-.brand-preview-favicon{width:32px;height:32px;border-radius:8px}
 .nav-item-icon-form{display:flex;align-items:center;gap:8px}
 .nav-item-icon-input{width:80px;text-align:center}
-@media (max-width:900px){.brand-form-grid,.brand-asset-grid,.brand-color-grid{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr 1fr}}
+@media (max-width:900px){.form-grid{grid-template-columns:1fr 1fr}}
 </style>
 
 <div class="hub-header">
   <div>
-    <div class="hub-title">🏷️ Categorie Moduli</div>
-    <div class="hub-subtitle">Raggruppa i moduli di navigazione, assegna icone e configura il branding del portale.</div>
+    <div class="hub-title">Categorie Moduli</div>
+    <div class="hub-subtitle">Raggruppa i moduli di navigazione e assegna icone alle voci topbar.</div>
   </div>
-  <a href="{% url 'hub_tools:hub_moduli' %}" class="btn-sm btn-edit" style="padding:8px 16px;">← Torna ai Moduli</a>
+  <a href="{% url 'hub_tools:hub_moduli' %}" class="btn-sm btn-edit" style="padding:8px 16px;"><- Torna ai Moduli</a>
 </div>
 
 {% if messages %}
@@ -82,105 +65,11 @@
 {% endif %}
 
 <div class="form-card">
-  <div style="font-size:.88rem;font-weight:700;color:#475569;margin-bottom:12px;">Branding portale</div>
-  <form method="post" enctype="multipart/form-data">
-    {% csrf_token %}
-    <input type="hidden" name="action" value="branding">
-    <div class="brand-form-grid">
-      <div class="form-group">
-        <label>Nome portale</label>
-        <input class="form-control" name="portal_name" value="{{ branding_values.portal_name }}" placeholder="Portale Novicrom">
-      </div>
-      <div class="form-group">
-        <label>Sottotitolo</label>
-        <input class="form-control" name="portal_subtitle" value="{{ branding_values.portal_subtitle }}" placeholder="blank per nascondere">
-      </div>
-    </div>
-    <div class="brand-asset-grid">
-      <div class="form-group brand-asset-field">
-        <label>Logo sidebar espansa</label>
-        <input class="form-control" name="brand_logo_full" value="{{ branding_values.brand_logo_full }}" placeholder="/media/... o https://...">
-        <input class="form-control brand-file" type="file" name="brand_logo_full_file" accept="image/png,image/jpeg,image/svg+xml,image/webp">
-        {% if branding_values.brand_logo_full %}
-          <label class="brand-check"><input type="checkbox" name="clear_brand_logo_full" value="1"> Rimuovi logo</label>
-        {% endif %}
-      </div>
-      <div class="form-group brand-asset-field">
-        <label>Logo sidebar compressa</label>
-        <input class="form-control" name="brand_logo_compact" value="{{ branding_values.brand_logo_compact }}" placeholder="/media/... o https://...">
-        <input class="form-control brand-file" type="file" name="brand_logo_compact_file" accept="image/png,image/jpeg,image/svg+xml,image/webp">
-        {% if branding_values.brand_logo_compact %}
-          <label class="brand-check"><input type="checkbox" name="clear_brand_logo_compact" value="1"> Rimuovi logo</label>
-        {% endif %}
-      </div>
-      <div class="form-group brand-asset-field">
-        <label>Favicon browser</label>
-        <input class="form-control" name="brand_favicon" value="{{ branding_values.brand_favicon }}" placeholder="/media/... o https://...">
-        <input class="form-control brand-file" type="file" name="brand_favicon_file" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/x-icon">
-        {% if branding_values.brand_favicon %}
-          <label class="brand-check"><input type="checkbox" name="clear_brand_favicon" value="1"> Rimuovi favicon</label>
-        {% endif %}
-      </div>
-    </div>
-    <div class="brand-color-grid">
-      <div class="form-group">
-        <label>Colore shell</label>
-        <div class="brand-color-control">
-          <input type="color" class="form-control" name="brand_primary_color" value="{{ branding_values.brand_primary_color }}">
-          <input type="text" class="form-control" value="{{ branding_values.brand_primary_color }}" data-color-mirror readonly>
-        </div>
-      </div>
-      <div class="form-group">
-        <label>Colore accento</label>
-        <div class="brand-color-control">
-          <input type="color" class="form-control" name="brand_accent_color" value="{{ branding_values.brand_accent_color }}">
-          <input type="text" class="form-control" value="{{ branding_values.brand_accent_color }}" data-color-mirror readonly>
-        </div>
-      </div>
-      <div class="form-group">
-        <label>Colore sfondo</label>
-        <div class="brand-color-control">
-          <input type="color" class="form-control" name="brand_background_color" value="{{ branding_values.brand_background_color }}">
-          <input type="text" class="form-control" value="{{ branding_values.brand_background_color }}" data-color-mirror readonly>
-        </div>
-      </div>
-    </div>
-    <div class="brand-preview">
-      <div class="brand-preview-card">
-        <div class="brand-preview-label">Espansa</div>
-        <div class="brand-preview-logo" style="background:{{ branding_values.brand_primary_color }}">
-          {% if branding_values.brand_logo_full %}
-            <img src="{{ branding_values.brand_logo_full }}" alt="{{ branding_values.portal_name }}">
-          {% else %}
-            <span class="brand-preview-fallback" style="background:{{ branding_values.brand_accent_color }}">{{ portal_branding.monogram }}</span>
-          {% endif %}
-        </div>
-      </div>
-      <div class="brand-preview-card">
-        <div class="brand-preview-label">Compressa</div>
-        <div class="brand-preview-logo" style="background:{{ branding_values.brand_primary_color }}">
-          {% if branding_values.brand_logo_compact %}
-            <img src="{{ branding_values.brand_logo_compact }}" alt="{{ branding_values.portal_name }}">
-          {% else %}
-            <span class="brand-preview-fallback" style="background:{{ branding_values.brand_accent_color }}">{{ portal_branding.monogram }}</span>
-          {% endif %}
-        </div>
-      </div>
-      <div class="brand-preview-card">
-        <div class="brand-preview-label">Favicon</div>
-        <div class="brand-preview-logo" style="background:{{ branding_values.brand_background_color }}">
-          {% if branding_values.brand_favicon %}
-            <img class="brand-preview-favicon" src="{{ branding_values.brand_favicon }}" alt="{{ branding_values.portal_name }}">
-          {% else %}
-            <span class="brand-preview-fallback" style="background:{{ branding_values.brand_accent_color }}">{{ portal_branding.monogram }}</span>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-    <div style="margin-top:14px">
-      <button type="submit" class="btn-primary">Salva branding</button>
-    </div>
-  </form>
+  <div style="font-size:.88rem;font-weight:700;color:#475569;margin-bottom:8px;">Branding login e loghi</div>
+  <div style="font-size:.84rem;color:#64748b;margin-bottom:12px;">
+    Le impostazioni di landing login, loghi sidebar/topbar e posizionamento form sono state spostate nella pagina dedicata.
+  </div>
+  <a href="{% url 'admin_portale:login_config' %}" class="btn-primary">Apri Login Config</a>
 </div>
 
 <!-- Crea nuova categoria -->
@@ -200,7 +89,7 @@
       </div>
       <div class="form-group">
         <label>Icona</label>
-        <input class="form-control" name="icon" placeholder="es. 🛠️">
+        <input class="form-control" name="icon" placeholder="es. wrench">
       </div>
       <div class="form-group">
         <label>Colore topbar</label>
@@ -232,7 +121,7 @@
         <span class="cat-icon">{% render_icon cat.icon cat.label %}</span>
         <div>
           <div class="cat-label">{{ cat.label }}</div>
-          <div class="cat-key">{{ cat.key }} &nbsp;·&nbsp; ordine {{ cat.order }}</div>
+          <div class="cat-key">{{ cat.key }} - ordine {{ cat.order }}</div>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:6px;font-size:.8rem;color:#475569">
@@ -258,7 +147,7 @@
 {% endif %}
 
 <!-- Assegna categorie ai moduli topbar -->
-<div class="section-title">Voci topbar — assegna categoria</div>
+<div class="section-title">Voci topbar - assegna categoria</div>
 {% if not nav_items %}
   <p style="color:#94a3b8;font-size:.88rem;">Nessuna voce topbar trovata nel Navigation Registry.</p>
 {% else %}
@@ -287,7 +176,7 @@
         <input type="hidden" name="action" value="assign">
         <input type="hidden" name="nav_item_id" value="{{ item.id }}">
         <select class="cat-select" name="category_id" onchange="this.form.submit()">
-          <option value="">— Nessuna —</option>
+          <option value="">- Nessuna -</option>
           {% for cat in categorie %}
             <option value="{{ cat.id }}" {% if item.category_id == cat.id %}selected{% endif %}>{{ cat.label }}</option>
           {% endfor %}
@@ -312,7 +201,7 @@
       </div>
       <div class="form-group" style="margin-bottom:12px">
         <label>Icona</label>
-        <input class="form-control" name="icon" id="editIcon" placeholder="es. 🛠️">
+        <input class="form-control" name="icon" id="editIcon" placeholder="es. wrench">
       </div>
       <div class="form-group" style="margin-bottom:12px">
         <label>Colore topbar</label>
@@ -335,29 +224,22 @@
 
 <script>
 function openEditModal(id, label, icon, color, order) {
-  document.getElementById('editId').value = id;
-  document.getElementById('editLabel').value = label;
-  document.getElementById('editIcon').value = icon;
-  document.getElementById('editColor').value = color;
-  document.getElementById('editColorHex').textContent = color;
-  document.getElementById('editOrder').value = order;
-  document.getElementById('editModal').classList.add('open');
+  document.getElementById("editId").value = id;
+  document.getElementById("editLabel").value = label;
+  document.getElementById("editIcon").value = icon;
+  document.getElementById("editColor").value = color;
+  document.getElementById("editColorHex").textContent = color;
+  document.getElementById("editOrder").value = order;
+  document.getElementById("editModal").classList.add("open");
 }
 function closeEditModal() {
-  document.getElementById('editModal').classList.remove('open');
+  document.getElementById("editModal").classList.remove("open");
 }
-document.getElementById('editColor').addEventListener('input', function() {
-  document.getElementById('editColorHex').textContent = this.value;
+document.getElementById("editColor").addEventListener("input", function() {
+  document.getElementById("editColorHex").textContent = this.value;
 });
-document.getElementById('editModal').addEventListener('click', function(e) {
+document.getElementById("editModal").addEventListener("click", function(e) {
   if (e.target === this) closeEditModal();
-});
-document.querySelectorAll('.brand-color-control input[type="color"]').forEach(function(input) {
-  var mirror = input.parentElement.querySelector('[data-color-mirror]');
-  if (!mirror) return;
-  input.addEventListener('input', function() {
-    mirror.value = this.value;
-  });
 });
 </script>
 {% endblock %}

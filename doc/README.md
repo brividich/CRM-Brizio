@@ -1,7 +1,7 @@
 # Documentazione Tecnica - NOVICROM HUB
 
-> Versione documentazione: **1.0.0**  
-> Aggiornata: **2026-04-17**
+> Versione documentazione: **1.0.1**
+> Aggiornata: **2026-04-22**
 
 La cartella `doc/` raccoglie la documentazione Markdown canonica del repository. I nomi storici come `Portale Novicrom` restano presenti solo come esempio di istanza, cartella o percorso di deploy.
 
@@ -37,4 +37,3 @@ Questi file costituiscono il set di riferimento che deve restare coerente con `V
 - I file `.html` e `.pdf` presenti in `doc/`, `tools/` e `deployment/` sono artefatti consultabili ma non sono la fonte primaria di governance.
 - Se un artefatto derivato diverge dal Markdown canonico, fa fede il Markdown.
 - I file di configurazione reali non sono inclusi nel repository; valori e host presenti nei documenti sono esempi o placeholder.
-

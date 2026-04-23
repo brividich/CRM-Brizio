@@ -947,7 +947,8 @@ async function testLdap() {
   try {
     const res = await apiPost('/setup/api/test-ldap/', {
       server: v('ldap_server'), service_user: v('ldap_service_user'),
-      service_password: v('ldap_service_password'), timeout: v('ldap_timeout','5')
+      service_password: v('ldap_service_password'), domain: v('ldap_domain'),
+      upn_suffix: v('ldap_upn'), timeout: v('ldap_timeout','5')
     });
     showTestResult('testLdapResult', res);
   } catch(e) { showTestResult('testLdapResult', {ok:false, error: String(e)}); }
@@ -1001,12 +1002,14 @@ function buildChecklist() {
 const INSTALL_STEPS = [
   {id:'s_save',   label:'Salvataggio configurazione (.env)'},
   {id:'s_migrate',label:'Esecuzione migrazioni database'},
+  {id:'s_finalize',label:'Allineamento schema runtime e bootstrap'},
   {id:'s_admin',  label:'Creazione utente amministratore'},
   {id:'s_modules',label:'Attivazione moduli selezionati'},
 ];
 
 function renderInstallSteps(activeId, error) {
-  const html = INSTALL_STEPS.map(s => {
+  const activeIndex = INSTALL_STEPS.findIndex(x => x.id === activeId);
+  const html = INSTALL_STEPS.map((s, idx) => {
     let icon = '⏳', style = 'color:var(--muted)';
     if (error && s.id === activeId) { icon='❌'; style='color:var(--danger);font-weight:600'; }
     else if (s.id === activeId) { icon='<span class="spinner" style="display:inline-block"></span>'; style='color:var(--primary);font-weight:600'; }
@@ -1039,6 +1042,12 @@ async function runInstall() {
     if (!r2.ok) { renderInstallSteps('s_migrate', true); showInstallError('Migrazioni: ' + r2.error); return; }
   } catch(e) { renderInstallSteps('s_migrate', true); showInstallError(String(e)); return; }
 
+  renderInstallSteps('s_finalize');
+  try {
+    const rFinal = await apiPost('/setup/api/finalize-database/', {});
+    if (!rFinal.ok) { renderInstallSteps('s_finalize', true); showInstallError('Finalizzazione database: ' + rFinal.error); return; }
+  } catch(e) { renderInstallSteps('s_finalize', true); showInstallError(String(e)); return; }
+
   // ── 3. Crea utente admin ──────────────────────────────────────────────────
   renderInstallSteps('s_admin');
   if (v('admin_username')) {
@@ -1065,6 +1074,7 @@ async function runInstall() {
 }
 
 function showInstallError(msg) {
+  const btn = document.getElementById('btnInstall');
   btn.innerHTML = '🚀 Riprova installazione';
   btn.disabled = false;
   document.getElementById('btnBack12').disabled = false;

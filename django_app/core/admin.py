@@ -23,8 +23,8 @@ class SiteConfigAdmin(admin.ModelAdmin):
 
 @admin.register(UserUiPreference)
 class UserUiPreferenceAdmin(admin.ModelAdmin):
-    list_display = ("user", "nav_mode", "font_scale", "sidebar_collapsed")
-    list_filter = ("nav_mode", "font_scale", "sidebar_collapsed")
+    list_display = ("user", "nav_mode", "theme_mode", "font_scale", "sidebar_collapsed")
+    list_filter = ("nav_mode", "theme_mode", "font_scale", "sidebar_collapsed")
     search_fields = ("user__username", "user__email")
     raw_id_fields = ("user",)
 

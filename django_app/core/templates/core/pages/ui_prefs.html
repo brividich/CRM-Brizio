@@ -36,7 +36,7 @@
 <div class="page-header">
   <div class="page-header-main">
     <div class="page-h">Preferenze interfaccia</div>
-    <div class="page-sub">Personalizza navigazione, leggibilita e comportamento della shell.</div>
+    <div class="page-sub">Personalizza tema, navigazione, leggibilita e comportamento della shell.</div>
   </div>
 </div>
 
@@ -117,6 +117,29 @@
           <span class="pref-option-icon">&#9650;</span>
           Barra superiore
           <span class="pref-hint">Stile classico</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Tema</div>
+    </div>
+    <div class="card-body">
+      <div class="pref-options">
+        <label class="pref-option{% if current.theme_mode|default:'light' == 'light' %} selected{% endif %}">
+          <input type="radio" name="theme_mode" value="light" {% if current.theme_mode|default:'light' == 'light' %}checked{% endif %} class="pref-radio">
+          <span class="pref-option-icon">&#9728;</span>
+          Chiaro
+          <span class="pref-hint">Aspetto standard</span>
+        </label>
+
+        <label class="pref-option{% if current.theme_mode == 'dark' %} selected{% endif %}">
+          <input type="radio" name="theme_mode" value="dark" {% if current.theme_mode == 'dark' %}checked{% endif %} class="pref-radio">
+          <span class="pref-option-icon">&#9790;</span>
+          Scuro
+          <span class="pref-hint">Contrasto alto</span>
         </label>
       </div>
     </div>
@@ -379,6 +402,8 @@
 
       if (radio.name === 'font_scale') {
         document.body.className = document.body.className.replace(/\bfs-\S+/, 'fs-' + radio.value);
+      } else if (radio.name === 'theme_mode') {
+        document.body.classList.toggle('theme-dark', radio.value === 'dark');
       } else if (radio.name === 'nav_mode') {
         toggleSidebarCards(radio.value === 'side');
       } else if (radio.name === 'sidebar_collapsed') {

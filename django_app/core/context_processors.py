@@ -28,7 +28,12 @@ logger = logging.getLogger(__name__)
 
 # ── UI Preferences helpers ──────────────────────────────────────────────────
 _UI_PREFS_SESSION_KEY = "_ui_prefs_v2"
-_UI_PREFS_DEFAULTS: dict = {"nav_mode": "side", "font_scale": "normal", "sidebar_collapsed": False}
+_UI_PREFS_DEFAULTS: dict = {
+    "nav_mode": "side",
+    "theme_mode": "light",
+    "font_scale": "normal",
+    "sidebar_collapsed": False,
+}
 _SIDEBAR_FOOTER_ACTION_CATALOG: tuple[dict[str, str], ...] = (
     {
         "key": "car",
@@ -129,6 +134,7 @@ def _get_ui_prefs(request) -> dict:
     if cached and isinstance(cached, dict) and "nav_mode" in cached and "font_scale" in cached:
         data = {
             "nav_mode": cached.get("nav_mode") or _UI_PREFS_DEFAULTS["nav_mode"],
+            "theme_mode": cached.get("theme_mode") or _UI_PREFS_DEFAULTS["theme_mode"],
             "font_scale": cached.get("font_scale") or _UI_PREFS_DEFAULTS["font_scale"],
             "sidebar_collapsed": bool(cached.get("sidebar_collapsed")),
             "sidebar_footer_actions": normalize_sidebar_footer_actions(
@@ -148,6 +154,7 @@ def _get_ui_prefs(request) -> dict:
         if prefs:
             data = {
                 "nav_mode": prefs.nav_mode,
+                "theme_mode": getattr(prefs, "theme_mode", _UI_PREFS_DEFAULTS["theme_mode"]),
                 "font_scale": prefs.font_scale,
                 "sidebar_collapsed": prefs.sidebar_collapsed,
                 "sidebar_footer_actions": normalize_sidebar_footer_actions(
@@ -753,6 +760,7 @@ def ui_prefs_context(request):
     prefs = _get_ui_prefs(request)
     return {
         "ui_font_scale": prefs["font_scale"],
+        "ui_theme_mode": prefs.get("theme_mode", _UI_PREFS_DEFAULTS["theme_mode"]),
         "ui_sidebar_collapsed": prefs["sidebar_collapsed"],
         "ui_sidebar_footer_actions": prefs.get("sidebar_footer_actions", get_default_sidebar_footer_actions()),
     }

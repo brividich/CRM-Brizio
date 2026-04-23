@@ -60,6 +60,37 @@
     padding:8px 12px; margin-top:8px; font-family:monospace; word-break:break-all;
   }
   .script-missing { color:#dc2626; background:#fef2f2; }
+  .release-ops-grid { display:grid; grid-template-columns:minmax(0, 260px) minmax(0, 1fr); gap:16px; }
+  .release-env-card {
+    border:1px solid #dbe1ea; border-radius:10px; padding:12px;
+    background:#f8fafc; cursor:pointer; transition:border-color .15s, background .15s;
+  }
+  .release-env-card + .release-env-card { margin-top:10px; }
+  .release-env-card.is-active { border-color:#1a6fc4; background:#eff6ff; }
+  .release-env-head { display:flex; align-items:center; gap:8px; font-weight:800; color:#0f172a; }
+  .release-env-dot { width:9px; height:9px; border-radius:999px; background:#94a3b8; }
+  .release-env-card.is-active .release-env-dot { background:#1a6fc4; }
+  .release-env-meta { font-size:12px; color:#64748b; margin-top:5px; word-break:break-all; }
+  .release-ops-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  .release-terminal-row { display:flex; gap:8px; align-items:center; }
+  .release-terminal-row select,
+  .release-terminal-row input {
+    border:1px solid #dbe1ea; border-radius:8px; background:#fff; color:#0f172a;
+    font-size:13px; padding:9px 10px;
+  }
+  .release-terminal-row input { flex:1; font-family:Consolas, monospace; min-width:220px; }
+  .release-terminal-output {
+    background:#0d1117; color:#c9d1d9; border-radius:8px; padding:12px 14px;
+    font-family:Consolas, monospace; font-size:12px; line-height:1.45;
+    min-height:160px; max-height:360px; overflow:auto; white-space:pre-wrap;
+    border:1px solid #1f2937; margin-top:10px;
+  }
+  .release-terminal-status { font-size:12px; color:#64748b; margin-top:8px; min-height:18px; }
+  @media (max-width: 900px) {
+    .release-ops-grid { grid-template-columns:1fr; }
+    .release-terminal-row { flex-direction:column; align-items:stretch; }
+    .release-terminal-row input { min-width:0; width:100%; }
+  }
 </style>
 {% endblock %}
 
@@ -161,6 +192,70 @@
     </div>
   </div>
 
+  <!-- Operazioni server -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-head">
+      <div class="card-title">Operazioni server</div>
+    </div>
+    <div class="card-body">
+      <div style="margin:0 0 12px;color:#334155;font-size:14px;">
+        Riavvia i servizi IIS o lancia comandi sul virtualenv dell'ambiente selezionato.
+        Directory base rilevata: <code>{{ release_ops.deploy_base }}</code>.
+        Il riavvio usa automaticamente il task schedulato elevato dell'ambiente.
+      </div>
+      <div class="release-ops-grid">
+        <div>
+          {% for env in release_ops.environments %}
+            <label class="release-env-card{% if env.value == release_ops.current_environment %} is-active{% endif %}"
+                   data-release-env-card data-env="{{ env.value }}">
+              <input type="radio" name="release-env" value="{{ env.value }}"
+                     {% if env.value == release_ops.current_environment %}checked{% endif %}
+                     style="position:absolute;opacity:0;pointer-events:none;">
+              <div class="release-env-head">
+                <span class="release-env-dot"></span>
+                <span>{{ env.label }}</span>
+              </div>
+              <div class="release-env-meta">{{ env.site_name }}</div>
+              <div class="release-env-meta">task: {{ env.restart_task_name }}</div>
+              <div class="release-env-meta">{{ env.env_root }}</div>
+              {% if env.has_current %}
+                <div class="release-env-meta">current: {{ env.django_app }}</div>
+              {% else %}
+                <div class="release-env-meta" style="color:#dc2626;">current/django_app non trovato</div>
+              {% endif %}
+            </label>
+          {% endfor %}
+        </div>
+        <div>
+          <div class="release-ops-actions">
+            <button type="button" class="btn-create" id="release-restart-btn">
+              Riavvia servizio IIS
+            </button>
+            <span style="font-size:12px;color:#64748b;">
+              Su PROD viene richiesta conferma prima dell'esecuzione.
+            </span>
+          </div>
+          <div class="release-terminal-row">
+            <select id="release-terminal-preset" aria-label="Preset comando">
+              {% for preset in release_ops.terminal_presets %}
+                <option value="{{ preset.command }}">{{ preset.label }}</option>
+              {% endfor %}
+            </select>
+            <input id="release-terminal-command" type="text"
+                   value="{{ release_ops.terminal_presets.0.command }}"
+                   spellcheck="false" autocomplete="off"
+                   aria-label="Comando terminale">
+            <button type="button" class="btn-create" id="release-terminal-run">
+              Esegui
+            </button>
+          </div>
+          <div class="release-terminal-status" id="release-terminal-status"></div>
+          <pre class="release-terminal-output" id="release-terminal-output">Console pronta.</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Pacchetti esistenti -->
   <div class="card">
     <div class="card-head">
@@ -198,6 +293,9 @@
 
 {% block extra_scripts %}
 <script>
+const RELEASE_RESTART_URL = "{% url 'admin_portale:api_release_restart_service' %}";
+const RELEASE_TERMINAL_URL = "{% url 'admin_portale:api_release_terminal_command' %}";
+
 function onCreateSubmit(form) {
   var btn = document.getElementById('btn-create');
   var icon = document.getElementById('btn-create-icon');
@@ -206,5 +304,135 @@ function onCreateSubmit(form) {
   icon.textContent = '⏳';
   label.textContent = 'Creazione in corso…';
 }
+(function(){
+  const envCards = Array.from(document.querySelectorAll("[data-release-env-card]"));
+  const restartBtn = document.getElementById("release-restart-btn");
+  const preset = document.getElementById("release-terminal-preset");
+  const commandInput = document.getElementById("release-terminal-command");
+  const runBtn = document.getElementById("release-terminal-run");
+  const output = document.getElementById("release-terminal-output");
+  const status = document.getElementById("release-terminal-status");
+
+  function csrfToken(){
+    const input = document.querySelector("input[name=csrfmiddlewaretoken]");
+    return input ? input.value : "";
+  }
+
+  function selectedEnv(){
+    const checked = document.querySelector("input[name='release-env']:checked");
+    return checked ? checked.value : "test";
+  }
+
+  function setStatus(text, ok){
+    if(!status) return;
+    status.textContent = text || "";
+    status.style.color = ok === false ? "#dc2626" : "#64748b";
+  }
+
+  function setOutput(text){
+    if(!output) return;
+    output.textContent = text || "";
+    output.scrollTop = output.scrollHeight;
+  }
+
+  function appendResult(header, data){
+    const chunks = [header];
+    if(data.cwd) chunks.push("cwd: " + data.cwd);
+    if(typeof data.returncode !== "undefined") chunks.push("exit: " + data.returncode);
+    if(data.stdout) chunks.push("\n[stdout]\n" + data.stdout);
+    if(data.stderr) chunks.push("\n[stderr]\n" + data.stderr);
+    if(data.warning) chunks.push("\n[avviso]\n" + data.warning);
+    const failed = data.ok === false || data.service_ok === false || data.command_ok === false;
+    if(data.error && failed) chunks.push("\n[errore]\n" + data.error);
+    setOutput(chunks.join("\n"));
+  }
+
+  async function postJson(url, payload, fallbackError){
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrfToken(),
+        "X-Requested-With": "XMLHttpRequest"
+      },
+      body: JSON.stringify(payload)
+    });
+    return window.portalReadJsonResponse(response, { fallbackError: fallbackError || "Errore operazione server." });
+  }
+
+  envCards.forEach(function(card){
+    card.addEventListener("click", function(){
+      envCards.forEach(function(c){ c.classList.remove("is-active"); });
+      card.classList.add("is-active");
+      const input = card.querySelector("input[type='radio']");
+      if(input) input.checked = true;
+    });
+  });
+
+  if(preset && commandInput){
+    preset.addEventListener("change", function(){
+      commandInput.value = preset.value || "";
+      commandInput.focus();
+    });
+  }
+
+  if(restartBtn){
+    restartBtn.addEventListener("click", async function(){
+      const env = selectedEnv();
+      if(env === "prod" && !confirm("Riavviare sito e App Pool di PROD?")) return;
+      restartBtn.disabled = true;
+      setStatus("Riavvio servizio in corso...", true);
+      setOutput("[" + env.toUpperCase() + "] riavvio servizio in corso...");
+      try {
+        const data = await postJson(RELEASE_RESTART_URL, { environment: env }, "Errore riavvio servizio.");
+        appendResult("[" + env.toUpperCase() + "] riavvio servizio", data);
+        if(data.restart_mode === "scheduled_task"){
+          setStatus("Riavvio IIS schedulato automaticamente.", true);
+        } else if(data.restart_mode === "django_process"){
+          setStatus("Riavvio processo Django schedulato.", true);
+        } else {
+          setStatus(data.service_ok === false ? "Riavvio completato con errori." : "Riavvio schedulato.", data.service_ok !== false);
+        }
+      } catch(err) {
+        setStatus(err.message || "Errore riavvio servizio.", false);
+        setOutput(err.message || String(err));
+      } finally {
+        restartBtn.disabled = false;
+      }
+    });
+  }
+
+  if(runBtn && commandInput){
+    runBtn.addEventListener("click", async function(){
+      const env = selectedEnv();
+      const command = (commandInput.value || "").trim();
+      if(!command) return;
+      if(env === "prod" && !confirm("Eseguire questo comando su PROD?\n\n" + command)) return;
+      runBtn.disabled = true;
+      setStatus("Comando in esecuzione...", true);
+      setOutput("[" + env.toUpperCase() + "] $ " + command + "\n\nEsecuzione in corso...");
+      try {
+        const data = await postJson(
+          RELEASE_TERMINAL_URL,
+          { environment: env, command: command },
+          "Errore esecuzione comando."
+        );
+        appendResult("[" + env.toUpperCase() + "] $ " + command, data);
+        setStatus(data.command_ok === false ? "Comando terminato con errori." : "Comando completato.", data.command_ok !== false);
+      } catch(err) {
+        setStatus(err.message || "Errore esecuzione comando.", false);
+        setOutput(err.message || String(err));
+      } finally {
+        runBtn.disabled = false;
+      }
+    });
+    commandInput.addEventListener("keydown", function(event){
+      if(event.key === "Enter"){
+        event.preventDefault();
+        runBtn.click();
+      }
+    });
+  }
+})();
 </script>
 {% endblock %}

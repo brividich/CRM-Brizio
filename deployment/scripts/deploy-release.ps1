@@ -10,11 +10,12 @@
     3. Aggiorna le dipendenze pip nel venv condiviso
     4. Esegue collectstatic (output in static\)
     5. Esegue migrate
-    6. Applica trigger SQL Server (trg_*.sql in automazioni/migrations/ e sql/)
-    7. Riallinea assenze.tipo_assenza a Flessibilita su SQL Server
-    8. Esegue createcachetable (se primo deploy)
-    9. Registra/aggiorna il Task Scheduler per process_automation_queue (idempotente)
-   10. Stampa il tag release da usare con activate-release.ps1
+    6. Allinea schema legacy/runtime SQL Server
+    7. Applica trigger SQL Server (trg_*.sql in automazioni/migrations/ e sql/)
+    8. Riallinea assenze.tipo_assenza a Flessibilita su SQL Server
+    9. Esegue createcachetable (se primo deploy)
+   10. Registra/aggiorna il Task Scheduler per process_automation_queue (idempotente)
+   11. Stampa il tag release da usare con activate-release.ps1
 
     NOTA: il release rimane in releases\ ma NON diventa "current" finche
     non si esegue activate-release.ps1 (o si usa -AutoActivate).
@@ -347,10 +348,33 @@ else {
 }
 
 # ---------------------------------------------------------------------------
-# 6. Applica trigger SQL Server
+# 7. Allinea schema legacy/runtime SQL Server
+# ---------------------------------------------------------------------------
+if (-not $SkipMigrate) {
+    Write-Log "[7/10] ensure_legacy_schema..." "STEP"
+    try {
+        Invoke-Venv -VenvPath $paths.Venv `
+                    -WorkDir  $djangoApp `
+                    -Args     @("manage.py", "ensure_legacy_schema", "--settings=$settingsMod") `
+                    -EnvVars  $djangoEnv
+        Write-Log "ensure_legacy_schema completato." "SUCCESS"
+    }
+    catch {
+        Write-Log "ensure_legacy_schema fallito: $_" "ERROR"
+        Write-Log "ATTENZIONE: il DB legacy/runtime potrebbe essere privo di tabelle operative richieste." "WARN"
+        Remove-Item $releaseDir -Recurse -Force
+        exit 1
+    }
+}
+else {
+    Write-Log "[7/10] ensure_legacy_schema - SALTATO (flag -SkipMigrate)" "WARN"
+}
+
+# ---------------------------------------------------------------------------
+# 8. Applica trigger SQL Server
 # ---------------------------------------------------------------------------
 if (-not $SkipSqlTriggers) {
-    Write-Log "[7/9] Applicazione trigger SQL Server..." "STEP"
+    Write-Log "[8/10] Applicazione trigger SQL Server..." "STEP"
     try {
         Invoke-Venv -VenvPath $paths.Venv `
                     -WorkDir  $djangoApp `
@@ -365,14 +389,14 @@ if (-not $SkipSqlTriggers) {
     }
 }
 else {
-    Write-Log "[7/9] Trigger SQL - SALTATO (flag -SkipSqlTriggers)" "WARN"
+    Write-Log "[8/10] Trigger SQL - SALTATO (flag -SkipSqlTriggers)" "WARN"
 }
 
 # ---------------------------------------------------------------------------
-# 7. allinea tipo_assenza assenze (idempotente, richiesto per DB legacy)
+# 9. allinea tipo_assenza assenze (idempotente, richiesto per DB legacy)
 # ---------------------------------------------------------------------------
 if (-not $SkipMigrate) {
-    Write-Log "[8/9] allinea assenze.tipo_assenza a Flessibilita..." "STEP"
+    Write-Log "[9/10] allinea assenze.tipo_assenza a Flessibilita..." "STEP"
     try {
         Invoke-Venv -VenvPath $paths.Venv `
                     -WorkDir  $djangoApp `
@@ -388,13 +412,13 @@ if (-not $SkipMigrate) {
     }
 }
 else {
-    Write-Log "[8/9] allinea tipo_assenza - SALTATO (flag -SkipMigrate)" "WARN"
+    Write-Log "[9/10] allinea tipo_assenza - SALTATO (flag -SkipMigrate)" "WARN"
 }
 
 # ---------------------------------------------------------------------------
-# 8. createcachetable (idempotente, sicuro da rieseguire)
+# 10. createcachetable (idempotente, sicuro da rieseguire)
 # ---------------------------------------------------------------------------
-Write-Log "[9/9] createcachetable (idempotente)..." "STEP"
+Write-Log "[10/10] createcachetable (idempotente)..." "STEP"
 try {
     Invoke-Venv -VenvPath $paths.Venv `
                 -WorkDir  $djangoApp `
@@ -407,9 +431,9 @@ catch {
 }
 
 # ---------------------------------------------------------------------------
-# [10/10] Registra/aggiorna Task Scheduler automation queue (idempotente)
+# [10/11] Registra/aggiorna Task Scheduler automation queue (idempotente)
 # ---------------------------------------------------------------------------
-Write-Log "[10/10] Registrazione task poller automation queue..." "STEP"
+Write-Log "[10/11] Registrazione task poller automation queue..." "STEP"
 $scheduleScript = "$PSScriptRoot\schedule-automation-queue.ps1"
 if (Test-Path $scheduleScript) {
     try {
@@ -423,6 +447,41 @@ if (Test-Path $scheduleScript) {
 }
 else {
     Write-Log "schedule-automation-queue.ps1 non trovato — task non registrato." "WARN"
+}
+
+# ---------------------------------------------------------------------------
+# [11/11] Registra/aggiorna helper riavvio IIS per portale (idempotente)
+# ---------------------------------------------------------------------------
+Write-Log "[11/11] Registrazione helper riavvio IIS..." "STEP"
+$sharedScriptsDir = Join-Path $DEPLOY_BASE "shared\scripts"
+$releaseScriptsDir = Join-Path $releaseDir "deployment\scripts"
+if (-not (Test-Path $sharedScriptsDir)) {
+    New-Item -ItemType Directory -Path $sharedScriptsDir -Force | Out-Null
+}
+if (Test-Path $releaseScriptsDir) {
+    foreach ($helperName in @("_lib.ps1", "register-iis-restart-helper.ps1", "restart-iis-env.ps1")) {
+        $helperSource = Join-Path $releaseScriptsDir $helperName
+        if (Test-Path $helperSource) {
+            Copy-Item $helperSource (Join-Path $sharedScriptsDir $helperName) -Force
+        }
+    }
+}
+$restartHelperScript = Join-Path $sharedScriptsDir "register-iis-restart-helper.ps1"
+if (-not (Test-Path $restartHelperScript)) {
+    $restartHelperScript = "$PSScriptRoot\register-iis-restart-helper.ps1"
+}
+if (Test-Path $restartHelperScript) {
+    try {
+        & $restartHelperScript -Environment $Environment -ErrorAction Stop
+        Write-Log "Helper riavvio IIS registrato per $Environment." "SUCCESS"
+    }
+    catch {
+        Write-Log "Helper riavvio IIS non registrato (non bloccante): $_" "WARN"
+        Write-Log "  Per registrarlo manualmente: .\register-iis-restart-helper.ps1 -Environment $Environment" "WARN"
+    }
+}
+else {
+    Write-Log "register-iis-restart-helper.ps1 non trovato - helper non registrato." "WARN"
 }
 
 # ---------------------------------------------------------------------------

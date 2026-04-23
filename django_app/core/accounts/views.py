@@ -18,12 +18,44 @@ from core.legacy_models import UtenteLegacy
 from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_auth_enabled
 
 
+def _is_smartphone_request(request) -> bool:
+    layout_hint = (request.GET.get("layout") or "").strip().lower()
+    if layout_hint == "mobile":
+        return True
+    if layout_hint == "desktop":
+        return False
+
+    user_agent = (request.META.get("HTTP_USER_AGENT") or "").lower()
+    if not user_agent:
+        return False
+
+    smartphone_tokens = (
+        "iphone",
+        "ipod",
+        "windows phone",
+        "blackberry",
+        "bb10",
+        "opera mini",
+        "mobile safari",
+    )
+    if any(token in user_agent for token in smartphone_tokens):
+        return True
+
+    # Android tablets usually omit "mobile"; treat Android + mobile as smartphone.
+    return "android" in user_agent and "mobile" in user_agent
+
+
 @method_decorator(ensure_csrf_cookie, name="dispatch")
 @method_decorator(never_cache, name="dispatch")
 class LegacyLoginView(LoginView):
     authentication_form = LegacyAuthenticationForm
     template_name = "core/pages/login.html"
     redirect_authenticated_user = True
+
+    def get_template_names(self):
+        if _is_smartphone_request(self.request):
+            return ["core/pages/login_mobile.html"]
+        return [self.template_name]
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)

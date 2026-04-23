@@ -32,6 +32,7 @@ from core.context_processors import (
     legacy_nav,
     normalize_sidebar_footer_actions,
 )
+from core.branding import get_portal_branding
 from core.contact_people import coalesce_contact_people, parse_contact_people, primary_contact, serialize_contact_people
 from core.legacy_models import Permesso, Pulsante, Ruolo, UtenteLegacy
 from core.logging_handlers import SafeTimedRotatingFileHandler
@@ -47,6 +48,7 @@ from core.models import (
     Profile,
     RolePermissionGrant,
     RoutePermissionBinding,
+    SiteConfig,
     UserOnboarding,
     UserNavigationOverride,
     UserPermissionOverride,
@@ -911,6 +913,26 @@ class LoginViewHardeningTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("csrftoken", response.cookies)
         self.assertIn("no-store", response.headers.get("Cache-Control", ""))
+
+    def test_login_uses_mobile_template_for_smartphone_user_agent(self):
+        response = self.client.get(
+            reverse("login"),
+            HTTP_USER_AGENT="Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "core/pages/login_mobile.html")
+
+    def test_login_layout_query_overrides_user_agent_template_selection(self):
+        iphone_ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"
+
+        mobile_response = self.client.get(reverse("login") + "?layout=mobile")
+        desktop_response = self.client.get(reverse("login") + "?layout=desktop", HTTP_USER_AGENT=iphone_ua)
+
+        self.assertEqual(mobile_response.status_code, 200)
+        self.assertTemplateUsed(mobile_response, "core/pages/login_mobile.html")
+        self.assertEqual(desktop_response.status_code, 200)
+        self.assertTemplateUsed(desktop_response, "core/pages/login.html")
 
     @override_settings(CSRF_COOKIE_SECURE=True, ALLOWED_HOSTS=["testserver", "localhost", "127.0.0.1"])
     def test_login_response_on_http_strips_secure_flag_from_csrf_cookie(self):
@@ -1942,6 +1964,7 @@ class OnboardingWizardTests(TestCase):
                 "email_contatto": "contatto@example.com",
                 "cellulare_contatto": "+39 333 1234567",
                 "nav_mode": "side",
+                "theme_mode": "dark",
                 "font_scale": "large",
                 "sidebar_collapsed": "1",
                 "sidebar_footer_actions": ["car"],
@@ -1961,6 +1984,7 @@ class OnboardingWizardTests(TestCase):
 
         ui_prefs = UserUiPreference.objects.get(user=self.user)
         self.assertEqual(ui_prefs.nav_mode, "side")
+        self.assertEqual(ui_prefs.theme_mode, "dark")
         self.assertEqual(ui_prefs.font_scale, "large")
         self.assertTrue(ui_prefs.sidebar_collapsed)
         self.assertEqual(ui_prefs.sidebar_footer_actions, ["car"])
@@ -2001,3 +2025,20 @@ class SidebarFooterActionsTests(SimpleTestCase):
         )
 
         self.assertEqual(normalized, ["notifications", "car"])
+
+
+class PortalBrandingAssetCacheBustTests(TestCase):
+    def test_local_media_logo_gets_cache_busting_version(self):
+        SiteConfig.set("brand_logo_full", "/media/portal_branding/logo_full.png", "test")
+
+        branding = get_portal_branding()
+
+        self.assertTrue(branding.brand_logo_full.startswith("/media/portal_branding/logo_full.png"))
+        self.assertIn("?v=", branding.brand_logo_full)
+
+    def test_external_logo_url_is_not_modified(self):
+        SiteConfig.set("brand_logo_full", "https://cdn.example.com/logo.png", "test")
+
+        branding = get_portal_branding()
+
+        self.assertEqual(branding.brand_logo_full, "https://cdn.example.com/logo.png")

@@ -1,7 +1,7 @@
 # CLAUDE.md - Portale Novicrom
 
 Documento di contesto per AI coding assistant. Aggiornato continuamente con il progetto.
-Versione app corrente: **1.0.0** (2026-04-17)
+Versione app corrente: **1.0.1** (2026-04-22)
 
 ---
 
@@ -37,7 +37,7 @@ Hardening sicurezza 0.8.7:
 | `assets` | Gestione asset aziendali (macchinari, attrezzature) + scadenzari manutenzioni/scadenze con creazione eventi Outlook sul calendario dell'utente selezionato; la manutenzione periodica vive come categoria della manutenzione su `/assets/manutenzione/verifiche/` con redirect legacy da `/assets/verifiche-periodiche/`; dashboard KPI personalizzabile per utente su `/assets/dashboard/` con 12 widget (scadenze, OdL, verifiche, ripartizioni) e drag & drop; la lista inventario canonica vive su `/assets/lista/` e i vecchi link filtrati `/assets/?asset_type=...` vengono riallineati automaticamente; licenze software su `/assets/licenze/` assegnabili ad asset o dipendenti anagrafica; categorie asset e campi dinamici si gestiscono nella tab `Categorie asset` di `/assets/impostazioni/`, con rimando rapido anche dallo Studio amministratore inventario |
 | `tasks` | `KICK-OFF`: portfolio kickoff, attivita kickoff, subtask, commenti, allegati, import Excel e upload documento MOD.073 VRF |
 | `automazioni` | Designer visuale automazioni + workspace flow split-view + SQL trigger -> event queue; il modulo e trattato come **audience admin** nel module registry (entrypoint operativo in `/admin-portale/automazioni/`), mentre gli endpoint token-based `/automazioni/approvazione/*` e `/approval-actions/*` restano esenti da ACL. La queue admin in `/admin-portale/automazioni/queue/` espone le azioni manuali `Stoppa` (porta un evento `pending` in `error` senza eseguirlo) ed `Elimina` (solo per eventi `pending/error` senza run log collegati), oltre a una card salute del poller che mostra task Windows locale `Portale Hub Polling Mail`, ultimo job monitorato e log `django_app/logs/automation_queue.log`; i timestamp della card vengono normalizzati nella timezone corrente del progetto (default `Europe/Rome`) e la UI espone il fuso usato; il polling Graph delle reply approvative processa ora i messaggi in ordine cronologico crescente (`first valid decision wins`), valida sempre il mittente in fail-closed, deduplica in modo persistente su `internet_message_id` e marca come lette solo le reply terminali/non riprocessabili; nel designer condizioni `expected_value` espone anche `Valori disponibili` con picker generico da source registry/DB e il pannello destro resta scrollabile in autonomia |
-| `admin_portale` | Pannello admin custom (non Django admin) |
+| `admin_portale` | Pannello admin custom (non Django admin); la pagina `/admin-portale/crea-release/` crea il package zip e include `Operazioni server` per selezionare TEST/PROD, avviare automaticamente il task schedulato elevato `\PortaleNovicrom\IISRestart_TEST/PROD` per riavviare sito/App Pool IIS e lanciare comandi terminale nel virtualenv dell'ambiente scelto; se il task non e' disponibile resta il fallback diretto IIS/processo Django |
 | `anagrafica` | Anagrafica dipendenti (integrata con AD/legacy DB, fallback automatico `email_notifica` -> `email` quando il dato legacy manca) |
 | `notizie` | Bacheca notizie/comunicazioni |
 | `timbri` | Report timbrature (lettura da DB legacy) |
@@ -303,8 +303,9 @@ L'exe e l'artefatto distribuito agli utenti finali: se non viene rigenerato, le 
 - I flussi wizard DEV/TEST/PROD devono risolvere il runtime Python prima di creare il virtualenv; se non viene trovato Python 3.11+ devono registrare errore `venv` e saltare pip/migrate senza attivare release incomplete.
 - I bootstrap ACL runtime lanciati dagli `AppConfig.ready()` devono usare `should_skip_runtime_bootstrap()` e non devono toccare cache/DB durante comandi Django non runtime (`collectstatic`, `createcachetable`, `migrate`, `check`, `test`), altrimenti il deploy puo bloccarsi prima dell'esecuzione reale del comando.
 - Prima di `migrate` il wizard deve creare/verificare il database SQL Server configurato: la creazione deve avvenire in un batch dedicato su `master`, poi l'apertura del DB va verificata separatamente (`sqlcmd -d <DB>` o ODBC con `DATABASE=`). Non combinare `CREATE DATABASE` e `USE [DB]` nello stesso batch. Se `DB_TRUST_CERT=True`, anche `sqlcmd` deve ricevere `-C`; se resta bloccato su TLS/certificato, il wizard deve riprovare via ODBC con `TrustServerCertificate=yes`. Se fallisce con login/db accesso negato, deve saltare le migration e mostrare rimedio SSMS esplicito invece di lasciare traceback `18456/4060`.
+- Dopo `migrate`, ogni flusso supportato di installazione/promote/deploy deve eseguire `ensure_legacy_schema` prima di trigger SQL, allineamenti assenze, ACL bootstrap e seed. Questo comando crea/allinea le tabelle runtime legacy richieste dal portale (`ordini_produzione`, `anomalie`, `dipendenti`, `capi_reparto`, `info_personali`, `sync_audit`, colori UI assenze) e deve essere bloccante su SQL Server se fallisce.
 - Il wizard interno `/admin-portale/hub/setup-wizard/` deve normalizzare i booleani del `.env` (`True`/`False`, `yes`/`no`, `1`/`0`) prima del render e preservare `DB_TRUST_CERT` quando si salvano solo LDAP/SMTP; non deve mai spegnere `TrustServerCertificate` per differenze di formato tra wizard desktop e web.
-- Se falliscono `venv`, `pip install`, `collectstatic` o `migrate`, il wizard deve marcare l'errore esplicitamente e non attivare la release/IIS o schedulare task su un ambiente incompleto.
+- Se falliscono `venv`, `pip install`, `collectstatic`, `migrate` o `ensure_legacy_schema`, il wizard deve marcare l'errore esplicitamente e non attivare la release/IIS o schedulare task su un ambiente incompleto.
 
 ### Selezione moduli (ModulesPage — step 11)
 
@@ -360,8 +361,9 @@ Accessibile da launcher, FinishPage e CLI `--mode=dashboard`.
 - `config.settings.test` forza SQLite e servizi lightweight anche se il file `.env` punta a SQL Server
 - `python manage.py test` usa automaticamente `config.settings.test` se non passi `--settings`
 - Nei flussi wizard/deploy l'ambiente `test` usa comunque `config.settings.prod`
-- La source of truth persistita e `django_app/.env`; il processo puo sovrascrivere singole chiavi via environment variables
-- Per LDAP la precedenza runtime e: ambiente processo -> `django_app/.env` -> default codice
+- La source of truth persistita e `django_app/.env` in sviluppo; nei deploy TEST/PROD e `ENV/config/.env`, caricato prima del `.env` copiato nella release attiva (`current/django_app/.env` o `releases/<id>/django_app/.env`) che resta solo fallback per chiavi mancanti.
+- Per LDAP la precedenza runtime e: ambiente processo -> `ENV/config/.env` nei deploy o `django_app/.env` in dev -> default codice.
+- La pagina `/admin-portale/ldap/` deve usare i valori LDAP effettivi per sync/import utenti anche prima del reload Django: la sync web passa override espliciti a `sync_ldap_users`, legge `LDAP_SERVICE_PASSWORD` da ambiente/`.env`, mostra stato password configurata e preserva il segreto esistente se il campo password resta vuoto al salvataggio. Nei deploy TEST/PROD i salvataggi admin devono scrivere il `config/.env` persistente dell'ambiente, non il `.env` copiato nella release attiva.
 - `LDAP_GROUP_ALLOWLIST` e `LDAP_SYNC_PAGE_SIZE` devono restare coerenti con i valori persistiti in `.env`, senza fallback paralleli legacy
 - Per sviluppo usare `--settings=config.settings.dev`
 

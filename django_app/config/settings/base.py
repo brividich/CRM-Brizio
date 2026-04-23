@@ -9,7 +9,7 @@ from config.app_version import (
     MODULE_ENV_KEYS_BY_CODE,
     load_app_version,
 )
-from config.env_config import load_dotenv_into_environ
+from config.env_config import iter_runtime_env_paths, load_dotenv_into_environ
 
 # mssql-django 1.6 non riconosce ancora SQL Server major version 17.
 # Trattiamo v17 come compatibile con il profilo 2022 per evitare blocchi in startup.
@@ -67,7 +67,8 @@ def default_dev_allowed_hosts() -> list[str]:
     return sorted(hosts)
 
 
-load_dotenv_into_environ(PROJECT_DIR / ".env")
+for _dotenv_path in iter_runtime_env_paths(PROJECT_DIR):
+    load_dotenv_into_environ(_dotenv_path)
 
 
 SECRET_KEY = env("DJANGO_SECRET_KEY", "change-me-in-dev")

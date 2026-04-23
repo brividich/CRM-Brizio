@@ -1,8 +1,8 @@
 # Deployment Guide - NOVICROM HUB su Windows Server + IIS
 
-> Versione guida: **2.1**  
-> Versione repo: **1.0.0**  
-> Aggiornata: **2026-04-17**
+> Versione guida: **2.1**
+> Versione repo: **1.0.1**
+> Aggiornata: **2026-04-22**
 
 Questa guida descrive il flusso di deploy reale supportato oggi dal repository. La priorita e evitare drift tra documentazione, settings, wizard e packaging.
 
@@ -13,7 +13,7 @@ Questa guida descrive il flusso di deploy reale supportato oggi dal repository. 
 - Settings disponibili nel repo: `config.settings.dev`, `config.settings.test`, `config.settings.prod`
 - `config.settings.test` serve alla suite locale/CI e forza SQLite
 - Nei flussi wizard/deploy l'ambiente `test` usa comunque `config.settings.prod`
-- Il file `.env` viene caricato dal loader custom `_load_dotenv(...)` in `django_app/config/settings/base.py`
+- Il runtime carica i file `.env` tramite `iter_runtime_env_paths(...)` in `django_app/config/settings/base.py` (evoluzione del vecchio `_load_dotenv(...)`): in deploy legge prima `ENV/config/.env`, poi il `.env` copiato nella release attiva come fallback.
 - Prima di creare una release zip, eseguire sempre `tools/release_guard.ps1`
 
 ## Verita del repo
@@ -25,7 +25,8 @@ Il repository non usa `django-environ` e contiene `config/settings/test.py` solo
 ```python
 # django_app/config/settings/base.py
 PROJECT_DIR = Path(__file__).resolve().parents[2]
-_load_dotenv(PROJECT_DIR / ".env")
+for _dotenv_path in iter_runtime_env_paths(PROJECT_DIR):
+    load_dotenv_into_environ(_dotenv_path)
 ```
 
 ```python
@@ -101,7 +102,7 @@ Flusso minimo su server:
 .\activate-release.ps1 -Environment test
 ```
 
-`deploy-release.ps1` usa `config.settings.prod` sia per `test` sia per `prod`, in linea con il repository, e dopo `migrate` esegue automaticamente `apply_sql_triggers` (queue DDL + trigger in `django_app/automazioni/migrations/` e `sql/`) e `allinea_tipo_assenza_flessibilita` prima dell'attivazione della release. Durante il deploy controlla anche `DB_DRIVER` nel `.env` copiato nella release: se il valore manca o non e installato sul server applicativo, lo riallinea automaticamente al miglior driver SQL Server disponibile.
+`deploy-release.ps1` usa `config.settings.prod` sia per `test` sia per `prod`, in linea con il repository. Dopo `migrate` i flussi supportati eseguono automaticamente `ensure_legacy_schema`, `apply_sql_triggers` (queue DDL + trigger in `django_app/automazioni/migrations/` e `sql/`) e `allinea_tipo_assenza_flessibilita` prima dell'attivazione della release. Durante il deploy controlla anche `DB_DRIVER` nel `.env` copiato nella release: se il valore manca o non e installato sul server applicativo, lo riallinea automaticamente al miglior driver SQL Server disponibile.
 
 Per PROD:
 
@@ -130,6 +131,7 @@ Automatizza almeno:
 - seed UAT opzionale in ambiente `test`
 - configurazione IIS
 - Server Dashboard con reset password live degli account locali, disponibile solo in esecuzione elevata come Administrator
+- Pagina web `/admin-portale/crea-release/` con sezione `Operazioni server`: crea package, seleziona TEST/PROD, avvia automaticamente il task schedulato elevato `\PortaleNovicrom\IISRestart_TEST/PROD` per riavviare IIS e lancia comandi terminale nel virtualenv dell'ambiente scelto senza aprire una sessione desktop sul server. `configure-iis-site.ps1` e `deploy-release.ps1` registrano/aggiornano il task in modo idempotente; se il task non e' disponibile resta il fallback diretto IIS/processo Django.
 
 Il wizard e `deployment/scripts/setup-environment.ps1` auto-rilevano un Python 3.11+ valido tramite `py`, percorsi standard, registry e `PATH`; se `venv`, `pip install`, `collectstatic` o `migrate` falliscono, la release non viene piu attivata o riciclata sotto IIS. Dopo `collectstatic` i flussi supportati verificano anche gli asset sentinella `static\core\css\theme.css` e `static\monitoring\css\monitoring.css`.
 

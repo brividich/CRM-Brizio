@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 import socket
 
@@ -9,20 +10,28 @@ from django.db import DatabaseError, connections
 from werkzeug.security import check_password_hash
 
 from core.legacy_models import Ruolo, UtenteLegacy
-from core.legacy_utils import legacy_auth_enabled, provision_legacy_user, sync_django_user_from_legacy
+from core.legacy_utils import (
+    canonicalize_ldap_upn,
+    extract_identity_alias,
+    legacy_auth_enabled,
+    provision_legacy_user,
+    resolve_ldap_identity,
+    sync_django_user_from_legacy,
+)
 
 logger = logging.getLogger(__name__)
 
 
+def _md4_supported() -> bool:
+    try:
+        hashlib.new("md4")
+    except Exception:
+        return False
+    return True
+
+
 def _extract_alias(ident: str) -> str:
-    alias = str(ident or "").strip().lower()
-    if not alias:
-        return ""
-    if "\\" in alias:
-        alias = alias.split("\\")[-1]
-    if "@" in alias:
-        alias = alias.split("@", 1)[0]
-    return alias.strip()
+    return extract_identity_alias(ident)
 
 
 def _resolve_legacy_user_by_alias(alias: str):
@@ -127,7 +136,7 @@ class LDAPBackend:
             return None
 
         try:
-            from ldap3 import AUTO_BIND_NO_TLS, Connection, NONE, NTLM, SIMPLE, Server
+            from ldap3 import Connection, NONE, NTLM, SIMPLE, Server
             from ldap3.core.exceptions import LDAPException, LDAPSocketOpenError
         except Exception as exc:
             logger.warning("ldap3 unavailable: %s", exc)
@@ -140,48 +149,79 @@ class LDAPBackend:
         if not server_url:
             return None
 
+        alias = _extract_alias(ident)
         if "@" in ident:
-            upn = ident.lower()
-            bind_dn = upn
+            upn = canonicalize_ldap_upn(alias, ident.lower())
+            bind_dn = ident.lower()
         else:
             suffix = upn_suffix.lstrip("@") if upn_suffix else ""
-            upn = f"{ident.lower()}@{suffix}" if suffix else ident.lower()
-            bind_dn = upn
+            bind_dn = f"{alias}@{suffix}" if suffix else alias
+            upn = canonicalize_ldap_upn(alias, bind_dn)
+
+        resolved_upn = upn
+        resolved_full_name = ""
 
         try:
             server = Server(server_url, connect_timeout=timeout, get_info=NONE)
-            conn = Connection(
-                server,
-                user=bind_dn,
-                password=password,
-                authentication=SIMPLE,
-                auto_bind=AUTO_BIND_NO_TLS,
-                auto_referrals=False,
-                raise_exceptions=False,
-            )
-            ok = conn.bind()
-            if ok:
-                conn.unbind()
-            elif "@" not in ident and domain:
-                conn2 = Connection(
-                    server,
-                    user=f"{domain}\\{ident}",
-                    password=password,
-                    authentication=NTLM,
-                    auto_bind=AUTO_BIND_NO_TLS,
-                    auto_referrals=False,
-                    raise_exceptions=False,
-                )
-                ok = conn2.bind()
+            supports_ntlm = _md4_supported()
+            if "\\" in ident:
+                if supports_ntlm:
+                    attempts = [(ident, NTLM)]
+                else:
+                    attempts = [(bind_dn, SIMPLE)]
+                    if bind_dn != alias:
+                        attempts.append((alias, SIMPLE))
+            elif "@" in ident:
+                attempts = [(bind_dn, SIMPLE)]
+            else:
+                attempts = [(bind_dn, SIMPLE)]
+                if bind_dn != alias:
+                    attempts.append((alias, SIMPLE))
+                if domain and supports_ntlm:
+                    attempts.append((f"{domain}\\{alias}", NTLM))
+            conn = None
+            for bind_user, authentication in attempts:
+                try:
+                    candidate = Connection(
+                        server,
+                        user=bind_user,
+                        password=password,
+                        authentication=authentication,
+                        auto_bind=False,
+                        auto_referrals=False,
+                        raise_exceptions=False,
+                    )
+                    ok = candidate.bind()
+                except Exception as exc:
+                    # Fail closed on any LDAP bind error: invalid credentials must not become HTTP 500.
+                    logger.warning("LDAP bind skipped for %s (%s): %s", bind_user, authentication, exc)
+                    ok = False
+                    continue
                 if ok:
-                    conn2.unbind()
-            if not ok:
+                    conn = candidate
+                    break
+                try:
+                    candidate.unbind()
+                except Exception:
+                    pass
+            if conn is None:
                 return None
-        except (LDAPSocketOpenError, LDAPException, socket.error, OSError) as exc:
+            try:
+                resolved_upn, resolved_full_name = resolve_ldap_identity(alias=alias, upn_hint=upn, conn=conn)
+            finally:
+                try:
+                    conn.unbind()
+                except Exception:
+                    pass
+        except (LDAPSocketOpenError, LDAPException, socket.error, OSError, ValueError) as exc:
             logger.warning("LDAP auth failed/unavailable: %s", exc)
             return None
 
-        legacy_user = provision_legacy_user(upn)
+        legacy_user = provision_legacy_user(
+            resolved_upn or upn,
+            full_name=resolved_full_name,
+            alias=alias,
+        )
         if legacy_user is None:
             return None
 

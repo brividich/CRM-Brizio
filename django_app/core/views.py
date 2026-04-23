@@ -76,6 +76,7 @@ _ONBOARDING_NOTIFICATION_SPECS: tuple[dict[str, object], ...] = (
 def _ui_prefs_session_payload(prefs: UserUiPreference) -> dict:
     return {
         "nav_mode": prefs.nav_mode,
+        "theme_mode": getattr(prefs, "theme_mode", "light"),
         "font_scale": prefs.font_scale,
         "sidebar_collapsed": prefs.sidebar_collapsed,
         "sidebar_footer_actions": normalize_sidebar_footer_actions(
@@ -90,6 +91,7 @@ def _get_current_ui_prefs_for_user(user) -> dict:
         return _ui_prefs_session_payload(prefs)
     return {
         "nav_mode": _UI_PREFS_DEFAULTS["nav_mode"],
+        "theme_mode": _UI_PREFS_DEFAULTS["theme_mode"],
         "font_scale": _UI_PREFS_DEFAULTS["font_scale"],
         "sidebar_collapsed": _UI_PREFS_DEFAULTS["sidebar_collapsed"],
         "sidebar_footer_actions": get_default_sidebar_footer_actions(),
@@ -100,6 +102,7 @@ def _save_user_ui_preferences(
     request,
     *,
     nav_mode: str = "",
+    theme_mode: str = "",
     font_scale: str = "",
     sidebar_collapsed_raw: str | None = None,
     sidebar_footer_actions_raw=None,
@@ -108,6 +111,7 @@ def _save_user_ui_preferences(
         user=request.user,
         defaults={
             "nav_mode": "side",
+            "theme_mode": "light",
             "font_scale": "normal",
             "sidebar_collapsed": False,
             "sidebar_footer_actions": None,
@@ -117,6 +121,9 @@ def _save_user_ui_preferences(
     changed = False
     if nav_mode in _VALID_NAV_MODES and prefs.nav_mode != nav_mode:
         prefs.nav_mode = nav_mode
+        changed = True
+    if theme_mode in _VALID_THEME_MODES and getattr(prefs, "theme_mode", "") != theme_mode:
+        prefs.theme_mode = theme_mode
         changed = True
     if font_scale in _VALID_FONT_SCALES and prefs.font_scale != font_scale:
         prefs.font_scale = font_scale
@@ -862,6 +869,7 @@ def api_notifiche_popup_ack(request):
 
 
 _VALID_NAV_MODES = {"top", "side"}
+_VALID_THEME_MODES = {"light", "dark"}
 _VALID_FONT_SCALES = {"small", "normal", "large", "xl"}
 
 
@@ -869,12 +877,14 @@ _VALID_FONT_SCALES = {"small", "normal", "large", "xl"}
 def ui_prefs_page(request):
     if request.method == "POST":
         nav_mode = request.POST.get("nav_mode", "").strip()
+        theme_mode = request.POST.get("theme_mode", "").strip()
         font_scale = request.POST.get("font_scale", "").strip()
         sidebar_collapsed_raw = request.POST.get("sidebar_collapsed", "0").strip()
         sidebar_footer_actions_raw = request.POST.get("sidebar_footer_actions") if "sidebar_footer_actions" in request.POST else None
         _prefs, _session_data = _save_user_ui_preferences(
             request,
             nav_mode=nav_mode,
+            theme_mode=theme_mode,
             font_scale=font_scale,
             sidebar_collapsed_raw=sidebar_collapsed_raw,
             sidebar_footer_actions_raw=sidebar_footer_actions_raw,
@@ -895,6 +905,7 @@ def ui_prefs_page(request):
 @require_POST
 def api_ui_prefs_save(request):  # route: ui_prefs_api_save
     nav_mode = request.POST.get("nav_mode", "").strip()
+    theme_mode = request.POST.get("theme_mode", "").strip()
     font_scale = request.POST.get("font_scale", "").strip()
     sidebar_collapsed_raw = request.POST.get("sidebar_collapsed", "").strip()
     sidebar_footer_actions_raw = request.POST.get("sidebar_footer_actions") if "sidebar_footer_actions" in request.POST else None
@@ -902,6 +913,7 @@ def api_ui_prefs_save(request):  # route: ui_prefs_api_save
     _prefs, session_data = _save_user_ui_preferences(
         request,
         nav_mode=nav_mode,
+        theme_mode=theme_mode,
         font_scale=font_scale,
         sidebar_collapsed_raw=sidebar_collapsed_raw,
         sidebar_footer_actions_raw=sidebar_footer_actions_raw,
@@ -935,6 +947,7 @@ def sidebar_toggle_save(request):
         user=request.user,
         defaults={
             "nav_mode": "side",
+            "theme_mode": "light",
             "font_scale": "normal",
             "sidebar_collapsed": collapsed,
             "sidebar_footer_actions": None,
@@ -947,6 +960,7 @@ def sidebar_toggle_save(request):
     # Aggiorna cache di sessione senza invalidarla completamente
     cached = request.session.get(_UI_PREFS_SESSION_KEY)
     if isinstance(cached, dict) and "nav_mode" in cached:
+        cached["theme_mode"] = cached.get("theme_mode") or getattr(prefs, "theme_mode", "light")
         cached["sidebar_collapsed"] = collapsed
         cached["sidebar_footer_actions"] = normalize_sidebar_footer_actions(
             cached.get("sidebar_footer_actions"), fallback_to_default=True
@@ -954,6 +968,7 @@ def sidebar_toggle_save(request):
     else:
         cached = {
             "nav_mode": prefs.nav_mode,
+            "theme_mode": getattr(prefs, "theme_mode", "light"),
             "font_scale": prefs.font_scale,
             "sidebar_collapsed": collapsed,
             "sidebar_footer_actions": normalize_sidebar_footer_actions(
@@ -993,6 +1008,7 @@ def onboarding_wizard(request):
         # Raccoglie tutti i toggle "notifiche_*" dal POST in modo dinamico —
         # aggiungere nuovi moduli al wizard non richiede modifiche qui.
         nav_mode = request.POST.get("nav_mode", "").strip()
+        theme_mode = request.POST.get("theme_mode", "").strip()
         font_scale = request.POST.get("font_scale", "").strip()
         sidebar_collapsed_raw = request.POST.get("sidebar_collapsed", "0").strip()
         sidebar_footer_actions_raw = request.POST.getlist("sidebar_footer_actions")
@@ -1014,6 +1030,7 @@ def onboarding_wizard(request):
         _prefs, _session_data = _save_user_ui_preferences(
             request,
             nav_mode=nav_mode,
+            theme_mode=theme_mode,
             font_scale=font_scale,
             sidebar_collapsed_raw=sidebar_collapsed_raw,
             sidebar_footer_actions_raw=sidebar_footer_actions_raw,
@@ -1035,6 +1052,7 @@ def onboarding_wizard(request):
                     "wizard": "primo_accesso",
                     "email_contatto": email_contatto,
                     "ui_nav_mode": nav_mode,
+                    "ui_theme_mode": theme_mode,
                 },
             )
         except Exception:

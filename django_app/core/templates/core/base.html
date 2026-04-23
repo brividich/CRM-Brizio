@@ -17,12 +17,16 @@
       --accent: {{ portal_branding.brand_accent_color }};
       --accent-light: {{ portal_branding.brand_accent_light_color }};
       --bg: {{ portal_branding.brand_background_color }};
+      --brand-logo-full-height: {{ portal_branding.brand_logo_full_height }}px;
+      --brand-logo-full-max-width: {{ portal_branding.brand_logo_full_max_width }}px;
+      --brand-logo-compact-size: {{ portal_branding.brand_logo_compact_size }}px;
+      --brand-sidebar-logo-scale: {{ portal_branding.brand_sidebar_logo_scale }};
     }
   </style>
   <link rel="stylesheet" href="{% static 'monitoring/css/monitoring.css' %}">
   {% block extra_head %}{% endblock %}
 </head>
-<body class="{% block body_class %}nav-{{ ui_prefs.nav_mode|default:'top' }} fs-{{ ui_prefs.font_scale|default:'normal' }}{% if ui_prefs.sidebar_collapsed %} sb-collapsed{% endif %}{% endblock %}">
+<body class="{% block body_class %}nav-{{ ui_prefs.nav_mode|default:'top' }} fs-{{ ui_prefs.font_scale|default:'normal' }}{% if ui_prefs.theme_mode == 'dark' %} theme-dark{% endif %}{% if ui_prefs.sidebar_collapsed %} sb-collapsed{% endif %}{% endblock %}">
 
 {% block layout_sidebar %}
   {% if ui_prefs.nav_mode == "side" %}

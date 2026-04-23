@@ -786,6 +786,61 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 
+    def test_config_srv_deploy_runtime_writes_persistent_env_not_release_env(self):
+        self.client.force_login(self.admin_user)
+
+        tmpdir = _make_workspace_tempdir("ldap-deploy-env-")
+        try:
+            env_root = tmpdir / "test"
+            current_app = env_root / "current" / "django_app"
+            config_dir = env_root / "config"
+            current_app.mkdir(parents=True)
+            config_dir.mkdir(parents=True)
+
+            shared_env_path = config_dir / ".env"
+            release_env_path = current_app / ".env"
+            shared_env_path.write_text("LDAP_SERVER=ldap://shared-old.local\nLDAP_ENABLED=0\n", encoding="utf-8")
+            release_env_path.write_text("LDAP_SERVER=ldap://release-old.local\nLDAP_ENABLED=0\n", encoding="utf-8")
+
+            with override_settings(BASE_DIR=current_app), patch(
+                "admin_portale.decorators.get_legacy_user",
+                return_value=self.admin_legacy,
+            ), patch(
+                "admin_portale.decorators.is_legacy_admin",
+                return_value=True,
+            ), patch.dict(
+                "admin_portale.views.os.environ",
+                {},
+                clear=True,
+            ):
+                response = self.client.post(
+                    self.url,
+                    {
+                        "action": "save_ldap_config",
+                        "enabled": "on",
+                        "server": "ldap://dc-test.example.local",
+                        "domain": "TEST",
+                        "upn_suffix": "@test.local",
+                        "timeout": "8",
+                        "base_dn": "DC=TEST,DC=LOCAL",
+                        "user_filter": "(&(objectCategory=person)(objectClass=user))",
+                        "group_allowlist": "EMPLOYEES",
+                        "sync_page_size": "750",
+                    },
+                )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "config/.env persistente")
+
+            shared_content = shared_env_path.read_text(encoding="utf-8")
+            release_content = release_env_path.read_text(encoding="utf-8")
+            self.assertIn("LDAP_SERVER=ldap://dc-test.example.local", shared_content)
+            self.assertIn("LDAP_ENABLED=1", shared_content)
+            self.assertIn("LDAP_SERVER=ldap://release-old.local", release_content)
+            self.assertNotIn("ldap://dc-test.example.local", release_content)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
     def test_config_srv_shows_runtime_vs_next_restart_when_config_differs(self):
         self.client.force_login(self.admin_user)
 
@@ -865,6 +920,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
                         "LDAP_UPN_SUFFIX=@dotenv.local",
                         "LDAP_TIMEOUT=7",
                         "LDAP_SERVICE_USER=svc_dotenv",
+                        "LDAP_SERVICE_PASSWORD=dotenv-secret",
                         "LDAP_BASE_DN=DC=DOTENV,DC=LOCAL",
                         "LDAP_USER_FILTER=(&(objectCategory=person)(objectClass=user))",
                         "LDAP_GROUP_ALLOWLIST=EMPLOYEES,ADMINS",
@@ -881,6 +937,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
                 LDAP_UPN_SUFFIX="@dotenv.local",
                 LDAP_TIMEOUT=7,
                 LDAP_SERVICE_USER="svc_dotenv",
+                LDAP_SERVICE_PASSWORD="dotenv-secret",
                 LDAP_BASE_DN="DC=DOTENV,DC=LOCAL",
                 LDAP_USER_FILTER="(&(objectCategory=person)(objectClass=user))",
                 LDAP_GROUP_ALLOWLIST=["EMPLOYEES", "ADMINS"],
@@ -915,6 +972,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
                 LDAP_UPN_SUFFIX="@dotenv.local",
                 LDAP_TIMEOUT=7,
                 LDAP_SERVICE_USER="svc_dotenv",
+                LDAP_SERVICE_PASSWORD="dotenv-secret",
                 LDAP_BASE_DN="DC=DOTENV,DC=LOCAL",
                 LDAP_USER_FILTER="(&(objectCategory=person)(objectClass=user))",
                 LDAP_GROUP_ALLOWLIST=["EMPLOYEES", "ADMINS"],
@@ -941,6 +999,137 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
             self.assertEqual(response.status_code, 200)
             mocked_test_connect.assert_called_once_with("ldap://dotenv.example.local", 7)
             self.assertContains(response, "Connessione LDAP riuscita.")
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+    def test_config_srv_sync_uses_effective_dotenv_credentials_without_restart(self):
+        self.client.force_login(self.admin_user)
+
+        tmpdir = _make_workspace_tempdir("ldap-sync-effective-")
+        try:
+            env_path = tmpdir / ".env"
+            env_path.write_text(
+                "\n".join(
+                    [
+                        "LDAP_ENABLED=1",
+                        "LDAP_SERVER=ldap://dotenv.example.local",
+                        "LDAP_DOMAIN=DOTENV",
+                        "LDAP_UPN_SUFFIX=@dotenv.local",
+                        "LDAP_TIMEOUT=7",
+                        "LDAP_SERVICE_USER=svc_dotenv",
+                        "LDAP_SERVICE_PASSWORD=dotenv-secret",
+                        "LDAP_BASE_DN=DC=DOTENV,DC=LOCAL",
+                        "LDAP_USER_FILTER=(&(objectCategory=person)(objectClass=user))",
+                        "LDAP_GROUP_ALLOWLIST=EMPLOYEES,ADMINS",
+                        "LDAP_SYNC_PAGE_SIZE=640",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            with override_settings(
+                LDAP_ENABLED=False,
+                LDAP_SERVER="",
+                LDAP_DOMAIN="",
+                LDAP_UPN_SUFFIX="",
+                LDAP_TIMEOUT=5,
+                LDAP_SERVICE_USER="",
+                LDAP_SERVICE_PASSWORD="",
+                LDAP_BASE_DN="",
+                LDAP_USER_FILTER="",
+                LDAP_GROUP_ALLOWLIST=[],
+                LDAP_SYNC_PAGE_SIZE=500,
+            ), patch(
+                "admin_portale.decorators.get_legacy_user",
+                return_value=self.admin_legacy,
+            ), patch(
+                "admin_portale.decorators.is_legacy_admin",
+                return_value=True,
+            ), patch(
+                "admin_portale.views._dotenv_path",
+                return_value=env_path,
+            ), patch.dict(
+                "admin_portale.views.os.environ",
+                {},
+                clear=True,
+            ), patch(
+                "admin_portale.views.call_command",
+            ) as mocked_call:
+                response = self.client.post(
+                    self.url,
+                    {
+                        "action": "sync_users",
+                        "sync_limit": "20",
+                        "sync_dry_run": "on",
+                    },
+                )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "Sync utenti LDAP completata")
+            mocked_call.assert_called_once()
+            self.assertEqual(mocked_call.call_args.args[0], "sync_ldap_users")
+            kwargs = mocked_call.call_args.kwargs
+            self.assertTrue(kwargs["ldap_enabled"])
+            self.assertEqual(kwargs["server"], "ldap://dotenv.example.local")
+            self.assertEqual(kwargs["domain"], "DOTENV")
+            self.assertEqual(kwargs["upn_suffix"], "@dotenv.local")
+            self.assertEqual(kwargs["timeout"], 7)
+            self.assertEqual(kwargs["service_user"], "svc_dotenv")
+            self.assertEqual(kwargs["service_password"], "dotenv-secret")
+            self.assertEqual(kwargs["search_base"], "DC=DOTENV,DC=LOCAL")
+            self.assertEqual(kwargs["user_filter"], "(&(objectCategory=person)(objectClass=user))")
+            self.assertEqual(kwargs["group_allowlist"], "EMPLOYEES, ADMINS")
+            self.assertEqual(kwargs["page_size"], 640)
+            self.assertEqual(kwargs["limit"], 20)
+            self.assertTrue(kwargs["dry_run"])
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_config_srv_save_service_account_preserves_existing_password_when_blank(self):
+        self.client.force_login(self.admin_user)
+
+        tmpdir = _make_workspace_tempdir("ldap-svc-preserve-")
+        try:
+            env_path = tmpdir / ".env"
+            env_path.write_text(
+                "\n".join(
+                    [
+                        "LDAP_SERVICE_USER=svc_old",
+                        "LDAP_SERVICE_PASSWORD=existing-secret",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            with patch(
+                "admin_portale.decorators.get_legacy_user",
+                return_value=self.admin_legacy,
+            ), patch(
+                "admin_portale.decorators.is_legacy_admin",
+                return_value=True,
+            ), patch(
+                "admin_portale.views._dotenv_path",
+                return_value=env_path,
+            ), patch.dict(
+                "admin_portale.views.os.environ",
+                {},
+                clear=True,
+            ):
+                response = self.client.post(
+                    self.url,
+                    {
+                        "action": "save_service_account",
+                        "service_user": "svc_new",
+                        "service_password": "",
+                    },
+                )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "Service account salvato")
+            content = env_path.read_text(encoding="utf-8")
+            self.assertIn("LDAP_SERVICE_USER=svc_new", content)
+            self.assertIn("LDAP_SERVICE_PASSWORD=existing-secret", content)
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 
@@ -972,35 +1161,64 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
         fake_ldap3_exceptions.LDAPException = FakeLDAPException
         fake_ldap3_exceptions.LDAPSocketOpenError = FakeLDAPSocketOpenError
 
-        with override_settings(
-            LDAP_ENABLED=True,
-            LDAP_SERVER="ldap://dc1.example.local",
-            LDAP_DOMAIN="EXAMPLE",
-            LDAP_UPN_SUFFIX="@example.local",
-            LDAP_TIMEOUT=5,
-            LDAP_SERVICE_USER="svc_ldap@example.local",
-            LDAP_SERVICE_PASSWORD="secret",
-            LDAP_BASE_DN="DC=EXAMPLE,DC=LOCAL",
-            LDAP_USER_FILTER="(&(objectCategory=person)(objectClass=user))",
-        ), patch(
-            "admin_portale.decorators.get_legacy_user",
-            return_value=self.admin_legacy,
-        ), patch(
-            "admin_portale.decorators.is_legacy_admin",
-            return_value=True,
-        ), patch.dict(
-            sys.modules,
-            {
-                "ldap3": fake_ldap3,
-                "ldap3.core": fake_ldap3_core,
-                "ldap3.core.exceptions": fake_ldap3_exceptions,
-            },
-            clear=False,
-        ):
-            response = self.client.post(
-                reverse("admin_portale:ldap_import_utenti"),
-                {"action": "search", "q": "Mario"},
+        tmpdir = _make_workspace_tempdir("ldap-import-effective-")
+        try:
+            env_path = tmpdir / ".env"
+            env_path.write_text(
+                "\n".join(
+                    [
+                        "LDAP_ENABLED=1",
+                        "LDAP_SERVER=ldap://dc1.example.local",
+                        "LDAP_DOMAIN=EXAMPLE",
+                        "LDAP_UPN_SUFFIX=@example.local",
+                        "LDAP_TIMEOUT=5",
+                        "LDAP_SERVICE_USER=svc_ldap@example.local",
+                        "LDAP_SERVICE_PASSWORD=secret",
+                        "LDAP_BASE_DN=DC=EXAMPLE,DC=LOCAL",
+                        "LDAP_USER_FILTER=(&(objectCategory=person)(objectClass=user))",
+                    ]
+                ),
+                encoding="utf-8",
             )
+
+            with override_settings(
+                LDAP_ENABLED=True,
+                LDAP_SERVER="ldap://dc1.example.local",
+                LDAP_DOMAIN="EXAMPLE",
+                LDAP_UPN_SUFFIX="@example.local",
+                LDAP_TIMEOUT=5,
+                LDAP_SERVICE_USER="svc_ldap@example.local",
+                LDAP_SERVICE_PASSWORD="secret",
+                LDAP_BASE_DN="DC=EXAMPLE,DC=LOCAL",
+                LDAP_USER_FILTER="(&(objectCategory=person)(objectClass=user))",
+            ), patch(
+                "admin_portale.decorators.get_legacy_user",
+                return_value=self.admin_legacy,
+            ), patch(
+                "admin_portale.decorators.is_legacy_admin",
+                return_value=True,
+            ), patch(
+                "admin_portale.views._dotenv_path",
+                return_value=env_path,
+            ), patch.dict(
+                "admin_portale.views.os.environ",
+                {},
+                clear=True,
+            ), patch.dict(
+                sys.modules,
+                {
+                    "ldap3": fake_ldap3,
+                    "ldap3.core": fake_ldap3_core,
+                    "ldap3.core.exceptions": fake_ldap3_exceptions,
+                },
+                clear=False,
+            ):
+                response = self.client.post(
+                    reverse("admin_portale:ldap_import_utenti"),
+                    {"action": "search", "q": "Mario"},
+                )
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
         self.assertEqual(response.status_code, 400)
         self.assertJSONEqual(
@@ -1086,6 +1304,150 @@ class AdminPortaleNavigationIconTests(TestCase):
         payload = response.json()
         self.assertTrue(payload["icon"]["value"].startswith("navigation/icons/"))
         self.assertTrue(payload["icon"]["url"].startswith("/media/navigation/icons/"))
+
+
+class AdminPortaleReleaseOpsTests(TestCase):
+    def setUp(self):
+        self.admin_user = User.objects.create_superuser(
+            username="admin_release_ops",
+            email="admin-release@example.com",
+            password="x",
+        )
+
+    def _login(self):
+        self.client.force_login(self.admin_user)
+
+    def _deploy_tree(self) -> Path:
+        root = _make_workspace_tempdir("release-ops-")
+        django_app = root / "test" / "current" / "django_app"
+        django_app.mkdir(parents=True)
+        (django_app / "manage.py").write_text("print('manage')\n", encoding="utf-8")
+        venv_scripts = root / "test" / "venv" / "Scripts"
+        venv_scripts.mkdir(parents=True)
+        (venv_scripts / "python.exe").write_text("", encoding="utf-8")
+        return root
+
+    def test_crea_release_page_exposes_server_operations(self):
+        self._login()
+        deploy_root = self._deploy_tree()
+        try:
+            with patch("admin_portale.decorators.get_legacy_user", return_value=None), patch(
+                "admin_portale.views._release_deploy_base_dir",
+                return_value=deploy_root,
+            ):
+                response = self.client.get(reverse("admin_portale:crea_release"))
+
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "Operazioni server")
+            self.assertContains(response, "Riavvia servizio IIS")
+            self.assertContains(response, "release-terminal-command")
+            self.assertContains(response, "PortaleNovicrom-TEST")
+        finally:
+            shutil.rmtree(deploy_root, ignore_errors=True)
+
+    def test_release_terminal_runs_manage_py_with_environment_venv(self):
+        self._login()
+        deploy_root = self._deploy_tree()
+        try:
+            url = reverse("admin_portale:api_release_terminal_command")
+            with patch("admin_portale.decorators.get_legacy_user", return_value=None), patch(
+                "admin_portale.views._release_deploy_base_dir",
+                return_value=deploy_root,
+            ), patch(
+                "admin_portale.views.subprocess.run",
+                return_value=SimpleNamespace(returncode=0, stdout="System check identified no issues.", stderr=""),
+            ) as mocked_run:
+                response = self.client.post(
+                    url,
+                    data=json.dumps({"environment": "test", "command": "manage.py check"}),
+                    content_type="application/json",
+                )
+
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            self.assertTrue(payload["ok"])
+            self.assertTrue(payload["command_ok"])
+            self.assertIn("System check", payload["stdout"])
+            argv = mocked_run.call_args.args[0]
+            self.assertEqual(argv[0], str(deploy_root / "test" / "venv" / "Scripts" / "python.exe"))
+            self.assertEqual(argv[1:], ["manage.py", "check"])
+            self.assertEqual(mocked_run.call_args.kwargs["cwd"], str(deploy_root / "test" / "current" / "django_app"))
+            env = mocked_run.call_args.kwargs["env"]
+            self.assertEqual(env["DJANGO_SETTINGS_MODULE"], "config.settings.prod")
+            self.assertEqual(env["PORTAL_SKIP_RUNTIME_BOOTSTRAP"], "1")
+        finally:
+            shutil.rmtree(deploy_root, ignore_errors=True)
+
+    def test_release_restart_service_starts_scheduled_task(self):
+        self._login()
+        url = reverse("admin_portale:api_release_restart_service")
+        with patch("admin_portale.decorators.get_legacy_user", return_value=None), patch(
+            "admin_portale.views.subprocess.run",
+            return_value=SimpleNamespace(returncode=0, stdout="Task restart IIS avviato", stderr=""),
+        ) as mocked_run:
+            response = self.client.post(
+                url,
+                data=json.dumps({"environment": "test"}),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["service_ok"])
+        self.assertEqual(payload["restart_mode"], "scheduled_task")
+        self.assertEqual(payload["task_name"], r"\PortaleNovicrom\IISRestart_TEST")
+        command = mocked_run.call_args.args[0]
+        self.assertIn("powershell.exe", command[0])
+        self.assertIn("IISRestart_TEST", command[-1])
+
+    def test_release_restart_service_uses_direct_iis_when_task_missing(self):
+        self._login()
+        url = reverse("admin_portale:api_release_restart_service")
+        with patch("admin_portale.decorators.get_legacy_user", return_value=None), patch(
+            "admin_portale.views.subprocess.run",
+            side_effect=[
+                SimpleNamespace(returncode=3, stdout="Task restart IIS non configurato", stderr=""),
+                SimpleNamespace(returncode=0, stdout="Riavvio schedulato", stderr=""),
+            ],
+        ) as mocked_run:
+            response = self.client.post(
+                url,
+                data=json.dumps({"environment": "test"}),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["service_ok"])
+        self.assertEqual(mocked_run.call_count, 2)
+        direct_command = mocked_run.call_args_list[1].args[0]
+        self.assertIn("PortaleNovicrom-TEST", direct_command[-1])
+
+    def test_release_restart_service_falls_back_on_access_denied(self):
+        self._login()
+        url = reverse("admin_portale:api_release_restart_service")
+        with patch("admin_portale.decorators.get_legacy_user", return_value=None), patch(
+            "admin_portale.views.subprocess.run",
+            side_effect=PermissionError("[WinError 5] Accesso negato"),
+        ), patch(
+            "admin_portale.views._release_schedule_process_restart",
+            return_value=True,
+        ) as mocked_restart:
+            response = self.client.post(
+                url,
+                data=json.dumps({"environment": "test"}),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["service_ok"])
+        self.assertTrue(payload["fallback_used"])
+        self.assertEqual(payload["restart_mode"], "django_process")
+        mocked_restart.assert_called_once()
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

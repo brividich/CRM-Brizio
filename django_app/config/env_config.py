@@ -6,7 +6,65 @@ from pathlib import Path
 
 
 def default_env_path() -> Path:
-    return Path(__file__).resolve().parents[1] / ".env"
+    return primary_runtime_env_path(Path(__file__).resolve().parents[1])
+
+
+def _deploy_root_from_project_dir(project_dir: Path) -> Path | None:
+    parent = project_dir.parent
+    if parent.name.lower() == "current":
+        return parent.parent
+
+    releases_dir = parent.parent
+    if releases_dir.name.lower() == "releases":
+        return releases_dir.parent
+
+    return None
+
+
+def iter_runtime_env_paths(project_dir: Path | None = None) -> list[Path]:
+    """Return dotenv files in runtime precedence order.
+
+    Deployed TEST/PROD layouts keep the persistent configuration in
+    ENV/config/.env while each activated release also contains a copied
+    django_app/.env. Load the persistent file first so a normal IIS restart
+    observes admin changes without requiring a new promote.
+    """
+
+    configured_path = os.environ.get("PORTAL_CONFIG_ENV_FILE")
+    candidates: list[Path] = [Path(configured_path)] if configured_path else []
+
+    project = project_dir or Path(__file__).resolve().parents[1]
+    project_dirs = [project]
+    try:
+        resolved_project = project.resolve()
+    except OSError:
+        resolved_project = project
+    if resolved_project != project:
+        project_dirs.append(resolved_project)
+
+    for candidate_project in project_dirs:
+        deploy_root = _deploy_root_from_project_dir(candidate_project)
+        if deploy_root:
+            candidates.append(deploy_root / "config" / ".env")
+
+    candidates.append(project / ".env")
+
+    seen: set[str] = set()
+    unique_candidates: list[Path] = []
+    for candidate in candidates:
+        key = str(candidate).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_candidates.append(candidate)
+    return unique_candidates
+
+
+def primary_runtime_env_path(project_dir: Path | None = None) -> Path:
+    for candidate in iter_runtime_env_paths(project_dir):
+        if candidate.exists():
+            return candidate
+    return iter_runtime_env_paths(project_dir)[-1]
 
 
 def load_env_file_values(dotenv_path: Path | None = None) -> dict[str, str]:

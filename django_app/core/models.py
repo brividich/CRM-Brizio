@@ -719,6 +719,7 @@ class UserUiPreference(models.Model):
     """
 
     NAV_MODE_CHOICES = [("top", "Barra superiore"), ("side", "Barra laterale")]
+    THEME_MODE_CHOICES = [("light", "Chiaro"), ("dark", "Scuro")]
     FONT_SCALE_CHOICES = [
         ("small", "Piccolo"),
         ("normal", "Normale"),
@@ -732,6 +733,7 @@ class UserUiPreference(models.Model):
         related_name="ui_prefs",
     )
     nav_mode = models.CharField(max_length=4, choices=NAV_MODE_CHOICES, default="top")
+    theme_mode = models.CharField(max_length=5, choices=THEME_MODE_CHOICES, default="light")
     font_scale = models.CharField(max_length=6, choices=FONT_SCALE_CHOICES, default="normal")
     sidebar_collapsed = models.BooleanField(default=False)
     sidebar_footer_actions = models.JSONField(
@@ -747,7 +749,10 @@ class UserUiPreference(models.Model):
         verbose_name_plural = "Preferenze interfaccia"
 
     def __str__(self) -> str:
-        return f"UserUiPreference(user={self.user_id}, nav={self.nav_mode}, scale={self.font_scale})"
+        return (
+            f"UserUiPreference(user={self.user_id}, nav={self.nav_mode}, "
+            f"theme={self.theme_mode}, scale={self.font_scale})"
+        )
 
 
 class UserOnboarding(models.Model):

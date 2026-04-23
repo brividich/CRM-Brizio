@@ -61,6 +61,57 @@ def _parse_json(request):
         return None, {"ok": False, "error": "JSON non valido"}
 
 
+def _settings_module_from_env() -> str:
+    """Rileva il settings module coerente con il .env appena scritto."""
+    settings_module = "config.settings.prod"
+    try:
+        content = _ENV_PATH.read_text(encoding="utf-8")
+        for line in content.splitlines():
+            if line.strip().startswith("DB_ENGINE=") and "sqlite" in line.lower():
+                settings_module = "config.settings.dev"
+                break
+    except Exception:
+        pass
+    return settings_module
+
+
+def _env_uses_sqlserver() -> bool:
+    try:
+        content = _ENV_PATH.read_text(encoding="utf-8")
+    except Exception:
+        return True
+    for raw in content.splitlines():
+        line = raw.strip()
+        if line.startswith("DB_ENGINE="):
+            engine = line.split("=", 1)[1].strip().strip("'\"").lower()
+            return engine not in {"sqlite", "sqlite3"}
+    return True
+
+
+def _run_manage_command(args: list[str], *, timeout: int = 180) -> tuple[bool, str]:
+    import subprocess
+    import sys
+
+    manage_py = _APP_DIR / "manage.py"
+    if not manage_py.exists():
+        return False, "manage.py non trovato"
+
+    try:
+        result = subprocess.run(
+            [sys.executable, str(manage_py), *args],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=str(_APP_DIR),
+        )
+    except subprocess.TimeoutExpired:
+        return False, f"Timeout ({timeout}s) durante {' '.join(args[:2])}."
+    output = (result.stdout + result.stderr)[-1200:]
+    if result.returncode == 0:
+        return True, output or "Comando completato."
+    return False, output or f"Exit code {result.returncode}"
+
+
 # ── Test connessione DB ────────────────────────────────────────────────────────
 
 @require_POST
@@ -121,6 +172,8 @@ def api_test_ldap(request):
     server = (data.get("server") or "").strip()
     service_user = (data.get("service_user") or "").strip()
     service_password = (data.get("service_password") or "").strip()
+    domain = (data.get("domain") or "").strip()
+    upn_suffix = (data.get("upn_suffix") or "").strip()
     timeout = int(data.get("timeout") or 5)
 
     if not server:
@@ -130,13 +183,38 @@ def api_test_ldap(request):
     try:
         import ldap3
         srv = ldap3.Server(server, connect_timeout=timeout, get_info=ldap3.NONE)
-        kwargs = {"auto_bind": True}
-        if service_user:
-            kwargs["user"] = service_user
-            kwargs["password"] = service_password
-        conn = ldap3.Connection(srv, **kwargs)
-        conn.unbind()
-        return _json({"ok": True, "message": f"Connessione LDAP riuscita a {server}"})
+        if not service_user:
+            conn = ldap3.Connection(srv, auto_bind=False)
+            if conn.bind():
+                conn.unbind()
+                return _json({"ok": True, "message": f"Connessione LDAP riuscita a {server}"})
+            return _json({"ok": False, "error": str(conn.result)})
+
+        attempts: list[tuple[str, str | None]] = []
+        if "@" in service_user or "\\" in service_user or service_user.upper().startswith(("CN=", "OU=", "DC=")):
+            attempts.append((service_user, None))
+        else:
+            if upn_suffix:
+                attempts.append((f"{service_user}@{upn_suffix.lstrip('@')}", None))
+            if domain:
+                attempts.append((f"{domain}\\{service_user}", ldap3.NTLM))
+            attempts.append((service_user, None))
+
+        last_error = ""
+        for bind_user, auth in attempts:
+            kwargs = {
+                "user": bind_user,
+                "password": service_password,
+                "auto_bind": False,
+            }
+            if auth:
+                kwargs["authentication"] = auth
+            conn = ldap3.Connection(srv, **kwargs)
+            if conn.bind():
+                conn.unbind()
+                return _json({"ok": True, "message": f"Connessione LDAP riuscita a {server}"})
+            last_error = str(conn.result)
+        return _json({"ok": False, "error": last_error or "Bind LDAP non riuscito"})
     except ImportError:
         pass
     except Exception as exc:
@@ -345,38 +423,89 @@ def _json(data: dict) -> JsonResponse:
 @require_POST
 def api_run_migrations(request):
     """Esegue `manage.py migrate` come sottoprocesso dopo il salvataggio del .env."""
-    import subprocess
-    import sys
-
-    manage_py = _APP_DIR / "manage.py"
-    if not manage_py.exists():
-        return _json({"ok": False, "error": "manage.py non trovato"})
-
-    # Determina il settings module: se .env ha DB_ENGINE=sqlserver usa prod, altrimenti dev
-    settings_module = "config.settings.prod"
-    try:
-        content = _ENV_PATH.read_text(encoding="utf-8")
-        for line in content.splitlines():
-            if line.strip().startswith("DB_ENGINE=") and "sqlite" in line.lower():
-                settings_module = "config.settings.dev"
-                break
-    except Exception:
-        pass
+    settings_module = _settings_module_from_env()
 
     try:
-        result = subprocess.run(
-            [sys.executable, str(manage_py), "migrate",
-             f"--settings={settings_module}", "--no-input"],
-            capture_output=True, text=True, timeout=180, cwd=str(_APP_DIR),
+        ok, output = _run_manage_command(
+            ["migrate", f"--settings={settings_module}", "--no-input"],
+            timeout=180,
         )
-        output = (result.stdout + result.stderr)[-800:]
-        if result.returncode == 0:
+        if ok:
             return _json({"ok": True, "message": output or "Migrazioni completate."})
-        return _json({"ok": False, "error": output or f"Exit code {result.returncode}"})
-    except subprocess.TimeoutExpired:
-        return _json({"ok": False, "error": "Timeout (180s) — le migrazioni impiegano troppo tempo."})
+        return _json({"ok": False, "error": output})
     except Exception as exc:
         return _json({"ok": False, "error": str(exc)})
+
+
+@require_POST
+def api_finalize_database(request):
+    """Esegue gli step tecnici post-migration necessari a una installazione pronta."""
+    settings_module = _settings_module_from_env()
+    sqlserver = _env_uses_sqlserver()
+    warnings: list[str] = []
+    messages: list[str] = []
+
+    steps: list[tuple[str, list[str], bool, int]] = []
+    if sqlserver:
+        steps.append((
+            "Schema legacy runtime",
+            ["ensure_legacy_schema", f"--settings={settings_module}"],
+            True,
+            240,
+        ))
+    steps.append((
+        "Cache table Django",
+        ["createcachetable", f"--settings={settings_module}"],
+        False,
+        120,
+    ))
+    if sqlserver:
+        steps.extend([
+            (
+                "Allineamento vincolo assenze",
+                ["allinea_tipo_assenza_flessibilita", f"--settings={settings_module}"],
+                False,
+                120,
+            ),
+            (
+                "Trigger SQL automazioni",
+                ["apply_sql_triggers", f"--settings={settings_module}"],
+                False,
+                180,
+            ),
+        ])
+    steps.extend([
+        (
+            "Bootstrap ACL v2",
+            ["bootstrap_acl_v2", "--import-legacy", "--apply", f"--settings={settings_module}"],
+            False,
+            240,
+        ),
+        (
+            "Seed descrizioni pulsanti",
+            ["seed_pulsanti_descrizioni", f"--settings={settings_module}"],
+            False,
+            120,
+        ),
+    ])
+
+    try:
+        for label, args, blocking, timeout in steps:
+            ok, output = _run_manage_command(args, timeout=timeout)
+            if ok:
+                messages.append(f"{label}: OK")
+                continue
+            detail = f"{label}: {output}"
+            if blocking:
+                return _json({"ok": False, "error": detail, "warnings": warnings})
+            warnings.append(detail)
+    except Exception as exc:
+        return _json({"ok": False, "error": str(exc), "warnings": warnings})
+
+    message = "Finalizzazione database completata."
+    if messages:
+        message += "\n" + "\n".join(messages)
+    return _json({"ok": True, "message": message, "warnings": warnings})
 
 
 # ── Crea utente admin ─────────────────────────────────────────────────────────

@@ -24,12 +24,16 @@
           {% endif %}
           <span class="brand-mark-fallback">{{ portal_branding.monogram }}</span>
         </span>
-        <span class="sb-logo-txt">
-          <span class="sb-logo-name">{{ portal_branding.portal_name|default:"Portale Novicrom" }}</span>
-          {% if portal_branding.portal_subtitle %}
-            <span class="sb-logo-co">{{ portal_branding.portal_subtitle }}</span>
-          {% endif %}
-        </span>
+        {% if portal_branding.portal_name or portal_branding.portal_subtitle %}
+          <span class="sb-logo-txt">
+            {% if portal_branding.portal_name %}
+              <span class="sb-logo-name">{{ portal_branding.portal_name }}</span>
+            {% endif %}
+            {% if portal_branding.portal_subtitle %}
+              <span class="sb-logo-co">{{ portal_branding.portal_subtitle }}</span>
+            {% endif %}
+          </span>
+        {% endif %}
       </a>
     </div>
   </div>

@@ -97,7 +97,7 @@ STEPS_UNINSTALL = ["Configurazione", "Conferma", "Disinstallazione", "Completato
 # Solo dev.py e prod.py esistono; test usa prod (stesse impostazioni SQL Server).
 _SETTINGS_MAP = {"dev": "dev", "test": "prod", "prod": "prod"}
 
-_DEFAULT_APP_VERSION = "1.0.0"
+_DEFAULT_APP_VERSION = "1.0.1"
 _VERSION_FILE = Path(__file__).resolve().parents[1] / "VERSION"
 _MODULE_VERSION_ENV_KEYS = (
     "APP_VERSION_CORE",
@@ -2955,6 +2955,32 @@ class InstallPage(Page):
             self._log_line("  âœ— Riallineamento CK_assenze_tipo fallito", "err")
         return ok
 
+    def _run_ensure_legacy_schema(self, *, venv_py, django_app, env_vars, settings) -> bool:
+        self._log_line("  -> Schema legacy/runtime SQL Server", "dim")
+        ok = self._cmd(
+            [str(venv_py), "manage.py", "ensure_legacy_schema", f"--settings={settings}"],
+            cwd=django_app,
+            env=env_vars,
+        )
+        if ok:
+            self._log_line("  Schema legacy/runtime allineato", "ok")
+        else:
+            self._log_line("  ensure_legacy_schema fallito", "err")
+        return ok
+
+    def _run_ensure_legacy_schema(self, *, venv_py, django_app, env_vars, settings) -> bool:
+        self._log_line("  -> Schema legacy/runtime SQL Server", "dim")
+        ok = self._cmd(
+            [str(venv_py), "manage.py", "ensure_legacy_schema", f"--settings={settings}"],
+            cwd=django_app,
+            env=env_vars,
+        )
+        if ok:
+            self._log_line("  Schema legacy/runtime allineato", "ok")
+        else:
+            self._log_line("  ensure_legacy_schema fallito", "err")
+        return ok
+
     def _run_apply_sql_triggers(self, *, venv_py, django_app, env_vars, settings) -> bool:
         self._log_line("  -> Trigger SQL automazioni", "dim")
         ok = self._cmd(
@@ -3019,7 +3045,7 @@ class InstallPage(Page):
         # Esponi stato finale a FinishPage (non mentire all'utente).
         # Marcatori blocking: fail di venv/pip/migrate/collectstatic = ambiente non attivabile.
         cfg.install_errors = list(errors)
-        _blocking = {"venv", "pip install", "waitress", "migrate", "collectstatic",
+        _blocking = {"venv", "pip install", "waitress", "migrate", "ensure_legacy_schema", "collectstatic",
                      "collectstatic: asset statici mancanti"}
         cfg.install_blocking = [e for e in errors if e in _blocking]
         cfg.install_success = not errors
@@ -3437,22 +3463,32 @@ class InstallPage(Page):
                 self._append_error(errors, "migrate")
                 self._log_line("  ✗ migrate fallito (verifica DB e log sopra)", "err")
             if ok:
-                ok_triggers = self._run_apply_sql_triggers(
+                ok_schema = self._run_ensure_legacy_schema(
                     venv_py=venv_py,
                     django_app=django_app,
                     env_vars=env_vars,
                     settings=settings,
                 )
-                if not ok_triggers:
-                    self._append_error(errors, "apply_sql_triggers")
-                ok_align = self._run_assenze_tipo_alignment(
-                    venv_py=venv_py,
-                    django_app=django_app,
-                    env_vars=env_vars,
-                    settings=settings,
-                )
-                if not ok_align:
-                    self._append_error(errors, "allinea_tipo_assenza_flessibilita")
+                if not ok_schema:
+                    self._append_error(errors, "ensure_legacy_schema")
+                    migrate_ok = False
+                else:
+                    ok_triggers = self._run_apply_sql_triggers(
+                        venv_py=venv_py,
+                        django_app=django_app,
+                        env_vars=env_vars,
+                        settings=settings,
+                    )
+                    if not ok_triggers:
+                        self._append_error(errors, "apply_sql_triggers")
+                    ok_align = self._run_assenze_tipo_alignment(
+                        venv_py=venv_py,
+                        django_app=django_app,
+                        env_vars=env_vars,
+                        settings=settings,
+                    )
+                    if not ok_align:
+                        self._append_error(errors, "allinea_tipo_assenza_flessibilita")
             ok_cc = self._cmd([str(venv_py),"manage.py","createcachetable",
                                f"--settings={settings}"], cwd=django_app, env=env_vars)
             if ok_cc:
@@ -4577,6 +4613,19 @@ class ReleaseRunPage(Page):
         except Exception as e:
             self._log_line(f"  ERRORE: {e}", "err"); return False
 
+    def _run_ensure_legacy_schema(self, *, venv_py, django_app, env_vars, settings) -> bool:
+        self._log_line("  -> Schema legacy/runtime SQL Server", "dim")
+        ok = self._cmd(
+            [str(venv_py), "manage.py", "ensure_legacy_schema", f"--settings={settings}"],
+            cwd=django_app,
+            env=env_vars,
+        )
+        if ok:
+            self._log_line("  Schema legacy/runtime allineato", "ok")
+        else:
+            self._log_line("  ensure_legacy_schema fallito", "err")
+        return ok
+
     def _dispatch(self):
         """Wrapper crash-safe: garantisce che _on_done sia sempre chiamato."""
         try:
@@ -4965,22 +5014,32 @@ class ReleaseRunPage(Page):
                 self._append_error(errors, "migrate")
                 self._log_line("  ✗ migrate fallito (verifica DB e log sopra)", "err")
             if ok:
-                ok_triggers = self._run_apply_sql_triggers(
+                ok_schema = self._run_ensure_legacy_schema(
                     venv_py=venv_py,
                     django_app=django_app,
                     env_vars=env_vars,
                     settings=settings,
                 )
-                if not ok_triggers:
-                    self._append_error(errors, "apply_sql_triggers")
-                ok_align = self._run_assenze_tipo_alignment(
-                    venv_py=venv_py,
-                    django_app=django_app,
-                    env_vars=env_vars,
-                    settings=settings,
-                )
-                if not ok_align:
-                    self._append_error(errors, "allinea_tipo_assenza_flessibilita")
+                if not ok_schema:
+                    self._append_error(errors, "ensure_legacy_schema")
+                    migrate_ok = False
+                else:
+                    ok_triggers = self._run_apply_sql_triggers(
+                        venv_py=venv_py,
+                        django_app=django_app,
+                        env_vars=env_vars,
+                        settings=settings,
+                    )
+                    if not ok_triggers:
+                        self._append_error(errors, "apply_sql_triggers")
+                    ok_align = self._run_assenze_tipo_alignment(
+                        venv_py=venv_py,
+                        django_app=django_app,
+                        env_vars=env_vars,
+                        settings=settings,
+                    )
+                    if not ok_align:
+                        self._append_error(errors, "allinea_tipo_assenza_flessibilita")
             ok_cc = self._cmd([str(venv_py), "manage.py", "createcachetable",
                                f"--settings={settings}"], cwd=django_app, env=env_vars)
             if ok_cc:

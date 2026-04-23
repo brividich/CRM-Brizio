@@ -191,6 +191,23 @@ foreach ($acl in $acls) {
 }
 
 # ---------------------------------------------------------------------------
+# Task Scheduler helper per riavvio IIS dal portale
+# ---------------------------------------------------------------------------
+Write-Log "Registrazione helper riavvio IIS per Crea Release..." "STEP"
+$restartHelperScript = "$PSScriptRoot\register-iis-restart-helper.ps1"
+if (Test-Path $restartHelperScript) {
+    try {
+        & $restartHelperScript -Environment $Environment -ErrorAction Stop
+        Write-Log "Helper riavvio IIS registrato per $Environment." "SUCCESS"
+    } catch {
+        Write-Log "Helper riavvio IIS non registrato (non bloccante): $_" "WARN"
+        Write-Log "  Per registrarlo manualmente: .\register-iis-restart-helper.ps1 -Environment $Environment" "WARN"
+    }
+} else {
+    Write-Log "register-iis-restart-helper.ps1 non trovato - helper non registrato." "WARN"
+}
+
+# ---------------------------------------------------------------------------
 # Avvia sito
 # ---------------------------------------------------------------------------
 Write-Log "Avvio sito IIS..." "STEP"

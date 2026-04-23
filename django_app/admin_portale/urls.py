@@ -78,6 +78,8 @@ urlpatterns = [
     path("api/login-config/save", views.api_login_config_save, name="api_login_config_save"),
     path("api/login-config/logo/upload", views.api_login_logo_upload, name="api_login_logo_upload"),
     path("api/login-config/logo/remove", views.api_login_logo_remove, name="api_login_logo_remove"),
+    path("api/login-config/landing/upload", views.api_login_landing_upload, name="api_login_landing_upload"),
+    path("api/login-config/landing/remove", views.api_login_landing_remove, name="api_login_landing_remove"),
     path("api/login-config/banner/create", views.api_login_banner_create, name="api_login_banner_create"),
     path("api/login-config/banner/toggle", views.api_login_banner_toggle, name="api_login_banner_toggle"),
     path("api/login-config/banner/delete", views.api_login_banner_delete, name="api_login_banner_delete"),
@@ -118,4 +120,6 @@ urlpatterns = [
     path("guestportal-sso/", views.guestportal_sso, name="guestportal_sso"),
     path("crea-release/", views.crea_release, name="crea_release"),
     path("crea-release/download/", views.download_release_package, name="download_release_package"),
+    path("crea-release/api/restart-service/", views.api_release_restart_service, name="api_release_restart_service"),
+    path("crea-release/api/terminal/", views.api_release_terminal_command, name="api_release_terminal_command"),
 ]
