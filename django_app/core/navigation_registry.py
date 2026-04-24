@@ -8,7 +8,11 @@ from django.core.cache import cache
 from django.db import transaction
 from django.urls import NoReverseMatch, reverse
 
-from core.acl_v2 import normalize_permission_code, resolve_canonical_target
+from core.acl_v2 import (
+    evaluate_legacy_permission_code_compat,
+    normalize_permission_code,
+    resolve_canonical_target,
+)
 from core.legacy_cache import normalize_legacy_path
 from core.module_registry import navigation_code_label_map
 from core.models import (
@@ -212,8 +216,15 @@ def _compiled_items_for_role(
             if required_permission_code:
                 if required_permission_code in user_grants_map:
                     allowed = bool(user_grants_map[required_permission_code])
-                else:
+                elif required_permission_code in role_grants_map:
                     allowed = bool(role_grants_map.get(required_permission_code, False))
+                else:
+                    legacy_compat = evaluate_legacy_permission_code_compat(
+                        permission_code=required_permission_code,
+                        legacy_role_id=role_id,
+                        legacy_user_id=legacy_user_id,
+                    )
+                    allowed = bool(legacy_compat and legacy_compat.get("enabled", False))
             else:
                 item_access = access_map.get(int(item.id), {})
                 allowed = bool(role_id is not None and item_access.get(int(role_id), False))

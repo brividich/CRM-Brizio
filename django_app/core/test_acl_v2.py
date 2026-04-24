@@ -242,6 +242,70 @@ class ACLV2ResolverTests(TestCase):
         self.assertEqual(decision["decision_source"], "canonical")
         self.assertFalse(decision["canonical"]["role_grant"]["exists"])
 
+    def test_imported_legacy_permission_binding_uses_legacy_permesso_when_role_grant_missing(self):
+        PermissionDefinition.objects.create(
+            code="legacy.dashboard.view_dashboard",
+            label="Dashboard legacy",
+            module="dashboard",
+            is_active=True,
+        )
+        RoutePermissionBinding.objects.create(
+            route_name="dashboard_home",
+            path_pattern="/dashboard",
+            match_strategy=RoutePermissionBinding.MATCH_EXACT,
+            permission_id="legacy.dashboard.view_dashboard",
+            source_app="dashboard",
+            is_active=True,
+        )
+        Permesso.objects.create(
+            ruolo_id=6,
+            modulo="dashboard",
+            azione="view_dashboard",
+            consentito=1,
+            can_view=1,
+        )
+
+        decision = resolve_acl_access(path="/dashboard", legacy_user=self.legacy_user, django_user=self.user)
+
+        self.assertTrue(decision["allowed"])
+        self.assertEqual(decision["decision_source"], "canonical")
+        self.assertEqual(decision["canonical"]["effective_level"], "legacy_permesso")
+        self.assertTrue(decision["canonical"]["legacy_compat"]["enabled"])
+
+    def test_imported_legacy_permission_explicit_canonical_deny_wins_over_legacy_permesso(self):
+        PermissionDefinition.objects.create(
+            code="legacy.dashboard.view_dashboard",
+            label="Dashboard legacy",
+            module="dashboard",
+            is_active=True,
+        )
+        RoutePermissionBinding.objects.create(
+            route_name="dashboard_home",
+            path_pattern="/dashboard",
+            match_strategy=RoutePermissionBinding.MATCH_EXACT,
+            permission_id="legacy.dashboard.view_dashboard",
+            source_app="dashboard",
+            is_active=True,
+        )
+        RolePermissionGrant.objects.create(
+            legacy_role_id=6,
+            permission_id="legacy.dashboard.view_dashboard",
+            enabled=False,
+        )
+        Permesso.objects.create(
+            ruolo_id=6,
+            modulo="dashboard",
+            azione="view_dashboard",
+            consentito=1,
+            can_view=1,
+        )
+
+        decision = resolve_acl_access(path="/dashboard", legacy_user=self.legacy_user, django_user=self.user)
+
+        self.assertFalse(decision["allowed"])
+        self.assertEqual(decision["canonical"]["effective_level"], "role_grant")
+        self.assertIsNone(decision["canonical"]["legacy_compat"])
+
     def test_anomalie_menu_allows_operational_roles_even_without_container_grant(self):
         PermissionDefinition.objects.create(
             code="legacy.dashboard.dashboard_anomalie_menu",

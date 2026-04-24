@@ -1551,6 +1551,42 @@ class NavigationRegistryCanonicalTests(TestCase):
         self.assertEqual(len(alias_nodes), 1)
         self.assertEqual(alias_nodes[0].href, reverse("dashboard"))
 
+    def test_navigation_legacy_permission_code_uses_legacy_permesso_when_canonical_grant_missing(self):
+        PermissionDefinition.objects.create(
+            code="legacy.dashboard.view_dashboard",
+            label="Dashboard legacy",
+            module="dashboard",
+            is_active=True,
+        )
+        Permesso.objects.create(
+            ruolo_id=self.role.id,
+            modulo="dashboard",
+            azione="view_dashboard",
+            consentito=1,
+            can_view=1,
+        )
+        item = NavigationItem.objects.create(
+            code="dashboard_legacy",
+            label="Dashboard Legacy",
+            section="topbar",
+            route_name="dashboard_home",
+            required_permission_code="legacy.dashboard.view_dashboard",
+            order=13,
+            is_visible=True,
+            is_enabled=True,
+        )
+
+        nodes = get_topbar_nodes(
+            current_path="/dashboard",
+            role_id=self.role.id,
+            is_admin=False,
+            legacy_user_id=self.legacy_user.id,
+        )
+
+        legacy_nodes = [node for node in nodes if node.codice == item.code]
+        self.assertEqual(len(legacy_nodes), 1)
+        self.assertEqual(legacy_nodes[0].href, reverse("dashboard_home"))
+
     def test_resolve_canonical_target_prefers_more_specific_path_binding(self):
         PermissionDefinition.objects.create(
             code="anagrafica.index.view",

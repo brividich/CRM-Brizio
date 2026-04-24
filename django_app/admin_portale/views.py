@@ -6963,6 +6963,7 @@ def _json_error(message: str, status: int = 400):
 
 def _schedule_legacy_acl_cache_invalidation() -> None:
     transaction.on_commit(bump_legacy_cache_version)
+    transaction.on_commit(bump_navigation_registry_version)
 
 
 def _validate_perm_payload(payload: dict) -> tuple[int, str, str] | None:

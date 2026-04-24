@@ -17,6 +17,7 @@ from core.models import (
     PermissionDefinition,
     RolePermissionGrant,
     RoutePermissionBinding,
+    UserPermissionOverride,
     UserPermissionGrant,
 )
 
@@ -163,6 +164,120 @@ def _serialize_legacy_user(legacy_user) -> dict | None:
     }
 
 
+def _legacy_permission_parts(permission_code: str) -> tuple[str, str] | None:
+    parts = normalize_permission_code(permission_code).split(".")
+    if len(parts) != 3 or parts[0] != "legacy":
+        return None
+    modulo = parts[1].strip()
+    azione = parts[2].strip()
+    if not modulo or not azione:
+        return None
+    return modulo, azione
+
+
+def evaluate_legacy_permission_code_compat(
+    *,
+    permission_code: str,
+    legacy_role_id: int | None = None,
+    legacy_user_id: int | None = None,
+    legacy_user=None,
+) -> dict | None:
+    """Compat bridge for imported `legacy.<modulo>.<azione>` permission codes.
+
+    Canonical grants remain authoritative when present. This helper is used only
+    when a canonical role grant is absent, so old `permessi` rows can still back
+    legacy-imported route bindings during the migration window.
+    """
+    parts = _legacy_permission_parts(permission_code)
+    if parts is None:
+        return None
+    modulo, azione = parts
+    if legacy_role_id is None and legacy_user is not None:
+        legacy_role_id = getattr(legacy_user, "ruolo_id", None)
+    if legacy_user_id is None and legacy_user is not None:
+        legacy_user_id = getattr(legacy_user, "id", None)
+    if not legacy_role_id:
+        return {
+            "exists": False,
+            "enabled": None,
+            "source": "legacy_permesso",
+            "reason": "Ruolo legacy mancante: compat permessi non applicabile.",
+            "modulo": modulo,
+            "azione": azione,
+        }
+
+    try:
+        if legacy_user_id:
+            override = UserPermissionOverride.objects.filter(
+                legacy_user_id=int(legacy_user_id),
+                modulo__iexact=modulo,
+                azione__iexact=azione,
+            ).first()
+            if override is not None and override.can_view is not None:
+                return {
+                    "exists": True,
+                    "enabled": bool(override.can_view),
+                    "source": "legacy_user_override",
+                    "reason": (
+                        "Override utente legacy consente accesso."
+                        if override.can_view
+                        else "Override utente legacy nega accesso."
+                    ),
+                    "modulo": modulo,
+                    "azione": azione,
+                    "legacy_user_id": int(legacy_user_id),
+                }
+
+        from core.legacy_models import Permesso
+
+        perm = (
+            Permesso.objects.filter(
+                ruolo_id=int(legacy_role_id),
+                modulo__iexact=modulo,
+                azione__iexact=azione,
+            )
+            .order_by("-id")
+            .first()
+        )
+    except DatabaseError as exc:
+        return {
+            "exists": False,
+            "enabled": None,
+            "source": "legacy_permesso",
+            "reason": f"Errore DB durante compat permessi legacy: {exc}",
+            "modulo": modulo,
+            "azione": azione,
+            "db_error": str(exc),
+        }
+
+    if perm is None:
+        return {
+            "exists": False,
+            "enabled": None,
+            "source": "legacy_permesso",
+            "reason": "Nessun record legacy permessi compatibile trovato.",
+            "modulo": modulo,
+            "azione": azione,
+            "legacy_role_id": int(legacy_role_id),
+        }
+
+    enabled = bool(getattr(perm, "can_view", None)) or bool(getattr(perm, "consentito", None))
+    return {
+        "exists": True,
+        "enabled": enabled,
+        "source": "legacy_permesso",
+        "reason": (
+            "Permesso legacy compatibile consente accesso."
+            if enabled
+            else "Permesso legacy compatibile trovato ma non abilita can_view/consentito."
+        ),
+        "modulo": modulo,
+        "azione": azione,
+        "legacy_role_id": int(legacy_role_id),
+        "permesso_id": int(perm.id),
+    }
+
+
 def _binding_matches_path(binding: RoutePermissionBinding, path_norm: str) -> bool:
     strategy = (binding.match_strategy or RoutePermissionBinding.MATCH_EXACT).lower()
     if strategy == RoutePermissionBinding.MATCH_REGEX:
@@ -246,6 +361,7 @@ def evaluate_permission_code_access(
         "permission": None,
         "role_grant": None,
         "user_override": None,
+        "legacy_compat": None,
         "effective_level": None,
     }
     if not permission_code:
@@ -321,6 +437,20 @@ def evaluate_permission_code_access(
 
     if user_grant is None:
         result["user_override"] = {"exists": False, "enabled": None}
+        if not role_allowed and result["role_grant"].get("exists") is False:
+            legacy_compat = evaluate_legacy_permission_code_compat(
+                permission_code=permission.code,
+                legacy_role_id=legacy_role_id,
+                legacy_user_id=legacy_user_id,
+                legacy_user=legacy_user,
+            )
+            if legacy_compat is not None:
+                result["legacy_compat"] = legacy_compat
+                result["allowed"] = bool(legacy_compat.get("enabled", False))
+                result["decision_source"] = "canonical_permission"
+                result["effective_level"] = str(legacy_compat.get("source") or "legacy_compat")
+                result["reason"] = str(legacy_compat.get("reason") or "")
+                return result
         result["allowed"] = bool(role_allowed)
         result["decision_source"] = "canonical_permission"
         result["effective_level"] = "role_grant"
@@ -444,6 +574,7 @@ def resolve_acl_access(
             "permission": None,
             "role_grant": None,
             "user_override": None,
+            "legacy_compat": None,
             "effective_level": None,
             "error": "",
         },
@@ -572,13 +703,27 @@ def resolve_acl_access(
         )
         if user_grant is None:
             result["canonical"]["user_override"] = {"exists": False, "enabled": None}
-            allowed = role_allowed
-            level = "role_grant"
-            reason = (
-                f"Grant ruolo su '{permission.code}' consente accesso."
-                if role_allowed
-                else f"Grant ruolo su '{permission.code}' nega accesso (o assente)."
-            )
+            legacy_compat = None
+            if not role_allowed and role_grant is None:
+                legacy_compat = evaluate_legacy_permission_code_compat(
+                    permission_code=permission.code,
+                    legacy_role_id=ruolo_id,
+                    legacy_user_id=getattr(legacy_user, "id", None),
+                    legacy_user=legacy_user,
+                )
+            if legacy_compat is not None:
+                result["canonical"]["legacy_compat"] = legacy_compat
+                allowed = bool(legacy_compat.get("enabled", False))
+                level = str(legacy_compat.get("source") or "legacy_compat")
+                reason = str(legacy_compat.get("reason") or "")
+            else:
+                allowed = role_allowed
+                level = "role_grant"
+                reason = (
+                    f"Grant ruolo su '{permission.code}' consente accesso."
+                    if role_allowed
+                    else f"Grant ruolo su '{permission.code}' nega accesso (o assente)."
+                )
         else:
             allowed = bool(user_grant.enabled)
             level = "user_override"
