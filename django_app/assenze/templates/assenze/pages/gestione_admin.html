@@ -26,6 +26,9 @@
       .ga-log-row { grid-template-columns: 1fr; }
       .ga-log-head { display: none; }
     }
+    /* ── Dark mode ──────────────────────────────────────────────────────────── */
+    body.theme-dark .ga-log-row { border-color:var(--border); }
+    body.theme-dark .ga-log-head { background:var(--bg); color:var(--text-light); }
   </style>
 {% endblock %}
 

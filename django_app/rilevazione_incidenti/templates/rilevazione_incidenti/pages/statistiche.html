@@ -91,6 +91,18 @@
 
 .sic-error { background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:14px 18px; color:#991b1b; font-size: var(--fs-base); }
 .sic-empty-chart { display:flex; align-items:center; justify-content:center; height:160px; color:#94a3b8; font-size: var(--fs-base); }
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .sic-breadcrumb { color:var(--text-light); }
+body.theme-dark .sic-breadcrumb a { color:#2dd4bf; }
+body.theme-dark .sic-hero-kpi-num { color:#fff; }
+body.theme-dark .sic-hero-kpi-label { color:rgba(255,255,255,.7); }
+body.theme-dark .sic-chart-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .sic-chart-header { border-color:var(--border); background:var(--bg); color:var(--text); }
+body.theme-dark .sic-causa-name, body.theme-dark .sic-reparto-name { color:var(--text-mid); }
+body.theme-dark .sic-causa-count, body.theme-dark .sic-reparto-count { color:var(--text-light); }
+body.theme-dark .sic-causa-bar-bg, body.theme-dark .sic-reparto-bar-bg { background:var(--surface-alt); }
+body.theme-dark .sic-empty-chart { color:var(--text-light); }
+body.theme-dark .sic-error { background:rgba(153,27,27,.2); border-color:rgba(252,165,165,.3); color:#fca5a5; }
 </style>
 {% endblock %}
 

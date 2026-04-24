@@ -129,6 +129,54 @@
 }
 .tkt-cat-btn:hover { background:#f8fafc; }
 .tkt-cat-btn-danger { border-color:#fecaca; color:#b91c1c; background:#fff1f2; }
+
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .tkt-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .tkt-card-header { border-color:var(--border); }
+body.theme-dark .tkt-card-title { color:var(--text); }
+body.theme-dark .tkt-card-sub   { color:var(--text-mid); }
+body.theme-dark .tkt-tipo-IT  { background:rgba(3,105,161,.2);  color:#7dd3fc; }
+body.theme-dark .tkt-tipo-MAN { background:rgba(21,128,61,.2);  color:#86efac; }
+
+body.theme-dark .tkt-field label { color:var(--text); }
+body.theme-dark .tkt-field-hint { color:var(--text-light); }
+body.theme-dark .tkt-field input[type=text],
+body.theme-dark .tkt-field input[type=number],
+body.theme-dark .tkt-field textarea,
+body.theme-dark .tkt-field select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+
+body.theme-dark .tkt-team-item { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .tkt-team-email { color:var(--text-mid); }
+body.theme-dark .tkt-team-remove:hover { background:rgba(220,38,38,.2); }
+
+body.theme-dark .tkt-user-search-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .tkt-user-dropdown { background:var(--surface); border-color:var(--border); box-shadow:var(--shadow); }
+body.theme-dark .tkt-user-option { border-color:var(--border); }
+body.theme-dark .tkt-user-option:hover { background:var(--hover-bg); }
+body.theme-dark .tkt-user-option-name { color:var(--text); }
+body.theme-dark .tkt-user-option-sub  { color:var(--text-mid); }
+body.theme-dark .tkt-user-option-empty { color:var(--text-light); }
+
+body.theme-dark .tkt-acl-tag { background:rgba(3,105,161,.2); color:#7dd3fc; }
+body.theme-dark .tkt-acl-tag-remove { color:#7dd3fc; }
+body.theme-dark .tkt-acl-input-row input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .tkt-team-add input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+
+body.theme-dark .tkt-save-status { color:var(--text-mid); }
+
+body.theme-dark .tkt-sp-field input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+
+body.theme-dark .tkt-import-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .tkt-import-cols { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .tkt-import-cols strong { color:#60a5fa; }
+
+body.theme-dark .tkt-cat-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+body.theme-dark .tkt-cat-table td { border-color:var(--border); }
+body.theme-dark .tkt-cat-badge-on  { background:rgba(22,101,52,.2);  color:#86efac; }
+body.theme-dark .tkt-cat-badge-off { background:rgba(71,85,105,.2);  color:#94a3b8; }
+body.theme-dark .tkt-cat-btn { background:var(--surface); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .tkt-cat-btn:hover { background:var(--hover-bg); }
+body.theme-dark .tkt-cat-btn-danger { background:rgba(220,38,38,.12); border-color:rgba(220,38,38,.3); color:#fca5a5; }
 </style>
 {% endblock %}
 

@@ -273,6 +273,29 @@
   @media (max-width: 760px) {
     .tl-admin-kpis, .tl-filter-grid, .pk-task-grid { grid-template-columns: 1fr; }
   }
+
+  body.theme-dark .tl-admin-kpi { background:var(--surface); }
+  body.theme-dark .tl-table-wrap { background:var(--surface); }
+  body.theme-dark .tl-table thead th { background:var(--thead-bg); border-color:var(--border); }
+  body.theme-dark .tl-table tbody tr { border-color:var(--border); }
+  body.theme-dark .tl-table tbody tr:hover td { background:var(--tbody-hover); }
+  body.theme-dark .tl-table td { color:var(--text); }
+  body.theme-dark .tl-task-link { color:var(--text); }
+  body.theme-dark .tl-task-desc { color:var(--text-light); }
+  body.theme-dark .tl-ko-link { color:var(--text-mid); }
+  body.theme-dark .tl-assignee-name, body.theme-dark .tl-date { color:var(--text-mid); }
+  body.theme-dark .tl-tag { color:var(--text-light); }
+  body.theme-dark .pk-task-card { background:var(--surface); border-color:var(--border); }
+  body.theme-dark .pk-task-card:hover { border-color:var(--border); box-shadow:0 8px 24px rgba(0,0,0,.3); }
+  body.theme-dark .pk-task-title { color:var(--text); }
+  body.theme-dark .pk-task-desc { color:var(--text-light); }
+  body.theme-dark .pk-task-footer { border-color:var(--border); }
+  body.theme-dark .pk-task-assignee-name, body.theme-dark .pk-task-date { color:var(--text-light); }
+  body.theme-dark .pk-task-open { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
+  body.theme-dark .pk-task-open:hover { background:rgba(29,78,216,.2); color:#93c5fd; border-color:rgba(29,78,216,.3); }
+  body.theme-dark .pk-empty { color:var(--text-light); }
+  body.theme-dark .pk-empty-icon { background:var(--surface-alt); border-color:var(--border); }
+  body.theme-dark .pk-empty strong { color:var(--text); }
 </style>
 {% endblock %}
 

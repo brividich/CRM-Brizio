@@ -170,10 +170,26 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    pointer-events: none;
   }
-  .login-input-icon { left: 14px; }
-  .login-input-tail { right: 12px; }
+  .login-input-icon { left: 14px; pointer-events: none; }
+  .login-input-tail { right: 10px; }
+
+  .login-eye-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 6px;
+    transition: color .15s, background .15s;
+  }
+  .login-eye-btn:hover { color: #4c78b8; background: rgba(76,120,184,.1); }
+  .login-eye-btn:focus-visible { outline: 2px solid #4c78b8; outline-offset: 1px; }
+
+  @keyframes lc-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .login-card { animation: lc-in .38s cubic-bezier(.25,.6,0,1.05) both; }
 
   .login-field .input {
     width: 100%;
@@ -325,7 +341,7 @@
           </svg>
         </div>
         <h1 class="login-card-title">Accedi al tuo account</h1>
-        <p class="login-card-subtitle">Inserisci le tue credenziali per continuare</p>
+        <p class="login-card-subtitle">{{ login_sottotitolo }}</p>
       </div>
 
       {% if login_banners %}
@@ -373,12 +389,12 @@
               </svg>
             </span>
             <input id="id_password" class="input" type="password" name="password" autocomplete="current-password" placeholder="Password">
-            <span class="login-input-tail" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <button type="button" class="login-input-tail login-eye-btn" id="toggle-pwd" aria-label="Mostra o nascondi password" aria-pressed="false">
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"></path>
                 <circle cx="12" cy="12" r="2.8"></circle>
               </svg>
-            </span>
+            </button>
           </div>
         </div>
 
@@ -403,4 +419,19 @@
 
   <div class="login-meta">Area autenticata {{ portal_branding.portal_name|lower }}</div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function(){
+  var btn = document.getElementById('toggle-pwd');
+  var inp = document.getElementById('id_password');
+  if (!btn || !inp) return;
+  btn.addEventListener('click', function(){
+    var show = inp.type === 'password';
+    inp.type = show ? 'text' : 'password';
+    btn.setAttribute('aria-pressed', show ? 'true' : 'false');
+  });
+})();
+</script>
 {% endblock %}

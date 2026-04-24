@@ -42,6 +42,18 @@
   .woc-grid,
   .woc-meta-grid { grid-template-columns:1fr; }
 }
+
+body.theme-dark .woc-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .woc-summary { border-bottom-color:var(--border); }
+body.theme-dark .woc-title { color:var(--text); }
+body.theme-dark .woc-sub { color:var(--text-light); }
+body.theme-dark .woc-meta { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .woc-meta span { color:var(--text-light); }
+body.theme-dark .woc-meta strong { color:var(--text); }
+body.theme-dark .woc-field label { color:var(--text); }
+body.theme-dark .woc-field input,
+body.theme-dark .woc-field select,
+body.theme-dark .woc-field textarea { background:var(--surface); border-color:var(--border); color:var(--text); }
 </style>
 {% endblock %}
 

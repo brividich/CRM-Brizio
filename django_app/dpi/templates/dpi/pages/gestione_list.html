@@ -52,6 +52,30 @@
 .dpi-pagination a { background:#f1f5f9; color:#475569; }
 .dpi-pagination a:hover { background:#e2e8f0; }
 .dpi-pagination .current { background:#0369a1; color:#fff; }
+
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .dpi-subnav-link { background:var(--surface); color:var(--text-mid); }
+body.theme-dark .dpi-subnav-link:hover { background:rgba(255,255,255,.07); color:var(--text); }
+body.theme-dark .dpi-subnav-link.active { background:#0369a1; color:#fff; }
+body.theme-dark .dpi-alert-inviate { background:rgba(146,64,14,.1); border-color:rgba(253,230,138,.25); color:#fde68a; }
+body.theme-dark .dpi-filters { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dpi-filters label { color:var(--text-mid); }
+body.theme-dark .dpi-filters select,body.theme-dark .dpi-filters input[type=text] { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .dpi-filter-reset { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .dpi-table-wrap { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dpi-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+body.theme-dark .dpi-table td { border-color:var(--border); }
+body.theme-dark .dpi-table tr:hover td { background:var(--tbody-hover); }
+body.theme-dark .dpi-table a { color:#60a5fa; }
+body.theme-dark .dpi-badge-INVIATA   { background:rgba(29,78,216,.2);  color:#93c5fd; }
+body.theme-dark .dpi-badge-APPROVATA { background:rgba(146,64,14,.25); color:#fcd34d; }
+body.theme-dark .dpi-badge-CONSEGNATA{ background:rgba(6,95,70,.25);   color:#6ee7b7; }
+body.theme-dark .dpi-badge-RIFIUTATA { background:rgba(153,27,27,.2);  color:#fca5a5; }
+body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94a3b8; }
+body.theme-dark .dpi-cat-chip { background:rgba(21,128,61,.2); color:#86efac; border-color:rgba(21,128,61,.35); }
+body.theme-dark .dpi-empty { color:var(--text-light); }
+body.theme-dark .dpi-pagination a { background:var(--surface); color:var(--text-mid); }
+body.theme-dark .dpi-pagination a:hover { background:rgba(255,255,255,.07); }
 </style>
 {% endblock %}
 

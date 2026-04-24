@@ -99,6 +99,34 @@
   .sidebar-editor-footer { align-items:stretch; }
   .sidebar-editor-actions { width:100%; }
 }
+/* ── Dark mode ─────────────────────────────────────────────────────── */
+body.theme-dark .ga-title { color:var(--text); }
+body.theme-dark .ga-tabs { border-color:var(--border); }
+body.theme-dark .ga-tab { color:var(--text-light); }
+body.theme-dark .ga-tab:hover { background:rgba(255,255,255,.07); color:#60a5fa; }
+body.theme-dark .ga-tab.active { background:var(--surface); color:#60a5fa; border-color:var(--border); }
+body.theme-dark .kpi { background:var(--surface); border-color:var(--border); }
+body.theme-dark .kpi-label { color:var(--text-light); }
+body.theme-dark .kpi-val { color:var(--text); }
+body.theme-dark .kpi-sub { color:var(--text-light); }
+body.theme-dark .card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .card-head { border-color:var(--border); }
+body.theme-dark .card-title { color:var(--text); }
+body.theme-dark .tbl th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+body.theme-dark .tbl td { border-color:var(--border); }
+body.theme-dark .tbl tr:hover td { background:var(--tbody-hover); }
+body.theme-dark .form-group input,body.theme-dark .form-group select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .search-row input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .admin-form { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .admin-item { background:var(--surface); border-color:var(--border); }
+body.theme-dark .admin-hint { color:var(--text-light); }
+body.theme-dark .muted-note { color:var(--text-light); }
+body.theme-dark .sidebar-editor { background:var(--surface); border-color:var(--border); }
+body.theme-dark .sidebar-editor-check { color:var(--text); }
+body.theme-dark .chip-soft.blue { background:rgba(29,78,216,.25); color:#93c5fd; }
+body.theme-dark .chip-soft.green { background:rgba(21,128,61,.25); color:#86efac; }
+body.theme-dark .chip-soft.slate { background:rgba(255,255,255,.1); color:var(--text-mid); }
+body.theme-dark .pager a { color:#60a5fa; border-color:var(--border); }
 </style>
 {% endblock %}
 

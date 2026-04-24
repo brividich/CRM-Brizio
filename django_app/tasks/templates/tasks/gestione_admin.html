@@ -91,6 +91,12 @@
       display: none;
     }
   }
+
+  body.theme-dark .admin-tab { background:var(--surface); border-color:var(--border); color:var(--text-mid); }
+  body.theme-dark .admin-tab:hover { color:#93c5fd; border-color:rgba(29,78,216,.3); }
+  body.theme-dark .admin-tab.active { background:rgba(29,78,216,.15); border-color:rgba(29,78,216,.3); color:#93c5fd; }
+  body.theme-dark .admin-log-row > span { border-color:var(--border); color:var(--text); }
+  body.theme-dark .admin-log-head > span { color:var(--text-light); }
 </style>
 {% endblock %}
 

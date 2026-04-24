@@ -41,6 +41,30 @@
 .tim-img-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
 .tim-empty { color:#94a3b8; text-align:center; padding:20px; border:1px dashed #cbd5e1; border-radius:14px; }
 @media (max-width: 900px) { .tim-kpi, .tim-meta, .tim-images { grid-template-columns:1fr; } .tim-tabs { overflow-x:auto; } }
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .tim-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .tim-title { color:var(--text); }
+body.theme-dark .tim-sub { color:var(--text-light); }
+body.theme-dark .tim-btn { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .tim-btn-report { background:rgba(29,78,216,.2); border-color:rgba(147,197,253,.3); color:#93c5fd; }
+body.theme-dark .tim-btn-copy { background:rgba(29,78,216,.2); border-color:rgba(147,197,253,.3); color:#93c5fd; }
+body.theme-dark .tim-btn-copy.copied { background:rgba(21,128,61,.2); border-color:rgba(134,239,172,.3); color:#86efac; }
+body.theme-dark .tim-k { background:var(--surface); border-color:var(--border); }
+body.theme-dark .tim-k-val { color:var(--text); }
+body.theme-dark .tim-k-label { color:var(--text-light); }
+body.theme-dark .tim-meta-item { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .tim-meta-k { color:var(--text-light); }
+body.theme-dark .tim-meta-v { color:var(--text); }
+body.theme-dark .tim-tabs { border-color:var(--border); }
+body.theme-dark .tim-tab { color:var(--text-light); }
+body.theme-dark .tim-tab.active { color:#2dd4bf; border-bottom-color:#2dd4bf; }
+body.theme-dark .tim-record { border-color:var(--border); }
+body.theme-dark .tim-pill-green  { background:rgba(21,128,61,.2); color:#86efac; }
+body.theme-dark .tim-pill-gray   { background:rgba(255,255,255,.08); color:var(--text-mid); }
+body.theme-dark .tim-pill-amber  { background:rgba(146,64,14,.2); color:#fde68a; }
+body.theme-dark .tim-image { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .tim-img-label { color:var(--text-light); }
+body.theme-dark .tim-empty { color:var(--text-light); border-color:var(--border); }
 </style>
 {% endblock %}
 {% block subnav %}{% include "timbri/components/subnav.html" %}{% endblock %}

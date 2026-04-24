@@ -118,6 +118,14 @@
     @media (max-width: 860px) {
       .abs-shortcut-group { grid-template-columns: 1fr; }
     }
+    /* ── Dark mode ──────────────────────────────────────────────────────────── */
+    body.theme-dark .abs-shortcut-item { background:var(--surface); border-color:var(--border); color:var(--text); }
+    body.theme-dark .abs-shortcut-item:hover { background:var(--surface-alt); border-color:#2dd4bf; }
+    body.theme-dark .abs-toggle-row { background:rgba(21,128,61,.15); border-color:rgba(21,128,61,.35); }
+    body.theme-dark .abs-toggle-title { color:#86efac; }
+    body.theme-dark .abs-toggle-sub { color:#6ee7b7; }
+    body.theme-dark .abs-time-sep { color:var(--text-light); }
+    body.theme-dark .abs-section-kicker { color:#2dd4bf; }
   </style>
 {% endblock %}
 

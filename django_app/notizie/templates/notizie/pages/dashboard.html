@@ -134,6 +134,24 @@
 .tiny { font-size: .75rem; color: #64748b; }
 .actions { display: flex; gap: .4rem; flex-wrap: wrap; }
 .actions form { display: inline; margin: 0; }
+
+body.theme-dark .kpi { background:var(--surface); border-color:var(--border); }
+body.theme-dark .kpi .val { color:var(--text); }
+body.theme-dark .kpi .lbl { color:var(--text-light); }
+body.theme-dark .acl-box { background:var(--surface); border-color:var(--border); }
+body.theme-dark .filters { background:var(--surface); border-color:var(--border); }
+body.theme-dark .filters label { color:var(--text-light); }
+body.theme-dark .filters input, body.theme-dark .filters select { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .news-table-wrap { background:var(--surface); border-color:var(--border); }
+body.theme-dark .news-table tbody td { border-color:var(--border); color:var(--text); }
+body.theme-dark .news-table tbody tr:hover td { background:var(--tbody-hover); }
+body.theme-dark .stato-bozza { background:var(--surface-alt); color:var(--text-light); }
+body.theme-dark .stato-pubblicata { background:rgba(22,101,52,.2); color:#86efac; }
+body.theme-dark .stato-archiviata { background:var(--surface-alt); color:var(--text-light); }
+body.theme-dark .tiny { color:var(--text-light); }
+body.theme-dark .btn-secondary { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .btn-secondary:hover { background:var(--surface-alt); }
+body.theme-dark .btn-danger { background:rgba(185,28,28,.15); border-color:rgba(252,165,165,.2); color:#fca5a5; }
 </style>
 {% endblock %}
 

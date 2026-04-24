@@ -675,6 +675,56 @@
     .ts-tabs { overflow-x: auto; }
     .ts-panel-head, .ts-panel-body, .ts-panel-footer { padding-left: 12px; padding-right: 12px; }
   }
+
+  /* ── Dark mode ───────────────────────────────────────── */
+  body.theme-dark .ts-hero-action.primary { background: rgba(255,255,255,.15); color: #fff; border-color: rgba(255,255,255,.2); }
+  body.theme-dark .ts-hero-action.primary:hover { background: rgba(255,255,255,.22); }
+  body.theme-dark .ts-kpi-note { color: var(--text-light); }
+  body.theme-dark .ts-kpi.blue  .ts-kpi-value { color: #93c5fd; }
+  body.theme-dark .ts-kpi.teal  .ts-kpi-value { color: #2dd4bf; }
+  body.theme-dark .ts-kpi.green .ts-kpi-value { color: #4ade80; }
+  body.theme-dark .ts-kpi.amber .ts-kpi-value { color: #fbbf24; }
+  body.theme-dark .ts-kpi.red   .ts-kpi-value { color: #f87171; }
+  body.theme-dark .ts-kpi.slate .ts-kpi-value { color: var(--text-mid); }
+  body.theme-dark .ts-chip.soft,
+  body.theme-dark .ts-badge.soft   { background: rgba(255,255,255,.08); border-color: var(--border); color: var(--text-mid); }
+  body.theme-dark .ts-chip.info,
+  body.theme-dark .ts-badge.info   { background: rgba(29,78,216,.2);  border-color: rgba(191,219,254,.2); color: #93c5fd; }
+  body.theme-dark .ts-chip.ok,
+  body.theme-dark .ts-badge.ok     { background: rgba(21,128,61,.2);  border-color: rgba(187,247,208,.2); color: #86efac; }
+  body.theme-dark .ts-chip.warn,
+  body.theme-dark .ts-badge.warn   { background: rgba(180,83,9,.2);   border-color: rgba(253,230,138,.2); color: #fde68a; }
+  body.theme-dark .ts-chip.danger,
+  body.theme-dark .ts-badge.danger { background: rgba(185,28,28,.2);  border-color: rgba(252,165,165,.2); color: #fca5a5; }
+  body.theme-dark .ts-badge--todo        { background: rgba(55,48,163,.2);  border-color: rgba(199,210,254,.2); color: #a5b4fc; }
+  body.theme-dark .ts-badge--in_progress { background: rgba(146,64,14,.2);  border-color: rgba(253,230,138,.2); color: #fde68a; }
+  body.theme-dark .ts-badge--done        { background: rgba(22,101,52,.2);  border-color: rgba(187,247,208,.2); color: #86efac; }
+  body.theme-dark .ts-badge--canceled    { background: rgba(255,255,255,.06); border-color: var(--border); color: var(--text-light); }
+  body.theme-dark .ts-badge--high        { background: rgba(153,27,27,.2);  border-color: rgba(252,165,165,.2); color: #fca5a5; }
+  body.theme-dark .ts-badge--medium      { background: rgba(146,64,14,.2);  border-color: rgba(253,230,138,.2); color: #fde68a; }
+  body.theme-dark .ts-badge--low         { background: rgba(29,78,216,.2);  border-color: rgba(191,219,254,.2); color: #93c5fd; }
+  body.theme-dark .ts-note-box { color: #fdba74; background: rgba(249,115,22,.14); border-color: rgba(249,115,22,.25); }
+  body.theme-dark .ts-empty { background: var(--surface); border-color: rgba(255,255,255,.12); }
+  body.theme-dark .ts-table-wrap { background: var(--surface); }
+  body.theme-dark .ts-table th { background: var(--bg); border-color: var(--border); color: var(--text-light); }
+  body.theme-dark .ts-table td { color: var(--text); border-color: var(--border); }
+  body.theme-dark .ts-table tbody tr:hover td { background: rgba(255,255,255,.04); }
+  body.theme-dark .ts-field label,
+  body.theme-dark .ts-field-label { color: var(--text-mid); }
+  body.theme-dark .ts-field .input,
+  body.theme-dark .ts-field input:not([type="checkbox"]):not([type="radio"]),
+  body.theme-dark .ts-field select, body.theme-dark .ts-field textarea,
+  body.theme-dark .ts-panel .input, body.theme-dark .ts-panel select, body.theme-dark .ts-panel textarea { background: var(--surface); color: var(--text); border-color: var(--border); }
+  body.theme-dark .ts-field-help  { color: var(--text-light); }
+  body.theme-dark .ts-checkline   { color: var(--text-mid); }
+  body.theme-dark .ts-link { color: #60a5fa; }
+  body.theme-dark .ts-message { background: var(--surface); border-color: var(--border); color: var(--text-mid); }
+  body.theme-dark .ts-message.success { background: rgba(21,128,61,.15);  border-color: rgba(134,239,172,.3); color: #86efac; }
+  body.theme-dark .ts-message.error,
+  body.theme-dark .ts-message.danger  { background: rgba(185,28,28,.15);  border-color: rgba(252,165,165,.3); color: #fca5a5; }
+  body.theme-dark .ts-message.warning { background: rgba(146,64,14,.15);  border-color: rgba(253,230,138,.3); color: #fde68a; }
+  body.theme-dark .ts-message.info    { background: rgba(29,78,216,.15);  border-color: rgba(191,219,254,.3); color: #93c5fd; }
+  body.theme-dark .task-meta-chip { background: var(--surface); }
 </style>
 {% block tasks_shell_head %}{% endblock %}
 {% endblock %}

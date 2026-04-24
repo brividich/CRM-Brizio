@@ -12,6 +12,64 @@ from dashboard import views as dashboard_views
 from tickets.models import PrioritaTicket, StatoTicket, Ticket
 
 
+@override_settings(STATIC_URL="/static/", MEDIA_URL="/media/")
+class DashboardModuleIconDefaultsTests(TestCase):
+    def test_default_card_icon_maps_user_module_labels(self):
+        self.assertEqual(
+            dashboard_views._card_image_public_url(
+                dashboard_views._default_module_card_image("Diario Preposto")
+            ),
+            "/static/core/img/module-icons/diario-preposto.svg",
+        )
+        self.assertEqual(
+            dashboard_views._card_image_public_url(
+                dashboard_views._default_module_card_image("VRF Kickoff")
+            ),
+            "/static/core/img/module-icons/vrf-kickoff.svg",
+        )
+
+    def test_module_cards_keep_configured_card_image_priority(self):
+        pulsanti = [
+            SimpleNamespace(id=1, codice="tickets", label="Tickets", modulo="tickets", url="/tickets/"),
+            SimpleNamespace(id=2, codice="assets", label="Assets", modulo="assets", url="/assets/"),
+        ]
+
+        cards = dashboard_views._module_cards(
+            pulsanti,
+            {
+                1: {"enabled": True, "is_padre": True, "card_image": "custom/tickets.png"},
+                2: {"enabled": True, "is_padre": True, "card_image": ""},
+            },
+        )
+
+        by_id = {card["pulsante_id"]: card for card in cards}
+        self.assertEqual(by_id[1]["image_url"], "/media/custom/tickets.png")
+        self.assertEqual(by_id[2]["image_url"], "/static/core/img/module-icons/assets.svg")
+
+    def test_module_card_image_lookup_uses_uploaded_module_logo(self):
+        pulsanti = [
+            SimpleNamespace(id=1, codice="tickets", label="Tickets", nome_visibile="Ticket", modulo="tickets", url="/tickets/"),
+        ]
+
+        lookup = dashboard_views._module_card_image_lookup(
+            {1: {"card_image": "dashboard/modules/tickets/logo.png"}},
+            pulsanti,
+        )
+
+        self.assertEqual(lookup["tickets"], "/media/dashboard/modules/tickets/logo.png")
+
+    def test_employee_widgets_use_uploaded_module_logo(self):
+        widgets = [{"id": "tickets_miei", "title": "Ticket Personali", "icon": "fallback"}]
+
+        decorated = dashboard_views._decorate_board_widgets_with_module_images(
+            widgets,
+            {"tickets": "/media/dashboard/modules/tickets/logo.png"},
+        )
+
+        self.assertEqual(decorated[0]["icon"], "/media/dashboard/modules/tickets/logo.png")
+        self.assertEqual(widgets[0]["icon"], "fallback")
+
+
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
 class DashboardAnomalieAccessTests(TestCase):
     def setUp(self):

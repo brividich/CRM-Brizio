@@ -83,6 +83,37 @@ details summary { list-style:none; }
 details summary::-webkit-details-marker { display:none; }
 @media(max-width:900px){ .ana-layout{ grid-template-columns:1fr; } .ana-metrics{ grid-template-columns:1fr 1fr; } }
 @media(max-width:500px){ .ana-metrics{ grid-template-columns:1fr; } .ana-form-grid{ grid-template-columns:1fr; } }
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .ana-breadcrumb { color:var(--text-light); }
+body.theme-dark .ana-breadcrumb a { color:var(--text-mid); }
+body.theme-dark .ana-btn-ghost { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .ana-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .ana-card-head { border-color:var(--border); background:var(--bg); }
+body.theme-dark .ana-card-title { color:var(--text); }
+body.theme-dark .ana-metric { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .ana-metric-k { color:var(--text-light); }
+body.theme-dark .ana-metric-v { color:var(--text); }
+body.theme-dark .ana-tabs { border-color:var(--border); }
+body.theme-dark .ana-tab { color:var(--text-light); }
+body.theme-dark .ana-tab.is-active { color:#60a5fa; border-color:#60a5fa; }
+body.theme-dark .ana-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+body.theme-dark .ana-table td { border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .ana-table tr:hover td { background:var(--tbody-hover); }
+body.theme-dark .stato-ATTIVO    { background:rgba(21,128,61,.2); color:#86efac; }
+body.theme-dark .stato-INATTIVO  { background:rgba(255,255,255,.08); color:var(--text-mid); }
+body.theme-dark .stato-SCADUTO   { background:rgba(153,27,27,.2); color:#fca5a5; }
+body.theme-dark .stato-ANNULLATO { background:rgba(153,27,27,.2); color:#fca5a5; }
+body.theme-dark .ana-doc-item { border-color:var(--border); }
+body.theme-dark .ana-doc-icon { background:var(--surface-alt); }
+body.theme-dark .ana-asset-item { border-color:var(--border); }
+body.theme-dark .ana-asset-tag { background:rgba(29,78,216,.2); color:#93c5fd; }
+body.theme-dark .ana-pill-green-sm { background:rgba(21,128,61,.2); color:#86efac; }
+body.theme-dark .ana-empty { color:var(--text-light); }
+body.theme-dark .ana-msg-success { background:rgba(21,128,61,.2); color:#86efac; }
+body.theme-dark .ana-msg-error   { background:rgba(153,27,27,.2); color:#fca5a5; }
+body.theme-dark .ana-rating-track { background:var(--surface-alt); }
+body.theme-dark .ana-field label { color:var(--text-light); }
+body.theme-dark .ana-input, body.theme-dark .ana-textarea, body.theme-dark .ana-select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 </style>
 {% endblock %}
 

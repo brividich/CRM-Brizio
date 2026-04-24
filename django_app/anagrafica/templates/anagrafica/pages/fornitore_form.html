@@ -66,6 +66,17 @@ textarea.ana-input { resize:vertical; }
   .ana-grid { grid-template-columns:1fr; }
   .ana-col-1,.ana-col-2,.ana-col-3,.ana-col-4 { grid-column:span 1; }
 }
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .ana-back { color:var(--text-light); }
+body.theme-dark .ana-title { color:var(--text); }
+body.theme-dark .ana-sub { color:var(--text-light); }
+body.theme-dark .ana-btn-ghost { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .ana-form-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .ana-form-section-title { color:var(--text); }
+body.theme-dark .ana-label { color:var(--text-mid); }
+body.theme-dark .ana-input, body.theme-dark .ana-textarea, body.theme-dark .ana-select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .ana-check-row span { color:var(--text-mid); }
+body.theme-dark .ana-actions { background:var(--surface-alt); border-color:var(--border); }
 </style>
 {% endblock %}
 

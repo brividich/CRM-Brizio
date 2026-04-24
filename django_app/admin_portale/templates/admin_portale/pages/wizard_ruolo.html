@@ -728,7 +728,7 @@
       const resp = await fetch(API_BULK, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
-        body: JSON.stringify({ ruolo_id: selectedRuoloId, mode: "update", rows: rows }),
+        body: JSON.stringify({ ruolo_id: selectedRuoloId, mode: "update", updates: rows, rows: rows }),
       });
       await window.portalReadJsonResponse(resp, { fallbackError: "Errore salvataggio permessi." });
       setStatus("wiz-status-3", "Salvato! Reindirizzo…", false);

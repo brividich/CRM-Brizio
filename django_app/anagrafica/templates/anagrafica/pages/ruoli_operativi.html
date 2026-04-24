@@ -62,6 +62,26 @@
   .ro-form-grid { grid-template-columns:1fr; }
   .ro-grid { grid-template-columns:1fr; }
 }
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .ro-title { color:var(--text); }
+body.theme-dark .ro-sub { color:var(--text-light); }
+body.theme-dark .ro-btn-ghost { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .ro-btn-danger { background:rgba(185,28,28,.2); color:#fca5a5; border-color:rgba(252,165,165,.3); }
+body.theme-dark .ro-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .ro-card-head { border-color:var(--border); background:var(--bg); }
+body.theme-dark .ro-card-title { color:var(--text); }
+body.theme-dark .ro-item { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .ro-item-name { color:var(--text); }
+body.theme-dark .ro-item-desc { color:var(--text-light); }
+body.theme-dark .ro-item-meta { color:var(--text-light); }
+body.theme-dark .ro-empty { color:var(--text-light); }
+body.theme-dark .ro-modal-overlay { background:rgba(0,0,0,.65); }
+body.theme-dark .ro-modal { background:var(--surface); }
+body.theme-dark .ro-modal-title { color:var(--text); }
+body.theme-dark .ro-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .ro-swatch:hover, body.theme-dark .ro-swatch.selected { border-color:#e5e7eb; }
+body.theme-dark .ro-field label { color:var(--text-mid); }
+body.theme-dark .ro-form-label { color:var(--text-mid); }
 </style>
 {% endblock %}
 

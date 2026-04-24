@@ -120,6 +120,8 @@ LDAP_BASE_DN = env("LDAP_BASE_DN", "")
 LDAP_USER_FILTER = env("LDAP_USER_FILTER", "(&(objectCategory=person)(objectClass=user))")
 LDAP_GROUP_ALLOWLIST = env_list("LDAP_GROUP_ALLOWLIST", [])
 LDAP_SYNC_PAGE_SIZE = int(env("LDAP_SYNC_PAGE_SIZE", "500") or "500")
+WINDOWS_SSO_HOSTNAME = env("WINDOWS_SSO_HOSTNAME", "").strip()
+WINDOWS_SSO_SERVICE = env("WINDOWS_SSO_SERVICE", "HTTP").strip() or "HTTP"
 EMAIL_BACKEND = env("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST = env("EMAIL_HOST", "")
 EMAIL_PORT = int(env("EMAIL_PORT", "587") or "587")

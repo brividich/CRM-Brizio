@@ -448,6 +448,60 @@
       .abs-tabs { padding-bottom: 0; border-bottom: none; }
       .abs-tab { width: 100%; }
     }
+    /* ── Dark mode ───────────────────────────────────────── */
+    body.theme-dark .abs-kpi { background: var(--surface); border-color: var(--border); box-shadow: none; }
+    body.theme-dark .abs-kpi-label { color: var(--text-light); }
+    body.theme-dark .abs-kpi-value { color: var(--text); }
+    body.theme-dark .abs-kpi-note { color: var(--text-light); }
+    body.theme-dark .abs-kpi.teal .abs-kpi-value { color: #2dd4bf; }
+    body.theme-dark .abs-kpi.amber .abs-kpi-value { color: #fbbf24; }
+    body.theme-dark .abs-kpi.green .abs-kpi-value { color: #4ade80; }
+    body.theme-dark .abs-kpi.red   .abs-kpi-value { color: #f87171; }
+    body.theme-dark .abs-panel { background: var(--surface); border-color: var(--border); box-shadow: none; }
+    body.theme-dark .abs-panel-head { background: var(--bg); border-color: var(--border); }
+    body.theme-dark .abs-panel-title { color: var(--text); }
+    body.theme-dark .abs-panel-subtitle { color: var(--text-mid); }
+    body.theme-dark .abs-panel-badge,
+    body.theme-dark .abs-chip { background: rgba(15,118,110,.22); color: #2dd4bf; border-color: rgba(45,212,191,.3); }
+    body.theme-dark .abs-panel-badge.soft,
+    body.theme-dark .abs-chip.soft { background: rgba(255,255,255,.08); border-color: var(--border); color: var(--text-mid); }
+    body.theme-dark .abs-card-link { background: var(--surface); border-color: var(--border); box-shadow: none; }
+    body.theme-dark .abs-card-link:hover { border-color: #2dd4bf; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
+    body.theme-dark .abs-card-title { color: var(--text); }
+    body.theme-dark .abs-card-text { color: var(--text-mid); }
+    body.theme-dark .abs-card-count { background: rgba(15,118,110,.25); color: #2dd4bf; }
+    body.theme-dark .abs-alert-success { background: rgba(21,128,61,.18); border-color: rgba(134,239,172,.3); color: #86efac; }
+    body.theme-dark .abs-alert-error   { background: rgba(185,28,28,.18); border-color: rgba(252,165,165,.3); color: #fca5a5; }
+    body.theme-dark .abs-alert-warn    { background: rgba(146,64,14,.18); border-color: rgba(253,230,138,.3); color: #fde68a; }
+    body.theme-dark .abs-note-box { background: rgba(91,33,182,.18); border-color: rgba(196,181,253,.3); color: #c4b5fd; }
+    body.theme-dark .abs-field label,
+    body.theme-dark .abs-field-label { color: var(--text-mid); }
+    body.theme-dark .abs-input,
+    body.theme-dark .abs-select,
+    body.theme-dark .abs-textarea { background: var(--surface); color: var(--text); border-color: var(--border); }
+    body.theme-dark .abs-input-readonly { background: var(--bg); color: var(--text-light); }
+    body.theme-dark .abs-field-hint { color: var(--text-light); }
+    body.theme-dark .abs-filter-card { background: var(--surface); border-color: var(--border); }
+    body.theme-dark .abs-filter-title { color: var(--text); }
+    body.theme-dark .abs-filter-count { color: var(--text-light); }
+    body.theme-dark .abs-search { background: var(--surface); border-color: var(--border); }
+    body.theme-dark .abs-search input { color: var(--text); }
+    body.theme-dark .abs-search-icon { color: var(--text-light); }
+    body.theme-dark .abs-tabs { border-color: var(--border); }
+    body.theme-dark .abs-tab { background: var(--surface); border-color: var(--border); color: var(--text-mid); }
+    body.theme-dark .abs-tab:hover { background: rgba(15,118,110,.15); border-color: #2dd4bf; color: #2dd4bf; }
+    body.theme-dark .abs-table thead th { background: var(--bg); color: var(--text-light); border-color: var(--border); }
+    body.theme-dark .abs-table td { color: var(--text); border-color: var(--border); }
+    body.theme-dark .abs-table tbody tr:hover td { background: rgba(255,255,255,.04); }
+    body.theme-dark .abs-table tbody tr { border-color: var(--border); }
+    body.theme-dark .abs-status-approved { background: rgba(21,128,61,.2);  color: #86efac; }
+    body.theme-dark .abs-status-waiting  { background: rgba(146,64,14,.2);  color: #fde68a; }
+    body.theme-dark .abs-status-rejected { background: rgba(185,28,28,.2);  color: #fca5a5; }
+    body.theme-dark .abs-status-neutral  { background: rgba(255,255,255,.1); color: var(--text-mid); }
+    body.theme-dark .abs-empty-title { color: var(--text); }
+    body.theme-dark .abs-empty-text  { color: var(--text-mid); }
+    body.theme-dark .abs-hero-action-primary { background: rgba(255,255,255,.15); color: #fff; border-color: rgba(255,255,255,.2); }
+    body.theme-dark .abs-hero-action-primary:hover { background: rgba(255,255,255,.22); }
   </style>
   {% block assenze_shell_head %}{% endblock %}
 {% endblock %}

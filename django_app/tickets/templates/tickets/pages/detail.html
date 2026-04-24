@@ -79,6 +79,41 @@
 /* Back link */
 .tkt-back { display:inline-flex; align-items:center; gap:6px; color:#0369a1; font-size:13px; font-weight:600; text-decoration:none; }
 .tkt-back:hover { text-decoration:underline; }
+
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .tkt-back { color:#60a5fa; }
+body.theme-dark .tkt-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .tkt-card-title { color:var(--text-light); }
+
+body.theme-dark .tkt-badge-APERTA    { background:rgba(29,78,216,.2);  color:#93c5fd; }
+body.theme-dark .tkt-badge-IN_CARICO { background:rgba(146,64,14,.25); color:#fcd34d; }
+body.theme-dark .tkt-badge-RISOLTO   { background:rgba(6,95,70,.25);   color:#6ee7b7; }
+body.theme-dark .tkt-badge-CHIUSO    { background:rgba(71,85,105,.2);  color:#94a3b8; }
+body.theme-dark .tkt-badge-ANNULLATO { background:rgba(153,27,27,.2);  color:#fca5a5; }
+
+body.theme-dark .tkt-prio-BASSA   { background:rgba(22,101,52,.2);  color:#86efac; }
+body.theme-dark .tkt-prio-MEDIA   { background:rgba(30,64,175,.2);  color:#93c5fd; }
+body.theme-dark .tkt-prio-ALTA    { background:rgba(154,52,18,.2);  color:#fdba74; }
+body.theme-dark .tkt-prio-URGENTE { background:rgba(220,38,38,.18); color:#fca5a5; }
+
+body.theme-dark .tkt-tipo-IT  { background:rgba(3,105,161,.2);  color:#7dd3fc; }
+body.theme-dark .tkt-tipo-MAN { background:rgba(21,128,61,.2);  color:#86efac; }
+
+body.theme-dark .tkt-meta-item { border-color:var(--border); }
+body.theme-dark .tkt-meta-key { color:var(--text-mid); }
+body.theme-dark .tkt-meta-val { color:var(--text); }
+
+body.theme-dark .tkt-commento { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .tkt-commento.interno { background:rgba(253,230,138,.07); border-color:rgba(253,230,138,.2); }
+body.theme-dark .tkt-commento-autore { color:var(--text); }
+body.theme-dark .tkt-commento-testo  { color:var(--text-mid); }
+body.theme-dark .tkt-commento-form textarea { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+
+body.theme-dark .tkt-allegato-item { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .tkt-allegato-name { color:var(--text); }
+body.theme-dark .tkt-allegato-link { color:#60a5fa; }
+
+body.theme-dark .tkt-sicurezza-alert { background:rgba(220,38,38,.12); border-color:rgba(220,38,38,.3); color:#fca5a5; }
 </style>
 {% endblock %}
 

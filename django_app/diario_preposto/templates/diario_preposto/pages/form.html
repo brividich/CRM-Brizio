@@ -84,6 +84,17 @@
   .dp-form-actions { flex-direction:column; }
   .dp-btn { justify-content:center; }
 }
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .dp-breadcrumb { color:var(--text-light); }
+body.theme-dark .dp-breadcrumb a { color:#2dd4bf; }
+body.theme-dark .dp-breadcrumb-sep { color:var(--border); }
+body.theme-dark .dp-form-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dp-form-header { border-color:var(--border); }
+body.theme-dark .dp-field-group label { color:var(--text-mid); }
+body.theme-dark .dp-input, body.theme-dark .dp-textarea, body.theme-dark .dp-select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .dp-field-hint { color:var(--text-light); }
+body.theme-dark .dp-form-section { border-color:var(--border); }
+body.theme-dark .dp-btn-outline { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
 </style>
 {% endblock %}
 

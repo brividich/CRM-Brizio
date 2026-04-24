@@ -18,6 +18,15 @@
 .tim-image img { max-width:100%; max-height:120px; object-fit:contain; display:block; margin:0 auto 10px; }
 .tim-image-meta { font-size:11px; color:#64748b; margin-top:6px; }
 @media (max-width: 900px) { .tim-grid, .tim-images { grid-template-columns:1fr; } }
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .tim-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .tim-field label { color:var(--text-light); }
+body.theme-dark .tim-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .tim-btn { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .tim-section-title { color:var(--text); }
+body.theme-dark .tim-section-sub { color:var(--text-light); }
+body.theme-dark .tim-image { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .tim-image-meta { color:var(--text-light); }
 </style>
 {% endblock %}
 {% block subnav %}{% include "timbri/components/subnav.html" %}{% endblock %}

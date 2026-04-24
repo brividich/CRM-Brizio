@@ -195,6 +195,19 @@
   @media (max-width: 860px) {
     .pf-grid { grid-template-columns: 1fr; }
   }
+
+  body.theme-dark .pf-card { background:var(--surface); border-color:var(--border); }
+  body.theme-dark .pf-card:hover { box-shadow:0 8px 28px rgba(0,0,0,.3); }
+  body.theme-dark .pf-name-link { color:var(--text); }
+  body.theme-dark .pf-chip.pn { background:rgba(55,48,163,.2); border-color:rgba(199,210,254,.2); color:#a5b4fc; }
+  body.theme-dark .pf-chip.rev { background:rgba(22,101,52,.2); border-color:rgba(187,247,208,.2); color:#86efac; }
+  body.theme-dark .pf-chip.ver { background:rgba(154,52,18,.2); border-color:rgba(254,215,170,.2); color:#fdba74; }
+  body.theme-dark .pf-chip.client { background:var(--surface-alt); border-color:var(--border); color:var(--text-light); }
+  body.theme-dark .pf-progress-header { color:var(--text-light); }
+  body.theme-dark .pf-progress-bar { background:var(--border); }
+  body.theme-dark .pf-vrf-row { background:var(--surface-alt); border-color:var(--border); }
+  body.theme-dark .pf-vrf-label { color:var(--text-light); }
+  body.theme-dark .pf-card-footer { background:var(--surface-alt); border-color:var(--border); }
 </style>
 {% endblock %}
 

@@ -136,6 +136,21 @@
     margin-top: 20px; flex-wrap: wrap;
   }
   .vrfc-actions .right { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  body.theme-dark .vrfc-header-grid label { color:var(--text-light); }
+  body.theme-dark .vrfc-header-grid .val { background:var(--surface); border-color:var(--border); color:var(--text); }
+  body.theme-dark .vrfc-hint { background:var(--surface-alt); color:var(--text-light); }
+  body.theme-dark .vrfc-matrix { background:var(--surface); }
+  body.theme-dark .vrfc-matrix .risk-row { background:var(--thead-bg); }
+  body.theme-dark .vrfc-matrix .risk-row td { border-color:var(--border); }
+  body.theme-dark .vrfc-matrix .risk-row .risk-title { color:var(--text); }
+  body.theme-dark .vrfc-totals { background:var(--surface); border-color:rgba(234,88,12,.4); }
+  body.theme-dark .vrfc-totals .lbl { color:var(--text-light); }
+  body.theme-dark .vrfc-totals .val { color:var(--text); }
+  body.theme-dark .vrfc-totals .card + .card { border-color:var(--border); }
+  body.theme-dark .vrfc-dig { background:rgba(22,101,52,.15); border-color:#16a34a; color:#86efac; }
+  body.theme-dark .vrfc-dig.triggered { background:rgba(220,38,38,.15); border-color:#dc2626; color:#fca5a5; }
+  body.theme-dark .vrfc-legend { background:var(--surface-alt); color:var(--text-light); }
 </style>
 {% endblock %}
 

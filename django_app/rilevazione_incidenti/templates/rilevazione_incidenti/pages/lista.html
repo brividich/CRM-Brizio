@@ -153,6 +153,33 @@
   display:inline-block; background:#f1f5f9; color:#64748b;
   padding:2px 8px; border-radius:20px; font-size: var(--fs-sm); font-weight:600;
 }
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .sic-kpi-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .sic-kpi-label { color:var(--text-light); }
+body.theme-dark .sic-kpi-value { color:var(--text); }
+body.theme-dark .sic-filters { background:var(--surface); border-color:var(--border); }
+body.theme-dark .sic-filter-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .sic-filter-select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .sic-tipo-card-uc { background:rgba(21,128,61,.15); }
+body.theme-dark .sic-tipo-card-ua { background:rgba(3,105,161,.15); }
+body.theme-dark .sic-tipo-card-nm { background:rgba(120,53,15,.15); }
+body.theme-dark .sic-tipo-card-ac { background:rgba(185,28,28,.15); }
+body.theme-dark .sic-table-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .sic-table-header { border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .sic-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+body.theme-dark .sic-table td { border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .sic-table tr:hover td { background:var(--tbody-hover); }
+body.theme-dark .sic-tipo-badge { color:#fff; }
+body.theme-dark .sic-tipo-unsafe-condition { background:rgba(234,88,12,.7); }
+body.theme-dark .sic-tipo-unsafe-act { background:rgba(220,38,38,.7); }
+body.theme-dark .sic-tipo-near-miss { background:rgba(180,83,9,.7); }
+body.theme-dark .sic-tipo-accident { background:rgba(127,29,29,.7); }
+body.theme-dark .sic-stato-aperto-label    { color:#93c5fd; }
+body.theme-dark .sic-stato-approvato-label { color:#fde68a; }
+body.theme-dark .sic-stato-chiuso-label    { color:#86efac; }
+body.theme-dark .sic-empty { color:var(--text-light); }
+body.theme-dark .sic-error { background:rgba(153,27,27,.2); border-color:rgba(252,165,165,.3); color:#fca5a5; }
+body.theme-dark .sic-count-badge { background:rgba(255,255,255,.08); color:var(--text-mid); }
 </style>
 {% endblock %}
 

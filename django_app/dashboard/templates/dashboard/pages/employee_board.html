@@ -5,6 +5,14 @@
 
 {% block extra_head %}
 <style>
+:root {
+  --primary: #002b5c;
+  --primary-mid: #2f5f89;
+  --accent: #ff6b00;
+  --accent-light: #fff4ed;
+  --bg: #f2f5f8;
+}
+
 /* ── Layout generale board ─────────────────────────────────────────────────── */
 #eb-root {
   max-width: 1400px;
@@ -81,35 +89,48 @@
 
 /* ── Widget card ───────────────────────────────────────────────────────────── */
 .eb-widget {
-  background: var(--bg-card, #fff);
-  border: 1px solid var(--border, #e2e8f0);
-  border-radius: 12px;
+  background: #fff;
+  border: 1px solid rgba(0, 43, 92, .12);
+  border-radius: 10px;
   overflow: hidden;
-  box-shadow: 0 1px 4px rgba(0,0,0,.06);
-  transition: box-shadow .15s, opacity .15s;
+  box-shadow: 0 8px 24px rgba(0, 43, 92, .07);
+  transition: box-shadow .15s, opacity .15s, border-color .15s;
   position: relative;
 }
+.eb-widget:hover { border-color: rgba(255, 107, 0, .24); box-shadow: 0 12px 30px rgba(0, 43, 92, .10); }
 .eb-widget.dragging { opacity: .45; box-shadow: 0 8px 24px rgba(0,0,0,.15); }
-.eb-widget.drag-over { outline: 2px dashed var(--accent,#3b82f6); outline-offset: 2px; }
+.eb-widget.drag-over { outline: 2px dashed var(--accent,#ff6b00); outline-offset: 2px; }
 
 .eb-widget-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 12px 14px 10px;
-  border-bottom: 1px solid var(--border,#e2e8f0);
+  border-bottom: 1px solid rgba(0, 43, 92, .10);
   gap: 8px;
-  background: var(--bg-card,#fff);
+  background: linear-gradient(180deg, #fff 0%, #f7f9fc 100%);
 }
 .eb-widget-title {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--text,#0f172a);
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 9px;
 }
-.eb-widget-icon { font-size: 15px; line-height: 1; }
+.eb-widget-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(0, 43, 92, .08);
+  flex-shrink: 0;
+}
+.eb-widget-icon .ui-icon-img { width: 30px; height: 30px; object-fit: contain; }
+.eb-widget-icon .ui-icon-svg { width: 20px; height: 20px; color: #002b5c; }
 
 .eb-widget-actions {
   display: flex;
@@ -305,8 +326,8 @@
 .eb-avatar {
   width: 72px;
   height: 72px;
-  border-radius: 50%;
-  background: linear-gradient(135deg,#3b82f6,#8b5cf6);
+  border-radius: 14px;
+  background: linear-gradient(135deg,#002b5c,#2f5f89);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -368,32 +389,48 @@
 }
 
 .eb-kpi-card {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  align-items: center;
   gap: 4px;
   padding: 14px;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 43, 92, .12);
   text-decoration: none;
   background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
   color: #0f172a;
 }
 
 .eb-kpi-card:hover {
-  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.08);
+  border-color: rgba(255, 107, 0, .34);
+  box-shadow: 0 8px 28px rgba(0, 43, 92, 0.10);
   transform: translateY(-1px);
 }
 
-.eb-kpi-card.blue { border-color: #bfdbfe; }
-.eb-kpi-card.green { border-color: #bbf7d0; }
-.eb-kpi-card.red { border-color: #fecaca; }
-.eb-kpi-card.purple { border-color: #ddd6fe; }
-.eb-kpi-card.yellow { border-color: #fde68a; }
+.eb-kpi-card.blue,
+.eb-kpi-card.green,
+.eb-kpi-card.red,
+.eb-kpi-card.purple,
+.eb-kpi-card.yellow { border-color: rgba(0, 43, 92, .12); }
+
+.eb-kpi-icon {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(0, 43, 92, .08);
+  grid-row: span 3;
+}
+.eb-kpi-icon img { width: 38px; height: 38px; object-fit: contain; display: block; }
 
 .eb-kpi-value {
   font-size: 28px;
   line-height: 1;
   font-weight: 800;
+  color: #002b5c;
 }
 
 .eb-kpi-label {
@@ -492,8 +529,8 @@
   gap: 5px;
   transition: background .12s, color .12s;
 }
-.eb-btn.primary { background: var(--accent,#3b82f6); color: #fff; }
-.eb-btn.primary:hover { background: #2563eb; }
+.eb-btn.primary { background: var(--accent,#ff6b00); color: #fff; }
+.eb-btn.primary:hover { background: #e65f00; }
 .eb-btn.secondary { background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0; }
 .eb-btn.secondary:hover { background: #e2e8f0; }
 .eb-btn.danger { background: #fee2e2; color: #dc2626; }
@@ -509,6 +546,48 @@
   #eb-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
   body { font-size: 11px; }
 }
+
+body.theme-dark .eb-status-pill { background:rgba(29,78,216,.15); border-color:rgba(29,78,216,.3); color:#93c5fd; }
+body.theme-dark .eb-status-pill.green { background:rgba(21,128,61,.15); border-color:rgba(21,128,61,.3); color:#86efac; }
+body.theme-dark .eb-status-pill.gray { background:var(--surface-alt); border-color:var(--border); color:var(--text-light); }
+body.theme-dark .eb-widget { background:var(--surface); border-color:var(--border); }
+body.theme-dark .eb-widget-head { background:var(--surface); border-color:var(--border); }
+body.theme-dark .eb-widget-icon { background:var(--surface-alt); box-shadow:none; }
+body.theme-dark .eb-add-panel { background:var(--surface); border-color:var(--border); }
+body.theme-dark .eb-add-item { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .eb-footer { background:var(--surface); border-color:var(--border); color:var(--text-light); }
+body.theme-dark .eb-footer-main { color:var(--text); }
+body.theme-dark #eb-config-modal-inner { background:var(--surface); }
+body.theme-dark #eb-config-modal h3 { color:var(--text); }
+body.theme-dark .eb-cfg-field label { color:var(--text-mid); }
+body.theme-dark .eb-cfg-field input, body.theme-dark .eb-cfg-field select { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .eb-stat-box { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .eb-stat-val { color:var(--text); }
+body.theme-dark .eb-stat-label { color:var(--text-light); }
+body.theme-dark .eb-kpi-card { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .eb-kpi-icon { background:var(--surface-alt); box-shadow:none; }
+body.theme-dark .eb-kpi-value { color:var(--text); }
+body.theme-dark .eb-kpi-meta { color:var(--text-light); }
+body.theme-dark .eb-list-item { border-color:var(--border); }
+body.theme-dark .eb-list-main { color:var(--text); }
+body.theme-dark .eb-list-sub { color:var(--text-light); }
+body.theme-dark .eb-tag { background:var(--surface-alt); color:var(--text-light); }
+body.theme-dark .eb-tag.todo { background:rgba(29,78,216,.2); color:#93c5fd; }
+body.theme-dark .eb-tag.in-progress { background:rgba(146,64,14,.15); color:#fde68a; }
+body.theme-dark .eb-tag.done, body.theme-dark .eb-tag.approvato, body.theme-dark .eb-tag.low { background:rgba(21,128,61,.2); color:#86efac; }
+body.theme-dark .eb-tag.overdue, body.theme-dark .eb-tag.rifiutato, body.theme-dark .eb-tag.danger, body.theme-dark .eb-tag.high { background:rgba(220,38,38,.15); color:#fca5a5; }
+body.theme-dark .eb-tag.attesa, body.theme-dark .eb-tag.medium, body.theme-dark .eb-tag.warning { background:rgba(180,83,9,.2); color:#fcd34d; }
+body.theme-dark .eb-tag.ferie, body.theme-dark .eb-tag.info { background:rgba(29,78,216,.15); color:#93c5fd; }
+body.theme-dark .eb-tag.permesso, body.theme-dark .eb-tag.purple { background:rgba(124,58,237,.15); color:#d8b4fe; }
+body.theme-dark .eb-badge { background:rgba(29,78,216,.15); color:#93c5fd; }
+body.theme-dark .eb-badge.green { background:rgba(22,163,74,.15); color:#86efac; }
+body.theme-dark .eb-badge.yellow { background:rgba(202,138,4,.15); color:#fde68a; }
+body.theme-dark .eb-badge.red { background:rgba(220,38,38,.15); color:#fca5a5; }
+body.theme-dark .eb-badge.gray { background:var(--surface-alt); color:var(--text-light); }
+body.theme-dark .eb-badge.purple { background:rgba(124,58,237,.15); color:#d8b4fe; }
+body.theme-dark .eb-profilo-name { color:var(--text); }
+body.theme-dark .eb-profilo-role { color:var(--text-light); }
+body.theme-dark #eb-edit-bar { background:rgba(29,78,216,.1); border-color:rgba(29,78,216,.25); color:#93c5fd; }
 </style>
 {% endblock %}
 
@@ -599,6 +678,9 @@
             <div class="eb-kpi-grid">
               {% for card in d.cards %}
                 <a class="eb-kpi-card {{ card.tone }}" href="{{ card.url }}">
+                  {% if card.icon_url %}
+                    <span class="eb-kpi-icon" aria-hidden="true"><img src="{{ card.icon_url }}" alt="" loading="lazy"></span>
+                  {% endif %}
                   <span class="eb-kpi-value">{{ card.value }}</span>
                   <span class="eb-kpi-label">{{ card.label }}</span>
                   <span class="eb-kpi-meta">{{ card.meta }}</span>

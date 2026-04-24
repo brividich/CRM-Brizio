@@ -138,13 +138,36 @@
                 <label>Scala logo sidebar (%)</label>
                 <input class="input" type="number" name="brand_sidebar_logo_scale" value="{{ branding.brand_sidebar_logo_scale|default:'100' }}" min="60" max="260">
               </div>
-              <div class="field" style="margin-bottom:0;">
-                <label>Posizione form login X (%)</label>
-                <input class="input" type="number" name="brand_login_form_x" value="{{ branding.brand_login_form_x|default:'78' }}" min="0" max="100">
-              </div>
-              <div class="field" style="margin-bottom:0;">
-                <label>Posizione form login Y (%)</label>
-                <input class="input" type="number" name="brand_login_form_y" value="{{ branding.brand_login_form_y|default:'50' }}" min="0" max="100">
+            </div>
+
+            <div class="field" style="margin-top:18px;margin-bottom:0;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;">
+              <label style="font-weight:700;color:var(--text);display:block;margin-bottom:4px;">Posizione form login</label>
+              <p style="font-size:12px;color:var(--text-light);margin:0 0 12px;">Usa i cursori o clicca/trascina nell'anteprima per posizionare il form. Attivo su desktop con immagine di sfondo.</p>
+              <div style="display:grid;grid-template-columns:1fr 216px;gap:18px;align-items:center;">
+                <div>
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                    <label style="font-size:12px;color:var(--text-mid);width:90px;flex-shrink:0;">Orizzontale X</label>
+                    <input type="range" id="pos-x-range" min="0" max="100" value="{{ branding.brand_login_form_x|default:'78' }}" style="flex:1;cursor:pointer;accent-color:var(--primary);">
+                    <input class="input" type="number" id="pos-x-num" name="brand_login_form_x" value="{{ branding.brand_login_form_x|default:'78' }}" min="0" max="100" style="width:60px;padding:4px 8px;text-align:center;font-size:13px;">
+                    <span id="pos-x-pct" style="font-size:12px;color:var(--text-light);min-width:30px;">{{ branding.brand_login_form_x|default:'78' }}%</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <label style="font-size:12px;color:var(--text-mid);width:90px;flex-shrink:0;">Verticale Y</label>
+                    <input type="range" id="pos-y-range" min="0" max="100" value="{{ branding.brand_login_form_y|default:'50' }}" style="flex:1;cursor:pointer;accent-color:var(--primary);">
+                    <input class="input" type="number" id="pos-y-num" name="brand_login_form_y" value="{{ branding.brand_login_form_y|default:'50' }}" min="0" max="100" style="width:60px;padding:4px 8px;text-align:center;font-size:13px;">
+                    <span id="pos-y-pct" style="font-size:12px;color:var(--text-light);min-width:30px;">{{ branding.brand_login_form_y|default:'50' }}%</span>
+                  </div>
+                </div>
+                <div id="pos-picker" style="width:216px;height:122px;border-radius:8px;overflow:hidden;border:1px solid var(--border);cursor:crosshair;position:relative;flex-shrink:0;user-select:none;">
+                  <div style="position:absolute;inset:0;{% if landing_url %}background:url('{{ landing_url }}') center/cover;{% else %}background:linear-gradient(135deg,#1e3a5f,#2a4d7a);{% endif %}"></div>
+                  <div style="position:absolute;inset:0;background:rgba(0,0,0,.08);"></div>
+                  <div id="pos-handle" style="position:absolute;width:40px;height:40px;border:2px solid rgba(255,255,255,.9);border-radius:6px;background:rgba(255,255,255,.22);box-shadow:0 2px 8px rgba(0,0,0,.45);transform:translate(-50%,-50%);pointer-events:none;">
+                    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="2.2" stroke-linecap="round"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M12 3v18M3 12h18"/></svg>
+                    </div>
+                  </div>
+                  <div style="position:absolute;bottom:3px;left:50%;transform:translateX(-50%);font-size:9px;color:rgba(255,255,255,.6);pointer-events:none;white-space:nowrap;">trascina per posizionare</div>
+                </div>
               </div>
             </div>
 
@@ -269,12 +292,13 @@
 
           {% if landing_url %}
             <div style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">Sfondo landing</div>
-            <div style="height:120px;border-radius:10px;overflow:hidden;background:#0f172a;border:1px solid var(--border);">
+            <div id="preview-landing" style="height:120px;border-radius:10px;overflow:hidden;background:#0f172a;border:1px solid var(--border);position:relative;">
               <img
                 src="{{ landing_url }}"
                 alt="Landing login"
                 style="width:100%;height:100%;{% if branding.brand_landing_fit_mode == 'contain' %}object-fit:contain;{% elif branding.brand_landing_fit_mode == 'stretch' %}object-fit:fill;{% elif branding.brand_landing_fit_mode == 'center' %}object-fit:none;object-position:center center;{% else %}object-fit:cover;{% endif %}"
               >
+              <div id="preview-handle" style="position:absolute;border:2px solid rgba(255,255,255,.9);border-radius:4px;background:rgba(255,255,255,.2);box-shadow:0 2px 6px rgba(0,0,0,.4);pointer-events:none;transform:translate(-50%,-50%);width:30px;height:30px;"></div>
             </div>
           {% endif %}
 
@@ -300,6 +324,67 @@
 
 {% block extra_scripts %}
 <script>
+/* ── Position picker ── */
+(function(){
+  var xRange  = document.getElementById('pos-x-range');
+  var yRange  = document.getElementById('pos-y-range');
+  var xNum    = document.getElementById('pos-x-num');
+  var yNum    = document.getElementById('pos-y-num');
+  var xPct    = document.getElementById('pos-x-pct');
+  var yPct    = document.getElementById('pos-y-pct');
+  var picker  = document.getElementById('pos-picker');
+  var handle  = document.getElementById('pos-handle');
+  var prevL   = document.getElementById('preview-landing');
+  var prevH   = document.getElementById('preview-handle');
+
+  if (!picker || !handle) return;
+
+  function clampInt(v) { return Math.max(0, Math.min(100, parseInt(v, 10) || 0)); }
+
+  function updateHandles() {
+    var x = clampInt(xNum.value);
+    var y = clampInt(yNum.value);
+
+    handle.style.left = (x / 100 * picker.offsetWidth)  + 'px';
+    handle.style.top  = (y / 100 * picker.offsetHeight) + 'px';
+
+    if (xPct) xPct.textContent = x + '%';
+    if (yPct) yPct.textContent = y + '%';
+
+    if (prevH && prevL) {
+      prevH.style.left = (x / 100 * prevL.offsetWidth)  + 'px';
+      prevH.style.top  = (y / 100 * prevL.offsetHeight) + 'px';
+    }
+  }
+
+  function syncX(v) { v = clampInt(v); xRange.value = xNum.value = v; updateHandles(); }
+  function syncY(v) { v = clampInt(v); yRange.value = yNum.value = v; updateHandles(); }
+
+  xRange.addEventListener('input', function(){ syncX(this.value); });
+  yRange.addEventListener('input', function(){ syncY(this.value); });
+  xNum.addEventListener('input',   function(){ syncX(this.value); });
+  yNum.addEventListener('input',   function(){ syncY(this.value); });
+
+  function setPosFromEvent(e) {
+    var rect = picker.getBoundingClientRect();
+    var cx = e.touches ? e.touches[0].clientX : e.clientX;
+    var cy = e.touches ? e.touches[0].clientY : e.clientY;
+    syncX(Math.round((cx - rect.left)  / rect.width  * 100));
+    syncY(Math.round((cy - rect.top)   / rect.height * 100));
+  }
+
+  var dragging = false;
+  picker.addEventListener('mousedown',  function(e){ dragging = true;  e.preventDefault(); setPosFromEvent(e); });
+  picker.addEventListener('touchstart', function(e){ dragging = true;  e.preventDefault(); setPosFromEvent(e); }, {passive:false});
+  document.addEventListener('mousemove',  function(e){ if (dragging) setPosFromEvent(e); });
+  document.addEventListener('touchmove',  function(e){ if (dragging) { e.preventDefault(); setPosFromEvent(e); } }, {passive:false});
+  document.addEventListener('mouseup',   function(){ dragging = false; });
+  document.addEventListener('touchend',  function(){ dragging = false; });
+
+  updateHandles();
+})();
+
+/* ── Banner actions ── */
 const csrfToken = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || "";
 
 async function toggleBanner(id) {

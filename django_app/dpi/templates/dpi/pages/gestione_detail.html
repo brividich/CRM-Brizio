@@ -58,6 +58,33 @@
 .dpi-consegna-box { background:#d1fae5; border:1px solid #6ee7b7; border-radius:12px; padding:14px 18px; }
 .dpi-consegna-box dt { font-size:11px; font-weight:700; color:#065f46; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px; }
 .dpi-consegna-box dd { font-size:13px; color:#065f46; margin:0 0 10px; }
+
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .dpi-subnav-link { background:var(--surface); color:var(--text-mid); }
+body.theme-dark .dpi-subnav-link:hover { background:rgba(255,255,255,.07); color:var(--text); }
+body.theme-dark .dpi-subnav-link.active { background:#0369a1; color:#fff; }
+body.theme-dark .dpi-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dpi-dl dt { color:var(--text-light); }
+body.theme-dark .dpi-dl dd { color:var(--text); }
+body.theme-dark .dpi-cat-big { background:rgba(21,128,61,.15); border-color:rgba(21,128,61,.35); }
+body.theme-dark .dpi-cat-big-nome { color:#86efac; }
+body.theme-dark .dpi-action-panel { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .dpi-action-title { color:var(--text-mid); }
+body.theme-dark .dpi-field label { color:var(--text-mid); }
+body.theme-dark .dpi-field input, body.theme-dark .dpi-field textarea, body.theme-dark .dpi-field select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .dpi-btn-gray { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .dpi-btn-gray:hover { background:var(--surface); }
+body.theme-dark .dpi-timeline-body { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .dpi-timeline-meta { color:var(--text-light); }
+body.theme-dark .dpi-timeline-dot.interno { background:#f59e0b; }
+body.theme-dark .dpi-interno-badge { background:rgba(146,64,14,.25); color:#fcd34d; }
+body.theme-dark .dpi-consegna-box { background:rgba(6,95,70,.25); border-color:rgba(110,231,183,.3); }
+body.theme-dark .dpi-consegna-box dt, body.theme-dark .dpi-consegna-box dd { color:#6ee7b7; }
+body.theme-dark .dpi-badge-INVIATA   { background:rgba(29,78,216,.2);  color:#93c5fd; }
+body.theme-dark .dpi-badge-APPROVATA { background:rgba(146,64,14,.25); color:#fcd34d; }
+body.theme-dark .dpi-badge-CONSEGNATA{ background:rgba(6,95,70,.25);   color:#6ee7b7; }
+body.theme-dark .dpi-badge-RIFIUTATA { background:rgba(153,27,27,.2);  color:#fca5a5; }
+body.theme-dark .dpi-badge-ANNULLATA { background:rgba(71,85,105,.2);  color:#94a3b8; }
 </style>
 {% endblock %}
 

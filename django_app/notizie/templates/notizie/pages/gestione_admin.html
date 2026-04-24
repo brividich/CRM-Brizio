@@ -49,6 +49,29 @@
       .log-row, .log-row.log-head { grid-template-columns: 1fr; gap: 2px; }
       .log-head { display: none; }
     }
+
+    body.theme-dark .ga-tab { color:var(--text-mid); }
+    body.theme-dark .ga-tab:hover { background:rgba(29,78,216,.1); color:#93c5fd; }
+    body.theme-dark .ga-tab.active { background:var(--surface); border-color:var(--border); color:#93c5fd; }
+    body.theme-dark .kpi { background:var(--surface); border-color:var(--border); }
+    body.theme-dark .kpi-val { color:var(--text); }
+    body.theme-dark .kpi-label, body.theme-dark .kpi-sub { color:var(--text-light); }
+    body.theme-dark .bar-wrap { background:var(--border); }
+    body.theme-dark .card { background:var(--surface); border-color:var(--border); }
+    body.theme-dark .card-head { border-color:var(--border); }
+    body.theme-dark .card-title { color:var(--text); }
+    body.theme-dark .tbl th { background:var(--thead-bg); border-color:var(--border); color:var(--text-light); }
+    body.theme-dark .tbl td { border-color:var(--border); color:var(--text); }
+    body.theme-dark .tbl tr:hover td { background:var(--tbody-hover); }
+    body.theme-dark .badge-bozza, body.theme-dark .badge-archiviata { background:var(--surface-alt); color:var(--text-light); }
+    body.theme-dark .badge-pubblicata { background:rgba(22,101,52,.2); color:#86efac; }
+    body.theme-dark .badge-obbligatoria { background:rgba(153,27,27,.2); color:#fca5a5; }
+    body.theme-dark .search-row input, body.theme-dark .search-row select { background:var(--surface); border-color:var(--border); color:var(--text); }
+    body.theme-dark .log-row { border-color:var(--border); color:var(--text); }
+    body.theme-dark .log-head { color:var(--text-light); }
+    body.theme-dark .acl-role-item { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+    body.theme-dark .pager { color:var(--text-light); }
+    body.theme-dark .pager a { border-color:var(--border); color:#93c5fd; }
   </style>
 {% endblock %}
 

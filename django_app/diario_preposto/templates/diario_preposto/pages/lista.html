@@ -54,6 +54,21 @@
   .dp-filters label { width:100%; }
   .dp-filters select, .dp-filters input[type=text] { width:100%; min-width:0; }
 }
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .dp-kpi { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dp-kpi-val { color:#2dd4bf; }
+body.theme-dark .dp-kpi-lbl { color:var(--text-light); }
+body.theme-dark .dp-filters-wrap { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dp-filters label { color:var(--text-mid); }
+body.theme-dark .dp-filters select, body.theme-dark .dp-filters input[type=text] { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .dp-filter-reset { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .dp-table-wrap { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dp-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+body.theme-dark .dp-table td { border-color:var(--border); }
+body.theme-dark .dp-table tr:hover td { background:var(--tbody-hover); }
+body.theme-dark .dp-table a { color:#2dd4bf; }
+body.theme-dark .dp-code { color:#2dd4bf; }
+body.theme-dark .dp-empty { color:var(--text-light); }
 </style>
 {% endblock %}
 

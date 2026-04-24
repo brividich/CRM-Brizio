@@ -128,6 +128,19 @@
 }
 
 .hidden { display:none !important; }
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .sic-breadcrumb { color:var(--text-light); }
+body.theme-dark .sic-breadcrumb a { color:#2dd4bf; }
+body.theme-dark .sic-tipo-card { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .sic-tipo-card:hover { border-color:#2dd4bf; }
+body.theme-dark .sic-form-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .sic-section { border-color:var(--border); }
+body.theme-dark .sic-section-title { color:var(--text); }
+body.theme-dark .sic-field label { color:var(--text-mid); }
+body.theme-dark .sic-field input, body.theme-dark .sic-field select, body.theme-dark .sic-field textarea { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .sic-toggle-row { background:rgba(21,128,61,.15); border-color:rgba(21,128,61,.35); }
+body.theme-dark .sic-btn-back { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .sic-error-box { background:rgba(153,27,27,.2); border-color:rgba(252,165,165,.3); color:#fca5a5; }
 </style>
 {% endblock %}
 

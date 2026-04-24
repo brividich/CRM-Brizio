@@ -81,7 +81,7 @@
   .pulsante-thumb img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
     display: block;
   }
 
@@ -167,11 +167,22 @@
   .card-image-preview img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
     display: block;
   }
   .card-image-body { flex: 1; display: flex; flex-direction: column; gap: 7px; }
   .card-image-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .module-logo-tools {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .module-logo-tools input[type="file"] {
+    max-width: 165px;
+    font-size: 11px;
+  }
 
   /* ── Status bar ───────────────────────────────────────────────────── */
   #pulsanti-status { font-size: 12px; min-height: 16px; }
@@ -489,7 +500,7 @@
           <div class="cf"><label>Sezione UI</label><input class="input" type="text" name="ui_section" list="ui-section-options-list" placeholder="gestione_assenze / admin"></div>
           <div class="cf"><label>Ordine UI</label><input class="input" type="number" name="ui_order" placeholder="es. 10"></div>
           <div class="cf"><label>Icona</label><input class="input" type="text" name="icona" list="icon-options-list" placeholder="icona / testo breve"></div>
-          <div class="cf"><label>Immagine modulo (URL)</label><input class="input" type="text" name="card_image" placeholder="https://... oppure /media/..."></div>
+          <div class="cf"><label>Logo / immagine dashboard (URL)</label><input class="input" type="text" name="card_image" placeholder="https://... oppure /media/..."></div>
           {% if has_ordine %}<div class="cf"><label>Ordine legacy</label><input class="input" type="number" name="ordine"></div>{% endif %}
           <div class="cf cf-checks">
             <label><input type="checkbox" name="visible_topbar" checked> Visibile topbar</label>
@@ -534,9 +545,14 @@
                 <div class="perm-mod-count">{{ group.list|length }} pulsant{% if group.list|length == 1 %}e{% else %}i{% endif %}</div>
               </div>
             </div>
-            <a class="btn btn-secondary btn-sm"
-               href="{% url 'admin_portale:permessi' %}?target_type=role"
-               style="font-size:11px;">Permessi</a>
+            <div class="module-logo-tools" data-module="{{ group.grouper|default:'' }}">
+              <input class="input input-sm module-card-image-file" type="file" data-module="{{ group.grouper|default:'' }}" accept="image/*" title="Seleziona logo modulo">
+              <button class="btn btn-secondary btn-sm module-card-image-upload" type="button" data-module="{{ group.grouper|default:'' }}" style="font-size:11px;">Logo modulo</button>
+              <button class="btn btn-secondary btn-sm module-card-image-remove" type="button" data-module="{{ group.grouper|default:'' }}" style="font-size:11px;">Rimuovi logo</button>
+              <a class="btn btn-secondary btn-sm"
+                 href="{% url 'admin_portale:permessi' %}?target_type=role"
+                 style="font-size:11px;">Permessi</a>
+            </div>
           </div>
           {% for p in group.list %}
           <div class="pulsante-row{% if not p.ui_enabled %} is-disabled{% endif %}" data-id="{{ p.id }}">
@@ -591,7 +607,7 @@
                 <div class="ef ef-full"><label>URL</label><input class="input input-sm" type="text" data-name="url" value="{{ p.url }}"></div>
                 <div class="ef ef-full"><label>Descrizione</label><input class="input input-sm" type="text" data-name="descrizione" value="{{ p.descrizione|default:'' }}" placeholder="Breve spiegazione di cosa fa questa pagina/funzione"></div>
                 <div class="ef ef-full">
-                  <label>Immagine modulo (globale)</label>
+                  <label>Logo / immagine dashboard</label>
                   <div class="card-image-editor">
                     <div class="card-image-preview" id="card-image-preview-{{ p.id }}">
                       {% if p.card_image_url %}
@@ -607,6 +623,7 @@
                         <button class="btn btn-secondary btn-sm card-image-upload" type="button" data-id="{{ p.id }}">Carica file</button>
                         <button class="btn btn-secondary btn-sm card-image-remove" type="button" data-id="{{ p.id }}">Rimuovi</button>
                       </div>
+                      <span class="cell-muted" style="font-size:11px;">Usa un PNG/SVG ufficiale. Il logo compare nella dashboard per questo pulsante o per il modulo se applicato dal gruppo.</span>
                     </div>
                   </div>
                 </div>
@@ -757,6 +774,15 @@
     }
   }
 
+  function setModuleCardPreview(moduleCard, imageUrl, storageValue) {
+    if (!moduleCard) return;
+    moduleCard.querySelectorAll(".pulsante-row[data-id]").forEach(function (row) {
+      const pid = row.dataset.id;
+      const labelText = row.querySelector(".pulsante-label")?.textContent || ("P" + pid);
+      setCardPreview(pid, imageUrl, labelText, storageValue || imageUrl || "");
+    });
+  }
+
   // ── Preset helpers ────────────────────────────────────────────────────────
   let uiPresets = [];
   try { uiPresets = JSON.parse(document.getElementById("pulsanti-ui-presets")?.textContent || "[]"); } catch (e) {}
@@ -863,6 +889,62 @@
 
   // ── Edit / Cancel / Save / Delete / Preset riga ───────────────────────────
   document.getElementById("pulsanti-module-grid")?.addEventListener("click", async function (e) {
+    // Upload logo per tutto il modulo
+    const moduleImageUploadBtn = e.target.closest(".module-card-image-upload");
+    if (moduleImageUploadBtn) {
+      const moduleName = moduleImageUploadBtn.dataset.module || "";
+      const moduleCard = moduleImageUploadBtn.closest(".perm-mod-card");
+      const tools = moduleImageUploadBtn.closest(".module-logo-tools");
+      const fileInput = tools?.querySelector(".module-card-image-file");
+      const file = fileInput?.files?.[0];
+      if (!moduleName) {
+        setStatus("Modulo non valido.", true);
+        return;
+      }
+      if (!file) {
+        setStatus("Seleziona un file immagine prima del caricamento.", true);
+        return;
+      }
+      const formData = new FormData();
+      formData.append("module", moduleName);
+      formData.append("image", file);
+      if (moduleCard) moduleCard.classList.add("saving");
+      try {
+        setStatus("Upload logo modulo...", false);
+        const data = await postFormData("{% url 'admin_portale:api_pulsanti_module_card_image' %}", formData);
+        setModuleCardPreview(moduleCard, data.card_image_url || "", data.card_image || data.card_image_url || "");
+        setStatus("Logo modulo aggiornato su " + (data.updated || 0) + " pulsanti.", false);
+      } catch (err) {
+        setStatus("Errore upload logo modulo: " + err.message, true);
+      } finally {
+        if (moduleCard) moduleCard.classList.remove("saving");
+      }
+      return;
+    }
+
+    // Rimozione logo per tutto il modulo
+    const moduleImageRemoveBtn = e.target.closest(".module-card-image-remove");
+    if (moduleImageRemoveBtn) {
+      const moduleName = moduleImageRemoveBtn.dataset.module || "";
+      const moduleCard = moduleImageRemoveBtn.closest(".perm-mod-card");
+      if (!moduleName) {
+        setStatus("Modulo non valido.", true);
+        return;
+      }
+      if (moduleCard) moduleCard.classList.add("saving");
+      try {
+        setStatus("Rimozione logo modulo...", false);
+        const data = await postJson("{% url 'admin_portale:api_pulsanti_module_card_image' %}", { module: moduleName, remove: true });
+        setModuleCardPreview(moduleCard, "", "");
+        setStatus("Logo modulo rimosso da " + (data.updated || 0) + " pulsanti.", false);
+      } catch (err) {
+        setStatus("Errore rimozione logo modulo: " + err.message, true);
+      } finally {
+        if (moduleCard) moduleCard.classList.remove("saving");
+      }
+      return;
+    }
+
     // Edit button
     const editBtn = e.target.closest(".edit-btn");
     if (editBtn) {

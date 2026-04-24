@@ -110,7 +110,7 @@ def _save_user_ui_preferences(
     prefs, _ = UserUiPreference.objects.get_or_create(
         user=request.user,
         defaults={
-            "nav_mode": "side",
+            "nav_mode": _UI_PREFS_DEFAULTS["nav_mode"],
             "theme_mode": "light",
             "font_scale": "normal",
             "sidebar_collapsed": False,
@@ -946,7 +946,7 @@ def sidebar_toggle_save(request):
     prefs, created = UserUiPreference.objects.get_or_create(
         user=request.user,
         defaults={
-            "nav_mode": "side",
+            "nav_mode": _UI_PREFS_DEFAULTS["nav_mode"],
             "theme_mode": "light",
             "font_scale": "normal",
             "sidebar_collapsed": collapsed,

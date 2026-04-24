@@ -71,6 +71,30 @@
 }
 
 .sic-error { background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:14px 18px; color:#991b1b; font-size: var(--fs-base); }
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .sic-breadcrumb { color:var(--text-light); }
+body.theme-dark .sic-breadcrumb a { color:#2dd4bf; }
+body.theme-dark .sic-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .sic-card-head { border-color:var(--border); }
+body.theme-dark .sic-card-title { color:var(--text); }
+body.theme-dark .sic-field-label { color:var(--text-light); }
+body.theme-dark .sic-field-value { color:var(--text-mid); }
+body.theme-dark .sic-field-value.empty { color:var(--text-light); }
+body.theme-dark .sic-pill-unsafe-condition { background:rgba(234,88,12,.6); color:#fff; }
+body.theme-dark .sic-pill-unsafe-act      { background:rgba(220,38,38,.6); color:#fff; }
+body.theme-dark .sic-pill-near-miss       { background:rgba(180,83,9,.6);  color:#fff; }
+body.theme-dark .sic-pill-accident        { background:rgba(127,29,29,.6); color:#fff; }
+body.theme-dark .sic-stato-aperto    { background:rgba(29,78,216,.2); color:#93c5fd; }
+body.theme-dark .sic-stato-approvato { background:rgba(146,64,14,.25); color:#fde68a; }
+body.theme-dark .sic-stato-chiuso    { background:rgba(6,95,70,.25); color:#6ee7b7; }
+body.theme-dark .sic-bool-yes { color:#86efac; }
+body.theme-dark .sic-bool-no  { color:#fca5a5; }
+body.theme-dark .sic-why-item { color:var(--text-mid); }
+body.theme-dark .sic-approv-section { background:rgba(146,64,14,.1); border-color:rgba(253,230,138,.3); }
+body.theme-dark .sic-chiuso-section { background:rgba(6,95,70,.15); border-color:rgba(110,231,183,.3); }
+body.theme-dark .sic-error { background:rgba(153,27,27,.2); border-color:rgba(252,165,165,.3); color:#fca5a5; }
+body.theme-dark .sic-btn-edit { background:rgba(29,78,216,.2); color:#93c5fd; }
+body.theme-dark .sic-btn-rspp { background:rgba(29,78,216,.2); color:#93c5fd; }
 </style>
 {% endblock %}
 

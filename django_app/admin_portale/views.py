@@ -857,16 +857,37 @@ def _card_image_raw_value(pulsante_id: int) -> str:
 
 def _save_pulsante_ui_meta(pulsante_id: int, payload: dict) -> None:
     _ensure_pulsanti_ui_meta_table()
-    ui_slot = str(payload.get("ui_slot") or "").strip() or None
-    ui_section = str(payload.get("ui_section") or "").strip() or None
-    ui_order = _int_or_none(payload.get("ui_order"))
+    existing = _pulsanti_ui_meta_map().get(int(pulsante_id), {})
+    ui_slot = (
+        str(payload.get("ui_slot") or "").strip() or None
+        if "ui_slot" in payload
+        else (existing.get("ui_slot") or None)
+    )
+    ui_section = (
+        str(payload.get("ui_section") or "").strip() or None
+        if "ui_section" in payload
+        else (existing.get("ui_section") or None)
+    )
+    ui_order = _int_or_none(payload.get("ui_order")) if "ui_order" in payload else existing.get("ui_order")
     has_card_image = "card_image" in payload
     card_image = _clean_card_image_value(payload.get("card_image")) if has_card_image else _clean_card_image_value(
         _card_image_raw_value(pulsante_id)
     )
-    visible_topbar = _bool_from_any(payload.get("visible_topbar")) if "visible_topbar" in payload else True
-    enabled = _bool_from_any(payload.get("enabled")) if "enabled" in payload else True
-    is_padre = _bool_from_any(payload.get("is_padre")) if "is_padre" in payload else False
+    visible_topbar = (
+        _bool_from_any(payload.get("visible_topbar"))
+        if "visible_topbar" in payload
+        else _boolish_db(existing.get("visible_topbar"), True)
+    )
+    enabled = (
+        _bool_from_any(payload.get("enabled"))
+        if "enabled" in payload
+        else _boolish_db(existing.get("enabled"), True)
+    )
+    is_padre = (
+        _bool_from_any(payload.get("is_padre"))
+        if "is_padre" in payload
+        else _boolish_db(existing.get("is_padre"), False)
+    )
     with connections["default"].cursor() as cursor:
         vendor = connections["default"].vendor
         if vendor == "sqlite":
@@ -7141,7 +7162,10 @@ def api_permessi_bulk(request):
 
     allowed_fields = [name for name in _perm_flag_names() if name != "consentito"]
     mode = str(payload.get("mode") or "").strip().lower()
-    updates = payload.get("updates") or []
+    updates = payload.get("updates")
+    if updates is None:
+        # The role wizard originally posts the rows under this key.
+        updates = payload.get("rows") or []
 
     try:
         with transaction.atomic():
@@ -7381,6 +7405,88 @@ def api_pulsanti_card_image(request):
         "pulsante_id": pid,
         "card_image": new_value or "",
         "card_image_url": _card_image_public_url(new_value),
+    })
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_pulsanti_module_card_image(request):
+    """Applica un logo/immagine dashboard a tutti i pulsanti di uno stesso modulo."""
+    if request.FILES:
+        modulo = str(request.POST.get("module") or request.POST.get("modulo") or "").strip()
+        upload = request.FILES.get("image")
+        if not modulo:
+            return _json_error("Modulo mancante.")
+        if upload is None:
+            return _json_error("File immagine mancante.")
+        if not str(getattr(upload, "content_type", "") or "").lower().startswith("image/"):
+            return _json_error("Formato file non valido: serve una immagine.")
+
+        pulsanti = list(Pulsante.objects.filter(modulo__iexact=modulo).order_by("id"))
+        if not pulsanti:
+            return _json_error("Nessun pulsante trovato per il modulo indicato.", status=404)
+
+        base_name, ext = os.path.splitext(str(getattr(upload, "name", "") or modulo))
+        if not ext:
+            ext = ".png"
+        safe_module = slugify(modulo) or "modulo"
+        safe_name = slugify(base_name) or safe_module
+        unique_suffix = timezone.now().strftime("%Y%m%d%H%M%S%f")
+        target_path = f"dashboard/modules/{safe_module}/{safe_name}-{unique_suffix}{ext.lower()}"
+
+        try:
+            with transaction.atomic():
+                saved_path = default_storage.save(target_path, upload).replace("\\", "/")
+                for pulsante in pulsanti:
+                    _save_pulsante_ui_meta(int(pulsante.id), {"card_image": saved_path})
+                _audit_safe(
+                    request,
+                    "module_logo_upload",
+                    "admin_portale",
+                    {"modulo": modulo, "updated": len(pulsanti), "card_image": saved_path},
+                )
+        except Exception as exc:
+            return _json_error(f"Errore salvataggio immagine modulo: {exc}")
+
+        return JsonResponse({
+            "ok": True,
+            "module": modulo,
+            "updated": len(pulsanti),
+            "card_image": saved_path,
+            "card_image_url": _card_image_public_url(saved_path),
+        })
+
+    payload = _post_or_json_payload(request)
+    modulo = str(payload.get("module") or payload.get("modulo") or "").strip()
+    if not modulo:
+        return _json_error("Modulo mancante.")
+    remove = _bool_from_any(payload.get("remove"))
+    if not remove:
+        return _json_error("Operazione non valida.")
+
+    pulsanti = list(Pulsante.objects.filter(modulo__iexact=modulo).order_by("id"))
+    if not pulsanti:
+        return _json_error("Nessun pulsante trovato per il modulo indicato.", status=404)
+    try:
+        with transaction.atomic():
+            for pulsante in pulsanti:
+                _save_pulsante_ui_meta(int(pulsante.id), {"card_image": None})
+            _audit_safe(
+                request,
+                "module_logo_remove",
+                "admin_portale",
+                {"modulo": modulo, "updated": len(pulsanti)},
+            )
+    except Exception as exc:
+        return _json_error(f"Errore rimozione immagine modulo: {exc}")
+
+    return JsonResponse({
+        "ok": True,
+        "module": modulo,
+        "updated": len(pulsanti),
+        "card_image": "",
+        "card_image_url": "",
     })
 
 

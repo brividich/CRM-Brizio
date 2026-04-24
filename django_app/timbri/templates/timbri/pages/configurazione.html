@@ -24,6 +24,17 @@
     .tim-table th, .tim-table td { padding:10px 12px; border-bottom:1px solid #f1f5f9; text-align:left; vertical-align:top; }
     .tim-table th { font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
     @media (max-width: 900px) { .tim-kpi, .tim-grid { grid-template-columns:1fr; } }
+    /* ── Dark mode ──────────────────────────────────────────────────────────── */
+    body.theme-dark .tim-tab { background:var(--surface); border-color:var(--border); color:var(--text-mid); }
+    body.theme-dark .tim-tab.active { background:#0f766e; border-color:#0f766e; color:#fff; }
+    body.theme-dark .tim-card, body.theme-dark .tim-k { background:var(--surface); border-color:var(--border); }
+    body.theme-dark .tim-k-val { color:var(--text); }
+    body.theme-dark .tim-k-label { color:var(--text-light); }
+    body.theme-dark .tim-field label { color:var(--text-light); }
+    body.theme-dark .tim-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+    body.theme-dark .tim-btn { background:var(--surface); border-color:var(--border); color:var(--text); }
+    body.theme-dark .tim-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+    body.theme-dark .tim-table td { border-color:var(--border); }
   </style>
 {% endblock %}
 

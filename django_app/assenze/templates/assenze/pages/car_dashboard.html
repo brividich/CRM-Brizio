@@ -97,6 +97,20 @@
     @media (max-width: 960px) {
       .car-grid { grid-template-columns: 1fr; }
     }
+    /* ── Dark mode ──────────────────────────────────────────────────────────── */
+    body.theme-dark .car-type-pill  { background:rgba(29,78,216,.2); color:#93c5fd; }
+    body.theme-dark .car-note-pill  { background:rgba(185,28,28,.2); color:#fca5a5; }
+    body.theme-dark .car-cert-pill  { background:rgba(15,118,110,.2); color:#2dd4bf; }
+    body.theme-dark .car-status { color:var(--text-mid); }
+    body.theme-dark .text-danger { color:#f87171; }
+    body.theme-dark .text-warn   { color:#fbbf24; }
+    body.theme-dark .diag-ok    { background:rgba(21,128,61,.2); color:#86efac; }
+    body.theme-dark .diag-warn  { background:rgba(146,64,14,.2); color:#fde68a; }
+    body.theme-dark .diag-error { background:rgba(185,28,28,.2); color:#fca5a5; }
+    body.theme-dark .note-row td { background:rgba(185,28,28,.08); border-color:rgba(252,165,165,.2); }
+    body.theme-dark .note-row textarea { background:var(--surface-alt); border-color:rgba(252,165,165,.3); color:var(--text); }
+    body.theme-dark .btn-annulla { background:var(--surface-alt); color:var(--text-mid); }
+    body.theme-dark .btn-annulla:hover { background:var(--surface); }
   </style>
 {% endblock %}
 

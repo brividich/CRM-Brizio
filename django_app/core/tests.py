@@ -1054,7 +1054,7 @@ class WindowsSSORedirectHardeningTests(TestCase):
         )
         ctx = SimpleNamespace(complete=True, client_principal="CNOVICROM\\windows-sso-user")
         ctx.step = lambda _token: None
-        fake_spnego = SimpleNamespace(server=lambda protocol="negotiate": ctx)
+        fake_spnego = SimpleNamespace(server=lambda **_kwargs: ctx)
 
         with (
             patch.dict("sys.modules", {"spnego": fake_spnego}),

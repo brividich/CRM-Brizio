@@ -1,6 +1,8 @@
 ﻿from __future__ import annotations
 
 import json
+import re
+import unicodedata
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -12,6 +14,7 @@ from django.db import DatabaseError, connections
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
+from django.templatetags.static import static
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_protect
@@ -23,6 +26,22 @@ from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_table_col
 
 MAX_LAYOUT_MODULES = 300
 ALLOWED_STATS_KEYS = {"total", "approved", "rejected", "pending"}
+
+_MODULE_ICON_STATIC_PREFIX = "core/img/module-icons/"
+_MODULE_ICON_DEFAULTS = (
+    (("ticket", "tickets", "assistenza"), "tickets.svg"),
+    (("asset", "assets", "inventario", "macchinari", "attrezzature"), "assets.svg"),
+    (("dpi", "dispositivi-protezione"), "dpi.svg"),
+    (("notizie", "notizia", "news", "comunicazioni", "bacheca"), "notizie.svg"),
+    (("timbri", "timbro", "timbrature", "presenze"), "timbri.svg"),
+    (("anagrafica", "dipendenti", "dipendente", "fornitori"), "anagrafica.svg"),
+    (("diario-preposto", "diario-preposti", "diario-preposto-sicurezza"), "diario-preposto.svg"),
+    (("rilevazione-incidenti", "segnalazione-incidenti", "incidenti", "unsafe-condition"), "segnalazione-incidenti.svg"),
+    (("procedure-refresh", "refresh-procedure", "procedure", "presa-visione"), "refresh-procedure.svg"),
+    (("gestione-anomalie", "anomalie", "anomalia"), "gestione-anomalie.svg"),
+    (("assenze", "assenza", "ferie", "permessi"), "assenze.svg"),
+    (("vrf-kickoff", "kickoff", "tasks", "task"), "vrf-kickoff.svg"),
+)
 
 
 @dataclass
@@ -118,12 +137,88 @@ def _card_image_public_url(value: str) -> str:
     lower = raw.lower()
     if lower.startswith(("http://", "https://", "data:")):
         return raw
+    if lower.startswith("static:"):
+        return static(raw.split(":", 1)[1].lstrip("/"))
+    if lower.startswith("media:"):
+        media_url = str(getattr(settings, "MEDIA_URL", "/media/") or "/media/")
+        if not media_url.endswith("/"):
+            media_url += "/"
+        return media_url + raw.split(":", 1)[1].lstrip("/")
     if raw.startswith("/"):
         return raw
     media_url = str(getattr(settings, "MEDIA_URL", "/media/") or "/media/")
     if not media_url.endswith("/"):
         media_url += "/"
     return media_url + raw.lstrip("/")
+
+
+def _normalize_card_icon_text(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    normalized = unicodedata.normalize("NFKD", text)
+    ascii_text = normalized.encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"[^a-z0-9]+", "-", ascii_text.lower()).strip("-")
+
+
+def _default_module_card_image(*values: Any) -> str:
+    tokens = [_normalize_card_icon_text(value) for value in values if value]
+    haystack = " ".join(token for token in tokens if token)
+    if not haystack:
+        return ""
+    for aliases, filename in _MODULE_ICON_DEFAULTS:
+        if any(alias in tokens or alias in haystack for alias in aliases):
+            return f"static:{_MODULE_ICON_STATIC_PREFIX}{filename}"
+    return ""
+
+
+def _module_icon_url(filename: str) -> str:
+    return _card_image_public_url(f"static:{_MODULE_ICON_STATIC_PREFIX}{filename}")
+
+
+def _module_card_image_lookup(
+    ui_meta_map: dict[int, dict[str, Any]] | None = None,
+    pulsanti: list[Any] | None = None,
+) -> dict[str, str]:
+    """Mappa alias modulo/codice/label -> URL immagine caricata manualmente."""
+    if ui_meta_map is None:
+        ui_meta_map = _pulsanti_ui_meta_map()
+    if pulsanti is None:
+        try:
+            pulsanti = list(Pulsante.objects.all().order_by("modulo", "id"))
+        except DatabaseError:
+            return {}
+
+    lookup: dict[str, str] = {}
+    for pulsante in pulsanti:
+        try:
+            meta = ui_meta_map.get(int(getattr(pulsante, "id", 0) or 0), {})
+        except Exception:
+            meta = {}
+        image_url = _card_image_public_url(meta.get("card_image") if isinstance(meta, dict) else "")
+        if not image_url:
+            continue
+        keys = {
+            _normalize_card_icon_text(getattr(pulsante, attr, ""))
+            for attr in ("modulo", "codice", "label", "nome_visibile", "url")
+        }
+        keys.discard("")
+        for key in keys:
+            lookup.setdefault(key, image_url)
+    return lookup
+
+
+def _module_image_url_for(
+    lookup: dict[str, str] | None,
+    *aliases: Any,
+    fallback_filename: str = "",
+) -> str:
+    lookup = lookup or {}
+    for alias in aliases:
+        key = _normalize_card_icon_text(alias)
+        if key and lookup.get(key):
+            return lookup[key]
+    return _module_icon_url(fallback_filename) if fallback_filename else ""
 
 
 def _map_legacy_url(url_value: str) -> str:
@@ -329,7 +424,10 @@ def _module_cards(
                 "href": _map_legacy_url(puls.url or "/"),
                 "legacy_url": (puls.url or "").strip() or "/",
                 "global_order": meta.get("ui_order"),
-                "image_url": _card_image_public_url(meta.get("card_image") or ""),
+                "image_url": _card_image_public_url(
+                    meta.get("card_image")
+                    or _default_module_card_image(modulo_display, puls.codice, puls.label, puls.url)
+                ),
             }
         )
 
@@ -424,7 +522,10 @@ def _all_permitted_pulsanti_for_request(request, ui_meta_map: dict[int, dict[str
                 "name": p.label,
                 "module": (p.modulo or "Generale").strip() or "Generale",
                 "href": _map_legacy_url(p.url or "/"),
-                "image_url": _card_image_public_url(meta.get("card_image") or ""),
+                "image_url": _card_image_public_url(
+                    meta.get("card_image")
+                    or _default_module_card_image(p.modulo, p.codice, p.label, p.url)
+                ),
                 "global_order": meta.get("ui_order"),
             }
         )
@@ -508,7 +609,10 @@ def _base_dashboard_context(request) -> dict[str, Any]:
                     "href": _map_legacy_url(p.url or "/"),
                     "enabled": meta.get("enabled", True),
                     "global_order": meta.get("ui_order"),
-                    "image_url": _card_image_public_url(meta.get("card_image") or ""),
+                    "image_url": _card_image_public_url(
+                        meta.get("card_image")
+                        or _default_module_card_image(p.modulo, p.codice, p.label, p.url)
+                    ),
                 }
             )
         admin_all_modules.sort(
@@ -696,63 +800,63 @@ EMPLOYEE_BOARD_WIDGETS = [
     {
         "id": "profilo",
         "title": "Profilo",
-        "icon": "👤",
+        "icon": "static:core/img/module-icons/anagrafica.svg",
         "description": "Informazioni anagrafiche del dipendente",
         "default_params": {"show_reparto": True, "show_mansione": True, "show_contatti": True},
     },
     {
         "id": "panoramica_moduli",
         "title": "Panoramica KPI",
-        "icon": "📈",
+        "icon": "static:core/img/module-icons/diario-preposto.svg",
         "description": "Contatori rapidi cross-modulo: task, assenze, ticket, asset, procedure",
         "default_params": {"show_secondary": True},
     },
     {
         "id": "tasks_stats",
         "title": "Riepilogo Task",
-        "icon": "📊",
+        "icon": "static:core/img/module-icons/diario-preposto.svg",
         "description": "Contatori rapidi: todo, in corso, completati, scaduti",
         "default_params": {"show_overdue": True, "show_done": True},
     },
     {
         "id": "tasks_assegnati",
         "title": "Task Assegnati",
-        "icon": "✅",
+        "icon": "static:core/img/module-icons/vrf-kickoff.svg",
         "description": "Lista task aperti assegnati all'utente",
         "default_params": {"max_items": 10, "show_priority": True, "show_project": True, "filter_status": "open"},
     },
     {
         "id": "assenze_future",
         "title": "Assenze Programmate",
-        "icon": "📅",
+        "icon": "static:core/img/module-icons/assenze.svg",
         "description": "Assenze future approvate/programmate",
         "default_params": {"max_items": 8, "show_tipo": True, "show_motivazione": False},
     },
     {
         "id": "tickets_miei",
         "title": "Ticket Personali",
-        "icon": "🎫",
+        "icon": "static:core/img/module-icons/tickets.svg",
         "description": "I ticket aperti o presi in carico che ti coinvolgono",
         "default_params": {"max_items": 6, "show_closed": False},
     },
     {
         "id": "assets_dotazione",
         "title": "Asset in Dotazione",
-        "icon": "💼",
+        "icon": "static:core/img/module-icons/assets.svg",
         "description": "Asset assegnati al dipendente con scadenze amministrative in evidenza",
         "default_params": {"max_items": 6, "show_deadlines": True},
     },
     {
         "id": "procedure_da_leggere",
         "title": "Procedure da Leggere",
-        "icon": "📚",
+        "icon": "static:core/img/module-icons/refresh-procedure.svg",
         "description": "Campagne e prese visione ancora aperte",
         "default_params": {"max_items": 6, "show_confirmed": False},
     },
     {
         "id": "assenze_da_approvare",
         "title": "Assenze da Approvare",
-        "icon": "🔔",
+        "icon": "static:core/img/module-icons/assenze.svg",
         "description": "Assenze in attesa di approvazione (solo CAR/admin)",
         "default_params": {"max_items": 8},
         "role_required": ["car", "capo reparto", "amministrazione", "admin"],
@@ -760,7 +864,7 @@ EMPLOYEE_BOARD_WIDGETS = [
     {
         "id": "progetti_capo",
         "title": "Progetti (come Capo Commessa)",
-        "icon": "🏗️",
+        "icon": "static:core/img/module-icons/vrf-kickoff.svg",
         "description": "Progetti dove sei capo commessa",
         "default_params": {"max_items": 8, "show_manager": True},
         "role_required": ["capo commessa", "capo_commessa", "admin"],
@@ -768,7 +872,7 @@ EMPLOYEE_BOARD_WIDGETS = [
     {
         "id": "anomalie_gestione",
         "title": "Anomalie da Gestire",
-        "icon": "⚠️",
+        "icon": "static:core/img/module-icons/gestione-anomalie.svg",
         "description": "Anomalie aperte (visibili a capo commessa e CAR/admin)",
         "default_params": {"max_items": 8, "solo_aperte": True},
         "role_required": ["capo commessa", "capo_commessa", "car", "capo reparto", "amministrazione", "admin"],
@@ -776,11 +880,26 @@ EMPLOYEE_BOARD_WIDGETS = [
     {
         "id": "notifiche",
         "title": "Notifiche",
-        "icon": "🔔",
+        "icon": "static:core/img/module-icons/notizie.svg",
         "description": "Ultime notifiche non lette",
         "default_params": {"max_items": 6, "solo_non_lette": False},
     },
 ]
+
+_EMPLOYEE_WIDGET_MODULE_ICON_ALIASES = {
+    "profilo": ("anagrafica",),
+    "panoramica_moduli": ("diario-preposto", "dashboard"),
+    "tasks_stats": ("tasks", "task", "vrf-kickoff", "kickoff"),
+    "tasks_assegnati": ("tasks", "task", "vrf-kickoff", "kickoff"),
+    "assenze_future": ("assenze", "assenza"),
+    "tickets_miei": ("tickets", "ticket"),
+    "assets_dotazione": ("assets", "asset"),
+    "procedure_da_leggere": ("procedure-refresh", "refresh-procedure", "procedure"),
+    "assenze_da_approvare": ("assenze", "assenza"),
+    "progetti_capo": ("tasks", "task", "vrf-kickoff", "kickoff"),
+    "anomalie_gestione": ("gestione-anomalie", "anomalie", "anomalia"),
+    "notifiche": ("notizie", "notizia", "news"),
+}
 
 EMPLOYEE_BOARD_DEFAULT_LAYOUT = [
     "profilo",
@@ -959,6 +1078,21 @@ def _board_ordered_widgets(
                 continue
         result.append(w)
     return result
+
+
+def _decorate_board_widgets_with_module_images(
+    widgets: list[dict],
+    icon_lookup: dict[str, str] | None,
+) -> list[dict]:
+    decorated = []
+    for widget in widgets:
+        item = dict(widget)
+        aliases = _EMPLOYEE_WIDGET_MODULE_ICON_ALIASES.get(str(item.get("id") or ""), ())
+        manual_icon = _module_image_url_for(icon_lookup, *aliases)
+        if manual_icon:
+            item["icon"] = manual_icon
+        decorated.append(item)
+    return decorated
 
 
 def _board_data_tasks(legacy_user_id: int | None, params: dict) -> dict:
@@ -1411,6 +1545,7 @@ def _board_data_module_overview(
     legacy_user: Any,
     legacy_user_id: int | None,
     params: dict,
+    icon_lookup: dict[str, str] | None = None,
 ) -> dict:
     task_data = _board_data_tasks(legacy_user_id, {"max_items": 1, "filter_status": "open"})
     ticket_data = _board_data_tickets(request_user, legacy_user, legacy_user_id, {"max_items": 1, "show_closed": False})
@@ -1425,6 +1560,9 @@ def _board_data_module_overview(
             "meta": f"{int(task_data.get('stats', {}).get('overdue', 0))} scaduti",
             "tone": "blue",
             "url": reverse("tasks:list"),
+            "icon_url": _module_image_url_for(
+                icon_lookup, "tasks", "task", "vrf-kickoff", "kickoff", fallback_filename="vrf-kickoff.svg"
+            ),
         },
         {
             "label": "Assenze programmate",
@@ -1432,6 +1570,7 @@ def _board_data_module_overview(
             "meta": "viste dal modulo assenze",
             "tone": "green",
             "url": reverse("assenze_menu"),
+            "icon_url": _module_image_url_for(icon_lookup, "assenze", "assenza", fallback_filename="assenze.svg"),
         },
         {
             "label": "Ticket attivi",
@@ -1441,6 +1580,7 @@ def _board_data_module_overview(
             "meta": f"{int(ticket_data.get('stats', {}).get('urgent', 0))} urgenti",
             "tone": "red",
             "url": reverse("tickets:dashboard"),
+            "icon_url": _module_image_url_for(icon_lookup, "tickets", "ticket", fallback_filename="tickets.svg"),
         },
         {
             "label": "Asset assegnati",
@@ -1448,6 +1588,7 @@ def _board_data_module_overview(
             "meta": f"{int(asset_data.get('stats', {}).get('deadlines', 0))} scadenze nei prossimi 30 gg",
             "tone": "purple",
             "url": reverse("assets:asset_list"),
+            "icon_url": _module_image_url_for(icon_lookup, "assets", "asset", fallback_filename="assets.svg"),
         },
         {
             "label": "Procedure aperte",
@@ -1456,6 +1597,13 @@ def _board_data_module_overview(
             "meta": f"{int(procedure_data.get('stats', {}).get('confirmed', 0))} confermate",
             "tone": "yellow",
             "url": reverse("procedure_refresh:my_assignments"),
+            "icon_url": _module_image_url_for(
+                icon_lookup,
+                "procedure-refresh",
+                "refresh-procedure",
+                "procedure",
+                fallback_filename="refresh-procedure.svg",
+            ),
         },
     ]
     if not show_secondary:
@@ -1484,11 +1632,12 @@ def _get_employee_board_widget_data(
     legacy_user_id: int | None,
     is_admin: bool,
     params: dict,
+    icon_lookup: dict[str, str] | None = None,
 ) -> Any:
     if widget_id == "profilo":
         return _board_data_profilo(legacy_user, legacy_user_id)
     if widget_id == "panoramica_moduli":
-        return _board_data_module_overview(request_user, legacy_user, legacy_user_id, params)
+        return _board_data_module_overview(request_user, legacy_user, legacy_user_id, params, icon_lookup=icon_lookup)
     if widget_id in ("tasks_stats", "tasks_assegnati"):
         return _board_data_tasks(legacy_user_id, params)
     if widget_id == "assenze_future":
@@ -1520,6 +1669,7 @@ def _build_employee_board_context(request, *, primary_dashboard: bool) -> dict[s
 
     board_cfg = _load_employee_board_config(legacy_user_id)
     widget_configs = board_cfg.get("widget_configs") or {}
+    module_icon_lookup = _module_card_image_lookup()
 
     ordered_widgets = _board_ordered_widgets(
         board_cfg.get("layout") or [],
@@ -1528,6 +1678,8 @@ def _build_employee_board_context(request, *, primary_dashboard: bool) -> dict[s
         widget_visibility=widget_visibility,
     )
     available_widgets = _available_board_widgets(legacy_user, is_admin, widget_visibility=widget_visibility)
+    ordered_widgets = _decorate_board_widgets_with_module_images(ordered_widgets, module_icon_lookup)
+    available_widgets = _decorate_board_widgets_with_module_images(available_widgets, module_icon_lookup)
 
     widget_data: dict[str, Any] = {}
     for w in ordered_widgets:
@@ -1540,6 +1692,7 @@ def _build_employee_board_context(request, *, primary_dashboard: bool) -> dict[s
             legacy_user_id=legacy_user_id,
             is_admin=is_admin,
             params=params,
+            icon_lookup=module_icon_lookup,
         )
 
     merged_params: dict[str, dict] = {}

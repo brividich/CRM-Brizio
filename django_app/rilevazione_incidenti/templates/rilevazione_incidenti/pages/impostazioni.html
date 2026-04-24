@@ -87,6 +87,28 @@
 }
 .sic-storage-local { background:#fef9c3; color:#a16207; }
 .sic-storage-sharepoint { background:#dbeafe; color:#1e40af; }
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .sic-breadcrumb { color:var(--text-light); }
+body.theme-dark .sic-breadcrumb a { color:#2dd4bf; }
+body.theme-dark .sic-tabs-nav { border-color:var(--border); }
+body.theme-dark .sic-tab-btn { color:var(--text-light); }
+body.theme-dark .sic-tab-btn:hover { color:#2dd4bf; }
+body.theme-dark .sic-tab-btn.active { color:#2dd4bf; border-color:#2dd4bf; }
+body.theme-dark .sic-form-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .sic-section { border-color:var(--border); }
+body.theme-dark .sic-section-title { color:var(--text); }
+body.theme-dark .sic-field label { color:var(--text-mid); }
+body.theme-dark .sic-field input, body.theme-dark .sic-field select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .sic-info-box { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .sic-info-stat-label { color:var(--text-light); }
+body.theme-dark .sic-info-stat-value { color:var(--text); }
+body.theme-dark .sic-info-stat-sub { color:var(--text-light); }
+body.theme-dark .sic-default-list-item { border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .sic-storage-local      { background:rgba(161,98,7,.2); color:#fde68a; }
+body.theme-dark .sic-storage-sharepoint { background:rgba(29,78,216,.2); color:#93c5fd; }
+body.theme-dark .sic-error-box { background:rgba(153,27,27,.2); border-color:rgba(252,165,165,.3); color:#fca5a5; }
+body.theme-dark .sic-info-box { background:rgba(3,105,161,.15); border-color:rgba(186,230,253,.3); }
+body.theme-dark .sic-btn-back { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
 </style>
 {% endblock %}
 

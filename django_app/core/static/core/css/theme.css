@@ -1,5 +1,5 @@
 :root{
-  --bg:#eef0f5;--surface:#fff;--border:#dde1ec;--primary:#1e3a5f;--primary-mid:#2d5282;--accent:#f97316;--accent-light:#fff4ed;
+  --bg:#f2f5f8;--surface:#fff;--border:#d7e0ea;--primary:#002b5c;--primary-mid:#2f5f89;--accent:#ff6b00;--accent-light:#fff4ed;
   --text:#1a202c;--text-mid:#4a5568;--text-light:#94a3b8;--success:#38a169;--success-bg:#f0fff4;--warning:#d69e2e;--warning-bg:#fffff0;
   --danger:#e53e3e;--danger-bg:#fff5f5;--radius:12px;--shadow:0 1px 3px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.04);
   --fs-2xs:10px;--fs-xs:11px;--fs-sm:12px;--fs-base:13px;--fs-md:14px;--fs-lg:16px;--fs-xl:18px;--fs-heading:22px;--fs-button:13px;--fs-input:13px;--fs-table:13px;
@@ -14,7 +14,39 @@ body.theme-dark{
   --bg:#0b1220;--surface:#111a2a;--border:#223147;--text:#e5e7eb;--text-mid:#cbd5e1;--text-light:#94a3b8;
   --accent-light:rgba(249,115,22,.14);--success-bg:rgba(56,161,105,.18);--warning-bg:rgba(214,158,46,.16);--danger-bg:rgba(229,62,62,.16);
   --shadow:0 1px 3px rgba(0,0,0,.35),0 8px 24px rgba(0,0,0,.28);
+  /* extra vars usabili nei template per evitare hardcode */
+  --surface-alt:#0f1b2d;--hover-bg:rgba(255,255,255,.05);--stripe-bg:rgba(255,255,255,.03);
+  --badge-bg:rgba(255,255,255,.1);--badge-border:rgba(255,255,255,.15);
+  --thead-bg:#0f1b2d;--tbody-hover:rgba(255,255,255,.04);
+  --card-head-bg:#0f1b2d;--section-head-bg:#0f1b2d;
 }
+/* ── Dark mode overrides: classi globali theme.css con colori hardcoded ── */
+body.theme-dark .nav-dropdown-item:hover{background:rgba(255,255,255,.07);color:#60a5fa}
+body.theme-dark .nav-dropdown-item.active{background:rgba(26,111,196,.25);color:#60a5fa}
+body.theme-dark .btn-back:hover{background:rgba(255,255,255,.07);color:var(--text)}
+body.theme-dark .btn-secondary:hover:not(:disabled):not(.btn-loading){background:rgba(255,255,255,.07)}
+body.theme-dark .stat-icon-wrap.blue{background:rgba(66,153,225,.18)}
+body.theme-dark .admin-table thead th,body.theme-dark table thead th{background:var(--thead-bg);color:var(--text-light)}
+body.theme-dark .admin-table tbody tr:hover{background:var(--tbody-hover)}
+body.theme-dark .badge{background:var(--badge-bg);color:var(--text-mid);border-color:var(--badge-border)}
+body.theme-dark .badge-success{background:var(--success-bg);border-color:rgba(56,161,105,.35)}
+body.theme-dark .badge-danger{background:var(--danger-bg);border-color:rgba(229,62,62,.35)}
+body.theme-dark .impersonation-banner{background:rgba(154,52,18,.25);border-color:rgba(253,186,116,.2);color:#fed7aa}
+body.theme-dark .gs-item:hover,body.theme-dark .gs-item.gs-selected{background:rgba(255,255,255,.07)}
+body.theme-dark .gs-tipo-dipendente .gs-item-icon{background:rgba(29,78,216,.2)}
+body.theme-dark .gs-tipo-asset .gs-item-icon{background:rgba(21,128,61,.2)}
+body.theme-dark .gs-tipo-ticket .gs-item-icon{background:rgba(194,65,12,.2)}
+body.theme-dark .gs-tipo-kickoff .gs-item-icon{background:rgba(126,34,206,.2)}
+body.theme-dark .gs-tipo-task .gs-item-icon{background:rgba(3,105,161,.2)}
+body.theme-dark .gs-tipo-procedura .gs-item-icon{background:rgba(133,77,14,.2)}
+body.theme-dark .notify-banner{background:linear-gradient(135deg,rgba(15,23,42,.9) 0%,rgba(17,26,42,.95) 48%,rgba(17,26,42,.9) 100%);border-color:rgba(255,255,255,.1);box-shadow:0 12px 30px rgba(0,0,0,.35)}
+body.theme-dark .notify-banner-title{color:var(--text)}
+body.theme-dark .notify-banner-sub{color:var(--text-mid)}
+body.theme-dark .notify-banner-item{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.1)}
+body.theme-dark .notify-banner-item-title{color:var(--text)}
+body.theme-dark .notify-banner-item-message{color:var(--text-mid)}
+body.theme-dark .notify-banner-item-link{background:rgba(29,78,216,.2);color:#93c5fd}
+body.theme-dark .notify-banner-item-link:hover{background:rgba(29,78,216,.3)}
 *{margin:0;padding:0;box-sizing:border-box}
 html{font-size:100%}
 body{font-family:"Outfit",sans-serif;font-size:var(--fs-base);line-height:var(--lh-base);background:var(--bg);color:var(--text);min-height:100vh}

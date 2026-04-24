@@ -247,6 +247,46 @@
     @media (max-width: 700px) {
       .event-edit-grid { grid-template-columns: 1fr; }
     }
+    /* ── Dark mode ──────────────────────────────────────────────────────────── */
+    body.theme-dark .fc {
+      --fc-border-color: #223147;
+      --fc-page-bg-color: var(--surface);
+      --fc-neutral-bg-color: var(--surface-alt);
+      --fc-today-bg-color: rgba(14,165,164,.12);
+      --fc-button-bg-color: var(--surface);
+      --fc-button-border-color: #223147;
+      --fc-button-text-color: #cbd5e1;
+      --fc-button-hover-bg-color: rgba(255,255,255,.07);
+      --fc-button-active-bg-color: #0f766e;
+      --fc-button-active-border-color: #0f766e;
+    }
+    body.theme-dark .fc .fc-toolbar-title { color:var(--text); }
+    body.theme-dark .fc .fc-col-header-cell-cushion { color:var(--text-light); }
+    body.theme-dark .fc .fc-daygrid-day-number { color:var(--text-mid); }
+    body.theme-dark .fc .fc-daygrid-more-link { color:#60a5fa; }
+    body.theme-dark .fc .fc-daygrid-event .fc-event-title,
+    body.theme-dark .fc .fc-daygrid-event .fc-event-time { color:#fff; }
+    body.theme-dark .agenda-item { background:var(--surface-alt); border-color:var(--border); }
+    body.theme-dark .agenda-item:hover { background:var(--surface); }
+    body.theme-dark .agenda-name { color:var(--text); }
+    body.theme-dark .agenda-time, body.theme-dark .agenda-meta { color:var(--text-light); }
+    body.theme-dark .agenda-empty { color:var(--text-light); }
+    body.theme-dark .color-row label { color:var(--text-mid); }
+    body.theme-dark .color-row input[type="color"] { background:var(--surface-alt); border-color:var(--border); }
+    body.theme-dark .color-status { color:var(--text-light); }
+    body.theme-dark .event-modal { background:var(--surface); border-color:var(--border); }
+    body.theme-dark .event-modal-head { border-color:var(--border); }
+    body.theme-dark .event-modal-title { color:var(--text); }
+    body.theme-dark .event-modal-close { background:var(--surface-alt); border-color:var(--border); color:var(--text-light); }
+    body.theme-dark .event-summary { background:var(--surface-alt); border-color:var(--border); }
+    body.theme-dark .event-summary-row, body.theme-dark .event-summary-row strong { color:var(--text); }
+    body.theme-dark .event-edit-grid label { color:var(--text-mid); }
+    body.theme-dark .event-edit-grid input, body.theme-dark .event-edit-grid select, body.theme-dark .event-edit-grid textarea { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+    body.theme-dark .event-modal-foot { border-color:var(--border); }
+    body.theme-dark .status-chip.approvato { background:rgba(21,128,61,.2); border-color:rgba(134,239,172,.3); color:#86efac; }
+    body.theme-dark .status-chip.in-attesa { background:rgba(29,78,216,.2); border-color:rgba(147,197,253,.3); color:#93c5fd; }
+    body.theme-dark .status-chip.rifiutato { background:rgba(185,28,28,.2); border-color:rgba(252,165,165,.3); color:#fca5a5; }
+    body.theme-dark .status-chip.altro { background:rgba(255,255,255,.08); border-color:var(--border); color:var(--text-mid); }
   </style>
 {% endblock %}
 

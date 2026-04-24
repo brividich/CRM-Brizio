@@ -8,6 +8,7 @@ from cachetools import TTLCache
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login
+from django.http.request import split_domain_port
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -31,6 +32,15 @@ _SPNEGO_CONTEXTS: TTLCache[str, object] = TTLCache(maxsize=500, ttl=60)
 
 def _normalize_principal(principal: str) -> str:
     return normalize_windows_principal_to_upn(principal)
+
+
+def _spnego_server_context(request, spnego_module):
+    configured_hostname = str(getattr(settings, "WINDOWS_SSO_HOSTNAME", "") or "").strip()
+    hostname = configured_hostname
+    if not hostname:
+        hostname = split_domain_port(request.get_host())[0] or request.get_host()
+    service = str(getattr(settings, "WINDOWS_SSO_SERVICE", "HTTP") or "HTTP").strip() or "HTTP"
+    return spnego_module.server(hostname=hostname, service=service, protocol="negotiate")
 
 
 @csrf_exempt
@@ -59,7 +69,7 @@ def windows_sso_view(request):
     if not auth_header:
         # Passo 1: sfida il browser
         ctx_id = str(uuid.uuid4())
-        _SPNEGO_CONTEXTS[ctx_id] = spnego.server(protocol="negotiate")
+        _SPNEGO_CONTEXTS[ctx_id] = _spnego_server_context(request, spnego)
         response = HttpResponse(status=401)
         response["WWW-Authenticate"] = "Negotiate"
         response.set_cookie("_sso_ctx", ctx_id, max_age=60, httponly=True, samesite="Lax")
@@ -74,7 +84,7 @@ def windows_sso_view(request):
     ctx = _SPNEGO_CONTEXTS.get(ctx_id)
     if ctx is None:
         # Contesto scaduto o mancante: ricomincia
-        ctx = spnego.server(protocol="negotiate")
+        ctx = _spnego_server_context(request, spnego)
 
     try:
         in_token = base64.b64decode(token_b64)

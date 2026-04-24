@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # ── UI Preferences helpers ──────────────────────────────────────────────────
 _UI_PREFS_SESSION_KEY = "_ui_prefs_v2"
 _UI_PREFS_DEFAULTS: dict = {
-    "nav_mode": "side",
+    "nav_mode": "top",
     "theme_mode": "light",
     "font_scale": "normal",
     "sidebar_collapsed": False,

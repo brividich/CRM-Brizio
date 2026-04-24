@@ -94,6 +94,44 @@
 @media (max-width:480px) {
   .tkt-kpi-row { grid-template-columns:repeat(2,1fr); }
 }
+
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .tkt-kpi { background:var(--surface); border-color:var(--border); }
+body.theme-dark .tkt-kpi-lbl { color:var(--text-light); }
+body.theme-dark .tkt-kpi .tkt-kpi-val { color:var(--text) !important; }
+
+body.theme-dark .tkt-filters { background:var(--surface); border-color:var(--border); }
+body.theme-dark .tkt-filters label { color:var(--text-mid); }
+body.theme-dark .tkt-filters select,
+body.theme-dark .tkt-filters input[type=text] { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .tkt-filters-reset { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .tkt-filters-reset:hover { background:var(--hover-bg); }
+
+body.theme-dark .tkt-table-wrap { background:var(--surface); border-color:var(--border); }
+body.theme-dark .tkt-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+body.theme-dark .tkt-table td { border-color:var(--border); }
+body.theme-dark .tkt-table tr:hover td { background:var(--tbody-hover); }
+body.theme-dark .tkt-table a { color:#60a5fa; }
+body.theme-dark .tkt-pdf-link { background:rgba(29,78,216,.18); color:#93c5fd; border-color:rgba(59,130,246,.3); }
+body.theme-dark .tkt-pdf-link:hover { background:rgba(29,78,216,.28); }
+
+body.theme-dark .tkt-badge-APERTA    { background:rgba(29,78,216,.2);  color:#93c5fd; }
+body.theme-dark .tkt-badge-IN_CARICO { background:rgba(146,64,14,.25); color:#fcd34d; }
+body.theme-dark .tkt-badge-RISOLTO   { background:rgba(6,95,70,.25);   color:#6ee7b7; }
+body.theme-dark .tkt-badge-CHIUSO    { background:rgba(71,85,105,.2);  color:#94a3b8; }
+body.theme-dark .tkt-badge-ANNULLATO { background:rgba(153,27,27,.2);  color:#fca5a5; }
+
+body.theme-dark .tkt-prio-BASSA   { background:rgba(22,101,52,.2);  color:#86efac; }
+body.theme-dark .tkt-prio-MEDIA   { background:rgba(30,64,175,.2);  color:#93c5fd; }
+body.theme-dark .tkt-prio-ALTA    { background:rgba(154,52,18,.2);  color:#fdba74; }
+body.theme-dark .tkt-prio-URGENTE { background:rgba(220,38,38,.18); color:#fca5a5; }
+
+body.theme-dark .tkt-tipo-IT  { background:rgba(3,105,161,.2);  color:#7dd3fc; }
+body.theme-dark .tkt-tipo-MAN { background:rgba(21,128,61,.2);  color:#86efac; }
+
+body.theme-dark .tkt-asset-main { color:var(--text); }
+body.theme-dark .tkt-asset-meta { color:var(--text-light); }
+body.theme-dark .tkt-empty { color:var(--text-light); }
 </style>
 {% endblock %}
 

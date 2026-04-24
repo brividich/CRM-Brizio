@@ -82,6 +82,27 @@
 .dpi-btn-submit:disabled { background:#9ca3af; cursor:not-allowed; }
 .dpi-btn-back { padding:11px 20px; border-radius:10px; background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; font-size:13px; font-weight:600; text-decoration:none; }
 .dpi-btn-back:hover { background:#e2e8f0; }
+
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .dpi-subnav-link { background:var(--surface); color:var(--text-mid); }
+body.theme-dark .dpi-subnav-link:hover { background:rgba(255,255,255,.07); color:var(--text); }
+body.theme-dark .dpi-subnav-link.active { background:#0369a1; color:#fff; }
+body.theme-dark .dpi-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dpi-card-title { color:var(--text); }
+body.theme-dark .dpi-card-sub { color:var(--text-light); }
+body.theme-dark .dpi-picker-label { color:var(--text-mid); }
+body.theme-dark .dpi-cat-card { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .dpi-cat-card:hover { border-color:#16a34a; background:rgba(21,128,61,.15); }
+body.theme-dark .dpi-cat-card.selected { border-color:#16a34a; background:rgba(21,128,61,.15); }
+body.theme-dark .dpi-cat-card-img { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dpi-cat-card-name { color:var(--text); }
+body.theme-dark .dpi-cat-card-vita { color:var(--text-light); }
+body.theme-dark .dpi-field label { color:var(--text-mid); }
+body.theme-dark .dpi-field input[type=number], body.theme-dark .dpi-field textarea, body.theme-dark .dpi-field select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .dpi-qty-um { color:var(--text-light); }
+body.theme-dark .dpi-selected-info { background:rgba(21,128,61,.15); border-color:rgba(21,128,61,.35); color:#86efac; }
+body.theme-dark .dpi-btn-back { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .dpi-btn-back:hover { background:var(--surface); }
 </style>
 {% endblock %}
 

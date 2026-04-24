@@ -71,6 +71,13 @@
 .badge-non_conforme{ background: #fee2e2; color: #dc2626; }
 .badge-non_letto   { background: #f1f5f9; color: #64748b; }
 .notizia-obbligatoria-icon { color: #dc2626; font-size: 1rem; }
+
+body.theme-dark .notizia-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .notizia-card:hover { box-shadow:0 2px 12px rgba(0,0,0,.25); }
+body.theme-dark .badge-conforme { background:rgba(22,163,74,.15); color:#86efac; }
+body.theme-dark .badge-aperto { background:rgba(180,83,9,.15); color:#fcd34d; }
+body.theme-dark .badge-non_conforme { background:rgba(220,38,38,.15); color:#fca5a5; }
+body.theme-dark .badge-non_letto { background:var(--surface-alt); color:var(--text-light); }
 </style>
 {% endblock %}
 

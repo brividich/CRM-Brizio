@@ -23,9 +23,9 @@ PORTAL_BRANDING_DEFAULTS: dict[str, str] = {
     "brand_landing_fit_mode": "cover",
     "brand_login_form_x": "78",
     "brand_login_form_y": "50",
-    "brand_primary_color": "#1e3a5f",
-    "brand_accent_color": "#f97316",
-    "brand_background_color": "#eef0f5",
+    "brand_primary_color": "#002b5c",
+    "brand_accent_color": "#ff6b00",
+    "brand_background_color": "#f2f5f8",
 }
 
 _HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")

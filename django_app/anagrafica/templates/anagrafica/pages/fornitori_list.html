@@ -65,6 +65,28 @@
 
 @media(max-width:700px){ .ana-kpi{ grid-template-columns:1fr 1fr; } }
 @media(max-width:480px){ .ana-kpi{ grid-template-columns:1fr; } }
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .ana-title { color:var(--text); }
+body.theme-dark .ana-sub { color:var(--text-light); }
+body.theme-dark .ana-btn-ghost { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .ana-kpi-card, body.theme-dark .ana-filter-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .ana-kpi-val { color:var(--text); }
+body.theme-dark .ana-kpi-lbl { color:var(--text-light); }
+body.theme-dark .ana-field label { color:var(--text-light); }
+body.theme-dark .ana-input, body.theme-dark .ana-select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .ana-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+body.theme-dark .ana-table td { border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .ana-table tr:hover td { background:var(--tbody-hover); }
+body.theme-dark .ana-pill-blue { background:rgba(29,78,216,.2); color:#93c5fd; }
+body.theme-dark .ana-pill-gray { background:rgba(255,255,255,.08); color:var(--text-mid); }
+body.theme-dark .ana-empty { color:var(--text-light); }
+body.theme-dark .cat-MATERIALI    { background:rgba(133,77,14,.2); color:#fde68a; }
+body.theme-dark .cat-SERVIZI      { background:rgba(29,78,216,.2); color:#93c5fd; }
+body.theme-dark .cat-ATTREZZATURE { background:rgba(157,23,77,.2); color:#f9a8d4; }
+body.theme-dark .cat-LOGISTICA    { background:rgba(6,95,70,.2); color:#6ee7b7; }
+body.theme-dark .cat-IT           { background:rgba(91,33,182,.2); color:#c4b5fd; }
+body.theme-dark .cat-MANUTENZIONE { background:rgba(154,52,18,.2); color:#fdba74; }
+body.theme-dark .cat-ALTRO        { background:rgba(255,255,255,.08); color:var(--text-mid); }
 </style>
 {% endblock %}
 

@@ -28,6 +28,10 @@
     .abs-recent-main { display: grid; gap: 4px; }
     .abs-recent-title { font-size: 14px; font-weight: 800; color: #0f172a; }
     .abs-recent-meta { font-size: 12px; color: #64748b; }
+    /* ── Dark mode ──────────────────────────────────────────────────────────── */
+    body.theme-dark .abs-recent-item { background:var(--surface-alt); border-color:var(--border); }
+    body.theme-dark .abs-recent-title { color:var(--text); }
+    body.theme-dark .abs-recent-meta  { color:var(--text-light); }
   </style>
 {% endblock %}
 

@@ -53,6 +53,24 @@
   .mn-form-grid { grid-template-columns:1fr; }
   .mn-grid { grid-template-columns:1fr; }
 }
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .mn-title { color:var(--text); }
+body.theme-dark .mn-sub { color:var(--text-light); }
+body.theme-dark .mn-btn-ghost { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .mn-btn-danger { background:rgba(185,28,28,.2); color:#fca5a5; border-color:rgba(252,165,165,.3); }
+body.theme-dark .mn-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .mn-card-head { border-color:var(--border); background:var(--bg); }
+body.theme-dark .mn-card-title { color:var(--text); }
+body.theme-dark .mn-item { background:var(--surface-alt); border-color:var(--border); }
+body.theme-dark .mn-item-name { color:var(--text); }
+body.theme-dark .mn-item-desc { color:var(--text-light); }
+body.theme-dark .mn-item-meta { color:var(--text-light); }
+body.theme-dark .mn-empty { color:var(--text-light); }
+body.theme-dark .mn-modal-overlay { background:rgba(0,0,0,.65); }
+body.theme-dark .mn-modal { background:var(--surface); }
+body.theme-dark .mn-modal-title { color:var(--text); }
+body.theme-dark .mn-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .mn-field label { color:var(--text-mid); }
 </style>
 {% endblock %}
 

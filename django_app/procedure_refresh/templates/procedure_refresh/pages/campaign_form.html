@@ -18,6 +18,12 @@
 .pr-form-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
 .pr-btn-save { padding:10px 24px; background:#1d4ed8; color:#fff; border:none; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; }
 .pr-btn-cancel { padding:10px 18px; background:#f1f5f9; color:#475569; border:none; border-radius:10px; font-size:14px; font-weight:600; text-decoration:none; display:inline-block; }
+
+body.theme-dark .pr-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .pr-card-title { color:var(--text); }
+body.theme-dark .pr-form-group label { color:var(--text-mid); }
+body.theme-dark .pr-form-group input, body.theme-dark .pr-form-group textarea { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .pr-btn-cancel { background:var(--surface-alt); color:var(--text-mid); }
 </style>
 {% endblock %}
 

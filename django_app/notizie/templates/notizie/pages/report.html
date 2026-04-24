@@ -22,6 +22,16 @@
 .badge-non_letto    { background:#f1f5f9; color:#64748b; }
 .btn-export { padding:.45rem 1.1rem; background:#16a34a; color:#fff; border-radius:7px; font-size:.9rem; font-weight:600; text-decoration:none; }
 .btn-export:hover { opacity:.85; }
+
+body.theme-dark .report-filters { background:var(--surface); border-color:var(--border); }
+body.theme-dark .report-filters label { color:var(--text-light); }
+body.theme-dark .report-filters select, body.theme-dark .report-filters input[type=date], body.theme-dark .report-filters input[type=text] { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .report-table td { border-color:var(--border); color:var(--text); }
+body.theme-dark .report-table tr:hover td { background:var(--tbody-hover); }
+body.theme-dark .badge-conforme { background:rgba(22,163,74,.15); color:#86efac; }
+body.theme-dark .badge-aperto { background:rgba(180,83,9,.15); color:#fcd34d; }
+body.theme-dark .badge-non_conforme { background:rgba(220,38,38,.15); color:#fca5a5; }
+body.theme-dark .badge-non_letto { background:var(--surface-alt); color:var(--text-light); }
 </style>
 {% endblock %}
 

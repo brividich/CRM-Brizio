@@ -38,6 +38,29 @@
 .pr-badge-overdue { background:#fee2e2; color:#dc2626; }
 .pr-badge-cancelled { background:#f1f5f9; color:#64748b; }
 .pr-empty { text-align:center; padding:40px; color:#64748b; font-size:14px; }
+
+body.theme-dark .pr-subnav-link { background:var(--surface); color:var(--text-mid); border:1px solid var(--border); }
+body.theme-dark .pr-subnav-link:hover { background:var(--surface-alt); color:var(--text); }
+body.theme-dark .pr-subnav-link.active { background:#1d4ed8; color:#fff; border-color:#1d4ed8; }
+body.theme-dark .pr-page-title { color:var(--text); }
+body.theme-dark .pr-tab { background:var(--surface); color:var(--text-mid); }
+body.theme-dark .pr-tab:hover { background:var(--surface-alt); color:var(--text); }
+body.theme-dark .pr-tab.active { background:#1d4ed8; color:#fff; }
+body.theme-dark .pr-filter-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .pr-filter-row select { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .pr-kpi { background:var(--surface); border-color:var(--border); }
+body.theme-dark .pr-kpi-val { color:var(--text); }
+body.theme-dark .pr-kpi-lbl { color:var(--text-light); }
+body.theme-dark .pr-table-wrap { background:var(--surface); border-color:var(--border); }
+body.theme-dark .pr-table th { background:var(--thead-bg); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .pr-table td { border-color:var(--border); color:var(--text); }
+body.theme-dark .pr-table tr:hover td { background:var(--tbody-hover); }
+body.theme-dark .pr-badge-assigned { background:rgba(29,78,216,.2); color:#93c5fd; }
+body.theme-dark .pr-badge-opened { background:rgba(180,83,9,.2); color:#fcd34d; }
+body.theme-dark .pr-badge-confirmed { background:rgba(21,128,61,.2); color:#86efac; }
+body.theme-dark .pr-badge-overdue { background:rgba(220,38,38,.2); color:#fca5a5; }
+body.theme-dark .pr-badge-cancelled { background:var(--surface-alt); color:var(--text-light); }
+body.theme-dark .pr-empty { color:var(--text-light); }
 </style>
 {% endblock %}
 

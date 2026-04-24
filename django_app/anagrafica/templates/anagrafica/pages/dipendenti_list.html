@@ -46,6 +46,23 @@
 .ana-form-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
 .ana-checkline { display:flex; align-items:center; gap:8px; font-size:13px; color:#334155; }
 @media (max-width: 900px) { .ana-form-grid { grid-template-columns:1fr; } }
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .ana-title { color:var(--text); }
+body.theme-dark .ana-sub { color:var(--text-light); }
+body.theme-dark .ana-btn-ghost { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .ana-btn-ghost:hover { background:var(--surface); }
+body.theme-dark .ana-filter-card, body.theme-dark .ana-form-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .ana-field label { color:var(--text-light); }
+body.theme-dark .ana-input, body.theme-dark .ana-select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .ana-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+body.theme-dark .ana-table td { border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .ana-table tr:hover td { background:var(--tbody-hover); }
+body.theme-dark .ana-pill-blue { background:rgba(29,78,216,.2); color:#93c5fd; }
+body.theme-dark .ana-pill-gray { background:rgba(255,255,255,.08); color:var(--text-mid); }
+body.theme-dark .ana-empty { color:var(--text-light); }
+body.theme-dark .ana-pag span { color:var(--text-light); }
+body.theme-dark .ana-notice { background:rgba(146,64,14,.15); border-color:rgba(253,230,138,.3); color:#fde68a; }
+body.theme-dark .ana-checkline { color:var(--text-mid); }
 </style>
 {% endblock %}
 

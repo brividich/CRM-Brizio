@@ -53,6 +53,28 @@
 @media (max-width:700px) {
   .ql-form-grid { grid-template-columns:1fr; }
 }
+/* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .ql-title { color:var(--text); }
+body.theme-dark .ql-sub { color:var(--text-light); }
+body.theme-dark .ql-btn-ghost { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .ql-btn-danger { background:rgba(185,28,28,.2); color:#fca5a5; border-color:rgba(252,165,165,.3); }
+body.theme-dark .ql-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .ql-card-head { border-color:var(--border); background:var(--bg); }
+body.theme-dark .ql-card-title { color:var(--text); }
+body.theme-dark .ql-table th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+body.theme-dark .ql-table td { border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .ql-table tr:hover td { background:var(--tbody-hover); }
+body.theme-dark .ql-scad-row-red td { background:rgba(153,27,27,.15) !important; }
+body.theme-dark .ql-scad-row-orange td { background:rgba(146,64,14,.15) !important; }
+body.theme-dark .ql-badge-blue { background:rgba(29,78,216,.2); color:#93c5fd; }
+body.theme-dark .ql-badge-gray { background:rgba(255,255,255,.08); color:var(--text-mid); }
+body.theme-dark .ql-badge-red  { background:rgba(185,28,28,.2); color:#fca5a5; }
+body.theme-dark .ql-empty { color:var(--text-light); }
+body.theme-dark .ql-modal-overlay { background:rgba(0,0,0,.65); }
+body.theme-dark .ql-modal { background:var(--surface); }
+body.theme-dark .ql-modal-title { color:var(--text); }
+body.theme-dark .ql-input { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .ql-field label { color:var(--text-mid); }
 </style>
 {% endblock %}
 

@@ -2139,6 +2139,39 @@ class AdminPortaleSimpleAccessTests(TestCase):
         )
         self.assertFalse(Permesso.objects.filter(ruolo_id=2, modulo="dashboard").exists())
 
+    def test_permessi_bulk_accepts_wizard_rows_payload(self):
+        self.client.force_login(self.admin_user)
+        with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(
+            "admin_portale.decorators.is_legacy_admin",
+            return_value=True,
+        ):
+            response = self.client.post(
+                reverse("admin_portale:api_permessi_bulk"),
+                data=json.dumps(
+                    {
+                        "ruolo_id": 2,
+                        "mode": "update",
+                        "rows": [
+                            {
+                                "modulo": "dashboard",
+                                "azione": "dashboard_home",
+                                "field": "can_view",
+                                "value": 1,
+                                "can_view": 1,
+                            }
+                        ],
+                    }
+                ),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        perm = Permesso.objects.get(ruolo_id=2, modulo="dashboard", azione="dashboard_home")
+        self.assertEqual(perm.can_view, 1)
+        self.assertEqual(perm.consentito, 1)
+
     def test_nav_user_override_toggle_is_hide_only(self):
         self.client.force_login(self.admin_user)
         with patch("admin_portale.decorators.get_legacy_user", return_value=self.admin_legacy), patch(

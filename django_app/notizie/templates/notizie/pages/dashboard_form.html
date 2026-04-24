@@ -68,6 +68,17 @@
 .tiny { font-size: .78rem; color: #64748b; }
 .errors { color: #b91c1c; font-size: .82rem; margin-top: .2rem; }
 @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+
+body.theme-dark .panel { background:var(--surface); border-color:var(--border); }
+body.theme-dark .panel h2 { color:var(--text); }
+body.theme-dark .field label { color:var(--text-light); }
+body.theme-dark .field input[type=text], body.theme-dark .field input[type=url],
+body.theme-dark .field input[type=number], body.theme-dark .field textarea { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .inline-table th { background:var(--thead-bg); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .inline-table td { border-color:var(--border); color:var(--text); }
+body.theme-dark .btn { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .btn:hover { background:var(--surface-alt); }
+body.theme-dark .tiny { color:var(--text-light); }
 </style>
 {% endblock %}
 

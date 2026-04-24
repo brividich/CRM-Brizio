@@ -50,6 +50,7 @@ urlpatterns = [
     path("api/pulsanti/update", api.api_pulsanti_update, name="api_pulsanti_update"),
     path("api/pulsanti/delete", api.api_pulsanti_delete, name="api_pulsanti_delete"),
     path("api/pulsanti/card-image", views.api_pulsanti_card_image, name="api_pulsanti_card_image"),
+    path("api/pulsanti/module-card-image", views.api_pulsanti_module_card_image, name="api_pulsanti_module_card_image"),
     path("wizard-pulsante/", views.wizard_pulsante, name="wizard_pulsante"),
     path("api/wizard/pulsante/submit/", views.api_wizard_pulsante_submit, name="api_wizard_pulsante_submit"),
     path("api/wizard/permessi-ruolo/", views.api_wizard_permessi_ruolo, name="api_wizard_permessi_ruolo"),
